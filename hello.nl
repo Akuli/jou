@@ -1,3 +1,4 @@
+cimport int putchar(int ch)
 putchar('h')
 putchar('e')
 putchar('l')

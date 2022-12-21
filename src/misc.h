@@ -1,9 +1,11 @@
-#ifndef LIST_H
-#define LIST_H
+#ifndef MISC_H
+#define MISC_H
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
+
 
 #define List(T) struct { T *ptr; int len,alloc; }
 #define Append(list, ...) do { \
@@ -20,5 +22,21 @@
 } while(0)
 #define End(list) (&(list).ptr[(list).len])
 #define Pop(list) (list)->ptr[assert((list)->len > 0), --(list)->len]
+
+
+// strcpy between two char arrays is safe
+#define safe_strcpy(dest, src) do{ \
+    static_assert(sizeof(src) > sizeof(char*), "src must be an array, not a pointer"); \
+    static_assert(sizeof(dest) > sizeof(char*), "dest must be an array, not a pointer"); \
+    static_assert(sizeof(dest) >= sizeof(src), "not enough room in dest"); \
+    strcpy((dest),(src)); \
+} while(0)
+
+
+struct Location {
+    const char *filename;
+    int lineno;
+};
+noreturn void fail_with_error(struct Location location, const char *fmt, ...);
 
 #endif

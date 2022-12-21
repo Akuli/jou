@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "tokenizer.h"
+
+#include "compile_steps.h"
 
 int main(int argc, char **argv)
 {
@@ -11,5 +12,10 @@ int main(int argc, char **argv)
 
     struct Token *tokens = tokenize(argv[1]);
     print_tokens(tokens);
+
+    struct AstStatement *ast = parse(tokens);
     free_tokens(tokens);
+
+    print_ast(ast);
+    free(ast);
 }

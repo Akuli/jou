@@ -1,3 +1,5 @@
+// Implementation of the tokenize() function. See compile_steps.h.
+
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -6,9 +8,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "tokenizer.h"
-#include "error.h"
-#include "list.h"
+#include "token.h"
+#include "misc.h"
 
 
 struct State {
@@ -104,30 +105,24 @@ bool is_identifier_continuation(char c)
     return is_identifier_first_byte(c) || ('0'<=c && c<='9');
 }
 
-static void *allocate_memory(struct State *st, void *old, size_t n)
+void read_identifier(struct State *st, char firstbyte, char (*dest)[100])
 {
-    void *result = realloc(old, n);
-    if(!result)
-        fail_with_error(st->location, "not enough memory for tokenizing");
-    return result;
-}
-
-char *read_identifier(struct State *st, char firstbyte)
-{
-    List(char) result = {0};
+    memset(*dest, 0, sizeof *dest);
+    int destlen = 0;
 
     assert(is_identifier_first_byte(firstbyte));
-    Append(&result, firstbyte);
+    (*dest)[destlen++] = firstbyte;
 
     while(1) {
         char c = read_byte(st);
-        if (is_identifier_continuation(c))
-            Append(&result, c);
-        else {
+        if (!is_identifier_continuation(c)) {
             unread_byte(st, c);
-            Append(&result, 0);
-            return result.ptr;
+            return;
         }
+
+        if (destlen == sizeof *dest - 1)
+            fail_with_error(st->location, "name \"%s\" is too long", *dest);
+        (*dest)[destlen++] = c;
     }
 }
 
@@ -135,24 +130,28 @@ static struct Token read_token(struct State *st)
 {
     struct Token t = { .location = st->location };
 
-    char c = read_byte(st);
-    switch(c) {
-        case '\n': t.type = TOKENTYPE_NEWLINE; break;
-        case '\0': t.type = TOKENTYPE_END_OF_FILE; break;
-        case '(': t.type = TOKENTYPE_OPENPAREN; break;
-        case ')': t.type = TOKENTYPE_CLOSEPAREN; break;
-        case '\'': t.type = TOKENTYPE_INT; t.data.value = read_char_literal(st); break;
-        default:
-            if(is_identifier_first_byte(c)) {
-                t.type = TOKENTYPE_NAME;
-                t.data.string = read_identifier(st, c);
-            } else {
-                fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (int)c);
-            }
-            break;
+    while(1) {
+        char c = read_byte(st);
+        switch(c) {
+            case ' ': continue;
+            case '\n': t.type = TOKEN_NEWLINE; break;
+            case '\0': t.type = TOKEN_END_OF_FILE; break;
+            case '(': t.type = TOKEN_OPENPAREN; break;
+            case ')': t.type = TOKEN_CLOSEPAREN; break;
+            case '\'': t.type = TOKEN_INT; t.data.int_value = read_char_literal(st); break;
+            default:
+                if(is_identifier_first_byte(c)) {
+                    t.type = TOKEN_NAME;
+                    read_identifier(st, c, &t.data.name);
+                    if (!strcmp(t.data.name, "cimport"))
+                        t.type = TOKEN_CIMPORT;
+                } else {
+                    fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (int)c);
+                }
+                break;
+        }
+        return t;
     }
-
-    return t;
 }
 
 struct Token *tokenize(const char *filename)
@@ -162,49 +161,9 @@ struct Token *tokenize(const char *filename)
         fail_with_error(st.location, "cannot open file: %s", strerror(errno));
 
     List(struct Token) tokens = {0};
-    while(tokens.len == 0 || tokens.ptr[tokens.len-1].type != TOKENTYPE_END_OF_FILE)
+    while(tokens.len == 0 || tokens.ptr[tokens.len-1].type != TOKEN_END_OF_FILE)
         Append(&tokens, read_token(&st));
 
     fclose(st.f);
     return tokens.ptr;
-}
-
-void print_tokens(const struct Token *tokens)
-{
-    const char *tokentype_names[] = {
-        #define f(x) [x] = #x,
-        f(TOKENTYPE_INT)
-        f(TOKENTYPE_OPENPAREN)
-        f(TOKENTYPE_CLOSEPAREN)
-        f(TOKENTYPE_NAME)
-        f(TOKENTYPE_NEWLINE)
-        f(TOKENTYPE_END_OF_FILE)
-        #undef f
-    };
-
-    printf("Tokens for file \"%s\":\n", tokens->location.filename);
-    int lastlineno = -1;
-    do {
-        if (tokens->location.lineno != lastlineno) {
-            printf("  Line %d:\n", tokens->location.lineno);
-            lastlineno = tokens->location.lineno;
-        }
-
-        printf("    %s", tokentype_names[tokens->type]);
-        if (tokens->type == TOKENTYPE_INT)
-            printf(" value=%d", tokens->data.value);
-        if (tokens->type == TOKENTYPE_NAME)
-            printf(" string=\"%s\"", tokens->data.string);
-        printf("\n");
-    } while (tokens++->type != TOKENTYPE_END_OF_FILE);
-
-    printf("\n");
-}
-
-void free_tokens(struct Token *tokenlist)
-{
-    for (struct Token *t = tokenlist; t->type != TOKENTYPE_END_OF_FILE; t++)
-        if (t->type == TOKENTYPE_NAME)
-            free(t->data.string);
-    free(tokenlist);
 }

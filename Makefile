@@ -1,5 +1,5 @@
 SRC := $(wildcard src/*.c)
-CFLAGS += -std=c99
+CFLAGS += -Wall -Wextra -Wpedantic -std=c11
 CFLAGS += -g
 
 obj/%.o: src/%.c $(wildcard src/*.h)
