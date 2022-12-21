@@ -164,6 +164,8 @@ struct Token *tokenize(const char *filename)
     List(struct Token) tokens = {0};
     while(tokens.len == 0 || tokens.ptr[tokens.len-1].type != TOKENTYPE_END_OF_FILE)
         Append(&tokens, read_token(&st));
+
+    fclose(st.f);
     return tokens.ptr;
 }
 
