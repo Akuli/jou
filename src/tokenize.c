@@ -13,7 +13,6 @@
 
 
 struct State {
-    // State for read_byte()
     FILE *f;
     struct Location location;
 };
@@ -81,6 +80,7 @@ static char read_char_literal(struct State *st)
             case 'n': c = '\n'; break;
             case '\\': c = '\\'; break;
             case '\'': c = '\''; break;
+            case '0': c = 0; break;
             default:
                 fail_with_error(st->location, "unknown character literal: '\\%c'", after_backslash);
         }
@@ -126,6 +126,29 @@ void read_identifier(struct State *st, char firstbyte, char (*dest)[100])
     }
 }
 
+// Assumes that the initial '\n' byte has been read already.
+void read_indentation_as_newline_token(struct State *st, struct Token *t)
+{
+    t->type = TOKEN_NEWLINE;
+
+    while(1) {
+        char c = read_byte(st);
+        if (c == ' ')
+            t->data.indentation_level++;
+        else if (c == '\n')
+            t->data.indentation_level = 0;
+        else if (c == '\0') {
+            // Ignore newline+spaces at end of file. Do not validate 4 spaces.
+            // TODO: test case
+            t->type = TOKEN_END_OF_FILE;
+            return;
+        } else {
+            unread_byte(st, c);
+            break;
+        }
+    }
+}
+
 static struct Token read_token(struct State *st)
 {
     struct Token t = { .location = st->location };
@@ -134,10 +157,11 @@ static struct Token read_token(struct State *st)
         char c = read_byte(st);
         switch(c) {
             case ' ': continue;
-            case '\n': t.type = TOKEN_NEWLINE; break;
+            case '\n': read_indentation_as_newline_token(st, &t); break;
             case '\0': t.type = TOKEN_END_OF_FILE; break;
             case '(': t.type = TOKEN_OPENPAREN; break;
             case ')': t.type = TOKEN_CLOSEPAREN; break;
+            case ':': t.type = TOKEN_COLON; break;
             case '\'': t.type = TOKEN_INT; t.data.int_value = read_char_literal(st); break;
             default:
                 if(is_identifier_first_byte(c)) {
@@ -154,7 +178,7 @@ static struct Token read_token(struct State *st)
     }
 }
 
-struct Token *tokenize(const char *filename)
+static struct Token *tokenize_without_indent_dedent_tokens(const char *filename)
 {
     struct State st = { .location.filename = filename, .f = fopen(filename, "rb") };
     if (!st.f)
@@ -163,7 +187,53 @@ struct Token *tokenize(const char *filename)
     List(struct Token) tokens = {0};
     while(tokens.len == 0 || tokens.ptr[tokens.len-1].type != TOKEN_END_OF_FILE)
         Append(&tokens, read_token(&st));
-
     fclose(st.f);
+
+    return tokens.ptr;
+}
+
+struct Token *tokenize(const char *filename)
+{
+    struct Token *temp_tokens = tokenize_without_indent_dedent_tokens(filename);
+
+    assert(temp_tokens[0].type == TOKEN_NEWLINE);
+    if (temp_tokens[0].data.indentation_level != 0)
+        fail_with_error(temp_tokens[0].location, "file cannot start with indentation");
+
+    // Add indent/dedent tokens after newline tokens that change the indentation level.
+    List(struct Token) tokens = {0};
+    const struct Token *t = temp_tokens;
+    int level = 0;
+
+    do{
+        if (t->type == TOKEN_END_OF_FILE) {
+            while(level) {
+                Append(&tokens, (struct Token){ .location=t->location, .type=TOKEN_DEDENT });
+                level -= 4;
+            }
+        }
+
+        Append(&tokens, *t);
+
+        if (t->type == TOKEN_NEWLINE) {
+            if (t->data.indentation_level % 4 != 0)
+                fail_with_error(t->location, "indentation must be a multiple of 4 spaces");
+
+            struct Location after_newline = t->location;
+            after_newline.lineno++;
+
+            while (level < t->data.indentation_level) {
+                Append(&tokens, (struct Token){ .location=after_newline, .type=TOKEN_INDENT });
+                level += 4;
+            }
+
+            while (level > t->data.indentation_level) {
+                Append(&tokens, (struct Token){ .location=after_newline, .type=TOKEN_DEDENT });
+                level -= 4;
+            }
+        }
+    } while (t++->type != TOKEN_END_OF_FILE);
+
+    free(temp_tokens);
     return tokens.ptr;
 }

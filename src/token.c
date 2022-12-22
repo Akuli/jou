@@ -30,6 +30,10 @@ void print_tokens(const struct Token *tokens)
             f(TOKEN_NEWLINE);
             f(TOKEN_END_OF_FILE);
             f(TOKEN_CIMPORT);
+            f(TOKEN_COLON);
+            f(TOKEN_INDENT);
+            f(TOKEN_DEDENT);
+            f(TOKEN_RETURN);
             #undef f
         }
 
@@ -40,6 +44,9 @@ void print_tokens(const struct Token *tokens)
         case TOKEN_NAME:
             printf(" name=\"%s\"", tokens->data.name);
             break;
+        case TOKEN_NEWLINE:
+            printf(" indentation_level=%d", tokens->data.indentation_level);
+            break;
 
         // These tokens don't have any associated data to be printed here.
         //
@@ -49,8 +56,11 @@ void print_tokens(const struct Token *tokens)
         case TOKEN_CIMPORT:
         case TOKEN_OPENPAREN:
         case TOKEN_CLOSEPAREN:
+        case TOKEN_COLON:
         case TOKEN_END_OF_FILE:
-        case TOKEN_NEWLINE:
+        case TOKEN_INDENT:
+        case TOKEN_DEDENT:
+        case TOKEN_RETURN:
             break;
         }
 

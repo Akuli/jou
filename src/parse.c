@@ -11,10 +11,14 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_INT: strcpy(got, "an integer"); break;
         case TOKEN_OPENPAREN: strcpy(got, "'('"); break;
         case TOKEN_CLOSEPAREN: strcpy(got, "')'"); break;
+        case TOKEN_COLON: strcpy(got, "':'"); break;
         case TOKEN_NAME: snprintf(got, sizeof got, "a variable name '%s'", token->data.name); break;
         case TOKEN_NEWLINE: strcpy(got, "end of line"); break;
         case TOKEN_END_OF_FILE: strcpy(got, "end of file"); break;
+        case TOKEN_INDENT: strcpy(got, "more indentation"); break;
+        case TOKEN_DEDENT: strcpy(got, "less indentation"); break;
         case TOKEN_CIMPORT: strcpy(got, "the 'cimport' keyword"); break;
+        case TOKEN_RETURN: strcpy(got, "the 'return' keyword"); break;
     }
     fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
