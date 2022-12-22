@@ -15,7 +15,12 @@ int main(int argc, char **argv)
 
     struct AstStatement *ast = parse(tokens);
     free_tokens(tokens);
-
     print_ast(ast);
+
+    LLVMModuleRef module = codegen(ast);
     free(ast);
+
+    char *s = LLVMPrintModuleToString(module);
+    printf("LLVM IR:\n\n%s", s);
+    LLVMDisposeMessage(s);
 }

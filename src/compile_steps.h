@@ -6,6 +6,7 @@
 
 #include "token.h"
 #include "ast.h"
+#include <llvm-c/Core.h>
 
 // Compiling functions
 //
@@ -13,6 +14,7 @@
 // entire compilation. It is used in error messages.
 struct Token *tokenize(const char *filename);
 struct AstStatement *parse(const struct Token *tokens);
+LLVMModuleRef codegen(const struct AstStatement *ast);
 
 // Cleaning up return values of compiling functions
 void free_tokens(struct Token *tokenlist);
