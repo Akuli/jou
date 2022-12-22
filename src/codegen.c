@@ -13,7 +13,7 @@ LLVMModuleRef codegen(const struct AstStatement *ast)
 
     LLVMBuilderRef builder = LLVMCreateBuilder();
 
-    // TODO: too hard-coded
+    // TODO: way too hard-coded
     assert(ast->kind == AST_STMT_CIMPORT_FUNCTION);
     assert(!strcmp(ast->data.cimport.funcname, "putchar"));
     LLVMTypeRef i32type = LLVMInt32TypeInContext(LLVMGetGlobalContext());
@@ -22,7 +22,7 @@ LLVMModuleRef codegen(const struct AstStatement *ast)
     ast++;
 
     LLVMTypeRef main_type = LLVMFunctionType(i32type, NULL, 0, false);
-    LLVMValueRef main_function = LLVMAddFunction(module, "main", putchar_type);
+    LLVMValueRef main_function = LLVMAddFunction(module, "main", main_type);
 
     LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(LLVMGetGlobalContext(), main_function, "block");
     LLVMPositionBuilderAtEnd(builder, block);
@@ -32,9 +32,11 @@ LLVMModuleRef codegen(const struct AstStatement *ast)
         assert(ast->kind == AST_STMT_CALL);
         assert(!strcmp(ast->data.call.funcname, "putchar"));
         LLVMValueRef arg = LLVMConstInt(i32type, ast->data.call.arg, false);
-        LLVMBuildCall(builder, putchar_function, &arg, 1, "putchar_ret");
+        LLVMBuildCall2(builder, putchar_type, putchar_function, &arg, 1, "putchar_ret");
     }
 
+    LLVMBuildRet(builder, LLVMConstInt(i32type, 0, false));
+    LLVMDisposeBuilder(builder);
     return module;
 }
 
