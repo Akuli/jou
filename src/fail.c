@@ -2,8 +2,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
 
-#include "misc.h"
+#include "jou_compiler.h"
 
 
 noreturn void fail_with_error(struct Location location, const char *fmt, ...)

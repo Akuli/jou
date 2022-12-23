@@ -1,7 +1,9 @@
 // Implementation of the parse() function. See compile_steps.h.
 
-#include "ast.h"
-#include "token.h"
+#include "jou_compiler.h"
+#include "util.h"
+#include <stdnoreturn.h>
+#include <stdio.h>
 #include <string.h>
 
 static noreturn void fail_with_parse_error(const struct Token *token, const char *what_was_expected_instead)

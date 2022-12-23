@@ -1,8 +1,10 @@
-#include "ast.h"
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <llvm-c/Core.h>
 #include <llvm-c/Types.h>
+#include "jou_compiler.h"
 
 static LLVMValueRef codegen_function_decl(LLVMModuleRef module, const struct AstFunctionSignature *sig)
 {

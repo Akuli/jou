@@ -1,4 +1,4 @@
-// Implementation of the tokenize() function. See compile_steps.h.
+// Implementation of the tokenize() function.
 
 #include <assert.h>
 #include <errno.h>
@@ -8,8 +8,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "token.h"
-#include "misc.h"
+#include "jou_compiler.h"
+#include "util.h"
 
 
 struct State {
@@ -196,12 +196,9 @@ static struct Token *tokenize_without_indent_dedent_tokens(const char *filename)
     return tokens.ptr;
 }
 
-// TODO: test files that begin with indentation, should be an error
-struct Token *tokenize(const char *filename)
+// Add indent/dedent tokens after newline tokens that change the indentation level.
+struct Token *handle_indentations(const struct Token *temp_tokens)
 {
-    struct Token *temp_tokens = tokenize_without_indent_dedent_tokens(filename);
-
-    // Add indent/dedent tokens after newline tokens that change the indentation level.
     List(struct Token) tokens = {0};
     const struct Token *t = temp_tokens;
     int level = 0;
@@ -239,6 +236,14 @@ struct Token *tokenize(const char *filename)
         }
     } while (t++->type != TOKEN_END_OF_FILE);
 
-    free(temp_tokens);
     return tokens.ptr;
+}
+
+// TODO: test files that begin with indentation, should be an error
+struct Token *tokenize(const char *filename)
+{
+    struct Token *tokens1 = tokenize_without_indent_dedent_tokens(filename);
+    struct Token *tokens2 = handle_indentations(tokens1);
+    free(tokens1);
+    return tokens2;
 }
