@@ -36,7 +36,7 @@ int main(int argc, char **argv)
 
     char *s = LLVMPrintModuleToString(module);
     if(verbose)
-        printf("LLVM IR:\n\n%s", s);
+        printf("--- LLVM IR for file \"%s\" ---\n%s", filename, s);
 
     // TODO: this is a ridiculous way to run the IR, figure out something better
     FILE *f = fopen("/tmp/newlang-temp.bc", "wb");

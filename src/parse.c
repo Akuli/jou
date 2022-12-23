@@ -180,10 +180,6 @@ static struct AstToplevelNode parse_toplevel_node(const struct Token **tokens)
 
 struct AstToplevelNode *parse(const struct Token *tokens)
 {
-    // Skip initial newline token. It is always added by the tokenizer.
-    assert((*tokens).type == TOKEN_NEWLINE);
-    ++tokens;
-
     List(struct AstToplevelNode) result = {0};
     do {
         Append(&result, parse_toplevel_node(&tokens));
