@@ -107,7 +107,7 @@ To get a good idea of how it works,
 you can look at what it produces in each compilation step:
 
 ```
-$ ./jou --verbose examples/hello.nl
+$ ./jou --verbose examples/hello.jou
 ```
 
 This shows the tokens, AST and LLVM IR generated. So at a high level, the compilation steps are:
@@ -119,7 +119,7 @@ This shows the tokens, AST and LLVM IR generated. So at a high level, the compil
 Checking for memory related bugs with valgrind:
 
 ```
-$ make -j2 && valgrind --leak-check=full --show-leak-kinds=all ./jou examples/hello.nl
+$ make -j2 && valgrind --leak-check=full --show-leak-kinds=all ./jou examples/hello.jou
 ```
 
 TODO:

@@ -13,15 +13,15 @@ LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs)
 obj/%.o: src/%.c $(wildcard src/*.h)
 	mkdir -vp obj && $(CC) -c $(CFLAGS) $< -o $@
 
-all: newlangc compile_flags.txt
+all: jou compile_flags.txt
 
 # point clangd to the right include folder so i don't get red squiggles in my editor
 compile_flags.txt:
 	echo "-I$(shell $(LLVM_CONFIG) --includedir)"  > compile_flags.txt
 
-newlangc: $(SRC:src/%.c=obj/%.o)
+jou: $(SRC:src/%.c=obj/%.o)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 .PHONY: clean
 clean:
-	rm -rvf obj newlangc
+	rm -rvf obj jou

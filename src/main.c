@@ -39,7 +39,7 @@ int main(int argc, char **argv)
         printf("--- LLVM IR for file \"%s\" ---\n%s", filename, s);
 
     // TODO: this is a ridiculous way to run the IR, figure out something better
-    FILE *f = fopen("/tmp/newlang-temp.bc", "wb");
+    FILE *f = fopen("/tmp/jou-temp.bc", "wb");
     assert(f);
     fprintf(f, "%s", s);
     fclose(f);
@@ -47,5 +47,5 @@ int main(int argc, char **argv)
     LLVMDisposeMessage(s);
     LLVMDisposeModule(module);
 
-    return !!system("cd /tmp && clang-11 -Wno-override-module -o newlang-temp newlang-temp.bc && ./newlang-temp");
+    return !!system("cd /tmp && clang-11 -Wno-override-module -o jou-temp jou-temp.bc && ./jou-temp");
 }
