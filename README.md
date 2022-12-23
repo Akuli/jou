@@ -9,15 +9,17 @@ Goals:
     - Python programmers who want to try programming at a lower level
 - Compatibility with C, not just as one more feature but as the recommended way to use libraries
 - Self-hosted compiler
-- Eliminate some stupid things in C
-    (UB for comparing pointers into different memory areas,
-    UB for strict aliasing,
-    `int` possibly being only 16 bits,
-    `long` possibly being only 32 bits,
-    `char` possibly being more than 8 bits,
-    `char` possibly being signed,
-    `char` being named `char` even though it's really a byte,
-    etc)
+- Eliminate some stupid things in C. For example:
+    - UB for comparing pointers into different memory areas
+        (as in `array <= foo && foo < array+sizeof(array)/sizeof(array[0])`)
+    - `negative % positive` is negative or zero, should IMO be positive or zero
+        (unless that is a lot slower, of course)
+    - Strict aliasing
+    - `int` possibly being only 16 bits
+    - `long` possibly being only 32 bits
+    - `char` possibly being more than 8 bits
+    - `char` possibly being signed
+    - `char` being named `char` even though it's really a byte
 - Generics, so that you can implement a generic `list` (dynamically growing array)
     better than in C
 - Error messages for most common bugs in C (missing `free()`, double `free()`, use after free, etc.)
