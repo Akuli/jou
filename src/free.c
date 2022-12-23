@@ -25,7 +25,7 @@ void free_ast(struct AstToplevelNode *topnodelist)
 {
     for (struct AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
         switch(t->kind) {
-        case AST_TOPLEVEL_CIMPORT_FUNCTION:
+        case AST_TOPLEVEL_CDECL_FUNCTION:
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             free_body(&t->data.funcdef.body);

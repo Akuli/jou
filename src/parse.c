@@ -14,13 +14,15 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_OPENPAREN: strcpy(got, "'('"); break;
         case TOKEN_CLOSEPAREN: strcpy(got, "')'"); break;
         case TOKEN_COLON: strcpy(got, "':'"); break;
+        case TOKEN_ARROW: strcpy(got, "'->'"); break;
         case TOKEN_NAME: snprintf(got, sizeof got, "a variable name '%s'", token->data.name); break;
         case TOKEN_NEWLINE: strcpy(got, "end of line"); break;
         case TOKEN_END_OF_FILE: strcpy(got, "end of file"); break;
         case TOKEN_INDENT: strcpy(got, "more indentation"); break;
         case TOKEN_DEDENT: strcpy(got, "less indentation"); break;
-        case TOKEN_CIMPORT: strcpy(got, "the 'cimport' keyword"); break;
+        case TOKEN_CDECL: strcpy(got, "the 'cdecl' keyword"); break;
         case TOKEN_RETURN: strcpy(got, "the 'return' keyword"); break;
+        case TOKEN_DEF: strcpy(got, "the 'def' keyword"); break;
     }
     fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
@@ -44,8 +46,6 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
 {
     struct AstFunctionSignature result = {.location=(*tokens)->location};
 
-    parse_type(tokens);  // return type
-
     if ((*tokens)->type != TOKEN_NAME)
         fail_with_parse_error(*tokens, "a function name");
     safe_strcpy(result.funcname, (*tokens)->data.name);
@@ -58,12 +58,15 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     while ((*tokens)->type != TOKEN_CLOSEPAREN) {
         result.nargs++;
 
-        parse_type(tokens);  // type of argument
-
-        // name of argument
         if ((*tokens)->type != TOKEN_NAME)
             fail_with_parse_error(*tokens, "an argument name");
         ++*tokens;
+
+        if ((*tokens)->type != TOKEN_COLON)
+            fail_with_parse_error(*tokens, "':' and a type after the argument name (example: \"foo: int\")");
+        ++*tokens;
+
+        parse_type(tokens);
 
         // TODO: eat comma
 
@@ -77,6 +80,11 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     if ((*tokens)->type != TOKEN_CLOSEPAREN)
         fail_with_parse_error(*tokens, "a ')'");
     ++*tokens;
+
+    if ((*tokens)->type != TOKEN_ARROW)
+        fail_with_parse_error(*tokens, "a '->' followed by the return type");
+    ++*tokens;
+    parse_type(tokens);
 
     return result;
 }
@@ -158,23 +166,28 @@ static struct AstBody parse_body(const struct Token **tokens)
 static struct AstToplevelNode parse_toplevel_node(const struct Token **tokens)
 {
     struct AstToplevelNode result = { .location = (*tokens)->location };
+
     switch((*tokens)->type) {
-        case TOKEN_CIMPORT:
-            ++*tokens;
-            result.kind = AST_TOPLEVEL_CIMPORT_FUNCTION;
-            result.data.cimport_signature = parse_function_signature(tokens);
-            eat_newline(tokens);
-            break;
+    case TOKEN_CDECL:
+        ++*tokens;
+        result.kind = AST_TOPLEVEL_CDECL_FUNCTION;
+        result.data.decl_signature = parse_function_signature(tokens);
+        eat_newline(tokens);
+        break;
 
-        case TOKEN_END_OF_FILE:
-            result.kind = AST_TOPLEVEL_END_OF_FILE;
-            break;
+    case TOKEN_END_OF_FILE:
+        result.kind = AST_TOPLEVEL_END_OF_FILE;
+        break;
 
-        default:
-            result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
-            result.data.funcdef.signature = parse_function_signature(tokens);
-            result.data.funcdef.body = parse_body(tokens);
-            break;
+    case TOKEN_DEF:
+        ++*tokens;  // skip 'def' keyword
+        result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
+        result.data.funcdef.signature = parse_function_signature(tokens);
+        result.data.funcdef.body = parse_body(tokens);
+        break;
+
+    default:
+        fail_with_parse_error(*tokens, "a C function declaration or a function definition");
     }
 
     return result;

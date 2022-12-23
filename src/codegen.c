@@ -95,8 +95,8 @@ LLVMModuleRef codegen(const struct AstToplevelNode *ast)
 
     for(;;ast++){
         switch(ast->kind) {
-        case AST_TOPLEVEL_CIMPORT_FUNCTION:
-            codegen_function_decl(module, &ast->data.cimport_signature);
+        case AST_TOPLEVEL_CDECL_FUNCTION:
+            codegen_function_decl(module, &ast->data.decl_signature);
             break;
 
         case AST_TOPLEVEL_DEFINE_FUNCTION:

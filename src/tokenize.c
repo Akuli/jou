@@ -142,7 +142,8 @@ void read_indentation_as_newline_token(struct State *st, struct Token *t)
 }
 
 static const char *const KeywordList[] = {
-    [TOKEN_CIMPORT] = "cimport",
+    [TOKEN_DEF] = "def",
+    [TOKEN_CDECL] = "cdecl",
     [TOKEN_RETURN] = "return",
 };
 
@@ -153,6 +154,11 @@ static struct Token read_token(struct State *st)
     while(1) {
         char c = read_byte(st);
         switch(c) {
+            case '-':
+                if (read_byte(st) != '>')
+                    fail_with_error(t.location, "'-' must be immediately followed by '>' to make up the '->' operator");
+                t.type = TOKEN_ARROW;
+                break;
             case ' ': continue;
             case '\n': read_indentation_as_newline_token(st, &t); break;
             case '\0': t.type = TOKEN_END_OF_FILE; break;

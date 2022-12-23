@@ -22,9 +22,11 @@ struct Token {
         TOKEN_OPENPAREN,
         TOKEN_CLOSEPAREN,
         TOKEN_COLON,
+        TOKEN_ARROW,
         // keywords
         TOKEN_RETURN,
-        TOKEN_CIMPORT,
+        TOKEN_CDECL,
+        TOKEN_DEF,
     } type;
     struct Location location;
     union {
@@ -73,11 +75,11 @@ struct AstToplevelNode {
     struct Location location;
     enum AstToplevelNodeKind {
         AST_TOPLEVEL_END_OF_FILE,  // indicates end of array of AstToplevelNodeKind
-        AST_TOPLEVEL_CIMPORT_FUNCTION,
+        AST_TOPLEVEL_CDECL_FUNCTION,
         AST_TOPLEVEL_DEFINE_FUNCTION,
     } kind;
     union {
-        struct AstFunctionSignature cimport_signature;  // for AST_TOPLEVEL_CIMPORT_FUNCTION
+        struct AstFunctionSignature decl_signature;  // for AST_TOPLEVEL_CDECL_FUNCTION
         struct AstFunctionDef funcdef;  // for AST_TOPLEVEL_DEFINE_FUNCTION
     } data;
 };

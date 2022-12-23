@@ -11,11 +11,13 @@ void print_token(const struct Token *token)
         f(TOKEN_NAME);
         f(TOKEN_NEWLINE);
         f(TOKEN_END_OF_FILE);
-        f(TOKEN_CIMPORT);
+        f(TOKEN_CDECL);
         f(TOKEN_COLON);
         f(TOKEN_INDENT);
         f(TOKEN_DEDENT);
         f(TOKEN_RETURN);
+        f(TOKEN_ARROW);
+        f(TOKEN_DEF);
         #undef f
     }
 
@@ -35,7 +37,7 @@ void print_token(const struct Token *token)
     // Listed explicitly instead of "default" so that you get a compiler error
     // coming from here after adding a new token type. That should remind you
     // to keep this function up to date.
-    case TOKEN_CIMPORT:
+    case TOKEN_CDECL:
     case TOKEN_OPENPAREN:
     case TOKEN_CLOSEPAREN:
     case TOKEN_COLON:
@@ -43,6 +45,8 @@ void print_token(const struct Token *token)
     case TOKEN_INDENT:
     case TOKEN_DEDENT:
     case TOKEN_RETURN:
+    case TOKEN_ARROW:
+    case TOKEN_DEF:
         break;
     }
 
@@ -67,12 +71,12 @@ void print_tokens(const struct Token *tokens)
 
 static void print_ast_function_signature(const struct AstFunctionSignature *sig, int indent)
 {
-    printf("%*sfunction signature (on line %d): int %s(", indent, "", sig->location.lineno, sig->funcname);
+    printf("%*sfunction signature (on line %d): %s(", indent, "", sig->location.lineno, sig->funcname);
     for (int i = 0; i < sig->nargs; i++) {
         if(i) printf(", ");
         printf("int");
     }
-    printf(")\n");
+    printf(") -> int\n");
 }
 
 static void print_ast_statement(const struct AstStatement *stmt, int indent)
@@ -112,15 +116,15 @@ void print_ast(const struct AstToplevelNode *topnodelist)
         switch(topnodelist->kind) {
             #define f(x) case x: printf(#x); break
             f(AST_TOPLEVEL_DEFINE_FUNCTION);
-            f(AST_TOPLEVEL_CIMPORT_FUNCTION);
+            f(AST_TOPLEVEL_CDECL_FUNCTION);
             f(AST_TOPLEVEL_END_OF_FILE);
             #undef f
         }
         printf("\n");
 
         switch(topnodelist->kind) {
-            case AST_TOPLEVEL_CIMPORT_FUNCTION:
-                print_ast_function_signature(&topnodelist->data.cimport_signature, 2);
+            case AST_TOPLEVEL_CDECL_FUNCTION:
+                print_ast_function_signature(&topnodelist->data.decl_signature, 2);
                 break;
             case AST_TOPLEVEL_DEFINE_FUNCTION:
                 print_ast_function_signature(&topnodelist->data.funcdef.signature, 2);
@@ -132,8 +136,6 @@ void print_ast(const struct AstToplevelNode *topnodelist)
         printf("\n");
 
     } while (topnodelist++->kind != AST_TOPLEVEL_END_OF_FILE);
-
-    printf("\n");
 }
 
 void print_llvm_ir(LLVMModuleRef module)

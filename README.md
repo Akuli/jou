@@ -40,9 +40,9 @@ Non-goals:
 Here's what Jou code currently looks like:
 
 ```python3
-cimport int putchar(int ch)
+cdecl putchar(ch: int) -> int
 
-int main():
+def main() -> int:
     putchar('h')
     putchar('e')
     putchar('l')
@@ -127,7 +127,6 @@ $ make -j2 && valgrind --leak-check=full --show-leak-kinds=all ./jou examples/he
 TODO:
 - Figure out a reasonable way to use valgrind. Seems like llvm does something messy?
 - tests!!!! Test all error messages there currently are.
-- Rework the syntax.
 - Write syntax spec once syntax seems relatively stable
 - Multiple types. Currently everything is `int` which is 32-bit signed int.
 - Everything else...?

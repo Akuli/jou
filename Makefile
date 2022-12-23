@@ -1,3 +1,5 @@
+# FIXME: Presumably we should compile with clang-11, because we depend on it anyway.
+
 LLVM_CONFIG ?= llvm-config-11
 
 SRC := $(wildcard src/*.c)
