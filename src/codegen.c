@@ -4,6 +4,22 @@
 #include <llvm-c/Core.h>
 #include <llvm-c/Types.h>
 
+static void codegen_cimport(LLVMModuleRef module, const struct AstFunctionSignature *sig)
+{
+    // TODO: test this
+    if (LLVMGetNamedFunction(module, sig->funcname))
+        fail_with_error(sig->location, "a function named \"%s\" already exists", sig->funcname);
+
+    LLVMTypeRef i32type = LLVMInt32TypeInContext(LLVMGetGlobalContext());
+
+    LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
+    for (int i = 0; i < sig->nargs; i++)
+        argtypes[i] = i32type;
+    LLVMTypeRef functype = LLVMFunctionType(i32type, argtypes, sig->nargs, false);
+    free(argtypes);
+
+    LLVMAddFunction(module, sig->funcname, functype);
+}
 
 LLVMModuleRef codegen(const struct AstToplevelNode *ast)
 {
@@ -13,13 +29,25 @@ LLVMModuleRef codegen(const struct AstToplevelNode *ast)
 
     LLVMBuilderRef builder = LLVMCreateBuilder();
 
+    for(;;ast++){
+        switch(ast->kind) {
+        case AST_TOPLEVEL_CIMPORT_FUNCTION:
+            codegen_cimport(module, &ast->data.cimport_signature);
+            break;
+
+        case AST_TOPLEVEL_DEFINE_FUNCTION:
+            // TODO
+            break;
+
+        case AST_TOPLEVEL_END_OF_FILE:
+            LLVMDisposeBuilder(builder);
+            return module;
+        }
+    }
+
     /*
     // TODO: way too hard-coded
     assert(ast->kind == AST_STMT_CIMPORT_FUNCTION);
-    assert(!strcmp(ast->data.cimport.funcname, "putchar"));
-    LLVMTypeRef i32type = LLVMInt32TypeInContext(LLVMGetGlobalContext());
-    LLVMTypeRef putchar_type = LLVMFunctionType(i32type, &i32type, 1, false);
-    LLVMValueRef putchar_function = LLVMAddFunction(module, ast->data.cimport.funcname, putchar_type);
     ast++;
 
     LLVMTypeRef main_type = LLVMFunctionType(i32type, NULL, 0, false);
@@ -38,7 +66,4 @@ LLVMModuleRef codegen(const struct AstToplevelNode *ast)
 
     LLVMBuildRet(builder, LLVMConstInt(i32type, 0, false));
     */
-    LLVMDisposeBuilder(builder);
-    return module;
 }
-
