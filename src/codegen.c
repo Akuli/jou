@@ -4,7 +4,7 @@
 #include <llvm-c/Core.h>
 #include <llvm-c/Types.h>
 
-static void codegen_cimport(LLVMModuleRef module, const struct AstFunctionSignature *sig)
+static LLVMValueRef codegen_function_decl(LLVMModuleRef module, const struct AstFunctionSignature *sig)
 {
     // TODO: test this
     if (LLVMGetNamedFunction(module, sig->funcname))
@@ -18,13 +18,75 @@ static void codegen_cimport(LLVMModuleRef module, const struct AstFunctionSignat
     LLVMTypeRef functype = LLVMFunctionType(i32type, argtypes, sig->nargs, false);
     free(argtypes);
 
-    LLVMAddFunction(module, sig->funcname, functype);
+    return LLVMAddFunction(module, sig->funcname, functype);
+}
+
+static void codegen_statement(LLVMBuilderRef builder, LLVMModuleRef module, const struct AstStatement *stmt)
+{
+    LLVMTypeRef i32type = LLVMInt32TypeInContext(LLVMGetGlobalContext());
+
+    switch(stmt->kind) {
+        case AST_STMT_CALL:
+        {
+            LLVMValueRef function = LLVMGetNamedFunction(module, stmt->data.call.funcname);
+            if (!function)
+                fail_with_error(stmt->location, "function \"%s\" not found", stmt->data.call.funcname);
+
+            LLVMTypeRef function_type = LLVMTypeOf(function);
+            // TODO: this doesn't work because LLVMTypeOf returns the type of a pointer, and
+            // I can't figure out how to access the type that the pointer is pointing to
+            /*
+            assert(LLVMGetTypeKind(function_type) == LLVMFunctionTypeKind);
+
+            // TODO: currently function calls hard-code 1 argument of type int
+            if (LLVMCountParamTypes(function_type) != 1) {
+                fail_with_error(
+                    stmt->location,
+                    "function \"%s\" takes %d arguments, but it was called with 1 argument",
+                    stmt->data.call.funcname,
+                    LLVMCountParamTypes(function_type));
+            }
+
+            LLVMTypeRef paramtype;
+            LLVMGetParamTypes(function_type, &paramtype);
+            if (paramtype != i32type) {
+                // TODO: improve error message, display names of argument types
+                fail_with_error(
+                    stmt->location,
+                    "wrong argument types when calling function \"%s\"",
+                    stmt->data.call.funcname);
+            }
+            */
+
+            LLVMValueRef arg = LLVMConstInt(i32type, stmt->data.call.arg, false);
+
+            char debug_name[100];
+            snprintf(debug_name, sizeof debug_name, "%s_return_value", stmt->data.call.funcname);
+            LLVMBuildCall2(builder, function_type, function, &arg, 1, "putchar_ret");
+
+            break;
+        }
+
+        case AST_STMT_RETURN:
+            LLVMBuildRet(builder, LLVMConstInt(i32type, stmt->data.call.arg, false));
+            break;
+    }
+}
+
+static void codegen_function_def(LLVMModuleRef module, LLVMBuilderRef builder, const struct AstFunctionDef *funcdef)
+{
+    LLVMValueRef function = codegen_function_decl(module, &funcdef->signature);
+
+    LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(LLVMGetGlobalContext(), function, "function_block");
+    LLVMPositionBuilderAtEnd(builder, block);
+    for (int i = 0; i < funcdef->body.nstatements; i++)
+        codegen_statement(builder, module, &funcdef->body.statements[i]);
 }
 
 LLVMModuleRef codegen(const struct AstToplevelNode *ast)
 {
     // TODO: pass better name?
-    LLVMModuleRef module = LLVMModuleCreateWithName("my_module");
+    LLVMModuleRef module = LLVMModuleCreateWithName("");
     LLVMSetSourceFileName(module, ast->location.filename, strlen(ast->location.filename));
 
     LLVMBuilderRef builder = LLVMCreateBuilder();
@@ -32,11 +94,11 @@ LLVMModuleRef codegen(const struct AstToplevelNode *ast)
     for(;;ast++){
         switch(ast->kind) {
         case AST_TOPLEVEL_CIMPORT_FUNCTION:
-            codegen_cimport(module, &ast->data.cimport_signature);
+            codegen_function_decl(module, &ast->data.cimport_signature);
             break;
 
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            // TODO
+            codegen_function_def(module, builder, &ast->data.funcdef);
             break;
 
         case AST_TOPLEVEL_END_OF_FILE:
@@ -44,26 +106,4 @@ LLVMModuleRef codegen(const struct AstToplevelNode *ast)
             return module;
         }
     }
-
-    /*
-    // TODO: way too hard-coded
-    assert(ast->kind == AST_STMT_CIMPORT_FUNCTION);
-    ast++;
-
-    LLVMTypeRef main_type = LLVMFunctionType(i32type, NULL, 0, false);
-    LLVMValueRef main_function = LLVMAddFunction(module, "main", main_type);
-
-    LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(LLVMGetGlobalContext(), main_function, "block");
-    LLVMPositionBuilderAtEnd(builder, block);
-
-    // Evaluate the rest in an anonymous namespace.
-    for ( ; ast->kind != AST_STMT_END_OF_FILE; ast++) {
-        assert(ast->kind == AST_STMT_CALL);
-        assert(!strcmp(ast->data.call.funcname, "putchar"));
-        LLVMValueRef arg = LLVMConstInt(i32type, ast->data.call.arg, false);
-        LLVMBuildCall2(builder, putchar_type, putchar_function, &arg, 1, "putchar_ret");
-    }
-
-    LLVMBuildRet(builder, LLVMConstInt(i32type, 0, false));
-    */
 }

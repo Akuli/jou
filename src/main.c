@@ -47,5 +47,5 @@ int main(int argc, char **argv)
     LLVMDisposeMessage(s);
     LLVMDisposeModule(module);
 
-    return !!system("cd /tmp && clang-11 -o newlang-temp newlang-temp.bc && ./newlang-temp");
+    return !!system("cd /tmp && clang-11 -Wno-override-module -o newlang-temp newlang-temp.bc && ./newlang-temp");
 }
