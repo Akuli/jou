@@ -26,4 +26,8 @@ jou: $(SRC:src/%.c=obj/%.o)
 
 .PHONY: clean
 clean:
-	rm -rvf obj jou
+	rm -rvf obj jou tests/tmp
+
+.PHONY: test
+test: all
+	tests/run.sh

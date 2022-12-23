@@ -118,6 +118,16 @@ This shows the tokens, AST and LLVM IR generated. So at a high level, the compil
 - Codegen: convert the AST into LLVM IR
 - Invoke `clang` and pass it the generated LLVM IR
 
+Running tests:
+
+```
+$ make test
+```
+
+This runs Jou files in `tests/` and compares their output to text files.
+If the actual output doesn't match what's in a text file, you will see a diff where
+green (+) is the program's output and red (-) is what was expected.
+
 Checking for memory related bugs with valgrind:
 
 ```
