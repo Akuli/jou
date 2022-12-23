@@ -1,4 +1,5 @@
 cimport int putchar(int ch)
+
 int main():
     putchar('h')
     putchar('e')

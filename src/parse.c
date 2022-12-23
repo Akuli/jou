@@ -38,13 +38,9 @@ static int parse_expression(const struct Token **tokens)
     return (*tokens)++->data.int_value;
 }
 
-static struct AstCImport parse_cimport(const struct Token **tokens)
+static struct AstFunctionSignature parse_function_signature(const struct Token **tokens)
 {
-    struct AstCImport result;
-
-    if ((*tokens)->type != TOKEN_CIMPORT)
-        fail_with_parse_error(*tokens, "the 'cimport' keyword");
-    ++*tokens;
+    struct AstFunctionSignature result = {.location=(*tokens)->location};
 
     parse_type(tokens);  // return type
 
@@ -57,13 +53,24 @@ static struct AstCImport parse_cimport(const struct Token **tokens)
         fail_with_parse_error(*tokens, "a '(' to denote the start of function arguments");
     ++*tokens;
 
-    // We currently hard-code that there is one argument
-    // type of argument
-    parse_type(tokens);
-    // name of argument
-    if ((*tokens)->type != TOKEN_NAME)
-        fail_with_parse_error(*tokens, "an argument name");
-    ++*tokens;
+    while ((*tokens)->type != TOKEN_CLOSEPAREN) {
+        result.nargs++;
+
+        parse_type(tokens);  // type of argument
+
+        // name of argument
+        if ((*tokens)->type != TOKEN_NAME)
+            fail_with_parse_error(*tokens, "an argument name");
+        ++*tokens;
+
+        // TODO: eat comma
+
+        //if ((*tokens)->type == TOKEN_COMMA) {
+        //    ...
+        //} else {
+            break;
+        //}
+    }
 
     if ((*tokens)->type != TOKEN_CLOSEPAREN)
         fail_with_parse_error(*tokens, "a ')'");
@@ -94,41 +101,93 @@ static struct AstCall parse_call(const struct Token **tokens)
     return result;
 }
 
+static void eat_newline(const struct Token **tokens)
+{
+    if ((*tokens)->type != TOKEN_NEWLINE)
+        fail_with_parse_error(*tokens, "end of line");
+    ++*tokens;
+}
+
 static struct AstStatement parse_statement(const struct Token **tokens)
 {
     struct AstStatement result = { .location = (*tokens)->location };
     switch((*tokens)->type) {
-        case TOKEN_CIMPORT:
-            result.kind = AST_STMT_CIMPORT_FUNCTION;
-            result.data.cimport = parse_cimport(tokens);
-            break;
-
         case TOKEN_NAME:
             result.kind = AST_STMT_CALL;
             result.data.call = parse_call(tokens);
+            break;
+
+        case TOKEN_RETURN:
+            ++*tokens;
+            result.kind = AST_STMT_RETURN;
+            result.data.returnvalue = parse_expression(tokens);
             break;
 
         default:
             fail_with_parse_error(*tokens, "a statement");
     }
 
-    if ((*tokens)->type != TOKEN_NEWLINE)
-        fail_with_parse_error(*tokens, "end of line");
-    ++*tokens;
-
+    eat_newline(tokens);
     return result;
 }
 
-struct AstStatement *parse(const struct Token *tokens)
+static struct AstBody parse_body(const struct Token **tokens)
+{
+    if ((*tokens)->type != TOKEN_COLON)
+        fail_with_parse_error(*tokens, "':' followed by a new line with more indentation");
+    ++*tokens;
+
+    if ((*tokens)->type != TOKEN_NEWLINE)
+        fail_with_parse_error(*tokens, "a new line with more indentation after ':'");
+    ++*tokens;
+
+    if ((*tokens)->type != TOKEN_INDENT)
+        fail_with_parse_error(*tokens, "more indentation after ':'");
+    ++*tokens;
+
+    List(struct AstStatement) result = {0};
+    while ((*tokens)->type != TOKEN_DEDENT)
+        Append(&result, parse_statement(tokens));
+    ++*tokens;
+
+    return (struct AstBody){ .statements=result.ptr, .nstatements=result.len };
+}
+
+static struct AstToplevelNode parse_toplevel_node(const struct Token **tokens)
+{
+    struct AstToplevelNode result = { .location = (*tokens)->location };
+    switch((*tokens)->type) {
+        case TOKEN_CIMPORT:
+            ++*tokens;
+            result.kind = AST_TOPLEVEL_CIMPORT_FUNCTION;
+            result.data.cimport_signature = parse_function_signature(tokens);
+            eat_newline(tokens);
+            break;
+
+        case TOKEN_END_OF_FILE:
+            result.kind = AST_TOPLEVEL_END_OF_FILE;
+            break;
+
+        default:
+            result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
+            result.data.funcdef.signature = parse_function_signature(tokens);
+            result.data.funcdef.body = parse_body(tokens);
+            break;
+    }
+
+    return result;
+}   
+
+struct AstToplevelNode *parse(const struct Token *tokens)
 {
     // Skip initial newline token. It is always added by the tokenizer.
     assert((*tokens).type == TOKEN_NEWLINE);
     ++tokens;
 
-    List(struct AstStatement) result = {0};
-    while (tokens->type != TOKEN_END_OF_FILE)
-        Append(&result, parse_statement(&tokens));
+    List(struct AstToplevelNode) result = {0};
+    do {
+        Append(&result, parse_toplevel_node(&tokens));
+    } while (result.ptr[result.len - 1].kind != AST_TOPLEVEL_END_OF_FILE);
 
-    Append(&result, (struct AstStatement){.location=tokens->location, .kind=AST_STMT_END_OF_FILE});
     return result.ptr;
 }

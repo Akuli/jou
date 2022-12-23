@@ -13,12 +13,12 @@
 // Make sure that the filename passed to tokenize() stays alive throughout the
 // entire compilation. It is used in error messages.
 struct Token *tokenize(const char *filename);
-struct AstStatement *parse(const struct Token *tokens);
-LLVMModuleRef codegen(const struct AstStatement *ast);
+struct AstToplevelNode *parse(const struct Token *tokens);
+LLVMModuleRef codegen(const struct AstToplevelNode *ast);
 
 // Cleaning up return values of compiling functions
 void free_tokens(struct Token *tokenlist);
-void free_ast(struct AstStatement *ast);
+void free_ast(struct AstToplevelNode *topnodelist);
 
 // Printing intermediate data for debugging or exploring the compiler.
 //
@@ -26,6 +26,9 @@ void free_ast(struct AstStatement *ast);
 // For example, print_ast() takes an array of statements ended with a
 // special "end of file" statement.
 void print_tokens(const struct Token *tokenlist);
-void print_ast(struct AstStatement *statements);
+void print_ast(const struct AstToplevelNode *topnodelist);
+
+
+void print_token(const struct Token *token);
 
 #endif

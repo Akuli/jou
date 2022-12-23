@@ -5,7 +5,7 @@
 #include <llvm-c/Types.h>
 
 
-LLVMModuleRef codegen(const struct AstStatement *ast)
+LLVMModuleRef codegen(const struct AstToplevelNode *ast)
 {
     // TODO: pass better name?
     LLVMModuleRef module = LLVMModuleCreateWithName("my_module");
@@ -13,6 +13,7 @@ LLVMModuleRef codegen(const struct AstStatement *ast)
 
     LLVMBuilderRef builder = LLVMCreateBuilder();
 
+    /*
     // TODO: way too hard-coded
     assert(ast->kind == AST_STMT_CIMPORT_FUNCTION);
     assert(!strcmp(ast->data.cimport.funcname, "putchar"));
@@ -36,6 +37,7 @@ LLVMModuleRef codegen(const struct AstStatement *ast)
     }
 
     LLVMBuildRet(builder, LLVMConstInt(i32type, 0, false));
+    */
     LLVMDisposeBuilder(builder);
     return module;
 }

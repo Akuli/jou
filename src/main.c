@@ -26,7 +26,7 @@ int main(int argc, char **argv)
     if(verbose)
         print_tokens(tokens);
 
-    struct AstStatement *ast = parse(tokens);
+    struct AstToplevelNode *ast = parse(tokens);
     free_tokens(tokens);
     if(verbose)
         print_ast(ast);

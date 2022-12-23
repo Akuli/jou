@@ -149,6 +149,11 @@ void read_indentation_as_newline_token(struct State *st, struct Token *t)
     }
 }
 
+static const char *const KeywordList[] = {
+    [TOKEN_CIMPORT] = "cimport",
+    [TOKEN_RETURN] = "return",
+};
+
 static struct Token read_token(struct State *st)
 {
     struct Token t = { .location = st->location };
@@ -167,8 +172,12 @@ static struct Token read_token(struct State *st)
                 if(is_identifier_first_byte(c)) {
                     t.type = TOKEN_NAME;
                     read_identifier(st, c, &t.data.name);
-                    if (!strcmp(t.data.name, "cimport"))
-                        t.type = TOKEN_CIMPORT;
+                    for (unsigned i = 0; i < sizeof(KeywordList)/sizeof(KeywordList[0]); i++){
+                        if (KeywordList[i] && !strcmp(t.data.name, KeywordList[i])) {
+                            t.type = i;
+                            break;
+                        }
+                    }
                 } else {
                     fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (int)c);
                 }
@@ -207,6 +216,10 @@ struct Token *tokenize(const char *filename)
 
     do{
         if (t->type == TOKEN_END_OF_FILE) {
+            // Add an extra newline token at end of file and the dedents after it.
+            // This makes it similar to how other newline and dedent tokens work:
+            // the dedents always come after a newline token.
+            Append(&tokens, (struct Token){ .location=t->location, .type=TOKEN_NEWLINE, .data.indentation_level=level });
             while(level) {
                 Append(&tokens, (struct Token){ .location=t->location, .type=TOKEN_DEDENT });
                 level -= 4;

@@ -2,7 +2,7 @@ LLVM_CONFIG ?= llvm-config-11
 
 SRC := $(wildcard src/*.c)
 
-CFLAGS += -Wall -Wextra -Wpedantic -Werror=switch -std=c11
+CFLAGS += -Wall -Wextra -Wpedantic -Werror=switch -Werror=incompatible-pointer-types -std=c11
 CFLAGS += -g
 CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
 LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs)
