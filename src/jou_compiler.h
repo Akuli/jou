@@ -47,10 +47,13 @@ struct AstType {
         AST_TYPE_NAMED,
         AST_TYPE_POINTER,
     } kind;
-    char name[100];
     union {
         struct AstType *valuetype;  // AST_TYPE_POINTER
     } data;
+
+    // In the AST, all types have a name. For AST_TYPE_NAMED it is the only way
+    // to make sense of the type. It is also used in error messages.
+    char name[100];
 };
 
 struct AstCall {

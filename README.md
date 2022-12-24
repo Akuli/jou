@@ -154,4 +154,22 @@ TODO:
 - Figure out a reasonable way to use valgrind. Seems like llvm does something messy?
 - Write syntax spec once syntax seems relatively stable
 - Multiple types. Currently everything is `int` which is 32-bit signed int.
+- Some way to include types in error messages:
+    - A second pass that adds type information to AST nodes (and checks the types)? New nodes, or filling new fields in existing nodes?
+    - Map LLVM types back to jou-programmer-readable strings, similar to `AstType.name`? Feels like a hack that I would need to change later.
+- Strings:
+    - a `byte` type (similar to `unsigned char` in c)
+    - string literals (do i want `const` pointers? if so: which syntax, `foo: int const*` or `foo: const int*`?)
+    - const pointers so u can't modify string literals
+        - I really want to use a keyword for this, so make it `const` as in C, but where to put it?
+            - `foo: const int*`: looks natural to me, but would complicate stuff because the related `const` and `*` are far apart
+            - `foo: int const*` looks weird to me, but makes much more sense
+            - `foo: int* const` would be very confusing when you also program in C...
+        - do I even want const pointers, or just tell users to be careful?
 - Everything else...?
+    - Structs
+    - Enums
+    - A reasonable way to import structs from C (not just functions).
+        - I don't like the zig/rust things that attempt to parse header files and get confused by macros. Something else?
+        - A good combination of odd corner cases for testing is probably `struct stat` and the `stat()` function.
+    - Self-hosted compiler??!?!
