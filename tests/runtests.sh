@@ -13,27 +13,30 @@ failed=0
 
 function generate_expected_output()
 {
-    local filename="$1"
     (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '// | dos2unix
     (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
 
-    case $filename in
-        tests/should_fail/*)
-            echo "Exit code: 1"
+    case $joufile in
+        examples/* | tests/should_succeed/*)
+            echo "Exit code: 0"
             ;;
         *)
-            echo "Exit code: 0"
+            echo "Exit code: 1"
             ;;
     esac
 }
 
-for joufile in examples/*.jou tests/should_succeed/*.jou tests/should_fail/*.jou; do
+for joufile in examples/*.jou tests/*/*.jou; do
+    if [[ $joufile =~ /broken/ ]]; then
+        continue;
+    fi
+
     command="./jou $joufile"
     diffpath=$(mktemp -p tests/tmp/diffs/)
     printf "\n\n*** Command: %s ***\n" "$command" > $diffpath
 
     if diff -u --color=always \
-        <(generate_expected_output $joufile) \
+        <(generate_expected_output) \
         <(bash -c "$command; echo Exit code: \$?" 2>&1) \
         &>> $diffpath
     then
