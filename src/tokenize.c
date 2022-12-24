@@ -141,7 +141,7 @@ void read_identifier(struct State *st, char firstbyte, char (*dest)[100])
         }
 
         if (destlen == sizeof *dest - 1)
-            fail_with_error(st->location, "variable name is too long: %.20s...", *dest);
+            fail_with_error(st->location, "name is too long: %.20s...", *dest);
         (*dest)[destlen++] = c;
     }
 }
