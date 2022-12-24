@@ -32,6 +32,9 @@ struct Token {
         TOKEN_CDECL,
         TOKEN_DEF,
         TOKEN_VOID,
+        TOKEN_IF,
+        TOKEN_TRUE,   // TODO: global variables
+        TOKEN_FALSE,  // TODO: global variables
     } type;
     struct Location location;
     union {

@@ -22,6 +22,9 @@ void print_token(const struct Token *token)
         f(TOKEN_VOID);
         f(TOKEN_STAR);
         f(TOKEN_AMP);
+        f(TOKEN_IF);
+        f(TOKEN_FALSE);
+        f(TOKEN_TRUE);
         #undef f
     }
 
@@ -54,6 +57,9 @@ void print_token(const struct Token *token)
     case TOKEN_VOID:
     case TOKEN_STAR:
     case TOKEN_AMP:
+    case TOKEN_IF:
+    case TOKEN_FALSE:
+    case TOKEN_TRUE:
         break;
     }
 

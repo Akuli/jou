@@ -189,6 +189,9 @@ static const char *const KeywordList[] = {
     [TOKEN_CDECL] = "cdecl",
     [TOKEN_RETURN] = "return",
     [TOKEN_VOID] = "void",
+    [TOKEN_IF] = "if",
+    [TOKEN_TRUE] = "True",
+    [TOKEN_FALSE] = "False",
 };
 
 static struct Token read_token(struct State *st)

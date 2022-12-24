@@ -26,6 +26,9 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_RETURN: strcpy(got, "the 'return' keyword"); break;
         case TOKEN_DEF: strcpy(got, "the 'def' keyword"); break;
         case TOKEN_VOID: strcpy(got, "the 'void' keyword"); break;
+        case TOKEN_IF: strcpy(got, "the 'if' keyword"); break;
+        case TOKEN_TRUE: strcpy(got, "the 'true' keyword"); break;
+        case TOKEN_FALSE: strcpy(got, "the 'false' keyword"); break;
     }
     fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
