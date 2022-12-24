@@ -18,6 +18,19 @@ struct State {
 };
 
 static char read_byte(struct State *st) {
+    if (st->location.lineno == 0) {
+        /*
+        Add a fake newline to the beginning. It does a few things:
+          * Less special-casing: blank lines in the beginning of the file can
+            cause there to be a newline token anyway.
+          * It is easier to detect an unexpected indentation in the beginning
+            of the file, as it becomes just like any other indentation.
+          * Line numbers start at 1.
+        */
+        st->location.lineno++;
+        return '\n';
+    }
+
     int c = fgetc(st->f);
     if (c == EOF && ferror(st->f))
         fail_with_error(st->location, "cannot read file: %s", strerror(errno));
@@ -201,10 +214,7 @@ static struct Token read_token(struct State *st)
 
 static struct Token *tokenize_without_indent_dedent_tokens(const char *filename)
 {
-    struct State st = {
-        .location = {.filename=filename, .lineno=1},
-        .f = fopen(filename, "rb"),
-    };
+    struct State st = { .location.filename=filename, .f = fopen(filename, "rb") };
     if (!st.f)
         fail_with_error(st.location, "cannot open file: %s", strerror(errno));
 
@@ -255,6 +265,16 @@ struct Token *handle_indentations(const struct Token *temp_tokens)
             }
         }
     } while (t++->type != TOKEN_END_OF_FILE);
+
+    /*
+    Delete the newline token in the beginning.
+
+    If the file has indentations after it, they are now represented by separate
+    indent tokens and parsing will fail. If the file doesn't have any blank/comment
+    lines in the beginning, it has a newline token anyway to avoid special casing.
+    */
+    assert(tokens.ptr[0].type == TOKEN_NEWLINE);
+    memmove(&tokens.ptr[0], &tokens.ptr[1], sizeof(tokens.ptr[0]) * (tokens.len - 1));
 
     return tokens.ptr;
 }

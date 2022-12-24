@@ -14,11 +14,11 @@ failed=0
 function generate_expected_output()
 {
     local filename="$1"
-    (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
+    (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '// | dos2unix
     (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
 }
 
-for joufile in examples/*.jou tests/should_fail/*.jou; do
+for joufile in examples/*.jou tests/should_work/*.jou tests/should_fail/*.jou; do
     command="./jou $joufile"
     diffpath=$(mktemp -p tests/tmp/diffs/)
     printf "\n\n*** Command: %s ***\n" "$command" > $diffpath
