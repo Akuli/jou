@@ -146,7 +146,6 @@ $ make -j2 && valgrind --leak-check=full --show-leak-kinds=all ./jou examples/he
 ```
 
 TODO:
-- Add proper integer literals
 - Get rid of main implicitly returning 0 hack. Not within the spirit of the language to do something implicit...
 - Figure out a reasonable way to use valgrind. Seems like llvm does something messy?
 - Write syntax spec once syntax seems relatively stable

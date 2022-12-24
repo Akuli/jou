@@ -198,33 +198,43 @@ static struct Token read_token(struct State *st)
     while(1) {
         char c = read_byte(st);
         switch(c) {
-            case '-':
-                if (read_byte(st) != '>')
-                    fail_with_error(t.location, "'-' must be immediately followed by '>' to make up the '->' operator");
-                t.type = TOKEN_ARROW;
-                break;
-            case '#': consume_rest_of_line(st); continue;
-            case ' ': continue;
-            case '\n': read_indentation_as_newline_token(st, &t); break;
-            case '\0': t.type = TOKEN_END_OF_FILE; break;
-            case '(': t.type = TOKEN_OPENPAREN; break;
-            case ')': t.type = TOKEN_CLOSEPAREN; break;
-            case ':': t.type = TOKEN_COLON; break;
-            case '\'': t.type = TOKEN_INT; t.data.int_value = read_char_literal(st); break;
-            default:
-                if(is_identifier_first_byte(c)) {
-                    t.type = TOKEN_NAME;
-                    read_identifier(st, c, &t.data.name);
-                    for (unsigned i = 0; i < sizeof(KeywordList)/sizeof(KeywordList[0]); i++){
-                        if (KeywordList[i] && !strcmp(t.data.name, KeywordList[i])) {
-                            t.type = i;
-                            break;
-                        }
+        case '-':
+            if (read_byte(st) != '>')
+                fail_with_error(t.location, "'-' must be immediately followed by '>' to make up the '->' operator");
+            t.type = TOKEN_ARROW;
+            break;
+        case '#': consume_rest_of_line(st); continue;
+        case ' ': continue;
+        case '\n': read_indentation_as_newline_token(st, &t); break;
+        case '\0': t.type = TOKEN_END_OF_FILE; break;
+        case '(': t.type = TOKEN_OPENPAREN; break;
+        case ')': t.type = TOKEN_CLOSEPAREN; break;
+        case ':': t.type = TOKEN_COLON; break;
+        case '\'': t.type = TOKEN_INT; t.data.int_value = read_char_literal(st); break;
+        default:
+            if ('0'<=c && c<='9') {
+                int n = 0;
+                do{
+                    n *= 10;
+                    n += c-'0';
+                    c = read_byte(st);
+                } while ('0'<=c && c<='9');
+                unread_byte(st, c);
+                t.type = TOKEN_INT;
+                t.data.int_value = n;
+            } else if(is_identifier_first_byte(c)) {
+                t.type = TOKEN_NAME;
+                read_identifier(st, c, &t.data.name);
+                for (unsigned i = 0; i < sizeof(KeywordList)/sizeof(KeywordList[0]); i++){
+                    if (KeywordList[i] && !strcmp(t.data.name, KeywordList[i])) {
+                        t.type = i;
+                        break;
                     }
-                } else {
-                    fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (int)c);
                 }
-                break;
+            } else {
+                fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (int)c);
+            }
+            break;
         }
         return t;
     }
