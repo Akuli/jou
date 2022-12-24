@@ -76,7 +76,10 @@ static void print_ast_function_signature(const struct AstFunctionSignature *sig,
         if(i) printf(", ");
         printf("int");
     }
-    printf(") -> int\n");
+    printf(")");
+    if (sig->returns_a_value)
+        printf(" -> int");
+    printf("\n");
 }
 
 static void print_ast_statement(const struct AstStatement *stmt, int indent)
@@ -85,16 +88,25 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
     switch(stmt->kind) {
         #define f(x) case x: printf(#x); break
         f(AST_STMT_CALL);
-        f(AST_STMT_RETURN);
+        f(AST_STMT_RETURN_VALUE);
+        f(AST_STMT_RETURN_WITHOUT_VALUE);
         #undef f
     }
 
     switch(stmt->kind) {
         case AST_STMT_CALL:
-            printf(" funcname=\"%s\" arg=%d\n", stmt->data.call.funcname, stmt->data.call.arg);
+            printf(" funcname=\"%s\" args=[", stmt->data.call.funcname);
+            for (int i = 0; i < stmt->data.call.nargs; i++) {
+                if(i) printf(",");
+                printf("%d", stmt->data.call.args[i]);
+            }
+            printf("]\n");
             break;
-        case AST_STMT_RETURN:
+        case AST_STMT_RETURN_VALUE:
             printf(" returnvalue=%d\n", stmt->data.returnvalue);
+            break;
+        case AST_STMT_RETURN_WITHOUT_VALUE:
+            printf("\n");
             break;
     }
 }

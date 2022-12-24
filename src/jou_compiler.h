@@ -1,6 +1,7 @@
 #ifndef JOU_COMPILER_H
 #define JOU_COMPILER_H
 
+#include <stdbool.h>
 #include <stdnoreturn.h>
 #include <llvm-c/Core.h>
 
@@ -38,21 +39,24 @@ struct Token {
 
 struct AstCall {
     char funcname[100];
-    int arg;
+    int *args;  // TODO: currently hard-coded: all arguments are int constants
+    int nargs;
 };
 
-// TODO: currently hard-coded: all arguments have type int, returntype int
+// TODO: currently hard-coded: all arguments have type int
 struct AstFunctionSignature {
     struct Location location;
     char funcname[100];
     int nargs;
+    bool returns_a_value;
 };
 
 struct AstStatement {
     struct Location location;
     enum AstStatementKind {
         AST_STMT_CALL,
-        AST_STMT_RETURN,
+        AST_STMT_RETURN_VALUE,
+        AST_STMT_RETURN_WITHOUT_VALUE,
     } kind;
     union {
         struct AstCall call;    // for AST_STMT_CALL

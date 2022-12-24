@@ -1,0 +1,14 @@
+cdecl putchar(ch: int) -> int
+
+def foo():
+    putchar('h')
+    putchar('i')
+    putchar('\n')
+
+def should_do_nothing():
+    return
+    putchar('x')
+
+def main():
+    should_do_nothing()
+    foo()  # Output: hi

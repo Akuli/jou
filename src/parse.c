@@ -81,10 +81,13 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
         fail_with_parse_error(*tokens, "a ')'");
     ++*tokens;
 
-    if ((*tokens)->type != TOKEN_ARROW)
-        fail_with_parse_error(*tokens, "a '->' followed by the return type");
-    ++*tokens;
-    parse_type(tokens);
+    if ((*tokens)->type == TOKEN_ARROW) {
+        ++*tokens;
+        parse_type(tokens);
+        result.returns_a_value = true;
+    } else {
+        result.returns_a_value = false;
+    }
 
     return result;
 }
@@ -102,7 +105,20 @@ static struct AstCall parse_call(const struct Token **tokens)
         fail_with_parse_error(*tokens, "a '(' to denote the start of function arguments");
     ++*tokens;
 
-    result.arg = parse_expression(tokens);
+    List(int) args = {0};
+
+    while ((*tokens)->type != TOKEN_CLOSEPAREN) {
+        Append(&args, parse_expression(tokens));
+        // TODO: eat comma
+        //if ((*tokens)->type == TOKEN_COMMA) {
+        //    ...
+        //} else {
+            break;
+        //}
+    }
+
+    result.args = args.ptr;
+    result.nargs = args.len;
 
     if ((*tokens)->type != TOKEN_CLOSEPAREN)
         fail_with_parse_error(*tokens, "a ')'");
@@ -129,8 +145,12 @@ static struct AstStatement parse_statement(const struct Token **tokens)
 
         case TOKEN_RETURN:
             ++*tokens;
-            result.kind = AST_STMT_RETURN;
-            result.data.returnvalue = parse_expression(tokens);
+            if ((*tokens)->type == TOKEN_NEWLINE) {
+                result.kind = AST_STMT_RETURN_WITHOUT_VALUE;
+            } else {
+                result.kind = AST_STMT_RETURN_VALUE;
+                result.data.returnvalue = parse_expression(tokens);
+            }
             break;
 
         default:

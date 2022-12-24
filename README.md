@@ -126,11 +126,13 @@ $ make test
 
 This runs Jou files in `examples/` and `tests/`,
 and ensures that they output what is expected.
-The expected output is auto-generated from `# Output:` and `# Error:` comments in the Jou code:
+The expected output is auto-generated from `# Output:` and `# Error:` comments in the Jou files:
 
 - A comment like `# Output: foo` appends a line `foo` to the expected output.
 - A comment like `# Error: foo` on line 123 of file `tests/bar.jou` appends a line
-    `compile error in file "tests/bar.jou", line 123: foo`
+    `compile error in file "tests/bar.jou", line 123: foo`.
+- Files in `tests/should_fail/` should cause a compiler error (exit code 1).
+    Other files should run successfully (exit code 0).
 
 If the actual output doesn't match what's in a text file, you will see a diff where
 green (+) is the program's output and red (-) is what was expected.

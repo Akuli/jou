@@ -17,7 +17,16 @@ void free_tokens(struct Token *tokenlist)
 
 static void free_body(const struct AstBody *body)
 {
-    // Currently individual statements don't need freeing.
+    for (int i = 0; i < body->nstatements; i++) {
+        switch(body->statements[i].kind) {
+        case AST_STMT_CALL:
+            free(body->statements[i].data.call.args);
+            break;
+        case AST_STMT_RETURN_VALUE:
+        case AST_STMT_RETURN_WITHOUT_VALUE:
+            break;
+        }
+    }
     free(body->statements);
 }
 
