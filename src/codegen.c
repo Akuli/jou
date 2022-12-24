@@ -13,27 +13,13 @@ struct State {
     const struct AstFunctionSignature *current_func_signature;
 };
 
-static void codegen_void_return(const struct State *st, struct Location location)
-{
-    if (st->current_func_signature->returns_a_value) {
-        // TODO: get the name of the return type here
-        fail_with_error(
-            location,
-            "a return value is needed, because the return type of function \"%s\" is \"int\"",
-            st->current_func_signature->funcname);
-    }
-
-    // main function returns 0 if declared as having no return value
-    if (!strcmp(st->current_func_signature->funcname, "main"))
-        LLVMBuildRet(st->builder, LLVMConstInt(LLVMInt32Type(), 0, false));
-    else
-        LLVMBuildRetVoid(st->builder);
-}
-
 static LLVMValueRef codegen_function_decl(const struct State *st, const struct AstFunctionSignature *sig)
 {
     if (LLVMGetNamedFunction(st->module, sig->funcname))
         fail_with_error(sig->location, "a function named \"%s\" already exists", sig->funcname);
+
+    if (!strcmp(sig->funcname, "main") && !sig->returns_a_value)
+        fail_with_error(sig->location, "the main() function must return int");
 
     LLVMTypeRef i32type = LLVMInt32Type();
 
@@ -44,12 +30,8 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const struct A
     LLVMTypeRef returntype;
     if (sig->returns_a_value)
         returntype = i32type ; // TODO
-    else if (!strcmp(sig->funcname, "main")) {
-        // main function returns 0 if declared as having no return value
-        returntype = LLVMInt32Type();
-    } else {
+    else
         returntype = LLVMVoidType();
-    }
 
     LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, false);
     free(argtypes);
@@ -124,7 +106,14 @@ static void codegen_statement(const struct State *st, const struct AstStatement 
             break;
 
         case AST_STMT_RETURN_WITHOUT_VALUE:
-            codegen_void_return(st, stmt->location);
+            if (st->current_func_signature->returns_a_value) {
+                // TODO: get the name of the return type here
+                fail_with_error(
+                    stmt->location,
+                    "a return value is needed, because the return type of function \"%s\" is \"int\"",
+                    st->current_func_signature->funcname);
+            }
+            LLVMBuildRetVoid(st->builder);
             break;
     }
 }
@@ -141,10 +130,8 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
 
     if (funcdef->signature.returns_a_value)
         LLVMBuildUnreachable(st->builder);  // TODO: add an error if this is reachable
-    else {
-        assert(funcdef->body.nstatements > 0);
-        codegen_void_return(st, funcdef->body.statements[funcdef->body.nstatements-1].location);
-    }
+    else
+        LLVMBuildRetVoid(st->builder);
 
     assert(st->current_func_signature == &funcdef->signature);
     st->current_func_signature = NULL;

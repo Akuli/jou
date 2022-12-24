@@ -42,13 +42,14 @@ Here's what Jou code currently looks like:
 ```python3
 cdecl putchar(ch: int) -> int
 
-def main() -> void:
+def main() -> int:
     putchar('h')
     putchar('e')
     putchar('l')
     putchar('l')
     putchar('o')
     putchar('\n')
+    return 0
 ```
 
 Here's what I want it to eventually look like:
@@ -146,7 +147,6 @@ $ make -j2 && valgrind --leak-check=full --show-leak-kinds=all ./jou examples/he
 ```
 
 TODO:
-- Get rid of main implicitly returning 0 hack. Not within the spirit of the language to do something implicit...
 - Figure out a reasonable way to use valgrind. Seems like llvm does something messy?
 - Write syntax spec once syntax seems relatively stable
 - Multiple types. Currently everything is `int` which is 32-bit signed int.
