@@ -118,6 +118,19 @@ void read_identifier(struct State *st, char firstbyte, char (*dest)[100])
     }
 }
 
+void consume_rest_of_line(struct State *st)
+{
+    while(1) {
+        char c = read_byte(st);
+        if (c == '\n') {
+            unread_byte(st, '\n');
+            return;
+        }
+        if (c == '\0')  // end of file
+            return;
+    }
+}
+
 // Assumes that the initial '\n' byte has been read already.
 void read_indentation_as_newline_token(struct State *st, struct Token *t)
 {
@@ -129,6 +142,8 @@ void read_indentation_as_newline_token(struct State *st, struct Token *t)
             t->data.indentation_level++;
         else if (c == '\n')
             t->data.indentation_level = 0;
+        else if (c == '#')
+            consume_rest_of_line(st);
         else if (c == '\0') {
             // Ignore newline+spaces at end of file. Do not validate 4 spaces.
             // TODO: test case
@@ -159,6 +174,7 @@ static struct Token read_token(struct State *st)
                     fail_with_error(t.location, "'-' must be immediately followed by '>' to make up the '->' operator");
                 t.type = TOKEN_ARROW;
                 break;
+            case '#': consume_rest_of_line(st); continue;
             case ' ': continue;
             case '\n': read_indentation_as_newline_token(st, &t); break;
             case '\0': t.type = TOKEN_END_OF_FILE; break;
