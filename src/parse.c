@@ -23,6 +23,7 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_CDECL: strcpy(got, "the 'cdecl' keyword"); break;
         case TOKEN_RETURN: strcpy(got, "the 'return' keyword"); break;
         case TOKEN_DEF: strcpy(got, "the 'def' keyword"); break;
+        case TOKEN_VOID: strcpy(got, "the 'void' keyword"); break;
     }
     fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
@@ -81,12 +82,26 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
         fail_with_parse_error(*tokens, "a ')'");
     ++*tokens;
 
-    if ((*tokens)->type == TOKEN_ARROW) {
-        ++*tokens;
-        parse_type(tokens);
-        result.returns_a_value = true;
-    } else {
+    if ((*tokens)->type != TOKEN_ARROW) {
+        // Special case for common typo:   def foo():
+        // TODO: same special casing for missing type annotations of arguments
+        if ((*tokens)->type == TOKEN_COLON) {
+            fail_with_error(
+                (*tokens)->location,
+                "return type must be specified with '->',"
+                " or with '-> void' if the function doesn't return anything"
+            );
+        }
+        fail_with_parse_error(*tokens, "a '->'");
+    }
+    ++*tokens;
+
+    if ((*tokens)->type == TOKEN_VOID) {
         result.returns_a_value = false;
+        ++*tokens;
+    } else {
+        result.returns_a_value = true;
+        parse_type(tokens);
     }
 
     return result;

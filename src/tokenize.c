@@ -82,12 +82,29 @@ static char read_char_literal(struct State *st)
         // '\n' means newline, for example
         char after_backslash = read_byte(st);
         switch(after_backslash) {
-            case 'n': c = '\n'; break;
-            case '\\': c = '\\'; break;
-            case '\'': c = '\''; break;
-            case '0': c = 0; break;
-            default:
-                fail_with_error(st->location, "unknown character literal: '\\%c'", after_backslash);
+        case 'n':
+            c = '\n';
+            break;
+        case '\\':
+            c = '\\';
+            break;
+        case '\'':
+            c = '\'';
+            break;
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            c = after_backslash - '0';
+            break;
+        default:
+            fail_with_error(st->location, "unknown character literal: '\\%c'", after_backslash);
         }
     }
 
@@ -171,6 +188,7 @@ static const char *const KeywordList[] = {
     [TOKEN_DEF] = "def",
     [TOKEN_CDECL] = "cdecl",
     [TOKEN_RETURN] = "return",
+    [TOKEN_VOID] = "void",
 };
 
 static struct Token read_token(struct State *st)

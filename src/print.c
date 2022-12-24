@@ -18,6 +18,7 @@ void print_token(const struct Token *token)
         f(TOKEN_RETURN);
         f(TOKEN_ARROW);
         f(TOKEN_DEF);
+        f(TOKEN_VOID);
         #undef f
     }
 
@@ -47,6 +48,7 @@ void print_token(const struct Token *token)
     case TOKEN_RETURN:
     case TOKEN_ARROW:
     case TOKEN_DEF:
+    case TOKEN_VOID:
         break;
     }
 
@@ -79,6 +81,8 @@ static void print_ast_function_signature(const struct AstFunctionSignature *sig,
     printf(")");
     if (sig->returns_a_value)
         printf(" -> int");
+    else
+        printf(" -> void");
     printf("\n");
 }
 

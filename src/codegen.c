@@ -116,7 +116,9 @@ static void codegen_statement(const struct State *st, const struct AstStatement 
             if (!st->current_func_signature->returns_a_value) {
                 fail_with_error(
                     stmt->location,
-                    "return type must be written on the first line of the function definition, after a '->'");
+                    "function \"%s(...) -> void\" does not return a value",
+                    st->current_func_signature->funcname
+                );
             }
             LLVMBuildRet(st->builder, LLVMConstInt(LLVMInt32Type(), stmt->data.returnvalue, false));
             break;

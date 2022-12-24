@@ -28,6 +28,7 @@ struct Token {
         TOKEN_RETURN,
         TOKEN_CDECL,
         TOKEN_DEF,
+        TOKEN_VOID,
     } type;
     struct Location location;
     union {
