@@ -86,6 +86,42 @@ static void print_ast_function_signature(const struct AstFunctionSignature *sig,
     printf("\n");
 }
 
+static void print_ast_call(const struct AstCall *call, int indent);
+
+static void print_ast_expression(const struct AstExpression *expr, int indent)
+{
+    printf("%*s(line %d) ", indent, "", expr->location.lineno);
+    switch(expr->kind) {
+        #define f(x) case x: printf(#x); break
+        f(AST_EXPR_CALL);
+        f(AST_EXPR_GETVAR);
+        f(AST_EXPR_INT_CONSTANT);
+        #undef f
+    }
+
+    switch(expr->kind) {
+    case AST_EXPR_CALL:
+        printf("\n");
+        print_ast_call(&expr->data.call, indent+2);
+        break;
+    case AST_EXPR_GETVAR:
+        printf(" varname=\"%s\"\n", expr->data.varname);
+        break;
+    case AST_EXPR_INT_CONSTANT:
+        printf(" value=%d\n", expr->data.int_value);
+        break;
+    }
+}
+
+static void print_ast_call(const struct AstCall *call, int indent)
+{
+    printf("%*sAstCall: funcname=\"%s\" nargs=%d\n", indent, "", call->funcname, call->nargs);
+    for (int i = 0; i < call->nargs; i++) {
+        printf("%*s  argument %d:\n", indent, "", i);
+        print_ast_expression(&call->args[i], indent+4);
+    }
+}
+
 static void print_ast_statement(const struct AstStatement *stmt, int indent)
 {
     printf("%*s(line %d) ", indent, "", stmt->location.lineno);
@@ -96,21 +132,17 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
         f(AST_STMT_RETURN_WITHOUT_VALUE);
         #undef f
     }
+    printf("\n");
 
     switch(stmt->kind) {
         case AST_STMT_CALL:
-            printf(" funcname=\"%s\" args=[", stmt->data.call.funcname);
-            for (int i = 0; i < stmt->data.call.nargs; i++) {
-                if(i) printf(",");
-                printf("%d", stmt->data.call.args[i]);
-            }
-            printf("]\n");
+            print_ast_call(&stmt->data.call, indent+2);
             break;
         case AST_STMT_RETURN_VALUE:
-            printf(" returnvalue=%d\n", stmt->data.returnvalue);
+            printf("%*s  return value:\n", indent, "");
+            print_ast_expression(&stmt->data.returnvalue, indent+4);
             break;
         case AST_STMT_RETURN_WITHOUT_VALUE:
-            printf("\n");
             break;
     }
 }

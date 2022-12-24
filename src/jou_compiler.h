@@ -11,6 +11,7 @@ struct Location {
 };
 noreturn void fail_with_error(struct Location location, const char *fmt, ...);
 
+
 struct Token {
     enum TokenType {
         TOKEN_INT,
@@ -33,15 +34,30 @@ struct Token {
     struct Location location;
     union {
         int int_value;  // TOKEN_INT
-        int indentation_level;  // TOKEN_NEWLINE has this to indicate how many spaces after newline
+        int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
         char name[100];  // TOKEN_NAME
     } data;
 };
 
+
 struct AstCall {
     char funcname[100];
-    int *args;  // TODO: currently hard-coded: all arguments are int constants
+    struct AstExpression *args;
     int nargs;
+};
+
+struct AstExpression {
+    struct Location location;
+    enum AstExpressionKind {
+        AST_EXPR_INT_CONSTANT,  // TODO: probably shouldn't include char literals: 'x'
+        AST_EXPR_GETVAR,
+        AST_EXPR_CALL,
+    } kind;
+    union {
+        int int_value;          // AST_EXPR_INT_CONSTANT
+        char varname[100];      // AST_EXPR_GETVAR
+        struct AstCall call;    // AST_EXPR_CALL
+    } data;
 };
 
 // TODO: currently hard-coded: all arguments have type int
@@ -49,6 +65,7 @@ struct AstFunctionSignature {
     struct Location location;
     char funcname[100];
     int nargs;
+    char (*argnames)[100];
     bool returns_a_value;
 };
 
@@ -60,8 +77,8 @@ struct AstStatement {
         AST_STMT_RETURN_WITHOUT_VALUE,
     } kind;
     union {
-        struct AstCall call;    // for AST_STMT_CALL
-        int returnvalue;        // for AST_STMT_RETURN
+        struct AstCall call;                // for AST_STMT_CALL
+        struct AstExpression returnvalue;   // for AST_STMT_RETURN
     } data;
 };
 

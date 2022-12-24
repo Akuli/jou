@@ -36,13 +36,6 @@ static void parse_type(const struct Token **tokens)
     ++*tokens;
 }
 
-static int parse_expression(const struct Token **tokens)
-{
-    if ((*tokens)->type != TOKEN_INT)
-        fail_with_parse_error(*tokens, "an integer (the only expression that currently exists)");
-    return (*tokens)++->data.int_value;
-}
-
 static struct AstFunctionSignature parse_function_signature(const struct Token **tokens)
 {
     struct AstFunctionSignature result = {.location=(*tokens)->location};
@@ -56,11 +49,17 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
         fail_with_parse_error(*tokens, "a '(' to denote the start of function arguments");
     ++*tokens;
 
-    while ((*tokens)->type != TOKEN_CLOSEPAREN) {
-        result.nargs++;
+    // Must be wrapped in a struct, because C doesn't allow assigning arrays (lol)
+    struct Name { char name[100]; };
+    static_assert(sizeof(struct Name) == 100, "your c compiler is stupid");
+    List(struct Name) argnames = {0};
 
+    while ((*tokens)->type != TOKEN_CLOSEPAREN) {
         if ((*tokens)->type != TOKEN_NAME)
             fail_with_parse_error(*tokens, "an argument name");
+        struct Name n;
+        safe_strcpy(n.name, (*tokens)->data.name);
+        Append(&argnames, n);
         ++*tokens;
 
         if ((*tokens)->type != TOKEN_COLON)
@@ -68,6 +67,8 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
         ++*tokens;
 
         parse_type(tokens);
+
+        result.nargs++;
 
         // TODO: eat comma
 
@@ -77,6 +78,7 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
             break;
         //}
     }
+    result.argnames = (char(*)[100])argnames.ptr;  // c syntax occasionally surprises me
 
     if ((*tokens)->type != TOKEN_CLOSEPAREN)
         fail_with_parse_error(*tokens, "a ')'");
@@ -107,6 +109,35 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     return result;
 }
 
+static struct AstCall parse_call(const struct Token **tokens);
+
+static struct AstExpression parse_expression(const struct Token **tokens)
+{
+    struct AstExpression expr = {.location=(*tokens)->location};
+
+    switch((*tokens)->type) {
+    case TOKEN_INT:
+        expr.kind = AST_EXPR_INT_CONSTANT;
+        expr.data.int_value = (*tokens)->data.int_value;
+        ++*tokens;
+        break;
+    case TOKEN_NAME:
+        if ((*tokens)[1].type == TOKEN_OPENPAREN) {
+            expr.kind = AST_EXPR_CALL;
+            expr.data.call = parse_call(tokens);
+        } else {
+            expr.kind = AST_EXPR_GETVAR;
+            safe_strcpy(expr.data.varname, (*tokens)->data.name);
+            ++*tokens;
+        }
+        break;
+    default:
+        fail_with_parse_error(*tokens, "an expression");
+    }
+
+    return expr;
+}
+
 static struct AstCall parse_call(const struct Token **tokens)
 {
     struct AstCall result;
@@ -120,7 +151,7 @@ static struct AstCall parse_call(const struct Token **tokens)
         fail_with_parse_error(*tokens, "a '(' to denote the start of function arguments");
     ++*tokens;
 
-    List(int) args = {0};
+    List(struct AstExpression) args = {0};
 
     while ((*tokens)->type != TOKEN_CLOSEPAREN) {
         Append(&args, parse_expression(tokens));

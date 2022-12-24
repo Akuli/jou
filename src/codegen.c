@@ -6,11 +6,18 @@
 #include <llvm-c/Core.h>
 #include <llvm-c/Types.h>
 #include "jou_compiler.h"
+#include "util.h"
+
+struct LocalVariable {
+    char name[100];
+    LLVMValueRef pointer;
+};
 
 struct State {
     LLVMModuleRef module;
     LLVMBuilderRef builder;
     const struct AstFunctionSignature *current_func_signature;
+    List(struct LocalVariable) local_vars;
 };
 
 static LLVMValueRef codegen_function_decl(const struct State *st, const struct AstFunctionSignature *sig)
@@ -37,6 +44,25 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const struct A
     free(argtypes);
 
     return LLVMAddFunction(st->module, sig->funcname, functype);
+}
+
+// forward-declare
+LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location);
+
+LLVMValueRef codegen_expression(const struct State *st, const struct AstExpression *expr)
+{
+    switch(expr->kind) {
+    case AST_EXPR_CALL:
+        return codegen_call(st, &expr->data.call, expr->location);
+    case AST_EXPR_GETVAR:
+        for (struct LocalVariable *v = st->local_vars.ptr; v < End(st->local_vars); v++)
+            if (!strcmp(v->name, expr->data.varname))
+                return LLVMBuildLoad(st->builder, v->pointer, v->name);
+        fail_with_error(expr->location, "no local variable named \"%s\"", expr->data.varname);
+    case AST_EXPR_INT_CONSTANT:
+        return LLVMConstInt(LLVMInt32Type(), expr->data.int_value, false);
+    }
+    assert(0);
 }
 
 LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location)
@@ -76,7 +102,7 @@ LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, st
 
     LLVMValueRef *args = malloc(nargs * sizeof(args[0]));  // NOLINT
     for (int i = 0; i < call->nargs; i++)
-        args[i] = LLVMConstInt(i32type, call->args[i], false);
+        args[i] = codegen_expression(st, &call->args[i]);
 
     char debug_name[100] = {0};
     if (LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMVoidTypeKind)
@@ -102,7 +128,7 @@ static void codegen_statement(const struct State *st, const struct AstStatement 
                     st->current_func_signature->funcname
                 );
             }
-            LLVMBuildRet(st->builder, LLVMConstInt(LLVMInt32Type(), stmt->data.returnvalue, false));
+            LLVMBuildRet(st->builder, codegen_expression(st, &stmt->data.returnvalue));
             break;
 
         case AST_STMT_RETURN_WITHOUT_VALUE:
@@ -125,6 +151,15 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
     LLVMPositionBuilderAtEnd(st->builder, block);
 
     st->current_func_signature = &funcdef->signature;
+    for (int i = 0; i < funcdef->signature.nargs; i++) {
+        LLVMValueRef value = LLVMGetParam(function, i);
+        LLVMValueRef pointer = LLVMBuildAlloca(st->builder, LLVMTypeOf(value), funcdef->signature.argnames[i]);
+        LLVMBuildStore(st->builder, value, pointer);
+        struct LocalVariable local = { .pointer=pointer };
+        safe_strcpy(local.name, funcdef->signature.argnames[i]);
+        Append(&st->local_vars, local);
+    }
+
     for (int i = 0; i < funcdef->body.nstatements; i++)
         codegen_statement(st, &funcdef->body.statements[i]);
 
@@ -135,6 +170,8 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
 
     assert(st->current_func_signature == &funcdef->signature);
     st->current_func_signature = NULL;
+    free(st->local_vars.ptr);
+    memset(&st->local_vars, 0, sizeof st->local_vars);
 }
 
 LLVMModuleRef codegen(const struct AstToplevelNode *ast)
