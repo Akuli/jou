@@ -11,10 +11,17 @@ mkdir tests/tmp/diffs
 succeeded=0
 failed=0
 
-for joufile in examples/*.jou; do
+function generate_expected_output()
+{
+    local filename="$1"
+    (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
+    (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
+}
+
+for joufile in examples/*.jou tests/*.jou; do
     command="./jou $joufile"
     if diff -u --color=always \
-        <( (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '// ) \
+        <(generate_expected_output $joufile) \
         <(bash -c "$command" 2>&1) \
         &> tests/tmp/diffs/$(echo -n "$command" | base64)
     then
