@@ -18,16 +18,19 @@ function generate_expected_output()
     (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
 }
 
-for joufile in examples/*.jou tests/*.jou; do
+for joufile in examples/*.jou tests/should_fail/*.jou; do
     command="./jou $joufile"
+    diffpath=$(mktemp -p tests/tmp/diffs/)
+    printf "\n\n*** Command: %s ***\n" "$command" > $diffpath
+
     if diff -u --color=always \
         <(generate_expected_output $joufile) \
         <(bash -c "$command" 2>&1) \
-        &> tests/tmp/diffs/$(echo -n "$command" | base64)
+        &>> $diffpath
     then
         echo -ne "\x1b[32m.\x1b[0m"
         succeeded=$((succeeded + 1))
-        rm tests/tmp/diffs/$(echo -n "$command" | base64)
+        rm $diffpath
     else
         echo -ne "\x1b[31mF\x1b[0m"
         failed=$((failed + 1))
@@ -39,14 +42,7 @@ echo ""
 
 if [ $failed != 0 ]; then
     echo "------- FAILURES -------"
-    echo ""
-    cd tests/tmp/diffs
-    for b64filename in *; do
-        echo "*** Command: $(echo $b64filename | base64 -d) ***"
-        cat $b64filename
-        echo ""
-        echo ""
-    done
+    cat tests/tmp/diffs/*
 fi
 
 if [ $failed = 0 ]; then
