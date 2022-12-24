@@ -16,6 +16,15 @@ function generate_expected_output()
     local filename="$1"
     (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '// | dos2unix
     (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
+
+    case $filename in
+        tests/should_fail/*)
+            echo "Exit code: 1"
+            ;;
+        *)
+            echo "Exit code: 0"
+            ;;
+    esac
 }
 
 for joufile in examples/*.jou tests/should_work/*.jou tests/should_fail/*.jou; do
@@ -25,7 +34,7 @@ for joufile in examples/*.jou tests/should_work/*.jou tests/should_fail/*.jou; d
 
     if diff -u --color=always \
         <(generate_expected_output $joufile) \
-        <(bash -c "$command" 2>&1) \
+        <(bash -c "$command; echo Exit code: \$?" 2>&1) \
         &>> $diffpath
     then
         echo -ne "\x1b[32m.\x1b[0m"
