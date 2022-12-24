@@ -157,6 +157,9 @@ TODO:
 - Some way to include types in error messages:
     - A second pass that adds type information to AST nodes (and checks the types)? New nodes, or filling new fields in existing nodes?
     - Map LLVM types back to jou-programmer-readable strings, similar to `AstType.name`? Feels like a hack that I would need to change later.
+- A boolean datatype that presumably doesn't cast between ints or pointers too easily.
+- `if`,`elif`,`else`
+- `while`, `for init; cond; incr:`, maybe `do`-`while`?
 - Strings:
     - a `byte` type (similar to `unsigned char` in c)
     - string literals (do i want `const` pointers? if so: which syntax, `foo: int const*` or `foo: const int*`?)
