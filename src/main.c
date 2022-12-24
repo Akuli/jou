@@ -5,6 +5,7 @@
 #include <string.h>
 #include "jou_compiler.h"
 
+// TODO: test invalid ways to pass arguments, passing non-existent file, etc
 int main(int argc, char **argv)
 {
     bool verbose;

@@ -27,6 +27,7 @@ for joufile in examples/*.jou tests/*.jou; do
     then
         echo -ne "\x1b[32m.\x1b[0m"
         succeeded=$((succeeded + 1))
+        rm tests/tmp/diffs/$(echo -n "$command" | base64)
     else
         echo -ne "\x1b[31mF\x1b[0m"
         failed=$((failed + 1))

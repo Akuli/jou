@@ -64,7 +64,7 @@ static void codegen_statement(LLVMBuilderRef builder, LLVMModuleRef module, cons
 
             char debug_name[100];
             snprintf(debug_name, sizeof debug_name, "%s_return_value", stmt->data.call.funcname);
-            LLVMBuildCall2(builder, function_type, function, &arg, 1, "putchar_ret");
+            LLVMBuildCall2(builder, function_type, function, &arg, 1, debug_name);
 
             break;
         }
