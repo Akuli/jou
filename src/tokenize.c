@@ -33,7 +33,7 @@ static char read_byte(struct State *st) {
 
     // Use the zero byte to represent end of file.
     if (c == '\0')
-        fail_with_error(st->location, "source file contains a zero byte");
+        fail_with_error(st->location, "source file contains a zero byte");  // TODO: test this
     if (c == EOF) {
         assert(!ferror(st->f));
         return '\0';
@@ -80,9 +80,7 @@ static char read_char_literal(struct State *st)
 
     char endquote = read_byte(st);
     if (endquote  != '\'')
-        fail_with_error(st->location,
-            "a character literal (single quotes) can only contain one character, "
-            "maybe you want to use a string literal (double quotes) instead?");
+        fail_with_error(st->location, "single quotes are for a single character, maybe use double quotes to instead make a string?");
 
     return c;
 }
@@ -113,7 +111,7 @@ void read_identifier(struct State *st, char firstbyte, char (*dest)[100])
         }
 
         if (destlen == sizeof *dest - 1)
-            fail_with_error(st->location, "name \"%s\" is too long", *dest);
+            fail_with_error(st->location, "variable name is too long: %.20s...", *dest);
         (*dest)[destlen++] = c;
     }
 }
@@ -240,11 +238,11 @@ struct Token *handle_indentations(const struct Token *temp_tokens)
         Append(&tokens, *t);
 
         if (t->type == TOKEN_NEWLINE) {
-            if (t->data.indentation_level % 4 != 0)
-                fail_with_error(t->location, "indentation must be a multiple of 4 spaces");
-
             struct Location after_newline = t->location;
             after_newline.lineno++;
+
+            if (t->data.indentation_level % 4 != 0)
+                fail_with_error(after_newline, "indentation must be a multiple of 4 spaces");
 
             while (level < t->data.indentation_level) {
                 Append(&tokens, (struct Token){ .location=after_newline, .type=TOKEN_INDENT });
