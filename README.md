@@ -160,6 +160,9 @@ TODO:
 - A boolean datatype that presumably doesn't cast between ints or pointers too easily.
 - `if`,`elif`,`else`
 - `while`, `for init; cond; incr:`, maybe `do`-`while`?
+- `++` and `--`
+    - There's now quite a lot of overlap between expressions and statements.
+        Do something about it?
 - Strings:
     - a `byte` type (similar to `unsigned char` in c)
     - string literals (do i want `const` pointers? if so: which syntax, `foo: int const*` or `foo: const int*`?)
