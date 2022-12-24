@@ -27,7 +27,7 @@ function generate_expected_output()
     esac
 }
 
-for joufile in examples/*.jou tests/should_work/*.jou tests/should_fail/*.jou; do
+for joufile in examples/*.jou tests/should_succeed/*.jou tests/should_fail/*.jou; do
     command="./jou $joufile"
     diffpath=$(mktemp -p tests/tmp/diffs/)
     printf "\n\n*** Command: %s ***\n" "$command" > $diffpath
