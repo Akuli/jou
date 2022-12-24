@@ -11,25 +11,19 @@ mkdir tests/tmp/diffs
 succeeded=0
 failed=0
 
-function run_file()
-{
-    local output_filename="$1"
-    local command="$2"
-
-    local diff_filename=tests/tmp/diffs/$(echo -n "$command" | base64)
-    if diff -u --color=always "$output_filename" <(bash -c "$command") &> "$diff_filename"; then
+for joufile in examples/*.jou; do
+    command="./jou $joufile"
+    if diff -u --color=always \
+        <( (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '// ) \
+        <(bash -c "$command" 2>&1) \
+        &> tests/tmp/diffs/$(echo -n "$command" | base64)
+    then
         echo -ne "\x1b[32m.\x1b[0m"
         succeeded=$((succeeded + 1))
     else
         echo -ne "\x1b[31mF\x1b[0m"
         failed=$((failed + 1))
     fi
-}
-
-for file in examples/*.jou; do
-    dir=$(basename $(dirname $file))
-    name_without_extension=$(basename $file | cut -d. -f1)
-    run_file tests/$dir-output/$name_without_extension.txt "./jou $file"
 done
 
 echo ""

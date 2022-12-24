@@ -30,4 +30,4 @@ clean:
 
 .PHONY: test
 test: all
-	tests/run.sh
+	tests/runtests.sh

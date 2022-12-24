@@ -91,7 +91,7 @@ $ sudo apt install git make llvm-11-dev clang-11
 ```
 
 Once you have installed the dependencies,
-run these commands to compile the Jou compiler and then run a hello world progra,:
+run these commands to compile the Jou compiler and then run a hello world program:
 
 ```
 $ make -j2
@@ -124,7 +124,10 @@ Running tests:
 $ make test
 ```
 
-This runs Jou files in `tests/` and compares their output to text files.
+This runs Jou files in `examples/` and `tests/`,
+and ensures that they output what is expected.
+The expected output is auto-generated from comments in the Jou code:
+each comment like `# Output: foo` appends a line `foo` to the expected output.
 If the actual output doesn't match what's in a text file, you will see a diff where
 green (+) is the program's output and red (-) is what was expected.
 
