@@ -140,6 +140,10 @@ The command that was ran (e.g. `./jou examples/hello.jou`) is shown just above t
 and you can run it again manually to debug a test failure.
 You can also put e.g. `valgrind` or `gdb --args` in front of the command.
 
+Files in `tests/broken/` are not tested,
+because for one reason or another they don't work as intended.
+Ideally the `tests/broken/` directory would be empty most of the time.
+
 Checking for memory related bugs with valgrind:
 
 ```
