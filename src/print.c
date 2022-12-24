@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "jou_compiler.h"
+#include "util.h"
 
 void print_token(const struct Token *token)
 {
@@ -19,6 +20,8 @@ void print_token(const struct Token *token)
         f(TOKEN_ARROW);
         f(TOKEN_DEF);
         f(TOKEN_VOID);
+        f(TOKEN_STAR);
+        f(TOKEN_AMP);
         #undef f
     }
 
@@ -49,6 +52,8 @@ void print_token(const struct Token *token)
     case TOKEN_ARROW:
     case TOKEN_DEF:
     case TOKEN_VOID:
+    case TOKEN_STAR:
+    case TOKEN_AMP:
         break;
     }
 
@@ -76,14 +81,12 @@ static void print_ast_function_signature(const struct AstFunctionSignature *sig,
     printf("%*sfunction signature (on line %d): %s(", indent, "", sig->location.lineno, sig->funcname);
     for (int i = 0; i < sig->nargs; i++) {
         if(i) printf(", ");
-        printf("int");
+        printf("%s", sig->argtypes[i].name);
     }
-    printf(")");
-    if (sig->returns_a_value)
-        printf(" -> int");
+    if (sig->returntype)
+        printf(") -> %s\n", sig->returntype->name);
     else
-        printf(" -> void");
-    printf("\n");
+        printf(") -> void\n");
 }
 
 static void print_ast_call(const struct AstCall *call, int indent);
@@ -94,8 +97,10 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
     switch(expr->kind) {
         #define f(x) case x: printf(#x); break
         f(AST_EXPR_CALL);
-        f(AST_EXPR_GETVAR);
+        f(AST_EXPR_GET_VARIABLE);
         f(AST_EXPR_INT_CONSTANT);
+        f(AST_EXPR_ADDRESS_OF_VARIABLE);
+        f(AST_EXPR_DEREFERENCE);
         #undef f
     }
 
@@ -104,7 +109,12 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         printf("\n");
         print_ast_call(&expr->data.call, indent+2);
         break;
-    case AST_EXPR_GETVAR:
+    case AST_EXPR_DEREFERENCE:
+        printf("\n");
+        print_ast_expression(expr->data.pointerexpr, indent+2);
+        break;
+    case AST_EXPR_GET_VARIABLE:
+    case AST_EXPR_ADDRESS_OF_VARIABLE:
         printf(" varname=\"%s\"\n", expr->data.varname);
         break;
     case AST_EXPR_INT_CONSTANT:

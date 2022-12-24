@@ -15,6 +15,18 @@ void free_tokens(struct Token *tokenlist)
     free(tokenlist);
 }
 
+static void free_type(const struct AstType *type)
+{
+    switch(type->kind) {
+    case AST_TYPE_POINTER:
+        free_type(type->data.valuetype);
+        free(type->data.valuetype);
+        break;
+    case AST_TYPE_NAMED:
+        break;
+    }
+}
+
 static void free_expression(const struct AstExpression *expr);
 
 static void free_call(const struct AstCall *call)
@@ -30,8 +42,13 @@ static void free_expression(const struct AstExpression *expr)
     case AST_EXPR_CALL:
         free_call(&expr->data.call);
         break;
+    case AST_EXPR_DEREFERENCE:
+        free_expression(expr->data.pointerexpr);
+        free(expr->data.pointerexpr);
+        break;
     case AST_EXPR_INT_CONSTANT:
-    case AST_EXPR_GETVAR:
+    case AST_EXPR_GET_VARIABLE:
+    case AST_EXPR_ADDRESS_OF_VARIABLE:
         break;
     }
 }
@@ -59,6 +76,13 @@ static void free_body(const struct AstBody *body)
 
 static void free_signature(const struct AstFunctionSignature *sig)
 {
+    for (int i = 0; i < sig->nargs; i++)
+        free_type(&sig->argtypes[i]);
+    free(sig->argtypes);
+    if (sig->returntype){
+        free_type(sig->returntype);
+        free(sig->returntype);
+    }
     free(sig->argnames);
 }
 

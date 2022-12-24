@@ -25,6 +25,8 @@ struct Token {
         TOKEN_CLOSEPAREN,
         TOKEN_COLON,
         TOKEN_ARROW,
+        TOKEN_STAR,
+        TOKEN_AMP,
         // keywords
         TOKEN_RETURN,
         TOKEN_CDECL,
@@ -40,6 +42,17 @@ struct Token {
 };
 
 
+struct AstType {
+    enum AstTypeKind {
+        AST_TYPE_NAMED,
+        AST_TYPE_POINTER,
+    } kind;
+    char name[100];
+    union {
+        struct AstType *valuetype;  // AST_TYPE_POINTER
+    } data;
+};
+
 struct AstCall {
     char funcname[100];
     struct AstExpression *args;
@@ -50,13 +63,16 @@ struct AstExpression {
     struct Location location;
     enum AstExpressionKind {
         AST_EXPR_INT_CONSTANT,  // TODO: probably shouldn't include char literals: 'x'
-        AST_EXPR_GETVAR,
         AST_EXPR_CALL,
+        AST_EXPR_GET_VARIABLE,
+        AST_EXPR_ADDRESS_OF_VARIABLE,
+        AST_EXPR_DEREFERENCE,
     } kind;
     union {
         int int_value;          // AST_EXPR_INT_CONSTANT
-        char varname[100];      // AST_EXPR_GETVAR
+        char varname[100];      // AST_EXPR_GET_VARIABLE, AST_EXPR_ADDRESS_OF_VARIABLE
         struct AstCall call;    // AST_EXPR_CALL
+        struct AstExpression *pointerexpr;  // AST_EXPR_DEREFERENCE
     } data;
 };
 
@@ -65,8 +81,9 @@ struct AstFunctionSignature {
     struct Location location;
     char funcname[100];
     int nargs;
+    struct AstType *argtypes;
     char (*argnames)[100];
-    bool returns_a_value;
+    struct AstType *returntype;  // NULL, if does not return a value
 };
 
 struct AstStatement {
@@ -106,6 +123,10 @@ struct AstToplevelNode {
     } data;
 };
 
+
+// You need to free() the resulting string
+// (unless it is for an error message and the compiler process will soon exit anyway)
+char *ast_type_to_string(const struct AstType *t);
 
 /*
 The compiling functions, i.e. how to go from source code to LLVM IR.

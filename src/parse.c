@@ -15,6 +15,8 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_CLOSEPAREN: strcpy(got, "')'"); break;
         case TOKEN_COLON: strcpy(got, "':'"); break;
         case TOKEN_ARROW: strcpy(got, "'->'"); break;
+        case TOKEN_STAR: strcpy(got, "'*'"); break;
+        case TOKEN_AMP: strcpy(got, "'&'"); break;
         case TOKEN_NAME: snprintf(got, sizeof got, "a variable name '%s'", token->data.name); break;
         case TOKEN_NEWLINE: strcpy(got, "end of line"); break;
         case TOKEN_END_OF_FILE: strcpy(got, "end of file"); break;
@@ -28,12 +30,27 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
     fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
 
-static void parse_type(const struct Token **tokens)
+static struct AstType parse_type(const struct Token **tokens)
 {
-    // TODO: Do not assume that the type is "int"
-    if ((*tokens)->type != TOKEN_NAME || strcmp((*tokens)->data.name, "int"))
-        fail_with_parse_error(*tokens, "'int' (the only type that currently exists)");
+    if ((*tokens)->type != TOKEN_NAME)
+        fail_with_parse_error(*tokens, "a type");
+    struct AstType result = { .kind = AST_TYPE_NAMED };
+    safe_strcpy(result.name, (*tokens)->data.name);
     ++*tokens;
+
+    while ((*tokens)->type == TOKEN_STAR) {
+        struct AstType *dup = malloc(sizeof(*dup));
+        *dup = result;
+        result.kind = AST_TYPE_POINTER;
+        result.data.valuetype = dup;
+
+        if (strlen(result.name) + 1 >= sizeof result.name)
+            fail_with_error((*tokens)->location, "type name too long");
+        strcat(result.name, "*");
+        ++*tokens;
+    }
+
+    return result;
 }
 
 static struct AstFunctionSignature parse_function_signature(const struct Token **tokens)
@@ -53,6 +70,7 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     struct Name { char name[100]; };
     static_assert(sizeof(struct Name) == 100, "your c compiler is stupid");
     List(struct Name) argnames = {0};
+    List(struct AstType) argtypes = {0};
 
     while ((*tokens)->type != TOKEN_CLOSEPAREN) {
         if ((*tokens)->type != TOKEN_NAME)
@@ -66,9 +84,7 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
             fail_with_parse_error(*tokens, "':' and a type after the argument name (example: \"foo: int\")");
         ++*tokens;
 
-        parse_type(tokens);
-
-        result.nargs++;
+        Append(&argtypes, parse_type(tokens));
 
         // TODO: eat comma
 
@@ -78,7 +94,11 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
             break;
         //}
     }
+
     result.argnames = (char(*)[100])argnames.ptr;  // c syntax occasionally surprises me
+    result.argtypes = argtypes.ptr;
+    assert(argnames.len == argtypes.len);
+    result.nargs = argnames.len;
 
     if ((*tokens)->type != TOKEN_CLOSEPAREN)
         fail_with_parse_error(*tokens, "a ')'");
@@ -99,11 +119,11 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     ++*tokens;
 
     if ((*tokens)->type == TOKEN_VOID) {
-        result.returns_a_value = false;
+        result.returntype = NULL;
         ++*tokens;
     } else {
-        result.returns_a_value = true;
-        parse_type(tokens);
+        result.returntype = malloc(sizeof(*result.returntype));
+        *result.returntype = parse_type(tokens);
     }
 
     return result;
@@ -126,10 +146,24 @@ static struct AstExpression parse_expression(const struct Token **tokens)
             expr.kind = AST_EXPR_CALL;
             expr.data.call = parse_call(tokens);
         } else {
-            expr.kind = AST_EXPR_GETVAR;
+            expr.kind = AST_EXPR_GET_VARIABLE;
             safe_strcpy(expr.data.varname, (*tokens)->data.name);
             ++*tokens;
         }
+        break;
+    case TOKEN_STAR:
+        ++*tokens;
+        expr.kind = AST_EXPR_DEREFERENCE;
+        expr.data.pointerexpr = malloc(sizeof(*expr.data.pointerexpr));
+        *expr.data.pointerexpr = parse_expression(tokens);
+        break;
+    case TOKEN_AMP:
+        ++*tokens;
+        if ((*tokens)->type != TOKEN_NAME)
+            fail_with_parse_error(*tokens, "a variable name");
+        expr.kind = AST_EXPR_ADDRESS_OF_VARIABLE;
+        safe_strcpy(expr.data.varname, (*tokens)->data.name);
+        ++*tokens;
         break;
     default:
         fail_with_parse_error(*tokens, "an expression");

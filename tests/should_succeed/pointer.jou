@@ -1,0 +1,14 @@
+cdecl putchar(ch: int) -> int
+
+def putchar_pointer(ch: int*) -> void:
+    putchar(*ch)
+
+def putchar2(ch: int) -> void:
+    putchar_pointer(&ch)
+
+def main() -> int:
+    # Output: hi
+    putchar2('h')
+    putchar2('i')
+    putchar2('\n')
+    return 0
