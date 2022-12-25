@@ -140,11 +140,31 @@ LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, st
     return return_value;
 }
 
+static void codegen_body(const struct State *st, const struct AstBody *body);
+
+static void codegen_if_statement(const struct State *st, const struct AstIfStatement *ifstatement)
+{
+    LLVMValueRef condition = codegen_expression(st, &ifstatement->condition);
+    if (LLVMTypeOf(condition) != LLVMInt1Type())
+        fail_with_error(ifstatement->condition.location, "'if' condition must be a boolean");
+
+    LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->current_func, "then");
+    LLVMBasicBlockRef after_if = LLVMAppendBasicBlock(st->current_func, "after_if");
+    LLVMBuildCondBr(st->builder, condition, then, after_if);
+
+    LLVMPositionBuilderAtEnd(st->builder, then);
+    codegen_body(st, &ifstatement->body);
+    LLVMBuildBr(st->builder, after_if);
+
+    LLVMPositionBuilderAtEnd(st->builder, after_if);
+}
+
 static void codegen_statement(const struct State *st, const struct AstStatement *stmt)
 {
     switch(stmt->kind) {
     case AST_STMT_IF:
-        assert(0);  // TODO
+        codegen_if_statement(st, &stmt->data.ifstatement);
+        break;
 
     case AST_STMT_CALL:
         codegen_call(st, &stmt->data.call, stmt->location);
@@ -188,6 +208,12 @@ static void codegen_statement(const struct State *st, const struct AstStatement 
     }
 }
 
+static void codegen_body(const struct State *st, const struct AstBody *body)
+{
+    for (int i = 0; i < body->nstatements; i++)
+        codegen_statement(st, &body->statements[i]);
+}
+
 static void codegen_function_def(struct State *st, const struct AstFunctionDef *funcdef)
 {
     assert(st->current_func_signature == NULL);
@@ -197,7 +223,7 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
     st->current_func_signature = &funcdef->signature;
     st->current_func = codegen_function_decl(st, &funcdef->signature);
 
-    LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(LLVMGetGlobalContext(), st->current_func, "function_block");
+    LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(LLVMGetGlobalContext(), st->current_func, "function_start");
     LLVMPositionBuilderAtEnd(st->builder, block);
 
     for (int i = 0; i < funcdef->signature.nargs; i++) {
@@ -209,8 +235,7 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
         Append(&st->local_vars, local);
     }
 
-    for (int i = 0; i < funcdef->body.nstatements; i++)
-        codegen_statement(st, &funcdef->body.statements[i]);
+    codegen_body(st, &funcdef->body);
 
     if (funcdef->signature.returntype == NULL)
         LLVMBuildRetVoid(st->builder);

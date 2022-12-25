@@ -110,7 +110,7 @@ struct AstStatement {
     union {
         struct AstCall call;                // for AST_STMT_CALL
         struct AstExpression returnvalue;   // for AST_STMT_RETURN
-        struct {
+        struct AstIfStatement {
             struct AstExpression condition;
             struct AstBody body;
         } ifstatement;
