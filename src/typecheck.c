@@ -80,7 +80,7 @@ static const struct Type *typecheck_call(const struct State *st, const struct As
 
     bool match = true;
     for (int i = 0; i < call->nargs; i++) {
-        if (!types_match(&passed_types[i], &sig->argtypes[i])) {
+        if (!can_implicitly_convert(&passed_types[i], &sig->argtypes[i])) {
             match = false;
             break;
         }
@@ -147,6 +147,9 @@ static struct Type typecheck_expression(const struct State *st, const struct Ast
 
         case AST_EXPR_INT_CONSTANT:
             return (struct Type){ .kind = TYPE_SIGNED_INTEGER, .name = "int", .data.width_in_bits = 32 };
+
+        case AST_EXPR_CHAR_CONSTANT:
+            return (struct Type){ .kind = TYPE_UNSIGNED_INTEGER, .name = "char", .data.width_in_bits = 8 };
     }
 
     assert(0);

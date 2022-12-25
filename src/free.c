@@ -49,6 +49,7 @@ static void free_expression(const struct AstExpression *expr)
         free(expr->data.pointerexpr);
         break;
     case AST_EXPR_INT_CONSTANT:
+    case AST_EXPR_CHAR_CONSTANT:
     case AST_EXPR_GET_VARIABLE:
     case AST_EXPR_ADDRESS_OF_VARIABLE:
     case AST_EXPR_TRUE:

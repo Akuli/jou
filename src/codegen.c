@@ -35,6 +35,11 @@ static LLVMTypeRef codegen_type(const struct State *st, const struct Type *type,
     assert(0);
 }
 
+static LLVMValueRef codegen_cast(const struct State *st, LLVMValueRef obj, LLVMTypeRef target_type)
+{
+    
+}
+
 static LLVMValueRef codegen_function_decl(const struct State *st, const struct AstFunctionSignature *sig)
 {
     LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
@@ -80,6 +85,8 @@ LLVMValueRef codegen_expression(const struct State *st, const struct AstExpressi
     }
     case AST_EXPR_INT_CONSTANT:
         return LLVMConstInt(LLVMInt32Type(), expr->data.int_value, false);
+    case AST_EXPR_CHAR_CONSTANT:
+        return LLVMConstInt(LLVMInt8Type(), expr->data.char_value, false);
     case AST_EXPR_TRUE:
         return LLVMConstInt(LLVMInt1Type(), 1, false);
     case AST_EXPR_FALSE:

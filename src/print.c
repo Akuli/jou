@@ -1,12 +1,21 @@
+#include <ctype.h>
 #include <stdio.h>
 #include "jou_compiler.h"
 #include "util.h"
+
+static void print_byte(char b)
+{
+    printf("%#02x", b);
+    if (isprint(b))
+        printf(" '%c'", b);
+}
 
 void print_token(const struct Token *token)
 {
     switch(token->type) {
         #define f(x) case x: printf(#x); break
         f(TOKEN_INT);
+        f(TOKEN_CHAR);
         f(TOKEN_OPENPAREN);
         f(TOKEN_CLOSEPAREN);
         f(TOKEN_NAME);
@@ -24,14 +33,19 @@ void print_token(const struct Token *token)
 
     switch(token->type) {
     case TOKEN_INT:
-        printf(" value=%d", token->data.int_value);
+        printf(" value=%d\n", token->data.int_value);
+        break;
+    case TOKEN_CHAR:
+        printf(" value=");
+        print_byte(token->data.char_value);
+        printf("\n");
         break;
     case TOKEN_NAME:
     case TOKEN_KEYWORD:
-        printf(" name=\"%s\"", token->data.name);
+        printf(" name=\"%s\"\n", token->data.name);
         break;
     case TOKEN_NEWLINE:
-        printf(" indentation_level=%d", token->data.indentation_level);
+        printf(" indentation_level=%d\n", token->data.indentation_level);
         break;
 
     // These tokens don't have any associated data to be printed here.
@@ -48,10 +62,9 @@ void print_token(const struct Token *token)
     case TOKEN_ARROW:
     case TOKEN_STAR:
     case TOKEN_AMP:
+        printf("\n");
         break;
     }
-
-    printf("\n");
 }
 
 void print_tokens(const struct Token *tokens)
@@ -93,6 +106,7 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         f(AST_EXPR_CALL);
         f(AST_EXPR_GET_VARIABLE);
         f(AST_EXPR_INT_CONSTANT);
+        f(AST_EXPR_CHAR_CONSTANT);
         f(AST_EXPR_ADDRESS_OF_VARIABLE);
         f(AST_EXPR_DEREFERENCE);
         f(AST_EXPR_FALSE);
@@ -115,6 +129,11 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         break;
     case AST_EXPR_INT_CONSTANT:
         printf(" value=%d\n", expr->data.int_value);
+        break;
+    case AST_EXPR_CHAR_CONSTANT:
+        printf(" value=");
+        print_byte(expr->data.char_value);
+        printf("\n");
         break;
     case AST_EXPR_TRUE:
     case AST_EXPR_FALSE:

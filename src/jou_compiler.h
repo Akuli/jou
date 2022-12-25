@@ -15,6 +15,7 @@ noreturn void fail_with_error(struct Location location, const char *fmt, ...);
 struct Token {
     enum TokenType {
         TOKEN_INT,
+        TOKEN_CHAR,
         TOKEN_NAME,
         TOKEN_KEYWORD,
         TOKEN_NEWLINE,
@@ -31,6 +32,7 @@ struct Token {
     } type;
     struct Location location;
     union {
+        char char_value;  // TOKEN_CHAR
         int int_value;  // TOKEN_INT
         int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
         char name[100];  // TOKEN_NAME and TOKEN_KEYWORD
@@ -61,7 +63,8 @@ struct Type {
 // returnvalue.data.valuetype must be free()d
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location);
 
-bool types_match(const struct Type *a, const struct Type *b);
+bool same_type(const struct Type *a, const struct Type *b);
+bool can_implicitly_convert(const struct Type *from, const struct Type *to);
 
 
 struct AstCall {
@@ -73,7 +76,8 @@ struct AstCall {
 struct AstExpression {
     struct Location location;
     enum AstExpressionKind {
-        AST_EXPR_INT_CONSTANT,  // TODO: probably shouldn't include char literals: 'x'
+        AST_EXPR_INT_CONSTANT,
+        AST_EXPR_CHAR_CONSTANT,
         AST_EXPR_CALL,
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF_VARIABLE,
@@ -83,6 +87,7 @@ struct AstExpression {
     } kind;
     union {
         int int_value;          // AST_EXPR_INT_CONSTANT
+        char char_value;        // AST_EXPR_CHAR_CONSTANT
         char varname[100];      // AST_EXPR_GET_VARIABLE, AST_EXPR_ADDRESS_OF_VARIABLE
         struct AstCall call;    // AST_EXPR_CALL
         struct AstExpression *pointerexpr;  // AST_EXPR_DEREFERENCE

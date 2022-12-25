@@ -227,7 +227,7 @@ static struct Token read_token(struct State *st)
         case ':': t.type = TOKEN_COLON; break;
         case '*': t.type = TOKEN_STAR; break;
         case '&': t.type = TOKEN_AMP; break;
-        case '\'': t.type = TOKEN_INT; t.data.int_value = read_char_literal(st); break;
+        case '\'': t.type = TOKEN_CHAR; t.data.char_value = read_char_literal(st); break;
         default:
             if ('0'<=c && c<='9') {
                 t.type = TOKEN_INT;

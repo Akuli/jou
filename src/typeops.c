@@ -17,7 +17,7 @@ struct Type create_pointer_type(const struct Type *elem_type, struct Location er
     return result;
 }
 
-bool types_match(const struct Type *a, const struct Type *b)
+bool same_type(const struct Type *a, const struct Type *b)
 {
     if (a->kind != b->kind)
         return false;
@@ -26,10 +26,34 @@ bool types_match(const struct Type *a, const struct Type *b)
     case TYPE_BOOL:
         return true;
     case TYPE_POINTER:
-        return types_match(a->data.valuetype, b->data.valuetype);
+        return same_type(a->data.valuetype, b->data.valuetype);
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
         return a->data.width_in_bits == b->data.width_in_bits;
+    }
+
+    assert(0);
+}
+
+bool can_implicitly_convert(const struct Type *from, const struct Type *to)
+{
+    if (from->kind == TYPE_UNSIGNED_INTEGER && to->kind == TYPE_SIGNED_INTEGER) {
+        // The only implicit conversion between different kinds of types.
+        // Can't be done with types of same size: e.g. with 8 bits, 255 does not implicitly convert to -1.
+        return from->data.width_in_bits < to->data.width_in_bits;
+    }
+
+    if (from->kind != to->kind)
+        return false;
+
+    switch(from->kind) {
+    case TYPE_BOOL:
+        return true;
+    case TYPE_POINTER:
+        return same_type(from->data.valuetype, to->data.valuetype);
+    case TYPE_SIGNED_INTEGER:
+    case TYPE_UNSIGNED_INTEGER:
+        return from->data.width_in_bits <= to->data.width_in_bits;
     }
 
     assert(0);
