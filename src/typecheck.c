@@ -209,6 +209,9 @@ static void typecheck_body(const struct State *st, const struct AstBody *body)
 
 static void handle_signature(struct State *st, const struct AstFunctionSignature *sig)
 {
+    if (find_function(st, sig->funcname))
+        fail_with_error(sig->location, "a function named \"%s\" already exists", sig->funcname);
+
     struct Type inttype = {.name="int",.kind=TYPE_SIGNED_INTEGER,.data.width_in_bits=32};
     if (!strcmp(sig->funcname, "main") &&
         (sig->returntype == NULL || !types_match(sig->returntype, &inttype)))

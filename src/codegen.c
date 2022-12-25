@@ -37,10 +37,6 @@ static LLVMTypeRef codegen_type(const struct State *st, const struct Type *type,
 
 static LLVMValueRef codegen_function_decl(const struct State *st, const struct AstFunctionSignature *sig)
 {
-    // TODO: this doesn't belong here
-    if (LLVMGetNamedFunction(st->module, sig->funcname))
-        fail_with_error(sig->location, "a function named \"%s\" already exists", sig->funcname);
-
     LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
     for (int i = 0; i < sig->nargs; i++)
         argtypes[i] = codegen_type(st, &sig->argtypes[i], sig->location);
