@@ -107,6 +107,8 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         f(AST_EXPR_INT_CONSTANT);
         f(AST_EXPR_ADDRESS_OF_VARIABLE);
         f(AST_EXPR_DEREFERENCE);
+        f(AST_EXPR_FALSE);
+        f(AST_EXPR_TRUE);
         #undef f
     }
 
@@ -126,6 +128,10 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
     case AST_EXPR_INT_CONSTANT:
         printf(" value=%d\n", expr->data.int_value);
         break;
+    case AST_EXPR_TRUE:
+    case AST_EXPR_FALSE:
+        printf("\n");
+        break;
     }
 }
 
@@ -138,6 +144,8 @@ static void print_ast_call(const struct AstCall *call, int indent)
     }
 }
 
+static void print_ast_body(const struct AstBody *body, int indent);
+
 static void print_ast_statement(const struct AstStatement *stmt, int indent)
 {
     printf("%*s(line %d) ", indent, "", stmt->location.lineno);
@@ -146,6 +154,7 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
         f(AST_STMT_CALL);
         f(AST_STMT_RETURN_VALUE);
         f(AST_STMT_RETURN_WITHOUT_VALUE);
+        f(AST_STMT_IF);
         #undef f
     }
     printf("\n");
@@ -159,6 +168,11 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
             print_ast_expression(&stmt->data.returnvalue, indent+4);
             break;
         case AST_STMT_RETURN_WITHOUT_VALUE:
+            break;
+        case AST_STMT_IF:
+            printf("%*s  condition:\n", indent, "");
+            print_ast_expression(&stmt->data.ifstatement.condition, indent+4);
+            print_ast_body(&stmt->data.ifstatement.body, indent+2);
             break;
     }
 }

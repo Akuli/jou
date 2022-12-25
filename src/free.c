@@ -49,13 +49,21 @@ static void free_expression(const struct AstExpression *expr)
     case AST_EXPR_INT_CONSTANT:
     case AST_EXPR_GET_VARIABLE:
     case AST_EXPR_ADDRESS_OF_VARIABLE:
+    case AST_EXPR_TRUE:
+    case AST_EXPR_FALSE:
         break;
     }
 }
 
+static void free_body(const struct AstBody *body);
+
 static void free_statement(const struct AstStatement *stmt)
 {
     switch(stmt->kind) {
+    case AST_STMT_IF:
+        free_expression(&stmt->data.ifstatement.condition);
+        free_body(&stmt->data.ifstatement.body);
+        break;
     case AST_STMT_CALL:
         free_call(&stmt->data.call);
         break;
