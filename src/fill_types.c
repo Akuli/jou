@@ -77,7 +77,7 @@ static const struct Type *fill_types_call(const struct State *st, struct AstCall
     bool match = true;
     for (int i = 0; i < call->nargs; i++) {
         fill_types_expression(st, &call->args[i]);
-        if (!types_match(&call->args[i].type, &sig->argtypes[i]))
+        if (!can_implicitly_convert(&call->args[i].type, &sig->argtypes[i]))
             match = false;
     }
 
@@ -148,6 +148,11 @@ static void fill_types_expression(const struct State *st, struct AstExpression *
         case AST_EXPR_INT_CONSTANT:
             expr->type = (struct Type){ .kind = TYPE_SIGNED_INTEGER, .name = "int", .data.width_in_bits = 32 };
             break;
+
+        case AST_EXPR_CHAR_CONSTANT:
+            expr->type = (struct Type){ .kind = TYPE_UNSIGNED_INTEGER, .name = "byte", .data.width_in_bits = 8 };
+            break;
+
     }
 }
 
@@ -178,7 +183,7 @@ static void fill_types_statement(const struct State *st, struct AstStatement *st
                 st->func_signature->funcname);
         }
         fill_types_expression(st, &stmt->data.returnvalue);
-        if (!types_match(st->func_signature->returntype, &stmt->data.returnvalue.type)) {
+        if (!can_implicitly_convert(&stmt->data.returnvalue.type, st->func_signature->returntype)) {
             fail_with_error(
                 stmt->location,
                 "attempting to return a value of type '%s' from function '%s' defined with '-> %s'",
@@ -213,7 +218,7 @@ static void handle_signature(struct State *st, const struct AstFunctionSignature
 
     struct Type inttype = {.name="int",.kind=TYPE_SIGNED_INTEGER,.data.width_in_bits=32};
     if (!strcmp(sig->funcname, "main") &&
-        (sig->returntype == NULL || !types_match(sig->returntype, &inttype)))
+        (sig->returntype == NULL || !same_type(sig->returntype, &inttype)))
     {
         fail_with_error(sig->location, "the main() function must return int");
     }

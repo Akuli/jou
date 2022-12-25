@@ -1,3 +1,5 @@
+// Type operations, aka functions for working with struct Type.
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,8 +43,11 @@ bool same_type(const struct Type *a, const struct Type *b)
     assert(0);
 }
 
+// This should be kept in sync with codegen.c because it's what actually does the conversions.
 bool can_implicitly_convert(const struct Type *from, const struct Type *to)
 {
+    assert(from->kind != TYPE_UNKNOWN && to->kind != TYPE_UNKNOWN);
+
     if (from->kind == TYPE_UNSIGNED_INTEGER && to->kind == TYPE_SIGNED_INTEGER) {
         // The only implicit conversion between different kinds of types.
         // Can't be done with types of same size: e.g. with 8 bits, 255 does not implicitly convert to -1.
@@ -60,6 +65,8 @@ bool can_implicitly_convert(const struct Type *from, const struct Type *to)
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
         return from->data.width_in_bits <= to->data.width_in_bits;
+    case TYPE_UNKNOWN:
+        assert(0);
     }
 
     assert(0);

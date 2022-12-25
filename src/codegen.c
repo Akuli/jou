@@ -37,9 +37,24 @@ static LLVMTypeRef codegen_type(const struct State *st, const struct Type *type,
     assert(0);
 }
 
-static LLVMValueRef codegen_cast(const struct State *st, LLVMValueRef obj, LLVMTypeRef target_type)
+static LLVMValueRef codegen_implicit_conversion(
+    const struct State *st,
+    LLVMValueRef obj,
+    const struct Type *objtype,
+    LLVMTypeRef target_type)
 {
-    
+    char name[200];
+    snprintf(name, sizeof name, "cast_from_%s", objtype->name);
+
+    switch(objtype->kind) {
+    case TYPE_SIGNED_INTEGER:
+        return LLVMBuildSExt(st->builder, obj, target_type, name);
+    case TYPE_UNSIGNED_INTEGER:
+        return LLVMBuildZExt(st->builder, obj, target_type, name);
+    default:
+        // assumed to already be of the right type
+        return obj;
+    }
 }
 
 static LLVMValueRef codegen_function_decl(const struct State *st, const struct AstFunctionSignature *sig)
@@ -61,9 +76,9 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const struct A
 }
 
 // forward-declare
-LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location);
+static LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location);
 
-LLVMValueRef codegen_expression(const struct State *st, const struct AstExpression *expr)
+static LLVMValueRef codegen_expression(const struct State *st, const struct AstExpression *expr)
 {
     switch(expr->kind) {
     case AST_EXPR_CALL:
@@ -97,7 +112,15 @@ LLVMValueRef codegen_expression(const struct State *st, const struct AstExpressi
     assert(0);
 }
 
-LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location)
+static LLVMValueRef codegen_expression_with_implicit_conversion(
+    const struct State *st,
+    const struct AstExpression *expr,
+    LLVMTypeRef target_type)
+{
+    return codegen_implicit_conversion(st, codegen_expression(st,expr), &expr->type, target_type);
+}
+
+static LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location)
 {
     // TODO: do something with the location, debug info?
     (void)location;
@@ -107,16 +130,22 @@ LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, st
     assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMPointerTypeKind);
     LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(function));
     assert(LLVMGetTypeKind(function_type) == LLVMFunctionTypeKind);
+    assert(call->nargs == (int)LLVMCountParamTypes(function_type));
 
     LLVMValueRef *args = malloc(call->nargs * sizeof(args[0]));  // NOLINT
-    for (int i = 0; i < call->nargs; i++) 
-        args[i] = codegen_expression(st, &call->args[i]);
+
+    LLVMTypeRef *paramtypes = malloc(call->nargs * sizeof(paramtypes[0]));  // NOLINT
+    LLVMGetParamTypes(function_type, paramtypes);
+    for (int i = 0; i < call->nargs; i++)
+        args[i] = codegen_expression_with_implicit_conversion(st, &call->args[i], paramtypes[i]);
+    free(paramtypes);
 
     char debug_name[100] = {0};
     if (LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMVoidTypeKind)
         snprintf(debug_name, sizeof debug_name, "%s_return_value", call->funcname);
 
     LLVMValueRef return_value = LLVMBuildCall2(st->builder, function_type, function, args, call->nargs, debug_name);
+
     free(args);
     return return_value;
 }
@@ -151,8 +180,12 @@ static void codegen_statement(const struct State *st, const struct AstStatement 
         break;
 
     case AST_STMT_RETURN_VALUE:
-        LLVMBuildRet(st->builder, codegen_expression(st, &stmt->data.returnvalue));
+    {
+        LLVMTypeRef returntype = codegen_type(st, st->current_func_signature->returntype, stmt->location);
+        LLVMValueRef returnvalue = codegen_expression_with_implicit_conversion(st, &stmt->data.returnvalue, returntype);
+        LLVMBuildRet(st->builder, returnvalue);
         break;
+    }
 
     case AST_STMT_RETURN_WITHOUT_VALUE:
         LLVMBuildRetVoid(st->builder);
