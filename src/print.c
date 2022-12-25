@@ -75,7 +75,7 @@ static void print_ast_function_signature(const struct AstFunctionSignature *sig,
     printf("%*sfunction signature (on line %d): %s(", indent, "", sig->location.lineno, sig->funcname);
     for (int i = 0; i < sig->nargs; i++) {
         if(i) printf(", ");
-        printf("%s", sig->argtypes[i].name);
+        printf("%s: %s", sig->argnames[i], sig->argtypes[i].name);
     }
     if (sig->returntype)
         printf(") -> %s\n", sig->returntype->name);
