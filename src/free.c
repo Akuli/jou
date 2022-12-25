@@ -15,14 +15,16 @@ void free_tokens(struct Token *tokenlist)
     free(tokenlist);
 }
 
-static void free_type(const struct AstType *type)
+static void free_type(const struct Type *type)
 {
     switch(type->kind) {
-    case AST_TYPE_POINTER:
+    case TYPE_POINTER:
         free_type(type->data.valuetype);
         free(type->data.valuetype);
         break;
-    case AST_TYPE_NAMED:
+    case TYPE_SIGNED_INTEGER:
+    case TYPE_UNSIGNED_INTEGER:
+    case TYPE_BOOL:
         break;
     }
 }

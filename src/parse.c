@@ -27,18 +27,30 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
     fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
 
-static struct AstType parse_type(const struct Token **tokens)
+static struct Type parse_type(const struct Token **tokens)
 {
     if ((*tokens)->type != TOKEN_NAME)
         fail_with_parse_error(*tokens, "a type");
-    struct AstType result = { .kind = AST_TYPE_NAMED };
+
+    struct Type result;
     safe_strcpy(result.name, (*tokens)->data.name);
+    if (!strcmp(result.name, "int")) {
+        result.kind = TYPE_SIGNED_INTEGER;
+        result.data.width_in_bits = 32;
+    } else if (!strcmp(result.name, "byte")) {
+        result.kind = TYPE_UNSIGNED_INTEGER;
+        result.data.width_in_bits = 8;
+    } else if (!strcmp(result.name, "bool")) {
+        result.kind = TYPE_BOOL;
+    } else {
+        fail_with_error((*tokens)->location, "type '%s' not found", (*tokens)->data.name);
+    }
     ++*tokens;
 
     while ((*tokens)->type == TOKEN_STAR) {
-        struct AstType *dup = malloc(sizeof(*dup));
+        struct Type *dup = malloc(sizeof(*dup));
         *dup = result;
-        result.kind = AST_TYPE_POINTER;
+        result.kind = TYPE_POINTER;
         result.data.valuetype = dup;
 
         if (strlen(result.name) + 1 >= sizeof result.name)
@@ -67,7 +79,7 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     struct Name { char name[100]; };
     static_assert(sizeof(struct Name) == 100, "your c compiler is stupid");
     List(struct Name) argnames = {0};
-    List(struct AstType) argtypes = {0};
+    List(struct Type) argtypes = {0};
 
     while ((*tokens)->type != TOKEN_CLOSEPAREN) {
         if ((*tokens)->type != TOKEN_NAME)
@@ -92,7 +104,7 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
         //}
     }
 
-    result.argnames = (char(*)[100])argnames.ptr;  // c syntax occasionally surprises me
+    result.argnames = (char(*)[100])argnames.ptr;  // sometimes c syntax surprises me
     result.argtypes = argtypes.ptr;
     assert(argnames.len == argtypes.len);
     result.nargs = argnames.len;

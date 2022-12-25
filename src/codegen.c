@@ -21,15 +21,16 @@ struct State {
     List(struct LocalVariable) local_vars;
 };
 
-static LLVMTypeRef codegen_type(const struct State *st, const struct AstType *asttype, struct Location location)
+static LLVMTypeRef codegen_type(const struct State *st, const struct Type *type, struct Location location)
 {
-    switch(asttype->kind) {
-    case AST_TYPE_NAMED:
-        if (strcmp(asttype->name, "int"))
-            fail_with_error(location, "type \"%s\" not found", asttype->name);
-        return LLVMInt32Type();
-    case AST_TYPE_POINTER:
-        return LLVMPointerType(codegen_type(st, asttype->data.valuetype, location), 0);
+    switch(type->kind) {
+    case TYPE_POINTER:
+        return LLVMPointerType(codegen_type(st, type->data.valuetype, location), 0);
+    case TYPE_SIGNED_INTEGER:
+    case TYPE_UNSIGNED_INTEGER:
+        return LLVMIntType(type->data.width_in_bits);
+    case TYPE_BOOL:
+        return LLVMInt1Type();
     }
     assert(0);
 }

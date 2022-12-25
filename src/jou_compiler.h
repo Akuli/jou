@@ -38,19 +38,25 @@ struct Token {
 };
 
 
-struct AstType {
-    enum AstTypeKind {
-        AST_TYPE_NAMED,
-        AST_TYPE_POINTER,
+// The AST contains types only where the types were specified by the user,
+// e.g. in function declarations. This is a bit weird, but I don't want a
+// "not-yet-known type" struct that would be used only in AST.
+struct Type {
+    enum TypeKind {
+        TYPE_SIGNED_INTEGER,
+        TYPE_UNSIGNED_INTEGER,
+        TYPE_BOOL,
+        TYPE_POINTER,
     } kind;
     union {
-        struct AstType *valuetype;  // AST_TYPE_POINTER
+        int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER
+        struct Type *valuetype;  // TYPE_POINTER
     } data;
 
-    // In the AST, all types have a name. For AST_TYPE_NAMED it is the only way
-    // to make sense of the type. It is also used in error messages.
+    // All types have a name for error messages and debugging.
     char name[100];
 };
+
 
 struct AstCall {
     char funcname[100];
@@ -82,9 +88,9 @@ struct AstFunctionSignature {
     struct Location location;
     char funcname[100];
     int nargs;
-    struct AstType *argtypes;
+    struct Type *argtypes;
     char (*argnames)[100];
-    struct AstType *returntype;  // NULL, if does not return a value
+    struct Type *returntype;  // NULL, if does not return a value
 };
 
 struct AstBody {
@@ -129,10 +135,6 @@ struct AstToplevelNode {
     } data;
 };
 
-
-// You need to free() the resulting string
-// (unless it is for an error message and the compiler process will soon exit anyway)
-char *ast_type_to_string(const struct AstType *t);
 
 /*
 The compiling functions, i.e. how to go from source code to LLVM IR.
