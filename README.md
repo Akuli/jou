@@ -157,13 +157,11 @@ TODO:
     - A second pass that adds type information to AST nodes (and checks the types)? New nodes, or filling new fields in existing nodes?
     - Control-flow graph? Seems fun. Did something a bit but not quite similar before and it worked
     - Map LLVM types back to jou-programmer-readable strings, similar to `AstType.name`? Feels like a hack that I would need to change later.
-- A boolean datatype.
-    - I think I want stuff to convert to bool in about same way as in Python, not so much like in C.
-        For example, it is an error to return an `int` when you're supposed to return `bool`,
-        but it's fine to say `if not some_integer:`
-- `if`,`elif`,`else`
+- Some kind of conversion to bool thingy for if statements: `if some_pointer:`, `if some_integer:`
+- `elif`,`else`
 - `not`,`and`,`or`
 - `while`, `for init; cond; incr:`, maybe `do`-`while`?
+- `NULL` pointer
 - `++` and `--`
     - There's now quite a lot of overlap between expressions and statements.
         Do something about it?
