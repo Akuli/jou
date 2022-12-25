@@ -6,6 +6,8 @@
 
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location)
 {
+    assert(elem_type->kind != TYPE_UNKNOWN);
+
     struct Type *dup = malloc(sizeof(*dup));
     *dup = *elem_type;
     struct Type result = { .kind=TYPE_POINTER, .data.valuetype=dup };
@@ -19,6 +21,8 @@ struct Type create_pointer_type(const struct Type *elem_type, struct Location er
 
 bool types_match(const struct Type *a, const struct Type *b)
 {
+    assert(a->kind != TYPE_UNKNOWN && b->kind != TYPE_UNKNOWN);
+
     if (a->kind != b->kind)
         return false;
 
@@ -30,6 +34,8 @@ bool types_match(const struct Type *a, const struct Type *b)
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
         return a->data.width_in_bits == b->data.width_in_bits;
+    case TYPE_UNKNOWN:
+        assert(0);
     }
 
     assert(0);

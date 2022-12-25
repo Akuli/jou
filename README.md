@@ -105,21 +105,31 @@ TODO: add `git clone` command to beginning
 ## Developing the compiler
 
 The compiler is currently written in C.
-To get a good idea of how it works,
-you can look at what it produces in each compilation step:
+At a high level, the compilation steps are:
+- Tokenize: split the source code into tokens
+- Parse: build an Abstract Syntax Tree from the tokens
+- Fill types: find the types of all expressions and put them to AST
+- Codegen: convert the AST into LLVM IR
+- Invoke `clang` and pass it the generated LLVM IR
+
+To get a good idea of how these steps work,
+you can look at what the compiler produces in each compilation step:
 
 ```
 $ ./jou --verbose examples/hello.jou
 ```
 
 This shows the tokens, AST and LLVM IR generated.
+The AST is shown twice, once before filling the types (most types are `UNKNOWN`)
+and again after filling the types (no `UNKNOWN`s should remain).
 
-At a high level, the compilation steps are:
-- Tokenize: split the source code into tokens
-- Parse: build an Abstract Syntax Tree from the tokens
-- Type check: emit error messages if needed, does not produce anything on success (similar to mypy in Python)
-- Codegen: convert the AST into LLVM IR
-- Invoke `clang` and pass it the generated LLVM IR
+Checking the types before codegen makes the codegen step simpler,
+but storing the types into the AST is a bit of a weird design:
+an instance of `struct AstExpression` can be either typed or untyped.
+It is this way because the codegen step needs to know what type everything has
+(to cast signed and unsigned integers correctly, for example; they are the same type in LLVM IR).
+Another alternative would be to create a separate "typed AST" that is then converted into LLVM IR,
+but in my experience it results in a lot of duplication.
 
 Running tests:
 

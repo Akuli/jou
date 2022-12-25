@@ -33,7 +33,7 @@ static const struct LocalVariable *find_local_variable(const struct State *st, c
 }
 
 
-static struct Type typecheck_expression(const struct State *st, const struct AstExpression *expr);
+static void fill_types_expression(const struct State *st, struct AstExpression *expr);
 
 // Does not include the return type
 static char *signature_to_string(const struct AstFunctionSignature *sig)
@@ -55,8 +55,8 @@ static char *signature_to_string(const struct AstFunctionSignature *sig)
     return result.ptr;
 }
 
-// Returns NULL, if the function does not return a value
-static const struct Type *typecheck_call(const struct State *st, const struct AstCall *call, struct Location location)
+// Returns the return type of the function, NULL if the function does not return a value.
+static const struct Type *fill_types_call(const struct State *st, struct AstCall *call, struct Location location)
 {
     const struct AstFunctionSignature *sig = find_function(st, call->funcname);
     if (!sig)
@@ -74,16 +74,11 @@ static const struct Type *typecheck_call(const struct State *st, const struct As
         );
     }
 
-    struct Type *passed_types = malloc(sizeof(passed_types[0]) * call->nargs);
-    for (int i = 0; i < call->nargs; i++)
-        passed_types[i] = typecheck_expression(st, &call->args[i]);
-
     bool match = true;
     for (int i = 0; i < call->nargs; i++) {
-        if (!types_match(&passed_types[i], &sig->argtypes[i])) {
+        fill_types_expression(st, &call->args[i]);
+        if (!types_match(&call->args[i].type, &sig->argtypes[i]))
             match = false;
-            break;
-        }
     }
 
     if (!match) {
@@ -91,7 +86,7 @@ static const struct Type *typecheck_call(const struct State *st, const struct As
         List(char) passed_str = {0};
         for (int i = 0; i < sig->nargs; i++) {
             if(i) AppendStr(&passed_str, ", ");
-            AppendStr(&passed_str, passed_types[i].name);
+            AppendStr(&passed_str, call->args[i].type.name);
         }
         Append(&passed_str, '\0');
 
@@ -101,11 +96,10 @@ static const struct Type *typecheck_call(const struct State *st, const struct As
             signature_to_string(sig), passed_str.ptr);
     }
 
-    free(passed_types);
     return sig->returntype;
 }
 
-static struct Type typecheck_expression(const struct State *st, const struct AstExpression *expr)
+static void fill_types_expression(const struct State *st, struct AstExpression *expr)
 {
     switch(expr->kind) {
         case AST_EXPR_GET_VARIABLE:
@@ -113,7 +107,8 @@ static struct Type typecheck_expression(const struct State *st, const struct Ast
             const struct LocalVariable *v = find_local_variable(st, expr->data.varname);
             if (!v)
                 fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
-            return v->type;
+            expr->type = v->type;
+            break;
         }
 
         case AST_EXPR_ADDRESS_OF_VARIABLE:
@@ -122,55 +117,57 @@ static struct Type typecheck_expression(const struct State *st, const struct Ast
             if (!v)
                 fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
             // TODO: free the allocation in create_pointer_type()
-            return create_pointer_type(&v->type, expr->location);
+            expr->type = create_pointer_type(&v->type, expr->location);
+            break;
         }
 
         case AST_EXPR_CALL:
         {
-            const struct Type *result = typecheck_call(st, &expr->data.call, expr->location);
-            if (!result)
+            const struct Type *t = fill_types_call(st, &expr->data.call, expr->location);
+            if (!t)
                 fail_with_error(expr->location, "function '%s' does not return a value", expr->data.call.funcname);
-            return *result;
+            expr->type = *t;
+            break;
         }
 
         case AST_EXPR_DEREFERENCE:
         {
-            struct Type pointertype = typecheck_expression(st, expr->data.pointerexpr);
-            if (pointertype.kind != TYPE_POINTER)
-                fail_with_error(expr->location, "the dereference operator '*' is only for pointers, not for '%s'", pointertype.name);
-            return *pointertype.data.valuetype;
+            fill_types_expression(st, expr->data.pointerexpr);
+            const struct Type ptrtype = expr->data.pointerexpr->type;
+            if (ptrtype.kind != TYPE_POINTER)
+                fail_with_error(expr->location, "the dereference operator '*' is only for pointers, not for '%s'", ptrtype.name);
+            expr->type = *ptrtype.data.valuetype;
+            break;
         }
 
         case AST_EXPR_TRUE:
         case AST_EXPR_FALSE:
-            return (struct Type){ .kind = TYPE_BOOL, .name = "bool" };
+            expr->type = (struct Type){ .kind = TYPE_BOOL, .name = "bool" };
+            break;
 
         case AST_EXPR_INT_CONSTANT:
-            return (struct Type){ .kind = TYPE_SIGNED_INTEGER, .name = "int", .data.width_in_bits = 32 };
+            expr->type = (struct Type){ .kind = TYPE_SIGNED_INTEGER, .name = "int", .data.width_in_bits = 32 };
+            break;
     }
-
-    assert(0);
 }
 
-static void typecheck_body(const struct State *st, const struct AstBody *body);
+static void fill_types_body(const struct State *st, const struct AstBody *body);
 
-static void typecheck_statement(const struct State *st, const struct AstStatement *stmt)
+static void fill_types_statement(const struct State *st, struct AstStatement *stmt)
 {
-    struct Type t;
-
     switch(stmt->kind) {
     case AST_STMT_CALL:
-        typecheck_call(st, &stmt->data.call, stmt->location);
+        fill_types_call(st, &stmt->data.call, stmt->location);
         break;
 
     case AST_STMT_IF:
-        t = typecheck_expression(st, &stmt->data.ifstatement.condition);
-        if (t.kind != TYPE_BOOL) {
+        fill_types_expression(st, &stmt->data.ifstatement.condition);
+        if (stmt->data.ifstatement.condition.type.kind != TYPE_BOOL) {
             fail_with_error(
                 stmt->data.ifstatement.condition.location,
-                "'if' condition must be a boolean, not %s", t.name);
+                "'if' condition must be a boolean, not %s", stmt->data.ifstatement.condition.type.name);
         }
-        typecheck_body(st, &stmt->data.ifstatement.body);
+        fill_types_body(st, &stmt->data.ifstatement.body);
         break;
 
     case AST_STMT_RETURN_VALUE:
@@ -180,12 +177,14 @@ static void typecheck_statement(const struct State *st, const struct AstStatemen
                 "function '%s' cannot return a value because it was defined with '-> void'",
                 st->func_signature->funcname);
         }
-        t = typecheck_expression(st, &stmt->data.returnvalue);
-        if (!types_match(st->func_signature->returntype, &t)) {
+        fill_types_expression(st, &stmt->data.returnvalue);
+        if (!types_match(st->func_signature->returntype, &stmt->data.returnvalue.type)) {
             fail_with_error(
                 stmt->location,
                 "attempting to return a value of type '%s' from function '%s' defined with '-> %s'",
-                t.name, st->func_signature->funcname, st->func_signature->returntype->name);
+                stmt->data.returnvalue.type.name,
+                st->func_signature->funcname,
+                st->func_signature->returntype->name);
         }
         break;
 
@@ -201,10 +200,10 @@ static void typecheck_statement(const struct State *st, const struct AstStatemen
     }
 }
 
-static void typecheck_body(const struct State *st, const struct AstBody *body)
+static void fill_types_body(const struct State *st, const struct AstBody *body)
 {
     for (int i = 0; i < body->nstatements; i++)
-        typecheck_statement(st, &body->statements[i]);
+        fill_types_statement(st, &body->statements[i]);
 }
 
 static void handle_signature(struct State *st, const struct AstFunctionSignature *sig)
@@ -222,7 +221,7 @@ static void handle_signature(struct State *st, const struct AstFunctionSignature
     Append(&st->functions, *sig);
 }
 
-void typecheck(const struct AstToplevelNode *ast)
+void fill_types(const struct AstToplevelNode *ast)
 {
     struct State st = {0};
 
@@ -243,7 +242,7 @@ void typecheck(const struct AstToplevelNode *ast)
             }
 
             st.func_signature = &ast->data.funcdef.signature;
-            typecheck_body(&st, &ast->data.funcdef.body);
+            fill_types_body(&st, &ast->data.funcdef.body);
             st.func_signature = NULL;
             st.func_locals.len = 0;
             break;

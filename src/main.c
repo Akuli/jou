@@ -31,7 +31,9 @@ int main(int argc, char **argv)
     if(verbose)
         print_ast(ast);
 
-    typecheck(ast);
+    fill_types(ast);
+    if(verbose)
+        print_ast(ast);
 
     LLVMModuleRef module = codegen(ast);
     free_ast(ast);
@@ -48,5 +50,8 @@ int main(int argc, char **argv)
 
     LLVMDisposeModule(module);
 
-    return !!system("cd /tmp && clang-11 -Wno-override-module -o jou-temp jou-temp.bc && ./jou-temp");
+    const char *command = "cd /tmp && clang-11 -Wno-override-module -o jou-temp jou-temp.bc && ./jou-temp";
+    if(verbose)
+        puts(command);
+    return !!system(command);
 }

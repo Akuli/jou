@@ -38,11 +38,17 @@ struct Token {
 };
 
 
-// The AST contains types only where the types were specified by the user,
-// e.g. in function declarations. This is a bit weird, but I don't want a
-// "not-yet-known type" struct that would be used only in AST.
+/*
+After parsing, the AST contains types only where the types were specified
+by the user, e.g. in function declarations. A separate "typing pass" fills
+in the types of all expressions.
+
+This is a bit weird, but I don't want to duplicate the AST into "typed AST"
+and "untyped AST". I have done that previously in other projects.
+*/
 struct Type {
     enum TypeKind {
+        TYPE_UNKNOWN = 0,
         TYPE_SIGNED_INTEGER,
         TYPE_UNSIGNED_INTEGER,
         TYPE_BOOL,
@@ -72,6 +78,8 @@ struct AstCall {
 
 struct AstExpression {
     struct Location location;
+    struct Type type;   // TYPE_UNKNOWN after parsing, something else after fill_types
+
     enum AstExpressionKind {
         AST_EXPR_INT_CONSTANT,  // TODO: probably shouldn't include char literals: 'x'
         AST_EXPR_CALL,
@@ -151,7 +159,7 @@ entire compilation. It is used in error messages.
 */
 struct Token *tokenize(const char *filename);
 struct AstToplevelNode *parse(const struct Token *tokens);
-void typecheck(const struct AstToplevelNode *ast);
+void fill_types(const struct AstToplevelNode *ast);
 LLVMModuleRef codegen(const struct AstToplevelNode *ast);
 
 /*

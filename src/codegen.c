@@ -31,6 +31,8 @@ static LLVMTypeRef codegen_type(const struct State *st, const struct Type *type,
         return LLVMIntType(type->data.width_in_bits);
     case TYPE_BOOL:
         return LLVMInt1Type();
+    case TYPE_UNKNOWN:
+        assert(0);
     }
     assert(0);
 }
