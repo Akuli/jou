@@ -32,12 +32,12 @@ for joufile in examples/*.jou tests/*/*.jou; do
     fi
 
     command="./jou $joufile"
-    diffpath=$(mktemp -p tests/tmp/diffs/)
+    diffpath=tests/tmp/diffs/diff$(printf "%04d" $failed)  # consistent alphabetical order
     printf "\n\n*** Command: %s ***\n" "$command" > $diffpath
 
     if diff -u --color=always \
         <(generate_expected_output) \
-        <(bash -c "$command; echo Exit code: \$?" 2>&1) \
+        <(bash -c "ulimit -v 500000; $command; echo Exit code: \$?" 2>&1) \
         &>> $diffpath
     then
         echo -ne "\x1b[32m.\x1b[0m"

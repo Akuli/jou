@@ -22,6 +22,12 @@
 #define End(list) (&(list).ptr[(list).len])
 #define Pop(list) (list)->ptr[assert((list)->len > 0), --(list)->len]
 
+// list should be a List(char)
+#define AppendStr(list,str) do{ \
+    const char *appendstr_s = (str); \
+    while(*appendstr_s) Append((list),*appendstr_s++); \
+} while(0)
+
 // strcpy between two char arrays is safe
 #define safe_strcpy(dest, src) do{ \
     static_assert(sizeof(src) > sizeof(char*), "src must be an array, not a pointer"); \

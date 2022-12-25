@@ -37,25 +37,19 @@ static LLVMTypeRef codegen_type(const struct State *st, const struct Type *type,
 
 static LLVMValueRef codegen_function_decl(const struct State *st, const struct AstFunctionSignature *sig)
 {
+    // TODO: this doesn't belong here
     if (LLVMGetNamedFunction(st->module, sig->funcname))
         fail_with_error(sig->location, "a function named \"%s\" already exists", sig->funcname);
 
     LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
-    for (int i = 0; i < sig->nargs; i++) {
-        // TODO: if argument types are on separate lines and type is bad, the line number is wrong
+    for (int i = 0; i < sig->nargs; i++)
         argtypes[i] = codegen_type(st, &sig->argtypes[i], sig->location);
-    }
 
     LLVMTypeRef returntype;
     if (sig->returntype == NULL)
         returntype = LLVMVoidType();
     else
         returntype = codegen_type(st, sig->returntype, sig->location);
-
-    if (returntype != LLVMInt32Type() && !strcmp(sig->funcname, "main")) {
-        // TODO: better location for this error, in case args on separate lines
-        fail_with_error(sig->location, "the main() function must return int");
-    }
 
     LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, false);
     free(argtypes);
@@ -100,42 +94,18 @@ LLVMValueRef codegen_expression(const struct State *st, const struct AstExpressi
 
 LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location)
 {
-    LLVMValueRef function = LLVMGetNamedFunction(st->module, call->funcname);
-    if (!function)
-        fail_with_error(location, "function \"%s\" not found", call->funcname);
+    // TODO: do something with the location, debug info?
+    (void)location;
 
+    LLVMValueRef function = LLVMGetNamedFunction(st->module, call->funcname);
+    assert(function);
     assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMPointerTypeKind);
     LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(function));
     assert(LLVMGetTypeKind(function_type) == LLVMFunctionTypeKind);
 
-    int nargs = LLVMCountParamTypes(function_type);
-    if (nargs != call->nargs) {
-        fail_with_error(
-            location,
-            "function \"%s\" takes %d argument%s, but it was called with %d argument%s",
-            call->funcname,
-            nargs,
-            nargs==1?"":"s",
-            call->nargs,
-            call->nargs==1?"":"s"
-        );
-    }
-
-    LLVMTypeRef *paramtypes = malloc(nargs * sizeof(paramtypes[0]));  // NOLINT
-    LLVMGetParamTypes(function_type, paramtypes);
-
-    LLVMValueRef *args = malloc(nargs * sizeof(args[0]));  // NOLINT
-    for (int i = 0; i < call->nargs; i++) {
+    LLVMValueRef *args = malloc(call->nargs * sizeof(args[0]));  // NOLINT
+    for (int i = 0; i < call->nargs; i++) 
         args[i] = codegen_expression(st, &call->args[i]);
-        if (LLVMTypeOf(args[i]) != paramtypes[i]) {
-            // TODO: improve error message:
-            //   * display names of argument types
-            //   * use a location that points at the right argument, in case args on separate lines
-            fail_with_error(location, "wrong argument types when calling function \"%s\"", call->funcname);
-        }
-    }
-
-    free(paramtypes);
 
     char debug_name[100] = {0};
     if (LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMVoidTypeKind)
@@ -151,8 +121,7 @@ static void codegen_body(const struct State *st, const struct AstBody *body);
 static void codegen_if_statement(const struct State *st, const struct AstIfStatement *ifstatement)
 {
     LLVMValueRef condition = codegen_expression(st, &ifstatement->condition);
-    if (LLVMTypeOf(condition) != LLVMInt1Type())
-        fail_with_error(ifstatement->condition.location, "'if' condition must be a boolean");
+    assert(LLVMTypeOf(condition) == LLVMInt1Type());
 
     LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->current_func, "then");
     LLVMBasicBlockRef after_if = LLVMAppendBasicBlock(st->current_func, "after_if");
@@ -177,38 +146,10 @@ static void codegen_statement(const struct State *st, const struct AstStatement 
         break;
 
     case AST_STMT_RETURN_VALUE:
-        if (st->current_func_signature->returntype == NULL) {
-            fail_with_error(
-                stmt->location,
-                "function \"%s(...) -> void\" does not return a value",
-                st->current_func_signature->funcname
-            );
-        }
-        LLVMValueRef return_value = codegen_expression(st, &stmt->data.returnvalue);
-
-        assert(LLVMGetTypeKind(LLVMTypeOf(st->current_func)) == LLVMPointerTypeKind);
-        LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(st->current_func));
-
-        if (LLVMTypeOf(return_value) != LLVMGetReturnType(function_type)) {
-            fail_with_error(
-                stmt->location,
-                "returned value is of the wrong type (should be \"%s\")",
-                st->current_func_signature->returntype->name
-            );
-        }
-
-        LLVMBuildRet(st->builder, return_value);
+        LLVMBuildRet(st->builder, codegen_expression(st, &stmt->data.returnvalue));
         break;
 
     case AST_STMT_RETURN_WITHOUT_VALUE:
-        if (st->current_func_signature->returntype != NULL) {
-            fail_with_error(
-                stmt->location,
-                "a return value is needed, because the return type of function \"%s\" is \"%s\"",
-                st->current_func_signature->funcname,
-                st->current_func_signature->returntype->name
-            );
-        }
         LLVMBuildRetVoid(st->builder);
         break;
     }

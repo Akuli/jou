@@ -58,6 +58,12 @@ struct Type {
 };
 
 
+// returnvalue.data.valuetype must be free()d
+struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location);
+
+bool types_match(const struct Type *a, const struct Type *b);
+
+
 struct AstCall {
     char funcname[100];
     struct AstExpression *args;
@@ -145,6 +151,7 @@ entire compilation. It is used in error messages.
 */
 struct Token *tokenize(const char *filename);
 struct AstToplevelNode *parse(const struct Token *tokens);
+void typecheck(const struct AstToplevelNode *ast);
 LLVMModuleRef codegen(const struct AstToplevelNode *ast);
 
 /*

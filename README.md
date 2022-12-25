@@ -112,9 +112,12 @@ you can look at what it produces in each compilation step:
 $ ./jou --verbose examples/hello.jou
 ```
 
-This shows the tokens, AST and LLVM IR generated. So at a high level, the compilation steps are:
+This shows the tokens, AST and LLVM IR generated.
+
+At a high level, the compilation steps are:
 - Tokenize: split the source code into tokens
 - Parse: build an Abstract Syntax Tree from the tokens
+- Type check: emit error messages if needed, does not produce anything on success (similar to mypy in Python)
 - Codegen: convert the AST into LLVM IR
 - Invoke `clang` and pass it the generated LLVM IR
 
@@ -153,10 +156,6 @@ $ make -j2 && valgrind --leak-check=full --show-leak-kinds=all ./jou examples/he
 TODO:
 - Figure out a reasonable way to use valgrind. Seems like llvm does something messy?
 - Write syntax spec once syntax seems relatively stable
-- Some way to include types in error messages:
-    - A second pass that adds type information to AST nodes (and checks the types)? New nodes, or filling new fields in existing nodes?
-    - Control-flow graph? Seems fun. Did something a bit but not quite similar before and it worked
-    - Map LLVM types back to jou-programmer-readable strings, similar to `AstType.name`? Feels like a hack that I would need to change later.
 - Some kind of conversion to bool thingy for if statements: `if some_pointer:`, `if some_integer:`
 - `elif`,`else`
 - `not`,`and`,`or`

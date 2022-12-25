@@ -31,6 +31,8 @@ int main(int argc, char **argv)
     if(verbose)
         print_ast(ast);
 
+    typecheck(ast);
+
     LLVMModuleRef module = codegen(ast);
     free_ast(ast);
     if(verbose)

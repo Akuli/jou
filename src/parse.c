@@ -48,14 +48,7 @@ static struct Type parse_type(const struct Token **tokens)
     ++*tokens;
 
     while ((*tokens)->type == TOKEN_STAR) {
-        struct Type *dup = malloc(sizeof(*dup));
-        *dup = result;
-        result.kind = TYPE_POINTER;
-        result.data.valuetype = dup;
-
-        if (strlen(result.name) + 1 >= sizeof result.name)
-            fail_with_error((*tokens)->location, "type name too long");
-        strcat(result.name, "*");
+        result = create_pointer_type(&result, (*tokens)->location);
         ++*tokens;
     }
 
