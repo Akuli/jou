@@ -184,15 +184,27 @@ void read_indentation_as_newline_token(struct State *st, struct Token *t)
     }
 }
 
-static const char *const KeywordList[] = {
-    [TOKEN_DEF] = "def",
-    [TOKEN_CDECL] = "cdecl",
-    [TOKEN_RETURN] = "return",
-    [TOKEN_VOID] = "void",
-    [TOKEN_IF] = "if",
-    [TOKEN_TRUE] = "True",
-    [TOKEN_FALSE] = "False",
-};
+static bool is_keyword(const char *s)
+{
+    const char *keywords[] = { "def", "cdecl", "return", "void", "if", "True", "False" };
+    for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
+        if (!strcmp(*kw, s))
+            return true;
+    return false;
+}
+
+static int read_int(struct State *st, char firstbyte)
+{
+    int n = firstbyte - '0';
+    while(1) {
+        char c = read_byte(st);
+        if (c < '0' || c > '9') {
+            unread_byte(st, c);
+            return n;
+        }
+        n = 10*n + (c-'0');
+    }
+}
 
 static struct Token read_token(struct State *st)
 {
@@ -218,24 +230,14 @@ static struct Token read_token(struct State *st)
         case '\'': t.type = TOKEN_INT; t.data.int_value = read_char_literal(st); break;
         default:
             if ('0'<=c && c<='9') {
-                int n = 0;
-                do{
-                    n *= 10;
-                    n += c-'0';
-                    c = read_byte(st);
-                } while ('0'<=c && c<='9');
-                unread_byte(st, c);
                 t.type = TOKEN_INT;
-                t.data.int_value = n;
+                t.data.int_value = read_int(st, c);
             } else if(is_identifier_first_byte(c)) {
-                t.type = TOKEN_NAME;
                 read_identifier(st, c, &t.data.name);
-                for (unsigned i = 0; i < sizeof(KeywordList)/sizeof(KeywordList[0]); i++){
-                    if (KeywordList[i] && !strcmp(t.data.name, KeywordList[i])) {
-                        t.type = i;
-                        break;
-                    }
-                }
+                if (is_keyword(t.data.name))
+                    t.type = TOKEN_KEYWORD;
+                else
+                    t.type = TOKEN_NAME;
             } else {
                 fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (int)c);
             }

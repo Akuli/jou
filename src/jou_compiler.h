@@ -16,6 +16,7 @@ struct Token {
     enum TokenType {
         TOKEN_INT,
         TOKEN_NAME,
+        TOKEN_KEYWORD,
         TOKEN_NEWLINE,
         TOKEN_INDENT,
         TOKEN_DEDENT,
@@ -27,20 +28,12 @@ struct Token {
         TOKEN_ARROW,
         TOKEN_STAR,
         TOKEN_AMP,
-        // keywords
-        TOKEN_RETURN,
-        TOKEN_CDECL,
-        TOKEN_DEF,
-        TOKEN_VOID,
-        TOKEN_IF,
-        TOKEN_TRUE,   // TODO: global variables
-        TOKEN_FALSE,  // TODO: global variables
     } type;
     struct Location location;
     union {
         int int_value;  // TOKEN_INT
         int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
-        char name[100];  // TOKEN_NAME
+        char name[100];  // TOKEN_NAME and TOKEN_KEYWORD
     } data;
 };
 

@@ -12,19 +12,13 @@ void print_token(const struct Token *token)
         f(TOKEN_NAME);
         f(TOKEN_NEWLINE);
         f(TOKEN_END_OF_FILE);
-        f(TOKEN_CDECL);
+        f(TOKEN_KEYWORD);
         f(TOKEN_COLON);
         f(TOKEN_INDENT);
         f(TOKEN_DEDENT);
-        f(TOKEN_RETURN);
         f(TOKEN_ARROW);
-        f(TOKEN_DEF);
-        f(TOKEN_VOID);
         f(TOKEN_STAR);
         f(TOKEN_AMP);
-        f(TOKEN_IF);
-        f(TOKEN_FALSE);
-        f(TOKEN_TRUE);
         #undef f
     }
 
@@ -33,6 +27,7 @@ void print_token(const struct Token *token)
         printf(" value=%d", token->data.int_value);
         break;
     case TOKEN_NAME:
+    case TOKEN_KEYWORD:
         printf(" name=\"%s\"", token->data.name);
         break;
     case TOKEN_NEWLINE:
@@ -44,22 +39,15 @@ void print_token(const struct Token *token)
     // Listed explicitly instead of "default" so that you get a compiler error
     // coming from here after adding a new token type. That should remind you
     // to keep this function up to date.
-    case TOKEN_CDECL:
     case TOKEN_OPENPAREN:
     case TOKEN_CLOSEPAREN:
     case TOKEN_COLON:
     case TOKEN_END_OF_FILE:
     case TOKEN_INDENT:
     case TOKEN_DEDENT:
-    case TOKEN_RETURN:
     case TOKEN_ARROW:
-    case TOKEN_DEF:
-    case TOKEN_VOID:
     case TOKEN_STAR:
     case TOKEN_AMP:
-    case TOKEN_IF:
-    case TOKEN_FALSE:
-    case TOKEN_TRUE:
         break;
     }
 

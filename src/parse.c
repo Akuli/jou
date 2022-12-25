@@ -22,13 +22,7 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_END_OF_FILE: strcpy(got, "end of file"); break;
         case TOKEN_INDENT: strcpy(got, "more indentation"); break;
         case TOKEN_DEDENT: strcpy(got, "less indentation"); break;
-        case TOKEN_CDECL: strcpy(got, "the 'cdecl' keyword"); break;
-        case TOKEN_RETURN: strcpy(got, "the 'return' keyword"); break;
-        case TOKEN_DEF: strcpy(got, "the 'def' keyword"); break;
-        case TOKEN_VOID: strcpy(got, "the 'void' keyword"); break;
-        case TOKEN_IF: strcpy(got, "the 'if' keyword"); break;
-        case TOKEN_TRUE: strcpy(got, "the 'true' keyword"); break;
-        case TOKEN_FALSE: strcpy(got, "the 'false' keyword"); break;
+        case TOKEN_KEYWORD: snprintf(got, sizeof got, "the '%s' keyword", token->data.name); break;
     }
     fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
@@ -121,7 +115,7 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     }
     ++*tokens;
 
-    if ((*tokens)->type == TOKEN_VOID) {
+    if ((*tokens)->type == TOKEN_KEYWORD && !strcmp((*tokens)->data.name, "void")) {
         result.returntype = NULL;
         ++*tokens;
     } else {
@@ -168,14 +162,18 @@ static struct AstExpression parse_expression(const struct Token **tokens)
         safe_strcpy(expr.data.varname, (*tokens)->data.name);
         ++*tokens;
         break;
-    case TOKEN_TRUE:
-        expr.kind = AST_EXPR_TRUE;
-        ++*tokens;
-        break;
-    case TOKEN_FALSE:
-        expr.kind = AST_EXPR_FALSE;
-        ++*tokens;
-        break;
+    case TOKEN_KEYWORD:
+        if (!strcmp((*tokens)->data.name, "True")) {
+            expr.kind = AST_EXPR_TRUE;
+            ++*tokens;
+            break;
+        }
+        if (!strcmp((*tokens)->data.name, "False")) {
+            expr.kind = AST_EXPR_FALSE;
+            ++*tokens;
+            break;
+        }
+        // fall through
     default:
         fail_with_parse_error(*tokens, "an expression");
     }
@@ -231,13 +229,14 @@ static struct AstStatement parse_statement(const struct Token **tokens)
 {
     struct AstStatement result = { .location = (*tokens)->location };
     switch((*tokens)->type) {
-        case TOKEN_NAME:
-            result.kind = AST_STMT_CALL;
-            result.data.call = parse_call(tokens);
-            eat_newline(tokens);
-            break;
+    case TOKEN_NAME:
+        result.kind = AST_STMT_CALL;
+        result.data.call = parse_call(tokens);
+        eat_newline(tokens);
+        break;
 
-        case TOKEN_RETURN:
+    case TOKEN_KEYWORD:
+        if (!strcmp((*tokens)->data.name, "return")) {
             ++*tokens;
             if ((*tokens)->type == TOKEN_NEWLINE) {
                 result.kind = AST_STMT_RETURN_WITHOUT_VALUE;
@@ -247,16 +246,18 @@ static struct AstStatement parse_statement(const struct Token **tokens)
             }
             eat_newline(tokens);
             break;
-
-        case TOKEN_IF:
+        }
+        if (!strcmp((*tokens)->data.name, "if")) {
             ++*tokens;
             result.kind = AST_STMT_IF;
             result.data.ifstatement.condition = parse_expression(tokens);
             result.data.ifstatement.body = parse_body(tokens);
             break;
+        }
+        // fall through
 
-        default:
-            fail_with_parse_error(*tokens, "a statement");
+    default:
+        fail_with_parse_error(*tokens, "a statement");
     }
 
     return result;
@@ -289,23 +290,26 @@ static struct AstToplevelNode parse_toplevel_node(const struct Token **tokens)
     struct AstToplevelNode result = { .location = (*tokens)->location };
 
     switch((*tokens)->type) {
-    case TOKEN_CDECL:
-        ++*tokens;
-        result.kind = AST_TOPLEVEL_CDECL_FUNCTION;
-        result.data.decl_signature = parse_function_signature(tokens);
-        eat_newline(tokens);
-        break;
-
     case TOKEN_END_OF_FILE:
         result.kind = AST_TOPLEVEL_END_OF_FILE;
         break;
 
-    case TOKEN_DEF:
-        ++*tokens;  // skip 'def' keyword
-        result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
-        result.data.funcdef.signature = parse_function_signature(tokens);
-        result.data.funcdef.body = parse_body(tokens);
-        break;
+    case TOKEN_KEYWORD:
+        if (!strcmp((*tokens)->data.name, "def")) {
+            ++*tokens;  // skip 'def' keyword
+            result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
+            result.data.funcdef.signature = parse_function_signature(tokens);
+            result.data.funcdef.body = parse_body(tokens);
+            break;
+        }
+        if (!strcmp((*tokens)->data.name, "cdecl")) {
+            ++*tokens;
+            result.kind = AST_TOPLEVEL_CDECL_FUNCTION;
+            result.data.decl_signature = parse_function_signature(tokens);
+            eat_newline(tokens);
+            break;
+        }
+        // fall through
 
     default:
         fail_with_parse_error(*tokens, "a C function declaration or a function definition");
