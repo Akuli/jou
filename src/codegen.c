@@ -81,7 +81,12 @@ LLVMValueRef codegen_expression(const struct State *st, const struct AstExpressi
                 return v->pointer;
         fail_with_error(expr->location, "no local variable named \"%s\"", expr->data.varname);
     case AST_EXPR_DEREFERENCE:
-        return LLVMBuildLoad(st->builder, codegen_expression(st, expr->data.pointerexpr), "deref");
+    {
+        LLVMValueRef pointer = codegen_expression(st, expr->data.pointerexpr);
+        if (LLVMGetTypeKind(LLVMTypeOf(pointer)) != LLVMPointerTypeKind)
+            fail_with_error(expr->location, "the dereference operator '*' is only for pointers");
+        return LLVMBuildLoad(st->builder, pointer, "deref");
+    }
     case AST_EXPR_INT_CONSTANT:
         return LLVMConstInt(LLVMInt32Type(), expr->data.int_value, false);
     case AST_EXPR_TRUE:
