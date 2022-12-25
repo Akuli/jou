@@ -84,6 +84,10 @@ LLVMValueRef codegen_expression(const struct State *st, const struct AstExpressi
         return LLVMBuildLoad(st->builder, codegen_expression(st, expr->data.pointerexpr), "deref");
     case AST_EXPR_INT_CONSTANT:
         return LLVMConstInt(LLVMInt32Type(), expr->data.int_value, false);
+    case AST_EXPR_TRUE:
+        return LLVMConstInt(LLVMInt1Type(), 1, false);
+    case AST_EXPR_FALSE:
+        return LLVMConstInt(LLVMInt1Type(), 0, false);
     }
     assert(0);
 }
@@ -136,49 +140,78 @@ LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, st
     return return_value;
 }
 
+static void codegen_body(const struct State *st, const struct AstBody *body);
+
+static void codegen_if_statement(const struct State *st, const struct AstIfStatement *ifstatement)
+{
+    LLVMValueRef condition = codegen_expression(st, &ifstatement->condition);
+    if (LLVMTypeOf(condition) != LLVMInt1Type())
+        fail_with_error(ifstatement->condition.location, "'if' condition must be a boolean");
+
+    LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->current_func, "then");
+    LLVMBasicBlockRef after_if = LLVMAppendBasicBlock(st->current_func, "after_if");
+    LLVMBuildCondBr(st->builder, condition, then, after_if);
+
+    LLVMPositionBuilderAtEnd(st->builder, then);
+    codegen_body(st, &ifstatement->body);
+    LLVMBuildBr(st->builder, after_if);
+
+    LLVMPositionBuilderAtEnd(st->builder, after_if);
+}
+
 static void codegen_statement(const struct State *st, const struct AstStatement *stmt)
 {
     switch(stmt->kind) {
-        case AST_STMT_CALL:
-            codegen_call(st, &stmt->data.call, stmt->location);
-            break;
+    case AST_STMT_IF:
+        codegen_if_statement(st, &stmt->data.ifstatement);
+        break;
 
-        case AST_STMT_RETURN_VALUE:
-            if (st->current_func_signature->returntype == NULL) {
-                fail_with_error(
-                    stmt->location,
-                    "function \"%s(...) -> void\" does not return a value",
-                    st->current_func_signature->funcname
-                );
-            }
-            LLVMValueRef return_value = codegen_expression(st, &stmt->data.returnvalue);
+    case AST_STMT_CALL:
+        codegen_call(st, &stmt->data.call, stmt->location);
+        break;
 
-            assert(LLVMGetTypeKind(LLVMTypeOf(st->current_func)) == LLVMPointerTypeKind);
-            LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(st->current_func));
+    case AST_STMT_RETURN_VALUE:
+        if (st->current_func_signature->returntype == NULL) {
+            fail_with_error(
+                stmt->location,
+                "function \"%s(...) -> void\" does not return a value",
+                st->current_func_signature->funcname
+            );
+        }
+        LLVMValueRef return_value = codegen_expression(st, &stmt->data.returnvalue);
 
-            if (LLVMTypeOf(return_value) != LLVMGetReturnType(function_type)) {
-                fail_with_error(
-                    stmt->location,
-                    "returned value is of the wrong type (should be \"%s\")",
-                    st->current_func_signature->returntype->name
-                );
-            }
+        assert(LLVMGetTypeKind(LLVMTypeOf(st->current_func)) == LLVMPointerTypeKind);
+        LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(st->current_func));
 
-            LLVMBuildRet(st->builder, return_value);
-            break;
+        if (LLVMTypeOf(return_value) != LLVMGetReturnType(function_type)) {
+            fail_with_error(
+                stmt->location,
+                "returned value is of the wrong type (should be \"%s\")",
+                st->current_func_signature->returntype->name
+            );
+        }
 
-        case AST_STMT_RETURN_WITHOUT_VALUE:
-            if (st->current_func_signature->returntype != NULL) {
-                fail_with_error(
-                    stmt->location,
-                    "a return value is needed, because the return type of function \"%s\" is \"%s\"",
-                    st->current_func_signature->funcname,
-                    st->current_func_signature->returntype->name
-                );
-            }
-            LLVMBuildRetVoid(st->builder);
-            break;
+        LLVMBuildRet(st->builder, return_value);
+        break;
+
+    case AST_STMT_RETURN_WITHOUT_VALUE:
+        if (st->current_func_signature->returntype != NULL) {
+            fail_with_error(
+                stmt->location,
+                "a return value is needed, because the return type of function \"%s\" is \"%s\"",
+                st->current_func_signature->funcname,
+                st->current_func_signature->returntype->name
+            );
+        }
+        LLVMBuildRetVoid(st->builder);
+        break;
     }
+}
+
+static void codegen_body(const struct State *st, const struct AstBody *body)
+{
+    for (int i = 0; i < body->nstatements; i++)
+        codegen_statement(st, &body->statements[i]);
 }
 
 static void codegen_function_def(struct State *st, const struct AstFunctionDef *funcdef)
@@ -190,7 +223,7 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
     st->current_func_signature = &funcdef->signature;
     st->current_func = codegen_function_decl(st, &funcdef->signature);
 
-    LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(LLVMGetGlobalContext(), st->current_func, "function_block");
+    LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(LLVMGetGlobalContext(), st->current_func, "function_start");
     LLVMPositionBuilderAtEnd(st->builder, block);
 
     for (int i = 0; i < funcdef->signature.nargs; i++) {
@@ -202,8 +235,7 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
         Append(&st->local_vars, local);
     }
 
-    for (int i = 0; i < funcdef->body.nstatements; i++)
-        codegen_statement(st, &funcdef->body.statements[i]);
+    codegen_body(st, &funcdef->body);
 
     if (funcdef->signature.returntype == NULL)
         LLVMBuildRetVoid(st->builder);

@@ -32,6 +32,9 @@ struct Token {
         TOKEN_CDECL,
         TOKEN_DEF,
         TOKEN_VOID,
+        TOKEN_IF,
+        TOKEN_TRUE,   // TODO: global variables
+        TOKEN_FALSE,  // TODO: global variables
     } type;
     struct Location location;
     union {
@@ -70,6 +73,8 @@ struct AstExpression {
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF_VARIABLE,
         AST_EXPR_DEREFERENCE,
+        AST_EXPR_TRUE,
+        AST_EXPR_FALSE,
     } kind;
     union {
         int int_value;          // AST_EXPR_INT_CONSTANT
@@ -89,22 +94,27 @@ struct AstFunctionSignature {
     struct AstType *returntype;  // NULL, if does not return a value
 };
 
+struct AstBody {
+    struct AstStatement *statements;
+    int nstatements;
+};
+
 struct AstStatement {
     struct Location location;
     enum AstStatementKind {
         AST_STMT_CALL,
         AST_STMT_RETURN_VALUE,
         AST_STMT_RETURN_WITHOUT_VALUE,
+        AST_STMT_IF,
     } kind;
     union {
         struct AstCall call;                // for AST_STMT_CALL
         struct AstExpression returnvalue;   // for AST_STMT_RETURN
+        struct AstIfStatement {
+            struct AstExpression condition;
+            struct AstBody body;
+        } ifstatement;
     } data;
-};
-
-struct AstBody {
-    struct AstStatement *statements;
-    int nstatements;
 };
 
 struct AstFunctionDef {

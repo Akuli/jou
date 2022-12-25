@@ -26,6 +26,9 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_RETURN: strcpy(got, "the 'return' keyword"); break;
         case TOKEN_DEF: strcpy(got, "the 'def' keyword"); break;
         case TOKEN_VOID: strcpy(got, "the 'void' keyword"); break;
+        case TOKEN_IF: strcpy(got, "the 'if' keyword"); break;
+        case TOKEN_TRUE: strcpy(got, "the 'true' keyword"); break;
+        case TOKEN_FALSE: strcpy(got, "the 'false' keyword"); break;
     }
     fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
@@ -165,6 +168,14 @@ static struct AstExpression parse_expression(const struct Token **tokens)
         safe_strcpy(expr.data.varname, (*tokens)->data.name);
         ++*tokens;
         break;
+    case TOKEN_TRUE:
+        expr.kind = AST_EXPR_TRUE;
+        ++*tokens;
+        break;
+    case TOKEN_FALSE:
+        expr.kind = AST_EXPR_FALSE;
+        ++*tokens;
+        break;
     default:
         fail_with_parse_error(*tokens, "an expression");
     }
@@ -214,6 +225,8 @@ static void eat_newline(const struct Token **tokens)
     ++*tokens;
 }
 
+static struct AstBody parse_body(const struct Token **tokens);
+
 static struct AstStatement parse_statement(const struct Token **tokens)
 {
     struct AstStatement result = { .location = (*tokens)->location };
@@ -221,6 +234,7 @@ static struct AstStatement parse_statement(const struct Token **tokens)
         case TOKEN_NAME:
             result.kind = AST_STMT_CALL;
             result.data.call = parse_call(tokens);
+            eat_newline(tokens);
             break;
 
         case TOKEN_RETURN:
@@ -231,13 +245,20 @@ static struct AstStatement parse_statement(const struct Token **tokens)
                 result.kind = AST_STMT_RETURN_VALUE;
                 result.data.returnvalue = parse_expression(tokens);
             }
+            eat_newline(tokens);
+            break;
+
+        case TOKEN_IF:
+            ++*tokens;
+            result.kind = AST_STMT_IF;
+            result.data.ifstatement.condition = parse_expression(tokens);
+            result.data.ifstatement.body = parse_body(tokens);
             break;
 
         default:
             fail_with_parse_error(*tokens, "a statement");
     }
 
-    eat_newline(tokens);
     return result;
 }
 
