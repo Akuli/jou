@@ -61,7 +61,7 @@ struct Type {
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER
-        const struct Type *valuetype;  // TYPE_POINTER
+        struct Type *valuetype;  // TYPE_POINTER
     } data;
 };
 

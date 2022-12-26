@@ -116,7 +116,6 @@ static void fill_types_expression(const struct State *st, struct AstExpression *
             const struct LocalVariable *v = find_local_variable(st, expr->data.varname);
             if (!v)
                 fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
-            // TODO: free the allocation in create_pointer_type()
             expr->type = create_pointer_type(&v->type, expr->location);
             break;
         }
@@ -258,4 +257,5 @@ void fill_types(const struct AstToplevelNode *ast)
     }
 
     free(st.functions.ptr);
+    free(st.func_locals.ptr);
 }

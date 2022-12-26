@@ -7,7 +7,7 @@
 const struct Type bool_type = { .name = "bool", .kind = TYPE_BOOL };
 const struct Type int_type = { .name = "int", .kind = TYPE_SIGNED_INTEGER, .data.width_in_bits = 32 };
 const struct Type byte_type = { .name = "byte", .kind = TYPE_UNSIGNED_INTEGER, .data.width_in_bits = 8 };
-const struct Type string_type = { .name = "byte*", .kind = TYPE_POINTER, .data.valuetype = &byte_type };
+const struct Type string_type = { .name = "byte*", .kind = TYPE_POINTER, .data.valuetype = (struct Type *)&byte_type };
 
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location)
 {
