@@ -142,16 +142,16 @@ static void fill_types_expression(const struct State *st, struct AstExpression *
 
         case AST_EXPR_TRUE:
         case AST_EXPR_FALSE:
-            expr->type = bool_type;
+            expr->type = boolType;
             break;
         case AST_EXPR_INT_CONSTANT:
-            expr->type = int_type;
+            expr->type = intType;
             break;
         case AST_EXPR_CHAR_CONSTANT:
-            expr->type = byte_type;
+            expr->type = byteType;
             break;
         case AST_EXPR_STRING_CONSTANT:
-            expr->type = string_type;
+            expr->type = stringType;
             break;
     }
 }
@@ -167,7 +167,7 @@ static void fill_types_statement(const struct State *st, struct AstStatement *st
 
     case AST_STMT_IF:
         fill_types_expression(st, &stmt->data.ifstatement.condition);
-        if (stmt->data.ifstatement.condition.type.kind != TYPE_BOOL) {
+        if (!same_type(&stmt->data.ifstatement.condition.type, &boolType)) {
             fail_with_error(
                 stmt->data.ifstatement.condition.location,
                 "'if' condition must be a boolean, not %s", stmt->data.ifstatement.condition.type.name);
@@ -216,9 +216,8 @@ static void handle_signature(struct State *st, const struct AstFunctionSignature
     if (find_function(st, sig->funcname))
         fail_with_error(sig->location, "a function named \"%s\" already exists", sig->funcname);
 
-    struct Type inttype = {.name="int",.kind=TYPE_SIGNED_INTEGER,.data.width_in_bits=32};
     if (!strcmp(sig->funcname, "main") &&
-        (sig->returntype == NULL || !same_type(sig->returntype, &inttype)))
+        (sig->returntype == NULL || !same_type(sig->returntype, &intType)))
     {
         fail_with_error(sig->location, "the main() function must return int");
     }

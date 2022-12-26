@@ -35,18 +35,14 @@ static struct Type parse_type(const struct Token **tokens)
         fail_with_parse_error(*tokens, "a type");
 
     struct Type result;
-    safe_strcpy(result.name, (*tokens)->data.name);
-    if (!strcmp(result.name, "int")) {
-        result.kind = TYPE_SIGNED_INTEGER;
-        result.data.width_in_bits = 32;
-    } else if (!strcmp(result.name, "byte")) {
-        result.kind = TYPE_UNSIGNED_INTEGER;
-        result.data.width_in_bits = 8;
-    } else if (!strcmp(result.name, "bool")) {
-        result.kind = TYPE_BOOL;
-    } else {
+    if (!strcmp((*tokens)->data.name, "int"))
+        result = intType;
+    else if (!strcmp((*tokens)->data.name, "byte"))
+        result = byteType;
+    else if (!strcmp((*tokens)->data.name, "bool"))
+        result = boolType;
+    else
         fail_with_error((*tokens)->location, "type '%s' not found", (*tokens)->data.name);
-    }
     ++*tokens;
 
     while ((*tokens)->type == TOKEN_STAR) {

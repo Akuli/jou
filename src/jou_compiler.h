@@ -66,10 +66,12 @@ struct Type {
 };
 
 // Built-in types, for convenience.
-extern const struct Type bool_type;   // bool
-extern const struct Type int_type;    // int (32-bit signed)
-extern const struct Type byte_type;   // byte (8-bit unsigned)
-extern const struct Type string_type; // byte*
+// Named with a differentNamingConvention compared to everything else,
+// so you recognize these instead of wondering where they are defined.
+extern const struct Type boolType;   // bool
+extern const struct Type intType;    // int (32-bit signed)
+extern const struct Type byteType;   // byte (8-bit unsigned)
+extern const struct Type stringType; // byte*
 
 
 // returnvalue.data.valuetype must be free()d
