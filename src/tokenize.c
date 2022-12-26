@@ -71,50 +71,6 @@ static void unread_byte(struct State *st, char c)
         st->location.lineno--;
 }
 
-static char read_char_literal(struct State *st)
-{
-    // The first ' has already been read.
-    char c = read_byte(st);
-    if (c == '\'')
-        fail_with_error(st->location, "empty character literal: ''");
-
-    if (c == '\\') {
-        // '\n' means newline, for example
-        char after_backslash = read_byte(st);
-        switch(after_backslash) {
-        case 'n':
-            c = '\n';
-            break;
-        case '\\':
-            c = '\\';
-            break;
-        case '\'':
-            c = '\'';
-            break;
-        case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9':
-            c = after_backslash - '0';
-            break;
-        default:
-            fail_with_error(st->location, "unknown character literal: '\\%c'", after_backslash);
-        }
-    }
-
-    char endquote = read_byte(st);
-    if (endquote  != '\'')
-        fail_with_error(st->location, "single quotes are for a single character, maybe use double quotes to instead make a string?");
-
-    return c;
-}
-
 bool is_identifier_first_byte(char c)
 {
     return ('A'<=c && c<='Z') || ('a'<=c && c<='z') || c=='_';
@@ -206,6 +162,91 @@ static int read_int(struct State *st, char firstbyte)
     }
 }
 
+// Assumes the initial quote has been read already
+static char *read_string(struct State *st, char quote, int *len)
+{
+    assert(quote == '\'' || quote == '"');
+    List(char) result = {0};
+
+    char c, after_backslash;
+    while( (c=read_byte(st)) != quote )
+    {
+        switch(c) {
+        case '\n':
+            st->location.lineno--;
+            goto unexpected_end;
+        case '\0':
+            goto unexpected_end;
+        case '\\':
+            // \n means newline, for example
+            after_backslash = read_byte(st);
+            switch(after_backslash) {
+            case 'n':
+                Append(&result, '\n');
+                break;
+            case '\\':
+            case '\'':
+            case '"':
+                Append(&result, after_backslash);
+                break;
+            case '0':
+                if (quote == '"')
+                    fail_with_error(st->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte");
+                // fall through
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                Append(&result, after_backslash - '0');
+                break;
+            case '\n':
+                // \ at end of line, string continues on next line
+                break;
+            case '\0':
+                goto unexpected_end;
+            default:
+                fail_with_error(st->location, "unknown escape: '\\%c'", after_backslash);
+            }
+            break;
+        default:
+            Append(&result, c);
+        }
+    }
+
+    if(len)
+        *len = result.len;
+    Append(&result, '\0');
+    return result.ptr;
+
+unexpected_end:
+    // TODO: tests
+    if (quote == '"')
+        fail_with_error(st->location, "missing \" to end the string");
+    else
+        fail_with_error(st->location, "missing ' to end the character");
+}
+
+static char read_char_literal(struct State *st)
+{
+    // TODO: test that this location is correct when there are escaped newlines within single quotes.
+    struct Location location = st->location;
+
+    int len;
+    char *s = read_string(st, '\'', &len);
+    if (len == 0)
+        fail_with_error(location, "empty character literal: ''");
+    if (len >= 2)
+        fail_with_error(location, "single quotes are for a single character, maybe use double quotes to instead make a string?");
+    char result = s[0];
+    free(s);
+    return result;
+}
+
 static struct Token read_token(struct State *st)
 {
     struct Token t = { .location = st->location };
@@ -228,6 +269,7 @@ static struct Token read_token(struct State *st)
         case '*': t.type = TOKEN_STAR; break;
         case '&': t.type = TOKEN_AMP; break;
         case '\'': t.type = TOKEN_CHAR; t.data.char_value = read_char_literal(st); break;
+        case '"': t.type = TOKEN_STRING; t.data.string_value = read_string(st, '"', NULL); break;
         default:
             if ('0'<=c && c<='9') {
                 t.type = TOKEN_INT;

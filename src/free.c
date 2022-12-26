@@ -9,9 +9,9 @@ used in compilation.
 
 void free_tokens(struct Token *tokenlist)
 {
-    // Currently individual tokens don't need freeing.
-    // TODO: This will change once we have strings, because a string token
-    //       will contain an arbitrary amount of data.
+    for (struct Token *t = tokenlist; t->type != TOKEN_END_OF_FILE; t++)
+        if (t->type == TOKEN_STRING)
+            free(t->data.string_value);
     free(tokenlist);
 }
 
@@ -20,7 +20,7 @@ static void free_type(const struct Type *type)
     switch(type->kind) {
     case TYPE_POINTER:
         free_type(type->data.valuetype);
-        free(type->data.valuetype);
+        free((void*)type->data.valuetype);  // A bit of a hack, but const is needed elsewhere
         break;
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
@@ -48,6 +48,9 @@ static void free_expression(const struct AstExpression *expr)
     case AST_EXPR_DEREFERENCE:
         free_expression(expr->data.pointerexpr);
         free(expr->data.pointerexpr);
+        break;
+    case AST_EXPR_STRING_CONSTANT:
+        free(expr->data.string_value);
         break;
     case AST_EXPR_INT_CONSTANT:
     case AST_EXPR_CHAR_CONSTANT:

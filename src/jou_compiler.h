@@ -16,6 +16,7 @@ struct Token {
     enum TokenType {
         TOKEN_INT,
         TOKEN_CHAR,
+        TOKEN_STRING,
         TOKEN_NAME,
         TOKEN_KEYWORD,
         TOKEN_NEWLINE,
@@ -32,8 +33,9 @@ struct Token {
     } type;
     struct Location location;
     union {
-        char char_value;  // TOKEN_CHAR
         int int_value;  // TOKEN_INT
+        char char_value;  // TOKEN_CHAR
+        char *string_value;  // TOKEN_STRING
         int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
         char name[100];  // TOKEN_NAME and TOKEN_KEYWORD
     } data;
@@ -49,6 +51,7 @@ This is a bit weird, but I don't want to duplicate the AST into "typed AST"
 and "untyped AST". I have done that previously in other projects.
 */
 struct Type {
+    char name[100];   // All types have a name for error messages and debugging.
     enum TypeKind {
         TYPE_UNKNOWN = 0,
         TYPE_SIGNED_INTEGER,
@@ -58,12 +61,15 @@ struct Type {
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER
-        struct Type *valuetype;  // TYPE_POINTER
+        const struct Type *valuetype;  // TYPE_POINTER
     } data;
-
-    // All types have a name for error messages and debugging.
-    char name[100];
 };
+
+// Built-in types, for convenience.
+extern const struct Type bool_type;   // bool
+extern const struct Type int_type;    // int (32-bit signed)
+extern const struct Type byte_type;   // byte (8-bit unsigned)
+extern const struct Type string_type; // byte*
 
 
 // returnvalue.data.valuetype must be free()d
@@ -86,6 +92,7 @@ struct AstExpression {
     enum AstExpressionKind {
         AST_EXPR_INT_CONSTANT,
         AST_EXPR_CHAR_CONSTANT,
+        AST_EXPR_STRING_CONSTANT,
         AST_EXPR_CALL,
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF_VARIABLE,
@@ -96,6 +103,7 @@ struct AstExpression {
     union {
         int int_value;          // AST_EXPR_INT_CONSTANT
         char char_value;        // AST_EXPR_CHAR_CONSTANT
+        char *string_value;     // AST_EXPR_STRING_CONSTANT
         char varname[100];      // AST_EXPR_GET_VARIABLE, AST_EXPR_ADDRESS_OF_VARIABLE
         struct AstCall call;    // AST_EXPR_CALL
         struct AstExpression *pointerexpr;  // AST_EXPR_DEREFERENCE

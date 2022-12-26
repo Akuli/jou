@@ -75,6 +75,16 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const struct A
     return LLVMAddFunction(st->module, sig->funcname, functype);
 }
 
+static LLVMValueRef make_a_string_constant(const struct State *st, const char *s)
+{
+    // https://stackoverflow.com/a/37906139
+    LLVMValueRef array = LLVMConstString(s, strlen(s), false);
+    LLVMValueRef stack_space_ptr = LLVMBuildAlloca(st->builder, LLVMTypeOf(array), "string_data");
+    LLVMBuildStore(st->builder, array, stack_space_ptr);
+    LLVMTypeRef string_type = LLVMPointerType(LLVMInt8Type(), 0);
+    return LLVMBuildBitCast(st->builder, stack_space_ptr, string_type, "string_ptr");
+}
+
 // forward-declare
 static LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location);
 
@@ -104,6 +114,8 @@ static LLVMValueRef codegen_expression(const struct State *st, const struct AstE
         return LLVMConstInt(LLVMInt32Type(), expr->data.int_value, false);
     case AST_EXPR_CHAR_CONSTANT:
         return LLVMConstInt(LLVMInt8Type(), expr->data.char_value, false);
+    case AST_EXPR_STRING_CONSTANT:
+        return make_a_string_constant(st, expr->data.string_value);
     case AST_EXPR_TRUE:
         return LLVMConstInt(LLVMInt1Type(), 1, false);
     case AST_EXPR_FALSE:

@@ -10,12 +10,27 @@ static void print_byte(char b)
         printf(" '%c'", b);
 }
 
+static void print_string(const char *s)
+{
+    putchar('"');
+    for (int i = 0; s[i]; i++) {
+        if (isprint(s[i]))
+            putchar(s[i]);
+        else if (s[i] == '\n')
+            printf("\\n");
+        else
+            printf("\\x%02x", s[i]);     // TODO: \x is not yet recognized by the tokenizer
+    }
+    putchar('"');
+}
+
 void print_token(const struct Token *token)
 {
     switch(token->type) {
         #define f(x) case x: printf(#x); break
         f(TOKEN_INT);
         f(TOKEN_CHAR);
+        f(TOKEN_STRING);
         f(TOKEN_OPENPAREN);
         f(TOKEN_CLOSEPAREN);
         f(TOKEN_NAME);
@@ -38,6 +53,11 @@ void print_token(const struct Token *token)
     case TOKEN_CHAR:
         printf(" value=");
         print_byte(token->data.char_value);
+        printf("\n");
+        break;
+    case TOKEN_STRING:
+        printf(" value=");
+        print_string(token->data.string_value);
         printf("\n");
         break;
     case TOKEN_NAME:
@@ -107,6 +127,7 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         f(AST_EXPR_GET_VARIABLE);
         f(AST_EXPR_INT_CONSTANT);
         f(AST_EXPR_CHAR_CONSTANT);
+        f(AST_EXPR_STRING_CONSTANT);
         f(AST_EXPR_ADDRESS_OF_VARIABLE);
         f(AST_EXPR_DEREFERENCE);
         f(AST_EXPR_FALSE);
@@ -134,6 +155,11 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
     case AST_EXPR_CHAR_CONSTANT:
         printf(" value=");
         print_byte(expr->data.char_value);
+        printf("\n");
+        break;
+    case AST_EXPR_STRING_CONSTANT:
+        printf(" value=");
+        print_string(expr->data.string_value);
         printf("\n");
         break;
     case AST_EXPR_TRUE:

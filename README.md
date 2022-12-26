@@ -1,6 +1,14 @@
 # Jou programming language
 
-Jou is an experimental toy programming language.
+Jou is an experimental toy programming language. It looks like this:
+
+```python3
+cdecl puts(string: byte*) -> int
+
+def main() -> int:
+    puts("Hello World")
+    return 0
+```
 
 Goals:
 - Minimalistic feel of C + simple Python-style syntax
@@ -35,44 +43,7 @@ Non-goals:
 - Trying to detect every possible memory bug at compile time
     (Rust already does it better than I can, and even then it can be painful to use)
 - Copying Python's gotchas
-    (e.g. complicated import system with weird syntax and runtime behavior)
-
-Here's what Jou code currently looks like:
-
-```python3
-cdecl putchar(ch: int) -> int
-
-def main() -> int:
-    putchar('h')
-    putchar('e')
-    putchar('l')
-    putchar('l')
-    putchar('o')
-    putchar('\n')
-    return 0
-```
-
-Here's what I want it to eventually look like:
-
-```python3
-import io
-
-def main() -> int:
-    printf("hello\n")
-    return 0
-```
-
-And if you look inside `io.jou`, here's what I want it to look like:
-
-```python3
-link libc.so
-
-...
-
-cdecl putchar(ch: int) -> int
-
-...
-```
+    (e.g. complicated import system with weird syntax and much more weird runtime behavior)
 
 
 ## Setup

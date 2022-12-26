@@ -11,7 +11,8 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
     char got[200];
     switch(token->type) {
         case TOKEN_INT: strcpy(got, "an integer"); break;
-        case TOKEN_CHAR: strcpy(got, "a character literal"); break;
+        case TOKEN_CHAR: strcpy(got, "a character"); break;
+        case TOKEN_STRING: strcpy(got, "a string"); break;
         case TOKEN_OPENPAREN: strcpy(got, "'('"); break;
         case TOKEN_CLOSEPAREN: strcpy(got, "')'"); break;
         case TOKEN_COLON: strcpy(got, "':'"); break;
@@ -147,6 +148,11 @@ static struct AstExpression parse_expression(const struct Token **tokens)
     case TOKEN_CHAR:
         expr.kind = AST_EXPR_CHAR_CONSTANT;
         expr.data.int_value = (*tokens)->data.char_value;
+        ++*tokens;
+        break;
+    case TOKEN_STRING:
+        expr.kind = AST_EXPR_STRING_CONSTANT;
+        expr.data.string_value = strdup((*tokens)->data.string_value);
         ++*tokens;
         break;
     case TOKEN_NAME:

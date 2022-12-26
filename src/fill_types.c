@@ -142,17 +142,17 @@ static void fill_types_expression(const struct State *st, struct AstExpression *
 
         case AST_EXPR_TRUE:
         case AST_EXPR_FALSE:
-            expr->type = (struct Type){ .kind = TYPE_BOOL, .name = "bool" };
+            expr->type = bool_type;
             break;
-
         case AST_EXPR_INT_CONSTANT:
-            expr->type = (struct Type){ .kind = TYPE_SIGNED_INTEGER, .name = "int", .data.width_in_bits = 32 };
+            expr->type = int_type;
             break;
-
         case AST_EXPR_CHAR_CONSTANT:
-            expr->type = (struct Type){ .kind = TYPE_UNSIGNED_INTEGER, .name = "byte", .data.width_in_bits = 8 };
+            expr->type = byte_type;
             break;
-
+        case AST_EXPR_STRING_CONSTANT:
+            expr->type = string_type;
+            break;
     }
 }
 
