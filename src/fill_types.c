@@ -256,4 +256,6 @@ void fill_types(const struct AstToplevelNode *ast)
             assert(0);
         }
     }
+
+    free(st.functions.ptr);
 }

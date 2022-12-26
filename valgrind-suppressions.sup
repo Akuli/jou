@@ -1,0 +1,27 @@
+# Without a suppression file, most leaks have call_init() in them.
+# Many of these leaks seem to be present even if my main() does nothing.
+# Presumably these happen whenever libLLVM loads.
+# There's also one of these from a different library, so catch that too.
+{
+   <initialization of dynamically linked libraries>
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:call_init
+   ...
+}
+
+# Many leaks seem to come from LLVM IR building code, even though I'm pretty
+# sure I clean up everything I'm supposed to clean up.
+# For now, suppress all errors coming from LLVM functions.
+#
+# Ideally we could say fun:LLVM* (function name starts with LLVM), but that
+# doesn't work with C++ function name mangling.
+{
+   <llvm functions>
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:*/libLLVM*.so.*
+   ...
+}
