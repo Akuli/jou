@@ -73,6 +73,9 @@ static void free_body(const struct AstBody *body);
 static void free_statement(const struct AstStatement *stmt)
 {
     switch(stmt->kind) {
+    case AST_STMT_SETVAR:
+        free_expression(&stmt->data.setvar.value);
+        break;
     case AST_STMT_IF:
         free_expression(&stmt->data.ifstatement.condition);
         free_body(&stmt->data.ifstatement.body);
@@ -117,6 +120,7 @@ void free_ast(struct AstToplevelNode *topnodelist)
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             free_signature(&t->data.funcdef.signature);
             free_body(&t->data.funcdef.body);
+            free(t->data.funcdef.locals);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);

@@ -43,6 +43,7 @@ void print_token(const struct Token *token)
         f(TOKEN_ARROW);
         f(TOKEN_STAR);
         f(TOKEN_AMP);
+        f(TOKEN_EQUAL_SIGN);
         #undef f
     }
 
@@ -82,6 +83,7 @@ void print_token(const struct Token *token)
     case TOKEN_ARROW:
     case TOKEN_STAR:
     case TOKEN_AMP:
+    case TOKEN_EQUAL_SIGN:
         printf("\n");
         break;
     }
@@ -189,6 +191,7 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
         f(AST_STMT_RETURN_VALUE);
         f(AST_STMT_RETURN_WITHOUT_VALUE);
         f(AST_STMT_IF);
+        f(AST_STMT_SETVAR);
         #undef f
     }
     printf("\n");
@@ -196,6 +199,11 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
     switch(stmt->kind) {
         case AST_STMT_CALL:
             print_ast_call(&stmt->data.call, indent+2);
+            break;
+        case AST_STMT_SETVAR:
+            printf("%*s  varname = \"%s\"\n", indent, "", stmt->data.setvar.varname);
+            printf("%*s  value:\n", indent, "");
+            print_ast_expression(&stmt->data.setvar.value, indent+4);
             break;
         case AST_STMT_RETURN_VALUE:
             printf("%*s  return value:\n", indent, "");
@@ -240,6 +248,8 @@ void print_ast(const struct AstToplevelNode *topnodelist)
                 break;
             case AST_TOPLEVEL_DEFINE_FUNCTION:
                 print_ast_function_signature(&topnodelist->data.funcdef.signature, 2);
+                for (struct AstLocalVariable *var = topnodelist->data.funcdef.locals; var && var->name[0]; var++)
+                    printf("  type of local variable \"%s\" is %s\n", var->name, var->type.name);
                 print_ast_body(&topnodelist->data.funcdef.body, 2);
                 break;
             case AST_TOPLEVEL_END_OF_FILE:

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdnoreturn.h>
 #include <llvm-c/Core.h>
+#include "util.h"
 
 struct Location {
     const char *filename;
@@ -30,6 +31,7 @@ struct Token {
         TOKEN_ARROW,
         TOKEN_STAR,
         TOKEN_AMP,
+        TOKEN_EQUAL_SIGN,  // the '=' character, actually used for assignments
     } type;
     struct Location location;
     union {
@@ -133,9 +135,11 @@ struct AstStatement {
         AST_STMT_CALL,
         AST_STMT_RETURN_VALUE,
         AST_STMT_RETURN_WITHOUT_VALUE,
+        AST_STMT_SETVAR,
         AST_STMT_IF,
     } kind;
     union {
+        struct { char varname[100]; struct AstExpression value; } setvar;
         struct AstCall call;                // for AST_STMT_CALL
         struct AstExpression returnvalue;   // for AST_STMT_RETURN
         struct AstIfStatement {
@@ -148,6 +152,10 @@ struct AstStatement {
 struct AstFunctionDef {
     struct AstFunctionSignature signature;
     struct AstBody body;
+
+    // Local variables are added during fill_types.
+    // End of list is denoted with empty name.
+    struct AstLocalVariable { char name[100]; struct Type type; } *locals;
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -174,7 +182,7 @@ entire compilation. It is used in error messages.
 */
 struct Token *tokenize(const char *filename);
 struct AstToplevelNode *parse(const struct Token *tokens);
-void fill_types(const struct AstToplevelNode *ast);
+void fill_types(struct AstToplevelNode *ast);
 LLVMModuleRef codegen(const struct AstToplevelNode *ast);
 
 /*

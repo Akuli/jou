@@ -16,6 +16,7 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_OPENPAREN: strcpy(got, "'('"); break;
         case TOKEN_CLOSEPAREN: strcpy(got, "')'"); break;
         case TOKEN_COLON: strcpy(got, "':'"); break;
+        case TOKEN_EQUAL_SIGN: strcpy(got, "'='"); break;
         case TOKEN_ARROW: strcpy(got, "'->'"); break;
         case TOKEN_STAR: strcpy(got, "'*'"); break;
         case TOKEN_AMP: strcpy(got, "'&'"); break;
@@ -243,9 +244,20 @@ static struct AstStatement parse_statement(const struct Token **tokens)
     struct AstStatement result = { .location = (*tokens)->location };
     switch((*tokens)->type) {
     case TOKEN_NAME:
-        result.kind = AST_STMT_CALL;
-        result.data.call = parse_call(tokens);
-        eat_newline(tokens);
+        if ((*tokens)[1].type == TOKEN_EQUAL_SIGN) {
+            result.kind = AST_STMT_SETVAR;
+            safe_strcpy(result.data.setvar.varname, (*tokens)->data.name);
+            *tokens += 2;
+            result.data.setvar.value = parse_expression(tokens);
+            eat_newline(tokens);
+            break;
+        } else if ((*tokens)[1].type == TOKEN_OPENPAREN) {
+            result.kind = AST_STMT_CALL;
+            result.data.call = parse_call(tokens);
+            eat_newline(tokens);
+        } else {
+            goto not_a_statement;
+        }
         break;
 
     case TOKEN_KEYWORD:
@@ -258,22 +270,24 @@ static struct AstStatement parse_statement(const struct Token **tokens)
                 result.data.returnvalue = parse_expression(tokens);
             }
             eat_newline(tokens);
-            break;
-        }
-        if (!strcmp((*tokens)->data.name, "if")) {
+        } else if (!strcmp((*tokens)->data.name, "if")) {
             ++*tokens;
             result.kind = AST_STMT_IF;
             result.data.ifstatement.condition = parse_expression(tokens);
             result.data.ifstatement.body = parse_body(tokens);
-            break;
+        } else {
+            goto not_a_statement;
         }
-        // fall through
+        break;
 
     default:
-        fail_with_parse_error(*tokens, "a statement");
+        goto not_a_statement;
     }
 
     return result;
+
+not_a_statement:
+    fail_with_parse_error(*tokens, "a statement");
 }
 
 static struct AstBody parse_body(const struct Token **tokens)

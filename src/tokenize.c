@@ -269,6 +269,7 @@ static struct Token read_token(struct State *st)
         case '(': t.type = TOKEN_OPENPAREN; break;
         case ')': t.type = TOKEN_CLOSEPAREN; break;
         case ':': t.type = TOKEN_COLON; break;
+        case '=': t.type = TOKEN_EQUAL_SIGN; break;
         case '*': t.type = TOKEN_STAR; break;
         case '&': t.type = TOKEN_AMP; break;
         case '\'': t.type = TOKEN_CHAR; t.data.char_value = read_char_literal(st); break;

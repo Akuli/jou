@@ -3,17 +3,12 @@
 #include "util.h"
 
 
-struct LocalVariable {
-    char name[100];
-    struct Type type;
-};
-
 struct State {
     List(struct AstFunctionSignature) functions;
 
     // func_ = information about the function containing the code that is checked
     const struct AstFunctionSignature *func_signature;
-    List(struct LocalVariable) func_locals;
+    List(struct AstLocalVariable) func_locals;
 };
 
 static const struct AstFunctionSignature *find_function(const struct State *st, const char *name)
@@ -24,9 +19,19 @@ static const struct AstFunctionSignature *find_function(const struct State *st, 
     return NULL;
 }
 
-static const struct LocalVariable *find_local_variable(const struct State *st, const char *name)
+// Adding a variable makes pointers returned from previous calls bad when the list grows.
+static const struct AstLocalVariable *add_local_variable(struct State *st, const char *name, const struct Type *type)
 {
-    for (struct LocalVariable *v = st->func_locals.ptr; v < End(st->func_locals); v++)
+    struct AstLocalVariable v = { .type = *type };
+    assert(strlen(name) < sizeof v.name);
+    strcpy(v.name, name);
+    Append(&st->func_locals, v);
+    return End(st->func_locals) - 1;
+}
+
+static const struct AstLocalVariable *find_local_variable(const struct State *st, const char *name)
+{
+    for (struct AstLocalVariable *v = st->func_locals.ptr; v < End(st->func_locals); v++)
         if (!strcmp(v->name, name))
             return v;
     return NULL;
@@ -104,7 +109,7 @@ static void fill_types_expression(const struct State *st, struct AstExpression *
     switch(expr->kind) {
         case AST_EXPR_GET_VARIABLE:
         {
-            const struct LocalVariable *v = find_local_variable(st, expr->data.varname);
+            const struct AstLocalVariable *v = find_local_variable(st, expr->data.varname);
             if (!v)
                 fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
             expr->type = v->type;
@@ -113,7 +118,7 @@ static void fill_types_expression(const struct State *st, struct AstExpression *
 
         case AST_EXPR_ADDRESS_OF_VARIABLE:
         {
-            const struct LocalVariable *v = find_local_variable(st, expr->data.varname);
+            const struct AstLocalVariable *v = find_local_variable(st, expr->data.varname);
             if (!v)
                 fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
             expr->type = create_pointer_type(&v->type, expr->location);
@@ -155,13 +160,26 @@ static void fill_types_expression(const struct State *st, struct AstExpression *
     }
 }
 
-static void fill_types_body(const struct State *st, const struct AstBody *body);
+static void fill_types_body(struct State *st, const struct AstBody *body);
 
-static void fill_types_statement(const struct State *st, struct AstStatement *stmt)
+static void fill_types_statement(struct State *st, struct AstStatement *stmt)
 {
     switch(stmt->kind) {
     case AST_STMT_CALL:
         fill_types_call(st, &stmt->data.call, stmt->location);
+        break;
+
+    case AST_STMT_SETVAR:
+        fill_types_expression(st, &stmt->data.setvar.value);
+        const struct AstLocalVariable *v = find_local_variable(st, stmt->data.setvar.varname);
+        if(v && !can_implicitly_convert(&stmt->data.setvar.value.type, &v->type)) {
+            fail_with_error(
+                stmt->data.setvar.value.location,
+                "cannot assign a value of type '%s' to variable of type '%s'",
+                stmt->data.setvar.value.type.name, v->type.name);
+        }
+        if(!v)
+            v = add_local_variable(st, stmt->data.setvar.varname, &stmt->data.setvar.value.type);
         break;
 
     case AST_STMT_IF:
@@ -204,7 +222,7 @@ static void fill_types_statement(const struct State *st, struct AstStatement *st
     }
 }
 
-static void fill_types_body(const struct State *st, const struct AstBody *body)
+static void fill_types_body(struct State *st, const struct AstBody *body)
 {
     for (int i = 0; i < body->nstatements; i++)
         fill_types_statement(st, &body->statements[i]);
@@ -224,7 +242,7 @@ static void handle_signature(struct State *st, const struct AstFunctionSignature
     Append(&st->functions, *sig);
 }
 
-void fill_types(const struct AstToplevelNode *ast)
+void fill_types(struct AstToplevelNode *ast)
 {
     struct State st = {0};
 
@@ -237,17 +255,19 @@ void fill_types(const struct AstToplevelNode *ast)
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             handle_signature(&st, &ast->data.funcdef.signature);
 
-            // TODO: Error for duplicate names of local variables.
             for (int i = 0; i < ast->data.funcdef.signature.nargs; i++) {
-                struct LocalVariable local = {.type=ast->data.funcdef.signature.argtypes[i]};
-                safe_strcpy(local.name, ast->data.funcdef.signature.argnames[i]);
-                Append(&st.func_locals, local);
+                // TODO: Error for duplicate names of local variables
+                add_local_variable(&st, ast->data.funcdef.signature.argnames[i], &ast->data.funcdef.signature.argtypes[i]);
             }
 
             st.func_signature = &ast->data.funcdef.signature;
             fill_types_body(&st, &ast->data.funcdef.body);
             st.func_signature = NULL;
-            st.func_locals.len = 0;
+
+            Append(&st.func_locals, (struct AstLocalVariable){0});
+            ast->data.funcdef.locals = st.func_locals.ptr;
+            memset(&st.func_locals, 0, sizeof st.func_locals);
+
             break;
 
         case AST_TOPLEVEL_END_OF_FILE:
@@ -256,5 +276,4 @@ void fill_types(const struct AstToplevelNode *ast)
     }
 
     free(st.functions.ptr);
-    free(st.func_locals.ptr);
 }
