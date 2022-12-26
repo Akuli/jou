@@ -142,19 +142,14 @@ TODO:
 - `not`,`and`,`or`
 - `while`, `for init; cond; incr:`, maybe `do`-`while`?
 - `NULL` pointer
+- operators: `+` `-` `*` `/` `<` `>` `==`
 - `++` and `--`
     - There's now quite a lot of overlap between expressions and statements.
         Do something about it?
-- Strings:
-    - a `byte` type (similar to `unsigned char` in c)
-    - string literals (do i want `const` pointers? if so: which syntax, `foo: int const*` or `foo: const int*`?)
-    - const pointers so u can't modify string literals
-        - I really want to use a keyword for this, so make it `const` as in C, but where to put it?
-            - `foo: const int*`: looks natural to me, but would complicate stuff because the related `const` and `*` are far apart
-            - `foo: int const*` looks weird to me, but makes much more sense
-            - `foo: int* const` would be very confusing when you also program in C...
-        - do I even want const pointers, or just tell users to be careful?
+- JIT so that you don't need to go through a compile step
+- REPL, if possible?
 - Everything else...?
+    - Arrays
     - Structs
     - Enums
     - A reasonable way to import structs from C (not just functions).
