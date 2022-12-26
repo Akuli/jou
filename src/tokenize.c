@@ -173,10 +173,10 @@ static char *read_string(struct State *st, char quote, int *len)
     {
         switch(c) {
         case '\n':
-            st->location.lineno--;
-            goto unexpected_end;
+            st->location.lineno--;  // to get error at the correct line number
+            goto missing_end_quote;
         case '\0':
-            goto unexpected_end;
+            goto missing_end_quote;
         case '\\':
             // \n means newline, for example
             after_backslash = read_byte(st);
@@ -206,15 +206,21 @@ static char *read_string(struct State *st, char quote, int *len)
                 break;
             case '\n':
                 // \ at end of line, string continues on next line
+                if (quote == '\'') {
+                    // TODO: tests
+                    st->location.lineno--;  // to get error at the correct line number
+                    goto missing_end_quote;
+                }
                 break;
             case '\0':
-                goto unexpected_end;
+                goto missing_end_quote;
             default:
                 fail_with_error(st->location, "unknown escape: '\\%c'", after_backslash);
             }
             break;
         default:
             Append(&result, c);
+            break;
         }
     }
 
@@ -223,7 +229,7 @@ static char *read_string(struct State *st, char quote, int *len)
     Append(&result, '\0');
     return result.ptr;
 
-unexpected_end:
+missing_end_quote:
     // TODO: tests
     if (quote == '"')
         fail_with_error(st->location, "missing \" to end the string");
@@ -233,15 +239,12 @@ unexpected_end:
 
 static char read_char_literal(struct State *st)
 {
-    // TODO: test that this location is correct when there are escaped newlines within single quotes.
-    struct Location location = st->location;
-
     int len;
     char *s = read_string(st, '\'', &len);
     if (len == 0)
-        fail_with_error(location, "empty character literal: ''");
+        fail_with_error(st->location, "empty character literal: ''");
     if (len >= 2)
-        fail_with_error(location, "single quotes are for a single character, maybe use double quotes to instead make a string?");
+        fail_with_error(st->location, "single quotes are for a single character, maybe use double quotes to instead make a string?");
     char result = s[0];
     free(s);
     return result;
