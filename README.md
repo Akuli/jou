@@ -135,7 +135,6 @@ $ make -j2 && valgrind --leak-check=full --show-leak-kinds=all ./jou examples/he
 ```
 
 TODO:
-- Figure out a reasonable way to use valgrind. Seems like llvm does something messy?
 - Write syntax spec once syntax seems relatively stable
 - Some kind of conversion to bool thingy for if statements: `if some_pointer:`, `if some_integer:`
 - `elif`,`else`

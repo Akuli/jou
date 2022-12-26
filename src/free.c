@@ -20,7 +20,7 @@ static void free_type(const struct Type *type)
     switch(type->kind) {
     case TYPE_POINTER:
         free_type(type->data.valuetype);
-        free((void*)type->data.valuetype);  // A bit of a hack, but const is needed elsewhere
+        free(type->data.valuetype);
         break;
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
@@ -52,10 +52,16 @@ static void free_expression(const struct AstExpression *expr)
     case AST_EXPR_STRING_CONSTANT:
         free(expr->data.string_value);
         break;
+    case AST_EXPR_ADDRESS_OF_VARIABLE:
+        // fill_types() sets the type to a newly allocated pointer type.
+        // Usually AST doesn't own its types, because that would result in lots of unnecessary allocations.
+        assert(expr->type.kind == TYPE_UNKNOWN || expr->type.kind == TYPE_POINTER);
+        if(expr->type.kind == TYPE_POINTER)
+            free(expr->type.data.valuetype);
+        break;
     case AST_EXPR_INT_CONSTANT:
     case AST_EXPR_CHAR_CONSTANT:
     case AST_EXPR_GET_VARIABLE:
-    case AST_EXPR_ADDRESS_OF_VARIABLE:
     case AST_EXPR_TRUE:
     case AST_EXPR_FALSE:
         break;

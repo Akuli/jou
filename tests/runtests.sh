@@ -1,6 +1,19 @@
 #!/bin/bash
 set -e -o pipefail
 
+skip_expected_fails=no
+while [[ "$1" =~ ^- ]] || [ $# != 1 ]; do
+    if [ "$1" = --skip-expected-fails ]; then
+        skip_expected_fails=yes
+        shift
+    else
+        echo "Usage: $0 [--skip-expected-fails] 'jou %s'" >&2
+        echo "The %s will be replaced by the name of a jou file." >&2
+        exit 2
+    fi
+done
+command_template="$1"
+
 # Go to project root.
 cd "$(dirname "$0")"/..
 
@@ -15,25 +28,28 @@ function generate_expected_output()
 {
     (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '// | dos2unix
     (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
-
-    case $joufile in
-        examples/* | tests/should_succeed/*)
-            echo "Exit code: 0"
-            ;;
-        *)
-            echo "Exit code: 1"
-            ;;
-    esac
+    echo "Exit code: $correct_exit_code"
 }
 
 for joufile in examples/*.jou tests/*/*.jou; do
-    if [[ $joufile =~ /broken/ ]]; then
-        continue;
-    fi
+    case $joufile in
+        */broken/*)
+            continue
+            ;;
+        examples/* | tests/should_succeed/*)
+            correct_exit_code=0
+            ;;
+        *)
+            if [ $skip_expected_fails = yes ]; then
+                continue
+            fi
+            correct_exit_code=1
+            ;;
+    esac
 
-    command="./jou $joufile"
+    command="$(printf "$command_template" $joufile)"
     diffpath=tests/tmp/diffs/diff$(printf "%04d" $failed)  # consistent alphabetical order
-    printf "\n\n*** Command: %s ***\n" "$command" > $diffpath
+    printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
 
     if diff -u --color=always \
         <(generate_expected_output) \
