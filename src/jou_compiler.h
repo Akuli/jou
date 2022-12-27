@@ -77,8 +77,9 @@ extern const struct Type stringType;    // byte*
 extern const struct Type unknownType;   // internal to compiler, not exposed in the language
 
 
-// returnvalue.data.valuetype must be free()d
+// create_pointer_type(...) returns a type whose .data.valuetype must be free()d
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location);
+struct Type create_integer_type(int size_in_bits, bool is_signed);
 
 bool same_type(const struct Type *a, const struct Type *b);
 bool can_cast_implicitly(const struct Type *from, const struct Type *to);
@@ -106,6 +107,7 @@ struct AstExpression {
         AST_EXPR_DEREFERENCE,
         AST_EXPR_TRUE,
         AST_EXPR_FALSE,
+        AST_EXPR_MUL,
     } kind;
     union {
         int int_value;          // AST_EXPR_INT_CONSTANT
@@ -113,7 +115,14 @@ struct AstExpression {
         char *string_value;     // AST_EXPR_STRING_CONSTANT
         char varname[100];      // AST_EXPR_GET_VARIABLE, AST_EXPR_ADDRESS_OF_VARIABLE
         struct AstCall call;    // AST_EXPR_CALL
-        struct AstExpression *pointerexpr;  // AST_EXPR_DEREFERENCE
+        /*
+        The "operands" pointer is an array of 1 to 2 expressions.
+        A couple examples to hopefully give you an idea of how it works in general:
+
+            * For AST_EXPR_DEREFERENCE, it is the dereferenced value: the "foo" of "*foo".
+            * For AST_EXPR_ADD, it is an array of the two things being added.
+        */
+        struct AstExpression *operands;  // AST_EXPR_DEREFERENCE
     } data;
 };
 

@@ -132,6 +132,7 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         f(AST_EXPR_STRING_CONSTANT);
         f(AST_EXPR_ADDRESS_OF_VARIABLE);
         f(AST_EXPR_DEREFERENCE);
+        f(AST_EXPR_MUL);
         f(AST_EXPR_FALSE);
         f(AST_EXPR_TRUE);
         #undef f
@@ -145,7 +146,12 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         break;
     case AST_EXPR_DEREFERENCE:
         printf("\n");
-        print_ast_expression(expr->data.pointerexpr, indent+2);
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        break;
+    case AST_EXPR_MUL:
+        printf("\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[0], indent+2);
         break;
     case AST_EXPR_GET_VARIABLE:
     case AST_EXPR_ADDRESS_OF_VARIABLE:

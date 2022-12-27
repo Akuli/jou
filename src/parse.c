@@ -2,6 +2,7 @@
 
 #include "jou_compiler.h"
 #include "util.h"
+#include <stdarg.h>
 #include <stdnoreturn.h>
 #include <stdio.h>
 #include <string.h>
@@ -130,74 +131,7 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     return result;
 }
 
-static struct AstCall parse_call(const struct Token **tokens);
-
-static struct AstExpression parse_expression(const struct Token **tokens)
-{
-    struct AstExpression expr = {
-        .location = (*tokens)->location,
-        .type_before_implicit_cast = unknownType,
-        .type_after_implicit_cast = unknownType,
-    };
-
-    switch((*tokens)->type) {
-    case TOKEN_INT:
-        expr.kind = AST_EXPR_INT_CONSTANT;
-        expr.data.int_value = (*tokens)->data.int_value;
-        ++*tokens;
-        break;
-    case TOKEN_CHAR:
-        expr.kind = AST_EXPR_CHAR_CONSTANT;
-        expr.data.int_value = (*tokens)->data.char_value;
-        ++*tokens;
-        break;
-    case TOKEN_STRING:
-        expr.kind = AST_EXPR_STRING_CONSTANT;
-        expr.data.string_value = strdup((*tokens)->data.string_value);
-        ++*tokens;
-        break;
-    case TOKEN_NAME:
-        if ((*tokens)[1].type == TOKEN_OPENPAREN) {
-            expr.kind = AST_EXPR_CALL;
-            expr.data.call = parse_call(tokens);
-        } else {
-            expr.kind = AST_EXPR_GET_VARIABLE;
-            safe_strcpy(expr.data.varname, (*tokens)->data.name);
-            ++*tokens;
-        }
-        break;
-    case TOKEN_STAR:
-        ++*tokens;
-        expr.kind = AST_EXPR_DEREFERENCE;
-        expr.data.pointerexpr = malloc(sizeof(*expr.data.pointerexpr));
-        *expr.data.pointerexpr = parse_expression(tokens);
-        break;
-    case TOKEN_AMP:
-        ++*tokens;
-        if ((*tokens)->type != TOKEN_NAME)
-            fail_with_parse_error(*tokens, "a variable name");
-        expr.kind = AST_EXPR_ADDRESS_OF_VARIABLE;
-        safe_strcpy(expr.data.varname, (*tokens)->data.name);
-        ++*tokens;
-        break;
-    case TOKEN_KEYWORD:
-        if (!strcmp((*tokens)->data.name, "True")) {
-            expr.kind = AST_EXPR_TRUE;
-            ++*tokens;
-            break;
-        }
-        if (!strcmp((*tokens)->data.name, "False")) {
-            expr.kind = AST_EXPR_FALSE;
-            ++*tokens;
-            break;
-        }
-        // fall through
-    default:
-        fail_with_parse_error(*tokens, "an expression");
-    }
-
-    return expr;
-}
+static struct AstExpression parse_expression(const struct Token **tokens);
 
 static struct AstCall parse_call(const struct Token **tokens)
 {
@@ -231,6 +165,116 @@ static struct AstCall parse_call(const struct Token **tokens)
         fail_with_parse_error(*tokens, "a ')'");
     ++*tokens;
 
+    return result;
+}
+
+static struct AstExpression parse_elementary_expression(const struct Token **tokens)
+{
+    struct AstExpression expr = {
+        .location = (*tokens)->location,
+        .type_before_implicit_cast = unknownType,
+        .type_after_implicit_cast = unknownType,
+    };
+
+    switch((*tokens)->type) {
+    case TOKEN_INT:
+        expr.kind = AST_EXPR_INT_CONSTANT;
+        expr.data.int_value = (*tokens)->data.int_value;
+        ++*tokens;
+        break;
+    case TOKEN_CHAR:
+        expr.kind = AST_EXPR_CHAR_CONSTANT;
+        expr.data.int_value = (*tokens)->data.char_value;
+        ++*tokens;
+        break;
+    case TOKEN_STRING:
+        expr.kind = AST_EXPR_STRING_CONSTANT;
+        expr.data.string_value = strdup((*tokens)->data.string_value);
+        ++*tokens;
+        break;
+    case TOKEN_NAME:
+        if ((*tokens)[1].type == TOKEN_OPENPAREN) {
+            expr.kind = AST_EXPR_CALL;
+            expr.data.call = parse_call(tokens);
+        } else {
+            expr.kind = AST_EXPR_GET_VARIABLE;
+            safe_strcpy(expr.data.varname, (*tokens)->data.name);
+            ++*tokens;
+        }
+        break;
+    case TOKEN_AMP:
+        ++*tokens;
+        if ((*tokens)->type != TOKEN_NAME)
+            fail_with_parse_error(*tokens, "a variable name");
+        expr.kind = AST_EXPR_ADDRESS_OF_VARIABLE;
+        safe_strcpy(expr.data.varname, (*tokens)->data.name);
+        ++*tokens;
+        break;
+    case TOKEN_KEYWORD:
+        if (!strcmp((*tokens)->data.name, "True")) {
+            expr.kind = AST_EXPR_TRUE;
+            ++*tokens;
+            break;
+        }
+        if (!strcmp((*tokens)->data.name, "False")) {
+            expr.kind = AST_EXPR_FALSE;
+            ++*tokens;
+            break;
+        }
+        // fall through
+    default:
+        fail_with_parse_error(*tokens, "an expression");
+    }
+
+    return expr;
+}
+
+// arity = number of operands, e.g. 2 for a binary operator such as "+"
+static struct AstExpression build_operator_expression(const struct Token *t, int arity, const struct AstExpression *operands)
+{
+    assert(arity==1 || arity==2);
+    size_t nbytes = arity * sizeof operands[0];
+    struct AstExpression *ptr = malloc(nbytes);
+    memcpy(ptr, operands, nbytes);
+
+    struct AstExpression result = {
+        .location = t->location,
+        .data.operands = ptr,
+        .type_before_implicit_cast = unknownType,
+        .type_after_implicit_cast = unknownType,
+    };
+
+    switch(t->type) {
+        case TOKEN_STAR: result.kind = arity==2 ? AST_EXPR_MUL : AST_EXPR_DEREFERENCE; break;
+        default: assert(0);
+    }
+
+    return result;
+}
+
+// TODO: should probably put unary & (address-of) operator here as well
+static struct AstExpression parse_expression_with_dereference(const struct Token **tokens)
+{
+    // sequnece of 0 or more star tokens: start,start+1,...,end-1
+    const struct Token *start = *tokens;
+    const struct Token *end = *tokens;
+    while (end->type == TOKEN_STAR) end++;
+
+    *tokens = end;
+    struct AstExpression result = parse_elementary_expression(tokens);
+    for (const struct Token *t = end-1; t >= start; t--)
+        result = build_operator_expression(t, 1, &result);
+    return result;
+}
+
+static struct AstExpression parse_expression(const struct Token **tokens)
+{
+    struct AstExpression result = parse_expression_with_dereference(tokens);
+    while((*tokens)->type == TOKEN_STAR) {
+        const struct Token *t = (*tokens)++;
+        struct AstExpression rhs = parse_expression_with_dereference(tokens);
+        result = build_operator_expression(t, 2, (struct AstExpression[]){result, rhs});
+    }
     return result;
 }
 

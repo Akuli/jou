@@ -25,6 +25,18 @@ struct Type create_pointer_type(const struct Type *elem_type, struct Location er
     return result;
 }
 
+struct Type create_integer_type(int size_in_bits, bool is_signed)
+{
+    struct Type t = { .kind = is_signed?TYPE_SIGNED_INTEGER:TYPE_UNSIGNED_INTEGER, .data.width_in_bits=size_in_bits };
+    if (size_in_bits == 8 && !is_signed)
+        strcpy(t.name, "byte");
+    else if (size_in_bits == 32 && is_signed)
+        strcpy(t.name, "int");
+    else
+        assert(0);
+    return t;
+}
+
 bool same_type(const struct Type *a, const struct Type *b)
 {
     assert(a->kind != TYPE_UNKNOWN && b->kind != TYPE_UNKNOWN);

@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define min(a,b) ((a)<(b) ? (a) : (b))
+#define max(a,b) ((a)>(b) ? (a) : (b))
+
 #define List(T) struct { T *ptr; int len,alloc; }
 #define Append(list, ...) do { \
     if ((list)->alloc == (list)->len) { \

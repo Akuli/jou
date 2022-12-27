@@ -110,7 +110,7 @@ static LLVMValueRef codegen_expression(const struct State *st, const struct AstE
         result = LLVMBuildLoad(st->builder, get_pointer_to_local_var(st, expr->data.varname), expr->data.varname);
         break;
     case AST_EXPR_DEREFERENCE:
-        result = LLVMBuildLoad(st->builder, codegen_expression(st, expr->data.pointerexpr), "deref");
+        result = LLVMBuildLoad(st->builder, codegen_expression(st, &expr->data.operands[0]), "deref");
         break;
     case AST_EXPR_INT_CONSTANT:
         result = LLVMConstInt(LLVMInt32Type(), expr->data.int_value, false);
@@ -127,6 +127,14 @@ static LLVMValueRef codegen_expression(const struct State *st, const struct AstE
     case AST_EXPR_FALSE:
         result = LLVMConstInt(LLVMInt1Type(), 0, false);
         break;
+    case AST_EXPR_MUL:
+        {
+            // careful with C's evaluation order........
+            LLVMValueRef lhs = codegen_expression(st, &expr->data.operands[0]);
+            LLVMValueRef rhs = codegen_expression(st, &expr->data.operands[1]);
+            result = LLVMBuildMul(st->builder, lhs, rhs, "mul");
+            break;
+        }
     }
 
     return codegen_implicit_cast(st, result, &expr->type_before_implicit_cast, &expr->type_after_implicit_cast);

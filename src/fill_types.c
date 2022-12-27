@@ -137,6 +137,20 @@ noreturn void fail_with_implicit_cast_error(struct Location location, const char
     fail_with_error(location, "%.*s", msg.len, msg.ptr);
 }
 
+static struct Type check_and_get_mul_type(struct Location location, const struct Type *lhstype, const struct Type *rhstype)
+{
+#define is_integer(t) ((t)->kind==TYPE_SIGNED_INTEGER || (t)->kind==TYPE_UNSIGNED_INTEGER)
+    if (!is_integer(lhstype) || !is_integer(rhstype))
+        fail_with_error(location, "wrong types: cannot multiply %s and %s", lhstype->name, rhstype->name);
+#undef is_integer
+
+    // TODO: are these rules any good?
+    int size = max(lhstype->data.width_in_bits, rhstype->data.width_in_bits);
+    bool is_signed = (lhstype->kind == TYPE_SIGNED_INTEGER || rhstype->kind == TYPE_SIGNED_INTEGER);
+
+    return create_integer_type(size, is_signed);
+}
+
 static void fill_types_expression(
     const struct State *st,
     struct AstExpression *expr,
@@ -176,8 +190,8 @@ static void fill_types_expression(
 
         case AST_EXPR_DEREFERENCE:
         {
-            fill_types_expression(st, expr->data.pointerexpr, NULL, NULL);
-            const struct Type ptrtype = expr->data.pointerexpr->type_before_implicit_cast;
+            fill_types_expression(st, &expr->data.operands[0], NULL, NULL);
+            const struct Type ptrtype = expr->data.operands[0].type_before_implicit_cast;
             if (ptrtype.kind != TYPE_POINTER)
                 fail_with_error(expr->location, "the dereference operator '*' is only for pointers, not for %s", ptrtype.name);
             expr->type_before_implicit_cast = *ptrtype.data.valuetype;
@@ -197,6 +211,18 @@ static void fill_types_expression(
         case AST_EXPR_STRING_CONSTANT:
             expr->type_before_implicit_cast = stringType;
             break;
+
+        case AST_EXPR_MUL:
+            fill_types_expression(st, &expr->data.operands[0], NULL, NULL);
+            fill_types_expression(st, &expr->data.operands[1], NULL, NULL);
+            struct Type t = check_and_get_mul_type(
+                expr->location,
+                &expr->data.operands[0].type_before_implicit_cast,
+                &expr->data.operands[1].type_before_implicit_cast
+            );
+            expr->data.operands[0].type_after_implicit_cast = t;
+            expr->data.operands[1].type_after_implicit_cast = t;
+            expr->type_before_implicit_cast = t;
     }
 
     if (implicit_cast_to == NULL) {
