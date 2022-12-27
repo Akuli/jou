@@ -319,7 +319,7 @@ struct Token *handle_indentations(const struct Token *temp_tokens)
             // Add an extra newline token at end of file and the dedents after it.
             // This makes it similar to how other newline and dedent tokens work:
             // the dedents always come after a newline token.
-            Append(&tokens, (struct Token){ .location=t->location, .type=TOKEN_NEWLINE, .data.indentation_level=level });
+            Append(&tokens, (struct Token){ .location=t->location, .type=TOKEN_NEWLINE });
             while(level) {
                 Append(&tokens, (struct Token){ .location=t->location, .type=TOKEN_DEDENT });
                 level -= 4;
