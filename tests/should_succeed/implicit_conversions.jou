@@ -8,9 +8,15 @@ def foo1(x: byte) -> int:
 def foo2(x: byte) -> void:
     putchar(x)
 
+# Local variables
+def foo3(x: int) -> void:
+    x = 'c'
+    putchar(x)
+
 def main() -> int:
-    # Output: ab
+    # Output: abc
     putchar(foo1('a'))
     foo2('b')
+    foo3('x')
     putchar('\n')
     return 0
