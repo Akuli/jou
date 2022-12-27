@@ -17,10 +17,13 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_OPENPAREN: strcpy(got, "'('"); break;
         case TOKEN_CLOSEPAREN: strcpy(got, "')'"); break;
         case TOKEN_COLON: strcpy(got, "':'"); break;
+        case TOKEN_COMMA: strcpy(got, "','"); break;
         case TOKEN_EQUAL_SIGN: strcpy(got, "'='"); break;
         case TOKEN_ARROW: strcpy(got, "'->'"); break;
         case TOKEN_STAR: strcpy(got, "'*'"); break;
         case TOKEN_AMP: strcpy(got, "'&'"); break;
+        case TOKEN_DOT: strcpy(got, "'.'"); break;
+        case TOKEN_DOTDOTDOT: strcpy(got, "'...'"); break;
         case TOKEN_NAME: snprintf(got, sizeof got, "a variable name '%s'", token->data.name); break;
         case TOKEN_NEWLINE: strcpy(got, "end of line"); break;
         case TOKEN_END_OF_FILE: strcpy(got, "end of file"); break;
@@ -75,6 +78,11 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     List(struct Type) argtypes = {0};
 
     while ((*tokens)->type != TOKEN_CLOSEPAREN) {
+        if ((*tokens)->type == TOKEN_DOTDOTDOT) {
+            result.varargs = true;
+            ++*tokens;
+            break; // Do not allow more arguments after '...' TODO: test case
+        }
         if ((*tokens)->type != TOKEN_NAME)
             fail_with_parse_error(*tokens, "an argument name");
         struct Name n;
@@ -88,13 +96,11 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
 
         Append(&argtypes, parse_type(tokens));
 
-        // TODO: eat comma
-
-        //if ((*tokens)->type == TOKEN_COMMA) {
-        //    ...
-        //} else {
+        if ((*tokens)->type == TOKEN_COMMA) {
+            ++*tokens;
+        } else {
             break;
-        //}
+        }
     }
 
     result.argnames = (char(*)[100])argnames.ptr;  // sometimes c syntax surprises me
@@ -150,12 +156,11 @@ static struct AstCall parse_call(const struct Token **tokens)
 
     while ((*tokens)->type != TOKEN_CLOSEPAREN) {
         Append(&args, parse_expression(tokens));
-        // TODO: eat comma
-        //if ((*tokens)->type == TOKEN_COMMA) {
-        //    ...
-        //} else {
+        if ((*tokens)->type == TOKEN_COMMA) {
+            ++*tokens;
+        } else {
             break;
-        //}
+        }
     }
 
     result.args = args.ptr;

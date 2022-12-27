@@ -25,9 +25,12 @@ struct Token {
         TOKEN_DEDENT,
         TOKEN_END_OF_FILE,  // Marks the end of an array of struct Token
         // operators
+        TOKEN_DOT,
+        TOKEN_DOTDOTDOT,
         TOKEN_OPENPAREN,
         TOKEN_CLOSEPAREN,
         TOKEN_COLON,
+        TOKEN_COMMA,
         TOKEN_ARROW,
         TOKEN_STAR,
         TOKEN_AMP,
@@ -126,15 +129,16 @@ struct AstExpression {
     } data;
 };
 
-// TODO: currently hard-coded: all arguments have type int
 struct AstFunctionSignature {
     struct Location location;
     char funcname[100];
     int nargs;
     struct Type *argtypes;
     char (*argnames)[100];
+    bool varargs;  // true for functions like printf()
     struct Type *returntype;  // NULL, if does not return a value
 };
+char *signature_to_string(const struct AstFunctionSignature *sig, bool include_return_type);
 
 struct AstBody {
     struct AstStatement *statements;

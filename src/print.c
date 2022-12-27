@@ -67,8 +67,11 @@ void print_token(const struct Token *token)
     case TOKEN_AMP: printf("'&'\n"); break;
     case TOKEN_ARROW: printf("'->'\n"); break;
     case TOKEN_COLON: printf("':'\n"); break;
+    case TOKEN_COMMA: printf("','\n"); break;
     case TOKEN_EQUAL_SIGN: printf("'='\n"); break;
     case TOKEN_STAR: printf("'*'\n"); break;
+    case TOKEN_DOT: printf("'.'\n"); break;
+    case TOKEN_DOTDOTDOT: printf("'...'\n"); break;
     }
 }
 
@@ -88,17 +91,38 @@ void print_tokens(const struct Token *tokens)
     printf("\n");
 }
 
+char *signature_to_string(const struct AstFunctionSignature *sig, bool include_return_type)
+{
+    List(char) result = {0};
+    AppendStr(&result, sig->funcname);
+    Append(&result, '(');
+
+    for (int i = 0; i < sig->nargs; i++) {
+        if(i)
+            AppendStr(&result, ", ");
+        AppendStr(&result, sig->argnames[i]);
+        AppendStr(&result, ": ");
+        AppendStr(&result, sig->argtypes[i].name);
+    }
+    if (sig->varargs) {
+        if (sig->nargs)
+            AppendStr(&result, ", ");
+        AppendStr(&result, "...");
+    }
+    Append(&result, ')');
+    if (include_return_type) {
+        AppendStr(&result, " -> ");
+        AppendStr(&result, sig->returntype ? sig->returntype->name : "void");
+    }
+    Append(&result, '\0');
+    return result.ptr;
+}
+
 static void print_ast_function_signature(const struct AstFunctionSignature *sig, int indent)
 {
-    printf("%*sSignature on line %d: %s(", indent, "", sig->location.lineno, sig->funcname);
-    for (int i = 0; i < sig->nargs; i++) {
-        if(i) printf(", ");
-        printf("%s: %s", sig->argnames[i], sig->argtypes[i].name);
-    }
-    if (sig->returntype)
-        printf(") -> %s\n", sig->returntype->name);
-    else
-        printf(") -> void\n");
+    char *s = signature_to_string(sig, true);
+    printf("%*sSignature on line %d: %s\n", indent, "", sig->location.lineno, s);
+    free(s);
 }
 
 static void print_ast_call(const struct AstCall *call, int arg_indent);

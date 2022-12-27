@@ -44,26 +44,6 @@ static void fill_types_expression(
     const struct Type *implicit_cast_to,
     const char *casterrormsg);
 
-// Does not include the return type
-static char *signature_to_string(const struct AstFunctionSignature *sig)
-{
-    List(char) result = {0};
-    AppendStr(&result, sig->funcname);
-    Append(&result, '(');
-
-    for (int i = 0; i < sig->nargs; i++) {
-        if(i)
-            AppendStr(&result, ", ");
-        AppendStr(&result, sig->argnames[i]);
-        AppendStr(&result, ": ");
-        AppendStr(&result, sig->argtypes[i].name);
-    }
-
-    Append(&result, ')');
-    Append(&result, '\0');
-    return result.ptr;
-}
-
 const char *nth(int n)
 {
     assert(n >= 1);
@@ -83,9 +63,9 @@ static const struct Type *fill_types_call(const struct State *st, struct AstCall
     const struct AstFunctionSignature *sig = find_function(st, call->funcname);
     if (!sig)
         fail_with_error(location, "function \"%s\" not found", call->funcname);
-    char *sigstr = signature_to_string(sig);
+    char *sigstr = signature_to_string(sig, false);
 
-    if (sig->nargs != call->nargs) {
+    if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->varargs)) {
         fail_with_error(
             location,
             "function %s takes %d argument%s, but it was called with %d argument%s",
@@ -97,11 +77,15 @@ static const struct Type *fill_types_call(const struct State *st, struct AstCall
         );
     }
 
-    for (int i = 0; i < call->nargs; i++) {
+    for (int i = 0; i < sig->nargs; i++) {
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
         snprintf(msg, sizeof msg, "%s argument of function %s should have type TO, not FROM", nth(i+1), sigstr);
         fill_types_expression(st, &call->args[i], &sig->argtypes[i], msg);
+    }
+    for (int i = sig->nargs; i < call->nargs; i++) {
+        // This code runs for varargs, e.g. the things to format in printf().
+        fill_types_expression(st, &call->args[i], NULL, NULL);
     }
 
     free(sigstr);

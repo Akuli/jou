@@ -76,7 +76,7 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const struct A
     else
         returntype = codegen_type(st, sig->returntype);
 
-    LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, false);
+    LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->varargs);
     free(argtypes);
 
     return LLVMAddFunction(st->module, sig->funcname, functype);
@@ -150,7 +150,6 @@ static LLVMValueRef codegen_call(const struct State *st, const struct AstCall *c
     assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMPointerTypeKind);
     LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(function));
     assert(LLVMGetTypeKind(function_type) == LLVMFunctionTypeKind);
-    assert(call->nargs == (int)LLVMCountParamTypes(function_type));
 
     LLVMValueRef *args = malloc(call->nargs * sizeof(args[0]));  // NOLINT
     for (int i = 0; i < call->nargs; i++)

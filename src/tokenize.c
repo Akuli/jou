@@ -254,6 +254,28 @@ static char read_char_literal(struct State *st)
     return result;
 }
 
+// Assumes one dot has already been read
+static enum TokenType read_dot_or_dotdotdot(struct State *st)
+{
+    char c = read_byte(st);
+    if (c != '.') {
+        unread_byte(st, c);
+        return TOKEN_DOT;
+    }
+    c = read_byte(st);
+    if (c != '.') {
+        /*
+        We can't emit two dot tokens here and let the parser deal with
+        it, because we only return info for one token. We also can't
+        unread everything we read so far because ungetc() is guaranteed
+        to only work for one byte.
+        */
+        // TODO: test
+        fail_with_error(st->location, "there cannot be two consecutive dots (should be one dot, or three dots for '...')", c, (unsigned char)c);
+    }
+    return TOKEN_DOTDOTDOT;
+}
+
 static struct Token read_token(struct State *st)
 {
     struct Token t = { .location = st->location };
@@ -273,11 +295,13 @@ static struct Token read_token(struct State *st)
         case '(': t.type = TOKEN_OPENPAREN; break;
         case ')': t.type = TOKEN_CLOSEPAREN; break;
         case ':': t.type = TOKEN_COLON; break;
+        case ',': t.type = TOKEN_COMMA; break;
         case '=': t.type = TOKEN_EQUAL_SIGN; break;
         case '*': t.type = TOKEN_STAR; break;
         case '&': t.type = TOKEN_AMP; break;
         case '\'': t.type = TOKEN_CHAR; t.data.char_value = read_char_literal(st); break;
         case '"': t.type = TOKEN_STRING; t.data.string_value = read_string(st, '"', NULL); break;
+        case '.': t.type = read_dot_or_dotdotdot(st); break;
         default:
             if ('0'<=c && c<='9') {
                 t.type = TOKEN_INT;
