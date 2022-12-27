@@ -8,7 +8,7 @@ const struct Type boolType = { .name = "bool", .kind = TYPE_BOOL };
 const struct Type intType = { .name = "int", .kind = TYPE_SIGNED_INTEGER, .data.width_in_bits = 32 };
 const struct Type byteType = { .name = "byte", .kind = TYPE_UNSIGNED_INTEGER, .data.width_in_bits = 8 };
 const struct Type stringType = { .name = "byte*", .kind = TYPE_POINTER, .data.valuetype = (struct Type *)&byteType };
-const struct Type unknownType = { .name = "UNKNOWN", .kind = TYPE_UNKNOWN };
+const struct Type unknownType = { .name = "?", .kind = TYPE_UNKNOWN };
 
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location)
 {

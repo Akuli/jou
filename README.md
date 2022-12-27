@@ -91,12 +91,14 @@ $ ./jou --verbose examples/hello.jou
 ```
 
 This shows the tokens, AST and LLVM IR generated.
-The AST is shown twice, once before filling the types (most types are `UNKNOWN`)
-and again after filling the types (no `UNKNOWN`s should remain).
-Each expression has two types,
-because expressions are implicitly cast to whatever type is needed:
-the two types represent the type of the expression before and after that implicit cast
-(e.g. `types=[byte --> int]`).
+The AST is shown twice, once before filling the types (most types are `?`)
+and again after filling the types (no `?` types should remain).
+
+After filling in the types, each expression has two types,
+because expressions are implicitly cast to whatever type is needed.
+The two types are the same when no casting needs to be done.
+For example, if you call `putchar(int)` with an argument of type `byte`,
+the argument will implicitly cast to type `int`.
 
 Checking the types before codegen makes the codegen step simpler,
 but storing the types into the AST is a bit of a weird design:
