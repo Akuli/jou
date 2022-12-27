@@ -55,9 +55,10 @@ static void free_expression(const struct AstExpression *expr)
     case AST_EXPR_ADDRESS_OF_VARIABLE:
         // fill_types() sets the type to a newly allocated pointer type.
         // Usually AST doesn't own its types, because that would result in lots of unnecessary allocations.
-        assert(expr->type.kind == TYPE_UNKNOWN || expr->type.kind == TYPE_POINTER);
-        if(expr->type.kind == TYPE_POINTER)
-            free(expr->type.data.valuetype);
+        assert(expr->type_before_implicit_cast.kind == TYPE_UNKNOWN
+            || expr->type_before_implicit_cast.kind == TYPE_POINTER);
+        if(expr->type_before_implicit_cast.kind == TYPE_POINTER)
+            free(expr->type_before_implicit_cast.data.valuetype);
         break;
     case AST_EXPR_INT_CONSTANT:
     case AST_EXPR_CHAR_CONSTANT:

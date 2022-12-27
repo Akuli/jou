@@ -136,7 +136,7 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         f(AST_EXPR_TRUE);
         #undef f
     }
-    printf(" type=%s", expr->type.name);
+    printf(" types=[%s --> %s]", expr->type_before_implicit_cast.name, expr->type_after_implicit_cast.name);
 
     switch(expr->kind) {
     case AST_EXPR_CALL:

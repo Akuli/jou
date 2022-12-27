@@ -70,17 +70,18 @@ struct Type {
 // Built-in types, for convenience.
 // Named with a differentNamingConvention compared to everything else,
 // so you recognize these instead of wondering where they are defined.
-extern const struct Type boolType;   // bool
-extern const struct Type intType;    // int (32-bit signed)
-extern const struct Type byteType;   // byte (8-bit unsigned)
-extern const struct Type stringType; // byte*
+extern const struct Type boolType;      // bool
+extern const struct Type intType;       // int (32-bit signed)
+extern const struct Type byteType;      // byte (8-bit unsigned)
+extern const struct Type stringType;    // byte*
+extern const struct Type unknownType;   // internal to compiler, not exposed in the language
 
 
 // returnvalue.data.valuetype must be free()d
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location);
 
 bool same_type(const struct Type *a, const struct Type *b);
-bool can_implicitly_convert(const struct Type *from, const struct Type *to);
+bool can_cast_implicitly(const struct Type *from, const struct Type *to);
 
 
 struct AstCall {
@@ -91,7 +92,9 @@ struct AstCall {
 
 struct AstExpression {
     struct Location location;
-    struct Type type;   // TYPE_UNKNOWN after parsing, something else after fill_types
+
+    // Both types are TYPE_UNKNOWN after parsing and something else after fill_types.
+    struct Type type_before_implicit_cast, type_after_implicit_cast;
 
     enum AstExpressionKind {
         AST_EXPR_INT_CONSTANT,
@@ -154,6 +157,7 @@ struct AstFunctionDef {
     struct AstBody body;
 
     // Local variables are added during fill_types.
+    // First n local variables are the function arguments.
     // End of list is denoted with empty name.
     struct AstLocalVariable { char name[100]; struct Type type; } *locals;
 };

@@ -38,7 +38,11 @@ static const struct AstLocalVariable *find_local_variable(const struct State *st
 }
 
 
-static void fill_types_expression(const struct State *st, struct AstExpression *expr);
+static void fill_types_expression(
+    const struct State *st,
+    struct AstExpression *expr,
+    const struct Type *implicit_cast_to,
+    const char *casterrormsg);
 
 // Does not include the return type
 static char *signature_to_string(const struct AstFunctionSignature *sig)
@@ -60,18 +64,32 @@ static char *signature_to_string(const struct AstFunctionSignature *sig)
     return result.ptr;
 }
 
+const char *nth(int n)
+{
+    assert(n >= 1);
+
+    const char *first_few[] = { NULL, "first", "second", "third", "fourth", "fifth", "sixth" };
+    if (n < (int)(sizeof(first_few)/sizeof(first_few[0])))
+        return first_few[n];
+
+    static char result[100];
+    sprintf(result, "%dth", n);
+    return result;
+}
+
 // Returns the return type of the function, NULL if the function does not return a value.
 static const struct Type *fill_types_call(const struct State *st, struct AstCall *call, struct Location location)
 {
     const struct AstFunctionSignature *sig = find_function(st, call->funcname);
     if (!sig)
         fail_with_error(location, "function \"%s\" not found", call->funcname);
+    char *sigstr = signature_to_string(sig);
 
     if (sig->nargs != call->nargs) {
         fail_with_error(
             location,
             "function %s takes %d argument%s, but it was called with %d argument%s",
-            signature_to_string(sig),
+            sigstr,
             sig->nargs,
             sig->nargs==1?"":"s",
             call->nargs,
@@ -79,40 +97,62 @@ static const struct Type *fill_types_call(const struct State *st, struct AstCall
         );
     }
 
-    bool match = true;
     for (int i = 0; i < call->nargs; i++) {
-        fill_types_expression(st, &call->args[i]);
-        if (!can_implicitly_convert(&call->args[i].type, &sig->argtypes[i]))
-            match = false;
-    }
-
-    if (!match) {
         // This is a common error, so worth spending some effort to get a good error message.
-        List(char) passed_str = {0};
-        for (int i = 0; i < sig->nargs; i++) {
-            if(i) AppendStr(&passed_str, ", ");
-            AppendStr(&passed_str, call->args[i].type.name);
-        }
-        Append(&passed_str, '\0');
-
-        fail_with_error(
-            location,
-            "function %s was called with wrong argument types: %s",
-            signature_to_string(sig), passed_str.ptr);
+        char msg[500];
+        snprintf(msg, sizeof msg, "%s argument of function %s should have type TO, not FROM", nth(i+1), sigstr);
+        fill_types_expression(st, &call->args[i], &sig->argtypes[i], msg);
     }
 
+    free(sigstr);
     return sig->returntype;
 }
 
-static void fill_types_expression(const struct State *st, struct AstExpression *expr)
+/*
+Implicit casts are used in many places, e.g. function arguments.
+
+When you pass an argument of the wrong type, it's best to give an error message
+that says so, instead of some generic "expected type foo, got object of type bar"
+kind of message.
+
+The template can contain "FROM" and "TO". They will be substituted with names
+of types. We cannot use printf() style functions because the arguments can be in
+any order.
+*/
+noreturn void fail_with_implicit_cast_error(struct Location location, const char *template, const struct AstExpression *expr)
 {
+    List(char) msg = {0};
+    while(*template){
+        if (!strncmp(template, "FROM", 4)) {
+            AppendStr(&msg, expr->type_before_implicit_cast.name);
+            template += 4;
+        } else if (!strncmp(template, "TO", 2)) {
+            AppendStr(&msg, expr->type_after_implicit_cast.name);
+            template += 2;
+        } else {
+            Append(&msg, template[0]);
+            template++;
+        }
+    }
+    fail_with_error(location, "%.*s", msg.len, msg.ptr);
+}
+
+static void fill_types_expression(
+    const struct State *st,
+    struct AstExpression *expr,
+    const struct Type *implicit_cast_to,  // can be NULL, there will be no implicit casting
+    const char *casterrormsg)
+{
+    assert((implicit_cast_to==NULL && casterrormsg==NULL)
+        || (implicit_cast_to!=NULL && casterrormsg!=NULL));
+
     switch(expr->kind) {
         case AST_EXPR_GET_VARIABLE:
         {
             const struct AstLocalVariable *v = find_local_variable(st, expr->data.varname);
             if (!v)
                 fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
-            expr->type = v->type;
+            expr->type_before_implicit_cast = v->type;
             break;
         }
 
@@ -121,7 +161,7 @@ static void fill_types_expression(const struct State *st, struct AstExpression *
             const struct AstLocalVariable *v = find_local_variable(st, expr->data.varname);
             if (!v)
                 fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
-            expr->type = create_pointer_type(&v->type, expr->location);
+            expr->type_before_implicit_cast = create_pointer_type(&v->type, expr->location);
             break;
         }
 
@@ -130,33 +170,43 @@ static void fill_types_expression(const struct State *st, struct AstExpression *
             const struct Type *t = fill_types_call(st, &expr->data.call, expr->location);
             if (!t)
                 fail_with_error(expr->location, "function '%s' does not return a value", expr->data.call.funcname);
-            expr->type = *t;
+            expr->type_before_implicit_cast = *t;
             break;
         }
 
         case AST_EXPR_DEREFERENCE:
         {
-            fill_types_expression(st, expr->data.pointerexpr);
-            const struct Type ptrtype = expr->data.pointerexpr->type;
+            fill_types_expression(st, expr->data.pointerexpr, NULL, NULL);
+            const struct Type ptrtype = expr->data.pointerexpr->type_before_implicit_cast;
             if (ptrtype.kind != TYPE_POINTER)
-                fail_with_error(expr->location, "the dereference operator '*' is only for pointers, not for '%s'", ptrtype.name);
-            expr->type = *ptrtype.data.valuetype;
+                fail_with_error(expr->location, "the dereference operator '*' is only for pointers, not for %s", ptrtype.name);
+            expr->type_before_implicit_cast = *ptrtype.data.valuetype;
             break;
         }
 
         case AST_EXPR_TRUE:
         case AST_EXPR_FALSE:
-            expr->type = boolType;
+            expr->type_before_implicit_cast = boolType;
             break;
         case AST_EXPR_INT_CONSTANT:
-            expr->type = intType;
+            expr->type_before_implicit_cast = intType;
             break;
         case AST_EXPR_CHAR_CONSTANT:
-            expr->type = byteType;
+            expr->type_before_implicit_cast = byteType;
             break;
         case AST_EXPR_STRING_CONSTANT:
-            expr->type = stringType;
+            expr->type_before_implicit_cast = stringType;
             break;
+    }
+
+    if (implicit_cast_to == NULL) {
+        assert(!casterrormsg);
+        expr->type_after_implicit_cast = expr->type_before_implicit_cast;
+    } else {
+        assert(casterrormsg);
+        expr->type_after_implicit_cast = *implicit_cast_to;
+        if (!can_cast_implicitly(&expr->type_before_implicit_cast, implicit_cast_to))
+            fail_with_implicit_cast_error(expr->location, casterrormsg, expr);
     }
 }
 
@@ -170,25 +220,21 @@ static void fill_types_statement(struct State *st, struct AstStatement *stmt)
         break;
 
     case AST_STMT_SETVAR:
-        fill_types_expression(st, &stmt->data.setvar.value);
+    {
         const struct AstLocalVariable *v = find_local_variable(st, stmt->data.setvar.varname);
-        if(v && !can_implicitly_convert(&stmt->data.setvar.value.type, &v->type)) {
-            fail_with_error(
-                stmt->data.setvar.value.location,
-                "cannot assign a value of type '%s' to variable of type '%s'",
-                stmt->data.setvar.value.type.name, v->type.name);
+        if (v) {
+            fill_types_expression(st, &stmt->data.setvar.value, &v->type,
+                "cannot assign a value of type FROM to variable of type TO");
+        } else {
+            fill_types_expression(st, &stmt->data.setvar.value, NULL, NULL);
+            add_local_variable(st, stmt->data.setvar.varname, &stmt->data.setvar.value.type_after_implicit_cast);
         }
-        if(!v)
-            v = add_local_variable(st, stmt->data.setvar.varname, &stmt->data.setvar.value.type);
         break;
+    }
 
     case AST_STMT_IF:
-        fill_types_expression(st, &stmt->data.ifstatement.condition);
-        if (!same_type(&stmt->data.ifstatement.condition.type, &boolType)) {
-            fail_with_error(
-                stmt->data.ifstatement.condition.location,
-                "'if' condition must be a boolean, not %s", stmt->data.ifstatement.condition.type.name);
-        }
+        fill_types_expression(st, &stmt->data.ifstatement.condition, &boolType,
+            "'if' condition must be a boolean, not FROM");
         fill_types_body(st, &stmt->data.ifstatement.body);
         break;
 
@@ -199,22 +245,19 @@ static void fill_types_statement(struct State *st, struct AstStatement *stmt)
                 "function '%s' cannot return a value because it was defined with '-> void'",
                 st->func_signature->funcname);
         }
-        fill_types_expression(st, &stmt->data.returnvalue);
-        if (!can_implicitly_convert(&stmt->data.returnvalue.type, st->func_signature->returntype)) {
-            fail_with_error(
-                stmt->location,
-                "attempting to return a value of type '%s' from function '%s' defined with '-> %s'",
-                stmt->data.returnvalue.type.name,
-                st->func_signature->funcname,
-                st->func_signature->returntype->name);
-        }
+
+        char msg[200];
+        snprintf(msg, sizeof msg,
+            "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
+            st->func_signature->funcname);
+        fill_types_expression(st, &stmt->data.returnvalue, st->func_signature->returntype, msg);
         break;
 
     case AST_STMT_RETURN_WITHOUT_VALUE:
         if (st->func_signature->returntype != NULL) {
             fail_with_error(
                 stmt->location,
-                "a return value is needed, because the return type of function '%s' is '%s'",
+                "a return value is needed, because the return type of function '%s' is %s",
                 st->func_signature->funcname,
                 st->func_signature->returntype->name);
         }
@@ -231,7 +274,7 @@ static void fill_types_body(struct State *st, const struct AstBody *body)
 static void handle_signature(struct State *st, const struct AstFunctionSignature *sig)
 {
     if (find_function(st, sig->funcname))
-        fail_with_error(sig->location, "a function named \"%s\" already exists", sig->funcname);
+        fail_with_error(sig->location, "a function named '%s' already exists", sig->funcname);
 
     if (!strcmp(sig->funcname, "main") &&
         (sig->returntype == NULL || !same_type(sig->returntype, &intType)))

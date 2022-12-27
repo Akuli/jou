@@ -134,7 +134,11 @@ static struct AstCall parse_call(const struct Token **tokens);
 
 static struct AstExpression parse_expression(const struct Token **tokens)
 {
-    struct AstExpression expr = {.location=(*tokens)->location, .type.name="UNKNOWN"};
+    struct AstExpression expr = {
+        .location = (*tokens)->location,
+        .type_before_implicit_cast = unknownType,
+        .type_after_implicit_cast = unknownType,
+    };
 
     switch((*tokens)->type) {
     case TOKEN_INT:
