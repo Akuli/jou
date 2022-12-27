@@ -379,6 +379,12 @@ static struct AstToplevelNode parse_toplevel_node(const struct Token **tokens)
             ++*tokens;  // skip 'def' keyword
             result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
             result.data.funcdef.signature = parse_function_signature(tokens);
+            if (result.data.funcdef.signature.varargs) {
+                // TODO: support "def foo(x: str, ...)" in some way
+                fail_with_error(
+                    result.data.funcdef.signature.location,
+                    "functions with variadic arguments cannot be defined yet");
+            }
             result.data.funcdef.body = parse_body(tokens);
             break;
         }
