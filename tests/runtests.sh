@@ -17,9 +17,8 @@ command_template="$1"
 # Go to project root.
 cd "$(dirname "$0")"/..
 
-rm -rf tests/tmp
-mkdir tests/tmp
-mkdir tests/tmp/diffs
+rm -rf tmp/tests
+mkdir -vp tmp/tests
 
 succeeded=0
 failed=0
@@ -48,7 +47,7 @@ for joufile in examples/*.jou tests/*/*.jou; do
     esac
 
     command="$(printf "$command_template" $joufile)"
-    diffpath=tests/tmp/diffs/diff$(printf "%04d" $failed)  # consistent alphabetical order
+    diffpath=tmp/tests/diff$(printf "%04d" $failed).txt  # consistent alphabetical order
     printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
 
     if diff -u --color=always \
@@ -70,7 +69,7 @@ echo ""
 
 if [ $failed != 0 ]; then
     echo "------- FAILURES -------"
-    cat tests/tmp/diffs/*
+    cat tmp/tests/diff*.txt
 fi
 
 if [ $failed = 0 ]; then

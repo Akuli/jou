@@ -1,6 +1,7 @@
 // Implementation of the tokenize() function.
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -64,7 +65,7 @@ static void unread_byte(struct State *st, char c)
     if (c == '\0')
         return;
     assert(c!='\r');  // c should be from read_byte()
-    int ret = ungetc(c, st->f);
+    int ret = ungetc((unsigned char)c, st->f);
     assert(ret != EOF);  // should not fail if unreading just one byte
 
     if (c == '\n')
@@ -215,7 +216,10 @@ static char *read_string(struct State *st, char quote, int *len)
             case '\0':
                 goto missing_end_quote;
             default:
-                fail_with_error(st->location, "unknown escape: '\\%c'", after_backslash);
+                if ((unsigned char)after_backslash < 0x80 && isprint(after_backslash))
+                    fail_with_error(st->location, "unknown escape: '\\%c'", after_backslash);
+                else
+                    fail_with_error(st->location, "unknown '\\' escape");
             }
             break;
         default:
@@ -285,7 +289,10 @@ static struct Token read_token(struct State *st)
                 else
                     t.type = TOKEN_NAME;
             } else {
-                fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (int)c);
+                if ((unsigned char)c < 0x80 && isprint(c))
+                    fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (unsigned char)c);
+                else
+                    fail_with_error(st->location, "unexpected byte %#02x", (unsigned char)c);
             }
             break;
         }
