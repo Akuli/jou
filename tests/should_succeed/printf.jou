@@ -2,7 +2,11 @@ cdecl printf(format: byte*, ...) -> int
 
 def main() -> int:
     printf("Hello world\n")  # Output: Hello world
-    printf("This is a number: %d\n", 123)  # Output: This is a number: 123
+    printf("number %d\n", 123)  # Output: number 123
     s = "yo"
-    printf("This is a string: %s\n", s)  # Output: This is a string: yo
+    printf("string %s\n", s)  # Output: string yo
+    printf("string %s\n", "yo")  # Output: string yo
+    printf("char %c\n", 'x')  # Output: char x
+    printf("hex smiley %#X\n", 13)  # Output: hex smiley 0XD
+    printf("all things %d %s %c %#X\n", 123, "yo", 'x', 13)  # Output: all things 123 yo x 0XD
     return 0
