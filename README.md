@@ -31,7 +31,7 @@ Goals:
     - `char` being named `char` even though it's really a byte
 - Generics, so that you can implement a generic `list` (dynamically growing array)
     better than in C
-- Error messages for most common bugs in C (missing `free()`, double `free()`, use after free, etc.)
+- Compiler errors for most common bugs in C (missing `free()`, double `free()`, use after free, etc.)
 - More keywords (`def`, `decl`, `forwarddecl`)
 - Enumerated unions = C `union` together with a C `enum` to tell which union member is active
 - Windows support that doesn't suck
@@ -71,7 +71,7 @@ $ git clone https://github.com/Akuli/jou
 $ cd jou
 $ make
 $ ./jou examples/hello.jou
-hello
+Hello World
 ```
 
 
@@ -125,8 +125,8 @@ and ensures that they output what is expected.
 The expected output is auto-generated from `# Output:` and `# Error:` comments in the Jou files:
 
 - A comment like `# Output: foo` appends a line `foo` to the expected output.
-- A comment like `# Error: foo` on line 123 of file `tests/bar.jou` appends a line
-    `compile error in file "tests/bar.jou", line 123: foo`.
+- A comment like `# Error: foo` on line 123 of file `tests/bar/baz.jou` appends a line
+    `compile error in file "tests/bar/baz.jou", line 123: foo`.
 - Files in `examples/` and `tests/should_succeed/` should run successfully (exit code 0).
     All other files should cause a compiler error (exit code 1).
 
