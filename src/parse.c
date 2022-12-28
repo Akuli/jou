@@ -236,8 +236,28 @@ static struct AstExpression parse_elementary_expression(const struct Token **tok
 // If you allow more different kinds of expressions here, you will need to update codegen.
 static void validate_address_of_operand(const struct AstExpression *expr)
 {
-    if (expr->kind != AST_EXPR_GET_VARIABLE)
-        fail_with_error(expr->location, "the address-of operator '&' can only be used in front of a variable");
+    char what_is_it[100];
+    switch(expr->kind) {
+    case AST_EXPR_GET_VARIABLE:
+    case AST_EXPR_DEREFERENCE:
+        return;  // ok
+    case AST_EXPR_INT_CONSTANT:
+    case AST_EXPR_CHAR_CONSTANT:
+    case AST_EXPR_STRING_CONSTANT:
+    case AST_EXPR_TRUE:
+    case AST_EXPR_FALSE:
+        strcpy(what_is_it, "a constant");
+        break;
+    case AST_EXPR_ADDRESS_OF:
+        strcpy(what_is_it, "another '&'");
+        break;
+    case AST_EXPR_CALL:
+    case AST_EXPR_MUL:
+        strcpy(what_is_it, "a newly calculated value");
+        break;
+    }
+
+    fail_with_error(expr->location, "the address-of operator '&' cannot be used with %s", what_is_it);
 }
 
 // arity = number of operands, e.g. 2 for a binary operator such as "+"
