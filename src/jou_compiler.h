@@ -135,7 +135,7 @@ struct AstFunctionSignature {
     int nargs;
     struct Type *argtypes;
     char (*argnames)[100];
-    bool varargs;  // true for functions like printf()
+    bool takes_varargs;  // true for functions like printf()
     struct Type *returntype;  // NULL, if does not return a value
 };
 char *signature_to_string(const struct AstFunctionSignature *sig, bool include_return_type);

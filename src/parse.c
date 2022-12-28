@@ -79,42 +79,48 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
 
     while ((*tokens)->type != TOKEN_CLOSEPAREN) {
         if ((*tokens)->type == TOKEN_DOTDOTDOT) {
-            result.varargs = true;
-            ++*tokens;
-            break; // Do not allow more arguments after '...' TODO: test case
-        }
-        if ((*tokens)->type != TOKEN_NAME)
-            fail_with_parse_error(*tokens, "an argument name");
-        struct Name n;
-        safe_strcpy(n.name, (*tokens)->data.name);
-        Append(&argnames, n);
-        ++*tokens;
-
-        if ((*tokens)->type != TOKEN_COLON)
-            fail_with_parse_error(*tokens, "':' and a type after the argument name (example: \"foo: int\")");
-        ++*tokens;
-
-        Append(&argtypes, parse_type(tokens));
-
-        if ((*tokens)->type == TOKEN_COMMA) {
+            result.takes_varargs = true;
             ++*tokens;
         } else {
-            break;
+            if (result.takes_varargs)
+                fail_with_error((*tokens)->location, "if '...' is used, it must be the last parameter");
+
+            if ((*tokens)->type != TOKEN_NAME)
+                fail_with_parse_error(*tokens, "an argument name");
+
+            for (const struct Name *n = argnames.ptr; n < End(argnames); n++)
+                if (!strcmp(n->name, (*tokens)->data.name))
+                    fail_with_error((*tokens)->location, "there are multiple arguments named '%s'", n->name);
+
+            struct Name n;
+            safe_strcpy(n.name, (*tokens)->data.name);
+            Append(&argnames, n);
+            ++*tokens;
+
+            if ((*tokens)->type != TOKEN_COLON)
+                fail_with_parse_error(*tokens, "':' and a type after the argument name (example: \"foo: int\")");
+            ++*tokens;
+
+            Append(&argtypes, parse_type(tokens));
         }
+
+        if ((*tokens)->type == TOKEN_COMMA)
+            ++*tokens;
+        else
+            break;
     }
+
+    if ((*tokens)->type != TOKEN_CLOSEPAREN)
+        fail_with_parse_error(*tokens, "a ')'");
+    ++*tokens;
 
     result.argnames = (char(*)[100])argnames.ptr;  // sometimes c syntax surprises me
     result.argtypes = argtypes.ptr;
     assert(argnames.len == argtypes.len);
     result.nargs = argnames.len;
 
-    if ((*tokens)->type != TOKEN_CLOSEPAREN)
-        fail_with_parse_error(*tokens, "a ')'");
-    ++*tokens;
-
     if ((*tokens)->type != TOKEN_ARROW) {
         // Special case for common typo:   def foo():
-        // TODO: same special casing for missing type annotations of arguments
         if ((*tokens)->type == TOKEN_COLON) {
             fail_with_error(
                 (*tokens)->location,
@@ -379,7 +385,7 @@ static struct AstToplevelNode parse_toplevel_node(const struct Token **tokens)
             ++*tokens;  // skip 'def' keyword
             result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
             result.data.funcdef.signature = parse_function_signature(tokens);
-            if (result.data.funcdef.signature.varargs) {
+            if (result.data.funcdef.signature.takes_varargs) {
                 // TODO: support "def foo(x: str, ...)" in some way
                 fail_with_error(
                     result.data.funcdef.signature.location,

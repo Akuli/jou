@@ -76,7 +76,7 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const struct A
     else
         returntype = codegen_type(st, sig->returntype);
 
-    LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->varargs);
+    LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
     free(argtypes);
 
     return LLVMAddFunction(st->module, sig->funcname, functype);

@@ -1,22 +1,20 @@
-# TODO: use printf() for displaying results when available
-cdecl putchar(ch: int) -> int
+cdecl printf(format: byte*, ...) -> int
 
 def side_effect(ch: int) -> int:
-    putchar(ch)
+    printf("%d ", ch)
     return ch
 
 def main() -> int:
-    # Output: bd
-    putchar(7*7*2)  # 98 = ASCII 'b'
-    putchar(2*'2')  # 50 = ASCII '2', 100 = ASCII 'd'
-    putchar(2*5)    # 20 = ASCII '\n'
+    printf("%d\n", 7*7*2)    # Output: 98
 
-    # (ASCII 'a' * ASCII 'e') % 256 = (97*101) % 256 = 9797 % 256 = 69 = ASCII 'E'
+    # '2' converts to int 50
+    printf("%d\n", 10*'2')  # Output: 500
+
+    # (ASCII 'a' * ASCII 'e') % 256 = (97*101) % 256 = 9797 % 256 = 69
     # TODO: this seems dumb, what would C do here?
-    # Output: E
-    putchar('a'*'e')
-    putchar('\n')
+    printf("%d\n", 'a'*'e')  # Output: 69
 
-    # Output: abc
-    x = side_effect('a')*side_effect('b')*side_effect('c')*side_effect('\n')
+    # Output: 1 2 3 4 24
+    x = side_effect(1)*side_effect(2)*side_effect(3)*side_effect(4)
+    printf("%d\n", x)
     return 0

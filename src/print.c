@@ -104,7 +104,7 @@ char *signature_to_string(const struct AstFunctionSignature *sig, bool include_r
         AppendStr(&result, ": ");
         AppendStr(&result, sig->argtypes[i].name);
     }
-    if (sig->varargs) {
+    if (sig->takes_varargs) {
         if (sig->nargs)
             AppendStr(&result, ", ");
         AppendStr(&result, "...");

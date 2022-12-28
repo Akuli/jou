@@ -270,7 +270,6 @@ static enum TokenType read_dot_or_dotdotdot(struct State *st)
         unread everything we read so far because ungetc() is guaranteed
         to only work for one byte.
         */
-        // TODO: test
         fail_with_error(st->location, "there cannot be two consecutive dots (should be one dot, or three dots for '...')", c, (unsigned char)c);
     }
     return TOKEN_DOTDOTDOT;
@@ -391,7 +390,6 @@ struct Token *handle_indentations(const struct Token *temp_tokens)
     return tokens.ptr;
 }
 
-// TODO: test files that begin with indentation, should be an error
 struct Token *tokenize(const char *filename)
 {
     struct Token *tokens1 = tokenize_without_indent_dedent_tokens(filename);

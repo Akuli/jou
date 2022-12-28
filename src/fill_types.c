@@ -65,7 +65,7 @@ static const struct Type *fill_types_call(const struct State *st, struct AstCall
         fail_with_error(location, "function \"%s\" not found", call->funcname);
     char *sigstr = signature_to_string(sig, false);
 
-    if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->varargs)) {
+    if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->takes_varargs)) {
         fail_with_error(
             location,
             "function %s takes %d argument%s, but it was called with %d argument%s",
@@ -309,8 +309,14 @@ void fill_types(struct AstToplevelNode *ast)
             handle_signature(&st, &ast->data.funcdef.signature);
 
             for (int i = 0; i < ast->data.funcdef.signature.nargs; i++) {
-                // TODO: Error for duplicate names of local variables
-                add_local_variable(&st, ast->data.funcdef.signature.argnames[i], &ast->data.funcdef.signature.argtypes[i]);
+                const char *name = ast->data.funcdef.signature.argnames[i];
+                const struct Type *type = &ast->data.funcdef.signature.argtypes[i];
+                if (find_local_variable(&st, name)) {
+                    fail_with_error(
+                        ast->data.funcdef.signature.location,
+                        "duplicate argument name: %s", name);
+                }
+                add_local_variable(&st, name, type);
             }
 
             st.func_signature = &ast->data.funcdef.signature;
