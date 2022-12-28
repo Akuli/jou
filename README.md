@@ -14,10 +14,11 @@ Goals:
 - Minimalistic feel of C + simple Python-style syntax
 - Possible target audiences:
     - People who find C programming fun
-    - Python programmers who want to try programming at a lower level
-- Compatibility with C, not just as one more feature but as the recommended way to use libraries
+    - Python programmers who want to try programming at a lower level (maybe to eventually learn C or Rust)
+- Compatibility with C, not just as one more feature but as the recommended way to do many things
 - Self-hosted compiler
 - Eliminate some stupid things in C. For example:
+    - Manu useful warnings being disabled by default
     - UB for comparing pointers into different memory areas
         (as in `array <= foo && foo < array+sizeof(array)/sizeof(array[0])`)
     - `negative % positive` is negative or zero, should IMO be positive or zero
@@ -54,26 +55,27 @@ You need:
 - LLVM 11
 - clang 11
 - make
+- valgrind
 
-If you are on a Debian-based linux distro, you can install everything you need like this:
+If you are on a linux distro that has `apt`, you can install everything you need like this:
 
 ```
-$ sudo apt install git make llvm-11-dev clang-11
+$ sudo apt install git llvm-11-dev clang-11 make valgrind
 ```
 
 Once you have installed the dependencies,
 run these commands to compile the Jou compiler and then run a hello world program:
 
 ```
-$ make -j2
+$ git clone https://github.com/Akuli/jou
+$ cd jou
+$ make
 $ ./jou examples/hello.jou
 hello
 ```
 
-TODO: add `git clone` command to beginning
 
-
-## Developing the compiler
+## Getting started with developing
 
 The compiler is currently written in C.
 At a high level, the compilation steps are:
@@ -108,9 +110,13 @@ It is this way because the codegen step needs to know what type everything has
 Another alternative would be to create a separate "typed AST" that is then converted into LLVM IR,
 but in my experience it results in a lot of duplication.
 
+
+## Tests
+
 Running tests:
 
 ```
+$ sudo apt install valgrind
 $ make test
 ```
 
@@ -121,24 +127,28 @@ The expected output is auto-generated from `# Output:` and `# Error:` comments i
 - A comment like `# Output: foo` appends a line `foo` to the expected output.
 - A comment like `# Error: foo` on line 123 of file `tests/bar.jou` appends a line
     `compile error in file "tests/bar.jou", line 123: foo`.
-- Files in `tests/should_fail/` should cause a compiler error (exit code 1).
-    Other files should run successfully (exit code 0).
+- Files in `examples/` and `tests/should_succeed/` should run successfully (exit code 0).
+    All other files should cause a compiler error (exit code 1).
 
-If the actual output doesn't match what's in a text file, you will see a diff where
+If the actual output doesn't match the expected output, you will see diffs where
 green (+) is the program's output and red (-) is what was expected.
 The command that was ran (e.g. `./jou examples/hello.jou`) is shown just above the diff,
 and you can run it again manually to debug a test failure.
 You can also put e.g. `valgrind` or `gdb --args` in front of the command.
 
+If all tests succeed, the tests in `examples/` and `tests/should_succeed/`
+automatically run again with `valgrind` to find missing `free()`s and various other memory bugs.
+This isn't done for tests that are supposed to fail with a compiler error, for a few reasons:
+- The compiler does not free memory allocations when it exits with an error.
+    This is fine because the operating system will free the memory anyway,
+    but `valgrind` doesn't like it.
+- Valgrinding is slow. Most tests are about compiler errors,
+    and `make test` would take several minutes if they weren't skipped.
+- Most problems in error message code are spotted by non-valgrinded tests.
+
 Files in `tests/broken/` are not tested,
 because for one reason or another they don't work as intended.
 Ideally the `tests/broken/` directory would be empty most of the time.
-
-Checking for memory related bugs with valgrind:
-
-```
-$ make -j2 && valgrind --leak-check=full --show-leak-kinds=all ./jou examples/hello.jou
-```
 
 Sometimes (very rarely) the fuzzer discovers a bug that hasn't been caught with tests:
 
@@ -146,7 +156,12 @@ Sometimes (very rarely) the fuzzer discovers a bug that hasn't been caught with 
 $ ./fuzzer.sh
 ```
 
-TODO:
+
+## TODO
+
+This list tends to have a few outdated details,
+but it should give you some kind of idea about what is still missing.
+
 - Write syntax spec once syntax seems relatively stable
 - Some kind of conversion to bool thingy for if statements: `if some_pointer:`, `if some_integer:`
 - `elif`,`else`

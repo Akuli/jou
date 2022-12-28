@@ -1,4 +1,13 @@
 #!/bin/bash
+#
+#
+#
+# *** If you edit this file, make sure that the instructions
+# *** in README stay up to date.
+#
+#
+#
+
 set -e -o pipefail
 
 skip_expected_fails=no
