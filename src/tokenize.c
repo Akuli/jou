@@ -64,17 +64,17 @@ static void unread_byte(struct State *st, char c)
         st->location.lineno--;
 }
 
-bool is_identifier_first_byte(char c)
+static bool is_identifier_first_byte(char c)
 {
     return ('A'<=c && c<='Z') || ('a'<=c && c<='z') || c=='_';
 }
 
-bool is_identifier_continuation(char c)
+static bool is_identifier_continuation(char c)
 {
     return is_identifier_first_byte(c) || ('0'<=c && c<='9');
 }
 
-void read_identifier(struct State *st, char firstbyte, char (*dest)[100])
+static void read_identifier(struct State *st, char firstbyte, char (*dest)[100])
 {
     memset(*dest, 0, sizeof *dest);
     int destlen = 0;
@@ -95,7 +95,7 @@ void read_identifier(struct State *st, char firstbyte, char (*dest)[100])
     }
 }
 
-void consume_rest_of_line(struct State *st)
+static void consume_rest_of_line(struct State *st)
 {
     while(1) {
         char c = read_byte(st);
@@ -109,7 +109,7 @@ void consume_rest_of_line(struct State *st)
 }
 
 // Assumes that the initial '\n' byte has been read already.
-void read_indentation_as_newline_token(struct State *st, struct Token *t)
+static void read_indentation_as_newline_token(struct State *st, struct Token *t)
 {
     t->type = TOKEN_NEWLINE;
 
@@ -363,7 +363,7 @@ static struct Token *tokenize_without_indent_dedent_tokens(const char *filename)
 }
 
 // Add indent/dedent tokens after newline tokens that change the indentation level.
-struct Token *handle_indentations(const struct Token *temp_tokens)
+static struct Token *handle_indentations(const struct Token *temp_tokens)
 {
     List(struct Token) tokens = {0};
     const struct Token *t = temp_tokens;
