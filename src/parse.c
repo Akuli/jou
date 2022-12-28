@@ -22,6 +22,7 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_EQ: strcpy(got, "'=='"); break;
         case TOKEN_NE: strcpy(got, "'!='"); break;
         case TOKEN_ARROW: strcpy(got, "'->'"); break;
+        case TOKEN_PLUS: strcpy(got, "'+'"); break;
         case TOKEN_STAR: strcpy(got, "'*'"); break;
         case TOKEN_AMP: strcpy(got, "'&'"); break;
         case TOKEN_DOT: strcpy(got, "'.'"); break;
@@ -189,6 +190,13 @@ static struct AstExpression parse_elementary_expression(const struct Token **tok
     };
 
     switch((*tokens)->type) {
+    case TOKEN_OPENPAREN:
+        ++*tokens;
+        expr = parse_expression(tokens);
+        if ((*tokens)->type != TOKEN_CLOSEPAREN)
+            fail_with_parse_error(*tokens, "a ')'");
+        ++*tokens;
+        break;
     case TOKEN_INT:
         expr.kind = AST_EXPR_INT_CONSTANT;
         expr.data.int_value = (*tokens)->data.int_value;
@@ -254,6 +262,7 @@ static void validate_address_of_operand(const struct AstExpression *expr)
         strcpy(what_is_it, "another '&'");
         break;
     case AST_EXPR_CALL:
+    case AST_EXPR_ADD:
     case AST_EXPR_MUL:
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
@@ -292,6 +301,10 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
         case TOKEN_NE:
             assert(arity == 2);
             result.kind = AST_EXPR_NE;
+            break;
+        case TOKEN_PLUS:
+            assert(arity == 2);
+            result.kind = AST_EXPR_ADD;
             break;
         case TOKEN_STAR:
             result.kind = arity==2 ? AST_EXPR_MUL : AST_EXPR_DEREFERENCE;
@@ -335,13 +348,21 @@ static struct AstExpression parse_expression_with_mul(const struct Token **token
     return result;
 }
 
-static struct AstExpression parse_expression_with_comparisons(const struct Token **tokens)
+static struct AstExpression parse_expression_with_add(const struct Token **tokens)
 {
     struct AstExpression result = parse_expression_with_mul(tokens);
+    while((*tokens)->type == TOKEN_PLUS)
+        add_to_binop(tokens, &result, parse_expression_with_mul);
+    return result;
+}
+
+static struct AstExpression parse_expression_with_comparisons(const struct Token **tokens)
+{
+    struct AstExpression result = parse_expression_with_add(tokens);
 //#define IsComparator(x) ((x)==TOKEN_LT || (x)==TOKEN_GT || (x)==TOKEN_LE || (x)==TOKEN_GE || (x)==TOKEN_EQ || (x)==TOKEN_NE)
 #define IsComparator(x) ((x)==TOKEN_EQ || (x)==TOKEN_NE)
     if (IsComparator((*tokens)->type))
-        add_to_binop(tokens, &result, parse_expression_with_mul);
+        add_to_binop(tokens, &result, parse_expression_with_add);
     if (IsComparator((*tokens)->type))
         fail_with_error((*tokens)->location, "comparisons cannot be chained");
 #undef IsComparator

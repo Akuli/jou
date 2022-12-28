@@ -138,6 +138,13 @@ static struct Type get_type_for_binop(
     }
 
     switch(op) {
+    case AST_EXPR_ADD:
+        if (!is_integer_type(lhstype) || !is_integer_type(rhstype))
+            fail_with_error(error_location, "wrong types: cannot add %s and %s", lhstype->name, rhstype->name);
+        *lhstype = cast_type;
+        *rhstype = cast_type;
+        return cast_type;
+
     case AST_EXPR_MUL:
         if (!is_integer_type(lhstype) || !is_integer_type(rhstype))
             fail_with_error(error_location, "wrong types: cannot multiply %s and %s", lhstype->name, rhstype->name);
@@ -215,6 +222,7 @@ static void fill_types_expression(
             expr->type_before_implicit_cast = stringType;
             break;
 
+        case AST_EXPR_ADD:
         case AST_EXPR_MUL:
         case AST_EXPR_EQ:
         case AST_EXPR_NE:

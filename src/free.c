@@ -45,6 +45,7 @@ static void free_expression(const struct AstExpression *expr)
     case AST_EXPR_CALL:
         free_call(&expr->data.call);
         break;
+    case AST_EXPR_ADD:
     case AST_EXPR_MUL:
     case AST_EXPR_EQ:
     case AST_EXPR_NE:

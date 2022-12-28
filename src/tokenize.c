@@ -267,6 +267,7 @@ static enum TokenType read_operator(struct State *st)
         { ")", TOKEN_CLOSEPAREN },
         { "&", TOKEN_AMP },
         { "*", TOKEN_STAR },
+        { "+", TOKEN_PLUS },
         { NULL, 0 },
     };
 

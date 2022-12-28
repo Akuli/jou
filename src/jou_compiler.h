@@ -32,6 +32,7 @@ struct Token {
         TOKEN_COLON,
         TOKEN_COMMA,
         TOKEN_ARROW,
+        TOKEN_PLUS,
         TOKEN_STAR,
         TOKEN_AMP,
         TOKEN_EQUAL_SIGN,   // a single '=' character, actually used for assignments
@@ -113,6 +114,7 @@ struct AstExpression {
         AST_EXPR_DEREFERENCE,
         AST_EXPR_TRUE,
         AST_EXPR_FALSE,
+        AST_EXPR_ADD,
         AST_EXPR_MUL,
         AST_EXPR_EQ,
         AST_EXPR_NE,

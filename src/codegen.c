@@ -137,6 +137,7 @@ static LLVMValueRef codegen_expression(const struct State *st, const struct AstE
     case AST_EXPR_FALSE:
         result = LLVMConstInt(LLVMInt1Type(), 0, false);
         break;
+    case AST_EXPR_ADD:
     case AST_EXPR_MUL:
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
@@ -145,6 +146,7 @@ static LLVMValueRef codegen_expression(const struct State *st, const struct AstE
             LLVMValueRef lhs = codegen_expression(st, &expr->data.operands[0]);
             LLVMValueRef rhs = codegen_expression(st, &expr->data.operands[1]);
             switch(expr->kind) {
+                case AST_EXPR_ADD: result = LLVMBuildAdd(st->builder, lhs, rhs, "add"); break;
                 case AST_EXPR_MUL: result = LLVMBuildMul(st->builder, lhs, rhs, "mul"); break;
                 case AST_EXPR_EQ: result = LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "eq"); break;
                 case AST_EXPR_NE: result = LLVMBuildICmp(st->builder, LLVMIntNE, lhs, rhs, "ne"); break;
