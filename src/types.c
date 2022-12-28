@@ -37,6 +37,11 @@ struct Type create_integer_type(int size_in_bits, bool is_signed)
     return t;
 }
 
+bool is_integer_type(const struct Type *t)
+{
+    return (t->kind == TYPE_SIGNED_INTEGER || t->kind == TYPE_UNSIGNED_INTEGER);
+}
+
 bool same_type(const struct Type *a, const struct Type *b)
 {
     assert(a->kind != TYPE_UNKNOWN && b->kind != TYPE_UNKNOWN);

@@ -138,12 +138,18 @@ static LLVMValueRef codegen_expression(const struct State *st, const struct AstE
         result = LLVMConstInt(LLVMInt1Type(), 0, false);
         break;
     case AST_EXPR_MUL:
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
         {
             // careful with C's evaluation order........
             LLVMValueRef lhs = codegen_expression(st, &expr->data.operands[0]);
             LLVMValueRef rhs = codegen_expression(st, &expr->data.operands[1]);
-            result = LLVMBuildMul(st->builder, lhs, rhs, "mul");
-            break;
+            switch(expr->kind) {
+                case AST_EXPR_MUL: result = LLVMBuildMul(st->builder, lhs, rhs, "mul"); break;
+                case AST_EXPR_EQ: result = LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "eq"); break;
+                case AST_EXPR_NE: result = LLVMBuildICmp(st->builder, LLVMIntNE, lhs, rhs, "ne"); break;
+                default: assert(0);
+            }
         }
     }
 

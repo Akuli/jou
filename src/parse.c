@@ -19,6 +19,8 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_COLON: strcpy(got, "':'"); break;
         case TOKEN_COMMA: strcpy(got, "','"); break;
         case TOKEN_EQUAL_SIGN: strcpy(got, "'='"); break;
+        case TOKEN_EQ: strcpy(got, "'=='"); break;
+        case TOKEN_NE: strcpy(got, "'!='"); break;
         case TOKEN_ARROW: strcpy(got, "'->'"); break;
         case TOKEN_STAR: strcpy(got, "'*'"); break;
         case TOKEN_AMP: strcpy(got, "'&'"); break;
@@ -253,6 +255,8 @@ static void validate_address_of_operand(const struct AstExpression *expr)
         break;
     case AST_EXPR_CALL:
     case AST_EXPR_MUL:
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
         strcpy(what_is_it, "a newly calculated value");
         break;
     }
@@ -281,6 +285,14 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
             result.kind = AST_EXPR_ADDRESS_OF;
             validate_address_of_operand(&operands[0]);
             break;
+        case TOKEN_EQ:
+            assert(arity == 2);
+            result.kind = AST_EXPR_EQ;
+            break;
+        case TOKEN_NE:
+            assert(arity == 2);
+            result.kind = AST_EXPR_NE;
+            break;
         case TOKEN_STAR:
             result.kind = arity==2 ? AST_EXPR_MUL : AST_EXPR_DEREFERENCE;
             break;
@@ -304,15 +316,41 @@ static struct AstExpression parse_expression_with_addressof_and_dereference(cons
     return result;
 }
 
-static struct AstExpression parse_expression(const struct Token **tokens)
+// If tokens is e.g. [1, '+', 2], this will be used to parse the ['+', 2] part.
+// Callback function cb defines how to parse the expression following the operator token.
+static void add_to_binop(
+    const struct Token **tokens, struct AstExpression *result,
+    struct AstExpression (*cb)(const struct Token**))
+{
+    const struct Token *t = (*tokens)++;
+    struct AstExpression rhs = cb(tokens);
+    *result = build_operator_expression(t, 2, (struct AstExpression[]){*result, rhs});
+}
+
+static struct AstExpression parse_expression_with_mul(const struct Token **tokens)
 {
     struct AstExpression result = parse_expression_with_addressof_and_dereference(tokens);
-    while((*tokens)->type == TOKEN_STAR) {
-        const struct Token *t = (*tokens)++;
-        struct AstExpression rhs = parse_expression_with_addressof_and_dereference(tokens);
-        result = build_operator_expression(t, 2, (struct AstExpression[]){result, rhs});
-    }
+    while((*tokens)->type == TOKEN_STAR)
+        add_to_binop(tokens, &result, parse_expression_with_addressof_and_dereference);
     return result;
+}
+
+static struct AstExpression parse_expression_with_comparisons(const struct Token **tokens)
+{
+    struct AstExpression result = parse_expression_with_mul(tokens);
+//#define IsComparator(x) ((x)==TOKEN_LT || (x)==TOKEN_GT || (x)==TOKEN_LE || (x)==TOKEN_GE || (x)==TOKEN_EQ || (x)==TOKEN_NE)
+#define IsComparator(x) ((x)==TOKEN_EQ || (x)==TOKEN_NE)
+    if (IsComparator((*tokens)->type))
+        add_to_binop(tokens, &result, parse_expression_with_mul);
+    if (IsComparator((*tokens)->type))
+        fail_with_error((*tokens)->location, "comparisons cannot be chained");
+#undef IsComparator
+    return result;
+}
+
+static struct AstExpression parse_expression(const struct Token **tokens)
+{
+    return parse_expression_with_comparisons(tokens);
 }
 
 static void eat_newline(const struct Token **tokens)

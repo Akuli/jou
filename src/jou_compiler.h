@@ -34,7 +34,9 @@ struct Token {
         TOKEN_ARROW,
         TOKEN_STAR,
         TOKEN_AMP,
-        TOKEN_EQUAL_SIGN,  // the '=' character, actually used for assignments
+        TOKEN_EQUAL_SIGN,   // a single '=' character, actually used for assignments
+        TOKEN_EQ,           // '=='
+        TOKEN_NE,
     } type;
     struct Location location;
     union {
@@ -84,6 +86,7 @@ extern const struct Type unknownType;   // internal to compiler, not exposed in 
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location);
 struct Type create_integer_type(int size_in_bits, bool is_signed);
 
+bool is_integer_type(const struct Type *t);
 bool same_type(const struct Type *a, const struct Type *b);
 bool can_cast_implicitly(const struct Type *from, const struct Type *to);
 
@@ -111,6 +114,8 @@ struct AstExpression {
         AST_EXPR_TRUE,
         AST_EXPR_FALSE,
         AST_EXPR_MUL,
+        AST_EXPR_EQ,
+        AST_EXPR_NE,
     } kind;
     union {
         int int_value;          // AST_EXPR_INT_CONSTANT

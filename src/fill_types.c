@@ -121,18 +121,41 @@ noreturn void fail_with_implicit_cast_error(struct Location location, const char
     fail_with_error(location, "%.*s", msg.len, msg.ptr);
 }
 
-static struct Type check_and_get_mul_type(struct Location location, const struct Type *lhstype, const struct Type *rhstype)
+// May set lhstype and rhstype to cast them. This simplifies codegen.
+static struct Type get_type_for_binop(
+    enum AstExpressionKind op,
+    struct Location error_location,
+    struct Type *lhstype,
+    struct Type *rhstype)
 {
-#define is_integer(t) ((t)->kind==TYPE_SIGNED_INTEGER || (t)->kind==TYPE_UNSIGNED_INTEGER)
-    if (!is_integer(lhstype) || !is_integer(rhstype))
-        fail_with_error(location, "wrong types: cannot multiply %s and %s", lhstype->name, rhstype->name);
-#undef is_integer
+    // TODO: is this a good idea?
+    struct Type cast_type;
+    if (is_integer_type(lhstype) && is_integer_type(rhstype)) {
+        cast_type = create_integer_type(
+            max(lhstype->data.width_in_bits, rhstype->data.width_in_bits),
+            lhstype->kind == TYPE_SIGNED_INTEGER || rhstype->kind == TYPE_SIGNED_INTEGER
+        );
+    }
 
-    // TODO: are these rules any good?
-    int size = max(lhstype->data.width_in_bits, rhstype->data.width_in_bits);
-    bool is_signed = (lhstype->kind == TYPE_SIGNED_INTEGER || rhstype->kind == TYPE_SIGNED_INTEGER);
+    switch(op) {
+    case AST_EXPR_MUL:
+        if (!is_integer_type(lhstype) || !is_integer_type(rhstype))
+            fail_with_error(error_location, "wrong types: cannot multiply %s and %s", lhstype->name, rhstype->name);
+        *lhstype = cast_type;
+        *rhstype = cast_type;
+        return cast_type;
 
-    return create_integer_type(size, is_signed);
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
+        if (!is_integer_type(lhstype) || !is_integer_type(rhstype))
+            fail_with_error(error_location, "wrong types: cannot compare %s and %s for equality", lhstype->name, rhstype->name);
+        *lhstype = cast_type;
+        *rhstype = cast_type;
+        return boolType;
+
+    default:
+        assert(0);
+    }
 }
 
 static void fill_types_expression(
@@ -193,16 +216,16 @@ static void fill_types_expression(
             break;
 
         case AST_EXPR_MUL:
+        case AST_EXPR_EQ:
+        case AST_EXPR_NE:
             fill_types_expression(st, &expr->data.operands[0], NULL, NULL);
             fill_types_expression(st, &expr->data.operands[1], NULL, NULL);
-            struct Type t = check_and_get_mul_type(
+            expr->type_before_implicit_cast = get_type_for_binop(
+                expr->kind,
                 expr->location,
-                &expr->data.operands[0].type_before_implicit_cast,
-                &expr->data.operands[1].type_before_implicit_cast
-            );
-            expr->data.operands[0].type_after_implicit_cast = t;
-            expr->data.operands[1].type_after_implicit_cast = t;
-            expr->type_before_implicit_cast = t;
+                &expr->data.operands[0].type_after_implicit_cast,
+                &expr->data.operands[1].type_after_implicit_cast);
+            break;
     }
 
     if (implicit_cast_to == NULL) {

@@ -72,6 +72,8 @@ void print_token(const struct Token *token)
     case TOKEN_STAR: printf("'*'\n"); break;
     case TOKEN_DOT: printf("'.'\n"); break;
     case TOKEN_DOTDOTDOT: printf("'...'\n"); break;
+    case TOKEN_EQ: printf("'=='\n"); break;
+    case TOKEN_NE: printf("'!='\n"); break;
     }
 }
 
@@ -146,10 +148,20 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         printf("Dereference a pointer.\n");
         print_ast_expression(&expr->data.operands[0], indent+2);
         break;
+    case AST_EXPR_EQ:
+        printf("Check if equal.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
+        break;
+    case AST_EXPR_NE:
+        printf("Check if not equal.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
+        break;
     case AST_EXPR_MUL:
         printf("Multiply numbers.\n");
         print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
         break;
     case AST_EXPR_GET_VARIABLE:
         printf("Get the value of variable \"%s\".\n", expr->data.varname);
