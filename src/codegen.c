@@ -103,8 +103,9 @@ static LLVMValueRef codegen_expression(const struct State *st, const struct AstE
     case AST_EXPR_CALL:
         result = codegen_call(st, &expr->data.call, expr->location);
         break;
-    case AST_EXPR_ADDRESS_OF_VARIABLE:
-        result = get_pointer_to_local_var(st, expr->data.varname);
+    case AST_EXPR_ADDRESS_OF:
+        assert(expr->data.operands[0].kind == AST_EXPR_GET_VARIABLE);
+        result = get_pointer_to_local_var(st, expr->data.operands[0].data.varname);
         break;
     case AST_EXPR_GET_VARIABLE:
         result = LLVMBuildLoad(st->builder, get_pointer_to_local_var(st, expr->data.varname), expr->data.varname);

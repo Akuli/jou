@@ -138,6 +138,10 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
     case AST_EXPR_CALL:
         print_ast_call(&expr->data.call, indent+2);
         break;
+    case AST_EXPR_ADDRESS_OF:
+        printf("Get the address of an object as a pointer.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        break;
     case AST_EXPR_DEREFERENCE:
         printf("Dereference a pointer.\n");
         print_ast_expression(&expr->data.operands[0], indent+2);
@@ -149,9 +153,6 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         break;
     case AST_EXPR_GET_VARIABLE:
         printf("Get the value of variable \"%s\".\n", expr->data.varname);
-        break;
-    case AST_EXPR_ADDRESS_OF_VARIABLE:
-        printf("Get the address of variable \"%s\".\n", expr->data.varname);
         break;
     case AST_EXPR_INT_CONSTANT:
         printf("int %d\n", expr->data.int_value);

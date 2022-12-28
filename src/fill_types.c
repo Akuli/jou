@@ -154,11 +154,12 @@ static void fill_types_expression(
             break;
         }
 
-        case AST_EXPR_ADDRESS_OF_VARIABLE:
+        case AST_EXPR_ADDRESS_OF:
         {
-            const struct AstLocalVariable *v = find_local_variable(st, expr->data.varname);
+            assert(expr->data.operands[0].kind == AST_EXPR_GET_VARIABLE);
+            const struct AstLocalVariable *v = find_local_variable(st, expr->data.operands[0].data.varname);
             if (!v)
-                fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
+                fail_with_error(expr->location, "no local variable named '%s'", expr->data.operands[0].data.varname);
             expr->type_before_implicit_cast = create_pointer_type(&v->type, expr->location);
             break;
         }

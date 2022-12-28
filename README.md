@@ -147,7 +147,6 @@ $ ./fuzzer.sh
 ```
 
 TODO:
-- Upload this to my personal server
 - Write syntax spec once syntax seems relatively stable
 - Some kind of conversion to bool thingy for if statements: `if some_pointer:`, `if some_integer:`
 - `elif`,`else`

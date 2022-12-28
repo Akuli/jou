@@ -162,11 +162,10 @@ static struct AstCall parse_call(const struct Token **tokens)
 
     while ((*tokens)->type != TOKEN_CLOSEPAREN) {
         Append(&args, parse_expression(tokens));
-        if ((*tokens)->type == TOKEN_COMMA) {
+        if ((*tokens)->type == TOKEN_COMMA)
             ++*tokens;
-        } else {
+        else
             break;
-        }
     }
 
     result.args = args.ptr;
@@ -213,14 +212,6 @@ static struct AstExpression parse_elementary_expression(const struct Token **tok
             ++*tokens;
         }
         break;
-    case TOKEN_AMP:
-        ++*tokens;
-        if ((*tokens)->type != TOKEN_NAME)
-            fail_with_parse_error(*tokens, "a variable name");
-        expr.kind = AST_EXPR_ADDRESS_OF_VARIABLE;
-        safe_strcpy(expr.data.varname, (*tokens)->data.name);
-        ++*tokens;
-        break;
     case TOKEN_KEYWORD:
         if (!strcmp((*tokens)->data.name, "True")) {
             expr.kind = AST_EXPR_TRUE;
@@ -240,6 +231,15 @@ static struct AstExpression parse_elementary_expression(const struct Token **tok
     return expr;
 }
 
+// The & operator can go only in front of a few kinds of expressions.
+// You can't do &(1 + 2), for example.
+// If you allow more different kinds of expressions here, you will need to update codegen.
+static void validate_address_of_operand(const struct AstExpression *expr)
+{
+    if (expr->kind != AST_EXPR_GET_VARIABLE)
+        fail_with_error(expr->location, "the address-of operator '&' can only be used in front of a variable");
+}
+
 // arity = number of operands, e.g. 2 for a binary operator such as "+"
 static struct AstExpression build_operator_expression(const struct Token *t, int arity, const struct AstExpression *operands)
 {
@@ -256,20 +256,26 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
     };
 
     switch(t->type) {
-        case TOKEN_STAR: result.kind = arity==2 ? AST_EXPR_MUL : AST_EXPR_DEREFERENCE; break;
+        case TOKEN_AMP:
+            assert(arity == 1);
+            result.kind = AST_EXPR_ADDRESS_OF;
+            validate_address_of_operand(&operands[0]);
+            break;
+        case TOKEN_STAR:
+            result.kind = arity==2 ? AST_EXPR_MUL : AST_EXPR_DEREFERENCE;
+            break;
         default: assert(0);
     }
 
     return result;
 }
 
-// TODO: should probably put unary & (address-of) operator here as well
-static struct AstExpression parse_expression_with_dereference(const struct Token **tokens)
+static struct AstExpression parse_expression_with_addressof_and_dereference(const struct Token **tokens)
 {
     // sequnece of 0 or more star tokens: start,start+1,...,end-1
     const struct Token *start = *tokens;
     const struct Token *end = *tokens;
-    while (end->type == TOKEN_STAR) end++;
+    while (end->type == TOKEN_STAR || end->type == TOKEN_AMP) end++;
 
     *tokens = end;
     struct AstExpression result = parse_elementary_expression(tokens);
@@ -280,10 +286,10 @@ static struct AstExpression parse_expression_with_dereference(const struct Token
 
 static struct AstExpression parse_expression(const struct Token **tokens)
 {
-    struct AstExpression result = parse_expression_with_dereference(tokens);
+    struct AstExpression result = parse_expression_with_addressof_and_dereference(tokens);
     while((*tokens)->type == TOKEN_STAR) {
         const struct Token *t = (*tokens)++;
-        struct AstExpression rhs = parse_expression_with_dereference(tokens);
+        struct AstExpression rhs = parse_expression_with_addressof_and_dereference(tokens);
         result = build_operator_expression(t, 2, (struct AstExpression[]){result, rhs});
     }
     return result;

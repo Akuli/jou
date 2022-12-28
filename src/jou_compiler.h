@@ -106,7 +106,7 @@ struct AstExpression {
         AST_EXPR_STRING_CONSTANT,
         AST_EXPR_CALL,
         AST_EXPR_GET_VARIABLE,
-        AST_EXPR_ADDRESS_OF_VARIABLE,
+        AST_EXPR_ADDRESS_OF,
         AST_EXPR_DEREFERENCE,
         AST_EXPR_TRUE,
         AST_EXPR_FALSE,
@@ -116,7 +116,7 @@ struct AstExpression {
         int int_value;          // AST_EXPR_INT_CONSTANT
         char char_value;        // AST_EXPR_CHAR_CONSTANT
         char *string_value;     // AST_EXPR_STRING_CONSTANT
-        char varname[100];      // AST_EXPR_GET_VARIABLE, AST_EXPR_ADDRESS_OF_VARIABLE
+        char varname[100];      // AST_EXPR_GET_VARIABLE
         struct AstCall call;    // AST_EXPR_CALL
         /*
         The "operands" pointer is an array of 1 to 2 expressions.
