@@ -16,23 +16,17 @@
 struct State {
     FILE *f;
     struct Location location;
+    List(char) pushback;
 };
 
 static char read_byte(struct State *st) {
-    if (st->location.lineno == 0) {
-        /*
-        Add a fake newline to the beginning. It does a few things:
-          * Less special-casing: blank lines in the beginning of the file can
-            cause there to be a newline token anyway.
-          * It is easier to detect an unexpected indentation in the beginning
-            of the file, as it becomes just like any other indentation.
-          * Line numbers start at 1.
-        */
-        st->location.lineno++;
-        return '\n';
+    int c;
+    if (st->pushback.len != 0) {
+        c = Pop(&st->pushback);
+        goto got_char;
     }
 
-    int c = fgetc(st->f);
+    c = fgetc(st->f);
     if (c == EOF && ferror(st->f))
         fail_with_error(st->location, "cannot read file: %s", strerror(errno));
 
@@ -53,21 +47,19 @@ static char read_byte(struct State *st) {
         return '\0';
     }
 
+got_char:
     if (c == '\n')
         st->location.lineno++;
-
     return c;
 }
 
-// Do not attempt to unread multiple bytes, ungetc() is guaranteed to only work for one
+// Can't use ungetc() because it is only guaranteed to work for one byte.
 static void unread_byte(struct State *st, char c)
 {
     if (c == '\0')
         return;
     assert(c!='\r');  // c should be from read_byte()
-    int ret = ungetc((unsigned char)c, st->f);
-    assert(ret != EOF);  // should not fail if unreading just one byte
-
+    Append(&st->pushback, c);
     if (c == '\n')
         st->location.lineno--;
 }
@@ -141,15 +133,6 @@ void read_indentation_as_newline_token(struct State *st, struct Token *t)
     }
 }
 
-static bool is_keyword(const char *s)
-{
-    const char *keywords[] = { "def", "cdecl", "return", "void", "if", "True", "False" };
-    for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
-        if (!strcmp(*kw, s))
-            return true;
-    return false;
-}
-
 static int read_int(struct State *st, char firstbyte)
 {
     int n = firstbyte - '0';
@@ -161,6 +144,15 @@ static int read_int(struct State *st, char firstbyte)
         }
         n = 10*n + (c-'0');
     }
+}
+
+static bool is_keyword(const char *s)
+{
+    const char *keywords[] = { "def", "cdecl", "return", "void", "if", "True", "False" };
+    for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
+        if (!strcmp(*kw, s))
+            return true;
+    return false;
 }
 
 // Assumes the initial quote has been read already
@@ -254,43 +246,57 @@ static char read_char_literal(struct State *st)
     return result;
 }
 
-// Assumes one dot has already been read
-static enum TokenType read_dot_or_dotdotdot(struct State *st)
-{
-    char c = read_byte(st);
-    if (c != '.') {
-        unread_byte(st, c);
-        return TOKEN_DOT;
-    }
-    c = read_byte(st);
-    if (c != '.') {
-        /*
-        We can't emit two dot tokens here and let the parser deal with
-        it, because we only return info for one token. We also can't
-        unread everything we read so far because ungetc() is guaranteed
-        to only work for one byte.
-        */
-        fail_with_error(st->location, "there cannot be two consecutive dots (should be one dot, or three dots for '...')", c, (unsigned char)c);
-    }
-    return TOKEN_DOTDOTDOT;
-}
+static const char *const operatorChars = "=<>!.,()[]{};:+-*/&";
 
-// Assumes one '=' has been read.
-static enum TokenType read_single_or_double_equal_sign(struct State *st)
+static enum TokenType read_operator(struct State *st)
 {
-    char c = read_byte(st);
-    if (c == '=')
-        return TOKEN_EQ;  // '=='
-    unread_byte(st, c);
-    return TOKEN_EQUAL_SIGN; // '='
-}
+    struct Op { const char *str; enum TokenType tt; } ops[] = {
+        // Longer operators first, so that '==' does not parse as '=' '='
+        // Length 3
+        { "...", TOKEN_DOTDOTDOT },
+        // Length 2
+        { "==", TOKEN_EQ },
+        { "!=", TOKEN_NE },
+        { "->", TOKEN_ARROW },
+        // Length 1
+        { ".", TOKEN_DOT },
+        { ",", TOKEN_COMMA },
+        { ":", TOKEN_COLON },
+        { "=", TOKEN_EQUAL_SIGN },
+        { "(", TOKEN_OPENPAREN },
+        { ")", TOKEN_CLOSEPAREN },
+        { "&", TOKEN_AMP },
+        { "*", TOKEN_STAR },
+        { NULL, 0 },
+    };
 
-// Assumes the '=' of '!=' has been read.
-static void read_rest_of_not_equals_symbol(struct State *st)
-{
-    char c = read_byte(st);
-    if (c != '=')  // TODO: 'not' keyword does not exists yet
-        fail_with_error(st->location, "use the 'not' keyword, there is no '!' operator");
+    char operator[4] = {0};
+    while(strlen(operator) < 3) {
+        char c = read_byte(st);
+        if (c=='\0')
+            break;
+        if(!strchr(operatorChars, c)) {
+            unread_byte(st, c);
+            break;
+        }
+        operator[strlen(operator)] = c;
+    }
+
+    // for the javascript devs
+    if (!strcmp(operator, "===") || !strcmp(operator, "!=="))
+        goto error404;
+
+    for (struct Op *op = ops; op->str; op++) {
+        if (!strncmp(operator, op->str, strlen(op->str))) {
+            // Unread the bytes we didn't use.
+            for (int i = strlen(operator) - 1; i >= (int)strlen(op->str); i--)
+                unread_byte(st, operator[i]);
+            return op->tt;
+        }
+    }
+
+error404:
+    fail_with_error(st->location, "there is no '%s' operator", operator);
 }
 
 static struct Token read_token(struct State *st)
@@ -300,26 +306,12 @@ static struct Token read_token(struct State *st)
     while(1) {
         char c = read_byte(st);
         switch(c) {
-        case '-':
-            if (read_byte(st) != '>')
-                fail_with_error(t.location, "'-' must be immediately followed by '>' to make up the '->' operator");
-            t.type = TOKEN_ARROW;
-            break;
         case '#': consume_rest_of_line(st); continue;
         case ' ': continue;
         case '\n': read_indentation_as_newline_token(st, &t); break;
         case '\0': t.type = TOKEN_END_OF_FILE; break;
-        case '(': t.type = TOKEN_OPENPAREN; break;
-        case ')': t.type = TOKEN_CLOSEPAREN; break;
-        case ':': t.type = TOKEN_COLON; break;
-        case ',': t.type = TOKEN_COMMA; break;
-        case '=': t.type = read_single_or_double_equal_sign(st); break;
-        case '!': t.type = TOKEN_NE; read_rest_of_not_equals_symbol(st); break;
-        case '*': t.type = TOKEN_STAR; break;
-        case '&': t.type = TOKEN_AMP; break;
         case '\'': t.type = TOKEN_CHAR; t.data.char_value = read_char_literal(st); break;
         case '"': t.type = TOKEN_STRING; t.data.string_value = read_string(st, '"', NULL); break;
-        case '.': t.type = read_dot_or_dotdotdot(st); break;
         default:
             if ('0'<=c && c<='9') {
                 t.type = TOKEN_INT;
@@ -330,6 +322,9 @@ static struct Token read_token(struct State *st)
                     t.type = TOKEN_KEYWORD;
                 else
                     t.type = TOKEN_NAME;
+            } else if (strchr(operatorChars, c)) {
+                unread_byte(st, c);
+                t.type = read_operator(st);
             } else {
                 if ((unsigned char)c < 0x80 && isprint(c))
                     fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (unsigned char)c);
@@ -348,11 +343,22 @@ static struct Token *tokenize_without_indent_dedent_tokens(const char *filename)
     if (!st.f)
         fail_with_error(st.location, "cannot open file: %s", strerror(errno));
 
+    /*
+    Add a fake newline to the beginning. It does a few things:
+      * Less special-casing: blank lines in the beginning of the file can
+        cause there to be a newline token anyway.
+      * It is easier to detect an unexpected indentation in the beginning
+        of the file, as it becomes just like any other indentation.
+      * Line numbers start at 1.
+    */
+    Append(&st.pushback, '\n');
+
     List(struct Token) tokens = {0};
     while(tokens.len == 0 || tokens.ptr[tokens.len-1].type != TOKEN_END_OF_FILE)
         Append(&tokens, read_token(&st));
-    fclose(st.f);
 
+    free(st.pushback.ptr);
+    fclose(st.f);
     return tokens.ptr;
 }
 
