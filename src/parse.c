@@ -23,6 +23,7 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_NE: strcpy(got, "'!='"); break;
         case TOKEN_ARROW: strcpy(got, "'->'"); break;
         case TOKEN_PLUS: strcpy(got, "'+'"); break;
+        case TOKEN_MINUS: strcpy(got, "'-'"); break;
         case TOKEN_STAR: strcpy(got, "'*'"); break;
         case TOKEN_AMP: strcpy(got, "'&'"); break;
         case TOKEN_DOT: strcpy(got, "'.'"); break;
@@ -263,6 +264,7 @@ static void validate_address_of_operand(const struct AstExpression *expr)
         break;
     case AST_EXPR_CALL:
     case AST_EXPR_ADD:
+    case AST_EXPR_SUB:
     case AST_EXPR_MUL:
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
@@ -305,6 +307,10 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
         case TOKEN_PLUS:
             assert(arity == 2);
             result.kind = AST_EXPR_ADD;
+            break;
+        case TOKEN_MINUS:
+            assert(arity == 2);
+            result.kind = AST_EXPR_SUB;
             break;
         case TOKEN_STAR:
             result.kind = arity==2 ? AST_EXPR_MUL : AST_EXPR_DEREFERENCE;
@@ -351,7 +357,7 @@ static struct AstExpression parse_expression_with_mul(const struct Token **token
 static struct AstExpression parse_expression_with_add(const struct Token **tokens)
 {
     struct AstExpression result = parse_expression_with_mul(tokens);
-    while((*tokens)->type == TOKEN_PLUS)
+    while((*tokens)->type == TOKEN_PLUS || (*tokens)->type == TOKEN_MINUS)
         add_to_binop(tokens, &result, parse_expression_with_mul);
     return result;
 }

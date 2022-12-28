@@ -128,6 +128,21 @@ static struct Type get_type_for_binop(
     struct Type *lhstype,
     struct Type *rhstype)
 {
+    const char *do_what;
+    switch(op) {
+    case AST_EXPR_ADD: do_what = "add"; break;
+    case AST_EXPR_SUB: do_what = "subtract"; break;
+    case AST_EXPR_MUL: do_what = "multiply"; break;
+
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
+        do_what = "compare";
+        break;
+
+    default:
+        assert(0);
+    }
+
     // TODO: is this a good idea?
     struct Type cast_type;
     if (is_integer_type(lhstype) && is_integer_type(rhstype)) {
@@ -139,15 +154,10 @@ static struct Type get_type_for_binop(
 
     switch(op) {
     case AST_EXPR_ADD:
-        if (!is_integer_type(lhstype) || !is_integer_type(rhstype))
-            fail_with_error(error_location, "wrong types: cannot add %s and %s", lhstype->name, rhstype->name);
-        *lhstype = cast_type;
-        *rhstype = cast_type;
-        return cast_type;
-
+    case AST_EXPR_SUB:
     case AST_EXPR_MUL:
         if (!is_integer_type(lhstype) || !is_integer_type(rhstype))
-            fail_with_error(error_location, "wrong types: cannot multiply %s and %s", lhstype->name, rhstype->name);
+            fail_with_error(error_location, "wrong types: cannot %s %s and %s", do_what, lhstype->name, rhstype->name);
         *lhstype = cast_type;
         *rhstype = cast_type;
         return cast_type;
@@ -223,6 +233,7 @@ static void fill_types_expression(
             break;
 
         case AST_EXPR_ADD:
+        case AST_EXPR_SUB:
         case AST_EXPR_MUL:
         case AST_EXPR_EQ:
         case AST_EXPR_NE:
