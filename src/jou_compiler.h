@@ -100,6 +100,7 @@ struct AstExpression {
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF,
         AST_EXPR_DEREFERENCE,
+        AST_EXPR_ASSIGN,
         AST_EXPR_TRUE,
         AST_EXPR_FALSE,
         AST_EXPR_ADD,
@@ -127,6 +128,7 @@ struct AstExpression {
 
             * For AST_EXPR_DEREFERENCE, it is the dereferenced value: the "foo" of "*foo".
             * For AST_EXPR_ADD, it is an array of the two things being added.
+            * For AST_EXPR_ASSIGN, these are the left and right side of the assignment.
         */
         struct AstExpression *operands;  // AST_EXPR_DEREFERENCE
     } data;
@@ -151,16 +153,14 @@ struct AstBody {
 struct AstStatement {
     struct Location location;
     enum AstStatementKind {
-        AST_STMT_CALL,
+        AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
         AST_STMT_RETURN_VALUE,
         AST_STMT_RETURN_WITHOUT_VALUE,
-        AST_STMT_SETVAR,
         AST_STMT_IF,
     } kind;
     union {
-        struct { char varname[100]; struct AstExpression value; } setvar;
+        struct AstExpression expression;    // for AST_STMT_EXPRESSION_STATEMENT, AST_STMT_RETURN
         struct AstCall call;                // for AST_STMT_CALL
-        struct AstExpression returnvalue;   // for AST_STMT_RETURN
         struct AstIfStatement {
             struct AstExpression condition;
             struct AstBody body;

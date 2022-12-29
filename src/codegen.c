@@ -95,6 +95,7 @@ static LLVMValueRef make_a_string_constant(const struct State *st, const char *s
 
 // forward-declare
 static LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location);
+static LLVMValueRef codegen_address_of_expression(const struct State *st, const struct AstExpression *address_of_what);
 
 static LLVMValueRef codegen_expression(const struct State *st, const struct AstExpression *expr)
 {
@@ -105,17 +106,7 @@ static LLVMValueRef codegen_expression(const struct State *st, const struct AstE
         result = codegen_call(st, &expr->data.call, expr->location);
         break;
     case AST_EXPR_ADDRESS_OF:
-        switch(expr->data.operands[0].kind) {
-        case AST_EXPR_GET_VARIABLE:
-            result = get_pointer_to_local_var(st, expr->data.operands[0].data.varname);
-            break;
-        case AST_EXPR_DEREFERENCE:
-            // &*foo --> just evaluate foo
-            result = codegen_expression(st, &expr->data.operands[0].data.operands[0]);
-            break;
-        default:
-            assert(0);
-        }
+        result = codegen_address_of_expression(st, &expr->data.operands[0]);
         break;
     case AST_EXPR_GET_VARIABLE:
         result = LLVMBuildLoad(st->builder, get_pointer_to_local_var(st, expr->data.varname), expr->data.varname);
@@ -138,6 +129,14 @@ static LLVMValueRef codegen_expression(const struct State *st, const struct AstE
     case AST_EXPR_FALSE:
         result = LLVMConstInt(LLVMInt1Type(), 0, false);
         break;
+    case AST_EXPR_ASSIGN:
+        {
+            // TODO: this evaluation order good? sometimes confuses python programmers, seen it in 2022 /r/adventofcode
+            LLVMValueRef lhsptr = codegen_address_of_expression(st, &expr->data.operands[0]);
+            LLVMValueRef rhs = codegen_expression(st, &expr->data.operands[1]);
+            LLVMBuildStore(st->builder, rhs, lhsptr);
+            return rhs;
+        }
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
@@ -173,7 +172,25 @@ static LLVMValueRef codegen_expression(const struct State *st, const struct AstE
         }
     }
 
+    if (expr->type_after_implicit_cast.kind == TYPE_UNKNOWN) {
+        // call to function with '-> void'
+        assert(expr->kind == AST_EXPR_CALL);
+        return result;
+    }
     return codegen_implicit_cast(st, result, &expr->type_before_implicit_cast, &expr->type_after_implicit_cast);
+}
+
+static LLVMValueRef codegen_address_of_expression(const struct State *st, const struct AstExpression *address_of_what)
+{
+    switch(address_of_what->kind) {
+    case AST_EXPR_GET_VARIABLE:
+        return get_pointer_to_local_var(st, address_of_what->data.varname);
+    case AST_EXPR_DEREFERENCE:
+        // &*foo --> just evaluate foo
+        return codegen_expression(st, &address_of_what->data.operands[0]);
+    default:
+        assert(0);
+    }
 }
 
 static LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location)
@@ -226,23 +243,16 @@ static void codegen_statement(const struct State *st, const struct AstStatement 
         codegen_if_statement(st, &stmt->data.ifstatement);
         break;
 
-    case AST_STMT_CALL:
-        codegen_call(st, &stmt->data.call, stmt->location);
-        break;
-
-    case AST_STMT_SETVAR:
-        LLVMBuildStore(
-            st->builder,
-            codegen_expression(st, &stmt->data.setvar.value),
-            get_pointer_to_local_var(st, stmt->data.setvar.varname));
-        break;
-
     case AST_STMT_RETURN_VALUE:
-        LLVMBuildRet(st->builder, codegen_expression(st, &stmt->data.returnvalue));
+        LLVMBuildRet(st->builder, codegen_expression(st, &stmt->data.expression));
         break;
 
     case AST_STMT_RETURN_WITHOUT_VALUE:
         LLVMBuildRetVoid(st->builder);
+        break;
+
+    case AST_STMT_EXPRESSION_STATEMENT:
+        codegen_expression(st, &stmt->data.expression);
         break;
     }
 }

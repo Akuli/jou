@@ -39,10 +39,11 @@ static const struct AstLocalVariable *find_local_variable(const struct State *st
 
 
 static void fill_types_expression(
-    const struct State *st,
+    struct State *st,
     struct AstExpression *expr,
     const struct Type *implicit_cast_to,
-    const char *casterrormsg);
+    const char *casterrormsg,
+    bool needvalue);
 
 const char *nth(int n)
 {
@@ -58,7 +59,7 @@ const char *nth(int n)
 }
 
 // Returns the return type of the function, NULL if the function does not return a value.
-static const struct Type *fill_types_call(const struct State *st, struct AstCall *call, struct Location location)
+static const struct Type *fill_types_call(struct State *st, struct AstCall *call, struct Location location)
 {
     const struct AstFunctionSignature *sig = find_function(st, call->funcname);
     if (!sig)
@@ -81,11 +82,11 @@ static const struct Type *fill_types_call(const struct State *st, struct AstCall
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
         snprintf(msg, sizeof msg, "%s argument of function %s should have type TO, not FROM", nth(i+1), sigstr);
-        fill_types_expression(st, &call->args[i], &sig->argtypes[i], msg);
+        fill_types_expression(st, &call->args[i], &sig->argtypes[i], msg, true);
     }
     for (int i = sig->nargs; i < call->nargs; i++) {
         // This code runs for varargs, e.g. the things to format in printf().
-        fill_types_expression(st, &call->args[i], NULL, NULL);
+        fill_types_expression(st, &call->args[i], NULL, NULL, true);
     }
 
     free(sigstr);
@@ -186,10 +187,11 @@ static struct Type get_type_for_binop(
 }
 
 static void fill_types_expression(
-    const struct State *st,
+    struct State *st,
     struct AstExpression *expr,
     const struct Type *implicit_cast_to,  // can be NULL, there will be no implicit casting
-    const char *casterrormsg)
+    const char *casterrormsg,
+    bool needvalue)  // Usually true. False means that calls to "-> void" functions are acceptable.
 {
     assert((implicit_cast_to==NULL && casterrormsg==NULL)
         || (implicit_cast_to!=NULL && casterrormsg!=NULL));
@@ -205,22 +207,54 @@ static void fill_types_expression(
         }
 
         case AST_EXPR_ADDRESS_OF:
-            fill_types_expression(st, &expr->data.operands[0], NULL, NULL);
+            fill_types_expression(st, &expr->data.operands[0], NULL, NULL, true);
             expr->type_before_implicit_cast = create_pointer_type(&expr->data.operands[0].type_after_implicit_cast, expr->location);
             break;
+
+        case AST_EXPR_ASSIGN:
+        {
+            // TODO: i think "bytevar = intvar = 'x'" doesn't work because 'x' becomes int implicitly
+            struct AstExpression *target = &expr->data.operands[0];
+            struct AstExpression *value = &expr->data.operands[1];
+            if (target->kind == AST_EXPR_GET_VARIABLE && !find_local_variable(st, target->data.varname))
+            {
+                // Making a new variable. Use the type of the value being assigned.
+                fill_types_expression(st, value, NULL, NULL, true);
+                const struct Type *t = &value->type_after_implicit_cast;
+                add_local_variable(st, target->data.varname, t);
+                target->type_before_implicit_cast = *t;
+                target->type_after_implicit_cast = *t;
+                fill_types_expression(st, target, NULL, NULL, true);
+            } else {
+                // Convert value to the type of an existing variable or other assignment target.
+                fill_types_expression(st, target, NULL, NULL, true);
+                const char *errmsg;
+                switch(target->kind) {
+                    case AST_EXPR_GET_VARIABLE: errmsg = "cannot assign a value of type FROM to variable of type TO"; break;
+                    case AST_EXPR_DEREFERENCE: errmsg = "cannot assign a value of type FROM into a pointer of type TO*"; break;
+                    default: assert(0);
+                }
+                fill_types_expression(st, value, &target->type_after_implicit_cast, errmsg, true);
+            }
+            expr->type_before_implicit_cast = value->type_after_implicit_cast;
+            break;
+        }
 
         case AST_EXPR_CALL:
         {
             const struct Type *t = fill_types_call(st, &expr->data.call, expr->location);
-            if (!t)
+            if (!t) {
+                if (!needvalue)
+                    return;
                 fail_with_error(expr->location, "function '%s' does not return a value", expr->data.call.funcname);
+            }
             expr->type_before_implicit_cast = *t;
             break;
         }
 
         case AST_EXPR_DEREFERENCE:
         {
-            fill_types_expression(st, &expr->data.operands[0], NULL, NULL);
+            fill_types_expression(st, &expr->data.operands[0], NULL, NULL, true);
             const struct Type ptrtype = expr->data.operands[0].type_before_implicit_cast;
             if (ptrtype.kind != TYPE_POINTER)
                 fail_with_error(expr->location, "the dereference operator '*' is only for pointers, not for %s", ptrtype.name);
@@ -252,8 +286,8 @@ static void fill_types_expression(
         case AST_EXPR_GE:
         case AST_EXPR_LT:
         case AST_EXPR_LE:
-            fill_types_expression(st, &expr->data.operands[0], NULL, NULL);
-            fill_types_expression(st, &expr->data.operands[1], NULL, NULL);
+            fill_types_expression(st, &expr->data.operands[0], NULL, NULL, true);
+            fill_types_expression(st, &expr->data.operands[1], NULL, NULL, true);
             expr->type_before_implicit_cast = get_type_for_binop(
                 expr->kind,
                 expr->location,
@@ -278,27 +312,14 @@ static void fill_types_body(struct State *st, const struct AstBody *body);
 static void fill_types_statement(struct State *st, struct AstStatement *stmt)
 {
     switch(stmt->kind) {
-    case AST_STMT_CALL:
-        fill_types_call(st, &stmt->data.call, stmt->location);
-        break;
-
-    case AST_STMT_SETVAR:
-    {
-        const struct AstLocalVariable *v = find_local_variable(st, stmt->data.setvar.varname);
-        if (v) {
-            fill_types_expression(st, &stmt->data.setvar.value, &v->type,
-                "cannot assign a value of type FROM to variable of type TO");
-        } else {
-            fill_types_expression(st, &stmt->data.setvar.value, NULL, NULL);
-            add_local_variable(st, stmt->data.setvar.varname, &stmt->data.setvar.value.type_after_implicit_cast);
-        }
-        break;
-    }
-
     case AST_STMT_IF:
         fill_types_expression(st, &stmt->data.ifstatement.condition, &boolType,
-            "'if' condition must be a boolean, not FROM");
+            "'if' condition must be a boolean, not FROM", true);
         fill_types_body(st, &stmt->data.ifstatement.body);
+        break;
+
+    case AST_STMT_EXPRESSION_STATEMENT:
+        fill_types_expression(st, &stmt->data.expression, NULL, NULL, false);
         break;
 
     case AST_STMT_RETURN_VALUE:
@@ -313,7 +334,7 @@ static void fill_types_statement(struct State *st, struct AstStatement *stmt)
         snprintf(msg, sizeof msg,
             "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
             st->func_signature->funcname);
-        fill_types_expression(st, &stmt->data.returnvalue, st->func_signature->returntype, msg);
+        fill_types_expression(st, &stmt->data.expression, st->func_signature->returntype, msg, true);
         break;
 
     case AST_STMT_RETURN_WITHOUT_VALUE:

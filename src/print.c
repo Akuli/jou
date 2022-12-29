@@ -185,6 +185,11 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         print_ast_expression(&expr->data.operands[0], indent+2);
         print_ast_expression(&expr->data.operands[1], indent+2);
         break;
+    case AST_EXPR_ASSIGN:
+        printf("Set the value of a variable or pointer.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
+        break;
     case AST_EXPR_GET_VARIABLE:
         printf("Get the value of variable \"%s\".\n", expr->data.varname);
         break;
@@ -226,16 +231,13 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
     printf("%*sStatement on line %d: ", indent, "", stmt->location.lineno);
 
     switch(stmt->kind) {
-        case AST_STMT_CALL:
-            print_ast_call(&stmt->data.call, indent+2);
-            break;
-        case AST_STMT_SETVAR:
-            printf("Set variable \"%s\" to:\n", stmt->data.setvar.varname);
-            print_ast_expression(&stmt->data.setvar.value, indent+2);
+        case AST_STMT_EXPRESSION_STATEMENT:
+            printf("Evaluate an expression and discard the result.\n");
+            print_ast_expression(&stmt->data.expression, indent+2);
             break;
         case AST_STMT_RETURN_VALUE:
             printf("Return a value:\n");
-            print_ast_expression(&stmt->data.returnvalue, indent+2);
+            print_ast_expression(&stmt->data.expression, indent+2);
             break;
         case AST_STMT_RETURN_WITHOUT_VALUE:
             printf("Return without a return value.\n");
