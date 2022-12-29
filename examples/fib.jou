@@ -1,11 +1,8 @@
 cdecl printf(format: byte*, ...) -> int
 
 def fib(n: int) -> int:
-    # TODO: no '<=', 'or' operators yet
-    if n == 0:
-        return 0
-    if n == 1:
-        return 1
+    if n <= 1:
+        return n
     return fib(n-1) + fib(n-2)
 
 def main() -> int:
