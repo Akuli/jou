@@ -45,6 +45,7 @@ static void free_expression(const struct AstExpression *expr)
     case AST_EXPR_CALL:
         free_call(&expr->data.call);
         break;
+    case AST_EXPR_ASSIGN:
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
@@ -88,18 +89,13 @@ static void free_body(const struct AstBody *body);
 static void free_statement(const struct AstStatement *stmt)
 {
     switch(stmt->kind) {
-    case AST_STMT_SETVAR:
-        free_expression(&stmt->data.setvar.value);
-        break;
     case AST_STMT_IF:
         free_expression(&stmt->data.ifstatement.condition);
         free_body(&stmt->data.ifstatement.body);
         break;
-    case AST_STMT_CALL:
-        free_call(&stmt->data.call);
-        break;
+    case AST_STMT_EXPRESSION_STATEMENT:
     case AST_STMT_RETURN_VALUE:
-        free_expression(&stmt->data.returnvalue);
+        free_expression(&stmt->data.expression);
         break;
     case AST_STMT_RETURN_WITHOUT_VALUE:
         break;

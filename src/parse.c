@@ -74,14 +74,13 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     List(struct Type) argtypes = {0};
 
     while (!is_operator(*tokens, ")")) {
+        if (result.takes_varargs)
+            fail_with_error((*tokens)->location, "if '...' is used, it must be the last parameter");
+
         if (is_operator(*tokens, "...")) {
             result.takes_varargs = true;
             ++*tokens;
         } else {
-            // FIXME: this allows "foo(..., ...)" ?
-            if (result.takes_varargs)
-                fail_with_error((*tokens)->location, "if '...' is used, it must be the last parameter");
-
             if ((*tokens)->type != TOKEN_NAME)
                 fail_with_parse_error(*tokens, "an argument name");
 
@@ -241,8 +240,8 @@ not_an_expression:
 
 // The & operator can go only in front of a few kinds of expressions.
 // You can't do &(1 + 2), for example.
-// If you allow more different kinds of expressions here, you will need to update codegen.
-static void validate_address_of_operand(const struct AstExpression *expr)
+// The same rules apply to assignments.
+static void validate_address_of_operand(const struct AstExpression *expr, bool assignment)
 {
     char what_is_it[100];
     switch(expr->kind) {
@@ -256,9 +255,10 @@ static void validate_address_of_operand(const struct AstExpression *expr)
     case AST_EXPR_FALSE:
         strcpy(what_is_it, "a constant");
         break;
-    case AST_EXPR_ADDRESS_OF:
-        strcpy(what_is_it, "another '&'");
+    case AST_EXPR_ASSIGN:
+        strcpy(what_is_it, "an assignment");
         break;
+    case AST_EXPR_ADDRESS_OF:
     case AST_EXPR_CALL:
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
@@ -274,7 +274,10 @@ static void validate_address_of_operand(const struct AstExpression *expr)
         break;
     }
 
-    fail_with_error(expr->location, "the address-of operator '&' cannot be used with %s", what_is_it);
+    if (assignment)
+        fail_with_error(expr->location, "cannot assign to %s", what_is_it);
+    else
+        fail_with_error(expr->location, "the address-of operator '&' cannot be used with %s", what_is_it);
 }
 
 // arity = number of operands, e.g. 2 for a binary operator such as "+"
@@ -295,7 +298,11 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
     if (is_operator(t, "&")) {
         assert(arity == 1);
         result.kind = AST_EXPR_ADDRESS_OF;
-        validate_address_of_operand(&operands[0]);
+        validate_address_of_operand(&operands[0], false);
+    } else if (is_operator(t, "=")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_ASSIGN;
+        validate_address_of_operand(&operands[0], true);
     } else if (is_operator(t, "==")) {
         assert(arity == 2);
         result.kind = AST_EXPR_EQ;
@@ -385,9 +392,21 @@ static struct AstExpression parse_expression_with_comparisons(const struct Token
     return result;
 }
 
+static struct AstExpression parse_expression_with_assignments(const struct Token **tokens)
+{
+    // We can't use add_to_binop() because then x=y=z would parse as (x=y)=z, not x=(y=z).
+    struct AstExpression target = parse_expression_with_comparisons(tokens);
+    if (!is_operator(*tokens, "="))
+        return target;
+    validate_address_of_operand(&target, true);
+    const struct Token *t = (*tokens)++;
+    struct AstExpression value = parse_expression_with_assignments(tokens);  // this function
+    return build_operator_expression(t, 2, (struct AstExpression[]){ target, value });
+}
+
 static struct AstExpression parse_expression(const struct Token **tokens)
 {
-    return parse_expression_with_comparisons(tokens);
+    return parse_expression_with_assignments(tokens);
 }
 
 static void eat_newline(const struct Token **tokens)
@@ -397,57 +416,61 @@ static void eat_newline(const struct Token **tokens)
     ++*tokens;
 }
 
+static void validate_expression_statement(const struct AstExpression *expr)
+{
+    switch(expr->kind) {
+    case AST_EXPR_ADD:
+    case AST_EXPR_SUB:
+    case AST_EXPR_MUL:
+    case AST_EXPR_DIV:
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
+    case AST_EXPR_GET_VARIABLE:
+    case AST_EXPR_ADDRESS_OF:
+    case AST_EXPR_DEREFERENCE:
+    case AST_EXPR_CHAR_CONSTANT:
+    case AST_EXPR_INT_CONSTANT:
+    case AST_EXPR_STRING_CONSTANT:
+    case AST_EXPR_TRUE:
+    case AST_EXPR_FALSE:
+        fail_with_error(expr->location, "not a valid statement");
+        break;
+    case AST_EXPR_ASSIGN:
+    case AST_EXPR_CALL:
+        break;
+    }
+}
+
 static struct AstBody parse_body(const struct Token **tokens);
 
 static struct AstStatement parse_statement(const struct Token **tokens)
 {
     struct AstStatement result = { .location = (*tokens)->location };
-    switch((*tokens)->type) {
-    case TOKEN_NAME:
-        if (is_operator(&(*tokens)[1], "=")) {
-            result.kind = AST_STMT_SETVAR;
-            safe_strcpy(result.data.setvar.varname, (*tokens)->data.name);
-            *tokens += 2;
-            result.data.setvar.value = parse_expression(tokens);
-            eat_newline(tokens);
-            break;
-        } else if (is_operator(&(*tokens)[1], "(")) {
-            result.kind = AST_STMT_CALL;
-            result.data.call = parse_call(tokens);
-            eat_newline(tokens);
+    if ((*tokens)->type == TOKEN_KEYWORD && !strcmp((*tokens)->data.name, "return")) {
+        ++*tokens;
+        if ((*tokens)->type == TOKEN_NEWLINE) {
+            result.kind = AST_STMT_RETURN_WITHOUT_VALUE;
         } else {
-            goto not_a_statement;
+            result.kind = AST_STMT_RETURN_VALUE;
+            result.data.expression = parse_expression(tokens);
         }
-        break;
-
-    case TOKEN_KEYWORD:
-        if (!strcmp((*tokens)->data.name, "return")) {
-            ++*tokens;
-            if ((*tokens)->type == TOKEN_NEWLINE) {
-                result.kind = AST_STMT_RETURN_WITHOUT_VALUE;
-            } else {
-                result.kind = AST_STMT_RETURN_VALUE;
-                result.data.returnvalue = parse_expression(tokens);
-            }
-            eat_newline(tokens);
-        } else if (!strcmp((*tokens)->data.name, "if")) {
-            ++*tokens;
-            result.kind = AST_STMT_IF;
-            result.data.ifstatement.condition = parse_expression(tokens);
-            result.data.ifstatement.body = parse_body(tokens);
-        } else {
-            goto not_a_statement;
-        }
-        break;
-
-    default:
-        goto not_a_statement;
+        eat_newline(tokens);
+    } else if ((*tokens)->type == TOKEN_KEYWORD && !strcmp((*tokens)->data.name, "if")) {
+        ++*tokens;
+        result.kind = AST_STMT_IF;
+        result.data.ifstatement.condition = parse_expression(tokens);
+        result.data.ifstatement.body = parse_body(tokens);
+    } else {
+        result.kind = AST_STMT_EXPRESSION_STATEMENT;
+        result.data.expression = parse_expression(tokens);
+        validate_expression_statement(&result.data.expression);
+        eat_newline(tokens);
     }
-
     return result;
-
-not_a_statement:
-    fail_with_parse_error(*tokens, "a statement");
 }
 
 static struct AstBody parse_body(const struct Token **tokens)
