@@ -84,12 +84,13 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const struct A
 
 static LLVMValueRef make_a_string_constant(const struct State *st, const char *s)
 {
-    // https://stackoverflow.com/a/37906139
     LLVMValueRef array = LLVMConstString(s, strlen(s), false);
-    LLVMValueRef stack_space_ptr = LLVMBuildAlloca(st->builder, LLVMTypeOf(array), "string_data");
-    LLVMBuildStore(st->builder, array, stack_space_ptr);
+    LLVMValueRef global_var = LLVMAddGlobal(st->module, LLVMTypeOf(array), "string_literal");
+    LLVMSetLinkage(global_var, LLVMPrivateLinkage);
+    LLVMSetInitializer(global_var, array);  // This makes it a static global variable
+
     LLVMTypeRef string_type = LLVMPointerType(LLVMInt8Type(), 0);
-    return LLVMBuildBitCast(st->builder, stack_space_ptr, string_type, "string_ptr");
+    return LLVMBuildBitCast(st->builder, global_var, string_type, "string_ptr");
 }
 
 // forward-declare
