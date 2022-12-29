@@ -74,7 +74,7 @@ extern const struct Type unknownType;   // internal to compiler, not exposed in 
 // create_pointer_type(...) returns a type whose .data.valuetype must be free()d
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location);
 struct Type create_integer_type(int size_in_bits, bool is_signed);
-
+struct Type copy_type(const struct Type *t);
 bool is_integer_type(const struct Type *t);
 bool same_type(const struct Type *a, const struct Type *b);
 bool can_cast_implicitly(const struct Type *from, const struct Type *to);
@@ -171,7 +171,7 @@ struct AstStatement {
 struct AstFunctionDef {
     struct AstFunctionSignature signature;
     struct AstBody body;
-    struct Cfg *bodycfg;  // Initially NULL, created after parsing and fill_types
+    struct CfGraph *cfg;  // Initially NULL, created after parsing and fill_types
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -190,56 +190,55 @@ struct AstToplevelNode {
 
 
 // Control Flow Graph for each function.
-struct CfgVariable {
+// Struct names prefixed with Cf because Cfg looks too much like config to me.
+struct CfVariable {
     char name[100];  // Empty for intermediate values that aren't assigned to a variable in AST.
     struct Type type;
 };
 
-struct CfgOperation {
-    enum CfgOperationKind {
-        CFG_INT_CONSTANT,
-        CFG_CHAR_CONSTANT,
-        CFG_STRING_CONSTANT,
-        CFG_TRUE,
-        CFG_FALSE,
-        CFG_CALL,
-        CFG_ADDRESS_OF_VARIABLE,
-        CFG_DEREFERENCE,
-        CFG_INT_ADD,
-        CFG_INT_SUB,
-        CFG_INT_MUL,
-        CFG_INT_SDIV, // signed division, example with 8 bits: 255 / 2 = (-1) / 2 = 0
-        CFG_INT_UDIV, // unsigned division: 255 / 2 = 127
-        CFG_INT_EQ,
-        CFG_INT_LT,
-        CFG_VARCPY, // similar to assignment statements: var1 = var2
-        CFG_CAST,
+struct CfInstruction {
+    enum CfInstructionKind {
+        CF_INT_CONSTANT,
+        CF_CHAR_CONSTANT,
+        CF_STRING_CONSTANT,
+        CF_TRUE,
+        CF_FALSE,
+        CF_CALL,
+        CF_ADDRESS_OF_VARIABLE,
+        CF_DEREFERENCE,
+        CF_INT_ADD,
+        CF_INT_SUB,
+        CF_INT_MUL,
+        CF_INT_SDIV, // signed division, example with 8 bits: 255 / 2 = (-1) / 2 = 0
+        CF_INT_UDIV, // unsigned division: 255 / 2 = 127
+        CF_INT_EQ,
+        CF_INT_LT,
+        CF_VARCPY, // similar to assignment statements: var1 = var2
+        CF_CAST,
     } kind;
     union {
-        int int_value;          // CFG_INT_CONSTANT
-        char char_value;        // CFG_CHAR_CONSTANT
-        char *string_value;     // CFG_STRING_CONSTANT
-        struct CfgVariable *operands[2];  // e.g. numbers to add
-        struct { struct AstFunctionSignature sig; struct CfgVariable **args; int nargs; } call; // CFG_CALL
+        int int_value;          // CF_INT_CONSTANT
+        char char_value;        // CF_CHAR_CONSTANT
+        char *string_value;     // CF_STRING_CONSTANT
+        struct CfVariable *operands[2];  // e.g. numbers to add
+        struct { char funcname[100]; struct CfVariable **args; int nargs; } call; // CF_CALL
     } data;
-    const struct CfgVariable **args;
-    const struct CfgVariable *result;  // NULL when it doesn't make sense, e.g. functions that return void
+    const struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
 };
 
-struct CfgBasicBlock {
-    struct CfgOperation *operations;
-    int noperations;
-    struct CfgVariable *branchvar;  // boolean value used to decide where to jump next
-    struct CfgBasicBlock *iftrue;
-    struct CfgBasicBlock *iffalse;
+struct CfBlock {
+    List(struct CfInstruction) instructions;
+    struct CfVariable *branchvar;  // boolean value used to decide where to jump next
+    struct CfBlock *iftrue;
+    struct CfBlock *iffalse;
 };
 
-struct Cfg {
-    struct CfgBasicBlock start;  // First block
-    struct CfgBasicBlock end;  // 
-    // First n local variables are the function arguments.
-    struct CfgVariable *locals;
-    int nlocals;
+struct CfGraph {
+    struct CfBlock start_block;  // First block
+    struct CfBlock end_block;  // Return statement
+    // First n variables are the function arguments.
+    struct CfVariable *vars;
+    int nvars;
 };
 
 
@@ -253,6 +252,7 @@ entire compilation. It is used in error messages.
 struct Token *tokenize(const char *filename);
 struct AstToplevelNode *parse(const struct Token *tokens);
 void fill_types(struct AstToplevelNode *ast);
+void build_control_flow_graphs(struct AstToplevelNode *ast);
 LLVMModuleRef codegen(const struct AstToplevelNode *ast);
 
 /*

@@ -37,6 +37,24 @@ struct Type create_integer_type(int size_in_bits, bool is_signed)
     return t;
 }
 
+struct Type copy_type(const struct Type *t)
+{
+    switch(t->kind) {
+    case TYPE_SIGNED_INTEGER:
+    case TYPE_UNSIGNED_INTEGER:
+    case TYPE_UNKNOWN:
+    case TYPE_BOOL:
+        return *t;
+    case TYPE_POINTER:
+        {
+            struct Type t2 = *t;
+            t2.data.valuetype = malloc(sizeof(*t2.data.valuetype));
+            *t2.data.valuetype = copy_type(t->data.valuetype);
+            return t2;
+        }
+    }
+}
+
 bool is_integer_type(const struct Type *t)
 {
     return (t->kind == TYPE_SIGNED_INTEGER || t->kind == TYPE_UNSIGNED_INTEGER);
