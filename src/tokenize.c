@@ -208,10 +208,10 @@ static char *read_string(struct State *st, char quote, int *len)
             case '\0':
                 goto missing_end_quote;
             default:
-                //if ((unsigned char)after_backslash < 0x80 && isprint(after_backslash))
+                if ((unsigned char)after_backslash < 0x80 && isprint(after_backslash))
                     fail_with_error(st->location, "unknown escape: '\\%c'", after_backslash);
-                //else
-                  //  fail_with_error(st->location, "unknown '\\' escape");
+                else
+                    fail_with_error(st->location, "unknown '\\' escape");
             }
             break;
         default:
