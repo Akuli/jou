@@ -258,6 +258,8 @@ static enum TokenType read_operator(struct State *st)
         { "==", TOKEN_EQ },
         { "!=", TOKEN_NE },
         { "->", TOKEN_ARROW },
+        { "<=", TOKEN_LE },
+        { ">=", TOKEN_GE },
         // Length 1
         { ".", TOKEN_DOT },
         { ",", TOKEN_COMMA },
@@ -270,6 +272,8 @@ static enum TokenType read_operator(struct State *st)
         { "/", TOKEN_SLASH },
         { "+", TOKEN_PLUS },
         { "-", TOKEN_MINUS },
+        { "<", TOKEN_LT },
+        { ">", TOKEN_GT },
         { NULL, 0 },
     };
 

@@ -40,6 +40,10 @@ struct Token {
         TOKEN_EQUAL_SIGN,   // a single '=' character, actually used for assignments
         TOKEN_EQ,           // '=='
         TOKEN_NE,
+        TOKEN_GT,
+        TOKEN_GE,
+        TOKEN_LT,
+        TOKEN_LE,
     } type;
     struct Location location;
     union {
@@ -122,6 +126,12 @@ struct AstExpression {
         AST_EXPR_DIV,
         AST_EXPR_EQ,
         AST_EXPR_NE,
+        // We need all of gt,ge,lt,le (>,>=,<,<=) because a<b and b>a do different
+        // things: a<b evaluates a first, but b>a evaluates b first.
+        AST_EXPR_GT,
+        AST_EXPR_GE,
+        AST_EXPR_LT,
+        AST_EXPR_LE,
     } kind;
     union {
         int int_value;          // AST_EXPR_INT_CONSTANT

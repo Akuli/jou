@@ -77,6 +77,10 @@ void print_token(const struct Token *token)
     case TOKEN_DOTDOTDOT: printf("'...'\n"); break;
     case TOKEN_EQ: printf("'=='\n"); break;
     case TOKEN_NE: printf("'!='\n"); break;
+    case TOKEN_GT: printf("'>'"); break;
+    case TOKEN_GE: printf("'>='"); break;
+    case TOKEN_LT: printf("'<'"); break;
+    case TOKEN_LE: printf("'<='"); break;
     }
 }
 
@@ -158,6 +162,26 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         break;
     case AST_EXPR_NE:
         printf("Check if not equal.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
+        break;
+    case AST_EXPR_GT:
+        printf("Check if greater.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
+        break;
+    case AST_EXPR_GE:
+        printf("Check if greater or equal.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
+        break;
+    case AST_EXPR_LT:
+        printf("Check if less.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
+        break;
+    case AST_EXPR_LE:
+        printf("Check if less or equal.\n");
         print_ast_expression(&expr->data.operands[0], indent+2);
         print_ast_expression(&expr->data.operands[1], indent+2);
         break;

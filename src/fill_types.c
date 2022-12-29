@@ -137,6 +137,10 @@ static struct Type get_type_for_binop(
 
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
         do_what = "compare";
         break;
 
@@ -166,6 +170,10 @@ static struct Type get_type_for_binop(
 
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
         if (!is_integer_type(lhstype) || !is_integer_type(rhstype))
             fail_with_error(error_location, "wrong types: cannot compare %s and %s for equality", lhstype->name, rhstype->name);
         *lhstype = cast_type;
@@ -240,6 +248,10 @@ static void fill_types_expression(
         case AST_EXPR_DIV:
         case AST_EXPR_EQ:
         case AST_EXPR_NE:
+        case AST_EXPR_GT:
+        case AST_EXPR_GE:
+        case AST_EXPR_LT:
+        case AST_EXPR_LE:
             fill_types_expression(st, &expr->data.operands[0], NULL, NULL);
             fill_types_expression(st, &expr->data.operands[1], NULL, NULL);
             expr->type_before_implicit_cast = get_type_for_binop(

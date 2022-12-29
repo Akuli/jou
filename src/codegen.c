@@ -144,25 +144,30 @@ static LLVMValueRef codegen_expression(const struct State *st, const struct AstE
     case AST_EXPR_DIV:
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
         {
             // careful with C's evaluation order........
             LLVMValueRef lhs = codegen_expression(st, &expr->data.operands[0]);
             LLVMValueRef rhs = codegen_expression(st, &expr->data.operands[1]);
+            assert(same_type(
+                &expr->data.operands[0].type_after_implicit_cast,
+                &expr->data.operands[1].type_after_implicit_cast));
+            bool is_signed = expr->data.operands[0].type_after_implicit_cast.kind == TYPE_SIGNED_INTEGER;
+
             switch(expr->kind) {
                 case AST_EXPR_ADD: result = LLVMBuildAdd(st->builder, lhs, rhs, "add"); break;
                 case AST_EXPR_SUB: result = LLVMBuildSub(st->builder, lhs, rhs, "sub"); break;
                 case AST_EXPR_MUL: result = LLVMBuildMul(st->builder, lhs, rhs, "mul"); break;
-                case AST_EXPR_DIV:
-                    assert(same_type(
-                        &expr->data.operands[0].type_after_implicit_cast,
-                        &expr->data.operands[1].type_after_implicit_cast));
-                    if (expr->data.operands[0].type_after_implicit_cast.kind == TYPE_SIGNED_INTEGER)
-                        result = LLVMBuildSDiv(st->builder, lhs, rhs, "div");
-                    else
-                        result = LLVMBuildUDiv(st->builder, lhs, rhs, "div");
-                    break;
+                case AST_EXPR_DIV: result = (is_signed ? LLVMBuildSDiv : LLVMBuildUDiv)(st->builder, lhs, rhs, "div"); break;
                 case AST_EXPR_EQ: result = LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "eq"); break;
                 case AST_EXPR_NE: result = LLVMBuildICmp(st->builder, LLVMIntNE, lhs, rhs, "ne"); break;
+                case AST_EXPR_LT: result = LLVMBuildICmp(st->builder, is_signed ? LLVMIntSLT : LLVMIntULT, lhs, rhs, "lt"); break;
+                case AST_EXPR_LE: result = LLVMBuildICmp(st->builder, is_signed ? LLVMIntSLE : LLVMIntULE, lhs, rhs, "le"); break;
+                case AST_EXPR_GT: result = LLVMBuildICmp(st->builder, is_signed ? LLVMIntSGT : LLVMIntUGT, lhs, rhs, "gt"); break;
+                case AST_EXPR_GE: result = LLVMBuildICmp(st->builder, is_signed ? LLVMIntSGE : LLVMIntUGE, lhs, rhs, "ge"); break;
                 default: assert(0);
             }
         }

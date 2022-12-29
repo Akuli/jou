@@ -21,6 +21,10 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_EQUAL_SIGN: strcpy(got, "'='"); break;
         case TOKEN_EQ: strcpy(got, "'=='"); break;
         case TOKEN_NE: strcpy(got, "'!='"); break;
+        case TOKEN_LT: strcpy(got, "'<'"); break;
+        case TOKEN_LE: strcpy(got, "'<='"); break;
+        case TOKEN_GT: strcpy(got, "'>'"); break;
+        case TOKEN_GE: strcpy(got, "'>='"); break;
         case TOKEN_ARROW: strcpy(got, "'->'"); break;
         case TOKEN_PLUS: strcpy(got, "'+'"); break;
         case TOKEN_MINUS: strcpy(got, "'-'"); break;
@@ -270,6 +274,10 @@ static void validate_address_of_operand(const struct AstExpression *expr)
     case AST_EXPR_DIV:
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
         strcpy(what_is_it, "a newly calculated value");
         break;
     }
@@ -305,6 +313,22 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
         case TOKEN_NE:
             assert(arity == 2);
             result.kind = AST_EXPR_NE;
+            break;
+        case TOKEN_GT:
+            assert(arity == 2);
+            result.kind = AST_EXPR_GT;
+            break;
+        case TOKEN_GE:
+            assert(arity == 2);
+            result.kind = AST_EXPR_GE;
+            break;
+        case TOKEN_LT:
+            assert(arity == 2);
+            result.kind = AST_EXPR_LT;
+            break;
+        case TOKEN_LE:
+            assert(arity == 2);
+            result.kind = AST_EXPR_LE;
             break;
         case TOKEN_PLUS:
             assert(arity == 2);
@@ -371,8 +395,7 @@ static struct AstExpression parse_expression_with_add(const struct Token **token
 static struct AstExpression parse_expression_with_comparisons(const struct Token **tokens)
 {
     struct AstExpression result = parse_expression_with_add(tokens);
-//#define IsComparator(x) ((x)==TOKEN_LT || (x)==TOKEN_GT || (x)==TOKEN_LE || (x)==TOKEN_GE || (x)==TOKEN_EQ || (x)==TOKEN_NE)
-#define IsComparator(x) ((x)==TOKEN_EQ || (x)==TOKEN_NE)
+#define IsComparator(x) ((x)==TOKEN_LT || (x)==TOKEN_GT || (x)==TOKEN_LE || (x)==TOKEN_GE || (x)==TOKEN_EQ || (x)==TOKEN_NE)
     if (IsComparator((*tokens)->type))
         add_to_binop(tokens, &result, parse_expression_with_add);
     if (IsComparator((*tokens)->type))
