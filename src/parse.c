@@ -74,14 +74,13 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     List(struct Type) argtypes = {0};
 
     while (!is_operator(*tokens, ")")) {
+        if (result.takes_varargs)
+            fail_with_error((*tokens)->location, "if '...' is used, it must be the last parameter");
+
         if (is_operator(*tokens, "...")) {
             result.takes_varargs = true;
             ++*tokens;
         } else {
-            // FIXME: this allows "foo(..., ...)" ?
-            if (result.takes_varargs)
-                fail_with_error((*tokens)->location, "if '...' is used, it must be the last parameter");
-
             if ((*tokens)->type != TOKEN_NAME)
                 fail_with_parse_error(*tokens, "an argument name");
 
