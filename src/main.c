@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "jou_compiler.h"
+#include <llvm-c/Analysis.h>
 
 // TODO: test invalid ways to pass arguments, passing non-existent file, etc
 int main(int argc, char **argv)
@@ -39,6 +40,9 @@ int main(int argc, char **argv)
     free_ast(ast);
     if(verbose)
         print_llvm_ir(module);
+
+    // TODO: currently this doesn't work
+    //LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
 
     // TODO: this is a ridiculous way to run the IR, figure out something better
     FILE *f = fopen("/tmp/jou-temp.bc", "wb");
