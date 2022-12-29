@@ -53,6 +53,7 @@ struct Type copy_type(const struct Type *t)
             return t2;
         }
     }
+    assert(0);
 }
 
 bool is_integer_type(const struct Type *t)

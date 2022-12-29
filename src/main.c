@@ -36,6 +36,10 @@ int main(int argc, char **argv)
     if(verbose)
         print_ast(ast);
 
+    build_control_flow_graphs(ast);
+    if(verbose)
+        print_ast(ast);
+
     LLVMModuleRef module = codegen(ast);
     free_ast(ast);
     if(verbose)

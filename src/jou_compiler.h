@@ -171,7 +171,14 @@ struct AstStatement {
 struct AstFunctionDef {
     struct AstFunctionSignature signature;
     struct AstBody body;
-    struct CfGraph *cfg;  // Initially NULL, created after parsing and fill_types
+
+    // Local variables are added during fill_types.
+    // First n local variables are the function arguments.
+    // End of list is denoted with empty name.
+    struct AstLocalVariable { char name[100]; struct Type type; } *locals;
+
+    // Initially NULL. Created in a separate compilation step after parsing and fill_types.
+    struct CfGraph *cfg;
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -189,56 +196,23 @@ struct AstToplevelNode {
 };
 
 
-// Control Flow Graph for each function.
-// Struct names prefixed with Cf because Cfg looks too much like config to me.
-struct CfVariable {
-    char name[100];  // Empty for intermediate values that aren't assigned to a variable in AST.
-    struct Type type;
-};
-
-struct CfInstruction {
-    enum CfInstructionKind {
-        CF_INT_CONSTANT,
-        CF_CHAR_CONSTANT,
-        CF_STRING_CONSTANT,
-        CF_TRUE,
-        CF_FALSE,
-        CF_CALL,
-        CF_ADDRESS_OF_VARIABLE,
-        CF_DEREFERENCE,
-        CF_INT_ADD,
-        CF_INT_SUB,
-        CF_INT_MUL,
-        CF_INT_SDIV, // signed division, example with 8 bits: 255 / 2 = (-1) / 2 = 0
-        CF_INT_UDIV, // unsigned division: 255 / 2 = 127
-        CF_INT_EQ,
-        CF_INT_LT,
-        CF_VARCPY, // similar to assignment statements: var1 = var2
-        CF_CAST,
-    } kind;
-    union {
-        int int_value;          // CF_INT_CONSTANT
-        char char_value;        // CF_CHAR_CONSTANT
-        char *string_value;     // CF_STRING_CONSTANT
-        struct CfVariable *operands[2];  // e.g. numbers to add
-        struct { char funcname[100]; struct CfVariable **args; int nargs; } call; // CF_CALL
-    } data;
-    const struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
-};
-
 struct CfBlock {
-    List(struct CfInstruction) instructions;
-    struct CfVariable *branchvar;  // boolean value used to decide where to jump next
+    List(struct AstExpression) expressions;
+    /*
+    Last expression in the expressions list should evaluate to a boolean value.
+    It will be used to decide whether to jump to iftrue or iffalse.
+
+    If iftrue and iffalse point at the same block, the value of the last expression
+    is not used, and it doesn't even have to be a boolean.
+    */
     struct CfBlock *iftrue;
     struct CfBlock *iffalse;
+    bool last_expression_is_return_value;
 };
 
 struct CfGraph {
     struct CfBlock start_block;  // First block
     struct CfBlock end_block;  // Return statement
-    // First n variables are the function arguments.
-    struct CfVariable *vars;
-    int nvars;
 };
 
 

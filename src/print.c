@@ -244,7 +244,7 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
             break;
         case AST_STMT_IF:
             printf("If statement\n");
-            printf("%*s  Condition:\n", indent*2, "");
+            printf("%*s  Condition:\n", indent, "");
             print_ast_expression(&stmt->data.ifstatement.condition, indent+4);
             print_ast_body(&stmt->data.ifstatement.body, indent+2);
             break;
@@ -256,6 +256,73 @@ static void print_ast_body(const struct AstBody *body, int indent)
     printf("%*sBody:\n", indent, "");
     for (int i = 0; i < body->nstatements; i++)
         print_ast_statement(&body->statements[i], indent+2);
+}
+
+static void print_cf_graph(const struct CfGraph *cfg, int indent)
+{
+    if (!cfg) {
+        printf("%*sControl Flow Graph = NULL\n", indent, "");
+        return;
+    }
+
+    List(const struct CfBlock *) visited = {0};
+    List(const struct CfBlock *) to_visit = {0};
+    Append(&to_visit, &cfg->start_block);
+
+    while (to_visit.len > 0) {
+        const struct CfBlock *block = Pop(&to_visit);
+        assert(block);
+
+        bool already_visited = false;
+        for (const struct CfBlock **b = visited.ptr; b < End(visited); b++) {
+            if (*b == block){
+                already_visited = true;
+                break;
+            }
+        }
+        if (!already_visited && block != &cfg->end_block) {
+            Append(&visited, block);
+            Append(&to_visit, block->iftrue);
+            Append(&to_visit, block->iffalse);
+        }
+    }
+
+    Append(&visited, &cfg->end_block);
+
+    printf("%*sControl Flow Graph:\n", indent, "");
+    for (const struct CfBlock **b = visited.ptr; b < End(visited); b++) {
+        printf("%*s  Block %d", indent, "", (int)(b - visited.ptr));
+        if (*b == &cfg->start_block)
+            printf(" (start block)");
+        if (*b == &cfg->end_block) {
+            assert((*b)->expressions.len == 0);
+            printf(" is the end block.\n");
+            continue;
+        }
+        printf(":\n");
+        for (struct AstExpression *e = (*b)->expressions.ptr; e < End((*b)->expressions); e++)
+            print_ast_expression(e, indent+4);
+
+        if (*b == &cfg->end_block) {
+            assert((*b)->iftrue == NULL);
+            assert((*b)->iffalse == NULL);
+        } else {
+            int trueidx=-1, falseidx=-1;
+            for (int i = 0; i < visited.len; i++) {
+                if (visited.ptr[i]==(*b)->iftrue) trueidx=i;
+                if (visited.ptr[i]==(*b)->iffalse) falseidx=i;
+            }
+            assert(trueidx!=-1);
+            assert(falseidx!=-1);
+            if (trueidx==falseidx)
+                printf("%*s    Jump to block %d.\n", indent, "", trueidx);
+            else
+                printf("%*s    If last value is True jump to block %d, otherwise block %d.\n", indent, "", trueidx, falseidx);
+        }
+    }
+
+    free(visited.ptr);
+    free(to_visit.ptr);
 }
 
 void print_ast(const struct AstToplevelNode *topnodelist)
@@ -276,6 +343,7 @@ void print_ast(const struct AstToplevelNode *topnodelist)
                 for (struct AstLocalVariable *var = topnodelist->data.funcdef.locals; var && var->name[0]; var++)
                     printf("  Type of local variable \"%s\" is %s.\n", var->name, var->type.name);
                 print_ast_body(&topnodelist->data.funcdef.body, 2);
+                print_cf_graph(topnodelist->data.funcdef.cfg, 2);
                 break;
             case AST_TOPLEVEL_END_OF_FILE:
                 printf("End of file.\n");
