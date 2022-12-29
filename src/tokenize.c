@@ -255,6 +255,7 @@ static const char *read_operator(struct State *st)
         "...", "===", "!==",
         "==", "!=", "->", "<=", ">=",
         ".", ",", ":", "=", "(", ")", "&", "*", "/", "+", "-", "<", ">",
+        NULL,
     };
 
     char operator[4] = {0};
