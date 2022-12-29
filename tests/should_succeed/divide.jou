@@ -1,0 +1,30 @@
+cdecl printf(format: byte*, ...) -> int
+
+def side_effect(n: int) -> int:
+    printf("%d ", n)
+    return n
+
+def main() -> int:
+    printf("%d\n", 7/2)    # Output: 3
+    printf("%d\n", 4/2*3)    # Output: 6
+    printf("%d\n", (4/2)*3)    # Output: 6
+    printf("%d\n", 4/(2*3))    # Output: 0
+
+    # TODO: better way to get the 0xFF and 0x02 bytes
+    two = 'C'-'A'
+    ff = 'A'-'B'
+
+    # Dividing bytes is unsigned 8-bit division.
+    # With signed division, 8-bit 255/2 would be (-1)/2 which truncates to 0.
+    printf("%d / %d = %d\n", ff, two, ff/two)  # Output: 255 / 2 = 127
+
+    # Dividing ints is signed 32-bit division.
+    printf("%d / %d = %d\n", 7, 2, 7/2)             # Output: 7 / 2 = -3
+    printf("%d / %d = %d\n", 0-7, 2, (0-7)/2)       # Output: -7 / 2 = -3
+    printf("%d / %d = %d\n", 7, 0-2, 7/(0-2))       # Output: 7 / -2 = -3
+    printf("%d / %d = %d\n", 0-7, 0-2, (0-7)/(0-2)) # Output: 7 / 2 = -3
+
+    # Output: 6 3 2 1
+    x = side_effect(6)/side_effect(3)/side_effect(2)
+    printf("%d\n", x)
+    return 0

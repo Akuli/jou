@@ -133,6 +133,7 @@ static struct Type get_type_for_binop(
     case AST_EXPR_ADD: do_what = "add"; break;
     case AST_EXPR_SUB: do_what = "subtract"; break;
     case AST_EXPR_MUL: do_what = "multiply"; break;
+    case AST_EXPR_DIV: do_what = "divide"; break;
 
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
@@ -156,6 +157,7 @@ static struct Type get_type_for_binop(
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
+    case AST_EXPR_DIV:
         if (!is_integer_type(lhstype) || !is_integer_type(rhstype))
             fail_with_error(error_location, "wrong types: cannot %s %s and %s", do_what, lhstype->name, rhstype->name);
         *lhstype = cast_type;
@@ -235,6 +237,7 @@ static void fill_types_expression(
         case AST_EXPR_ADD:
         case AST_EXPR_SUB:
         case AST_EXPR_MUL:
+        case AST_EXPR_DIV:
         case AST_EXPR_EQ:
         case AST_EXPR_NE:
             fill_types_expression(st, &expr->data.operands[0], NULL, NULL);

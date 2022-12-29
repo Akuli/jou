@@ -25,6 +25,7 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_PLUS: strcpy(got, "'+'"); break;
         case TOKEN_MINUS: strcpy(got, "'-'"); break;
         case TOKEN_STAR: strcpy(got, "'*'"); break;
+        case TOKEN_SLASH: strcpy(got, "'/'"); break;
         case TOKEN_AMP: strcpy(got, "'&'"); break;
         case TOKEN_DOT: strcpy(got, "'.'"); break;
         case TOKEN_DOTDOTDOT: strcpy(got, "'...'"); break;
@@ -266,6 +267,7 @@ static void validate_address_of_operand(const struct AstExpression *expr)
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
+    case AST_EXPR_DIV:
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
         strcpy(what_is_it, "a newly calculated value");
@@ -315,6 +317,10 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
         case TOKEN_STAR:
             result.kind = arity==2 ? AST_EXPR_MUL : AST_EXPR_DEREFERENCE;
             break;
+        case TOKEN_SLASH:
+            assert(arity == 2);
+            result.kind = AST_EXPR_DIV;
+            break;
         default: assert(0);
     }
 
@@ -346,19 +352,19 @@ static void add_to_binop(
     *result = build_operator_expression(t, 2, (struct AstExpression[]){*result, rhs});
 }
 
-static struct AstExpression parse_expression_with_mul(const struct Token **tokens)
+static struct AstExpression parse_expression_with_mul_and_div(const struct Token **tokens)
 {
     struct AstExpression result = parse_expression_with_addressof_and_dereference(tokens);
-    while((*tokens)->type == TOKEN_STAR)
+    while((*tokens)->type == TOKEN_STAR || (*tokens)->type == TOKEN_SLASH)
         add_to_binop(tokens, &result, parse_expression_with_addressof_and_dereference);
     return result;
 }
 
 static struct AstExpression parse_expression_with_add(const struct Token **tokens)
 {
-    struct AstExpression result = parse_expression_with_mul(tokens);
+    struct AstExpression result = parse_expression_with_mul_and_div(tokens);
     while((*tokens)->type == TOKEN_PLUS || (*tokens)->type == TOKEN_MINUS)
-        add_to_binop(tokens, &result, parse_expression_with_mul);
+        add_to_binop(tokens, &result, parse_expression_with_mul_and_div);
     return result;
 }
 

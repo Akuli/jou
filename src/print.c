@@ -72,6 +72,7 @@ void print_token(const struct Token *token)
     case TOKEN_PLUS: printf("'+'\n"); break;
     case TOKEN_MINUS: printf("'-'\n"); break;
     case TOKEN_STAR: printf("'*'\n"); break;
+    case TOKEN_SLASH: printf("'/'\n"); break;
     case TOKEN_DOT: printf("'.'\n"); break;
     case TOKEN_DOTDOTDOT: printf("'...'\n"); break;
     case TOKEN_EQ: printf("'=='\n"); break;
@@ -172,6 +173,11 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         break;
     case AST_EXPR_MUL:
         printf("Multiply numbers.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
+        break;
+    case AST_EXPR_DIV:
+        printf("Divide numbers.\n");
         print_ast_expression(&expr->data.operands[0], indent+2);
         print_ast_expression(&expr->data.operands[1], indent+2);
         break;

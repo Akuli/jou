@@ -35,6 +35,7 @@ struct Token {
         TOKEN_PLUS,
         TOKEN_MINUS,
         TOKEN_STAR,
+        TOKEN_SLASH,
         TOKEN_AMP,
         TOKEN_EQUAL_SIGN,   // a single '=' character, actually used for assignments
         TOKEN_EQ,           // '=='
@@ -118,6 +119,7 @@ struct AstExpression {
         AST_EXPR_ADD,
         AST_EXPR_SUB,
         AST_EXPR_MUL,
+        AST_EXPR_DIV,
         AST_EXPR_EQ,
         AST_EXPR_NE,
     } kind;

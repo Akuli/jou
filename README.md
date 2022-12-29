@@ -147,6 +147,8 @@ This isn't done for tests that are supposed to fail with a compiler error, for a
     and `make test` would take several minutes if they weren't skipped.
 - Most problems in error message code are spotted by non-valgrinded tests.
 
+There should be a test case (or a TODO comment about adding a test case) for every compiler error.
+
 Sometimes (very rarely) the fuzzer discovers a bug that hasn't been caught with tests:
 
 ```
