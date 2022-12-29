@@ -147,10 +147,6 @@ This isn't done for tests that are supposed to fail with a compiler error, for a
     and `make test` would take several minutes if they weren't skipped.
 - Most problems in error message code are spotted by non-valgrinded tests.
 
-Files in `tests/broken/` are not tested,
-because for one reason or another they don't work as intended.
-Ideally the `tests/broken/` directory would be empty most of the time.
-
 Sometimes (very rarely) the fuzzer discovers a bug that hasn't been caught with tests:
 
 ```

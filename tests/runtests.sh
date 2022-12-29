@@ -41,9 +41,6 @@ function generate_expected_output()
 
 for joufile in examples/*.jou tests/*/*.jou; do
     case $joufile in
-        */broken/*)
-            continue
-            ;;
         examples/* | tests/should_succeed/*)
             correct_exit_code=0
             ;;
