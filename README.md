@@ -78,12 +78,12 @@ Hello World
 
 ## Getting started with developing
 
-The compiler is currently written in C.
-At a high level, the compilation steps are:
+The compiler is currently written in C. At a high level, the compilation steps are:
 - Tokenize: split the source code into tokens
 - Parse: build an Abstract Syntax Tree from the tokens
 - Fill types: find the types of all expressions and put them to AST
-- Codegen: convert the AST into LLVM IR
+- Build CFG: build a Control Flow Graph from the AST
+- Codegen: convert the CFG into LLVM IR
 - Invoke `clang` and pass it the generated LLVM IR
 
 To get a good idea of how these steps work,

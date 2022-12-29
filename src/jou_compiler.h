@@ -171,11 +171,7 @@ struct AstStatement {
 struct AstFunctionDef {
     struct AstFunctionSignature signature;
     struct AstBody body;
-
-    // Local variables are added during fill_types.
-    // First n local variables are the function arguments.
-    // End of list is denoted with empty name.
-    struct AstLocalVariable { char name[100]; struct Type type; } *locals;
+    struct Cfg *bodycfg;  // Initially NULL, created after parsing and fill_types
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -190,6 +186,60 @@ struct AstToplevelNode {
         struct AstFunctionSignature decl_signature;  // for AST_TOPLEVEL_CDECL_FUNCTION
         struct AstFunctionDef funcdef;  // for AST_TOPLEVEL_DEFINE_FUNCTION
     } data;
+};
+
+
+// Control Flow Graph for each function.
+struct CfgVariable {
+    char name[100];  // Empty for intermediate values that aren't assigned to a variable in AST.
+    struct Type type;
+};
+
+struct CfgOperation {
+    enum CfgOperationKind {
+        CFG_INT_CONSTANT,
+        CFG_CHAR_CONSTANT,
+        CFG_STRING_CONSTANT,
+        CFG_TRUE,
+        CFG_FALSE,
+        CFG_CALL,
+        CFG_ADDRESS_OF_VARIABLE,
+        CFG_DEREFERENCE,
+        CFG_INT_ADD,
+        CFG_INT_SUB,
+        CFG_INT_MUL,
+        CFG_INT_SDIV, // signed division, example with 8 bits: 255 / 2 = (-1) / 2 = 0
+        CFG_INT_UDIV, // unsigned division: 255 / 2 = 127
+        CFG_INT_EQ,
+        CFG_INT_LT,
+        CFG_VARCPY, // similar to assignment statements: var1 = var2
+        CFG_CAST,
+    } kind;
+    union {
+        int int_value;          // CFG_INT_CONSTANT
+        char char_value;        // CFG_CHAR_CONSTANT
+        char *string_value;     // CFG_STRING_CONSTANT
+        struct CfgVariable *operands[2];  // e.g. numbers to add
+        struct { struct AstFunctionSignature sig; struct CfgVariable **args; int nargs; } call; // CFG_CALL
+    } data;
+    const struct CfgVariable **args;
+    const struct CfgVariable *result;  // NULL when it doesn't make sense, e.g. functions that return void
+};
+
+struct CfgBasicBlock {
+    struct CfgOperation *operations;
+    int noperations;
+    struct CfgVariable *branchvar;  // boolean value used to decide where to jump next
+    struct CfgBasicBlock *iftrue;
+    struct CfgBasicBlock *iffalse;
+};
+
+struct Cfg {
+    struct CfgBasicBlock start;  // First block
+    struct CfgBasicBlock end;  // 
+    // First n local variables are the function arguments.
+    struct CfgVariable *locals;
+    int nlocals;
 };
 
 
