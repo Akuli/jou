@@ -86,8 +86,8 @@ static LLVMValueRef make_a_string_constant(const struct State *st, const char *s
 {
     LLVMValueRef array = LLVMConstString(s, strlen(s), false);
     LLVMValueRef global_var = LLVMAddGlobal(st->module, LLVMTypeOf(array), "string_literal");
-    LLVMSetLinkage(global_var, LLVMPrivateLinkage);
-    LLVMSetInitializer(global_var, array);  // This makes it a static global variable
+    LLVMSetLinkage(global_var, LLVMPrivateLinkage);  // This makes it a static global variable
+    LLVMSetInitializer(global_var, array);
 
     LLVMTypeRef string_type = LLVMPointerType(LLVMInt8Type(), 0);
     return LLVMBuildBitCast(st->builder, global_var, string_type, "string_ptr");
