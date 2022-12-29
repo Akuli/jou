@@ -1,5 +1,7 @@
 #!/bin/bash
-set -e
+set -e -o pipefail
+
+which shuf head rev
 
 make
 rm -rf tmp/fuzzer
