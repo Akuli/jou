@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -e -o pipefail
 
 make
 rm -rf tmp/fuzzer
@@ -14,8 +14,8 @@ while [ $(date +%s) -lt $end ]; do
     #   - Random bytes to find bugs in tokenizer
     #   - Mixed up Jou code and C code to find bugs in parser
     head -c 1000 /dev/urandom               > tmp/fuzzer/input1.jou
-    cat tests/*/*.jou | shuf | head         > tmp/fuzzer/input2.jou
-    cat tests/*/*.jou | shuf | head | rev   > tmp/fuzzer/input3.jou
+    cat tests/*/*.jou | shuf -n 10          > tmp/fuzzer/input2.jou
+    cat tests/*/*.jou | shuf -n 10 | rev    > tmp/fuzzer/input3.jou
 
     for file in tmp/fuzzer/input*.jou; do
         # The "sh" shell prints "Segmentation fault" to stderr when that happens.
