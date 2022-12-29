@@ -14,25 +14,7 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_INT: strcpy(got, "an integer"); break;
         case TOKEN_CHAR: strcpy(got, "a character"); break;
         case TOKEN_STRING: strcpy(got, "a string"); break;
-        case TOKEN_OPENPAREN: strcpy(got, "'('"); break;
-        case TOKEN_CLOSEPAREN: strcpy(got, "')'"); break;
-        case TOKEN_COLON: strcpy(got, "':'"); break;
-        case TOKEN_COMMA: strcpy(got, "','"); break;
-        case TOKEN_EQUAL_SIGN: strcpy(got, "'='"); break;
-        case TOKEN_EQ: strcpy(got, "'=='"); break;
-        case TOKEN_NE: strcpy(got, "'!='"); break;
-        case TOKEN_LT: strcpy(got, "'<'"); break;
-        case TOKEN_LE: strcpy(got, "'<='"); break;
-        case TOKEN_GT: strcpy(got, "'>'"); break;
-        case TOKEN_GE: strcpy(got, "'>='"); break;
-        case TOKEN_ARROW: strcpy(got, "'->'"); break;
-        case TOKEN_PLUS: strcpy(got, "'+'"); break;
-        case TOKEN_MINUS: strcpy(got, "'-'"); break;
-        case TOKEN_STAR: strcpy(got, "'*'"); break;
-        case TOKEN_SLASH: strcpy(got, "'/'"); break;
-        case TOKEN_AMP: strcpy(got, "'&'"); break;
-        case TOKEN_DOT: strcpy(got, "'.'"); break;
-        case TOKEN_DOTDOTDOT: strcpy(got, "'...'"); break;
+        case TOKEN_OPERATOR: snprintf(got, sizeof got, "'%s'", token->data.operator); break;
         case TOKEN_NAME: snprintf(got, sizeof got, "a variable name '%s'", token->data.name); break;
         case TOKEN_NEWLINE: strcpy(got, "end of line"); break;
         case TOKEN_END_OF_FILE: strcpy(got, "end of file"); break;
@@ -41,6 +23,11 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
         case TOKEN_KEYWORD: snprintf(got, sizeof got, "the '%s' keyword", token->data.name); break;
     }
     fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
+}
+
+static bool is_operator(const struct Token *t, const char *op)
+{
+    return t->type == TOKEN_OPERATOR && !strcmp(t->data.operator, op);
 }
 
 static struct Type parse_type(const struct Token **tokens)
@@ -59,7 +46,7 @@ static struct Type parse_type(const struct Token **tokens)
         fail_with_error((*tokens)->location, "type '%s' not found", (*tokens)->data.name);
     ++*tokens;
 
-    while ((*tokens)->type == TOKEN_STAR) {
+    while (is_operator(*tokens, "*")) {
         result = create_pointer_type(&result, (*tokens)->location);
         ++*tokens;
     }
@@ -76,7 +63,7 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     safe_strcpy(result.funcname, (*tokens)->data.name);
     ++*tokens;
 
-    if ((*tokens)->type != TOKEN_OPENPAREN)
+    if (!is_operator(*tokens, "("))
         fail_with_parse_error(*tokens, "a '(' to denote the start of function arguments");
     ++*tokens;
 
@@ -86,11 +73,12 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     List(struct Name) argnames = {0};
     List(struct Type) argtypes = {0};
 
-    while ((*tokens)->type != TOKEN_CLOSEPAREN) {
-        if ((*tokens)->type == TOKEN_DOTDOTDOT) {
+    while (!is_operator(*tokens, ")")) {
+        if (is_operator(*tokens, "...")) {
             result.takes_varargs = true;
             ++*tokens;
         } else {
+            // FIXME: this allows "foo(..., ...)" ?
             if (result.takes_varargs)
                 fail_with_error((*tokens)->location, "if '...' is used, it must be the last parameter");
 
@@ -106,20 +94,20 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
             Append(&argnames, n);
             ++*tokens;
 
-            if ((*tokens)->type != TOKEN_COLON)
+            if (!is_operator(*tokens, ":"))
                 fail_with_parse_error(*tokens, "':' and a type after the argument name (example: \"foo: int\")");
             ++*tokens;
 
             Append(&argtypes, parse_type(tokens));
         }
 
-        if ((*tokens)->type == TOKEN_COMMA)
+        if (is_operator(*tokens, ","))
             ++*tokens;
         else
             break;
     }
 
-    if ((*tokens)->type != TOKEN_CLOSEPAREN)
+    if (!is_operator(*tokens, ")"))
         fail_with_parse_error(*tokens, "a ')'");
     ++*tokens;
 
@@ -128,9 +116,9 @@ static struct AstFunctionSignature parse_function_signature(const struct Token *
     assert(argnames.len == argtypes.len);
     result.nargs = argnames.len;
 
-    if ((*tokens)->type != TOKEN_ARROW) {
+    if (!is_operator(*tokens, "->")) {
         // Special case for common typo:   def foo():
-        if ((*tokens)->type == TOKEN_COLON) {
+        if (is_operator(*tokens, ":")) {
             fail_with_error(
                 (*tokens)->location,
                 "return type must be specified with '->',"
@@ -163,15 +151,15 @@ static struct AstCall parse_call(const struct Token **tokens)
     safe_strcpy(result.funcname, (*tokens)->data.name);
     ++*tokens;
 
-    if ((*tokens)->type != TOKEN_OPENPAREN)
+    if (!is_operator(*tokens, "("))
         fail_with_parse_error(*tokens, "a '(' to denote the start of function arguments");
     ++*tokens;
 
     List(struct AstExpression) args = {0};
 
-    while ((*tokens)->type != TOKEN_CLOSEPAREN) {
+    while (!is_operator(*tokens, ")")) {
         Append(&args, parse_expression(tokens));
-        if ((*tokens)->type == TOKEN_COMMA)
+        if (is_operator(*tokens, ","))
             ++*tokens;
         else
             break;
@@ -180,7 +168,7 @@ static struct AstCall parse_call(const struct Token **tokens)
     result.args = args.ptr;
     result.nargs = args.len;
 
-    if ((*tokens)->type != TOKEN_CLOSEPAREN)
+    if (!is_operator(*tokens, ")"))
         fail_with_parse_error(*tokens, "a ')'");
     ++*tokens;
 
@@ -196,10 +184,12 @@ static struct AstExpression parse_elementary_expression(const struct Token **tok
     };
 
     switch((*tokens)->type) {
-    case TOKEN_OPENPAREN:
+    case TOKEN_OPERATOR:
+        if (!is_operator(*tokens, "("))
+            goto not_an_expression;
         ++*tokens;
         expr = parse_expression(tokens);
-        if ((*tokens)->type != TOKEN_CLOSEPAREN)
+        if (!is_operator(*tokens, ")"))
             fail_with_parse_error(*tokens, "a ')'");
         ++*tokens;
         break;
@@ -219,7 +209,7 @@ static struct AstExpression parse_elementary_expression(const struct Token **tok
         ++*tokens;
         break;
     case TOKEN_NAME:
-        if ((*tokens)[1].type == TOKEN_OPENPAREN) {
+        if (is_operator(&(*tokens)[1], "(")) {
             expr.kind = AST_EXPR_CALL;
             expr.data.call = parse_call(tokens);
         } else {
@@ -233,18 +223,20 @@ static struct AstExpression parse_elementary_expression(const struct Token **tok
             expr.kind = AST_EXPR_TRUE;
             ++*tokens;
             break;
-        }
-        if (!strcmp((*tokens)->data.name, "False")) {
+        } else if (!strcmp((*tokens)->data.name, "False")) {
             expr.kind = AST_EXPR_FALSE;
             ++*tokens;
-            break;
+        } else {
+            goto not_an_expression;
         }
-        // fall through
+        break;
     default:
-        fail_with_parse_error(*tokens, "an expression");
+        goto not_an_expression;
     }
-
     return expr;
+
+not_an_expression:
+    fail_with_parse_error(*tokens, "an expression");
 }
 
 // The & operator can go only in front of a few kinds of expressions.
@@ -300,52 +292,41 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
         .type_after_implicit_cast = unknownType,
     };
 
-    switch(t->type) {
-        case TOKEN_AMP:
-            assert(arity == 1);
-            result.kind = AST_EXPR_ADDRESS_OF;
-            validate_address_of_operand(&operands[0]);
-            break;
-        case TOKEN_EQ:
-            assert(arity == 2);
-            result.kind = AST_EXPR_EQ;
-            break;
-        case TOKEN_NE:
-            assert(arity == 2);
-            result.kind = AST_EXPR_NE;
-            break;
-        case TOKEN_GT:
-            assert(arity == 2);
-            result.kind = AST_EXPR_GT;
-            break;
-        case TOKEN_GE:
-            assert(arity == 2);
-            result.kind = AST_EXPR_GE;
-            break;
-        case TOKEN_LT:
-            assert(arity == 2);
-            result.kind = AST_EXPR_LT;
-            break;
-        case TOKEN_LE:
-            assert(arity == 2);
-            result.kind = AST_EXPR_LE;
-            break;
-        case TOKEN_PLUS:
-            assert(arity == 2);
-            result.kind = AST_EXPR_ADD;
-            break;
-        case TOKEN_MINUS:
-            assert(arity == 2);
-            result.kind = AST_EXPR_SUB;
-            break;
-        case TOKEN_STAR:
-            result.kind = arity==2 ? AST_EXPR_MUL : AST_EXPR_DEREFERENCE;
-            break;
-        case TOKEN_SLASH:
-            assert(arity == 2);
-            result.kind = AST_EXPR_DIV;
-            break;
-        default: assert(0);
+    if (is_operator(t, "&")) {
+        assert(arity == 1);
+        result.kind = AST_EXPR_ADDRESS_OF;
+        validate_address_of_operand(&operands[0]);
+    } else if (is_operator(t, "==")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_EQ;
+    } else if (is_operator(t, "!=")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_NE;
+    } else if (is_operator(t, ">")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_GT;
+    } else if (is_operator(t, ">=")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_GE;
+    } else if (is_operator(t, "<")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_LT;
+    } else if (is_operator(t, "<=")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_LE;
+    } else if (is_operator(t, "+")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_ADD;
+    } else if (is_operator(t, "-")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_SUB;
+    } else if (is_operator(t, "*")) {
+        result.kind = arity==2 ? AST_EXPR_MUL : AST_EXPR_DEREFERENCE;
+    } else if (is_operator(t, "/")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_DIV;
+    } else {
+        assert(0);
     }
 
     return result;
@@ -356,7 +337,7 @@ static struct AstExpression parse_expression_with_addressof_and_dereference(cons
     // sequnece of 0 or more star tokens: start,start+1,...,end-1
     const struct Token *start = *tokens;
     const struct Token *end = *tokens;
-    while (end->type == TOKEN_STAR || end->type == TOKEN_AMP) end++;
+    while (is_operator(end, "*") || is_operator(end, "&")) end++;
 
     *tokens = end;
     struct AstExpression result = parse_elementary_expression(tokens);
@@ -379,7 +360,7 @@ static void add_to_binop(
 static struct AstExpression parse_expression_with_mul_and_div(const struct Token **tokens)
 {
     struct AstExpression result = parse_expression_with_addressof_and_dereference(tokens);
-    while((*tokens)->type == TOKEN_STAR || (*tokens)->type == TOKEN_SLASH)
+    while (is_operator(*tokens, "*") || is_operator(*tokens, "/"))
         add_to_binop(tokens, &result, parse_expression_with_addressof_and_dereference);
     return result;
 }
@@ -387,7 +368,7 @@ static struct AstExpression parse_expression_with_mul_and_div(const struct Token
 static struct AstExpression parse_expression_with_add(const struct Token **tokens)
 {
     struct AstExpression result = parse_expression_with_mul_and_div(tokens);
-    while((*tokens)->type == TOKEN_PLUS || (*tokens)->type == TOKEN_MINUS)
+    while (is_operator(*tokens, "+") || is_operator(*tokens, "-"))
         add_to_binop(tokens, &result, parse_expression_with_mul_and_div);
     return result;
 }
@@ -395,10 +376,10 @@ static struct AstExpression parse_expression_with_add(const struct Token **token
 static struct AstExpression parse_expression_with_comparisons(const struct Token **tokens)
 {
     struct AstExpression result = parse_expression_with_add(tokens);
-#define IsComparator(x) ((x)==TOKEN_LT || (x)==TOKEN_GT || (x)==TOKEN_LE || (x)==TOKEN_GE || (x)==TOKEN_EQ || (x)==TOKEN_NE)
-    if (IsComparator((*tokens)->type))
+#define IsComparator(x) (is_operator((x),"<") || is_operator((x),">") || is_operator((x),"<=") || is_operator((x),">=") || is_operator((x),"==") || is_operator((x),"!="))
+    if (IsComparator(*tokens))
         add_to_binop(tokens, &result, parse_expression_with_add);
-    if (IsComparator((*tokens)->type))
+    if (IsComparator(*tokens))
         fail_with_error((*tokens)->location, "comparisons cannot be chained");
 #undef IsComparator
     return result;
@@ -423,14 +404,14 @@ static struct AstStatement parse_statement(const struct Token **tokens)
     struct AstStatement result = { .location = (*tokens)->location };
     switch((*tokens)->type) {
     case TOKEN_NAME:
-        if ((*tokens)[1].type == TOKEN_EQUAL_SIGN) {
+        if (is_operator(&(*tokens)[1], "=")) {
             result.kind = AST_STMT_SETVAR;
             safe_strcpy(result.data.setvar.varname, (*tokens)->data.name);
             *tokens += 2;
             result.data.setvar.value = parse_expression(tokens);
             eat_newline(tokens);
             break;
-        } else if ((*tokens)[1].type == TOKEN_OPENPAREN) {
+        } else if (is_operator(&(*tokens)[1], "(")) {
             result.kind = AST_STMT_CALL;
             result.data.call = parse_call(tokens);
             eat_newline(tokens);
@@ -471,7 +452,7 @@ not_a_statement:
 
 static struct AstBody parse_body(const struct Token **tokens)
 {
-    if ((*tokens)->type != TOKEN_COLON)
+    if (!is_operator(*tokens, ":"))
         fail_with_parse_error(*tokens, "':' followed by a new line with more indentation");
     ++*tokens;
 

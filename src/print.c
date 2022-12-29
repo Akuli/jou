@@ -58,29 +58,9 @@ void print_token(const struct Token *token)
     case TOKEN_DEDENT:
         printf("less indentation (-4 spaces)\n");
         break;
-
-    // These are listed explicitly here instead of "default" so that you get a
-    // compiler error coming from here after adding a new token type. That should
-    // remind you to keep this function up to date.
-    case TOKEN_OPENPAREN: printf("'('\n"); break;
-    case TOKEN_CLOSEPAREN: printf("')'\n"); break;
-    case TOKEN_AMP: printf("'&'\n"); break;
-    case TOKEN_ARROW: printf("'->'\n"); break;
-    case TOKEN_COLON: printf("':'\n"); break;
-    case TOKEN_COMMA: printf("','\n"); break;
-    case TOKEN_EQUAL_SIGN: printf("'='\n"); break;
-    case TOKEN_PLUS: printf("'+'\n"); break;
-    case TOKEN_MINUS: printf("'-'\n"); break;
-    case TOKEN_STAR: printf("'*'\n"); break;
-    case TOKEN_SLASH: printf("'/'\n"); break;
-    case TOKEN_DOT: printf("'.'\n"); break;
-    case TOKEN_DOTDOTDOT: printf("'...'\n"); break;
-    case TOKEN_EQ: printf("'=='\n"); break;
-    case TOKEN_NE: printf("'!='\n"); break;
-    case TOKEN_GT: printf("'>'"); break;
-    case TOKEN_GE: printf("'>='"); break;
-    case TOKEN_LT: printf("'<'"); break;
-    case TOKEN_LE: printf("'<='"); break;
+    case TOKEN_OPERATOR:
+        printf("opereator '%s'\n", token->data.operator);
+        break;
     }
 }
 

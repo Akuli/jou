@@ -248,33 +248,13 @@ static char read_char_literal(struct State *st)
 
 static const char *const operatorChars = "=<>!.,()[]{};:+-*/&";
 
-static enum TokenType read_operator(struct State *st)
+static const char *read_operator(struct State *st)
 {
-    struct Op { const char *str; enum TokenType tt; } ops[] = {
+    const char *operators[] = {
         // Longer operators first, so that '==' does not parse as '=' '='
-        // Length 3
-        { "...", TOKEN_DOTDOTDOT },
-        // Length 2
-        { "==", TOKEN_EQ },
-        { "!=", TOKEN_NE },
-        { "->", TOKEN_ARROW },
-        { "<=", TOKEN_LE },
-        { ">=", TOKEN_GE },
-        // Length 1
-        { ".", TOKEN_DOT },
-        { ",", TOKEN_COMMA },
-        { ":", TOKEN_COLON },
-        { "=", TOKEN_EQUAL_SIGN },
-        { "(", TOKEN_OPENPAREN },
-        { ")", TOKEN_CLOSEPAREN },
-        { "&", TOKEN_AMP },
-        { "*", TOKEN_STAR },
-        { "/", TOKEN_SLASH },
-        { "+", TOKEN_PLUS },
-        { "-", TOKEN_MINUS },
-        { "<", TOKEN_LT },
-        { ">", TOKEN_GT },
-        { NULL, 0 },
+        "...", "===", "!==",
+        "==", "!=", "->", "<=", ">=",
+        ".", ",", ":", "=", "(", ")", "&", "*", "/", "+", "-", "<", ">",
     };
 
     char operator[4] = {0};
@@ -289,20 +269,18 @@ static enum TokenType read_operator(struct State *st)
         operator[strlen(operator)] = c;
     }
 
-    // for the javascript devs
-    if (!strcmp(operator, "===") || !strcmp(operator, "!=="))
-        goto error404;
-
-    for (struct Op *op = ops; op->str; op++) {
-        if (!strncmp(operator, op->str, strlen(op->str))) {
+    for (const char *const *op = operators; *op; op++) {
+        if (!strncmp(operator, *op, strlen(*op))) {
             // Unread the bytes we didn't use.
-            for (int i = strlen(operator) - 1; i >= (int)strlen(op->str); i--)
+            for (int i = strlen(operator) - 1; i >= (int)strlen(*op); i--)
                 unread_byte(st, operator[i]);
-            return op->tt;
+            // "===" and "!==" are here only to give a better error message to javascript people.
+            if (!strcmp(*op, "===") || !strcmp(*op, "!=="))
+                break;
+            return *op;
         }
     }
 
-error404:
     fail_with_error(st->location, "there is no '%s' operator", operator);
 }
 
@@ -331,7 +309,8 @@ static struct Token read_token(struct State *st)
                     t.type = TOKEN_NAME;
             } else if (strchr(operatorChars, c)) {
                 unread_byte(st, c);
-                t.type = read_operator(st);
+                t.type = TOKEN_OPERATOR;
+                strcpy(t.data.operator, read_operator(st));
             } else {
                 if ((unsigned char)c < 0x80 && isprint(c))
                     fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (unsigned char)c);

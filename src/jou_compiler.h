@@ -23,27 +23,8 @@ struct Token {
         TOKEN_NEWLINE,
         TOKEN_INDENT,
         TOKEN_DEDENT,
+        TOKEN_OPERATOR,
         TOKEN_END_OF_FILE,  // Marks the end of an array of struct Token
-        // operators
-        TOKEN_DOT,
-        TOKEN_DOTDOTDOT,
-        TOKEN_OPENPAREN,
-        TOKEN_CLOSEPAREN,
-        TOKEN_COLON,
-        TOKEN_COMMA,
-        TOKEN_ARROW,
-        TOKEN_PLUS,
-        TOKEN_MINUS,
-        TOKEN_STAR,
-        TOKEN_SLASH,
-        TOKEN_AMP,
-        TOKEN_EQUAL_SIGN,   // a single '=' character, actually used for assignments
-        TOKEN_EQ,           // '=='
-        TOKEN_NE,
-        TOKEN_GT,
-        TOKEN_GE,
-        TOKEN_LT,
-        TOKEN_LE,
     } type;
     struct Location location;
     union {
@@ -52,6 +33,7 @@ struct Token {
         char *string_value;  // TOKEN_STRING
         int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
         char name[100];  // TOKEN_NAME and TOKEN_KEYWORD
+        char operator[4];  // TOKEN_OPERATOR
     } data;
 };
 
