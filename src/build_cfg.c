@@ -159,7 +159,8 @@ static struct CfVariable *build_cfg_for_expression(const struct State *st, const
     case AST_EXPR_LT:
     case AST_EXPR_LE:
         {
-            // careful with C's evaluation order........
+            // Refactoring note: Make sure to evaluate lhs first. C doesn't guarantee evaluation
+            // order of function arguments.
             struct CfVariable *lhs = build_cfg_for_expression(st, &expr->data.operands[0]);
             struct CfVariable *rhs = build_cfg_for_expression(st, &expr->data.operands[1]);
             assert(same_type(
@@ -269,9 +270,6 @@ static void build_cfg_for_body(struct State *st, const struct AstBody *body);
 
 static void build_cfg_for_statement(struct State *st, const struct AstStatement *stmt)
 {
-    if (!st->current_block)
-        fail_with_error(stmt->location, "statement is unreachable, it can never run");
-
     switch(stmt->kind) {
     case AST_STMT_IF:
         {

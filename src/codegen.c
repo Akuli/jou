@@ -111,14 +111,12 @@ static LLVMValueRef codegen_call(const struct State *st, const char *funcname, L
     if (LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMVoidTypeKind)
         snprintf(debug_name, sizeof debug_name, "%s_return_value", funcname);
 
-    LLVMValueRef return_value = LLVMBuildCall2(st->builder, function_type, function, args, nargs, debug_name);
-    return return_value;
+    return LLVMBuildCall2(st->builder, function_type, function, args, nargs, debug_name);
 }
 
 static void codegen_instruction(const struct State *st, const struct CfInstruction *ins)
 {
-#define set(var,val) set_local_var(st, (var), (val))
-#define setdest(val) set(ins->destvar, (val))
+#define setdest(val) set_local_var(st, ins->destvar, (val))
 #define get(var) get_local_var(st, (var))
 #define getop(i) get(ins->data.operands[(i)])
 
@@ -161,7 +159,6 @@ static void codegen_instruction(const struct State *st, const struct CfInstructi
         case CF_VARCPY: setdest(getop(0)); break;
     }
 
-#undef set
 #undef setdest
 #undef get
 #undef getop
