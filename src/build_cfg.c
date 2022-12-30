@@ -571,8 +571,6 @@ struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast)
     result.graphs = malloc(sizeof(result.graphs[0]) * n);  // NOLINT
     result.signatures = malloc(sizeof(result.signatures[0]) * n);
 
-    // Keep result.nfuncs up to date as result.signatures[0..result.nfuncs] is
-    // used to find other functions when building the CFG for each function.
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         switch(ast->kind) {
         case AST_TOPLEVEL_END_OF_FILE:
@@ -585,9 +583,10 @@ struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast)
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             check_signature(&st, &ast->data.funcdef.signature);
-            result.signatures[result.nfuncs] = copy_signature(&ast->data.funcdef.signature);
-            result.graphs[result.nfuncs] = build_function(&st, &result.signatures[result.nfuncs], &ast->data.funcdef.body);
-            result.nfuncs++;
+            struct Signature sig = copy_signature(&ast->data.funcdef.signature);
+            result.signatures[result.nfuncs] = sig;
+            result.nfuncs++;  // Make signature of current function usable in function calls (recursion)
+            result.graphs[result.nfuncs-1] = build_function(&st, &sig, &ast->data.funcdef.body);
             break;
         }
         ast++;
