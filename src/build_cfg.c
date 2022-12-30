@@ -268,14 +268,13 @@ static void build_cfg_for_statement(struct State *st, const struct AstStatement 
         struct CfVariable *cond = build_cfg_for_expression(st, &stmt->data.ifstatement.condition);
         struct CfBlock *thenblock = add_block(st);
         struct CfBlock *afterblock = add_block(st);
+        st->current_block->branchvar = cond;
         st->current_block->iftrue = thenblock;
         st->current_block->iffalse = afterblock;
         st->current_block = thenblock;
         build_cfg_for_body(st, &stmt->data.ifstatement.body);
-        if (st->current_block) {
-            st->current_block->iftrue = afterblock;
-            st->current_block->iffalse = afterblock;
-        }
+        st->current_block->iftrue = afterblock;
+        st->current_block->iffalse = afterblock;
         st->current_block = afterblock;
         break;
         }
@@ -317,7 +316,6 @@ static void build_cfg_for_function(struct CfGraph *cfg, const struct AstFunction
     struct State st = { .cfg = cfg };
     st.current_block = &st.cfg->start_block;
 
-    // these are currently the same struct....
     for (int i = 0; i < sig->nargs; i++) {
         struct CfVariable *v = add_variable(&st, &sig->argtypes[i]);
         safe_strcpy(v->name, sig->argnames[i]);

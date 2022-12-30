@@ -52,6 +52,7 @@ static LLVMValueRef get_local_var(const struct State *st, const struct CfVariabl
 
 static void set_local_var(const struct State *st, const struct CfVariable *cfvar, LLVMValueRef value)
 {
+    assert(cfvar);
     for (int i = 0; i < st->ast_func->cfg->variables.len; i++) {
         if (st->ast_func->cfg->variables.ptr[i] == cfvar) {
             LLVMBuildStore(st->builder, value, st->llvm_locals[i]);
@@ -164,18 +165,11 @@ static int find_block(const struct CfGraph *cfg, const struct CfBlock *b)
 
 static void codegen_function_def(struct State *st, const struct AstFunctionDef *funcdef)
 {
-    assert(st->ast_func == NULL);
-    assert(st->llvm_func == NULL);
-    assert(st->llvm_locals == NULL);
-
     st->ast_func = funcdef;
     st->llvm_func = codegen_function_decl(st, &funcdef->signature);
     st->llvm_locals = malloc(sizeof(st->llvm_locals[0]) * funcdef->cfg->variables.len); // NOLINT
 
-    LLVMValueRef return_value = NULL;
-
     assert(funcdef->cfg);
-    assert(funcdef->cfg->all_blocks.ptr[0] == &funcdef->cfg->start_block);
 
     LLVMBasicBlockRef *blocks = malloc(sizeof(blocks[0]) * funcdef->cfg->all_blocks.len); // NOLINT
     for (int i = 0; i < funcdef->cfg->all_blocks.len; i++) {
@@ -184,18 +178,26 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
         blocks[i] = LLVMAppendBasicBlock(st->llvm_func, name);
     }
 
+    assert(funcdef->cfg->all_blocks.ptr[0] == &funcdef->cfg->start_block);
+    LLVMPositionBuilderAtEnd(st->builder, blocks[0]);
+
+    // Allocate stack space for local variables at start of function.
+    LLVMValueRef return_value = NULL;
+    for (int i = 0; i < funcdef->cfg->variables.len; i++) {
+        struct CfVariable *v = funcdef->cfg->variables.ptr[i];
+        st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(&v->type), v->name);
+        if (!strcmp(v->name, "return"))
+            return_value = st->llvm_locals[i];
+    }
+
+    // Place arguments into the first n local variables.
+    for (int i = 0; i < funcdef->signature.nargs; i++) {
+        printf("Asdasd %s\n", funcdef->cfg->variables.ptr[i]->name);
+        set_local_var(st, funcdef->cfg->variables.ptr[i], LLVMGetParam(st->llvm_func, i));
+    }
+
     for (struct CfBlock **b = funcdef->cfg->all_blocks.ptr; b <End(funcdef->cfg->all_blocks); b++) {
         LLVMPositionBuilderAtEnd(st->builder, blocks[b - funcdef->cfg->all_blocks.ptr]);
-
-        if (*b == &funcdef->cfg->start_block) {
-            // Allocate stack space for local variables at start of function.
-            for (int i = 0; i < funcdef->cfg->variables.len; i++) {
-                struct CfVariable *v = funcdef->cfg->variables.ptr[i];
-                st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(&v->type), v->name);
-                if (!strcmp(v->name, "return"))
-                    return_value = st->llvm_locals[i];
-            }
-        }
 
         for (struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
             codegen_instruction(st, ins);
@@ -222,7 +224,6 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
     }
 
     free(st->llvm_locals);
-    st->llvm_locals = NULL;
 }
 
 LLVMModuleRef codegen(const struct AstToplevelNode *ast)

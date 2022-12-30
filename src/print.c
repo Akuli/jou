@@ -390,8 +390,12 @@ static void print_cf_graph(const struct CfGraph *cfg, int indent)
             assert(falseidx!=-1);
             if (trueidx==falseidx)
                 printf("%*s    Jump to block %d.\n", indent, "", trueidx);
-            else
-                printf("%*s    If last value is True jump to block %d, otherwise block %d.\n", indent, "", trueidx, falseidx);
+            else {
+                assert((*b)->branchvar);
+                printf("%*s    If ", indent, "");
+                print_cf_var(cfg, (*b)->branchvar);
+                printf(" is True jump to block %d, otherwise block %d.\n", trueidx, falseidx);
+            }
         }
     }
 }
