@@ -315,9 +315,9 @@ static void build_cfg_for_body(struct State *st, const struct AstBody *body)
         build_cfg_for_statement(st, &body->statements[i]);
 }
 
-static void build_cfg_for_function(struct CfGraph *cfg, const struct AstFunctionSignature *sig, const struct AstLocalVariable *locals, const struct AstBody *body)
+static struct CfGraph *build_cfg_for_function(const struct Signature *sig, const struct AstLocalVariable *locals, const struct AstBody *body)
 {
-    memset(cfg, 0, sizeof *cfg);
+    struct CfGraph *cfg = calloc(1, sizeof *cfg);
     Append(&cfg->all_blocks, &cfg->start_block);
     Append(&cfg->all_blocks, &cfg->end_block);
 
@@ -334,22 +334,32 @@ static void build_cfg_for_function(struct CfGraph *cfg, const struct AstFunction
     // Implicit return at the end of the function
     st.current_block->iftrue = &cfg->end_block;
     st.current_block->iffalse = &cfg->end_block;
+
+    return cfg;
 }
 
-void build_control_flow_graphs(struct AstToplevelNode *ast)
+struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast)
 {
-    while(1) {
-        switch(ast->kind) {
+    struct CfGraphFile result = { .filename = ast->location.filename };
+    while (ast[result.nfuncs].kind != AST_TOPLEVEL_END_OF_FILE)
+        result.nfuncs++;
+    result.graphs = malloc(sizeof(result.graphs[0]) * result.nfuncs);  // NOLINT
+    result.signatures = malloc(sizeof(result.signatures[0]) * result.nfuncs);
+
+    for (int i = 0; i < result.nfuncs; i++) {
+        switch(ast[i].kind) {
         case AST_TOPLEVEL_END_OF_FILE:
-            return;
+            assert(0);
         case AST_TOPLEVEL_CDECL_FUNCTION:
+            result.signatures[i] = copy_signature(&ast[i].data.decl_signature);
+            result.graphs[i] = NULL;
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            assert(!ast->data.funcdef.cfg);
-            ast->data.funcdef.cfg = malloc(sizeof *ast->data.funcdef.cfg);
-            build_cfg_for_function(ast->data.funcdef.cfg, &ast->data.funcdef.signature, ast->data.funcdef.locals, &ast->data.funcdef.body);
+            result.signatures[i] = copy_signature(&ast[i].data.funcdef.signature);
+            result.graphs[i] = build_cfg_for_function(&result.signatures[i], ast[i].data.funcdef.locals, &ast[i].data.funcdef.body);
             break;
         }
-        ast++;
     }
+
+    return result;
 }

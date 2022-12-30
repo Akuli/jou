@@ -109,7 +109,7 @@ static void free_body(const struct AstBody *body)
     free(body->statements);
 }
 
-static void free_signature(const struct AstFunctionSignature *sig)
+static void free_signature(const struct Signature *sig)
 {
     for (int i = 0; i < sig->nargs; i++)
         free_type(&sig->argtypes[i]);
@@ -121,16 +121,9 @@ static void free_signature(const struct AstFunctionSignature *sig)
     free(sig->argnames);
 }
 
-static void free_cfg(struct CfGraph *cfg)
+void free_control_flow_graphs(const struct CfGraphFile *cfgfile)
 {
-    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
-        // TODO
-        //free((*b)->expressions.ptr);
-        if (*b != &cfg->start_block  && *b != &cfg->end_block)
-            free(*b);
-    }
-    free(cfg->all_blocks.ptr);
-    free(cfg);
+    //assert(0);  // TODO
 }
 
 void free_ast(struct AstToplevelNode *topnodelist)
@@ -144,8 +137,6 @@ void free_ast(struct AstToplevelNode *topnodelist)
             free_signature(&t->data.funcdef.signature);
             free_body(&t->data.funcdef.body);
             free(t->data.funcdef.locals);
-            if (t->data.funcdef.cfg)
-                free_cfg(t->data.funcdef.cfg);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);

@@ -111,3 +111,50 @@ bool can_cast_implicitly(const struct Type *from, const struct Type *to)
 
     assert(0);
 }
+
+
+char *signature_to_string(const struct Signature *sig, bool include_return_type)
+{
+    List(char) result = {0};
+    AppendStr(&result, sig->funcname);
+    Append(&result, '(');
+
+    for (int i = 0; i < sig->nargs; i++) {
+        if(i)
+            AppendStr(&result, ", ");
+        AppendStr(&result, sig->argnames[i]);
+        AppendStr(&result, ": ");
+        AppendStr(&result, sig->argtypes[i].name);
+    }
+    if (sig->takes_varargs) {
+        if (sig->nargs)
+            AppendStr(&result, ", ");
+        AppendStr(&result, "...");
+    }
+    Append(&result, ')');
+    if (include_return_type) {
+        AppendStr(&result, " -> ");
+        AppendStr(&result, sig->returntype ? sig->returntype->name : "void");
+    }
+    Append(&result, '\0');
+    return result.ptr;
+}
+
+struct Signature copy_signature(const struct Signature *sig)
+{
+    struct Signature result = *sig;
+
+    result.argtypes = malloc(sizeof(result.argtypes[0]) * result.nargs);
+    for (int i = 0; i < result.nargs; i++)
+        result.argtypes[i] = copy_type(&sig->argtypes[i]);
+
+    result.argnames = malloc(sizeof(result.argnames[0]) * result.nargs);
+    memcpy(result.argnames, sig->argnames, sizeof(result.argnames[0]) * result.nargs);
+
+    if (result.returntype) {
+        result.returntype = malloc(sizeof(*result.returntype));
+        *result.returntype = copy_type(sig->returntype);
+    }
+
+    return result;
+}

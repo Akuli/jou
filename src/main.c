@@ -56,12 +56,13 @@ int main(int argc, char **argv)
     if(verbose)
         print_ast(ast);
 
-    build_control_flow_graphs(ast);
-    if(verbose)
-        print_ast(ast);
-
-    LLVMModuleRef module = codegen(ast);
+    struct CfGraphFile cfgfile = build_control_flow_graphs(ast);
     free_ast(ast);
+    if(verbose)
+        print_control_flow_graphs(&cfgfile);
+
+    LLVMModuleRef module = codegen(&cfgfile);
+    free_control_flow_graphs(&cfgfile);
     if(verbose)
         print_llvm_ir(module);
 

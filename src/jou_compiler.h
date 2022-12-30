@@ -79,6 +79,18 @@ bool is_integer_type(const struct Type *t);
 bool same_type(const struct Type *a, const struct Type *b);
 bool can_cast_implicitly(const struct Type *from, const struct Type *to);
 
+struct Signature {
+    struct Location location;
+    char funcname[100];
+    int nargs;
+    struct Type *argtypes;
+    char (*argnames)[100];
+    bool takes_varargs;  // true for functions like printf()
+    struct Type *returntype;  // NULL, if does not return a value
+};
+char *signature_to_string(const struct Signature *sig, bool include_return_type);
+struct Signature copy_signature(const struct Signature *sig);
+
 
 struct AstCall {
     char funcname[100];
@@ -134,17 +146,6 @@ struct AstExpression {
     } data;
 };
 
-struct AstFunctionSignature {
-    struct Location location;
-    char funcname[100];
-    int nargs;
-    struct Type *argtypes;
-    char (*argnames)[100];
-    bool takes_varargs;  // true for functions like printf()
-    struct Type *returntype;  // NULL, if does not return a value
-};
-char *signature_to_string(const struct AstFunctionSignature *sig, bool include_return_type);
-
 struct AstBody {
     struct AstStatement *statements;
     int nstatements;
@@ -169,7 +170,7 @@ struct AstStatement {
 };
 
 struct AstFunctionDef {
-    struct AstFunctionSignature signature;
+    struct Signature signature;
     struct AstBody body;
 
     // Local variables are added during fill_types.
@@ -177,9 +178,6 @@ struct AstFunctionDef {
     // End of list is denoted with empty name.
     // TODO: delete this
     struct AstLocalVariable { char name[100]; struct Type type; } *locals;
-
-    // Initially NULL. Created in a separate compilation step after parsing and fill_types.
-    struct CfGraph *cfg;
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -191,7 +189,7 @@ struct AstToplevelNode {
         AST_TOPLEVEL_DEFINE_FUNCTION,
     } kind;
     union {
-        struct AstFunctionSignature decl_signature;  // for AST_TOPLEVEL_CDECL_FUNCTION
+        struct Signature decl_signature;  // for AST_TOPLEVEL_CDECL_FUNCTION
         struct AstFunctionDef funcdef;  // for AST_TOPLEVEL_DEFINE_FUNCTION
     } data;
 };
@@ -251,6 +249,13 @@ struct CfGraph {
     List(struct CfVariable *) variables;   // First n variables are the function arguments
 };
 
+struct CfGraphFile {
+    const char *filename;
+    int nfuncs;
+    struct Signature *signatures;
+    struct CfGraph **graphs;  // NULL means function is only declared, not defined
+};
+
 
 /*
 The compiling functions, i.e. how to go from source code to LLVM IR.
@@ -262,8 +267,8 @@ entire compilation. It is used in error messages.
 struct Token *tokenize(const char *filename);
 struct AstToplevelNode *parse(const struct Token *tokens);
 void fill_types(struct AstToplevelNode *ast);
-void build_control_flow_graphs(struct AstToplevelNode *ast);
-LLVMModuleRef codegen(const struct AstToplevelNode *ast);
+struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast);
+LLVMModuleRef codegen(const struct CfGraphFile *cfgfile);
 
 /*
 Use these to clean up return values of compiling functions.
@@ -274,6 +279,7 @@ but not any of the data contained within individual nodes.
 */
 void free_tokens(struct Token *tokenlist);
 void free_ast(struct AstToplevelNode *topnodelist);
+void free_control_flow_graphs(const struct CfGraphFile *cfgfile);
 // To free LLVM IR, use LLVMDisposeModule
 
 /*
@@ -283,6 +289,7 @@ Most of these take the data for an entire program.
 void print_token(const struct Token *token);
 void print_tokens(const struct Token *tokenlist);
 void print_ast(const struct AstToplevelNode *topnodelist);
+void print_control_flow_graphs(const struct CfGraphFile *cfgfile);
 void print_llvm_ir(LLVMModuleRef module);
 
 #endif

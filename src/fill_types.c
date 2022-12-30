@@ -4,16 +4,16 @@
 
 
 struct State {
-    List(struct AstFunctionSignature) functions;
+    List(struct Signature) functions;
 
     // func_ = information about the function containing the code that is checked
-    const struct AstFunctionSignature *func_signature;
+    const struct Signature *func_signature;
     List(struct AstLocalVariable) func_locals;
 };
 
-static const struct AstFunctionSignature *find_function(const struct State *st, const char *name)
+static const struct Signature *find_function(const struct State *st, const char *name)
 {
-    for (struct AstFunctionSignature *func = st->functions.ptr; func < End(st->functions); func++)
+    for (struct Signature *func = st->functions.ptr; func < End(st->functions); func++)
         if (!strcmp(func->funcname, name))
             return func;
     return NULL;
@@ -61,7 +61,7 @@ const char *nth(int n)
 // Returns the return type of the function, NULL if the function does not return a value.
 static const struct Type *fill_types_call(struct State *st, struct AstCall *call, struct Location location)
 {
-    const struct AstFunctionSignature *sig = find_function(st, call->funcname);
+    const struct Signature *sig = find_function(st, call->funcname);
     if (!sig)
         fail_with_error(location, "function \"%s\" not found", call->funcname);
     char *sigstr = signature_to_string(sig, false);
@@ -355,7 +355,7 @@ static void fill_types_body(struct State *st, const struct AstBody *body)
         fill_types_statement(st, &body->statements[i]);
 }
 
-static void handle_signature(struct State *st, const struct AstFunctionSignature *sig)
+static void handle_signature(struct State *st, const struct Signature *sig)
 {
     if (find_function(st, sig->funcname))
         fail_with_error(sig->location, "a function named '%s' already exists", sig->funcname);
