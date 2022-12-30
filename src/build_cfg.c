@@ -312,7 +312,7 @@ static void build_cfg_for_body(struct State *st, const struct AstBody *body)
         build_cfg_for_statement(st, &body->statements[i]);
 }
 
-static void build_cfg_for_function(struct CfGraph *cfg, const struct AstFunctionSignature *sig, const struct AstBody *body)
+static void build_cfg_for_function(struct CfGraph *cfg, const struct AstFunctionSignature *sig, const struct AstLocalVariable *locals, const struct AstBody *body)
 {
     memset(cfg, 0, sizeof *cfg);
     Append(&cfg->all_blocks, &cfg->start_block);
@@ -321,9 +321,9 @@ static void build_cfg_for_function(struct CfGraph *cfg, const struct AstFunction
     struct State st = { .cfg = cfg };
     st.current_block = &st.cfg->start_block;
 
-    for (int i = 0; i < sig->nargs; i++) {
-        struct CfVariable *v = add_variable(&st, &sig->argtypes[i]);
-        safe_strcpy(v->name, sig->argnames[i]);
+    for (int i = 0; locals[i].name[0]; i++) {
+        struct CfVariable *v = add_variable(&st, &locals[i].type);
+        safe_strcpy(v->name, locals[i].name);
     }
 
     if (sig->returntype)  {
@@ -349,7 +349,7 @@ void build_control_flow_graphs(struct AstToplevelNode *ast)
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             assert(!ast->data.funcdef.cfg);
             ast->data.funcdef.cfg = malloc(sizeof *ast->data.funcdef.cfg);
-            build_cfg_for_function(ast->data.funcdef.cfg, &ast->data.funcdef.signature, &ast->data.funcdef.body);
+            build_cfg_for_function(ast->data.funcdef.cfg, &ast->data.funcdef.signature, ast->data.funcdef.locals, &ast->data.funcdef.body);
             break;
         }
         ast++;

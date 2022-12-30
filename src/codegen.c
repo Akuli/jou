@@ -36,6 +36,7 @@ struct State {
 
 static LLVMValueRef get_pointer_to_local_var(const struct State *st, const struct CfVariable *cfvar)
 {
+    assert(cfvar);
     for (int i = 0; i < st->ast_func->cfg->variables.len; i++) {
         if (st->ast_func->cfg->variables.ptr[i] == cfvar) {
             return st->llvm_locals[i];
@@ -129,7 +130,7 @@ static void codegen_instruction(const struct State *st, const struct CfInstructi
             break;
         case CF_ADDRESS_OF_VARIABLE: setdest(get_pointer_to_local_var(st, ins->data.operands[0])); break;
         case CF_LOAD_FROM_POINTER: setdest(LLVMBuildLoad(st->builder, getop(0), "load")); break;
-        case CF_STORE_TO_POINTER: LLVMBuildStore(st->builder, getop(0), get(ins->destvar)); break;
+        case CF_STORE_TO_POINTER: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
         case CF_BOOL_NEGATE: setdest(LLVMBuildNeg(st->builder, getop(0), "neg")); break;
         case CF_CAST_TO_BIGGER_SIGNED_INT: setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(&ins->destvar->type), "cast")); break;
         case CF_CAST_TO_BIGGER_UNSIGNED_INT: setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(&ins->destvar->type), "cast")); break;
