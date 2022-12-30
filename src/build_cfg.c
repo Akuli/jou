@@ -243,6 +243,8 @@ static struct CfVariable *build_expression(
         break;
     case AST_EXPR_GET_VARIABLE:
         result = find_variable(st, expr->data.varname);
+        if (!result)
+            fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
         break;
     case AST_EXPR_DEREFERENCE:
         temp = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
@@ -343,7 +345,7 @@ static struct CfVariable *build_expression(
             // order of function arguments.
             struct CfVariable *lhs = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
             struct CfVariable *rhs = build_expression(st, &expr->data.operands[1], NULL, NULL, true);
-            return build_binop(st, expr->kind, expr->location, lhs, rhs);
+            result = build_binop(st, expr->kind, expr->location, lhs, rhs);
         }
     }
 

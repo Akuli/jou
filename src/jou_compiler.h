@@ -49,7 +49,6 @@ and "untyped AST". I have done that previously in other projects.
 struct Type {
     char name[100];   // All types have a name for error messages and debugging.
     enum TypeKind {
-        TYPE_UNKNOWN = 0,
         TYPE_SIGNED_INTEGER,
         TYPE_UNSIGNED_INTEGER,
         TYPE_BOOL,
@@ -76,7 +75,6 @@ struct Type create_integer_type(int size_in_bits, bool is_signed);
 struct Type copy_type(const struct Type *t);
 bool is_integer_type(const struct Type *t);
 bool same_type(const struct Type *a, const struct Type *b);
-bool can_cast_implicitly(const struct Type *from, const struct Type *to);
 
 struct Signature {
     struct Location location;
