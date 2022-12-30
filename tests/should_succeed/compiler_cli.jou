@@ -1,0 +1,19 @@
+cdecl system(command: byte*) -> int
+
+def main() -> int:
+    system("./jou")  # Output: Usage: ./jou [--verbose] FILENAME
+    system("./jou examples/hello.jou")  # Output: Hello World
+    system("./jou lolwat.jou")  # Output: compiler error in file "lolwat.jou": cannot open file: No such file or directory
+    system("./jou --asdasd")  # Output: Usage: ./jou [--verbose] FILENAME
+    system("./jou --verbose")  # Output: Usage: ./jou [--verbose] FILENAME
+    system("./jou --help")  # Output: Usage: ./jou [--verbose] FILENAME
+
+    # Test that --verbose kinda works, without asserting the output in too much detail.
+    # See README for an explanation of why AST is twice.
+    system("./jou --verbose examples/hello.jou | grep ===")
+    # Output: ===== Tokens for file "examples/hello.jou" =====
+    # Output: ===== AST for file "examples/hello.jou" =====
+    # Output: ===== AST for file "examples/hello.jou" =====
+    # Output: ===== LLVM IR for file "examples/hello.jou" =====
+
+    return 0

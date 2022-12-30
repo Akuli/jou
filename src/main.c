@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,7 +7,26 @@
 #include "jou_compiler.h"
 #include <llvm-c/Analysis.h>
 
-// TODO: test invalid ways to pass arguments, passing non-existent file, etc
+static char TempDir[50];
+
+static void cleanup()
+{
+    char command[200];
+    sprintf(command, "rm -rf '%s'", TempDir);
+    system(command);
+}
+
+static void make_temp_dir()
+{
+    system("mkdir -p /tmp/jou");
+    strcpy(TempDir, "/tmp/jou/XXXXXX");
+    if (!mkdtemp(TempDir)){
+        fprintf(stderr, "cannot create temporary directory: %s\n", strerror(errno));
+        exit(1);
+    }
+    atexit(cleanup);
+}
+
 int main(int argc, char **argv)
 {
     bool verbose;
@@ -15,7 +35,7 @@ int main(int argc, char **argv)
     if (argc == 3 && !strcmp(argv[1], "--verbose")) {
         verbose = true;
         filename = argv[2];
-    } else if (argc == 2) {
+    } else if (argc == 2 && argv[1][0] != '-') {
         verbose = false;
         filename = argv[1];
     } else {
@@ -49,7 +69,10 @@ int main(int argc, char **argv)
     //LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
 
     // TODO: this is a ridiculous way to run the IR, figure out something better
-    FILE *f = fopen("/tmp/jou-temp.bc", "wb");
+    make_temp_dir();
+    char irfilename[200];
+    sprintf(irfilename, "%s/ir.bc", TempDir);
+    FILE *f = fopen(irfilename, "wb");
     assert(f);
     char *s = LLVMPrintModuleToString(module);
     fprintf(f, "%s", s);
@@ -58,7 +81,9 @@ int main(int argc, char **argv)
 
     LLVMDisposeModule(module);
 
-    const char *command = "cd /tmp && clang-11 -Wno-override-module -o jou-temp jou-temp.bc && ./jou-temp";
+    char command[200];
+    sprintf(command, "clang-11 -Wno-override-module -o %s/exe %s/ir.bc && %s/exe",
+        TempDir, TempDir, TempDir);
     if(verbose)
         puts(command);
     return !!system(command);
