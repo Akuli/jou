@@ -192,7 +192,6 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
 
     // Place arguments into the first n local variables.
     for (int i = 0; i < funcdef->signature.nargs; i++) {
-        printf("Asdasd %s\n", funcdef->cfg->variables.ptr[i]->name);
         set_local_var(st, funcdef->cfg->variables.ptr[i], LLVMGetParam(st->llvm_func, i));
     }
 

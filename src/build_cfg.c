@@ -67,7 +67,7 @@ static struct CfVariable *build_cfg_for_address_of_expression(const struct State
 
 static struct CfVariable *build_cfg_for_expression(const struct State *st, const struct AstExpression *expr)
 {
-    struct CfVariable *result;
+    struct CfVariable *result, *temp;
 
     switch(expr->kind) {
     case AST_EXPR_CALL:
@@ -78,17 +78,21 @@ static struct CfVariable *build_cfg_for_expression(const struct State *st, const
         break;
     case AST_EXPR_GET_VARIABLE:
         result = add_variable(st, &expr->type_before_implicit_cast);
+        // Assigning to temp variable first is needed because evaluating the
+        // argument of Append() must not grow the list we're appending into.
+        temp = build_cfg_for_address_of_expression(st, expr);
         Append(&st->current_block->instructions, (struct CfInstruction) {
             .kind = CF_LOAD_FROM_POINTER,
-            .data.operands[0] = build_cfg_for_address_of_expression(st, expr),
+            .data.operands[0] = temp,
             .destvar = result,
         });
         break;
     case AST_EXPR_DEREFERENCE:
         result = add_variable(st, &expr->type_before_implicit_cast);
+        temp = build_cfg_for_address_of_expression(st, &expr->data.operands[0]);
         Append(&st->current_block->instructions, (struct CfInstruction) {
             .kind = CF_LOAD_FROM_POINTER,
-            .data.operands[0] = build_cfg_for_address_of_expression(st, &expr->data.operands[0]),
+            .data.operands[0] = temp,
             .destvar = result,
         });
         break;
