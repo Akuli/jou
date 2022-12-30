@@ -6,10 +6,17 @@ struct State {
     struct CfBlock *current_block;  // NULL for unreachable code
 };
 
-static struct CfVariable *add_variable(const struct State *st, const struct Type *t)
+static struct CfVariable *add_variable(const struct State *st, const struct Type *t, const char *name)
 {
-    struct CfVariable *var = calloc(1, sizeof *var);
+    struct CfVariable *var = malloc(sizeof *var);
     var->type = *t;
+    if (name[0] == '$') {
+        // Anonymous in the user's code, make unique name
+        snprintf(var->name, sizeof var->name, "%s_%d", name, st->cfg->variables.len);
+    } else {
+        assert(strlen(name) < sizeof var->name);
+        strcpy(var->name, name);
+    }
     Append(&st->cfg->variables, var);
     return var;
 }
@@ -37,7 +44,7 @@ static struct CfVariable *build_cfg_for_implicit_cast(
     if (same_type(&obj->type, resulttype))
         return obj;
 
-    struct CfVariable *destvar = add_variable(st, resulttype);
+    struct CfVariable *destvar = add_variable(st, resulttype, "$cast");
 
     switch(resulttype->kind) {
     case TYPE_SIGNED_INTEGER:
@@ -77,18 +84,12 @@ static struct CfVariable *build_cfg_for_expression(const struct State *st, const
         result = build_cfg_for_address_of_expression(st, &expr->data.operands[0]);
         break;
     case AST_EXPR_GET_VARIABLE:
-        result = add_variable(st, &expr->type_before_implicit_cast);
-        // Assigning to temp variable first is needed because evaluating the
-        // argument of Append() must not grow the list we're appending into.
-        temp = build_cfg_for_address_of_expression(st, expr);
-        Append(&st->current_block->instructions, (struct CfInstruction) {
-            .kind = CF_LOAD_FROM_POINTER,
-            .data.operands[0] = temp,
-            .destvar = result,
-        });
+        result = find_variable(st, expr->data.varname);
         break;
     case AST_EXPR_DEREFERENCE:
-        result = add_variable(st, &expr->type_before_implicit_cast);
+        result = add_variable(st, &expr->type_before_implicit_cast, "$deref");
+        // Assigning to temp variable first is needed because evaluating the
+        // argument of Append() must not grow the list we're appending into.
         temp = build_cfg_for_expression(st, &expr->data.operands[0]);
         Append(&st->current_block->instructions, (struct CfInstruction) {
             .kind = CF_LOAD_FROM_POINTER,
@@ -97,7 +98,7 @@ static struct CfVariable *build_cfg_for_expression(const struct State *st, const
         });
         break;
     case AST_EXPR_INT_CONSTANT:
-        result = add_variable(st, &intType);
+        result = add_variable(st, &intType, "$intconstant");
         Append(&st->current_block->instructions, (struct CfInstruction) {
             .kind = CF_INT_CONSTANT,
             .data.int_value = expr->data.int_value,
@@ -105,7 +106,7 @@ static struct CfVariable *build_cfg_for_expression(const struct State *st, const
         });
         break;
     case AST_EXPR_CHAR_CONSTANT:
-        result = add_variable(st, &byteType);
+        result = add_variable(st, &byteType, "$byteconstant");
         Append(&st->current_block->instructions, (struct CfInstruction) {
             .kind = CF_CHAR_CONSTANT,
             .data.char_value = expr->data.char_value,
@@ -113,7 +114,7 @@ static struct CfVariable *build_cfg_for_expression(const struct State *st, const
         });
         break;
     case AST_EXPR_STRING_CONSTANT:
-        result = add_variable(st, &stringType);
+        result = add_variable(st, &stringType, "$strconstant");
         Append(&st->current_block->instructions, (struct CfInstruction){
             .kind = CF_STRING_CONSTANT,
             .data.string_value = strdup(expr->data.string_value),
@@ -121,14 +122,14 @@ static struct CfVariable *build_cfg_for_expression(const struct State *st, const
         });
         break;
     case AST_EXPR_TRUE:
-        result = add_variable(st, &boolType);
+        result = add_variable(st, &boolType, "$true");
         Append(&st->current_block->instructions, (struct CfInstruction){
             .kind = CF_TRUE,
             .destvar = result,
         });
         break;
     case AST_EXPR_FALSE:
-        result = add_variable(st, &boolType);
+        result = add_variable(st, &boolType, "$false");
         Append(&st->current_block->instructions, (struct CfInstruction){
             .kind = CF_FALSE,
             .destvar = result,
@@ -166,31 +167,33 @@ static struct CfVariable *build_cfg_for_expression(const struct State *st, const
                 &expr->data.operands[1].type_after_implicit_cast));
             bool is_signed = expr->data.operands[0].type_after_implicit_cast.kind == TYPE_SIGNED_INTEGER;
 
-            result = add_variable(st, &expr->type_before_implicit_cast);
-            struct CfInstruction ins = { .destvar=result };
-
+            struct CfInstruction ins;
+            const char *debugname;
             bool negate = false;
             bool swap = false;
+
             switch(expr->kind) {
-                case AST_EXPR_ADD: ins.kind = CF_INT_ADD; break;
-                case AST_EXPR_SUB: ins.kind = CF_INT_SUB; break;
-                case AST_EXPR_MUL: ins.kind = CF_INT_MUL; break;
-                case AST_EXPR_DIV: ins.kind = (is_signed ? CF_INT_SDIV : CF_INT_UDIV); break;
-                case AST_EXPR_EQ: ins.kind = CF_INT_EQ; break;
-                case AST_EXPR_NE: ins.kind = CF_INT_EQ; negate=true; break;
-                case AST_EXPR_LT: ins.kind = CF_INT_LT; break;
-                case AST_EXPR_GT: ins.kind = CF_INT_LT; swap=true; break;
-                case AST_EXPR_LE: ins.kind = CF_INT_LT; negate=true; swap=true; break;
-                case AST_EXPR_GE: ins.kind = CF_INT_LT; negate=true; break;
+                case AST_EXPR_ADD: debugname = "$add"; ins.kind = CF_INT_ADD; break;
+                case AST_EXPR_SUB: debugname = "$sub"; ins.kind = CF_INT_SUB; break;
+                case AST_EXPR_MUL: debugname = "$mul"; ins.kind = CF_INT_MUL; break;
+                case AST_EXPR_DIV: debugname = (is_signed ? "$sdiv" : "$udiv"); ins.kind = (is_signed ? CF_INT_SDIV : CF_INT_UDIV); break;
+                case AST_EXPR_EQ: debugname = "$eq"; ins.kind = CF_INT_EQ; break;
+                case AST_EXPR_NE: debugname = "$ne"; ins.kind = CF_INT_EQ; negate=true; break;
+                case AST_EXPR_LT: debugname = "$lt"; ins.kind = CF_INT_LT; break;
+                case AST_EXPR_GT: debugname = "$gt"; ins.kind = CF_INT_LT; swap=true; break;
+                case AST_EXPR_LE: debugname = "$le"; ins.kind = CF_INT_LT; negate=true; swap=true; break;
+                case AST_EXPR_GE: debugname = "$ge"; ins.kind = CF_INT_LT; negate=true; break;
                 default: assert(0);
             }
 
             ins.data.operands[0] = swap?rhs:lhs;
             ins.data.operands[1] = swap?lhs:rhs;
+
+            ins.destvar = result = add_variable(st, &expr->type_before_implicit_cast, debugname);
             Append(&st->current_block->instructions, ins);
 
             if (negate) {
-                struct CfVariable *result2 = add_variable(st, &boolType);
+                struct CfVariable *result2 = add_variable(st, &boolType, debugname);
                 Append(&st->current_block->instructions, (struct CfInstruction){
                     .kind = CF_BOOL_NEGATE,
                     .data.operands = {result},
@@ -219,7 +222,7 @@ static struct CfVariable *build_cfg_for_address_of_expression(const struct State
             struct CfVariable *var = find_variable(st, address_of_what->data.varname);
             // TODO: shouldn't need to create a new type here
             struct Type t = create_pointer_type(&var->type, (struct Location){0});
-            struct CfVariable *addr = add_variable(st, &t);
+            struct CfVariable *addr = add_variable(st, &t, "$address_of_var");
             Append(&st->current_block->instructions, (struct CfInstruction){
                 .kind = CF_ADDRESS_OF_VARIABLE,
                 .data.operands[0] = var,
@@ -243,9 +246,11 @@ static struct CfVariable *build_cfg_for_call(const struct State *st, const struc
         args[i] = build_cfg_for_expression(st, &call->args[i]);
 
     struct CfVariable *return_value;
-    if (returntype)
-        return_value = add_variable(st, returntype);
-    else
+    if (returntype) {
+        char debugname[100];
+        snprintf(debugname, sizeof debugname, "$%s_ret", call->funcname);
+        return_value = add_variable(st, returntype, debugname);
+    }else
         return_value = NULL;
 
     struct CfInstruction ins = {
@@ -321,15 +326,10 @@ static void build_cfg_for_function(struct CfGraph *cfg, const struct AstFunction
     struct State st = { .cfg = cfg };
     st.current_block = &st.cfg->start_block;
 
-    for (int i = 0; locals[i].name[0]; i++) {
-        struct CfVariable *v = add_variable(&st, &locals[i].type);
-        safe_strcpy(v->name, locals[i].name);
-    }
-
-    if (sig->returntype)  {
-        struct CfVariable *v = add_variable(&st, sig->returntype);
-        strcpy(v->name, "return");
-    }
+    for (int i = 0; locals[i].name[0]; i++)
+        add_variable(&st, &locals[i].type, locals[i].name);
+    if (sig->returntype) 
+        add_variable(&st, sig->returntype, "return");
 
     build_cfg_for_body(&st, body);
 

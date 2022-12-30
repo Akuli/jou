@@ -45,10 +45,17 @@ static LLVMValueRef get_pointer_to_local_var(const struct State *st, const struc
     assert(0);
 }
 
+const char *get_name_for_llvm(const struct CfVariable *cfvar)
+{
+    if (cfvar->name[0] == '$')
+        return cfvar->name + 1;
+    return cfvar->name;
+}
+
 static LLVMValueRef get_local_var(const struct State *st, const struct CfVariable *cfvar)
 {
     LLVMValueRef varptr = get_pointer_to_local_var(st, cfvar);
-    return LLVMBuildLoad(st->builder, varptr, cfvar->name[0] ? cfvar->name : "local_var");
+    return LLVMBuildLoad(st->builder, varptr, get_name_for_llvm(cfvar));
 }
 
 static void set_local_var(const struct State *st, const struct CfVariable *cfvar, LLVMValueRef value)
@@ -115,6 +122,10 @@ static void codegen_instruction(const struct State *st, const struct CfInstructi
 #define get(var) get_local_var(st, (var))
 #define getop(i) get(ins->data.operands[(i)])
 
+    const char *name = NULL;
+    if (ins->destvar)
+        name = get_name_for_llvm(ins->destvar);
+
     switch(ins->kind) {
         case CF_CALL:
             {
@@ -129,24 +140,24 @@ static void codegen_instruction(const struct State *st, const struct CfInstructi
             }
             break;
         case CF_ADDRESS_OF_VARIABLE: setdest(get_pointer_to_local_var(st, ins->data.operands[0])); break;
-        case CF_LOAD_FROM_POINTER: setdest(LLVMBuildLoad(st->builder, getop(0), "load")); break;
+        case CF_LOAD_FROM_POINTER: setdest(LLVMBuildLoad(st->builder, getop(0), name)); break;
         case CF_STORE_TO_POINTER: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
-        case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_neg")); break;
-        case CF_CAST_TO_BIGGER_SIGNED_INT: setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(&ins->destvar->type), "cast")); break;
-        case CF_CAST_TO_BIGGER_UNSIGNED_INT: setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(&ins->destvar->type), "cast")); break;
+        case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), name)); break;
+        case CF_CAST_TO_BIGGER_SIGNED_INT: setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
+        case CF_CAST_TO_BIGGER_UNSIGNED_INT: setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
         case CF_CHAR_CONSTANT: setdest(LLVMConstInt(LLVMInt8Type(), ins->data.char_value, false)); break;
         case CF_INT_CONSTANT: setdest(LLVMConstInt(LLVMInt32Type(), ins->data.int_value, true)); break;
         case CF_STRING_CONSTANT: setdest(make_a_string_constant(st, ins->data.string_value)); break;
         case CF_TRUE: setdest(LLVMConstInt(LLVMInt1Type(), 1, false)); break;
         case CF_FALSE: setdest(LLVMConstInt(LLVMInt1Type(), 0, false)); break;
-        case CF_INT_ADD: setdest(LLVMBuildAdd(st->builder, getop(0), getop(1), "iadd")); break;
-        case CF_INT_SUB: setdest(LLVMBuildSub(st->builder, getop(0), getop(1), "isub")); break;
-        case CF_INT_MUL: setdest(LLVMBuildMul(st->builder, getop(0), getop(1), "imul")); break;
-        case CF_INT_SDIV: setdest(LLVMBuildSDiv(st->builder, getop(0), getop(1), "sdiv")); break;
-        case CF_INT_UDIV: setdest(LLVMBuildUDiv(st->builder, getop(0), getop(1), "udiv")); break;
-        case CF_INT_EQ: setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, getop(0), getop(1), "eq")); break;
+        case CF_INT_ADD: setdest(LLVMBuildAdd(st->builder, getop(0), getop(1), name)); break;
+        case CF_INT_SUB: setdest(LLVMBuildSub(st->builder, getop(0), getop(1), name)); break;
+        case CF_INT_MUL: setdest(LLVMBuildMul(st->builder, getop(0), getop(1), name)); break;
+        case CF_INT_SDIV: setdest(LLVMBuildSDiv(st->builder, getop(0), getop(1), name)); break;
+        case CF_INT_UDIV: setdest(LLVMBuildUDiv(st->builder, getop(0), getop(1), name)); break;
+        case CF_INT_EQ: setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, getop(0), getop(1), name)); break;
         // TODO: unsigned less-than
-        case CF_INT_LT: setdest(LLVMBuildICmp(st->builder, LLVMIntSLT, getop(0), getop(1), "lt")); break;
+        case CF_INT_LT: setdest(LLVMBuildICmp(st->builder, LLVMIntSLT, getop(0), getop(1), name)); break;
         case CF_VARCPY: setdest(getop(0)); break;
     }
 
@@ -186,7 +197,7 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
     LLVMValueRef return_value = NULL;
     for (int i = 0; i < funcdef->cfg->variables.len; i++) {
         struct CfVariable *v = funcdef->cfg->variables.ptr[i];
-        st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(&v->type), v->name);
+        st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(&v->type), get_name_for_llvm(v));
         if (!strcmp(v->name, "return"))
             return_value = st->llvm_locals[i];
     }

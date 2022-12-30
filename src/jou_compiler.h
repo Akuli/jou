@@ -199,7 +199,10 @@ struct AstToplevelNode {
 
 // Control Flow Graph.
 // Struct names not prefixed with Cfg because it looks too much like "config" to me
-struct CfVariable { char name[100]; struct Type type; };
+struct CfVariable {
+    char name[100];  // Prefixed with $ for values that are anonymous in Jou code
+    struct Type type;
+};
 struct CfInstruction {
     enum CfInstructionKind {
         CF_INT_CONSTANT,
