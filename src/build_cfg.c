@@ -6,15 +6,22 @@ struct State {
     struct CfBlock *current_block;  // NULL for unreachable code
 };
 
-void build_cfg_for_statement(struct State *st, const struct AstStatement *stmt);
+static struct CfBlock *add_block(const struct State *st)
+{
+    struct CfBlock *block = calloc(1, sizeof *block);
+    Append(&st->cfg->all_blocks, block);
+    return block;
+}
 
-void build_cfg_for_body(struct State *st, const struct AstBody *body)
+static void build_cfg_for_statement(struct State *st, const struct AstStatement *stmt);
+
+static void build_cfg_for_body(struct State *st, const struct AstBody *body)
 {
     for (int i = 0; i < body->nstatements; i++)
         build_cfg_for_statement(st, &body->statements[i]);
 }
 
-void build_cfg_for_statement(struct State *st, const struct AstStatement *stmt)
+static void build_cfg_for_statement(struct State *st, const struct AstStatement *stmt)
 {
     if (!st->current_block)
         fail_with_error(stmt->location, "statement is unreachable, it can never run");
@@ -22,8 +29,8 @@ void build_cfg_for_statement(struct State *st, const struct AstStatement *stmt)
     switch(stmt->kind) {
     case AST_STMT_IF:
         Append(&st->current_block->expressions, stmt->data.ifstatement.condition);
-        struct CfBlock *thenblock = calloc(1, sizeof(*thenblock));
-        struct CfBlock *afterblock = calloc(1, sizeof(*afterblock));
+        struct CfBlock *thenblock = add_block(st);
+        struct CfBlock *afterblock = add_block(st);
         st->current_block->iftrue = thenblock;
         st->current_block->iffalse = afterblock;
         st->current_block = thenblock;
@@ -51,9 +58,12 @@ void build_cfg_for_statement(struct State *st, const struct AstStatement *stmt)
     }
 }
 
-void build_cfg_for_function(struct CfGraph *cfg, const struct AstFunctionSignature *sig, const struct AstBody *body)
+static void build_cfg_for_function(struct CfGraph *cfg, const struct AstFunctionSignature *sig, const struct AstBody *body)
 {
     memset(cfg, 0, sizeof *cfg);
+    Append(&cfg->all_blocks, &cfg->start_block);
+    Append(&cfg->all_blocks, &cfg->end_block);
+
     struct State st = { .cfg = cfg };
     st.current_block = &st.cfg->start_block;
     build_cfg_for_body(&st, body);

@@ -121,6 +121,17 @@ static void free_signature(const struct AstFunctionSignature *sig)
     free(sig->argnames);
 }
 
+static void free_cfg(struct CfGraph *cfg)
+{
+    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
+        free((*b)->expressions.ptr);
+        if (*b != &cfg->start_block  && *b != &cfg->end_block)
+            free(*b);
+    }
+    free(cfg->all_blocks.ptr);
+    free(cfg);
+}
+
 void free_ast(struct AstToplevelNode *topnodelist)
 {
     for (struct AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
@@ -132,6 +143,8 @@ void free_ast(struct AstToplevelNode *topnodelist)
             free_signature(&t->data.funcdef.signature);
             free_body(&t->data.funcdef.body);
             free(t->data.funcdef.locals);
+            if (t->data.funcdef.cfg)
+                free_cfg(t->data.funcdef.cfg);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);

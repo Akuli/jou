@@ -265,33 +265,9 @@ static void print_cf_graph(const struct CfGraph *cfg, int indent)
         return;
     }
 
-    List(const struct CfBlock *) visited = {0};
-    List(const struct CfBlock *) to_visit = {0};
-    Append(&to_visit, &cfg->start_block);
-
-    while (to_visit.len > 0) {
-        const struct CfBlock *block = Pop(&to_visit);
-        assert(block);
-
-        bool already_visited = false;
-        for (const struct CfBlock **b = visited.ptr; b < End(visited); b++) {
-            if (*b == block){
-                already_visited = true;
-                break;
-            }
-        }
-        if (!already_visited && block != &cfg->end_block) {
-            Append(&visited, block);
-            Append(&to_visit, block->iftrue);
-            Append(&to_visit, block->iffalse);
-        }
-    }
-
-    Append(&visited, &cfg->end_block);
-
     printf("%*sControl Flow Graph:\n", indent, "");
-    for (const struct CfBlock **b = visited.ptr; b < End(visited); b++) {
-        printf("%*s  Block %d", indent, "", (int)(b - visited.ptr));
+    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
+        printf("%*s  Block %d", indent, "", (int)(b - cfg->all_blocks.ptr));
         if (*b == &cfg->start_block)
             printf(" (start block)");
         if (*b == &cfg->end_block) {
@@ -308,9 +284,9 @@ static void print_cf_graph(const struct CfGraph *cfg, int indent)
             assert((*b)->iffalse == NULL);
         } else {
             int trueidx=-1, falseidx=-1;
-            for (int i = 0; i < visited.len; i++) {
-                if (visited.ptr[i]==(*b)->iftrue) trueidx=i;
-                if (visited.ptr[i]==(*b)->iffalse) falseidx=i;
+            for (int i = 0; i < cfg->all_blocks.len; i++) {
+                if (cfg->all_blocks.ptr[i]==(*b)->iftrue) trueidx=i;
+                if (cfg->all_blocks.ptr[i]==(*b)->iffalse) falseidx=i;
             }
             assert(trueidx!=-1);
             assert(falseidx!=-1);
@@ -320,9 +296,6 @@ static void print_cf_graph(const struct CfGraph *cfg, int indent)
                 printf("%*s    If last value is True jump to block %d, otherwise block %d.\n", indent, "", trueidx, falseidx);
         }
     }
-
-    free(visited.ptr);
-    free(to_visit.ptr);
 }
 
 void print_ast(const struct AstToplevelNode *topnodelist)

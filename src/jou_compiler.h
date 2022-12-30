@@ -213,6 +213,7 @@ struct CfBlock {
 struct CfGraph {
     struct CfBlock start_block;  // First block
     struct CfBlock end_block;  // Return statement
+    List(struct CfBlock *) all_blocks;
 };
 
 
