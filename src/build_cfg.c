@@ -3,7 +3,7 @@
 
 struct State {
     struct CfGraph *cfg;
-    struct CfBlock *current_block;  // NULL for unreachable code
+    struct CfBlock *current_block;
 };
 
 static struct CfVariable *add_variable(const struct State *st, const struct Type *t, const char *name)
