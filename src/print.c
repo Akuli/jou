@@ -258,6 +258,104 @@ static void print_ast_body(const struct AstBody *body, int indent)
         print_ast_statement(&body->statements[i], indent+2);
 }
 
+
+static void print_cf_var(const struct CfGraph *cfg, const struct CfVariable *v)
+{
+    printf("%s ", v->type.name);
+    if (v->name[0])
+        printf("%s", v->name);
+    else {
+        for (int i = 0; i < cfg->variables.len; i++) {
+            if (cfg->variables.ptr[i] == v) {
+                printf("var%d", i);
+                return;
+            }
+        }
+        assert(0);
+    }
+}
+
+static void print_cf_instruction(const struct CfGraph *cfg, const struct CfInstruction *ins, int indent)
+{
+    printf("%*s", indent, "");
+
+    if (ins->destvar) {
+        print_cf_var(cfg, ins->destvar);
+        printf(" = ");
+    }
+
+    switch(ins->kind) {
+    case CF_ADDRESS_OF_VARIABLE:
+        printf("address of ");
+        print_cf_var(cfg, ins->data.operands[0]);
+        break;
+    case CF_BOOL_NEGATE:
+        printf("boolean negation of ");
+        print_cf_var(cfg, ins->data.operands[0]);
+        break;
+    case CF_CALL:
+        printf("%s(", ins->data.call.funcname);
+        for (int i = 0; i < ins->data.call.nargs; i++) {
+            if(i) printf(", ");
+            print_cf_var(cfg, ins->data.call.args[i]);
+        }
+        printf(")");
+        break;
+    case CF_CAST_TO_BIGGER_SIGNED_INT:
+        printf("cast ");
+        print_cf_var(cfg, ins->data.operands[0]);
+        printf(" to bigger signed int");
+        break;
+    case CF_CAST_TO_BIGGER_UNSIGNED_INT:
+        printf("cast ");
+        print_cf_var(cfg, ins->data.operands[0]);
+        printf(" to bigger unsigned int");
+        break;
+    case CF_INT_CONSTANT: printf("%d\n", ins->data.int_value); break;
+    case CF_CHAR_CONSTANT: print_byte(ins->data.char_value); break;
+    case CF_STRING_CONSTANT: print_string(ins->data.string_value); break;
+    case CF_TRUE: printf("True"); break;
+    case CF_FALSE: printf("False"); break;
+
+    case CF_INT_ADD:
+    case CF_INT_SUB:
+    case CF_INT_MUL:
+    case CF_INT_SDIV:
+    case CF_INT_UDIV:
+    case CF_INT_EQ:
+    case CF_INT_LT:
+        switch(ins->kind){
+            case CF_INT_ADD: printf("iadd "); break;
+            case CF_INT_SUB: printf("isub "); break;
+            case CF_INT_MUL: printf("imul "); break;
+            case CF_INT_SDIV: printf("sdiv "); break;
+            case CF_INT_UDIV: printf("udiv "); break;
+            case CF_INT_EQ: printf("ieq "); break;
+            case CF_INT_LT: printf("ilt "); break;
+            default: assert(0);
+        }
+        print_cf_var(cfg, ins->data.operands[0]);
+        printf(", ");
+        print_cf_var(cfg, ins->data.operands[1]);
+        break;
+    case CF_LOAD_FROM_POINTER:
+        printf("load ptr ");
+        print_cf_var(cfg, ins->data.operands[0]);
+        break;
+    case CF_STORE_TO_POINTER:
+        printf("store ptr ");
+        print_cf_var(cfg, ins->data.operands[0]);
+        printf(", ");
+        print_cf_var(cfg, ins->data.operands[1]);
+        break;
+    case CF_VARCPY:
+        print_cf_var(cfg, ins->data.operands[0]);
+        break;
+    }
+
+    printf("\n");
+}
+
 static void print_cf_graph(const struct CfGraph *cfg, int indent)
 {
     if (!cfg) {
@@ -271,13 +369,13 @@ static void print_cf_graph(const struct CfGraph *cfg, int indent)
         if (*b == &cfg->start_block)
             printf(" (start block)");
         if (*b == &cfg->end_block) {
-            assert((*b)->expressions.len == 0);
+            assert((*b)->instructions.len == 0);
             printf(" is the end block.\n");
             continue;
         }
         printf(":\n");
-        for (struct AstExpression *e = (*b)->expressions.ptr; e < End((*b)->expressions); e++)
-            print_ast_expression(e, indent+4);
+        for (struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
+            print_cf_instruction(cfg, ins, indent+4);
 
         if (*b == &cfg->end_block) {
             assert((*b)->iftrue == NULL);

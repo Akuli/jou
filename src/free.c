@@ -124,7 +124,8 @@ static void free_signature(const struct AstFunctionSignature *sig)
 static void free_cfg(struct CfGraph *cfg)
 {
     for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
-        free((*b)->expressions.ptr);
+        // TODO
+        //free((*b)->expressions.ptr);
         if (*b != &cfg->start_block  && *b != &cfg->end_block)
             free(*b);
     }
