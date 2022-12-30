@@ -259,57 +259,37 @@ static void print_ast_body(const struct AstBody *body, int indent)
 }
 
 
-static void print_cf_var(const struct CfGraph *cfg, const struct CfVariable *v)
-{
-    printf("%s ", v->type.name);
-    if (v->name[0])
-        printf("%s", v->name);
-    else {
-        for (int i = 0; i < cfg->variables.len; i++) {
-            if (cfg->variables.ptr[i] == v) {
-                printf("var%d", i);
-                return;
-            }
-        }
-        assert(0);
-    }
-}
-
 static void print_cf_instruction(const struct CfGraph *cfg, const struct CfInstruction *ins, int indent)
 {
     printf("%*s", indent, "");
 
-    if (ins->destvar) {
-        print_cf_var(cfg, ins->destvar);
-        printf(" = ");
-    }
+    if (ins->destvar)
+        printf("%s = ", ins->destvar->name);
 
     switch(ins->kind) {
     case CF_ADDRESS_OF_VARIABLE:
-        printf("address of ");
-        print_cf_var(cfg, ins->data.operands[0]);
+        printf("address of %s", ins->data.operands[0]->name);
         break;
     case CF_BOOL_NEGATE:
-        printf("boolean negation of ");
-        print_cf_var(cfg, ins->data.operands[0]);
+        printf("boolean negation of %s", ins->data.operands[0]->name);
         break;
     case CF_CALL:
         printf("call %s(", ins->data.call.funcname);
         for (int i = 0; i < ins->data.call.nargs; i++) {
             if(i) printf(", ");
-            print_cf_var(cfg, ins->data.call.args[i]);
+            printf("%s", ins->data.call.args[i]->name);
         }
         printf(")");
         break;
     case CF_CAST_TO_BIGGER_SIGNED_INT:
-        printf("cast ");
-        print_cf_var(cfg, ins->data.operands[0]);
-        printf(" to bigger signed int");
+        printf("cast %s to %d-bit signed int",
+            ins->data.operands[0]->name,
+            ins->destvar->type.data.width_in_bits);
         break;
     case CF_CAST_TO_BIGGER_UNSIGNED_INT:
-        printf("cast ");
-        print_cf_var(cfg, ins->data.operands[0]);
-        printf(" to bigger unsigned int");
+        printf("cast %s to %d-bit unsigned int",
+            ins->data.operands[0]->name,
+            ins->destvar->type.data.width_in_bits);
         break;
     case CF_INT_CONSTANT: printf("%d", ins->data.int_value); break;
     case CF_CHAR_CONSTANT: print_byte(ins->data.char_value); break;
@@ -334,23 +314,17 @@ static void print_cf_instruction(const struct CfGraph *cfg, const struct CfInstr
             case CF_INT_LT: printf("ilt "); break;
             default: assert(0);
         }
-        print_cf_var(cfg, ins->data.operands[0]);
-        printf(", ");
-        print_cf_var(cfg, ins->data.operands[1]);
+        printf("%s, %s", ins->data.operands[0]->name, ins->data.operands[1]->name);
         break;
     case CF_LOAD_FROM_POINTER:
-        printf("*(");
-        print_cf_var(cfg, ins->data.operands[0]);
-        printf(")");
+        // Extra parentheses to make these stand out a bit.
+        printf("*(%s)", ins->data.operands[0]->name);
         break;
     case CF_STORE_TO_POINTER:
-        printf("*(");
-        print_cf_var(cfg, ins->data.operands[0]);
-        printf(") = ");
-        print_cf_var(cfg, ins->data.operands[1]);
+        printf("*(%s) = %s", ins->data.operands[0]->name, ins->data.operands[1]->name);
         break;
     case CF_VARCPY:
-        print_cf_var(cfg, ins->data.operands[0]);
+        printf("%s", ins->data.operands[0]->name);
         break;
     }
 
@@ -365,6 +339,11 @@ static void print_cf_graph(const struct CfGraph *cfg, int indent)
     }
 
     printf("%*sControl Flow Graph:\n", indent, "");
+
+    printf("%*s  Variables:\n", indent, "");
+    for (struct CfVariable **var = cfg->variables.ptr; var < End(cfg->variables); var++)
+        printf("%*s    %-20s %s\n", indent, "", (*var)->name, (*var)->type.name);
+
     for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
         printf("%*s  Block %d", indent, "", (int)(b - cfg->all_blocks.ptr));
         if (*b == &cfg->start_block)
@@ -393,9 +372,8 @@ static void print_cf_graph(const struct CfGraph *cfg, int indent)
                 printf("%*s    Jump to block %d.\n", indent, "", trueidx);
             else {
                 assert((*b)->branchvar);
-                printf("%*s    If ", indent, "");
-                print_cf_var(cfg, (*b)->branchvar);
-                printf(" is True jump to block %d, otherwise block %d.\n", trueidx, falseidx);
+                printf("%*s    If %s is True jump to block %d, otherwise block %d.\n",
+                    indent, "", (*b)->branchvar->name, trueidx, falseidx);
             }
         }
     }
