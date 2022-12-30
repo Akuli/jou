@@ -29,9 +29,6 @@ cd "$(dirname "$0")"/..
 rm -rf tmp/tests
 mkdir -vp tmp/tests
 
-succeeded=0
-failed=0
-
 function generate_expected_output()
 {
     (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '// | dos2unix
@@ -39,6 +36,29 @@ function generate_expected_output()
     echo "Exit code: $correct_exit_code"
 }
 
+function run_test()
+{
+    local joufile="$1"
+    local correct_exit_code="$2"
+    local counter="$3"
+
+    local command="$(printf "$command_template" $joufile)"
+    local diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
+    printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
+
+    if diff -u --color=always \
+        <(generate_expected_output) \
+        <(bash -c "ulimit -v 500000; $command; echo Exit code: \$?" 2>&1) \
+        &>> $diffpath
+    then
+        echo -ne "\x1b[32m.\x1b[0m"
+        rm $diffpath
+    else
+        echo -ne "\x1b[31mF\x1b[0m"
+    fi
+}
+
+counter=0
 for joufile in examples/*.jou tests/*/*.jou; do
     case $joufile in
         examples/* | tests/should_succeed/*)
@@ -51,27 +71,19 @@ for joufile in examples/*.jou tests/*/*.jou; do
             correct_exit_code=1
             ;;
     esac
+    counter=$((counter + 1))
 
-    command="$(printf "$command_template" $joufile)"
-    diffpath=tmp/tests/diff$(printf "%04d" $failed).txt  # consistent alphabetical order
-    printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
-
-    if diff -u --color=always \
-        <(generate_expected_output) \
-        <(bash -c "ulimit -v 500000; $command; echo Exit code: \$?" 2>&1) \
-        &>> $diffpath
-    then
-        echo -ne "\x1b[32m.\x1b[0m"
-        succeeded=$((succeeded + 1))
-        rm $diffpath
-    else
-        echo -ne "\x1b[31mF\x1b[0m"
-        failed=$((failed + 1))
-    fi
+    # Run 2 tests in parallel.
+    while [ $(jobs -p | wc -l) -ge 2 ]; do wait -n; done
+    run_test $joufile $correct_exit_code $counter &
 done
+wait
 
 echo ""
 echo ""
+
+failed=$( (ls -1 tmp/tests/diff*.txt 2>/dev/null || true) | wc -l)
+succeeded=$((counter - failed))
 
 if [ $failed != 0 ]; then
     echo "------- FAILURES -------"
