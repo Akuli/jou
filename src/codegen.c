@@ -33,20 +33,33 @@ struct State {
     LLVMValueRef *llvm_locals;
 };
 
-static LLVMValueRef get_pointer_to_local_var(const struct State *st, const struct CfVariable *cfvar)
-{
-    assert(cfvar);
-    for (struct CfVariable **v = st->cfvars; v < st->cfvars_end; v++)
-        if (*v == cfvar)
-            return st->llvm_locals[v - st->cfvars];
-    assert(0);
-}
-
 const char *get_name_for_llvm(const struct CfVariable *cfvar)
 {
     if (cfvar->name[0] == '$')
         return cfvar->name + 1;
     return cfvar->name;
+}
+
+static LLVMValueRef get_pointer_to_local_var(const struct State *st, const struct CfVariable *cfvar)
+{
+    assert(cfvar);
+    /*
+    The loop below looks stupid, but I don't see a better alternative.
+
+    I want CFG variables to be used as pointers, so that it's easy to refer to a
+    variable's name and type, check if you have the same variable, etc. But I
+    can't make a List of variables when building CFG, because existing variable
+    pointers would become invalid as the list grows. The solution is to allocate
+    each variable separately when building the CFG.
+
+    Another idea I had was to count the number of variables needed beforehand,
+    so I wouldn't need to ever resize the list of variables, but the CFG building
+    is already complicated enough as is.
+    */
+    for (struct CfVariable **v = st->cfvars; v < st->cfvars_end; v++)
+        if (*v == cfvar)
+            return st->llvm_locals[v - st->cfvars];
+    assert(0);
 }
 
 static LLVMValueRef get_local_var(const struct State *st, const struct CfVariable *cfvar)
