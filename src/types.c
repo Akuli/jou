@@ -8,7 +8,6 @@ const struct Type boolType = { .name = "bool", .kind = TYPE_BOOL };
 const struct Type intType = { .name = "int", .kind = TYPE_SIGNED_INTEGER, .data.width_in_bits = 32 };
 const struct Type byteType = { .name = "byte", .kind = TYPE_UNSIGNED_INTEGER, .data.width_in_bits = 8 };
 const struct Type stringType = { .name = "byte*", .kind = TYPE_POINTER, .data.valuetype = (struct Type *)&byteType };
-const struct Type unknownType = { .name = "?", .kind = TYPE_UNKNOWN };
 
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location)
 {
@@ -87,27 +86,6 @@ bool same_type(const struct Type *a, const struct Type *b)
 bool can_cast_implicitly(const struct Type *from, const struct Type *to)
 {
     assert(from->kind != TYPE_UNKNOWN && to->kind != TYPE_UNKNOWN);
-
-    if (from->kind == TYPE_UNSIGNED_INTEGER && to->kind == TYPE_SIGNED_INTEGER) {
-        // The only implicit conversion between different kinds of types.
-        // Can't be done with types of same size: e.g. with 8 bits, 255 does not implicitly convert to -1.
-        return from->data.width_in_bits < to->data.width_in_bits;
-    }
-
-    if (from->kind != to->kind)
-        return false;
-
-    switch(from->kind) {
-    case TYPE_BOOL:
-        return true;
-    case TYPE_POINTER:
-        return same_type(from->data.valuetype, to->data.valuetype);
-    case TYPE_SIGNED_INTEGER:
-    case TYPE_UNSIGNED_INTEGER:
-        return from->data.width_in_bits <= to->data.width_in_bits;
-    case TYPE_UNKNOWN:
-        assert(0);
-    }
 
     assert(0);
 }

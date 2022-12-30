@@ -68,7 +68,6 @@ extern const struct Type boolType;      // bool
 extern const struct Type intType;       // int (32-bit signed)
 extern const struct Type byteType;      // byte (8-bit unsigned)
 extern const struct Type stringType;    // byte*
-extern const struct Type unknownType;   // internal to compiler, not exposed in the language
 
 
 // create_pointer_type(...) returns a type whose .data.valuetype must be free()d
@@ -100,9 +99,6 @@ struct AstCall {
 
 struct AstExpression {
     struct Location location;
-
-    // Both types are TYPE_UNKNOWN after parsing and something else after fill_types.
-    struct Type type_before_implicit_cast, type_after_implicit_cast;
 
     enum AstExpressionKind {
         AST_EXPR_INT_CONSTANT,
@@ -172,12 +168,6 @@ struct AstStatement {
 struct AstFunctionDef {
     struct Signature signature;
     struct AstBody body;
-
-    // Local variables are added during fill_types.
-    // First n local variables are the function arguments.
-    // End of list is denoted with empty name.
-    // TODO: delete this
-    struct AstLocalVariable { char name[100]; struct Type type; } *locals;
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -232,7 +222,7 @@ struct CfInstruction {
         // TODO: replace nargs with NULL terminated?
         struct { char funcname[100]; struct CfVariable **args; int nargs; } call; // CF_CALL
     } data;
-    const struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
+    struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
 };
 
 struct CfBlock {
@@ -266,7 +256,6 @@ entire compilation. It is used in error messages.
 */
 struct Token *tokenize(const char *filename);
 struct AstToplevelNode *parse(const struct Token *tokens);
-void fill_types(struct AstToplevelNode *ast);
 struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast);
 LLVMModuleRef codegen(const struct CfGraphFile *cfgfile);
 

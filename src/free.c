@@ -64,13 +64,6 @@ static void free_expression(const struct AstExpression *expr)
         free(expr->data.string_value);
         break;
     case AST_EXPR_ADDRESS_OF:
-        // fill_types() sets the type to a newly allocated pointer type.
-        // Usually AST doesn't own its types, because that would result in lots of unnecessary allocations.
-        assert(expr->type_before_implicit_cast.kind == TYPE_UNKNOWN
-            || expr->type_before_implicit_cast.kind == TYPE_POINTER);
-        if(expr->type_before_implicit_cast.kind == TYPE_POINTER)
-            free(expr->type_before_implicit_cast.data.valuetype);
-        // fall through
     case AST_EXPR_DEREFERENCE:
         free_expression(&expr->data.operands[0]);
         free(expr->data.operands);
@@ -131,7 +124,6 @@ void free_ast(struct AstToplevelNode *topnodelist)
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             free_signature(&t->data.funcdef.signature);
             free_body(&t->data.funcdef.body);
-            free(t->data.funcdef.locals);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);

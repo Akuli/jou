@@ -1,0 +1,55 @@
+static void handle_signature(struct State *st, const struct Signature *sig)
+{
+    if (find_function(st, sig->funcname))
+        fail_with_error(sig->location, "a function named '%s' already exists", sig->funcname);
+
+    if (!strcmp(sig->funcname, "main") &&
+        (sig->returntype == NULL || !same_type(sig->returntype, &intType)))
+    {
+        fail_with_error(sig->location, "the main() function must return int");
+    }
+
+    Append(&st->functions, *sig);
+}
+
+void fill_types(struct AstToplevelNode *ast)
+{
+    struct State st = {0};
+
+    for (; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
+        switch(ast->kind) {
+        case AST_TOPLEVEL_CDECL_FUNCTION:
+            handle_signature(&st, &ast->data.decl_signature);
+            break;
+
+        case AST_TOPLEVEL_DEFINE_FUNCTION:
+            handle_signature(&st, &ast->data.funcdef.signature);
+
+            for (int i = 0; i < ast->data.funcdef.signature.nargs; i++) {
+                const char *name = ast->data.funcdef.signature.argnames[i];
+                const struct Type *type = &ast->data.funcdef.signature.argtypes[i];
+                if (find_local_variable(&st, name)) {
+                    fail_with_error(
+                        ast->data.funcdef.signature.location,
+                        "duplicate argument name: %s", name);
+                }
+                add_local_variable(&st, name, type);
+            }
+
+            st.func_signature = &ast->data.funcdef.signature;
+            fill_types_body(&st, &ast->data.funcdef.body);
+            st.func_signature = NULL;
+
+            Append(&st.func_locals, (struct AstLocalVariable){0});
+            ast->data.funcdef.locals = st.func_locals.ptr;
+            memset(&st.func_locals, 0, sizeof st.func_locals);
+
+            break;
+
+        case AST_TOPLEVEL_END_OF_FILE:
+            assert(0);
+        }
+    }
+
+    free(st.functions.ptr);
+}
