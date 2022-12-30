@@ -6,7 +6,6 @@
 #include "jou_compiler.h"
 #include <llvm-c/Analysis.h>
 
-// TODO: test invalid ways to pass arguments, passing non-existent file, etc
 int main(int argc, char **argv)
 {
     bool verbose;
@@ -15,7 +14,7 @@ int main(int argc, char **argv)
     if (argc == 3 && !strcmp(argv[1], "--verbose")) {
         verbose = true;
         filename = argv[2];
-    } else if (argc == 2) {
+    } else if (argc == 2 && argv[1][0] != '-') {
         verbose = false;
         filename = argv[1];
     } else {
@@ -45,7 +44,8 @@ int main(int argc, char **argv)
     //LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
 
     // TODO: this is a ridiculous way to run the IR, figure out something better
-    FILE *f = fopen("/tmp/jou-temp.bc", "wb");
+    system("mkdir -p /tmp/jou");
+    FILE *f = fopen("/tmp/jou/ir.bc", "wb");
     assert(f);
     char *s = LLVMPrintModuleToString(module);
     fprintf(f, "%s", s);
@@ -54,7 +54,7 @@ int main(int argc, char **argv)
 
     LLVMDisposeModule(module);
 
-    const char *command = "cd /tmp && clang-11 -Wno-override-module -o jou-temp jou-temp.bc && ./jou-temp";
+    const char *command = "clang-11 -Wno-override-module -o /tmp/jou/exe /tmp/jou/ir.bc && /tmp/jou/exe";
     if(verbose)
         puts(command);
     return !!system(command);
