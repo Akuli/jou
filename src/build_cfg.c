@@ -201,12 +201,13 @@ static struct CfVariable *build_cfg_for_expression(const struct State *st, const
         }
     }
 
-    assert(same_type(&result->type, &expr->type_before_implicit_cast));
-    if (expr->type_after_implicit_cast.kind == TYPE_UNKNOWN) {
+    if (result == NULL) {
         // call to function with '-> void'
         assert(expr->kind == AST_EXPR_CALL);
-        return result;
+        return NULL;
     }
+
+    assert(same_type(&result->type, &expr->type_before_implicit_cast));
     return build_cfg_for_implicit_cast(st, result, &expr->type_after_implicit_cast);
 }
 
@@ -234,7 +235,7 @@ static struct CfVariable *build_cfg_for_address_of_expression(const struct State
     }
 }
 
-// returntype can be NULL
+// returntype can be NULL, this function returns NULL in that case
 static struct CfVariable *build_cfg_for_call(const struct State *st, const struct AstCall *call, const struct Type *returntype)
 {
     struct CfVariable **args = malloc(call->nargs * sizeof(args[0]));  // NOLINT
