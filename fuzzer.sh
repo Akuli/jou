@@ -10,12 +10,13 @@ time="1 minute"
 
 end=$(date +%s -d "+ $time")
 while [ $(date +%s) -lt $end ]; do
-    # A few different kinds of inputs:
-    #   - Random bytes to find bugs in tokenizer
-    #   - Mixed up Jou code and C code to find bugs in parser
-    head -c 1000 /dev/urandom               > tmp/fuzzer/input1.jou
-    cat tests/*/*.jou | shuf -n 10          > tmp/fuzzer/input2.jou
-    cat tests/*/*.jou | shuf -n 10 | rev    > tmp/fuzzer/input3.jou
+    # Random bytes to find bugs in tokenizer
+    head -c 1000 /dev/urandom > tmp/fuzzer/input1.jou
+
+    # TODO: some way to fuzz other parts than just the tokenizer?
+    # The commented lines below caused false positives (#6) and never found real bugs.
+    #cat tests/*/*.jou | shuf -n 10 > tmp/fuzzer/input2.jou
+    #cat tests/*/*.jou | shuf -n 10 | rev > tmp/fuzzer/input3.jou
 
     for file in tmp/fuzzer/input*.jou; do
         # The "sh" shell prints "Segmentation fault" to stderr when that happens.
