@@ -65,8 +65,7 @@ int main(int argc, char **argv)
     if(verbose)
         print_llvm_ir(module);
 
-    // TODO: currently this doesn't work
-    //LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
+    LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
 
     // TODO: this is a ridiculous way to run the IR, figure out something better
     make_temp_dir();
