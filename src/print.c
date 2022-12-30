@@ -80,34 +80,7 @@ void print_tokens(const struct Token *tokens)
     printf("\n");
 }
 
-char *signature_to_string(const struct AstFunctionSignature *sig, bool include_return_type)
-{
-    List(char) result = {0};
-    AppendStr(&result, sig->funcname);
-    Append(&result, '(');
-
-    for (int i = 0; i < sig->nargs; i++) {
-        if(i)
-            AppendStr(&result, ", ");
-        AppendStr(&result, sig->argnames[i]);
-        AppendStr(&result, ": ");
-        AppendStr(&result, sig->argtypes[i].name);
-    }
-    if (sig->takes_varargs) {
-        if (sig->nargs)
-            AppendStr(&result, ", ");
-        AppendStr(&result, "...");
-    }
-    Append(&result, ')');
-    if (include_return_type) {
-        AppendStr(&result, " -> ");
-        AppendStr(&result, sig->returntype ? sig->returntype->name : "void");
-    }
-    Append(&result, '\0');
-    return result.ptr;
-}
-
-static void print_ast_function_signature(const struct AstFunctionSignature *sig, int indent)
+static void print_ast_function_signature(const struct Signature *sig, int indent)
 {
     char *s = signature_to_string(sig, true);
     printf("%*sSignature on line %d: %s\n", indent, "", sig->location.lineno, s);
@@ -244,7 +217,7 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
             break;
         case AST_STMT_IF:
             printf("If statement\n");
-            printf("%*s  Condition:\n", indent*2, "");
+            printf("%*s  Condition:\n", indent, "");
             print_ast_expression(&stmt->data.ifstatement.condition, indent+4);
             print_ast_body(&stmt->data.ifstatement.body, indent+2);
             break;
@@ -285,6 +258,138 @@ void print_ast(const struct AstToplevelNode *topnodelist)
 
     } while (topnodelist++->kind != AST_TOPLEVEL_END_OF_FILE);
 }
+
+
+static void print_cf_instruction(const struct CfInstruction *ins, int indent)
+{
+    printf("%*s", indent, "");
+
+    if (ins->destvar)
+        printf("%s = ", ins->destvar->name);
+
+    switch(ins->kind) {
+    case CF_ADDRESS_OF_VARIABLE:
+        printf("address of %s", ins->data.operands[0]->name);
+        break;
+    case CF_BOOL_NEGATE:
+        printf("boolean negation of %s", ins->data.operands[0]->name);
+        break;
+    case CF_CALL:
+        printf("call %s(", ins->data.call.funcname);
+        for (int i = 0; i < ins->data.call.nargs; i++) {
+            if(i) printf(", ");
+            printf("%s", ins->data.call.args[i]->name);
+        }
+        printf(")");
+        break;
+    case CF_CAST_TO_BIGGER_SIGNED_INT:
+        printf("cast %s to %d-bit signed int",
+            ins->data.operands[0]->name,
+            ins->destvar->type.data.width_in_bits);
+        break;
+    case CF_CAST_TO_BIGGER_UNSIGNED_INT:
+        printf("cast %s to %d-bit unsigned int",
+            ins->data.operands[0]->name,
+            ins->destvar->type.data.width_in_bits);
+        break;
+    case CF_INT_CONSTANT: printf("%d", ins->data.int_value); break;
+    case CF_CHAR_CONSTANT: print_byte(ins->data.char_value); break;
+    case CF_STRING_CONSTANT: print_string(ins->data.string_value); break;
+    case CF_TRUE: printf("True"); break;
+    case CF_FALSE: printf("False"); break;
+
+    case CF_INT_ADD:
+    case CF_INT_SUB:
+    case CF_INT_MUL:
+    case CF_INT_SDIV:
+    case CF_INT_UDIV:
+    case CF_INT_EQ:
+    case CF_INT_LT:
+        switch(ins->kind){
+            case CF_INT_ADD: printf("iadd "); break;
+            case CF_INT_SUB: printf("isub "); break;
+            case CF_INT_MUL: printf("imul "); break;
+            case CF_INT_SDIV: printf("sdiv "); break;
+            case CF_INT_UDIV: printf("udiv "); break;
+            case CF_INT_EQ: printf("ieq "); break;
+            case CF_INT_LT: printf("ilt "); break;
+            default: assert(0);
+        }
+        printf("%s, %s", ins->data.operands[0]->name, ins->data.operands[1]->name);
+        break;
+    case CF_LOAD_FROM_POINTER:
+        // Extra parentheses to make these stand out a bit.
+        printf("*(%s)", ins->data.operands[0]->name);
+        break;
+    case CF_STORE_TO_POINTER:
+        printf("*(%s) = %s", ins->data.operands[0]->name, ins->data.operands[1]->name);
+        break;
+    case CF_VARCPY:
+        printf("%s", ins->data.operands[0]->name);
+        break;
+    }
+
+    printf("\n");
+}
+
+static void print_cf_graph(const struct CfGraph *cfg, int indent)
+{
+    if (!cfg) {
+        printf("%*sControl Flow Graph = NULL\n", indent, "");
+        return;
+    }
+
+    printf("%*sVariables:\n", indent, "");
+    for (struct CfVariable **var = cfg->variables.ptr; var < End(cfg->variables); var++)
+        printf("%*s  %-20s %s\n", indent, "", (*var)->name, (*var)->type.name);
+
+    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
+        printf("%*sBlock %d", indent, "", (int)(b - cfg->all_blocks.ptr));
+        if (*b == &cfg->start_block)
+            printf(" (start block)");
+        if (*b == &cfg->end_block) {
+            assert((*b)->instructions.len == 0);
+            printf(" is the end block.\n");
+            continue;
+        }
+        printf(":\n");
+        for (struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
+            print_cf_instruction(ins, indent+2);
+
+        if (*b == &cfg->end_block) {
+            assert((*b)->iftrue == NULL);
+            assert((*b)->iffalse == NULL);
+        } else {
+            int trueidx=-1, falseidx=-1;
+            for (int i = 0; i < cfg->all_blocks.len; i++) {
+                if (cfg->all_blocks.ptr[i]==(*b)->iftrue) trueidx=i;
+                if (cfg->all_blocks.ptr[i]==(*b)->iffalse) falseidx=i;
+            }
+            assert(trueidx!=-1);
+            assert(falseidx!=-1);
+            if (trueidx==falseidx)
+                printf("%*s  Jump to block %d.\n", indent, "", trueidx);
+            else {
+                assert((*b)->branchvar);
+                printf("%*s  If %s is True jump to block %d, otherwise block %d.\n",
+                    indent, "", (*b)->branchvar->name, trueidx, falseidx);
+            }
+        }
+    }
+}
+
+void print_control_flow_graphs(const struct CfGraphFile *cfgfile)
+{
+    printf("===== Control Flow Graphs for file \"%s\" =====\n", cfgfile->filename);
+    for (int i = 0; i < cfgfile->nfuncs; i++) {
+        char *sigstr = signature_to_string(&cfgfile->signatures[i], true);
+        printf("Function on line %d: %s\n", cfgfile->signatures[i].location.lineno, sigstr);
+        free(sigstr);
+        print_cf_graph(cfgfile->graphs[i], 2);
+        printf("\n");
+    }
+}
+
 
 void print_llvm_ir(LLVMModuleRef module)
 {

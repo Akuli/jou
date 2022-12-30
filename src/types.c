@@ -37,6 +37,25 @@ struct Type create_integer_type(int size_in_bits, bool is_signed)
     return t;
 }
 
+struct Type copy_type(const struct Type *t)
+{
+    switch(t->kind) {
+    case TYPE_SIGNED_INTEGER:
+    case TYPE_UNSIGNED_INTEGER:
+    case TYPE_UNKNOWN:
+    case TYPE_BOOL:
+        return *t;
+    case TYPE_POINTER:
+        {
+            struct Type t2 = *t;
+            t2.data.valuetype = malloc(sizeof(*t2.data.valuetype));
+            *t2.data.valuetype = copy_type(t->data.valuetype);
+            return t2;
+        }
+    }
+    assert(0);
+}
+
 bool is_integer_type(const struct Type *t)
 {
     return (t->kind == TYPE_SIGNED_INTEGER || t->kind == TYPE_UNSIGNED_INTEGER);
@@ -91,4 +110,51 @@ bool can_cast_implicitly(const struct Type *from, const struct Type *to)
     }
 
     assert(0);
+}
+
+
+char *signature_to_string(const struct Signature *sig, bool include_return_type)
+{
+    List(char) result = {0};
+    AppendStr(&result, sig->funcname);
+    Append(&result, '(');
+
+    for (int i = 0; i < sig->nargs; i++) {
+        if(i)
+            AppendStr(&result, ", ");
+        AppendStr(&result, sig->argnames[i]);
+        AppendStr(&result, ": ");
+        AppendStr(&result, sig->argtypes[i].name);
+    }
+    if (sig->takes_varargs) {
+        if (sig->nargs)
+            AppendStr(&result, ", ");
+        AppendStr(&result, "...");
+    }
+    Append(&result, ')');
+    if (include_return_type) {
+        AppendStr(&result, " -> ");
+        AppendStr(&result, sig->returntype ? sig->returntype->name : "void");
+    }
+    Append(&result, '\0');
+    return result.ptr;
+}
+
+struct Signature copy_signature(const struct Signature *sig)
+{
+    struct Signature result = *sig;
+
+    result.argtypes = malloc(sizeof(result.argtypes[0]) * result.nargs);
+    for (int i = 0; i < result.nargs; i++)
+        result.argtypes[i] = copy_type(&sig->argtypes[i]);
+
+    result.argnames = malloc(sizeof(result.argnames[0]) * result.nargs);
+    memcpy(result.argnames, sig->argnames, sizeof(result.argnames[0]) * result.nargs);
+
+    if (result.returntype) {
+        result.returntype = malloc(sizeof(*result.returntype));
+        *result.returntype = copy_type(sig->returntype);
+    }
+
+    return result;
 }

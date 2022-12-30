@@ -78,12 +78,12 @@ Hello World
 
 ## Getting started with developing
 
-The compiler is currently written in C.
-At a high level, the compilation steps are:
+The compiler is currently written in C. At a high level, the compilation steps are:
 - Tokenize: split the source code into tokens
 - Parse: build an Abstract Syntax Tree from the tokens
 - Fill types: find the types of all expressions and put them to AST
-- Codegen: convert the AST into LLVM IR
+- Build CFG: build a Control Flow Graph from the AST
+- Codegen: convert the CFG into LLVM IR
 - Invoke `clang` and pass it the generated LLVM IR
 
 To get a good idea of how these steps work,
@@ -103,13 +103,9 @@ The two types are the same when no casting needs to be done.
 For example, if you call `putchar(int)` with an argument of type `byte`,
 the argument will implicitly cast to type `int`.
 
-Checking the types before codegen makes the codegen step simpler,
-but storing the types into the AST is a bit of a weird design:
-an instance of `struct AstExpression` can be either typed or untyped.
-It is this way because the codegen step needs to know what type everything has
-(to cast signed and unsigned integers correctly, for example; they are the same type in LLVM IR).
-Another alternative would be to create a separate "typed AST" that is then converted into LLVM IR,
-but in my experience it results in a lot of duplication.
+The "Fill Types" step is weird, and it was created before the CFG existed.
+Now my plan is to remove the fill "Fill types" step
+and instead figure out the types of things during the CFG building.
 
 
 ## Tests

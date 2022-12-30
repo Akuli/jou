@@ -56,13 +56,17 @@ int main(int argc, char **argv)
     if(verbose)
         print_ast(ast);
 
-    LLVMModuleRef module = codegen(ast);
+    struct CfGraphFile cfgfile = build_control_flow_graphs(ast);
     free_ast(ast);
+    if(verbose)
+        print_control_flow_graphs(&cfgfile);
+
+    LLVMModuleRef module = codegen(&cfgfile);
+    free_control_flow_graphs(&cfgfile);
     if(verbose)
         print_llvm_ir(module);
 
-    // TODO: currently this doesn't work
-    //LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
+    LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
 
     // TODO: this is a ridiculous way to run the IR, figure out something better
     make_temp_dir();

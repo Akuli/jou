@@ -74,10 +74,22 @@ extern const struct Type unknownType;   // internal to compiler, not exposed in 
 // create_pointer_type(...) returns a type whose .data.valuetype must be free()d
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location);
 struct Type create_integer_type(int size_in_bits, bool is_signed);
-
+struct Type copy_type(const struct Type *t);
 bool is_integer_type(const struct Type *t);
 bool same_type(const struct Type *a, const struct Type *b);
 bool can_cast_implicitly(const struct Type *from, const struct Type *to);
+
+struct Signature {
+    struct Location location;
+    char funcname[100];
+    int nargs;
+    struct Type *argtypes;
+    char (*argnames)[100];
+    bool takes_varargs;  // true for functions like printf()
+    struct Type *returntype;  // NULL, if does not return a value
+};
+char *signature_to_string(const struct Signature *sig, bool include_return_type);
+struct Signature copy_signature(const struct Signature *sig);
 
 
 struct AstCall {
@@ -134,17 +146,6 @@ struct AstExpression {
     } data;
 };
 
-struct AstFunctionSignature {
-    struct Location location;
-    char funcname[100];
-    int nargs;
-    struct Type *argtypes;
-    char (*argnames)[100];
-    bool takes_varargs;  // true for functions like printf()
-    struct Type *returntype;  // NULL, if does not return a value
-};
-char *signature_to_string(const struct AstFunctionSignature *sig, bool include_return_type);
-
 struct AstBody {
     struct AstStatement *statements;
     int nstatements;
@@ -169,12 +170,13 @@ struct AstStatement {
 };
 
 struct AstFunctionDef {
-    struct AstFunctionSignature signature;
+    struct Signature signature;
     struct AstBody body;
 
     // Local variables are added during fill_types.
     // First n local variables are the function arguments.
     // End of list is denoted with empty name.
+    // TODO: delete this
     struct AstLocalVariable { char name[100]; struct Type type; } *locals;
 };
 
@@ -187,9 +189,71 @@ struct AstToplevelNode {
         AST_TOPLEVEL_DEFINE_FUNCTION,
     } kind;
     union {
-        struct AstFunctionSignature decl_signature;  // for AST_TOPLEVEL_CDECL_FUNCTION
+        struct Signature decl_signature;  // for AST_TOPLEVEL_CDECL_FUNCTION
         struct AstFunctionDef funcdef;  // for AST_TOPLEVEL_DEFINE_FUNCTION
     } data;
+};
+
+
+// Control Flow Graph.
+// Struct names not prefixed with Cfg because it looks too much like "config" to me
+struct CfVariable {
+    char name[100];  // Prefixed with $ for values that are anonymous in Jou code
+    struct Type type;
+};
+struct CfInstruction {
+    enum CfInstructionKind {
+        CF_INT_CONSTANT,
+        CF_CHAR_CONSTANT,  // TODO: delete (can use int constant + cast)
+        CF_STRING_CONSTANT,
+        CF_TRUE,
+        CF_FALSE,
+        CF_CALL,
+        CF_ADDRESS_OF_VARIABLE,
+        CF_STORE_TO_POINTER,  // *foo = bar (does not use destvar, see below)
+        CF_LOAD_FROM_POINTER,  // aka dereference
+        CF_INT_ADD,
+        CF_INT_SUB,
+        CF_INT_MUL,
+        CF_INT_SDIV, // signed division, example with 8 bits: 255 / 2 = (-1) / 2 = 0
+        CF_INT_UDIV, // unsigned division: 255 / 2 = 127
+        CF_INT_EQ,
+        CF_INT_LT,
+        CF_BOOL_NEGATE,  // TODO: get rid of this?
+        CF_VARCPY, // similar to assignment statements: var1 = var2
+        CF_CAST_TO_BIGGER_SIGNED_INT,
+        CF_CAST_TO_BIGGER_UNSIGNED_INT,
+    } kind;
+    union {
+        int int_value;          // CF_INT_CONSTANT
+        char char_value;        // CF_CHAR_CONSTANT
+        char *string_value;     // CF_STRING_CONSTANT
+        struct CfVariable *operands[2];  // e.g. numbers to add
+        // TODO: replace nargs with NULL terminated?
+        struct { char funcname[100]; struct CfVariable **args; int nargs; } call; // CF_CALL
+    } data;
+    const struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
+};
+
+struct CfBlock {
+    List(struct CfInstruction) instructions;
+    struct CfVariable *branchvar;  // boolean value used to decide where to jump next
+    struct CfBlock *iftrue;
+    struct CfBlock *iffalse;
+};
+
+struct CfGraph {
+    struct CfBlock start_block;  // First block
+    struct CfBlock end_block;  // Always empty. Return statement jumps here.
+    List(struct CfBlock *) all_blocks;
+    List(struct CfVariable *) variables;   // First n variables are the function arguments
+};
+
+struct CfGraphFile {
+    const char *filename;
+    int nfuncs;
+    struct Signature *signatures;
+    struct CfGraph **graphs;  // NULL means function is only declared, not defined
 };
 
 
@@ -203,7 +267,8 @@ entire compilation. It is used in error messages.
 struct Token *tokenize(const char *filename);
 struct AstToplevelNode *parse(const struct Token *tokens);
 void fill_types(struct AstToplevelNode *ast);
-LLVMModuleRef codegen(const struct AstToplevelNode *ast);
+struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast);
+LLVMModuleRef codegen(const struct CfGraphFile *cfgfile);
 
 /*
 Use these to clean up return values of compiling functions.
@@ -214,6 +279,7 @@ but not any of the data contained within individual nodes.
 */
 void free_tokens(struct Token *tokenlist);
 void free_ast(struct AstToplevelNode *topnodelist);
+void free_control_flow_graphs(const struct CfGraphFile *cfgfile);
 // To free LLVM IR, use LLVMDisposeModule
 
 /*
@@ -223,6 +289,7 @@ Most of these take the data for an entire program.
 void print_token(const struct Token *token);
 void print_tokens(const struct Token *tokenlist);
 void print_ast(const struct AstToplevelNode *topnodelist);
+void print_control_flow_graphs(const struct CfGraphFile *cfgfile);
 void print_llvm_ir(LLVMModuleRef module);
 
 #endif

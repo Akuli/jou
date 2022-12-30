@@ -54,9 +54,9 @@ static struct Type parse_type(const struct Token **tokens)
     return result;
 }
 
-static struct AstFunctionSignature parse_function_signature(const struct Token **tokens)
+static struct Signature parse_function_signature(const struct Token **tokens)
 {
-    struct AstFunctionSignature result = {.location=(*tokens)->location};
+    struct Signature result = {.location=(*tokens)->location};
 
     if ((*tokens)->type != TOKEN_NAME)
         fail_with_parse_error(*tokens, "a function name");
