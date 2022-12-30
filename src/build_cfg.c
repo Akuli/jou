@@ -159,6 +159,10 @@ static struct CfVariable *build_binop(
         max(lhs->type.data.width_in_bits, rhs->type.data.width_in_bits),
         lhs->type.kind == TYPE_SIGNED_INTEGER || lhs->type.kind == TYPE_SIGNED_INTEGER
     );
+    // It shouldn't be possible to make these fail.
+    // TODO: i think it is, with adding same size signed and unsigned for example
+    lhs = build_implicit_cast(st, lhs, &cast_type, error_location, NULL);
+    rhs = build_implicit_cast(st, rhs, &cast_type, error_location, NULL);
 
     struct Type result_type;
     switch(op) {
