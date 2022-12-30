@@ -121,11 +121,6 @@ static void free_signature(const struct Signature *sig)
     free(sig->argnames);
 }
 
-void free_control_flow_graphs(const struct CfGraphFile *cfgfile)
-{
-    //assert(0);  // TODO
-}
-
 void free_ast(struct AstToplevelNode *topnodelist)
 {
     for (struct AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
@@ -143,4 +138,42 @@ void free_ast(struct AstToplevelNode *topnodelist)
         }
     }
     free(topnodelist);
+}
+
+
+static void free_cfg(struct CfGraph *cfg)
+{
+    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
+        for (const struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++) {
+            switch(ins->kind) {
+                case CF_CALL: free(ins->data.call.args); break;
+                case CF_STRING_CONSTANT: free(ins->data.string_value); break;
+                default: break;
+            }
+        }
+        free((*b)->instructions.ptr);
+        if (*b != &cfg->start_block && *b != &cfg->end_block)
+            free(*b);
+    }
+
+    for (struct CfVariable **v = cfg->variables.ptr; v < End(cfg->variables); v++) {
+        free_type(&(*v)->type);
+        free(*v);
+    }
+
+    free(cfg->all_blocks.ptr);
+    free(cfg->variables.ptr);
+    free(cfg);
+}
+
+void free_control_flow_graphs(const struct CfGraphFile *cfgfile)
+{
+    for (int i = 0; i < cfgfile->nfuncs; i++) {
+        free_signature(&cfgfile->signatures[i]);
+        if (cfgfile->graphs[i])
+            free_cfg(cfgfile->graphs[i]);
+    }
+
+    free(cfgfile->signatures);
+    free(cfgfile->graphs);
 }

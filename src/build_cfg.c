@@ -9,7 +9,7 @@ struct State {
 static struct CfVariable *add_variable(const struct State *st, const struct Type *t, const char *name)
 {
     struct CfVariable *var = malloc(sizeof *var);
-    var->type = *t;
+    var->type = copy_type(t);
     if (name[0] == '$') {
         // Anonymous in the user's code, make unique name
         snprintf(var->name, sizeof var->name, "%s_%d", name, st->cfg->variables.len);
@@ -221,9 +221,9 @@ static struct CfVariable *build_cfg_for_address_of_expression(const struct State
     case AST_EXPR_GET_VARIABLE:
         {
             struct CfVariable *var = find_variable(st, address_of_what->data.varname);
-            // TODO: shouldn't need to create a new type here
             struct Type t = create_pointer_type(&var->type, (struct Location){0});
             struct CfVariable *addr = add_variable(st, &t, "$address_of_var");
+            free(t.data.valuetype);
             Append(&st->current_block->instructions, (struct CfInstruction){
                 .kind = CF_ADDRESS_OF_VARIABLE,
                 .data.operands[0] = var,
