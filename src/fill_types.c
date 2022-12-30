@@ -318,6 +318,12 @@ static void fill_types_statement(struct State *st, struct AstStatement *stmt)
         fill_types_body(st, &stmt->data.ifstatement.body);
         break;
 
+    case AST_STMT_WHILE:
+        fill_types_expression(st, &stmt->data.whileloop.condition, &boolType,
+            "'while' condition must be a boolean, not FROM", true);
+        fill_types_body(st, &stmt->data.whileloop.body);
+        break;
+
     case AST_STMT_EXPRESSION_STATEMENT:
         fill_types_expression(st, &stmt->data.expression, NULL, NULL, false);
         break;
