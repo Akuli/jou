@@ -294,7 +294,7 @@ static void print_cf_instruction(const struct CfGraph *cfg, const struct CfInstr
         print_cf_var(cfg, ins->data.operands[0]);
         break;
     case CF_CALL:
-        printf("%s(", ins->data.call.funcname);
+        printf("call %s(", ins->data.call.funcname);
         for (int i = 0; i < ins->data.call.nargs; i++) {
             if(i) printf(", ");
             print_cf_var(cfg, ins->data.call.args[i]);
@@ -311,7 +311,7 @@ static void print_cf_instruction(const struct CfGraph *cfg, const struct CfInstr
         print_cf_var(cfg, ins->data.operands[0]);
         printf(" to bigger unsigned int");
         break;
-    case CF_INT_CONSTANT: printf("%d\n", ins->data.int_value); break;
+    case CF_INT_CONSTANT: printf("%d", ins->data.int_value); break;
     case CF_CHAR_CONSTANT: print_byte(ins->data.char_value); break;
     case CF_STRING_CONSTANT: print_string(ins->data.string_value); break;
     case CF_TRUE: printf("True"); break;

@@ -175,6 +175,7 @@ struct AstFunctionDef {
     // Local variables are added during fill_types.
     // First n local variables are the function arguments.
     // End of list is denoted with empty name.
+    // TODO: delete dis
     struct AstLocalVariable { char name[100]; struct Type type; } *locals;
 
     // Initially NULL. Created in a separate compilation step after parsing and fill_types.

@@ -8,32 +8,11 @@
 #include "jou_compiler.h"
 #include "util.h"
 
-struct LocalVariable {
-    char name[100];
-    LLVMValueRef pointer;
-};
-
-struct State {
-    LLVMModuleRef module;
-    LLVMBuilderRef builder;
-    const struct AstFunctionDef *ast_func;
-    LLVMValueRef llvm_func;
-    LLVMValueRef *llvm_locals;
-};
-
-static LLVMValueRef get_pointer_to_local_var(const struct State *st, const char *name)
-{
-    for (int i = 0; st->ast_func->locals[i].name[0]; i++)
-        if (!strcmp(st->ast_func->locals[i].name, name))
-            return st->llvm_locals[i];
-    assert(0);
-}
-
-static LLVMTypeRef codegen_type(const struct State *st, const struct Type *type)
+static LLVMTypeRef codegen_type(const struct Type *type)
 {
     switch(type->kind) {
     case TYPE_POINTER:
-        return LLVMPointerType(codegen_type(st, type->data.valuetype), 0);
+        return LLVMPointerType(codegen_type(type->data.valuetype), 0);
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
         return LLVMIntType(type->data.width_in_bits);
@@ -45,36 +24,54 @@ static LLVMTypeRef codegen_type(const struct State *st, const struct Type *type)
     assert(0);
 }
 
-static LLVMValueRef codegen_implicit_cast(
-    const struct State *st,
-    LLVMValueRef obj,
-    const struct Type *from,
-    const struct Type *to)
-{
-    if (same_type(from, to))
-        return obj;
+struct State {
+    LLVMModuleRef module;
+    LLVMBuilderRef builder;
+    const struct AstFunctionDef *ast_func;
+    LLVMValueRef llvm_func;
+    // All local variables are represented as pointers to stack space, even
+    // if they are never reassigned. LLVM will optimize the mess.
+    LLVMValueRef *llvm_locals;
+};
 
-    switch(to->kind) {
-    case TYPE_SIGNED_INTEGER:
-        return LLVMBuildSExt(st->builder, obj, codegen_type(st, to), "implicit_cast");
-    case TYPE_UNSIGNED_INTEGER:
-        return LLVMBuildZExt(st->builder, obj, codegen_type(st, to), "implicit_cast");
-    default:
-        assert(0);
+static LLVMValueRef get_pointer_to_local_var(const struct State *st, const struct CfVariable *cfvar)
+{
+    for (int i = 0; i < st->ast_func->cfg->variables.len; i++) {
+        if (st->ast_func->cfg->variables.ptr[i] == cfvar) {
+            return st->llvm_locals[i];
+        }
     }
+    assert(0);
+}
+
+static LLVMValueRef get_local_var(const struct State *st, const struct CfVariable *cfvar)
+{
+    LLVMValueRef varptr = get_pointer_to_local_var(st, cfvar);
+    return LLVMBuildLoad(st->builder, varptr, cfvar->name[0] ? cfvar->name : "local_var");
+}
+
+static void set_local_var(const struct State *st, const struct CfVariable *cfvar, LLVMValueRef value)
+{
+    for (int i = 0; i < st->ast_func->cfg->variables.len; i++) {
+        if (st->ast_func->cfg->variables.ptr[i] == cfvar) {
+            LLVMBuildStore(st->builder, value, st->llvm_locals[i]);
+            return;
+        }
+    }
+    assert(0);
 }
 
 static LLVMValueRef codegen_function_decl(const struct State *st, const struct AstFunctionSignature *sig)
 {
     LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
     for (int i = 0; i < sig->nargs; i++)
-        argtypes[i] = codegen_type(st, &sig->argtypes[i]);
+        argtypes[i] = codegen_type(&sig->argtypes[i]);
 
     LLVMTypeRef returntype;
     if (sig->returntype == NULL)
         returntype = LLVMVoidType();
     else
-        returntype = codegen_type(st, sig->returntype);
+        returntype = codegen_type(sig->returntype);
 
     LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
     free(argtypes);
@@ -93,174 +90,76 @@ static LLVMValueRef make_a_string_constant(const struct State *st, const char *s
     return LLVMBuildBitCast(st->builder, global_var, string_type, "string_ptr");
 }
 
-// forward-declare
-static LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location);
-static LLVMValueRef codegen_address_of_expression(const struct State *st, const struct AstExpression *address_of_what);
-
-static LLVMValueRef codegen_expression(const struct State *st, const struct AstExpression *expr)
+static LLVMValueRef codegen_call(const struct State *st, const char *funcname, LLVMValueRef *args, int nargs)
 {
-    LLVMValueRef result;
-
-    switch(expr->kind) {
-    case AST_EXPR_CALL:
-        result = codegen_call(st, &expr->data.call, expr->location);
-        break;
-    case AST_EXPR_ADDRESS_OF:
-        result = codegen_address_of_expression(st, &expr->data.operands[0]);
-        break;
-    case AST_EXPR_GET_VARIABLE:
-        result = LLVMBuildLoad(st->builder, get_pointer_to_local_var(st, expr->data.varname), expr->data.varname);
-        break;
-    case AST_EXPR_DEREFERENCE:
-        result = LLVMBuildLoad(st->builder, codegen_expression(st, &expr->data.operands[0]), "deref");
-        break;
-    case AST_EXPR_INT_CONSTANT:
-        result = LLVMConstInt(LLVMInt32Type(), expr->data.int_value, false);
-        break;
-    case AST_EXPR_CHAR_CONSTANT:
-        result = LLVMConstInt(LLVMInt8Type(), expr->data.char_value, false);
-        break;
-    case AST_EXPR_STRING_CONSTANT:
-        result = make_a_string_constant(st, expr->data.string_value);
-        break;
-    case AST_EXPR_TRUE:
-        result = LLVMConstInt(LLVMInt1Type(), 1, false);
-        break;
-    case AST_EXPR_FALSE:
-        result = LLVMConstInt(LLVMInt1Type(), 0, false);
-        break;
-    case AST_EXPR_ASSIGN:
-        {
-            // TODO: this evaluation order good? sometimes confuses python programmers, seen it in 2022 /r/adventofcode
-            LLVMValueRef lhsptr = codegen_address_of_expression(st, &expr->data.operands[0]);
-            LLVMValueRef rhs = codegen_expression(st, &expr->data.operands[1]);
-            LLVMBuildStore(st->builder, rhs, lhsptr);
-            return rhs;
-        }
-    case AST_EXPR_ADD:
-    case AST_EXPR_SUB:
-    case AST_EXPR_MUL:
-    case AST_EXPR_DIV:
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
-        {
-            // careful with C's evaluation order........
-            LLVMValueRef lhs = codegen_expression(st, &expr->data.operands[0]);
-            LLVMValueRef rhs = codegen_expression(st, &expr->data.operands[1]);
-            assert(same_type(
-                &expr->data.operands[0].type_after_implicit_cast,
-                &expr->data.operands[1].type_after_implicit_cast));
-            bool is_signed = expr->data.operands[0].type_after_implicit_cast.kind == TYPE_SIGNED_INTEGER;
-
-            switch(expr->kind) {
-                case AST_EXPR_ADD: result = LLVMBuildAdd(st->builder, lhs, rhs, "add"); break;
-                case AST_EXPR_SUB: result = LLVMBuildSub(st->builder, lhs, rhs, "sub"); break;
-                case AST_EXPR_MUL: result = LLVMBuildMul(st->builder, lhs, rhs, "mul"); break;
-                case AST_EXPR_DIV: result = (is_signed ? LLVMBuildSDiv : LLVMBuildUDiv)(st->builder, lhs, rhs, "div"); break;
-                case AST_EXPR_EQ: result = LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "eq"); break;
-                case AST_EXPR_NE: result = LLVMBuildICmp(st->builder, LLVMIntNE, lhs, rhs, "ne"); break;
-                case AST_EXPR_LT: result = LLVMBuildICmp(st->builder, is_signed ? LLVMIntSLT : LLVMIntULT, lhs, rhs, "lt"); break;
-                case AST_EXPR_LE: result = LLVMBuildICmp(st->builder, is_signed ? LLVMIntSLE : LLVMIntULE, lhs, rhs, "le"); break;
-                case AST_EXPR_GT: result = LLVMBuildICmp(st->builder, is_signed ? LLVMIntSGT : LLVMIntUGT, lhs, rhs, "gt"); break;
-                case AST_EXPR_GE: result = LLVMBuildICmp(st->builder, is_signed ? LLVMIntSGE : LLVMIntUGE, lhs, rhs, "ge"); break;
-                default: assert(0);
-            }
-        }
-    }
-
-    if (expr->type_after_implicit_cast.kind == TYPE_UNKNOWN) {
-        // call to function with '-> void'
-        assert(expr->kind == AST_EXPR_CALL);
-        return result;
-    }
-    return codegen_implicit_cast(st, result, &expr->type_before_implicit_cast, &expr->type_after_implicit_cast);
-}
-
-static LLVMValueRef codegen_address_of_expression(const struct State *st, const struct AstExpression *address_of_what)
-{
-    switch(address_of_what->kind) {
-    case AST_EXPR_GET_VARIABLE:
-        return get_pointer_to_local_var(st, address_of_what->data.varname);
-    case AST_EXPR_DEREFERENCE:
-        // &*foo --> just evaluate foo
-        return codegen_expression(st, &address_of_what->data.operands[0]);
-    default:
-        assert(0);
-    }
-}
-
-static LLVMValueRef codegen_call(const struct State *st, const struct AstCall *call, struct Location location)
-{
-    // TODO: do something with the location, debug info?
-    (void)location;
-
-    LLVMValueRef function = LLVMGetNamedFunction(st->module, call->funcname);
+    LLVMValueRef function = LLVMGetNamedFunction(st->module, funcname);
     assert(function);
     assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMPointerTypeKind);
     LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(function));
     assert(LLVMGetTypeKind(function_type) == LLVMFunctionTypeKind);
 
-    LLVMValueRef *args = malloc(call->nargs * sizeof(args[0]));  // NOLINT
-    for (int i = 0; i < call->nargs; i++)
-        args[i] = codegen_expression(st, &call->args[i]);
-
     char debug_name[100] = {0};
     if (LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMVoidTypeKind)
-        snprintf(debug_name, sizeof debug_name, "%s_return_value", call->funcname);
+        snprintf(debug_name, sizeof debug_name, "%s_return_value", funcname);
 
-    LLVMValueRef return_value = LLVMBuildCall2(st->builder, function_type, function, args, call->nargs, debug_name);
-
-    free(args);
+    LLVMValueRef return_value = LLVMBuildCall2(st->builder, function_type, function, args, nargs, debug_name);
     return return_value;
 }
 
-static void codegen_body(const struct State *st, const struct AstBody *body);
-
-static void codegen_if_statement(const struct State *st, const struct AstIfStatement *ifstatement)
+static void codegen_instruction(const struct State *st, const struct CfInstruction *ins)
 {
-    LLVMValueRef condition = codegen_expression(st, &ifstatement->condition);
-    assert(LLVMTypeOf(condition) == LLVMInt1Type());
+#define set(var,val) set_local_var(st, (var), (val))
+#define setdest(val) set(ins->destvar, (val))
+#define get(var) get_local_var(st, (var))
+#define getop(i) get(ins->data.operands[(i)])
 
-    LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->llvm_func, "then");
-    LLVMBasicBlockRef after_if = LLVMAppendBasicBlock(st->llvm_func, "after_if");
-    LLVMBuildCondBr(st->builder, condition, then, after_if);
-
-    LLVMPositionBuilderAtEnd(st->builder, then);
-    codegen_body(st, &ifstatement->body);
-    LLVMBuildBr(st->builder, after_if);
-
-    LLVMPositionBuilderAtEnd(st->builder, after_if);
-}
-
-static void codegen_statement(const struct State *st, const struct AstStatement *stmt)
-{
-    switch(stmt->kind) {
-    case AST_STMT_IF:
-        codegen_if_statement(st, &stmt->data.ifstatement);
-        break;
-
-    case AST_STMT_RETURN_VALUE:
-        LLVMBuildRet(st->builder, codegen_expression(st, &stmt->data.expression));
-        break;
-
-    case AST_STMT_RETURN_WITHOUT_VALUE:
-        LLVMBuildRetVoid(st->builder);
-        break;
-
-    case AST_STMT_EXPRESSION_STATEMENT:
-        codegen_expression(st, &stmt->data.expression);
-        break;
+    switch(ins->kind) {
+        case CF_CALL:
+            {
+                int nargs = ins->data.call.nargs;
+                LLVMValueRef *args = malloc(nargs * sizeof(args[0]));  // NOLINT
+                for (int i = 0; i < nargs; i++)
+                    args[i] = get(ins->data.call.args[i]);
+                LLVMValueRef return_value = codegen_call(st, ins->data.call.funcname, args, nargs);
+                if (ins->destvar)
+                    setdest(return_value);
+                free(args);
+            }
+            break;
+        case CF_ADDRESS_OF_VARIABLE: setdest(get_pointer_to_local_var(st, ins->data.operands[0])); break;
+        case CF_LOAD_FROM_POINTER: setdest(LLVMBuildLoad(st->builder, getop(0), "load")); break;
+        case CF_STORE_TO_POINTER: LLVMBuildStore(st->builder, getop(0), get(ins->destvar)); break;
+        case CF_BOOL_NEGATE: setdest(LLVMBuildNeg(st->builder, getop(0), "neg")); break;
+        case CF_CAST_TO_BIGGER_SIGNED_INT: setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(&ins->destvar->type), "cast")); break;
+        case CF_CAST_TO_BIGGER_UNSIGNED_INT: setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(&ins->destvar->type), "cast")); break;
+        case CF_CHAR_CONSTANT: setdest(LLVMConstInt(LLVMInt8Type(), ins->data.char_value, false)); break;
+        case CF_INT_CONSTANT: setdest(LLVMConstInt(LLVMInt32Type(), ins->data.int_value, true)); break;
+        case CF_STRING_CONSTANT: setdest(make_a_string_constant(st, ins->data.string_value)); break;
+        case CF_TRUE: setdest(LLVMConstInt(LLVMInt1Type(), 1, false)); break;
+        case CF_FALSE: setdest(LLVMConstInt(LLVMInt1Type(), 0, false)); break;
+        case CF_INT_ADD: setdest(LLVMBuildAdd(st->builder, getop(0), getop(1), "iadd")); break;
+        case CF_INT_SUB: setdest(LLVMBuildSub(st->builder, getop(0), getop(1), "isub")); break;
+        case CF_INT_MUL: setdest(LLVMBuildMul(st->builder, getop(0), getop(1), "imul")); break;
+        case CF_INT_SDIV: setdest(LLVMBuildSDiv(st->builder, getop(0), getop(1), "sdiv")); break;
+        case CF_INT_UDIV: setdest(LLVMBuildUDiv(st->builder, getop(0), getop(1), "udiv")); break;
+        case CF_INT_EQ: setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, getop(0), getop(1), "eq")); break;
+        // TODO: unsigned less-than
+        case CF_INT_LT: setdest(LLVMBuildICmp(st->builder, LLVMIntSLT, getop(0), getop(1), "lt")); break;
+        case CF_VARCPY: setdest(getop(0)); break;
     }
+
+#undef set
+#undef setdest
+#undef get
+#undef getop
 }
 
-static void codegen_body(const struct State *st, const struct AstBody *body)
+static int find_block(const struct CfGraph *cfg, const struct CfBlock *b)
 {
-    for (int i = 0; i < body->nstatements; i++)
-        codegen_statement(st, &body->statements[i]);
+    for (int i = 0; i < cfg->all_blocks.len; i++)
+        if (cfg->all_blocks.ptr[i] == b)
+            return i;
+    assert(0);
 }
 
 static void codegen_function_def(struct State *st, const struct AstFunctionDef *funcdef)
@@ -271,32 +170,57 @@ static void codegen_function_def(struct State *st, const struct AstFunctionDef *
 
     st->ast_func = funcdef;
     st->llvm_func = codegen_function_decl(st, &funcdef->signature);
+    st->llvm_locals = malloc(sizeof(st->llvm_locals[0]) * funcdef->cfg->variables.len); // NOLINT
 
-    LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(LLVMGetGlobalContext(), st->llvm_func, "function_start");
-    LLVMPositionBuilderAtEnd(st->builder, block);
+    LLVMValueRef return_value = NULL;
 
-    List(LLVMValueRef) locals = {0};
-    for (int i = 0; funcdef->locals[i].name[0]; i++) {
-        LLVMTypeRef vartype = codegen_type(st, &funcdef->locals[i].type);
-        Append(&locals, LLVMBuildAlloca(st->builder, vartype, funcdef->locals[i].name));
-    }
-    st->llvm_locals = locals.ptr;
+    assert(funcdef->cfg);
+    assert(funcdef->cfg->all_blocks.ptr[0] == &funcdef->cfg->start_block);
 
-    for (int i = 0; i < funcdef->signature.nargs; i++) {
-        LLVMValueRef value = LLVMGetParam(st->llvm_func, i);
-        LLVMValueRef pointer = get_pointer_to_local_var(st, funcdef->signature.argnames[i]);
-        LLVMBuildStore(st->builder, value, pointer);
+    LLVMBasicBlockRef *blocks = malloc(sizeof(blocks[0]) * funcdef->cfg->all_blocks.len); // NOLINT
+    for (int i = 0; i < funcdef->cfg->all_blocks.len; i++) {
+        char name[50];
+        sprintf(name, "block%d", i);
+        blocks[i] = LLVMAppendBasicBlock(st->llvm_func, name);
     }
 
-    codegen_body(st, &funcdef->body);
+    for (struct CfBlock **b = funcdef->cfg->all_blocks.ptr; b <End(funcdef->cfg->all_blocks); b++) {
+        LLVMPositionBuilderAtEnd(st->builder, blocks[b - funcdef->cfg->all_blocks.ptr]);
 
-    if (funcdef->signature.returntype == NULL)
-        LLVMBuildRetVoid(st->builder);
-    else
-        LLVMBuildUnreachable(st->builder);  // TODO: compiler error if this is reachable
+        if (*b == &funcdef->cfg->start_block) {
+            // Allocate stack space for local variables at start of function.
+            for (int i = 0; i < funcdef->cfg->variables.len; i++) {
+                struct CfVariable *v = funcdef->cfg->variables.ptr[i];
+                st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(&v->type), v->name);
+                if (!strcmp(v->name, "return"))
+                    return_value = st->llvm_locals[i];
+            }
+        }
 
-    st->ast_func = NULL;
-    st->llvm_func = NULL;
+        for (struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
+            codegen_instruction(st, ins);
+
+        if (*b == &funcdef->cfg->end_block) {
+            assert((*b)->instructions.len == 0);
+            if (return_value)
+                LLVMBuildRet(st->builder, LLVMBuildLoad(st->builder, return_value, "return_value"));
+            else
+                LLVMBuildRetVoid(st->builder);
+        } else {
+            assert((*b)->iftrue && (*b)->iffalse);
+            if ((*b)->iftrue == (*b)->iffalse) {
+                LLVMBuildBr(st->builder, blocks[find_block(funcdef->cfg, (*b)->iftrue)]);
+            } else {
+                assert((*b)->branchvar);
+                LLVMBuildCondBr(
+                    st->builder,
+                    get_local_var(st, (*b)->branchvar),
+                    blocks[find_block(funcdef->cfg, (*b)->iftrue)],
+                    blocks[find_block(funcdef->cfg, (*b)->iffalse)]);
+            }
+        }
+    }
+
     free(st->llvm_locals);
     st->llvm_locals = NULL;
 }
