@@ -301,7 +301,7 @@ static struct CfVariable *build_expression(
             {
                 // Making a new variable. Use the type of the value being assigned.
                 result = build_expression(st, valueexpr, NULL, NULL, true);
-                struct CfVariable *var = add_variable(st, &result->type, valueexpr->data.varname);
+                struct CfVariable *var = add_variable(st, &result->type, targetexpr->data.varname);
                 Append(&st->current_block->instructions, (struct CfInstruction){
                     .kind = CF_VARCPY,
                     .data.operands[0] = result,
