@@ -252,7 +252,7 @@ static struct CfVariable *build_expression(
         temp = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
         if (temp->type.kind != TYPE_POINTER)
             fail_with_error(expr->location, "the dereference operator '*' is only for pointers, not for %s", temp->type.name);
-        result = add_variable(st, &temp->type, "$deref");
+        result = add_variable(st, temp->type.data.valuetype, "$deref");
         Append(&st->current_block->instructions, (struct CfInstruction) {
             .kind = CF_LOAD_FROM_POINTER,
             .data.operands[0] = temp,
