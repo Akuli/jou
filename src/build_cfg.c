@@ -89,7 +89,7 @@ static struct CfVariable *build_cfg_for_expression(const struct State *st, const
         break;
     case AST_EXPR_DEREFERENCE:
         result = add_variable(st, &expr->type_before_implicit_cast);
-        temp = build_cfg_for_address_of_expression(st, &expr->data.operands[0]);
+        temp = build_cfg_for_expression(st, &expr->data.operands[0]);
         Append(&st->current_block->instructions, (struct CfInstruction) {
             .kind = CF_LOAD_FROM_POINTER,
             .data.operands[0] = temp,

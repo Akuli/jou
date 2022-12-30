@@ -339,13 +339,14 @@ static void print_cf_instruction(const struct CfGraph *cfg, const struct CfInstr
         print_cf_var(cfg, ins->data.operands[1]);
         break;
     case CF_LOAD_FROM_POINTER:
-        printf("load ptr ");
+        printf("*(");
         print_cf_var(cfg, ins->data.operands[0]);
+        printf(")");
         break;
     case CF_STORE_TO_POINTER:
-        printf("store ptr ");
+        printf("*(");
         print_cf_var(cfg, ins->data.operands[0]);
-        printf(", ");
+        printf(") = ");
         print_cf_var(cfg, ins->data.operands[1]);
         break;
     case CF_VARCPY:
