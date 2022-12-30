@@ -23,12 +23,16 @@ static struct CfVariable *add_variable(const struct State *st, const struct Type
     return var;
 }
 
-static struct CfVariable *find_variable(const struct State *st, const char *name)
+// If error_location is NULL, this will return NULL when variable is not found.
+static struct CfVariable *find_variable(const struct State *st, const char *name, const struct Location *error_location)
 {
     for (struct CfVariable **var = st->cfg->variables.ptr; var < End(st->cfg->variables); var++)
         if (!strcmp((*var)->name, name))
             return *var;
-    return NULL;
+
+    if (!error_location)
+        return NULL;
+    fail_with_error(*error_location, "no local variable named '%s'", name);
 }
 
 static const struct Signature *find_function(const struct State *st, const char *name)
@@ -242,9 +246,7 @@ static struct CfVariable *build_expression(
         result = build_address_of_expression(st, &expr->data.operands[0]);
         break;
     case AST_EXPR_GET_VARIABLE:
-        result = find_variable(st, expr->data.varname);
-        if (!result)
-            fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
+        result = find_variable(st, expr->data.varname, &expr->location);
         break;
     case AST_EXPR_DEREFERENCE:
         temp = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
@@ -299,7 +301,7 @@ static struct CfVariable *build_expression(
         {
             struct AstExpression *targetexpr = &expr->data.operands[0];
             struct AstExpression *valueexpr = &expr->data.operands[1];
-            if (targetexpr->kind == AST_EXPR_GET_VARIABLE && !find_variable(st, targetexpr->data.varname))
+            if (targetexpr->kind == AST_EXPR_GET_VARIABLE && !find_variable(st, targetexpr->data.varname, NULL))
             {
                 // Making a new variable. Use the type of the value being assigned.
                 result = build_expression(st, valueexpr, NULL, NULL, true);
@@ -362,7 +364,7 @@ static struct CfVariable *build_address_of_expression(const struct State *st, co
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
         {
-            struct CfVariable *var = find_variable(st, address_of_what->data.varname);
+            struct CfVariable *var = find_variable(st, address_of_what->data.varname, &address_of_what->location);
             struct Type t = create_pointer_type(&var->type, (struct Location){0});
             struct CfVariable *addr = add_variable(st, &t, "$address_of_var");
             free(t.data.valuetype);
@@ -483,12 +485,14 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
         snprintf(msg, sizeof msg,
             "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
             st->signature->funcname);
-        struct CfVariable *retval = build_expression(
+        struct CfVariable *retvalue = build_expression(
             st, &stmt->data.expression, st->signature->returntype, msg, true);
+        struct CfVariable *retvariable = find_variable(st, "return", NULL);
+        assert(retvariable);
         Append(&st->current_block->instructions, (struct CfInstruction){
             .kind=CF_VARCPY,
-            .data.operands[0] = retval,
-            .destvar = find_variable(st, "return"),
+            .data.operands[0] = retvalue,
+            .destvar = retvariable,
         });
 
         st->current_block->iftrue = &st->cfg->end_block;
