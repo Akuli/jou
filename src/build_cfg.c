@@ -326,11 +326,20 @@ static struct CfVariable *build_expression(
                     case AST_EXPR_DEREFERENCE: errmsg = "cannot assign a value of type FROM into a pointer of type TO*"; break;
                     default: assert(0);
                 }
-                // TODO: i think "bytevar = (intvar = 'x')" doesn't work, call it bug or feature? (compare to c)
-                result = build_expression(st, valueexpr, target->type.data.valuetype, errmsg, true);
+                /*
+                result cannot be casted to type of the variable. It would break this:
+
+                   some_byte_variable = some_int_variable = 'x'
+
+                because (some_int_variable = 'x') would cast to type int, and then the int
+                would be assigned to some_byte_variable.
+                */
+                result = build_expression(st, valueexpr, NULL, NULL, true);
+                struct CfVariable *casted_result = build_implicit_cast(
+                    st, result, target->type.data.valuetype, expr->location, errmsg);
                 Append(&st->current_block->instructions, (struct CfInstruction){
                     .kind = CF_STORE_TO_POINTER,
-                    .data.operands = {target, result},
+                    .data.operands = {target, casted_result},
                     .destvar = NULL,
                 });
             }
