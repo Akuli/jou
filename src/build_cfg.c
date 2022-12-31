@@ -92,7 +92,7 @@ static struct CfVariable *build_implicit_cast(
         return obj;
 
     // Casting to bigger signed int applies when "to" is signed and bigger.
-    // Doesn't cast from signed to same size unsigned: with 8 bits, 255 does not implicitly cast to -1.
+    // Doesn't cast from unsigned to same size signed: with 8 bits, 255 does not implicitly cast to -1.
     // TODO: does this surely work e.g. how would 8-bit 11111111 cast to 32 bit?
     if (is_integer_type(from)
         && to->kind == TYPE_SIGNED_INTEGER
