@@ -38,14 +38,6 @@ struct Token {
 };
 
 
-/*
-After parsing, the AST contains types only where the types were specified
-by the user, e.g. in function declarations. A separate "typing pass" fills
-in the types of all expressions.
-
-This is a bit weird, but I don't want to duplicate the AST into "typed AST"
-and "untyped AST". I have done that previously in other projects.
-*/
 struct Type {
     char name[100];   // All types have a name for error messages and debugging.
     enum TypeKind {
@@ -136,7 +128,7 @@ struct AstExpression {
             * For AST_EXPR_ADD, it is an array of the two things being added.
             * For AST_EXPR_ASSIGN, these are the left and right side of the assignment.
         */
-        struct AstExpression *operands;  // AST_EXPR_DEREFERENCE
+        struct AstExpression *operands;
     } data;
 };
 
@@ -156,7 +148,6 @@ struct AstStatement {
     } kind;
     union {
         struct AstExpression expression;    // for AST_STMT_EXPRESSION_STATEMENT, AST_STMT_RETURN
-        struct AstCall call;                // for AST_STMT_CALL
         struct AstIfStatement {
             struct AstExpression condition;
             struct AstBody body;
