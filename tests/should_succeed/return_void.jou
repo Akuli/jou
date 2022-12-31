@@ -5,11 +5,9 @@ def foo() -> void:
     putchar('i')
     putchar('\n')
 
-# In the future, the skip argument will be needed to prevent compile error about dead code.
 def should_do_nothing(skip: bool) -> void:
-    if skip:
-        return
-    putchar('x')
+    return
+    putchar('x')  # Warning: this code will never run
 
 def main() -> int:
     should_do_nothing(True)

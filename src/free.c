@@ -15,7 +15,7 @@ void free_tokens(struct Token *tokenlist)
     free(tokenlist);
 }
 
-static void free_type(const struct Type *type)
+void free_type(const struct Type *type)
 {
     switch(type->kind) {
     case TYPE_POINTER:
@@ -139,11 +139,9 @@ void free_ast(struct AstToplevelNode *topnodelist)
 void free_control_flow_graph_block(const struct CfGraph *cfg, struct CfBlock *b)
 {
     for (const struct CfInstruction *ins = b->instructions.ptr; ins < End(b->instructions); ins++) {
-        switch(ins->kind) {
-            case CF_CALL: free(ins->data.call.args); break;
-            case CF_STRING_CONSTANT: free(ins->data.string_value); break;
-            default: break;
-        }
+        if (ins->kind == CF_STRING_CONSTANT)
+            free(ins->data.string_value);
+        free(ins->operands);
     }
     free(b->instructions.ptr);
     if (b != &cfg->start_block && b != &cfg->end_block)

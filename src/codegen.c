@@ -126,7 +126,7 @@ static void codegen_instruction(const struct State *st, const struct CfInstructi
 {
 #define setdest(val) set_local_var(st, ins->destvar, (val))
 #define get(var) get_local_var(st, (var))
-#define getop(i) get(ins->data.operands[(i)])
+#define getop(i) get(ins->operands[(i)])
 
     const char *name = NULL;
     if (ins->destvar)
@@ -135,17 +135,16 @@ static void codegen_instruction(const struct State *st, const struct CfInstructi
     switch(ins->kind) {
         case CF_CALL:
             {
-                int nargs = ins->data.call.nargs;
-                LLVMValueRef *args = malloc(nargs * sizeof(args[0]));  // NOLINT
-                for (int i = 0; i < nargs; i++)
-                    args[i] = get(ins->data.call.args[i]);
-                LLVMValueRef return_value = codegen_call(st, ins->data.call.funcname, args, nargs);
+                LLVMValueRef *args = malloc(ins->noperands * sizeof(args[0]));  // NOLINT
+                for (int i = 0; i < ins->noperands; i++)
+                    args[i] = getop(i);
+                LLVMValueRef return_value = codegen_call(st, ins->data.funcname, args, ins->noperands);
                 if (ins->destvar)
                     setdest(return_value);
                 free(args);
             }
             break;
-        case CF_ADDRESS_OF_VARIABLE: setdest(get_pointer_to_local_var(st, ins->data.operands[0])); break;
+        case CF_ADDRESS_OF_VARIABLE: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_LOAD_FROM_POINTER: setdest(LLVMBuildLoad(st->builder, getop(0), name)); break;
         case CF_STORE_TO_POINTER: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), name)); break;

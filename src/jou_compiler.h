@@ -191,6 +191,19 @@ struct AstToplevelNode {
 struct CfVariable {
     char name[100];  // Prefixed with $ for values that are anonymous in Jou code
     struct Type type;
+    // First n variables are always the arguments
+    bool is_argument;
+    /*
+    If the address of a variable (&foo) is never used, it allows making more
+    assumptions about the variable when analyzing the CFG, because the only way to
+    set the variable is to have the variable as destvar (see below). If this is the
+    case, I say that the variable is analyzable.
+
+    Initially all variables are marked non-analyzable. One step in simplify_cfg is
+    to mark more variables as analyzable when there are no usages of &foo. Note that
+    the &foo usages may be rewritten or removed during simplify_cfg.
+    */
+    bool analyzable;
 };
 struct CfInstruction {
     struct Location location;
@@ -216,14 +229,14 @@ struct CfInstruction {
         CF_CAST_TO_BIGGER_SIGNED_INT,
         CF_CAST_TO_BIGGER_UNSIGNED_INT,
     } kind;
-    union {
+    union CfInstructionData {
         int int_value;          // CF_INT_CONSTANT
         char char_value;        // CF_CHAR_CONSTANT
         char *string_value;     // CF_STRING_CONSTANT
-        const struct CfVariable *operands[2];  // e.g. numbers to add
-        // TODO: replace nargs with NULL terminated?
-        struct { char funcname[100]; const struct CfVariable **args; int nargs; } call; // CF_CALL
+        char funcname[100];     // CF_CALL
     } data;
+    const struct CfVariable **operands;  // e.g. numbers to add, function arguments
+    int noperands;
     const struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
 };
 
@@ -269,6 +282,7 @@ Even though arrays are typically allocated with malloc(), you shouldn't simply
 free() them. For example, free(topnodelist) would free the list of AST nodes,
 but not any of the data contained within individual nodes.
 */
+void free_type(const struct Type *type);
 void free_tokens(struct Token *tokenlist);
 void free_ast(struct AstToplevelNode *topnodelist);
 void free_control_flow_graphs(const struct CfGraphFile *cfgfile);
