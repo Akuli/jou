@@ -10,7 +10,14 @@ struct Location {
     const char *filename;
     int lineno;
 };
-noreturn void fail_with_error(struct Location location, const char *fmt, ...);
+
+#ifdef __GNUC__
+    void show_warning(struct Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
+    noreturn void fail_with_error(struct Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
+#else
+    void show_warning(struct Location location, const char *fmt, ...);
+    noreturn void fail_with_error(struct Location location, const char *fmt, ...);
+#endif
 
 
 struct Token {
@@ -251,6 +258,7 @@ entire compilation. It is used in error messages.
 struct Token *tokenize(const char *filename);
 struct AstToplevelNode *parse(const struct Token *tokens);
 struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast);
+void simplify_control_flow_graphs(const struct CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const struct CfGraphFile *cfgfile);
 
 /*

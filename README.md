@@ -82,6 +82,7 @@ The compiler is currently written in C. At a high level, the compilation steps a
 - Tokenize: split the source code into tokens
 - Parse: build an Abstract Syntax Tree from the tokens
 - Build CFG: build Control Flow Graphs for each function from the AST
+- Simplify CFG: analyze execution flow, remove unreachable code if any (shows a warning)
 - Codegen: convert the CFGs into LLVM IR
 - Invoke `clang` and pass it the generated LLVM IR
 
@@ -93,6 +94,7 @@ $ ./jou --verbose examples/hello.jou
 ```
 
 This shows the tokens, AST, CFGs and LLVM IR generated.
+The control flow graphs are shown twice, before and after simplifying them.
 
 
 ## Tests
@@ -110,7 +112,9 @@ The expected output is auto-generated from `# Output:` and `# Error:` comments i
 
 - A comment like `# Output: foo` appends a line `foo` to the expected output.
 - A comment like `# Error: foo` on line 123 of file `tests/bar/baz.jou` appends a line
-    `compile error in file "tests/bar/baz.jou", line 123: foo`.
+    `compiler error in file "tests/bar/baz.jou", line 123: foo`.
+- A comment like `# Warning: foo` on line 123 of file `tests/bar/baz.jou` appends a line
+    `compiler warning for file "tests/bar/baz.jou", line 123: foo`.
 - Files in `examples/` and `tests/should_succeed/` should run successfully (exit code 0).
     All other files should cause a compiler error (exit code 1).
 
