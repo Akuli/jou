@@ -35,7 +35,11 @@ static int determine_bool_value(const struct CfVariable *var, const struct CfBlo
     while (--ins >= block->instructions.ptr) {
         if (ins->destvar == var) {
             switch(ins->kind) {
-                case CF_VARCPY: var = ins->data.operands[0]; continue;
+                case CF_VARCPY:
+                    var = ins->data.operands[0];
+                    if (!var->analyzable)
+                        return -1;
+                    continue;
                 case CF_TRUE: return 1;
                 case CF_FALSE: return 0;
                 default: return -1;

@@ -13,7 +13,7 @@ def after_infinite_loop() -> void:
 def after_infinite_loop_with_variable() -> void:
     flag = True
     while flag:
-        puts("hi")  # Warning: this code will never run
+        puts("hi")
     puts("yooooo wat")  # Warning: this code will never run
 
 def after_infinite_loop_with_variable_set_after_loop() -> void:
@@ -23,4 +23,6 @@ def after_infinite_loop_with_variable_set_after_loop() -> void:
     flag = False  # Warning: this code will never run
 
 def main() -> int:
+    after_return()
+    # Can't run infinite loops (test script redirects output to file)
     return 0
