@@ -52,10 +52,6 @@ int main(int argc, char **argv)
     if(verbose)
         print_ast(ast);
 
-    fill_types(ast);
-    if(verbose)
-        print_ast(ast);
-
     struct CfGraphFile cfgfile = build_control_flow_graphs(ast);
     free_ast(ast);
     if(verbose)

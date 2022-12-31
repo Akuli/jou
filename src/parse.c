@@ -176,11 +176,7 @@ static struct AstCall parse_call(const struct Token **tokens)
 
 static struct AstExpression parse_elementary_expression(const struct Token **tokens)
 {
-    struct AstExpression expr = {
-        .location = (*tokens)->location,
-        .type_before_implicit_cast = unknownType,
-        .type_after_implicit_cast = unknownType,
-    };
+    struct AstExpression expr = { .location = (*tokens)->location };
 
     switch((*tokens)->type) {
     case TOKEN_OPERATOR:
@@ -288,12 +284,7 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
     struct AstExpression *ptr = malloc(nbytes);
     memcpy(ptr, operands, nbytes);
 
-    struct AstExpression result = {
-        .location = t->location,
-        .data.operands = ptr,
-        .type_before_implicit_cast = unknownType,
-        .type_after_implicit_cast = unknownType,
-    };
+    struct AstExpression result = { .location = t->location, .data.operands = ptr };
 
     if (is_operator(t, "&")) {
         assert(arity == 1);

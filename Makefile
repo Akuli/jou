@@ -5,7 +5,7 @@ LLVM_CONFIG ?= llvm-config-11
 SRC := $(wildcard src/*.c)
 
 CFLAGS += -Wall -Wextra -Wpedantic
-CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=implicit-fallthrough
+CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=implicit-fallthrough -Werror=discarded-qualifiers
 CFLAGS += -Wno-format-truncation
 CFLAGS += -std=c11
 CFLAGS += -g
