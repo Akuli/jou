@@ -191,6 +191,8 @@ struct AstToplevelNode {
 struct CfVariable {
     char name[100];  // Prefixed with $ for values that are anonymous in Jou code
     struct Type type;
+    // First n variables are always the arguments
+    bool is_argument;
     /*
     If the address of a variable (&foo) is never used, it allows making more
     assumptions about the variable when analyzing the CFG, because the only way to

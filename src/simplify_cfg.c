@@ -126,7 +126,7 @@ static void remove_unused_variables(struct CfGraph *cfg, bool *did_something)
     }
 
     for (int i = cfg->variables.len - 1; i>=0; i--) {
-        if (!used[i]) {
+        if (!used[i] && !cfg->variables.ptr[i]->is_argument) {
             cfg->variables.ptr[i] = Pop(&cfg->variables);
             *did_something = true;
         }

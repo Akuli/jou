@@ -8,7 +8,7 @@ struct State {
     struct CfBlock *current_block;
 };
 
-static const struct CfVariable *add_variable(const struct State *st, const struct Type *t, const char *name)
+static struct CfVariable *add_variable(const struct State *st, const struct Type *t, const char *name)
 {
     struct CfVariable *var = calloc(1, sizeof *var);
     var->type = copy_type(t);
@@ -586,8 +586,10 @@ static struct CfGraph *build_function(struct State *st, const struct Signature *
 
     st->current_block = &st->cfg->start_block;
 
-    for (int i = 0; i < sig->nargs; i++)
-        add_variable(st, &sig->argtypes[i], sig->argnames[i]);
+    for (int i = 0; i < sig->nargs; i++) {
+        struct CfVariable *v = add_variable(st, &sig->argtypes[i], sig->argnames[i]);
+        v->is_argument = true;
+    }
     if (sig->returntype) 
         add_variable(st, sig->returntype, "return");
 
