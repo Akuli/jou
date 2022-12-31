@@ -8,7 +8,7 @@ struct State {
     struct CfBlock *current_block;
 };
 
-static struct CfVariable *add_variable(const struct State *st, const struct Type *t, const char *name)
+static const struct CfVariable *add_variable(const struct State *st, const struct Type *t, const char *name)
 {
     struct CfVariable *var = malloc(sizeof *var);
     var->type = copy_type(t);
@@ -24,7 +24,7 @@ static struct CfVariable *add_variable(const struct State *st, const struct Type
 }
 
 // If error_location is NULL, this will return NULL when variable is not found.
-static struct CfVariable *find_variable(const struct State *st, const char *name, const struct Location *error_location)
+static const struct CfVariable *find_variable(const struct State *st, const char *name, const struct Location *error_location)
 {
     for (struct CfVariable **var = st->cfg->variables.ptr; var < End(st->cfg->variables); var++)
         if (!strcmp((*var)->name, name))
@@ -79,9 +79,9 @@ noreturn void fail_with_implicit_cast_error(struct Location location, const char
     fail_with_error(location, "%.*s", msg.len, msg.ptr);
 }
 
-static struct CfVariable *build_implicit_cast(
+static const struct CfVariable *build_implicit_cast(
     const struct State *st,
-    struct CfVariable *obj,
+    const struct CfVariable *obj,
     const struct Type *to,
     struct Location err_location,
     const char *err_template)
@@ -98,7 +98,7 @@ static struct CfVariable *build_implicit_cast(
         && to->kind == TYPE_SIGNED_INTEGER
         && from->data.width_in_bits < to->data.width_in_bits)
     {
-        struct CfVariable *result = add_variable(st, to, "$implicit_cast");
+        const struct CfVariable *result = add_variable(st, to, "$implicit_cast");
         Append(&st->current_block->instructions, (struct CfInstruction){
             .kind = CF_CAST_TO_BIGGER_SIGNED_INT,
             .data.operands[0] = obj,
@@ -112,7 +112,7 @@ static struct CfVariable *build_implicit_cast(
         && to->kind == TYPE_UNSIGNED_INTEGER
         && from->data.width_in_bits < to->data.width_in_bits)
     {
-        struct CfVariable *result = add_variable(st, to, "$implicit_cast");
+        const struct CfVariable *result = add_variable(st, to, "$implicit_cast");
         Append(&st->current_block->instructions, (struct CfInstruction){
             .kind = CF_CAST_TO_BIGGER_UNSIGNED_INT,
             .data.operands[0] = obj,
@@ -124,12 +124,12 @@ static struct CfVariable *build_implicit_cast(
     fail_with_implicit_cast_error(err_location, err_template, from, to);
 }
 
-static struct CfVariable *build_binop(
+static const struct CfVariable *build_binop(
     const struct State *st,
     enum AstExpressionKind op,
     struct Location error_location,
-    struct CfVariable *lhs,
-    struct CfVariable *rhs)
+    const struct CfVariable *lhs,
+    const struct CfVariable *rhs)
 {
     const char *do_what;
     switch(op) {
@@ -215,7 +215,7 @@ static struct CfVariable *build_binop(
     if (!negate)
         return ins.destvar;
 
-    struct CfVariable *negated = add_variable(st, &boolType, debugname);
+    const struct CfVariable *negated = add_variable(st, &boolType, debugname);
     Append(&st->current_block->instructions, (struct CfInstruction){
         .kind = CF_BOOL_NEGATE,
         .data.operands = {ins.destvar},
@@ -224,17 +224,17 @@ static struct CfVariable *build_binop(
     return negated;
 }
 
-static struct CfVariable *build_call(const struct State *st, const struct AstCall *call, struct Location location);
-static struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what);
+static const struct CfVariable *build_call(const struct State *st, const struct AstCall *call, struct Location location);
+static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what);
 
-static struct CfVariable *build_expression(
+static const struct CfVariable *build_expression(
     const struct State *st,
     const struct AstExpression *expr,
     const struct Type *implicit_cast_to,  // can be NULL, there will be no implicit casting
     const char *casterrormsg,
     bool needvalue)  // Usually true. False means that calls to "-> void" functions are acceptable.
 {
-    struct CfVariable *result, *temp;
+    const struct CfVariable *result, *temp;
 
     switch(expr->kind) {
     case AST_EXPR_CALL:
@@ -309,7 +309,7 @@ static struct CfVariable *build_expression(
             {
                 // Making a new variable. Use the type of the value being assigned.
                 result = build_expression(st, valueexpr, NULL, NULL, true);
-                struct CfVariable *var = add_variable(st, &result->type, targetexpr->data.varname);
+                const struct CfVariable *var = add_variable(st, &result->type, targetexpr->data.varname);
                 Append(&st->current_block->instructions, (struct CfInstruction){
                     .kind = CF_VARCPY,
                     .data.operands[0] = result,
@@ -318,7 +318,7 @@ static struct CfVariable *build_expression(
             } else {
                 // Convert value to the type of an existing variable or other assignment target.
                 // TODO: is this evaluation order good?
-                struct CfVariable *target = build_address_of_expression(st, targetexpr);
+                const struct CfVariable *target = build_address_of_expression(st, targetexpr);
                 assert(target->type.kind == TYPE_POINTER);
                 const char *errmsg;
                 switch(targetexpr->kind) {
@@ -335,7 +335,7 @@ static struct CfVariable *build_expression(
                 would be assigned to some_byte_variable.
                 */
                 result = build_expression(st, valueexpr, NULL, NULL, true);
-                struct CfVariable *casted_result = build_implicit_cast(
+                const struct CfVariable *casted_result = build_implicit_cast(
                     st, result, target->type.data.valuetype, expr->location, errmsg);
                 Append(&st->current_block->instructions, (struct CfInstruction){
                     .kind = CF_STORE_TO_POINTER,
@@ -358,8 +358,8 @@ static struct CfVariable *build_expression(
         {
             // Refactoring note: Make sure to evaluate lhs first. C doesn't guarantee evaluation
             // order of function arguments.
-            struct CfVariable *lhs = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
-            struct CfVariable *rhs = build_expression(st, &expr->data.operands[1], NULL, NULL, true);
+            const struct CfVariable *lhs = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
+            const struct CfVariable *rhs = build_expression(st, &expr->data.operands[1], NULL, NULL, true);
             result = build_binop(st, expr->kind, expr->location, lhs, rhs);
         }
     }
@@ -372,14 +372,14 @@ static struct CfVariable *build_expression(
     return build_implicit_cast(st, result, implicit_cast_to, expr->location, casterrormsg);
 }
 
-static struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what)
+static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what)
 {
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
         {
-            struct CfVariable *var = find_variable(st, address_of_what->data.varname, &address_of_what->location);
+            const struct CfVariable *var = find_variable(st, address_of_what->data.varname, &address_of_what->location);
             struct Type t = create_pointer_type(&var->type, (struct Location){0});
-            struct CfVariable *addr = add_variable(st, &t, "$address_of_var");
+            const struct CfVariable *addr = add_variable(st, &t, "$address_of_var");
             free(t.data.valuetype);
             Append(&st->current_block->instructions, (struct CfInstruction){
                 .kind = CF_ADDRESS_OF_VARIABLE,
@@ -410,7 +410,7 @@ const char *nth(int n)
 }
 
 // returns NULL if the function doesn't return anything
-static struct CfVariable *build_call(const struct State *st, const struct AstCall *call, struct Location location)
+static const struct CfVariable *build_call(const struct State *st, const struct AstCall *call, struct Location location)
 {
     const struct Signature *sig = find_function(st, call->funcname);
     if (!sig)
@@ -429,7 +429,7 @@ static struct CfVariable *build_call(const struct State *st, const struct AstCal
         );
     }
 
-    struct CfVariable **args = malloc(call->nargs * sizeof(args[0]));  // NOLINT
+    const struct CfVariable **args = malloc(call->nargs * sizeof(args[0]));  // NOLINT
     for (int i = 0; i < sig->nargs; i++) {
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
@@ -442,7 +442,7 @@ static struct CfVariable *build_call(const struct State *st, const struct AstCal
         args[i] = build_expression(st, &call->args[i], NULL, NULL, true);
     }
 
-    struct CfVariable *return_value;
+    const struct CfVariable *return_value;
     if (sig->returntype) {
         char debugname[100];
         snprintf(debugname, sizeof debugname, "$%s_ret", call->funcname);
@@ -469,7 +469,7 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
     switch(stmt->kind) {
     case AST_STMT_IF:
     {
-        struct CfVariable *cond = build_expression(
+        const struct CfVariable *cond = build_expression(
             st, &stmt->data.ifstatement.condition,
             &boolType, "'if' condition must be a boolean, not FROM", true);
         struct CfBlock *thenblock = add_block(st);
@@ -498,9 +498,9 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
         snprintf(msg, sizeof msg,
             "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
             st->signature->funcname);
-        struct CfVariable *retvalue = build_expression(
+        const struct CfVariable *retvalue = build_expression(
             st, &stmt->data.expression, st->signature->returntype, msg, true);
-        struct CfVariable *retvariable = find_variable(st, "return", NULL);
+        const struct CfVariable *retvariable = find_variable(st, "return", NULL);
         assert(retvariable);
         Append(&st->current_block->instructions, (struct CfInstruction){
             .kind=CF_VARCPY,

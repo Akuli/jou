@@ -216,16 +216,16 @@ struct CfInstruction {
         int int_value;          // CF_INT_CONSTANT
         char char_value;        // CF_CHAR_CONSTANT
         char *string_value;     // CF_STRING_CONSTANT
-        struct CfVariable *operands[2];  // e.g. numbers to add
+        const struct CfVariable *operands[2];  // e.g. numbers to add
         // TODO: replace nargs with NULL terminated?
-        struct { char funcname[100]; struct CfVariable **args; int nargs; } call; // CF_CALL
+        struct { char funcname[100]; const struct CfVariable **args; int nargs; } call; // CF_CALL
     } data;
-    struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
+    const struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
 };
 
 struct CfBlock {
     List(struct CfInstruction) instructions;
-    struct CfVariable *branchvar;  // boolean value used to decide where to jump next
+    const struct CfVariable *branchvar;  // boolean value used to decide where to jump next
     struct CfBlock *iftrue;
     struct CfBlock *iffalse;
 };
