@@ -8,7 +8,7 @@ static int find_block_index(const struct CfGraph *cfg, const struct CfBlock *b)
     assert(0);
 }
 
-static bool remove_unreachable_blocks(struct CfGraph *cfg, const struct Signature *sig)
+static void remove_unreachable_blocks(struct CfGraph *cfg, const struct Signature *sig)
 {
     bool *reachable = calloc(sizeof(reachable[0]), cfg->all_blocks.len);
     List(int) todo = {0};
@@ -35,12 +35,12 @@ static bool remove_unreachable_blocks(struct CfGraph *cfg, const struct Signatur
             // TODO: warning location
             show_warning(sig->location, "function \"%s\" contains unreachable code that can never run", sig->funcname);
         }
-        free(cfg->all_blocks.ptr[i]);
+        free_control_flow_graph_block(cfg, cfg->all_blocks.ptr[i]);
         cfg->all_blocks.ptr[i] = Pop(&cfg->all_blocks);
     }
 
     free(reachable);
-    return false;
+    free(todo.ptr);
 }
 
 static void simplify_cfg(struct CfGraph *cfg, const struct Signature *sig)

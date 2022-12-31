@@ -136,20 +136,24 @@ void free_ast(struct AstToplevelNode *topnodelist)
 }
 
 
+void free_control_flow_graph_block(const struct CfGraph *cfg, struct CfBlock *b)
+{
+    for (const struct CfInstruction *ins = b->instructions.ptr; ins < End(b->instructions); ins++) {
+        switch(ins->kind) {
+            case CF_CALL: free(ins->data.call.args); break;
+            case CF_STRING_CONSTANT: free(ins->data.string_value); break;
+            default: break;
+        }
+    }
+    free(b->instructions.ptr);
+    if (b != &cfg->start_block && b != &cfg->end_block)
+        free(b);
+}
+
 static void free_cfg(struct CfGraph *cfg)
 {
-    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
-        for (const struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++) {
-            switch(ins->kind) {
-                case CF_CALL: free(ins->data.call.args); break;
-                case CF_STRING_CONSTANT: free(ins->data.string_value); break;
-                default: break;
-            }
-        }
-        free((*b)->instructions.ptr);
-        if (*b != &cfg->start_block && *b != &cfg->end_block)
-            free(*b);
-    }
+    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++)
+        free_control_flow_graph_block(cfg, *b);
 
     for (struct CfVariable **v = cfg->variables.ptr; v < End(cfg->variables); v++) {
         free_type(&(*v)->type);

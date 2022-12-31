@@ -271,6 +271,7 @@ but not any of the data contained within individual nodes.
 void free_tokens(struct Token *tokenlist);
 void free_ast(struct AstToplevelNode *topnodelist);
 void free_control_flow_graphs(const struct CfGraphFile *cfgfile);
+void free_control_flow_graph_block(const struct CfGraph *cfg, struct CfBlock *b);
 // To free LLVM IR, use LLVMDisposeModule
 
 /*
