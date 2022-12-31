@@ -10,5 +10,17 @@ def after_infinite_loop() -> void:
         puts("hi")
     puts("yooooo wat")  # Warning: this code will never run
 
+def after_infinite_loop_with_variable() -> void:
+    flag = True
+    while flag:
+        puts("hi")  # Warning: this code will never run
+    puts("yooooo wat")  # Warning: this code will never run
+
+def after_infinite_loop_with_variable_set_after_loop() -> void:
+    flag = True
+    while flag:
+        puts("hi")
+    flag = False  # Warning: this code will never run
+
 def main() -> int:
     return 0
