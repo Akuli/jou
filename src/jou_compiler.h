@@ -282,6 +282,7 @@ Even though arrays are typically allocated with malloc(), you shouldn't simply
 free() them. For example, free(topnodelist) would free the list of AST nodes,
 but not any of the data contained within individual nodes.
 */
+void free_type(const struct Type *type);
 void free_tokens(struct Token *tokenlist);
 void free_ast(struct AstToplevelNode *topnodelist);
 void free_control_flow_graphs(const struct CfGraphFile *cfgfile);

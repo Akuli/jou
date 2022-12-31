@@ -15,7 +15,7 @@ void free_tokens(struct Token *tokenlist)
     free(tokenlist);
 }
 
-static void free_type(const struct Type *type)
+void free_type(const struct Type *type)
 {
     switch(type->kind) {
     case TYPE_POINTER:
