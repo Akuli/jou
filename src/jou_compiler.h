@@ -152,6 +152,7 @@ struct AstStatement {
         AST_STMT_RETURN_VALUE,
         AST_STMT_RETURN_WITHOUT_VALUE,
         AST_STMT_IF,
+        AST_STMT_WHILE,
     } kind;
     union {
         struct AstExpression expression;    // for AST_STMT_EXPRESSION_STATEMENT, AST_STMT_RETURN
@@ -160,6 +161,10 @@ struct AstStatement {
             struct AstExpression condition;
             struct AstBody body;
         } ifstatement;
+        struct AstWhileLoop {
+            struct AstExpression condition;
+            struct AstBody body;
+        } whileloop;
     } data;
 };
 

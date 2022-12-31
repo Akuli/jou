@@ -455,6 +455,11 @@ static struct AstStatement parse_statement(const struct Token **tokens)
         result.kind = AST_STMT_IF;
         result.data.ifstatement.condition = parse_expression(tokens);
         result.data.ifstatement.body = parse_body(tokens);
+    } else if ((*tokens)->type == TOKEN_KEYWORD && !strcmp((*tokens)->data.name, "while")) {
+        ++*tokens;
+        result.kind = AST_STMT_WHILE;
+        result.data.whileloop.condition = parse_expression(tokens);
+        result.data.whileloop.body = parse_body(tokens);
     } else {
         result.kind = AST_STMT_EXPRESSION_STATEMENT;
         result.data.expression = parse_expression(tokens);

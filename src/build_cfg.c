@@ -484,6 +484,30 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
         st->current_block = afterblock;
         break;
     }
+    case AST_STMT_WHILE:
+    {
+        // condblock: evaluate condition and go to bodyblock or doneblock
+        // bodyblock: start of loop body
+        // doneblock: rest of the code goes here
+        struct CfBlock *condblock = add_block(st);
+        struct CfBlock *bodyblock = add_block(st);
+        struct CfBlock *doneblock = add_block(st);
+        st->current_block->iftrue = condblock;
+        st->current_block->iffalse = condblock;
+        st->current_block = condblock;
+        const struct CfVariable *cond = build_expression(
+            st, &stmt->data.ifstatement.condition,
+            &boolType, "'while' condition must be a boolean, not FROM", true);
+        st->current_block->branchvar = cond;
+        st->current_block->iftrue = bodyblock;
+        st->current_block->iffalse = doneblock;
+        st->current_block = bodyblock;
+        build_body(st, &stmt->data.ifstatement.body);
+        st->current_block->iftrue = condblock;
+        st->current_block->iffalse = condblock;
+        st->current_block = doneblock;
+        break;
+    }
 
     case AST_STMT_RETURN_VALUE:
     {
