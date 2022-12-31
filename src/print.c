@@ -91,10 +91,7 @@ static void print_ast_call(const struct AstCall *call, int arg_indent);
 
 static void print_ast_expression(const struct AstExpression *expr, int indent)
 {
-    printf("%*sExpression of type %s", indent, "", expr->type_before_implicit_cast.name);
-    if (strcmp(expr->type_before_implicit_cast.name, expr->type_after_implicit_cast.name))
-        printf(" with implicit cast to %s", expr->type_after_implicit_cast.name);
-    printf(" on line %d: ", expr->location.lineno);
+    printf("%*sExpression on line %d: ", indent, "", expr->location.lineno);
 
     switch(expr->kind) {
     case AST_EXPR_CALL:
@@ -252,8 +249,6 @@ void print_ast(const struct AstToplevelNode *topnodelist)
             case AST_TOPLEVEL_DEFINE_FUNCTION:
                 printf("Define a function.\n");
                 print_ast_function_signature(&topnodelist->data.funcdef.signature, 2);
-                for (struct AstLocalVariable *var = topnodelist->data.funcdef.locals; var && var->name[0]; var++)
-                    printf("  Type of local variable \"%s\" is %s.\n", var->name, var->type.name);
                 print_ast_body(&topnodelist->data.funcdef.body, 2);
                 break;
             case AST_TOPLEVEL_END_OF_FILE:

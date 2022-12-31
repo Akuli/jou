@@ -81,9 +81,8 @@ Hello World
 The compiler is currently written in C. At a high level, the compilation steps are:
 - Tokenize: split the source code into tokens
 - Parse: build an Abstract Syntax Tree from the tokens
-- Fill types: find the types of all expressions and put them to AST
-- Build CFG: build a Control Flow Graph from the AST
-- Codegen: convert the CFG into LLVM IR
+- Build CFG: build Control Flow Graphs for each function from the AST
+- Codegen: convert the CFGs into LLVM IR
 - Invoke `clang` and pass it the generated LLVM IR
 
 To get a good idea of how these steps work,
@@ -93,19 +92,7 @@ you can look at what the compiler produces in each compilation step:
 $ ./jou --verbose examples/hello.jou
 ```
 
-This shows the tokens, AST and LLVM IR generated.
-The AST is shown twice, once before filling the types (most types are `?`)
-and again after filling the types (no `?` types should remain).
-
-After filling in the types, each expression has two types,
-because expressions are implicitly cast to whatever type is needed.
-The two types are the same when no casting needs to be done.
-For example, if you call `putchar(int)` with an argument of type `byte`,
-the argument will implicitly cast to type `int`.
-
-The "Fill Types" step is weird, and it was created before the CFG existed.
-Now my plan is to remove the fill "Fill types" step
-and instead figure out the types of things during the CFG building.
+This shows the tokens, AST, CFGs and LLVM IR generated.
 
 
 ## Tests
