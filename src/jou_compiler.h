@@ -193,6 +193,7 @@ struct CfVariable {
     struct Type type;
 };
 struct CfInstruction {
+    struct Location location;
     enum CfInstructionKind {
         CF_INT_CONSTANT,
         CF_CHAR_CONSTANT,  // TODO: delete (can use int constant + cast)

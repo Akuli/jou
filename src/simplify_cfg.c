@@ -8,7 +8,7 @@ static int find_block_index(const struct CfGraph *cfg, const struct CfBlock *b)
     assert(0);
 }
 
-static void remove_unreachable_blocks(struct CfGraph *cfg, const struct Signature *sig)
+static void remove_unreachable_blocks(struct CfGraph *cfg)
 {
     bool *reachable = calloc(sizeof(reachable[0]), cfg->all_blocks.len);
     List(int) todo = {0};
@@ -31,10 +31,10 @@ static void remove_unreachable_blocks(struct CfGraph *cfg, const struct Signatur
             continue;
 
         // found unreachable block that can be removed
-        if (cfg->all_blocks.ptr[i]->instructions.len > 0) {
-            // TODO: warning location
-            show_warning(sig->location, "function \"%s\" contains unreachable code that can never run", sig->funcname);
-        }
+        if (cfg->all_blocks.ptr[i]->instructions.len > 0)
+            show_warning(
+                cfg->all_blocks.ptr[i]->instructions.ptr[0].location,
+                "this code will never run");
         free_control_flow_graph_block(cfg, cfg->all_blocks.ptr[i]);
         cfg->all_blocks.ptr[i] = Pop(&cfg->all_blocks);
     }
@@ -43,15 +43,15 @@ static void remove_unreachable_blocks(struct CfGraph *cfg, const struct Signatur
     free(todo.ptr);
 }
 
-static void simplify_cfg(struct CfGraph *cfg, const struct Signature *sig)
+static void simplify_cfg(struct CfGraph *cfg)
 {
-    remove_unreachable_blocks(cfg, sig);
+    remove_unreachable_blocks(cfg);
 }
 
 void simplify_control_flow_graphs(const struct CfGraphFile *cfgfile)
 {
     for (int i = 0; i < cfgfile->nfuncs; i++) {
         if (cfgfile->graphs[i])
-            simplify_cfg(cfgfile->graphs[i], &cfgfile->signatures[i]);
+            simplify_cfg(cfgfile->graphs[i]);
     }
 }
