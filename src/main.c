@@ -57,6 +57,10 @@ int main(int argc, char **argv)
     if(verbose)
         print_control_flow_graphs(&cfgfile);
 
+    simplify_control_flow_graphs(&cfgfile);
+    if(verbose)
+        print_control_flow_graphs(&cfgfile);
+
     LLVMModuleRef module = codegen(&cfgfile);
     free_control_flow_graphs(&cfgfile);
     if(verbose)

@@ -31,8 +31,9 @@ mkdir -vp tmp/tests
 
 function generate_expected_output()
 {
-    (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '// | dos2unix
+    (grep -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
     (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
+    (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '// | dos2unix
     echo "Exit code: $correct_exit_code"
 }
 

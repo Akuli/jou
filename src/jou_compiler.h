@@ -10,7 +10,14 @@ struct Location {
     const char *filename;
     int lineno;
 };
-noreturn void fail_with_error(struct Location location, const char *fmt, ...);
+
+#ifdef __GNUC__
+    void show_warning(struct Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
+    noreturn void fail_with_error(struct Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
+#else
+    void show_warning(struct Location location, const char *fmt, ...);
+    noreturn void fail_with_error(struct Location location, const char *fmt, ...);
+#endif
 
 
 struct Token {
@@ -186,6 +193,7 @@ struct CfVariable {
     struct Type type;
 };
 struct CfInstruction {
+    struct Location location;
     enum CfInstructionKind {
         CF_INT_CONSTANT,
         CF_CHAR_CONSTANT,  // TODO: delete (can use int constant + cast)
@@ -251,6 +259,7 @@ entire compilation. It is used in error messages.
 struct Token *tokenize(const char *filename);
 struct AstToplevelNode *parse(const struct Token *tokens);
 struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast);
+void simplify_control_flow_graphs(const struct CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const struct CfGraphFile *cfgfile);
 
 /*
@@ -263,6 +272,7 @@ but not any of the data contained within individual nodes.
 void free_tokens(struct Token *tokenlist);
 void free_ast(struct AstToplevelNode *topnodelist);
 void free_control_flow_graphs(const struct CfGraphFile *cfgfile);
+void free_control_flow_graph_block(const struct CfGraph *cfg, struct CfBlock *b);
 // To free LLVM IR, use LLVMDisposeModule
 
 /*

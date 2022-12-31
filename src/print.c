@@ -263,7 +263,7 @@ void print_ast(const struct AstToplevelNode *topnodelist)
 
 static void print_cf_instruction(const struct CfInstruction *ins, int indent)
 {
-    printf("%*s", indent, "");
+    printf("%*sline %-5d ", indent, "", ins->location.lineno);
 
     if (ins->destvar)
         printf("%s = ", ins->destvar->name);
