@@ -16,6 +16,36 @@ static int find_var_index(const struct CfGraph *cfg, const struct CfVariable *v)
     assert(0);
 }
 
+/*
+Figure out whether a boolean is true or false at the given instruction. Return values:
+    1   surely true
+    0   surely false
+    -1  don't know
+
+The instruction given as argument can point just beyond the last instruction in the block.
+
+Currently this does not look at other blocks leading into this block.
+*/
+static int determine_bool_value(const struct CfVariable *var, const struct CfBlock *block, const struct CfInstruction *ins)
+{
+    assert(same_type(&var->type, &boolType));
+    if (!var->analyzable || block->instructions.len == 0)
+        return -1;
+
+    while (--ins >= block->instructions.ptr) {
+        if (ins->destvar == var) {
+            switch(ins->kind) {
+                case CF_VARCPY: var = ins->data.operands[0]; continue;
+                case CF_TRUE: return 1;
+                case CF_FALSE: return 0;
+                default: return -1;
+            }
+        }
+    }
+
+    return -1;
+}
+
 static void remove_unreachable_blocks(struct CfGraph *cfg, bool *did_something)
 {
     bool *reachable = calloc(sizeof(reachable[0]), cfg->all_blocks.len);
@@ -77,11 +107,36 @@ static void mark_analyzable_variables(struct CfGraph *cfg, bool *did_something)
     free(analyzable);
 }
 
+static void clean_branches_where_condition_always_true_or_always_false(struct CfGraph *cfg, bool *did_something)
+{
+    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
+        if (*b == &cfg->end_block || (*b)->iftrue == (*b)->iffalse)
+            continue;
+
+        switch(determine_bool_value((*b)->branchvar, *b, End((*b)->instructions))) {
+        case 0:
+            // Condition always false. Make it unconditionally go to the "false" block.
+            (*b)->iftrue = (*b)->iffalse;
+            *did_something = true;
+            break;
+        case 1:
+            (*b)->iffalse = (*b)->iftrue;
+            *did_something = true;
+            break;
+        case -1:
+            break;
+        default:
+            assert(0);
+        }
+    }
+}
+
 static void simplify_cfg(struct CfGraph *cfg)
 {
     void (*simplifiers[])(struct CfGraph *, bool *) = {
         remove_unreachable_blocks,
         mark_analyzable_variables,
+        clean_branches_where_condition_always_true_or_always_false
     };
     int n = sizeof(simplifiers) / sizeof(simplifiers[0]);
 

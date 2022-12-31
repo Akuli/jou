@@ -1,0 +1,14 @@
+cdecl puts(s: byte*) -> int
+
+def after_return() -> void:
+    puts("hey1")  # Output: hey1
+    return
+    puts("hey2")  # Warning: this code will never run
+
+def after_infinite_loop() -> void:
+    while True:
+        puts("hi")
+    puts("yooooo wat")  # Warning: this code will never run
+
+def main() -> int:
+    return 0
