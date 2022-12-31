@@ -270,28 +270,26 @@ static void print_cf_instruction(const struct CfInstruction *ins, int indent)
 
     switch(ins->kind) {
     case CF_ADDRESS_OF_VARIABLE:
-        printf("address of %s", ins->data.operands[0]->name);
+        printf("address of %s", ins->operands[0]->name);
         break;
     case CF_BOOL_NEGATE:
-        printf("boolean negation of %s", ins->data.operands[0]->name);
+        printf("boolean negation of %s", ins->operands[0]->name);
         break;
     case CF_CALL:
-        printf("call %s(", ins->data.call.funcname);
-        for (int i = 0; i < ins->data.call.nargs; i++) {
+        printf("call %s(", ins->data.funcname);
+        for (int i = 0; i < ins->noperands; i++) {
             if(i) printf(", ");
-            printf("%s", ins->data.call.args[i]->name);
+            printf("%s", ins->operands[i]->name);
         }
         printf(")");
         break;
     case CF_CAST_TO_BIGGER_SIGNED_INT:
         printf("cast %s to %d-bit signed int",
-            ins->data.operands[0]->name,
-            ins->destvar->type.data.width_in_bits);
+            ins->operands[0]->name, ins->destvar->type.data.width_in_bits);
         break;
     case CF_CAST_TO_BIGGER_UNSIGNED_INT:
         printf("cast %s to %d-bit unsigned int",
-            ins->data.operands[0]->name,
-            ins->destvar->type.data.width_in_bits);
+            ins->operands[0]->name, ins->destvar->type.data.width_in_bits);
         break;
     case CF_INT_CONSTANT: printf("%d", ins->data.int_value); break;
     case CF_CHAR_CONSTANT: print_byte(ins->data.char_value); break;
@@ -316,17 +314,17 @@ static void print_cf_instruction(const struct CfInstruction *ins, int indent)
             case CF_INT_LT: printf("ilt "); break;
             default: assert(0);
         }
-        printf("%s, %s", ins->data.operands[0]->name, ins->data.operands[1]->name);
+        printf("%s, %s", ins->operands[0]->name, ins->operands[1]->name);
         break;
     case CF_LOAD_FROM_POINTER:
         // Extra parentheses to make these stand out a bit.
-        printf("*(%s)", ins->data.operands[0]->name);
+        printf("*(%s)", ins->operands[0]->name);
         break;
     case CF_STORE_TO_POINTER:
-        printf("*(%s) = %s", ins->data.operands[0]->name, ins->data.operands[1]->name);
+        printf("*(%s) = %s", ins->operands[0]->name, ins->operands[1]->name);
         break;
     case CF_VARCPY:
-        printf("%s", ins->data.operands[0]->name);
+        printf("%s", ins->operands[0]->name);
         break;
     }
 

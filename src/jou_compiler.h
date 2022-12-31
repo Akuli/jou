@@ -229,14 +229,14 @@ struct CfInstruction {
         CF_CAST_TO_BIGGER_SIGNED_INT,
         CF_CAST_TO_BIGGER_UNSIGNED_INT,
     } kind;
-    union {
+    union CfInstructionData {
         int int_value;          // CF_INT_CONSTANT
         char char_value;        // CF_CHAR_CONSTANT
         char *string_value;     // CF_STRING_CONSTANT
-        const struct CfVariable *operands[2];  // e.g. numbers to add
-        // TODO: replace nargs with NULL terminated?
-        struct { char funcname[100]; const struct CfVariable **args; int nargs; } call; // CF_CALL
+        char funcname[100];     // CF_CALL
     } data;
+    const struct CfVariable **operands;  // e.g. numbers to add, function arguments
+    int noperands;
     const struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
 };
 

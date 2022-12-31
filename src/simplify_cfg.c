@@ -36,7 +36,7 @@ static int determine_bool_value(const struct CfVariable *var, const struct CfBlo
         if (ins->destvar == var) {
             switch(ins->kind) {
                 case CF_VARCPY:
-                    var = ins->data.operands[0];
+                    var = ins->operands[0];
                     if (!var->analyzable)
                         return -1;
                     continue;
@@ -94,38 +94,8 @@ static void remove_unused_variables(struct CfGraph *cfg, bool *did_something)
         for (struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++) {
             if (ins->destvar)
                 used[find_var_index(cfg, ins->destvar)] = true;
-
-            switch(ins->kind) {
-            case CF_TRUE:
-            case CF_FALSE:
-            case CF_CHAR_CONSTANT:
-            case CF_INT_CONSTANT:
-            case CF_STRING_CONSTANT:
-                break;
-            case CF_ADDRESS_OF_VARIABLE:
-            case CF_BOOL_NEGATE:
-            case CF_CAST_TO_BIGGER_SIGNED_INT:
-            case CF_CAST_TO_BIGGER_UNSIGNED_INT:
-            case CF_LOAD_FROM_POINTER:
-            case CF_VARCPY:
-                used[find_var_index(cfg, ins->data.operands[0])] = true;
-                break;
-            case CF_INT_ADD:
-            case CF_INT_EQ:
-            case CF_INT_LT:
-            case CF_INT_MUL:
-            case CF_INT_SDIV:
-            case CF_INT_SUB:
-            case CF_INT_UDIV:
-            case CF_STORE_TO_POINTER:
-                used[find_var_index(cfg, ins->data.operands[0])] = true;
-                used[find_var_index(cfg, ins->data.operands[1])] = true;
-                break;
-            case CF_CALL:
-                for (int i = 0; i < ins->data.call.nargs; i++)
-                    used[find_var_index(cfg, ins->data.call.args[i])] = true;
-                break;
-            }
+            for (int i = 0; i < ins->noperands; i++)
+                used[find_var_index(cfg, ins->operands[i])] = true;
         }
     }
 
@@ -149,7 +119,7 @@ static void mark_analyzable_variables(struct CfGraph *cfg, bool *did_something)
     for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++)
         for (struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
             if (ins->kind == CF_ADDRESS_OF_VARIABLE)
-                analyzable[find_var_index(cfg, ins->data.operands[0])] = false;
+                analyzable[find_var_index(cfg, ins->operands[0])] = false;
 
     for (int i = 0; i < cfg->variables.len; i++) {
         // Variables cannot become non-analyzable: if it was analyzable before, it
