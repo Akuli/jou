@@ -263,7 +263,7 @@ void print_ast(const struct AstToplevelNode *topnodelist)
 
 static void print_cf_instruction(const struct CfInstruction *ins, int indent)
 {
-    printf("%*sline %-5d ", indent, "", ins->location.lineno);
+    printf("%*sline %-4d  ", indent, "", ins->location.lineno);
 
     if (ins->destvar)
         printf("%s = ", ins->destvar->name);
@@ -341,8 +341,10 @@ static void print_cf_graph(const struct CfGraph *cfg, int indent)
     }
 
     printf("%*sVariables:\n", indent, "");
-    for (struct CfVariable **var = cfg->variables.ptr; var < End(cfg->variables); var++)
-        printf("%*s  %-20s %s\n", indent, "", (*var)->name, (*var)->type.name);
+    for (struct CfVariable **var = cfg->variables.ptr; var < End(cfg->variables); var++) {
+        const char *extrainfo = ((*var)->analyzable) ? "(analyzable)" : "(non-analyzable)";
+        printf("%*s  %-20s  %-15s  %s\n", indent, "", (*var)->name, (*var)->type.name, extrainfo);
+    }
 
     for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
         printf("%*sBlock %d", indent, "", (int)(b - cfg->all_blocks.ptr));

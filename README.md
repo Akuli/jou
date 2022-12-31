@@ -82,7 +82,7 @@ The compiler is currently written in C. At a high level, the compilation steps a
 - Tokenize: split the source code into tokens
 - Parse: build an Abstract Syntax Tree from the tokens
 - Build CFG: build Control Flow Graphs for each function from the AST
-- Simplify CFG: analyze execution flow, remove unreachable code if any (shows a warning)
+- Simplify CFG: simplify and analyze the control flow graphs in various ways, emit warnings as needed
 - Codegen: convert the CFGs into LLVM IR
 - Invoke `clang` and pass it the generated LLVM IR
 

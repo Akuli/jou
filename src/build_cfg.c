@@ -10,7 +10,7 @@ struct State {
 
 static const struct CfVariable *add_variable(const struct State *st, const struct Type *t, const char *name)
 {
-    struct CfVariable *var = malloc(sizeof *var);
+    struct CfVariable *var = calloc(1, sizeof *var);
     var->type = copy_type(t);
     if (name[0] == '$') {
         // Anonymous in the user's code, make unique name

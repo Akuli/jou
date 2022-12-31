@@ -191,6 +191,17 @@ struct AstToplevelNode {
 struct CfVariable {
     char name[100];  // Prefixed with $ for values that are anonymous in Jou code
     struct Type type;
+    /*
+    If the address of a variable (&foo) is never used, it allows making more
+    assumptions about the variable when analyzing the CFG, because the only way to
+    set the variable is to have the variable as destvar (see below). If this is the
+    case, I say that the variable is analyzable.
+
+    Initially all variables are marked non-analyzable. One step in simplify_cfg is
+    to mark more variables as analyzable when there are no usages of &foo. Note that
+    the &foo usages may be rewritten or removed during simplify_cfg.
+    */
+    bool analyzable;
 };
 struct CfInstruction {
     struct Location location;
