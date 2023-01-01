@@ -6,6 +6,8 @@ struct State {
     struct CfGraph *cfg;
     const struct Signature *signature;
     struct CfBlock *current_block;
+    List(struct CfBlock *) breakstack;
+    List(struct CfBlock *) continuestack;
 };
 
 static struct CfVariable *add_variable(const struct State *st, const struct Type *t, const char *name)
@@ -48,6 +50,21 @@ static struct CfBlock *add_block(const struct State *st)
     struct CfBlock *block = calloc(1, sizeof *block);
     Append(&st->cfg->all_blocks, block);
     return block;
+}
+
+static void add_jump(struct State *st, const struct CfVariable *branchvar, struct CfBlock *iftrue, struct CfBlock *iffalse, struct CfBlock *new_current_block)
+{
+    assert(iftrue);
+    assert(iffalse);
+    if (iftrue != iffalse) {
+        assert(branchvar);
+        assert(same_type(&branchvar->type, &boolType));
+    }
+
+    st->current_block->branchvar = branchvar;
+    st->current_block->iftrue = iftrue;
+    st->current_block->iffalse = iffalse;
+    st->current_block = new_current_block ? new_current_block : add_block(st);
 }
 
 static void add_instruction(
@@ -439,50 +456,60 @@ static const struct CfVariable *build_call(const struct State *st, const struct 
 
 static void build_body(struct State *st, const struct AstBody *body);
 
+static void build_if_statement(struct State *st, const struct AstExpression *cond, const struct AstBody *body)
+{
+    const struct CfVariable *condvar = build_expression(
+        st, cond, &boolType, "'if' condition must be a boolean, not FROM", true);
+    struct CfBlock *thenblock = add_block(st);
+    struct CfBlock *afterblock = add_block(st);
+    add_jump(st, condvar, thenblock, afterblock, thenblock);
+    build_body(st, body);
+    add_jump(st, NULL, afterblock, afterblock, afterblock);
+}
+
+static void build_while_loop(struct State *st, const struct AstExpression *cond, const struct AstBody *body)
+{
+    struct CfBlock *condblock = add_block(st);  // evaluate condition and go to bodyblock or doneblock
+    struct CfBlock *bodyblock = add_block(st);  // run loop body and go to condblock
+    struct CfBlock *doneblock = add_block(st);  // rest of the code goes here
+    struct CfBlock *tmp;
+
+    add_jump(st, NULL, condblock, condblock, condblock);
+    const struct CfVariable *condvar = build_expression(
+        st, cond, &boolType, "'while' condition must be a boolean, not FROM", true);
+    add_jump(st, condvar, bodyblock, doneblock, bodyblock);
+
+    Append(&st->breakstack, doneblock);
+    Append(&st->continuestack, condblock);
+    build_body(st, body);
+    tmp = Pop(&st->breakstack); assert(tmp == doneblock);
+    tmp = Pop(&st->continuestack); assert(tmp == condblock);
+
+    add_jump(st, NULL, condblock, condblock, doneblock);
+}
+
 static void build_statement(struct State *st, const struct AstStatement *stmt)
 {
     switch(stmt->kind) {
     case AST_STMT_IF:
-    {
-        const struct CfVariable *cond = build_expression(
-            st, &stmt->data.ifstatement.condition,
-            &boolType, "'if' condition must be a boolean, not FROM", true);
-        struct CfBlock *thenblock = add_block(st);
-        struct CfBlock *afterblock = add_block(st);
-        st->current_block->branchvar = cond;
-        st->current_block->iftrue = thenblock;
-        st->current_block->iffalse = afterblock;
-        st->current_block = thenblock;
-        build_body(st, &stmt->data.ifstatement.body);
-        st->current_block->iftrue = afterblock;
-        st->current_block->iffalse = afterblock;
-        st->current_block = afterblock;
+        build_if_statement(st, &stmt->data.ifstatement.condition, &stmt->data.ifstatement.body);
         break;
-    }
+
     case AST_STMT_WHILE:
-    {
-        // condblock: evaluate condition and go to bodyblock or doneblock
-        // bodyblock: start of loop body
-        // doneblock: rest of the code goes here
-        struct CfBlock *condblock = add_block(st);
-        struct CfBlock *bodyblock = add_block(st);
-        struct CfBlock *doneblock = add_block(st);
-        st->current_block->iftrue = condblock;
-        st->current_block->iffalse = condblock;
-        st->current_block = condblock;
-        const struct CfVariable *cond = build_expression(
-            st, &stmt->data.ifstatement.condition,
-            &boolType, "'while' condition must be a boolean, not FROM", true);
-        st->current_block->branchvar = cond;
-        st->current_block->iftrue = bodyblock;
-        st->current_block->iffalse = doneblock;
-        st->current_block = bodyblock;
-        build_body(st, &stmt->data.ifstatement.body);
-        st->current_block->iftrue = condblock;
-        st->current_block->iffalse = condblock;
-        st->current_block = doneblock;
+        build_while_loop(st, &stmt->data.whileloop.condition, &stmt->data.whileloop.body);
         break;
-    }
+
+    case AST_STMT_BREAK:
+        if (!st->breakstack.len)
+            fail_with_error(stmt->location, "'break' can only be used inside a loop");
+        add_jump(st, NULL, End(st->breakstack)[-1], End(st->breakstack)[-1], NULL);
+        break;
+
+    case AST_STMT_CONTINUE:
+        if (!st->continuestack.len)
+            fail_with_error(stmt->location, "'continue' can only be used inside a loop");
+        add_jump(st, NULL, End(st->continuestack)[-1], End(st->continuestack)[-1], NULL);
+        break;
 
     case AST_STMT_RETURN_VALUE:
     {
@@ -550,7 +577,9 @@ static struct CfGraph *build_function(struct State *st, const struct Signature *
     if (sig->returntype) 
         add_variable(st, sig->returntype, "return");
 
+    assert(st->breakstack.len == 0 && st->continuestack.len == 0);
     build_body(st, body);
+    assert(st->breakstack.len == 0 && st->continuestack.len == 0);
 
     // Implicit return at the end of the function
     st->current_block->iftrue = &st->cfg->end_block;

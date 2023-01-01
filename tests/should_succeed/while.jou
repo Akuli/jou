@@ -4,10 +4,33 @@ def main() -> int:
     # Output: 0
     # Output: 1
     # Output: 2
-    # Output: 3
-    # Output: 4
     i = 0
-    while i < 5:
+    while i < 3:
         printf("%d\n", i)
         i = i+1
+
+    # Output: 0->1 1->2 2->3 3->end
+    i = 0
+    while True:
+        printf("%d->", i)
+        if i == 3:
+            printf("end\n")
+            break
+            printf("yooooooo\n")  # Warning: this code will never run
+        i = i+1
+        printf("%d ", i)
+
+    # Output: 0...4...8.
+    i = 0
+    while i < 10:
+        # TODO: % operator
+        if 4*(i/4) != i:
+            printf(".")
+            i = i+1
+            continue
+            printf("yooooooo\n")  # Warning: this code will never run
+        printf("%d", i)
+        i = i+1
+    printf("\n")
+
     return 0

@@ -224,6 +224,12 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
             print_ast_expression(&stmt->data.whileloop.condition, indent+4);
             print_ast_body(&stmt->data.whileloop.body, indent+2);
             break;
+        case AST_STMT_BREAK:
+            printf("Break loop\n");
+            break;
+        case AST_STMT_CONTINUE:
+            printf("Continue loop\n");
+            break;
     }
 }
 
