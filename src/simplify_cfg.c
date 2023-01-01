@@ -91,8 +91,8 @@ static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg
             }
         }
         for (int i = 0; i < nblocks; i++) {
-            if (cfg->all_blocks.ptr[i]->iftrue == cfg->all_blocks.ptr[visiting]
-                || cfg->all_blocks.ptr[i]->iffalse == cfg->all_blocks.ptr[visiting])
+            if (cfg->all_blocks.ptr[i]->iftrue == visitingblock
+                || cfg->all_blocks.ptr[i]->iffalse == visitingblock)
             {
                 // TODO: If we only get here from the true jump, or only from false
                 // jump, we could assume that the variable used in the jump was true/false.
