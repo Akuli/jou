@@ -346,8 +346,7 @@ static void print_cf_graph(const struct CfGraph *cfg, int indent)
 
     printf("%*sVariables:\n", indent, "");
     for (struct CfVariable **var = cfg->variables.ptr; var < End(cfg->variables); var++) {
-        const char *extrainfo = ((*var)->analyzable) ? "(analyzable)" : "(non-analyzable)";
-        printf("%*s  %-20s  %-15s  %s\n", indent, "", (*var)->name, (*var)->type.name, extrainfo);
+        printf("%*s  %-20s  %s\n", indent, "", (*var)->name, (*var)->type.name);
     }
 
     for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
