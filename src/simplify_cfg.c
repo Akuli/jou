@@ -43,7 +43,6 @@ static bool add_possibilities(enum BoolStatus *dest, const enum BoolStatus *src,
     for (int i = 0; i < n; i++) {
         enum BoolStatus combined;
 
-        //assert(src[i] != UNSET);
         if (dest[i] == UNSET)
             combined = src[i];
         else if (src[i] == UNSET)
