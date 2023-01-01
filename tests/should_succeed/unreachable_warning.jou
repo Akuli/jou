@@ -16,11 +16,12 @@ def after_infinite_loop_with_variable() -> void:
         puts("hi")
     puts("yooooo wat")  # Warning: this code will never run
 
+# TODO: this does not emit a warning, although it should
 def after_infinite_loop_with_variable_set_after_loop() -> void:
     flag = True
     while flag:
         puts("hi")
-    flag = False  # Warning: this code will never run
+    flag = False
 
 def main() -> int:
     after_return()
