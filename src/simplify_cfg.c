@@ -37,22 +37,6 @@ static bool add_possibilities(struct BoolStatus *dest, const struct BoolStatus *
     return did_something;
 }
 
-static bool remove_impossibilities(struct BoolStatus *dest, const struct BoolStatus *src, int n)
-{
-    bool did_something = false;
-    for (int i = 0; i < n; i++) {
-        if (!src[i].can_be_true && dest[i].can_be_true) {
-            dest[i].can_be_true = 0;
-            did_something = true;
-        }
-        if (!src[i].can_be_false && dest[i].can_be_false) {
-            dest[i].can_be_false = 0;
-            did_something = true;
-        }
-    }
-    return did_something;
-}
-
 static bool all_zero(const char *ptr, int n)
 {
     for (int i = 0; i < n; i++)
@@ -152,6 +136,8 @@ static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg
         }
     }
 
+    free(blocks_to_visit);
+    free(tempstatus);
     return result;
 }
 
@@ -176,10 +162,8 @@ static void dump_known_bool_values(const struct CfGraph *cfg, struct BoolStatus 
 static void clean_branches_where_condition_always_true_or_always_false(struct CfGraph *cfg, bool *did_something)
 {
     struct BoolStatus **statuses = determine_known_bool_values(cfg);
-    int nblocks = cfg->all_blocks.len;
-    int nvars = cfg->variables.len;
 
-    for (int blockidx = 0; blockidx < nblocks; blockidx++) {
+    for (int blockidx = 0; blockidx < cfg->all_blocks.len; blockidx++) {
         struct CfBlock *block = cfg->all_blocks.ptr[blockidx];
         if (block == &cfg->end_block || block->iftrue == block->iffalse)
             continue;
@@ -196,6 +180,10 @@ static void clean_branches_where_condition_always_true_or_always_false(struct Cf
             *did_something = true;
         }
     }
+
+    for (int i = 0; i < cfg->all_blocks.len; i++)
+        free(statuses[i]);
+    free(statuses);
 }
 
 static void remove_unreachable_blocks(struct CfGraph *cfg, bool *did_something)
