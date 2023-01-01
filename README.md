@@ -108,7 +108,6 @@ for every feature and for every compiler error/warning.
 Running tests:
 
 ```
-$ sudo apt install valgrind
 $ make test
 ```
 
