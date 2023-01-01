@@ -16,38 +16,176 @@ static int find_var_index(const struct CfGraph *cfg, const struct CfVariable *v)
     assert(0);
 }
 
-/*
-Figure out whether a boolean is true or false at the given instruction. Return values:
-    1   surely true
-    0   surely false
-    -1  don't know
+struct BoolStatus {
+    bool can_be_true;
+    bool can_be_false;
+};
 
-The instruction given as argument can point just beyond the last instruction in the block.
-
-Currently this does not look at other blocks leading into this block.
-*/
-static int determine_bool_value(const struct CfVariable *var, const struct CfBlock *block, const struct CfInstruction *ins)
+static bool add_possibilities(struct BoolStatus *dest, const struct BoolStatus *src, int n)
 {
-    assert(same_type(&var->type, &boolType));
-    if (!var->analyzable || block->instructions.len == 0)
-        return -1;
+    bool did_something = false;
+    for (int i = 0; i < n; i++) {
+        if (src[i].can_be_true && !dest[i].can_be_true) {
+            dest[i].can_be_true = 1;
+            did_something = true;
+        }
+        if (src[i].can_be_false && !dest[i].can_be_false) {
+            dest[i].can_be_false = 1;
+            did_something = true;
+        }
+    }
+    return did_something;
+}
 
-    while (--ins >= block->instructions.ptr) {
-        if (ins->destvar == var) {
-            switch(ins->kind) {
-                case CF_VARCPY:
-                    var = ins->operands[0];
-                    if (!var->analyzable)
-                        return -1;
-                    continue;
-                case CF_TRUE: return 1;
-                case CF_FALSE: return 0;
-                default: return -1;
+static bool all_zero(const char *ptr, int n)
+{
+    for (int i = 0; i < n; i++)
+        if (ptr[i])
+            return false;
+    return true;
+}
+
+/*
+Figure out whether boolean variables are true or false.
+return_value[block_index][variable_index] = status of variable at END of block
+variable_index must be so that the variable has type bool.
+
+Idea: Initially mark everything as possible, so all variables can be true or false.
+Loop through instructions of start block, filtering out impossible options: for
+example, if a variable is set to True, then it can be True and cannot be False.
+Repeat for blocks where execution jumps from the current block, unless we got same
+result as last time, then we know that we don't have to reanalyze blocks where
+execution jumps from the current block.
+*/
+static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
+{
+    int nblocks = cfg->all_blocks.len;
+    int nvars = cfg->variables.len;
+
+    struct BoolStatus **result = malloc(sizeof(result[0]) * nblocks);  // NOLINT
+    for (int i = 0; i < nblocks; i++)
+        result[i] = calloc(nvars, sizeof(result[i][0]));
+
+    char *blocks_to_visit = calloc(1, nblocks);
+    blocks_to_visit[0] = true;  // visit initial block
+
+    struct BoolStatus *tempstatus = malloc(nvars*sizeof(tempstatus[0]));
+
+    while(!all_zero(blocks_to_visit, nblocks)){
+        // Find a block to visit.
+        int visiting = 0;
+        while (!blocks_to_visit[visiting]) visiting++;
+        //printf("Visit block %d\n", visiting);
+        blocks_to_visit[visiting] = false;
+        const struct CfBlock *visitingblock = cfg->all_blocks.ptr[visiting];
+
+        // Determine initial values based on other blocks that jump here.
+        for (int i = 0; i < nvars; i++) {
+            if (visiting == 0) {
+                // Start block: assume nothing about any variable.
+                tempstatus[i].can_be_true = 1;
+                tempstatus[i].can_be_false = 1;
+            } else {
+                // What is possible in other blocks is determined based on only how
+                // they are jumped into.
+                tempstatus[i].can_be_true = 0;
+                tempstatus[i].can_be_false = 0;
             }
+        }
+        for (int i = 0; i < nblocks; i++) {
+            if (cfg->all_blocks.ptr[i]->iftrue == visitingblock
+                || cfg->all_blocks.ptr[i]->iffalse == visitingblock)
+            {
+                // TODO: If we only get here from the true jump, or only from false
+                // jump, we could assume that the variable used in the jump was true/false.
+                add_possibilities(tempstatus, result[i], nvars);
+            }
+        }
+
+        // Figure out how each instruction affects booleans.
+        for (const struct CfInstruction *ins = visitingblock->instructions.ptr; ins < End(visitingblock->instructions); ins++) {
+            if (!ins->destvar || !ins->destvar->analyzable || ins->destvar->type.kind != TYPE_BOOL)
+                continue;
+
+            int destidx = find_var_index(cfg, ins->destvar);
+            switch(ins->kind) {
+            case CF_VARCPY:
+                if (ins->operands[0]->analyzable)
+                    tempstatus[destidx] = tempstatus[find_var_index(cfg, ins->operands[0])];
+                else
+                    tempstatus[destidx] = (struct BoolStatus){ .can_be_true=1, .can_be_false=1 };
+                break;
+            case CF_TRUE:
+                tempstatus[destidx] = (struct BoolStatus){ .can_be_true=1, .can_be_false=0 };
+                break;
+            case CF_FALSE:
+                tempstatus[destidx] = (struct BoolStatus){ .can_be_true=0, .can_be_false=1 };
+                break;
+            default:
+                tempstatus[destidx] = (struct BoolStatus){ .can_be_true=1, .can_be_false=1 };
+                break;
+            }
+        }
+
+        // If some values of variables are possible, remember that from now on.
+        bool result_affected = add_possibilities(result[visiting], tempstatus, nvars);
+
+        if (result_affected && visitingblock != &cfg->end_block) {
+            // Also need to update blocks where we jump from here.
+            //printf("  Will visit %d and %d\n", find_block_index(cfg, visitingblock->iftrue), find_block_index(cfg, visitingblock->iffalse));
+            blocks_to_visit[find_block_index(cfg, visitingblock->iftrue)] = true;
+            blocks_to_visit[find_block_index(cfg, visitingblock->iffalse)] = true;
         }
     }
 
-    return -1;
+    free(blocks_to_visit);
+    free(tempstatus);
+    return result;
+}
+
+#if 0
+static void dump_known_bool_values(const struct CfGraph *cfg, struct BoolStatus **statuses)
+{
+    int nblocks = cfg->all_blocks.len;
+    int nvars = cfg->variables.len;
+
+    for (int blockidx = 0; blockidx < nblocks; blockidx++) {
+        printf("block %d:", blockidx);
+        for (int i = 0; i < nvars; i++) {
+            if (!cfg->variables.ptr[i]->analyzable || cfg->variables.ptr[i]->type.kind != TYPE_BOOL)
+                continue;
+            printf("  %s %d%d", cfg->variables.ptr[i]->name, statuses[blockidx][i].can_be_true, statuses[blockidx][i].can_be_false);
+        }
+        printf("\n");
+    }
+}
+#endif
+
+static void clean_branches_where_condition_always_true_or_always_false(struct CfGraph *cfg, bool *did_something)
+{
+    struct BoolStatus **statuses = determine_known_bool_values(cfg);
+
+    for (int blockidx = 0; blockidx < cfg->all_blocks.len; blockidx++) {
+        struct CfBlock *block = cfg->all_blocks.ptr[blockidx];
+        if (block == &cfg->end_block || block->iftrue == block->iffalse)
+            continue;
+
+        struct BoolStatus s = statuses[blockidx][find_var_index(cfg, block->branchvar)];
+        if (s.can_be_true && !s.can_be_false) {
+            // Always jump to true case.
+            block->iffalse = block->iftrue;
+            *did_something = true;
+        }
+        if (!s.can_be_true && s.can_be_false) {
+            // Always jump to false case.
+            block->iftrue = block->iffalse;
+            *did_something = true;
+        }
+    }
+
+    for (int i = 0; i < cfg->all_blocks.len; i++)
+        free(statuses[i]);
+    free(statuses);
 }
 
 static void remove_unreachable_blocks(struct CfGraph *cfg, bool *did_something)
@@ -149,30 +287,6 @@ static void mark_analyzable_variables(struct CfGraph *cfg, bool *did_something)
     free(analyzable);
 }
 
-static void clean_branches_where_condition_always_true_or_always_false(struct CfGraph *cfg, bool *did_something)
-{
-    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
-        if (*b == &cfg->end_block || (*b)->iftrue == (*b)->iffalse)
-            continue;
-
-        switch(determine_bool_value((*b)->branchvar, *b, End((*b)->instructions))) {
-        case 0:
-            // Condition always false. Make it unconditionally go to the "false" block.
-            (*b)->iftrue = (*b)->iffalse;
-            *did_something = true;
-            break;
-        case 1:
-            (*b)->iffalse = (*b)->iftrue;
-            *did_something = true;
-            break;
-        case -1:
-            break;
-        default:
-            assert(0);
-        }
-    }
-}
-
 static void simplify_cfg(struct CfGraph *cfg)
 {
     void (*simplifiers[])(struct CfGraph *, bool *) = {
@@ -193,12 +307,13 @@ static void simplify_cfg(struct CfGraph *cfg)
         else
             nothing_happened_count++;
     }
+
+    //dump_known_bool_values(cfg, determine_known_bool_values(cfg));
 }
 
 void simplify_control_flow_graphs(const struct CfGraphFile *cfgfile)
 {
-    for (int i = 0; i < cfgfile->nfuncs; i++) {
+    for (int i = 0; i < cfgfile->nfuncs; i++)
         if (cfgfile->graphs[i])
             simplify_cfg(cfgfile->graphs[i]);
-    }
 }
