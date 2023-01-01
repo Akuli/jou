@@ -101,7 +101,7 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
         // Find a block to visit.
         int visiting = 0;
         while (!blocks_to_visit[visiting]) visiting++;
-        //printf("Visit block %d\n", visiting);
+        printf("Visit block %d\n", visiting);
         blocks_to_visit[visiting] = false;
         const struct CfBlock *visitingblock = cfg->all_blocks.ptr[visiting];
 
@@ -166,7 +166,7 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
 
         if (result_affected && visitingblock != &cfg->end_block) {
             // Also need to update blocks where we jump from here.
-            //printf("  Will visit %d and %d\n", find_block_index(cfg, visitingblock->iftrue), find_block_index(cfg, visitingblock->iffalse));
+            printf("  Will visit %d and %d\n", find_block_index(cfg, visitingblock->iftrue), find_block_index(cfg, visitingblock->iffalse));
             blocks_to_visit[find_block_index(cfg, visitingblock->iftrue)] = true;
             blocks_to_visit[find_block_index(cfg, visitingblock->iffalse)] = true;
         }
@@ -177,19 +177,25 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
     return result;
 }
 
-#if 0
-static void dump_known_bool_values(const struct CfGraph *cfg, enum BoolStatus **statuses)
+#if 1
+static void print_known_bool_values(const struct CfGraph *cfg, enum BoolStatus **statuses)
 {
     int nblocks = cfg->all_blocks.len;
     int nvars = cfg->variables.len;
 
+    const char *strs[] = {
+        [KNOWN_TO_BE_TRUE] = "is known to be true",
+        [KNOWN_TO_BE_FALSE] = "is known to be false",
+        [CAN_CHANGE_UNPREDICTABLY] = "can change unpredictably",
+        [COULD_BE_TRUE_OR_FALSE] = "could be true or false",
+        [UNSET] = "is in the temporary UNSET status",
+    };
+
     for (int blockidx = 0; blockidx < nblocks; blockidx++) {
-        printf("block %d:", blockidx);
-        for (int i = 0; i < nvars; i++) {
-            if (!cfg->variables.ptr[i]->analyzable || cfg->variables.ptr[i]->type.kind != TYPE_BOOL)
-                continue;
-            printf("  %s %d%d", cfg->variables.ptr[i]->name, statuses[blockidx][i].can_be_true, statuses[blockidx][i].can_be_false);
-        }
+        printf("block %d:\n", blockidx);
+        for (int i = 0; i < nvars; i++)
+            if (cfg->variables.ptr[i]->type.kind == TYPE_BOOL)
+                printf("  \"%s\" %s\n", cfg->variables.ptr[i]->name, strs[statuses[blockidx][i]]);
         printf("\n");
     }
 }
