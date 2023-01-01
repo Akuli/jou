@@ -76,7 +76,7 @@ Hello World
 ```
 
 
-## Getting started with developing
+## How does the compiler work?
 
 The compiler is currently written in C. At a high level, the compilation steps are:
 - Tokenize: split the source code into tokens
@@ -96,19 +96,27 @@ $ ./jou --verbose examples/hello.jou
 This shows the tokens, AST, CFGs and LLVM IR generated.
 The control flow graphs are shown twice, before and after simplifying them.
 
+After exploring the verbose output, you should probably
+read `src/jou_compiler.h` and have a quick look at `src/util.h`.
+
 
 ## Tests
+
+There should be a test (or a TODO comment about adding a test)
+for every feature and for every compiler error/warning.
 
 Running tests:
 
 ```
-$ sudo apt install valgrind
 $ make test
 ```
 
-This runs Jou files in `examples/` and `tests/`,
-and ensures that they output what is expected.
-The expected output is auto-generated from `# Output:` and `# Error:` comments in the Jou files:
+This does a few things:
+- It compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled.
+- It runs all Jou files in `examples/` and `tests/`.
+- It ensures that the Jou files output what is expected.
+
+The expected output is auto-generated from comments in the Jou files:
 
 - A comment like `# Output: foo` appends a line `foo` to the expected output.
 - A comment like `# Error: foo` on line 123 of file `tests/bar/baz.jou` appends a line
@@ -134,7 +142,21 @@ This isn't done for tests that are supposed to fail with a compiler error, for a
     and `make test` would take several minutes if they weren't skipped.
 - Most problems in error message code are spotted by non-valgrinded tests.
 
-There should be a test case (or a TODO comment about adding a test case) for every compiler error.
+With valgrind, the tests take a while to run. I often find that
+- I don't want to wait for the valgrind tests to run again,
+- I don't have the output of the valgrind tests on my terminal anymore, and
+- I want to fix a bug that valgrind pointed out.
+
+In this situation, you can look at the diffs from the previous run, e.g. like this:
+
+```
+$ less -R tmp/tests/diff0019.txt
+```
+
+Each diff file corresponds with a failed test from the previous run of `make test`.
+The number in the file name means that this was the 19th test that ran,
+and you can use autocomplete (or `ls`) to see the names of all diff files.
+Also, note that `tmp/tests/` is inside the project folder, not in `/tmp`.
 
 Sometimes (very rarely) the fuzzer discovers a bug that hasn't been caught with tests:
 

@@ -1,5 +1,5 @@
-#ifndef MISC_H
-#define MISC_H
+#ifndef UTIL_H
+#define UTIL_H
 
 #include <assert.h>
 #include <stdio.h>
@@ -10,20 +10,49 @@
 #define max(a,b) ((a)>(b) ? (a) : (b))
 
 /*
+List(T) is a dynamically growing array, similar to Python's list data type. Example:
+
+    // Making a new, empty list. The {0} is needed for lists of all types.
+    List(int) nums = {0};
+
+    // Add numbers to it.
+    Append(&nums, 1);
+    Append(&nums, 2);
+    Append(&nums, 3);
+
+    // Print each number with pointers.
+    for (int *p = nums.ptr; p < End(nums); p++)
+        printf("%d\n", *p);
+
+    // Print each number with indexes.
+    for (int i = 0; i < nums.len; i++)
+        printf("%d\n", nums.ptr[i]);
+
+    // Free the memory used by the list.
+    free(nums.ptr);
+
 Gotchas to watch out for:
+
 - Every occurrence of List(T) is a new, incompatible type, so you can't
   use List in function arguments. If you really need to, make a typedef of
-  List(YourSpecificType) or wrap it in a struct.
+  List(SomeType) or wrap it in a struct.
+
 - The elements can get reallocated in Append(). This messes up all pointers
   to the list, including any loops that don't use indexes.
+
 - Do NOT do this:
+
         for (Foo *thing = End(list) - 1; thing >= list.ptr; thing--) {
             ...use thing...
         }
-  It will fail if the list is empty. Use indexes if you need to loop backwards:
+
+  It can fail if the list is empty, because End(list) can be NULL. Use indexes
+  if you need to loop backwards:
+
         for (int i = list.len - 1; i >= 0; i--) {
             ...use list.ptr[i] ...
         }
+
 - Side effects of foo() in Append(list, foo()) must not modify the list that is
   being appended into. It creates confusing bugs. You may want to store the
   result of foo() into a variable before calling Append().
@@ -42,7 +71,7 @@ Gotchas to watch out for:
     (list)->ptr[(list)->len++]=(__VA_ARGS__); \
 } while(0)
 #define End(list) (&(list).ptr[(list).len])
-#define Pop(list) (list)->ptr[assert((list)->len > 0), --(list)->len]
+#define Pop(list) ( assert((list)->len > 0), (list)->ptr[--(list)->len] )
 
 // list should be a List(char). See above for why this can't be a function.
 #define AppendStr(list,str) do{ \
