@@ -189,8 +189,8 @@ static void clean_jumps_where_condition_always_true_or_always_false(struct CfGra
 
 /*
 Two blocks will end up in the same group, if there is an execution path from one block to another.
-Return value: array of arrays of CfBlock pointers.
-Each array is NULL terminated.
+Return value: array of groups, each group is an array of CfBlock pointers.
+All returned arrays are NULL terminated.
 
 This is not very efficient code, but it's only used for unreachable blocks.
 In a typical program, I don't expect to have many unreachable blocks.
@@ -243,15 +243,12 @@ static struct CfBlock ***group_blocks(struct CfBlock **blocks, int nblocks)
     return groups;
 }
 
-static void show_unreachable_warnings(struct CfBlock **blocks_to_remove, int n_blocks_to_remove)
+static void show_unreachable_warnings(struct CfBlock **unreachable_blocks, int n_unreachable_blocks)
 {
-    struct CfBlock ***groups = group_blocks(blocks_to_remove, n_blocks_to_remove);
+    // Show a warning in the beginning of each group of blocks.
+    // Can't show a warning for each block, that would be too noisy.
+    struct CfBlock ***groups = group_blocks(unreachable_blocks, n_unreachable_blocks);
 
-    /*
-    Show a warning in the beginning of each group of blocks. We can't simply show a
-    warning for each unreachable block because that would be too noisy.
-    */
-    List(struct Location) warning_locations = {0};
     for (int groupidx = 0; groups[groupidx]; groupidx++) {
         struct Location first_location = { .lineno = INT_MAX };
         for (int i = 0; groups[groupidx][i]; i++) {
@@ -262,16 +259,30 @@ static void show_unreachable_warnings(struct CfBlock **blocks_to_remove, int n_b
             }
         }
         if (first_location.lineno != INT_MAX)
-            Append(&warning_locations, first_location);
+            show_warning(first_location, "this code will never run");
     }
 
     for (int i = 0; groups[i]; i++)
         free(groups[i]);
     free(groups);
+}
 
-    for (struct Location *loc = warning_locations.ptr; loc < End(warning_locations); loc++)
-        show_warning(*loc, "this code will never run");
-    free(warning_locations.ptr);
+static void remove_given_blocks(struct CfGraph *cfg, struct CfBlock **blocks_to_remove, int n_blocks_to_remove)
+{
+    for (int i = cfg->all_blocks.len - 1; i >= 0; i--) {
+        bool shouldgo = false;
+        for (struct CfBlock **b = blocks_to_remove; b < &blocks_to_remove[n_blocks_to_remove]; b++) {
+            if(*b==cfg->all_blocks.ptr[i]){
+                shouldgo=true;
+                break;
+            }
+        }
+        if(shouldgo)
+        {
+            free_control_flow_graph_block(cfg, cfg->all_blocks.ptr[i]);
+            cfg->all_blocks.ptr[i]=Pop(&cfg->all_blocks);
+        }
+    }
 }
 
 static void remove_unreachable_blocks(struct CfGraph *cfg)
@@ -291,31 +302,16 @@ static void remove_unreachable_blocks(struct CfGraph *cfg)
             Append(&todo, find_block_index(cfg, cfg->all_blocks.ptr[i]->iffalse));
         }
     }
+    free(todo.ptr);
 
     List(struct CfBlock *) blocks_to_remove = {0};
     for (int i = 0; i < cfg->all_blocks.len; i++)
         if (!reachable[i] && cfg->all_blocks.ptr[i] != &cfg->end_block)
             Append(&blocks_to_remove, cfg->all_blocks.ptr[i]);
+    free(reachable);
 
     show_unreachable_warnings(blocks_to_remove.ptr, blocks_to_remove.len);
-
-    // Remove blocks.
-    for (int i = cfg->all_blocks.len - 1; i >= 0; i--) {
-        bool shouldgo = false;
-        for (struct CfBlock **b = blocks_to_remove.ptr; b < End(blocks_to_remove); b++) {
-            if(*b==cfg->all_blocks.ptr[i]){
-                shouldgo=true;
-                break;
-            }
-        }
-        if(shouldgo)
-        {
-            cfg->all_blocks.ptr[i]=Pop(&cfg->all_blocks);
-        }
-    }
-
-    free(todo.ptr);
-    free(reachable);
+    remove_given_blocks(cfg, blocks_to_remove.ptr, blocks_to_remove.len);
     free(blocks_to_remove.ptr);
 }
 
