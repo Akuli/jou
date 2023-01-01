@@ -141,7 +141,7 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
                 case KNOWN_TO_BE_FALSE:
                     tempstatus[destidx] = KNOWN_TO_BE_FALSE;
                     break;
-                case CAN_CHANGE_UNPREDICTABLY:  // Even a non-analyzable variable yields true or false value.
+                case CAN_CHANGE_UNPREDICTABLY:  // Even an unpredictable variable yields true or false value.
                 case COULD_BE_TRUE_OR_FALSE:
                     tempstatus[destidx] = COULD_BE_TRUE_OR_FALSE;
                     break;
