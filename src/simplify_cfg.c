@@ -89,7 +89,6 @@ static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg
         // Find a block to visit.
         int visiting = 0;
         while (!blocks_to_visit[visiting]) visiting++;
-        printf("Visiting %d\n", visiting);
         blocks_to_visit[visiting] = false;
         const struct CfBlock *visitingblock = cfg->all_blocks.ptr[visiting];
 
@@ -116,12 +115,6 @@ static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg
             }
         }
 
-        printf("Got initially:");
-        for (int i = 0; i < nvars; i++)
-            if (cfg->variables.ptr[i]->analyzable && cfg->variables.ptr[i]->type.kind == TYPE_BOOL)
-                printf("    %s, true? %d, false? %d", cfg->variables.ptr[i]->name, tempstatus[i].can_be_true, tempstatus[i].can_be_false);
-        printf("\n");
-
         // Figure out how each instruction affects booleans.
         for (const struct CfInstruction *ins = visitingblock->instructions.ptr; ins < End(visitingblock->instructions); ins++) {
             if (!ins->destvar || !ins->destvar->analyzable || ins->destvar->type.kind != TYPE_BOOL)
@@ -142,7 +135,6 @@ static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg
                 tempstatus[destidx] = (struct BoolStatus){ .can_be_true=0, .can_be_false=1 };
                 break;
             default:
-                printf("** block %d: %s can be anything\n", visiting, ins->destvar->name);
                 tempstatus[destidx] = (struct BoolStatus){ .can_be_true=1, .can_be_false=1 };
                 break;
             }
@@ -151,19 +143,10 @@ static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg
         // If some values of variables are possible, remember that from now on.
         bool result_affected = add_possibilities(result[visiting], tempstatus, nvars);
 
-        printf("Ended up with:");
-        for (int i = 0; i < nvars; i++)
-            if (cfg->variables.ptr[i]->analyzable && cfg->variables.ptr[i]->type.kind == TYPE_BOOL)
-                printf("    %s, true? %d, false? %d", cfg->variables.ptr[i]->name, result[visiting][i].can_be_true, result[visiting][i].can_be_false);
-        printf("\n");
-
         if (result_affected && visitingblock != &cfg->end_block) {
             // Also need to update blocks where we jump from here.
-            int i1 = find_block_index(cfg, visitingblock->iftrue);
-            int i2 = find_block_index(cfg, visitingblock->iffalse);
-            blocks_to_visit[i1] = true;
-            blocks_to_visit[i2] = true;
-            printf("  Will visit %d,%d\n", i1,i2);
+            blocks_to_visit[find_block_index(cfg, visitingblock->iftrue)] = true;
+            blocks_to_visit[find_block_index(cfg, visitingblock->iffalse)] = true;
         }
     }
 
@@ -278,7 +261,6 @@ static void clean_branches_where_condition_always_true_or_always_false(struct Cf
             block->iftrue = block->iffalse;
             *did_something = true;
         }
-        printf("\n");
     }
 }
 
@@ -302,35 +284,11 @@ static void simplify_cfg(struct CfGraph *cfg)
         else
             nothing_happened_count++;
     }
-
-    struct BoolStatus **statuses = determine_known_bool_values(cfg);
-    int nblocks = cfg->all_blocks.len;
-    int nvars = cfg->variables.len;
-    for (int blockidx = 0; blockidx < nblocks; blockidx++) {
-        printf("end of block %d:\n", blockidx);
-        for (int varidx = 0; varidx < nvars; varidx++)
-        {
-            if (cfg->variables.ptr[varidx]->type.kind == TYPE_BOOL
-                && cfg->variables.ptr[varidx]->analyzable)
-            {
-                printf("  %s --> can_be_true=%d can_be_false=%d\n",
-                    cfg->variables.ptr[varidx]->name,
-                    statuses[blockidx][varidx].can_be_true,
-                    statuses[blockidx][varidx].can_be_false
-                );
-            }
-        }
-        printf("\n");
-    }
 }
 
 void simplify_control_flow_graphs(const struct CfGraphFile *cfgfile)
 {
-    for (int i = 0; i < cfgfile->nfuncs; i++) {
-        if (cfgfile->graphs[i]) {
-            printf("function %s...\n", cfgfile->signatures[i].funcname);
+    for (int i = 0; i < cfgfile->nfuncs; i++)
+        if (cfgfile->graphs[i])
             simplify_cfg(cfgfile->graphs[i]);
-        }
-    }
-    print_control_flow_graphs(cfgfile);
 }
