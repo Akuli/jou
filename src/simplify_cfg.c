@@ -43,16 +43,16 @@ static bool add_possibilities(enum BoolStatus *dest, const enum BoolStatus *src,
     for (int i = 0; i < n; i++) {
         enum BoolStatus combined;
 
-        if (dest[i] == UNSET)
-            combined = src[i];
-        else if (src[i] == UNSET)
-            combined = dest[i];
-        else if (src[i] == CAN_CHANGE_UNPREDICTABLY || dest[i] == CAN_CHANGE_UNPREDICTABLY)
+        if (src[i] == CAN_CHANGE_UNPREDICTABLY || dest[i] == CAN_CHANGE_UNPREDICTABLY)
             combined = CAN_CHANGE_UNPREDICTABLY;
         else if (src[i] == KNOWN_TO_BE_FALSE && dest[i] == KNOWN_TO_BE_FALSE)
             combined = KNOWN_TO_BE_FALSE;
         else if (src[i] == KNOWN_TO_BE_TRUE && dest[i] == KNOWN_TO_BE_TRUE)
             combined = KNOWN_TO_BE_TRUE;
+        else if (dest[i] == UNSET)
+            combined = src[i];
+        else if (src[i] == UNSET)
+            combined = dest[i];
         else
             combined = COULD_BE_TRUE_OR_FALSE;
 
