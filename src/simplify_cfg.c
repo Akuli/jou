@@ -50,10 +50,12 @@ Figure out whether boolean variables are true or false.
 return_value[block_index][variable_index] = status of variable at END of block
 variable_index must be so that the variable has type bool.
 
-Idea: Initially mark everything as impossible, so no variable can be true or false
-anywhere, except arguments which can be anything. Loop through instructions of
-start block, marking other possibilities. Repeat for blocks where execution jumps,
-unless we got same result as last time, then jumped blocks are unaffected.
+Idea: Initially mark everything as possible, so all variables can be true or false.
+Loop through instructions of start block, filtering out impossible options: for
+example, if a variable is set to True, then it can be True and cannot be False.
+Repeat for blocks where execution jumps from the current block, unless we got same
+result as last time, then we know that we don't have to reanalyze blocks where
+execution jumps from the current block.
 */
 static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
 {
