@@ -96,6 +96,9 @@ $ ./jou --verbose examples/hello.jou
 This shows the tokens, AST, CFGs and LLVM IR generated.
 The control flow graphs are shown twice, before and after simplifying them.
 
+After exploring the verbose output, you should probably
+read `src/jou_compiler.h` and have a quick look at `src/util.h`.
+
 
 ## Tests
 

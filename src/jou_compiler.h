@@ -69,6 +69,7 @@ extern const struct Type stringType;    // byte*
 
 
 // create_pointer_type(...) returns a type whose .data.valuetype must be free()d
+// copy_type() is a recursive/deep copy and should be used together with free_type()
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location);
 struct Type create_integer_type(int size_in_bits, bool is_signed);
 struct Type copy_type(const struct Type *t);
