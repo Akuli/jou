@@ -238,9 +238,7 @@ static void clean_jumps_where_condition_always_true_or_always_false(struct CfGra
             // Always jump to false case.
             block->iftrue = block->iffalse;
             break;
-        case UNSET:
-        case CAN_CHANGE_UNPREDICTABLY:
-        case COULD_BE_TRUE_OR_FALSE:
+        default:
             break;
         }
     }
