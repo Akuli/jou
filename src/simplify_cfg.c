@@ -1,4 +1,5 @@
 #include "jou_compiler.h"
+#include <limits.h>
 
 static int find_block_index(const struct CfGraph *cfg, const struct CfBlock *b)
 {
@@ -161,7 +162,7 @@ static void dump_known_bool_values(const struct CfGraph *cfg, struct BoolStatus 
 }
 #endif
 
-static void clean_branches_where_condition_always_true_or_always_false(struct CfGraph *cfg, bool *did_something)
+static void clean_jumps_where_condition_always_true_or_always_false(struct CfGraph *cfg)
 {
     struct BoolStatus **statuses = determine_known_bool_values(cfg);
 
@@ -174,12 +175,10 @@ static void clean_branches_where_condition_always_true_or_always_false(struct Cf
         if (s.can_be_true && !s.can_be_false) {
             // Always jump to true case.
             block->iffalse = block->iftrue;
-            *did_something = true;
         }
         if (!s.can_be_true && s.can_be_false) {
             // Always jump to false case.
             block->iftrue = block->iffalse;
-            *did_something = true;
         }
     }
 
@@ -188,7 +187,105 @@ static void clean_branches_where_condition_always_true_or_always_false(struct Cf
     free(statuses);
 }
 
-static void remove_unreachable_blocks(struct CfGraph *cfg, bool *did_something)
+/*
+Two blocks will end up in the same group, if there is an execution path from one block to another.
+Return value: array of groups, each group is an array of CfBlock pointers.
+All returned arrays are NULL terminated.
+
+This is not very efficient code, but it's only used for unreachable blocks.
+In a typical program, I don't expect to have many unreachable blocks.
+*/
+static struct CfBlock ***group_blocks(struct CfBlock **blocks, int nblocks)
+{
+    struct CfBlock ***groups = calloc(sizeof(groups[0]), nblocks+1);  // NOLINT
+
+    // Initially there is a separate group for each block.
+    int ngroups = nblocks;
+    for (int i = 0; i < nblocks; i++) {
+        groups[i] = calloc(sizeof(groups[i][0]), nblocks + 1); // NOLINT
+        groups[i][0] = blocks[i];
+    }
+
+    // For each block, we need to check whether that block can jump outside its
+    // group. When that does, merge the two groups together.
+    for (int block1index = 0; block1index < nblocks; block1index++) {
+        struct CfBlock *block1 = blocks[block1index];
+        if (block1->iffalse==NULL && block1->iftrue==NULL)
+            continue;  // the end block
+
+        for (int m = 0; m < 2; m++) {
+            struct CfBlock *block2 = m ? block1->iffalse : block1->iftrue;
+            assert(block2);
+
+            // Find groups of block1 and block2.
+            struct CfBlock ***g1 = NULL, ***g2 = NULL;
+            for (int i = 0; groups[i]; i++) {
+                for (int k = 0; groups[i][k]; k++) {
+                    if (groups[i][k] == block1) g1=&groups[i];
+                    if (groups[i][k] == block2) g2=&groups[i];
+                }
+            }
+
+            if (g1 && g2 && *g1!=*g2) {
+                // Append all blocks from group 2 to group 1.
+                struct CfBlock **dest = *g1, **src = *g2;
+                while (*dest) dest++;
+                while ((*dest++ = *src++)) ;
+
+                // Delete group 2.
+                free(*g2);
+                *g2 = groups[--ngroups];
+                groups[ngroups] = NULL;
+            }
+        }
+    }
+
+    return groups;
+}
+
+static void show_unreachable_warnings(struct CfBlock **unreachable_blocks, int n_unreachable_blocks)
+{
+    // Show a warning in the beginning of each group of blocks.
+    // Can't show a warning for each block, that would be too noisy.
+    struct CfBlock ***groups = group_blocks(unreachable_blocks, n_unreachable_blocks);
+
+    for (int groupidx = 0; groups[groupidx]; groupidx++) {
+        struct Location first_location = { .lineno = INT_MAX };
+        for (int i = 0; groups[groupidx][i]; i++) {
+            if (groups[groupidx][i]->instructions.len != 0) {
+                struct Location loc = groups[groupidx][i]->instructions.ptr[0].location;
+                if (loc.lineno < first_location.lineno)
+                    first_location = loc;
+            }
+        }
+        if (first_location.lineno != INT_MAX)
+            show_warning(first_location, "this code will never run");
+    }
+
+    for (int i = 0; groups[i]; i++)
+        free(groups[i]);
+    free(groups);
+}
+
+static void remove_given_blocks(struct CfGraph *cfg, struct CfBlock **blocks_to_remove, int n_blocks_to_remove)
+{
+    for (int i = cfg->all_blocks.len - 1; i >= 0; i--) {
+        bool shouldgo = false;
+        for (struct CfBlock **b = blocks_to_remove; b < &blocks_to_remove[n_blocks_to_remove]; b++) {
+            if(*b==cfg->all_blocks.ptr[i]){
+                shouldgo=true;
+                break;
+            }
+        }
+        if(shouldgo)
+        {
+            free_control_flow_graph_block(cfg, cfg->all_blocks.ptr[i]);
+            cfg->all_blocks.ptr[i]=Pop(&cfg->all_blocks);
+        }
+    }
+}
+
+static void remove_unreachable_blocks(struct CfGraph *cfg)
 {
     bool *reachable = calloc(sizeof(reachable[0]), cfg->all_blocks.len);
     List(int) todo = {0};
@@ -205,39 +302,20 @@ static void remove_unreachable_blocks(struct CfGraph *cfg, bool *did_something)
             Append(&todo, find_block_index(cfg, cfg->all_blocks.ptr[i]->iffalse));
         }
     }
-
-    int i = 0;
-    while (i < cfg->all_blocks.len) {
-        if (reachable[i] || cfg->all_blocks.ptr[i] == &cfg->end_block) {
-            i++;
-            continue;
-        }
-
-        // found unreachable block that can be removed
-        *did_something = true;
-        if (cfg->all_blocks.ptr[i]->instructions.len > 0)
-            show_warning(
-                cfg->all_blocks.ptr[i]->instructions.ptr[0].location,
-                "this code will never run");
-        free_control_flow_graph_block(cfg, cfg->all_blocks.ptr[i]);
-
-        // Cannot do the "foo[idx_to_remove] = Pop(foo)" trick, because order of the
-        // all_blocks array affects order of warning messages.
-        memmove(
-            &cfg->all_blocks.ptr[i],
-            &cfg->all_blocks.ptr[i+1],
-            sizeof(cfg->all_blocks.ptr[0])*(--cfg->all_blocks.len - i) // NOLINT
-        );
-
-        // TODO: figure out why we get repeated warnings without this
-        break;
-    }
-
-    free(reachable);
     free(todo.ptr);
+
+    List(struct CfBlock *) blocks_to_remove = {0};
+    for (int i = 0; i < cfg->all_blocks.len; i++)
+        if (!reachable[i] && cfg->all_blocks.ptr[i] != &cfg->end_block)
+            Append(&blocks_to_remove, cfg->all_blocks.ptr[i]);
+    free(reachable);
+
+    show_unreachable_warnings(blocks_to_remove.ptr, blocks_to_remove.len);
+    remove_given_blocks(cfg, blocks_to_remove.ptr, blocks_to_remove.len);
+    free(blocks_to_remove.ptr);
 }
 
-static void remove_unused_variables(struct CfGraph *cfg, bool *did_something)
+static void remove_unused_variables(struct CfGraph *cfg)
 {
     char *used = calloc(1, cfg->variables.len);
 
@@ -255,14 +333,13 @@ static void remove_unused_variables(struct CfGraph *cfg, bool *did_something)
             free_type(&cfg->variables.ptr[i]->type);
             free(cfg->variables.ptr[i]);
             cfg->variables.ptr[i] = Pop(&cfg->variables);
-            *did_something = true;
         }
     }
 
     free(used);
 }
 
-static void mark_analyzable_variables(struct CfGraph *cfg, bool *did_something)
+static bool mark_analyzable_variables(struct CfGraph *cfg)
 {
     char *analyzable = malloc(cfg->variables.len);
     memset(analyzable, 1, cfg->variables.len);
@@ -272,6 +349,7 @@ static void mark_analyzable_variables(struct CfGraph *cfg, bool *did_something)
             if (ins->kind == CF_ADDRESS_OF_VARIABLE)
                 analyzable[find_var_index(cfg, ins->operands[0])] = false;
 
+    bool did_something = false;
     for (int i = 0; i < cfg->variables.len; i++) {
         // Variables cannot become non-analyzable: if it was analyzable before, it
         // is still analyzable now.
@@ -279,36 +357,23 @@ static void mark_analyzable_variables(struct CfGraph *cfg, bool *did_something)
             assert(analyzable[i]);
 
         if (analyzable[i] && !cfg->variables.ptr[i]->analyzable) {
-            *did_something = true;
+            did_something = true;
             cfg->variables.ptr[i]->analyzable = true;
         }
     }
 
     free(analyzable);
+    return did_something;
 }
 
 static void simplify_cfg(struct CfGraph *cfg)
 {
-    void (*simplifiers[])(struct CfGraph *, bool *) = {
-        remove_unused_variables,
-        mark_analyzable_variables,
-        clean_branches_where_condition_always_true_or_always_false,
-        remove_unreachable_blocks,
-    };
-    int n = sizeof(simplifiers) / sizeof(simplifiers[0]);
+    do {
+        clean_jumps_where_condition_always_true_or_always_false(cfg);
+    } while (mark_analyzable_variables(cfg));
 
-    // Run simplifiers one after another until none of them does anything.
-    int nothing_happened_count=0;
-    for (int i = 0; nothing_happened_count < n; i=(i+1)%n) {
-        bool did_something = false;
-        simplifiers[i](cfg, &did_something);
-        if (did_something)
-            nothing_happened_count = 0;
-        else
-            nothing_happened_count++;
-    }
-
-    //dump_known_bool_values(cfg, determine_known_bool_values(cfg));
+    remove_unreachable_blocks(cfg);
+    remove_unused_variables(cfg);
 }
 
 void simplify_control_flow_graphs(const struct CfGraphFile *cfgfile)
