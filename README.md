@@ -10,6 +10,8 @@ def main() -> int:
     return 0
 ```
 
+See the [examples](./examples/) and [tests](./tests/) directories for more example programs.
+
 Goals:
 - Minimalistic feel of C + simple Python-style syntax
 - Possible target audiences:
