@@ -28,8 +28,9 @@ enum BoolStatus {
       take the variable as an argument could still change the variable, if the
       pointer &foo was stored elsewhere earlier.
     - COULD_BE_TRUE_OR_FALSE: The value of the variable is not known.
-    - UNSET: A temporary status that add_possibilities() always replaces with a
-      different status.
+    - UNSET: The variable can be neither true nor false, according to current
+      knowledge. If the variable is set somewhere, and that code isn't unreachable,
+      we will later know which values the variable can have.
     */
     CAN_CHANGE_UNPREDICTABLY,
     COULD_BE_TRUE_OR_FALSE,
@@ -40,27 +41,64 @@ static bool add_possibilities(enum BoolStatus *dest, const enum BoolStatus *src,
 {
     bool did_something = false;
     for (int i = 0; i < n; i++) {
-        enum BoolStatus newdest;
+        enum BoolStatus combined;
 
-        assert(src[i] != UNSET);
+        //assert(src[i] != UNSET);
         if (dest[i] == UNSET)
-            newdest = src[i];
+            combined = src[i];
+        else if (src[i] == UNSET)
+            combined = dest[i];
         else if (src[i] == CAN_CHANGE_UNPREDICTABLY || dest[i] == CAN_CHANGE_UNPREDICTABLY)
-            newdest = CAN_CHANGE_UNPREDICTABLY;
+            combined = CAN_CHANGE_UNPREDICTABLY;
         else if (src[i] == KNOWN_TO_BE_FALSE && dest[i] == KNOWN_TO_BE_FALSE)
-            newdest = KNOWN_TO_BE_FALSE;
+            combined = KNOWN_TO_BE_FALSE;
         else if (src[i] == KNOWN_TO_BE_TRUE && dest[i] == KNOWN_TO_BE_TRUE)
-            newdest = KNOWN_TO_BE_TRUE;
+            combined = KNOWN_TO_BE_TRUE;
         else
-            newdest = COULD_BE_TRUE_OR_FALSE;
+            combined = COULD_BE_TRUE_OR_FALSE;
 
-        if (dest[i] != newdest) {
-            dest[i] = newdest;
+        if (dest[i] != combined) {
+            dest[i] = combined;
             did_something = true;
         }
     }
 
     return did_something;
+}
+
+static void print_bool_statuses(const struct CfGraph *cfg, enum BoolStatus **statuses, const enum BoolStatus *temp, const char *description)
+{
+    (void)cfg, (void)statuses, (void)temp, (void)description;  // silence unused var warnings
+
+#if 0   // change to 1 to debug
+    int nblocks = cfg->all_blocks.len;
+    int nvars = cfg->variables.len;
+
+    const char *strs[] = {
+        [KNOWN_TO_BE_TRUE] = "true",
+        [KNOWN_TO_BE_FALSE] = "false",
+        [CAN_CHANGE_UNPREDICTABLY] = "unpredictable",
+        [COULD_BE_TRUE_OR_FALSE] = "true/false",
+        [UNSET] = "unset",
+    };
+
+    puts(description);
+    for (int blockidx = 0; blockidx < nblocks; blockidx++) {
+        printf("  block %d:", blockidx);
+        for (int i = 0; i < nvars; i++)
+            if (cfg->variables.ptr[i]->type.kind == TYPE_BOOL)
+                printf(" %10s %-14s", cfg->variables.ptr[i]->name, strs[statuses[blockidx][i]]);
+        printf("\n");
+    }
+    if(temp) {
+        printf("  temp:   ");
+        for (int i = 0; i < nvars; i++)
+            if (cfg->variables.ptr[i]->type.kind == TYPE_BOOL)
+                printf(" %10s %-14s", cfg->variables.ptr[i]->name, strs[temp[i]]);
+        printf("\n");
+    }
+    printf("\n");
+#endif
 }
 
 static bool all_zero(const char *ptr, int n)
@@ -89,8 +127,11 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
     int nvars = cfg->variables.len;
 
     enum BoolStatus **result = malloc(sizeof(result[0]) * nblocks);  // NOLINT
-    for (int i = 0; i < nblocks; i++)
-        result[i] = calloc(nvars, sizeof(result[i][0]));
+    for (int i = 0; i < nblocks; i++) {
+        result[i] = malloc(sizeof(result[i][0]) * nvars);
+        for (int k = 0; k < nvars; k++)
+            result[i][k] = UNSET;
+    }
 
     char *blocks_to_visit = calloc(1, nblocks);
     blocks_to_visit[0] = true;  // visit initial block
@@ -101,7 +142,7 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
         // Find a block to visit.
         int visiting = 0;
         while (!blocks_to_visit[visiting]) visiting++;
-        printf("Visit block %d\n", visiting);
+        //printf("=== Visit block %d ===\n", visiting);
         blocks_to_visit[visiting] = false;
         const struct CfBlock *visitingblock = cfg->all_blocks.ptr[visiting];
 
@@ -116,6 +157,7 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
                 tempstatus[i] = UNSET;
             }
         }
+        print_bool_statuses(cfg, result, tempstatus, "Initial");
         for (int i = 0; i < nblocks; i++) {
             if (cfg->all_blocks.ptr[i]->iftrue == visitingblock
                 || cfg->all_blocks.ptr[i]->iffalse == visitingblock)
@@ -125,6 +167,7 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
                 add_possibilities(tempstatus, result[i], nvars);
             }
         }
+        print_bool_statuses(cfg, result, tempstatus, "After adding from other blocks to temp");
 
         // Figure out how each instruction affects booleans.
         for (const struct CfInstruction *ins = visitingblock->instructions.ptr; ins < End(visitingblock->instructions); ins++) {
@@ -163,10 +206,11 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
 
         // If some values of variables are possible, remember that from now on.
         bool result_affected = add_possibilities(result[visiting], tempstatus, nvars);
+        print_bool_statuses(cfg, result, NULL, "At end");
 
         if (result_affected && visitingblock != &cfg->end_block) {
             // Also need to update blocks where we jump from here.
-            printf("  Will visit %d and %d\n", find_block_index(cfg, visitingblock->iftrue), find_block_index(cfg, visitingblock->iffalse));
+            //printf("  Will visit %d and %d\n", find_block_index(cfg, visitingblock->iftrue), find_block_index(cfg, visitingblock->iffalse));
             blocks_to_visit[find_block_index(cfg, visitingblock->iftrue)] = true;
             blocks_to_visit[find_block_index(cfg, visitingblock->iffalse)] = true;
         }
@@ -176,30 +220,6 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
     free(tempstatus);
     return result;
 }
-
-#if 1
-static void print_known_bool_values(const struct CfGraph *cfg, enum BoolStatus **statuses)
-{
-    int nblocks = cfg->all_blocks.len;
-    int nvars = cfg->variables.len;
-
-    const char *strs[] = {
-        [KNOWN_TO_BE_TRUE] = "is known to be true",
-        [KNOWN_TO_BE_FALSE] = "is known to be false",
-        [CAN_CHANGE_UNPREDICTABLY] = "can change unpredictably",
-        [COULD_BE_TRUE_OR_FALSE] = "could be true or false",
-        [UNSET] = "is in the temporary UNSET status",
-    };
-
-    for (int blockidx = 0; blockidx < nblocks; blockidx++) {
-        printf("block %d:\n", blockidx);
-        for (int i = 0; i < nvars; i++)
-            if (cfg->variables.ptr[i]->type.kind == TYPE_BOOL)
-                printf("  \"%s\" %s\n", cfg->variables.ptr[i]->name, strs[statuses[blockidx][i]]);
-        printf("\n");
-    }
-}
-#endif
 
 static void clean_jumps_where_condition_always_true_or_always_false(struct CfGraph *cfg)
 {
@@ -220,7 +240,6 @@ static void clean_jumps_where_condition_always_true_or_always_false(struct CfGra
             block->iftrue = block->iffalse;
             break;
         case UNSET:
-            assert(0);
         case CAN_CHANGE_UNPREDICTABLY:
         case COULD_BE_TRUE_OR_FALSE:
             break;
