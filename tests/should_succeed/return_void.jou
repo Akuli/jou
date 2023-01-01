@@ -5,11 +5,11 @@ def foo() -> void:
     putchar('i')
     putchar('\n')
 
-def should_do_nothing(skip: bool) -> void:
+def should_do_nothing() -> void:
     return
     putchar('x')  # Warning: this code will never run
 
 def main() -> int:
-    should_do_nothing(True)
+    should_do_nothing()
     foo()  # Output: hi
     return 0
