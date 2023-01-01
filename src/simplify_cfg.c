@@ -45,7 +45,7 @@ static bool add_possibilities(enum BoolStatus *dest, const enum BoolStatus *src,
         assert(src[i] != UNSET);
         if (dest[i] == UNSET)
             newdest = src[i];
-        if (src[i] == CAN_CHANGE_UNPREDICTABLY || dest[i] == CAN_CHANGE_UNPREDICTABLY)
+        else if (src[i] == CAN_CHANGE_UNPREDICTABLY || dest[i] == CAN_CHANGE_UNPREDICTABLY)
             newdest = CAN_CHANGE_UNPREDICTABLY;
         else if (src[i] == KNOWN_TO_BE_FALSE && dest[i] == KNOWN_TO_BE_FALSE)
             newdest = KNOWN_TO_BE_FALSE;
