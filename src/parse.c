@@ -25,6 +25,11 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
     fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
 
+static bool is_keyword(const struct Token *t, const char *kw)
+{
+    return t->type == TOKEN_KEYWORD && !strcmp(t->data.name, kw);
+}
+
 static bool is_operator(const struct Token *t, const char *op)
 {
     return t->type == TOKEN_OPERATOR && !strcmp(t->data.operator, op);
@@ -36,6 +41,7 @@ static struct Type parse_type(const struct Token **tokens)
         fail_with_parse_error(*tokens, "a type");
 
     struct Type result;
+    // TODO: these should probalby become keywords so u cant use them in varnames
     if (!strcmp((*tokens)->data.name, "int"))
         result = intType;
     else if (!strcmp((*tokens)->data.name, "byte"))
@@ -128,7 +134,7 @@ static struct Signature parse_function_signature(const struct Token **tokens)
     }
     ++*tokens;
 
-    if ((*tokens)->type == TOKEN_KEYWORD && !strcmp((*tokens)->data.name, "void")) {
+    if (is_keyword(*tokens, "void")) {
         result.returntype = NULL;
         ++*tokens;
     } else {
@@ -441,7 +447,7 @@ static struct AstBody parse_body(const struct Token **tokens);
 static struct AstStatement parse_statement(const struct Token **tokens)
 {
     struct AstStatement result = { .location = (*tokens)->location };
-    if ((*tokens)->type == TOKEN_KEYWORD && !strcmp((*tokens)->data.name, "return")) {
+    if (is_keyword(*tokens, "return")) {
         ++*tokens;
         if ((*tokens)->type == TOKEN_NEWLINE) {
             result.kind = AST_STMT_RETURN_WITHOUT_VALUE;
@@ -450,16 +456,24 @@ static struct AstStatement parse_statement(const struct Token **tokens)
             result.data.expression = parse_expression(tokens);
         }
         eat_newline(tokens);
-    } else if ((*tokens)->type == TOKEN_KEYWORD && !strcmp((*tokens)->data.name, "if")) {
+    } else if (is_keyword(*tokens, "if")) {
         ++*tokens;
         result.kind = AST_STMT_IF;
         result.data.ifstatement.condition = parse_expression(tokens);
         result.data.ifstatement.body = parse_body(tokens);
-    } else if ((*tokens)->type == TOKEN_KEYWORD && !strcmp((*tokens)->data.name, "while")) {
+    } else if (is_keyword(*tokens, "while")) {
         ++*tokens;
         result.kind = AST_STMT_WHILE;
         result.data.whileloop.condition = parse_expression(tokens);
         result.data.whileloop.body = parse_body(tokens);
+    } else if (is_keyword(*tokens, "break")) {
+        ++*tokens;
+        result.kind = AST_STMT_BREAK;
+        eat_newline(tokens);
+    } else if (is_keyword(*tokens, "continue")) {
+        ++*tokens;
+        result.kind = AST_STMT_CONTINUE;
+        eat_newline(tokens);
     } else {
         result.kind = AST_STMT_EXPRESSION_STATEMENT;
         result.data.expression = parse_expression(tokens);
@@ -501,7 +515,7 @@ static struct AstToplevelNode parse_toplevel_node(const struct Token **tokens)
         break;
 
     case TOKEN_KEYWORD:
-        if (!strcmp((*tokens)->data.name, "def")) {
+        if (is_keyword(*tokens, "def")) {
             ++*tokens;  // skip 'def' keyword
             result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
             result.data.funcdef.signature = parse_function_signature(tokens);
@@ -514,7 +528,7 @@ static struct AstToplevelNode parse_toplevel_node(const struct Token **tokens)
             result.data.funcdef.body = parse_body(tokens);
             break;
         }
-        if (!strcmp((*tokens)->data.name, "cdecl")) {
+        if (is_keyword(*tokens, "cdecl")) {
             ++*tokens;
             result.kind = AST_TOPLEVEL_CDECL_FUNCTION;
             result.data.decl_signature = parse_function_signature(tokens);

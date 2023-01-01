@@ -94,6 +94,8 @@ static void free_statement(const struct AstStatement *stmt)
         free_expression(&stmt->data.expression);
         break;
     case AST_STMT_RETURN_WITHOUT_VALUE:
+    case AST_STMT_BREAK:
+    case AST_STMT_CONTINUE:
         break;
     }
 }
