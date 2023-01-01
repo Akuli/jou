@@ -206,18 +206,31 @@ static void remove_unreachable_blocks(struct CfGraph *cfg, bool *did_something)
         }
     }
 
-    for (int i = cfg->all_blocks.len - 1; i >= 0; i--) {
-        if (reachable[i] || cfg->all_blocks.ptr[i] == &cfg->end_block)
+    int i = 0;
+    while (i < cfg->all_blocks.len) {
+        if (reachable[i] || cfg->all_blocks.ptr[i] == &cfg->end_block) {
+            i++;
             continue;
+        }
 
         // found unreachable block that can be removed
+        *did_something = true;
         if (cfg->all_blocks.ptr[i]->instructions.len > 0)
             show_warning(
                 cfg->all_blocks.ptr[i]->instructions.ptr[0].location,
                 "this code will never run");
         free_control_flow_graph_block(cfg, cfg->all_blocks.ptr[i]);
-        cfg->all_blocks.ptr[i] = Pop(&cfg->all_blocks);
-        *did_something = true;
+
+        // Cannot do the "foo[idx_to_remove] = Pop(foo)" trick, because order of the
+        // all_blocks array affects order of warning messages.
+        memmove(
+            &cfg->all_blocks.ptr[i],
+            &cfg->all_blocks.ptr[i+1],
+            sizeof(cfg->all_blocks.ptr[0])*(--cfg->all_blocks.len - i) // NOLINT
+        );
+
+        // TODO: figure out why we get repeated warnings without this
+        break;
     }
 
     free(reachable);

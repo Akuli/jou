@@ -147,11 +147,13 @@ struct AstBody {
 struct AstStatement {
     struct Location location;
     enum AstStatementKind {
-        AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
         AST_STMT_RETURN_VALUE,
         AST_STMT_RETURN_WITHOUT_VALUE,
         AST_STMT_IF,
         AST_STMT_WHILE,
+        AST_STMT_BREAK,
+        AST_STMT_CONTINUE,
+        AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
     } kind;
     union {
         struct AstExpression expression;    // for AST_STMT_EXPRESSION_STATEMENT, AST_STMT_RETURN
