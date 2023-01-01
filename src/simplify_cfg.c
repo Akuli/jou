@@ -124,7 +124,7 @@ static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg
 
         // Figure out how each instruction affects booleans.
         for (const struct CfInstruction *ins = visitingblock->instructions.ptr; ins < End(visitingblock->instructions); ins++) {
-            if (ins->destvar->type.kind != TYPE_BOOL || !ins->destvar->analyzable)
+            if (!ins->destvar || !ins->destvar->analyzable || ins->destvar->type.kind != TYPE_BOOL)
                 continue;
 
             int destidx = find_var_index(cfg, ins->destvar);
