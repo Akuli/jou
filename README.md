@@ -76,7 +76,7 @@ Hello World
 ```
 
 
-## Getting started with developing
+## How does the compiler work?
 
 The compiler is currently written in C. At a high level, the compilation steps are:
 - Tokenize: split the source code into tokens
@@ -112,9 +112,12 @@ $ sudo apt install valgrind
 $ make test
 ```
 
-This runs Jou files in `examples/` and `tests/`,
-and ensures that they output what is expected.
-The expected output is auto-generated from `# Output:` and `# Error:` comments in the Jou files:
+This does a few things:
+- It compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled.
+- It runs all Jou files in `examples/` and `tests/`.
+- It ensures that the Jou files output what is expected.
+
+The expected output is auto-generated from comments in the Jou files:
 
 - A comment like `# Output: foo` appends a line `foo` to the expected output.
 - A comment like `# Error: foo` on line 123 of file `tests/bar/baz.jou` appends a line
