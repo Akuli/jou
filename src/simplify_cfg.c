@@ -45,7 +45,7 @@ static bool add_possibilities(enum BoolStatus *dest, const enum BoolStatus *src,
         assert(src[i] != UNSET);
         if (dest[i] == UNSET)
             newdest = src[i];
-        if (src[i] == CAN_CHANGE_UNPREDICTABLY || dest[i] == CAN_CHANGE_UNPREDICTABLY)
+        else if (src[i] == CAN_CHANGE_UNPREDICTABLY || dest[i] == CAN_CHANGE_UNPREDICTABLY)
             newdest = CAN_CHANGE_UNPREDICTABLY;
         else if (src[i] == KNOWN_TO_BE_FALSE && dest[i] == KNOWN_TO_BE_FALSE)
             newdest = KNOWN_TO_BE_FALSE;
@@ -141,7 +141,7 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
                 case KNOWN_TO_BE_FALSE:
                     tempstatus[destidx] = KNOWN_TO_BE_FALSE;
                     break;
-                case CAN_CHANGE_UNPREDICTABLY:  // Even a non-analyzable variable yields true or false value.
+                case CAN_CHANGE_UNPREDICTABLY:  // Even an unpredictable variable yields true or false value.
                 case COULD_BE_TRUE_OR_FALSE:
                     tempstatus[destidx] = COULD_BE_TRUE_OR_FALSE;
                     break;
