@@ -17,24 +17,49 @@ static int find_var_index(const struct CfGraph *cfg, const struct CfVariable *v)
     assert(0);
 }
 
-struct BoolStatus {
-    bool can_be_true;
-    bool can_be_false;
+enum BoolStatus {
+    KNOWN_TO_BE_TRUE,
+    KNOWN_TO_BE_FALSE,
+    /*
+    The remaining statuses have different meanings:
+    - CAN_CHANGE_UNPREDICTABLY: The address of the variable (&foo) has been used, so
+      from now on, the variable's value can change in lines of code that don't seem
+      to have anything to do with the variable. For example, a function that doesn't
+      take the variable as an argument could still change the variable, if the
+      pointer &foo was stored elsewhere earlier.
+    - COULD_BE_TRUE_OR_FALSE: The value of the variable is not known.
+    - UNSET: A temporary status that add_possibilities() always replaces with a
+      different status.
+    */
+    CAN_CHANGE_UNPREDICTABLY,
+    COULD_BE_TRUE_OR_FALSE,
+    UNSET,
 };
 
-static bool add_possibilities(struct BoolStatus *dest, const struct BoolStatus *src, int n)
+static bool add_possibilities(enum BoolStatus *dest, const enum BoolStatus *src, int n)
 {
     bool did_something = false;
     for (int i = 0; i < n; i++) {
-        if (src[i].can_be_true && !dest[i].can_be_true) {
-            dest[i].can_be_true = 1;
-            did_something = true;
-        }
-        if (src[i].can_be_false && !dest[i].can_be_false) {
-            dest[i].can_be_false = 1;
+        enum BoolStatus newdest;
+
+        assert(src[i] != UNSET);
+        if (dest[i] == UNSET)
+            newdest = src[i];
+        if (src[i] == CAN_CHANGE_UNPREDICTABLY || dest[i] == CAN_CHANGE_UNPREDICTABLY)
+            newdest = CAN_CHANGE_UNPREDICTABLY;
+        else if (src[i] == KNOWN_TO_BE_FALSE && dest[i] == KNOWN_TO_BE_FALSE)
+            newdest = KNOWN_TO_BE_FALSE;
+        else if (src[i] == KNOWN_TO_BE_TRUE && dest[i] == KNOWN_TO_BE_TRUE)
+            newdest = KNOWN_TO_BE_TRUE;
+        else
+            newdest = COULD_BE_TRUE_OR_FALSE;
+
+        if (dest[i] != newdest) {
+            dest[i] = newdest;
             did_something = true;
         }
     }
+
     return did_something;
 }
 
@@ -58,19 +83,19 @@ Repeat for blocks where execution jumps from the current block, unless we got sa
 result as last time, then we know that we don't have to reanalyze blocks where
 execution jumps from the current block.
 */
-static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
+static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
 {
     int nblocks = cfg->all_blocks.len;
     int nvars = cfg->variables.len;
 
-    struct BoolStatus **result = malloc(sizeof(result[0]) * nblocks);  // NOLINT
+    enum BoolStatus **result = malloc(sizeof(result[0]) * nblocks);  // NOLINT
     for (int i = 0; i < nblocks; i++)
         result[i] = calloc(nvars, sizeof(result[i][0]));
 
     char *blocks_to_visit = calloc(1, nblocks);
     blocks_to_visit[0] = true;  // visit initial block
 
-    struct BoolStatus *tempstatus = malloc(nvars*sizeof(tempstatus[0]));
+    enum BoolStatus *tempstatus = malloc(nvars*sizeof(tempstatus[0]));
 
     while(!all_zero(blocks_to_visit, nblocks)){
         // Find a block to visit.
@@ -83,14 +108,12 @@ static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg
         // Determine initial values based on other blocks that jump here.
         for (int i = 0; i < nvars; i++) {
             if (visiting == 0) {
-                // Start block: assume nothing about any variable.
-                tempstatus[i].can_be_true = 1;
-                tempstatus[i].can_be_false = 1;
+                // Start block: don't assume the value of any variable.
+                tempstatus[i] = COULD_BE_TRUE_OR_FALSE;
             } else {
                 // What is possible in other blocks is determined based on only how
                 // they are jumped into.
-                tempstatus[i].can_be_true = 0;
-                tempstatus[i].can_be_false = 0;
+                tempstatus[i] = UNSET;
             }
         }
         for (int i = 0; i < nblocks; i++) {
@@ -105,25 +128,35 @@ static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg
 
         // Figure out how each instruction affects booleans.
         for (const struct CfInstruction *ins = visitingblock->instructions.ptr; ins < End(visitingblock->instructions); ins++) {
-            if (!ins->destvar || !ins->destvar->analyzable || ins->destvar->type.kind != TYPE_BOOL)
+            if (!ins->destvar || ins->destvar->type.kind != TYPE_BOOL)
                 continue;
 
             int destidx = find_var_index(cfg, ins->destvar);
             switch(ins->kind) {
             case CF_VARCPY:
-                if (ins->operands[0]->analyzable)
-                    tempstatus[destidx] = tempstatus[find_var_index(cfg, ins->operands[0])];
-                else
-                    tempstatus[destidx] = (struct BoolStatus){ .can_be_true=1, .can_be_false=1 };
+                switch(tempstatus[find_var_index(cfg, ins->operands[0])]) {
+                case KNOWN_TO_BE_TRUE:
+                    tempstatus[destidx] = KNOWN_TO_BE_TRUE;
+                    break;
+                case KNOWN_TO_BE_FALSE:
+                    tempstatus[destidx] = KNOWN_TO_BE_FALSE;
+                    break;
+                case CAN_CHANGE_UNPREDICTABLY:  // Even a non-analyzable variable yields true or false value.
+                case COULD_BE_TRUE_OR_FALSE:
+                    tempstatus[destidx] = COULD_BE_TRUE_OR_FALSE;
+                    break;
+                case UNSET:
+                    assert(0);
+                }
                 break;
             case CF_TRUE:
-                tempstatus[destidx] = (struct BoolStatus){ .can_be_true=1, .can_be_false=0 };
+                tempstatus[destidx] = KNOWN_TO_BE_TRUE;
                 break;
             case CF_FALSE:
-                tempstatus[destidx] = (struct BoolStatus){ .can_be_true=0, .can_be_false=1 };
+                tempstatus[destidx] = KNOWN_TO_BE_FALSE;
                 break;
             default:
-                tempstatus[destidx] = (struct BoolStatus){ .can_be_true=1, .can_be_false=1 };
+                tempstatus[destidx] = COULD_BE_TRUE_OR_FALSE;
                 break;
             }
         }
@@ -145,7 +178,7 @@ static struct BoolStatus **determine_known_bool_values(const struct CfGraph *cfg
 }
 
 #if 0
-static void dump_known_bool_values(const struct CfGraph *cfg, struct BoolStatus **statuses)
+static void dump_known_bool_values(const struct CfGraph *cfg, enum BoolStatus **statuses)
 {
     int nblocks = cfg->all_blocks.len;
     int nvars = cfg->variables.len;
@@ -164,21 +197,27 @@ static void dump_known_bool_values(const struct CfGraph *cfg, struct BoolStatus 
 
 static void clean_jumps_where_condition_always_true_or_always_false(struct CfGraph *cfg)
 {
-    struct BoolStatus **statuses = determine_known_bool_values(cfg);
+    enum BoolStatus **statuses = determine_known_bool_values(cfg);
 
     for (int blockidx = 0; blockidx < cfg->all_blocks.len; blockidx++) {
         struct CfBlock *block = cfg->all_blocks.ptr[blockidx];
         if (block == &cfg->end_block || block->iftrue == block->iffalse)
             continue;
 
-        struct BoolStatus s = statuses[blockidx][find_var_index(cfg, block->branchvar)];
-        if (s.can_be_true && !s.can_be_false) {
+        switch(statuses[blockidx][find_var_index(cfg, block->branchvar)]) {
+        case KNOWN_TO_BE_TRUE:
             // Always jump to true case.
             block->iffalse = block->iftrue;
-        }
-        if (!s.can_be_true && s.can_be_false) {
+            break;
+        case KNOWN_TO_BE_FALSE:
             // Always jump to false case.
             block->iftrue = block->iffalse;
+            break;
+        case UNSET:
+            assert(0);
+        case CAN_CHANGE_UNPREDICTABLY:
+        case COULD_BE_TRUE_OR_FALSE:
+            break;
         }
     }
 
@@ -339,39 +378,9 @@ static void remove_unused_variables(struct CfGraph *cfg)
     free(used);
 }
 
-static bool mark_analyzable_variables(struct CfGraph *cfg)
-{
-    char *analyzable = malloc(cfg->variables.len);
-    memset(analyzable, 1, cfg->variables.len);
-
-    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++)
-        for (struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
-            if (ins->kind == CF_ADDRESS_OF_VARIABLE)
-                analyzable[find_var_index(cfg, ins->operands[0])] = false;
-
-    bool did_something = false;
-    for (int i = 0; i < cfg->variables.len; i++) {
-        // Variables cannot become non-analyzable: if it was analyzable before, it
-        // is still analyzable now.
-        if (cfg->variables.ptr[i]->analyzable)
-            assert(analyzable[i]);
-
-        if (analyzable[i] && !cfg->variables.ptr[i]->analyzable) {
-            did_something = true;
-            cfg->variables.ptr[i]->analyzable = true;
-        }
-    }
-
-    free(analyzable);
-    return did_something;
-}
-
 static void simplify_cfg(struct CfGraph *cfg)
 {
-    do {
-        clean_jumps_where_condition_always_true_or_always_false(cfg);
-    } while (mark_analyzable_variables(cfg));
-
+    clean_jumps_where_condition_always_true_or_always_false(cfg);
     remove_unreachable_blocks(cfg);
     remove_unused_variables(cfg);
 }
