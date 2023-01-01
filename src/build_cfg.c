@@ -631,5 +631,7 @@ struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast)
         ast++;
     }
 
+    free(st.breakstack.ptr);
+    free(st.continuestack.ptr);
     return result;
 }
