@@ -285,6 +285,12 @@ const struct CfVariable *build_increment_or_decrement(
 
 static const struct CfVariable *build_call(const struct State *st, const struct AstCall *call, struct Location location);
 
+static void check_dereferenced_pointer_type(struct Location location, const struct Type *t)
+{
+    if (t->kind != TYPE_POINTER)
+        fail_with_error(location, "the dereference operator '*' is only for pointers, not for %s", t->name);
+}
+
 static const struct CfVariable *build_expression(
     const struct State *st,
     const struct AstExpression *expr,
@@ -313,8 +319,7 @@ static const struct CfVariable *build_expression(
         break;
     case AST_EXPR_DEREFERENCE:
         temp = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
-        if (temp->type.kind != TYPE_POINTER)
-            fail_with_error(expr->location, "the dereference operator '*' is only for pointers, not for %s", temp->type.name);
+        check_dereferenced_pointer_type(expr->location, &temp->type);
         result = add_variable(st, temp->type.data.valuetype, "$deref");
         add_instruction(st, expr->location, CF_LOAD_FROM_POINTER, NULL, 1, &temp, result);
         break;
@@ -430,17 +435,21 @@ static const struct CfVariable *build_address_of_expression(const struct State *
 
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
-        {
-            const struct CfVariable *var = find_variable(st, address_of_what->data.varname, &address_of_what->location);
-            struct Type t = create_pointer_type(&var->type, (struct Location){0});
-            const struct CfVariable *addr = add_variable(st, &t, "$address_of_var");
-            free(t.data.valuetype);
-            add_instruction(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, NULL, 1, &var, addr);
-            return addr;
-        }
+    {
+        const struct CfVariable *var = find_variable(st, address_of_what->data.varname, &address_of_what->location);
+        struct Type t = create_pointer_type(&var->type, (struct Location){0});
+        const struct CfVariable *addr = add_variable(st, &t, "$address_of_var");
+        free(t.data.valuetype);
+        add_instruction(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, NULL, 1, &var, addr);
+        return addr;
+    }
     case AST_EXPR_DEREFERENCE:
-        // &*foo --> just evaluate foo
-        return build_expression(st, &address_of_what->data.operands[0], NULL, NULL, true);
+    {
+        // &*foo --> just evaluate foo, but make sure it is a pointer
+        const struct CfVariable *result = build_expression(st, &address_of_what->data.operands[0], NULL, NULL, true);
+        check_dereferenced_pointer_type(address_of_what->location, &result->type);
+        return result;
+    }
 
     /*
     The & operator can't go in front of most expressions.
