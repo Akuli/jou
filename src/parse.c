@@ -306,7 +306,7 @@ not_an_expression:
 // Unary operators: foo++, foo--, ++foo, --foo, &foo, *foo
 static struct AstExpression parse_expression_with_unary_operators(const struct Token **tokens)
 {
-    // sequnece of 0 or more unary operator tokens: start,start+1,...,end-1
+    // sequneces of 0 or more unary operator tokens: start,start+1,...,end-1
     const struct Token *prefixstart = *tokens;
     while(is_operator(*tokens,"++")||is_operator(*tokens,"--")||is_operator(*tokens,"&")||is_operator(*tokens,"*")) ++*tokens;
     const struct Token *prefixend = *tokens;
