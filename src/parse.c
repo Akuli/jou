@@ -444,6 +444,31 @@ static void validate_expression_statement(const struct AstExpression *expr)
 
 static struct AstBody parse_body(const struct Token **tokens);
 
+static struct AstIfStatement parse_if_statement(const struct Token **tokens)
+{
+    List(struct AstConditionAndBody) if_elifs = {0};
+
+    assert(is_keyword(*tokens, "if"));
+    do {
+        ++*tokens;
+        struct AstExpression cond = parse_expression(tokens);
+        struct AstBody body = parse_body(tokens);
+        Append(&if_elifs, (struct AstConditionAndBody){cond,body});
+    } while (is_keyword(*tokens, "elif"));
+
+    struct AstBody elsebody = {0};
+    if (is_keyword(*tokens, "else")) {
+        ++*tokens;
+        elsebody = parse_body(tokens);
+    }
+
+    return (struct AstIfStatement){
+        .if_and_elifs = if_elifs.ptr,
+        .n_if_and_elifs = if_elifs.len,
+        .elsebody = elsebody,
+    };
+}
+
 static struct AstStatement parse_statement(const struct Token **tokens)
 {
     struct AstStatement result = { .location = (*tokens)->location };
@@ -457,10 +482,8 @@ static struct AstStatement parse_statement(const struct Token **tokens)
         }
         eat_newline(tokens);
     } else if (is_keyword(*tokens, "if")) {
-        ++*tokens;
         result.kind = AST_STMT_IF;
-        result.data.ifstatement.condition = parse_expression(tokens);
-        result.data.ifstatement.body = parse_body(tokens);
+        result.data.ifstatement = parse_if_statement(tokens);
     } else if (is_keyword(*tokens, "while")) {
         ++*tokens;
         result.kind = AST_STMT_WHILE;

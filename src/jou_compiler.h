@@ -144,6 +144,10 @@ struct AstBody {
     struct AstStatement *statements;
     int nstatements;
 };
+struct AstConditionAndBody {
+    struct AstExpression condition;
+    struct AstBody body;
+};
 
 struct AstStatement {
     struct Location location;
@@ -159,13 +163,11 @@ struct AstStatement {
     union {
         struct AstExpression expression;    // for AST_STMT_EXPRESSION_STATEMENT, AST_STMT_RETURN
         struct AstIfStatement {
-            struct AstExpression condition;
-            struct AstBody body;
+            struct AstConditionAndBody *if_and_elifs;
+            int n_if_and_elifs;  // Always >= 1 for the initial "if"
+            struct AstBody elsebody;  // Empty (0 statements) means no else
         } ifstatement;
-        struct AstWhileLoop {
-            struct AstExpression condition;
-            struct AstBody body;
-        } whileloop;
+        struct AstConditionAndBody whileloop;
     } data;
 };
 

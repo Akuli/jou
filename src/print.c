@@ -214,9 +214,15 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
             break;
         case AST_STMT_IF:
             printf("If statement\n");
-            printf("%*s  Condition:\n", indent, "");
-            print_ast_expression(&stmt->data.ifstatement.condition, indent+4);
-            print_ast_body(&stmt->data.ifstatement.body, indent+2);
+            for (int i = 0; i < stmt->data.ifstatement.n_if_and_elifs; i++) {
+                printf("%*s  Condition:\n", indent, "");
+                print_ast_expression(&stmt->data.ifstatement.if_and_elifs[i].condition, indent+4);
+                print_ast_body(&stmt->data.ifstatement.if_and_elifs[i].body, indent+2);
+            }
+            if (stmt->data.ifstatement.elsebody.nstatements > 0) {
+                printf("%*s  Else:\n", indent, "");
+                print_ast_body(&stmt->data.ifstatement.elsebody, indent+4);
+            }
             break;
         case AST_STMT_WHILE:
             printf("While loop\n");

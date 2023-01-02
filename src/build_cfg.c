@@ -456,15 +456,30 @@ static const struct CfVariable *build_call(const struct State *st, const struct 
 
 static void build_body(struct State *st, const struct AstBody *body);
 
-static void build_if_statement(struct State *st, const struct AstExpression *cond, const struct AstBody *body)
+static void build_if_statement(struct State *st, const struct AstIfStatement *ifstmt)
 {
-    const struct CfVariable *condvar = build_expression(
-        st, cond, &boolType, "'if' condition must be a boolean, not FROM", true);
-    struct CfBlock *thenblock = add_block(st);
-    struct CfBlock *afterblock = add_block(st);
-    add_jump(st, condvar, thenblock, afterblock, thenblock);
-    build_body(st, body);
-    add_jump(st, NULL, afterblock, afterblock, afterblock);
+    assert(ifstmt->n_if_and_elifs >= 1);
+
+    struct CfBlock *done = add_block(st);
+    for (int i = 0; i < ifstmt->n_if_and_elifs; i++) {
+        const char *errmsg;
+        if (i == 0)
+            errmsg = "'if' condition must be a boolean, not FROM";
+        else
+            errmsg = "'elif' condition must be a boolean, not FROM";
+
+        const struct CfVariable *cond = build_expression(
+            st, &ifstmt->if_and_elifs[i].condition, &boolType, errmsg, true);
+        struct CfBlock *then = add_block(st);
+        struct CfBlock *otherwise = add_block(st);
+
+        add_jump(st, cond, then, otherwise, then);
+        build_body(st, &ifstmt->if_and_elifs[i].body);
+        add_jump(st, NULL, done, done, otherwise);
+    }
+
+    build_body(st, &ifstmt->elsebody);
+    add_jump(st, NULL, done, done, done);
 }
 
 static void build_while_loop(struct State *st, const struct AstExpression *cond, const struct AstBody *body)
@@ -492,7 +507,7 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
 {
     switch(stmt->kind) {
     case AST_STMT_IF:
-        build_if_statement(st, &stmt->data.ifstatement.condition, &stmt->data.ifstatement.body);
+        build_if_statement(st, &stmt->data.ifstatement);
         break;
 
     case AST_STMT_WHILE:

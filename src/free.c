@@ -82,8 +82,12 @@ static void free_statement(const struct AstStatement *stmt)
 {
     switch(stmt->kind) {
     case AST_STMT_IF:
-        free_expression(&stmt->data.ifstatement.condition);
-        free_body(&stmt->data.ifstatement.body);
+        for (int i = 0; i < stmt->data.ifstatement.n_if_and_elifs; i++) {
+            free_expression(&stmt->data.ifstatement.if_and_elifs[i].condition);
+            free_body(&stmt->data.ifstatement.if_and_elifs[i].body);
+        }
+        free(stmt->data.ifstatement.if_and_elifs);
+        free_body(&stmt->data.ifstatement.elsebody);
         break;
     case AST_STMT_WHILE:
         free_expression(&stmt->data.whileloop.condition);

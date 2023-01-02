@@ -174,14 +174,9 @@ but it should give you some kind of idea about what is still missing.
 
 - Write syntax spec once syntax seems relatively stable
 - Some kind of conversion to bool thingy for if statements: `if some_pointer:`, `if some_integer:`
-- `elif`,`else`
 - `not`,`and`,`or`
-- `while`, `for init; cond; incr:`, maybe `do`-`while`?
 - `NULL` pointer
-- operators: `+` `-` `*` `/` `<` `>` `==`
 - `++` and `--`
-    - There's now quite a lot of overlap between expressions and statements.
-        Do something about it?
 - JIT so that you don't need to go through a compile step
 - REPL, if possible?
 - Everything else...?
