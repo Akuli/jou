@@ -249,15 +249,20 @@ static const struct CfVariable *build_binop(
     return negated;
 }
 
-static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what);
+static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what, bool is_assignment);
 
 enum PreOrPost { PRE, POST };
 
-const struct CfVariable *build_increment_or_decrement(const struct State *st, struct Location location, const struct AstExpression *inner, enum PreOrPost pop, int diff)
+const struct CfVariable *build_increment_or_decrement(
+    const struct State *st,
+    struct Location location,
+    const struct AstExpression *inner,
+    enum PreOrPost pop,
+    int diff)
 {
-    assert(diff==1 || diff==-1);
+    assert(diff==1 || diff==-1);  // 1=increment, -1=decrement
 
-    const struct CfVariable *addr = build_address_of_expression(st, inner);
+    const struct CfVariable *addr = build_address_of_expression(st, inner, true);
     assert(addr->type.kind == TYPE_POINTER);
     const struct Type *t = addr->type.data.valuetype;
     if (!is_integer_type(t))
@@ -301,7 +306,7 @@ static const struct CfVariable *build_expression(
         }
         break;
     case AST_EXPR_ADDRESS_OF:
-        result = build_address_of_expression(st, &expr->data.operands[0]);
+        result = build_address_of_expression(st, &expr->data.operands[0], false);
         break;
     case AST_EXPR_GET_VARIABLE:
         result = find_variable(st, expr->data.varname, &expr->location);
@@ -349,7 +354,7 @@ static const struct CfVariable *build_expression(
             } else {
                 // Convert value to the type of an existing variable or other assignment target.
                 // TODO: is this evaluation order good?
-                const struct CfVariable *target = build_address_of_expression(st, targetexpr);
+                const struct CfVariable *target = build_address_of_expression(st, targetexpr, true);
                 assert(target->type.kind == TYPE_POINTER);
                 const char *errmsg;
                 switch(targetexpr->kind) {
@@ -419,8 +424,10 @@ static const struct CfVariable *build_expression(
     return build_implicit_cast(st, result, implicit_cast_to, expr->location, casterrormsg);
 }
 
-static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what)
+static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what, bool is_assignment)
 {
+    const char *cant_take_address_of;
+
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
         {
@@ -434,9 +441,52 @@ static const struct CfVariable *build_address_of_expression(const struct State *
     case AST_EXPR_DEREFERENCE:
         // &*foo --> just evaluate foo
         return build_expression(st, &address_of_what->data.operands[0], NULL, NULL, true);
-    default:
-        assert(0);
+
+    /*
+    The & operator can go only in front of a few kinds of expressions.
+    You can't do &(1 + 2), for example.
+
+    The same rules apply to assignments: "foo = bar" is treated as setting the
+    value of the pointer &foo to bar.
+    */
+    case AST_EXPR_INT_CONSTANT:
+    case AST_EXPR_CHAR_CONSTANT:
+    case AST_EXPR_STRING_CONSTANT:
+    case AST_EXPR_TRUE:
+    case AST_EXPR_FALSE:
+        cant_take_address_of = "a constant";
+        break;
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_POST_INCREMENT:
+        cant_take_address_of = "the result of incrementing a value";
+        break;
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_DECREMENT:
+        cant_take_address_of = "the result of decrementing a value";
+        break;
+    case AST_EXPR_ASSIGN:
+        cant_take_address_of = "an assignment";
+        break;
+    case AST_EXPR_ADDRESS_OF:
+    case AST_EXPR_CALL:
+    case AST_EXPR_ADD:
+    case AST_EXPR_SUB:
+    case AST_EXPR_MUL:
+    case AST_EXPR_DIV:
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
+        cant_take_address_of = "a newly calculated value";
+        break;
     }
+
+    if (is_assignment)
+        fail_with_error(address_of_what->location, "cannot assign to %s", cant_take_address_of);
+    else
+        fail_with_error(address_of_what->location, "the address-of operator '&' cannot be used with %s", cant_take_address_of);
 }
 
 const char *nth(int n)

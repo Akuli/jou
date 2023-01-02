@@ -17,11 +17,20 @@ def main() -> int:
     printf("%d n=%d\n", n++ + 10, n)  # Output: 17 n=8
     printf("%d n=%d\n", n-- + 10, n)  # Output: 18 n=7
 
-    # Output: abc
+    x = 100
+    xptr = &x
+    (*xptr)++
+    ++(*xptr)
+    ++*xptr
+    printf("%d\n", x)  # Output: 103
+
+    # Output: abcba
     c = 'a'
     putchar(c++)
     putchar(c++)
-    putchar(c++)
+    putchar(c--)
+    putchar(c--)
+    putchar(c)
     putchar('\n')
 
     return 0
