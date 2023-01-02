@@ -319,7 +319,7 @@ static struct AstExpression parse_expression_with_unary_operators(const struct T
 
     while (prefixstart<prefixend || suffixstart<suffixend) {
         // ++ and -- "bind tighter", so *foo++ is equivalent to *(foo++)
-        // It is implemented by always consuming ++/-- prefixes when they exist.
+        // It is implemented by always consuming ++/-- prefixes and suffixes when they exist.
         struct Location loc;
         enum AstExpressionKind k;
         if (prefixstart<prefixend && is_operator(prefixend-1, "++")) {
