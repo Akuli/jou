@@ -121,6 +121,10 @@ struct AstExpression {
         AST_EXPR_GE,
         AST_EXPR_LT,
         AST_EXPR_LE,
+        AST_EXPR_PRE_INCREMENT,  // ++foo
+        AST_EXPR_PRE_DECREMENT,  // --foo
+        AST_EXPR_POST_INCREMENT,  // foo++
+        AST_EXPR_POST_DECREMENT,  // foo--
     } kind;
     union {
         int int_value;          // AST_EXPR_INT_CONSTANT
@@ -211,7 +215,6 @@ struct CfInstruction {
     struct Location location;
     enum CfInstructionKind {
         CF_INT_CONSTANT,
-        CF_CHAR_CONSTANT,  // TODO: delete (can use int constant + cast)
         CF_STRING_CONSTANT,
         CF_TRUE,
         CF_FALSE,
@@ -232,8 +235,7 @@ struct CfInstruction {
         CF_CAST_TO_BIGGER_UNSIGNED_INT,
     } kind;
     union CfInstructionData {
-        int int_value;          // CF_INT_CONSTANT
-        char char_value;        // CF_CHAR_CONSTANT
+        long long int_value;    // CF_INT_CONSTANT (will be cast to whatever size int is needed)
         char *string_value;     // CF_STRING_CONSTANT
         char funcname[100];     // CF_CALL
     } data;

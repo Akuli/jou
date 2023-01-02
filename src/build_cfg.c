@@ -249,8 +249,41 @@ static const struct CfVariable *build_binop(
     return negated;
 }
 
+static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what, bool is_assignment);
+
+enum PreOrPost { PRE, POST };
+
+const struct CfVariable *build_increment_or_decrement(
+    const struct State *st,
+    struct Location location,
+    const struct AstExpression *inner,
+    enum PreOrPost pop,
+    int diff)
+{
+    assert(diff==1 || diff==-1);  // 1=increment, -1=decrement
+
+    const struct CfVariable *addr = build_address_of_expression(st, inner, true);
+    assert(addr->type.kind == TYPE_POINTER);
+    const struct Type *t = addr->type.data.valuetype;
+    if (!is_integer_type(t))
+        fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
+
+    const struct CfVariable *old_value = add_variable(st, t, "$old_value");
+    const struct CfVariable *new_value = add_variable(st, t, "$new_value");
+    const struct CfVariable *diffvar = add_variable(st, t, "$diff");
+    add_instruction(st, location, CF_INT_CONSTANT, &(union CfInstructionData){ .int_value=diff }, 0, NULL, diffvar);
+    add_instruction(st, location, CF_LOAD_FROM_POINTER, NULL, 1, &addr, old_value);
+    add_instruction(st, location, CF_INT_ADD, NULL, 2, (const struct CfVariable*[]){old_value,diffvar}, new_value);
+    add_instruction(st, location, CF_STORE_TO_POINTER, NULL, 2, (const struct CfVariable*[]){addr,new_value}, NULL);
+
+    switch(pop) {
+        case PRE: return new_value;
+        case POST: return old_value;
+    }
+    assert(0);
+}
+
 static const struct CfVariable *build_call(const struct State *st, const struct AstCall *call, struct Location location);
-static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what);
 
 static const struct CfVariable *build_expression(
     const struct State *st,
@@ -273,7 +306,7 @@ static const struct CfVariable *build_expression(
         }
         break;
     case AST_EXPR_ADDRESS_OF:
-        result = build_address_of_expression(st, &expr->data.operands[0]);
+        result = build_address_of_expression(st, &expr->data.operands[0], false);
         break;
     case AST_EXPR_GET_VARIABLE:
         result = find_variable(st, expr->data.varname, &expr->location);
@@ -292,8 +325,8 @@ static const struct CfVariable *build_expression(
         break;
     case AST_EXPR_CHAR_CONSTANT:
         result = add_variable(st, &byteType, "$byteconstant");
-        data.char_value = expr->data.char_value;
-        add_instruction(st, expr->location, CF_CHAR_CONSTANT, &data, 0, NULL, result);
+        data.int_value = expr->data.char_value;
+        add_instruction(st, expr->location, CF_INT_CONSTANT, &data, 0, NULL, result);
         break;
     case AST_EXPR_STRING_CONSTANT:
         result = add_variable(st, &stringType, "$strconstant");
@@ -321,7 +354,7 @@ static const struct CfVariable *build_expression(
             } else {
                 // Convert value to the type of an existing variable or other assignment target.
                 // TODO: is this evaluation order good?
-                const struct CfVariable *target = build_address_of_expression(st, targetexpr);
+                const struct CfVariable *target = build_address_of_expression(st, targetexpr, true);
                 assert(target->type.kind == TYPE_POINTER);
                 const char *errmsg;
                 switch(targetexpr->kind) {
@@ -361,6 +394,25 @@ static const struct CfVariable *build_expression(
             const struct CfVariable *lhs = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
             const struct CfVariable *rhs = build_expression(st, &expr->data.operands[1], NULL, NULL, true);
             result = build_binop(st, expr->kind, expr->location, lhs, rhs);
+            break;
+        }
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_INCREMENT:
+    case AST_EXPR_POST_DECREMENT:
+        {
+            enum PreOrPost pop;
+            int diff;
+
+            switch(expr->kind) {
+                case AST_EXPR_PRE_INCREMENT: pop=PRE; diff=1; break;
+                case AST_EXPR_PRE_DECREMENT: pop=PRE; diff=-1; break;
+                case AST_EXPR_POST_INCREMENT: pop=POST; diff=1; break;
+                case AST_EXPR_POST_DECREMENT: pop=POST; diff=-1; break;
+                default: assert(0);
+            }
+            result = build_increment_or_decrement(st, expr->location, &expr->data.operands[0], pop, diff);
+            break;
         }
     }
 
@@ -372,8 +424,10 @@ static const struct CfVariable *build_expression(
     return build_implicit_cast(st, result, implicit_cast_to, expr->location, casterrormsg);
 }
 
-static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what)
+static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what, bool is_assignment)
 {
+    const char *cant_take_address_of;
+
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
         {
@@ -387,9 +441,52 @@ static const struct CfVariable *build_address_of_expression(const struct State *
     case AST_EXPR_DEREFERENCE:
         // &*foo --> just evaluate foo
         return build_expression(st, &address_of_what->data.operands[0], NULL, NULL, true);
-    default:
-        assert(0);
+
+    /*
+    The & operator can't go in front of most expressions.
+    You can't do &(1 + 2), for example.
+
+    The same rules apply to assignments: "foo = bar" is treated as setting the
+    value of the pointer &foo to bar.
+    */
+    case AST_EXPR_INT_CONSTANT:
+    case AST_EXPR_CHAR_CONSTANT:
+    case AST_EXPR_STRING_CONSTANT:
+    case AST_EXPR_TRUE:
+    case AST_EXPR_FALSE:
+        cant_take_address_of = "a constant";
+        break;
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_POST_INCREMENT:
+        cant_take_address_of = "the result of incrementing a value";
+        break;
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_DECREMENT:
+        cant_take_address_of = "the result of decrementing a value";
+        break;
+    case AST_EXPR_ASSIGN:
+        cant_take_address_of = "an assignment";
+        break;
+    case AST_EXPR_ADDRESS_OF:
+    case AST_EXPR_CALL:
+    case AST_EXPR_ADD:
+    case AST_EXPR_SUB:
+    case AST_EXPR_MUL:
+    case AST_EXPR_DIV:
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
+        cant_take_address_of = "a newly calculated value";
+        break;
     }
+
+    if (is_assignment)
+        fail_with_error(address_of_what->location, "cannot assign to %s", cant_take_address_of);
+    else
+        fail_with_error(address_of_what->location, "the address-of operator '&' cannot be used with %s", cant_take_address_of);
 }
 
 const char *nth(int n)
@@ -663,8 +760,8 @@ struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast)
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         case AST_TOPLEVEL_CDECL_FUNCTION:
-            check_signature(&st, &ast[result.nfuncs].data.decl_signature);
-            result.signatures[result.nfuncs] = copy_signature(&ast[result.nfuncs].data.decl_signature);
+            check_signature(&st, &ast->data.decl_signature);
+            result.signatures[result.nfuncs] = copy_signature(&ast->data.decl_signature);
             result.graphs[result.nfuncs] = NULL;
             result.nfuncs++;
             break;

@@ -1,0 +1,35 @@
+cdecl putchar(ch: int) -> int
+cdecl printf(format: byte*, ...) -> int
+
+def main() -> int:
+    n = 7
+
+    # Unlike in C, the evaluation order of arguments is guaranteed to be left to right.
+    printf("%d n=%d\n", n++, n)  # Output: 7 n=8
+    printf("%d n=%d\n", n--, n)  # Output: 8 n=7
+    printf("%d n=%d\n", ++n, n)  # Output: 8 n=8
+    printf("%d n=%d\n", --n, n)  # Output: 7 n=7
+
+    # Test operator precedence.
+    printf("%d n=%d\n", 10 + ++n, n)  # Output: 18 n=8
+    printf("%d n=%d\n", 10 + --n, n)  # Output: 17 n=7
+    printf("%d n=%d\n", n++ + 10, n)  # Output: 17 n=8
+    printf("%d n=%d\n", n-- + 10, n)  # Output: 18 n=7
+
+    x = 100
+    xptr = &x
+    (*xptr)++
+    ++(*xptr)
+    ++*xptr
+    printf("%d\n", x)  # Output: 103
+
+    # Output: abcba
+    c = 'a'
+    putchar(c++)
+    putchar(c++)
+    putchar(c--)
+    putchar(c--)
+    putchar(c)
+    putchar('\n')
+
+    return 0
