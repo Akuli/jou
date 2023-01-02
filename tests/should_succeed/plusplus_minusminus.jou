@@ -4,8 +4,7 @@ cdecl printf(format: byte*, ...) -> int
 def main() -> int:
     n = 7
 
-    # Unlike in C, the evaluation order of arguments is guaranteed to be
-    # what you expect in Jou.
+    # Unlike in C, the evaluation order of arguments is guaranteed to be left to right.
     printf("%d n=%d\n", n++, n)  # Output: 7 n=8
     printf("%d n=%d\n", n--, n)  # Output: 8 n=7
     printf("%d n=%d\n", ++n, n)  # Output: 8 n=8
