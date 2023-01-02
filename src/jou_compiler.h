@@ -121,6 +121,10 @@ struct AstExpression {
         AST_EXPR_GE,
         AST_EXPR_LT,
         AST_EXPR_LE,
+        AST_EXPR_PRE_INCREMENT,  // ++foo
+        AST_EXPR_PRE_DECREMENT,  // --foo
+        AST_EXPR_POST_INCREMENT,  // foo++
+        AST_EXPR_POST_DECREMENT,  // foo--
     } kind;
     union {
         int int_value;          // AST_EXPR_INT_CONSTANT

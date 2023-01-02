@@ -180,66 +180,6 @@ static struct AstCall parse_call(const struct Token **tokens)
     return result;
 }
 
-static struct AstExpression parse_elementary_expression(const struct Token **tokens)
-{
-    struct AstExpression expr = { .location = (*tokens)->location };
-
-    switch((*tokens)->type) {
-    case TOKEN_OPERATOR:
-        if (!is_operator(*tokens, "("))
-            goto not_an_expression;
-        ++*tokens;
-        expr = parse_expression(tokens);
-        if (!is_operator(*tokens, ")"))
-            fail_with_parse_error(*tokens, "a ')'");
-        ++*tokens;
-        break;
-    case TOKEN_INT:
-        expr.kind = AST_EXPR_INT_CONSTANT;
-        expr.data.int_value = (*tokens)->data.int_value;
-        ++*tokens;
-        break;
-    case TOKEN_CHAR:
-        expr.kind = AST_EXPR_CHAR_CONSTANT;
-        expr.data.int_value = (*tokens)->data.char_value;
-        ++*tokens;
-        break;
-    case TOKEN_STRING:
-        expr.kind = AST_EXPR_STRING_CONSTANT;
-        expr.data.string_value = strdup((*tokens)->data.string_value);
-        ++*tokens;
-        break;
-    case TOKEN_NAME:
-        if (is_operator(&(*tokens)[1], "(")) {
-            expr.kind = AST_EXPR_CALL;
-            expr.data.call = parse_call(tokens);
-        } else {
-            expr.kind = AST_EXPR_GET_VARIABLE;
-            safe_strcpy(expr.data.varname, (*tokens)->data.name);
-            ++*tokens;
-        }
-        break;
-    case TOKEN_KEYWORD:
-        if (!strcmp((*tokens)->data.name, "True")) {
-            expr.kind = AST_EXPR_TRUE;
-            ++*tokens;
-            break;
-        } else if (!strcmp((*tokens)->data.name, "False")) {
-            expr.kind = AST_EXPR_FALSE;
-            ++*tokens;
-        } else {
-            goto not_an_expression;
-        }
-        break;
-    default:
-        goto not_an_expression;
-    }
-    return expr;
-
-not_an_expression:
-    fail_with_parse_error(*tokens, "an expression");
-}
-
 // The & operator can go only in front of a few kinds of expressions.
 // You can't do &(1 + 2), for example.
 // The same rules apply to assignments.
@@ -258,6 +198,10 @@ static void validate_address_of_operand(const struct AstExpression *expr, bool a
         strcpy(what_is_it, "a constant");
         break;
     case AST_EXPR_ASSIGN:
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_INCREMENT:
+    case AST_EXPR_POST_DECREMENT:
         strcpy(what_is_it, "an assignment");
         break;
     case AST_EXPR_ADDRESS_OF:
@@ -336,20 +280,6 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
     return result;
 }
 
-static struct AstExpression parse_expression_with_addressof_and_dereference(const struct Token **tokens)
-{
-    // sequnece of 0 or more star tokens: start,start+1,...,end-1
-    const struct Token *start = *tokens;
-    const struct Token *end = *tokens;
-    while (is_operator(end, "*") || is_operator(end, "&")) end++;
-
-    *tokens = end;
-    struct AstExpression result = parse_elementary_expression(tokens);
-    for (const struct Token *t = end-1; t >= start; t--)
-        result = build_operator_expression(t, 1, &result);
-    return result;
-}
-
 // If tokens is e.g. [1, '+', 2], this will be used to parse the ['+', 2] part.
 // Callback function cb defines how to parse the expression following the operator token.
 static void add_to_binop(
@@ -359,6 +289,122 @@ static void add_to_binop(
     const struct Token *t = (*tokens)++;
     struct AstExpression rhs = cb(tokens);
     *result = build_operator_expression(t, 2, (struct AstExpression[]){*result, rhs});
+}
+
+static struct AstExpression parse_elementary_expression(const struct Token **tokens)
+{
+    struct AstExpression expr = { .location = (*tokens)->location };
+
+    switch((*tokens)->type) {
+    case TOKEN_OPERATOR:
+        if (!is_operator(*tokens, "("))
+            goto not_an_expression;
+        ++*tokens;
+        expr = parse_expression(tokens);
+        if (!is_operator(*tokens, ")"))
+            fail_with_parse_error(*tokens, "a ')'");
+        ++*tokens;
+        break;
+    case TOKEN_INT:
+        expr.kind = AST_EXPR_INT_CONSTANT;
+        expr.data.int_value = (*tokens)->data.int_value;
+        ++*tokens;
+        break;
+    case TOKEN_CHAR:
+        expr.kind = AST_EXPR_CHAR_CONSTANT;
+        expr.data.int_value = (*tokens)->data.char_value;
+        ++*tokens;
+        break;
+    case TOKEN_STRING:
+        expr.kind = AST_EXPR_STRING_CONSTANT;
+        expr.data.string_value = strdup((*tokens)->data.string_value);
+        ++*tokens;
+        break;
+    case TOKEN_NAME:
+        if (is_operator(&(*tokens)[1], "(")) {
+            expr.kind = AST_EXPR_CALL;
+            expr.data.call = parse_call(tokens);
+        } else {
+            expr.kind = AST_EXPR_GET_VARIABLE;
+            safe_strcpy(expr.data.varname, (*tokens)->data.name);
+            ++*tokens;
+        }
+        break;
+    case TOKEN_KEYWORD:
+        if (is_keyword(*tokens, "True")) {
+            expr.kind = AST_EXPR_TRUE;
+            ++*tokens;
+            break;
+        } else if (is_keyword(*tokens, "False")) {
+            expr.kind = AST_EXPR_FALSE;
+            ++*tokens;
+        } else {
+            goto not_an_expression;
+        }
+        break;
+    default:
+        goto not_an_expression;
+    }
+    return expr;
+
+not_an_expression:
+    fail_with_parse_error(*tokens, "an expression");
+}
+
+static struct AstExpression parse_expression_with_plusplus_and_minusminus(const struct Token **tokens)
+{
+    struct Location incr_decr_location;
+    bool preincr = is_operator(*tokens, "++");
+    bool predecr = is_operator(*tokens, "--");
+    if (preincr || predecr) {
+        incr_decr_location = (*tokens)->location;
+        ++*tokens;
+    }
+
+    struct AstExpression result = parse_elementary_expression(tokens);
+
+    bool postincr = is_operator(*tokens, "++");
+    bool postdecr = is_operator(*tokens, "--");
+    if ((preincr || predecr) && (postincr || postdecr)) {
+        const char *pre = preincr ? "++" : "--";
+        const char *post = postincr ? "++" : "--";
+        fail_with_error(
+            (*tokens)->location, "you can do %sfoo or foo%s, but not %sfoo%s",
+            pre, post, pre, post);
+    }
+    if (postincr || postdecr) {
+        incr_decr_location = (*tokens)->location;
+        ++*tokens;
+    }
+
+    if (!preincr && !predecr && !postincr && !postdecr)
+        return result;
+
+    // Wrap result inside a new expression
+    struct AstExpression *p = malloc(sizeof *p);
+    *p = result;
+    result = (struct AstExpression){ .location = incr_decr_location, .data.operands = p };
+
+    if (preincr) { result.kind = AST_EXPR_PRE_INCREMENT; return result; }
+    if (predecr) { result.kind = AST_EXPR_PRE_DECREMENT; return result; }
+    if (postincr) { result.kind = AST_EXPR_POST_INCREMENT; return result; }
+    if (postdecr) { result.kind = AST_EXPR_POST_DECREMENT; return result; }
+
+    assert(0);
+}
+
+static struct AstExpression parse_expression_with_addressof_and_dereference(const struct Token **tokens)
+{
+    // sequnece of 0 or more star tokens: start,start+1,...,end-1
+    const struct Token *start = *tokens;
+    const struct Token *end = *tokens;
+    while (is_operator(end, "*") || is_operator(end, "&")) end++;
+
+    *tokens = end;
+    struct AstExpression result = parse_expression_with_plusplus_and_minusminus(tokens);
+    for (const struct Token *t = end-1; t >= start; t--)
+        result = build_operator_expression(t, 1, &result);
+    return result;
 }
 
 static struct AstExpression parse_expression_with_mul_and_div(const struct Token **tokens)
@@ -438,6 +484,10 @@ static void validate_expression_statement(const struct AstExpression *expr)
         break;
     case AST_EXPR_ASSIGN:
     case AST_EXPR_CALL:
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_INCREMENT:
+    case AST_EXPR_POST_DECREMENT:
         break;
     }
 }

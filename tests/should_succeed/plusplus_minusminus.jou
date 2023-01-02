@@ -1,0 +1,19 @@
+cdecl printf(format: byte*, ...) -> int
+
+def main() -> int:
+    n = 7
+
+    # Unlike in C, the evaluation order of arguments is guaranteed to be
+    # what you expect in Jou.
+    printf("%d n=%d\n", n++, n)  # Output: 7 n=8
+    printf("%d n=%d\n", n--, n)  # Output: 8 n=7
+    printf("%d n=%d\n", ++n, n)  # Output: 8 n=8
+    printf("%d n=%d\n", --n, n)  # Output: 7 n=7
+
+    # Test operator precedence.
+    printf("%d n=%d\n", 10 + ++n, n)  # Output: 18 n=8
+    printf("%d n=%d\n", 10 + --n, n)  # Output: 17 n=7
+    printf("%d n=%d\n", n++ + 10, n)  # Output: 17 n=8
+    printf("%d n=%d\n", n-- + 10, n)  # Output: 18 n=7
+
+    return 0

@@ -1,8 +1,6 @@
-# TODO: no % operator yet
-# TODO: no += or ++ operators yet
-
 cdecl printf(format: byte*, ...) -> int
 
+# TODO: no % operator yet, but it is planned :)
 def mod(value: int, modulus: int) -> int:
     return value - (value / modulus) * modulus
 
@@ -10,7 +8,7 @@ def is_prime(n: int) -> bool:
     if n < 2:
         return False
 
-    for divisor = 2; divisor < n; divisor = divisor+1:
+    for divisor = 2; divisor < n; divisor++:
         if mod(n, divisor) == 0:
             return False
     return True
@@ -20,7 +18,7 @@ def main() -> int:
     # Output: 3
     # Output: 5
     # Output: 7
-    for n = 0; n < 10; n = n+1:
+    for n = 0; n < 10; n++:
         if is_prime(n):
             printf("%d\n", n)
     return 0

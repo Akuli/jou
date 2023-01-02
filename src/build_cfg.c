@@ -249,8 +249,37 @@ static const struct CfVariable *build_binop(
     return negated;
 }
 
-static const struct CfVariable *build_call(const struct State *st, const struct AstCall *call, struct Location location);
 static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what);
+
+enum PreOrPost { PRE, POST };
+
+const struct CfVariable *build_increment_or_decrement(const struct State *st, struct Location location, const struct AstExpression *inner, enum PreOrPost pop, int diff)
+{
+    assert(diff==1 || diff==-1);
+
+    const struct CfVariable *addr = build_address_of_expression(st, inner);
+    assert(addr->type.kind == TYPE_POINTER);
+    const struct Type *t = addr->type.data.valuetype;
+    if (!is_integer_type(t))
+        fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
+
+    // TODO: incrementing chars probably fails with some weird error...
+    const struct CfVariable *old_value = add_variable(st, t, "$old_value");
+    const struct CfVariable *new_value = add_variable(st, t, "$new_value");
+    const struct CfVariable *diffvar = add_variable(st, t, "$diff");
+    add_instruction(st, location, CF_INT_CONSTANT, &(union CfInstructionData){ .int_value=diff }, 0, NULL, diffvar);
+    add_instruction(st, location, CF_LOAD_FROM_POINTER, NULL, 1, &addr, old_value);
+    add_instruction(st, location, CF_INT_ADD, NULL, 2, (const struct CfVariable*[]){old_value,diffvar}, new_value);
+    add_instruction(st, location, CF_STORE_TO_POINTER, NULL, 2, (const struct CfVariable*[]){addr,new_value}, NULL);
+
+    switch(pop) {
+        case PRE: return new_value;
+        case POST: return old_value;
+    }
+    assert(0);
+}
+
+static const struct CfVariable *build_call(const struct State *st, const struct AstCall *call, struct Location location);
 
 static const struct CfVariable *build_expression(
     const struct State *st,
@@ -361,6 +390,25 @@ static const struct CfVariable *build_expression(
             const struct CfVariable *lhs = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
             const struct CfVariable *rhs = build_expression(st, &expr->data.operands[1], NULL, NULL, true);
             result = build_binop(st, expr->kind, expr->location, lhs, rhs);
+            break;
+        }
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_INCREMENT:
+    case AST_EXPR_POST_DECREMENT:
+        {
+            enum PreOrPost pop;
+            int diff;
+
+            switch(expr->kind) {
+                case AST_EXPR_PRE_INCREMENT: pop=PRE; diff=1; break;
+                case AST_EXPR_PRE_DECREMENT: pop=PRE; diff=-1; break;
+                case AST_EXPR_POST_INCREMENT: pop=POST; diff=1; break;
+                case AST_EXPR_POST_DECREMENT: pop=POST; diff=-1; break;
+                default: assert(0);
+            }
+            result = build_increment_or_decrement(st, expr->location, &expr->data.operands[0], pop, diff);
+            break;
         }
     }
 

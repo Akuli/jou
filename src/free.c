@@ -64,6 +64,10 @@ static void free_expression(const struct AstExpression *expr)
         break;
     case AST_EXPR_ADDRESS_OF:
     case AST_EXPR_DEREFERENCE:
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_INCREMENT:
+    case AST_EXPR_POST_DECREMENT:
         free_expression(&expr->data.operands[0]);
         free(expr->data.operands);
         break;
