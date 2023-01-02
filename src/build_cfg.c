@@ -443,7 +443,7 @@ static const struct CfVariable *build_address_of_expression(const struct State *
         return build_expression(st, &address_of_what->data.operands[0], NULL, NULL, true);
 
     /*
-    The & operator can go only in front of a few kinds of expressions.
+    The & operator can't go in front of most expressions.
     You can't do &(1 + 2), for example.
 
     The same rules apply to assignments: "foo = bar" is treated as setting the
