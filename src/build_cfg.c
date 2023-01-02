@@ -482,24 +482,47 @@ static void build_if_statement(struct State *st, const struct AstIfStatement *if
     add_jump(st, NULL, done, done, done);
 }
 
-static void build_while_loop(struct State *st, const struct AstExpression *cond, const struct AstBody *body)
+// for init; cond; incr:
+//     ...body...
+//
+// While loop is basically a special case of for loop, so it uses this too.
+static void build_loop(
+    struct State *st,
+    const char *loopname,
+    const struct AstExpression *init,
+    const struct AstExpression *cond,
+    const struct AstExpression *incr,
+    const struct AstBody *body)
 {
+    assert(strlen(loopname) < 10);
+    char errormsg[100];
+    sprintf(errormsg, "'%s' condition must be a boolean, not FROM", loopname);
+
     struct CfBlock *condblock = add_block(st);  // evaluate condition and go to bodyblock or doneblock
-    struct CfBlock *bodyblock = add_block(st);  // run loop body and go to condblock
+    struct CfBlock *bodyblock = add_block(st);  // run loop body and go to incrblock
+    struct CfBlock *incrblock = add_block(st);  // run incr and go to condblock
     struct CfBlock *doneblock = add_block(st);  // rest of the code goes here
     struct CfBlock *tmp;
 
+    if (init)
+        build_expression(st, init, NULL, NULL, false);
+
+    // Evaluate condition. Jump to loop body or skip to after loop.
     add_jump(st, NULL, condblock, condblock, condblock);
-    const struct CfVariable *condvar = build_expression(
-        st, cond, &boolType, "'while' condition must be a boolean, not FROM", true);
+    const struct CfVariable *condvar = build_expression(st, cond, &boolType, errormsg, true);
     add_jump(st, condvar, bodyblock, doneblock, bodyblock);
 
+    // Run loop body: 'break' skips to after loop, 'continue' goes to incr.
     Append(&st->breakstack, doneblock);
-    Append(&st->continuestack, condblock);
+    Append(&st->continuestack, incrblock);
     build_body(st, body);
     tmp = Pop(&st->breakstack); assert(tmp == doneblock);
-    tmp = Pop(&st->continuestack); assert(tmp == condblock);
+    tmp = Pop(&st->continuestack); assert(tmp == incrblock);
 
+    // Run incr and jump back to condition.
+    add_jump(st, NULL, incrblock, incrblock, incrblock);
+    if (incr)
+        build_expression(st, incr, NULL, NULL, false);
     add_jump(st, NULL, condblock, condblock, doneblock);
 }
 
@@ -511,7 +534,17 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
         break;
 
     case AST_STMT_WHILE:
-        build_while_loop(st, &stmt->data.whileloop.condition, &stmt->data.whileloop.body);
+        build_loop(
+            st, "while",
+            NULL, &stmt->data.whileloop.condition, NULL,
+            &stmt->data.whileloop.body);
+        break;
+
+    case AST_STMT_FOR:
+        build_loop(
+            st, "for",
+            &stmt->data.forloop.init, &stmt->data.forloop.cond, &stmt->data.forloop.incr,
+            &stmt->data.forloop.body);
         break;
 
     case AST_STMT_BREAK:

@@ -230,6 +230,16 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
             print_ast_expression(&stmt->data.whileloop.condition, indent+4);
             print_ast_body(&stmt->data.whileloop.body, indent+2);
             break;
+        case AST_STMT_FOR:
+            printf("For loop\n");
+            printf("%*s  Initializer:\n", indent, "");
+            print_ast_expression(&stmt->data.forloop.init, indent+4);
+            printf("%*s  Condition:\n", indent, "");
+            print_ast_expression(&stmt->data.forloop.cond, indent+4);
+            printf("%*s  Incrementer (runs after body):\n", indent, "");
+            print_ast_expression(&stmt->data.forloop.incr, indent+4);
+            print_ast_body(&stmt->data.forloop.body, indent+2);
+            break;
         case AST_STMT_BREAK:
             printf("Break loop\n");
             break;

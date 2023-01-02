@@ -489,6 +489,20 @@ static struct AstStatement parse_statement(const struct Token **tokens)
         result.kind = AST_STMT_WHILE;
         result.data.whileloop.condition = parse_expression(tokens);
         result.data.whileloop.body = parse_body(tokens);
+    } else if (is_keyword(*tokens, "for")) {
+        ++*tokens;
+        result.kind = AST_STMT_FOR;
+        // TODO: improve error messages
+        result.data.forloop.init = parse_expression(tokens);
+        if (!is_operator(*tokens, ";"))
+            fail_with_parse_error(*tokens, "a ';'");
+        ++*tokens;
+        result.data.forloop.cond = parse_expression(tokens);
+        if (!is_operator(*tokens, ";"))
+            fail_with_parse_error(*tokens, "a ';'");
+        ++*tokens;
+        result.data.forloop.incr = parse_expression(tokens);
+        result.data.forloop.body = parse_body(tokens);
     } else if (is_keyword(*tokens, "break")) {
         ++*tokens;
         result.kind = AST_STMT_BREAK;

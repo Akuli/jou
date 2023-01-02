@@ -93,6 +93,12 @@ static void free_statement(const struct AstStatement *stmt)
         free_expression(&stmt->data.whileloop.condition);
         free_body(&stmt->data.whileloop.body);
         break;
+    case AST_STMT_FOR:
+        free_expression(&stmt->data.forloop.init);
+        free_expression(&stmt->data.forloop.cond);
+        free_expression(&stmt->data.forloop.incr);
+        free_body(&stmt->data.forloop.body);
+        break;
     case AST_STMT_EXPRESSION_STATEMENT:
     case AST_STMT_RETURN_VALUE:
         free_expression(&stmt->data.expression);

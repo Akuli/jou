@@ -148,6 +148,12 @@ struct AstConditionAndBody {
     struct AstExpression condition;
     struct AstBody body;
 };
+struct AstForLoop {
+    // for init; cond; incr:
+    //     ...body...
+    struct AstExpression init, cond, incr;
+    struct AstBody body;
+};
 
 struct AstStatement {
     struct Location location;
@@ -156,6 +162,7 @@ struct AstStatement {
         AST_STMT_RETURN_WITHOUT_VALUE,
         AST_STMT_IF,
         AST_STMT_WHILE,
+        AST_STMT_FOR,
         AST_STMT_BREAK,
         AST_STMT_CONTINUE,
         AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
@@ -168,6 +175,7 @@ struct AstStatement {
             struct AstBody elsebody;  // Empty (0 statements) means no else
         } ifstatement;
         struct AstConditionAndBody whileloop;
+        struct AstForLoop forloop;
     } data;
 };
 
