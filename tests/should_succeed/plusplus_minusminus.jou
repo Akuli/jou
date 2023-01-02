@@ -1,3 +1,4 @@
+cdecl putchar(ch: int) -> int
 cdecl printf(format: byte*, ...) -> int
 
 def main() -> int:
@@ -15,5 +16,12 @@ def main() -> int:
     printf("%d n=%d\n", 10 + --n, n)  # Output: 17 n=7
     printf("%d n=%d\n", n++ + 10, n)  # Output: 17 n=8
     printf("%d n=%d\n", n-- + 10, n)  # Output: 18 n=7
+
+    # Output: abc
+    c = 'a'
+    putchar(c++)
+    putchar(c++)
+    putchar(c++)
+    putchar('\n')
 
     return 0

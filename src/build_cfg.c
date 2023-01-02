@@ -263,7 +263,6 @@ const struct CfVariable *build_increment_or_decrement(const struct State *st, st
     if (!is_integer_type(t))
         fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
 
-    // TODO: incrementing chars probably fails with some weird error...
     const struct CfVariable *old_value = add_variable(st, t, "$old_value");
     const struct CfVariable *new_value = add_variable(st, t, "$new_value");
     const struct CfVariable *diffvar = add_variable(st, t, "$diff");
@@ -321,8 +320,8 @@ static const struct CfVariable *build_expression(
         break;
     case AST_EXPR_CHAR_CONSTANT:
         result = add_variable(st, &byteType, "$byteconstant");
-        data.char_value = expr->data.char_value;
-        add_instruction(st, expr->location, CF_CHAR_CONSTANT, &data, 0, NULL, result);
+        data.int_value = expr->data.char_value;
+        add_instruction(st, expr->location, CF_INT_CONSTANT, &data, 0, NULL, result);
         break;
     case AST_EXPR_STRING_CONSTANT:
         result = add_variable(st, &stringType, "$strconstant");
@@ -711,8 +710,8 @@ struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast)
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         case AST_TOPLEVEL_CDECL_FUNCTION:
-            check_signature(&st, &ast[result.nfuncs].data.decl_signature);
-            result.signatures[result.nfuncs] = copy_signature(&ast[result.nfuncs].data.decl_signature);
+            check_signature(&st, &ast->data.decl_signature);
+            result.signatures[result.nfuncs] = copy_signature(&ast->data.decl_signature);
             result.graphs[result.nfuncs] = NULL;
             result.nfuncs++;
             break;

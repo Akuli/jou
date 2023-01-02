@@ -317,8 +317,7 @@ static void print_cf_instruction(const struct CfInstruction *ins, int indent)
         printf("cast %s to %d-bit unsigned int",
             ins->operands[0]->name, ins->destvar->type.data.width_in_bits);
         break;
-    case CF_INT_CONSTANT: printf("%d", ins->data.int_value); break;
-    case CF_CHAR_CONSTANT: print_byte(ins->data.char_value); break;
+    case CF_INT_CONSTANT: printf("%lld", ins->data.int_value); break;
     case CF_STRING_CONSTANT: print_string(ins->data.string_value); break;
     case CF_TRUE: printf("True"); break;
     case CF_FALSE: printf("False"); break;
