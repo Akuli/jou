@@ -3,7 +3,7 @@
 Jou is an experimental toy programming language. It looks like this:
 
 ```python3
-cdecl puts(string: byte*) -> int
+declare puts(string: byte*) -> int
 
 def main() -> int:
     puts("Hello World")

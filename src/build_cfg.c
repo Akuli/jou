@@ -768,7 +768,7 @@ struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast)
         switch(ast->kind) {
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
-        case AST_TOPLEVEL_CDECL_FUNCTION:
+        case AST_TOPLEVEL_DECLARE_FUNCTION:
             check_signature(&st, &ast->data.decl_signature);
             result.signatures[result.nfuncs] = copy_signature(&ast->data.decl_signature);
             result.graphs[result.nfuncs] = NULL;

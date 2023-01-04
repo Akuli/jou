@@ -193,11 +193,11 @@ struct AstToplevelNode {
     struct Location location;
     enum AstToplevelNodeKind {
         AST_TOPLEVEL_END_OF_FILE,  // indicates end of array of AstToplevelNodeKind
-        AST_TOPLEVEL_CDECL_FUNCTION,
+        AST_TOPLEVEL_DECLARE_FUNCTION,
         AST_TOPLEVEL_DEFINE_FUNCTION,
     } kind;
     union {
-        struct Signature decl_signature;  // for AST_TOPLEVEL_CDECL_FUNCTION
+        struct Signature decl_signature;  // for AST_TOPLEVEL_DECLARE_FUNCTION
         struct AstFunctionDef funcdef;  // for AST_TOPLEVEL_DEFINE_FUNCTION
     } data;
 };

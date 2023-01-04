@@ -560,9 +560,9 @@ static struct AstToplevelNode parse_toplevel_node(const struct Token **tokens)
             result.data.funcdef.body = parse_body(tokens);
             break;
         }
-        if (is_keyword(*tokens, "cdecl")) {
+        if (is_keyword(*tokens, "declare")) {
             ++*tokens;
-            result.kind = AST_TOPLEVEL_CDECL_FUNCTION;
+            result.kind = AST_TOPLEVEL_DECLARE_FUNCTION;
             result.data.decl_signature = parse_function_signature(tokens);
             eat_newline(tokens);
             break;

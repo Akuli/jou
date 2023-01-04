@@ -137,7 +137,7 @@ void free_ast(struct AstToplevelNode *topnodelist)
 {
     for (struct AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
         switch(t->kind) {
-        case AST_TOPLEVEL_CDECL_FUNCTION:
+        case AST_TOPLEVEL_DECLARE_FUNCTION:
             free_signature(&t->data.decl_signature);
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:

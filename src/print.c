@@ -268,7 +268,7 @@ void print_ast(const struct AstToplevelNode *topnodelist)
         printf("line %d: ", topnodelist->location.lineno);
 
         switch(topnodelist->kind) {
-            case AST_TOPLEVEL_CDECL_FUNCTION:
+            case AST_TOPLEVEL_DECLARE_FUNCTION:
                 printf("Declare a C function.\n");
                 print_ast_function_signature(&topnodelist->data.decl_signature, 2);
                 break;
