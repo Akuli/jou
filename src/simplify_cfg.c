@@ -254,6 +254,13 @@ static enum VarStatus **determine_var_statuses(const struct CfGraph *cfg)
     return result;
 }
 
+static void free_var_statuses(const struct CfGraph *cfg, enum VarStatus** statuses)
+{
+    for (int i = 0; i < cfg->all_blocks.len; i++)
+        free(statuses[i]);
+    free(statuses);
+}
+
 static void clean_jumps_where_condition_always_true_or_always_false(struct CfGraph *cfg)
 {
     enum VarStatus **statuses = determine_var_statuses(cfg);
@@ -276,10 +283,7 @@ static void clean_jumps_where_condition_always_true_or_always_false(struct CfGra
             break;
         }
     }
-
-    for (int i = 0; i < cfg->all_blocks.len; i++)
-        free(statuses[i]);
-    free(statuses);
+    free_var_statuses(cfg, statuses);
 }
 
 /*
@@ -467,15 +471,47 @@ static void warn_about_undefined_variables(struct CfGraph *cfg)
         }
     }
 
-    for (int i = 0; i < cfg->all_blocks.len; i++)
-        free(statuses[i]);
-    free(statuses);
+    free_var_statuses(cfg, statuses);
 }
 
-static void simplify_cfg(struct CfGraph *cfg)
+static void error_about_missing_return(struct CfGraph *cfg, const struct Signature *sig)
+{
+    if (!sig->returntype)
+        return;
+
+    enum VarStatus **statuses = determine_var_statuses(cfg);
+
+    // When a function returns a value, it is stored in a variable named "return".
+    int varidx = -1;
+    for (int i = 0; i < cfg->variables.len; i++) {
+        if (!strcmp(cfg->variables.ptr[i]->name, "return")) {
+            varidx = i;
+            break;
+        }
+    }
+    assert(varidx != -1);
+
+    enum VarStatus s = statuses[find_block_index(cfg, &cfg->end_block)][varidx];
+    if (s == VS_POSSIBLY_UNDEFINED) {
+        show_warning(
+            sig->location,
+            "function '%s' doesn't seem to return a value in all cases", sig->funcname);
+    }
+    if (s == VS_UNDEFINED) {
+        fail_with_error(
+            sig->location,
+            "function '%s' must return a value, because it is defined with '-> %s'",
+            sig->funcname, sig->returntype->name);
+    }
+
+    free_var_statuses(cfg, statuses);
+}
+
+static void simplify_cfg(struct CfGraph *cfg, const struct Signature *sig)
 {
     clean_jumps_where_condition_always_true_or_always_false(cfg);
     remove_unreachable_blocks(cfg);
+    error_about_missing_return(cfg, sig);
     remove_unused_variables(cfg);
     warn_about_undefined_variables(cfg);
 }
@@ -484,5 +520,5 @@ void simplify_control_flow_graphs(const struct CfGraphFile *cfgfile)
 {
     for (int i = 0; i < cfgfile->nfuncs; i++)
         if (cfgfile->graphs[i])
-            simplify_cfg(cfgfile->graphs[i]);
+            simplify_cfg(cfgfile->graphs[i], &cfgfile->signatures[i]);
 }
