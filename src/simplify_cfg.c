@@ -109,7 +109,7 @@ static void update_statuses_with_instruction(const struct CfGraph *cfg, enum Var
     }
 }
 
-#define DebugPrint 0  // change to 1 to see debug prints
+#define DebugPrint 0  // change to 1 to see VarStatuses
 
 #if DebugPrint
 static const char * vs_to_string(enum VarStatus vs)
