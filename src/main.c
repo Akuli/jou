@@ -66,6 +66,10 @@ int main(int argc, char **argv)
     if(verbose)
         print_llvm_ir(module);
 
+    /*
+    If this fails, it is not just users writing dumb code, it is a bug in this compiler.
+    This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
+    */
     LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
 
     // TODO: this is a ridiculous way to run the IR, figure out something better
