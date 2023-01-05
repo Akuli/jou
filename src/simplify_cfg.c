@@ -489,25 +489,17 @@ static void error_about_missing_return(struct CfGraph *cfg, const struct Signatu
     }
     assert(varidx != -1);
 
-    int blockidx = find_block_index(cfg, &cfg->end_block);
-    switch(statuses[blockidx][varidx]) {
-    case VS_TRUE:
-    case VS_FALSE:
-    case VS_DEFINED:
-    case VS_UNPREDICTABLE:
-    case VS_UNVISITED:  // This happens when there is an infinite loop.
-        break;
-    case VS_POSSIBLY_UNDEFINED:
+    enum VarStatus s = statuses[find_block_index(cfg, &cfg->end_block)][varidx];
+    if (s == VS_POSSIBLY_UNDEFINED) {
         show_warning(
             sig->location,
             "function '%s' doesn't seem to return a value in all cases", sig->funcname);
-        break;
-    case VS_UNDEFINED:
+    }
+    if (s == VS_UNDEFINED) {
         fail_with_error(
             sig->location,
             "function '%s' must return a value, because it is defined with '-> %s'",
             sig->funcname, sig->returntype->name);
-        break;
     }
 
     for (int i = 0; i < cfg->all_blocks.len; i++)
