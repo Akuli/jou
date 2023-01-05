@@ -450,6 +450,8 @@ static void warn_about_undefined_variables(struct CfGraph *cfg)
                 case VS_UNPREDICTABLE:
                     break;
                 case VS_POSSIBLY_UNDEFINED:
+                    // The compiler internally creates variables named $foo.
+                    // I think they are never used undefined if the compiler works correctly.
                     assert(ins->operands[i]->name[0] != '$');
                     show_warning(ins->location, "the value of '%s' may be undefined", ins->operands[i]->name);
                     break;
