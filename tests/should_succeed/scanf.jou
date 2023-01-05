@@ -1,0 +1,12 @@
+declare printf(format: byte*, ...) -> int
+declare sscanf(string: byte*, format: byte*, ...) -> int
+
+def calculate_sum(string: byte*) -> int:
+    x: int
+    y: int
+    sscanf(string, "%d + %d", &x, &y)
+    return x + y
+
+def main() -> int:
+    printf("%d\n", calculate_sum("12 + 3"))  # Output: 15
+    return 0

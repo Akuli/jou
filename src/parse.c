@@ -506,6 +506,13 @@ static struct AstStatement parse_statement(const struct Token **tokens)
         ++*tokens;
         result.kind = AST_STMT_CONTINUE;
         eat_newline(tokens);
+    } else if ((*tokens)->type == TOKEN_NAME && is_operator(&(*tokens)[1], ":")) {
+        // "foo: int" creates a variable "foo" of type "int"
+        result.kind = AST_STMT_DECLARE_LOCAL_VAR;
+        safe_strcpy(result.data.vardecl.name, (*tokens)->data.name);
+        *tokens += 2;
+        result.data.vardecl.type = parse_type(tokens);
+        eat_newline(tokens);
     } else {
         result.kind = AST_STMT_EXPRESSION_STATEMENT;
         result.data.expression = parse_expression(tokens);

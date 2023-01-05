@@ -169,6 +169,7 @@ struct AstStatement {
         AST_STMT_FOR,
         AST_STMT_BREAK,
         AST_STMT_CONTINUE,
+        AST_STMT_DECLARE_LOCAL_VAR,
         AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
     } kind;
     union {
@@ -180,6 +181,7 @@ struct AstStatement {
         } ifstatement;
         struct AstConditionAndBody whileloop;
         struct AstForLoop forloop;
+        struct { char name[100]; struct Type type; } vardecl;
     } data;
 };
 
