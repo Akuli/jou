@@ -86,6 +86,9 @@ static bool merge_arrays_in_place(enum VarStatus *dest, const enum VarStatus *sr
 // Figure out how an instruction affects variables when it runs.
 static void update_statuses_with_instruction(const struct CfGraph *cfg, enum VarStatus *statuses, const struct CfInstruction *ins)
 {
+    for (int i = 0; i < cfg->variables.len; i++)
+        assert(statuses[i] != VS_UNVISITED);
+
     if (!ins->destvar)
         return;
 
@@ -96,10 +99,9 @@ static void update_statuses_with_instruction(const struct CfGraph *cfg, enum Var
     switch(ins->kind) {
     case CF_VARCPY:
         statuses[destidx] = statuses[find_var_index(cfg, ins->operands[0])];
-        assert(statuses[destidx] != VS_UNVISITED);
         if (statuses[destidx] == VS_UNPREDICTABLE) {
             // Assume that unpredictable variables always yield non-garbage values.
-            // Otherwise using functions like fscanf() would be annoying.
+            // Otherwise using functions like scanf() would be annoying.
             statuses[destidx] = VS_DEFINED;
         }
         break;
