@@ -1,0 +1,10 @@
+declare puts(s: byte*) -> int
+
+# No warning or error for missing return statement.
+# But we can't call this function as it loops infinitely.
+def foo() -> int:
+    while True:
+        puts("Hi")
+
+def main() -> int:
+    return 0

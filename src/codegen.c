@@ -218,6 +218,8 @@ static void codegen_function_def(struct State *st, const struct Signature *sig, 
             assert((*b)->instructions.len == 0);
             if (return_value)
                 LLVMBuildRet(st->builder, LLVMBuildLoad(st->builder, return_value, "return_value"));
+            else if (sig->returntype)  // "return" variable was deleted as unused
+                LLVMBuildUnreachable(st->builder);
             else
                 LLVMBuildRetVoid(st->builder);
         } else {

@@ -491,12 +491,11 @@ static void error_about_missing_return(struct CfGraph *cfg, const struct Signatu
 
     int blockidx = find_block_index(cfg, &cfg->end_block);
     switch(statuses[blockidx][varidx]) {
-    case VS_UNVISITED:
-        assert(0);
     case VS_TRUE:
     case VS_FALSE:
     case VS_DEFINED:
     case VS_UNPREDICTABLE:
+    case VS_UNVISITED:  // This happens when there is an infinite loop.
         break;
     case VS_POSSIBLY_UNDEFINED:
         show_warning(
