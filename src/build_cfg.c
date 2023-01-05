@@ -703,6 +703,10 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
         st->current_block = add_block(st);  // an unreachable block
         break;
 
+    case AST_STMT_DECLARE_LOCAL_VAR:
+        add_variable(st, &stmt->data.vardecl.type, stmt->data.vardecl.name);
+        break;
+
     case AST_STMT_EXPRESSION_STATEMENT:
         build_expression(st, &stmt->data.expression, NULL, NULL, false);
         break;

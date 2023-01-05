@@ -107,6 +107,9 @@ static void free_statement(const struct AstStatement *stmt)
     case AST_STMT_RETURN_VALUE:
         free_expression(&stmt->data.expression);
         break;
+    case AST_STMT_DECLARE_LOCAL_VAR:
+        free_type(&stmt->data.vardecl.type);
+        break;
     case AST_STMT_RETURN_WITHOUT_VALUE:
     case AST_STMT_BREAK:
     case AST_STMT_CONTINUE:

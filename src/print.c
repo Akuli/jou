@@ -250,6 +250,10 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
         case AST_STMT_CONTINUE:
             printf("Continue loop\n");
             break;
+        case AST_STMT_DECLARE_LOCAL_VAR:
+            printf(
+                "Declare local variable \"%s\" of type %s.\n",
+                stmt->data.vardecl.name, stmt->data.vardecl.type.name);
     }
 }
 
