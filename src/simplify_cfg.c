@@ -17,47 +17,65 @@ static int find_var_index(const struct CfGraph *cfg, const struct CfVariable *v)
     assert(0);
 }
 
-enum BoolStatus {
-    KNOWN_TO_BE_TRUE,
-    KNOWN_TO_BE_FALSE,
+enum VarStatus {
+    VS_UNVISITED = 0,  // Don't know anything about this variable yet.
+    VS_TRUE,  // This is a boolean variable that is set to True.
+    VS_FALSE,  // This is a boolean variable that is set to False.
+    VS_DEFINED,  // This variable (boolean or other) has been set to some non-garbage value.
+    VS_POSSIBLY_UNDEFINED,  // Could hold a garbage value or a non-garbage value.
+    VS_UNDEFINED,  // No value has been set to the variable. Holds a garbage value.
+    VS_UNPREDICTABLE,  // Address of variable (&foo) has been used. Give up analzing it.
     /*
-    The remaining statuses have different meanings:
-    - CAN_CHANGE_UNPREDICTABLY: The address of the variable (&foo) has been used, so
-      from now on, the variable's value can change in lines of code that don't seem
-      to have anything to do with the variable. For example, a function that doesn't
-      take the variable as an argument could still change the variable, if the
-      pointer &foo was stored elsewhere earlier.
-    - COULD_BE_TRUE_OR_FALSE: The value of the variable is not known.
-    - UNSET: The variable can be neither true nor false, according to current
-      knowledge. If the variable is set somewhere, and that code isn't unreachable,
-      we will later know which values the variable can have.
+    Longer description of VS_UNPREDICTABLE: The value of an unpredictable variable can
+    change in lines of code that seem to have nothing to do with the variable. For
+    example, a function that doesn't take &foo as an argument can change the value of foo,
+    because the pointer &foo can be stored in some place that the function can access.
     */
-    CAN_CHANGE_UNPREDICTABLY,
-    COULD_BE_TRUE_OR_FALSE,
-    UNSET,
 };
 
-static bool add_possibilities(enum BoolStatus *dest, const enum BoolStatus *src, int n)
+/*
+a and b are statuses from different branches that both jump to the same block.
+Should have these properties:
+
+    merge(a, VS_UNVISITED) == a
+    merge(a, a) == a
+    merge(a, b) == merge(b, a)
+    merge(a, merge(b, c)) == merge(merge(a, b), c)
+
+In other words:
+- It makes sense to merge an unordered collection of statuses.
+- VS_UNVISITED corresponds with merging an empty set of statuses.
+- Having the same status several times doesn't affect anything.
+*/
+static enum VarStatus merge(enum VarStatus a, enum VarStatus b)
+{
+    // Unvisited --> use the other status
+    if (a == VS_UNVISITED) return b;
+    if (b == VS_UNVISITED) return a;
+
+    // If any value in a merge is unpredictable or undefined, then the result is also
+    // unpredictable/undefined.
+    // If there are unpredictable and undefined values, the merge is unpredictable.
+    if (a == VS_UNPREDICTABLE || b == VS_UNPREDICTABLE) return VS_UNPREDICTABLE;
+    if (a == VS_UNDEFINED && b == VS_UNDEFINED) return VS_UNDEFINED;
+    if (a == VS_UNDEFINED || b == VS_UNDEFINED || a == VS_POSSIBLY_UNDEFINED || b == VS_POSSIBLY_UNDEFINED) return VS_POSSIBLY_UNDEFINED;
+
+    // At this point we know that the value is set to something. We may or may not know
+    // what it is set to.
+    assert(a == VS_TRUE || a == VS_FALSE || a == VS_DEFINED);
+    assert(b == VS_TRUE || b == VS_FALSE || b == VS_DEFINED);
+    if (a == VS_TRUE && b == VS_TRUE) return VS_TRUE;
+    if (a == VS_FALSE && b == VS_FALSE) return VS_FALSE;
+    return VS_DEFINED;
+}
+
+static bool merge_arrays_in_place(enum VarStatus *dest, const enum VarStatus *src, int n)
 {
     bool did_something = false;
     for (int i = 0; i < n; i++) {
-        enum BoolStatus combined;
-
-        if (src[i] == CAN_CHANGE_UNPREDICTABLY || dest[i] == CAN_CHANGE_UNPREDICTABLY)
-            combined = CAN_CHANGE_UNPREDICTABLY;
-        else if (src[i] == KNOWN_TO_BE_FALSE && dest[i] == KNOWN_TO_BE_FALSE)
-            combined = KNOWN_TO_BE_FALSE;
-        else if (src[i] == KNOWN_TO_BE_TRUE && dest[i] == KNOWN_TO_BE_TRUE)
-            combined = KNOWN_TO_BE_TRUE;
-        else if (dest[i] == UNSET)
-            combined = src[i];
-        else if (src[i] == UNSET)
-            combined = dest[i];
-        else
-            combined = COULD_BE_TRUE_OR_FALSE;
-
-        if (dest[i] != combined) {
-            dest[i] = combined;
+        enum VarStatus m = merge(src[i], dest[i]);
+        if (dest[i] != m) {
+            dest[i] = m;
             did_something = true;
         }
     }
@@ -65,40 +83,69 @@ static bool add_possibilities(enum BoolStatus *dest, const enum BoolStatus *src,
     return did_something;
 }
 
-static void print_bool_statuses(const struct CfGraph *cfg, enum BoolStatus **statuses, const enum BoolStatus *temp, const char *description)
+// Figure out how an instruction affects variables when it runs.
+static void update_statuses_with_instruction(const struct CfGraph *cfg, enum VarStatus *statuses, const struct CfInstruction *ins)
 {
-    (void)cfg, (void)statuses, (void)temp, (void)description;  // silence unused var warnings
+    for (int i = 0; i < cfg->variables.len; i++)
+        assert(statuses[i] != VS_UNVISITED);
 
-#if 0   // change to 1 to debug
+    if (!ins->destvar)
+        return;
+
+    int destidx = find_var_index(cfg, ins->destvar);
+    if (statuses[destidx] == VS_UNPREDICTABLE)
+        return;
+
+    switch(ins->kind) {
+    case CF_VARCPY:
+        statuses[destidx] = statuses[find_var_index(cfg, ins->operands[0])];
+        if (statuses[destidx] == VS_UNPREDICTABLE) {
+            // Assume that unpredictable variables always yield non-garbage values.
+            // Otherwise using functions like scanf() would be annoying.
+            statuses[destidx] = VS_DEFINED;
+        }
+        break;
+    case CF_TRUE: statuses[destidx] = VS_TRUE; break;
+    case CF_FALSE: statuses[destidx] = VS_FALSE; break;
+    default: statuses[destidx] = VS_DEFINED; break;
+    }
+}
+
+#define DebugPrint 0  // change to 1 to see VarStatuses
+
+#if DebugPrint
+static const char * vs_to_string(enum VarStatus vs)
+{
+    switch(vs){
+        case VS_UNVISITED: return "unvisited";
+        case VS_TRUE: return "true";
+        case VS_FALSE: return "false";
+        case VS_DEFINED: return "defined";
+        case VS_POSSIBLY_UNDEFINED: return "possibly undef";
+        case VS_UNDEFINED: return "undef";
+        case VS_UNPREDICTABLE: return "unpredictable";
+    }
+    assert(0);
+}
+static void print_var_statuses(const struct CfGraph *cfg, enum VarStatus **statuses, const enum VarStatus *temp, const char *description)
+{
     int nblocks = cfg->all_blocks.len;
     int nvars = cfg->variables.len;
 
-    const char *strs[] = {
-        [KNOWN_TO_BE_TRUE] = "true",
-        [KNOWN_TO_BE_FALSE] = "false",
-        [CAN_CHANGE_UNPREDICTABLY] = "unpredictable",
-        [COULD_BE_TRUE_OR_FALSE] = "true/false",
-        [UNSET] = "unset",
-    };
-
     puts(description);
     for (int blockidx = 0; blockidx < nblocks; blockidx++) {
-        printf("  block %d:", blockidx);
+        printf("  block %d:\n", blockidx);
         for (int i = 0; i < nvars; i++)
-            if (cfg->variables.ptr[i]->type.kind == TYPE_BOOL)
-                printf(" %10s %-14s", cfg->variables.ptr[i]->name, strs[statuses[blockidx][i]]);
-        printf("\n");
+            printf("    %-15s  %s\n", cfg->variables.ptr[i]->name, vs_to_string(statuses[blockidx][i]));
     }
     if(temp) {
-        printf("  temp:   ");
+        printf("  temp:\n");
         for (int i = 0; i < nvars; i++)
-            if (cfg->variables.ptr[i]->type.kind == TYPE_BOOL)
-                printf(" %10s %-14s", cfg->variables.ptr[i]->name, strs[temp[i]]);
-        printf("\n");
+            printf("    %-15s  %s\n", cfg->variables.ptr[i]->name, vs_to_string(temp[i]));
     }
     printf("\n");
-#endif
 }
+#endif  // DebugPrint
 
 static bool all_zero(const char *ptr, int n)
 {
@@ -120,96 +167,83 @@ Repeat for blocks where execution jumps from the current block, unless we got sa
 result as last time, then we know that we don't have to reanalyze blocks where
 execution jumps from the current block.
 */
-static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
+static enum VarStatus **determine_var_statuses(const struct CfGraph *cfg)
 {
+#if DebugPrint
+    print_control_flow_graph(cfg);
+    printf("\n");
+#endif
+
     int nblocks = cfg->all_blocks.len;
     int nvars = cfg->variables.len;
 
-    enum BoolStatus **result = malloc(sizeof(result[0]) * nblocks);  // NOLINT
-    for (int i = 0; i < nblocks; i++) {
-        result[i] = malloc(sizeof(result[i][0]) * nvars);
-        for (int k = 0; k < nvars; k++)
-            result[i][k] = UNSET;
-    }
+    enum VarStatus **result = malloc(sizeof(result[0]) * nblocks);  // NOLINT
+    for (int i = 0; i < nblocks; i++)
+        result[i] = calloc(sizeof(result[i][0]), nvars);
 
     char *blocks_to_visit = calloc(1, nblocks);
     blocks_to_visit[0] = true;  // visit initial block
 
-    enum BoolStatus *tempstatus = malloc(nvars*sizeof(tempstatus[0]));
+    enum VarStatus *tempstatus = malloc(nvars*sizeof(tempstatus[0]));
 
     while(!all_zero(blocks_to_visit, nblocks)){
         // Find a block to visit.
         int visiting = 0;
         while (!blocks_to_visit[visiting]) visiting++;
-        //printf("=== Visit block %d ===\n", visiting);
+#if DebugPrint
+        printf("=== Visit block %d ===\n", visiting);
+#endif
         blocks_to_visit[visiting] = false;
         const struct CfBlock *visitingblock = cfg->all_blocks.ptr[visiting];
 
         // Determine initial values based on other blocks that jump here.
         for (int i = 0; i < nvars; i++) {
             if (visiting == 0) {
-                // Start block: don't assume the value of any variable.
-                tempstatus[i] = COULD_BE_TRUE_OR_FALSE;
+                // start block
+                tempstatus[i] = cfg->variables.ptr[i]->is_argument ? VS_DEFINED : VS_UNDEFINED;
             } else {
                 // What is possible in other blocks is determined based on only how
                 // they are jumped into.
-                tempstatus[i] = UNSET;
+                tempstatus[i] = VS_UNVISITED;
             }
         }
-        print_bool_statuses(cfg, result, tempstatus, "Initial");
+
+#if DebugPrint
+        print_var_statuses(cfg, result, tempstatus, "Initial");
+#endif
+
         for (int i = 0; i < nblocks; i++) {
             if (cfg->all_blocks.ptr[i]->iftrue == visitingblock
                 || cfg->all_blocks.ptr[i]->iffalse == visitingblock)
             {
                 // TODO: If we only get here from the true jump, or only from false
                 // jump, we could assume that the variable used in the jump was true/false.
-                add_possibilities(tempstatus, result[i], nvars);
-            }
-        }
-        print_bool_statuses(cfg, result, tempstatus, "After adding from other blocks to temp");
-
-        // Figure out how each instruction affects booleans.
-        for (const struct CfInstruction *ins = visitingblock->instructions.ptr; ins < End(visitingblock->instructions); ins++) {
-            if (!ins->destvar || ins->destvar->type.kind != TYPE_BOOL)
-                continue;
-
-            int destidx = find_var_index(cfg, ins->destvar);
-            switch(ins->kind) {
-            case CF_VARCPY:
-                switch(tempstatus[find_var_index(cfg, ins->operands[0])]) {
-                case KNOWN_TO_BE_TRUE:
-                    tempstatus[destidx] = KNOWN_TO_BE_TRUE;
-                    break;
-                case KNOWN_TO_BE_FALSE:
-                    tempstatus[destidx] = KNOWN_TO_BE_FALSE;
-                    break;
-                case CAN_CHANGE_UNPREDICTABLY:  // Even an unpredictable variable yields true or false value.
-                case COULD_BE_TRUE_OR_FALSE:
-                    tempstatus[destidx] = COULD_BE_TRUE_OR_FALSE;
-                    break;
-                case UNSET:
-                    assert(0);
-                }
-                break;
-            case CF_TRUE:
-                tempstatus[destidx] = KNOWN_TO_BE_TRUE;
-                break;
-            case CF_FALSE:
-                tempstatus[destidx] = KNOWN_TO_BE_FALSE;
-                break;
-            default:
-                tempstatus[destidx] = COULD_BE_TRUE_OR_FALSE;
-                break;
+                merge_arrays_in_place(tempstatus, result[i], nvars);
             }
         }
 
-        // If some values of variables are possible, remember that from now on.
-        bool result_affected = add_possibilities(result[visiting], tempstatus, nvars);
-        print_bool_statuses(cfg, result, NULL, "At end");
+#if DebugPrint
+        print_var_statuses(cfg, result, tempstatus, "After adding from other blocks to temp");
+#endif
+
+        // Turn the initial status into status at end of the block.
+        const struct CfInstruction *ins;
+        for (ins = visitingblock->instructions.ptr; ins < End(visitingblock->instructions); ins++)
+        {
+            update_statuses_with_instruction(cfg, tempstatus, ins);
+        }
+
+        // Update what we learned about variable status at end of this block.
+        bool result_affected = merge_arrays_in_place(result[visiting], tempstatus, nvars);
+#if DebugPrint
+        print_var_statuses(cfg, result, NULL, "At end");
+#endif
 
         if (result_affected && visitingblock != &cfg->end_block) {
             // Also need to update blocks where we jump from here.
-            //printf("  Will visit %d and %d\n", find_block_index(cfg, visitingblock->iftrue), find_block_index(cfg, visitingblock->iffalse));
+#if DebugPrint
+            printf("  Will visit %d and %d\n", find_block_index(cfg, visitingblock->iftrue), find_block_index(cfg, visitingblock->iffalse));
+#endif
             blocks_to_visit[find_block_index(cfg, visitingblock->iftrue)] = true;
             blocks_to_visit[find_block_index(cfg, visitingblock->iffalse)] = true;
         }
@@ -222,7 +256,7 @@ static enum BoolStatus **determine_known_bool_values(const struct CfGraph *cfg)
 
 static void clean_jumps_where_condition_always_true_or_always_false(struct CfGraph *cfg)
 {
-    enum BoolStatus **statuses = determine_known_bool_values(cfg);
+    enum VarStatus **statuses = determine_var_statuses(cfg);
 
     for (int blockidx = 0; blockidx < cfg->all_blocks.len; blockidx++) {
         struct CfBlock *block = cfg->all_blocks.ptr[blockidx];
@@ -230,11 +264,11 @@ static void clean_jumps_where_condition_always_true_or_always_false(struct CfGra
             continue;
 
         switch(statuses[blockidx][find_var_index(cfg, block->branchvar)]) {
-        case KNOWN_TO_BE_TRUE:
+        case VS_TRUE:
             // Always jump to true case.
             block->iffalse = block->iftrue;
             break;
-        case KNOWN_TO_BE_FALSE:
+        case VS_FALSE:
             // Always jump to false case.
             block->iftrue = block->iffalse;
             break;
@@ -400,11 +434,50 @@ static void remove_unused_variables(struct CfGraph *cfg)
     free(used);
 }
 
+static void warn_about_undefined_variables(struct CfGraph *cfg)
+{
+    enum VarStatus **statuses = determine_var_statuses(cfg);
+
+    for (int blockidx = 0; blockidx < cfg->all_blocks.len; blockidx++) {
+        const struct CfBlock *b = cfg->all_blocks.ptr[blockidx];
+        enum VarStatus *status = statuses[blockidx];
+        for (struct CfInstruction *ins = b->instructions.ptr; ins < End(b->instructions); ins++) {
+            for (int i = 0; i < ins->noperands; i++) {
+                switch(status[find_var_index(cfg, ins->operands[i])]) {
+                case VS_UNVISITED:
+                    assert(0);
+                case VS_TRUE:
+                case VS_FALSE:
+                case VS_DEFINED:
+                case VS_UNPREDICTABLE:
+                    break;
+                case VS_POSSIBLY_UNDEFINED:
+                    // The compiler internally creates variables named $foo.
+                    // I think they are never used undefined if the compiler works correctly.
+                    assert(ins->operands[i]->name[0] != '$');
+                    show_warning(ins->location, "the value of '%s' may be undefined", ins->operands[i]->name);
+                    break;
+                case VS_UNDEFINED:
+                    assert(ins->operands[i]->name[0] != '$');
+                    show_warning(ins->location, "the value of '%s' is undefined", ins->operands[i]->name);
+                    break;
+                }
+            }
+            update_statuses_with_instruction(cfg, status, ins);
+        }
+    }
+
+    for (int i = 0; i < cfg->all_blocks.len; i++)
+        free(statuses[i]);
+    free(statuses);
+}
+
 static void simplify_cfg(struct CfGraph *cfg)
 {
     clean_jumps_where_condition_always_true_or_always_false(cfg);
     remove_unreachable_blocks(cfg);
     remove_unused_variables(cfg);
+    warn_about_undefined_variables(cfg);
 }
 
 void simplify_control_flow_graphs(const struct CfGraphFile *cfgfile)
