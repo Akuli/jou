@@ -82,7 +82,41 @@ static bool merge_arrays_in_place(enum VarStatus *dest, const enum VarStatus *sr
     return did_something;
 }
 
-#if 0  // change to 1 to see debug prints
+// Figure out how an instruction affects variables when it runs.
+static void update_statuses_with_instruction(const struct CfGraph *cfg, enum VarStatus *statuses, const struct CfInstruction *ins)
+{
+    if (!ins->destvar)
+        return;
+
+    int destidx = find_var_index(cfg, ins->destvar);
+    if (statuses[destidx] == VS_UNPREDICTABLE)
+        return;
+
+    switch(ins->kind) {
+    case CF_VARCPY:
+        statuses[destidx] = statuses[find_var_index(cfg, ins->operands[0])];
+        assert(statuses[destidx] != VS_UNVISITED);
+        if (statuses[destidx] == VS_UNPREDICTABLE) {
+            // Assume that unpredictable variables always yield non-garbage values.
+            // Otherwise using functions like fscanf() would be annoying.
+            statuses[destidx] = VS_DEFINED;
+        }
+        break;
+    case CF_TRUE:
+        statuses[destidx] = VS_TRUE;
+        break;
+    case CF_FALSE:
+        statuses[destidx] = VS_FALSE;
+        break;
+    default:
+        statuses[destidx] = VS_DEFINED;
+        break;
+    }
+}
+
+#define DebugPrint 0  // change to 1 to see debug prints
+
+#if DebugPrint
 static const char * vs_to_string(enum VarStatus vs)
 {
     switch(vs){
@@ -90,8 +124,8 @@ static const char * vs_to_string(enum VarStatus vs)
         case VS_TRUE: return "true";
         case VS_FALSE: return "false";
         case VS_DEFINED: return "defined";
-        case VS_POSSIBLY_UNDEFINED: return "possibly undefined";
-        case VS_UNDEFINED: return "undefined";
+        case VS_POSSIBLY_UNDEFINED: return "possibly undef";
+        case VS_UNDEFINED: return "undef";
         case VS_UNPREDICTABLE: return "unpredictable";
     }
     assert(0);
@@ -105,20 +139,16 @@ static void print_var_statuses(const struct CfGraph *cfg, enum VarStatus **statu
     for (int blockidx = 0; blockidx < nblocks; blockidx++) {
         printf("  block %d:\n", blockidx);
         for (int i = 0; i < nvars; i++)
-            printf("    %-10s  %s\n", cfg->variables.ptr[i]->name, vs_to_string(statuses[blockidx][i]));
-        printf("\n");
+            printf("    %-15s  %s\n", cfg->variables.ptr[i]->name, vs_to_string(statuses[blockidx][i]));
     }
     if(temp) {
         printf("  temp:\n");
         for (int i = 0; i < nvars; i++)
-            printf("    %-10s  %s\n", cfg->variables.ptr[i]->name, vs_to_string(temp[i]));
-        printf("\n");
+            printf("    %-15s  %s\n", cfg->variables.ptr[i]->name, vs_to_string(temp[i]));
     }
     printf("\n");
 }
-#else
-    #define print_var_statuses(...)
-#endif
+#endif  // DebugPrint
 
 static bool all_zero(const char *ptr, int n)
 {
@@ -142,6 +172,11 @@ execution jumps from the current block.
 */
 static enum VarStatus **determine_var_statuses(const struct CfGraph *cfg)
 {
+#if DebugPrint
+    print_control_flow_graph(cfg);
+    printf("\n");
+#endif
+
     int nblocks = cfg->all_blocks.len;
     int nvars = cfg->variables.len;
 
@@ -158,13 +193,15 @@ static enum VarStatus **determine_var_statuses(const struct CfGraph *cfg)
         // Find a block to visit.
         int visiting = 0;
         while (!blocks_to_visit[visiting]) visiting++;
-        //printf("=== Visit block %d ===\n", visiting);
+#if DebugPrint
+        printf("=== Visit block %d ===\n", visiting);
+#endif
         blocks_to_visit[visiting] = false;
         const struct CfBlock *visitingblock = cfg->all_blocks.ptr[visiting];
 
         // Determine initial values based on other blocks that jump here.
         for (int i = 0; i < nvars; i++) {
-            if (visiting != 0) {
+            if (visiting == 0) {
                 // start block
                 tempstatus[i] = cfg->variables.ptr[i]->is_argument ? VS_DEFINED : VS_UNDEFINED;
             } else {
@@ -173,7 +210,10 @@ static enum VarStatus **determine_var_statuses(const struct CfGraph *cfg)
                 tempstatus[i] = VS_UNVISITED;
             }
         }
+
+#if DebugPrint
         print_var_statuses(cfg, result, tempstatus, "Initial");
+#endif
 
         for (int i = 0; i < nblocks; i++) {
             if (cfg->all_blocks.ptr[i]->iftrue == visitingblock
@@ -184,46 +224,29 @@ static enum VarStatus **determine_var_statuses(const struct CfGraph *cfg)
                 merge_arrays_in_place(tempstatus, result[i], nvars);
             }
         }
+
+#if DebugPrint
         print_var_statuses(cfg, result, tempstatus, "After adding from other blocks to temp");
+#endif
 
-        // Figure out how each instruction affects variables.
-        for (const struct CfInstruction *ins = visitingblock->instructions.ptr; ins < End(visitingblock->instructions); ins++) {
-            if (!ins->destvar)
-                continue;
-
-            int destidx = find_var_index(cfg, ins->destvar);
-            if (tempstatus[destidx] == VS_UNPREDICTABLE)
-                continue;
-
-            switch(ins->kind) {
-            case CF_VARCPY:
-                tempstatus[destidx] = tempstatus[find_var_index(cfg, ins->operands[0])];
-                assert(tempstatus[destidx] != VS_UNVISITED);
-                if (tempstatus[destidx] == VS_UNPREDICTABLE) {
-                    // Assume that unpredictable variables always yield non-garbage values.
-                    // Otherwise using functions like fscanf() would be annoying.
-                    tempstatus[destidx] = VS_DEFINED;
-                }
-                break;
-            case CF_TRUE:
-                tempstatus[destidx] = VS_TRUE;
-                break;
-            case CF_FALSE:
-                tempstatus[destidx] = VS_FALSE;
-                break;
-            default:
-                tempstatus[destidx] = VS_DEFINED;
-                break;
-            }
+        // Turn the initial status into status at end of the block.
+        const struct CfInstruction *ins;
+        for (ins = visitingblock->instructions.ptr; ins < End(visitingblock->instructions); ins++)
+        {
+            update_statuses_with_instruction(cfg, tempstatus, ins);
         }
 
         // Update what we learned about variable status at end of this block.
         bool result_affected = merge_arrays_in_place(result[visiting], tempstatus, nvars);
+#if DebugPrint
         print_var_statuses(cfg, result, NULL, "At end");
+#endif
 
         if (result_affected && visitingblock != &cfg->end_block) {
             // Also need to update blocks where we jump from here.
-            //printf("  Will visit %d and %d\n", find_block_index(cfg, visitingblock->iftrue), find_block_index(cfg, visitingblock->iffalse));
+#if DebugPrint
+            printf("  Will visit %d and %d\n", find_block_index(cfg, visitingblock->iftrue), find_block_index(cfg, visitingblock->iffalse));
+#endif
             blocks_to_visit[find_block_index(cfg, visitingblock->iftrue)] = true;
             blocks_to_visit[find_block_index(cfg, visitingblock->iffalse)] = true;
         }

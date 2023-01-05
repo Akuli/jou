@@ -300,6 +300,7 @@ Most of these take the data for an entire program.
 void print_token(const struct Token *token);
 void print_tokens(const struct Token *tokenlist);
 void print_ast(const struct AstToplevelNode *topnodelist);
+void print_control_flow_graph(const struct CfGraph *cfg);
 void print_control_flow_graphs(const struct CfGraphFile *cfgfile);
 void print_llvm_ir(LLVMModuleRef module);
 

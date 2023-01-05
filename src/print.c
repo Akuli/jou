@@ -356,7 +356,7 @@ static void print_cf_instruction(const struct CfInstruction *ins, int indent)
     printf("\n");
 }
 
-static void print_cf_graph(const struct CfGraph *cfg, int indent)
+static void print_control_flow_graph_with_indent(const struct CfGraph *cfg, int indent)
 {
     if (!cfg) {
         printf("%*sControl Flow Graph = NULL\n", indent, "");
@@ -403,6 +403,11 @@ static void print_cf_graph(const struct CfGraph *cfg, int indent)
     }
 }
 
+void print_control_flow_graph(const struct CfGraph *cfg)
+{
+    print_control_flow_graph_with_indent(cfg, 0);
+}
+
 void print_control_flow_graphs(const struct CfGraphFile *cfgfile)
 {
     printf("===== Control Flow Graphs for file \"%s\" =====\n", cfgfile->filename);
@@ -410,7 +415,7 @@ void print_control_flow_graphs(const struct CfGraphFile *cfgfile)
         char *sigstr = signature_to_string(&cfgfile->signatures[i], true);
         printf("Function on line %d: %s\n", cfgfile->signatures[i].location.lineno, sigstr);
         free(sigstr);
-        print_cf_graph(cfgfile->graphs[i], 2);
+        print_control_flow_graph_with_indent(cfgfile->graphs[i], 2);
         printf("\n");
     }
 }
