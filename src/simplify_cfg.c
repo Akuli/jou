@@ -37,6 +37,7 @@ enum VarStatus {
 a and b are statuses from different branches that both jump to the same block.
 Should have these properties:
 
+    merge(a, VS_UNVISITED) == a
     merge(a, a) == a
     merge(a, b) == merge(b, a)
     merge(a, merge(b, c)) == merge(merge(a, b), c)
