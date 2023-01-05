@@ -1,0 +1,14 @@
+declare puts(s: byte*) -> int
+
+def maybe_uninitialized(n: int) -> void:
+    for i = 0; i < n; i = i+1:
+        message = "Hi"
+    puts(message)  # Warning: the value of 'message' may be undefined
+
+def surely_uninitialized() -> void:
+    while False:
+        message = "Hi"  # Warning: this code will never run
+    puts(message)  # Warning: the value of 'message' is undefined
+
+def main() -> int:
+    return 0

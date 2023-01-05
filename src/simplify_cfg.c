@@ -437,11 +437,48 @@ static void remove_unused_variables(struct CfGraph *cfg)
     free(used);
 }
 
+static void warn_about_undefined_variables(struct CfGraph *cfg)
+{
+    enum VarStatus **statuses = determine_var_statuses(cfg);
+
+    for (int blockidx = 0; blockidx < cfg->all_blocks.len; blockidx++) {
+        const struct CfBlock *b = cfg->all_blocks.ptr[blockidx];
+        enum VarStatus *status = statuses[blockidx];
+        for (struct CfInstruction *ins = b->instructions.ptr; ins < End(b->instructions); ins++) {
+            for (int i = 0; i < ins->noperands; i++) {
+                switch(status[find_var_index(cfg, ins->operands[i])]) {
+                case VS_UNVISITED:
+                    assert(0);
+                case VS_TRUE:
+                case VS_FALSE:
+                case VS_DEFINED:
+                case VS_UNPREDICTABLE:
+                    break;
+                case VS_POSSIBLY_UNDEFINED:
+                    assert(ins->operands[i]->name[0] != '$');
+                    show_warning(ins->location, "the value of '%s' may be undefined", ins->operands[i]->name);
+                    break;
+                case VS_UNDEFINED:
+                    assert(ins->operands[i]->name[0] != '$');
+                    show_warning(ins->location, "the value of '%s' is undefined", ins->operands[i]->name);
+                    break;
+                }
+            }
+            update_statuses_with_instruction(cfg, status, ins);
+        }
+    }
+
+    for (int i = 0; i < cfg->all_blocks.len; i++)
+        free(statuses[i]);
+    free(statuses);
+}
+
 static void simplify_cfg(struct CfGraph *cfg)
 {
     clean_jumps_where_condition_always_true_or_always_false(cfg);
     remove_unreachable_blocks(cfg);
     remove_unused_variables(cfg);
+    warn_about_undefined_variables(cfg);
 }
 
 void simplify_control_flow_graphs(const struct CfGraphFile *cfgfile)
