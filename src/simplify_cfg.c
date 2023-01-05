@@ -103,15 +103,9 @@ static void update_statuses_with_instruction(const struct CfGraph *cfg, enum Var
             statuses[destidx] = VS_DEFINED;
         }
         break;
-    case CF_TRUE:
-        statuses[destidx] = VS_TRUE;
-        break;
-    case CF_FALSE:
-        statuses[destidx] = VS_FALSE;
-        break;
-    default:
-        statuses[destidx] = VS_DEFINED;
-        break;
+    case CF_TRUE: statuses[destidx] = VS_TRUE; break;
+    case CF_FALSE: statuses[destidx] = VS_FALSE; break;
+    default: statuses[destidx] = VS_DEFINED; break;
     }
 }
 
