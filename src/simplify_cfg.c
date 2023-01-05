@@ -254,6 +254,13 @@ static enum VarStatus **determine_var_statuses(const struct CfGraph *cfg)
     return result;
 }
 
+static void free_var_statuses(const struct CfGraph *cfg, enum VarStatus** statuses)
+{
+    for (int i = 0; i < cfg->all_blocks.len; i++)
+        free(statuses[i]);
+    free(statuses);
+}
+
 static void clean_jumps_where_condition_always_true_or_always_false(struct CfGraph *cfg)
 {
     enum VarStatus **statuses = determine_var_statuses(cfg);
@@ -276,10 +283,7 @@ static void clean_jumps_where_condition_always_true_or_always_false(struct CfGra
             break;
         }
     }
-
-    for (int i = 0; i < cfg->all_blocks.len; i++)
-        free(statuses[i]);
-    free(statuses);
+    free_var_statuses(cfg, statuses);
 }
 
 /*
@@ -467,9 +471,7 @@ static void warn_about_undefined_variables(struct CfGraph *cfg)
         }
     }
 
-    for (int i = 0; i < cfg->all_blocks.len; i++)
-        free(statuses[i]);
-    free(statuses);
+    free_var_statuses(cfg, statuses);
 }
 
 static void error_about_missing_return(struct CfGraph *cfg, const struct Signature *sig)
@@ -502,9 +504,7 @@ static void error_about_missing_return(struct CfGraph *cfg, const struct Signatu
             sig->funcname, sig->returntype->name);
     }
 
-    for (int i = 0; i < cfg->all_blocks.len; i++)
-        free(statuses[i]);
-    free(statuses);
+    free_var_statuses(cfg, statuses);
 }
 
 static void simplify_cfg(struct CfGraph *cfg, const struct Signature *sig)
