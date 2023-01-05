@@ -26,7 +26,7 @@ enum VarStatus {
     VS_UNDEFINED,  // No value has been set to the variable. Holds a garbage value.
     VS_UNPREDICTABLE,  // Address of variable (&foo) has been used. Give up analzing it.
     /*
-    Longer explanation of VS_UNPREDICTABLE: The value of an unpredictable variable can
+    Longer description of VS_UNPREDICTABLE: The value of an unpredictable variable can
     change in lines of code that seem to have nothing to do with the variable. For
     example, a function that doesn't take &foo as an argument can change the value of foo,
     because the pointer &foo can be stored in some place that the function can access.
