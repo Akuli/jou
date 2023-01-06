@@ -97,8 +97,6 @@ static void add_instruction(
     add_instruction((st), (loc), (op), NULL, (const struct CfVariable*[]){(lhs),(rhs),NULL}, (target))
 #define add_constant(st, loc, c, target) \
     add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant(&(c)) }, NULL, (target))
-#define add_store(st, loc, ptr, value) \
-    add_instruction((st), (loc), CF_STORE_TO_POINTER, NULL, (const struct CfVariable*[]){(ptr),(value),NULL}, NULL)
 
 
 /*
@@ -285,7 +283,7 @@ const struct CfVariable *build_increment_or_decrement(
     add_constant(st, location, ((struct Constant){.type=*t, .value.integer=diff}), diffvar);
     add_unary_op(st, location, CF_LOAD_FROM_POINTER, addr, old_value);
     add_binary_op(st, location, CF_INT_ADD, old_value, diffvar, new_value);
-    add_store(st, location, addr, new_value);
+    add_binary_op(st, location, CF_STORE_TO_POINTER, addr, new_value, NULL);
 
     switch(pop) {
         case PRE: return new_value;
@@ -380,7 +378,7 @@ static const struct CfVariable *build_expression(
                 result = build_expression(st, valueexpr, NULL, NULL, true);
                 const struct CfVariable *casted_result = build_implicit_cast(
                     st, result, target->type.data.valuetype, expr->location, errmsg);
-                add_store(st, expr->location, target, casted_result);
+                add_binary_op(st, expr->location, CF_STORE_TO_POINTER, target, casted_result, NULL);
             }
             break;
         }
