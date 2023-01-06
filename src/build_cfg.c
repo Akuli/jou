@@ -526,7 +526,7 @@ static const struct CfVariable *build_call(const struct State *st, const struct 
         );
     }
 
-    const struct CfVariable **args = malloc((call->nargs + 1) * sizeof(args[0]));  // NOLINT
+    const struct CfVariable **args = calloc(call->nargs + 1, sizeof(args[0]));  // NOLINT
     for (int i = 0; i < sig->nargs; i++) {
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
@@ -537,7 +537,6 @@ static const struct CfVariable *build_call(const struct State *st, const struct 
         // This code runs for varargs, e.g. the things to format in printf().
         args[i] = build_expression(st, &call->args[i], NULL, NULL, true);
     }
-    args[call->nargs] = NULL;
 
     const struct CfVariable *return_value;
     if (sig->returntype) {
