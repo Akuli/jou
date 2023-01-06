@@ -1,4 +1,9 @@
+declare putchar(ch: int) -> int
 declare printf(format: byte*, ...) -> int
+
+def side_effect(letter: byte, value: bool) -> bool:
+    putchar(letter)
+    return value
 
 def main() -> int:
     printf("%d\n", 1+2==3 and 1+2==3)  # Output: 1
@@ -45,5 +50,26 @@ def main() -> int:
 #    printf("%d\n", not True or not False)  # Output: 1
 #    printf("%d\n", not False or not True)  # Output: 1
 #    printf("%d\n", not False or not False)  # Output: 1
+
+    printf("Side effects and\n")  # Output: Side effects and
+    # Output: aAbBcd
+    result = side_effect('a', True) and side_effect('A', True)
+    result = side_effect('b', True) and side_effect('B', False)
+    result = side_effect('c', False) and side_effect('C', True)
+    result = side_effect('d', False) and side_effect('D', False)
+    printf("\n")
+
+    printf("Side effects or\n")  # Output: Side effects and
+    # Output: abcCdD
+    result = side_effect('a', True) or side_effect('A', True)
+    result = side_effect('b', True) or side_effect('B', False)
+    result = side_effect('c', False) or side_effect('C', True)
+    result = side_effect('d', False) or side_effect('D', False)
+    printf("\n")
+
+#    printf("Side effects not\n")  # Output: Side effects not
+#    # Output: ab
+#    result = not side_effect('a', True)
+#    result = not side_effect('b', False)
 
     return 0
