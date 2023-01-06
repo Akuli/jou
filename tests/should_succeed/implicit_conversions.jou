@@ -13,10 +13,16 @@ def foo3(x: int) -> void:
     x = 'c'
     putchar(x)
 
+# Local variables, with a given type
+def foo4() -> void:
+    x: int = 'd'
+    putchar(x)
+
 def main() -> int:
-    # Output: abc
+    # Output: abcd
     putchar(foo1('a'))
     foo2('b')
     foo3('x')
+    foo4()
     putchar('\n')
     return 0

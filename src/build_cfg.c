@@ -89,6 +89,8 @@ static void add_instruction(
     Append(&st->current_block->instructions, ins);
 }
 
+#define add_varcpy(st, loc, from, to) add_instruction((st), (loc), CF_VARCPY, NULL, 1, (const struct CfVariable*[]){(from)}, (to))
+
 /*
 Implicit casts are used in many places, e.g. function arguments.
 
@@ -355,7 +357,7 @@ static const struct CfVariable *build_expression(
                 // Making a new variable. Use the type of the value being assigned.
                 result = build_expression(st, valueexpr, NULL, NULL, true);
                 const struct CfVariable *var = add_variable(st, &result->type, targetexpr->data.varname);
-                add_instruction(st, expr->location, CF_VARCPY, NULL, 1, &result, var);
+                add_varcpy(st, expr->location, result, var);
             } else {
                 // Convert value to the type of an existing variable or other assignment target.
                 // TODO: is this evaluation order good?
@@ -498,7 +500,7 @@ static const struct CfVariable *build_address_of_expression(const struct State *
         fail_with_error(address_of_what->location, "the address-of operator '&' cannot be used with %s", cant_take_address_of);
 }
 
-const char *nth(int n)
+static const char *nth(int n)
 {
     assert(n >= 1);
 
@@ -682,7 +684,7 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
             st, &stmt->data.expression, st->signature->returntype, msg, true);
         const struct CfVariable *retvariable = find_variable(st, "return", NULL);
         assert(retvariable);
-        add_instruction(st, stmt->location, CF_VARCPY, NULL, 1, &retvalue, retvariable);
+        add_varcpy(st, stmt->location, retvalue, retvariable);
 
         st->current_block->iftrue = &st->cfg->end_block;
         st->current_block->iffalse = &st->cfg->end_block;
@@ -704,7 +706,17 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
         break;
 
     case AST_STMT_DECLARE_LOCAL_VAR:
-        add_variable(st, &stmt->data.vardecl.type, stmt->data.vardecl.name);
+        if (find_variable(st, stmt->data.vardecl.name, NULL))
+            fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
+
+        struct CfVariable *v = add_variable(st, &stmt->data.vardecl.type, stmt->data.vardecl.name);
+        if (stmt->data.vardecl.initial_value) {
+            const struct CfVariable *cfvar = build_expression(
+                st, stmt->data.vardecl.initial_value, &stmt->data.vardecl.type,
+                "initial value for variable of type TO cannot be of type FROM",
+                true);
+            add_varcpy(st, stmt->location, cfvar, v);
+        }
         break;
 
     case AST_STMT_EXPRESSION_STATEMENT:

@@ -252,8 +252,15 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
             break;
         case AST_STMT_DECLARE_LOCAL_VAR:
             printf(
-                "Declare local variable \"%s\" of type %s.\n",
+                "Declare local variable \"%s\" of type %s.",
                 stmt->data.vardecl.name, stmt->data.vardecl.type.name);
+            if (stmt->data.vardecl.initial_value) {
+                printf(" Initial value:\n");
+                print_ast_expression(stmt->data.vardecl.initial_value, indent+2);
+            } else {
+                printf("\n");
+            }
+            break;
     }
 }
 
