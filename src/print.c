@@ -24,6 +24,18 @@ static void print_string(const char *s)
     putchar('"');
 }
 
+static void print_constant(const struct Constant *c)
+{
+    if (same_type(&c->type, &boolType))
+        printf(c->value.boolean ? "True" : "False");
+    else if (same_type(&c->type, &stringType))
+        print_string(c->value.str);
+    else if (is_integer_type(&c->type))
+        printf("%s %lld", c->type.name, c->value.integer);
+    else
+        assert(0);
+}
+
 void print_token(const struct Token *token)
 {
     switch(token->type) {
@@ -167,24 +179,9 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
     case AST_EXPR_GET_VARIABLE:
         printf("Get the value of variable \"%s\".\n", expr->data.varname);
         break;
-    case AST_EXPR_INT_CONSTANT:
-        printf("int %d\n", expr->data.int_value);
-        break;
-    case AST_EXPR_CHAR_CONSTANT:
-        printf("byte ");
-        print_byte(expr->data.char_value);
+    case AST_EXPR_CONSTANT:
+        print_constant(&expr->data.constant);
         printf("\n");
-        break;
-    case AST_EXPR_STRING_CONSTANT:
-        printf("string ");
-        print_string(expr->data.string_value);
-        printf("\n");
-        break;
-    case AST_EXPR_TRUE:
-        printf("True\n");
-        break;
-    case AST_EXPR_FALSE:
-        printf("False\n");
         break;
     }
 }
@@ -328,10 +325,9 @@ static void print_cf_instruction(const struct CfInstruction *ins, int indent)
         printf("cast %s to %d-bit unsigned int",
             ins->operands[0]->name, ins->destvar->type.data.width_in_bits);
         break;
-    case CF_INT_CONSTANT: printf("%lld", ins->data.int_value); break;
-    case CF_STRING_CONSTANT: print_string(ins->data.string_value); break;
-    case CF_TRUE: printf("True"); break;
-    case CF_FALSE: printf("False"); break;
+    case CF_CONSTANT:
+        print_constant(&ins->data.constant);
+        break;
 
     case CF_INT_ADD:
     case CF_INT_SUB:

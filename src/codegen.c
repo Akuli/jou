@@ -96,17 +96,6 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const struct S
     return LLVMAddFunction(st->module, sig->funcname, functype);
 }
 
-static LLVMValueRef make_a_string_constant(const struct State *st, const char *s)
-{
-    LLVMValueRef array = LLVMConstString(s, strlen(s), false);
-    LLVMValueRef global_var = LLVMAddGlobal(st->module, LLVMTypeOf(array), "string_literal");
-    LLVMSetLinkage(global_var, LLVMPrivateLinkage);  // This makes it a static global variable
-    LLVMSetInitializer(global_var, array);
-
-    LLVMTypeRef string_type = LLVMPointerType(LLVMInt8Type(), 0);
-    return LLVMBuildBitCast(st->builder, global_var, string_type, "string_ptr");
-}
-
 static LLVMValueRef codegen_call(const struct State *st, const char *funcname, LLVMValueRef *args, int nargs)
 {
     LLVMValueRef function = LLVMGetNamedFunction(st->module, funcname);
@@ -121,6 +110,33 @@ static LLVMValueRef codegen_call(const struct State *st, const char *funcname, L
 
     return LLVMBuildCall2(st->builder, function_type, function, args, nargs, debug_name);
 }
+
+static LLVMValueRef make_a_string_constant(const struct State *st, const char *s)
+{
+    LLVMValueRef array = LLVMConstString(s, strlen(s), false);
+    LLVMValueRef global_var = LLVMAddGlobal(st->module, LLVMTypeOf(array), "string_literal");
+    LLVMSetLinkage(global_var, LLVMPrivateLinkage);  // This makes it a static global variable
+    LLVMSetInitializer(global_var, array);
+
+    LLVMTypeRef string_type = LLVMPointerType(LLVMInt8Type(), 0);
+    return LLVMBuildBitCast(st->builder, global_var, string_type, "string_ptr");
+}
+
+static LLVMValueRef codegen_constant(const struct State *st, const struct Constant *c)
+{
+    switch(c->type.kind) {
+        case TYPE_SIGNED_INTEGER:
+            return LLVMConstInt(codegen_type(&c->type), c->value.integer, true);
+        case TYPE_UNSIGNED_INTEGER:
+            return LLVMConstInt(codegen_type(&c->type), c->value.integer, false);
+        case TYPE_BOOL:
+            return LLVMConstInt(LLVMInt1Type(), c->value.boolean, false);
+        case TYPE_POINTER:
+            assert(same_type(&c->type, &stringType));
+            return make_a_string_constant(st, c->value.str);
+    }
+    assert(0);
+}   
 
 static void codegen_instruction(const struct State *st, const struct CfInstruction *ins)
 {
@@ -144,16 +160,13 @@ static void codegen_instruction(const struct State *st, const struct CfInstructi
                 free(args);
             }
             break;
+        case CF_CONSTANT: setdest(codegen_constant(st, &ins->data.constant)); break;
         case CF_ADDRESS_OF_VARIABLE: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_LOAD_FROM_POINTER: setdest(LLVMBuildLoad(st->builder, getop(0), name)); break;
         case CF_STORE_TO_POINTER: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), name)); break;
         case CF_CAST_TO_BIGGER_SIGNED_INT: setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
         case CF_CAST_TO_BIGGER_UNSIGNED_INT: setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
-        case CF_INT_CONSTANT: setdest(LLVMConstInt(codegen_type(&ins->destvar->type), ins->data.int_value, true)); break;
-        case CF_STRING_CONSTANT: setdest(make_a_string_constant(st, ins->data.string_value)); break;
-        case CF_TRUE: setdest(LLVMConstInt(LLVMInt1Type(), 1, false)); break;
-        case CF_FALSE: setdest(LLVMConstInt(LLVMInt1Type(), 0, false)); break;
         case CF_INT_ADD: setdest(LLVMBuildAdd(st->builder, getop(0), getop(1), name)); break;
         case CF_INT_SUB: setdest(LLVMBuildSub(st->builder, getop(0), getop(1), name)); break;
         case CF_INT_MUL: setdest(LLVMBuildMul(st->builder, getop(0), getop(1), name)); break;

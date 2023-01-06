@@ -88,6 +88,17 @@ struct Signature {
 char *signature_to_string(const struct Signature *sig, bool include_return_type);
 struct Signature copy_signature(const struct Signature *sig);
 
+// Constants can appear in AST and in control flow graphs.
+struct Constant {
+    struct Type type;
+    union {
+        bool boolean;       // same_type(&constant.type, &boolType)
+        char *str;          // same_type(&constant.type, &strType)
+        long long integer;  // is_integer_type(&constant.type)
+    } value;
+};
+#define copy_constant(c) ( same_type(&(c)->type, &stringType) ? (struct Constant){ stringType, {.str=strdup((c)->value.str)} } : *c )
+
 
 struct AstCall {
     char funcname[100];
@@ -99,16 +110,12 @@ struct AstExpression {
     struct Location location;
 
     enum AstExpressionKind {
-        AST_EXPR_INT_CONSTANT,
-        AST_EXPR_CHAR_CONSTANT,
-        AST_EXPR_STRING_CONSTANT,
+        AST_EXPR_CONSTANT,
         AST_EXPR_CALL,
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF,
         AST_EXPR_DEREFERENCE,
         AST_EXPR_ASSIGN,
-        AST_EXPR_TRUE,
-        AST_EXPR_FALSE,
         AST_EXPR_ADD,
         AST_EXPR_SUB,
         AST_EXPR_MUL,
@@ -127,11 +134,9 @@ struct AstExpression {
         AST_EXPR_POST_DECREMENT,  // foo--
     } kind;
     union {
-        int int_value;          // AST_EXPR_INT_CONSTANT
-        char char_value;        // AST_EXPR_CHAR_CONSTANT
-        char *string_value;     // AST_EXPR_STRING_CONSTANT
-        char varname[100];      // AST_EXPR_GET_VARIABLE
-        struct AstCall call;    // AST_EXPR_CALL
+        struct Constant constant;   // AST_EXPR_CONSTANT
+        char varname[100];          // AST_EXPR_GET_VARIABLE
+        struct AstCall call;        // AST_EXPR_CALL
         /*
         The "operands" pointer is an array of 1 to 2 expressions.
         A couple examples to hopefully give you an idea of how it works in general:
@@ -220,10 +225,7 @@ struct CfVariable {
 struct CfInstruction {
     struct Location location;
     enum CfInstructionKind {
-        CF_INT_CONSTANT,
-        CF_STRING_CONSTANT,
-        CF_TRUE,
-        CF_FALSE,
+        CF_CONSTANT,
         CF_CALL,
         CF_ADDRESS_OF_VARIABLE,
         CF_STORE_TO_POINTER,  // *foo = bar (does not use destvar, see below)
@@ -241,8 +243,7 @@ struct CfInstruction {
         CF_CAST_TO_BIGGER_UNSIGNED_INT,
     } kind;
     union CfInstructionData {
-        long long int_value;    // CF_INT_CONSTANT (will be cast to whatever size int is needed)
-        char *string_value;     // CF_STRING_CONSTANT
+        struct Constant constant;  // CF_CONSTANT
         char funcname[100];     // CF_CALL
     } data;
     const struct CfVariable **operands;  // e.g. numbers to add, function arguments
@@ -293,6 +294,7 @@ free() them. For example, free(topnodelist) would free the list of AST nodes,
 but not any of the data contained within individual nodes.
 */
 void free_type(const struct Type *type);
+void free_constant(const struct Constant *c);
 void free_tokens(struct Token *tokenlist);
 void free_ast(struct AstToplevelNode *topnodelist);
 void free_control_flow_graphs(const struct CfGraphFile *cfgfile);

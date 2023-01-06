@@ -258,18 +258,21 @@ static struct AstExpression parse_elementary_expression(const struct Token **tok
         ++*tokens;
         break;
     case TOKEN_INT:
-        expr.kind = AST_EXPR_INT_CONSTANT;
-        expr.data.int_value = (*tokens)->data.int_value;
+        expr.kind = AST_EXPR_CONSTANT;
+        expr.data.constant.type = intType;
+        expr.data.constant.value.integer = (*tokens)->data.int_value;
         ++*tokens;
         break;
     case TOKEN_CHAR:
-        expr.kind = AST_EXPR_CHAR_CONSTANT;
-        expr.data.int_value = (*tokens)->data.char_value;
+        expr.kind = AST_EXPR_CONSTANT;
+        expr.data.constant.type = byteType;
+        expr.data.constant.value.integer = (unsigned char) (*tokens)->data.char_value;
         ++*tokens;
         break;
     case TOKEN_STRING:
-        expr.kind = AST_EXPR_STRING_CONSTANT;
-        expr.data.string_value = strdup((*tokens)->data.string_value);
+        expr.kind = AST_EXPR_CONSTANT;
+        expr.data.constant.type = stringType;
+        expr.data.constant.value.str = strdup((*tokens)->data.string_value);
         ++*tokens;
         break;
     case TOKEN_NAME:
@@ -283,12 +286,10 @@ static struct AstExpression parse_elementary_expression(const struct Token **tok
         }
         break;
     case TOKEN_KEYWORD:
-        if (is_keyword(*tokens, "True")) {
-            expr.kind = AST_EXPR_TRUE;
-            ++*tokens;
-            break;
-        } else if (is_keyword(*tokens, "False")) {
-            expr.kind = AST_EXPR_FALSE;
+        if (is_keyword(*tokens, "True") || is_keyword(*tokens, "False")) {
+            expr.kind = AST_EXPR_CONSTANT;
+            expr.data.constant.type = boolType;
+            expr.data.constant.value.boolean = is_keyword(*tokens, "True");
             ++*tokens;
         } else {
             goto not_an_expression;
@@ -420,11 +421,7 @@ static void validate_expression_statement(const struct AstExpression *expr)
     case AST_EXPR_GET_VARIABLE:
     case AST_EXPR_ADDRESS_OF:
     case AST_EXPR_DEREFERENCE:
-    case AST_EXPR_CHAR_CONSTANT:
-    case AST_EXPR_INT_CONSTANT:
-    case AST_EXPR_STRING_CONSTANT:
-    case AST_EXPR_TRUE:
-    case AST_EXPR_FALSE:
+    case AST_EXPR_CONSTANT:
         fail_with_error(expr->location, "not a valid statement");
         break;
     case AST_EXPR_ASSIGN:
