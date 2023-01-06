@@ -89,7 +89,22 @@ static void add_instruction(
     Append(&st->current_block->instructions, ins);
 }
 
-#define add_varcpy(st, loc, from, to) add_instruction((st), (loc), CF_VARCPY, NULL, 1, (const struct CfVariable*[]){(from)}, (to))
+// add_instruction() takes many arguments. Let's hide the mess a bit.
+#define add_unary_op(st, loc, op, arg, target) \
+    add_instruction((st), (loc), (op), NULL, 1, (const struct CfVariable*[]){(arg)}, (target));
+#define add_binary_op(st, loc, op, lhs, rhs, target) \
+    add_instruction((st), (loc), (op), NULL, 2, (const struct CfVariable*[]){(lhs),(rhs)}, (target));
+#define add_int_constant(st, loc, num, target) \
+    add_instruction((st), (loc), CF_INT_CONSTANT, &(union CfInstructionData){ .int_value=(num) }, 0, NULL, (target));
+#define add_string_constant(st, loc, str, target) \
+    add_instruction((st), (loc), CF_STRING_CONSTANT, &(union CfInstructionData){ .string_value=strdup((str)) }, 0, NULL, (target));
+#define add_store(st, loc, ptr, value) \
+    add_instruction((st), (loc), CF_STORE_TO_POINTER, NULL, 2, (const struct CfVariable*[]){(ptr),(value)}, NULL);
+#define add_true(st, loc, target) \
+    add_instruction((st), (loc), CF_TRUE, NULL, 0, NULL, (target))
+#define add_false(st, loc, target) \
+    add_instruction((st), (loc), CF_FALSE, NULL, 0, NULL, (target))
+
 
 /*
 Implicit casts are used in many places, e.g. function arguments.
@@ -132,6 +147,8 @@ static const struct CfVariable *build_implicit_cast(
     if (same_type(from, to))
         return obj;
 
+    const struct CfVariable *result = add_variable(st, to, "$implicit_cast");
+
     // Casting to bigger signed int applies when "to" is signed and bigger.
     // Doesn't cast from unsigned to same size signed: with 8 bits, 255 does not implicitly cast to -1.
     // TODO: does this surely work e.g. how would 8-bit 11111111 cast to 32 bit?
@@ -139,8 +156,7 @@ static const struct CfVariable *build_implicit_cast(
         && to->kind == TYPE_SIGNED_INTEGER
         && from->data.width_in_bits < to->data.width_in_bits)
     {
-        const struct CfVariable *result = add_variable(st, to, "$implicit_cast");
-        add_instruction(st, location, CF_CAST_TO_BIGGER_SIGNED_INT, NULL, 1, &obj, result);
+        add_unary_op(st, location, CF_CAST_TO_BIGGER_SIGNED_INT, obj, result);
         return result;
     }
 
@@ -149,8 +165,7 @@ static const struct CfVariable *build_implicit_cast(
         && to->kind == TYPE_UNSIGNED_INTEGER
         && from->data.width_in_bits < to->data.width_in_bits)
     {
-        const struct CfVariable *result = add_variable(st, to, "$implicit_cast");
-        add_instruction(st, location, CF_CAST_TO_BIGGER_UNSIGNED_INT, NULL, 1, &obj, result);
+        add_unary_op(st, location, CF_CAST_TO_BIGGER_UNSIGNED_INT, obj, result);
         return result;
     }
 
@@ -240,14 +255,13 @@ static const struct CfVariable *build_binop(
     }
 
     const struct CfVariable *destvar = add_variable(st, &result_type, debugname);
-    const struct CfVariable *operands[2] = { swap?rhs:lhs, swap?lhs:rhs };
-    add_instruction(st, location, k, NULL, 2, operands, destvar);
+    add_binary_op(st, location, k, swap?rhs:lhs, swap?lhs:rhs, destvar);
 
     if (!negate)
         return destvar;
 
     const struct CfVariable *negated = add_variable(st, &boolType, debugname);
-    add_instruction(st, location, CF_BOOL_NEGATE, NULL, 1, &destvar, negated);
+    add_unary_op(st, location, CF_BOOL_NEGATE, destvar, negated);
     return negated;
 }
 
@@ -273,10 +287,10 @@ const struct CfVariable *build_increment_or_decrement(
     const struct CfVariable *old_value = add_variable(st, t, "$old_value");
     const struct CfVariable *new_value = add_variable(st, t, "$new_value");
     const struct CfVariable *diffvar = add_variable(st, t, "$diff");
-    add_instruction(st, location, CF_INT_CONSTANT, &(union CfInstructionData){ .int_value=diff }, 0, NULL, diffvar);
-    add_instruction(st, location, CF_LOAD_FROM_POINTER, NULL, 1, &addr, old_value);
-    add_instruction(st, location, CF_INT_ADD, NULL, 2, (const struct CfVariable*[]){old_value,diffvar}, new_value);
-    add_instruction(st, location, CF_STORE_TO_POINTER, NULL, 2, (const struct CfVariable*[]){addr,new_value}, NULL);
+    add_int_constant(st, location, diff, diffvar);
+    add_unary_op(st, location, CF_LOAD_FROM_POINTER, addr, old_value);
+    add_binary_op(st, location, CF_INT_ADD, old_value, diffvar, new_value);
+    add_store(st, location, addr, new_value);
 
     switch(pop) {
         case PRE: return new_value;
@@ -301,7 +315,6 @@ static const struct CfVariable *build_expression(
     bool needvalue)  // Usually true. False means that calls to "-> void" functions are acceptable.
 {
     const struct CfVariable *result, *temp;
-    union CfInstructionData data = {0};
 
     switch(expr->kind) {
     case AST_EXPR_CALL:
@@ -323,30 +336,27 @@ static const struct CfVariable *build_expression(
         temp = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
         check_dereferenced_pointer_type(expr->location, &temp->type);
         result = add_variable(st, temp->type.data.valuetype, "$deref");
-        add_instruction(st, expr->location, CF_LOAD_FROM_POINTER, NULL, 1, &temp, result);
+        add_unary_op(st, expr->location, CF_LOAD_FROM_POINTER, temp, result);
         break;
     case AST_EXPR_INT_CONSTANT:
         result = add_variable(st, &intType, "$intconstant");
-        data.int_value = expr->data.int_value;
-        add_instruction(st, expr->location, CF_INT_CONSTANT, &data, 0, NULL, result);
+        add_int_constant(st, expr->location, expr->data.int_value, result);
         break;
     case AST_EXPR_CHAR_CONSTANT:
         result = add_variable(st, &byteType, "$byteconstant");
-        data.int_value = expr->data.char_value;
-        add_instruction(st, expr->location, CF_INT_CONSTANT, &data, 0, NULL, result);
+        add_int_constant(st, expr->location, (unsigned char)expr->data.char_value, result);
         break;
     case AST_EXPR_STRING_CONSTANT:
         result = add_variable(st, &stringType, "$strconstant");
-        data.string_value = strdup(expr->data.string_value);
-        add_instruction(st, expr->location, CF_STRING_CONSTANT, &data, 0, NULL, result);
+        add_string_constant(st, expr->location, expr->data.string_value, result);
         break;
     case AST_EXPR_TRUE:
         result = add_variable(st, &boolType, "$true");
-        add_instruction(st, expr->location, CF_TRUE, NULL, 0, NULL, result);
+        add_true(st, expr->location, result);
         break;
     case AST_EXPR_FALSE:
         result = add_variable(st, &boolType, "$false");
-        add_instruction(st, expr->location, CF_FALSE, NULL, 0, NULL, result);
+        add_false(st, expr->location, result);
         break;
     case AST_EXPR_ASSIGN:
         {
@@ -357,7 +367,7 @@ static const struct CfVariable *build_expression(
                 // Making a new variable. Use the type of the value being assigned.
                 result = build_expression(st, valueexpr, NULL, NULL, true);
                 const struct CfVariable *var = add_variable(st, &result->type, targetexpr->data.varname);
-                add_varcpy(st, expr->location, result, var);
+                add_unary_op(st, expr->location, CF_VARCPY, result, var);
             } else {
                 // Convert value to the type of an existing variable or other assignment target.
                 // TODO: is this evaluation order good?
@@ -380,8 +390,7 @@ static const struct CfVariable *build_expression(
                 result = build_expression(st, valueexpr, NULL, NULL, true);
                 const struct CfVariable *casted_result = build_implicit_cast(
                     st, result, target->type.data.valuetype, expr->location, errmsg);
-                const struct CfVariable *operands[2] = { target, casted_result };
-                add_instruction(st, expr->location, CF_STORE_TO_POINTER, NULL, 2, operands, NULL);
+                add_store(st, expr->location, target, casted_result);
             }
             break;
         }
@@ -442,7 +451,7 @@ static const struct CfVariable *build_address_of_expression(const struct State *
         struct Type t = create_pointer_type(&var->type, (struct Location){0});
         const struct CfVariable *addr = add_variable(st, &t, "$address_of_var");
         free(t.data.valuetype);
-        add_instruction(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, NULL, 1, &var, addr);
+        add_unary_op(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, var, addr);
         return addr;
     }
     case AST_EXPR_DEREFERENCE:
@@ -684,7 +693,7 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
             st, &stmt->data.expression, st->signature->returntype, msg, true);
         const struct CfVariable *retvariable = find_variable(st, "return", NULL);
         assert(retvariable);
-        add_varcpy(st, stmt->location, retvalue, retvariable);
+        add_unary_op(st, stmt->location, CF_VARCPY, retvalue, retvariable);
 
         st->current_block->iftrue = &st->cfg->end_block;
         st->current_block->iffalse = &st->cfg->end_block;
@@ -715,7 +724,7 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
                 st, stmt->data.vardecl.initial_value, &stmt->data.vardecl.type,
                 "initial value for variable of type TO cannot be of type FROM",
                 true);
-            add_varcpy(st, stmt->location, cfvar, v);
+            add_unary_op(st, stmt->location, CF_VARCPY, cfvar, v);
         }
         break;
 
