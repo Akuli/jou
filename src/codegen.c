@@ -152,8 +152,7 @@ static void codegen_instruction(const struct State *st, const struct CfInstructi
         case CF_CAST_TO_BIGGER_UNSIGNED_INT: setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
         case CF_INT_CONSTANT: setdest(LLVMConstInt(codegen_type(&ins->destvar->type), ins->data.int_value, true)); break;
         case CF_STRING_CONSTANT: setdest(make_a_string_constant(st, ins->data.string_value)); break;
-        case CF_TRUE: setdest(LLVMConstInt(LLVMInt1Type(), 1, false)); break;
-        case CF_FALSE: setdest(LLVMConstInt(LLVMInt1Type(), 0, false)); break;
+        case CF_BOOL_CONSTANT: setdest(LLVMConstInt(LLVMInt1Type(), ins->data.bool_value, false)); break;
         case CF_INT_ADD: setdest(LLVMBuildAdd(st->builder, getop(0), getop(1), name)); break;
         case CF_INT_SUB: setdest(LLVMBuildSub(st->builder, getop(0), getop(1), name)); break;
         case CF_INT_MUL: setdest(LLVMBuildMul(st->builder, getop(0), getop(1), name)); break;

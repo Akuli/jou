@@ -222,8 +222,7 @@ struct CfInstruction {
     enum CfInstructionKind {
         CF_INT_CONSTANT,
         CF_STRING_CONSTANT,
-        CF_TRUE,
-        CF_FALSE,
+        CF_BOOL_CONSTANT,
         CF_CALL,
         CF_ADDRESS_OF_VARIABLE,
         CF_STORE_TO_POINTER,  // *foo = bar (does not use destvar, see below)
@@ -243,6 +242,7 @@ struct CfInstruction {
     union CfInstructionData {
         long long int_value;    // CF_INT_CONSTANT (will be cast to whatever size int is needed)
         char *string_value;     // CF_STRING_CONSTANT
+        bool bool_value;        // CF_BOOL_CONSTANT
         char funcname[100];     // CF_CALL
     } data;
     const struct CfVariable **operands;  // e.g. numbers to add, function arguments

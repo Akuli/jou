@@ -92,19 +92,19 @@ static void add_instruction(
 
 // add_instruction() takes many arguments. Let's hide the mess a bit.
 #define add_unary_op(st, loc, op, arg, target) \
-    add_instruction((st), (loc), (op), NULL, (const struct CfVariable*[]){(arg),NULL}, (target));
+    add_instruction((st), (loc), (op), NULL, (const struct CfVariable*[]){(arg),NULL}, (target))
 #define add_binary_op(st, loc, op, lhs, rhs, target) \
-    add_instruction((st), (loc), (op), NULL, (const struct CfVariable*[]){(lhs),(rhs),NULL}, (target));
+    add_instruction((st), (loc), (op), NULL, (const struct CfVariable*[]){(lhs),(rhs),NULL}, (target))
+
 #define add_int_constant(st, loc, num, target) \
-    add_instruction((st), (loc), CF_INT_CONSTANT, &(union CfInstructionData){ .int_value=(num) }, NULL, (target));
+    add_instruction((st), (loc), CF_INT_CONSTANT, &(union CfInstructionData){ .int_value=(num) }, NULL, (target))
+#define add_bool_constant(st, loc, boolean, target) \
+    add_instruction((st), (loc), CF_BOOL_CONSTANT, &(union CfInstructionData){ .bool_value=(boolean) }, NULL, (target))
 #define add_string_constant(st, loc, str, target) \
-    add_instruction((st), (loc), CF_STRING_CONSTANT, &(union CfInstructionData){ .string_value=strdup((str)) }, NULL, (target));
+    add_instruction((st), (loc), CF_STRING_CONSTANT, &(union CfInstructionData){ .string_value=strdup((str)) }, NULL, (target))
+
 #define add_store(st, loc, ptr, value) \
-    add_instruction((st), (loc), CF_STORE_TO_POINTER, NULL, (const struct CfVariable*[]){(ptr),(value),NULL}, NULL);
-#define add_true(st, loc, target) \
-    add_instruction((st), (loc), CF_TRUE, NULL, NULL, (target))
-#define add_false(st, loc, target) \
-    add_instruction((st), (loc), CF_FALSE, NULL, NULL, (target))
+    add_instruction((st), (loc), CF_STORE_TO_POINTER, NULL, (const struct CfVariable*[]){(ptr),(value),NULL}, NULL)
 
 
 /*
@@ -353,11 +353,11 @@ static const struct CfVariable *build_expression(
         break;
     case AST_EXPR_TRUE:
         result = add_variable(st, &boolType, "$true");
-        add_true(st, expr->location, result);
+        add_bool_constant(st, expr->location, true, result);
         break;
     case AST_EXPR_FALSE:
         result = add_variable(st, &boolType, "$false");
-        add_false(st, expr->location, result);
+        add_bool_constant(st, expr->location, false, result);
         break;
     case AST_EXPR_ASSIGN:
         {
