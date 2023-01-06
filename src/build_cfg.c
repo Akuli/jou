@@ -72,16 +72,17 @@ static void add_instruction(
     struct Location location,
     enum CfInstructionKind k,
     const union CfInstructionData *dat,
-    int noperands,
-    const struct CfVariable **operands,
+    const struct CfVariable **operands, // NULL terminated, or NULL for empty
     const struct CfVariable *destvar)
 {
-    struct CfInstruction ins = { .location=location, .kind=k, .noperands=noperands, .destvar=destvar };
+    struct CfInstruction ins = { .location=location, .kind=k, .destvar=destvar };
     if (dat)
         ins.data=*dat;
 
-    if (noperands) {
-        size_t nbytes = sizeof(ins.operands[0]) * noperands;  // NOLINT
+    while (operands && operands[ins.noperands])
+        ins.noperands++;
+    if (ins.noperands) {
+        size_t nbytes = sizeof(ins.operands[0]) * ins.noperands;  // NOLINT
         ins.operands = malloc(nbytes);
         memcpy(ins.operands, operands, nbytes);
     }
@@ -91,19 +92,19 @@ static void add_instruction(
 
 // add_instruction() takes many arguments. Let's hide the mess a bit.
 #define add_unary_op(st, loc, op, arg, target) \
-    add_instruction((st), (loc), (op), NULL, 1, (const struct CfVariable*[]){(arg)}, (target));
+    add_instruction((st), (loc), (op), NULL, (const struct CfVariable*[]){(arg),NULL}, (target));
 #define add_binary_op(st, loc, op, lhs, rhs, target) \
-    add_instruction((st), (loc), (op), NULL, 2, (const struct CfVariable*[]){(lhs),(rhs)}, (target));
+    add_instruction((st), (loc), (op), NULL, (const struct CfVariable*[]){(lhs),(rhs),NULL}, (target));
 #define add_int_constant(st, loc, num, target) \
-    add_instruction((st), (loc), CF_INT_CONSTANT, &(union CfInstructionData){ .int_value=(num) }, 0, NULL, (target));
+    add_instruction((st), (loc), CF_INT_CONSTANT, &(union CfInstructionData){ .int_value=(num) }, NULL, (target));
 #define add_string_constant(st, loc, str, target) \
-    add_instruction((st), (loc), CF_STRING_CONSTANT, &(union CfInstructionData){ .string_value=strdup((str)) }, 0, NULL, (target));
+    add_instruction((st), (loc), CF_STRING_CONSTANT, &(union CfInstructionData){ .string_value=strdup((str)) }, NULL, (target));
 #define add_store(st, loc, ptr, value) \
-    add_instruction((st), (loc), CF_STORE_TO_POINTER, NULL, 2, (const struct CfVariable*[]){(ptr),(value)}, NULL);
+    add_instruction((st), (loc), CF_STORE_TO_POINTER, NULL, (const struct CfVariable*[]){(ptr),(value),NULL}, NULL);
 #define add_true(st, loc, target) \
-    add_instruction((st), (loc), CF_TRUE, NULL, 0, NULL, (target))
+    add_instruction((st), (loc), CF_TRUE, NULL, NULL, (target))
 #define add_false(st, loc, target) \
-    add_instruction((st), (loc), CF_FALSE, NULL, 0, NULL, (target))
+    add_instruction((st), (loc), CF_FALSE, NULL, NULL, (target))
 
 
 /*
@@ -542,7 +543,7 @@ static const struct CfVariable *build_call(const struct State *st, const struct 
         );
     }
 
-    const struct CfVariable **args = malloc(call->nargs * sizeof(args[0]));  // NOLINT
+    const struct CfVariable **args = malloc((call->nargs + 1) * sizeof(args[0]));  // NOLINT
     for (int i = 0; i < sig->nargs; i++) {
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
@@ -553,6 +554,7 @@ static const struct CfVariable *build_call(const struct State *st, const struct 
         // This code runs for varargs, e.g. the things to format in printf().
         args[i] = build_expression(st, &call->args[i], NULL, NULL, true);
     }
+    args[call->nargs] = NULL;
 
     const struct CfVariable *return_value;
     if (sig->returntype) {
@@ -564,7 +566,7 @@ static const struct CfVariable *build_call(const struct State *st, const struct 
 
     union CfInstructionData data;
     safe_strcpy(data.funcname, call->funcname);
-    add_instruction(st, location, CF_CALL, &data, call->nargs, args, return_value);
+    add_instruction(st, location, CF_CALL, &data, args, return_value);
 
     free(sigstr);
     free(args);
