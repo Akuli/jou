@@ -391,17 +391,33 @@ static struct AstExpression parse_expression_with_comparisons(const struct Token
     return result;
 }
 
+static struct AstExpression parse_expression_with_not(const struct Token **tokens)
+{
+    const struct Token *nottoken = NULL;
+    if (is_keyword(*tokens, "not")) {
+        nottoken = *tokens;
+        ++*tokens;
+    }
+    if (is_keyword(*tokens, "not"))
+        fail_with_error((*tokens)->location, "'not' cannot be repeated");
+
+    struct AstExpression result = parse_expression_with_comparisons(tokens);
+    if (nottoken)
+        result = build_operator_expression(nottoken, 1, &result);
+    return result;
+}
+
 static struct AstExpression parse_expression_with_and_or(const struct Token **tokens)
 {
     bool got_and = false, got_or = false;
     struct Location last_op_location;
 
-    struct AstExpression result = parse_expression_with_comparisons(tokens);
+    struct AstExpression result = parse_expression_with_not(tokens);
     while (is_keyword(*tokens, "and") || is_keyword(*tokens, "or")) {
         last_op_location = (*tokens)->location;
         got_and = got_and || is_keyword(*tokens, "and");
         got_or = got_or || is_keyword(*tokens, "or");
-        add_to_binop(tokens, &result, parse_expression_with_comparisons);
+        add_to_binop(tokens, &result, parse_expression_with_not);
     }
 
     if (got_and && got_or)

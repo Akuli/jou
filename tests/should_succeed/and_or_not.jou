@@ -16,8 +16,8 @@ def main() -> int:
     printf("%d\n", 1+2==4 or 1+2==3)  # Output: 1
     printf("%d\n", 1+2==4 or 1+2==4)  # Output: 0
 
-#    printf("%d\n", not 1+2==3)  # Output: 0
-#    printf("%d\n", not 1+2==4)  # Output: 1
+    printf("%d\n", not 1+2==3)  # Output: 0
+    printf("%d\n", not 1+2==4)  # Output: 1
 
     printf("Triple and\n")  # Output: Triple and
     printf("%d\n", True and True and True)  # Output: 1
@@ -39,17 +39,17 @@ def main() -> int:
     printf("%d\n", False or False or True)  # Output: 1
     printf("%d\n", False or False or False)  # Output: 0
 
-#    printf("Precedence and\n")  # Output: Precedence and
-#    printf("%d\n", not True and not True)  # Output: 0
-#    printf("%d\n", not True and not False)  # Output: 0
-#    printf("%d\n", not False and not True)  # Output: 0
-#    printf("%d\n", not False and not False)  # Output: 1
-#
-#    printf("Precedence or\n")  # Output: Precedence or
-#    printf("%d\n", not True or not True)  # Output: 0
-#    printf("%d\n", not True or not False)  # Output: 1
-#    printf("%d\n", not False or not True)  # Output: 1
-#    printf("%d\n", not False or not False)  # Output: 1
+    printf("Precedence and\n")  # Output: Precedence and
+    printf("%d\n", not True and not True)  # Output: 0
+    printf("%d\n", not True and not False)  # Output: 0
+    printf("%d\n", not False and not True)  # Output: 0
+    printf("%d\n", not False and not False)  # Output: 1
+
+    printf("Precedence or\n")  # Output: Precedence or
+    printf("%d\n", not True or not True)  # Output: 0
+    printf("%d\n", not True or not False)  # Output: 1
+    printf("%d\n", not False or not True)  # Output: 1
+    printf("%d\n", not False or not False)  # Output: 1
 
     printf("Side effects and\n")  # Output: Side effects and
     # Output: aAbBcd
@@ -57,19 +57,20 @@ def main() -> int:
     result = side_effect('b', True) and side_effect('B', False)
     result = side_effect('c', False) and side_effect('C', True)
     result = side_effect('d', False) and side_effect('D', False)
-    printf("\n")
+    putchar('\n')
 
-    printf("Side effects or\n")  # Output: Side effects and
+    printf("Side effects or\n")  # Output: Side effects or
     # Output: abcCdD
     result = side_effect('a', True) or side_effect('A', True)
     result = side_effect('b', True) or side_effect('B', False)
     result = side_effect('c', False) or side_effect('C', True)
     result = side_effect('d', False) or side_effect('D', False)
-    printf("\n")
+    putchar('\n')
 
-#    printf("Side effects not\n")  # Output: Side effects not
-#    # Output: ab
-#    result = not side_effect('a', True)
-#    result = not side_effect('b', False)
+    printf("Side effects not\n")  # Output: Side effects not
+    # Output: ab
+    result = not side_effect('a', True)
+    result = not side_effect('b', False)
+    putchar('\n')
 
     return 0
