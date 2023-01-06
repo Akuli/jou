@@ -180,11 +180,8 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         print_string(expr->data.string_value);
         printf("\n");
         break;
-    case AST_EXPR_TRUE:
-        printf("True\n");
-        break;
-    case AST_EXPR_FALSE:
-        printf("False\n");
+    case AST_EXPR_BOOL_CONSTANT:
+        printf(expr->data.bool_value ? "True\n" : "False\n");
         break;
     }
 }

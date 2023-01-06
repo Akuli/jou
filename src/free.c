@@ -59,9 +59,6 @@ static void free_expression(const struct AstExpression *expr)
         free_expression(&expr->data.operands[1]);
         free(expr->data.operands);
         break;
-    case AST_EXPR_STRING_CONSTANT:
-        free(expr->data.string_value);
-        break;
     case AST_EXPR_ADDRESS_OF:
     case AST_EXPR_DEREFERENCE:
     case AST_EXPR_PRE_INCREMENT:
@@ -71,11 +68,13 @@ static void free_expression(const struct AstExpression *expr)
         free_expression(&expr->data.operands[0]);
         free(expr->data.operands);
         break;
+    case AST_EXPR_STRING_CONSTANT:
+        free(expr->data.string_value);
+        break;
     case AST_EXPR_INT_CONSTANT:
     case AST_EXPR_CHAR_CONSTANT:
+    case AST_EXPR_BOOL_CONSTANT:
     case AST_EXPR_GET_VARIABLE:
-    case AST_EXPR_TRUE:
-    case AST_EXPR_FALSE:
         break;
     }
 }

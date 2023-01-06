@@ -351,13 +351,9 @@ static const struct CfVariable *build_expression(
         result = add_variable(st, &stringType, "$strconstant");
         add_string_constant(st, expr->location, expr->data.string_value, result);
         break;
-    case AST_EXPR_TRUE:
-        result = add_variable(st, &boolType, "$true");
-        add_bool_constant(st, expr->location, true, result);
-        break;
-    case AST_EXPR_FALSE:
-        result = add_variable(st, &boolType, "$false");
-        add_bool_constant(st, expr->location, false, result);
+    case AST_EXPR_BOOL_CONSTANT:
+        result = add_variable(st, &boolType, expr->data.bool_value ? "$true" : "$false");
+        add_bool_constant(st, expr->location, expr->data.bool_value, result);
         break;
     case AST_EXPR_ASSIGN:
         {
@@ -473,8 +469,7 @@ static const struct CfVariable *build_address_of_expression(const struct State *
     case AST_EXPR_INT_CONSTANT:
     case AST_EXPR_CHAR_CONSTANT:
     case AST_EXPR_STRING_CONSTANT:
-    case AST_EXPR_TRUE:
-    case AST_EXPR_FALSE:
+    case AST_EXPR_BOOL_CONSTANT:
         cant_take_address_of = "a constant";
         break;
     case AST_EXPR_PRE_INCREMENT:

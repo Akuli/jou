@@ -102,13 +102,12 @@ struct AstExpression {
         AST_EXPR_INT_CONSTANT,
         AST_EXPR_CHAR_CONSTANT,
         AST_EXPR_STRING_CONSTANT,
+        AST_EXPR_BOOL_CONSTANT,
         AST_EXPR_CALL,
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF,
         AST_EXPR_DEREFERENCE,
         AST_EXPR_ASSIGN,
-        AST_EXPR_TRUE,
-        AST_EXPR_FALSE,
         AST_EXPR_ADD,
         AST_EXPR_SUB,
         AST_EXPR_MUL,
@@ -130,6 +129,7 @@ struct AstExpression {
         int int_value;          // AST_EXPR_INT_CONSTANT
         char char_value;        // AST_EXPR_CHAR_CONSTANT
         char *string_value;     // AST_EXPR_STRING_CONSTANT
+        bool bool_value;        // AST_EXPR_BOOL_CONSTANT
         char varname[100];      // AST_EXPR_GET_VARIABLE
         struct AstCall call;    // AST_EXPR_CALL
         /*
