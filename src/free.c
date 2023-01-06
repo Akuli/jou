@@ -1,7 +1,4 @@
-/*
-This file contains boring boilerplate code to free up data structures
-used in compilation.
-*/
+// Boring boilerplate code to free up data structures used in compilation.
 
 #include "jou_compiler.h"
 #include <assert.h>
@@ -27,6 +24,13 @@ void free_type(const struct Type *type)
     case TYPE_BOOL:
         break;
     }
+}
+
+void free_constant(const struct Constant *c)
+{
+    // the type isn't owned, it refers to an existing type
+    if (same_type(&c->type, &stringType))
+        free(c->value.str);
 }
 
 static void free_expression(const struct AstExpression *expr);
@@ -68,12 +72,9 @@ static void free_expression(const struct AstExpression *expr)
         free_expression(&expr->data.operands[0]);
         free(expr->data.operands);
         break;
-    case AST_EXPR_STRING_CONSTANT:
-        free(expr->data.string_value);
+    case AST_EXPR_CONSTANT:
+        free_constant(&expr->data.constant);
         break;
-    case AST_EXPR_INT_CONSTANT:
-    case AST_EXPR_CHAR_CONSTANT:
-    case AST_EXPR_BOOL_CONSTANT:
     case AST_EXPR_GET_VARIABLE:
         break;
     }
@@ -161,8 +162,8 @@ void free_ast(struct AstToplevelNode *topnodelist)
 void free_control_flow_graph_block(const struct CfGraph *cfg, struct CfBlock *b)
 {
     for (const struct CfInstruction *ins = b->instructions.ptr; ins < End(b->instructions); ins++) {
-        if (ins->kind == CF_STRING_CONSTANT)
-            free(ins->data.string_value);
+        if (ins->kind == CF_CONSTANT)
+            free_constant(&ins->data.constant);
         free(ins->operands);
     }
     free(b->instructions.ptr);

@@ -95,14 +95,8 @@ static void add_instruction(
     add_instruction((st), (loc), (op), NULL, (const struct CfVariable*[]){(arg),NULL}, (target))
 #define add_binary_op(st, loc, op, lhs, rhs, target) \
     add_instruction((st), (loc), (op), NULL, (const struct CfVariable*[]){(lhs),(rhs),NULL}, (target))
-
-#define add_int_constant(st, loc, num, target) \
-    add_instruction((st), (loc), CF_INT_CONSTANT, &(union CfInstructionData){ .int_value=(num) }, NULL, (target))
-#define add_bool_constant(st, loc, boolean, target) \
-    add_instruction((st), (loc), CF_BOOL_CONSTANT, &(union CfInstructionData){ .bool_value=(boolean) }, NULL, (target))
-#define add_string_constant(st, loc, str, target) \
-    add_instruction((st), (loc), CF_STRING_CONSTANT, &(union CfInstructionData){ .string_value=strdup((str)) }, NULL, (target))
-
+#define add_constant(st, loc, c, target) \
+    add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant(&(c)) }, NULL, (target))
 #define add_store(st, loc, ptr, value) \
     add_instruction((st), (loc), CF_STORE_TO_POINTER, NULL, (const struct CfVariable*[]){(ptr),(value),NULL}, NULL)
 
@@ -288,7 +282,7 @@ const struct CfVariable *build_increment_or_decrement(
     const struct CfVariable *old_value = add_variable(st, t, "$old_value");
     const struct CfVariable *new_value = add_variable(st, t, "$new_value");
     const struct CfVariable *diffvar = add_variable(st, t, "$diff");
-    add_int_constant(st, location, diff, diffvar);
+    add_constant(st, location, ((struct Constant){.type=*t, .value.integer=diff}), diffvar);
     add_unary_op(st, location, CF_LOAD_FROM_POINTER, addr, old_value);
     add_binary_op(st, location, CF_INT_ADD, old_value, diffvar, new_value);
     add_store(st, location, addr, new_value);
@@ -306,6 +300,17 @@ static void check_dereferenced_pointer_type(struct Location location, const stru
 {
     if (t->kind != TYPE_POINTER)
         fail_with_error(location, "the dereference operator '*' is only for pointers, not for %s", t->name);
+}
+
+static const char *get_debug_name_for_constant(const struct Constant *c)
+{
+    static char result[100];
+    if (same_type(&c->type, &boolType))
+        return c->value.boolean ? "$true" : "$false";
+    if (same_type(&c->type, &stringType))
+        return "$strconstant";
+    snprintf(result, sizeof result, "$%sconstant", c->type.name);
+    return result;
 }
 
 static const struct CfVariable *build_expression(
@@ -339,21 +344,9 @@ static const struct CfVariable *build_expression(
         result = add_variable(st, temp->type.data.valuetype, "$deref");
         add_unary_op(st, expr->location, CF_LOAD_FROM_POINTER, temp, result);
         break;
-    case AST_EXPR_INT_CONSTANT:
-        result = add_variable(st, &intType, "$intconstant");
-        add_int_constant(st, expr->location, expr->data.int_value, result);
-        break;
-    case AST_EXPR_CHAR_CONSTANT:
-        result = add_variable(st, &byteType, "$byteconstant");
-        add_int_constant(st, expr->location, (unsigned char)expr->data.char_value, result);
-        break;
-    case AST_EXPR_STRING_CONSTANT:
-        result = add_variable(st, &stringType, "$strconstant");
-        add_string_constant(st, expr->location, expr->data.string_value, result);
-        break;
-    case AST_EXPR_BOOL_CONSTANT:
-        result = add_variable(st, &boolType, expr->data.bool_value ? "$true" : "$false");
-        add_bool_constant(st, expr->location, expr->data.bool_value, result);
+    case AST_EXPR_CONSTANT:
+        result = add_variable(st, &expr->data.constant.type, get_debug_name_for_constant(&expr->data.constant));
+        add_constant(st, expr->location, expr->data.constant, result);
         break;
     case AST_EXPR_ASSIGN:
         {
@@ -466,10 +459,7 @@ static const struct CfVariable *build_address_of_expression(const struct State *
     The same rules apply to assignments: "foo = bar" is treated as setting the
     value of the pointer &foo to bar.
     */
-    case AST_EXPR_INT_CONSTANT:
-    case AST_EXPR_CHAR_CONSTANT:
-    case AST_EXPR_STRING_CONSTANT:
-    case AST_EXPR_BOOL_CONSTANT:
+    case AST_EXPR_CONSTANT:
         cant_take_address_of = "a constant";
         break;
     case AST_EXPR_PRE_INCREMENT:

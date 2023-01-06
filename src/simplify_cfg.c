@@ -109,8 +109,11 @@ static void update_statuses_with_instruction(const struct CfGraph *cfg, enum Var
         statuses[find_var_index(cfg, ins->operands[0])] = VS_UNPREDICTABLE;
         statuses[destidx] = VS_DEFINED;
         break;
-    case CF_BOOL_CONSTANT:
-        statuses[destidx] = ins->data.bool_value ? VS_TRUE : VS_FALSE;
+    case CF_CONSTANT:
+        if (same_type(&ins->data.constant.type, &boolType))
+            statuses[destidx] = ins->data.constant.value.boolean ? VS_TRUE : VS_FALSE;
+        else
+            statuses[destidx] = VS_DEFINED;
         break;
     default:
         statuses[destidx] = VS_DEFINED;
