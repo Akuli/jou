@@ -109,6 +109,10 @@ static void free_statement(const struct AstStatement *stmt)
         break;
     case AST_STMT_DECLARE_LOCAL_VAR:
         free_type(&stmt->data.vardecl.type);
+        if (stmt->data.vardecl.initial_value) {
+            free_expression(stmt->data.vardecl.initial_value);
+            free(stmt->data.vardecl.initial_value);
+        }
         break;
     case AST_STMT_RETURN_WITHOUT_VALUE:
     case AST_STMT_BREAK:
