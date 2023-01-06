@@ -59,10 +59,13 @@ static void free_expression(const struct AstExpression *expr)
     case AST_EXPR_GE:
     case AST_EXPR_LT:
     case AST_EXPR_LE:
+    case AST_EXPR_AND:
+    case AST_EXPR_OR:
         free_expression(&expr->data.operands[0]);
         free_expression(&expr->data.operands[1]);
         free(expr->data.operands);
         break;
+    case AST_EXPR_NOT:
     case AST_EXPR_ADDRESS_OF:
     case AST_EXPR_DEREFERENCE:
     case AST_EXPR_PRE_INCREMENT:

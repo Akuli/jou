@@ -1,0 +1,49 @@
+declare printf(format: byte*, ...) -> int
+
+def main() -> int:
+    printf("%d\n", 1+2==3 and 1+2==3)  # Output: 1
+    printf("%d\n", 1+2==3 and 1+2==4)  # Output: 0
+    printf("%d\n", 1+2==4 and 1+2==3)  # Output: 0
+    printf("%d\n", 1+2==4 and 1+2==4)  # Output: 0
+
+    printf("%d\n", 1+2==3 or 1+2==3)  # Output: 1
+    printf("%d\n", 1+2==3 or 1+2==4)  # Output: 1
+    printf("%d\n", 1+2==4 or 1+2==3)  # Output: 1
+    printf("%d\n", 1+2==4 or 1+2==4)  # Output: 0
+
+#    printf("%d\n", not 1+2==3)  # Output: 0
+#    printf("%d\n", not 1+2==4)  # Output: 1
+
+    printf("Triple and\n")  # Output: Triple and
+    printf("%d\n", True and True and True)  # Output: 1
+    printf("%d\n", True and True and False)  # Output: 0
+    printf("%d\n", True and False and True)  # Output: 0
+    printf("%d\n", True and False and False)  # Output: 0
+    printf("%d\n", False and True and True)  # Output: 0
+    printf("%d\n", False and True and False)  # Output: 0
+    printf("%d\n", False and False and True)  # Output: 0
+    printf("%d\n", False and False and False)  # Output: 0
+
+    printf("Triple or\n")  # Output: Triple or
+    printf("%d\n", True or True or True)  # Output: 1
+    printf("%d\n", True or True or False)  # Output: 1
+    printf("%d\n", True or False or True)  # Output: 1
+    printf("%d\n", True or False or False)  # Output: 1
+    printf("%d\n", False or True or True)  # Output: 1
+    printf("%d\n", False or True or False)  # Output: 1
+    printf("%d\n", False or False or True)  # Output: 1
+    printf("%d\n", False or False or False)  # Output: 0
+
+#    printf("Precedence and\n")  # Output: Precedence and
+#    printf("%d\n", not True and not True)  # Output: 0
+#    printf("%d\n", not True and not False)  # Output: 0
+#    printf("%d\n", not False and not True)  # Output: 0
+#    printf("%d\n", not False and not False)  # Output: 1
+#
+#    printf("Precedence or\n")  # Output: Precedence or
+#    printf("%d\n", not True or not True)  # Output: 0
+#    printf("%d\n", not True or not False)  # Output: 1
+#    printf("%d\n", not False or not True)  # Output: 1
+#    printf("%d\n", not False or not False)  # Output: 1
+
+    return 0

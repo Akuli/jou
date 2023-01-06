@@ -167,6 +167,20 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
         print_ast_expression(&expr->data.operands[0], indent+2);
         print_ast_expression(&expr->data.operands[1], indent+2);
         break;
+    case AST_EXPR_AND:
+        printf("Boolean and.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
+        break;
+    case AST_EXPR_OR:
+        printf("Boolean or.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
+        break;
+    case AST_EXPR_NOT:
+        printf("Boolean not.\n");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        break;
     case AST_EXPR_PRE_INCREMENT: printf("Pre-increment.\n"); print_ast_expression(&expr->data.operands[0], indent+2); break;
     case AST_EXPR_PRE_DECREMENT: printf("Pre-decrement.\n"); print_ast_expression(&expr->data.operands[0], indent+2); break;
     case AST_EXPR_POST_INCREMENT: printf("Post-increment.\n"); print_ast_expression(&expr->data.operands[0], indent+2); break;

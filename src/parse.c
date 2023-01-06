@@ -225,6 +225,15 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
     } else if (is_operator(t, "/")) {
         assert(arity == 2);
         result.kind = AST_EXPR_DIV;
+    } else if (is_keyword(t, "and")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_AND;
+    } else if (is_keyword(t, "or")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_OR;
+    } else if (is_keyword(t, "not")) {
+        assert(arity == 1);
+        result.kind = AST_EXPR_NOT;
     } else {
         assert(0);
     }
@@ -382,10 +391,28 @@ static struct AstExpression parse_expression_with_comparisons(const struct Token
     return result;
 }
 
+static struct AstExpression parse_expression_with_and_or(const struct Token **tokens)
+{
+    bool got_and = false, got_or = false;
+    struct Location last_op_location;
+
+    struct AstExpression result = parse_expression_with_comparisons(tokens);
+    while (is_keyword(*tokens, "and") || is_keyword(*tokens, "or")) {
+        last_op_location = (*tokens)->location;
+        got_and = got_and || is_keyword(*tokens, "and");
+        got_or = got_or || is_keyword(*tokens, "or");
+        add_to_binop(tokens, &result, parse_expression_with_comparisons);
+    }
+
+    if (got_and && got_or)
+        fail_with_error(last_op_location, "'and' cannot be chained with 'or', you need more parentheses");
+    return result;
+}
+
 static struct AstExpression parse_expression_with_assignments(const struct Token **tokens)
 {
     // We can't use add_to_binop() because then x=y=z would parse as (x=y)=z, not x=(y=z).
-    struct AstExpression target = parse_expression_with_comparisons(tokens);
+    struct AstExpression target = parse_expression_with_and_or(tokens);
     if (!is_operator(*tokens, "="))
         return target;
     const struct Token *t = (*tokens)++;
@@ -408,28 +435,15 @@ static void eat_newline(const struct Token **tokens)
 static void validate_expression_statement(const struct AstExpression *expr)
 {
     switch(expr->kind) {
-    case AST_EXPR_ADD:
-    case AST_EXPR_SUB:
-    case AST_EXPR_MUL:
-    case AST_EXPR_DIV:
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
-    case AST_EXPR_GET_VARIABLE:
-    case AST_EXPR_ADDRESS_OF:
-    case AST_EXPR_DEREFERENCE:
-    case AST_EXPR_CONSTANT:
-        fail_with_error(expr->location, "not a valid statement");
-        break;
     case AST_EXPR_ASSIGN:
     case AST_EXPR_CALL:
     case AST_EXPR_PRE_INCREMENT:
     case AST_EXPR_PRE_DECREMENT:
     case AST_EXPR_POST_INCREMENT:
     case AST_EXPR_POST_DECREMENT:
+        break;
+    default:
+        fail_with_error(expr->location, "not a valid statement");
         break;
     }
 }
