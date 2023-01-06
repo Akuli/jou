@@ -110,7 +110,11 @@ The template can contain "FROM" and "TO". They will be substituted with names
 of types. We cannot use printf() style functions because the arguments can be in
 any order.
 */
-noreturn void fail_with_implicit_cast_error(struct Location location, const char *template, const struct Type *from, const struct Type *to)
+static noreturn void fail_with_implicit_cast_error(
+    struct Location location,
+    const char *template,
+    const struct Type *from,
+    const struct Type *to)
 {
     List(char) msg = {0};
     while(*template){
@@ -262,7 +266,7 @@ static const struct CfVariable *build_address_of_expression(const struct State *
 
 enum PreOrPost { PRE, POST };
 
-const struct CfVariable *build_increment_or_decrement(
+static const struct CfVariable *build_increment_or_decrement(
     const struct State *st,
     struct Location location,
     const struct AstExpression *inner,
