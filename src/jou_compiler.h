@@ -181,7 +181,11 @@ struct AstStatement {
         } ifstatement;
         struct AstConditionAndBody whileloop;
         struct AstForLoop forloop;
-        struct { char name[100]; struct Type type; } vardecl;
+        struct {
+            char name[100];
+            struct Type type;
+            struct AstExpression *initial_value; // can be NULL
+        } vardecl;
     } data;
 };
 

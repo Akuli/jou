@@ -512,6 +512,14 @@ static struct AstStatement parse_statement(const struct Token **tokens)
         safe_strcpy(result.data.vardecl.name, (*tokens)->data.name);
         *tokens += 2;
         result.data.vardecl.type = parse_type(tokens);
+        if (is_operator(*tokens, "=")) {
+            ++*tokens;
+            struct AstExpression *p = malloc(sizeof *p);
+            *p = parse_expression(tokens);
+            result.data.vardecl.initial_value = p;
+        } else {
+            result.data.vardecl.initial_value = NULL;
+        }
         eat_newline(tokens);
     } else {
         result.kind = AST_STMT_EXPRESSION_STATEMENT;
