@@ -358,6 +358,9 @@ static void show_unreachable_warnings(struct CfBlock **unreachable_blocks, int n
     // Can't show a warning for each block, that would be too noisy.
     struct CfBlock ***groups = group_blocks(unreachable_blocks, n_unreachable_blocks);
 
+    // Prevent showing two errors on the same line, even if from different groups
+    int prev_lineno = -1;
+
     for (int groupidx = 0; groups[groupidx]; groupidx++) {
         struct Location first_location = { .lineno = INT_MAX };
         for (int blockidx = 0; groups[groupidx][blockidx]; blockidx++) {
@@ -367,8 +370,10 @@ static void show_unreachable_warnings(struct CfBlock **unreachable_blocks, int n
                     first_location = ins->location;
         }
 
-        if (first_location.lineno != INT_MAX)
+        if (first_location.lineno != INT_MAX && first_location.lineno != prev_lineno) {
             show_warning(first_location, "this code will never run");
+            prev_lineno = first_location.lineno;
+        }
     }
 
     for (int i = 0; groups[i]; i++)
