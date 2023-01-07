@@ -97,7 +97,7 @@ struct Constant {
         long long integer;  // is_integer_type(&constant.type)
     } value;
 };
-#define copy_constant(c) ( same_type(&(c)->type, &stringType) ? (struct Constant){ stringType, {.str=strdup((c)->value.str)} } : *c )
+#define copy_constant(c) ( same_type(&(c)->type, &stringType) ? (struct Constant){ stringType, {.str=strdup((c)->value.str)} } : *(c) )
 
 
 struct AstCall {
