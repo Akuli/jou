@@ -27,6 +27,14 @@ def main() -> int:
 
     # Anything with "False and ..." contains code that never runs: the "..." part
     # is not evaluated at all because the result will be False anyway.
+    #
+    # Technically "True and ..." also contains code that never runs: the left side
+    # of "and" is never False, but the compiler still generates code to handle that
+    # case (the generated code sets the result of the "and" operation to False).
+    # Showing a warning about the generated code would probably be more
+    # confusing than helpful, so the compiler hides it.
+    #
+    # Similar things apply to "or".
 
     # Output: Triple and 10000000
     printf("Triple and ")
