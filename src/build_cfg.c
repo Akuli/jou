@@ -67,7 +67,8 @@ static void add_jump(struct State *st, const struct CfVariable *branchvar, struc
     st->current_block = new_current_block ? new_current_block : add_block(st);
 }
 
-static void add_instruction(
+// returned pointer is only valid until next call to add_instruction()
+static struct CfInstruction *add_instruction(
     const struct State *st,
     struct Location location,
     enum CfInstructionKind k,
@@ -88,6 +89,7 @@ static void add_instruction(
     }
 
     Append(&st->current_block->instructions, ins);
+    return &st->current_block->instructions.ptr[st->current_block->instructions.len - 1];
 }
 
 // add_instruction() takes many arguments. Let's hide the mess a bit.
@@ -475,6 +477,7 @@ static const struct CfVariable *build_and_or(
     const struct CfVariable *lhs = build_expression(st, lhsexpr, &boolType, errormsg, true);
     const struct CfVariable *rhs;
     const struct CfVariable *result = add_variable(st, &boolType, andor==AND ? "$and" : "$or");
+    struct CfInstruction *ins;
 
     struct CfBlock *lhstrue = add_block(st);
     struct CfBlock *lhsfalse = add_block(st);
@@ -491,7 +494,8 @@ static const struct CfVariable *build_and_or(
         break;
     case OR:
         // result = True
-        add_constant(st, lhsexpr->location, ((struct Constant){.type=boolType,.value.boolean=true}), result);
+        ins = add_constant(st, lhsexpr->location, ((struct Constant){.type=boolType,.value.boolean=true}), result);
+        ins->hide_unreachable_warning = true;
         break;
     }
 
@@ -501,7 +505,8 @@ static const struct CfVariable *build_and_or(
     switch(andor) {
     case AND:
         // result = False
-        add_constant(st, lhsexpr->location, ((struct Constant){.type=boolType,.value.boolean=false}), result);
+        ins = add_constant(st, lhsexpr->location, ((struct Constant){.type=boolType,.value.boolean=false}), result);
+        ins->hide_unreachable_warning = true;
         break;
     case OR:
         // result = rhs

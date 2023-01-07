@@ -252,6 +252,7 @@ struct CfInstruction {
     const struct CfVariable **operands;  // e.g. numbers to add, function arguments
     int noperands;
     const struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
+    bool hide_unreachable_warning; // usually false, can be set to true to avoid unreachable warning false positives
 };
 
 struct CfBlock {

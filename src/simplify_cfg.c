@@ -360,13 +360,13 @@ static void show_unreachable_warnings(struct CfBlock **unreachable_blocks, int n
 
     for (int groupidx = 0; groups[groupidx]; groupidx++) {
         struct Location first_location = { .lineno = INT_MAX };
-        for (int i = 0; groups[groupidx][i]; i++) {
-            if (groups[groupidx][i]->instructions.len != 0) {
-                struct Location loc = groups[groupidx][i]->instructions.ptr[0].location;
-                if (loc.lineno < first_location.lineno)
-                    first_location = loc;
-            }
+        for (int blockidx = 0; groups[groupidx][blockidx]; blockidx++) {
+            struct CfBlock *block = groups[groupidx][blockidx];
+            for (const struct CfInstruction *ins = block->instructions.ptr; ins < End(block->instructions); ins++)
+                if (!ins->hide_unreachable_warning && ins->location.lineno < first_location.lineno)
+                    first_location = ins->location;
         }
+
         if (first_location.lineno != INT_MAX)
             show_warning(first_location, "this code will never run");
     }
