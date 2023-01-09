@@ -9,7 +9,6 @@
 #
 
 set -e -o pipefail
-ulimit -c 0
 
 skip_expected_fails=no
 while [[ "$1" =~ ^- ]] || [ $# != 1 ]; do
