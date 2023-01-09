@@ -152,7 +152,7 @@ static const CfVariable *build_implicit_cast(
         && to->kind == TYPE_SIGNED_INTEGER
         && from->data.width_in_bits < to->data.width_in_bits)
     {
-        add_unary_op(st, location, CF_CAST_TO_BIGGER_SIGNED_INT, obj, result);
+        add_unary_op(st, location, CF_INT_SCAST_TO_BIGGER, obj, result);
         return result;
     }
 
@@ -161,7 +161,7 @@ static const CfVariable *build_implicit_cast(
         && to->kind == TYPE_UNSIGNED_INTEGER
         && from->data.width_in_bits < to->data.width_in_bits)
     {
-        add_unary_op(st, location, CF_CAST_TO_BIGGER_UNSIGNED_INT, obj, result);
+        add_unary_op(st, location, CF_INT_UCAST_TO_BIGGER, obj, result);
         return result;
     }
 
@@ -311,9 +311,9 @@ static const CfVariable *build_increment_or_decrement(
     const CfVariable *new_value = add_variable(st, t, "$new_value");
     const CfVariable *diffvar = add_variable(st, t, "$diff");
     add_constant(st, location, ((Constant){.type=*t, .value.integer=diff}), diffvar);
-    add_unary_op(st, location, CF_LOAD_FROM_POINTER, addr, old_value);
+    add_unary_op(st, location, CF_PTR_LOAD, addr, old_value);
     add_binary_op(st, location, CF_INT_ADD, old_value, diffvar, new_value);
-    add_binary_op(st, location, CF_STORE_TO_POINTER, addr, new_value, NULL);
+    add_binary_op(st, location, CF_PTR_STORE, addr, new_value, NULL);
 
     switch(pop) {
         case PRE: return new_value;
@@ -376,7 +376,7 @@ static const CfVariable *build_expression(
         temp = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
         check_dereferenced_pointer_type(expr->location, &temp->type);
         result = add_variable(st, temp->type.data.valuetype, "$deref");
-        add_unary_op(st, expr->location, CF_LOAD_FROM_POINTER, temp, result);
+        add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_CONSTANT:
         result = add_variable(st, &expr->data.constant.type, get_debug_name_for_constant(&expr->data.constant));
@@ -414,7 +414,7 @@ static const CfVariable *build_expression(
                 result = build_expression(st, valueexpr, NULL, NULL, true);
                 const CfVariable *casted_result = build_implicit_cast(
                     st, result, target->type.data.valuetype, expr->location, errmsg);
-                add_binary_op(st, expr->location, CF_STORE_TO_POINTER, target, casted_result, NULL);
+                add_binary_op(st, expr->location, CF_PTR_STORE, target, casted_result, NULL);
             }
             break;
         }

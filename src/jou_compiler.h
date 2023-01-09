@@ -269,8 +269,8 @@ struct CfInstruction {
         CF_CONSTANT,
         CF_CALL,
         CF_ADDRESS_OF_VARIABLE,
-        CF_STORE_TO_POINTER,  // *foo = bar (does not use destvar, see below)
-        CF_LOAD_FROM_POINTER,  // aka dereference
+        CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
+        CF_PTR_LOAD,  // aka dereference
         CF_PTR_EQ,
         CF_INT_ADD,
         CF_INT_SUB,
@@ -279,10 +279,10 @@ struct CfInstruction {
         CF_INT_UDIV, // unsigned division: 255 / 2 = 127
         CF_INT_EQ,
         CF_INT_LT,
+        CF_INT_SCAST_TO_BIGGER,  // cast to bigger signed int, e.g. 8->16: 0xFF = -1 --> 0xFFFF
+        CF_INT_UCAST_TO_BIGGER,  // cast to bigger unsigned int, e.g. 8->16: 0xFF = 255 --> 0x00FF
         CF_BOOL_NEGATE,  // TODO: get rid of this?
         CF_VARCPY, // similar to assignment statements: var1 = var2
-        CF_CAST_TO_BIGGER_SIGNED_INT,
-        CF_CAST_TO_BIGGER_UNSIGNED_INT,
         CF_CAST_POINTER,
     } kind;
     union CfInstructionData {

@@ -333,11 +333,11 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         }
         printf(")");
         break;
-    case CF_CAST_TO_BIGGER_SIGNED_INT:
+    case CF_INT_SCAST_TO_BIGGER:
         printf("cast %s to %d-bit signed int",
             ins->operands[0]->name, ins->destvar->type.data.width_in_bits);
         break;
-    case CF_CAST_TO_BIGGER_UNSIGNED_INT:
+    case CF_INT_UCAST_TO_BIGGER:
         printf("cast %s to %d-bit unsigned int",
             ins->operands[0]->name, ins->destvar->type.data.width_in_bits);
         break;
@@ -369,11 +369,11 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         }
         printf("%s, %s", ins->operands[0]->name, ins->operands[1]->name);
         break;
-    case CF_LOAD_FROM_POINTER:
+    case CF_PTR_LOAD:
         // Extra parentheses to make these stand out a bit.
         printf("*(%s)", ins->operands[0]->name);
         break;
-    case CF_STORE_TO_POINTER:
+    case CF_PTR_STORE:
         printf("*(%s) = %s", ins->operands[0]->name, ins->operands[1]->name);
         break;
     case CF_VARCPY:
