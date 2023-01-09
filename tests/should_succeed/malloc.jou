@@ -1,0 +1,11 @@
+declare printf(fmt: byte*, ...) -> int
+declare malloc(size: int) -> void*  # TODO: not really an int...
+declare free(ptr: void*) -> void
+
+def main() -> int:
+    # TODO: no sizeof() yet, must hard code sizeof(int) == 4
+    foo: int* = malloc(4)
+    *foo = 123
+    printf("%d\n", *foo)
+    free(foo)
+    return 0

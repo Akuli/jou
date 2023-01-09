@@ -13,6 +13,9 @@ static LLVMTypeRef codegen_type(const struct Type *type)
     switch(type->kind) {
     case TYPE_POINTER:
         return LLVMPointerType(codegen_type(type->data.valuetype), 0);
+    case TYPE_VOID_POINTER:
+        // just use i8* as here https://stackoverflow.com/q/36724399
+        return LLVMPointerType(LLVMInt8Type(), 0);
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
         return LLVMIntType(type->data.width_in_bits);
@@ -134,6 +137,8 @@ static LLVMValueRef codegen_constant(const struct State *st, const struct Consta
         case TYPE_POINTER:
             assert(same_type(&c->type, &stringType));
             return make_a_string_constant(st, c->value.str);
+        case TYPE_VOID_POINTER:
+            assert(0);
     }
     assert(0);
 }   
@@ -167,6 +172,7 @@ static void codegen_instruction(const struct State *st, const struct CfInstructi
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), name)); break;
         case CF_CAST_TO_BIGGER_SIGNED_INT: setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
         case CF_CAST_TO_BIGGER_UNSIGNED_INT: setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
+        case CF_CAST_POINTER: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
         case CF_INT_ADD: setdest(LLVMBuildAdd(st->builder, getop(0), getop(1), name)); break;
         case CF_INT_SUB: setdest(LLVMBuildSub(st->builder, getop(0), getop(1), name)); break;
         case CF_INT_MUL: setdest(LLVMBuildMul(st->builder, getop(0), getop(1), name)); break;

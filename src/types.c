@@ -8,6 +8,7 @@ const struct Type boolType = { .name = "bool", .kind = TYPE_BOOL };
 const struct Type intType = { .name = "int", .kind = TYPE_SIGNED_INTEGER, .data.width_in_bits = 32 };
 const struct Type byteType = { .name = "byte", .kind = TYPE_UNSIGNED_INTEGER, .data.width_in_bits = 8 };
 const struct Type stringType = { .name = "byte*", .kind = TYPE_POINTER, .data.valuetype = (struct Type *)&byteType };
+const struct Type voidPtrType = { .name = "void*", .kind = TYPE_VOID_POINTER };
 
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location)
 {
@@ -36,16 +37,22 @@ struct Type create_integer_type(int size_in_bits, bool is_signed)
 
 struct Type copy_type(const struct Type *t)
 {
+    assert(t);
+
     switch(t->kind) {
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
     case TYPE_BOOL:
+    case TYPE_VOID_POINTER:
         return *t;
     case TYPE_POINTER:
         {
             struct Type t2 = *t;
-            t2.data.valuetype = malloc(sizeof(*t2.data.valuetype));
-            *t2.data.valuetype = copy_type(t->data.valuetype);
+            if (t->data.valuetype) {
+                // not a void pointer
+                t2.data.valuetype = malloc(sizeof(*t2.data.valuetype));
+                *t2.data.valuetype = copy_type(t->data.valuetype);
+            }
             return t2;
         }
     }
@@ -59,14 +66,21 @@ bool is_integer_type(const struct Type *t)
 
 bool same_type(const struct Type *a, const struct Type *b)
 {
+    assert(a);
+    assert(b);
+
     if (a->kind != b->kind)
         return false;
 
     switch(a->kind) {
     case TYPE_BOOL:
+    case TYPE_VOID_POINTER:
         return true;
     case TYPE_POINTER:
-        return same_type(a->data.valuetype, b->data.valuetype);
+    {
+        struct Type *t1 = a->data.valuetype, *t2 = b->data.valuetype;
+        return (!t1 && !t2) || (t1 && t2 && same_type(t1, t2));
+    }
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
         return a->data.width_in_bits == b->data.width_in_bits;

@@ -148,7 +148,12 @@ static int read_int(struct State *st, char firstbyte)
 
 static bool is_keyword(const char *s)
 {
-    const char *keywords[] = { "def", "declare", "return", "void", "if", "elif", "else", "True", "False", "while", "for", "break", "continue", "and", "or", "not" };
+    const char *keywords[] = {
+        "def", "declare",
+        "return", "if", "elif", "else", "while", "for", "break", "continue",
+        "True", "False", "and", "or", "not",
+        "void", "bool", "byte", "int",
+    };
     for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
         if (!strcmp(*kw, s))
             return true;

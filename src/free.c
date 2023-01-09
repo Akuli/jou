@@ -22,6 +22,7 @@ void free_type(const struct Type *type)
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
     case TYPE_BOOL:
+    case TYPE_VOID_POINTER:
         break;
     }
 }
