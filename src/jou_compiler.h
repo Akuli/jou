@@ -97,7 +97,7 @@ struct Constant {
         long long integer;  // is_integer_type(&constant.type)
     } value;
 };
-#define copy_constant(c) ( same_type(&(c)->type, &stringType) ? (struct Constant){ stringType, {.str=strdup((c)->value.str)} } : *c )
+#define copy_constant(c) ( same_type(&(c)->type, &stringType) ? (struct Constant){ stringType, {.str=strdup((c)->value.str)} } : *(c) )
 
 
 struct AstCall {
@@ -116,6 +116,9 @@ struct AstExpression {
         AST_EXPR_ADDRESS_OF,
         AST_EXPR_DEREFERENCE,
         AST_EXPR_ASSIGN,
+        AST_EXPR_AND,
+        AST_EXPR_OR,
+        AST_EXPR_NOT,
         AST_EXPR_ADD,
         AST_EXPR_SUB,
         AST_EXPR_MUL,
@@ -249,6 +252,7 @@ struct CfInstruction {
     const struct CfVariable **operands;  // e.g. numbers to add, function arguments
     int noperands;
     const struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
+    bool hide_unreachable_warning; // usually false, can be set to true to avoid unreachable warning false positives
 };
 
 struct CfBlock {

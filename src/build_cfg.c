@@ -67,7 +67,8 @@ static void add_jump(struct State *st, const struct CfVariable *branchvar, struc
     st->current_block = new_current_block ? new_current_block : add_block(st);
 }
 
-static void add_instruction(
+// returned pointer is only valid until next call to add_instruction()
+static struct CfInstruction *add_instruction(
     const struct State *st,
     struct Location location,
     enum CfInstructionKind k,
@@ -88,6 +89,7 @@ static void add_instruction(
     }
 
     Append(&st->current_block->instructions, ins);
+    return &st->current_block->instructions.ptr[st->current_block->instructions.len - 1];
 }
 
 // add_instruction() takes many arguments. Let's hide the mess a bit.
@@ -262,12 +264,12 @@ static const struct CfVariable *build_binop(
     return negated;
 }
 
-static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what, bool is_assignment);
+static const struct CfVariable *build_address_of_expression(struct State *st, const struct AstExpression *address_of_what, bool is_assignment);
 
 enum PreOrPost { PRE, POST };
 
 static const struct CfVariable *build_increment_or_decrement(
-    const struct State *st,
+    struct State *st,
     struct Location location,
     const struct AstExpression *inner,
     enum PreOrPost pop,
@@ -296,8 +298,6 @@ static const struct CfVariable *build_increment_or_decrement(
     assert(0);
 }
 
-static const struct CfVariable *build_call(const struct State *st, const struct AstCall *call, struct Location location);
-
 static void check_dereferenced_pointer_type(struct Location location, const struct Type *t)
 {
     if (t->kind != TYPE_POINTER)
@@ -315,8 +315,13 @@ static const char *get_debug_name_for_constant(const struct Constant *c)
     return result;
 }
 
+enum AndOr { AND, OR };
+
+static const struct CfVariable *build_call(struct State *st, const struct AstCall *call, struct Location location);
+static const struct CfVariable *build_and_or(struct State *st, const struct AstExpression *lhsexpr, const struct AstExpression *rhsexpr, enum AndOr andor);
+
 static const struct CfVariable *build_expression(
-    const struct State *st,
+    struct State *st,
     const struct AstExpression *expr,
     const struct Type *implicit_cast_to,  // can be NULL, there will be no implicit casting
     const char *casterrormsg,
@@ -386,6 +391,17 @@ static const struct CfVariable *build_expression(
             }
             break;
         }
+    case AST_EXPR_AND:
+        result = build_and_or(st, &expr->data.operands[0], &expr->data.operands[1], AND);
+        break;
+    case AST_EXPR_OR:
+        result = build_and_or(st, &expr->data.operands[0], &expr->data.operands[1], OR);
+        break;
+    case AST_EXPR_NOT:
+        temp = build_expression(st, &expr->data.operands[0], &boolType, "value after 'not' must be a boolean, not FROM", true);
+        result = add_variable(st, &boolType, "$not");
+        add_unary_op(st, expr->location, CF_BOOL_NEGATE, temp, result);
+        break;
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
@@ -432,7 +448,78 @@ static const struct CfVariable *build_expression(
     return build_implicit_cast(st, result, implicit_cast_to, expr->location, casterrormsg);
 }
 
-static const struct CfVariable *build_address_of_expression(const struct State *st, const struct AstExpression *address_of_what, bool is_assignment)
+static const struct CfVariable *build_and_or(
+    struct State *st,
+    const struct AstExpression *lhsexpr,
+    const struct AstExpression *rhsexpr,
+    enum AndOr andor)
+{
+    /*
+    Must be careful with side effects.
+
+    and:
+        # lhs returning False means we don't evaluate rhs
+        if lhs:
+            result = rhs
+        else:
+            result = False
+
+    or:
+        # lhs returning True means we don't evaluate rhs
+        if lhs:
+            result = True
+        else:
+            result = rhs
+    */
+    char errormsg[100];
+    sprintf(errormsg, "'%s' only works with booleans, not FROM", andor==AND ? "and" : "or");
+
+    const struct CfVariable *lhs = build_expression(st, lhsexpr, &boolType, errormsg, true);
+    const struct CfVariable *rhs;
+    const struct CfVariable *result = add_variable(st, &boolType, andor==AND ? "$and" : "$or");
+    struct CfInstruction *ins;
+
+    struct CfBlock *lhstrue = add_block(st);
+    struct CfBlock *lhsfalse = add_block(st);
+    struct CfBlock *done = add_block(st);
+
+    // if lhs:
+    add_jump(st, lhs, lhstrue, lhsfalse, lhstrue);
+
+    switch(andor) {
+    case AND:
+        // result = rhs
+        rhs = build_expression(st, rhsexpr, &boolType, errormsg, true);
+        add_unary_op(st, rhsexpr->location, CF_VARCPY, rhs, result);
+        break;
+    case OR:
+        // result = True
+        ins = add_constant(st, lhsexpr->location, ((struct Constant){.type=boolType,.value.boolean=true}), result);
+        ins->hide_unreachable_warning = true;
+        break;
+    }
+
+    // else:
+    add_jump(st, NULL, done, done, lhsfalse);
+
+    switch(andor) {
+    case AND:
+        // result = False
+        ins = add_constant(st, lhsexpr->location, ((struct Constant){.type=boolType,.value.boolean=false}), result);
+        ins->hide_unreachable_warning = true;
+        break;
+    case OR:
+        // result = rhs
+        rhs = build_expression(st, rhsexpr, &boolType, errormsg, true);
+        add_unary_op(st, rhsexpr->location, CF_VARCPY, rhs, result);
+        break;
+    }
+
+    add_jump(st, NULL, done, done, done);
+    return result;
+}
+
+static const struct CfVariable *build_address_of_expression(struct State *st, const struct AstExpression *address_of_what, bool is_assignment)
 {
     const char *cant_take_address_of;
 
@@ -475,18 +562,7 @@ static const struct CfVariable *build_address_of_expression(const struct State *
     case AST_EXPR_ASSIGN:
         cant_take_address_of = "an assignment";
         break;
-    case AST_EXPR_ADDRESS_OF:
-    case AST_EXPR_CALL:
-    case AST_EXPR_ADD:
-    case AST_EXPR_SUB:
-    case AST_EXPR_MUL:
-    case AST_EXPR_DIV:
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
+    default:
         cant_take_address_of = "a newly calculated value";
         break;
     }
@@ -511,7 +587,7 @@ static const char *nth(int n)
 }
 
 // returns NULL if the function doesn't return anything
-static const struct CfVariable *build_call(const struct State *st, const struct AstCall *call, struct Location location)
+static const struct CfVariable *build_call(struct State *st, const struct AstCall *call, struct Location location)
 {
     const struct Signature *sig = find_function(st, call->funcname);
     if (!sig)
