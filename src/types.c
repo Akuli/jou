@@ -8,6 +8,7 @@ const struct Type boolType = { .name = "bool", .kind = TYPE_BOOL };
 const struct Type intType = { .name = "int", .kind = TYPE_SIGNED_INTEGER, .data.width_in_bits = 32 };
 const struct Type byteType = { .name = "byte", .kind = TYPE_UNSIGNED_INTEGER, .data.width_in_bits = 8 };
 const struct Type stringType = { .name = "byte*", .kind = TYPE_POINTER, .data.valuetype = (struct Type *)&byteType };
+const struct Type voidPtrType = { .name = "void*", .kind = TYPE_VOID_POINTER };
 
 struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location)
 {
@@ -40,6 +41,7 @@ struct Type copy_type(const struct Type *t)
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
     case TYPE_BOOL:
+    case TYPE_VOID_POINTER:
         return *t;
     case TYPE_POINTER:
         {
@@ -64,6 +66,7 @@ bool same_type(const struct Type *a, const struct Type *b)
 
     switch(a->kind) {
     case TYPE_BOOL:
+    case TYPE_VOID_POINTER:
         return true;
     case TYPE_POINTER:
         return same_type(a->data.valuetype, b->data.valuetype);

@@ -52,6 +52,7 @@ struct Type {
         TYPE_UNSIGNED_INTEGER,
         TYPE_BOOL,
         TYPE_POINTER,
+        TYPE_VOID_POINTER,
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER
@@ -66,6 +67,7 @@ extern const struct Type boolType;      // bool
 extern const struct Type intType;       // int (32-bit signed)
 extern const struct Type byteType;      // byte (8-bit unsigned)
 extern const struct Type stringType;    // byte*
+extern const struct Type voidPtrType;   // void*
 
 
 // create_pointer_type(...) returns a type whose .data.valuetype must be free()d
@@ -244,6 +246,7 @@ struct CfInstruction {
         CF_VARCPY, // similar to assignment statements: var1 = var2
         CF_CAST_TO_BIGGER_SIGNED_INT,
         CF_CAST_TO_BIGGER_UNSIGNED_INT,
+        CF_CAST_POINTER,
     } kind;
     union CfInstructionData {
         struct Constant constant;  // CF_CONSTANT

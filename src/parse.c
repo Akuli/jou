@@ -35,29 +35,47 @@ static bool is_operator(const struct Token *t, const char *op)
     return t->type == TOKEN_OPERATOR && !strcmp(t->data.operator, op);
 }
 
-static struct Type parse_type(const struct Token **tokens)
+static struct Type *parse_type_or_void(const struct Token **tokens)
 {
-    if ((*tokens)->type != TOKEN_NAME)
-        fail_with_parse_error(*tokens, "a type");
+    struct Type *result;
 
-    struct Type result;
-    // TODO: these should probalby become keywords so u cant use them in varnames
-    if (!strcmp((*tokens)->data.name, "int"))
-        result = intType;
-    else if (!strcmp((*tokens)->data.name, "byte"))
-        result = byteType;
-    else if (!strcmp((*tokens)->data.name, "bool"))
-        result = boolType;
-    else
-        fail_with_error((*tokens)->location, "type '%s' not found", (*tokens)->data.name);
+    if (is_keyword(*tokens, "void"))
+        result = NULL;
+    else {
+        result = malloc(sizeof *result);
+        if (is_keyword(*tokens, "int"))
+            *result = intType;
+        else if (is_keyword(*tokens, "byte"))
+            *result = byteType;
+        else if (is_keyword(*tokens, "bool"))
+            *result = boolType;
+        else
+            fail_with_parse_error(*tokens, "a type");
+    }
     ++*tokens;
 
-    while (is_operator(*tokens, "*")) {
-        result = create_pointer_type(&result, (*tokens)->location);
+    while(is_operator(*tokens, "*")) {
+        if (!result) {
+            result = malloc(sizeof *result);
+            *result = voidPtrType;
+        } else {
+            *result = create_pointer_type(result, (*tokens)->location);
+        }
         ++*tokens;
     }
 
     return result;
+}
+
+static struct Type parse_type(const struct Token **tokens)
+{
+    struct Location startlocation = (**tokens).location;
+    struct Type *tmp = parse_type_or_void(tokens);
+    if (!tmp)
+        fail_with_error(startlocation, "'void' cannot be used here because it is not a type");
+    struct Type t = *tmp;
+    free(tmp);
+    return t;
 }
 
 static struct Signature parse_function_signature(const struct Token **tokens)
@@ -134,14 +152,7 @@ static struct Signature parse_function_signature(const struct Token **tokens)
     }
     ++*tokens;
 
-    if (is_keyword(*tokens, "void")) {
-        result.returntype = NULL;
-        ++*tokens;
-    } else {
-        result.returntype = malloc(sizeof(*result.returntype));
-        *result.returntype = parse_type(tokens);
-    }
-
+    result.returntype = parse_type_or_void(tokens);
     return result;
 }
 

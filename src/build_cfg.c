@@ -168,6 +168,14 @@ static const struct CfVariable *build_implicit_cast(
         return result;
     }
 
+    // Implicitly cast between void* and non-void pointer
+    if ((from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
+        || (from->kind == TYPE_VOID_POINTER && to->kind == TYPE_POINTER))
+    {
+        add_unary_op(st, location, CF_CAST_POINTER, obj, result);
+        return result;
+    }
+
     fail_with_implicit_cast_error(location, err_template, from, to);
 }
 
@@ -300,6 +308,7 @@ static const struct CfVariable *build_increment_or_decrement(
 
 static void check_dereferenced_pointer_type(struct Location location, const struct Type *t)
 {
+    // TODO: improved error message for dereferencing void*
     if (t->kind != TYPE_POINTER)
         fail_with_error(location, "the dereference operator '*' is only for pointers, not for %s", t->name);
 }
