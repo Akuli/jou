@@ -100,7 +100,8 @@ extern const Type voidPtrType;   // void*
 Type create_pointer_type(const Type *elem_type, Location error_location);
 Type create_integer_type(int size_in_bits, bool is_signed);
 Type copy_type(const Type *t);
-bool is_integer_type(const Type *t);
+bool is_integer_type(const Type *t);  // includes signed and unsigned
+bool is_pointer_type(const Type *t);  // includes void pointers
 bool same_type(const Type *a, const Type *b);
 
 struct Signature {
@@ -115,13 +116,21 @@ struct Signature {
 char *signature_to_string(const Signature *sig, bool include_return_type);
 Signature copy_signature(const Signature *sig);
 
-// Constants can appear in AST and in control flow graphs.
+/*
+Constants can appear in AST and in control flow graphs.
+All possible constants:
+
+    is_integer_type(&constant.type)         value.integer used
+    same_type(&constant.type, &boolType)    value.boolean used
+    same_type(&constant.type, &strType)     value.str used
+    same_type(&constant.type, voidPtrType)  this is a NULL pointer, value unused
+*/
 struct Constant {
     Type type;
     union {
-        bool boolean;       // same_type(&constant.type, &boolType)
-        char *str;          // same_type(&constant.type, &strType)
-        long long integer;  // is_integer_type(&constant.type)
+        long long integer;
+        bool boolean;
+        char *str;
     } value;
 };
 #define copy_constant(c) ( same_type(&(c)->type, &stringType) ? (Constant){ stringType, {.str=strdup((c)->value.str)} } : *(c) )
@@ -262,6 +271,7 @@ struct CfInstruction {
         CF_ADDRESS_OF_VARIABLE,
         CF_STORE_TO_POINTER,  // *foo = bar (does not use destvar, see below)
         CF_LOAD_FROM_POINTER,  // aka dereference
+        CF_PTR_EQ,
         CF_INT_ADD,
         CF_INT_SUB,
         CF_INT_MUL,

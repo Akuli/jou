@@ -138,7 +138,7 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
             assert(same_type(&c->type, &stringType));
             return make_a_string_constant(st, c->value.str);
         case TYPE_VOID_POINTER:
-            assert(0);
+            return LLVMConstNull(codegen_type(&voidPtrType));
     }
     assert(0);
 }   
@@ -169,6 +169,13 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CF_ADDRESS_OF_VARIABLE: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_LOAD_FROM_POINTER: setdest(LLVMBuildLoad(st->builder, getop(0), name)); break;
         case CF_STORE_TO_POINTER: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
+        case CF_PTR_EQ:
+            {
+                LLVMValueRef lhsint = LLVMBuildPtrToInt(st->builder, getop(0), LLVMInt64Type(), "ptreq_lhs");
+                LLVMValueRef rhsint = LLVMBuildPtrToInt(st->builder, getop(1), LLVMInt64Type(), "ptreq_rhs");
+                setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, lhsint, rhsint, name));
+            }
+            break;
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), name)); break;
         case CF_CAST_TO_BIGGER_SIGNED_INT: setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
         case CF_CAST_TO_BIGGER_UNSIGNED_INT: setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;

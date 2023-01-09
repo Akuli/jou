@@ -203,14 +203,33 @@ static const CfVariable *build_binop(
         assert(0);
     }
 
-    if (!is_integer_type(&lhs->type) || !is_integer_type(&rhs->type))
+    bool got_integers = is_integer_type(&lhs->type) && is_integer_type(&rhs->type);
+    bool got_pointers = (
+        is_pointer_type(&lhs->type)
+        && is_pointer_type(&rhs->type)
+        && (
+            // Ban comparisons like int* == byte*, unless one of the two types is void*
+            same_type(&lhs->type, &rhs->type)
+            || same_type(&lhs->type, &voidPtrType)
+            || same_type(&rhs->type, &voidPtrType)
+        )
+    );
+
+    if (!got_integers && !(got_pointers && (op == AST_EXPR_EQ || op == AST_EXPR_NE)))
         fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhs->type.name, rhs->type.name);
 
     // TODO: is this a good idea?
-    Type cast_type = create_integer_type(
-        max(lhs->type.data.width_in_bits, rhs->type.data.width_in_bits),
-        lhs->type.kind == TYPE_SIGNED_INTEGER || lhs->type.kind == TYPE_SIGNED_INTEGER
-    );
+    Type cast_type;
+    if (got_integers) {
+        cast_type = create_integer_type(
+            max(lhs->type.data.width_in_bits, rhs->type.data.width_in_bits),
+            lhs->type.kind == TYPE_SIGNED_INTEGER || lhs->type.kind == TYPE_SIGNED_INTEGER
+        );
+    }
+    if (got_pointers) {
+        cast_type = voidPtrType;
+    }
+
     // It shouldn't be possible to make these fail.
     // TODO: i think it is, with adding same size signed and unsigned for example
     lhs = build_implicit_cast(st, lhs, &cast_type, location, NULL);
@@ -249,8 +268,8 @@ static const CfVariable *build_binop(
         case AST_EXPR_SUB: debugname = "$sub"; k = CF_INT_SUB; break;
         case AST_EXPR_MUL: debugname = "$mul"; k = CF_INT_MUL; break;
         case AST_EXPR_DIV: debugname = (is_signed ? "$sdiv" : "$udiv"); k = (is_signed ? CF_INT_SDIV : CF_INT_UDIV); break;
-        case AST_EXPR_EQ: debugname = "$eq"; k = CF_INT_EQ; break;
-        case AST_EXPR_NE: debugname = "$ne"; k = CF_INT_EQ; negate=true; break;
+        case AST_EXPR_EQ: debugname = "$eq"; k = got_pointers?CF_PTR_EQ:CF_INT_EQ; break;
+        case AST_EXPR_NE: debugname = "$ne"; k = got_pointers?CF_PTR_EQ:CF_INT_EQ; negate=true; break;
         case AST_EXPR_LT: debugname = "$lt"; k = CF_INT_LT; break;
         case AST_EXPR_GT: debugname = "$gt"; k = CF_INT_LT; swap=true; break;
         case AST_EXPR_LE: debugname = "$le"; k = CF_INT_LT; negate=true; swap=true; break;
@@ -315,6 +334,8 @@ static const char *get_debug_name_for_constant(const Constant *c)
     static char result[100];
     if (same_type(&c->type, &boolType))
         return c->value.boolean ? "$true" : "$false";
+    if (same_type(&c->type, &voidPtrType))
+        return "$null";
     if (same_type(&c->type, &stringType))
         return "$strconstant";
     snprintf(result, sizeof result, "$%sconstant", c->type.name);

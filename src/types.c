@@ -59,6 +59,11 @@ bool is_integer_type(const Type *t)
     return (t->kind == TYPE_SIGNED_INTEGER || t->kind == TYPE_UNSIGNED_INTEGER);
 }
 
+bool is_pointer_type(const Type *t)
+{
+    return (t->kind == TYPE_POINTER || t->kind == TYPE_VOID_POINTER);
+}
+
 bool same_type(const Type *a, const Type *b)
 {
     if (a->kind != b->kind)
