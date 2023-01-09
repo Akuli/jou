@@ -35,47 +35,46 @@ static bool is_operator(const struct Token *t, const char *op)
     return t->type == TOKEN_OPERATOR && !strcmp(t->data.operator, op);
 }
 
-static struct Type parse_type(const struct Token **tokens)
+static struct Type *parse_type_or_void(const struct Token **tokens)
 {
-    struct Type result;
-    int ntokens = 1;
+    struct Type *result;
 
-    // TODO: these should probalby become keywords so u cant use them in varnames
-    if (is_keyword(*tokens, "int"))
-        result = intType;
-    else if (is_keyword(*tokens, "byte"))
-        result = byteType;
-    else if (is_keyword(*tokens, "bool"))
-        result = boolType;
-    else if (is_keyword(*tokens, "void")) {
-        // void by itself is not a valid type, but void* is
-        if (!is_operator(&(*tokens)[1], "*"))
-            fail_with_error((*tokens)->location, "'void' cannot be used here because it is not a type");
-        result = copy_type(&voidPtrType);
-        ntokens = 2;
-    } else
-        fail_with_parse_error(*tokens, "a type");
+    if (is_keyword(*tokens, "void"))
+        result = NULL;
+    else {
+        result = malloc(sizeof *result);
+        if (is_keyword(*tokens, "int"))
+            *result = intType;
+        else if (is_keyword(*tokens, "byte"))
+            *result = byteType;
+        else if (is_keyword(*tokens, "bool"))
+            *result = boolType;
+        else
+            fail_with_parse_error(*tokens, "a type");
+    }
+    ++*tokens;
 
-    *tokens += ntokens;
-
-    while (is_operator(*tokens, "*")) {
-        result = create_pointer_type(&result, (*tokens)->location);
+    while(is_operator(*tokens, "*")) {
+        if (!result) {
+            result = malloc(sizeof *result);
+            *result = voidPtrType;
+        } else {
+            *result = create_pointer_type(result, (*tokens)->location);
+        }
         ++*tokens;
     }
 
     return result;
 }
 
-static struct Type *parse_type_or_void(const struct Token **tokens)
+static struct Type parse_type(const struct Token **tokens)
 {
-    if (is_keyword(*tokens, "void") && !is_operator(&(*tokens)[1], "*")) {
-        // void without being void*
-        ++*tokens;
-        return NULL;
-    }
-
-    struct Type *t = malloc(sizeof *t);
-    *t = parse_type(tokens);
+    struct Location startlocation = (**tokens).location;
+    struct Type *tmp = parse_type_or_void(tokens);
+    if (!tmp)
+        fail_with_error(startlocation, "'void' cannot be used here because it is not a type");
+    struct Type t = *tmp;
+    free(tmp);
     return t;
 }
 
