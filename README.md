@@ -58,12 +58,11 @@ You need:
 - clang 11
 - make
 - valgrind
-- dos2unix (used in a script that runs tests)
 
 If you are on a linux distro that has `apt`, you can install everything you need like this:
 
 ```
-$ sudo apt install git llvm-11-dev clang-11 make valgrind dos2unix
+$ sudo apt install git llvm-11-dev clang-11 make valgrind
 ```
 
 Once you have installed the dependencies,

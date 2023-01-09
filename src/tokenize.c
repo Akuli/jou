@@ -183,6 +183,9 @@ static char *read_string(struct State *st, char quote, int *len)
             case 'n':
                 Append(&result, '\n');
                 break;
+            case 'r':
+                Append(&result, '\r');
+                break;
             case '\\':
             case '\'':
             case '"':

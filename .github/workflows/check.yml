@@ -9,12 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - run: sudo apt install -y llvm-11-dev clang-11 make valgrind dos2unix
+    - run: sudo apt install -y llvm-11-dev clang-11 make valgrind
     - run: make test
 
   fuzzer:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - run: sudo apt install -y llvm-11-dev clang-11 make valgrind dos2unix
+    - run: sudo apt install -y llvm-11-dev clang-11 make valgrind
     - run: ./fuzzer.sh
