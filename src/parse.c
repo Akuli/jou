@@ -409,19 +409,18 @@ static struct AstExpression parse_expression_with_not(const struct Token **token
 
 static struct AstExpression parse_expression_with_and_or(const struct Token **tokens)
 {
-    bool got_and = false, got_or = false;
-    struct Location last_op_location;
-
     struct AstExpression result = parse_expression_with_not(tokens);
+    bool got_and = false, got_or = false;
+
     while (is_keyword(*tokens, "and") || is_keyword(*tokens, "or")) {
-        last_op_location = (*tokens)->location;
         got_and = got_and || is_keyword(*tokens, "and");
         got_or = got_or || is_keyword(*tokens, "or");
+        if (got_and && got_or)
+            fail_with_error((*tokens)->location, "'and' cannot be chained with 'or', you need more parentheses");
+
         add_to_binop(tokens, &result, parse_expression_with_not);
     }
 
-    if (got_and && got_or)
-        fail_with_error(last_op_location, "'and' cannot be chained with 'or', you need more parentheses");
     return result;
 }
 
