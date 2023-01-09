@@ -6,17 +6,42 @@
 #include <llvm-c/Core.h>
 #include "util.h"
 
+// don't like repeating "struct" outside this header file
+typedef struct Location Location;
+typedef struct Token Token;
+typedef struct Type Type;
+typedef struct Signature Signature;
+typedef struct Constant Constant;
+
+typedef struct AstBody AstBody;
+typedef struct AstCall AstCall;
+typedef struct AstConditionAndBody AstConditionAndBody;
+typedef struct AstExpression AstExpression;
+typedef struct AstForLoop AstForLoop;
+typedef struct AstVarDeclaration AstVarDeclaration;
+typedef struct AstIfStatement AstIfStatement;
+typedef struct AstStatement AstStatement;
+typedef struct AstToplevelNode AstToplevelNode;
+typedef struct AstFunctionDef AstFunctionDef;
+
+typedef struct CfBlock CfBlock;
+typedef struct CfGraph CfGraph;
+typedef struct CfGraphFile CfGraphFile;
+typedef struct CfInstruction CfInstruction;
+typedef struct CfVariable CfVariable;
+
+
 struct Location {
     const char *filename;
     int lineno;
 };
 
 #ifdef __GNUC__
-    void show_warning(struct Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
-    noreturn void fail_with_error(struct Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
+    void show_warning(Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
+    noreturn void fail_with_error(Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
 #else
-    void show_warning(struct Location location, const char *fmt, ...);
-    noreturn void fail_with_error(struct Location location, const char *fmt, ...);
+    void show_warning(Location location, const char *fmt, ...);
+    noreturn void fail_with_error(Location location, const char *fmt, ...);
 #endif
 
 
@@ -31,9 +56,9 @@ struct Token {
         TOKEN_INDENT,
         TOKEN_DEDENT,
         TOKEN_OPERATOR,
-        TOKEN_END_OF_FILE,  // Marks the end of an array of struct Token
+        TOKEN_END_OF_FILE,  // Marks the end of an array of Token
     } type;
-    struct Location location;
+    Location location;
     union {
         int int_value;  // TOKEN_INT
         char char_value;  // TOKEN_CHAR
@@ -56,60 +81,60 @@ struct Type {
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER
-        struct Type *valuetype;  // TYPE_POINTER
+        Type *valuetype;  // TYPE_POINTER
     } data;
 };
 
 // Built-in types, for convenience.
 // Named with a differentNamingConvention compared to everything else,
 // so you recognize these instead of wondering where they are defined.
-extern const struct Type boolType;      // bool
-extern const struct Type intType;       // int (32-bit signed)
-extern const struct Type byteType;      // byte (8-bit unsigned)
-extern const struct Type stringType;    // byte*
-extern const struct Type voidPtrType;   // void*
+extern const Type boolType;      // bool
+extern const Type intType;       // int (32-bit signed)
+extern const Type byteType;      // byte (8-bit unsigned)
+extern const Type stringType;    // byte*
+extern const Type voidPtrType;   // void*
 
 
 // create_pointer_type(...) returns a type whose .data.valuetype must be free()d
 // copy_type() is a recursive/deep copy and should be used together with free_type()
-struct Type create_pointer_type(const struct Type *elem_type, struct Location error_location);
-struct Type create_integer_type(int size_in_bits, bool is_signed);
-struct Type copy_type(const struct Type *t);
-bool is_integer_type(const struct Type *t);
-bool same_type(const struct Type *a, const struct Type *b);
+Type create_pointer_type(const Type *elem_type, Location error_location);
+Type create_integer_type(int size_in_bits, bool is_signed);
+Type copy_type(const Type *t);
+bool is_integer_type(const Type *t);
+bool same_type(const Type *a, const Type *b);
 
 struct Signature {
-    struct Location location;
+    Location location;
     char funcname[100];
     int nargs;
-    struct Type *argtypes;
+    Type *argtypes;
     char (*argnames)[100];
     bool takes_varargs;  // true for functions like printf()
-    struct Type *returntype;  // NULL, if does not return a value
+    Type *returntype;  // NULL, if does not return a value
 };
-char *signature_to_string(const struct Signature *sig, bool include_return_type);
-struct Signature copy_signature(const struct Signature *sig);
+char *signature_to_string(const Signature *sig, bool include_return_type);
+Signature copy_signature(const Signature *sig);
 
 // Constants can appear in AST and in control flow graphs.
 struct Constant {
-    struct Type type;
+    Type type;
     union {
         bool boolean;       // same_type(&constant.type, &boolType)
         char *str;          // same_type(&constant.type, &strType)
         long long integer;  // is_integer_type(&constant.type)
     } value;
 };
-#define copy_constant(c) ( same_type(&(c)->type, &stringType) ? (struct Constant){ stringType, {.str=strdup((c)->value.str)} } : *(c) )
+#define copy_constant(c) ( same_type(&(c)->type, &stringType) ? (Constant){ stringType, {.str=strdup((c)->value.str)} } : *(c) )
 
 
 struct AstCall {
     char funcname[100];
-    struct AstExpression *args;
+    AstExpression *args;
     int nargs;
 };
 
 struct AstExpression {
-    struct Location location;
+    Location location;
 
     enum AstExpressionKind {
         AST_EXPR_CONSTANT,
@@ -139,9 +164,9 @@ struct AstExpression {
         AST_EXPR_POST_DECREMENT,  // foo--
     } kind;
     union {
-        struct Constant constant;   // AST_EXPR_CONSTANT
+        Constant constant;   // AST_EXPR_CONSTANT
         char varname[100];          // AST_EXPR_GET_VARIABLE
-        struct AstCall call;        // AST_EXPR_CALL
+        AstCall call;        // AST_EXPR_CALL
         /*
         The "operands" pointer is an array of 1 to 2 expressions.
         A couple examples to hopefully give you an idea of how it works in general:
@@ -150,27 +175,37 @@ struct AstExpression {
             * For AST_EXPR_ADD, it is an array of the two things being added.
             * For AST_EXPR_ASSIGN, these are the left and right side of the assignment.
         */
-        struct AstExpression *operands;
+        AstExpression *operands;
     } data;
 };
 
 struct AstBody {
-    struct AstStatement *statements;
+    AstStatement *statements;
     int nstatements;
 };
 struct AstConditionAndBody {
-    struct AstExpression condition;
-    struct AstBody body;
+    AstExpression condition;
+    AstBody body;
 };
 struct AstForLoop {
     // for init; cond; incr:
     //     ...body...
-    struct AstExpression init, cond, incr;
-    struct AstBody body;
+    AstExpression init, cond, incr;
+    AstBody body;
+};
+struct AstIfStatement {
+    AstConditionAndBody *if_and_elifs;
+    int n_if_and_elifs;  // Always >= 1 for the initial "if"
+    AstBody elsebody;  // Empty (0 statements) means no else
+};
+struct AstVarDeclaration {
+    char name[100];
+    Type type;
+    AstExpression *initial_value; // can be NULL
 };
 
 struct AstStatement {
-    struct Location location;
+    Location location;
     enum AstStatementKind {
         AST_STMT_RETURN_VALUE,
         AST_STMT_RETURN_WITHOUT_VALUE,
@@ -183,38 +218,30 @@ struct AstStatement {
         AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
     } kind;
     union {
-        struct AstExpression expression;    // for AST_STMT_EXPRESSION_STATEMENT, AST_STMT_RETURN
-        struct AstIfStatement {
-            struct AstConditionAndBody *if_and_elifs;
-            int n_if_and_elifs;  // Always >= 1 for the initial "if"
-            struct AstBody elsebody;  // Empty (0 statements) means no else
-        } ifstatement;
-        struct AstConditionAndBody whileloop;
-        struct AstForLoop forloop;
-        struct {
-            char name[100];
-            struct Type type;
-            struct AstExpression *initial_value; // can be NULL
-        } vardecl;
+        AstExpression expression;    // for AST_STMT_EXPRESSION_STATEMENT, AST_STMT_RETURN
+        AstConditionAndBody whileloop;
+        AstIfStatement ifstatement;
+        AstForLoop forloop;
+        AstVarDeclaration vardecl;
     } data;
 };
 
 struct AstFunctionDef {
-    struct Signature signature;
-    struct AstBody body;
+    Signature signature;
+    AstBody body;
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
 struct AstToplevelNode {
-    struct Location location;
+    Location location;
     enum AstToplevelNodeKind {
         AST_TOPLEVEL_END_OF_FILE,  // indicates end of array of AstToplevelNodeKind
         AST_TOPLEVEL_DECLARE_FUNCTION,
         AST_TOPLEVEL_DEFINE_FUNCTION,
     } kind;
     union {
-        struct Signature decl_signature;  // for AST_TOPLEVEL_DECLARE_FUNCTION
-        struct AstFunctionDef funcdef;  // for AST_TOPLEVEL_DEFINE_FUNCTION
+        Signature decl_signature;  // for AST_TOPLEVEL_DECLARE_FUNCTION
+        AstFunctionDef funcdef;  // for AST_TOPLEVEL_DEFINE_FUNCTION
     } data;
 };
 
@@ -223,12 +250,12 @@ struct AstToplevelNode {
 // Struct names not prefixed with Cfg because it looks too much like "config" to me
 struct CfVariable {
     char name[100];  // Prefixed with $ for values that are anonymous in Jou code
-    struct Type type;
+    Type type;
     // First n variables are always the arguments
     bool is_argument;
 };
 struct CfInstruction {
-    struct Location location;
+    Location location;
     enum CfInstructionKind {
         CF_CONSTANT,
         CF_CALL,
@@ -249,34 +276,34 @@ struct CfInstruction {
         CF_CAST_POINTER,
     } kind;
     union CfInstructionData {
-        struct Constant constant;  // CF_CONSTANT
+        Constant constant;  // CF_CONSTANT
         char funcname[100];     // CF_CALL
     } data;
-    const struct CfVariable **operands;  // e.g. numbers to add, function arguments
+    const CfVariable **operands;  // e.g. numbers to add, function arguments
     int noperands;
-    const struct CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
+    const CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
     bool hide_unreachable_warning; // usually false, can be set to true to avoid unreachable warning false positives
 };
 
 struct CfBlock {
-    List(struct CfInstruction) instructions;
-    const struct CfVariable *branchvar;  // boolean value used to decide where to jump next
-    struct CfBlock *iftrue;
-    struct CfBlock *iffalse;
+    List(CfInstruction) instructions;
+    const CfVariable *branchvar;  // boolean value used to decide where to jump next
+    CfBlock *iftrue;
+    CfBlock *iffalse;
 };
 
 struct CfGraph {
-    struct CfBlock start_block;  // First block
-    struct CfBlock end_block;  // Always empty. Return statement jumps here.
-    List(struct CfBlock *) all_blocks;
-    List(struct CfVariable *) variables;   // First n variables are the function arguments
+    CfBlock start_block;  // First block
+    CfBlock end_block;  // Always empty. Return statement jumps here.
+    List(CfBlock *) all_blocks;
+    List(CfVariable *) variables;   // First n variables are the function arguments
 };
 
 struct CfGraphFile {
     const char *filename;
     int nfuncs;
-    struct Signature *signatures;
-    struct CfGraph **graphs;  // NULL means function is only declared, not defined
+    Signature *signatures;
+    CfGraph **graphs;  // NULL means function is only declared, not defined
 };
 
 
@@ -287,11 +314,11 @@ Each function's result is fed into the next.
 Make sure that the filename passed to tokenize() stays alive throughout the
 entire compilation. It is used in error messages.
 */
-struct Token *tokenize(const char *filename);
-struct AstToplevelNode *parse(const struct Token *tokens);
-struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast);
-void simplify_control_flow_graphs(const struct CfGraphFile *cfgfile);
-LLVMModuleRef codegen(const struct CfGraphFile *cfgfile);
+Token *tokenize(const char *filename);
+AstToplevelNode *parse(const Token *tokens);
+CfGraphFile build_control_flow_graphs(AstToplevelNode *ast);
+void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
+LLVMModuleRef codegen(const CfGraphFile *cfgfile);
 
 /*
 Use these to clean up return values of compiling functions.
@@ -300,23 +327,23 @@ Even though arrays are typically allocated with malloc(), you shouldn't simply
 free() them. For example, free(topnodelist) would free the list of AST nodes,
 but not any of the data contained within individual nodes.
 */
-void free_type(const struct Type *type);
-void free_constant(const struct Constant *c);
-void free_tokens(struct Token *tokenlist);
-void free_ast(struct AstToplevelNode *topnodelist);
-void free_control_flow_graphs(const struct CfGraphFile *cfgfile);
-void free_control_flow_graph_block(const struct CfGraph *cfg, struct CfBlock *b);
+void free_type(const Type *type);
+void free_constant(const Constant *c);
+void free_tokens(Token *tokenlist);
+void free_ast(AstToplevelNode *topnodelist);
+void free_control_flow_graphs(const CfGraphFile *cfgfile);
+void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b);
 // To free LLVM IR, use LLVMDisposeModule
 
 /*
 Functions for printing intermediate data for debugging and exploring the compiler.
 Most of these take the data for an entire program.
 */
-void print_token(const struct Token *token);
-void print_tokens(const struct Token *tokenlist);
-void print_ast(const struct AstToplevelNode *topnodelist);
-void print_control_flow_graph(const struct CfGraph *cfg);
-void print_control_flow_graphs(const struct CfGraphFile *cfgfile);
+void print_token(const Token *token);
+void print_tokens(const Token *tokenlist);
+void print_ast(const AstToplevelNode *topnodelist);
+void print_control_flow_graph(const CfGraph *cfg);
+void print_control_flow_graphs(const CfGraphFile *cfgfile);
 void print_llvm_ir(LLVMModuleRef module);
 
 #endif

@@ -2,17 +2,17 @@
 
 
 struct State {
-    struct CfGraphFile *cfgfile;
-    struct CfGraph *cfg;
-    const struct Signature *signature;
-    struct CfBlock *current_block;
-    List(struct CfBlock *) breakstack;
-    List(struct CfBlock *) continuestack;
+    CfGraphFile *cfgfile;
+    CfGraph *cfg;
+    const Signature *signature;
+    CfBlock *current_block;
+    List(CfBlock *) breakstack;
+    List(CfBlock *) continuestack;
 };
 
-static struct CfVariable *add_variable(const struct State *st, const struct Type *t, const char *name)
+static CfVariable *add_variable(const struct State *st, const Type *t, const char *name)
 {
-    struct CfVariable *var = calloc(1, sizeof *var);
+    CfVariable *var = calloc(1, sizeof *var);
     var->type = copy_type(t);
     if (name[0] == '$') {
         // Anonymous in the user's code, make unique name
@@ -26,9 +26,9 @@ static struct CfVariable *add_variable(const struct State *st, const struct Type
 }
 
 // If error_location is NULL, this will return NULL when variable is not found.
-static const struct CfVariable *find_variable(const struct State *st, const char *name, const struct Location *error_location)
+static const CfVariable *find_variable(const struct State *st, const char *name, const Location *error_location)
 {
-    for (struct CfVariable **var = st->cfg->variables.ptr; var < End(st->cfg->variables); var++)
+    for (CfVariable **var = st->cfg->variables.ptr; var < End(st->cfg->variables); var++)
         if (!strcmp((*var)->name, name))
             return *var;
 
@@ -37,7 +37,7 @@ static const struct CfVariable *find_variable(const struct State *st, const char
     fail_with_error(*error_location, "no local variable named '%s'", name);
 }
 
-static const struct Signature *find_function(const struct State *st, const char *name)
+static const Signature *find_function(const struct State *st, const char *name)
 {
     for (int i = 0; i < st->cfgfile->nfuncs; i++)
         if (!strcmp(st->cfgfile->signatures[i].funcname, name))
@@ -45,14 +45,14 @@ static const struct Signature *find_function(const struct State *st, const char 
     return NULL;
 }
 
-static struct CfBlock *add_block(const struct State *st)
+static CfBlock *add_block(const struct State *st)
 {
-    struct CfBlock *block = calloc(1, sizeof *block);
+    CfBlock *block = calloc(1, sizeof *block);
     Append(&st->cfg->all_blocks, block);
     return block;
 }
 
-static void add_jump(struct State *st, const struct CfVariable *branchvar, struct CfBlock *iftrue, struct CfBlock *iffalse, struct CfBlock *new_current_block)
+static void add_jump(struct State *st, const CfVariable *branchvar, CfBlock *iftrue, CfBlock *iffalse, CfBlock *new_current_block)
 {
     assert(iftrue);
     assert(iffalse);
@@ -68,15 +68,15 @@ static void add_jump(struct State *st, const struct CfVariable *branchvar, struc
 }
 
 // returned pointer is only valid until next call to add_instruction()
-static struct CfInstruction *add_instruction(
+static CfInstruction *add_instruction(
     const struct State *st,
-    struct Location location,
+    Location location,
     enum CfInstructionKind k,
     const union CfInstructionData *dat,
-    const struct CfVariable **operands, // NULL terminated, or NULL for empty
-    const struct CfVariable *destvar)
+    const CfVariable **operands, // NULL terminated, or NULL for empty
+    const CfVariable *destvar)
 {
-    struct CfInstruction ins = { .location=location, .kind=k, .destvar=destvar };
+    CfInstruction ins = { .location=location, .kind=k, .destvar=destvar };
     if (dat)
         ins.data=*dat;
 
@@ -94,9 +94,9 @@ static struct CfInstruction *add_instruction(
 
 // add_instruction() takes many arguments. Let's hide the mess a bit.
 #define add_unary_op(st, loc, op, arg, target) \
-    add_instruction((st), (loc), (op), NULL, (const struct CfVariable*[]){(arg),NULL}, (target))
+    add_instruction((st), (loc), (op), NULL, (const CfVariable*[]){(arg),NULL}, (target))
 #define add_binary_op(st, loc, op, lhs, rhs, target) \
-    add_instruction((st), (loc), (op), NULL, (const struct CfVariable*[]){(lhs),(rhs),NULL}, (target))
+    add_instruction((st), (loc), (op), NULL, (const CfVariable*[]){(lhs),(rhs),NULL}, (target))
 #define add_constant(st, loc, c, target) \
     add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant(&(c)) }, NULL, (target))
 
@@ -113,10 +113,7 @@ of types. We cannot use printf() style functions because the arguments can be in
 any order.
 */
 static noreturn void fail_with_implicit_cast_error(
-    struct Location location,
-    const char *template,
-    const struct Type *from,
-    const struct Type *to)
+    Location location, const char *template, const Type *from, const Type *to)
 {
     List(char) msg = {0};
     while(*template){
@@ -134,19 +131,19 @@ static noreturn void fail_with_implicit_cast_error(
     fail_with_error(location, "%.*s", msg.len, msg.ptr);
 }
 
-static const struct CfVariable *build_implicit_cast(
+static const CfVariable *build_implicit_cast(
     const struct State *st,
-    const struct CfVariable *obj,
-    const struct Type *to,
-    struct Location location,
+    const CfVariable *obj,
+    const Type *to,
+    Location location,
     const char *err_template)
 {
-    const struct Type *from = &obj->type;
+    const Type *from = &obj->type;
 
     if (same_type(from, to))
         return obj;
 
-    const struct CfVariable *result = add_variable(st, to, "$implicit_cast");
+    const CfVariable *result = add_variable(st, to, "$implicit_cast");
 
     // Casting to bigger signed int applies when "to" is signed and bigger.
     // Doesn't cast from unsigned to same size signed: with 8 bits, 255 does not implicitly cast to -1.
@@ -179,12 +176,12 @@ static const struct CfVariable *build_implicit_cast(
     fail_with_implicit_cast_error(location, err_template, from, to);
 }
 
-static const struct CfVariable *build_binop(
+static const CfVariable *build_binop(
     const struct State *st,
     enum AstExpressionKind op,
-    struct Location location,
-    const struct CfVariable *lhs,
-    const struct CfVariable *rhs)
+    Location location,
+    const CfVariable *lhs,
+    const CfVariable *rhs)
 {
     const char *do_what;
     switch(op) {
@@ -210,7 +207,7 @@ static const struct CfVariable *build_binop(
         fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhs->type.name, rhs->type.name);
 
     // TODO: is this a good idea?
-    struct Type cast_type = create_integer_type(
+    Type cast_type = create_integer_type(
         max(lhs->type.data.width_in_bits, rhs->type.data.width_in_bits),
         lhs->type.kind == TYPE_SIGNED_INTEGER || lhs->type.kind == TYPE_SIGNED_INTEGER
     );
@@ -219,7 +216,7 @@ static const struct CfVariable *build_binop(
     lhs = build_implicit_cast(st, lhs, &cast_type, location, NULL);
     rhs = build_implicit_cast(st, rhs, &cast_type, location, NULL);
 
-    struct Type result_type;
+    Type result_type;
     switch(op) {
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
@@ -261,40 +258,40 @@ static const struct CfVariable *build_binop(
         default: assert(0);
     }
 
-    const struct CfVariable *destvar = add_variable(st, &result_type, debugname);
+    const CfVariable *destvar = add_variable(st, &result_type, debugname);
     add_binary_op(st, location, k, swap?rhs:lhs, swap?lhs:rhs, destvar);
 
     if (!negate)
         return destvar;
 
-    const struct CfVariable *negated = add_variable(st, &boolType, debugname);
+    const CfVariable *negated = add_variable(st, &boolType, debugname);
     add_unary_op(st, location, CF_BOOL_NEGATE, destvar, negated);
     return negated;
 }
 
-static const struct CfVariable *build_address_of_expression(struct State *st, const struct AstExpression *address_of_what, bool is_assignment);
+static const CfVariable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool is_assignment);
 
 enum PreOrPost { PRE, POST };
 
-static const struct CfVariable *build_increment_or_decrement(
+static const CfVariable *build_increment_or_decrement(
     struct State *st,
-    struct Location location,
-    const struct AstExpression *inner,
+    Location location,
+    const AstExpression *inner,
     enum PreOrPost pop,
     int diff)
 {
     assert(diff==1 || diff==-1);  // 1=increment, -1=decrement
 
-    const struct CfVariable *addr = build_address_of_expression(st, inner, true);
+    const CfVariable *addr = build_address_of_expression(st, inner, true);
     assert(addr->type.kind == TYPE_POINTER);
-    const struct Type *t = addr->type.data.valuetype;
+    const Type *t = addr->type.data.valuetype;
     if (!is_integer_type(t))
         fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
 
-    const struct CfVariable *old_value = add_variable(st, t, "$old_value");
-    const struct CfVariable *new_value = add_variable(st, t, "$new_value");
-    const struct CfVariable *diffvar = add_variable(st, t, "$diff");
-    add_constant(st, location, ((struct Constant){.type=*t, .value.integer=diff}), diffvar);
+    const CfVariable *old_value = add_variable(st, t, "$old_value");
+    const CfVariable *new_value = add_variable(st, t, "$new_value");
+    const CfVariable *diffvar = add_variable(st, t, "$diff");
+    add_constant(st, location, ((Constant){.type=*t, .value.integer=diff}), diffvar);
     add_unary_op(st, location, CF_LOAD_FROM_POINTER, addr, old_value);
     add_binary_op(st, location, CF_INT_ADD, old_value, diffvar, new_value);
     add_binary_op(st, location, CF_STORE_TO_POINTER, addr, new_value, NULL);
@@ -306,14 +303,14 @@ static const struct CfVariable *build_increment_or_decrement(
     assert(0);
 }
 
-static void check_dereferenced_pointer_type(struct Location location, const struct Type *t)
+static void check_dereferenced_pointer_type(Location location, const Type *t)
 {
     // TODO: improved error message for dereferencing void*
     if (t->kind != TYPE_POINTER)
         fail_with_error(location, "the dereference operator '*' is only for pointers, not for %s", t->name);
 }
 
-static const char *get_debug_name_for_constant(const struct Constant *c)
+static const char *get_debug_name_for_constant(const Constant *c)
 {
     static char result[100];
     if (same_type(&c->type, &boolType))
@@ -326,17 +323,17 @@ static const char *get_debug_name_for_constant(const struct Constant *c)
 
 enum AndOr { AND, OR };
 
-static const struct CfVariable *build_call(struct State *st, const struct AstCall *call, struct Location location);
-static const struct CfVariable *build_and_or(struct State *st, const struct AstExpression *lhsexpr, const struct AstExpression *rhsexpr, enum AndOr andor);
+static const CfVariable *build_call(struct State *st, const AstCall *call, Location location);
+static const CfVariable *build_and_or(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr, enum AndOr andor);
 
-static const struct CfVariable *build_expression(
+static const CfVariable *build_expression(
     struct State *st,
-    const struct AstExpression *expr,
-    const struct Type *implicit_cast_to,  // can be NULL, there will be no implicit casting
+    const AstExpression *expr,
+    const Type *implicit_cast_to,  // can be NULL, there will be no implicit casting
     const char *casterrormsg,
     bool needvalue)  // Usually true. False means that calls to "-> void" functions are acceptable.
 {
-    const struct CfVariable *result, *temp;
+    const CfVariable *result, *temp;
 
     switch(expr->kind) {
     case AST_EXPR_CALL:
@@ -366,18 +363,18 @@ static const struct CfVariable *build_expression(
         break;
     case AST_EXPR_ASSIGN:
         {
-            struct AstExpression *targetexpr = &expr->data.operands[0];
-            struct AstExpression *valueexpr = &expr->data.operands[1];
+            AstExpression *targetexpr = &expr->data.operands[0];
+            AstExpression *valueexpr = &expr->data.operands[1];
             if (targetexpr->kind == AST_EXPR_GET_VARIABLE && !find_variable(st, targetexpr->data.varname, NULL))
             {
                 // Making a new variable. Use the type of the value being assigned.
                 result = build_expression(st, valueexpr, NULL, NULL, true);
-                const struct CfVariable *var = add_variable(st, &result->type, targetexpr->data.varname);
+                const CfVariable *var = add_variable(st, &result->type, targetexpr->data.varname);
                 add_unary_op(st, expr->location, CF_VARCPY, result, var);
             } else {
                 // Convert value to the type of an existing variable or other assignment target.
                 // TODO: is this evaluation order good?
-                const struct CfVariable *target = build_address_of_expression(st, targetexpr, true);
+                const CfVariable *target = build_address_of_expression(st, targetexpr, true);
                 assert(target->type.kind == TYPE_POINTER);
                 const char *errmsg;
                 switch(targetexpr->kind) {
@@ -394,7 +391,7 @@ static const struct CfVariable *build_expression(
                 would be assigned to some_byte_variable.
                 */
                 result = build_expression(st, valueexpr, NULL, NULL, true);
-                const struct CfVariable *casted_result = build_implicit_cast(
+                const CfVariable *casted_result = build_implicit_cast(
                     st, result, target->type.data.valuetype, expr->location, errmsg);
                 add_binary_op(st, expr->location, CF_STORE_TO_POINTER, target, casted_result, NULL);
             }
@@ -424,8 +421,8 @@ static const struct CfVariable *build_expression(
         {
             // Refactoring note: Make sure to evaluate lhs first. C doesn't guarantee evaluation
             // order of function arguments.
-            const struct CfVariable *lhs = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
-            const struct CfVariable *rhs = build_expression(st, &expr->data.operands[1], NULL, NULL, true);
+            const CfVariable *lhs = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
+            const CfVariable *rhs = build_expression(st, &expr->data.operands[1], NULL, NULL, true);
             result = build_binop(st, expr->kind, expr->location, lhs, rhs);
             break;
         }
@@ -457,11 +454,8 @@ static const struct CfVariable *build_expression(
     return build_implicit_cast(st, result, implicit_cast_to, expr->location, casterrormsg);
 }
 
-static const struct CfVariable *build_and_or(
-    struct State *st,
-    const struct AstExpression *lhsexpr,
-    const struct AstExpression *rhsexpr,
-    enum AndOr andor)
+static const CfVariable *build_and_or(
+    struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr, enum AndOr andor)
 {
     /*
     Must be careful with side effects.
@@ -483,14 +477,14 @@ static const struct CfVariable *build_and_or(
     char errormsg[100];
     sprintf(errormsg, "'%s' only works with booleans, not FROM", andor==AND ? "and" : "or");
 
-    const struct CfVariable *lhs = build_expression(st, lhsexpr, &boolType, errormsg, true);
-    const struct CfVariable *rhs;
-    const struct CfVariable *result = add_variable(st, &boolType, andor==AND ? "$and" : "$or");
-    struct CfInstruction *ins;
+    const CfVariable *lhs = build_expression(st, lhsexpr, &boolType, errormsg, true);
+    const CfVariable *rhs;
+    const CfVariable *result = add_variable(st, &boolType, andor==AND ? "$and" : "$or");
+    CfInstruction *ins;
 
-    struct CfBlock *lhstrue = add_block(st);
-    struct CfBlock *lhsfalse = add_block(st);
-    struct CfBlock *done = add_block(st);
+    CfBlock *lhstrue = add_block(st);
+    CfBlock *lhsfalse = add_block(st);
+    CfBlock *done = add_block(st);
 
     // if lhs:
     add_jump(st, lhs, lhstrue, lhsfalse, lhstrue);
@@ -503,7 +497,7 @@ static const struct CfVariable *build_and_or(
         break;
     case OR:
         // result = True
-        ins = add_constant(st, lhsexpr->location, ((struct Constant){.type=boolType,.value.boolean=true}), result);
+        ins = add_constant(st, lhsexpr->location, ((Constant){.type=boolType,.value.boolean=true}), result);
         ins->hide_unreachable_warning = true;
         break;
     }
@@ -514,7 +508,7 @@ static const struct CfVariable *build_and_or(
     switch(andor) {
     case AND:
         // result = False
-        ins = add_constant(st, lhsexpr->location, ((struct Constant){.type=boolType,.value.boolean=false}), result);
+        ins = add_constant(st, lhsexpr->location, ((Constant){.type=boolType,.value.boolean=false}), result);
         ins->hide_unreachable_warning = true;
         break;
     case OR:
@@ -528,16 +522,16 @@ static const struct CfVariable *build_and_or(
     return result;
 }
 
-static const struct CfVariable *build_address_of_expression(struct State *st, const struct AstExpression *address_of_what, bool is_assignment)
+static const CfVariable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool is_assignment)
 {
     const char *cant_take_address_of;
 
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
     {
-        const struct CfVariable *var = find_variable(st, address_of_what->data.varname, &address_of_what->location);
-        struct Type t = create_pointer_type(&var->type, (struct Location){0});
-        const struct CfVariable *addr = add_variable(st, &t, "$address_of_var");
+        const CfVariable *var = find_variable(st, address_of_what->data.varname, &address_of_what->location);
+        Type t = create_pointer_type(&var->type, (Location){0});
+        const CfVariable *addr = add_variable(st, &t, "$address_of_var");
         free(t.data.valuetype);
         add_unary_op(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, var, addr);
         return addr;
@@ -545,7 +539,7 @@ static const struct CfVariable *build_address_of_expression(struct State *st, co
     case AST_EXPR_DEREFERENCE:
     {
         // &*foo --> just evaluate foo, but make sure it is a pointer
-        const struct CfVariable *result = build_expression(st, &address_of_what->data.operands[0], NULL, NULL, true);
+        const CfVariable *result = build_expression(st, &address_of_what->data.operands[0], NULL, NULL, true);
         check_dereferenced_pointer_type(address_of_what->location, &result->type);
         return result;
     }
@@ -596,9 +590,9 @@ static const char *nth(int n)
 }
 
 // returns NULL if the function doesn't return anything
-static const struct CfVariable *build_call(struct State *st, const struct AstCall *call, struct Location location)
+static const CfVariable *build_call(struct State *st, const AstCall *call, Location location)
 {
-    const struct Signature *sig = find_function(st, call->funcname);
+    const Signature *sig = find_function(st, call->funcname);
     if (!sig)
         fail_with_error(location, "function \"%s\" not found", call->funcname);
     char *sigstr = signature_to_string(sig, false);
@@ -615,7 +609,7 @@ static const struct CfVariable *build_call(struct State *st, const struct AstCal
         );
     }
 
-    const struct CfVariable **args = calloc(call->nargs + 1, sizeof(args[0]));  // NOLINT
+    const CfVariable **args = calloc(call->nargs + 1, sizeof(args[0]));  // NOLINT
     for (int i = 0; i < sig->nargs; i++) {
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
@@ -627,7 +621,7 @@ static const struct CfVariable *build_call(struct State *st, const struct AstCal
         args[i] = build_expression(st, &call->args[i], NULL, NULL, true);
     }
 
-    const struct CfVariable *return_value;
+    const CfVariable *return_value;
     if (sig->returntype) {
         char debugname[100];
         snprintf(debugname, sizeof debugname, "$%s_ret", call->funcname);
@@ -644,13 +638,13 @@ static const struct CfVariable *build_call(struct State *st, const struct AstCal
     return return_value;
 }
 
-static void build_body(struct State *st, const struct AstBody *body);
+static void build_body(struct State *st, const AstBody *body);
 
-static void build_if_statement(struct State *st, const struct AstIfStatement *ifstmt)
+static void build_if_statement(struct State *st, const AstIfStatement *ifstmt)
 {
     assert(ifstmt->n_if_and_elifs >= 1);
 
-    struct CfBlock *done = add_block(st);
+    CfBlock *done = add_block(st);
     for (int i = 0; i < ifstmt->n_if_and_elifs; i++) {
         const char *errmsg;
         if (i == 0)
@@ -658,10 +652,10 @@ static void build_if_statement(struct State *st, const struct AstIfStatement *if
         else
             errmsg = "'elif' condition must be a boolean, not FROM";
 
-        const struct CfVariable *cond = build_expression(
+        const CfVariable *cond = build_expression(
             st, &ifstmt->if_and_elifs[i].condition, &boolType, errmsg, true);
-        struct CfBlock *then = add_block(st);
-        struct CfBlock *otherwise = add_block(st);
+        CfBlock *then = add_block(st);
+        CfBlock *otherwise = add_block(st);
 
         add_jump(st, cond, then, otherwise, then);
         build_body(st, &ifstmt->if_and_elifs[i].body);
@@ -679,27 +673,27 @@ static void build_if_statement(struct State *st, const struct AstIfStatement *if
 static void build_loop(
     struct State *st,
     const char *loopname,
-    const struct AstExpression *init,
-    const struct AstExpression *cond,
-    const struct AstExpression *incr,
-    const struct AstBody *body)
+    const AstExpression *init,
+    const AstExpression *cond,
+    const AstExpression *incr,
+    const AstBody *body)
 {
     assert(strlen(loopname) < 10);
     char errormsg[100];
     sprintf(errormsg, "'%s' condition must be a boolean, not FROM", loopname);
 
-    struct CfBlock *condblock = add_block(st);  // evaluate condition and go to bodyblock or doneblock
-    struct CfBlock *bodyblock = add_block(st);  // run loop body and go to incrblock
-    struct CfBlock *incrblock = add_block(st);  // run incr and go to condblock
-    struct CfBlock *doneblock = add_block(st);  // rest of the code goes here
-    struct CfBlock *tmp;
+    CfBlock *condblock = add_block(st);  // evaluate condition and go to bodyblock or doneblock
+    CfBlock *bodyblock = add_block(st);  // run loop body and go to incrblock
+    CfBlock *incrblock = add_block(st);  // run incr and go to condblock
+    CfBlock *doneblock = add_block(st);  // rest of the code goes here
+    CfBlock *tmp;
 
     if (init)
         build_expression(st, init, NULL, NULL, false);
 
     // Evaluate condition. Jump to loop body or skip to after loop.
     add_jump(st, NULL, condblock, condblock, condblock);
-    const struct CfVariable *condvar = build_expression(st, cond, &boolType, errormsg, true);
+    const CfVariable *condvar = build_expression(st, cond, &boolType, errormsg, true);
     add_jump(st, condvar, bodyblock, doneblock, bodyblock);
 
     // Run loop body: 'break' skips to after loop, 'continue' goes to incr.
@@ -716,7 +710,7 @@ static void build_loop(
     add_jump(st, NULL, condblock, condblock, doneblock);
 }
 
-static void build_statement(struct State *st, const struct AstStatement *stmt)
+static void build_statement(struct State *st, const AstStatement *stmt)
 {
     switch(stmt->kind) {
     case AST_STMT_IF:
@@ -762,9 +756,9 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
         snprintf(msg, sizeof msg,
             "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
             st->signature->funcname);
-        const struct CfVariable *retvalue = build_expression(
+        const CfVariable *retvalue = build_expression(
             st, &stmt->data.expression, st->signature->returntype, msg, true);
-        const struct CfVariable *retvariable = find_variable(st, "return", NULL);
+        const CfVariable *retvariable = find_variable(st, "return", NULL);
         assert(retvariable);
         add_unary_op(st, stmt->location, CF_VARCPY, retvalue, retvariable);
 
@@ -791,9 +785,9 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
         if (find_variable(st, stmt->data.vardecl.name, NULL))
             fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
 
-        struct CfVariable *v = add_variable(st, &stmt->data.vardecl.type, stmt->data.vardecl.name);
+        CfVariable *v = add_variable(st, &stmt->data.vardecl.type, stmt->data.vardecl.name);
         if (stmt->data.vardecl.initial_value) {
-            const struct CfVariable *cfvar = build_expression(
+            const CfVariable *cfvar = build_expression(
                 st, stmt->data.vardecl.initial_value, &stmt->data.vardecl.type,
                 "initial value for variable of type TO cannot be of type FROM",
                 true);
@@ -807,13 +801,13 @@ static void build_statement(struct State *st, const struct AstStatement *stmt)
     }
 }
 
-static void build_body(struct State *st, const struct AstBody *body)
+static void build_body(struct State *st, const AstBody *body)
 {
     for (int i = 0; i < body->nstatements; i++)
         build_statement(st, &body->statements[i]);
 }
 
-static struct CfGraph *build_function(struct State *st, const struct Signature *sig, const struct AstBody *body)
+static CfGraph *build_function(struct State *st, const Signature *sig, const AstBody *body)
 {
     st->signature = sig;
     st->cfg = calloc(1, sizeof *st->cfg);
@@ -823,7 +817,7 @@ static struct CfGraph *build_function(struct State *st, const struct Signature *
     st->current_block = &st->cfg->start_block;
 
     for (int i = 0; i < sig->nargs; i++) {
-        struct CfVariable *v = add_variable(st, &sig->argtypes[i], sig->argnames[i]);
+        CfVariable *v = add_variable(st, &sig->argtypes[i], sig->argnames[i]);
         v->is_argument = true;
     }
     if (sig->returntype) 
@@ -840,7 +834,7 @@ static struct CfGraph *build_function(struct State *st, const struct Signature *
     return st->cfg;
 }
 
-static void check_signature(const struct State *st, const struct Signature *sig)
+static void check_signature(const struct State *st, const Signature *sig)
 {
     if (find_function(st, sig->funcname))
         fail_with_error(sig->location, "a function named '%s' already exists", sig->funcname);
@@ -852,9 +846,9 @@ static void check_signature(const struct State *st, const struct Signature *sig)
     }
 }
 
-struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast)
+CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
 {
-    struct CfGraphFile result = { .filename = ast->location.filename };
+    CfGraphFile result = { .filename = ast->location.filename };
     struct State st = { .cfgfile = &result };
 
     int n = 0;
@@ -874,7 +868,7 @@ struct CfGraphFile build_control_flow_graphs(struct AstToplevelNode *ast)
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             check_signature(&st, &ast->data.funcdef.signature);
-            struct Signature sig = copy_signature(&ast->data.funcdef.signature);
+            Signature sig = copy_signature(&ast->data.funcdef.signature);
             result.signatures[result.nfuncs] = sig;
             result.nfuncs++;  // Make signature of current function usable in function calls (recursion)
             result.graphs[result.nfuncs-1] = build_function(&st, &sig, &ast->data.funcdef.body);

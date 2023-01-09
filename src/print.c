@@ -24,7 +24,7 @@ static void print_string(const char *s)
     putchar('"');
 }
 
-static void print_constant(const struct Constant *c)
+static void print_constant(const Constant *c)
 {
     if (same_type(&c->type, &boolType))
         printf(c->value.boolean ? "True" : "False");
@@ -36,7 +36,7 @@ static void print_constant(const struct Constant *c)
         assert(0);
 }
 
-void print_token(const struct Token *token)
+void print_token(const Token *token)
 {
     switch(token->type) {
     case TOKEN_INT:
@@ -76,7 +76,7 @@ void print_token(const struct Token *token)
     }
 }
 
-void print_tokens(const struct Token *tokens)
+void print_tokens(const Token *tokens)
 {
     printf("===== Tokens for file \"%s\" =====\n", tokens->location.filename);
     int lastlineno = -1;
@@ -92,16 +92,16 @@ void print_tokens(const struct Token *tokens)
     printf("\n");
 }
 
-static void print_ast_function_signature(const struct Signature *sig, int indent)
+static void print_ast_function_signature(const Signature *sig, int indent)
 {
     char *s = signature_to_string(sig, true);
     printf("%*sSignature on line %d: %s\n", indent, "", sig->location.lineno, s);
     free(s);
 }
 
-static void print_ast_call(const struct AstCall *call, int arg_indent);
+static void print_ast_call(const AstCall *call, int arg_indent);
 
-static void print_ast_expression(const struct AstExpression *expr, int indent)
+static void print_ast_expression(const AstExpression *expr, int indent)
 {
     printf("%*sExpression on line %d: ", indent, "", expr->location.lineno);
 
@@ -200,7 +200,7 @@ static void print_ast_expression(const struct AstExpression *expr, int indent)
     }
 }
 
-static void print_ast_call(const struct AstCall *call, int arg_indent)
+static void print_ast_call(const AstCall *call, int arg_indent)
 {
     printf("Call function %s with %d argument%s.\n", call->funcname, call->nargs, call->nargs==1?"":"s");
     for (int i = 0; i < call->nargs; i++) {
@@ -209,9 +209,9 @@ static void print_ast_call(const struct AstCall *call, int arg_indent)
     }
 }
 
-static void print_ast_body(const struct AstBody *body, int indent);
+static void print_ast_body(const AstBody *body, int indent);
 
-static void print_ast_statement(const struct AstStatement *stmt, int indent)
+static void print_ast_statement(const AstStatement *stmt, int indent)
 {
     printf("%*sStatement on line %d: ", indent, "", stmt->location.lineno);
 
@@ -275,14 +275,14 @@ static void print_ast_statement(const struct AstStatement *stmt, int indent)
     }
 }
 
-static void print_ast_body(const struct AstBody *body, int indent)
+static void print_ast_body(const AstBody *body, int indent)
 {
     printf("%*sBody:\n", indent, "");
     for (int i = 0; i < body->nstatements; i++)
         print_ast_statement(&body->statements[i], indent+2);
 }
 
-void print_ast(const struct AstToplevelNode *topnodelist)
+void print_ast(const AstToplevelNode *topnodelist)
 {
     printf("===== AST for file \"%s\" =====\n", topnodelist->location.filename);
 
@@ -309,7 +309,7 @@ void print_ast(const struct AstToplevelNode *topnodelist)
 }
 
 
-static void print_cf_instruction(const struct CfInstruction *ins, int indent)
+static void print_cf_instruction(const CfInstruction *ins, int indent)
 {
     printf("%*sline %-4d  ", indent, "", ins->location.lineno);
 
@@ -380,7 +380,7 @@ static void print_cf_instruction(const struct CfInstruction *ins, int indent)
     printf("\n");
 }
 
-static void print_control_flow_graph_with_indent(const struct CfGraph *cfg, int indent)
+static void print_control_flow_graph_with_indent(const CfGraph *cfg, int indent)
 {
     if (!cfg) {
         printf("%*sControl Flow Graph = NULL\n", indent, "");
@@ -388,11 +388,11 @@ static void print_control_flow_graph_with_indent(const struct CfGraph *cfg, int 
     }
 
     printf("%*sVariables:\n", indent, "");
-    for (struct CfVariable **var = cfg->variables.ptr; var < End(cfg->variables); var++) {
+    for (CfVariable **var = cfg->variables.ptr; var < End(cfg->variables); var++) {
         printf("%*s  %-20s  %s\n", indent, "", (*var)->name, (*var)->type.name);
     }
 
-    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
+    for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
         printf("%*sBlock %d", indent, "", (int)(b - cfg->all_blocks.ptr));
         if (*b == &cfg->start_block)
             printf(" (start block)");
@@ -402,7 +402,7 @@ static void print_control_flow_graph_with_indent(const struct CfGraph *cfg, int 
             continue;
         }
         printf(":\n");
-        for (struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
+        for (CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
             print_cf_instruction(ins, indent+2);
 
         if (*b == &cfg->end_block) {
@@ -427,12 +427,12 @@ static void print_control_flow_graph_with_indent(const struct CfGraph *cfg, int 
     }
 }
 
-void print_control_flow_graph(const struct CfGraph *cfg)
+void print_control_flow_graph(const CfGraph *cfg)
 {
     print_control_flow_graph_with_indent(cfg, 0);
 }
 
-void print_control_flow_graphs(const struct CfGraphFile *cfgfile)
+void print_control_flow_graphs(const CfGraphFile *cfgfile)
 {
     printf("===== Control Flow Graphs for file \"%s\" =====\n", cfgfile->filename);
     for (int i = 0; i < cfgfile->nfuncs; i++) {

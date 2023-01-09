@@ -6,7 +6,7 @@
 
 #include "jou_compiler.h"
 
-static void print_message(struct Location location, const char *start_fmt, const char *fmt, va_list ap)
+static void print_message(Location location, const char *start_fmt, const char *fmt, va_list ap)
 {
     // When stdout is redirected to same place as stderr, and not line-buffered,
     // make sure to show normal printf()s before our error message
@@ -21,7 +21,7 @@ static void print_message(struct Location location, const char *start_fmt, const
     fprintf(stderr, "\n");
 }
 
-void show_warning(struct Location location, const char *fmt, ...)
+void show_warning(Location location, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -29,7 +29,7 @@ void show_warning(struct Location location, const char *fmt, ...)
     va_end(ap);
 }
 
-noreturn void fail_with_error(struct Location location, const char *fmt, ...)
+noreturn void fail_with_error(Location location, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);

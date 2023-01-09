@@ -15,7 +15,7 @@
 
 struct State {
     FILE *f;
-    struct Location location;
+    Location location;
     List(char) pushback;
 };
 
@@ -109,7 +109,7 @@ static void consume_rest_of_line(struct State *st)
 }
 
 // Assumes that the initial '\n' byte has been read already.
-static void read_indentation_as_newline_token(struct State *st, struct Token *t)
+static void read_indentation_as_newline_token(struct State *st, Token *t)
 {
     t->type = TOKEN_NEWLINE;
 
@@ -290,9 +290,9 @@ static const char *read_operator(struct State *st)
     fail_with_error(st->location, "there is no '%s' operator", operator);
 }
 
-static struct Token read_token(struct State *st)
+static Token read_token(struct State *st)
 {
-    struct Token t = { .location = st->location };
+    Token t = { .location = st->location };
 
     while(1) {
         char c = read_byte(st);
@@ -329,7 +329,7 @@ static struct Token read_token(struct State *st)
     }
 }
 
-static struct Token *tokenize_without_indent_dedent_tokens(const char *filename)
+static Token *tokenize_without_indent_dedent_tokens(const char *filename)
 {
     struct State st = { .location.filename=filename, .f = fopen(filename, "rb") };
     if (!st.f)
@@ -345,7 +345,7 @@ static struct Token *tokenize_without_indent_dedent_tokens(const char *filename)
     */
     Append(&st.pushback, '\n');
 
-    List(struct Token) tokens = {0};
+    List(Token) tokens = {0};
     while(tokens.len == 0 || tokens.ptr[tokens.len-1].type != TOKEN_END_OF_FILE)
         Append(&tokens, read_token(&st));
 
@@ -355,10 +355,10 @@ static struct Token *tokenize_without_indent_dedent_tokens(const char *filename)
 }
 
 // Add indent/dedent tokens after newline tokens that change the indentation level.
-static struct Token *handle_indentations(const struct Token *temp_tokens)
+static Token *handle_indentations(const Token *temp_tokens)
 {
-    List(struct Token) tokens = {0};
-    const struct Token *t = temp_tokens;
+    List(Token) tokens = {0};
+    const Token *t = temp_tokens;
     int level = 0;
 
     do{
@@ -366,9 +366,9 @@ static struct Token *handle_indentations(const struct Token *temp_tokens)
             // Add an extra newline token at end of file and the dedents after it.
             // This makes it similar to how other newline and dedent tokens work:
             // the dedents always come after a newline token.
-            Append(&tokens, (struct Token){ .location=t->location, .type=TOKEN_NEWLINE });
+            Append(&tokens, (Token){ .location=t->location, .type=TOKEN_NEWLINE });
             while(level) {
-                Append(&tokens, (struct Token){ .location=t->location, .type=TOKEN_DEDENT });
+                Append(&tokens, (Token){ .location=t->location, .type=TOKEN_DEDENT });
                 level -= 4;
             }
         }
@@ -376,19 +376,19 @@ static struct Token *handle_indentations(const struct Token *temp_tokens)
         Append(&tokens, *t);
 
         if (t->type == TOKEN_NEWLINE) {
-            struct Location after_newline = t->location;
+            Location after_newline = t->location;
             after_newline.lineno++;
 
             if (t->data.indentation_level % 4 != 0)
                 fail_with_error(after_newline, "indentation must be a multiple of 4 spaces");
 
             while (level < t->data.indentation_level) {
-                Append(&tokens, (struct Token){ .location=after_newline, .type=TOKEN_INDENT });
+                Append(&tokens, (Token){ .location=after_newline, .type=TOKEN_INDENT });
                 level += 4;
             }
 
             while (level > t->data.indentation_level) {
-                Append(&tokens, (struct Token){ .location=after_newline, .type=TOKEN_DEDENT });
+                Append(&tokens, (Token){ .location=after_newline, .type=TOKEN_DEDENT });
                 level -= 4;
             }
         }
@@ -407,10 +407,10 @@ static struct Token *handle_indentations(const struct Token *temp_tokens)
     return tokens.ptr;
 }
 
-struct Token *tokenize(const char *filename)
+Token *tokenize(const char *filename)
 {
-    struct Token *tokens1 = tokenize_without_indent_dedent_tokens(filename);
-    struct Token *tokens2 = handle_indentations(tokens1);
+    Token *tokens1 = tokenize_without_indent_dedent_tokens(filename);
+    Token *tokens2 = handle_indentations(tokens1);
     free(tokens1);
     return tokens2;
 }

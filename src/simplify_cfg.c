@@ -1,7 +1,7 @@
 #include "jou_compiler.h"
 #include <limits.h>
 
-static int find_block_index(const struct CfGraph *cfg, const struct CfBlock *b)
+static int find_block_index(const CfGraph *cfg, const CfBlock *b)
 {
     for (int i = 0; i < cfg->all_blocks.len; i++)
         if (cfg->all_blocks.ptr[i] == b)
@@ -9,7 +9,7 @@ static int find_block_index(const struct CfGraph *cfg, const struct CfBlock *b)
     assert(0);
 }
 
-static int find_var_index(const struct CfGraph *cfg, const struct CfVariable *v)
+static int find_var_index(const CfGraph *cfg, const CfVariable *v)
 {
     for (int i = 0; i < cfg->variables.len; i++)
         if (cfg->variables.ptr[i] == v)
@@ -84,7 +84,7 @@ static bool merge_arrays_in_place(enum VarStatus *dest, const enum VarStatus *sr
 }
 
 // Figure out how an instruction affects variables when it runs.
-static void update_statuses_with_instruction(const struct CfGraph *cfg, enum VarStatus *statuses, const struct CfInstruction *ins)
+static void update_statuses_with_instruction(const CfGraph *cfg, enum VarStatus *statuses, const CfInstruction *ins)
 {
     for (int i = 0; i < cfg->variables.len; i++)
         assert(statuses[i] != VS_UNVISITED);
@@ -137,7 +137,7 @@ static const char * vs_to_string(enum VarStatus vs)
     }
     assert(0);
 }
-static void print_var_statuses(const struct CfGraph *cfg, enum VarStatus **statuses, const enum VarStatus *temp, const char *description)
+static void print_var_statuses(const CfGraph *cfg, enum VarStatus **statuses, const enum VarStatus *temp, const char *description)
 {
     int nblocks = cfg->all_blocks.len;
     int nvars = cfg->variables.len;
@@ -177,7 +177,7 @@ Repeat for blocks where execution jumps from the current block, unless we got sa
 result as last time, then we know that we don't have to reanalyze blocks where
 execution jumps from the current block.
 */
-static enum VarStatus **determine_var_statuses(const struct CfGraph *cfg)
+static enum VarStatus **determine_var_statuses(const CfGraph *cfg)
 {
 #if DebugPrint
     print_control_flow_graph(cfg);
@@ -204,7 +204,7 @@ static enum VarStatus **determine_var_statuses(const struct CfGraph *cfg)
         printf("=== Visit block %d ===\n", visiting);
 #endif
         blocks_to_visit[visiting] = false;
-        const struct CfBlock *visitingblock = cfg->all_blocks.ptr[visiting];
+        const CfBlock *visitingblock = cfg->all_blocks.ptr[visiting];
 
         // Determine initial values based on other blocks that jump here.
         for (int i = 0; i < nvars; i++) {
@@ -237,7 +237,7 @@ static enum VarStatus **determine_var_statuses(const struct CfGraph *cfg)
 #endif
 
         // Turn the initial status into status at end of the block.
-        const struct CfInstruction *ins;
+        const CfInstruction *ins;
         for (ins = visitingblock->instructions.ptr; ins < End(visitingblock->instructions); ins++)
         {
             update_statuses_with_instruction(cfg, tempstatus, ins);
@@ -264,19 +264,19 @@ static enum VarStatus **determine_var_statuses(const struct CfGraph *cfg)
     return result;
 }
 
-static void free_var_statuses(const struct CfGraph *cfg, enum VarStatus** statuses)
+static void free_var_statuses(const CfGraph *cfg, enum VarStatus** statuses)
 {
     for (int i = 0; i < cfg->all_blocks.len; i++)
         free(statuses[i]);
     free(statuses);
 }
 
-static void clean_jumps_where_condition_always_true_or_always_false(struct CfGraph *cfg)
+static void clean_jumps_where_condition_always_true_or_always_false(CfGraph *cfg)
 {
     enum VarStatus **statuses = determine_var_statuses(cfg);
 
     for (int blockidx = 0; blockidx < cfg->all_blocks.len; blockidx++) {
-        struct CfBlock *block = cfg->all_blocks.ptr[blockidx];
+        CfBlock *block = cfg->all_blocks.ptr[blockidx];
         if (block == &cfg->end_block || block->iftrue == block->iffalse)
             continue;
 
@@ -304,9 +304,9 @@ All returned arrays are NULL terminated.
 This is not very efficient code, but it's only used for unreachable blocks.
 In a typical program, I don't expect to have many unreachable blocks.
 */
-static struct CfBlock ***group_blocks(struct CfBlock **blocks, int nblocks)
+static CfBlock ***group_blocks(CfBlock **blocks, int nblocks)
 {
-    struct CfBlock ***groups = calloc(sizeof(groups[0]), nblocks+1);  // NOLINT
+    CfBlock ***groups = calloc(sizeof(groups[0]), nblocks+1);  // NOLINT
 
     // Initially there is a separate group for each block.
     int ngroups = nblocks;
@@ -318,16 +318,16 @@ static struct CfBlock ***group_blocks(struct CfBlock **blocks, int nblocks)
     // For each block, we need to check whether that block can jump outside its
     // group. When that does, merge the two groups together.
     for (int block1index = 0; block1index < nblocks; block1index++) {
-        struct CfBlock *block1 = blocks[block1index];
+        CfBlock *block1 = blocks[block1index];
         if (block1->iffalse==NULL && block1->iftrue==NULL)
             continue;  // the end block
 
         for (int m = 0; m < 2; m++) {
-            struct CfBlock *block2 = m ? block1->iffalse : block1->iftrue;
+            CfBlock *block2 = m ? block1->iffalse : block1->iftrue;
             assert(block2);
 
             // Find groups of block1 and block2.
-            struct CfBlock ***g1 = NULL, ***g2 = NULL;
+            CfBlock ***g1 = NULL, ***g2 = NULL;
             for (int i = 0; groups[i]; i++) {
                 for (int k = 0; groups[i][k]; k++) {
                     if (groups[i][k] == block1) g1=&groups[i];
@@ -337,7 +337,7 @@ static struct CfBlock ***group_blocks(struct CfBlock **blocks, int nblocks)
 
             if (g1 && g2 && *g1!=*g2) {
                 // Append all blocks from group 2 to group 1.
-                struct CfBlock **dest = *g1, **src = *g2;
+                CfBlock **dest = *g1, **src = *g2;
                 while (*dest) dest++;
                 while ((*dest++ = *src++)) ;
 
@@ -352,20 +352,20 @@ static struct CfBlock ***group_blocks(struct CfBlock **blocks, int nblocks)
     return groups;
 }
 
-static void show_unreachable_warnings(struct CfBlock **unreachable_blocks, int n_unreachable_blocks)
+static void show_unreachable_warnings(CfBlock **unreachable_blocks, int n_unreachable_blocks)
 {
     // Show a warning in the beginning of each group of blocks.
     // Can't show a warning for each block, that would be too noisy.
-    struct CfBlock ***groups = group_blocks(unreachable_blocks, n_unreachable_blocks);
+    CfBlock ***groups = group_blocks(unreachable_blocks, n_unreachable_blocks);
 
     // Prevent showing two errors on the same line, even if from different groups
     int prev_lineno = -1;
 
     for (int groupidx = 0; groups[groupidx]; groupidx++) {
-        struct Location first_location = { .lineno = INT_MAX };
+        Location first_location = { .lineno = INT_MAX };
         for (int blockidx = 0; groups[groupidx][blockidx]; blockidx++) {
-            struct CfBlock *block = groups[groupidx][blockidx];
-            for (const struct CfInstruction *ins = block->instructions.ptr; ins < End(block->instructions); ins++)
+            CfBlock *block = groups[groupidx][blockidx];
+            for (const CfInstruction *ins = block->instructions.ptr; ins < End(block->instructions); ins++)
                 if (!ins->hide_unreachable_warning && ins->location.lineno < first_location.lineno)
                     first_location = ins->location;
         }
@@ -381,11 +381,11 @@ static void show_unreachable_warnings(struct CfBlock **unreachable_blocks, int n
     free(groups);
 }
 
-static void remove_given_blocks(struct CfGraph *cfg, struct CfBlock **blocks_to_remove, int n_blocks_to_remove)
+static void remove_given_blocks(CfGraph *cfg, CfBlock **blocks_to_remove, int n_blocks_to_remove)
 {
     for (int i = cfg->all_blocks.len - 1; i >= 0; i--) {
         bool shouldgo = false;
-        for (struct CfBlock **b = blocks_to_remove; b < &blocks_to_remove[n_blocks_to_remove]; b++) {
+        for (CfBlock **b = blocks_to_remove; b < &blocks_to_remove[n_blocks_to_remove]; b++) {
             if(*b==cfg->all_blocks.ptr[i]){
                 shouldgo=true;
                 break;
@@ -399,7 +399,7 @@ static void remove_given_blocks(struct CfGraph *cfg, struct CfBlock **blocks_to_
     }
 }
 
-static void remove_unreachable_blocks(struct CfGraph *cfg)
+static void remove_unreachable_blocks(CfGraph *cfg)
 {
     bool *reachable = calloc(sizeof(reachable[0]), cfg->all_blocks.len);
     List(int) todo = {0};
@@ -418,7 +418,7 @@ static void remove_unreachable_blocks(struct CfGraph *cfg)
     }
     free(todo.ptr);
 
-    List(struct CfBlock *) blocks_to_remove = {0};
+    List(CfBlock *) blocks_to_remove = {0};
     for (int i = 0; i < cfg->all_blocks.len; i++)
         if (!reachable[i] && cfg->all_blocks.ptr[i] != &cfg->end_block)
             Append(&blocks_to_remove, cfg->all_blocks.ptr[i]);
@@ -429,12 +429,12 @@ static void remove_unreachable_blocks(struct CfGraph *cfg)
     free(blocks_to_remove.ptr);
 }
 
-static void remove_unused_variables(struct CfGraph *cfg)
+static void remove_unused_variables(CfGraph *cfg)
 {
     char *used = calloc(1, cfg->variables.len);
 
-    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
-        for (struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++) {
+    for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
+        for (CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++) {
             if (ins->destvar)
                 used[find_var_index(cfg, ins->destvar)] = true;
             for (int i = 0; i < ins->noperands; i++)
@@ -453,14 +453,14 @@ static void remove_unused_variables(struct CfGraph *cfg)
     free(used);
 }
 
-static void warn_about_undefined_variables(struct CfGraph *cfg)
+static void warn_about_undefined_variables(CfGraph *cfg)
 {
     enum VarStatus **statuses = determine_var_statuses(cfg);
 
     for (int blockidx = 0; blockidx < cfg->all_blocks.len; blockidx++) {
-        const struct CfBlock *b = cfg->all_blocks.ptr[blockidx];
+        const CfBlock *b = cfg->all_blocks.ptr[blockidx];
         enum VarStatus *status = statuses[blockidx];
-        for (struct CfInstruction *ins = b->instructions.ptr; ins < End(b->instructions); ins++) {
+        for (CfInstruction *ins = b->instructions.ptr; ins < End(b->instructions); ins++) {
             for (int i = 0; i < ins->noperands; i++) {
                 switch(status[find_var_index(cfg, ins->operands[i])]) {
                 case VS_UNVISITED:
@@ -489,7 +489,7 @@ static void warn_about_undefined_variables(struct CfGraph *cfg)
     free_var_statuses(cfg, statuses);
 }
 
-static void error_about_missing_return(struct CfGraph *cfg, const struct Signature *sig)
+static void error_about_missing_return(CfGraph *cfg, const Signature *sig)
 {
     if (!sig->returntype)
         return;
@@ -522,7 +522,7 @@ static void error_about_missing_return(struct CfGraph *cfg, const struct Signatu
     free_var_statuses(cfg, statuses);
 }
 
-static void simplify_cfg(struct CfGraph *cfg, const struct Signature *sig)
+static void simplify_cfg(CfGraph *cfg, const Signature *sig)
 {
     clean_jumps_where_condition_always_true_or_always_false(cfg);
     remove_unreachable_blocks(cfg);
@@ -531,7 +531,7 @@ static void simplify_cfg(struct CfGraph *cfg, const struct Signature *sig)
     warn_about_undefined_variables(cfg);
 }
 
-void simplify_control_flow_graphs(const struct CfGraphFile *cfgfile)
+void simplify_control_flow_graphs(const CfGraphFile *cfgfile)
 {
     for (int i = 0; i < cfgfile->nfuncs; i++)
         if (cfgfile->graphs[i])

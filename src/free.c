@@ -4,15 +4,15 @@
 #include <assert.h>
 #include <stdlib.h>
 
-void free_tokens(struct Token *tokenlist)
+void free_tokens(Token *tokenlist)
 {
-    for (struct Token *t = tokenlist; t->type != TOKEN_END_OF_FILE; t++)
+    for (Token *t = tokenlist; t->type != TOKEN_END_OF_FILE; t++)
         if (t->type == TOKEN_STRING)
             free(t->data.string_value);
     free(tokenlist);
 }
 
-void free_type(const struct Type *type)
+void free_type(const Type *type)
 {
     switch(type->kind) {
     case TYPE_POINTER:
@@ -27,23 +27,23 @@ void free_type(const struct Type *type)
     }
 }
 
-void free_constant(const struct Constant *c)
+void free_constant(const Constant *c)
 {
     // the type isn't owned, it refers to an existing type
     if (same_type(&c->type, &stringType))
         free(c->value.str);
 }
 
-static void free_expression(const struct AstExpression *expr);
+static void free_expression(const AstExpression *expr);
 
-static void free_call(const struct AstCall *call)
+static void free_call(const AstCall *call)
 {
     for (int i = 0; i < call->nargs; i++)
         free_expression(&call->args[i]);
     free(call->args);
 }
 
-static void free_expression(const struct AstExpression *expr)
+static void free_expression(const AstExpression *expr)
 {
     switch(expr->kind) {
     case AST_EXPR_CALL:
@@ -84,9 +84,9 @@ static void free_expression(const struct AstExpression *expr)
     }
 }
 
-static void free_body(const struct AstBody *body);
+static void free_body(const AstBody *body);
 
-static void free_statement(const struct AstStatement *stmt)
+static void free_statement(const AstStatement *stmt)
 {
     switch(stmt->kind) {
     case AST_STMT_IF:
@@ -125,14 +125,14 @@ static void free_statement(const struct AstStatement *stmt)
     }
 }
 
-static void free_body(const struct AstBody *body)
+static void free_body(const AstBody *body)
 {
     for (int i = 0; i < body->nstatements; i++)
         free_statement(&body->statements[i]);
     free(body->statements);
 }
 
-static void free_signature(const struct Signature *sig)
+static void free_signature(const Signature *sig)
 {
     for (int i = 0; i < sig->nargs; i++)
         free_type(&sig->argtypes[i]);
@@ -144,9 +144,9 @@ static void free_signature(const struct Signature *sig)
     free(sig->argnames);
 }
 
-void free_ast(struct AstToplevelNode *topnodelist)
+void free_ast(AstToplevelNode *topnodelist)
 {
-    for (struct AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
+    for (AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
         switch(t->kind) {
         case AST_TOPLEVEL_DECLARE_FUNCTION:
             free_signature(&t->data.decl_signature);
@@ -163,9 +163,9 @@ void free_ast(struct AstToplevelNode *topnodelist)
 }
 
 
-void free_control_flow_graph_block(const struct CfGraph *cfg, struct CfBlock *b)
+void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b)
 {
-    for (const struct CfInstruction *ins = b->instructions.ptr; ins < End(b->instructions); ins++) {
+    for (const CfInstruction *ins = b->instructions.ptr; ins < End(b->instructions); ins++) {
         if (ins->kind == CF_CONSTANT)
             free_constant(&ins->data.constant);
         free(ins->operands);
@@ -175,12 +175,12 @@ void free_control_flow_graph_block(const struct CfGraph *cfg, struct CfBlock *b)
         free(b);
 }
 
-static void free_cfg(struct CfGraph *cfg)
+static void free_cfg(CfGraph *cfg)
 {
-    for (struct CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++)
+    for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++)
         free_control_flow_graph_block(cfg, *b);
 
-    for (struct CfVariable **v = cfg->variables.ptr; v < End(cfg->variables); v++) {
+    for (CfVariable **v = cfg->variables.ptr; v < End(cfg->variables); v++) {
         free_type(&(*v)->type);
         free(*v);
     }
@@ -190,7 +190,7 @@ static void free_cfg(struct CfGraph *cfg)
     free(cfg);
 }
 
-void free_control_flow_graphs(const struct CfGraphFile *cfgfile)
+void free_control_flow_graphs(const CfGraphFile *cfgfile)
 {
     for (int i = 0; i < cfgfile->nfuncs; i++) {
         free_signature(&cfgfile->signatures[i]);

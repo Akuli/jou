@@ -43,16 +43,16 @@ int main(int argc, char **argv)
         return 2;
     }
 
-    struct Token *tokens = tokenize(filename);
+    Token *tokens = tokenize(filename);
     if(verbose)
         print_tokens(tokens);
 
-    struct AstToplevelNode *ast = parse(tokens);
+    AstToplevelNode *ast = parse(tokens);
     free_tokens(tokens);
     if(verbose)
         print_ast(ast);
 
-    struct CfGraphFile cfgfile = build_control_flow_graphs(ast);
+    CfGraphFile cfgfile = build_control_flow_graphs(ast);
     free_ast(ast);
     if(verbose)
         print_control_flow_graphs(&cfgfile);

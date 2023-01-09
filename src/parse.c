@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static noreturn void fail_with_parse_error(const struct Token *token, const char *what_was_expected_instead)
+static noreturn void fail_with_parse_error(const Token *token, const char *what_was_expected_instead)
 {
     char got[200];
     switch(token->type) {
@@ -25,19 +25,19 @@ static noreturn void fail_with_parse_error(const struct Token *token, const char
     fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
 
-static bool is_keyword(const struct Token *t, const char *kw)
+static bool is_keyword(const Token *t, const char *kw)
 {
     return t->type == TOKEN_KEYWORD && !strcmp(t->data.name, kw);
 }
 
-static bool is_operator(const struct Token *t, const char *op)
+static bool is_operator(const Token *t, const char *op)
 {
     return t->type == TOKEN_OPERATOR && !strcmp(t->data.operator, op);
 }
 
-static struct Type *parse_type_or_void(const struct Token **tokens)
+static Type *parse_type_or_void(const Token **tokens)
 {
-    struct Type *result;
+    Type *result;
 
     if (is_keyword(*tokens, "void"))
         result = NULL;
@@ -67,20 +67,20 @@ static struct Type *parse_type_or_void(const struct Token **tokens)
     return result;
 }
 
-static struct Type parse_type(const struct Token **tokens)
+static Type parse_type(const Token **tokens)
 {
-    struct Location startlocation = (**tokens).location;
-    struct Type *tmp = parse_type_or_void(tokens);
+    Location startlocation = (**tokens).location;
+    Type *tmp = parse_type_or_void(tokens);
     if (!tmp)
         fail_with_error(startlocation, "'void' cannot be used here because it is not a type");
-    struct Type t = *tmp;
+    Type t = *tmp;
     free(tmp);
     return t;
 }
 
-static struct Signature parse_function_signature(const struct Token **tokens)
+static Signature parse_function_signature(const Token **tokens)
 {
-    struct Signature result = {.location=(*tokens)->location};
+    Signature result = {.location=(*tokens)->location};
 
     if ((*tokens)->type != TOKEN_NAME)
         fail_with_parse_error(*tokens, "a function name");
@@ -95,7 +95,7 @@ static struct Signature parse_function_signature(const struct Token **tokens)
     struct Name { char name[100]; };
     static_assert(sizeof(struct Name) == 100, "your c compiler is stupid");
     List(struct Name) argnames = {0};
-    List(struct Type) argtypes = {0};
+    List(Type) argtypes = {0};
 
     while (!is_operator(*tokens, ")")) {
         if (result.takes_varargs)
@@ -156,11 +156,11 @@ static struct Signature parse_function_signature(const struct Token **tokens)
     return result;
 }
 
-static struct AstExpression parse_expression(const struct Token **tokens);
+static AstExpression parse_expression(const Token **tokens);
 
-static struct AstCall parse_call(const struct Token **tokens)
+static AstCall parse_call(const Token **tokens)
 {
-    struct AstCall result;
+    AstCall result;
 
     if ((*tokens)->type != TOKEN_NAME)
         fail_with_parse_error(*tokens, "a function name");
@@ -171,7 +171,7 @@ static struct AstCall parse_call(const struct Token **tokens)
         fail_with_parse_error(*tokens, "a '(' to denote the start of function arguments");
     ++*tokens;
 
-    List(struct AstExpression) args = {0};
+    List(AstExpression) args = {0};
 
     while (!is_operator(*tokens, ")")) {
         Append(&args, parse_expression(tokens));
@@ -192,14 +192,14 @@ static struct AstCall parse_call(const struct Token **tokens)
 }
 
 // arity = number of operands, e.g. 2 for a binary operator such as "+"
-static struct AstExpression build_operator_expression(const struct Token *t, int arity, const struct AstExpression *operands)
+static AstExpression build_operator_expression(const Token *t, int arity, const AstExpression *operands)
 {
     assert(arity==1 || arity==2);
     size_t nbytes = arity * sizeof operands[0];
-    struct AstExpression *ptr = malloc(nbytes);
+    AstExpression *ptr = malloc(nbytes);
     memcpy(ptr, operands, nbytes);
 
-    struct AstExpression result = { .location = t->location, .data.operands = ptr };
+    AstExpression result = { .location = t->location, .data.operands = ptr };
 
     if (is_operator(t, "&")) {
         assert(arity == 1);
@@ -254,18 +254,16 @@ static struct AstExpression build_operator_expression(const struct Token *t, int
 
 // If tokens is e.g. [1, '+', 2], this will be used to parse the ['+', 2] part.
 // Callback function cb defines how to parse the expression following the operator token.
-static void add_to_binop(
-    const struct Token **tokens, struct AstExpression *result,
-    struct AstExpression (*cb)(const struct Token**))
+static void add_to_binop(const Token **tokens, AstExpression *result, AstExpression (*cb)(const Token**))
 {
-    const struct Token *t = (*tokens)++;
-    struct AstExpression rhs = cb(tokens);
-    *result = build_operator_expression(t, 2, (struct AstExpression[]){*result, rhs});
+    const Token *t = (*tokens)++;
+    AstExpression rhs = cb(tokens);
+    *result = build_operator_expression(t, 2, (AstExpression[]){*result, rhs});
 }
 
-static struct AstExpression parse_elementary_expression(const struct Token **tokens)
+static AstExpression parse_elementary_expression(const Token **tokens)
 {
-    struct AstExpression expr = { .location = (*tokens)->location };
+    AstExpression expr = { .location = (*tokens)->location };
 
     switch((*tokens)->type) {
     case TOKEN_OPERATOR:
@@ -325,23 +323,23 @@ not_an_expression:
 }
 
 // Unary operators: foo++, foo--, ++foo, --foo, &foo, *foo
-static struct AstExpression parse_expression_with_unary_operators(const struct Token **tokens)
+static AstExpression parse_expression_with_unary_operators(const Token **tokens)
 {
     // sequneces of 0 or more unary operator tokens: start,start+1,...,end-1
-    const struct Token *prefixstart = *tokens;
+    const Token *prefixstart = *tokens;
     while(is_operator(*tokens,"++")||is_operator(*tokens,"--")||is_operator(*tokens,"&")||is_operator(*tokens,"*")) ++*tokens;
-    const struct Token *prefixend = *tokens;
+    const Token *prefixend = *tokens;
 
-    struct AstExpression result = parse_elementary_expression(tokens);
+    AstExpression result = parse_elementary_expression(tokens);
 
-    const struct Token *suffixstart = *tokens;
+    const Token *suffixstart = *tokens;
     while(is_operator(*tokens,"++")||is_operator(*tokens,"--")) ++*tokens;
-    const struct Token *suffixend = *tokens;
+    const Token *suffixend = *tokens;
 
     while (prefixstart<prefixend || suffixstart<suffixend) {
         // ++ and -- "bind tighter", so *foo++ is equivalent to *(foo++)
         // It is implemented by always consuming ++/-- prefixes and suffixes when they exist.
-        struct Location loc;
+        Location loc;
         enum AstExpressionKind k;
         if (prefixstart<prefixend && is_operator(prefixend-1, "++")) {
             k = AST_EXPR_PRE_INCREMENT;
@@ -366,33 +364,33 @@ static struct AstExpression parse_expression_with_unary_operators(const struct T
             loc = (--prefixend)->location;
         }
 
-        struct AstExpression *p = malloc(sizeof(*p));
+        AstExpression *p = malloc(sizeof(*p));
         *p = result;
-        result = (struct AstExpression){ .location=loc, .kind=k, .data.operands=p };
+        result = (AstExpression){ .location=loc, .kind=k, .data.operands=p };
     }
 
     return result;
 }
 
-static struct AstExpression parse_expression_with_mul_and_div(const struct Token **tokens)
+static AstExpression parse_expression_with_mul_and_div(const Token **tokens)
 {
-    struct AstExpression result = parse_expression_with_unary_operators(tokens);
+    AstExpression result = parse_expression_with_unary_operators(tokens);
     while (is_operator(*tokens, "*") || is_operator(*tokens, "/"))
         add_to_binop(tokens, &result, parse_expression_with_unary_operators);
     return result;
 }
 
-static struct AstExpression parse_expression_with_add(const struct Token **tokens)
+static AstExpression parse_expression_with_add(const Token **tokens)
 {
-    struct AstExpression result = parse_expression_with_mul_and_div(tokens);
+    AstExpression result = parse_expression_with_mul_and_div(tokens);
     while (is_operator(*tokens, "+") || is_operator(*tokens, "-"))
         add_to_binop(tokens, &result, parse_expression_with_mul_and_div);
     return result;
 }
 
-static struct AstExpression parse_expression_with_comparisons(const struct Token **tokens)
+static AstExpression parse_expression_with_comparisons(const Token **tokens)
 {
-    struct AstExpression result = parse_expression_with_add(tokens);
+    AstExpression result = parse_expression_with_add(tokens);
 #define IsComparator(x) (is_operator((x),"<") || is_operator((x),">") || is_operator((x),"<=") || is_operator((x),">=") || is_operator((x),"==") || is_operator((x),"!="))
     if (IsComparator(*tokens))
         add_to_binop(tokens, &result, parse_expression_with_add);
@@ -402,9 +400,9 @@ static struct AstExpression parse_expression_with_comparisons(const struct Token
     return result;
 }
 
-static struct AstExpression parse_expression_with_not(const struct Token **tokens)
+static AstExpression parse_expression_with_not(const Token **tokens)
 {
-    const struct Token *nottoken = NULL;
+    const Token *nottoken = NULL;
     if (is_keyword(*tokens, "not")) {
         nottoken = *tokens;
         ++*tokens;
@@ -412,15 +410,15 @@ static struct AstExpression parse_expression_with_not(const struct Token **token
     if (is_keyword(*tokens, "not"))
         fail_with_error((*tokens)->location, "'not' cannot be repeated");
 
-    struct AstExpression result = parse_expression_with_comparisons(tokens);
+    AstExpression result = parse_expression_with_comparisons(tokens);
     if (nottoken)
         result = build_operator_expression(nottoken, 1, &result);
     return result;
 }
 
-static struct AstExpression parse_expression_with_and_or(const struct Token **tokens)
+static AstExpression parse_expression_with_and_or(const Token **tokens)
 {
-    struct AstExpression result = parse_expression_with_not(tokens);
+    AstExpression result = parse_expression_with_not(tokens);
     bool got_and = false, got_or = false;
 
     while (is_keyword(*tokens, "and") || is_keyword(*tokens, "or")) {
@@ -435,30 +433,30 @@ static struct AstExpression parse_expression_with_and_or(const struct Token **to
     return result;
 }
 
-static struct AstExpression parse_expression_with_assignments(const struct Token **tokens)
+static AstExpression parse_expression_with_assignments(const Token **tokens)
 {
     // We can't use add_to_binop() because then x=y=z would parse as (x=y)=z, not x=(y=z).
-    struct AstExpression target = parse_expression_with_and_or(tokens);
+    AstExpression target = parse_expression_with_and_or(tokens);
     if (!is_operator(*tokens, "="))
         return target;
-    const struct Token *t = (*tokens)++;
-    struct AstExpression value = parse_expression_with_assignments(tokens);  // this function
-    return build_operator_expression(t, 2, (struct AstExpression[]){ target, value });
+    const Token *t = (*tokens)++;
+    AstExpression value = parse_expression_with_assignments(tokens);  // this function
+    return build_operator_expression(t, 2, (AstExpression[]){ target, value });
 }
 
-static struct AstExpression parse_expression(const struct Token **tokens)
+static AstExpression parse_expression(const Token **tokens)
 {
     return parse_expression_with_assignments(tokens);
 }
 
-static void eat_newline(const struct Token **tokens)
+static void eat_newline(const Token **tokens)
 {
     if ((*tokens)->type != TOKEN_NEWLINE)
         fail_with_parse_error(*tokens, "end of line");
     ++*tokens;
 }
 
-static void validate_expression_statement(const struct AstExpression *expr)
+static void validate_expression_statement(const AstExpression *expr)
 {
     switch(expr->kind) {
     case AST_EXPR_ASSIGN:
@@ -474,36 +472,36 @@ static void validate_expression_statement(const struct AstExpression *expr)
     }
 }
 
-static struct AstBody parse_body(const struct Token **tokens);
+static AstBody parse_body(const Token **tokens);
 
-static struct AstIfStatement parse_if_statement(const struct Token **tokens)
+static AstIfStatement parse_if_statement(const Token **tokens)
 {
-    List(struct AstConditionAndBody) if_elifs = {0};
+    List(AstConditionAndBody) if_elifs = {0};
 
     assert(is_keyword(*tokens, "if"));
     do {
         ++*tokens;
-        struct AstExpression cond = parse_expression(tokens);
-        struct AstBody body = parse_body(tokens);
-        Append(&if_elifs, (struct AstConditionAndBody){cond,body});
+        AstExpression cond = parse_expression(tokens);
+        AstBody body = parse_body(tokens);
+        Append(&if_elifs, (AstConditionAndBody){cond,body});
     } while (is_keyword(*tokens, "elif"));
 
-    struct AstBody elsebody = {0};
+    AstBody elsebody = {0};
     if (is_keyword(*tokens, "else")) {
         ++*tokens;
         elsebody = parse_body(tokens);
     }
 
-    return (struct AstIfStatement){
+    return (AstIfStatement){
         .if_and_elifs = if_elifs.ptr,
         .n_if_and_elifs = if_elifs.len,
         .elsebody = elsebody,
     };
 }
 
-static struct AstStatement parse_statement(const struct Token **tokens)
+static AstStatement parse_statement(const Token **tokens)
 {
-    struct AstStatement result = { .location = (*tokens)->location };
+    AstStatement result = { .location = (*tokens)->location };
     if (is_keyword(*tokens, "return")) {
         ++*tokens;
         if ((*tokens)->type == TOKEN_NEWLINE) {
@@ -551,7 +549,7 @@ static struct AstStatement parse_statement(const struct Token **tokens)
         result.data.vardecl.type = parse_type(tokens);
         if (is_operator(*tokens, "=")) {
             ++*tokens;
-            struct AstExpression *p = malloc(sizeof *p);
+            AstExpression *p = malloc(sizeof *p);
             *p = parse_expression(tokens);
             result.data.vardecl.initial_value = p;
         } else {
@@ -567,7 +565,7 @@ static struct AstStatement parse_statement(const struct Token **tokens)
     return result;
 }
 
-static struct AstBody parse_body(const struct Token **tokens)
+static AstBody parse_body(const Token **tokens)
 {
     if (!is_operator(*tokens, ":"))
         fail_with_parse_error(*tokens, "':' followed by a new line with more indentation");
@@ -581,17 +579,17 @@ static struct AstBody parse_body(const struct Token **tokens)
         fail_with_parse_error(*tokens, "more indentation after ':'");
     ++*tokens;
 
-    List(struct AstStatement) result = {0};
+    List(AstStatement) result = {0};
     while ((*tokens)->type != TOKEN_DEDENT)
         Append(&result, parse_statement(tokens));
     ++*tokens;
 
-    return (struct AstBody){ .statements=result.ptr, .nstatements=result.len };
+    return (AstBody){ .statements=result.ptr, .nstatements=result.len };
 }
 
-static struct AstToplevelNode parse_toplevel_node(const struct Token **tokens)
+static AstToplevelNode parse_toplevel_node(const Token **tokens)
 {
-    struct AstToplevelNode result = { .location = (*tokens)->location };
+    AstToplevelNode result = { .location = (*tokens)->location };
 
     switch((*tokens)->type) {
     case TOKEN_END_OF_FILE:
@@ -628,9 +626,9 @@ static struct AstToplevelNode parse_toplevel_node(const struct Token **tokens)
     return result;
 }   
 
-struct AstToplevelNode *parse(const struct Token *tokens)
+AstToplevelNode *parse(const Token *tokens)
 {
-    List(struct AstToplevelNode) result = {0};
+    List(AstToplevelNode) result = {0};
     do {
         Append(&result, parse_toplevel_node(&tokens));
     } while (result.ptr[result.len - 1].kind != AST_TOPLEVEL_END_OF_FILE);

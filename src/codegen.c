@@ -8,7 +8,7 @@
 #include "jou_compiler.h"
 #include "util.h"
 
-static LLVMTypeRef codegen_type(const struct Type *type)
+static LLVMTypeRef codegen_type(const Type *type)
 {
     switch(type->kind) {
     case TYPE_POINTER:
@@ -28,20 +28,20 @@ static LLVMTypeRef codegen_type(const struct Type *type)
 struct State {
     LLVMModuleRef module;
     LLVMBuilderRef builder;
-    struct CfVariable **cfvars, **cfvars_end;
+    CfVariable **cfvars, **cfvars_end;
     // All local variables are represented as pointers to stack space, even
     // if they are never reassigned. LLVM will optimize the mess.
     LLVMValueRef *llvm_locals;
 };
 
-const char *get_name_for_llvm(const struct CfVariable *cfvar)
+const char *get_name_for_llvm(const CfVariable *cfvar)
 {
     if (cfvar->name[0] == '$')
         return cfvar->name + 1;
     return cfvar->name;
 }
 
-static LLVMValueRef get_pointer_to_local_var(const struct State *st, const struct CfVariable *cfvar)
+static LLVMValueRef get_pointer_to_local_var(const struct State *st, const CfVariable *cfvar)
 {
     assert(cfvar);
     /*
@@ -57,22 +57,22 @@ static LLVMValueRef get_pointer_to_local_var(const struct State *st, const struc
     so I wouldn't need to ever resize the list of variables, but the CFG building
     is already complicated enough as is.
     */
-    for (struct CfVariable **v = st->cfvars; v < st->cfvars_end; v++)
+    for (CfVariable **v = st->cfvars; v < st->cfvars_end; v++)
         if (*v == cfvar)
             return st->llvm_locals[v - st->cfvars];
     assert(0);
 }
 
-static LLVMValueRef get_local_var(const struct State *st, const struct CfVariable *cfvar)
+static LLVMValueRef get_local_var(const struct State *st, const CfVariable *cfvar)
 {
     LLVMValueRef varptr = get_pointer_to_local_var(st, cfvar);
     return LLVMBuildLoad(st->builder, varptr, get_name_for_llvm(cfvar));
 }
 
-static void set_local_var(const struct State *st, const struct CfVariable *cfvar, LLVMValueRef value)
+static void set_local_var(const struct State *st, const CfVariable *cfvar, LLVMValueRef value)
 {
     assert(cfvar);
-    for (struct CfVariable **v = st->cfvars; v < st->cfvars_end; v++) {
+    for (CfVariable **v = st->cfvars; v < st->cfvars_end; v++) {
         if (*v == cfvar) {
             LLVMBuildStore(st->builder, value, st->llvm_locals[v - st->cfvars]);
             return;
@@ -81,7 +81,7 @@ static void set_local_var(const struct State *st, const struct CfVariable *cfvar
     assert(0);
 }
 
-static LLVMValueRef codegen_function_decl(const struct State *st, const struct Signature *sig)
+static LLVMValueRef codegen_function_decl(const struct State *st, const Signature *sig)
 {
     LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
     for (int i = 0; i < sig->nargs; i++)
@@ -125,7 +125,7 @@ static LLVMValueRef make_a_string_constant(const struct State *st, const char *s
     return LLVMBuildBitCast(st->builder, global_var, string_type, "string_ptr");
 }
 
-static LLVMValueRef codegen_constant(const struct State *st, const struct Constant *c)
+static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
 {
     switch(c->type.kind) {
         case TYPE_SIGNED_INTEGER:
@@ -143,7 +143,7 @@ static LLVMValueRef codegen_constant(const struct State *st, const struct Consta
     assert(0);
 }   
 
-static void codegen_instruction(const struct State *st, const struct CfInstruction *ins)
+static void codegen_instruction(const struct State *st, const CfInstruction *ins)
 {
 #define setdest(val) set_local_var(st, ins->destvar, (val))
 #define get(var) get_local_var(st, (var))
@@ -189,7 +189,7 @@ static void codegen_instruction(const struct State *st, const struct CfInstructi
 #undef getop
 }
 
-static int find_block(const struct CfGraph *cfg, const struct CfBlock *b)
+static int find_block(const CfGraph *cfg, const CfBlock *b)
 {
     for (int i = 0; i < cfg->all_blocks.len; i++)
         if (cfg->all_blocks.ptr[i] == b)
@@ -197,7 +197,7 @@ static int find_block(const struct CfGraph *cfg, const struct CfBlock *b)
     assert(0);
 }
 
-static void codegen_function_def(struct State *st, const struct Signature *sig, const struct CfGraph *cfg)
+static void codegen_function_def(struct State *st, const Signature *sig, const CfGraph *cfg)
 {
     st->cfvars = cfg->variables.ptr;
     st->cfvars_end = End(cfg->variables);
@@ -217,7 +217,7 @@ static void codegen_function_def(struct State *st, const struct Signature *sig, 
     // Allocate stack space for local variables at start of function.
     LLVMValueRef return_value = NULL;
     for (int i = 0; i < cfg->variables.len; i++) {
-        struct CfVariable *v = cfg->variables.ptr[i];
+        CfVariable *v = cfg->variables.ptr[i];
         st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(&v->type), get_name_for_llvm(v));
         if (!strcmp(v->name, "return"))
             return_value = st->llvm_locals[i];
@@ -227,10 +227,10 @@ static void codegen_function_def(struct State *st, const struct Signature *sig, 
     for (int i = 0; i < sig->nargs; i++)
         set_local_var(st, cfg->variables.ptr[i], LLVMGetParam(llvm_func, i));
 
-    for (struct CfBlock **b = cfg->all_blocks.ptr; b <End(cfg->all_blocks); b++) {
+    for (CfBlock **b = cfg->all_blocks.ptr; b <End(cfg->all_blocks); b++) {
         LLVMPositionBuilderAtEnd(st->builder, blocks[b - cfg->all_blocks.ptr]);
 
-        for (struct CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
+        for (CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
             codegen_instruction(st, ins);
 
         if (*b == &cfg->end_block) {
@@ -260,7 +260,7 @@ static void codegen_function_def(struct State *st, const struct Signature *sig, 
     free(st->llvm_locals);
 }
 
-LLVMModuleRef codegen(const struct CfGraphFile *cfgfile)
+LLVMModuleRef codegen(const CfGraphFile *cfgfile)
 {
     struct State st = {
         .module = LLVMModuleCreateWithName(""),  // TODO: pass module name?
