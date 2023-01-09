@@ -49,7 +49,7 @@ function run_test()
 
     if diff -u --color=always \
         <(generate_expected_output) \
-        <(bash -c "ulimit -v 500000; $command; echo Exit code: \$?" 2>&1) \
+        <(bash -c "ulimit -v 500000 -c 0; $command; echo Exit code: \$?" 2>&1) \
         &>> $diffpath
     then
         echo -ne "\x1b[32m.\x1b[0m"
