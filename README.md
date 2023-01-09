@@ -172,17 +172,12 @@ This list tends to have a few outdated details,
 but it should give you some kind of idea about what is still missing.
 
 - Write syntax spec once syntax seems relatively stable
-- Some kind of conversion to bool thingy for if statements: `if some_pointer:`, `if some_integer:`
-- `not`,`and`,`or`
-- `NULL` pointer
-- `++` and `--`
 - JIT so that you don't need to go through a compile step
 - REPL, if possible?
-- Everything else...?
-    - Arrays
-    - Structs
-    - Enums
-    - A reasonable way to import structs from C (not just functions).
-        - I don't like the zig/rust things that attempt to parse header files and get confused by macros. Something else?
-        - A good combination of odd corner cases for testing is probably `struct stat` and the `stat()` function.
-    - Self-hosted compiler??!?!
+- Arrays
+- Structs
+- Enums
+- A reasonable way to import structs from C (not just functions).
+    - I don't like the zig/rust things that attempt to parse header files and get confused by macros. Something else?
+    - A good combination of odd corner cases for testing is probably `struct stat` and the `stat()` function.
+- Self-hosted compiler??!?!
