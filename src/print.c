@@ -30,6 +30,8 @@ static void print_constant(const Constant *c)
         printf(c->value.boolean ? "True" : "False");
     else if (same_type(&c->type, &stringType))
         print_string(c->value.str);
+    else if (same_type(&c->type, &voidPtrType))
+        printf("NULL");
     else if (is_integer_type(&c->type))
         printf("%s %lld", c->type.name, c->value.integer);
     else
@@ -331,11 +333,11 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         }
         printf(")");
         break;
-    case CF_CAST_TO_BIGGER_SIGNED_INT:
+    case CF_INT_SCAST_TO_BIGGER:
         printf("cast %s to %d-bit signed int",
             ins->operands[0]->name, ins->destvar->type.data.width_in_bits);
         break;
-    case CF_CAST_TO_BIGGER_UNSIGNED_INT:
+    case CF_INT_UCAST_TO_BIGGER:
         printf("cast %s to %d-bit unsigned int",
             ins->operands[0]->name, ins->destvar->type.data.width_in_bits);
         break;
@@ -353,6 +355,7 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
     case CF_INT_UDIV:
     case CF_INT_EQ:
     case CF_INT_LT:
+    case CF_PTR_EQ:
         switch(ins->kind){
             case CF_INT_ADD: printf("iadd "); break;
             case CF_INT_SUB: printf("isub "); break;
@@ -361,15 +364,16 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
             case CF_INT_UDIV: printf("udiv "); break;
             case CF_INT_EQ: printf("ieq "); break;
             case CF_INT_LT: printf("ilt "); break;
+            case CF_PTR_EQ: printf("ptreq "); break;
             default: assert(0);
         }
         printf("%s, %s", ins->operands[0]->name, ins->operands[1]->name);
         break;
-    case CF_LOAD_FROM_POINTER:
+    case CF_PTR_LOAD:
         // Extra parentheses to make these stand out a bit.
         printf("*(%s)", ins->operands[0]->name);
         break;
-    case CF_STORE_TO_POINTER:
+    case CF_PTR_STORE:
         printf("*(%s) = %s", ins->operands[0]->name, ins->operands[1]->name);
         break;
     case CF_VARCPY:

@@ -100,7 +100,8 @@ extern const Type voidPtrType;   // void*
 Type create_pointer_type(const Type *elem_type, Location error_location);
 Type create_integer_type(int size_in_bits, bool is_signed);
 Type copy_type(const Type *t);
-bool is_integer_type(const Type *t);
+bool is_integer_type(const Type *t);  // includes signed and unsigned
+bool is_pointer_type(const Type *t);  // includes void pointers
 bool same_type(const Type *a, const Type *b);
 
 struct Signature {
@@ -115,13 +116,21 @@ struct Signature {
 char *signature_to_string(const Signature *sig, bool include_return_type);
 Signature copy_signature(const Signature *sig);
 
-// Constants can appear in AST and in control flow graphs.
+/*
+Constants can appear in AST and in control flow graphs.
+All possible constants:
+
+    is_integer_type(&constant.type)         value.integer used
+    same_type(&constant.type, &boolType)    value.boolean used
+    same_type(&constant.type, &strType)     value.str used
+    same_type(&constant.type, voidPtrType)  this is a NULL pointer, value unused
+*/
 struct Constant {
     Type type;
     union {
-        bool boolean;       // same_type(&constant.type, &boolType)
-        char *str;          // same_type(&constant.type, &strType)
-        long long integer;  // is_integer_type(&constant.type)
+        long long integer;
+        bool boolean;
+        char *str;
     } value;
 };
 #define copy_constant(c) ( same_type(&(c)->type, &stringType) ? (Constant){ stringType, {.str=strdup((c)->value.str)} } : *(c) )
@@ -260,8 +269,9 @@ struct CfInstruction {
         CF_CONSTANT,
         CF_CALL,
         CF_ADDRESS_OF_VARIABLE,
-        CF_STORE_TO_POINTER,  // *foo = bar (does not use destvar, see below)
-        CF_LOAD_FROM_POINTER,  // aka dereference
+        CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
+        CF_PTR_LOAD,  // aka dereference
+        CF_PTR_EQ,
         CF_INT_ADD,
         CF_INT_SUB,
         CF_INT_MUL,
@@ -269,10 +279,10 @@ struct CfInstruction {
         CF_INT_UDIV, // unsigned division: 255 / 2 = 127
         CF_INT_EQ,
         CF_INT_LT,
+        CF_INT_SCAST_TO_BIGGER,  // cast to bigger signed int, e.g. 8->16: 0xFF = -1 --> 0xFFFF
+        CF_INT_UCAST_TO_BIGGER,  // cast to bigger unsigned int, e.g. 8->16: 0xFF = 255 --> 0x00FF
         CF_BOOL_NEGATE,  // TODO: get rid of this?
         CF_VARCPY, // similar to assignment statements: var1 = var2
-        CF_CAST_TO_BIGGER_SIGNED_INT,
-        CF_CAST_TO_BIGGER_UNSIGNED_INT,
         CF_CAST_POINTER,
     } kind;
     union CfInstructionData {

@@ -309,6 +309,10 @@ static AstExpression parse_elementary_expression(const Token **tokens)
             expr.data.constant.type = boolType;
             expr.data.constant.value.boolean = is_keyword(*tokens, "True");
             ++*tokens;
+        } else if (is_keyword(*tokens, "NULL")) {
+            expr.kind = AST_EXPR_CONSTANT;
+            expr.data.constant.type = voidPtrType;
+            ++*tokens;
         } else {
             goto not_an_expression;
         }
