@@ -390,7 +390,7 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         printf("cast %s to %d-bit unsigned int",
             ins->operands[0]->name, ins->destvar->type.data.width_in_bits);
         break;
-    case CF_CAST_POINTER:
+    case CF_PTR_CAST:
         printf("pointer cast %s", ins->operands[0]->name);
         break;
     case CF_CONSTANT:

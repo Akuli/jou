@@ -316,7 +316,7 @@ struct CfInstruction {
         CF_PTR_LOAD,  // aka dereference
         CF_PTR_EQ,
         CF_PTR_STRUCT_FIELD,  // takes 1 operand (pointer), sets destvar to &op->fieldname
-        CF_CAST_POINTER,  // TODO: rename
+        CF_PTR_CAST,
         CF_INT_ADD,
         CF_INT_SUB,
         CF_INT_MUL,

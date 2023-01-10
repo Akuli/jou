@@ -222,7 +222,7 @@ static const CfVariable *build_implicit_cast(
     if ((from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
         || (from->kind == TYPE_VOID_POINTER && to->kind == TYPE_POINTER))
     {
-        add_unary_op(st, location, CF_CAST_POINTER, obj, result);
+        add_unary_op(st, location, CF_PTR_CAST, obj, result);
         return result;
     }
 
