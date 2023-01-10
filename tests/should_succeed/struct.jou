@@ -9,7 +9,9 @@ def increment(f: Foo*) -> void:
 
 def main() -> int:
     foo = Foo{num = 1, text = "hello"}
-    printf("%d %s\n", foo.num, foo.text)
+    printf("%d %s\n", foo.num, foo.text)  # Output: 1 hello
+
     increment(&foo)
-    printf("%d %s\n", foo.num, foo.text)
+    printf("%d %s\n", foo.num, foo.text)  # Output: 2 hello
+
     return 0

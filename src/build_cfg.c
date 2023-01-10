@@ -370,7 +370,7 @@ static const CfVariable *build_struct_field_pointer(
     }
 
     // TODO: test this error
-    fail_with_error(location, "struct '%s' has no field named '%s'", structtype->name, fieldname);
+    fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
 }
 
 static const CfVariable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool is_assignment);
@@ -690,7 +690,6 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
         if (obj->type.kind != TYPE_POINTER
             || obj->type.data.valuetype->kind != TYPE_STRUCT)
         {
-            // TODO: test (2 ways to get here)
             fail_with_error(address_of_what->location,
                 "left side of the '->' operator must be a pointer to a struct, not %s",
                 obj->type.name);
@@ -699,19 +698,13 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
     }
     case AST_EXPR_GET_FIELD:
     {
-        /*
-        &obj.field aka &(obj.field), evaluate as &(&obj)->field
-
-        TODO: you can't do foo().bar because &foo() doesn't work, see below. That's fine but:
-           * we need a test case that ensures the error message makes sense
-           * it needs to be documented when we have docs
-        */
+        // &obj.field aka &(obj.field), evaluate as &(&obj)->field
         const CfVariable *obj = build_address_of_expression(st, address_of_what->data.field.obj, false);
         assert(obj->type.kind == TYPE_POINTER);
         if (obj->type.data.valuetype->kind != TYPE_STRUCT){
             // TODO: test
             fail_with_error(address_of_what->location,
-                "left side of the '.' operator must be a pointer to a struct, not %s",
+                "left side of the '.' operator must be a struct, not %s",
                 obj->type.data.valuetype->name);
         }
         return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);

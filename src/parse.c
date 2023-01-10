@@ -173,17 +173,24 @@ static AstCall parse_call(const Token **tokens, char openparen, char closeparen,
 
     while (!is_operator(*tokens, (char[]){closeparen,'\0'})) {
         if (args_are_named) {
-            if ((*tokens)->type != TOKEN_NAME) {
-                // TODO: test this error
-                fail_with_parse_error((*tokens),"an argument name");
+            if ((*tokens)->type != TOKEN_NAME)
+                fail_with_parse_error((*tokens),"a field name");
+
+            for (struct Name *oldname = argnames.ptr; oldname < End(argnames); oldname++) {
+                if (!strcmp(oldname->name, (*tokens)->data.name)) {
+                    fail_with_error(
+                        (*tokens)->location, "there are two arguments named '%s'", oldname->name);
+                }
             }
+
             struct Name n;
             safe_strcpy(n.name,(*tokens)->data.name);
             Append(&argnames,n);
             ++*tokens;
 
             if (!is_operator(*tokens, "=")) {
-                // TODO: test this error
+                char msg[300];
+                snprintf(msg, sizeof msg, "'=' followed by a value for field '%s'", n.name);
                 fail_with_parse_error((*tokens),"'=' followed by a value");
             }
             ++*tokens;
