@@ -14,24 +14,16 @@ void free_tokens(Token *tokenlist)
 
 void free_type(const Type *type)
 {
-    switch(type->kind) {
-    case TYPE_POINTER:
+    if (type->kind == TYPE_POINTER) {
         free_type(type->data.valuetype);
         free(type->data.valuetype);
-        break;
-    case TYPE_SIGNED_INTEGER:
-    case TYPE_UNSIGNED_INTEGER:
-    case TYPE_BOOL:
-    case TYPE_VOID_POINTER:
-        break;
     }
 }
 
 void free_constant(const Constant *c)
 {
-    // the type isn't owned, it refers to an existing type
-    if (same_type(&c->type, &stringType))
-        free(c->value.str);
+    if (c->kind == CONSTANT_STRING)
+        free(c->data.str);
 }
 
 static void free_expression(const AstExpression *expr);

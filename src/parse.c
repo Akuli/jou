@@ -257,20 +257,25 @@ static AstExpression parse_elementary_expression(const Token **tokens)
         break;
     case TOKEN_INT:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant.type = intType;
-        expr.data.constant.value.integer = (*tokens)->data.int_value;
+        expr.data.constant = (Constant){ CONSTANT_INTEGER, {.integer={
+            .is_signed = true,
+            .value = (*tokens)->data.int_value,
+            .width_in_bits = 32,
+        }}};
         ++*tokens;
         break;
     case TOKEN_CHAR:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant.type = byteType;
-        expr.data.constant.value.integer = (unsigned char) (*tokens)->data.char_value;
+        expr.data.constant = (Constant){ CONSTANT_INTEGER, {.integer={
+            .is_signed = false,
+            .value = (*tokens)->data.char_value,
+            .width_in_bits = 8,
+        }}};
         ++*tokens;
         break;
     case TOKEN_STRING:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant.type = stringType;
-        expr.data.constant.value.str = strdup((*tokens)->data.string_value);
+        expr.data.constant = (Constant){ CONSTANT_STRING, {.str=strdup((*tokens)->data.string_value)} };
         ++*tokens;
         break;
     case TOKEN_NAME:
@@ -286,12 +291,11 @@ static AstExpression parse_elementary_expression(const Token **tokens)
     case TOKEN_KEYWORD:
         if (is_keyword(*tokens, "True") || is_keyword(*tokens, "False")) {
             expr.kind = AST_EXPR_CONSTANT;
-            expr.data.constant.type = boolType;
-            expr.data.constant.value.boolean = is_keyword(*tokens, "True");
+            expr.data.constant = (Constant){ CONSTANT_BOOL, {.boolean=is_keyword(*tokens, "True")} };
             ++*tokens;
         } else if (is_keyword(*tokens, "NULL")) {
             expr.kind = AST_EXPR_CONSTANT;
-            expr.data.constant.type = voidPtrType;
+            expr.data.constant = (Constant){ CONSTANT_NULL, {{0}} };
             ++*tokens;
         } else {
             goto not_an_expression;

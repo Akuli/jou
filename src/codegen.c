@@ -127,18 +127,15 @@ static LLVMValueRef make_a_string_constant(const struct State *st, const char *s
 
 static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
 {
-    switch(c->type.kind) {
-        case TYPE_SIGNED_INTEGER:
-            return LLVMConstInt(codegen_type(&c->type), c->value.integer, true);
-        case TYPE_UNSIGNED_INTEGER:
-            return LLVMConstInt(codegen_type(&c->type), c->value.integer, false);
-        case TYPE_BOOL:
-            return LLVMConstInt(LLVMInt1Type(), c->value.boolean, false);
-        case TYPE_POINTER:
-            assert(same_type(&c->type, &stringType));
-            return make_a_string_constant(st, c->value.str);
-        case TYPE_VOID_POINTER:
-            return LLVMConstNull(codegen_type(&voidPtrType));
+    switch(c->kind) {
+    case CONSTANT_BOOL:
+        return LLVMConstInt(LLVMInt1Type(), c->data.boolean, false);
+    case CONSTANT_INTEGER:
+        return LLVMConstInt(codegen_type((Type[]){type_of_constant(c)}), c->data.integer.value, c->data.integer.is_signed);
+    case CONSTANT_NULL:
+        return LLVMConstNull(codegen_type(&voidPtrType));
+    case CONSTANT_STRING:
+        return make_a_string_constant(st, c->data.str);
     }
     assert(0);
 }   
