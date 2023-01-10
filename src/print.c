@@ -362,6 +362,9 @@ void print_ast(const AstToplevelNode *topnodelist)
 
 static const char *varname(const CfVariable *var)
 {
+    if (var->name[0])
+        return var->name;
+
     // Cycle through enough space for a few variables, so that you
     // can call this several times inside the same printf()
     static char names[50 + sizeof var->name][5];
@@ -370,10 +373,6 @@ static const char *varname(const CfVariable *var)
     i %= sizeof(names) / sizeof(names[0]);
 
     sprintf(s, "$%d", var->id);
-    if (var->name[0]) {
-        strcat(s, "_");
-        strcat(s, var->name);
-    }
     return s;
 }
 

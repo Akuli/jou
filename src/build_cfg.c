@@ -11,19 +11,6 @@ struct State {
     List(Type) structs;
 };
 
-static CfVariable *add_variable(const struct State *st, const Type *t, const char *name)
-{
-    CfVariable *var = calloc(1, sizeof *var);
-    var->id = st->cfg->variables.len;
-    var->type = copy_type(t);
-    if (name) {
-        assert(strlen(name) < sizeof var->name);
-        strcpy(var->name, name);
-    }
-    Append(&st->cfg->variables, var);
-    return var;
-}
-
 // If error_location is NULL, this will return NULL when variable is not found.
 static const CfVariable *find_variable(const struct State *st, const char *name, const Location *error_location)
 {
@@ -34,6 +21,20 @@ static const CfVariable *find_variable(const struct State *st, const char *name,
     if (!error_location)
         return NULL;
     fail_with_error(*error_location, "no local variable named '%s'", name);
+}
+
+static CfVariable *add_variable(const struct State *st, const Type *t, const char *name)
+{
+    CfVariable *var = calloc(1, sizeof *var);
+    var->id = st->cfg->variables.len;
+    var->type = copy_type(t);
+    if (name) {
+        assert(!find_variable(st, name, NULL));
+        assert(strlen(name) < sizeof var->name);
+        strcpy(var->name, name);
+    }
+    Append(&st->cfg->variables, var);
+    return var;
 }
 
 static const Signature *find_function(const struct State *st, const char *name)
