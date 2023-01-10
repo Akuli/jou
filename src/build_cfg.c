@@ -125,7 +125,7 @@ static Type *build_type_or_void(const struct State *st, const AstType *asttype)
         bool found = false;
         for (struct Type *ptr = st->structs.ptr; ptr < End(st->structs); ptr++) {
             if (!strcmp(ptr->name, asttype->name)) {
-                t = *ptr;
+                t = copy_type(ptr);
                 found = true;
                 break;
             }
@@ -831,8 +831,10 @@ static const CfVariable *build_struct_init(struct State *st, const AstCall *call
     const CfVariable *instance = add_variable(st, &t, "$instance");
     Type p = create_pointer_type(&t, location);
     const CfVariable *instanceptr = add_variable(st, &p, "$instanceptr");
-    free(p.data.valuetype);
     add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
+
+    free(p.data.valuetype);
+    free_type(&t);
 
     for (int i = 0; i < call->nargs; i++) {
         const CfVariable *fieldptr = build_struct_field_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
@@ -1137,5 +1139,8 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
 
     free(st.breakstack.ptr);
     free(st.continuestack.ptr);
+    for (Type *t = st.structs.ptr; t < End(st.structs); t++)
+        free_type(t);
+    free(st.structs.ptr);
     return result;
 }

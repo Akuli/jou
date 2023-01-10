@@ -14,9 +14,19 @@ void free_tokens(Token *tokenlist)
 
 void free_type(const Type *type)
 {
-    if (type->kind == TYPE_POINTER) {
+    switch(type->kind) {
+    case TYPE_POINTER:
         free_type(type->data.valuetype);
         free(type->data.valuetype);
+        break;
+    case TYPE_STRUCT:
+        for (int i = 0; i < type->data.structfields.count; i++)
+            free_type(&type->data.structfields.types[i]);
+        free(type->data.structfields.types);
+        free(type->data.structfields.names);
+        break;
+    default:
+        break;
     }
 }
 
