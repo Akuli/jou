@@ -23,11 +23,11 @@ static LLVMTypeRef codegen_type(const Type *type)
         return LLVMInt1Type();
     case TYPE_STRUCT:
         {
-            int n = type->data.structmembers.count;
+            int n = type->data.structfields.count;
             LLVMTypeRef *elems = malloc(sizeof(elems[0]) * n);  // NOLINT
             for (int i = 0; i < n; i++)
-                elems[i] = codegen_type(&type->data.structmembers.types[i]);
-            LLVMTypeRef result = LLVMStructType(elems, type->data.structmembers.count, false);
+                elems[i] = codegen_type(&type->data.structfields.types[i]);
+            LLVMTypeRef result = LLVMStructType(elems, type->data.structfields.count, false);
             free(elems);
             return result;
         }
@@ -183,13 +183,13 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, lhsint, rhsint, name));
             }
             break;
-        case CF_PTR_STRUCT_MEMBER:
+        case CF_PTR_STRUCT_FIELD:
             {
                 const Type *structtype = ins->operands[0]->type.data.valuetype;
                 int i = 0;
-                while (strcmp(structtype->data.structmembers.names[i], ins->data.membername))
+                while (strcmp(structtype->data.structfields.names[i], ins->data.fieldname))
                     i++;
-                setdest(LLVMBuildStructGEP2(st->builder, codegen_type(structtype), getop(0), i, ins->data.membername));
+                setdest(LLVMBuildStructGEP2(st->builder, codegen_type(structtype), getop(0), i, ins->data.fieldname));
             }
             break;
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), name)); break;

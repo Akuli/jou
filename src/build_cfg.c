@@ -341,19 +341,19 @@ static const CfVariable *build_binop(
     return negated;
 }
 
-static const CfVariable *build_struct_member_pointer(
-    struct State *st, const CfVariable *structinstance, const char *membername, Location location)
+static const CfVariable *build_struct_field_pointer(
+    struct State *st, const CfVariable *structinstance, const char *fieldname, Location location)
 {
     assert(structinstance->type.kind == TYPE_POINTER);
     assert(structinstance->type.data.valuetype->kind == TYPE_STRUCT);
     const Type *structtype = structinstance->type.data.valuetype;
 
-    for (int i = 0; i < structtype->data.structmembers.count; i++) {
+    for (int i = 0; i < structtype->data.structfields.count; i++) {
         char name[100];
-        safe_strcpy(name, structtype->data.structmembers.names[i]);
-        const Type *type = &structtype->data.structmembers.types[i];
+        safe_strcpy(name, structtype->data.structfields.names[i]);
+        const Type *type = &structtype->data.structfields.types[i];
 
-        if (!strcmp(name, membername)) {
+        if (!strcmp(name, fieldname)) {
             char debugname[100];
             snprintf(debugname, sizeof debugname, "$%s_ptr", name);
 
@@ -362,15 +362,15 @@ static const CfVariable *build_struct_member_pointer(
             free(ptrtype.data.valuetype);
 
             union CfInstructionData dat;
-            safe_strcpy(dat.membername, name);
+            safe_strcpy(dat.fieldname, name);
 
-            add_instruction(st, location, CF_PTR_STRUCT_MEMBER, &dat, (const CfVariable*[]){structinstance,NULL}, result);
+            add_instruction(st, location, CF_PTR_STRUCT_FIELD, &dat, (const CfVariable*[]){structinstance,NULL}, result);
             return result;
         }
     }
 
     // TODO: test this error
-    fail_with_error(location, "struct '%s' has no member named '%s'", structtype->name, membername);
+    fail_with_error(location, "struct '%s' has no field named '%s'", structtype->name, fieldname);
 }
 
 static const CfVariable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool is_assignment);
@@ -443,8 +443,8 @@ enum AndOr { AND, OR };
 
 static const CfVariable *build_function_call(struct State *st, const AstCall *call, Location location);
 static const CfVariable *build_struct_init(struct State *st, const AstCall *call, Location location);
-static const CfVariable *build_struct_member_pointer(
-    struct State *st, const CfVariable *structinstance, const char *membername, Location location);
+static const CfVariable *build_struct_field_pointer(
+    struct State *st, const CfVariable *structinstance, const char *fieldname, Location location);
 static const CfVariable *build_and_or(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr, enum AndOr andor);
 
 static const CfVariable *build_expression(
@@ -695,7 +695,7 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
                 "left side of the '->' operator must be a pointer to a struct, not %s",
                 obj->type.name);
         }
-        return build_struct_member_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
+        return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
     }
     case AST_EXPR_GET_FIELD:
     {
@@ -714,7 +714,7 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
                 "left side of the '.' operator must be a pointer to a struct, not %s",
                 obj->type.data.valuetype->name);
         }
-        return build_struct_member_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
+        return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
     }
 
     /*
@@ -822,7 +822,7 @@ static const CfVariable *build_struct_init(struct State *st, const AstCall *call
         fail_with_error(location, "type %s cannot be instantiated with the Foo{...} syntax", t.name);
     }
 
-    // TODO: Make sure every struct member gets a value, or add a memset
+    // TODO: Make sure every field gets a value, or add a memset
 
     const CfVariable *instance = add_variable(st, &t, "$instance");
     Type p = create_pointer_type(&t, location);
@@ -831,14 +831,14 @@ static const CfVariable *build_struct_init(struct State *st, const AstCall *call
     add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
 
     for (int i = 0; i < call->nargs; i++) {
-        const CfVariable *memberptr = build_struct_member_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
+        const CfVariable *fieldptr = build_struct_field_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
         // TODO: test the cast error message
         char msg[1000];
         snprintf(msg, sizeof msg,
             "value for field '%s' of struct %s must be of type TO, not FROM",
             call->argnames[i], call->calledname);
-        const CfVariable *memberval = build_expression(st, &call->args[i], memberptr->type.data.valuetype, msg, true);
-        add_binary_op(st, location, CF_PTR_STORE, memberptr, memberval, NULL);
+        const CfVariable *fieldval = build_expression(st, &call->args[i], fieldptr->type.data.valuetype, msg, true);
+        add_binary_op(st, location, CF_PTR_STORE, fieldptr, fieldval, NULL);
     }
 
     return instance;
@@ -1082,15 +1082,15 @@ static Type build_struct(struct State *st, const AstStructDef *structdef, Locati
     Type result = { .kind = TYPE_STRUCT };
     safe_strcpy(result.name, structdef->name);
 
-    int n = structdef->nmembers;
-    result.data.structmembers.count = n;
+    int n = structdef->nfields;
+    result.data.structfields.count = n;
 
-    result.data.structmembers.names = malloc(n * sizeof result.data.structmembers.names[0]);
-    memcpy(result.data.structmembers.names, structdef->membernames, n * sizeof result.data.structmembers.names[0]);
+    result.data.structfields.names = malloc(n * sizeof result.data.structfields.names[0]);
+    memcpy(result.data.structfields.names, structdef->fieldnames, n * sizeof result.data.structfields.names[0]);
 
-    result.data.structmembers.types = malloc(n * sizeof result.data.structmembers.types[0]);
+    result.data.structfields.types = malloc(n * sizeof result.data.structfields.types[0]);
     for (int i = 0; i < n; i++)
-        result.data.structmembers.types[i] = build_type(st, &structdef->membertypes[i]);
+        result.data.structfields.types[i] = build_type(st, &structdef->fieldtypes[i]);
 
     return result;
 }

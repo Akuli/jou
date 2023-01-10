@@ -161,8 +161,8 @@ void free_ast(AstToplevelNode *topnodelist)
             free_body(&t->data.funcdef.body);
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
-            free(t->data.structdef.membernames);
-            free(t->data.structdef.membertypes);
+            free(t->data.structdef.fieldnames);
+            free(t->data.structdef.fieldtypes);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);

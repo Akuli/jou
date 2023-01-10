@@ -53,14 +53,14 @@ Type copy_type(const Type *t)
 
     case TYPE_STRUCT:
         {
-            int n = t2.data.structmembers.count;
+            int n = t2.data.structfields.count;
 
-            t2.data.structmembers.names = malloc(sizeof(t2.data.structmembers.names[0]) * n);
-            memcpy(t2.data.structmembers.names, t->data.structmembers.names, sizeof(t2.data.structmembers.names[0]) * n);
+            t2.data.structfields.names = malloc(sizeof(t2.data.structfields.names[0]) * n);
+            memcpy(t2.data.structfields.names, t->data.structfields.names, sizeof(t2.data.structfields.names[0]) * n);
 
-            t2.data.structmembers.types = malloc(sizeof(t2.data.structmembers.types[0]) * n);
+            t2.data.structfields.types = malloc(sizeof(t2.data.structfields.types[0]) * n);
             for (int i = 0; i < n; i++)
-                t2.data.structmembers.types[i] = copy_type(&t->data.structmembers.types[i]);
+                t2.data.structfields.types[i] = copy_type(&t->data.structfields.types[i]);
         }
     }
 
@@ -92,11 +92,11 @@ bool same_type(const Type *a, const Type *b)
     case TYPE_UNSIGNED_INTEGER:
         return a->data.width_in_bits == b->data.width_in_bits;
     case TYPE_STRUCT:
-        if (a->data.structmembers.count != b->data.structmembers.count)
+        if (a->data.structfields.count != b->data.structfields.count)
             return false;
-        for (int i = 0; i < a->data.structmembers.count; i++)
-            if (!same_type(&a->data.structmembers.types[i], &b->data.structmembers.types[i])
-                || strcmp(a->data.structmembers.names[i], b->data.structmembers.names[i]))
+        for (int i = 0; i < a->data.structfields.count; i++)
+            if (!same_type(&a->data.structfields.types[i], &b->data.structfields.types[i])
+                || strcmp(a->data.structfields.names[i], b->data.structfields.names[i]))
             {
                 return false;
             }

@@ -342,11 +342,11 @@ void print_ast(const AstToplevelNode *topnodelist)
                 print_ast_body(&topnodelist->data.funcdef.body, 2);
                 break;
             case AST_TOPLEVEL_DEFINE_STRUCT:
-                printf("Define struct \"%s\" with %d members:\n",
-                    topnodelist->data.structdef.name, topnodelist->data.structdef.nmembers);
-                for (int i = 0; i < topnodelist->data.structdef.nmembers; i++) {
-                    printf("  %s: ", topnodelist->data.structdef.membernames[i]);
-                    print_ast_type(&topnodelist->data.structdef.membertypes[i]);
+                printf("Define struct \"%s\" with %d fields:\n",
+                    topnodelist->data.structdef.name, topnodelist->data.structdef.nfields);
+                for (int i = 0; i < topnodelist->data.structdef.nfields; i++) {
+                    printf("  %s: ", topnodelist->data.structdef.fieldnames[i]);
+                    print_ast_type(&topnodelist->data.structdef.fieldtypes[i]);
                     printf("\n");
                 }
                 break;
@@ -425,8 +425,8 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
     case CF_PTR_STORE:
         printf("*(%s) = %s", ins->operands[0]->name, ins->operands[1]->name);
         break;
-    case CF_PTR_STRUCT_MEMBER:
-        printf("%s + offset of field \"%s\"", ins->operands[0]->name, ins->data.membername);
+    case CF_PTR_STRUCT_FIELD:
+        printf("%s + offset of field \"%s\"", ins->operands[0]->name, ins->data.fieldname);
         break;
     case CF_VARCPY:
         printf("%s", ins->operands[0]->name);

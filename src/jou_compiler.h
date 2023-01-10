@@ -225,10 +225,9 @@ struct AstFunctionDef {
 
 struct AstStructDef {
     char name[100];
-    // TODO: rename members to fields?
-    int nmembers;
-    char (*membernames)[100];
-    AstType *membertypes;
+    int nfields;
+    char (*fieldnames)[100];
+    AstType *fieldtypes;
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -261,7 +260,7 @@ struct Type {
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER
         Type *valuetype;  // TYPE_POINTER
-        struct { int count; char (*names)[100]; Type *types; } structmembers;  // TYPE_STRUCT
+        struct { int count; char (*names)[100]; Type *types; } structfields;  // TYPE_STRUCT
     } data;
 };
 
@@ -316,7 +315,7 @@ struct CfInstruction {
         CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
         CF_PTR_LOAD,  // aka dereference
         CF_PTR_EQ,
-        CF_PTR_STRUCT_MEMBER,  // takes 1 operand (pointer), sets destvar to &op->fieldname
+        CF_PTR_STRUCT_FIELD,  // takes 1 operand (pointer), sets destvar to &op->fieldname
         CF_CAST_POINTER,  // TODO: rename
         CF_INT_ADD,
         CF_INT_SUB,
@@ -333,7 +332,7 @@ struct CfInstruction {
     union CfInstructionData {
         Constant constant;      // CF_CONSTANT
         char funcname[100];     // CF_CALL
-        char membername[100];   // CF_PTR_STRUCT_MEMBER
+        char fieldname[100];   // CF_PTR_STRUCT_FIELD
     } data;
     const CfVariable **operands;  // e.g. numbers to add, function arguments
     int noperands;

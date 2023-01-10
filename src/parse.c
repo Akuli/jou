@@ -64,7 +64,7 @@ struct Name { char name[100]; };
 typedef List(struct Name) NameList;
 typedef List(AstType) TypeList;
 
-// TODO: refactor by combining code for arguments and struct members more
+// TODO: refactor by combining code for arguments and struct fields more
 static void parse_name_and_type(
     const Token **tokens, NameList *names, TypeList *types,
     const char *expected_what_for_name, // e.g. "an argument name" to get error message "expected an argument name, got blah"
@@ -658,23 +658,23 @@ static AstStructDef parse_structdef(const Token **tokens)
     safe_strcpy(result.name, (*tokens)->data.name);
     ++*tokens;
 
-    NameList membernames = {0};
-    TypeList membertypes = {0};
+    NameList fieldnames = {0};
+    TypeList fieldtypes = {0};
 
     parse_start_of_body(tokens);
     while ((*tokens)->type != TOKEN_DEDENT) {
         parse_name_and_type(
-            tokens, &membernames, &membertypes,
+            tokens, &fieldnames, &fieldtypes,
             // TODO: test the errors
-            "a name for a struct member", "there are multiple struct members named '%s'");
+            "a name for a struct field", "there are multiple fields named '%s'");
         eat_newline(tokens);
     }
     ++*tokens;
 
-    result.membernames = (char(*)[100])membernames.ptr;
-    result.membertypes = membertypes.ptr;
-    assert(membernames.len == membertypes.len);
-    result.nmembers = membernames.len;
+    result.fieldnames = (char(*)[100])fieldnames.ptr;
+    result.fieldtypes = fieldtypes.ptr;
+    assert(fieldnames.len == fieldtypes.len);
+    result.nfields = fieldnames.len;
     return result;
 }
 
