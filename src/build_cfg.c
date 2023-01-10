@@ -469,7 +469,8 @@ static const CfVariable *build_expression(
         break;
     case AST_EXPR_GET_FIELD:
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        // To evaluate foo.bar or foo->bar, we first evaluate &foo.bar or &foo->bar.
+    case AST_EXPR_GET_VARIABLE:
+        // To evaluate e.g. foo.bar or foo->bar, we first evaluate &foo.bar or &foo->bar.
         // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
         {
             char debugname[100];
@@ -482,10 +483,6 @@ static const CfVariable *build_expression(
         break;
     case AST_EXPR_ADDRESS_OF:
         result = build_address_of_expression(st, &expr->data.operands[0], false);
-        break;
-    case AST_EXPR_GET_VARIABLE:
-        // TODO: should this copy the value over to a new, temporary variable?
-        result = find_variable(st, expr->data.varname, &expr->location);
         break;
     case AST_EXPR_DEREFERENCE:
         temp = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
