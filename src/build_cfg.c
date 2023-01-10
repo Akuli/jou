@@ -385,7 +385,6 @@ static const CfVariable *build_increment_or_decrement(
     if (!is_integer_type(t))
         fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
 
-    // TODO: should these variables get names?
     const CfVariable *old_value = add_variable(st, t, NULL);
     const CfVariable *new_value = add_variable(st, t, NULL);
     const CfVariable *diffvar = add_variable(st, t, NULL);
