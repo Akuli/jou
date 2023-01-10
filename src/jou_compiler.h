@@ -25,6 +25,7 @@ typedef struct AstIfStatement AstIfStatement;
 typedef struct AstStatement AstStatement;
 typedef struct AstToplevelNode AstToplevelNode;
 typedef struct AstFunctionDef AstFunctionDef;
+typedef struct AstStructDef AstStructDef;
 
 typedef struct CfBlock CfBlock;
 typedef struct CfGraph CfGraph;
@@ -114,7 +115,8 @@ struct AstSignature {
 };
 
 struct AstCall {
-    char funcname[100];
+    char calledname[100];  // e.g. function name of function call, struct name of instantiation
+    char (*argnames)[100];  // NULL when arguments are not named, e.g. function calls
     AstExpression *args;
     int nargs;
 };
@@ -124,7 +126,8 @@ struct AstExpression {
 
     enum AstExpressionKind {
         AST_EXPR_CONSTANT,
-        AST_EXPR_CALL,
+        AST_EXPR_FUNCTION_CALL,
+        AST_EXPR_BRACE_INIT,
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF,
         AST_EXPR_DEREFERENCE,
@@ -150,9 +153,9 @@ struct AstExpression {
         AST_EXPR_POST_DECREMENT,  // foo--
     } kind;
     union {
-        Constant constant;   // AST_EXPR_CONSTANT
-        char varname[100];          // AST_EXPR_GET_VARIABLE
-        AstCall call;        // AST_EXPR_CALL
+        Constant constant;  // AST_EXPR_CONSTANT
+        char varname[100];  // AST_EXPR_GET_VARIABLE
+        AstCall call;       // AST_EXPR_CALL, AST_EXPR_INSTANTIATE
         /*
         The "operands" pointer is an array of 1 to 2 expressions.
         A couple examples to hopefully give you an idea of how it works in general:
@@ -217,6 +220,14 @@ struct AstFunctionDef {
     AstBody body;
 };
 
+struct AstStructDef {
+    char name[100];
+    // TODO: rename members to fields?
+    int nmembers;
+    char (*membernames)[100];
+    AstType *membertypes;
+};
+
 // Toplevel = outermost in the nested structure i.e. what the file consists of
 struct AstToplevelNode {
     Location location;
@@ -224,10 +235,12 @@ struct AstToplevelNode {
         AST_TOPLEVEL_END_OF_FILE,  // indicates end of array of AstToplevelNodeKind
         AST_TOPLEVEL_DECLARE_FUNCTION,
         AST_TOPLEVEL_DEFINE_FUNCTION,
+        AST_TOPLEVEL_DEFINE_STRUCT,
     } kind;
     union {
-        AstSignature decl_signature;  // for AST_TOPLEVEL_DECLARE_FUNCTION
-        AstFunctionDef funcdef;  // for AST_TOPLEVEL_DEFINE_FUNCTION
+        AstSignature decl_signature;  // AST_TOPLEVEL_DECLARE_FUNCTION
+        AstFunctionDef funcdef;  // AST_TOPLEVEL_DEFINE_FUNCTION
+        AstStructDef structdef;  // AST_TOPLEVEL_DEFINE_STRUCT
     } data;
 };
 
@@ -240,10 +253,12 @@ struct Type {
         TYPE_BOOL,
         TYPE_POINTER,
         TYPE_VOID_POINTER,
+        TYPE_STRUCT,
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER
         Type *valuetype;  // TYPE_POINTER
+        struct { int count; char (*names)[100]; Type *types; } structmembers;  // TYPE_STRUCT
     } data;
 };
 
@@ -298,6 +313,8 @@ struct CfInstruction {
         CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
         CF_PTR_LOAD,  // aka dereference
         CF_PTR_EQ,
+        CF_PTR_STRUCT_MEMBER,  // takes 1 operand (pointer), sets destvar to &op->fieldname
+        CF_CAST_POINTER,  // TODO: rename
         CF_INT_ADD,
         CF_INT_SUB,
         CF_INT_MUL,
@@ -309,11 +326,11 @@ struct CfInstruction {
         CF_INT_UCAST_TO_BIGGER,  // cast to bigger unsigned int, e.g. 8->16: 0xFF = 255 --> 0x00FF
         CF_BOOL_NEGATE,  // TODO: get rid of this?
         CF_VARCPY, // similar to assignment statements: var1 = var2
-        CF_CAST_POINTER,
     } kind;
     union CfInstructionData {
-        Constant constant;  // CF_CONSTANT
+        Constant constant;      // CF_CONSTANT
         char funcname[100];     // CF_CALL
+        char membername[100];   // CF_PTR_STRUCT_MEMBER
     } data;
     const CfVariable **operands;  // e.g. numbers to add, function arguments
     int noperands;

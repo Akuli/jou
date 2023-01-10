@@ -58,6 +58,38 @@ static AstType parse_type(const Token **tokens)
     return result;
 }
 
+// char[100] is wrapped in a struct so that you can do List(Name).
+// You can't do List(char[100]) or similar because C doesn't allow assigning arrays.
+struct Name { char name[100]; };
+typedef List(struct Name) NameList;
+typedef List(AstType) TypeList;
+
+// TODO: refactor by combining code for arguments and struct members more
+static void parse_name_and_type(
+    const Token **tokens, NameList *names, TypeList *types,
+    const char *expected_what_for_name, // e.g. "an argument name" to get error message "expected an argument name, got blah"
+    const char *duplicate_name_error_fmt)  // %s will be replaced by a name
+{
+    if((*tokens)->type != TOKEN_NAME)
+        fail_with_parse_error(*tokens, expected_what_for_name);
+
+    for (int i = 0; i < names->len; i++) {
+        if (!strcmp(names->ptr[i].name, (*tokens)->data.name)) {
+            fail_with_error((*tokens)->location, duplicate_name_error_fmt, (*tokens)->data.name);
+        }
+    }
+
+    struct Name n;
+    safe_strcpy(n.name, (*tokens)->data.name);
+    Append(names, n);
+    ++*tokens;
+
+    if (!is_operator(*tokens, ":"))
+        fail_with_parse_error(*tokens, "':' and a type after it (example: \"foo: int\")");
+    ++*tokens;
+    Append(types, parse_type(tokens));
+}
+
 static AstSignature parse_function_signature(const Token **tokens)
 {
     AstSignature result = {0};
@@ -71,11 +103,8 @@ static AstSignature parse_function_signature(const Token **tokens)
         fail_with_parse_error(*tokens, "a '(' to denote the start of function arguments");
     ++*tokens;
 
-    // Must be wrapped in a struct, because C doesn't allow assigning arrays (lol)
-    struct Name { char name[100]; };
-    static_assert(sizeof(struct Name) == 100, "your c compiler is stupid");
-    List(struct Name) argnames = {0};
-    List(AstType) argtypes = {0};
+    NameList argnames = {0};
+    TypeList argtypes = {0};
 
     while (!is_operator(*tokens, ")")) {
         if (result.takes_varargs)
@@ -85,23 +114,9 @@ static AstSignature parse_function_signature(const Token **tokens)
             result.takes_varargs = true;
             ++*tokens;
         } else {
-            if ((*tokens)->type != TOKEN_NAME)
-                fail_with_parse_error(*tokens, "an argument name");
-
-            for (const struct Name *n = argnames.ptr; n < End(argnames); n++)
-                if (!strcmp(n->name, (*tokens)->data.name))
-                    fail_with_error((*tokens)->location, "there are multiple arguments named '%s'", n->name);
-
-            struct Name n;
-            safe_strcpy(n.name, (*tokens)->data.name);
-            Append(&argnames, n);
-            ++*tokens;
-
-            if (!is_operator(*tokens, ":"))
-                fail_with_parse_error(*tokens, "':' and a type after the argument name (example: \"foo: int\")");
-            ++*tokens;
-
-            Append(&argtypes, parse_type(tokens));
+            parse_name_and_type(
+                tokens, &argnames, &argtypes,
+                "an argument name", "there are multiple arguments named '%s'");
         }
 
         if (is_operator(*tokens, ","))
@@ -138,22 +153,42 @@ static AstSignature parse_function_signature(const Token **tokens)
 
 static AstExpression parse_expression(const Token **tokens);
 
-static AstCall parse_call(const Token **tokens)
+static AstCall parse_call(const Token **tokens, char openparen, char closeparen, bool args_are_named)
 {
-    AstCall result;
+    AstCall result = {0};
 
-    if ((*tokens)->type != TOKEN_NAME)
-        fail_with_parse_error(*tokens, "a function name");
-    safe_strcpy(result.funcname, (*tokens)->data.name);
+    assert((*tokens)->type == TOKEN_NAME);  // must be checked when calling this function
+    safe_strcpy(result.calledname, (*tokens)->data.name);
     ++*tokens;
 
-    if (!is_operator(*tokens, "("))
-        fail_with_parse_error(*tokens, "a '(' to denote the start of function arguments");
+    if (!is_operator(*tokens, (char[]){openparen,'\0'})) {
+        char msg[100];
+        sprintf(msg, "a '%c' to denote the start of arguments", openparen);
+        fail_with_parse_error(*tokens, msg);
+    }
     ++*tokens;
 
     List(AstExpression) args = {0};
+    List(struct Name) argnames = {0};
 
-    while (!is_operator(*tokens, ")")) {
+    while (!is_operator(*tokens, (char[]){closeparen,'\0'})) {
+        if (args_are_named) {
+            if ((*tokens)->type != TOKEN_NAME) {
+                // TODO: test this error
+                fail_with_parse_error((*tokens),"an argument name");
+            }
+            struct Name n;
+            safe_strcpy(n.name,(*tokens)->data.name);
+            Append(&argnames,n);
+            ++*tokens;
+
+            if (!is_operator(*tokens, "=")) {
+                // TODO: test this error
+                fail_with_parse_error((*tokens),"'=' followed by a value");
+            }
+            ++*tokens;
+        }
+
         Append(&args, parse_expression(tokens));
         if (is_operator(*tokens, ","))
             ++*tokens;
@@ -162,10 +197,14 @@ static AstCall parse_call(const Token **tokens)
     }
 
     result.args = args.ptr;
+    result.argnames = (char(*)[100])argnames.ptr;  // can be NULL
     result.nargs = args.len;
 
-    if (!is_operator(*tokens, ")"))
+    if (!is_operator(*tokens, (char[]){closeparen,'\0'})) {
+        char msg[100];
+        sprintf(msg, "a '%c'", closeparen);
         fail_with_parse_error(*tokens, "a ')'");
+    }
     ++*tokens;
 
     return result;
@@ -280,8 +319,11 @@ static AstExpression parse_elementary_expression(const Token **tokens)
         break;
     case TOKEN_NAME:
         if (is_operator(&(*tokens)[1], "(")) {
-            expr.kind = AST_EXPR_CALL;
-            expr.data.call = parse_call(tokens);
+            expr.kind = AST_EXPR_FUNCTION_CALL;
+            expr.data.call = parse_call(tokens, '(', ')', false);
+        } else if (is_operator(&(*tokens)[1], "{")) {
+            expr.kind = AST_EXPR_BRACE_INIT;
+            expr.data.call = parse_call(tokens, '{', '}', true);
         } else {
             expr.kind = AST_EXPR_GET_VARIABLE;
             safe_strcpy(expr.data.varname, (*tokens)->data.name);
@@ -448,7 +490,7 @@ static void validate_expression_statement(const AstExpression *expr)
 {
     switch(expr->kind) {
     case AST_EXPR_ASSIGN:
-    case AST_EXPR_CALL:
+    case AST_EXPR_FUNCTION_CALL:
     case AST_EXPR_PRE_INCREMENT:
     case AST_EXPR_PRE_DECREMENT:
     case AST_EXPR_POST_INCREMENT:
@@ -553,7 +595,7 @@ static AstStatement parse_statement(const Token **tokens)
     return result;
 }
 
-static AstBody parse_body(const Token **tokens)
+static void parse_start_of_body(const Token **tokens)
 {
     if (!is_operator(*tokens, ":"))
         fail_with_parse_error(*tokens, "':' followed by a new line with more indentation");
@@ -566,6 +608,11 @@ static AstBody parse_body(const Token **tokens)
     if ((*tokens)->type != TOKEN_INDENT)
         fail_with_parse_error(*tokens, "more indentation after ':'");
     ++*tokens;
+}
+
+static AstBody parse_body(const Token **tokens)
+{
+    parse_start_of_body(tokens);
 
     List(AstStatement) result = {0};
     while ((*tokens)->type != TOKEN_DEDENT)
@@ -573,6 +620,34 @@ static AstBody parse_body(const Token **tokens)
     ++*tokens;
 
     return (AstBody){ .statements=result.ptr, .nstatements=result.len };
+}
+
+static AstStructDef parse_structdef(const Token **tokens)
+{
+    AstStructDef result;
+    if ((*tokens)->type != TOKEN_NAME)
+        fail_with_parse_error(*tokens, "a name for the struct");  // TODO: test
+    safe_strcpy(result.name, (*tokens)->data.name);
+    ++*tokens;
+
+    NameList membernames = {0};
+    TypeList membertypes = {0};
+
+    parse_start_of_body(tokens);
+    while ((*tokens)->type != TOKEN_DEDENT) {
+        parse_name_and_type(
+            tokens, &membernames, &membertypes,
+            // TODO: test the errors
+            "a name for a struct member", "there are multiple struct members named '%s'");
+        eat_newline(tokens);
+    }
+    ++*tokens;
+
+    result.membernames = (char(*)[100])membernames.ptr;
+    result.membertypes = membertypes.ptr;
+    assert(membernames.len == membertypes.len);
+    result.nmembers = membernames.len;
+    return result;
 }
 
 static AstToplevelNode parse_toplevel_node(const Token **tokens)
@@ -603,10 +678,16 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
             eat_newline(tokens);
             break;
         }
+        if (is_keyword(*tokens, "struct")) {
+            ++*tokens;
+            result.kind = AST_TOPLEVEL_DEFINE_STRUCT;
+            result.data.structdef = parse_structdef(tokens);
+            break;
+        }
         // fall through
 
     default:
-        fail_with_parse_error(*tokens, "a C function declaration or a function definition");
+        fail_with_parse_error(*tokens, "a definition or declaration");
     }
 
     return result;

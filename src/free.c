@@ -32,13 +32,15 @@ static void free_call(const AstCall *call)
 {
     for (int i = 0; i < call->nargs; i++)
         free_expression(&call->args[i]);
+    free(call->argnames);
     free(call->args);
 }
 
 static void free_expression(const AstExpression *expr)
 {
     switch(expr->kind) {
-    case AST_EXPR_CALL:
+    case AST_EXPR_FUNCTION_CALL:
+    case AST_EXPR_BRACE_INIT:
         free_call(&expr->data.call);
         break;
     case AST_EXPR_ASSIGN:
@@ -152,6 +154,10 @@ void free_ast(AstToplevelNode *topnodelist)
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             free_ast_signature(&t->data.funcdef.signature);
             free_body(&t->data.funcdef.body);
+            break;
+        case AST_TOPLEVEL_DEFINE_STRUCT:
+            free(t->data.structdef.membernames);
+            free(t->data.structdef.membertypes);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);

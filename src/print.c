@@ -123,15 +123,18 @@ static void print_ast_function_signature(const AstSignature *sig)
     printf("\n");
 }
 
-static void print_ast_call(const AstCall *call, int arg_indent);
+static void print_ast_call(const AstCall *call, int arg_indent, const char *what_is_the_call_doing);
 
 static void print_ast_expression(const AstExpression *expr, int indent)
 {
     printf("%*sExpression on line %d: ", indent, "", expr->location.lineno);
 
     switch(expr->kind) {
-    case AST_EXPR_CALL:
-        print_ast_call(&expr->data.call, indent+2);
+    case AST_EXPR_FUNCTION_CALL:
+        print_ast_call(&expr->data.call, indent+2, "Call function");
+        break;
+    case AST_EXPR_BRACE_INIT:
+        print_ast_call(&expr->data.call, indent+2, "Brace-initialize");
         break;
     case AST_EXPR_ADDRESS_OF:
         printf("Get the address of an object as a pointer.\n");
@@ -224,11 +227,14 @@ static void print_ast_expression(const AstExpression *expr, int indent)
     }
 }
 
-static void print_ast_call(const AstCall *call, int arg_indent)
+static void print_ast_call(const AstCall *call, int arg_indent, const char *what_is_the_call_doing)
 {
-    printf("Call function %s with %d argument%s.\n", call->funcname, call->nargs, call->nargs==1?"":"s");
+    printf("%s %s with %d argument%s.\n", what_is_the_call_doing, call->calledname, call->nargs, call->nargs==1?"":"s");
     for (int i = 0; i < call->nargs; i++) {
-        printf("%*sArgument %d:\n", arg_indent, "", i);
+        printf("%*sArgument", arg_indent, "");
+        if (call->argnames)
+            printf(" \"%s\"", call->argnames[i]);
+        printf(":\n");
         print_ast_expression(&call->args[i], arg_indent+2);
     }
 }
@@ -323,6 +329,15 @@ void print_ast(const AstToplevelNode *topnodelist)
                 print_ast_function_signature(&topnodelist->data.funcdef.signature);
                 print_ast_body(&topnodelist->data.funcdef.body, 2);
                 break;
+            case AST_TOPLEVEL_DEFINE_STRUCT:
+                printf("Define struct \"%s\" with %d members:\n",
+                    topnodelist->data.structdef.name, topnodelist->data.structdef.nmembers);
+                for (int i = 0; i < topnodelist->data.structdef.nmembers; i++) {
+                    printf("  %s: ", topnodelist->data.structdef.membernames[i]);
+                    print_ast_type(&topnodelist->data.structdef.membertypes[i]);
+                    printf("\n");
+                }
+                break;
             case AST_TOPLEVEL_END_OF_FILE:
                 printf("End of file.\n");
                 break;
@@ -397,6 +412,9 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         break;
     case CF_PTR_STORE:
         printf("*(%s) = %s", ins->operands[0]->name, ins->operands[1]->name);
+        break;
+    case CF_PTR_STRUCT_MEMBER:
+        printf("%s + offset of field \"%s\"", ins->operands[0]->name, ins->data.membername);
         break;
     case CF_VARCPY:
         printf("%s", ins->operands[0]->name);

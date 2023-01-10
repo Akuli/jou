@@ -149,7 +149,7 @@ static int read_int(struct State *st, char firstbyte)
 static bool is_keyword(const char *s)
 {
     const char *keywords[] = {
-        "def", "declare",
+        "def", "declare", "struct",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
         "and", "or", "not",
@@ -263,7 +263,7 @@ static const char *read_operator(struct State *st)
         // Longer operators first, so that '==' does not parse as '=' '='
         "...", "===", "!==",
         "==", "!=", "->", "<=", ">=", "++", "--",
-        ".", ",", ":", ";", "=", "(", ")", "&", "*", "/", "+", "-", "<", ">",
+        ".", ",", ":", ";", "=", "(", ")", "{", "}", "&", "*", "/", "+", "-", "<", ">",
         NULL,
     };
 

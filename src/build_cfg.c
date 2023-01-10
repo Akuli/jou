@@ -8,6 +8,7 @@ struct State {
     CfBlock *current_block;
     List(CfBlock *) breakstack;
     List(CfBlock *) continuestack;
+    List(Type) structs;
 };
 
 static CfVariable *add_variable(const struct State *st, const Type *t, const char *name)
@@ -120,8 +121,18 @@ static Type *build_type_or_void(const struct State *st, const AstType *asttype)
             return NULL;
         npointers--;
         t = voidPtrType;
-    } else
-        fail_with_error(asttype->location, "there is no type named '%s'", asttype->name);
+    } else {
+        bool found = false;
+        for (struct Type *ptr = st->structs.ptr; ptr < End(st->structs); ptr++) {
+            if (!strcmp(ptr->name, asttype->name)) {
+                t = *ptr;
+                found = true;
+                break;
+            }
+        }
+        if(!found)
+            fail_with_error(asttype->location, "there is no type named '%s'", asttype->name);
+    }
 
     while (npointers--)
         t = create_pointer_type(&t, asttype->location);
@@ -398,7 +409,8 @@ static const char *get_debug_name_for_constant(const Constant *c)
 
 enum AndOr { AND, OR };
 
-static const CfVariable *build_call(struct State *st, const AstCall *call, Location location);
+static const CfVariable *build_function_call(struct State *st, const AstCall *call, Location location);
+static const CfVariable *build_struct_init(struct State *st, const AstCall *call, Location location);
 static const CfVariable *build_and_or(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr, enum AndOr andor);
 
 static const CfVariable *build_expression(
@@ -412,14 +424,17 @@ static const CfVariable *build_expression(
     Type temptype;
 
     switch(expr->kind) {
-    case AST_EXPR_CALL:
-        result = build_call(st, &expr->data.call, expr->location);
+    case AST_EXPR_FUNCTION_CALL:
+        result = build_function_call(st, &expr->data.call, expr->location);
         if (result == NULL) {
             if (!needvalue)
                 return NULL;
             // TODO: add a test for this
-            fail_with_error(expr->location, "function '%s' does not return a value", expr->data.call.funcname);
+            fail_with_error(expr->location, "function '%s' does not return a value", expr->data.call.calledname);
         }
+        break;
+    case AST_EXPR_BRACE_INIT:
+        result = build_struct_init(st, &expr->data.call, expr->location);
         break;
     case AST_EXPR_ADDRESS_OF:
         result = build_address_of_expression(st, &expr->data.operands[0], false);
@@ -667,11 +682,11 @@ static const char *nth(int n)
 }
 
 // returns NULL if the function doesn't return anything
-static const CfVariable *build_call(struct State *st, const AstCall *call, Location location)
+static const CfVariable *build_function_call(struct State *st, const AstCall *call, Location location)
 {
-    const Signature *sig = find_function(st, call->funcname);
+    const Signature *sig = find_function(st, call->calledname);
     if (!sig)
-        fail_with_error(location, "function \"%s\" not found", call->funcname);
+        fail_with_error(location, "function \"%s\" not found", call->calledname);
     char *sigstr = signature_to_string(sig, false);
 
     if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->takes_varargs)) {
@@ -701,18 +716,83 @@ static const CfVariable *build_call(struct State *st, const AstCall *call, Locat
     const CfVariable *return_value;
     if (sig->returntype) {
         char debugname[100];
-        snprintf(debugname, sizeof debugname, "$%s_ret", call->funcname);
+        snprintf(debugname, sizeof debugname, "$%s_ret", call->calledname);
         return_value = add_variable(st, sig->returntype, debugname);
     }else
         return_value = NULL;
 
     union CfInstructionData data;
-    safe_strcpy(data.funcname, call->funcname);
+    safe_strcpy(data.funcname, call->calledname);
     add_instruction(st, location, CF_CALL, &data, args, return_value);
 
     free(sigstr);
     free(args);
     return return_value;
+}
+
+static const CfVariable *build_struct_member_pointer(
+    struct State *st, const CfVariable *structinstance, const char *membername, Location location)
+{
+    assert(structinstance->type.kind == TYPE_POINTER);
+    assert(structinstance->type.data.valuetype->kind == TYPE_STRUCT);
+    const Type *structtype = structinstance->type.data.valuetype;
+
+    for (int i = 0; i < structtype->data.structmembers.count; i++) {
+        char name[100];
+        safe_strcpy(name, structtype->data.structmembers.names[i]);
+        const Type *type = &structtype->data.structmembers.types[i];
+
+        if (!strcmp(name, membername)) {
+            char debugname[100];
+            snprintf(debugname, sizeof debugname, "$%s", name);
+
+            const Type ptrtype = create_pointer_type(type, location);
+            CfVariable* result = add_variable(st, &ptrtype, debugname);
+            free(ptrtype.data.valuetype);
+
+            union CfInstructionData dat;
+            safe_strcpy(dat.membername, name);
+
+            add_instruction(st, location, CF_PTR_STRUCT_MEMBER, &dat, (const CfVariable*[]){structinstance,NULL}, result);
+            return result;
+        }
+    }
+
+    // TODO: test this error
+    fail_with_error(location, "struct '%s' has no member named '%s'", structtype->name, membername);
+}
+
+static const CfVariable *build_struct_init(struct State *st, const AstCall *call, Location location)
+{
+    struct AstType tmp = { .location = location, .npointers = 0 };
+    safe_strcpy(tmp.name, call->calledname);
+    Type t = build_type(st, &tmp);
+
+    if (t.kind != TYPE_STRUCT) {
+        // TODO: test this error
+        fail_with_error(location, "type %s cannot be instantiated with the Foo{...} syntax", t.name);
+    }
+
+    // TODO: Make sure every struct member gets a value, or add a memset
+
+    const CfVariable *instance = add_variable(st, &t, "$instance");
+    Type p = create_pointer_type(&t, location);
+    const CfVariable *instanceptr = add_variable(st, &p, "$instanceptr");
+    free(p.data.valuetype);
+    add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
+
+    for (int i = 0; i < call->nargs; i++) {
+        const CfVariable *memberptr = build_struct_member_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
+        // TODO: test the cast error message
+        char msg[1000];
+        snprintf(msg, sizeof msg,
+            "value for field '%s' of struct %s must be of type TO, not FROM",
+            call->argnames[i], call->calledname);
+        const CfVariable *memberval = build_expression(st, &call->args[i], memberptr->type.data.valuetype, msg, true);
+        add_binary_op(st, location, CF_PTR_STORE, memberptr, memberval, NULL);
+    }
+
+    return instance;
 }
 
 static void build_body(struct State *st, const AstBody *body);
@@ -943,6 +1023,29 @@ static Signature build_signature(const struct State *st, const AstSignature *ast
     return result;
 }
 
+static Type build_struct(struct State *st, const AstStructDef *structdef, Location location)
+{
+    // TODO: test this error
+    for (Type *t = st->structs.ptr; t < End(st->structs); t++)
+        if (!strcmp(t->name, structdef->name))
+            fail_with_error(location, "a struct named '%s' already exists", t->name);
+
+    Type result = { .kind = TYPE_STRUCT };
+    safe_strcpy(result.name, structdef->name);
+
+    int n = structdef->nmembers;
+    result.data.structmembers.count = n;
+
+    result.data.structmembers.names = malloc(n * sizeof result.data.structmembers.names[0]);
+    memcpy(result.data.structmembers.names, structdef->membernames, n * sizeof result.data.structmembers.names[0]);
+
+    result.data.structmembers.types = malloc(n * sizeof result.data.structmembers.types[0]);
+    for (int i = 0; i < n; i++)
+        result.data.structmembers.types[i] = build_type(st, &structdef->membertypes[i]);
+
+    return result;
+}
+
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
 {
     CfGraphFile result = { .filename = ast->location.filename };
@@ -954,6 +1057,7 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
     result.signatures = malloc(sizeof(result.signatures[0]) * n);
 
     Signature sig;
+    Type type;
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         switch(ast->kind) {
@@ -970,6 +1074,11 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
             result.signatures[result.nfuncs] = sig;
             result.nfuncs++;  // Make signature of current function usable in function calls (recursion)
             result.graphs[result.nfuncs-1] = build_function(&st, &sig, &ast->data.funcdef.body);
+            break;
+        case AST_TOPLEVEL_DEFINE_STRUCT:
+            // careful with evaluation order in Append...
+            type = build_struct(&st, &ast->data.structdef, ast->location);
+            Append(&st.structs, type);
             break;
         }
         ast++;

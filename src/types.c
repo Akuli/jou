@@ -37,21 +37,34 @@ Type create_integer_type(int size_in_bits, bool is_signed)
 
 Type copy_type(const Type *t)
 {
+    Type t2 = *t;
+
     switch(t->kind) {
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
     case TYPE_BOOL:
     case TYPE_VOID_POINTER:
-        return *t;
+        break;
+
     case TYPE_POINTER:
+        t2.data.valuetype = malloc(sizeof(*t2.data.valuetype));
+        *t2.data.valuetype = copy_type(t->data.valuetype);
+        break;
+
+    case TYPE_STRUCT:
         {
-            Type t2 = *t;
-            t2.data.valuetype = malloc(sizeof(*t2.data.valuetype));
-            *t2.data.valuetype = copy_type(t->data.valuetype);
-            return t2;
+            int n = t2.data.structmembers.count;
+
+            t2.data.structmembers.names = malloc(sizeof(t2.data.structmembers.names[0]) * n);
+            memcpy(t2.data.structmembers.names, t->data.structmembers.names, sizeof(t2.data.structmembers.names[0]) * n);
+
+            t2.data.structmembers.types = malloc(sizeof(t2.data.structmembers.types[0]) * n);
+            for (int i = 0; i < n; i++)
+                t2.data.structmembers.types[i] = copy_type(&t->data.structmembers.types[i]);
         }
     }
-    assert(0);
+
+    return t2;
 }
 
 bool is_integer_type(const Type *t)
@@ -78,6 +91,16 @@ bool same_type(const Type *a, const Type *b)
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
         return a->data.width_in_bits == b->data.width_in_bits;
+    case TYPE_STRUCT:
+        if (a->data.structmembers.count != b->data.structmembers.count)
+            return false;
+        for (int i = 0; i < a->data.structmembers.count; i++)
+            if (!same_type(&a->data.structmembers.types[i], &b->data.structmembers.types[i])
+                || strcmp(a->data.structmembers.names[i], b->data.structmembers.names[i]))
+            {
+                return false;
+            }
+        return true;
     }
 
     assert(0);
