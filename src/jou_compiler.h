@@ -146,7 +146,6 @@ struct AstType {
 };
 
 struct AstSignature {
-    Location funcname_location;
     char funcname[100];
     int nargs;
     AstType *argtypes;

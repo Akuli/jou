@@ -65,7 +65,6 @@ static AstSignature parse_function_signature(const Token **tokens)
     if ((*tokens)->type != TOKEN_NAME)
         fail_with_parse_error(*tokens, "a function name");
     safe_strcpy(result.funcname, (*tokens)->data.name);
-    result.funcname_location = (*tokens)->location;
     ++*tokens;
 
     if (!is_operator(*tokens, "("))
@@ -588,9 +587,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
             result.data.funcdef.signature = parse_function_signature(tokens);
             if (result.data.funcdef.signature.takes_varargs) {
                 // TODO: support "def foo(x: str, ...)" in some way
-                fail_with_error(
-                    result.data.funcdef.signature.funcname_location,
-                    "functions with variadic arguments cannot be defined yet");
+                fail_with_error((*tokens)->location, "functions with variadic arguments cannot be defined yet");
             }
             result.data.funcdef.body = parse_body(tokens);
             break;

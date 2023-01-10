@@ -899,11 +899,11 @@ static CfGraph *build_function(struct State *st, const Signature *sig, const Ast
     return st->cfg;
 }
 
-static Signature build_signature(const struct State *st, const AstSignature *astsig)
+static Signature build_signature(const struct State *st, const AstSignature *astsig, Location location)
 {
     for (int i = 0; i < st->cfgfile->nfuncs; i++)
         if (!strcmp(st->cfgfile->signatures[i].funcname, astsig->funcname))
-            fail_with_error(astsig->funcname_location, "a function named '%s' already exists", astsig->funcname);
+            fail_with_error(location, "a function named '%s' already exists", astsig->funcname);
 
     Signature result = { .nargs = astsig->nargs, .takes_varargs = astsig->takes_varargs };
     safe_strcpy(result.funcname, astsig->funcname);
@@ -946,13 +946,13 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         case AST_TOPLEVEL_DECLARE_FUNCTION:
-            sig = build_signature(&st, &ast->data.decl_signature);
+            sig = build_signature(&st, &ast->data.decl_signature, ast->location);
             result.signatures[result.nfuncs] = sig;
             result.graphs[result.nfuncs] = NULL;
             result.nfuncs++;
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            sig = build_signature(&st, &ast->data.funcdef.signature);
+            sig = build_signature(&st, &ast->data.funcdef.signature, ast->location);
             result.signatures[result.nfuncs] = sig;
             result.nfuncs++;  // Make signature of current function usable in function calls (recursion)
             result.graphs[result.nfuncs-1] = build_function(&st, &sig, &ast->data.funcdef.body);
