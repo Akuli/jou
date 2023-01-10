@@ -383,15 +383,17 @@ static void check_dereferenced_pointer_type(Location location, const Type *t)
 
 static const char *get_debug_name_for_constant(const Constant *c)
 {
-    static char result[100];
-    if (same_type(&c->type, &boolType))
-        return c->value.boolean ? "$true" : "$false";
-    if (same_type(&c->type, &voidPtrType))
+    switch(c->kind) {
+    case CONSTANT_INTEGER:
+        return "$intconstant";
+    case CONSTANT_NULL:
         return "$null";
-    if (same_type(&c->type, &stringType))
+    case CONSTANT_STRING:
         return "$strconstant";
-    snprintf(result, sizeof result, "$%sconstant", c->type.name);
-    return result;
+    case CONSTANT_BOOL:
+        return c->data.boolean ? "$true" : "$false";
+    }
+    assert(0);
 }
 
 enum AndOr { AND, OR };
@@ -407,6 +409,7 @@ static const CfVariable *build_expression(
     bool needvalue)  // Usually true. False means that calls to "-> void" functions are acceptable.
 {
     const CfVariable *result, *temp;
+    Type temptype;
 
     switch(expr->kind) {
     case AST_EXPR_CALL:
@@ -431,7 +434,8 @@ static const CfVariable *build_expression(
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_CONSTANT:
-        result = add_variable(st, &expr->data.constant.type, get_debug_name_for_constant(&expr->data.constant));
+        temptype = type_of_constant(&expr->data.constant);
+        result = add_variable(st, &temptype, get_debug_name_for_constant(&expr->data.constant));
         add_constant(st, expr->location, expr->data.constant, result);
         break;
     case AST_EXPR_ASSIGN:
@@ -570,7 +574,7 @@ static const CfVariable *build_and_or(
         break;
     case OR:
         // result = True
-        ins = add_constant(st, lhsexpr->location, ((Constant){.type=boolType,.value.boolean=true}), result);
+        ins = add_constant(st, lhsexpr->location, ((Constant){CONSTANT_BOOL, {.boolean=true}}), result);
         ins->hide_unreachable_warning = true;
         break;
     }
@@ -581,7 +585,7 @@ static const CfVariable *build_and_or(
     switch(andor) {
     case AND:
         // result = False
-        ins = add_constant(st, lhsexpr->location, ((Constant){.type=boolType,.value.boolean=false}), result);
+        ins = add_constant(st, lhsexpr->location, ((Constant){CONSTANT_BOOL, {.boolean=false}}), result);
         ins->hide_unreachable_warning = true;
         break;
     case OR:

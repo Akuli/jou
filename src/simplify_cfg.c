@@ -110,8 +110,8 @@ static void update_statuses_with_instruction(const CfGraph *cfg, enum VarStatus 
         statuses[destidx] = VS_DEFINED;
         break;
     case CF_CONSTANT:
-        if (same_type(&ins->data.constant.type, &boolType))
-            statuses[destidx] = ins->data.constant.value.boolean ? VS_TRUE : VS_FALSE;
+        if (ins->data.constant.kind == CONSTANT_BOOL)
+            statuses[destidx] = ins->data.constant.data.boolean ? VS_TRUE : VS_FALSE;
         else
             statuses[destidx] = VS_DEFINED;
         break;

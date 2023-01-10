@@ -26,16 +26,24 @@ static void print_string(const char *s)
 
 static void print_constant(const Constant *c)
 {
-    if (same_type(&c->type, &boolType))
-        printf(c->value.boolean ? "True" : "False");
-    else if (same_type(&c->type, &stringType))
-        print_string(c->value.str);
-    else if (same_type(&c->type, &voidPtrType))
+    switch(c->kind) {
+    case CONSTANT_BOOL:
+        printf(c->data.boolean ? "True" : "False");
+        break;
+    case CONSTANT_INTEGER:
+        printf(
+            "%lld (%d-bit %s)",
+            c->data.integer.value,
+            c->data.integer.width_in_bits,
+            c->data.integer.is_signed ? "signed" : "unsigned");
+        break;
+    case CONSTANT_NULL:
         printf("NULL");
-    else if (is_integer_type(&c->type))
-        printf("%s %lld", c->type.name, c->value.integer);
-    else
-        assert(0);
+        break;
+    case CONSTANT_STRING:
+        print_string(c->data.str);
+        break;
+    }
 }
 
 void print_token(const Token *token)

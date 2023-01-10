@@ -88,10 +88,12 @@ Type type_of_constant(const Constant *c)
     switch(c->kind) {
     case CONSTANT_NULL:
         return voidPtrType;
-    case CONSTANT_INTEGER:
-        return create_integer_type(c->value.integer.width_in_bits, c->value.integer.is_signed);
     case CONSTANT_STRING:
         return stringType;
+    case CONSTANT_BOOL:
+        return boolType;
+    case CONSTANT_INTEGER:
+        return create_integer_type(c->data.integer.width_in_bits, c->data.integer.is_signed);
     }
     assert(0);
 }

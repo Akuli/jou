@@ -78,6 +78,7 @@ struct Constant {
         CONSTANT_INTEGER,
         CONSTANT_STRING,
         CONSTANT_NULL,
+        CONSTANT_BOOL,
     } kind;
     union {
         struct { int width_in_bits; bool is_signed; long long value; } integer;
