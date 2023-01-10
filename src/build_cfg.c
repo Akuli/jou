@@ -369,7 +369,6 @@ static const CfVariable *build_struct_field_pointer(
         }
     }
 
-    // TODO: test this error
     fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
 }
 
@@ -516,10 +515,22 @@ static const CfVariable *build_expression(
                 // TODO: is this evaluation order good?
                 const CfVariable *target = build_address_of_expression(st, targetexpr, true);
                 assert(target->type.kind == TYPE_POINTER);
-                const char *errmsg;
+
+                char errmsg[500];
                 switch(targetexpr->kind) {
-                    case AST_EXPR_GET_VARIABLE: errmsg = "cannot assign a value of type FROM to variable of type TO"; break;
-                    case AST_EXPR_DEREFERENCE: errmsg = "cannot assign a value of type FROM into a pointer of type TO*"; break;
+                    case AST_EXPR_GET_VARIABLE:
+                        strcpy(errmsg, "cannot assign a value of type FROM to variable of type TO");
+                        break;
+                    case AST_EXPR_DEREFERENCE:
+                        strcpy(errmsg, "cannot assign a value of type FROM into a pointer of type TO*");
+                        break;
+                    case AST_EXPR_GET_FIELD:
+                    case AST_EXPR_DEREF_AND_GET_FIELD:
+                        snprintf(
+                            errmsg, sizeof errmsg,
+                            "cannot assign a value of type FROM into field '%s' of type TO",
+                            targetexpr->data.field.fieldname);
+                        break;
                     default: assert(0);
                 }
                 /*
@@ -702,7 +713,6 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
         const CfVariable *obj = build_address_of_expression(st, address_of_what->data.field.obj, false);
         assert(obj->type.kind == TYPE_POINTER);
         if (obj->type.data.valuetype->kind != TYPE_STRUCT){
-            // TODO: test
             fail_with_error(address_of_what->location,
                 "left side of the '.' operator must be a struct, not %s",
                 obj->type.data.valuetype->name);
@@ -811,7 +821,10 @@ static const CfVariable *build_struct_init(struct State *st, const AstCall *call
     Type t = build_type(st, &tmp);
 
     if (t.kind != TYPE_STRUCT) {
-        // TODO: test this error
+        // TODO: test this error. Currently it can never happen because
+        // all non-struct types are created with keywords, and this
+        // function is called only when there is a name token followed
+        // by a '{'.
         fail_with_error(location, "type %s cannot be instantiated with the Foo{...} syntax", t.name);
     }
 
@@ -825,7 +838,6 @@ static const CfVariable *build_struct_init(struct State *st, const AstCall *call
 
     for (int i = 0; i < call->nargs; i++) {
         const CfVariable *fieldptr = build_struct_field_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
-        // TODO: test the cast error message
         char msg[1000];
         snprintf(msg, sizeof msg,
             "value for field '%s' of struct %s must be of type TO, not FROM",
@@ -1067,7 +1079,6 @@ static Signature build_signature(const struct State *st, const AstSignature *ast
 
 static Type build_struct(struct State *st, const AstStructDef *structdef, Location location)
 {
-    // TODO: test this error
     for (Type *t = st->structs.ptr; t < End(st->structs); t++)
         if (!strcmp(t->name, structdef->name))
             fail_with_error(location, "a struct named '%s' already exists", t->name);

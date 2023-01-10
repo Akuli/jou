@@ -173,6 +173,8 @@ static AstCall parse_call(const Token **tokens, char openparen, char closeparen,
 
     while (!is_operator(*tokens, (char[]){closeparen,'\0'})) {
         if (args_are_named) {
+            // This code is only for structs, because there are no named function arguments.
+
             if ((*tokens)->type != TOKEN_NAME)
                 fail_with_parse_error((*tokens),"a field name");
 
@@ -374,10 +376,8 @@ static AstExpression parse_expression_with_attributes(const Token **tokens)
         result2.data.field.obj = malloc(sizeof *result2.data.field.obj);
         *result2.data.field.obj = result;
 
-        if ((*tokens)->type != TOKEN_NAME) {
-            // TODO: add a test
+        if ((*tokens)->type != TOKEN_NAME)
             fail_with_parse_error(*tokens, "a field name");
-        }
         safe_strcpy(result2.data.field.fieldname, (*tokens)->data.name);
         ++*tokens;
 
@@ -661,7 +661,7 @@ static AstStructDef parse_structdef(const Token **tokens)
 {
     AstStructDef result;
     if ((*tokens)->type != TOKEN_NAME)
-        fail_with_parse_error(*tokens, "a name for the struct");  // TODO: test
+        fail_with_parse_error(*tokens, "a name for the struct");
     safe_strcpy(result.name, (*tokens)->data.name);
     ++*tokens;
 
@@ -672,7 +672,6 @@ static AstStructDef parse_structdef(const Token **tokens)
     while ((*tokens)->type != TOKEN_DEDENT) {
         parse_name_and_type(
             tokens, &fieldnames, &fieldtypes,
-            // TODO: test the errors
             "a name for a struct field", "there are multiple fields named '%s'");
         eat_newline(tokens);
     }

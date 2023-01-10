@@ -1,0 +1,13 @@
+struct Foo:
+    x: int
+
+def blah() -> void:
+    f = Foo{x = 1}
+
+    # Ideally the compiler would show the name of the struct that has the
+    # field 'x', so that you can look up the definition of the field easily.
+    #
+    # But that is surprisingly difficult to figure out. When we get this
+    # error, &f has already been used to calculate &f.x and is no longer
+    # easily accessible.
+    f.x = "hey"  # Error: cannot assign a value of type byte* into field 'x' of type int
