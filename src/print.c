@@ -102,10 +102,9 @@ static void print_ast_type(const struct AstType *t)
     printf(" [line %d]", t->location.lineno);
 }
 
-static void print_ast_function_signature(const AstSignature *sig, int indent)
+static void print_ast_function_signature(const AstSignature *sig)
 {
-    printf("%*sSignature:\n", indent, "");
-    printf("%*s  Function on line %d: %s(", indent, "", sig->funcname_location.lineno, sig->funcname);
+    printf("%s(", sig->funcname);
     for (int i = 0; i < sig->nargs; i++) {
         if(i) printf(", ");
         printf("%s: ", sig->argnames[i]);
@@ -308,12 +307,12 @@ void print_ast(const AstToplevelNode *topnodelist)
 
         switch(topnodelist->kind) {
             case AST_TOPLEVEL_DECLARE_FUNCTION:
-                printf("Declare a C function.\n");
-                print_ast_function_signature(&topnodelist->data.decl_signature, 2);
+                printf("Declare a function: ");
+                print_ast_function_signature(&topnodelist->data.decl_signature);
                 break;
             case AST_TOPLEVEL_DEFINE_FUNCTION:
-                printf("Define a function.\n");
-                print_ast_function_signature(&topnodelist->data.funcdef.signature, 2);
+                printf("Define a function: ");
+                print_ast_function_signature(&topnodelist->data.funcdef.signature);
                 print_ast_body(&topnodelist->data.funcdef.body, 2);
                 break;
             case AST_TOPLEVEL_END_OF_FILE:
