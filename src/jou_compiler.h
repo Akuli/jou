@@ -302,7 +302,7 @@ Signature copy_signature(const Signature *sig);
 // Struct names not prefixed with Cfg because it looks too much like "config" to me
 struct CfVariable {
     int id;  // Unique, but you can also compare pointers to CfVariable.
-    char name2[100];  // Same name as in user's code or empty
+    char name[100];  // Same name as in user's code or empty
     Type type;
     bool is_argument;    // First n variables are always the arguments
 };

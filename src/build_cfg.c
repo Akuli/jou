@@ -17,8 +17,8 @@ static CfVariable *add_variable(const struct State *st, const Type *t, const cha
     var->id = st->cfg->variables.len;
     var->type = copy_type(t);
     if (name) {
-        assert(strlen(name) < sizeof var->name2);
-        strcpy(var->name2, name);
+        assert(strlen(name) < sizeof var->name);
+        strcpy(var->name, name);
     }
     Append(&st->cfg->variables, var);
     return var;
@@ -28,7 +28,7 @@ static CfVariable *add_variable(const struct State *st, const Type *t, const cha
 static const CfVariable *find_variable(const struct State *st, const char *name, const Location *error_location)
 {
     for (CfVariable **var = st->cfg->variables.ptr; var < End(st->cfg->variables); var++)
-        if (!strcmp((*var)->name2, name))
+        if (!strcmp((*var)->name, name))
             return *var;
 
     if (!error_location)

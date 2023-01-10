@@ -364,15 +364,15 @@ static const char *varname(const CfVariable *var)
 {
     // Cycle through enough space for a few variables, so that you
     // can call this several times inside the same printf()
-    static char names[50 + sizeof var->name2][5];
+    static char names[50 + sizeof var->name][5];
     static unsigned i = 0;
     char *s = names[i++];
     i %= sizeof(names) / sizeof(names[0]);
 
     sprintf(s, "$%d", var->id);
-    if (var->name2[0]) {
+    if (var->name[0]) {
         strcat(s, "_");
-        strcat(s, var->name2);
+        strcat(s, var->name);
     }
     return s;
 }

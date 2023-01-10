@@ -69,7 +69,7 @@ static LLVMValueRef get_pointer_to_local_var(const struct State *st, const CfVar
 static LLVMValueRef get_local_var(const struct State *st, const CfVariable *cfvar)
 {
     LLVMValueRef varptr = get_pointer_to_local_var(st, cfvar);
-    return LLVMBuildLoad(st->builder, varptr, cfvar->name2);
+    return LLVMBuildLoad(st->builder, varptr, cfvar->name);
 }
 
 static void set_local_var(const struct State *st, const CfVariable *cfvar, LLVMValueRef value)
@@ -230,8 +230,8 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
     LLVMValueRef return_value = NULL;
     for (int i = 0; i < cfg->variables.len; i++) {
         CfVariable *v = cfg->variables.ptr[i];
-        st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(&v->type), v->name2);
-        if (!strcmp(v->name2, "return"))
+        st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(&v->type), v->name);
+        if (!strcmp(v->name, "return"))
             return_value = st->llvm_locals[i];
     }
 

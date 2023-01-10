@@ -476,12 +476,12 @@ static void warn_about_undefined_variables(CfGraph *cfg)
                     They can be undefined if a user's undefined variable is copied to them.
                     But in that case we get a warning from the user's variable anyway.
                     */
-                    if (ins->operands[i]->name2[0])
-                        show_warning(ins->location, "the value of '%s' may be undefined", ins->operands[i]->name2);
+                    if (ins->operands[i]->name[0])
+                        show_warning(ins->location, "the value of '%s' may be undefined", ins->operands[i]->name);
                     break;
                 case VS_UNDEFINED:
-                    if (ins->operands[i]->name2[0])
-                        show_warning(ins->location, "the value of '%s' is undefined", ins->operands[i]->name2);
+                    if (ins->operands[i]->name[0])
+                        show_warning(ins->location, "the value of '%s' is undefined", ins->operands[i]->name);
                     break;
                 }
             }
@@ -502,7 +502,7 @@ static void error_about_missing_return(CfGraph *cfg, const Signature *sig)
     // When a function returns a value, it is stored in a variable named "return".
     int varidx = -1;
     for (int i = 0; i < cfg->variables.len; i++) {
-        if (!strcmp(cfg->variables.ptr[i]->name2, "return")) {
+        if (!strcmp(cfg->variables.ptr[i]->name, "return")) {
             varidx = i;
             break;
         }
