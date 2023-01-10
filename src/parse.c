@@ -193,7 +193,7 @@ static AstCall parse_call(const Token **tokens, char openparen, char closeparen,
             if (!is_operator(*tokens, "=")) {
                 char msg[300];
                 snprintf(msg, sizeof msg, "'=' followed by a value for field '%s'", n.name);
-                fail_with_parse_error((*tokens),"'=' followed by a value");
+                fail_with_parse_error(*tokens, msg);
             }
             ++*tokens;
         }
