@@ -301,10 +301,10 @@ Signature copy_signature(const Signature *sig);
 // Control Flow Graph.
 // Struct names not prefixed with Cfg because it looks too much like "config" to me
 struct CfVariable {
-    char name[100];  // Prefixed with $ for values that are anonymous in Jou code
+    int id;  // Unique, but you can also compare pointers to CfVariable.
+    char name2[100];  // Same name as in user's code or empty
     Type type;
-    // First n variables are always the arguments
-    bool is_argument;
+    bool is_argument;    // First n variables are always the arguments
 };
 struct CfInstruction {
     Location location;

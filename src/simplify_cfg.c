@@ -471,14 +471,17 @@ static void warn_about_undefined_variables(CfGraph *cfg)
                 case VS_UNPREDICTABLE:
                     break;
                 case VS_POSSIBLY_UNDEFINED:
-                    // The compiler internally creates variables named $foo.
-                    // I think they are never used undefined if the compiler works correctly.
-                    assert(ins->operands[i]->name[0] != '$');
-                    show_warning(ins->location, "the value of '%s' may be undefined", ins->operands[i]->name);
+                    /*
+                    The compiler internally creates anonymous variables.
+                    They can be undefined if a user's undefined variable is copied to them.
+                    But in that case we get a warning from the user's variable anyway.
+                    */
+                    if (ins->operands[i]->name2[0])
+                        show_warning(ins->location, "the value of '%s' may be undefined", ins->operands[i]->name2);
                     break;
                 case VS_UNDEFINED:
-                    assert(ins->operands[i]->name[0] != '$');
-                    show_warning(ins->location, "the value of '%s' is undefined", ins->operands[i]->name);
+                    if (ins->operands[i]->name2[0])
+                        show_warning(ins->location, "the value of '%s' is undefined", ins->operands[i]->name2);
                     break;
                 }
             }
@@ -499,7 +502,7 @@ static void error_about_missing_return(CfGraph *cfg, const Signature *sig)
     // When a function returns a value, it is stored in a variable named "return".
     int varidx = -1;
     for (int i = 0; i < cfg->variables.len; i++) {
-        if (!strcmp(cfg->variables.ptr[i]->name, "return")) {
+        if (!strcmp(cfg->variables.ptr[i]->name2, "return")) {
             varidx = i;
             break;
         }

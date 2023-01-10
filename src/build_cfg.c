@@ -14,13 +14,11 @@ struct State {
 static CfVariable *add_variable(const struct State *st, const Type *t, const char *name)
 {
     CfVariable *var = calloc(1, sizeof *var);
+    var->id = st->cfg->variables.len;
     var->type = copy_type(t);
-    if (name[0] == '$') {
-        // Anonymous in the user's code, make unique name
-        snprintf(var->name, sizeof var->name, "%s_%d", name, st->cfg->variables.len);
-    } else {
-        assert(strlen(name) < sizeof var->name);
-        strcpy(var->name, name);
+    if (name) {
+        assert(strlen(name) < sizeof var->name2);
+        strcpy(var->name2, name);
     }
     Append(&st->cfg->variables, var);
     return var;
@@ -30,7 +28,7 @@ static CfVariable *add_variable(const struct State *st, const Type *t, const cha
 static const CfVariable *find_variable(const struct State *st, const char *name, const Location *error_location)
 {
     for (CfVariable **var = st->cfg->variables.ptr; var < End(st->cfg->variables); var++)
-        if (!strcmp((*var)->name, name))
+        if (!strcmp((*var)->name2, name))
             return *var;
 
     if (!error_location)
@@ -196,7 +194,7 @@ static const CfVariable *build_implicit_cast(
     if (same_type(from, to))
         return obj;
 
-    const CfVariable *result = add_variable(st, to, "$implicit_cast");
+    const CfVariable *result = add_variable(st, to, NULL);
 
     // Casting to bigger signed int applies when "to" is signed and bigger.
     // Doesn't cast from unsigned to same size signed: with 8 bits, 255 does not implicitly cast to -1.
@@ -311,32 +309,31 @@ static const CfVariable *build_binop(
     }
 
     enum CfInstructionKind k;
-    const char *debugname;
     bool is_signed = cast_type.kind == TYPE_SIGNED_INTEGER;
     bool negate = false;
     bool swap = false;
 
     switch(op) {
-        case AST_EXPR_ADD: debugname = "$add"; k = CF_INT_ADD; break;
-        case AST_EXPR_SUB: debugname = "$sub"; k = CF_INT_SUB; break;
-        case AST_EXPR_MUL: debugname = "$mul"; k = CF_INT_MUL; break;
-        case AST_EXPR_DIV: debugname = (is_signed ? "$sdiv" : "$udiv"); k = (is_signed ? CF_INT_SDIV : CF_INT_UDIV); break;
-        case AST_EXPR_EQ: debugname = "$eq"; k = got_pointers?CF_PTR_EQ:CF_INT_EQ; break;
-        case AST_EXPR_NE: debugname = "$ne"; k = got_pointers?CF_PTR_EQ:CF_INT_EQ; negate=true; break;
-        case AST_EXPR_LT: debugname = "$lt"; k = CF_INT_LT; break;
-        case AST_EXPR_GT: debugname = "$gt"; k = CF_INT_LT; swap=true; break;
-        case AST_EXPR_LE: debugname = "$le"; k = CF_INT_LT; negate=true; swap=true; break;
-        case AST_EXPR_GE: debugname = "$ge"; k = CF_INT_LT; negate=true; break;
+        case AST_EXPR_ADD: k = CF_INT_ADD; break;
+        case AST_EXPR_SUB: k = CF_INT_SUB; break;
+        case AST_EXPR_MUL: k = CF_INT_MUL; break;
+        case AST_EXPR_DIV: k = (is_signed ? CF_INT_SDIV : CF_INT_UDIV); break;
+        case AST_EXPR_EQ: k = got_pointers?CF_PTR_EQ:CF_INT_EQ; break;
+        case AST_EXPR_NE: k = got_pointers?CF_PTR_EQ:CF_INT_EQ; negate=true; break;
+        case AST_EXPR_LT: k = CF_INT_LT; break;
+        case AST_EXPR_GT: k = CF_INT_LT; swap=true; break;
+        case AST_EXPR_LE: k = CF_INT_LT; negate=true; swap=true; break;
+        case AST_EXPR_GE: k = CF_INT_LT; negate=true; break;
         default: assert(0);
     }
 
-    const CfVariable *destvar = add_variable(st, &result_type, debugname);
+    const CfVariable *destvar = add_variable(st, &result_type, NULL);
     add_binary_op(st, location, k, swap?rhs:lhs, swap?lhs:rhs, destvar);
 
     if (!negate)
         return destvar;
 
-    const CfVariable *negated = add_variable(st, &boolType, debugname);
+    const CfVariable *negated = add_variable(st, &boolType, NULL);
     add_unary_op(st, location, CF_BOOL_NEGATE, destvar, negated);
     return negated;
 }
@@ -354,11 +351,8 @@ static const CfVariable *build_struct_field_pointer(
         const Type *type = &structtype->data.structfields.types[i];
 
         if (!strcmp(name, fieldname)) {
-            char debugname[100];
-            snprintf(debugname, sizeof debugname, "$%s_ptr", name);
-
             const Type ptrtype = create_pointer_type(type, location);
-            CfVariable* result = add_variable(st, &ptrtype, debugname);
+            CfVariable* result = add_variable(st, &ptrtype, NULL);
             free(ptrtype.data.valuetype);
 
             union CfInstructionData dat;
@@ -391,9 +385,10 @@ static const CfVariable *build_increment_or_decrement(
     if (!is_integer_type(t))
         fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
 
-    const CfVariable *old_value = add_variable(st, t, "$old_value");
-    const CfVariable *new_value = add_variable(st, t, "$new_value");
-    const CfVariable *diffvar = add_variable(st, t, "$diff");
+    // TODO: should these variables get names?
+    const CfVariable *old_value = add_variable(st, t, NULL);
+    const CfVariable *new_value = add_variable(st, t, NULL);
+    const CfVariable *diffvar = add_variable(st, t, NULL);
 
     Constant diffconst = {
         .kind = CONSTANT_INTEGER,
@@ -421,21 +416,6 @@ static void check_dereferenced_pointer_type(Location location, const Type *t)
     // TODO: improved error message for dereferencing void*
     if (t->kind != TYPE_POINTER)
         fail_with_error(location, "the dereference operator '*' is only for pointers, not for %s", t->name);
-}
-
-static const char *get_debug_name_for_constant(const Constant *c)
-{
-    switch(c->kind) {
-    case CONSTANT_INTEGER:
-        return "$intconstant";
-    case CONSTANT_NULL:
-        return "$null";
-    case CONSTANT_STRING:
-        return "$strconstant";
-    case CONSTANT_BOOL:
-        return c->data.boolean ? "$true" : "$false";
-    }
-    assert(0);
 }
 
 enum AndOr { AND, OR };
@@ -472,11 +452,9 @@ static const CfVariable *build_expression(
         // To evaluate foo.bar or foo->bar, we first evaluate &foo.bar or &foo->bar.
         // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
         {
-            char debugname[100];
-            snprintf(debugname, sizeof debugname, "$%s", expr->data.field.fieldname);
             temp = build_address_of_expression(st, expr, false);
             assert(temp->type.kind == TYPE_POINTER);
-            result = add_variable(st, temp->type.data.valuetype, debugname);
+            result = add_variable(st, temp->type.data.valuetype, NULL);
             add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         }
         break;
@@ -488,19 +466,19 @@ static const CfVariable *build_expression(
         if (implicit_cast_to == NULL || same_type(implicit_cast_to, &result->type)) {
             // Must take a "snapshot" of this variable, as it may change soon.
             temp = result;
-            result = add_variable(st, &temp->type, "$snapshot");
+            result = add_variable(st, &temp->type, NULL);
             add_unary_op(st, expr->location, CF_VARCPY, temp, result);
         }
         break;
     case AST_EXPR_DEREFERENCE:
         temp = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
         check_dereferenced_pointer_type(expr->location, &temp->type);
-        result = add_variable(st, temp->type.data.valuetype, "$deref");
+        result = add_variable(st, temp->type.data.valuetype, NULL);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_CONSTANT:
         temptype = type_of_constant(&expr->data.constant);
-        result = add_variable(st, &temptype, get_debug_name_for_constant(&expr->data.constant));
+        result = add_variable(st, &temptype, NULL);
         add_constant(st, expr->location, expr->data.constant, result);
         break;
     case AST_EXPR_ASSIGN:
@@ -559,7 +537,7 @@ static const CfVariable *build_expression(
         break;
     case AST_EXPR_NOT:
         temp = build_expression(st, &expr->data.operands[0], &boolType, "value after 'not' must be a boolean, not FROM", true);
-        result = add_variable(st, &boolType, "$not");
+        result = add_variable(st, &boolType, NULL);
         add_unary_op(st, expr->location, CF_BOOL_NEGATE, temp, result);
         break;
     case AST_EXPR_ADD:
@@ -633,7 +611,7 @@ static const CfVariable *build_and_or(
 
     const CfVariable *lhs = build_expression(st, lhsexpr, &boolType, errormsg, true);
     const CfVariable *rhs;
-    const CfVariable *result = add_variable(st, &boolType, andor==AND ? "$and" : "$or");
+    const CfVariable *result = add_variable(st, &boolType, NULL);
     CfInstruction *ins;
 
     CfBlock *lhstrue = add_block(st);
@@ -685,7 +663,7 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
     {
         const CfVariable *var = find_variable(st, address_of_what->data.varname, &address_of_what->location);
         Type t = create_pointer_type(&var->type, (Location){0});
-        const CfVariable *addr = add_variable(st, &t, "$address_of_var");
+        const CfVariable *addr = add_variable(st, &t, NULL);
         free(t.data.valuetype);
         add_unary_op(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, var, addr);
         return addr;
@@ -801,11 +779,9 @@ static const CfVariable *build_function_call(struct State *st, const AstCall *ca
     }
 
     const CfVariable *return_value;
-    if (sig->returntype) {
-        char debugname[100];
-        snprintf(debugname, sizeof debugname, "$%s_ret", call->calledname);
-        return_value = add_variable(st, sig->returntype, debugname);
-    }else
+    if (sig->returntype)
+        return_value = add_variable(st, sig->returntype, NULL);
+    else
         return_value = NULL;
 
     union CfInstructionData data;
@@ -833,9 +809,9 @@ static const CfVariable *build_struct_init(struct State *st, const AstCall *call
 
     // TODO: Make sure every field gets a value, or add a memset
 
-    const CfVariable *instance = add_variable(st, &t, "$instance");
+    const CfVariable *instance = add_variable(st, &t, NULL);
     Type p = create_pointer_type(&t, location);
-    const CfVariable *instanceptr = add_variable(st, &p, "$instanceptr");
+    const CfVariable *instanceptr = add_variable(st, &p, NULL);
     add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
 
     free(p.data.valuetype);
