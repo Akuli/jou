@@ -136,6 +136,18 @@ static void print_ast_expression(const AstExpression *expr, int indent)
     case AST_EXPR_BRACE_INIT:
         print_ast_call(&expr->data.call, indent+2, "Brace-initialize");
         break;
+    case AST_EXPR_GET_FIELD:
+        printf(
+            "Assume the following is a struct and take field \"%s\" from it:\n",
+            expr->data.field.fieldname);
+        print_ast_expression(expr->data.field.obj, indent+2);
+        break;
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        printf(
+            "Assume the following is a pointer to a struct, and take field \"%s\" from that struct:\n",
+            expr->data.field.fieldname);
+        print_ast_expression(expr->data.field.obj, indent+2);
+        break;
     case AST_EXPR_ADDRESS_OF:
         printf("Get the address of an object as a pointer.\n");
         print_ast_expression(&expr->data.operands[0], indent+2);

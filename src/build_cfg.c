@@ -341,6 +341,38 @@ static const CfVariable *build_binop(
     return negated;
 }
 
+static const CfVariable *build_struct_member_pointer(
+    struct State *st, const CfVariable *structinstance, const char *membername, Location location)
+{
+    assert(structinstance->type.kind == TYPE_POINTER);
+    assert(structinstance->type.data.valuetype->kind == TYPE_STRUCT);
+    const Type *structtype = structinstance->type.data.valuetype;
+
+    for (int i = 0; i < structtype->data.structmembers.count; i++) {
+        char name[100];
+        safe_strcpy(name, structtype->data.structmembers.names[i]);
+        const Type *type = &structtype->data.structmembers.types[i];
+
+        if (!strcmp(name, membername)) {
+            char debugname[100];
+            snprintf(debugname, sizeof debugname, "$%s_ptr", name);
+
+            const Type ptrtype = create_pointer_type(type, location);
+            CfVariable* result = add_variable(st, &ptrtype, debugname);
+            free(ptrtype.data.valuetype);
+
+            union CfInstructionData dat;
+            safe_strcpy(dat.membername, name);
+
+            add_instruction(st, location, CF_PTR_STRUCT_MEMBER, &dat, (const CfVariable*[]){structinstance,NULL}, result);
+            return result;
+        }
+    }
+
+    // TODO: test this error
+    fail_with_error(location, "struct '%s' has no member named '%s'", structtype->name, membername);
+}
+
 static const CfVariable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool is_assignment);
 
 enum PreOrPost { PRE, POST };
@@ -411,6 +443,8 @@ enum AndOr { AND, OR };
 
 static const CfVariable *build_function_call(struct State *st, const AstCall *call, Location location);
 static const CfVariable *build_struct_init(struct State *st, const AstCall *call, Location location);
+static const CfVariable *build_struct_member_pointer(
+    struct State *st, const CfVariable *structinstance, const char *membername, Location location);
 static const CfVariable *build_and_or(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr, enum AndOr andor);
 
 static const CfVariable *build_expression(
@@ -436,10 +470,24 @@ static const CfVariable *build_expression(
     case AST_EXPR_BRACE_INIT:
         result = build_struct_init(st, &expr->data.call, expr->location);
         break;
+    case AST_EXPR_GET_FIELD:
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        // To evaluate foo.bar or foo->bar, we first evaluate &foo.bar or &foo->bar.
+        // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
+        {
+            char debugname[100];
+            snprintf(debugname, sizeof debugname, "$%s", expr->data.field.fieldname);
+            temp = build_address_of_expression(st, expr, false);
+            assert(temp->type.kind == TYPE_POINTER);
+            result = add_variable(st, temp->type.data.valuetype, debugname);
+            add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
+        }
+        break;
     case AST_EXPR_ADDRESS_OF:
         result = build_address_of_expression(st, &expr->data.operands[0], false);
         break;
     case AST_EXPR_GET_VARIABLE:
+        // TODO: should this copy the value over to a new, temporary variable?
         result = find_variable(st, expr->data.varname, &expr->location);
         break;
     case AST_EXPR_DEREFERENCE:
@@ -635,6 +683,39 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
         check_dereferenced_pointer_type(address_of_what->location, &result->type);
         return result;
     }
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+    {
+        // &obj->field aka &(obj->field)
+        const CfVariable *obj = build_expression(st, address_of_what->data.field.obj, NULL, NULL, true);
+        if (obj->type.kind != TYPE_POINTER
+            || obj->type.data.valuetype->kind != TYPE_STRUCT)
+        {
+            // TODO: test (2 ways to get here)
+            fail_with_error(address_of_what->location,
+                "left side of the '->' operator must be a pointer to a struct, not %s",
+                obj->type.name);
+        }
+        return build_struct_member_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
+    }
+    case AST_EXPR_GET_FIELD:
+    {
+        /*
+        &obj.field aka &(obj.field), evaluate as &(&obj)->field
+
+        TODO: you can't do foo().bar because &foo() doesn't work, see below. That's fine but:
+           * we need a test case that ensures the error message makes sense
+           * it needs to be documented when we have docs
+        */
+        const CfVariable *obj = build_address_of_expression(st, address_of_what->data.field.obj, false);
+        assert(obj->type.kind == TYPE_POINTER);
+        if (obj->type.data.valuetype->kind != TYPE_STRUCT){
+            // TODO: test
+            fail_with_error(address_of_what->location,
+                "left side of the '.' operator must be a pointer to a struct, not %s",
+                obj->type.data.valuetype->name);
+        }
+        return build_struct_member_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
+    }
 
     /*
     The & operator can't go in front of most expressions.
@@ -728,38 +809,6 @@ static const CfVariable *build_function_call(struct State *st, const AstCall *ca
     free(sigstr);
     free(args);
     return return_value;
-}
-
-static const CfVariable *build_struct_member_pointer(
-    struct State *st, const CfVariable *structinstance, const char *membername, Location location)
-{
-    assert(structinstance->type.kind == TYPE_POINTER);
-    assert(structinstance->type.data.valuetype->kind == TYPE_STRUCT);
-    const Type *structtype = structinstance->type.data.valuetype;
-
-    for (int i = 0; i < structtype->data.structmembers.count; i++) {
-        char name[100];
-        safe_strcpy(name, structtype->data.structmembers.names[i]);
-        const Type *type = &structtype->data.structmembers.types[i];
-
-        if (!strcmp(name, membername)) {
-            char debugname[100];
-            snprintf(debugname, sizeof debugname, "$%s", name);
-
-            const Type ptrtype = create_pointer_type(type, location);
-            CfVariable* result = add_variable(st, &ptrtype, debugname);
-            free(ptrtype.data.valuetype);
-
-            union CfInstructionData dat;
-            safe_strcpy(dat.membername, name);
-
-            add_instruction(st, location, CF_PTR_STRUCT_MEMBER, &dat, (const CfVariable*[]){structinstance,NULL}, result);
-            return result;
-        }
-    }
-
-    // TODO: test this error
-    fail_with_error(location, "struct '%s' has no member named '%s'", structtype->name, membername);
 }
 
 static const CfVariable *build_struct_init(struct State *st, const AstCall *call, Location location)

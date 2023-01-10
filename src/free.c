@@ -43,6 +43,11 @@ static void free_expression(const AstExpression *expr)
     case AST_EXPR_BRACE_INIT:
         free_call(&expr->data.call);
         break;
+    case AST_EXPR_GET_FIELD:
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        free_expression(expr->data.field.obj);
+        free(expr->data.field.obj);
+        break;
     case AST_EXPR_ASSIGN:
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:

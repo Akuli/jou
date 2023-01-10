@@ -352,6 +352,34 @@ not_an_expression:
     fail_with_parse_error(*tokens, "an expression");
 }
 
+static AstExpression parse_expression_with_attributes(const Token **tokens)
+{
+    AstExpression result = parse_elementary_expression(tokens);
+
+    while (is_operator(*tokens, ".") || is_operator(*tokens, "->")) {
+        Token startop = **tokens;
+        ++*tokens;
+
+        AstExpression result2 = {
+            .location = startop.location,
+            .kind = (is_operator(&startop, "->") ? AST_EXPR_DEREF_AND_GET_FIELD : AST_EXPR_GET_FIELD),
+        };
+        result2.data.field.obj = malloc(sizeof *result2.data.field.obj);
+        *result2.data.field.obj = result;
+
+        if ((*tokens)->type != TOKEN_NAME) {
+            // TODO: add a test
+            fail_with_parse_error(*tokens, "a field name");
+        }
+        safe_strcpy(result2.data.field.fieldname, (*tokens)->data.name);
+        ++*tokens;
+
+        result = result2;
+    }
+
+    return result;
+}
+
 // Unary operators: foo++, foo--, ++foo, --foo, &foo, *foo
 static AstExpression parse_expression_with_unary_operators(const Token **tokens)
 {
@@ -360,7 +388,7 @@ static AstExpression parse_expression_with_unary_operators(const Token **tokens)
     while(is_operator(*tokens,"++")||is_operator(*tokens,"--")||is_operator(*tokens,"&")||is_operator(*tokens,"*")) ++*tokens;
     const Token *prefixend = *tokens;
 
-    AstExpression result = parse_elementary_expression(tokens);
+    AstExpression result = parse_expression_with_attributes(tokens);
 
     const Token *suffixstart = *tokens;
     while(is_operator(*tokens,"++")||is_operator(*tokens,"--")) ++*tokens;

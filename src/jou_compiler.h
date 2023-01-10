@@ -128,6 +128,8 @@ struct AstExpression {
         AST_EXPR_CONSTANT,
         AST_EXPR_FUNCTION_CALL,
         AST_EXPR_BRACE_INIT,
+        AST_EXPR_GET_FIELD,     // foo.bar
+        AST_EXPR_DEREF_AND_GET_FIELD,  // foo->bar (shorthand for (*foo).bar)
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF,
         AST_EXPR_DEREFERENCE,
@@ -156,6 +158,7 @@ struct AstExpression {
         Constant constant;  // AST_EXPR_CONSTANT
         char varname[100];  // AST_EXPR_GET_VARIABLE
         AstCall call;       // AST_EXPR_CALL, AST_EXPR_INSTANTIATE
+        struct { AstExpression *obj; char fieldname[100]; } field;  // AST_EXPR_GET_FIELD, AST_EXPR_DEREF_AND_GET_FIELD
         /*
         The "operands" pointer is an array of 1 to 2 expressions.
         A couple examples to hopefully give you an idea of how it works in general:
