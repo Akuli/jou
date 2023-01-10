@@ -61,6 +61,7 @@ static AstType parse_type(const Token **tokens)
 // char[100] is wrapped in a struct so that you can do List(Name).
 // You can't do List(char[100]) or similar because C doesn't allow assigning arrays.
 struct Name { char name[100]; };
+static_assert(sizeof(struct Name) == 100, "u have weird c compiler...");
 typedef List(struct Name) NameList;
 typedef List(AstType) TypeList;
 
