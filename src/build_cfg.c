@@ -442,8 +442,6 @@ enum AndOr { AND, OR };
 
 static const CfVariable *build_function_call(struct State *st, const AstCall *call, Location location);
 static const CfVariable *build_struct_init(struct State *st, const AstCall *call, Location location);
-static const CfVariable *build_struct_field_pointer(
-    struct State *st, const CfVariable *structinstance, const char *fieldname, Location location);
 static const CfVariable *build_and_or(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr, enum AndOr andor);
 
 static const CfVariable *build_expression(

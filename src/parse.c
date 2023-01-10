@@ -65,7 +65,6 @@ static_assert(sizeof(struct Name) == 100, "u have weird c compiler...");
 typedef List(struct Name) NameList;
 typedef List(AstType) TypeList;
 
-// TODO: refactor by combining code for arguments and struct fields more
 static void parse_name_and_type(
     const Token **tokens, NameList *names, TypeList *types,
     const char *expected_what_for_name, // e.g. "an argument name" to get error message "expected an argument name, got blah"
