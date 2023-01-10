@@ -35,56 +35,37 @@ static bool is_operator(const Token *t, const char *op)
     return t->type == TOKEN_OPERATOR && !strcmp(t->data.operator, op);
 }
 
-static Type *parse_type_or_void(const Token **tokens)
+static AstType parse_type(const Token **tokens)
 {
-    Type *result;
+    struct AstType result = { .location = (*tokens)->location };
 
-    if (is_keyword(*tokens, "void"))
-        result = NULL;
-    else {
-        result = malloc(sizeof *result);
-        if (is_keyword(*tokens, "int"))
-            *result = intType;
-        else if (is_keyword(*tokens, "byte"))
-            *result = byteType;
-        else if (is_keyword(*tokens, "bool"))
-            *result = boolType;
-        else
-            fail_with_parse_error(*tokens, "a type");
+    if (!is_keyword(*tokens, "void")
+        && !is_keyword(*tokens, "int")
+        && !is_keyword(*tokens, "byte")
+        && !is_keyword(*tokens, "bool")
+        && (*tokens)->type != TOKEN_NAME)
+    {
+        fail_with_parse_error(*tokens, "a type");
     }
+    safe_strcpy(result.name, (*tokens)->data.name);
     ++*tokens;
 
-    while(is_operator(*tokens, "*")) {
-        if (!result) {
-            result = malloc(sizeof *result);
-            *result = voidPtrType;
-        } else {
-            *result = create_pointer_type(result, (*tokens)->location);
-        }
+    while (is_operator(*tokens, "*")) {
+        result.npointers++;
         ++*tokens;
     }
 
     return result;
 }
 
-static Type parse_type(const Token **tokens)
+static AstSignature parse_function_signature(const Token **tokens)
 {
-    Location startlocation = (**tokens).location;
-    Type *tmp = parse_type_or_void(tokens);
-    if (!tmp)
-        fail_with_error(startlocation, "'void' cannot be used here because it is not a type");
-    Type t = *tmp;
-    free(tmp);
-    return t;
-}
-
-static Signature parse_function_signature(const Token **tokens)
-{
-    Signature result = {.location=(*tokens)->location};
+    AstSignature result = {0};
 
     if ((*tokens)->type != TOKEN_NAME)
         fail_with_parse_error(*tokens, "a function name");
     safe_strcpy(result.funcname, (*tokens)->data.name);
+    result.funcname_location = (*tokens)->location;
     ++*tokens;
 
     if (!is_operator(*tokens, "("))
@@ -95,7 +76,7 @@ static Signature parse_function_signature(const Token **tokens)
     struct Name { char name[100]; };
     static_assert(sizeof(struct Name) == 100, "your c compiler is stupid");
     List(struct Name) argnames = {0};
-    List(Type) argtypes = {0};
+    List(AstType) argtypes = {0};
 
     while (!is_operator(*tokens, ")")) {
         if (result.takes_varargs)
@@ -152,7 +133,7 @@ static Signature parse_function_signature(const Token **tokens)
     }
     ++*tokens;
 
-    result.returntype = parse_type_or_void(tokens);
+    result.returntype = parse_type(tokens);
     return result;
 }
 
@@ -608,7 +589,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
             if (result.data.funcdef.signature.takes_varargs) {
                 // TODO: support "def foo(x: str, ...)" in some way
                 fail_with_error(
-                    result.data.funcdef.signature.location,
+                    result.data.funcdef.signature.funcname_location,
                     "functions with variadic arguments cannot be defined yet");
             }
             result.data.funcdef.body = parse_body(tokens);

@@ -112,7 +112,6 @@ static void free_statement(const AstStatement *stmt)
         free_expression(&stmt->data.expression);
         break;
     case AST_STMT_DECLARE_LOCAL_VAR:
-        free_type(&stmt->data.vardecl.type);
         if (stmt->data.vardecl.initial_value) {
             free_expression(stmt->data.vardecl.initial_value);
             free(stmt->data.vardecl.initial_value);
@@ -136,12 +135,19 @@ static void free_signature(const Signature *sig)
 {
     for (int i = 0; i < sig->nargs; i++)
         free_type(&sig->argtypes[i]);
-    free(sig->argtypes);
-    if (sig->returntype){
+
+    if (sig->returntype)
         free_type(sig->returntype);
-        free(sig->returntype);
-    }
+    free(sig->returntype);
+
     free(sig->argnames);
+    free(sig->argtypes);
+}
+
+static void free_ast_signature(const AstSignature *sig)
+{
+    free(sig->argnames);
+    free(sig->argtypes);
 }
 
 void free_ast(AstToplevelNode *topnodelist)
@@ -149,10 +155,10 @@ void free_ast(AstToplevelNode *topnodelist)
     for (AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
         switch(t->kind) {
         case AST_TOPLEVEL_DECLARE_FUNCTION:
-            free_signature(&t->data.decl_signature);
+            free_ast_signature(&t->data.decl_signature);
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            free_signature(&t->data.funcdef.signature);
+            free_ast_signature(&t->data.funcdef.signature);
             free_body(&t->data.funcdef.body);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
