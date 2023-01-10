@@ -385,7 +385,6 @@ static const CfVariable *build_increment_or_decrement(
     if (!is_integer_type(t))
         fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
 
-    // TODO: should these variables get names?
     const CfVariable *old_value = add_variable(st, t, NULL);
     const CfVariable *new_value = add_variable(st, t, NULL);
     const CfVariable *diffvar = add_variable(st, t, NULL);
@@ -462,8 +461,13 @@ static const CfVariable *build_expression(
         result = build_address_of_expression(st, &expr->data.operands[0], false);
         break;
     case AST_EXPR_GET_VARIABLE:
-        // TODO: should this copy the value over to a new, temporary variable?
         result = find_variable(st, expr->data.varname, &expr->location);
+        if (implicit_cast_to == NULL || same_type(implicit_cast_to, &result->type)) {
+            // Must take a "snapshot" of this variable, as it may change soon.
+            temp = result;
+            result = add_variable(st, &temp->type, NULL);
+            add_unary_op(st, expr->location, CF_VARCPY, temp, result);
+        }
         break;
     case AST_EXPR_DEREFERENCE:
         temp = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
