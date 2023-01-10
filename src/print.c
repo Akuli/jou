@@ -360,38 +360,55 @@ void print_ast(const AstToplevelNode *topnodelist)
 }
 
 
+static const char *varname(const CfVariable *var)
+{
+    // Cycle through enough space for a few variables, so that you
+    // can call this several times inside the same printf()
+    static char names[50 + sizeof var->name][5];
+    static unsigned i = 0;
+    char *s = names[i++];
+    i %= sizeof(names) / sizeof(names[0]);
+
+    sprintf(s, "$%d", var->id);
+    if (var->name[0]) {
+        strcat(s, "_");
+        strcat(s, var->name);
+    }
+    return s;
+}
+
 static void print_cf_instruction(const CfInstruction *ins, int indent)
 {
     printf("%*sline %-4d  ", indent, "", ins->location.lineno);
 
     if (ins->destvar)
-        printf("%s = ", ins->destvar->name);
+        printf("%s = ", varname(ins->destvar));
 
     switch(ins->kind) {
     case CF_ADDRESS_OF_VARIABLE:
-        printf("address of %s", ins->operands[0]->name);
+        printf("address of %s", varname(ins->operands[0]));
         break;
     case CF_BOOL_NEGATE:
-        printf("boolean negation of %s", ins->operands[0]->name);
+        printf("boolean negation of %s", varname(ins->operands[0]));
         break;
     case CF_CALL:
         printf("call %s(", ins->data.funcname);
         for (int i = 0; i < ins->noperands; i++) {
             if(i) printf(", ");
-            printf("%s", ins->operands[i]->name);
+            printf("%s", varname(ins->operands[i]));
         }
         printf(")");
         break;
     case CF_INT_SCAST_TO_BIGGER:
         printf("cast %s to %d-bit signed int",
-            ins->operands[0]->name, ins->destvar->type.data.width_in_bits);
+            varname(ins->operands[0]), ins->destvar->type.data.width_in_bits);
         break;
     case CF_INT_UCAST_TO_BIGGER:
         printf("cast %s to %d-bit unsigned int",
-            ins->operands[0]->name, ins->destvar->type.data.width_in_bits);
+            varname(ins->operands[0]), ins->destvar->type.data.width_in_bits);
         break;
     case CF_PTR_CAST:
-        printf("pointer cast %s", ins->operands[0]->name);
+        printf("pointer cast %s", varname(ins->operands[0]));
         break;
     case CF_CONSTANT:
         print_constant(&ins->data.constant);
@@ -416,20 +433,20 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
             case CF_PTR_EQ: printf("ptreq "); break;
             default: assert(0);
         }
-        printf("%s, %s", ins->operands[0]->name, ins->operands[1]->name);
+        printf("%s, %s", varname(ins->operands[0]), varname(ins->operands[1]));
         break;
     case CF_PTR_LOAD:
         // Extra parentheses to make these stand out a bit.
-        printf("*(%s)", ins->operands[0]->name);
+        printf("*(%s)", varname(ins->operands[0]));
         break;
     case CF_PTR_STORE:
-        printf("*(%s) = %s", ins->operands[0]->name, ins->operands[1]->name);
+        printf("*(%s) = %s", varname(ins->operands[0]), varname(ins->operands[1]));
         break;
     case CF_PTR_STRUCT_FIELD:
-        printf("%s + offset of field \"%s\"", ins->operands[0]->name, ins->data.fieldname);
+        printf("%s + offset of field \"%s\"", varname(ins->operands[0]), ins->data.fieldname);
         break;
     case CF_VARCPY:
-        printf("%s", ins->operands[0]->name);
+        printf("%s", varname(ins->operands[0]));
         break;
     }
 
@@ -445,7 +462,7 @@ static void print_control_flow_graph_with_indent(const CfGraph *cfg, int indent)
 
     printf("%*sVariables:\n", indent, "");
     for (CfVariable **var = cfg->variables.ptr; var < End(cfg->variables); var++) {
-        printf("%*s  %-20s  %s\n", indent, "", (*var)->name, (*var)->type.name);
+        printf("%*s  %-20s  %s\n", indent, "", varname(*var), (*var)->type.name);
     }
 
     for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
@@ -477,7 +494,7 @@ static void print_control_flow_graph_with_indent(const CfGraph *cfg, int indent)
             else {
                 assert((*b)->branchvar);
                 printf("%*s  If %s is True jump to block %d, otherwise block %d.\n",
-                    indent, "", (*b)->branchvar->name, trueidx, falseidx);
+                    indent, "", varname((*b)->branchvar), trueidx, falseidx);
             }
         }
     }
