@@ -8,6 +8,7 @@ struct State {
     CfBlock *current_block;
     List(CfBlock *) breakstack;
     List(CfBlock *) continuestack;
+    List(Type) structs;
 };
 
 static CfVariable *add_variable(const struct State *st, const Type *t, const char *name)
@@ -120,8 +121,18 @@ static Type *build_type_or_void(const struct State *st, const AstType *asttype)
             return NULL;
         npointers--;
         t = voidPtrType;
-    } else
-        fail_with_error(asttype->location, "there is no type named '%s'", asttype->name);
+    } else {
+        bool found = false;
+        for (struct Type *ptr = st->structs.ptr; ptr < End(st->structs); ptr++) {
+            if (!strcmp(ptr->name, asttype->name)) {
+                t = copy_type(ptr);
+                found = true;
+                break;
+            }
+        }
+        if(!found)
+            fail_with_error(asttype->location, "there is no type named '%s'", asttype->name);
+    }
 
     while (npointers--)
         t = create_pointer_type(&t, asttype->location);
@@ -211,7 +222,7 @@ static const CfVariable *build_implicit_cast(
     if ((from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
         || (from->kind == TYPE_VOID_POINTER && to->kind == TYPE_POINTER))
     {
-        add_unary_op(st, location, CF_CAST_POINTER, obj, result);
+        add_unary_op(st, location, CF_PTR_CAST, obj, result);
         return result;
     }
 
@@ -330,6 +341,37 @@ static const CfVariable *build_binop(
     return negated;
 }
 
+static const CfVariable *build_struct_field_pointer(
+    struct State *st, const CfVariable *structinstance, const char *fieldname, Location location)
+{
+    assert(structinstance->type.kind == TYPE_POINTER);
+    assert(structinstance->type.data.valuetype->kind == TYPE_STRUCT);
+    const Type *structtype = structinstance->type.data.valuetype;
+
+    for (int i = 0; i < structtype->data.structfields.count; i++) {
+        char name[100];
+        safe_strcpy(name, structtype->data.structfields.names[i]);
+        const Type *type = &structtype->data.structfields.types[i];
+
+        if (!strcmp(name, fieldname)) {
+            char debugname[100];
+            snprintf(debugname, sizeof debugname, "$%s_ptr", name);
+
+            const Type ptrtype = create_pointer_type(type, location);
+            CfVariable* result = add_variable(st, &ptrtype, debugname);
+            free(ptrtype.data.valuetype);
+
+            union CfInstructionData dat;
+            safe_strcpy(dat.fieldname, name);
+
+            add_instruction(st, location, CF_PTR_STRUCT_FIELD, &dat, (const CfVariable*[]){structinstance,NULL}, result);
+            return result;
+        }
+    }
+
+    fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
+}
+
 static const CfVariable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool is_assignment);
 
 enum PreOrPost { PRE, POST };
@@ -398,7 +440,8 @@ static const char *get_debug_name_for_constant(const Constant *c)
 
 enum AndOr { AND, OR };
 
-static const CfVariable *build_call(struct State *st, const AstCall *call, Location location);
+static const CfVariable *build_function_call(struct State *st, const AstCall *call, Location location);
+static const CfVariable *build_struct_init(struct State *st, const AstCall *call, Location location);
 static const CfVariable *build_and_or(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr, enum AndOr andor);
 
 static const CfVariable *build_expression(
@@ -412,19 +455,36 @@ static const CfVariable *build_expression(
     Type temptype;
 
     switch(expr->kind) {
-    case AST_EXPR_CALL:
-        result = build_call(st, &expr->data.call, expr->location);
+    case AST_EXPR_FUNCTION_CALL:
+        result = build_function_call(st, &expr->data.call, expr->location);
         if (result == NULL) {
             if (!needvalue)
                 return NULL;
             // TODO: add a test for this
-            fail_with_error(expr->location, "function '%s' does not return a value", expr->data.call.funcname);
+            fail_with_error(expr->location, "function '%s' does not return a value", expr->data.call.calledname);
+        }
+        break;
+    case AST_EXPR_BRACE_INIT:
+        result = build_struct_init(st, &expr->data.call, expr->location);
+        break;
+    case AST_EXPR_GET_FIELD:
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        // To evaluate foo.bar or foo->bar, we first evaluate &foo.bar or &foo->bar.
+        // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
+        {
+            char debugname[100];
+            snprintf(debugname, sizeof debugname, "$%s", expr->data.field.fieldname);
+            temp = build_address_of_expression(st, expr, false);
+            assert(temp->type.kind == TYPE_POINTER);
+            result = add_variable(st, temp->type.data.valuetype, debugname);
+            add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         }
         break;
     case AST_EXPR_ADDRESS_OF:
         result = build_address_of_expression(st, &expr->data.operands[0], false);
         break;
     case AST_EXPR_GET_VARIABLE:
+        // TODO: should this copy the value over to a new, temporary variable?
         result = find_variable(st, expr->data.varname, &expr->location);
         break;
     case AST_EXPR_DEREFERENCE:
@@ -453,10 +513,22 @@ static const CfVariable *build_expression(
                 // TODO: is this evaluation order good?
                 const CfVariable *target = build_address_of_expression(st, targetexpr, true);
                 assert(target->type.kind == TYPE_POINTER);
-                const char *errmsg;
+
+                char errmsg[500];
                 switch(targetexpr->kind) {
-                    case AST_EXPR_GET_VARIABLE: errmsg = "cannot assign a value of type FROM to variable of type TO"; break;
-                    case AST_EXPR_DEREFERENCE: errmsg = "cannot assign a value of type FROM into a pointer of type TO*"; break;
+                    case AST_EXPR_GET_VARIABLE:
+                        strcpy(errmsg, "cannot assign a value of type FROM to variable of type TO");
+                        break;
+                    case AST_EXPR_DEREFERENCE:
+                        strcpy(errmsg, "cannot assign a value of type FROM into a pointer of type TO*");
+                        break;
+                    case AST_EXPR_GET_FIELD:
+                    case AST_EXPR_DEREF_AND_GET_FIELD:
+                        snprintf(
+                            errmsg, sizeof errmsg,
+                            "cannot assign a value of type FROM into field '%s' of type TO",
+                            targetexpr->data.field.fieldname);
+                        break;
                     default: assert(0);
                 }
                 /*
@@ -620,6 +692,31 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
         check_dereferenced_pointer_type(address_of_what->location, &result->type);
         return result;
     }
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+    {
+        // &obj->field aka &(obj->field)
+        const CfVariable *obj = build_expression(st, address_of_what->data.field.obj, NULL, NULL, true);
+        if (obj->type.kind != TYPE_POINTER
+            || obj->type.data.valuetype->kind != TYPE_STRUCT)
+        {
+            fail_with_error(address_of_what->location,
+                "left side of the '->' operator must be a pointer to a struct, not %s",
+                obj->type.name);
+        }
+        return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
+    }
+    case AST_EXPR_GET_FIELD:
+    {
+        // &obj.field aka &(obj.field), evaluate as &(&obj)->field
+        const CfVariable *obj = build_address_of_expression(st, address_of_what->data.field.obj, false);
+        assert(obj->type.kind == TYPE_POINTER);
+        if (obj->type.data.valuetype->kind != TYPE_STRUCT){
+            fail_with_error(address_of_what->location,
+                "left side of the '.' operator must be a struct, not %s",
+                obj->type.data.valuetype->name);
+        }
+        return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
+    }
 
     /*
     The & operator can't go in front of most expressions.
@@ -667,11 +764,11 @@ static const char *nth(int n)
 }
 
 // returns NULL if the function doesn't return anything
-static const CfVariable *build_call(struct State *st, const AstCall *call, Location location)
+static const CfVariable *build_function_call(struct State *st, const AstCall *call, Location location)
 {
-    const Signature *sig = find_function(st, call->funcname);
+    const Signature *sig = find_function(st, call->calledname);
     if (!sig)
-        fail_with_error(location, "function \"%s\" not found", call->funcname);
+        fail_with_error(location, "function \"%s\" not found", call->calledname);
     char *sigstr = signature_to_string(sig, false);
 
     if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->takes_varargs)) {
@@ -701,18 +798,55 @@ static const CfVariable *build_call(struct State *st, const AstCall *call, Locat
     const CfVariable *return_value;
     if (sig->returntype) {
         char debugname[100];
-        snprintf(debugname, sizeof debugname, "$%s_ret", call->funcname);
+        snprintf(debugname, sizeof debugname, "$%s_ret", call->calledname);
         return_value = add_variable(st, sig->returntype, debugname);
     }else
         return_value = NULL;
 
     union CfInstructionData data;
-    safe_strcpy(data.funcname, call->funcname);
+    safe_strcpy(data.funcname, call->calledname);
     add_instruction(st, location, CF_CALL, &data, args, return_value);
 
     free(sigstr);
     free(args);
     return return_value;
+}
+
+static const CfVariable *build_struct_init(struct State *st, const AstCall *call, Location location)
+{
+    struct AstType tmp = { .location = location, .npointers = 0 };
+    safe_strcpy(tmp.name, call->calledname);
+    Type t = build_type(st, &tmp);
+
+    if (t.kind != TYPE_STRUCT) {
+        // TODO: test this error. Currently it can never happen because
+        // all non-struct types are created with keywords, and this
+        // function is called only when there is a name token followed
+        // by a '{'.
+        fail_with_error(location, "type %s cannot be instantiated with the Foo{...} syntax", t.name);
+    }
+
+    // TODO: Make sure every field gets a value, or add a memset
+
+    const CfVariable *instance = add_variable(st, &t, "$instance");
+    Type p = create_pointer_type(&t, location);
+    const CfVariable *instanceptr = add_variable(st, &p, "$instanceptr");
+    add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
+
+    free(p.data.valuetype);
+    free_type(&t);
+
+    for (int i = 0; i < call->nargs; i++) {
+        const CfVariable *fieldptr = build_struct_field_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
+        char msg[1000];
+        snprintf(msg, sizeof msg,
+            "value for field '%s' of struct %s must be of type TO, not FROM",
+            call->argnames[i], call->calledname);
+        const CfVariable *fieldval = build_expression(st, &call->args[i], fieldptr->type.data.valuetype, msg, true);
+        add_binary_op(st, location, CF_PTR_STORE, fieldptr, fieldval, NULL);
+    }
+
+    return instance;
 }
 
 static void build_body(struct State *st, const AstBody *body);
@@ -943,6 +1077,28 @@ static Signature build_signature(const struct State *st, const AstSignature *ast
     return result;
 }
 
+static Type build_struct(struct State *st, const AstStructDef *structdef, Location location)
+{
+    for (Type *t = st->structs.ptr; t < End(st->structs); t++)
+        if (!strcmp(t->name, structdef->name))
+            fail_with_error(location, "a struct named '%s' already exists", t->name);
+
+    Type result = { .kind = TYPE_STRUCT };
+    safe_strcpy(result.name, structdef->name);
+
+    int n = structdef->nfields;
+    result.data.structfields.count = n;
+
+    result.data.structfields.names = malloc(n * sizeof result.data.structfields.names[0]);
+    memcpy(result.data.structfields.names, structdef->fieldnames, n * sizeof result.data.structfields.names[0]);
+
+    result.data.structfields.types = malloc(n * sizeof result.data.structfields.types[0]);
+    for (int i = 0; i < n; i++)
+        result.data.structfields.types[i] = build_type(st, &structdef->fieldtypes[i]);
+
+    return result;
+}
+
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
 {
     CfGraphFile result = { .filename = ast->location.filename };
@@ -954,6 +1110,7 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
     result.signatures = malloc(sizeof(result.signatures[0]) * n);
 
     Signature sig;
+    Type type;
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         switch(ast->kind) {
@@ -971,11 +1128,19 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
             result.nfuncs++;  // Make signature of current function usable in function calls (recursion)
             result.graphs[result.nfuncs-1] = build_function(&st, &sig, &ast->data.funcdef.body);
             break;
+        case AST_TOPLEVEL_DEFINE_STRUCT:
+            // careful with evaluation order in Append...
+            type = build_struct(&st, &ast->data.structdef, ast->location);
+            Append(&st.structs, type);
+            break;
         }
         ast++;
     }
 
     free(st.breakstack.ptr);
     free(st.continuestack.ptr);
+    for (Type *t = st.structs.ptr; t < End(st.structs); t++)
+        free_type(t);
+    free(st.structs.ptr);
     return result;
 }

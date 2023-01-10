@@ -14,9 +14,19 @@ void free_tokens(Token *tokenlist)
 
 void free_type(const Type *type)
 {
-    if (type->kind == TYPE_POINTER) {
+    switch(type->kind) {
+    case TYPE_POINTER:
         free_type(type->data.valuetype);
         free(type->data.valuetype);
+        break;
+    case TYPE_STRUCT:
+        for (int i = 0; i < type->data.structfields.count; i++)
+            free_type(&type->data.structfields.types[i]);
+        free(type->data.structfields.types);
+        free(type->data.structfields.names);
+        break;
+    default:
+        break;
     }
 }
 
@@ -32,14 +42,21 @@ static void free_call(const AstCall *call)
 {
     for (int i = 0; i < call->nargs; i++)
         free_expression(&call->args[i]);
+    free(call->argnames);
     free(call->args);
 }
 
 static void free_expression(const AstExpression *expr)
 {
     switch(expr->kind) {
-    case AST_EXPR_CALL:
+    case AST_EXPR_FUNCTION_CALL:
+    case AST_EXPR_BRACE_INIT:
         free_call(&expr->data.call);
+        break;
+    case AST_EXPR_GET_FIELD:
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        free_expression(expr->data.field.obj);
+        free(expr->data.field.obj);
         break;
     case AST_EXPR_ASSIGN:
     case AST_EXPR_ADD:
@@ -152,6 +169,10 @@ void free_ast(AstToplevelNode *topnodelist)
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             free_ast_signature(&t->data.funcdef.signature);
             free_body(&t->data.funcdef.body);
+            break;
+        case AST_TOPLEVEL_DEFINE_STRUCT:
+            free(t->data.structdef.fieldnames);
+            free(t->data.structdef.fieldtypes);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);

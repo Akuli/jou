@@ -21,6 +21,16 @@ static LLVMTypeRef codegen_type(const Type *type)
         return LLVMIntType(type->data.width_in_bits);
     case TYPE_BOOL:
         return LLVMInt1Type();
+    case TYPE_STRUCT:
+        {
+            int n = type->data.structfields.count;
+            LLVMTypeRef *elems = malloc(sizeof(elems[0]) * n);  // NOLINT
+            for (int i = 0; i < n; i++)
+                elems[i] = codegen_type(&type->data.structfields.types[i]);
+            LLVMTypeRef result = LLVMStructType(elems, type->data.structfields.count, false);
+            free(elems);
+            return result;
+        }
     }
     assert(0);
 }
@@ -173,10 +183,19 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, lhsint, rhsint, name));
             }
             break;
+        case CF_PTR_STRUCT_FIELD:
+            {
+                const Type *structtype = ins->operands[0]->type.data.valuetype;
+                int i = 0;
+                while (strcmp(structtype->data.structfields.names[i], ins->data.fieldname))
+                    i++;
+                setdest(LLVMBuildStructGEP2(st->builder, codegen_type(structtype), getop(0), i, ins->data.fieldname));
+            }
+            break;
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), name)); break;
         case CF_INT_SCAST_TO_BIGGER: setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
         case CF_INT_UCAST_TO_BIGGER: setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
-        case CF_CAST_POINTER: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
+        case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(&ins->destvar->type), name)); break;
         case CF_INT_ADD: setdest(LLVMBuildAdd(st->builder, getop(0), getop(1), name)); break;
         case CF_INT_SUB: setdest(LLVMBuildSub(st->builder, getop(0), getop(1), name)); break;
         case CF_INT_MUL: setdest(LLVMBuildMul(st->builder, getop(0), getop(1), name)); break;
