@@ -72,13 +72,30 @@ struct Token {
 };
 
 
-/*
-Can also represent "void" even though that is not a valid type.
+// Constants can appear in AST and also compilation steps after AST.
+struct Constant {
+    enum ConstantKind {
+        CONSTANT_INTEGER,
+        CONSTANT_STRING,
+        CONSTANT_NULL,
+    } kind;
+    union {
+        struct { int width_in_bits; bool is_signed; long long value; } integer;
+        bool boolean;
+        char *str;
+    } data;
+};
+#define copy_constant(c) ( (c)->kind==CONSTANT_STRING ? (Constant){ CONSTANT_STRING, {.str=strdup((c)->data.str)} } : *(c) )
 
+
+/*
 There is AstType and Type. The distinction is that AstType only contains
 the name of the type (e.g. "int"), whereas Type contains more
 information (e.g. 32-bit signed integer) that is figured out separately
 after the code has been parsed. This is important for structs.
+
+AstType can also represent "void" even though that is not a valid type.
+It simply appears as a type with name "void".
 */
 struct AstType {
     Location location;
@@ -246,6 +263,7 @@ Type copy_type(const Type *t);
 bool is_integer_type(const Type *t);  // includes signed and unsigned
 bool is_pointer_type(const Type *t);  // includes void pointers
 bool same_type(const Type *a, const Type *b);
+Type type_of_constant(const Constant *c);
 
 
 struct Signature {
@@ -260,22 +278,6 @@ struct Signature {
 
 char *signature_to_string(const Signature *sig, bool include_return_type);
 Signature copy_signature(const Signature *sig);
-
-
-struct Constant {
-    enum ConstantKind {
-        CONSTANT_SINT,
-        CONSTANT_UINT,
-        CONSTANT_STRING,
-        CONSTANT_NULL,
-    } kind;
-    union {
-        long long integer;
-        bool boolean;
-        char *str;
-    } value;
-};
-#define copy_constant(c) ( same_type(&(c)->type, &stringType) ? (Constant){ stringType, {.str=strdup((c)->value.str)} } : *(c) )
 
 
 // Control Flow Graph.

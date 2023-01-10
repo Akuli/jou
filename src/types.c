@@ -83,6 +83,19 @@ bool same_type(const Type *a, const Type *b)
     assert(0);
 }
 
+Type type_of_constant(const Constant *c)
+{
+    switch(c->kind) {
+    case CONSTANT_NULL:
+        return voidPtrType;
+    case CONSTANT_INTEGER:
+        return create_integer_type(c->value.integer.width_in_bits, c->value.integer.is_signed);
+    case CONSTANT_STRING:
+        return stringType;
+    }
+    assert(0);
+}
+
 
 char *signature_to_string(const Signature *sig, bool include_return_type)
 {

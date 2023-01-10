@@ -352,7 +352,17 @@ static const CfVariable *build_increment_or_decrement(
     const CfVariable *old_value = add_variable(st, t, "$old_value");
     const CfVariable *new_value = add_variable(st, t, "$new_value");
     const CfVariable *diffvar = add_variable(st, t, "$diff");
-    add_constant(st, location, ((Constant){.type=*t, .value.integer=diff}), diffvar);
+
+    Constant diffconst = {
+        .kind = CONSTANT_INTEGER,
+        .data.integer = {
+            .width_in_bits = t->data.width_in_bits,
+            .is_signed = (t->kind == TYPE_SIGNED_INTEGER),
+            .value = diff,
+        },
+    };
+
+    add_constant(st, location, diffconst, diffvar);
     add_unary_op(st, location, CF_PTR_LOAD, addr, old_value);
     add_binary_op(st, location, CF_INT_ADD, old_value, diffvar, new_value);
     add_binary_op(st, location, CF_PTR_STORE, addr, new_value, NULL);
