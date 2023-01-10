@@ -406,9 +406,6 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         printf("cast %s to %d-bit unsigned int",
             varname(ins->operands[0]), ins->destvar->type.data.width_in_bits);
         break;
-    case CF_PTR_CAST:
-        printf("pointer cast %s", varname(ins->operands[0]));
-        break;
     case CF_CONSTANT:
         print_constant(&ins->data.constant);
         break;
@@ -443,6 +440,12 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         break;
     case CF_PTR_STRUCT_FIELD:
         printf("%s + offset of field \"%s\"", varname(ins->operands[0]), ins->data.fieldname);
+        break;
+    case CF_PTR_CAST:
+        printf("pointer cast %s", varname(ins->operands[0]));
+        break;
+    case CF_PTR_MEMSET_TO_ZERO:
+        printf("set value of pointer %s to zero bytes", varname(ins->operands[0]));
         break;
     case CF_VARCPY:
         printf("%s", varname(ins->operands[0]));

@@ -807,15 +807,14 @@ static const CfVariable *build_struct_init(struct State *st, const AstCall *call
         fail_with_error(location, "type %s cannot be instantiated with the Foo{...} syntax", t.name);
     }
 
-    // TODO: Make sure every field gets a value, or add a memset
-
     const CfVariable *instance = add_variable(st, &t, NULL);
     Type p = create_pointer_type(&t, location);
     const CfVariable *instanceptr = add_variable(st, &p, NULL);
-    add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
-
     free(p.data.valuetype);
     free_type(&t);
+
+    add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
+    add_unary_op(st, location, CF_PTR_MEMSET_TO_ZERO, instanceptr, NULL);
 
     for (int i = 0; i < call->nargs; i++) {
         const CfVariable *fieldptr = build_struct_field_pointer(st, instanceptr, call->argnames[i], call->args[i].location);

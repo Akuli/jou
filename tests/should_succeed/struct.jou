@@ -14,4 +14,10 @@ def main() -> int:
     increment(&foo)
     printf("%d %s\n", foo.num, foo.text)  # Output: 2 hello
 
+    # If some fields are not specified, they are zero-initialized.
+    foo = Foo{}
+    printf("%d\n", foo.num)  # Output: 0
+    if foo.text == NULL:
+        printf("its null\n")  # Output: its null
+
     return 0

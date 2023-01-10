@@ -312,6 +312,7 @@ struct CfInstruction {
         CF_CONSTANT,
         CF_CALL,
         CF_ADDRESS_OF_VARIABLE,
+        CF_PTR_MEMSET_TO_ZERO,  // takes one operand, a pointer: memset(ptr, 0, sizeof(*ptr))
         CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
         CF_PTR_LOAD,  // aka dereference
         CF_PTR_EQ,
@@ -332,7 +333,7 @@ struct CfInstruction {
     union CfInstructionData {
         Constant constant;      // CF_CONSTANT
         char funcname[100];     // CF_CALL
-        char fieldname[100];   // CF_PTR_STRUCT_FIELD
+        char fieldname[100];    // CF_PTR_STRUCT_FIELD
     } data;
     const CfVariable **operands;  // e.g. numbers to add, function arguments
     int noperands;
