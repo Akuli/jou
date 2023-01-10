@@ -904,15 +904,6 @@ static Signature build_signature(const struct State *st, const AstSignature *ast
         if (!strcmp(st->cfgfile->signatures[i].funcname, astsig->funcname))
             fail_with_error(astsig->funcname_location, "a function named '%s' already exists", astsig->funcname);
 
-    Type *returntype = build_type_or_void(st, &astsig->returntype);
-
-    // TODO: validate main() parameters
-    if (!strcmp(astsig->funcname, "main") &&
-        (returntype == NULL || !same_type(returntype, &intType)))
-    {
-        fail_with_error(astsig->returntype.location, "the main() function must return int");
-    }
-
     Signature result = { .nargs = astsig->nargs, .takes_varargs = astsig->takes_varargs };
     safe_strcpy(result.funcname, astsig->funcname);
 
@@ -925,8 +916,15 @@ static Signature build_signature(const struct State *st, const AstSignature *ast
         result.argtypes[i] = build_type(st, &astsig->argtypes[i]);
 
     result.returntype = build_type_or_void(st, &astsig->returntype);
-    result.returntype_location = astsig->returntype.location;
+    // TODO: validate main() parameters
+    // TODO: test main() taking parameters
+    if (!strcmp(astsig->funcname, "main") &&
+        (result.returntype == NULL || !same_type(result.returntype, &intType)))
+    {
+        fail_with_error(astsig->returntype.location, "the main() function must return int");
+    }
 
+    result.returntype_location = astsig->returntype.location;
     return result;
 }
 
