@@ -509,12 +509,12 @@ static void error_about_missing_return(CfGraph *cfg, const Signature *sig)
     enum VarStatus s = statuses[find_block_index(cfg, &cfg->end_block)][varidx];
     if (s == VS_POSSIBLY_UNDEFINED) {
         show_warning(
-            sig->location,
+            sig->returntype_location,
             "function '%s' doesn't seem to return a value in all cases", sig->funcname);
     }
     if (s == VS_UNDEFINED) {
         fail_with_error(
-            sig->location,
+            sig->returntype_location,
             "function '%s' must return a value, because it is defined with '-> %s'",
             sig->funcname, sig->returntype->name);
     }

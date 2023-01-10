@@ -13,6 +13,8 @@ typedef struct Type Type;
 typedef struct Signature Signature;
 typedef struct Constant Constant;
 
+typedef struct AstType AstType;
+typedef struct AstSignature AstSignature;
 typedef struct AstBody AstBody;
 typedef struct AstCall AstCall;
 typedef struct AstConditionAndBody AstConditionAndBody;
@@ -105,13 +107,13 @@ bool is_pointer_type(const Type *t);  // includes void pointers
 bool same_type(const Type *a, const Type *b);
 
 struct Signature {
-    Location location;
     char funcname[100];
     int nargs;
     Type *argtypes;
     char (*argnames)[100];
     bool takes_varargs;  // true for functions like printf()
     Type *returntype;  // NULL, if does not return a value
+    Location returntype_location;  // meaningful even if returntype is NULL
 };
 char *signature_to_string(const Signature *sig, bool include_return_type);
 Signature copy_signature(const Signature *sig);
@@ -135,6 +137,22 @@ struct Constant {
 };
 #define copy_constant(c) ( same_type(&(c)->type, &stringType) ? (Constant){ stringType, {.str=strdup((c)->value.str)} } : *(c) )
 
+
+// Can also represent "void" even though that is not a valid type
+struct AstType {
+    Location location;
+    char name[100];
+    int npointers;  // example: 2 means foo**
+};
+
+struct AstSignature {
+    char funcname[100];
+    int nargs;
+    AstType *argtypes;
+    char (*argnames)[100];
+    bool takes_varargs;  // true for functions like printf()
+    AstType returntype;  // can represent void
+};
 
 struct AstCall {
     char funcname[100];
@@ -209,7 +227,7 @@ struct AstIfStatement {
 };
 struct AstVarDeclaration {
     char name[100];
-    Type type;
+    AstType type;
     AstExpression *initial_value; // can be NULL
 };
 
@@ -236,7 +254,7 @@ struct AstStatement {
 };
 
 struct AstFunctionDef {
-    Signature signature;
+    AstSignature signature;
     AstBody body;
 };
 
@@ -249,7 +267,7 @@ struct AstToplevelNode {
         AST_TOPLEVEL_DEFINE_FUNCTION,
     } kind;
     union {
-        Signature decl_signature;  // for AST_TOPLEVEL_DECLARE_FUNCTION
+        AstSignature decl_signature;  // for AST_TOPLEVEL_DECLARE_FUNCTION
         AstFunctionDef funcdef;  // for AST_TOPLEVEL_DEFINE_FUNCTION
     } data;
 };

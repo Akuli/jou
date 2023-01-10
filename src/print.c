@@ -94,11 +94,25 @@ void print_tokens(const Token *tokens)
     printf("\n");
 }
 
-static void print_ast_function_signature(const Signature *sig, int indent)
+static void print_ast_type(const struct AstType *t)
 {
-    char *s = signature_to_string(sig, true);
-    printf("%*sSignature on line %d: %s\n", indent, "", sig->location.lineno, s);
-    free(s);
+    printf("%s", t->name);
+    for (int i=0; i<t->npointers; i++)
+        printf("*");
+    printf(" [line %d]", t->location.lineno);
+}
+
+static void print_ast_function_signature(const AstSignature *sig)
+{
+    printf("%s(", sig->funcname);
+    for (int i = 0; i < sig->nargs; i++) {
+        if(i) printf(", ");
+        printf("%s: ", sig->argnames[i]);
+        print_ast_type(&sig->argtypes[i]);
+    }
+    printf(") -> ");
+    print_ast_type(&sig->returntype);
+    printf("\n");
 }
 
 static void print_ast_call(const AstCall *call, int arg_indent);
@@ -293,12 +307,12 @@ void print_ast(const AstToplevelNode *topnodelist)
 
         switch(topnodelist->kind) {
             case AST_TOPLEVEL_DECLARE_FUNCTION:
-                printf("Declare a C function.\n");
-                print_ast_function_signature(&topnodelist->data.decl_signature, 2);
+                printf("Declare a function: ");
+                print_ast_function_signature(&topnodelist->data.decl_signature);
                 break;
             case AST_TOPLEVEL_DEFINE_FUNCTION:
-                printf("Define a function.\n");
-                print_ast_function_signature(&topnodelist->data.funcdef.signature, 2);
+                printf("Define a function: ");
+                print_ast_function_signature(&topnodelist->data.funcdef.signature);
                 print_ast_body(&topnodelist->data.funcdef.body, 2);
                 break;
             case AST_TOPLEVEL_END_OF_FILE:
@@ -441,7 +455,7 @@ void print_control_flow_graphs(const CfGraphFile *cfgfile)
     printf("===== Control Flow Graphs for file \"%s\" =====\n", cfgfile->filename);
     for (int i = 0; i < cfgfile->nfuncs; i++) {
         char *sigstr = signature_to_string(&cfgfile->signatures[i], true);
-        printf("Function on line %d: %s\n", cfgfile->signatures[i].location.lineno, sigstr);
+        printf("Function %s\n", sigstr);
         free(sigstr);
         print_control_flow_graph_with_indent(cfgfile->graphs[i], 2);
         printf("\n");

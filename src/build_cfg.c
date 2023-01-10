@@ -101,6 +101,48 @@ static CfInstruction *add_instruction(
     add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant(&(c)) }, NULL, (target))
 
 
+// NULL return value means it is void
+static Type *build_type_or_void(const struct State *st, const AstType *asttype)
+{
+    (void)st;    // Currently not used. Will later be needed for struct names
+
+    int npointers = asttype->npointers;
+    Type t;
+
+    if (!strcmp(asttype->name, "int"))
+        t = intType;
+    else if (!strcmp(asttype->name, "byte"))
+        t = byteType;
+    else if (!strcmp(asttype->name, "bool"))
+        t = boolType;
+    else if (!strcmp(asttype->name, "void")) {
+        if (npointers == 0)
+            return NULL;
+        npointers--;
+        t = voidPtrType;
+    } else
+        fail_with_error(asttype->location, "there is no type named '%s'", asttype->name);
+
+    while (npointers--)
+        t = create_pointer_type(&t, asttype->location);
+
+    Type *ptr = malloc(sizeof *ptr);
+    *ptr = t;
+    return ptr;
+}
+
+static Type build_type(const struct State *st, const AstType *asttype)
+{
+    Type *ptr = build_type_or_void(st, asttype);
+    if (!ptr)
+        fail_with_error(asttype->location, "'void' cannot be used here because it is not a type");
+
+    Type t = *ptr;
+    free(ptr);
+    return t;
+}
+
+
 /*
 Implicit casts are used in many places, e.g. function arguments.
 
@@ -806,14 +848,16 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         if (find_variable(st, stmt->data.vardecl.name, NULL))
             fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
 
-        CfVariable *v = add_variable(st, &stmt->data.vardecl.type, stmt->data.vardecl.name);
+        Type type = build_type(st, &stmt->data.vardecl.type);
+        CfVariable *v = add_variable(st, &type, stmt->data.vardecl.name);
         if (stmt->data.vardecl.initial_value) {
             const CfVariable *cfvar = build_expression(
-                st, stmt->data.vardecl.initial_value, &stmt->data.vardecl.type,
+                st, stmt->data.vardecl.initial_value, &type,
                 "initial value for variable of type TO cannot be of type FROM",
                 true);
             add_unary_op(st, stmt->location, CF_VARCPY, cfvar, v);
         }
+        free_type(&type);
         break;
 
     case AST_STMT_EXPRESSION_STATEMENT:
@@ -855,16 +899,34 @@ static CfGraph *build_function(struct State *st, const Signature *sig, const Ast
     return st->cfg;
 }
 
-static void check_signature(const struct State *st, const Signature *sig)
+static Signature build_signature(const struct State *st, const AstSignature *astsig, Location location)
 {
-    if (find_function(st, sig->funcname))
-        fail_with_error(sig->location, "a function named '%s' already exists", sig->funcname);
+    for (int i = 0; i < st->cfgfile->nfuncs; i++)
+        if (!strcmp(st->cfgfile->signatures[i].funcname, astsig->funcname))
+            fail_with_error(location, "a function named '%s' already exists", astsig->funcname);
 
-    if (!strcmp(sig->funcname, "main") &&
-        (sig->returntype == NULL || !same_type(sig->returntype, &intType)))
+    Signature result = { .nargs = astsig->nargs, .takes_varargs = astsig->takes_varargs };
+    safe_strcpy(result.funcname, astsig->funcname);
+
+    size_t size = sizeof(result.argnames[0]) * result.nargs;
+    result.argnames = malloc(size);
+    memcpy(result.argnames, astsig->argnames, size);
+
+    result.argtypes = malloc(sizeof(result.argtypes[0]) * result.nargs);
+    for (int i = 0; i < result.nargs; i++)
+        result.argtypes[i] = build_type(st, &astsig->argtypes[i]);
+
+    result.returntype = build_type_or_void(st, &astsig->returntype);
+    // TODO: validate main() parameters
+    // TODO: test main() taking parameters
+    if (!strcmp(astsig->funcname, "main") &&
+        (result.returntype == NULL || !same_type(result.returntype, &intType)))
     {
-        fail_with_error(sig->location, "the main() function must return int");
+        fail_with_error(astsig->returntype.location, "the main() function must return int");
     }
+
+    result.returntype_location = astsig->returntype.location;
+    return result;
 }
 
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
@@ -877,19 +939,20 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
     result.graphs = malloc(sizeof(result.graphs[0]) * n);  // NOLINT
     result.signatures = malloc(sizeof(result.signatures[0]) * n);
 
+    Signature sig;
+
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         switch(ast->kind) {
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         case AST_TOPLEVEL_DECLARE_FUNCTION:
-            check_signature(&st, &ast->data.decl_signature);
-            result.signatures[result.nfuncs] = copy_signature(&ast->data.decl_signature);
+            sig = build_signature(&st, &ast->data.decl_signature, ast->location);
+            result.signatures[result.nfuncs] = sig;
             result.graphs[result.nfuncs] = NULL;
             result.nfuncs++;
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            check_signature(&st, &ast->data.funcdef.signature);
-            Signature sig = copy_signature(&ast->data.funcdef.signature);
+            sig = build_signature(&st, &ast->data.funcdef.signature, ast->location);
             result.signatures[result.nfuncs] = sig;
             result.nfuncs++;  // Make signature of current function usable in function calls (recursion)
             result.graphs[result.nfuncs-1] = build_function(&st, &sig, &ast->data.funcdef.body);
