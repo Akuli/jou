@@ -857,6 +857,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
                 true);
             add_unary_op(st, stmt->location, CF_VARCPY, cfvar, v);
         }
+        free_type(&type);
         break;
 
     case AST_STMT_EXPRESSION_STATEMENT:
