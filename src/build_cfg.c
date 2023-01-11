@@ -600,13 +600,18 @@ static const CfVariable *build_subscript(struct State *st, const AstExpression *
         fail_with_error(ptrexpr->location, "values of type %s cannot be subscripted", ptr->type.name);
 
     // TODO: indexing with unsigned 64-bit should be allowed
-    // TODO: test the error
-    Type indextype = { .name = "long", .kind = TYPE_SIGNED_INTEGER, .data.width_in_bits = 64 };
-    const CfVariable *index = build_expression(st, indexexpr, &indextype, "the index inside [...] must be an integer, not FROM", true);
+    const CfVariable *index = build_expression(st, indexexpr, NULL, NULL, true);
+    if (!is_integer_type(&index->type)) {
+        // TODO: test the error
+        fail_with_error(
+            indexexpr->location,
+            "the index inside [...] must be an integer, not %s",
+            index->type.name);
+    }
 
     const CfVariable *ptr2 = add_variable(st, &ptr->type, NULL);
     const CfVariable *result = add_variable(st, ptr->type.data.valuetype, NULL);
-    add_binary_op(st, ptrexpr->location, CF_PTR_ADD_I64, ptr, index, ptr2);
+    add_binary_op(st, ptrexpr->location, CF_PTR_ADD_INT, ptr, index, ptr2);
     add_unary_op(st, ptrexpr->location, CF_PTR_LOAD, ptr2, result);
     return result;
 }
