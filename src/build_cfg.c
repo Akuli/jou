@@ -507,10 +507,11 @@ static const CfVariable *build_expression(
                         break;
                     case AST_EXPR_GET_FIELD:
                     case AST_EXPR_DEREF_AND_GET_FIELD:
+                        assert(targetexpr->data.operands[1].kind == AST_EXPR_GET_VARIABLE);
                         snprintf(
                             errmsg, sizeof errmsg,
                             "cannot assign a value of type FROM into field '%s' of type TO",
-                            targetexpr->data.field.fieldname);
+                            targetexpr->data.operands[1].data.varname);
                         break;
                     default: assert(0);
                 }
@@ -654,6 +655,13 @@ static const CfVariable *build_and_or(
     return result;
 }
 
+static const char *get_field_name(const AstExpression *name, const char *operator)
+{
+    if (name->kind != AST_EXPR_GET_VARIABLE)
+        fail_with_error(name->location, "expected a field name after '%s'", operator);
+    return name->data.varname;
+}
+
 static const CfVariable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool is_assignment)
 {
     const char *cant_take_address_of;
@@ -678,7 +686,8 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
     case AST_EXPR_DEREF_AND_GET_FIELD:
     {
         // &obj->field aka &(obj->field)
-        const CfVariable *obj = build_expression(st, address_of_what->data.field.obj, NULL, NULL, true);
+        const char *fieldname = get_field_name(&address_of_what->data.operands[1], "->");
+        const CfVariable *obj = build_expression(st, &address_of_what->data.operands[0], NULL, NULL, true);
         if (obj->type.kind != TYPE_POINTER
             || obj->type.data.valuetype->kind != TYPE_STRUCT)
         {
@@ -686,19 +695,20 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
                 "left side of the '->' operator must be a pointer to a struct, not %s",
                 obj->type.name);
         }
-        return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
+        return build_struct_field_pointer(st, obj, fieldname, address_of_what->location);
     }
     case AST_EXPR_GET_FIELD:
     {
         // &obj.field aka &(obj.field), evaluate as &(&obj)->field
-        const CfVariable *obj = build_address_of_expression(st, address_of_what->data.field.obj, false);
+        const char *fieldname = get_field_name(&address_of_what->data.operands[1], ".");
+        const CfVariable *obj = build_address_of_expression(st, &address_of_what->data.operands[0], false);
         assert(obj->type.kind == TYPE_POINTER);
         if (obj->type.data.valuetype->kind != TYPE_STRUCT){
             fail_with_error(address_of_what->location,
                 "left side of the '.' operator must be a struct, not %s",
                 obj->type.data.valuetype->name);
         }
-        return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
+        return build_struct_field_pointer(st, obj, fieldname, address_of_what->location);
     }
 
     /*
