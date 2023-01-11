@@ -383,25 +383,25 @@ static const CfVariable *build_increment_or_decrement(
     const CfVariable *addr = build_address_of_expression(st, inner, true);
     assert(addr->type.kind == TYPE_POINTER);
     const Type *t = addr->type.data.valuetype;
-    if (!is_integer_type(t))
+    if (!is_integer_type(t) && !is_pointer_type(t))
         fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
 
     const CfVariable *old_value = add_variable(st, t, NULL);
     const CfVariable *new_value = add_variable(st, t, NULL);
-    const CfVariable *diffvar = add_variable(st, t, NULL);
+    const CfVariable *diffvar = add_variable(st, is_integer_type(t)?t:&intType, NULL);
 
     Constant diffconst = {
         .kind = CONSTANT_INTEGER,
         .data.integer = {
-            .width_in_bits = t->data.width_in_bits,
-            .is_signed = (t->kind == TYPE_SIGNED_INTEGER),
+            .width_in_bits = diffvar->type.data.width_in_bits,
+            .is_signed = (diffvar->type.kind == TYPE_SIGNED_INTEGER),
             .value = diff,
         },
     };
 
     add_constant(st, location, diffconst, diffvar);
     add_unary_op(st, location, CF_PTR_LOAD, addr, old_value);
-    add_binary_op(st, location, CF_INT_ADD, old_value, diffvar, new_value);
+    add_binary_op(st, location, is_integer_type(t)?CF_INT_ADD:CF_PTR_ADD_INT, old_value, diffvar, new_value);
     add_binary_op(st, location, CF_PTR_STORE, addr, new_value, NULL);
 
     switch(pop) {
