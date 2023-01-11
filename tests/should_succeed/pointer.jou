@@ -11,6 +11,10 @@ def myputs1(s: byte*) -> void:
     for i = 0; s[i] != '\0'; i++:
         putchar(s[i])
 
+def myputs2(s: byte*) -> void:
+    while *s != '\0':
+        putchar(*s++)
+
 def main() -> int:
     # Output: hhii
     putchar2('h')
@@ -18,5 +22,6 @@ def main() -> int:
     putchar('\n')
 
     myputs1("asd\n")  # Output: asd
+    myputs1("foo\n")  # Output: foo
 
     return 0
