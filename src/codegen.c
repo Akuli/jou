@@ -187,6 +187,12 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 LLVMBuildMemSet(st->builder, getop(0), LLVMConstInt(LLVMInt8Type(), 0, false), size, 0);
             }
             break;
+        case CF_PTR_ADD_INT:
+            {
+                LLVMValueRef index = getop(1);
+                setdest(LLVMBuildGEP(st->builder, getop(0), &index, 1, "ptr_add_int"));
+            }
+            break;
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate")); break;
         case CF_INT_SCAST_TO_BIGGER: setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(&ins->destvar->type), "int_scast_to_bigger")); break;
         case CF_INT_UCAST_TO_BIGGER: setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(&ins->destvar->type), "int_ucast_to_bigger")); break;

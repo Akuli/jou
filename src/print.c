@@ -148,6 +148,11 @@ static void print_ast_expression(const AstExpression *expr, int indent)
             expr->data.field.fieldname);
         print_ast_expression(expr->data.field.obj, indent+2);
         break;
+    case AST_EXPR_INDEXING:
+        printf("Indexing, as in op1[op2]:");
+        print_ast_expression(&expr->data.operands[0], indent+2);
+        print_ast_expression(&expr->data.operands[1], indent+2);
+        break;
     case AST_EXPR_ADDRESS_OF:
         printf("Get the address of an object as a pointer.\n");
         print_ast_expression(&expr->data.operands[0], indent+2);
@@ -437,6 +442,9 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         break;
     case CF_PTR_STORE:
         printf("*(%s) = %s", varname(ins->operands[0]), varname(ins->operands[1]));
+        break;
+    case CF_PTR_ADD_INT:
+        printf("ptr %s + integer %s", varname(ins->operands[0]), varname(ins->operands[1]));
         break;
     case CF_PTR_STRUCT_FIELD:
         printf("%s + offset of field \"%s\"", varname(ins->operands[0]), ins->data.fieldname);

@@ -423,6 +423,7 @@ enum AndOr { AND, OR };
 static const CfVariable *build_function_call(struct State *st, const AstCall *call, Location location);
 static const CfVariable *build_struct_init(struct State *st, const AstCall *call, Location location);
 static const CfVariable *build_and_or(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr, enum AndOr andor);
+static const CfVariable *build_indexing(struct State *st, const AstExpression *ptrexpr, const AstExpression *indexexpr);
 
 static const CfVariable *build_expression(
     struct State *st,
@@ -457,6 +458,9 @@ static const CfVariable *build_expression(
             result = add_variable(st, temp->type.data.valuetype, NULL);
             add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         }
+        break;
+    case AST_EXPR_INDEXING:
+        result = build_indexing(st, &expr->data.operands[0], &expr->data.operands[1]);
         break;
     case AST_EXPR_ADDRESS_OF:
         result = build_address_of_expression(st, &expr->data.operands[0], false);
@@ -584,6 +588,29 @@ static const CfVariable *build_expression(
     }
     assert(casterrormsg);
     return build_implicit_cast(st, result, implicit_cast_to, expr->location, casterrormsg);
+}
+
+// ptr[index]
+static const CfVariable *build_indexing(struct State *st, const AstExpression *ptrexpr, const AstExpression *indexexpr)
+{
+    const CfVariable *ptr = build_expression(st, ptrexpr, NULL, NULL, true);
+    if (ptr->type.kind != TYPE_POINTER)
+        fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", ptr->type.name);
+
+    // TODO: does indexing with all types work? signed 8bit?
+    const CfVariable *index = build_expression(st, indexexpr, NULL, NULL, true);
+    if (!is_integer_type(&index->type)) {
+        fail_with_error(
+            indexexpr->location,
+            "the index inside [...] must be an integer, not %s",
+            index->type.name);
+    }
+
+    const CfVariable *ptr2 = add_variable(st, &ptr->type, NULL);
+    const CfVariable *result = add_variable(st, ptr->type.data.valuetype, NULL);
+    add_binary_op(st, ptrexpr->location, CF_PTR_ADD_INT, ptr, index, ptr2);
+    add_unary_op(st, ptrexpr->location, CF_PTR_LOAD, ptr2, result);
+    return result;
 }
 
 static const CfVariable *build_and_or(

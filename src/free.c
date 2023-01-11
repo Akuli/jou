@@ -58,6 +58,7 @@ static void free_expression(const AstExpression *expr)
         free_expression(expr->data.field.obj);
         free(expr->data.field.obj);
         break;
+    case AST_EXPR_INDEXING:
     case AST_EXPR_ASSIGN:
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
