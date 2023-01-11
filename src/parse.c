@@ -232,12 +232,6 @@ static AstExpression build_operator_expression(const Token *t, int arity, const 
     if (is_operator(t, "&")) {
         assert(arity == 1);
         result.kind = AST_EXPR_ADDRESS_OF;
-    } else if (is_operator(t, ".")) {
-        assert(arity == 2);
-        result.kind = AST_EXPR_GET_FIELD;
-    } else if (is_operator(t, "->")) {
-        assert(arity == 2);
-        result.kind = AST_EXPR_DEREF_AND_GET_FIELD;
     } else if (is_operator(t, "[")) {
         assert(arity == 2);
         result.kind = AST_EXPR_SUBSCRIPT;
@@ -373,13 +367,28 @@ not_an_expression:
 static AstExpression parse_expression_with_fields_and_subscripts(const Token **tokens)
 {
     AstExpression result = parse_elementary_expression(tokens);
-    while (is_operator(*tokens, ".") || is_operator(*tokens, "->") || is_operator(*tokens, "[")) {
-        bool is_bracket = is_operator(*tokens, "[");
-        add_to_binop(tokens, &result, parse_elementary_expression);
-        if (is_bracket) {
+    while (is_operator(*tokens, ".") || is_operator(*tokens, "->") || is_operator(*tokens, "["))
+    {
+        if (is_operator(*tokens, "[")) {
+            add_to_binop(tokens, &result, parse_elementary_expression);  // eats [ token
             if (!is_operator(*tokens, "]"))
                 fail_with_parse_error(*tokens, "a ']'");  // TODO: test
             ++*tokens;
+        } else {
+            const Token *startop = (*tokens)++;
+            AstExpression result2 = {
+                .location = startop->location,
+                .kind = (is_operator(startop, "->") ? AST_EXPR_DEREF_AND_GET_FIELD : AST_EXPR_GET_FIELD),
+            };
+            result2.data.field.obj = malloc(sizeof *result2.data.field.obj);
+            *result2.data.field.obj = result;
+
+            if ((*tokens)->type != TOKEN_NAME)
+                fail_with_parse_error(*tokens, "a field name");
+            safe_strcpy(result2.data.field.fieldname, (*tokens)->data.name);
+            ++*tokens;
+
+            result = result2;
         }
     }
     return result;
