@@ -370,7 +370,7 @@ static AstExpression parse_expression_with_fields_and_indexing(const Token **tok
     while (is_operator(*tokens, ".") || is_operator(*tokens, "->") || is_operator(*tokens, "["))
     {
         if (is_operator(*tokens, "[")) {
-            add_to_binop(tokens, &result, parse_elementary_expression);  // eats [ token
+            add_to_binop(tokens, &result, parse_expression);  // eats [ token
             if (!is_operator(*tokens, "]"))
                 fail_with_parse_error(*tokens, "a ']'");
             ++*tokens;
