@@ -605,8 +605,10 @@ static const CfVariable *build_subscript(struct State *st, const AstExpression *
     const CfVariable *index = build_expression(st, indexexpr, &indextype, "the index inside [...] must be an integer, not FROM", true);
 
     const CfVariable *ptr2 = add_variable(st, &ptr->type, NULL);
+    const CfVariable *result = add_variable(st, ptr->type.data.valuetype, NULL);
     add_binary_op(st, ptrexpr->location, CF_PTR_ADD_I64, ptr, index, ptr2);
-    return ptr2;
+    add_unary_op(st, ptrexpr->location, CF_PTR_LOAD, ptr2, result);
+    return result;
 }
 
 static const CfVariable *build_and_or(
