@@ -130,6 +130,7 @@ struct AstExpression {
         AST_EXPR_BRACE_INIT,
         AST_EXPR_GET_FIELD,     // op1.op2 (op2 should be AST_GET_VARIABLE)
         AST_EXPR_DEREF_AND_GET_FIELD,  // op1->op2, shorthand for (*op1).op2
+        AST_EXPR_SUBSCRIPT,  // foo[bar]
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF,
         AST_EXPR_DEREFERENCE,
@@ -319,6 +320,7 @@ struct CfInstruction {
         CF_PTR_EQ,
         CF_PTR_STRUCT_FIELD,  // takes 1 operand (pointer), sets destvar to &op->fieldname
         CF_PTR_CAST,
+        CF_PTR_ADD_I64,
         CF_INT_ADD,
         CF_INT_SUB,
         CF_INT_MUL,

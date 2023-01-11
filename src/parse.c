@@ -1,4 +1,4 @@
-// Implementation of the parse() function. See compile_steps.h.
+// Implementation of the parse() function.
 
 #include "jou_compiler.h"
 #include "util.h"
@@ -238,6 +238,9 @@ static AstExpression build_operator_expression(const Token *t, int arity, const 
     } else if (is_operator(t, "->")) {
         assert(arity == 2);
         result.kind = AST_EXPR_DEREF_AND_GET_FIELD;
+    } else if (is_operator(t, "[")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_SUBSCRIPT;
     } else if (is_operator(t, "=")) {
         assert(arity == 2);
         result.kind = AST_EXPR_ASSIGN;
@@ -367,11 +370,18 @@ not_an_expression:
     fail_with_parse_error(*tokens, "an expression");
 }
 
-static AstExpression parse_expression_with_fields(const Token **tokens)
+static AstExpression parse_expression_with_fields_and_subscripts(const Token **tokens)
 {
     AstExpression result = parse_elementary_expression(tokens);
-    while (is_operator(*tokens, ".") || is_operator(*tokens, "->"))
+    while (is_operator(*tokens, ".") || is_operator(*tokens, "->") || is_operator(*tokens, "[")) {
+        bool is_bracket = is_operator(*tokens, "[");
         add_to_binop(tokens, &result, parse_elementary_expression);
+        if (is_bracket) {
+            if (!is_operator(*tokens, "]"))
+                fail_with_parse_error(*tokens, "a ']'");  // TODO: test
+            ++*tokens;
+        }
+    }
     return result;
 }
 
@@ -383,7 +393,7 @@ static AstExpression parse_expression_with_unary_operators(const Token **tokens)
     while(is_operator(*tokens,"++")||is_operator(*tokens,"--")||is_operator(*tokens,"&")||is_operator(*tokens,"*")) ++*tokens;
     const Token *prefixend = *tokens;
 
-    AstExpression result = parse_expression_with_fields(tokens);
+    AstExpression result = parse_expression_with_fields_and_subscripts(tokens);
 
     const Token *suffixstart = *tokens;
     while(is_operator(*tokens,"++")||is_operator(*tokens,"--")) ++*tokens;

@@ -7,9 +7,16 @@ def putchar_pointer(ch: int*) -> void:
 def putchar2(ch: int) -> void:
     putchar_pointer(&ch)
 
+def myputs1(s: byte*) -> void:
+    for i = 0; s[i] != '\0'; i++:
+        puts(s[i])
+
 def main() -> int:
     # Output: hhii
     putchar2('h')
     putchar2('i')
     putchar('\n')
+
+    myputs("asd")  # Output: asd
+
     return 0
