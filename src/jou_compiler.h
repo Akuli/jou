@@ -19,6 +19,7 @@ typedef struct AstBody AstBody;
 typedef struct AstCall AstCall;
 typedef struct AstConditionAndBody AstConditionAndBody;
 typedef struct AstExpression AstExpression;
+typedef struct AstAssignment AstAssignment;
 typedef struct AstForLoop AstForLoop;
 typedef struct AstVarDeclaration AstVarDeclaration;
 typedef struct AstIfStatement AstIfStatement;
@@ -134,7 +135,6 @@ struct AstExpression {
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF,
         AST_EXPR_DEREFERENCE,
-        AST_EXPR_ASSIGN,
         AST_EXPR_AND,
         AST_EXPR_OR,
         AST_EXPR_NOT,
@@ -181,9 +181,15 @@ struct AstConditionAndBody {
     AstBody body;
 };
 struct AstForLoop {
-    // for init; cond; incr:
-    //     ...body...
-    AstExpression init, cond, incr;
+    /*
+    for init; cond; incr:
+        ...body...
+
+    init and incr must be pointers because this struct goes inside AstStatement.
+    */
+    AstStatement *init;
+    AstExpression cond;
+    AstStatement *incr;
     AstBody body;
 };
 struct AstIfStatement {
@@ -192,9 +198,15 @@ struct AstIfStatement {
     AstBody elsebody;  // Empty (0 statements) means no else
 };
 struct AstVarDeclaration {
+    // name: type = initial_value
     char name[100];
     AstType type;
     AstExpression *initial_value; // can be NULL
+};
+struct AstAssignment {
+    // target = value
+    AstExpression target;
+    AstExpression value;
 };
 
 struct AstStatement {
@@ -208,6 +220,7 @@ struct AstStatement {
         AST_STMT_BREAK,
         AST_STMT_CONTINUE,
         AST_STMT_DECLARE_LOCAL_VAR,
+        AST_STMT_ASSIGN,
         AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
     } kind;
     union {
@@ -216,6 +229,7 @@ struct AstStatement {
         AstIfStatement ifstatement;
         AstForLoop forloop;
         AstVarDeclaration vardecl;
+        AstAssignment assignment;
     } data;
 };
 

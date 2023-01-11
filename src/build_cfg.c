@@ -485,54 +485,6 @@ static const CfVariable *build_expression(
         result = add_variable(st, &temptype, NULL);
         add_constant(st, expr->location, expr->data.constant, result);
         break;
-    case AST_EXPR_ASSIGN:
-        {
-            AstExpression *targetexpr = &expr->data.operands[0];
-            AstExpression *valueexpr = &expr->data.operands[1];
-            if (targetexpr->kind == AST_EXPR_GET_VARIABLE && !find_variable(st, targetexpr->data.varname, NULL))
-            {
-                // Making a new variable. Use the type of the value being assigned.
-                result = build_expression(st, valueexpr, NULL, NULL, true);
-                const CfVariable *var = add_variable(st, &result->type, targetexpr->data.varname);
-                add_unary_op(st, expr->location, CF_VARCPY, result, var);
-            } else {
-                // Convert value to the type of an existing variable or other assignment target.
-                // TODO: is this evaluation order good?
-                const CfVariable *target = build_address_of_expression(st, targetexpr, true);
-                assert(target->type.kind == TYPE_POINTER);
-
-                char errmsg[500];
-                switch(targetexpr->kind) {
-                    case AST_EXPR_GET_VARIABLE:
-                        strcpy(errmsg, "cannot assign a value of type FROM to variable of type TO");
-                        break;
-                    case AST_EXPR_DEREFERENCE:
-                        strcpy(errmsg, "cannot assign a value of type FROM into a pointer of type TO*");
-                        break;
-                    case AST_EXPR_GET_FIELD:
-                    case AST_EXPR_DEREF_AND_GET_FIELD:
-                        snprintf(
-                            errmsg, sizeof errmsg,
-                            "cannot assign a value of type FROM into field '%s' of type TO",
-                            targetexpr->data.field.fieldname);
-                        break;
-                    default: assert(0);
-                }
-                /*
-                result cannot be casted to type of the variable. It would break this:
-
-                   some_byte_variable = some_int_variable = 'x'
-
-                because (some_int_variable = 'x') would cast to type int, and then the int
-                would be assigned to some_byte_variable.
-                */
-                result = build_expression(st, valueexpr, NULL, NULL, true);
-                const CfVariable *casted_result = build_implicit_cast(
-                    st, result, target->type.data.valuetype, expr->location, errmsg);
-                add_binary_op(st, expr->location, CF_PTR_STORE, target, casted_result, NULL);
-            }
-            break;
-        }
     case AST_EXPR_AND:
         result = build_and_or(st, &expr->data.operands[0], &expr->data.operands[1], AND);
         break;
@@ -746,9 +698,6 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
     case AST_EXPR_POST_DECREMENT:
         cant_take_address_of = "the result of decrementing a value";
         break;
-    case AST_EXPR_ASSIGN:
-        cant_take_address_of = "an assignment";
-        break;
     default:
         cant_take_address_of = "a newly calculated value";
         break;
@@ -884,6 +833,8 @@ static void build_if_statement(struct State *st, const AstIfStatement *ifstmt)
     add_jump(st, NULL, done, done, done);
 }
 
+static void build_statement(struct State *st, const AstStatement *stmt);
+
 // for init; cond; incr:
 //     ...body...
 //
@@ -891,9 +842,9 @@ static void build_if_statement(struct State *st, const AstIfStatement *ifstmt)
 static void build_loop(
     struct State *st,
     const char *loopname,
-    const AstExpression *init,
+    const AstStatement *init,
     const AstExpression *cond,
-    const AstExpression *incr,
+    const AstStatement *incr,
     const AstBody *body)
 {
     assert(strlen(loopname) < 10);
@@ -907,7 +858,7 @@ static void build_loop(
     CfBlock *tmp;
 
     if (init)
-        build_expression(st, init, NULL, NULL, false);
+        build_statement(st, init);
 
     // Evaluate condition. Jump to loop body or skip to after loop.
     add_jump(st, NULL, condblock, condblock, condblock);
@@ -924,7 +875,7 @@ static void build_loop(
     // Run incr and jump back to condition.
     add_jump(st, NULL, incrblock, incrblock, incrblock);
     if (incr)
-        build_expression(st, incr, NULL, NULL, false);
+        build_statement(st, incr);
     add_jump(st, NULL, condblock, condblock, doneblock);
 }
 
@@ -945,7 +896,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
     case AST_STMT_FOR:
         build_loop(
             st, "for",
-            &stmt->data.forloop.init, &stmt->data.forloop.cond, &stmt->data.forloop.incr,
+            stmt->data.forloop.init, &stmt->data.forloop.cond, stmt->data.forloop.incr,
             &stmt->data.forloop.body);
         break;
 
@@ -960,6 +911,46 @@ static void build_statement(struct State *st, const AstStatement *stmt)
             fail_with_error(stmt->location, "'continue' can only be used inside a loop");
         add_jump(st, NULL, End(st->continuestack)[-1], End(st->continuestack)[-1], NULL);
         break;
+
+    case AST_STMT_ASSIGN:
+        {
+            const AstExpression *targetexpr = &stmt->data.assignment.target;
+            const AstExpression *valueexpr = &stmt->data.assignment.value;
+            if (targetexpr->kind == AST_EXPR_GET_VARIABLE && !find_variable(st, targetexpr->data.varname, NULL))
+            {
+                // Making a new variable. Use the type of the value being assigned.
+                const CfVariable *value = build_expression(st, valueexpr, NULL, NULL, true);
+                const CfVariable *var = add_variable(st, &value->type, targetexpr->data.varname);
+                add_unary_op(st, stmt->location, CF_VARCPY, value, var);
+            } else {
+                // Convert value to the type of an existing variable or other assignment target.
+                char errmsg[500];
+                switch(targetexpr->kind) {
+                    case AST_EXPR_GET_VARIABLE:
+                        strcpy(errmsg, "cannot assign a value of type FROM to variable of type TO");
+                        break;
+                    case AST_EXPR_DEREFERENCE:
+                        strcpy(errmsg, "cannot assign a value of type FROM into a pointer of type TO*");
+                        break;
+                    case AST_EXPR_GET_FIELD:
+                    case AST_EXPR_DEREF_AND_GET_FIELD:
+                        snprintf(
+                            errmsg, sizeof errmsg,
+                            "cannot assign a value of type FROM into field '%s' of type TO",
+                            targetexpr->data.field.fieldname);
+                        break;
+                    default: assert(0);
+                }
+
+                // TODO: is this evaluation order good?
+                const CfVariable *target = build_address_of_expression(st, targetexpr, true);
+                assert(target->type.kind == TYPE_POINTER);
+                const CfVariable *value = build_expression(
+                    st, valueexpr, target->type.data.valuetype, errmsg, true);
+                add_binary_op(st, stmt->location, CF_PTR_STORE, target, value, NULL);
+            }
+            break;
+        }
 
     case AST_STMT_RETURN_VALUE:
     {
