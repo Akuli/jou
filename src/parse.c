@@ -234,7 +234,7 @@ static AstExpression build_operator_expression(const Token *t, int arity, const 
         result.kind = AST_EXPR_ADDRESS_OF;
     } else if (is_operator(t, "[")) {
         assert(arity == 2);
-        result.kind = AST_EXPR_SUBSCRIPT;
+        result.kind = AST_EXPR_INDEXING;
     } else if (is_operator(t, "=")) {
         assert(arity == 2);
         result.kind = AST_EXPR_ASSIGN;
@@ -364,7 +364,7 @@ not_an_expression:
     fail_with_parse_error(*tokens, "an expression");
 }
 
-static AstExpression parse_expression_with_fields_and_subscripts(const Token **tokens)
+static AstExpression parse_expression_with_fields_and_indexing(const Token **tokens)
 {
     AstExpression result = parse_elementary_expression(tokens);
     while (is_operator(*tokens, ".") || is_operator(*tokens, "->") || is_operator(*tokens, "["))
@@ -372,7 +372,7 @@ static AstExpression parse_expression_with_fields_and_subscripts(const Token **t
         if (is_operator(*tokens, "[")) {
             add_to_binop(tokens, &result, parse_elementary_expression);  // eats [ token
             if (!is_operator(*tokens, "]"))
-                fail_with_parse_error(*tokens, "a ']'");  // TODO: test
+                fail_with_parse_error(*tokens, "a ']'");
             ++*tokens;
         } else {
             const Token *startop = (*tokens)++;
@@ -402,7 +402,7 @@ static AstExpression parse_expression_with_unary_operators(const Token **tokens)
     while(is_operator(*tokens,"++")||is_operator(*tokens,"--")||is_operator(*tokens,"&")||is_operator(*tokens,"*")) ++*tokens;
     const Token *prefixend = *tokens;
 
-    AstExpression result = parse_expression_with_fields_and_subscripts(tokens);
+    AstExpression result = parse_expression_with_fields_and_indexing(tokens);
 
     const Token *suffixstart = *tokens;
     while(is_operator(*tokens,"++")||is_operator(*tokens,"--")) ++*tokens;
