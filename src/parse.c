@@ -235,9 +235,6 @@ static AstExpression build_operator_expression(const Token *t, int arity, const 
     } else if (is_operator(t, "[")) {
         assert(arity == 2);
         result.kind = AST_EXPR_INDEXING;
-    } else if (is_operator(t, "=")) {
-        assert(arity == 2);
-        result.kind = AST_EXPR_ASSIGN;
     } else if (is_operator(t, "==")) {
         assert(arity == 2);
         result.kind = AST_EXPR_EQ;
@@ -505,20 +502,9 @@ static AstExpression parse_expression_with_and_or(const Token **tokens)
     return result;
 }
 
-static AstExpression parse_expression_with_assignments(const Token **tokens)
-{
-    // We can't use add_to_binop() because then x=y=z would parse as (x=y)=z, not x=(y=z).
-    AstExpression target = parse_expression_with_and_or(tokens);
-    if (!is_operator(*tokens, "="))
-        return target;
-    const Token *t = (*tokens)++;
-    AstExpression value = parse_expression_with_assignments(tokens);  // this function
-    return build_operator_expression(t, 2, (AstExpression[]){ target, value });
-}
-
 static AstExpression parse_expression(const Token **tokens)
 {
-    return parse_expression_with_assignments(tokens);
+    return parse_expression_with_and_or(tokens);
 }
 
 static void eat_newline(const Token **tokens)
@@ -531,7 +517,6 @@ static void eat_newline(const Token **tokens)
 static void validate_expression_statement(const AstExpression *expr)
 {
     switch(expr->kind) {
-    case AST_EXPR_ASSIGN:
     case AST_EXPR_FUNCTION_CALL:
     case AST_EXPR_PRE_INCREMENT:
     case AST_EXPR_PRE_DECREMENT:
@@ -571,7 +556,8 @@ static AstIfStatement parse_if_statement(const Token **tokens)
     };
 }
 
-static AstStatement parse_statement(const Token **tokens)
+// does not eat a trailing newline
+static AstStatement parse_oneline_statement(const Token **tokens)
 {
     AstStatement result = { .location = (*tokens)->location };
     if (is_keyword(*tokens, "return")) {
@@ -582,37 +568,12 @@ static AstStatement parse_statement(const Token **tokens)
             result.kind = AST_STMT_RETURN_VALUE;
             result.data.expression = parse_expression(tokens);
         }
-        eat_newline(tokens);
-    } else if (is_keyword(*tokens, "if")) {
-        result.kind = AST_STMT_IF;
-        result.data.ifstatement = parse_if_statement(tokens);
-    } else if (is_keyword(*tokens, "while")) {
-        ++*tokens;
-        result.kind = AST_STMT_WHILE;
-        result.data.whileloop.condition = parse_expression(tokens);
-        result.data.whileloop.body = parse_body(tokens);
-    } else if (is_keyword(*tokens, "for")) {
-        ++*tokens;
-        result.kind = AST_STMT_FOR;
-        // TODO: improve error messages
-        result.data.forloop.init = parse_expression(tokens);
-        if (!is_operator(*tokens, ";"))
-            fail_with_parse_error(*tokens, "a ';'");
-        ++*tokens;
-        result.data.forloop.cond = parse_expression(tokens);
-        if (!is_operator(*tokens, ";"))
-            fail_with_parse_error(*tokens, "a ';'");
-        ++*tokens;
-        result.data.forloop.incr = parse_expression(tokens);
-        result.data.forloop.body = parse_body(tokens);
     } else if (is_keyword(*tokens, "break")) {
         ++*tokens;
         result.kind = AST_STMT_BREAK;
-        eat_newline(tokens);
     } else if (is_keyword(*tokens, "continue")) {
         ++*tokens;
         result.kind = AST_STMT_CONTINUE;
-        eat_newline(tokens);
     } else if ((*tokens)->type == TOKEN_NAME && is_operator(&(*tokens)[1], ":")) {
         // "foo: int" creates a variable "foo" of type "int"
         result.kind = AST_STMT_DECLARE_LOCAL_VAR;
@@ -627,11 +588,52 @@ static AstStatement parse_statement(const Token **tokens)
         } else {
             result.data.vardecl.initial_value = NULL;
         }
-        eat_newline(tokens);
     } else {
-        result.kind = AST_STMT_EXPRESSION_STATEMENT;
-        result.data.expression = parse_expression(tokens);
-        validate_expression_statement(&result.data.expression);
+        AstExpression expr = parse_expression(tokens);
+        if (is_operator(*tokens, "=")) {
+            ++*tokens;
+            result.kind = AST_STMT_ASSIGN;
+            result.data.assignment = (AstAssignment){.target=expr, .value=parse_expression(tokens)};
+            if (is_operator(*tokens, "="))
+                fail_with_error((*tokens)->location, "only one variable can be assigned at a time");
+        } else {
+            validate_expression_statement(&expr);
+            result.kind = AST_STMT_EXPRESSION_STATEMENT;
+            result.data.expression = expr;
+        }
+    }
+    return result;
+}
+
+static AstStatement parse_statement(const Token **tokens)
+{
+    AstStatement result = { .location = (*tokens)->location };
+    if (is_keyword(*tokens, "if")) {
+        result.kind = AST_STMT_IF;
+        result.data.ifstatement = parse_if_statement(tokens);
+    } else if (is_keyword(*tokens, "while")) {
+        ++*tokens;
+        result.kind = AST_STMT_WHILE;
+        result.data.whileloop.condition = parse_expression(tokens);
+        result.data.whileloop.body = parse_body(tokens);
+    } else if (is_keyword(*tokens, "for")) {
+        ++*tokens;
+        result.kind = AST_STMT_FOR;
+        result.data.forloop.init = malloc(sizeof *result.data.forloop.init);
+        result.data.forloop.incr = malloc(sizeof *result.data.forloop.incr);
+        // TODO: improve error messages
+        *result.data.forloop.init = parse_oneline_statement(tokens);
+        if (!is_operator(*tokens, ";"))
+            fail_with_parse_error(*tokens, "a ';'");
+        ++*tokens;
+        result.data.forloop.cond = parse_expression(tokens);
+        if (!is_operator(*tokens, ";"))
+            fail_with_parse_error(*tokens, "a ';'");
+        ++*tokens;
+        *result.data.forloop.incr = parse_oneline_statement(tokens);
+        result.data.forloop.body = parse_body(tokens);
+    } else {
+        result = parse_oneline_statement(tokens);
         eat_newline(tokens);
     }
     return result;

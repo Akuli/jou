@@ -59,7 +59,6 @@ static void free_expression(const AstExpression *expr)
         free(expr->data.field.obj);
         break;
     case AST_EXPR_INDEXING:
-    case AST_EXPR_ASSIGN:
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
@@ -112,9 +111,11 @@ static void free_statement(const AstStatement *stmt)
         free_body(&stmt->data.whileloop.body);
         break;
     case AST_STMT_FOR:
-        free_expression(&stmt->data.forloop.init);
+        free_statement(stmt->data.forloop.init);
         free_expression(&stmt->data.forloop.cond);
-        free_expression(&stmt->data.forloop.incr);
+        free_statement(stmt->data.forloop.incr);
+        free(stmt->data.forloop.init);
+        free(stmt->data.forloop.incr);
         free_body(&stmt->data.forloop.body);
         break;
     case AST_STMT_EXPRESSION_STATEMENT:
@@ -126,6 +127,10 @@ static void free_statement(const AstStatement *stmt)
             free_expression(stmt->data.vardecl.initial_value);
             free(stmt->data.vardecl.initial_value);
         }
+        break;
+    case AST_STMT_ASSIGN:
+        free_expression(&stmt->data.assignment.target);
+        free_expression(&stmt->data.assignment.value);
         break;
     case AST_STMT_RETURN_WITHOUT_VALUE:
     case AST_STMT_BREAK:

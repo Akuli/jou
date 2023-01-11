@@ -229,11 +229,6 @@ static void print_ast_expression(const AstExpression *expr, int indent)
     case AST_EXPR_PRE_DECREMENT: printf("Pre-decrement.\n"); print_ast_expression(&expr->data.operands[0], indent+2); break;
     case AST_EXPR_POST_INCREMENT: printf("Post-increment.\n"); print_ast_expression(&expr->data.operands[0], indent+2); break;
     case AST_EXPR_POST_DECREMENT: printf("Post-decrement.\n"); print_ast_expression(&expr->data.operands[0], indent+2); break;
-    case AST_EXPR_ASSIGN:
-        printf("Set the value of a variable or pointer.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
     case AST_EXPR_GET_VARIABLE:
         printf("Get the value of variable \"%s\".\n", expr->data.varname);
         break;
@@ -295,11 +290,11 @@ static void print_ast_statement(const AstStatement *stmt, int indent)
         case AST_STMT_FOR:
             printf("For loop\n");
             printf("%*s  Initializer:\n", indent, "");
-            print_ast_expression(&stmt->data.forloop.init, indent+4);
+            print_ast_statement(stmt->data.forloop.init, indent+4);
             printf("%*s  Condition:\n", indent, "");
             print_ast_expression(&stmt->data.forloop.cond, indent+4);
             printf("%*s  Incrementer (runs after body):\n", indent, "");
-            print_ast_expression(&stmt->data.forloop.incr, indent+4);
+            print_ast_statement(stmt->data.forloop.incr, indent+4);
             print_ast_body(&stmt->data.forloop.body, indent+2);
             break;
         case AST_STMT_BREAK:
@@ -318,6 +313,11 @@ static void print_ast_statement(const AstStatement *stmt, int indent)
             } else {
                 printf("\n");
             }
+            break;
+        case AST_STMT_ASSIGN:
+            printf("Set the value of a variable or pointer.\n");
+            print_ast_expression(&stmt->data.assignment.target, indent+2);
+            print_ast_expression(&stmt->data.assignment.value, indent+2);
             break;
     }
 }
