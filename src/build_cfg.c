@@ -599,7 +599,7 @@ static const CfVariable *build_subscript(struct State *st, const AstExpression *
         // TODO: test this error
         fail_with_error(ptrexpr->location, "values of type %s cannot be subscripted", ptr->type.name);
 
-    // TODO: indexing with unsigned 64-bit should be allowed
+    // TODO: does indexing with all types work? signed 8bit?
     const CfVariable *index = build_expression(st, indexexpr, NULL, NULL, true);
     if (!is_integer_type(&index->type)) {
         // TODO: test the error
