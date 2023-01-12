@@ -102,6 +102,24 @@ void print_tokens(const Token *tokens)
     printf("\n");
 }
 
+struct TreePrinter {
+    char prefix[100];
+};
+
+// Returned sub-printer can be used to print lines that appear "inside"/"below" the given line.
+struct TreePrinter print_tree_prefix(struct TreePrinter tp, bool last)
+{
+    struct TreePrinter sub;
+    if (last) {
+        printf("%s`--- ", tp.prefix);
+        snprintf(sub.prefix, sizeof sub.prefix, "%s  ", tp.prefix);
+    } else {
+        printf("%s|--- ", tp.prefix);
+        snprintf(sub.prefix, sizeof sub.prefix, "%s| ", tp.prefix);
+    }
+    return sub;
+}
+
 static void print_ast_type(const struct AstType *t)
 {
     printf("%s", t->name);
@@ -123,210 +141,170 @@ static void print_ast_function_signature(const AstSignature *sig)
     printf("\n");
 }
 
-static void print_ast_call(const AstCall *call, int arg_indent, const char *what_is_the_call_doing);
+static void print_ast_call(const AstCall *call, struct TreePrinter tp);
 
-static void print_ast_expression(const AstExpression *expr, int indent)
+static void print_ast_expression(const AstExpression *expr, struct TreePrinter tp)
 {
-    printf("%*sExpression on line %d: ", indent, "", expr->location.lineno);
+    printf("[line %d] ", expr->location.lineno);
+    int n = 0;  // number of operands
 
     switch(expr->kind) {
     case AST_EXPR_FUNCTION_CALL:
-        print_ast_call(&expr->data.call, indent+2, "Call function");
+        printf("call function \"%s\"\n", expr->data.call.calledname);
+        print_ast_call(&expr->data.call, tp);
         break;
     case AST_EXPR_BRACE_INIT:
-        print_ast_call(&expr->data.call, indent+2, "Brace-initialize");
-        break;
-    case AST_EXPR_GET_FIELD:
-        printf(
-            "Assume the following is a struct and take field \"%s\" from it:\n",
-            expr->data.field.fieldname);
-        print_ast_expression(expr->data.field.obj, indent+2);
+        printf("brace init \"%s\"\n", expr->data.call.calledname);
+        print_ast_call(&expr->data.call, tp);
         break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        printf(
-            "Assume the following is a pointer to a struct, and take field \"%s\" from that struct:\n",
-            expr->data.field.fieldname);
-        print_ast_expression(expr->data.field.obj, indent+2);
+        printf("dereference and ");
+        // fall through
+    case AST_EXPR_GET_FIELD:
+        printf("get field \"%s\"\n", expr->data.field.fieldname);
+        print_ast_expression(expr->data.field.obj, print_tree_prefix(tp, true));
         break;
-    case AST_EXPR_INDEXING:
-        printf("Indexing, as in op1[op2]:");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_ADDRESS_OF:
-        printf("Get the address of an object as a pointer.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        break;
-    case AST_EXPR_DEREFERENCE:
-        printf("Dereference a pointer.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        break;
-    case AST_EXPR_EQ:
-        printf("Check if equal.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_NE:
-        printf("Check if not equal.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_GT:
-        printf("Check if greater.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_GE:
-        printf("Check if greater or equal.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_LT:
-        printf("Check if less.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_LE:
-        printf("Check if less or equal.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_ADD:
-        printf("Add numbers.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_SUB:
-        printf("Subtract numbers.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_MUL:
-        printf("Multiply numbers.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_DIV:
-        printf("Divide numbers.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_AND:
-        printf("Boolean and.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_OR:
-        printf("Boolean or.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        print_ast_expression(&expr->data.operands[1], indent+2);
-        break;
-    case AST_EXPR_NOT:
-        printf("Boolean not.\n");
-        print_ast_expression(&expr->data.operands[0], indent+2);
-        break;
-    case AST_EXPR_PRE_INCREMENT: printf("Pre-increment.\n"); print_ast_expression(&expr->data.operands[0], indent+2); break;
-    case AST_EXPR_PRE_DECREMENT: printf("Pre-decrement.\n"); print_ast_expression(&expr->data.operands[0], indent+2); break;
-    case AST_EXPR_POST_INCREMENT: printf("Post-increment.\n"); print_ast_expression(&expr->data.operands[0], indent+2); break;
-    case AST_EXPR_POST_DECREMENT: printf("Post-decrement.\n"); print_ast_expression(&expr->data.operands[0], indent+2); break;
     case AST_EXPR_GET_VARIABLE:
-        printf("Get the value of variable \"%s\".\n", expr->data.varname);
+        printf("get variable \"%s\"\n", expr->data.varname);
         break;
     case AST_EXPR_CONSTANT:
         print_constant(&expr->data.constant);
         printf("\n");
         break;
+
+    case AST_EXPR_ADDRESS_OF: puts("address of"); n=1; break;
+    case AST_EXPR_DEREFERENCE: puts("dereference"); n=1; break;
+    case AST_EXPR_NOT: puts("not"); n=1; break;
+    case AST_EXPR_PRE_INCREMENT: puts("pre-increment"); n=1; break;
+    case AST_EXPR_PRE_DECREMENT: puts("pre-decrement"); n=1; break;
+    case AST_EXPR_POST_INCREMENT: puts("post-increment"); n=1; break;
+    case AST_EXPR_POST_DECREMENT: puts("post-decrement"); n=1; break;
+
+    case AST_EXPR_INDEXING: puts("indexing"); n=2; break;
+    case AST_EXPR_EQ: puts("eq"); n=2; break;
+    case AST_EXPR_NE: puts("ne"); n=2; break;
+    case AST_EXPR_GT: puts("gt"); n=2; break;
+    case AST_EXPR_GE: puts("ge"); n=2; break;
+    case AST_EXPR_LT: puts("lt"); n=2; break;
+    case AST_EXPR_LE: puts("le"); n=2; break;
+    case AST_EXPR_ADD: puts("add"); n=2; break;
+    case AST_EXPR_SUB: puts("sub"); n=2; break;
+    case AST_EXPR_MUL: puts("mul"); n=2; break;
+    case AST_EXPR_DIV: puts("div"); n=2; break;
+    case AST_EXPR_AND: puts("and"); n=2; break;
+    case AST_EXPR_OR: puts("or"); n=2; break;
     }
+
+    for (int i = 0; i < n; i++)
+        print_ast_expression(&expr->data.operands[i], print_tree_prefix(tp, i==n-1));
 }
 
-static void print_ast_call(const AstCall *call, int arg_indent, const char *what_is_the_call_doing)
+static void print_ast_call(const AstCall *call, struct TreePrinter tp)
 {
-    printf("%s %s with %d argument%s.\n", what_is_the_call_doing, call->calledname, call->nargs, call->nargs==1?"":"s");
     for (int i = 0; i < call->nargs; i++) {
-        printf("%*sArgument", arg_indent, "");
+        struct TreePrinter sub = print_tree_prefix(tp, i == call->nargs - 1);
         if (call->argnames)
-            printf(" \"%s\"", call->argnames[i]);
-        printf(":\n");
-        print_ast_expression(&call->args[i], arg_indent+2);
+            printf("argument \"%s\": ", call->argnames[i]);
+        else
+            printf("argument %d: ", i);
+        print_ast_expression(&call->args[i], sub);
     }
 }
 
-static void print_ast_body(const AstBody *body, int indent);
+static void print_ast_body(const AstBody *body, struct TreePrinter tp);
 
-static void print_ast_statement(const AstStatement *stmt, int indent)
+static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
 {
-    printf("%*sStatement on line %d: ", indent, "", stmt->location.lineno);
+    printf("[line %d] ", stmt->location.lineno);
+
+    struct TreePrinter sub;
 
     switch(stmt->kind) {
         case AST_STMT_EXPRESSION_STATEMENT:
-            printf("Evaluate an expression and discard the result.\n");
-            print_ast_expression(&stmt->data.expression, indent+2);
+            printf("expression statement\n");
+            print_ast_expression(&stmt->data.expression, print_tree_prefix(tp, true));
             break;
         case AST_STMT_RETURN_VALUE:
-            printf("Return a value:\n");
-            print_ast_expression(&stmt->data.expression, indent+2);
+            printf("return a value\n");
+            print_ast_expression(&stmt->data.expression, print_tree_prefix(tp, true));
             break;
         case AST_STMT_RETURN_WITHOUT_VALUE:
-            printf("Return without a return value.\n");
+            printf("return without a value\n");
             break;
         case AST_STMT_IF:
-            printf("If statement\n");
+            printf("if\n");
             for (int i = 0; i < stmt->data.ifstatement.n_if_and_elifs; i++) {
-                printf("%*s  Condition:\n", indent, "");
-                print_ast_expression(&stmt->data.ifstatement.if_and_elifs[i].condition, indent+4);
-                print_ast_body(&stmt->data.ifstatement.if_and_elifs[i].body, indent+2);
+                sub = print_tree_prefix(tp, false);
+                printf("condition: ");
+                print_ast_expression(&stmt->data.ifstatement.if_and_elifs[i].condition, sub);
+
+                bool is_last_row = (
+                    i == stmt->data.ifstatement.n_if_and_elifs-1
+                    && stmt->data.ifstatement.elsebody.nstatements == 0);
+                sub = print_tree_prefix(tp, is_last_row);
+                printf("body:\n");
+                print_ast_body(&stmt->data.ifstatement.if_and_elifs[i].body, sub);
             }
             if (stmt->data.ifstatement.elsebody.nstatements > 0) {
-                printf("%*s  Else:\n", indent, "");
-                print_ast_body(&stmt->data.ifstatement.elsebody, indent+4);
+                sub = print_tree_prefix(tp, true);
+                printf("elsebody:\n");
+                print_ast_body(&stmt->data.ifstatement.elsebody, sub);
             }
             break;
         case AST_STMT_WHILE:
-            printf("While loop\n");
-            printf("%*s  Condition:\n", indent, "");
-            print_ast_expression(&stmt->data.whileloop.condition, indent+4);
-            print_ast_body(&stmt->data.whileloop.body, indent+2);
+            printf("while\n");
+            sub = print_tree_prefix(tp, true);
+            printf("condition: ");
+            print_ast_expression(&stmt->data.whileloop.condition, sub);
+            sub = print_tree_prefix(tp, true);
+            printf("body:\n");
+            print_ast_body(&stmt->data.whileloop.body, sub);
             break;
         case AST_STMT_FOR:
             printf("For loop\n");
-            printf("%*s  Initializer:\n", indent, "");
-            print_ast_statement(stmt->data.forloop.init, indent+4);
-            printf("%*s  Condition:\n", indent, "");
-            print_ast_expression(&stmt->data.forloop.cond, indent+4);
-            printf("%*s  Incrementer (runs after body):\n", indent, "");
-            print_ast_statement(stmt->data.forloop.incr, indent+4);
-            print_ast_body(&stmt->data.forloop.body, indent+2);
+            sub = print_tree_prefix(tp, false);
+            printf("init: ");
+            print_ast_statement(stmt->data.forloop.init, sub);
+            sub = print_tree_prefix(tp, false);
+            printf("cond: ");
+            print_ast_expression(&stmt->data.forloop.cond, sub);
+            sub = print_tree_prefix(tp, false);
+            printf("incr: ");
+            print_ast_statement(stmt->data.forloop.incr, sub);
+            sub = print_tree_prefix(tp, true);
+            printf("body:\n");
+            print_ast_body(&stmt->data.whileloop.body, sub);
             break;
         case AST_STMT_BREAK:
-            printf("Break loop\n");
+            printf("break\n");
             break;
         case AST_STMT_CONTINUE:
-            printf("Continue loop\n");
+            printf("continue\n");
             break;
         case AST_STMT_DECLARE_LOCAL_VAR:
-            printf(
-                "Declare local variable \"%s\" of type %s.",
-                stmt->data.vardecl.name, stmt->data.vardecl.type.name);
+            printf("declare local var \"%s\", type ", stmt->data.vardecl.name);
+            print_ast_type(&stmt->data.vardecl.type);
+            printf("\n");
             if (stmt->data.vardecl.initial_value) {
-                printf(" Initial value:\n");
-                print_ast_expression(stmt->data.vardecl.initial_value, indent+2);
+                sub = print_tree_prefix(tp, true);
+                printf("initial value:\n");
+                print_ast_expression(stmt->data.vardecl.initial_value, print_tree_prefix(sub, true));
             } else {
                 printf("\n");
             }
             break;
         case AST_STMT_ASSIGN:
-            printf("Set the value of a variable or pointer.\n");
-            print_ast_expression(&stmt->data.assignment.target, indent+2);
-            print_ast_expression(&stmt->data.assignment.value, indent+2);
+            printf("assign\n");
+            print_ast_expression(&stmt->data.assignment.target, print_tree_prefix(tp, false));
+            print_ast_expression(&stmt->data.assignment.value, print_tree_prefix(tp, true));
             break;
     }
 }
 
-static void print_ast_body(const AstBody *body, int indent)
+static void print_ast_body(const AstBody *body, struct TreePrinter tp)
 {
-    printf("%*sBody:\n", indent, "");
     for (int i = 0; i < body->nstatements; i++)
-        print_ast_statement(&body->statements[i], indent+2);
+        print_ast_statement(&body->statements[i], print_tree_prefix(tp, i == body->nstatements - 1));
 }
 
 void print_ast(const AstToplevelNode *topnodelist)
@@ -344,7 +322,7 @@ void print_ast(const AstToplevelNode *topnodelist)
             case AST_TOPLEVEL_DEFINE_FUNCTION:
                 printf("Define a function: ");
                 print_ast_function_signature(&topnodelist->data.funcdef.signature);
-                print_ast_body(&topnodelist->data.funcdef.body, 2);
+                print_ast_body(&topnodelist->data.funcdef.body, (struct TreePrinter){0});
                 break;
             case AST_TOPLEVEL_DEFINE_STRUCT:
                 printf("Define struct \"%s\" with %d fields:\n",
