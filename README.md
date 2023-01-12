@@ -105,7 +105,7 @@ read `src/jou_compiler.h` and have a quick look at `src/util.h`.
 
 GitHub Actions runs all tests when you make a pull request,
 so you don't need to run tests locally if you only intend to fix a couple small things.
-That said, running the tests is a good way to add features and fix bugs in a compiler.
+That said, test-driven development works very well for developing compilers.
 There should be a test (or a TODO comment about adding a test)
 for every feature and for every compiler error/warning.
 
