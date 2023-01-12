@@ -18,11 +18,18 @@ def foo4() -> void:
     x: int = 'd'
     putchar(x)
 
+# https://github.com/Akuli/jou/issues/50
+def issue50() -> void:
+    x: byte = 128
+    y: int = x
+    printf("%d %d\n", x, y)  # Output: 128 128
+
 def main() -> int:
     # Output: abcd
     putchar(foo1('a'))
     foo2('b')
     foo3('x')
     foo4()
+    issue50()
     putchar('\n')
     return 0
