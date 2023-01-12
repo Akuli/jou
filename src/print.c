@@ -141,7 +141,7 @@ static void print_ast_function_signature(const AstSignature *sig)
     printf("\n");
 }
 
-static void print_ast_call(const AstCall *call, struct TreePrinter tp, bool last);
+static void print_ast_call(const AstCall *call, struct TreePrinter tp);
 
 static void print_ast_expression(const AstExpression *expr, struct TreePrinter tp, bool last)
 {
@@ -151,11 +151,11 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
     switch(expr->kind) {
     case AST_EXPR_FUNCTION_CALL:
         printf("call function \"%s\"\n", expr->data.call.calledname);
-        print_ast_call(&expr->data.call, sub, true);
+        print_ast_call(&expr->data.call, sub);
         break;
     case AST_EXPR_BRACE_INIT:
         printf("brace init \"%s\"\n", expr->data.call.calledname);
-        print_ast_call(&expr->data.call, sub, true);
+        print_ast_call(&expr->data.call, sub);
         break;
     case AST_EXPR_GET_FIELD:
         printf("get field \"%s\"\n", expr->data.field.fieldname);
@@ -256,10 +256,10 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
     }
 }
 
-static void print_ast_call(const AstCall *call, struct TreePrinter tp, bool last)
+static void print_ast_call(const AstCall *call, struct TreePrinter tp)
 {
     for (int i = 0; i < call->nargs; i++) {
-        struct TreePrinter sub = print_tree_prefix(tp, last);
+        struct TreePrinter sub = print_tree_prefix(tp, i == call->nargs - 1);
         if (call->argnames)
             printf("argument \"%s\":\n", call->argnames[i]);
         else
