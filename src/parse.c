@@ -449,10 +449,18 @@ static AstExpression parse_expression_with_mul_and_div(const Token **tokens)
     return result;
 }
 
+static AstExpression parse_expression_with_add(const Token **tokens)
+{
+    AstExpression result = parse_expression_with_mul_and_div(tokens);
+    while (is_operator(*tokens, "+") || is_operator(*tokens, "-"))
+        add_to_binop(tokens, &result, parse_expression_with_mul_and_div);
+    return result;
+}
+
 // "as" operator has somewhat low precedence, so that "1+2 as float" works as expected
 static AstExpression parse_expression_with_as(const Token **tokens)
 {
-    AstExpression result = parse_expression_with_mul_and_div(tokens);
+    AstExpression result = parse_expression_with_add(tokens);
     while (is_keyword(*tokens, "as")) {
         AstExpression *p = malloc(sizeof(*p));
         *p = result;
@@ -463,20 +471,12 @@ static AstExpression parse_expression_with_as(const Token **tokens)
     return result;
 }
 
-static AstExpression parse_expression_with_add(const Token **tokens)
-{
-    AstExpression result = parse_expression_with_mul_and_div(tokens);
-    while (is_operator(*tokens, "+") || is_operator(*tokens, "-"))
-        add_to_binop(tokens, &result, parse_expression_with_mul_and_div);
-    return result;
-}
-
 static AstExpression parse_expression_with_comparisons(const Token **tokens)
 {
-    AstExpression result = parse_expression_with_add(tokens);
+    AstExpression result = parse_expression_with_as(tokens);
 #define IsComparator(x) (is_operator((x),"<") || is_operator((x),">") || is_operator((x),"<=") || is_operator((x),">=") || is_operator((x),"==") || is_operator((x),"!="))
     if (IsComparator(*tokens))
-        add_to_binop(tokens, &result, parse_expression_with_add);
+        add_to_binop(tokens, &result, parse_expression_with_as);
     if (IsComparator(*tokens))
         fail_with_error((*tokens)->location, "comparisons cannot be chained");
 #undef IsComparator

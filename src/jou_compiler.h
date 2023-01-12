@@ -345,6 +345,8 @@ struct CfInstruction {
         CF_INT_LT,
         CF_INT_SCAST_TO_BIGGER,  // cast to bigger signed int, e.g. 8->16: 0xFF = -1 --> 0xFFFF
         CF_INT_UCAST_TO_BIGGER,  // cast to bigger unsigned int, e.g. 8->16: 0xFF = 255 --> 0x00FF
+        CF_INT_CAST_TO_SMALLER,
+        CF_INT_CAST_TO_SAME_SIZE,  // convert between signed/unsigned
         CF_BOOL_NEGATE,  // TODO: get rid of this?
         CF_VARCPY, // similar to assignment statements: var1 = var2
     } kind;

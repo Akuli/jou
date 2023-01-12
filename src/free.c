@@ -85,6 +85,10 @@ static void free_expression(const AstExpression *expr)
         free_expression(&expr->data.operands[0]);
         free(expr->data.operands);
         break;
+    case AST_EXPR_AS:
+        free_expression(expr->data.as.obj);
+        free(expr->data.as.obj);
+        break;
     case AST_EXPR_CONSTANT:
         free_constant(&expr->data.constant);
         break;

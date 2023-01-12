@@ -171,6 +171,12 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         print_constant(&expr->data.constant);
         printf("\n");
         break;
+    case AST_EXPR_AS:
+        printf("as ");
+        print_ast_type(&expr->data.as.type);
+        printf("\n");
+        print_ast_expression(expr->data.as.obj, print_tree_prefix(tp, true));
+        break;
 
     case AST_EXPR_ADDRESS_OF: puts("address of"); n=1; break;
     case AST_EXPR_DEREFERENCE: puts("dereference"); n=1; break;
@@ -382,12 +388,23 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         printf(")");
         break;
     case CF_INT_SCAST_TO_BIGGER:
-        printf("cast %s to %d-bit signed int",
+        printf("cast %s to %d-bit signed int (bigger)",
             varname(ins->operands[0]), ins->destvar->type.data.width_in_bits);
         break;
     case CF_INT_UCAST_TO_BIGGER:
-        printf("cast %s to %d-bit unsigned int",
+        printf("cast %s to %d-bit unsigned int (bigger)",
             varname(ins->operands[0]), ins->destvar->type.data.width_in_bits);
+        break;
+    case CF_INT_CAST_TO_SMALLER:
+        printf("cast %s to %d-bit %s int (smaller)",
+            varname(ins->operands[0]), ins->destvar->type.data.width_in_bits,
+            ins->destvar->type.kind == TYPE_SIGNED_INTEGER ? "signed" : "unsigned");
+        break;
+    case CF_INT_CAST_TO_SAME_SIZE:
+        printf("cast %s (%s) to same size %s int",
+            varname(ins->operands[0]),
+            ins->operands[0]->type.kind == TYPE_SIGNED_INTEGER ? "signed" : "unsigned",
+            ins->destvar->type.kind == TYPE_SIGNED_INTEGER ? "signed" : "unsigned");
         break;
     case CF_CONSTANT:
         print_constant(&ins->data.constant);

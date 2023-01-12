@@ -228,6 +228,50 @@ static const CfVariable *build_implicit_cast(
     fail_with_implicit_cast_error(location, err_template, from, to);
 }
 
+static const CfVariable *build_explicit_cast(
+    const struct State *st,
+    const CfVariable *obj,
+    const Type *to,
+    Location location)
+{
+    if (same_type(&obj->type, to))
+        return obj;
+
+    // TODO: casts between pointers
+    // TODO: pointer-to-int, int-to-pointer
+
+    if (is_integer_type(&obj->type) && is_integer_type(to)) {
+        const CfVariable *right_size;
+        if (obj->type.data.width_in_bits < to->data.width_in_bits) {
+            // Cast to bigger integer (zero-extend or sign-extend)
+            bool is_signed = (obj->type.kind == TYPE_SIGNED_INTEGER);
+            Type temptype = create_integer_type(to->data.width_in_bits, is_signed);
+            right_size = add_variable(st, &temptype, NULL);
+            if (is_signed)
+                add_unary_op(st, location, CF_INT_SCAST_TO_BIGGER, obj, right_size);
+            else
+                add_unary_op(st, location, CF_INT_UCAST_TO_BIGGER, obj, right_size);
+        } else if (obj->type.data.width_in_bits > to->data.width_in_bits) {
+            // Cast to smaller integer (truncate)
+            bool is_signed = (obj->type.kind == TYPE_SIGNED_INTEGER);
+            Type temptype = create_integer_type(to->data.width_in_bits, is_signed);
+            right_size = add_variable(st, &temptype, NULL);
+            add_unary_op(st, location, CF_INT_CAST_TO_SMALLER, obj, right_size);
+        } else {
+            right_size = obj;
+        }
+
+        if (same_type(&right_size->type, to))
+            return right_size;
+
+        const CfVariable *result = add_variable(st, to, NULL);
+        add_unary_op(st, location, CF_INT_CAST_TO_SAME_SIZE, right_size, result);
+        return result;
+    }
+
+    fail_with_error(location, "cannot cast from type %s to %s", obj->type.name, to->name);
+}
+
 static const CfVariable *build_binop(
     const struct State *st,
     enum AstExpressionKind op,
@@ -532,6 +576,11 @@ static const CfVariable *build_expression(
             result = build_increment_or_decrement(st, expr->location, &expr->data.operands[0], pop, diff);
             break;
         }
+    case AST_EXPR_AS:
+        temp = build_expression(st, expr->data.as.obj, NULL, NULL, true);
+        temptype = build_type(st, &expr->data.as.type);
+        result = build_explicit_cast(st, temp, &temptype, expr->location);
+        break;
     }
 
     if (implicit_cast_to == NULL) {
