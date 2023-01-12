@@ -142,11 +142,11 @@ static void print_ast_function_signature(const AstSignature *sig)
 }
 
 static void print_ast_call(const AstCall *call, struct TreePrinter tp);
-static void print_operands(int n, const AstExpression *expr, struct TreePrinter tp);
 
 static void print_ast_expression(const AstExpression *expr, struct TreePrinter tp)
 {
     printf("[line %d] ", expr->location.lineno);
+    int n = 0;  // number of operands
 
     switch(expr->kind) {
     case AST_EXPR_FUNCTION_CALL:
@@ -172,28 +172,31 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         printf("\n");
         break;
 
-    case AST_EXPR_ADDRESS_OF: puts("address of"); print_operands(1, expr, tp); break;
-    case AST_EXPR_DEREFERENCE: puts("dereference"); print_operands(1, expr, tp); break;
-    case AST_EXPR_NOT: puts("not"); print_operands(1, expr, tp); break;
-    case AST_EXPR_PRE_INCREMENT: puts("pre-increment"); print_operands(1, expr, tp); break;
-    case AST_EXPR_PRE_DECREMENT: puts("pre-decrement"); print_operands(1, expr, tp); break;
-    case AST_EXPR_POST_INCREMENT: puts("post-increment"); print_operands(1, expr, tp); break;
-    case AST_EXPR_POST_DECREMENT: puts("post-decrement"); print_operands(1, expr, tp); break;
+    case AST_EXPR_ADDRESS_OF: puts("address of"); n=1; break;
+    case AST_EXPR_DEREFERENCE: puts("dereference"); n=1; break;
+    case AST_EXPR_NOT: puts("not"); n=1; break;
+    case AST_EXPR_PRE_INCREMENT: puts("pre-increment"); n=1; break;
+    case AST_EXPR_PRE_DECREMENT: puts("pre-decrement"); n=1; break;
+    case AST_EXPR_POST_INCREMENT: puts("post-increment"); n=1; break;
+    case AST_EXPR_POST_DECREMENT: puts("post-decrement"); n=1; break;
 
-    case AST_EXPR_INDEXING: puts("indexing"); print_operands(2, expr, tp); break;
-    case AST_EXPR_EQ: puts("eq"); print_operands(2, expr, tp); break;
-    case AST_EXPR_NE: puts("ne"); print_operands(2, expr, tp); break;
-    case AST_EXPR_GT: puts("gt"); print_operands(2, expr, tp); break;
-    case AST_EXPR_GE: puts("ge"); print_operands(2, expr, tp); break;
-    case AST_EXPR_LT: puts("lt"); print_operands(2, expr, tp); break;
-    case AST_EXPR_LE: puts("le"); print_operands(2, expr, tp); break;
-    case AST_EXPR_ADD: puts("add"); print_operands(2, expr, tp); break;
-    case AST_EXPR_SUB: puts("sub"); print_operands(2, expr, tp); break;
-    case AST_EXPR_MUL: puts("mul"); print_operands(2, expr, tp); break;
-    case AST_EXPR_DIV: puts("div"); print_operands(2, expr, tp); break;
-    case AST_EXPR_AND: puts("and"); print_operands(2, expr, tp); break;
-    case AST_EXPR_OR: puts("or"); print_operands(2, expr, tp); break;
+    case AST_EXPR_INDEXING: puts("indexing"); n=2; break;
+    case AST_EXPR_EQ: puts("eq"); n=2; break;
+    case AST_EXPR_NE: puts("ne"); n=2; break;
+    case AST_EXPR_GT: puts("gt"); n=2; break;
+    case AST_EXPR_GE: puts("ge"); n=2; break;
+    case AST_EXPR_LT: puts("lt"); n=2; break;
+    case AST_EXPR_LE: puts("le"); n=2; break;
+    case AST_EXPR_ADD: puts("add"); n=2; break;
+    case AST_EXPR_SUB: puts("sub"); n=2; break;
+    case AST_EXPR_MUL: puts("mul"); n=2; break;
+    case AST_EXPR_DIV: puts("div"); n=2; break;
+    case AST_EXPR_AND: puts("and"); n=2; break;
+    case AST_EXPR_OR: puts("or"); n=2; break;
     }
+
+    for (int i = 0; i < n; i++)
+        print_ast_expression(&expr->data.operands[i], print_tree_prefix(tp, i==n-1));
 }
 
 static void print_ast_call(const AstCall *call, struct TreePrinter tp)
@@ -206,12 +209,6 @@ static void print_ast_call(const AstCall *call, struct TreePrinter tp)
             printf("argument %d: ", i);
         print_ast_expression(&call->args[i], sub);
     }
-}
-
-static void print_operands(int n, const AstExpression *expr, struct TreePrinter tp)
-{
-    for (int i = 0; i < n; i++)
-        print_ast_expression(&expr->data.operands[i], print_tree_prefix(tp, i==n-1));
 }
 
 static void print_ast_body(const AstBody *body, struct TreePrinter tp);
