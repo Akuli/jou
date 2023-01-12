@@ -1,3 +1,4 @@
+declare printf(fmt: byte*, ...) -> int
 declare putchar(ch: int) -> int
 
 def main() -> int:
@@ -9,4 +10,7 @@ def main() -> int:
     putchar(0-148 as byte)
     putchar(0-2449 as byte)
     putchar('\n')
+
+    printf("%#x\n", *("aaaa" as int*))  # Output: 0x61616161
+
     return 0

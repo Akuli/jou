@@ -227,15 +227,21 @@ static const CfVariable *build_explicit_cast(
     if (same_type(&obj->type, to))
         return obj;
 
-    // TODO: casts between pointers
-    // TODO: pointer-to-int, int-to-pointer
+    const CfVariable *result = add_variable(st, to, NULL);
+
+    if (is_pointer_type(&obj->type) && is_pointer_type(to)) {
+        add_unary_op(st, location, CF_PTR_CAST, obj, result);
+        return result;
+    }
 
     if (is_integer_type(&obj->type) && is_integer_type(to)) {
-        const CfVariable *result = add_variable(st, to, NULL);
         add_unary_op(st, location, CF_INT_CAST, obj, result);
         return result;
     }
 
+    // TODO: pointer-to-int, int-to-pointer
+
+    // TODO: test this error once there is something that cannot be casted (e.g. float to pointer)
     fail_with_error(location, "cannot cast from type %s to %s", obj->type.name, to->name);
 }
 
