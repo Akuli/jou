@@ -152,7 +152,7 @@ but does not do anything with tests that are supposed to fail with an error, for
 - Most problems in error message code are spotted by non-valgrinded tests.
 
 Sometimes the fuzzer discovers a bug that hasn't been caught with tests.
-This mostly finds bugs in the tokenizer,
+It mostly finds bugs in the tokenizer,
 because the fuzzer works by feeding random bytes to the compiler.
 
 ```
