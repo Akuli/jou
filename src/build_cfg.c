@@ -197,23 +197,13 @@ static const CfVariable *build_implicit_cast(
 
     const CfVariable *result = add_variable(st, to, NULL);
 
-    // Casting to bigger signed int applies when "to" is signed and bigger.
-    // Doesn't cast from unsigned to same size signed: with 8 bits, 255 does not implicitly cast to -1.
-    // TODO: does this surely work e.g. how would 8-bit 11111111 cast to 32 bit?
+    // Castasting to bigger integer types implicitly, unless it is signed-->unsigned.
     if (is_integer_type(from)
-        && to->kind == TYPE_SIGNED_INTEGER
-        && from->data.width_in_bits < to->data.width_in_bits)
+        && is_integer_type(to)
+        && from->data.width_in_bits < to->data.width_in_bits
+        && !(from->kind == TYPE_SIGNED_INTEGER && to->kind == TYPE_UNSIGNED_INTEGER))
     {
-        add_unary_op(st, location, CF_INT_SCAST_TO_BIGGER, obj, result);
-        return result;
-    }
-
-    // Casting to bigger unsigned int: original value has to be unsigned as well.
-    if (from->kind == TYPE_UNSIGNED_INTEGER
-        && to->kind == TYPE_UNSIGNED_INTEGER
-        && from->data.width_in_bits < to->data.width_in_bits)
-    {
-        add_unary_op(st, location, CF_INT_UCAST_TO_BIGGER, obj, result);
+        add_unary_op(st, location, CF_INT_CAST, obj, result);
         return result;
     }
 
@@ -226,6 +216,33 @@ static const CfVariable *build_implicit_cast(
     }
 
     fail_with_implicit_cast_error(location, err_template, from, to);
+}
+
+static const CfVariable *build_explicit_cast(
+    const struct State *st,
+    const CfVariable *obj,
+    const Type *to,
+    Location location)
+{
+    if (same_type(&obj->type, to))
+        return obj;
+
+    const CfVariable *result = add_variable(st, to, NULL);
+
+    if (is_pointer_type(&obj->type) && is_pointer_type(to)) {
+        add_unary_op(st, location, CF_PTR_CAST, obj, result);
+        return result;
+    }
+
+    if (is_integer_type(&obj->type) && is_integer_type(to)) {
+        add_unary_op(st, location, CF_INT_CAST, obj, result);
+        return result;
+    }
+
+    // TODO: pointer-to-int, int-to-pointer
+
+    // TODO: test this error once there is something that cannot be casted (e.g. float to pointer)
+    fail_with_error(location, "cannot cast from type %s to %s", obj->type.name, to->name);
 }
 
 static const CfVariable *build_binop(
@@ -532,6 +549,12 @@ static const CfVariable *build_expression(
             result = build_increment_or_decrement(st, expr->location, &expr->data.operands[0], pop, diff);
             break;
         }
+    case AST_EXPR_AS:
+        temp = build_expression(st, expr->data.as.obj, NULL, NULL, true);
+        temptype = build_type(st, &expr->data.as.type);
+        result = build_explicit_cast(st, temp, &temptype, expr->location);
+        free_type(&temptype);
+        break;
     }
 
     if (implicit_cast_to == NULL) {

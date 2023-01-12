@@ -193,9 +193,30 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 setdest(LLVMBuildGEP(st->builder, getop(0), &index, 1, "ptr_add_int"));
             }
             break;
+        case CF_INT_CAST:
+            {
+                const Type *from = &ins->operands[0]->type;
+                const Type *to = &ins->destvar->type;
+                assert(is_integer_type(from));
+                assert(is_integer_type(to));
+
+                if (from->data.width_in_bits < to->data.width_in_bits) {
+                    if (from->kind == TYPE_SIGNED_INTEGER) {
+                        // example: signed 8-bit 0xFF --> 16-bit 0xFFFF
+                        setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(to), "int_cast"));
+                    } else {
+                        // example: unsigned 8-bit 0xFF --> 16-bit 0x00FF
+                        setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(to), "int_cast"));
+                    }
+                } else if (from->data.width_in_bits > to->data.width_in_bits) {
+                    setdest(LLVMBuildTrunc(st->builder, getop(0), codegen_type(to), "int_cast"));
+                } else {
+                    // same size, LLVM doesn't distinguish signed and unsigned integer types
+                    setdest(getop(0));
+                }
+            }
+            break;
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate")); break;
-        case CF_INT_SCAST_TO_BIGGER: setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(&ins->destvar->type), "int_scast_to_bigger")); break;
-        case CF_INT_UCAST_TO_BIGGER: setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(&ins->destvar->type), "int_ucast_to_bigger")); break;
         case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(&ins->destvar->type), "ptr_cast")); break;
         case CF_INT_ADD: setdest(LLVMBuildAdd(st->builder, getop(0), getop(1), "int_add")); break;
         case CF_INT_SUB: setdest(LLVMBuildSub(st->builder, getop(0), getop(1), "int_sub")); break;

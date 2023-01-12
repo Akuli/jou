@@ -1,4 +1,5 @@
 declare putchar(ch: int) -> int
+declare printf(fmt: byte*, ...) -> int
 
 # Return values
 def foo1(x: byte) -> int:
@@ -18,6 +19,12 @@ def foo4() -> void:
     x: int = 'd'
     putchar(x)
 
+# https://github.com/Akuli/jou/issues/50
+def issue50() -> void:
+    x = 128 as byte
+    y: int = x
+    printf("%d %d\n", x, y)
+
 def main() -> int:
     # Output: abcd
     putchar(foo1('a'))
@@ -25,4 +32,7 @@ def main() -> int:
     foo3('x')
     foo4()
     putchar('\n')
+
+    issue50()  # Output: 128 128
+
     return 0

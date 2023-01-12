@@ -171,6 +171,12 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         print_constant(&expr->data.constant);
         printf("\n");
         break;
+    case AST_EXPR_AS:
+        printf("as ");
+        print_ast_type(&expr->data.as.type);
+        printf("\n");
+        print_ast_expression(expr->data.as.obj, print_tree_prefix(tp, true));
+        break;
 
     case AST_EXPR_ADDRESS_OF: puts("address of"); n=1; break;
     case AST_EXPR_DEREFERENCE: puts("dereference"); n=1; break;
@@ -381,13 +387,14 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         }
         printf(")");
         break;
-    case CF_INT_SCAST_TO_BIGGER:
-        printf("cast %s to %d-bit signed int",
-            varname(ins->operands[0]), ins->destvar->type.data.width_in_bits);
-        break;
-    case CF_INT_UCAST_TO_BIGGER:
-        printf("cast %s to %d-bit unsigned int",
-            varname(ins->operands[0]), ins->destvar->type.data.width_in_bits);
+    case CF_INT_CAST:
+        assert(is_integer_type(&ins->operands[0]->type));
+        assert(is_integer_type(&ins->destvar->type));
+        printf("int cast %s (%d-bit %s --> %d-bit %s)", varname(ins->operands[0]),
+            ins->operands[0]->type.data.width_in_bits,
+            ins->operands[0]->type.kind==TYPE_SIGNED_INTEGER ? "signed" : "unsigned",
+            ins->destvar->type.data.width_in_bits,
+            ins->destvar->type.kind==TYPE_SIGNED_INTEGER ? "signed" : "unsigned");
         break;
     case CF_CONSTANT:
         print_constant(&ins->data.constant);

@@ -31,7 +31,7 @@ Type create_integer_type(int size_in_bits, bool is_signed)
     else if (size_in_bits == 32 && is_signed)
         strcpy(t.name, "int");
     else
-        assert(0);
+        sprintf(t.name, "<%d-bit %s integer>", size_in_bits, is_signed?"signed":"unsigned");
     return t;
 }
 
