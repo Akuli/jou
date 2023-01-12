@@ -343,7 +343,7 @@ struct CfInstruction {
         CF_INT_UDIV, // unsigned division: 255 / 2 = 127
         CF_INT_EQ,
         CF_INT_LT,
-        CF_INT_CAST,  // changes between different sizes (e.g. 8-bit --> 32 bit) or signed-ness
+        CF_INT_CAST,
         CF_BOOL_NEGATE,  // TODO: get rid of this?
         CF_VARCPY, // similar to assignment statements: var1 = var2
     } kind;
