@@ -572,7 +572,6 @@ static const CfVariable *build_indexing(struct State *st, const AstExpression *p
     if (ptr->type.kind != TYPE_POINTER)
         fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", ptr->type.name);
 
-    // TODO: does indexing with all types work? signed 8bit?
     const CfVariable *index = build_expression(st, indexexpr, NULL, NULL, true);
     if (!is_integer_type(&index->type)) {
         fail_with_error(

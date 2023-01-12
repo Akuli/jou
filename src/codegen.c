@@ -190,6 +190,11 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CF_PTR_ADD_INT:
             {
                 LLVMValueRef index = getop(1);
+                if (ins->operands[1]->type.kind == TYPE_UNSIGNED_INTEGER) {
+                    // https://github.com/Akuli/jou/issues/48
+                    // Apparently the default is to interpret indexes as signed.
+                    index = LLVMBuildZExt(st->builder, index, LLVMInt64Type(), "ptr_add_int_implicit_cast");
+                }
                 setdest(LLVMBuildGEP(st->builder, getop(0), &index, 1, "ptr_add_int"));
             }
             break;
