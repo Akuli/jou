@@ -106,7 +106,7 @@ struct TreePrinter {
     char prefix[100];
 };
 
-// Returned sub-printer can be used to print lines that appear "inside" the given line.
+// Returned sub-printer can be used to print lines that appear "inside"/"below" the given line.
 struct TreePrinter print_tree_prefix(struct TreePrinter tp, bool last)
 {
     struct TreePrinter sub;
