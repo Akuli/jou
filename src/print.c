@@ -142,8 +142,7 @@ static void print_ast_function_signature(const AstSignature *sig)
 }
 
 static void print_ast_call(const AstCall *call, struct TreePrinter tp);
-static void print_unary_operator_args(const AstExpression *expr, struct TreePrinter tp);
-static void print_binary_operator_args(const AstExpression *expr, struct TreePrinter tp);
+static void print_operands(int n, const AstExpression *expr, struct TreePrinter tp);
 
 static void print_ast_expression(const AstExpression *expr, struct TreePrinter tp)
 {
@@ -158,12 +157,11 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         printf("brace init \"%s\"\n", expr->data.call.calledname);
         print_ast_call(&expr->data.call, tp);
         break;
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        printf("dereference and ");
+        // fall through
     case AST_EXPR_GET_FIELD:
         printf("get field \"%s\"\n", expr->data.field.fieldname);
-        print_ast_expression(expr->data.field.obj, print_tree_prefix(tp, true));
-        break;
-    case AST_EXPR_DEREF_AND_GET_FIELD:
-        printf("dereference and get field \"%s\"\n", expr->data.field.fieldname);
         print_ast_expression(expr->data.field.obj, print_tree_prefix(tp, true));
         break;
     case AST_EXPR_GET_VARIABLE:
@@ -174,27 +172,27 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         printf("\n");
         break;
 
-    case AST_EXPR_ADDRESS_OF: puts("address of"); print_unary_operator_args(expr, tp); break;
-    case AST_EXPR_DEREFERENCE: puts("dereference"); print_unary_operator_args(expr, tp); break;
-    case AST_EXPR_NOT: puts("not"); print_unary_operator_args(expr, tp); break;
-    case AST_EXPR_PRE_INCREMENT: puts("pre-increment"); print_unary_operator_args(expr, tp); break;
-    case AST_EXPR_PRE_DECREMENT: puts("pre-decrement"); print_unary_operator_args(expr, tp); break;
-    case AST_EXPR_POST_INCREMENT: puts("post-increment"); print_unary_operator_args(expr, tp); break;
-    case AST_EXPR_POST_DECREMENT: puts("post-decrement"); print_unary_operator_args(expr, tp); break;
+    case AST_EXPR_ADDRESS_OF: puts("address of"); print_operands(1, expr, tp); break;
+    case AST_EXPR_DEREFERENCE: puts("dereference"); print_operands(1, expr, tp); break;
+    case AST_EXPR_NOT: puts("not"); print_operands(1, expr, tp); break;
+    case AST_EXPR_PRE_INCREMENT: puts("pre-increment"); print_operands(1, expr, tp); break;
+    case AST_EXPR_PRE_DECREMENT: puts("pre-decrement"); print_operands(1, expr, tp); break;
+    case AST_EXPR_POST_INCREMENT: puts("post-increment"); print_operands(1, expr, tp); break;
+    case AST_EXPR_POST_DECREMENT: puts("post-decrement"); print_operands(1, expr, tp); break;
 
-    case AST_EXPR_INDEXING: puts("indexing"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_EQ: puts("eq"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_NE: puts("ne"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_GT: puts("gt"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_GE: puts("ge"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_LT: puts("lt"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_LE: puts("le"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_ADD: puts("add"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_SUB: puts("sub"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_MUL: puts("mul"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_DIV: puts("div"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_AND: puts("and"); print_binary_operator_args(expr, tp); break;
-    case AST_EXPR_OR: puts("or"); print_binary_operator_args(expr, tp); break;
+    case AST_EXPR_INDEXING: puts("indexing"); print_operands(2, expr, tp); break;
+    case AST_EXPR_EQ: puts("eq"); print_operands(2, expr, tp); break;
+    case AST_EXPR_NE: puts("ne"); print_operands(2, expr, tp); break;
+    case AST_EXPR_GT: puts("gt"); print_operands(2, expr, tp); break;
+    case AST_EXPR_GE: puts("ge"); print_operands(2, expr, tp); break;
+    case AST_EXPR_LT: puts("lt"); print_operands(2, expr, tp); break;
+    case AST_EXPR_LE: puts("le"); print_operands(2, expr, tp); break;
+    case AST_EXPR_ADD: puts("add"); print_operands(2, expr, tp); break;
+    case AST_EXPR_SUB: puts("sub"); print_operands(2, expr, tp); break;
+    case AST_EXPR_MUL: puts("mul"); print_operands(2, expr, tp); break;
+    case AST_EXPR_DIV: puts("div"); print_operands(2, expr, tp); break;
+    case AST_EXPR_AND: puts("and"); print_operands(2, expr, tp); break;
+    case AST_EXPR_OR: puts("or"); print_operands(2, expr, tp); break;
     }
 }
 
@@ -210,15 +208,10 @@ static void print_ast_call(const AstCall *call, struct TreePrinter tp)
     }
 }
 
-static void print_unary_operator_args(const AstExpression *expr, struct TreePrinter tp)
+static void print_operands(int n, const AstExpression *expr, struct TreePrinter tp)
 {
-    print_ast_expression(&expr->data.operands[0], print_tree_prefix(tp, true));
-}
-
-static void print_binary_operator_args(const AstExpression *expr, struct TreePrinter tp)
-{
-    print_ast_expression(&expr->data.operands[0], print_tree_prefix(tp, false));
-    print_ast_expression(&expr->data.operands[1], print_tree_prefix(tp, true));
+    for (int i = 0; i < n; i++)
+        print_ast_expression(&expr->data.operands[i], print_tree_prefix(tp, i==n-1));
 }
 
 static void print_ast_body(const AstBody *body, struct TreePrinter tp);
