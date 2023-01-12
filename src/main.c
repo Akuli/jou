@@ -49,7 +49,7 @@ int main(int argc, char **argv)
 
     AstToplevelNode *ast = parse(tokens);
     free_tokens(tokens);
-    if(verbose)
+    //if(verbose)
         print_ast(ast);
 
     CfGraphFile cfgfile = build_control_flow_graphs(ast);
