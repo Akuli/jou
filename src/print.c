@@ -387,24 +387,14 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         }
         printf(")");
         break;
-    case CF_INT_SCAST_TO_BIGGER:
-        printf("cast %s to %d-bit signed int (bigger)",
-            varname(ins->operands[0]), ins->destvar->type.data.width_in_bits);
-        break;
-    case CF_INT_UCAST_TO_BIGGER:
-        printf("cast %s to %d-bit unsigned int (bigger)",
-            varname(ins->operands[0]), ins->destvar->type.data.width_in_bits);
-        break;
-    case CF_INT_CAST_TO_SMALLER:
-        printf("cast %s to %d-bit %s int (smaller)",
-            varname(ins->operands[0]), ins->destvar->type.data.width_in_bits,
-            ins->destvar->type.kind == TYPE_SIGNED_INTEGER ? "signed" : "unsigned");
-        break;
-    case CF_INT_CAST_TO_SAME_SIZE:
-        printf("cast %s (%s) to same size %s int",
-            varname(ins->operands[0]),
-            ins->operands[0]->type.kind == TYPE_SIGNED_INTEGER ? "signed" : "unsigned",
-            ins->destvar->type.kind == TYPE_SIGNED_INTEGER ? "signed" : "unsigned");
+    case CF_INT_CAST:
+        assert(is_integer_type(&ins->operands[0]->type));
+        assert(is_integer_type(&ins->destvar->type));
+        printf("int cast %s (%d-bit %s --> %d-bit %s)", varname(ins->operands[0]),
+            ins->operands[0]->type.data.width_in_bits,
+            ins->operands[0]->type.kind==TYPE_SIGNED_INTEGER ? "signed" : "unsigned",
+            ins->destvar->type.data.width_in_bits,
+            ins->destvar->type.kind==TYPE_SIGNED_INTEGER ? "signed" : "unsigned");
         break;
     case CF_CONSTANT:
         print_constant(&ins->data.constant);

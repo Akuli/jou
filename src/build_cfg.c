@@ -197,23 +197,13 @@ static const CfVariable *build_implicit_cast(
 
     const CfVariable *result = add_variable(st, to, NULL);
 
-    // Casting to bigger signed int applies when "to" is signed and bigger.
-    // Doesn't cast from unsigned to same size signed: with 8 bits, 255 does not implicitly cast to -1.
-    // TODO: does this surely work e.g. how would 8-bit 11111111 cast to 32 bit?
+    // Castasting to bigger integer types implicitly, unless it is signed-->unsigned.
     if (is_integer_type(from)
-        && to->kind == TYPE_SIGNED_INTEGER
-        && from->data.width_in_bits < to->data.width_in_bits)
+        && is_integer_type(to)
+        && from->data.width_in_bits < to->data.width_in_bits
+        && !(from->kind == TYPE_SIGNED_INTEGER && to->kind == TYPE_UNSIGNED_INTEGER))
     {
-        add_unary_op(st, location, CF_INT_SCAST_TO_BIGGER, obj, result);
-        return result;
-    }
-
-    // Casting to bigger unsigned int: original value has to be unsigned as well.
-    if (from->kind == TYPE_UNSIGNED_INTEGER
-        && to->kind == TYPE_UNSIGNED_INTEGER
-        && from->data.width_in_bits < to->data.width_in_bits)
-    {
-        add_unary_op(st, location, CF_INT_UCAST_TO_BIGGER, obj, result);
+        add_unary_op(st, location, CF_INT_CAST, obj, result);
         return result;
     }
 
@@ -241,31 +231,8 @@ static const CfVariable *build_explicit_cast(
     // TODO: pointer-to-int, int-to-pointer
 
     if (is_integer_type(&obj->type) && is_integer_type(to)) {
-        const CfVariable *right_size;
-        if (obj->type.data.width_in_bits < to->data.width_in_bits) {
-            // Cast to bigger integer (zero-extend or sign-extend)
-            bool is_signed = (obj->type.kind == TYPE_SIGNED_INTEGER);
-            Type temptype = create_integer_type(to->data.width_in_bits, is_signed);
-            right_size = add_variable(st, &temptype, NULL);
-            if (is_signed)
-                add_unary_op(st, location, CF_INT_SCAST_TO_BIGGER, obj, right_size);
-            else
-                add_unary_op(st, location, CF_INT_UCAST_TO_BIGGER, obj, right_size);
-        } else if (obj->type.data.width_in_bits > to->data.width_in_bits) {
-            // Cast to smaller integer (truncate)
-            bool is_signed = (obj->type.kind == TYPE_SIGNED_INTEGER);
-            Type temptype = create_integer_type(to->data.width_in_bits, is_signed);
-            right_size = add_variable(st, &temptype, NULL);
-            add_unary_op(st, location, CF_INT_CAST_TO_SMALLER, obj, right_size);
-        } else {
-            right_size = obj;
-        }
-
-        if (same_type(&right_size->type, to))
-            return right_size;
-
         const CfVariable *result = add_variable(st, to, NULL);
-        add_unary_op(st, location, CF_INT_CAST_TO_SAME_SIZE, right_size, result);
+        add_unary_op(st, location, CF_INT_CAST, obj, result);
         return result;
     }
 
