@@ -553,6 +553,7 @@ static const CfVariable *build_expression(
         temp = build_expression(st, expr->data.as.obj, NULL, NULL, true);
         temptype = build_type(st, &expr->data.as.type);
         result = build_explicit_cast(st, temp, &temptype, expr->location);
+        free_type(&temptype);
         break;
     }
 
