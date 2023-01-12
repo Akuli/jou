@@ -449,6 +449,20 @@ static AstExpression parse_expression_with_mul_and_div(const Token **tokens)
     return result;
 }
 
+// "as" operator has somewhat low precedence, so that "1+2 as float" works as expected
+static AstExpression parse_expression_with_as(const Token **tokens)
+{
+    AstExpression result = parse_expression_with_mul_and_div(tokens);
+    while (is_keyword(*tokens, "as")) {
+        AstExpression *p = malloc(sizeof(*p));
+        *p = result;
+        Location as_location = (*tokens)++->location;
+        AstType t = parse_type(tokens);
+        result = (AstExpression){ .location=as_location, .kind=AST_EXPR_AS, .data.as = { .obj=p, .type=t } };
+    }
+    return result;
+}
+
 static AstExpression parse_expression_with_add(const Token **tokens)
 {
     AstExpression result = parse_expression_with_mul_and_div(tokens);
