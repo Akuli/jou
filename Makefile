@@ -31,4 +31,7 @@ clean:
 .PHONY: test
 test: all
 	tests/runtests.sh './jou %s'
+
+.PHONY: valgrind
+valgrind: all
 	tests/runtests.sh --skip-expected-fails 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou %s'

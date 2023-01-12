@@ -103,6 +103,9 @@ read `src/jou_compiler.h` and have a quick look at `src/util.h`.
 
 ## Tests
 
+GitHub Actions runs all tests when you make a pull request,
+so you don't need to run tests locally if you only intend to fix a couple small things.
+That said, test-driven development works very well for developing compilers.
 There should be a test (or a TODO comment about adding a test)
 for every feature and for every compiler error/warning.
 
@@ -133,20 +136,24 @@ The command that was ran (e.g. `./jou examples/hello.jou`) is shown just above t
 and you can run it again manually to debug a test failure.
 You can also put e.g. `valgrind` or `gdb --args` in front of the command.
 
-If all tests succeed, the tests in `examples/` and `tests/should_succeed/`
-automatically run again with `valgrind` to find missing `free()`s and various other memory bugs.
-This isn't done for tests that are supposed to fail with a compiler error, for a few reasons:
+You can also run tests in `examples/` and `tests/should_succeed/` with `valgrind`:
+
+```
+$ make valgrind
+```
+
+This finds missing `free()`s and various other memory bugs,
+but does not do anything with tests that are supposed to fail with an error, for a few reasons:
 - The compiler does not free memory allocations when it exits with an error.
     This is fine because the operating system will free the memory anyway,
-    but `valgrind` doesn't like it.
+    but `valgrind` would see it as many memory leaks.
 - Valgrinding is slow. Most tests are about compiler errors,
-    and `make test` would take several minutes if they weren't skipped.
+    and `make valgrind` would take several minutes if they weren't skipped.
 - Most problems in error message code are spotted by non-valgrinded tests.
 
-I often skip valgrinding with Ctrl+C when the non-valgrinded tests succeed,
-because it will run in the CI anyway (see `.github/workflows/`).
-
-Sometimes (very rarely) the fuzzer discovers a bug that hasn't been caught with tests:
+Sometimes the fuzzer discovers a bug that hasn't been caught with tests.
+It mostly finds bugs in the tokenizer,
+because the fuzzer works by feeding random bytes to the compiler.
 
 ```
 $ ./fuzzer.sh
