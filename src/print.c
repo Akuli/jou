@@ -349,7 +349,7 @@ void print_ast(const AstToplevelNode *topnodelist)
 }
 
 
-static const char *varname(const CfVariable *var)
+static const char *varname(const Variable *var)
 {
     if (var->name[0])
         return var->name;
@@ -456,7 +456,7 @@ static void print_control_flow_graph_with_indent(const CfGraph *cfg, int indent)
     }
 
     printf("%*sVariables:\n", indent, "");
-    for (CfVariable **var = cfg->variables.ptr; var < End(cfg->variables); var++) {
+    for (Variable **var = cfg->variables.ptr; var < End(cfg->variables); var++) {
         printf("%*s  %-20s  %s\n", indent, "", varname(*var), (*var)->type.name);
     }
 

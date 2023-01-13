@@ -28,11 +28,13 @@ typedef struct AstToplevelNode AstToplevelNode;
 typedef struct AstFunctionDef AstFunctionDef;
 typedef struct AstStructDef AstStructDef;
 
+typedef struct Variable Variable;
+typedef struct TypeContext TypeContext;
+
 typedef struct CfBlock CfBlock;
 typedef struct CfGraph CfGraph;
 typedef struct CfGraphFile CfGraphFile;
 typedef struct CfInstruction CfInstruction;
-typedef struct CfVariable CfVariable;
 
 
 struct Location {
@@ -300,7 +302,6 @@ bool is_pointer_type(const Type *t);  // includes void pointers
 bool same_type(const Type *a, const Type *b);
 Type type_of_constant(const Constant *c);
 
-
 struct Signature {
     char funcname[100];
     int nargs;
@@ -315,14 +316,44 @@ char *signature_to_string(const Signature *sig, bool include_return_type);
 Signature copy_signature(const Signature *sig);
 
 
-// Control Flow Graph.
-// Struct names not prefixed with Cfg because it looks too much like "config" to me
-struct CfVariable {
-    int id;  // Unique, but you can also compare pointers to CfVariable.
+struct Variable {
+    int id;  // Unique, but you can also compare pointers to Variable.
     char name[100];  // Same name as in user's code or empty
     Type type;
     bool is_argument;    // First n variables are always the arguments
 };
+
+// TypeContext is the information needed for determining the type of an expression.
+struct TypeContext {
+    List(Variable *) variables;
+    List(Type) structs;
+    List(Signature) function_signatures;
+};
+
+// Returns NULL if a "-> void" function was called.
+// Otherwise returns type of the expression and needs free_type().
+const Type *typecheck_expression(const TypeContext *ctx, const AstExpression *expr);
+
+/*
+Implicit casts are used in many places, e.g. function arguments.
+
+When you pass an argument of the wrong type, it's best to give an error message
+that says so, instead of some generic "expected type foo, got object of type bar"
+kind of message.
+
+The template can contain "FROM" and "TO". They will be substituted with names
+of types. We cannot use printf() style functions because the arguments can be in
+any order.
+*/
+void typecheck_expression_with_implicit_cast(
+    const TypeContext *ctx,
+    const AstExpression *expr,
+    const Type *casttype,
+    const char *errormsg_template);
+
+
+// Control Flow Graph.
+// Struct names not prefixed with Cfg because it looks too much like "config" to me
 struct CfInstruction {
     Location location;
     enum CfInstructionKind {
@@ -352,15 +383,15 @@ struct CfInstruction {
         char funcname[100];     // CF_CALL
         char fieldname[100];    // CF_PTR_STRUCT_FIELD
     } data;
-    const CfVariable **operands;  // e.g. numbers to add, function arguments
+    const Variable **operands;  // e.g. numbers to add, function arguments
     int noperands;
-    const CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
+    const Variable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
     bool hide_unreachable_warning; // usually false, can be set to true to avoid unreachable warning false positives
 };
 
 struct CfBlock {
     List(CfInstruction) instructions;
-    const CfVariable *branchvar;  // boolean value used to decide where to jump next
+    const Variable *branchvar;  // boolean value used to decide where to jump next
     CfBlock *iftrue;
     CfBlock *iffalse;
 };
@@ -369,7 +400,7 @@ struct CfGraph {
     CfBlock start_block;  // First block
     CfBlock end_block;  // Always empty. Return statement jumps here.
     List(CfBlock *) all_blocks;
-    List(CfVariable *) variables;   // First n variables are the function arguments
+    List(Variable *) variables;   // First n variables are the function arguments
 };
 
 struct CfGraphFile {

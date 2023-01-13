@@ -209,7 +209,7 @@ static void free_cfg(CfGraph *cfg)
     for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++)
         free_control_flow_graph_block(cfg, *b);
 
-    for (CfVariable **v = cfg->variables.ptr; v < End(cfg->variables); v++) {
+    for (Variable **v = cfg->variables.ptr; v < End(cfg->variables); v++) {
         free_type(&(*v)->type);
         free(*v);
     }

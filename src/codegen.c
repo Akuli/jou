@@ -38,13 +38,13 @@ static LLVMTypeRef codegen_type(const Type *type)
 struct State {
     LLVMModuleRef module;
     LLVMBuilderRef builder;
-    CfVariable **cfvars, **cfvars_end;
+    Variable **cfvars, **cfvars_end;
     // All local variables are represented as pointers to stack space, even
     // if they are never reassigned. LLVM will optimize the mess.
     LLVMValueRef *llvm_locals;
 };
 
-static LLVMValueRef get_pointer_to_local_var(const struct State *st, const CfVariable *cfvar)
+static LLVMValueRef get_pointer_to_local_var(const struct State *st, const Variable *cfvar)
 {
     assert(cfvar);
     /*
@@ -60,22 +60,22 @@ static LLVMValueRef get_pointer_to_local_var(const struct State *st, const CfVar
     so I wouldn't need to ever resize the list of variables, but the CFG building
     is already complicated enough as is.
     */
-    for (CfVariable **v = st->cfvars; v < st->cfvars_end; v++)
+    for (Variable **v = st->cfvars; v < st->cfvars_end; v++)
         if (*v == cfvar)
             return st->llvm_locals[v - st->cfvars];
     assert(0);
 }
 
-static LLVMValueRef get_local_var(const struct State *st, const CfVariable *cfvar)
+static LLVMValueRef get_local_var(const struct State *st, const Variable *cfvar)
 {
     LLVMValueRef varptr = get_pointer_to_local_var(st, cfvar);
     return LLVMBuildLoad(st->builder, varptr, cfvar->name);
 }
 
-static void set_local_var(const struct State *st, const CfVariable *cfvar, LLVMValueRef value)
+static void set_local_var(const struct State *st, const Variable *cfvar, LLVMValueRef value)
 {
     assert(cfvar);
-    for (CfVariable **v = st->cfvars; v < st->cfvars_end; v++) {
+    for (Variable **v = st->cfvars; v < st->cfvars_end; v++) {
         if (*v == cfvar) {
             LLVMBuildStore(st->builder, value, st->llvm_locals[v - st->cfvars]);
             return;
@@ -267,7 +267,7 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
     // Allocate stack space for local variables at start of function.
     LLVMValueRef return_value = NULL;
     for (int i = 0; i < cfg->variables.len; i++) {
-        CfVariable *v = cfg->variables.ptr[i];
+        Variable *v = cfg->variables.ptr[i];
         st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(&v->type), v->name);
         if (!strcmp(v->name, "return"))
             return_value = st->llvm_locals[i];

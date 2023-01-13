@@ -9,7 +9,7 @@ static int find_block_index(const CfGraph *cfg, const CfBlock *b)
     assert(0);
 }
 
-static int find_var_index(const CfGraph *cfg, const CfVariable *v)
+static int find_var_index(const CfGraph *cfg, const Variable *v)
 {
     for (int i = 0; i < cfg->variables.len; i++)
         if (cfg->variables.ptr[i] == v)
