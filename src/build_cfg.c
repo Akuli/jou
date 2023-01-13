@@ -2,25 +2,21 @@
 
 
 struct State {
+    TypeContext typectx;
     CfGraphFile *cfgfile;
     CfGraph *cfg;
     const Signature *signature;
     CfBlock *current_block;
     List(CfBlock *) breakstack;
     List(CfBlock *) continuestack;
-    List(Type) structs;
 };
 
-// If error_location is NULL, this will return NULL when variable is not found.
-static const Variable *find_variable(const struct State *st, const char *name, const Location *error_location)
+static const Variable *find_variable(const struct State *st, const char *name)
 {
     for (Variable **var = st->cfg->variables.ptr; var < End(st->cfg->variables); var++)
         if (!strcmp((*var)->name, name))
             return *var;
-
-    if (!error_location)
-        return NULL;
-    fail_with_error(*error_location, "no local variable named '%s'", name);
+    return NULL;
 }
 
 static Variable *add_variable(const struct State *st, const Type *t, const char *name)
@@ -29,7 +25,7 @@ static Variable *add_variable(const struct State *st, const Type *t, const char 
     var->id = st->cfg->variables.len;
     var->type = copy_type(t);
     if (name) {
-        assert(!find_variable(st, name, NULL));
+        assert(!find_variable(st, name));
         assert(strlen(name) < sizeof var->name);
         strcpy(var->name, name);
     }
@@ -431,7 +427,7 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
     {
-        const Variable *var = find_variable(st, address_of_what->data.varname, &address_of_what->location);
+        const Variable *var = find_variable(st, address_of_what->data.varname);
         Type t = create_pointer_type(&var->type, (Location){0});
         const Variable *addr = add_variable(st, &t, NULL);
         free(t.data.valuetype);
@@ -440,10 +436,8 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
     }
     case AST_EXPR_DEREFERENCE:
     {
-        // &*foo --> just evaluate foo, but make sure it is a pointer
-        const Variable *result = build_expression(st, &address_of_what->data.operands[0], NULL, NULL, true);
-        check_dereferenced_pointer_type(address_of_what->location, &result->type);
-        return result;
+        // &*foo --> just evaluate foo
+        return build_expression(st, &address_of_what->data.operands[0], NULL, NULL, true);
     }
     case AST_EXPR_DEREF_AND_GET_FIELD:
     {
