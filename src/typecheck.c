@@ -390,6 +390,7 @@ static Type typecheck_struct_init(TypeContext *ctx, const AstCall *call, Locatio
             "value for field '%s' of struct %s must be of type TO, not FROM",
             call->argnames[i], call->calledname);
         typecheck_expression_with_implicit_cast(ctx, &call->args[i], &fieldtype, msg);
+        free_type(&fieldtype);
     }
 
     return t;

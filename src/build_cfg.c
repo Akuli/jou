@@ -816,8 +816,8 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
     free(st.breakstack.ptr);
     free(st.continuestack.ptr);
     free(st.typectx.expr_types.ptr);
-    /*for (Type *t = st.structs.ptr; t < End(st.structs); t++)
+    for (Type *t = st.typectx.structs.ptr; t < End(st.typectx.structs); t++)
         free_type(t);
-    free(st.structs.ptr);*/
+    free(st.typectx.structs.ptr);
     return result;
 }
