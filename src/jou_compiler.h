@@ -305,7 +305,7 @@ extern const Type *byteType;      // byte (8-bit unsigned)
 extern const Type *voidPtrType;   // void*
 void init_types();  // Called once when compiler starts
 const Type *get_integer_type(int size_in_bits, bool is_signed);
-const Type *get_pointer_type(const Type *t);
+const Type *get_pointer_type(const Type *t);  // result lives as long as t
 const Type *type_of_constant(const Constant *c);
 Type *create_struct(
     const char *name,
