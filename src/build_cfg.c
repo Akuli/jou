@@ -715,7 +715,7 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
         free_type(&(*et)->type);
         if ((*et)->type_after_cast) {
             free_type((*et)->type_after_cast);
-            (*et)->type_after_cast = NULL;
+            free((*et)->type_after_cast);
         }
         free(*et);
     }
