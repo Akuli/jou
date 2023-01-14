@@ -29,6 +29,8 @@ static void make_temp_dir()
 
 int main(int argc, char **argv)
 {
+    init_types();
+
     bool verbose;
     const char *filename;
 

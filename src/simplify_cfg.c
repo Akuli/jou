@@ -444,7 +444,6 @@ static void remove_unused_variables(CfGraph *cfg)
 
     for (int i = cfg->variables.len - 1; i>=0; i--) {
         if (!used[i] && !cfg->variables.ptr[i]->is_argument) {
-            free_type(&cfg->variables.ptr[i]->type);
             free(cfg->variables.ptr[i]);
             cfg->variables.ptr[i] = Pop(&cfg->variables);
         }

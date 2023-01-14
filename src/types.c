@@ -1,70 +1,100 @@
 #include <assert.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "jou_compiler.h"
 
-const Type boolType = { .name = "bool", .kind = TYPE_BOOL };
-const Type intType = { .name = "int", .kind = TYPE_SIGNED_INTEGER, .data.width_in_bits = 32 };
-const Type byteType = { .name = "byte", .kind = TYPE_UNSIGNED_INTEGER, .data.width_in_bits = 8 };
-const Type stringType = { .name = "byte*", .kind = TYPE_POINTER, .data.valuetype = (Type *)&byteType };
-const Type voidPtrType = { .name = "void*", .kind = TYPE_VOID_POINTER };
+struct TypeInfo {
+    Type type;
+    struct TypeInfo *pointer;  // type that represents a pointer to this type, or NULL
+};
 
-Type create_pointer_type(const Type *elem_type, Location error_location)
+static struct {
+    bool inited;
+    struct TypeInfo integers[65][2];  // integers[i][j] = i-bit integer, j=1 for signed, j=0 for unsigned
+    struct TypeInfo boolean, voidptr;
+} global_state;
+
+const Type *boolType = &global_state.boolean.type;
+const Type *intType = &global_state.integers[32][true].type;
+const Type *byteType = &global_state.integers[8][false].type;
+const Type *voidPtrType = &global_state.voidptr.type;
+
+void free_type(Type *t)
 {
-    Type *dup = malloc(sizeof(*dup));
-    *dup = *elem_type;
-    Type result = { .kind=TYPE_POINTER, .data.valuetype=dup };
+    while(t) {
+        if (t->kind == TYPE_STRUCT) {
+            free(t->data.structfields.types);
+            free(t->data.structfields.names);
+        }
 
-    if (strlen(elem_type->name) + 1 >= sizeof result.name)
-        fail_with_error(error_location, "type name too long");
-    sprintf(result.name, "%s*", elem_type->name);
-
-    return result;
+        assert(offsetof(struct TypeInfo, type) == 0);
+        Type *next = &((struct TypeInfo *)t)->pointer->type;
+        free(t);
+        t = next;
+    }
 }
 
-Type create_integer_type(int size_in_bits, bool is_signed)
+static void free_global_state(void)
 {
-    Type t = { .kind = is_signed?TYPE_SIGNED_INTEGER:TYPE_UNSIGNED_INTEGER, .data.width_in_bits=size_in_bits };
-    if (size_in_bits == 8 && !is_signed)
-        strcpy(t.name, "byte");
-    else if (size_in_bits == 32 && is_signed)
-        strcpy(t.name, "int");
-    else
-        sprintf(t.name, "<%d-bit %s integer>", size_in_bits, is_signed?"signed":"unsigned");
-    return t;
+    assert(global_state.inited);
+    free_type(&global_state.boolean.pointer->type);
+    free_type(&global_state.voidptr.pointer->type);
+    for (int size = 8; size <= 64; size *= 2)
+        for (int is_signed = 0; is_signed <= 1; is_signed++)
+            free_type(&global_state.integers[size][is_signed].pointer->type);
 }
 
-Type copy_type(const Type *t)
+void init_types(void)
 {
-    Type t2 = *t;
+    assert(!global_state.inited);
 
-    switch(t->kind) {
-    case TYPE_SIGNED_INTEGER:
-    case TYPE_UNSIGNED_INTEGER:
-    case TYPE_BOOL:
-    case TYPE_VOID_POINTER:
-        break;
+    global_state.boolean.type = (Type){ .name = "bool", .kind = TYPE_BOOL };
+    global_state.voidptr.type = (Type){ .name = "void*", .kind = TYPE_VOID_POINTER };
 
-    case TYPE_POINTER:
-        t2.data.valuetype = malloc(sizeof(*t2.data.valuetype));
-        *t2.data.valuetype = copy_type(t->data.valuetype);
-        break;
+    for (int size = 8; size <= 64; size *= 2) {
+        global_state.integers[size][true].type.kind = TYPE_SIGNED_INTEGER;
+        global_state.integers[size][false].type.kind = TYPE_UNSIGNED_INTEGER;
 
-    case TYPE_STRUCT:
-        {
-            int n = t2.data.structfields.count;
-
-            t2.data.structfields.names = malloc(sizeof(t2.data.structfields.names[0]) * n);
-            memcpy(t2.data.structfields.names, t->data.structfields.names, sizeof(t2.data.structfields.names[0]) * n);
-
-            t2.data.structfields.types = malloc(sizeof(t2.data.structfields.types[0]) * n);
-            for (int i = 0; i < n; i++)
-                t2.data.structfields.types[i] = copy_type(&t->data.structfields.types[i]);
+        for (int is_signed = 0; is_signed <= 1; is_signed++) {
+            global_state.integers[size][is_signed].type.data.width_in_bits = size;
+            sprintf(
+                global_state.integers[size][is_signed].type.name,
+                "<%d-bit %s integer>",
+                size, is_signed?"signed":"unsigned");
         }
     }
 
-    return t2;
+    strcpy(global_state.integers[8][false].type.name, "byte");
+    strcpy(global_state.integers[32][true].type.name, "int");
+
+    global_state.inited = true;
+    atexit(free_global_state);  // not really necessary, but makes valgrind happier
+}
+
+const Type *type_bool(void)
+{
+    return &global_state.boolean.type;
+}
+
+const Type *get_integer_type(int size_in_bits, bool is_signed)
+{
+    assert(size_in_bits==8 || size_in_bits==16 || size_in_bits==32 || size_in_bits==64);
+    return &global_state.integers[size_in_bits][is_signed].type;
+}
+
+const Type *get_pointer_type(const Type *t)
+{
+    assert(offsetof(struct TypeInfo, type) == 0);
+    struct TypeInfo *info = (struct TypeInfo *)t;
+
+    if (!info->pointer) {
+        info->pointer = calloc(1, sizeof *info->pointer);
+        info->pointer->type = (Type){ .kind=TYPE_POINTER, .data.valuetype=t };
+        snprintf(info->pointer->type.name, sizeof info->pointer->type.name, "%s*", t->name);
+    }
+    return &info->pointer->type;
 }
 
 bool is_integer_type(const Type *t)
@@ -77,48 +107,33 @@ bool is_pointer_type(const Type *t)
     return (t->kind == TYPE_POINTER || t->kind == TYPE_VOID_POINTER);
 }
 
-bool same_type(const Type *a, const Type *b)
-{
-    if (a->kind != b->kind)
-        return false;
-
-    switch(a->kind) {
-    case TYPE_BOOL:
-    case TYPE_VOID_POINTER:
-        return true;
-    case TYPE_POINTER:
-        return same_type(a->data.valuetype, b->data.valuetype);
-    case TYPE_SIGNED_INTEGER:
-    case TYPE_UNSIGNED_INTEGER:
-        return a->data.width_in_bits == b->data.width_in_bits;
-    case TYPE_STRUCT:
-        if (a->data.structfields.count != b->data.structfields.count)
-            return false;
-        for (int i = 0; i < a->data.structfields.count; i++)
-            if (!same_type(&a->data.structfields.types[i], &b->data.structfields.types[i])
-                || strcmp(a->data.structfields.names[i], b->data.structfields.names[i]))
-            {
-                return false;
-            }
-        return true;
-    }
-
-    assert(0);
-}
-
-Type type_of_constant(const Constant *c)
+const Type *type_of_constant(const Constant *c)
 {
     switch(c->kind) {
     case CONSTANT_NULL:
         return voidPtrType;
     case CONSTANT_STRING:
-        return stringType;
+        return get_pointer_type(byteType);
     case CONSTANT_BOOL:
-        return boolType;
+        return type_bool();
     case CONSTANT_INTEGER:
-        return create_integer_type(c->data.integer.width_in_bits, c->data.integer.is_signed);
+        return get_integer_type(c->data.integer.width_in_bits, c->data.integer.is_signed);
     }
     assert(0);
+}
+
+Type *create_struct(const char *name, int fieldcount, char (*fieldnames)[100], const Type **fieldtypes)
+{
+    struct TypeInfo *result = calloc(1, sizeof *result);
+    result->type = (Type){
+        .kind = TYPE_STRUCT,
+        .data.structfields = {.count=fieldcount, .types=fieldtypes, .names=fieldnames},
+    };
+
+    assert(strlen(name) < sizeof result->type.name);
+    strcpy(result->type.name, name);
+
+    return &result->type;
 }
 
 
@@ -133,7 +148,7 @@ char *signature_to_string(const Signature *sig, bool include_return_type)
             AppendStr(&result, ", ");
         AppendStr(&result, sig->argnames[i]);
         AppendStr(&result, ": ");
-        AppendStr(&result, sig->argtypes[i].name);
+        AppendStr(&result, sig->argtypes[i]->name);
     }
     if (sig->takes_varargs) {
         if (sig->nargs)
@@ -153,17 +168,12 @@ Signature copy_signature(const Signature *sig)
 {
     Signature result = *sig;
 
-    result.argtypes = malloc(sizeof(result.argtypes[0]) * result.nargs);
+    result.argtypes = malloc(sizeof(result.argtypes[0]) * result.nargs); // NOLINT
     for (int i = 0; i < result.nargs; i++)
-        result.argtypes[i] = copy_type(&sig->argtypes[i]);
+        result.argtypes[i] = sig->argtypes[i];
 
     result.argnames = malloc(sizeof(result.argnames[0]) * result.nargs);
     memcpy(result.argnames, sig->argnames, sizeof(result.argnames[0]) * result.nargs);
-
-    if (result.returntype) {
-        result.returntype = malloc(sizeof(*result.returntype));
-        *result.returntype = copy_type(sig->returntype);
-    }
 
     return result;
 }

@@ -388,13 +388,13 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         printf(")");
         break;
     case CF_INT_CAST:
-        assert(is_integer_type(&ins->operands[0]->type));
-        assert(is_integer_type(&ins->destvar->type));
+        assert(is_integer_type(ins->operands[0]->type));
+        assert(is_integer_type(ins->destvar->type));
         printf("int cast %s (%d-bit %s --> %d-bit %s)", varname(ins->operands[0]),
-            ins->operands[0]->type.data.width_in_bits,
-            ins->operands[0]->type.kind==TYPE_SIGNED_INTEGER ? "signed" : "unsigned",
-            ins->destvar->type.data.width_in_bits,
-            ins->destvar->type.kind==TYPE_SIGNED_INTEGER ? "signed" : "unsigned");
+            ins->operands[0]->type->data.width_in_bits,
+            ins->operands[0]->type->kind==TYPE_SIGNED_INTEGER ? "signed" : "unsigned",
+            ins->destvar->type->data.width_in_bits,
+            ins->destvar->type->kind==TYPE_SIGNED_INTEGER ? "signed" : "unsigned");
         break;
     case CF_CONSTANT:
         print_constant(&ins->data.constant);
@@ -457,7 +457,7 @@ static void print_control_flow_graph_with_indent(const CfGraph *cfg, int indent)
 
     printf("%*sVariables:\n", indent, "");
     for (Variable **var = cfg->variables.ptr; var < End(cfg->variables); var++) {
-        printf("%*s  %-20s  %s\n", indent, "", varname(*var), (*var)->type.name);
+        printf("%*s  %-20s  %s\n", indent, "", varname(*var), (*var)->type->name);
     }
 
     for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {

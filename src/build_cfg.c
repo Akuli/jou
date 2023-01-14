@@ -2,7 +2,7 @@
 
 
 struct State {
-    TypeContext typectx;
+    TypeContext *typectx;
     CfGraph *cfg;
     CfBlock *current_block;
     List(CfBlock *) breakstack;
@@ -11,7 +11,7 @@ struct State {
 
 static const Variable *find_variable(const struct State *st, const char *name)
 {
-    for (Variable **var = st->typectx.variables.ptr; var < End(st->typectx.variables); var++)
+    for (Variable **var = st->typectx->variables.ptr; var < End(st->typectx->variables); var++)
         if (!strcmp((*var)->name, name))
             return *var;
     return NULL;
@@ -20,18 +20,18 @@ static const Variable *find_variable(const struct State *st, const char *name)
 static Variable *add_variable(struct State *st, const Type *t)
 {
     Variable *var = calloc(1, sizeof *var);
-    var->id = st->typectx.variables.len;
-    var->type = copy_type(t);
-    Append(&st->typectx.variables, var);
+    var->id = st->typectx->variables.len;
+    var->type = t;
+    Append(&st->typectx->variables, var);
     return var;
 }
 
 static const ExpressionTypes *get_expr_types(const struct State *st, const AstExpression *expr)
 {
     // TODO: a fancy binary search algorithm (need to add sorting)
-    for (int i = 0; i < st->typectx.expr_types.len; i++)
-        if (st->typectx.expr_types.ptr[i]->expr == expr)
-            return st->typectx.expr_types.ptr[i];
+    for (int i = 0; i < st->typectx->expr_types.len; i++)
+        if (st->typectx->expr_types.ptr[i]->expr == expr)
+            return st->typectx->expr_types.ptr[i];
     return NULL;
 }
 
@@ -48,7 +48,7 @@ static void add_jump(struct State *st, const Variable *branchvar, CfBlock *iftru
     assert(iffalse);
     if (iftrue != iffalse) {
         assert(branchvar);
-        assert(same_type(&branchvar->type, &boolType));
+        assert(branchvar->type == boolType);
     }
 
     st->current_block->branchvar = branchvar;
@@ -94,16 +94,16 @@ static CfInstruction *add_instruction(
 static const Variable *build_cast(
     struct State *st, const Variable *obj, const Type *to, Location location)
 {
-    if (same_type(&obj->type, to))
+    if (obj->type == to)
         return obj;
 
     const Variable *result = add_variable(st, to);
 
-    if (is_pointer_type(&obj->type) && is_pointer_type(to)) {
+    if (is_pointer_type(obj->type) && is_pointer_type(to)) {
         add_unary_op(st, location, CF_PTR_CAST, obj, result);
         return result;
     }
-    if (is_integer_type(&obj->type) && is_integer_type(to)) {
+    if (is_integer_type(obj->type) && is_integer_type(to)) {
         add_unary_op(st, location, CF_INT_CAST, obj, result);
         return result;
     }
@@ -118,9 +118,9 @@ static const Variable *build_binop(
     const Variable *rhs,
     const Type *result_type)
 {
-    bool got_integers = is_integer_type(&lhs->type) && is_integer_type(&rhs->type);
-    bool got_pointers = is_pointer_type(&lhs->type) && is_pointer_type(&rhs->type);
-    bool is_signed = lhs->type.kind == TYPE_SIGNED_INTEGER || rhs->type.kind == TYPE_SIGNED_INTEGER;
+    bool got_integers = is_integer_type(lhs->type) && is_integer_type(rhs->type);
+    bool got_pointers = is_pointer_type(lhs->type) && is_pointer_type(rhs->type);
+    bool is_signed = lhs->type->kind == TYPE_SIGNED_INTEGER || rhs->type->kind == TYPE_SIGNED_INTEGER;
     assert(got_integers || got_pointers);
 
     enum CfInstructionKind k;
@@ -147,7 +147,7 @@ static const Variable *build_binop(
     if (!negate)
         return destvar;
 
-    const Variable *negated = add_variable(st, &boolType);
+    const Variable *negated = add_variable(st, boolType);
     add_unary_op(st, location, CF_BOOL_NEGATE, destvar, negated);
     return negated;
 }
@@ -155,23 +155,20 @@ static const Variable *build_binop(
 static const Variable *build_struct_field_pointer(
     struct State *st, const Variable *structinstance, const char *fieldname, Location location)
 {
-    assert(structinstance->type.kind == TYPE_POINTER);
-    assert(structinstance->type.data.valuetype->kind == TYPE_STRUCT);
-    const Type *structtype = structinstance->type.data.valuetype;
+    assert(structinstance->type->kind == TYPE_POINTER);
+    assert(structinstance->type->data.valuetype->kind == TYPE_STRUCT);
+    const Type *structtype = structinstance->type->data.valuetype;
 
     for (int i = 0; i < structtype->data.structfields.count; i++) {
         char name[100];
         safe_strcpy(name, structtype->data.structfields.names[i]);
-        const Type *type = &structtype->data.structfields.types[i];
+        const Type *type = structtype->data.structfields.types[i];
 
         if (!strcmp(name, fieldname)) {
-            const Type ptrtype = create_pointer_type(type, location);
-            Variable* result = add_variable(st, &ptrtype);
-            free(ptrtype.data.valuetype);
-
             union CfInstructionData dat;
             safe_strcpy(dat.fieldname, name);
 
+            Variable* result = add_variable(st, get_pointer_type(type));
             add_instruction(st, location, CF_PTR_STRUCT_FIELD, &dat, (const Variable*[]){structinstance,NULL}, result);
             return result;
         }
@@ -198,20 +195,20 @@ static const Variable *build_increment_or_decrement(
     assert(diff==1 || diff==-1);  // 1=increment, -1=decrement
 
     const Variable *addr = build_address_of_expression(st, inner, true);
-    assert(addr->type.kind == TYPE_POINTER);
-    const Type *t = addr->type.data.valuetype;
+    assert(addr->type->kind == TYPE_POINTER);
+    const Type *t = addr->type->data.valuetype;
     if (!is_integer_type(t) && !is_pointer_type(t))
         fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
 
     const Variable *old_value = add_variable(st, t);
     const Variable *new_value = add_variable(st, t);
-    const Variable *diffvar = add_variable(st, is_integer_type(t)?t:&intType);
+    const Variable *diffvar = add_variable(st, is_integer_type(t) ? t : intType);
 
     Constant diffconst = {
         .kind = CONSTANT_INTEGER,
         .data.integer = {
-            .width_in_bits = diffvar->type.data.width_in_bits,
-            .is_signed = (diffvar->type.kind == TYPE_SIGNED_INTEGER),
+            .width_in_bits = diffvar->type->data.width_in_bits,
+            .is_signed = (diffvar->type->kind == TYPE_SIGNED_INTEGER),
             .value = diff,
         },
     };
@@ -233,11 +230,11 @@ static const Variable *build_indexing(struct State *st, const AstExpression *ptr
 {
     const Variable *ptr = build_expression(st, ptrexpr);
     const Variable *index = build_expression(st, indexexpr);
-    assert(ptr->type.kind == TYPE_POINTER);
-    assert(is_integer_type(&index->type));
+    assert(ptr->type->kind == TYPE_POINTER);
+    assert(is_integer_type(index->type));
 
-    const Variable *ptr2 = add_variable(st, &ptr->type);
-    const Variable *result = add_variable(st, ptr->type.data.valuetype);
+    const Variable *ptr2 = add_variable(st, ptr->type);
+    const Variable *result = add_variable(st, ptr->type->data.valuetype);
     add_binary_op(st, ptrexpr->location, CF_PTR_ADD_INT, ptr, index, ptr2);
     add_unary_op(st, ptrexpr->location, CF_PTR_LOAD, ptr2, result);
     return result;
@@ -267,7 +264,7 @@ static const Variable *build_and_or(
     */
     const Variable *lhs = build_expression(st, lhsexpr);
     const Variable *rhs;
-    const Variable *result = add_variable(st, &boolType);
+    const Variable *result = add_variable(st, boolType);
     CfInstruction *ins;
 
     CfBlock *lhstrue = add_block(st);
@@ -319,9 +316,7 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
     {
         const Variable *var = find_variable(st, address_of_what->data.varname);
         assert(var);
-        Type t = create_pointer_type(&var->type, (Location){0});
-        const Variable *addr = add_variable(st, &t);
-        free(t.data.valuetype);
+        const Variable *addr = add_variable(st, get_pointer_type(var->type));
         add_unary_op(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, var, addr);
         return addr;
     }
@@ -334,16 +329,16 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
     {
         // &obj->field aka &(obj->field)
         const Variable *obj = build_expression(st, address_of_what->data.field.obj);
-        assert(obj->type.kind == TYPE_POINTER);
-        assert(obj->type.data.valuetype->kind == TYPE_STRUCT);
+        assert(obj->type->kind == TYPE_POINTER);
+        assert(obj->type->data.valuetype->kind == TYPE_STRUCT);
         return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
     }
     case AST_EXPR_GET_FIELD:
     {
         // &obj.field aka &(obj.field), evaluate as &(&obj)->field
         const Variable *obj = build_address_of_expression(st, address_of_what->data.field.obj, false);
-        assert(obj->type.kind == TYPE_POINTER);
-        assert(obj->type.data.valuetype->kind == TYPE_STRUCT);
+        assert(obj->type->kind == TYPE_POINTER);
+        assert(obj->type->data.valuetype->kind == TYPE_STRUCT);
         return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
     }
 
@@ -388,7 +383,7 @@ static const Variable *build_function_call(struct State *st, const AstExpression
     const ExpressionTypes *types = get_expr_types(st, expr);
     const Variable *return_value;
     if (types)
-        return_value = add_variable(st, &types->type);
+        return_value = add_variable(st, types->type);
     else
         return_value = NULL;
 
@@ -403,9 +398,7 @@ static const Variable *build_function_call(struct State *st, const AstExpression
 static const Variable *build_struct_init(struct State *st, const Type *type, const AstCall *call, Location location)
 {
     const Variable *instance = add_variable(st, type);
-    Type p = create_pointer_type(type, location);
-    const Variable *instanceptr = add_variable(st, &p);
-    free(p.data.valuetype);
+    const Variable *instanceptr = add_variable(st, get_pointer_type(type));
 
     add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
     add_unary_op(st, location, CF_PTR_MEMSET_TO_ZERO, instanceptr, NULL);
@@ -432,14 +425,14 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
             return NULL;
         break;
     case AST_EXPR_BRACE_INIT:
-        result = build_struct_init(st, &types->type, &expr->data.call, expr->location);
+        result = build_struct_init(st, types->type, &expr->data.call, expr->location);
         break;
     case AST_EXPR_GET_FIELD:
     case AST_EXPR_DEREF_AND_GET_FIELD:
         // To evaluate foo.bar or foo->bar, we first evaluate &foo.bar or &foo->bar.
         // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
         temp = build_address_of_expression(st, expr, false);
-        result = add_variable(st, &types->type);
+        result = add_variable(st, types->type);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_INDEXING:
@@ -451,20 +444,20 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
     case AST_EXPR_GET_VARIABLE:
         result = find_variable(st, expr->data.varname);
         assert(result);
-        if (types->type_after_cast == NULL || same_type(&types->type, types->type_after_cast)) {
+        if (types->type_after_cast == NULL || types->type == types->type_after_cast) {
             // Must take a "snapshot" of this variable, as it may change soon.
             temp = result;
-            result = add_variable(st, &temp->type);
+            result = add_variable(st, temp->type);
             add_unary_op(st, expr->location, CF_VARCPY, temp, result);
         }
         break;
     case AST_EXPR_DEREFERENCE:
         temp = build_expression(st, &expr->data.operands[0]);
-        result = add_variable(st, &types->type);
+        result = add_variable(st, types->type);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_CONSTANT:
-        result = add_variable(st, &types->type);
+        result = add_variable(st, types->type);
         add_constant(st, expr->location, expr->data.constant, result);
         break;
     case AST_EXPR_AND:
@@ -475,7 +468,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         break;
     case AST_EXPR_NOT:
         temp = build_expression(st, &expr->data.operands[0]);
-        result = add_variable(st, &boolType);
+        result = add_variable(st, boolType);
         add_unary_op(st, expr->location, CF_BOOL_NEGATE, temp, result);
         break;
     case AST_EXPR_ADD:
@@ -493,7 +486,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
             // order of function arguments.
             const Variable *lhs = build_expression(st, &expr->data.operands[0]);
             const Variable *rhs = build_expression(st, &expr->data.operands[1]);
-            result = build_binop(st, expr->kind, expr->location, lhs, rhs, &types->type);
+            result = build_binop(st, expr->kind, expr->location, lhs, rhs, types->type);
             break;
         }
     case AST_EXPR_PRE_INCREMENT:
@@ -516,12 +509,12 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         }
     case AST_EXPR_AS:
         temp = build_expression(st, expr->data.as.obj);
-        result = build_cast(st, temp, &types->type, expr->location);
+        result = build_cast(st, temp, types->type, expr->location);
         break;
     }
 
     assert(types);
-    assert(same_type(&result->type, &types->type));
+    assert(result->type == types->type);
     if (types->type_after_cast)
         return build_cast(st, result, types->type_after_cast, expr->location);
     else
@@ -641,7 +634,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
             } else {
                 const Variable *target = build_address_of_expression(st, targetexpr, true);
                 const Variable *value = build_expression(st, valueexpr);
-                assert(target->type.kind == TYPE_POINTER);
+                assert(target->type->kind == TYPE_POINTER);
                 add_binary_op(st, stmt->location, CF_PTR_STORE, target, value, NULL);
             }
             break;
@@ -697,17 +690,17 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
     st->current_block->iftrue = &st->cfg->end_block;
     st->current_block->iffalse = &st->cfg->end_block;
 
-    for (Variable **v = st->typectx.variables.ptr; v < End(st->typectx.variables); v++)
+    for (Variable **v = st->typectx->variables.ptr; v < End(st->typectx->variables); v++)
         Append(&st->cfg->variables, *v);
 
-    reset_type_context(&st->typectx);
+    reset_type_context(st->typectx);
     return st->cfg;
 }
 
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
 {
     CfGraphFile result = { .filename = ast->location.filename };
-    struct State st = {0};
+    struct State st = { .typectx = &result.typectx };
 
     int n = 0;
     while (ast[n].kind!=AST_TOPLEVEL_END_OF_FILE) n++;
@@ -718,25 +711,24 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         case AST_TOPLEVEL_DECLARE_FUNCTION:
-            typecheck_function(&st.typectx, ast->location, &ast->data.decl_signature, NULL);
+            typecheck_function(&result.typectx, ast->location, &ast->data.decl_signature, NULL);
             result.graphs[result.nfuncs++] = NULL;
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            typecheck_function(&st.typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
+            typecheck_function(&result.typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
             result.graphs[result.nfuncs++] = build_function(&st, &ast->data.funcdef.body);
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
-            typecheck_struct(&st.typectx, &ast->data.structdef, ast->location);
+            typecheck_struct(&result.typectx, &ast->data.structdef, ast->location);
             break;
         }
         ast++;
     }
 
-    assert(result.nfuncs == st.typectx.function_signatures.len);
-    result.signatures = st.typectx.function_signatures.ptr;
+    assert(result.nfuncs == st.typectx->function_signatures.len);
+    result.signatures = st.typectx->function_signatures.ptr;
 
     free(st.breakstack.ptr);
     free(st.continuestack.ptr);
-    destroy_type_context(&st.typectx);
     return result;
 }
