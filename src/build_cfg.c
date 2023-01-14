@@ -23,7 +23,7 @@ static const ExpressionTypes *get_expr_types(const struct State *st, const AstEx
     for (int i = 0; i < st->typectx.expr_types.len; i++)
         if (st->typectx.expr_types.ptr[i]->expr == expr)
             return st->typectx.expr_types.ptr[i];
-    assert(0);
+    return NULL;
 }
 
 static Variable *add_variable(struct State *st, const Type *t, const char *name)
@@ -844,6 +844,9 @@ static CfGraph *build_function(struct State *st, const Signature *sig, const Ast
     // Implicit return at the end of the function
     st->current_block->iftrue = &st->cfg->end_block;
     st->current_block->iffalse = &st->cfg->end_block;
+
+    memcpy(&st->cfg->variables, &st->typectx.variables, sizeof st->typectx.variables);
+    memset(&st->typectx.variables, 0, sizeof st->typectx.variables);
 
     return st->cfg;
 }
