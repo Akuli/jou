@@ -342,6 +342,19 @@ Type type_from_ast(const TypeContext *ctx, const AstType *asttype);
 Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttype);
 void typecheck_function(TypeContext *ctx, const Signature *sig, const AstBody *body);
 
+/*
+Difference between reset and destroy:
+
+- reset wipes all function-specific data. For example, the list of local
+  variables is emptied so that the next function doesn't have access to the
+  same local variables. But e.g. the list of all known function signatures
+  is preserved, so that the next function can call the previous function.
+
+- destroy frees all memory used by the type context, making it unusable.
+*/
+void reset_type_context(TypeContext *ctx);
+void destroy_type_context(const TypeContext *ctx);
+
 
 // Control Flow Graph.
 // Struct names not prefixed with Cfg because it looks too much like "config" to me

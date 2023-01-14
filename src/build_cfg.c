@@ -700,18 +700,10 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
     st->current_block->iftrue = &st->cfg->end_block;
     st->current_block->iffalse = &st->cfg->end_block;
 
-    memcpy(&st->cfg->variables, &st->typectx.variables, sizeof st->typectx.variables);
-    memset(&st->typectx.variables, 0, sizeof st->typectx.variables);
+    for (Variable **v = st->typectx.variables.ptr; v < End(st->typectx.variables); v++)
+        Append(&st->cfg->variables, *v);
 
-    for (ExpressionTypes **et = st->typectx.expr_types.ptr; et < End(st->typectx.expr_types); et++) {
-        free_type(&(*et)->type);
-        if ((*et)->type_after_cast) {
-            free_type((*et)->type_after_cast);
-            free((*et)->type_after_cast);
-        }
-        free(*et);
-    }
-    st->typectx.expr_types.len = 0;
+    reset_type_context(&st->typectx);
     return st->cfg;
 }
 
@@ -807,9 +799,6 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
 
     free(st.breakstack.ptr);
     free(st.continuestack.ptr);
-    free(st.typectx.expr_types.ptr);
-    for (Type *t = st.typectx.structs.ptr; t < End(st.typectx.structs); t++)
-        free_type(t);
-    free(st.typectx.structs.ptr);
+    destroy_type_context(&st.typectx);
     return result;
 }

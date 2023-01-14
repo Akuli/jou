@@ -663,3 +663,26 @@ void typecheck_function(TypeContext *ctx, const Signature *sig, const AstBody *b
         ctx->current_function_signature = NULL;
     }
 }
+
+void reset_type_context(TypeContext *ctx)
+{
+    for (ExpressionTypes **et = ctx->expr_types.ptr; et < End(ctx->expr_types); et++) {
+        free_type(&(*et)->type);
+        if ((*et)->type_after_cast) {
+            free_type((*et)->type_after_cast);
+            free((*et)->type_after_cast);
+        }
+        free(*et);
+    }
+    ctx->expr_types.len = 0;
+    ctx->variables.len = 0;
+}
+
+void destroy_type_context(const TypeContext *ctx)
+{
+    free(ctx->expr_types.ptr);
+    free(ctx->variables.ptr);
+    for (Type *t = ctx->structs.ptr; t < End(ctx->structs); t++)
+        free_type(t);
+    free(ctx->structs.ptr);
+}
