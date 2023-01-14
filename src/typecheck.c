@@ -2,15 +2,12 @@
 
 
 // If error_location is NULL, this will return NULL when variable is not found.
-static const Variable *find_variable(const TypeContext *ctx, const char *name, const Location *error_location)
+static const Variable *find_variable(const TypeContext *ctx, const char *name)
 {
     for (Variable **var = ctx->variables.ptr; var < End(ctx->variables); var++)
         if (!strcmp((*var)->name, name))
             return *var;
-
-    if (!error_location)
-        return NULL;
-    fail_with_error(*error_location, "no local variable named '%s'", name);
+    return NULL;
 }
 
 void add_variable(TypeContext *ctx, const Type *t, const char *name)
@@ -18,11 +15,10 @@ void add_variable(TypeContext *ctx, const Type *t, const char *name)
     Variable *var = calloc(1, sizeof *var);
     var->id = ctx->variables.len;
     var->type = copy_type(t);
-    if (name) {
-        assert(!find_variable(ctx, name, NULL));
-        assert(strlen(name) < sizeof var->name);
-        strcpy(var->name, name);
-    }
+    assert(name);
+    assert(!find_variable(ctx, name));
+    assert(strlen(name) < sizeof var->name);
+    strcpy(var->name, name);
     Append(&ctx->variables, var);
 }
 
@@ -441,7 +437,12 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         result = create_pointer_type(&temptype, expr->location);
         break;
     case AST_EXPR_GET_VARIABLE:
-        result = find_variable(ctx, expr->data.varname, &expr->location)->type;
+        {
+            const Variable *v = find_variable(ctx, expr->data.varname);
+            if (!v)
+                fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
+            result = v->type;
+        }
         break;
     case AST_EXPR_DEREFERENCE:
         temptype = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
@@ -569,7 +570,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
             const AstExpression *targetexpr = &stmt->data.assignment.target;
             const AstExpression *valueexpr = &stmt->data.assignment.value;
             if (targetexpr->kind == AST_EXPR_GET_VARIABLE
-                && !find_variable(ctx, targetexpr->data.varname, NULL))
+                && !find_variable(ctx, targetexpr->data.varname))
             {
                 // Making a new variable. Use the type of the value being assigned.
                 const ExpressionTypes *types = typecheck_expression(ctx, valueexpr);
@@ -613,7 +614,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
             "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
             ctx->current_function_signature->funcname);
         typecheck_expression_with_implicit_cast(
-            ctx, &stmt->data.expression, &find_variable(ctx, "return", NULL)->type, msg);
+            ctx, &stmt->data.expression, &find_variable(ctx, "return")->type, msg);
         break;
     }
 
@@ -628,10 +629,13 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
         break;
 
     case AST_STMT_DECLARE_LOCAL_VAR:
-        if (find_variable(ctx, stmt->data.vardecl.name, NULL))
+        if (find_variable(ctx, stmt->data.vardecl.name))
             fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
 
         Type type = type_from_ast(ctx, &stmt->data.vardecl.type);
+        typecheck_expression_with_implicit_cast(
+            ctx, stmt->data.vardecl.initial_value, &type,
+            "initial value for variable of type TO cannot be of type FROM");
         add_variable(ctx, &type, stmt->data.vardecl.name);
         break;
 
@@ -651,5 +655,4 @@ void typecheck_function(TypeContext *ctx, const Signature *sig, const AstBody *b
         ctx->expr_types.len,
         sizeof(ctx->expr_types.ptr[0]),  // NOLINT
         compare_exprtypes);
-    typecheck_body(ctx, body);
 }

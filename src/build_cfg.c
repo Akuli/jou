@@ -633,6 +633,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         break;
     }
 
+    assert(types);
     assert(same_type(&result->type, &types->type));
     if (types->type_after_cast)
         return build_cast(st, result, types->type_after_cast, expr->location);
@@ -792,7 +793,7 @@ static CfGraph *build_function(struct State *st, const Signature *sig, const Ast
         Variable *v = add_variable(st, &sig->argtypes[i], sig->argnames[i]);
         v->is_argument = true;
     }
-    if (sig->returntype) 
+    if (sig->returntype)
         add_variable(st, sig->returntype, "return");
     typecheck_function(&st->typectx, sig, body);
 
