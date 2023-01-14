@@ -296,8 +296,8 @@ can simply use "==" between two "const Type *" pointers.
 
 Struct types are a bit different. When you make a struct, you get a
 pointer that you must pass to free_type() later. You can still "=="
-compare structs, because two different structs with the same members
-are not the same type.
+compare types, because two different structs with the same members are
+not the same type.
 */
 extern const Type *boolType;      // bool
 extern const Type *intType;       // int (32-bit signed)

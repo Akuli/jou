@@ -50,7 +50,7 @@ void init_types(void)
 
     for (int size = 8; size <= 64; size *= 2) {
         global_state.integers[size][true].type.kind = TYPE_SIGNED_INTEGER;
-        global_state.integers[size][false].type.kind = TYPE_SIGNED_INTEGER;
+        global_state.integers[size][false].type.kind = TYPE_UNSIGNED_INTEGER;
 
         for (int is_signed = 0; is_signed <= 1; is_signed++) {
             global_state.integers[size][is_signed].type.data.width_in_bits = size;
