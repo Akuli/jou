@@ -633,9 +633,11 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
             fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
 
         Type type = type_from_ast(ctx, &stmt->data.vardecl.type);
-        typecheck_expression_with_implicit_cast(
-            ctx, stmt->data.vardecl.initial_value, &type,
-            "initial value for variable of type TO cannot be of type FROM");
+        if (stmt->data.vardecl.initial_value) {
+            typecheck_expression_with_implicit_cast(
+                ctx, stmt->data.vardecl.initial_value, &type,
+                "initial value for variable of type TO cannot be of type FROM");
+        }
         add_variable(ctx, &type, stmt->data.vardecl.name);
         break;
 
