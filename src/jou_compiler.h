@@ -29,6 +29,7 @@ typedef struct AstFunctionDef AstFunctionDef;
 typedef struct AstStructDef AstStructDef;
 
 typedef struct Variable Variable;
+typedef struct ExpressionTypes ExpressionTypes;
 typedef struct TypeContext TypeContext;
 
 typedef struct CfBlock CfBlock;
@@ -318,38 +319,26 @@ Signature copy_signature(const Signature *sig);
 
 struct Variable {
     int id;  // Unique, but you can also compare pointers to Variable.
-    char name[100];  // Same name as in user's code or empty
+    char name[100];  // Same name as in user's code, empty for temporary variables created by compiler
     Type type;
     bool is_argument;    // First n variables are always the arguments
 };
 
-// TypeContext is the information needed for determining the type of an expression.
+struct ExpressionTypes {
+    const AstExpression *expr;
+    Type type;
+    Type *type_after_cast;  // NULL for no implicit cast
+};
 struct TypeContext {
+    const Signature *current_function_signature;
+    // expr_types tells what type each expression has.
+    // It contains nothing for calls to "-> void" functions.
+    List(ExpressionTypes *) expr_types;
     List(Variable *) variables;
     List(Type) structs;
     List(Signature) function_signatures;
 };
-
-// Returns NULL if a "-> void" function was called.
-// Otherwise returns type of the expression and needs free_type().
-const Type *typecheck_expression(const TypeContext *ctx, const AstExpression *expr);
-
-/*
-Implicit casts are used in many places, e.g. function arguments.
-
-When you pass an argument of the wrong type, it's best to give an error message
-that says so, instead of some generic "expected type foo, got object of type bar"
-kind of message.
-
-The template can contain "FROM" and "TO". They will be substituted with names
-of types. We cannot use printf() style functions because the arguments can be in
-any order.
-*/
-void typecheck_expression_with_implicit_cast(
-    const TypeContext *ctx,
-    const AstExpression *expr,
-    const Type *casttype,
-    const char *errormsg_template);
+void typecheck_function(TypeContext *ctx, const Signature *sig, const AstBody *body);
 
 
 // Control Flow Graph.

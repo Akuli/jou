@@ -13,6 +13,19 @@ static const Variable *find_variable(const TypeContext *ctx, const char *name, c
     fail_with_error(*error_location, "no local variable named '%s'", name);
 }
 
+void add_variable(TypeContext *ctx, const Type *t, const char *name)
+{
+    Variable *var = calloc(1, sizeof *var);
+    var->id = ctx->variables.len;
+    var->type = copy_type(t);
+    if (name) {
+        assert(!find_variable(ctx, name, NULL));
+        assert(strlen(name) < sizeof var->name);
+        strcpy(var->name, name);
+    }
+    Append(&ctx->variables, var);
+}
+
 static const Signature *find_function(const TypeContext *ctx, const char *name)
 {
     for (Signature *sig = ctx->function_signatures.ptr; sig < End(ctx->function_signatures); sig++)
@@ -69,6 +82,17 @@ static Type type_from_ast(const TypeContext *ctx, const AstType *asttype)
     return t;
 }
 
+/*
+Implicit casts are used in many places, e.g. function arguments.
+
+When you pass an argument of the wrong type, it's best to give an error message
+that says so, instead of some generic "expected type foo, got object of type bar"
+kind of message.
+
+The template can contain "FROM" and "TO". They will be substituted with names
+of types. We cannot use printf() style functions because the arguments can be in
+any order.
+*/
 static noreturn void fail_with_implicit_cast_error(
     Location location, const char *template, const Type *from, const Type *to)
 {
@@ -88,9 +112,10 @@ static noreturn void fail_with_implicit_cast_error(
     fail_with_error(location, "%.*s", msg.len, msg.ptr);
 }
 
-static void typecheck_implicit_cast(
-    const Type *from, const Type *to, Location location, const char *errormsg_template)
+static void do_implicit_cast(
+    ExpressionTypes *types, const Type *to, Location location, const char *errormsg_template)
 {
+    const Type *from = &types->type;
     bool can_cast =
         same_type(from, to)
         || (
@@ -107,9 +132,12 @@ static void typecheck_implicit_cast(
 
     if (!can_cast)
         fail_with_implicit_cast_error(location, errormsg_template, from, to);
+
+    types->type_after_cast = malloc(sizeof *types->type_after_cast);
+    *types->type_after_cast = copy_type(to);
 }
 
-static void typecheck_explicit_cast(const Type *from, const Type *to, Location location)
+static void check_explicit_cast(const Type *from, const Type *to, Location location)
 {
     if (
         !same_type(from, to)  // TODO: should probably be error if it's the same type.
@@ -123,36 +151,36 @@ static void typecheck_explicit_cast(const Type *from, const Type *to, Location l
     }
 }
 
-static Type typecheck_expression_not_void(const TypeContext *ctx, const AstExpression *expr)
+static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpression *expr);
+
+static ExpressionTypes *typecheck_expression_not_void(TypeContext *ctx, const AstExpression *expr)
 {
-    Type *checkresult = typecheck_expression(ctx, expr);
-    if (!checkresult) {
+    ExpressionTypes *types = typecheck_expression(ctx, expr);
+    if (!types) {
         assert(expr->kind == AST_EXPR_FUNCTION_CALL);
         fail_with_error(
             expr->location, "function '%s' does not return a value", expr->data.call.calledname);
     }
-
-    Type t = *checkresult;
-    free(checkresult);
-    return t;
+    return types;
 }
 
-void typecheck_expression_with_implicit_cast(
-    const TypeContext *ctx,
+static void typecheck_expression_with_implicit_cast(
+    TypeContext *ctx,
     const AstExpression *expr,
     const Type *casttype,
     const char *errormsg_template)
 {
-    Type t = typecheck_expression_not_void(ctx, expr);
-    typecheck_implicit_cast(&t, casttype, expr->location, errormsg_template);
-    free_type(&t);
+    ExpressionTypes *types = typecheck_expression_not_void(ctx, expr);
+    do_implicit_cast(types, casttype, expr->location, errormsg_template);
+    types->type_after_cast = malloc(sizeof *types->type_after_cast);
+    *types->type_after_cast = copy_type(casttype);
 }
 
-static Type typecheck_binop(
+static Type check_binop(
     enum AstExpressionKind op,
     Location location,
-    const Type *lhstype,
-    const Type *rhstype)
+    ExpressionTypes *lhstypes,
+    ExpressionTypes *rhstypes)
 {
     const char *do_what;
     switch(op) {
@@ -174,34 +202,40 @@ static Type typecheck_binop(
         assert(0);
     }
 
-    bool got_integers = is_integer_type(lhstype) && is_integer_type(rhstype);
+    bool got_integers = is_integer_type(&lhstypes->type) && is_integer_type(&rhstypes->type);
     bool got_pointers = (
-        is_pointer_type(lhstype)
-        && is_pointer_type(rhstype)
+        is_pointer_type(&lhstypes->type)
+        && is_pointer_type(&rhstypes->type)
         && (
             // Ban comparisons like int* == byte*, unless one of the two types is void*
-            same_type(lhstype, rhstype)
-            || same_type(lhstype, &voidPtrType)
-            || same_type(rhstype, &voidPtrType)
+            same_type(&lhstypes->type, &rhstypes->type)
+            || same_type(&lhstypes->type, &voidPtrType)
+            || same_type(&rhstypes->type, &voidPtrType)
         )
     );
 
     if (!got_integers && !(got_pointers && (op == AST_EXPR_EQ || op == AST_EXPR_NE)))
-        fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhstype->name, rhstype->name);
+        fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type.name, rhstypes->type.name);
 
     // TODO: is this a good idea?
     Type cast_type;
     if (got_integers) {
         cast_type = create_integer_type(
-            max(lhstype->data.width_in_bits, rhstype->data.width_in_bits),
-            lhstype->kind == TYPE_SIGNED_INTEGER || lhstype->kind == TYPE_SIGNED_INTEGER
+            max(lhstypes->type.data.width_in_bits, rhstypes->type.data.width_in_bits),
+            lhstypes->type.kind == TYPE_SIGNED_INTEGER || lhstypes->type.kind == TYPE_SIGNED_INTEGER
         );
     }
     if (got_pointers) {
         cast_type = voidPtrType;
     }
+    do_implicit_cast(lhstypes, &cast_type, (Location){0}, NULL);
+    do_implicit_cast(rhstypes, &cast_type, (Location){0}, NULL);
 
-    Type result_type;
+    lhstypes->type_after_cast = malloc(sizeof *lhstypes->type_after_cast);
+    rhstypes->type_after_cast = malloc(sizeof *rhstypes->type_after_cast);
+    *lhstypes->type_after_cast = cast_type;
+    *rhstypes->type_after_cast = cast_type;
+
     switch(op) {
         case AST_EXPR_ADD:
         case AST_EXPR_SUB:
@@ -220,7 +254,7 @@ static Type typecheck_binop(
     }
 }
 
-static Type typecheck_increment_or_decrement(const TypeContext *ctx, const AstExpression *expr)
+static Type check_increment_or_decrement(TypeContext *ctx, const AstExpression *expr)
 {
     const char *do_what;
     switch(expr->kind) {
@@ -236,10 +270,10 @@ static Type typecheck_increment_or_decrement(const TypeContext *ctx, const AstEx
         assert(0);
     }
 
-    Type elemtype = typecheck_expression_not_void(ctx, &expr->data.operands[0]);
-    if (!is_integer_type(&elemtype) && !is_pointer_type(&elemtype))
-        fail_with_error(expr->location, "cannot %s a value of type %s", do_what, elemtype.name);
-    return elemtype;
+    Type t = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
+    if (!is_integer_type(&t) && !is_pointer_type(&t))
+        fail_with_error(expr->location, "cannot %s a value of type %s", do_what, t.name);
+    return t;
 }
 
 static void typecheck_dereferenced_pointer(Location location, const Type *t)
@@ -251,13 +285,13 @@ static void typecheck_dereferenced_pointer(Location location, const Type *t)
 
 // ptr[index]
 static Type typecheck_indexing(
-    const TypeContext *ctx, const AstExpression *ptrexpr, const AstExpression *indexexpr)
+    TypeContext *ctx, const AstExpression *ptrexpr, const AstExpression *indexexpr)
 {
-    const Type ptrtype = typecheck_expression_not_void(ctx, ptrexpr);
+    Type ptrtype = typecheck_expression_not_void(ctx, ptrexpr)->type;
     if (ptrtype.kind != TYPE_POINTER)
         fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", ptrtype.name);
 
-    const Type indextype = typecheck_expression_not_void(ctx, indexexpr);
+    Type indextype = typecheck_expression_not_void(ctx, indexexpr)->type;
     if (!is_integer_type(&indextype)) {
         fail_with_error(
             indexexpr->location,
@@ -269,7 +303,7 @@ static Type typecheck_indexing(
 }
 
 static void typecheck_and_or(
-    const TypeContext *ctx, const AstExpression *lhsexpr, const AstExpression *rhsexpr, const char *and_or)
+    TypeContext *ctx, const AstExpression *lhsexpr, const AstExpression *rhsexpr, const char *and_or)
 {
     assert(!strcmp(and_or, "and") || !strcmp(and_or, "or"));
     char errormsg[100];
@@ -293,7 +327,7 @@ static const char *nth(int n)
 }
 
 // returns NULL if the function doesn't return anything
-static const Type *typecheck_function_call(const TypeContext *ctx, const AstCall *call, Location location)
+static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call, Location location)
 {
     const Signature *sig = find_function(ctx, call->calledname);
     if (!sig)
@@ -338,7 +372,7 @@ static Type typecheck_struct_field(
     fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
 }
 
-static Type typecheck_struct_init(const TypeContext *ctx, const AstCall *call, Location location)
+static Type typecheck_struct_init(TypeContext *ctx, const AstCall *call, Location location)
 {
     struct AstType tmp = { .location = location, .npointers = 0 };
     safe_strcpy(tmp.name, call->calledname);
@@ -364,7 +398,7 @@ static Type typecheck_struct_init(const TypeContext *ctx, const AstCall *call, L
     return t;
 }
 
-const Type *typecheck_expression(const TypeContext *ctx, const AstExpression *expr)
+static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpression *expr)
 {
     Type temptype;
     Type result;
@@ -382,7 +416,7 @@ const Type *typecheck_expression(const TypeContext *ctx, const AstExpression *ex
         result = typecheck_struct_init(ctx, &expr->data.call, expr->location);
         break;
     case AST_EXPR_GET_FIELD:
-        temptype = typecheck_expression_not_void(ctx, expr->data.field.obj);
+        temptype = typecheck_expression_not_void(ctx, expr->data.field.obj)->type;
         if (temptype.kind != TYPE_STRUCT)
             fail_with_error(
                 expr->location,
@@ -391,7 +425,7 @@ const Type *typecheck_expression(const TypeContext *ctx, const AstExpression *ex
         result = typecheck_struct_field(&temptype, expr->data.field.fieldname, expr->location);
         break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        temptype = typecheck_expression_not_void(ctx, expr->data.field.obj);
+        temptype = typecheck_expression_not_void(ctx, expr->data.field.obj)->type;
         if (temptype.kind != TYPE_POINTER || temptype.data.valuetype->kind != TYPE_STRUCT)
             fail_with_error(
                 expr->location,
@@ -403,14 +437,14 @@ const Type *typecheck_expression(const TypeContext *ctx, const AstExpression *ex
         typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);
         break;
     case AST_EXPR_ADDRESS_OF:
-        temptype = typecheck_expression_not_void(ctx, &expr->data.operands[0]);
+        temptype = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
         result = create_pointer_type(&temptype, expr->location);
         break;
     case AST_EXPR_GET_VARIABLE:
         result = find_variable(ctx, expr->data.varname, &expr->location)->type;
         break;
     case AST_EXPR_DEREFERENCE:
-        temptype = typecheck_expression_not_void(ctx, &expr->data.operands[0]);
+        temptype = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
         typecheck_dereferenced_pointer(expr->location, &temptype);
         result = *temptype.data.valuetype;
         free(temptype.data.valuetype);
@@ -443,26 +477,178 @@ const Type *typecheck_expression(const TypeContext *ctx, const AstExpression *ex
     case AST_EXPR_LT:
     case AST_EXPR_LE:
         {
-            Type lhstype = typecheck_expression_not_void(ctx, &expr->data.operands[0]);
-            Type rhstype = typecheck_expression_not_void(ctx, &expr->data.operands[1]);
-            result = typecheck_binop(expr->kind, expr->location, &lhstype, &lhstype);
+            ExpressionTypes *lhstypes = typecheck_expression_not_void(ctx, &expr->data.operands[0]);
+            ExpressionTypes *rhstypes = typecheck_expression_not_void(ctx, &expr->data.operands[1]);
+            result = check_binop(expr->kind, expr->location, lhstypes, rhstypes);
             break;
         }
     case AST_EXPR_PRE_INCREMENT:
     case AST_EXPR_PRE_DECREMENT:
     case AST_EXPR_POST_INCREMENT:
     case AST_EXPR_POST_DECREMENT:
-        result = typecheck_increment_or_decrement(ctx, expr);
+        result = check_increment_or_decrement(ctx, expr);
         break;
     case AST_EXPR_AS:
-        temptype = typecheck_expression_not_void(ctx, expr->data.as.obj);
+        temptype = typecheck_expression_not_void(ctx, expr->data.as.obj)->type;
         result = type_from_ast(ctx, &expr->data.as.type);
-        typecheck_explicit_cast(&temptype, &result, expr->location);
+        check_explicit_cast(&temptype, &result, expr->location);
         free_type(&temptype);
         break;
     }
 
-    Type *t = malloc(sizeof *t);
-    *t = result;
-    return t;
+    ExpressionTypes *types = calloc(1, sizeof *types);
+    types->expr = expr;
+    types->type = result;
+    return types;
+}
+
+static int compare_exprtypes(const void *aptr, const void *bptr)
+{
+    const ExpressionTypes *a = aptr, *b = bptr;
+    uintptr_t aval = (uintptr_t)a->expr;
+    uintptr_t bval = (uintptr_t)b->expr;
+    return (aval>bval) - (aval<bval);
+}
+
+static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt);
+
+static void typecheck_body(TypeContext *ctx, const AstBody *body)
+{
+    for (int i = 0; i < body->nstatements; i++)
+        typecheck_statement(ctx, &body->statements[i]);
+}
+
+static void typecheck_if_statement(TypeContext *ctx, const AstIfStatement *ifstmt)
+{
+    for (int i = 0; i < ifstmt->n_if_and_elifs; i++) {
+        const char *errmsg;
+        if (i == 0)
+            errmsg = "'if' condition must be a boolean, not FROM";
+        else
+            errmsg = "'elif' condition must be a boolean, not FROM";
+
+        typecheck_expression_with_implicit_cast(
+            ctx, &ifstmt->if_and_elifs[i].condition, &boolType, errmsg);
+        typecheck_body(ctx, &ifstmt->if_and_elifs[i].body);
+    }
+    typecheck_body(ctx, &ifstmt->elsebody);
+}
+
+static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
+{
+    switch(stmt->kind) {
+    case AST_STMT_IF:
+        typecheck_if_statement(ctx, &stmt->data.ifstatement);
+        break;
+
+    case AST_STMT_WHILE:
+        typecheck_expression_with_implicit_cast(
+            ctx, &stmt->data.whileloop.condition, &boolType,
+            "'while' condition must be a boolean, not FROM");
+        typecheck_body(ctx, &stmt->data.whileloop.body);
+        break;
+
+    case AST_STMT_FOR:
+        typecheck_statement(ctx, stmt->data.forloop.init);
+        typecheck_expression_with_implicit_cast(
+            ctx, &stmt->data.forloop.cond, &boolType,
+            "'for' condition must be a boolean, not FROM");
+        typecheck_body(ctx, &stmt->data.forloop.body);
+        typecheck_statement(ctx, stmt->data.forloop.incr);
+        break;
+
+    case AST_STMT_BREAK:
+        break;
+
+    case AST_STMT_CONTINUE:
+        break;
+
+    case AST_STMT_ASSIGN:
+        {
+            const AstExpression *targetexpr = &stmt->data.assignment.target;
+            const AstExpression *valueexpr = &stmt->data.assignment.value;
+            if (targetexpr->kind == AST_EXPR_GET_VARIABLE
+                && !find_variable(ctx, targetexpr->data.varname, NULL))
+            {
+                // Making a new variable. Use the type of the value being assigned.
+                const ExpressionTypes *types = typecheck_expression(ctx, valueexpr);
+                add_variable(ctx, &types->type, targetexpr->data.varname);
+            } else {
+                // Convert value to the type of an existing variable or other assignment target.
+                char errmsg[500];
+                switch(targetexpr->kind) {
+                    case AST_EXPR_GET_VARIABLE:
+                        strcpy(errmsg, "cannot assign a value of type FROM to variable of type TO");
+                        break;
+                    case AST_EXPR_DEREFERENCE:
+                        strcpy(errmsg, "cannot assign a value of type FROM into a pointer of type TO*");
+                        break;
+                    case AST_EXPR_GET_FIELD:
+                    case AST_EXPR_DEREF_AND_GET_FIELD:
+                        snprintf(
+                            errmsg, sizeof errmsg,
+                            "cannot assign a value of type FROM into field '%s' of type TO",
+                            targetexpr->data.field.fieldname);
+                        break;
+                    default: assert(0);
+                }
+                const ExpressionTypes *targettypes = typecheck_expression(ctx, targetexpr);
+                typecheck_expression_with_implicit_cast(ctx, valueexpr, &targettypes->type, errmsg);
+            }
+            break;
+        }
+
+    case AST_STMT_RETURN_VALUE:
+    {
+        if(!ctx->current_function_signature->returntype){
+            fail_with_error(
+                stmt->location,
+                "function '%s' cannot return a value because it was defined with '-> void'",
+                ctx->current_function_signature->funcname);
+        }
+
+        char msg[200];
+        snprintf(msg, sizeof msg,
+            "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
+            ctx->current_function_signature->funcname);
+        typecheck_expression_with_implicit_cast(
+            ctx, &stmt->data.expression, &find_variable(ctx, "return", NULL)->type, msg);
+        break;
+    }
+
+    case AST_STMT_RETURN_WITHOUT_VALUE:
+        if (ctx->current_function_signature->returntype) {
+            fail_with_error(
+                stmt->location,
+                "a return value is needed, because the return type of function '%s' is %s",
+                ctx->current_function_signature->funcname,
+                ctx->current_function_signature->returntype->name);
+        }
+        break;
+
+    case AST_STMT_DECLARE_LOCAL_VAR:
+        if (find_variable(ctx, stmt->data.vardecl.name, NULL))
+            fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
+
+        Type type = type_from_ast(ctx, &stmt->data.vardecl.type);
+        add_variable(ctx, &type, stmt->data.vardecl.name);
+        break;
+
+    case AST_STMT_EXPRESSION_STATEMENT:
+        typecheck_expression(ctx, &stmt->data.expression);
+        break;
+    }
+}
+
+void typecheck_function(TypeContext *ctx, const Signature *sig, const AstBody *body)
+{
+    ctx->current_function_signature = sig;
+    ctx->expr_types.len = 0;
+    typecheck_body(ctx, body);
+    qsort(
+        ctx->expr_types.ptr,
+        ctx->expr_types.len,
+        sizeof(ctx->expr_types.ptr[0]),  // NOLINT
+        compare_exprtypes);
+    typecheck_body(ctx, body);
 }
