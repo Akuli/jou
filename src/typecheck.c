@@ -30,7 +30,7 @@ static const Signature *find_function(const TypeContext *ctx, const char *name)
     return NULL;
 }
 
-static Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttype)
+Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttype)
 {
     int npointers = asttype->npointers;
     Type t;
@@ -67,7 +67,7 @@ static Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttyp
     return ptr;
 }
 
-static Type type_from_ast(const TypeContext *ctx, const AstType *asttype)
+Type type_from_ast(const TypeContext *ctx, const AstType *asttype)
 {
     Type *ptr = type_or_void_from_ast(ctx, asttype);
     if (!ptr)
@@ -646,9 +646,8 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
     }
 }
 
-void typecheck_function(TypeContext *ctx, const Signature *sig, const AstBody *body)
+void typecheck_function(TypeContext *ctx, const AstBody *body)
 {
-    ctx->current_function_signature = sig;
     ctx->expr_types.len = 0;
     typecheck_body(ctx, body);
     qsort(

@@ -104,55 +104,6 @@ static CfInstruction *add_instruction(
     add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant(&(c)) }, NULL, (target))
 
 
-// TODO: delete
-static Type *build_type_or_void(const struct State *st, const AstType *asttype)
-{
-    int npointers = asttype->npointers;
-    Type t;
-
-    if (!strcmp(asttype->name, "int"))
-        t = intType;
-    else if (!strcmp(asttype->name, "byte"))
-        t = byteType;
-    else if (!strcmp(asttype->name, "bool"))
-        t = boolType;
-    else if (!strcmp(asttype->name, "void")) {
-        if (npointers == 0)
-            return NULL;
-        npointers--;
-        t = voidPtrType;
-    } else {
-        bool found = false;
-        for (struct Type *ptr = st->typectx.structs.ptr; ptr < End(st->typectx.structs); ptr++) {
-            if (!strcmp(ptr->name, asttype->name)) {
-                t = copy_type(ptr);
-                found = true;
-                break;
-            }
-        }
-        if(!found)
-            fail_with_error(asttype->location, "there is no type named '%s'", asttype->name);
-    }
-
-    while (npointers--)
-        t = create_pointer_type(&t, asttype->location);
-
-    Type *ptr = malloc(sizeof *ptr);
-    *ptr = t;
-    return ptr;
-}
-
-// TODO: delete
-static Type build_type(const struct State *st, const AstType *asttype)
-{
-    Type *ptr = build_type_or_void(st, asttype);
-    assert(ptr);
-    Type t = *ptr;
-    free(ptr);
-    return t;
-}
-
-
 static const Variable *build_cast(
     struct State *st, const Variable *obj, const Type *to, Location location)
 {
@@ -500,17 +451,12 @@ static const Variable *build_function_call(struct State *st, const AstCall *call
     return return_value;
 }
 
-static const Variable *build_struct_init(struct State *st, const AstCall *call, Location location)
+static const Variable *build_struct_init(struct State *st, const Type *type, const AstCall *call, Location location)
 {
-    struct AstType tmp = { .location = location, .npointers = 0 };
-    safe_strcpy(tmp.name, call->calledname);
-    Type t = build_type(st, &tmp);
-
-    const Variable *instance = add_variable(st, &t, NULL);
-    Type p = create_pointer_type(&t, location);
+    const Variable *instance = add_variable(st, type, NULL);
+    Type p = create_pointer_type(type, location);
     const Variable *instanceptr = add_variable(st, &p, NULL);
     free(p.data.valuetype);
-    free_type(&t);
 
     add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
     add_unary_op(st, location, CF_PTR_MEMSET_TO_ZERO, instanceptr, NULL);
@@ -538,7 +484,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
             return NULL;
         break;
     case AST_EXPR_BRACE_INIT:
-        result = build_struct_init(st, &expr->data.call, expr->location);
+        result = build_struct_init(st, &types->type, &expr->data.call, expr->location);
         break;
     case AST_EXPR_GET_FIELD:
     case AST_EXPR_DEREF_AND_GET_FIELD:
@@ -627,7 +573,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         }
     case AST_EXPR_AS:
         temp = build_expression(st, expr->data.as.obj);
-        temptype = build_type(st, &expr->data.as.type);
+        temptype = type_from_ast(&st->typectx, &expr->data.as.type);
         result = build_cast(st, temp, &temptype, expr->location);
         free_type(&temptype);
         break;
@@ -789,13 +735,14 @@ static void build_body(struct State *st, const AstBody *body)
 
 static CfGraph *build_function(struct State *st, const Signature *sig, const AstBody *body)
 {
+    st->typectx.current_function_signature = sig;
     for (int i = 0; i < sig->nargs; i++) {
         Variable *v = add_variable(st, &sig->argtypes[i], sig->argnames[i]);
         v->is_argument = true;
     }
     if (sig->returntype)
         add_variable(st, sig->returntype, "return");
-    typecheck_function(&st->typectx, sig, body);
+    typecheck_function(&st->typectx, body);
 
     st->cfg = calloc(1, sizeof *st->cfg);
     Append(&st->cfg->all_blocks, &st->cfg->start_block);
@@ -813,6 +760,7 @@ static CfGraph *build_function(struct State *st, const Signature *sig, const Ast
 
     memcpy(&st->cfg->variables, &st->typectx.variables, sizeof st->typectx.variables);
     memset(&st->typectx.variables, 0, sizeof st->typectx.variables);
+    st->typectx.current_function_signature = NULL;
 
     return st->cfg;
 }
@@ -832,9 +780,9 @@ static Signature build_signature(const struct State *st, const AstSignature *ast
 
     result.argtypes = malloc(sizeof(result.argtypes[0]) * result.nargs);
     for (int i = 0; i < result.nargs; i++)
-        result.argtypes[i] = build_type(st, &astsig->argtypes[i]);
+        result.argtypes[i] = type_from_ast(&st->typectx, &astsig->argtypes[i]);
 
-    result.returntype = build_type_or_void(st, &astsig->returntype);
+    result.returntype = type_or_void_from_ast(&st->typectx, &astsig->returntype);
     // TODO: validate main() parameters
     // TODO: test main() taking parameters
     if (!strcmp(astsig->funcname, "main") &&
@@ -864,7 +812,7 @@ static Type build_struct(struct State *st, const AstStructDef *structdef, Locati
 
     result.data.structfields.types = malloc(n * sizeof result.data.structfields.types[0]);
     for (int i = 0; i < n; i++)
-        result.data.structfields.types[i] = build_type(st, &structdef->fieldtypes[i]);
+        result.data.structfields.types[i] = type_from_ast(&st->typectx, &structdef->fieldtypes[i]);
 
     return result;
 }

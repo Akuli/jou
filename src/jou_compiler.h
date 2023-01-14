@@ -338,7 +338,9 @@ struct TypeContext {
     List(Type) structs;
     List(Signature) function_signatures;
 };
-void typecheck_function(TypeContext *ctx, const Signature *sig, const AstBody *body);
+Type type_from_ast(const TypeContext *ctx, const AstType *asttype);
+Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttype);
+void typecheck_function(TypeContext *ctx, const AstBody *body);
 
 
 // Control Flow Graph.
