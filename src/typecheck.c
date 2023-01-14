@@ -33,7 +33,7 @@ static const Signature *find_function(const TypeContext *ctx, const char *name)
     return NULL;
 }
 
-Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttype)
+static Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttype)
 {
     int npointers = asttype->npointers;
     Type t;

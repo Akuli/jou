@@ -340,7 +340,6 @@ struct TypeContext {
     List(Signature) function_signatures;
 };
 Type type_from_ast(const TypeContext *ctx, const AstType *asttype);
-Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttype);
 
 // body can be NULL to check a declaration that doesn't define anything
 void typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);

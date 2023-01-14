@@ -424,7 +424,6 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
     const ExpressionTypes *types = get_expr_types(st, expr);
 
     const Variable *result, *temp;
-    Type temptype;
 
     switch(expr->kind) {
     case AST_EXPR_FUNCTION_CALL:
@@ -517,9 +516,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         }
     case AST_EXPR_AS:
         temp = build_expression(st, expr->data.as.obj);
-        temptype = type_from_ast(&st->typectx, &expr->data.as.type);
-        result = build_cast(st, temp, &temptype, expr->location);
-        free_type(&temptype);
+        result = build_cast(st, temp, &types->type, expr->location);
         break;
     }
 
