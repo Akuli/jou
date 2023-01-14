@@ -732,8 +732,8 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
         ast++;
     }
 
+    assert(result.nfuncs == st.typectx.function_signatures.len);
     result.signatures = st.typectx.function_signatures.ptr;
-    result.nfuncs = st.typectx.function_signatures.len;
 
     free(st.breakstack.ptr);
     free(st.continuestack.ptr);
