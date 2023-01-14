@@ -194,7 +194,7 @@ static char *read_string(struct State *st, char quote, int *len)
             case '0':
                 if (quote == '"')
                     fail_with_error(st->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte");
-                // fall through
+                __attribute__((fallthrough));
             case '1':
             case '2':
             case '3':

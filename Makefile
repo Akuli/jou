@@ -4,13 +4,13 @@ LLVM_CONFIG ?= llvm-config-11
 
 SRC := $(wildcard src/*.c)
 
+CC := $(shell $(LLVM_CONFIG) --bindir)/clang
 CFLAGS += -Wall -Wextra -Wpedantic
-CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=implicit-fallthrough -Werror=discarded-qualifiers
-CFLAGS += -Wno-format-truncation
+CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=implicit-fallthrough
 CFLAGS += -std=c11
 CFLAGS += -g
 CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
-CFLAGS += -DJOU_CLANG_PATH=$(shell $(LLVM_CONFIG) --bindir)/clang
+CFLAGS += -DJOU_CLANG_PATH=$(CC)
 LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs)
 
 obj/%.o: src/%.c $(wildcard src/*.h)

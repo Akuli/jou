@@ -646,7 +646,8 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         const Variable *retvariable = find_variable(st, "return");
         assert(retvariable);
         add_unary_op(st, stmt->location, CF_VARCPY, retvalue, retvariable);
-    }  // fall through
+    }
+    __attribute__((fallthrough));
     case AST_STMT_RETURN_WITHOUT_VALUE:
         st->current_block->iftrue = &st->cfg->end_block;
         st->current_block->iffalse = &st->cfg->end_block;
