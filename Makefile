@@ -10,6 +10,7 @@ CFLAGS += -Wno-format-truncation
 CFLAGS += -std=c11
 CFLAGS += -g
 CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
+CFLAGS += -DJOU_CLANG_PATH=$(shell $(LLVM_CONFIG) --bindir)/clang
 LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs)
 
 obj/%.o: src/%.c $(wildcard src/*.h)
