@@ -654,10 +654,17 @@ static void build_statement(struct State *st, const AstStatement *stmt)
             const AstExpression *valueexpr = &stmt->data.assignment.value;
 
             // TODO: is this evaluation order good?
-            const Variable *target = build_address_of_expression(st, targetexpr, true);
-            assert(target->type.kind == TYPE_POINTER);
-            const Variable *value = build_expression(st, valueexpr);
-            add_binary_op(st, stmt->location, CF_PTR_STORE, target, value, NULL);
+            if (targetexpr->kind == AST_EXPR_GET_VARIABLE) {
+                // avoid pointers to help simplify_cfg
+                const Variable *target = find_variable(st, targetexpr->data.varname);
+                const Variable *value = build_expression(st, valueexpr);
+                add_unary_op(st, stmt->location, CF_VARCPY, value, target);
+            } else {
+                const Variable *target = build_address_of_expression(st, targetexpr, true);
+                const Variable *value = build_expression(st, valueexpr);
+                assert(target->type.kind == TYPE_POINTER);
+                add_binary_op(st, stmt->location, CF_PTR_STORE, target, value, NULL);
+            }
             break;
         }
 
