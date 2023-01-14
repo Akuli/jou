@@ -161,6 +161,22 @@ $ ./fuzzer.sh
 ```
 
 
+## LLVM versions
+
+Jou supports LLVM 11 and LLVM 13.
+The default is LLVM 11, because I believe it is more widely available.
+To use LLVM 13 instead, set `LLVM_CONFIG` when compiling:
+
+```
+$ sudo apt install llvm-13-dev clang-13
+$ make clean
+$ LLVM_CONFIG=llvm-config-13 make
+```
+
+Other versions of LLVM may work too.
+Please create an issue if you need to use a different version of LLVM.
+
+
 ## TODO
 
 This list tends to have a few outdated details,

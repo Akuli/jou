@@ -27,6 +27,17 @@ static void make_temp_dir()
     atexit(cleanup);
 }
 
+static const char *get_clang_path(void)
+{
+    // Makefile passes e.g. -DJOU_CLANG_PATH=/usr/lib/llvm-11/bin/clang
+    // But retrieving the value is weird...
+#define str(x) #x
+#define str1(x) str(x)
+    return str1(JOU_CLANG_PATH);
+#undef str
+#undef str1
+}
+
 int main(int argc, char **argv)
 {
     init_types();
@@ -87,9 +98,9 @@ int main(int argc, char **argv)
 
     LLVMDisposeModule(module);
 
-    char command[200];
-    sprintf(command, "clang-11 -Wno-override-module -o %s/exe %s/ir.bc && %s/exe",
-        TempDir, TempDir, TempDir);
+    char command[2000];
+    snprintf(command, sizeof command, "%s -Wno-override-module -o %s/exe %s/ir.bc && %s/exe",
+        get_clang_path(), TempDir, TempDir, TempDir);
     if(verbose)
         puts(command);
     return !!system(command);
