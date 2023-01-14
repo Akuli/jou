@@ -123,58 +123,20 @@ static const Variable *build_cast(
     assert(0);
 }
 
-// TODO: use get_expr_types()
 static const Variable *build_binop(
     struct State *st,
     enum AstExpressionKind op,
     Location location,
     const Variable *lhs,
-    const Variable *rhs)
+    const Variable *rhs,
+    const Type *result_type)
 {
     bool got_integers = is_integer_type(&lhs->type) && is_integer_type(&rhs->type);
     bool got_pointers = is_pointer_type(&lhs->type) && is_pointer_type(&rhs->type);
+    bool is_signed = lhs->type.kind == TYPE_SIGNED_INTEGER || rhs->type.kind == TYPE_SIGNED_INTEGER;
     assert(got_integers || got_pointers);
-    assert(!(got_integers && got_pointers));
-
-    // TODO: is this a good idea?
-    Type cast_type;
-    if (got_integers) {
-        cast_type = create_integer_type(
-            max(lhs->type.data.width_in_bits, rhs->type.data.width_in_bits),
-            lhs->type.kind == TYPE_SIGNED_INTEGER || lhs->type.kind == TYPE_SIGNED_INTEGER
-        );
-    }
-    if (got_pointers) {
-        cast_type = voidPtrType;
-    }
-
-    lhs = build_cast(st, lhs, &cast_type, location);
-    rhs = build_cast(st, rhs, &cast_type, location);
-
-    Type result_type;
-    switch(op) {
-    case AST_EXPR_ADD:
-    case AST_EXPR_SUB:
-    case AST_EXPR_MUL:
-    case AST_EXPR_DIV:
-        result_type = cast_type;
-        break;
-
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
-        result_type = boolType;
-        break;
-
-    default:
-        assert(0);
-    }
 
     enum CfInstructionKind k;
-    bool is_signed = cast_type.kind == TYPE_SIGNED_INTEGER;
     bool negate = false;
     bool swap = false;
 
@@ -192,7 +154,7 @@ static const Variable *build_binop(
         default: assert(0);
     }
 
-    const Variable *destvar = add_variable(st, &result_type, NULL);
+    const Variable *destvar = add_variable(st, result_type, NULL);
     add_binary_op(st, location, k, swap?rhs:lhs, swap?lhs:rhs, destvar);
 
     if (!negate)
@@ -550,7 +512,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
             // order of function arguments.
             const Variable *lhs = build_expression(st, &expr->data.operands[0]);
             const Variable *rhs = build_expression(st, &expr->data.operands[1]);
-            result = build_binop(st, expr->kind, expr->location, lhs, rhs);
+            result = build_binop(st, expr->kind, expr->location, lhs, rhs, &types->type);
             break;
         }
     case AST_EXPR_PRE_INCREMENT:
