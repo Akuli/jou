@@ -10,16 +10,19 @@ static const Variable *find_variable(const TypeContext *ctx, const char *name)
     return NULL;
 }
 
-void add_variable(TypeContext *ctx, const Type *t, const char *name)
+static Variable *add_variable(TypeContext *ctx, const Type *t, const char *name)
 {
     Variable *var = calloc(1, sizeof *var);
     var->id = ctx->variables.len;
     var->type = copy_type(t);
+
     assert(name);
     assert(!find_variable(ctx, name));
     assert(strlen(name) < sizeof var->name);
     strcpy(var->name, name);
+
     Append(&ctx->variables, var);
+    return var;
 }
 
 static const Signature *find_function(const TypeContext *ctx, const char *name)
@@ -647,13 +650,22 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
     }
 }
 
-void typecheck_function(TypeContext *ctx, const AstBody *body)
+void typecheck_function(TypeContext *ctx, const Signature *sig, const AstBody *body)
 {
-    ctx->expr_types.len = 0;
+    assert(ctx->current_function_signature == NULL);
+    assert(ctx->expr_types.len == 0);
+    assert(ctx->function_signatures.len > 0);  // contains at least current function
+    assert(ctx->variables.len == 0);
+
+    ctx->current_function_signature = sig;
+    for (int i = 0; i < sig->nargs; i++) {
+        Variable *v = add_variable(ctx, &sig->argtypes[i], sig->argnames[i]);
+        v->is_argument = true;
+    }
+    if (sig->returntype)
+        add_variable(ctx, sig->returntype, "return");
+
     typecheck_body(ctx, body);
-    qsort(
-        ctx->expr_types.ptr,
-        ctx->expr_types.len,
-        sizeof(ctx->expr_types.ptr[0]),  // NOLINT
-        compare_exprtypes);
+    ctx->current_function_signature = NULL;
+    // Leave expr_types and variables in the TypeContext
 }

@@ -17,27 +17,22 @@ static const Variable *find_variable(const struct State *st, const char *name)
     return NULL;
 }
 
-static const ExpressionTypes *get_expr_types(const struct State *st, const AstExpression *expr)
-{
-    // TODO: a fancy binary search algorithm
-    for (int i = 0; i < st->typectx.expr_types.len; i++)
-        if (st->typectx.expr_types.ptr[i]->expr == expr)
-            return st->typectx.expr_types.ptr[i];
-    return NULL;
-}
-
-static Variable *add_variable(struct State *st, const Type *t, const char *name)
+static Variable *add_variable(struct State *st, const Type *t)
 {
     Variable *var = calloc(1, sizeof *var);
     var->id = st->typectx.variables.len;
     var->type = copy_type(t);
-    if (name) {
-        assert(!find_variable(st, name));
-        assert(strlen(name) < sizeof var->name);
-        strcpy(var->name, name);
-    }
     Append(&st->typectx.variables, var);
     return var;
+}
+
+static const ExpressionTypes *get_expr_types(const struct State *st, const AstExpression *expr)
+{
+    // TODO: a fancy binary search algorithm (need to add sorting)
+    for (int i = 0; i < st->typectx.expr_types.len; i++)
+        if (st->typectx.expr_types.ptr[i]->expr == expr)
+            return st->typectx.expr_types.ptr[i];
+    return NULL;
 }
 
 static const Signature *find_function(const struct State *st, const char *name)
@@ -110,7 +105,7 @@ static const Variable *build_cast(
     if (same_type(&obj->type, to))
         return obj;
 
-    const Variable *result = add_variable(st, to, NULL);
+    const Variable *result = add_variable(st, to);
 
     if (is_pointer_type(&obj->type) && is_pointer_type(to)) {
         add_unary_op(st, location, CF_PTR_CAST, obj, result);
@@ -154,13 +149,13 @@ static const Variable *build_binop(
         default: assert(0);
     }
 
-    const Variable *destvar = add_variable(st, result_type, NULL);
+    const Variable *destvar = add_variable(st, result_type);
     add_binary_op(st, location, k, swap?rhs:lhs, swap?lhs:rhs, destvar);
 
     if (!negate)
         return destvar;
 
-    const Variable *negated = add_variable(st, &boolType, NULL);
+    const Variable *negated = add_variable(st, &boolType);
     add_unary_op(st, location, CF_BOOL_NEGATE, destvar, negated);
     return negated;
 }
@@ -179,7 +174,7 @@ static const Variable *build_struct_field_pointer(
 
         if (!strcmp(name, fieldname)) {
             const Type ptrtype = create_pointer_type(type, location);
-            Variable* result = add_variable(st, &ptrtype, NULL);
+            Variable* result = add_variable(st, &ptrtype);
             free(ptrtype.data.valuetype);
 
             union CfInstructionData dat;
@@ -216,9 +211,9 @@ static const Variable *build_increment_or_decrement(
     if (!is_integer_type(t) && !is_pointer_type(t))
         fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
 
-    const Variable *old_value = add_variable(st, t, NULL);
-    const Variable *new_value = add_variable(st, t, NULL);
-    const Variable *diffvar = add_variable(st, is_integer_type(t)?t:&intType, NULL);
+    const Variable *old_value = add_variable(st, t);
+    const Variable *new_value = add_variable(st, t);
+    const Variable *diffvar = add_variable(st, is_integer_type(t)?t:&intType);
 
     Constant diffconst = {
         .kind = CONSTANT_INTEGER,
@@ -249,8 +244,8 @@ static const Variable *build_indexing(struct State *st, const AstExpression *ptr
     assert(ptr->type.kind == TYPE_POINTER);
     assert(is_integer_type(&index->type));
 
-    const Variable *ptr2 = add_variable(st, &ptr->type, NULL);
-    const Variable *result = add_variable(st, ptr->type.data.valuetype, NULL);
+    const Variable *ptr2 = add_variable(st, &ptr->type);
+    const Variable *result = add_variable(st, ptr->type.data.valuetype);
     add_binary_op(st, ptrexpr->location, CF_PTR_ADD_INT, ptr, index, ptr2);
     add_unary_op(st, ptrexpr->location, CF_PTR_LOAD, ptr2, result);
     return result;
@@ -280,7 +275,7 @@ static const Variable *build_and_or(
     */
     const Variable *lhs = build_expression(st, lhsexpr);
     const Variable *rhs;
-    const Variable *result = add_variable(st, &boolType, NULL);
+    const Variable *result = add_variable(st, &boolType);
     CfInstruction *ins;
 
     CfBlock *lhstrue = add_block(st);
@@ -333,7 +328,7 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
         const Variable *var = find_variable(st, address_of_what->data.varname);
         assert(var);
         Type t = create_pointer_type(&var->type, (Location){0});
-        const Variable *addr = add_variable(st, &t, NULL);
+        const Variable *addr = add_variable(st, &t);
         free(t.data.valuetype);
         add_unary_op(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, var, addr);
         return addr;
@@ -401,7 +396,7 @@ static const Variable *build_function_call(struct State *st, const AstCall *call
 
     const Variable *return_value;
     if (sig->returntype)
-        return_value = add_variable(st, sig->returntype, NULL);
+        return_value = add_variable(st, sig->returntype);
     else
         return_value = NULL;
 
@@ -415,9 +410,9 @@ static const Variable *build_function_call(struct State *st, const AstCall *call
 
 static const Variable *build_struct_init(struct State *st, const Type *type, const AstCall *call, Location location)
 {
-    const Variable *instance = add_variable(st, type, NULL);
+    const Variable *instance = add_variable(st, type);
     Type p = create_pointer_type(type, location);
-    const Variable *instanceptr = add_variable(st, &p, NULL);
+    const Variable *instanceptr = add_variable(st, &p);
     free(p.data.valuetype);
 
     add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
@@ -455,7 +450,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         {
             temp = build_address_of_expression(st, expr, false);
             assert(temp->type.kind == TYPE_POINTER);
-            result = add_variable(st, temp->type.data.valuetype, NULL);
+            result = add_variable(st, temp->type.data.valuetype);
             add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         }
         break;
@@ -471,19 +466,19 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         if (!types->type_after_cast) {
             // Must take a "snapshot" of this variable, as it may change soon.
             temp = result;
-            result = add_variable(st, &temp->type, NULL);
+            result = add_variable(st, &temp->type);
             add_unary_op(st, expr->location, CF_VARCPY, temp, result);
         }
         break;
     case AST_EXPR_DEREFERENCE:
         temp = build_expression(st, &expr->data.operands[0]);
         assert(temp->type.kind == TYPE_POINTER);
-        result = add_variable(st, temp->type.data.valuetype, NULL);
+        result = add_variable(st, temp->type.data.valuetype);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_CONSTANT:
         temptype = type_of_constant(&expr->data.constant);
-        result = add_variable(st, &temptype, NULL);
+        result = add_variable(st, &temptype);
         add_constant(st, expr->location, expr->data.constant, result);
         break;
     case AST_EXPR_AND:
@@ -494,7 +489,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         break;
     case AST_EXPR_NOT:
         temp = build_expression(st, &expr->data.operands[0]);
-        result = add_variable(st, &boolType, NULL);
+        result = add_variable(st, &boolType);
         add_unary_op(st, expr->location, CF_BOOL_NEGATE, temp, result);
         break;
     case AST_EXPR_ADD:
@@ -704,14 +699,7 @@ static void build_body(struct State *st, const AstBody *body)
 
 static CfGraph *build_function(struct State *st, const Signature *sig, const AstBody *body)
 {
-    st->typectx.current_function_signature = sig;
-    for (int i = 0; i < sig->nargs; i++) {
-        Variable *v = add_variable(st, &sig->argtypes[i], sig->argnames[i]);
-        v->is_argument = true;
-    }
-    if (sig->returntype)
-        add_variable(st, sig->returntype, "return");
-    typecheck_function(&st->typectx, body);
+    typecheck_function(&st->typectx, sig, body);
 
     st->cfg = calloc(1, sizeof *st->cfg);
     Append(&st->cfg->all_blocks, &st->cfg->start_block);
@@ -729,8 +717,8 @@ static CfGraph *build_function(struct State *st, const Signature *sig, const Ast
 
     memcpy(&st->cfg->variables, &st->typectx.variables, sizeof st->typectx.variables);
     memset(&st->typectx.variables, 0, sizeof st->typectx.variables);
-    st->typectx.current_function_signature = NULL;
 
+    st->typectx.expr_types.len = 0;
     return st->cfg;
 }
 
