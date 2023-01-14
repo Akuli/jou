@@ -12,24 +12,6 @@ void free_tokens(Token *tokenlist)
     free(tokenlist);
 }
 
-void free_type(const Type *type)
-{
-    switch(type->kind) {
-    case TYPE_POINTER:
-        free_type(type->data.valuetype);
-        free(type->data.valuetype);
-        break;
-    case TYPE_STRUCT:
-        for (int i = 0; i < type->data.structfields.count; i++)
-            free_type(&type->data.structfields.types[i]);
-        free(type->data.structfields.types);
-        free(type->data.structfields.names);
-        break;
-    default:
-        break;
-    }
-}
-
 void free_constant(const Constant *c)
 {
     if (c->kind == CONSTANT_STRING)
@@ -152,13 +134,6 @@ static void free_body(const AstBody *body)
 
 static void free_signature(const Signature *sig)
 {
-    for (int i = 0; i < sig->nargs; i++)
-        free_type(&sig->argtypes[i]);
-
-    if (sig->returntype)
-        free_type(sig->returntype);
-    free(sig->returntype);
-
     free(sig->argnames);
     free(sig->argtypes);
 }
@@ -209,10 +184,8 @@ static void free_cfg(CfGraph *cfg)
     for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++)
         free_control_flow_graph_block(cfg, *b);
 
-    for (Variable **v = cfg->variables.ptr; v < End(cfg->variables); v++) {
-        free_type(&(*v)->type);
+    for (Variable **v = cfg->variables.ptr; v < End(cfg->variables); v++)
         free(*v);
-    }
 
     free(cfg->all_blocks.ptr);
     free(cfg->variables.ptr);

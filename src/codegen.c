@@ -26,7 +26,7 @@ static LLVMTypeRef codegen_type(const Type *type)
             int n = type->data.structfields.count;
             LLVMTypeRef *elems = malloc(sizeof(elems[0]) * n);  // NOLINT
             for (int i = 0; i < n; i++)
-                elems[i] = codegen_type(&type->data.structfields.types[i]);
+                elems[i] = codegen_type(type->data.structfields.types[i]);
             LLVMTypeRef result = LLVMStructType(elems, type->data.structfields.count, false);
             free(elems);
             return result;
@@ -88,7 +88,7 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const Signatur
 {
     LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
     for (int i = 0; i < sig->nargs; i++)
-        argtypes[i] = codegen_type(&sig->argtypes[i]);
+        argtypes[i] = codegen_type(sig->argtypes[i]);
 
     LLVMTypeRef returntype;
     if (sig->returntype == NULL)
@@ -134,9 +134,9 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
     case CONSTANT_BOOL:
         return LLVMConstInt(LLVMInt1Type(), c->data.boolean, false);
     case CONSTANT_INTEGER:
-        return LLVMConstInt(codegen_type((Type[]){type_of_constant(c)}), c->data.integer.value, c->data.integer.is_signed);
+        return LLVMConstInt(codegen_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
     case CONSTANT_NULL:
-        return LLVMConstNull(codegen_type(&voidPtrType));
+        return LLVMConstNull(codegen_type(voidPtrType));
     case CONSTANT_STRING:
         return make_a_string_constant(st, c->data.str);
     }
@@ -174,7 +174,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             break;
         case CF_PTR_STRUCT_FIELD:
             {
-                const Type *structtype = ins->operands[0]->type.data.valuetype;
+                const Type *structtype = ins->operands[0]->type->data.valuetype;
                 int i = 0;
                 while (strcmp(structtype->data.structfields.names[i], ins->data.fieldname))
                     i++;
@@ -183,14 +183,14 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             break;
         case CF_PTR_MEMSET_TO_ZERO:
             {
-                LLVMValueRef size = LLVMSizeOf(codegen_type(ins->operands[0]->type.data.valuetype));
+                LLVMValueRef size = LLVMSizeOf(codegen_type(ins->operands[0]->type->data.valuetype));
                 LLVMBuildMemSet(st->builder, getop(0), LLVMConstInt(LLVMInt8Type(), 0, false), size, 0);
             }
             break;
         case CF_PTR_ADD_INT:
             {
                 LLVMValueRef index = getop(1);
-                if (ins->operands[1]->type.kind == TYPE_UNSIGNED_INTEGER) {
+                if (ins->operands[1]->type->kind == TYPE_UNSIGNED_INTEGER) {
                     // https://github.com/Akuli/jou/issues/48
                     // Apparently the default is to interpret indexes as signed.
                     index = LLVMBuildZExt(st->builder, index, LLVMInt64Type(), "ptr_add_int_implicit_cast");
@@ -200,8 +200,8 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             break;
         case CF_INT_CAST:
             {
-                const Type *from = &ins->operands[0]->type;
-                const Type *to = &ins->destvar->type;
+                const Type *from = ins->operands[0]->type;
+                const Type *to = ins->destvar->type;
                 assert(is_integer_type(from));
                 assert(is_integer_type(to));
 
@@ -222,7 +222,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             }
             break;
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate")); break;
-        case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(&ins->destvar->type), "ptr_cast")); break;
+        case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(ins->destvar->type), "ptr_cast")); break;
         case CF_INT_ADD: setdest(LLVMBuildAdd(st->builder, getop(0), getop(1), "int_add")); break;
         case CF_INT_SUB: setdest(LLVMBuildSub(st->builder, getop(0), getop(1), "int_sub")); break;
         case CF_INT_MUL: setdest(LLVMBuildMul(st->builder, getop(0), getop(1), "int_mul")); break;
@@ -268,7 +268,7 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
     LLVMValueRef return_value = NULL;
     for (int i = 0; i < cfg->variables.len; i++) {
         Variable *v = cfg->variables.ptr[i];
-        st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(&v->type), v->name);
+        st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(v->type), v->name);
         if (!strcmp(v->name, "return"))
             return_value = st->llvm_locals[i];
     }

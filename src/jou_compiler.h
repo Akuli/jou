@@ -269,7 +269,7 @@ struct AstToplevelNode {
 
 
 struct Type {
-    char name[100];   // All types have a name for error messages and debugging.
+    char name[500];   // All types have a name for error messages and debugging.
     enum TypeKind {
         TYPE_SIGNED_INTEGER,
         TYPE_UNSIGNED_INTEGER,
@@ -280,37 +280,46 @@ struct Type {
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER
-        Type *valuetype;  // TYPE_POINTER
-        struct { int count; char (*names)[100]; Type *types; } structfields;  // TYPE_STRUCT
+        const Type *valuetype;  // TYPE_POINTER
+        struct { int count; char (*names)[100]; const Type **types; } structfields;  // TYPE_STRUCT
     } data;
 };
 
-// Built-in types, for convenience.
-// Named with a differentNamingConvention compared to everything else,
-// so you recognize these instead of wondering where they are defined.
-extern const Type boolType;      // bool
-extern const Type intType;       // int (32-bit signed)
-extern const Type byteType;      // byte (8-bit unsigned)
-extern const Type stringType;    // byte*
-extern const Type voidPtrType;   // void*
+/*
+Types are cached into global state. This makes a lot of things easier
+because you don't need to copy and free the types everywhere. This is
+important: previously it was a lot of work to find forgotten copies and
+frees with valgrind.
 
-// create_pointer_type(...) returns a type whose .data.valuetype must be free()d
-// copy_type() is a recursive/deep copy and should be used together with free_type()
-Type create_pointer_type(const Type *elem_type, Location error_location);
-Type create_integer_type(int size_in_bits, bool is_signed);
-Type copy_type(const Type *t);
+This also simplifies checking whether two types are the same type: you
+can simply use "==" between two "const Type *" pointers.
+
+Struct types are a bit different. When you make a struct, you get a
+pointer that you must pass to free_type() later. You can still "=="
+compare structs, because two different structs with the same members
+are not the same type.
+*/
+extern const Type *boolType;      // bool
+extern const Type *intType;       // int (32-bit signed)
+extern const Type *byteType;      // byte (8-bit unsigned)
+extern const Type *voidPtrType;   // void*
+void init_types();  // Called once when compiler starts
+const Type *create_integer_type(int size_in_bits, bool is_signed);
+const Type *create_pointer_type(const Type *t);
+const Type *type_of_constant(const Constant *c);
+Type *type_struct(int fieldcount, char (*fieldnames)[100], const Type **fieldtypes);
+void free_type_2(Type *type);  // TODO: rename to free_type()
+
 bool is_integer_type(const Type *t);  // includes signed and unsigned
 bool is_pointer_type(const Type *t);  // includes void pointers
-bool same_type(const Type *a, const Type *b);
-Type type_of_constant(const Constant *c);
 
 struct Signature {
     char funcname[100];
     int nargs;
-    Type *argtypes;
+    const Type **argtypes;
     char (*argnames)[100];
     bool takes_varargs;  // true for functions like printf()
-    Type *returntype;  // NULL, if does not return a value
+    const Type *returntype;  // NULL, if does not return a value
     Location returntype_location;  // meaningful even if returntype is NULL
 };
 
@@ -321,14 +330,14 @@ Signature copy_signature(const Signature *sig);
 struct Variable {
     int id;  // Unique, but you can also compare pointers to Variable.
     char name[100];  // Same name as in user's code, empty for temporary variables created by compiler
-    Type type;
+    const Type *type;
     bool is_argument;    // First n variables are always the arguments
 };
 
 struct ExpressionTypes {
     const AstExpression *expr;
-    Type type;
-    Type *type_after_cast;  // NULL for no implicit cast
+    const Type *type;
+    const Type *type_after_cast;  // NULL for no implicit cast
 };
 struct TypeContext {
     const Signature *current_function_signature;
@@ -437,7 +446,6 @@ Even though arrays are typically allocated with malloc(), you shouldn't simply
 free() them. For example, free(topnodelist) would free the list of AST nodes,
 but not any of the data contained within individual nodes.
 */
-void free_type(const Type *type);
 void free_constant(const Constant *c);
 void free_tokens(Token *tokenlist);
 void free_ast(AstToplevelNode *topnodelist);
