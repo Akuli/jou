@@ -69,7 +69,7 @@ static Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttyp
     return ptr;
 }
 
-Type type_from_ast(const TypeContext *ctx, const AstType *asttype)
+static Type type_from_ast(const TypeContext *ctx, const AstType *asttype)
 {
     Type *ptr = type_or_void_from_ast(ctx, asttype);
     if (!ptr)
@@ -688,6 +688,28 @@ void typecheck_function(TypeContext *ctx, Location funcname_location, const AstS
     }
 
     ctx->current_function_signature = NULL;
+}
+
+void typecheck_struct(struct TypeContext *ctx, const AstStructDef *structdef, Location location)
+{
+    for (Type *t = ctx->structs.ptr; t < End(ctx->structs); t++)
+        if (!strcmp(t->name, structdef->name))
+            fail_with_error(location, "a struct named '%s' already exists", t->name);
+
+    Type result = { .kind = TYPE_STRUCT };
+    safe_strcpy(result.name, structdef->name);
+
+    int n = structdef->nfields;
+    result.data.structfields.count = n;
+
+    result.data.structfields.names = malloc(n * sizeof result.data.structfields.names[0]);
+    memcpy(result.data.structfields.names, structdef->fieldnames, n * sizeof result.data.structfields.names[0]);
+
+    result.data.structfields.types = malloc(n * sizeof result.data.structfields.types[0]);
+    for (int i = 0; i < n; i++)
+        result.data.structfields.types[i] = type_from_ast(ctx, &structdef->fieldtypes[i]);
+
+    Append(&ctx->structs, result);
 }
 
 void reset_type_context(TypeContext *ctx)

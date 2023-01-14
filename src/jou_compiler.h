@@ -339,10 +339,10 @@ struct TypeContext {
     List(Type) structs;
     List(Signature) function_signatures;
 };
-Type type_from_ast(const TypeContext *ctx, const AstType *asttype);
 
-// body can be NULL to check a declaration that doesn't define anything
+// function body can be NULL to check a declaration
 void typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
+void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location);
 
 /*
 Difference between reset and destroy:

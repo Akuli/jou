@@ -704,28 +704,6 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
     return st->cfg;
 }
 
-static Type build_struct(struct State *st, const AstStructDef *structdef, Location location)
-{
-    for (Type *t = st->typectx.structs.ptr; t < End(st->typectx.structs); t++)
-        if (!strcmp(t->name, structdef->name))
-            fail_with_error(location, "a struct named '%s' already exists", t->name);
-
-    Type result = { .kind = TYPE_STRUCT };
-    safe_strcpy(result.name, structdef->name);
-
-    int n = structdef->nfields;
-    result.data.structfields.count = n;
-
-    result.data.structfields.names = malloc(n * sizeof result.data.structfields.names[0]);
-    memcpy(result.data.structfields.names, structdef->fieldnames, n * sizeof result.data.structfields.names[0]);
-
-    result.data.structfields.types = malloc(n * sizeof result.data.structfields.types[0]);
-    for (int i = 0; i < n; i++)
-        result.data.structfields.types[i] = type_from_ast(&st->typectx, &structdef->fieldtypes[i]);
-
-    return result;
-}
-
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
 {
     CfGraphFile result = { .filename = ast->location.filename };
@@ -734,8 +712,6 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
     int n = 0;
     while (ast[n].kind!=AST_TOPLEVEL_END_OF_FILE) n++;
     result.graphs = malloc(sizeof(result.graphs[0]) * n);  // NOLINT
-
-    Type type;
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         switch(ast->kind) {
@@ -750,9 +726,7 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
             result.graphs[result.nfuncs++] = build_function(&st, &ast->data.funcdef.body);
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
-            // careful with evaluation order in Append...
-            type = build_struct(&st, &ast->data.structdef, ast->location);
-            Append(&st.typectx.structs, type);
+            typecheck_struct(&st.typectx, &ast->data.structdef, ast->location);
             break;
         }
         ast++;
