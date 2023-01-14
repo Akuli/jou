@@ -104,11 +104,9 @@ static CfInstruction *add_instruction(
     add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant(&(c)) }, NULL, (target))
 
 
-// NULL return value means it is void
+// TODO: delete
 static Type *build_type_or_void(const struct State *st, const AstType *asttype)
 {
-    (void)st;    // Currently not used. Will later be needed for struct names
-
     int npointers = asttype->npointers;
     Type t;
 
@@ -144,12 +142,11 @@ static Type *build_type_or_void(const struct State *st, const AstType *asttype)
     return ptr;
 }
 
+// TODO: delete
 static Type build_type(const struct State *st, const AstType *asttype)
 {
     Type *ptr = build_type_or_void(st, asttype);
-    if (!ptr)
-        fail_with_error(asttype->location, "'void' cannot be used here because it is not a type");
-
+    assert(ptr);
     Type t = *ptr;
     free(ptr);
     return t;
@@ -175,6 +172,7 @@ static const Variable *build_cast(
     assert(0);
 }
 
+// TODO: use get_expr_types()
 static const Variable *build_binop(
     struct State *st,
     enum AstExpressionKind op,
@@ -334,16 +332,9 @@ static const Variable *build_increment_or_decrement(
 static const Variable *build_indexing(struct State *st, const AstExpression *ptrexpr, const AstExpression *indexexpr)
 {
     const Variable *ptr = build_expression(st, ptrexpr);
-    if (ptr->type.kind != TYPE_POINTER)
-        fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", ptr->type.name);
-
     const Variable *index = build_expression(st, indexexpr);
-    if (!is_integer_type(&index->type)) {
-        fail_with_error(
-            indexexpr->location,
-            "the index inside [...] must be an integer, not %s",
-            index->type.name);
-    }
+    assert(ptr->type.kind == TYPE_POINTER);
+    assert(is_integer_type(&index->type));
 
     const Variable *ptr2 = add_variable(st, &ptr->type, NULL);
     const Variable *result = add_variable(st, ptr->type.data.valuetype, NULL);
@@ -514,14 +505,6 @@ static const Variable *build_struct_init(struct State *st, const AstCall *call, 
     struct AstType tmp = { .location = location, .npointers = 0 };
     safe_strcpy(tmp.name, call->calledname);
     Type t = build_type(st, &tmp);
-
-    if (t.kind != TYPE_STRUCT) {
-        // TODO: test this error. Currently it can never happen because
-        // all non-struct types are created with keywords, and this
-        // function is called only when there is a name token followed
-        // by a '{'.
-        fail_with_error(location, "type %s cannot be instantiated with the Foo{...} syntax", t.name);
-    }
 
     const Variable *instance = add_variable(st, &t, NULL);
     Type p = create_pointer_type(&t, location);
@@ -760,24 +743,6 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         {
             const AstExpression *targetexpr = &stmt->data.assignment.target;
             const AstExpression *valueexpr = &stmt->data.assignment.value;
-
-            char errmsg[500];
-            switch(targetexpr->kind) {
-                case AST_EXPR_GET_VARIABLE:
-                    strcpy(errmsg, "cannot assign a value of type FROM to variable of type TO");
-                    break;
-                case AST_EXPR_DEREFERENCE:
-                    strcpy(errmsg, "cannot assign a value of type FROM into a pointer of type TO*");
-                    break;
-                case AST_EXPR_GET_FIELD:
-                case AST_EXPR_DEREF_AND_GET_FIELD:
-                    snprintf(
-                        errmsg, sizeof errmsg,
-                        "cannot assign a value of type FROM into field '%s' of type TO",
-                        targetexpr->data.field.fieldname);
-                    break;
-                default: assert(0);
-            }
 
             // TODO: is this evaluation order good?
             const Variable *target = build_address_of_expression(st, targetexpr, true);

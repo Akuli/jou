@@ -450,7 +450,6 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         free(temptype.data.valuetype);
         break;
     case AST_EXPR_CONSTANT:
-        printf("typecheck Constant %p\n", expr);
         result = type_of_constant(&expr->data.constant);
         break;
     case AST_EXPR_AND:
