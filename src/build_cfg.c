@@ -35,14 +35,6 @@ static const ExpressionTypes *get_expr_types(const struct State *st, const AstEx
     return NULL;
 }
 
-static const Signature *find_function(const struct State *st, const char *name)
-{
-    for (int i = 0; i < st->typectx.function_signatures.len; i++)
-        if (!strcmp(st->typectx.function_signatures.ptr[i].funcname, name))
-            return &st->typectx.function_signatures.ptr[i];
-    return NULL;
-}
-
 static CfBlock *add_block(const struct State *st)
 {
     CfBlock *block = calloc(1, sizeof *block);
@@ -384,25 +376,25 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
         fail_with_error(address_of_what->location, "the address-of operator '&' cannot be used with %s", cant_take_address_of);
 }
 
-// returns NULL if the function doesn't return anything
-static const Variable *build_function_call(struct State *st, const AstCall *call, Location location)
+static const Variable *build_function_call(struct State *st, const AstExpression *expr)
 {
-    const Signature *sig = find_function(st, call->calledname);
-    assert(sig);
+    assert(expr->kind == AST_EXPR_FUNCTION_CALL);
 
-    const Variable **args = calloc(call->nargs + 1, sizeof(args[0]));  // NOLINT
-    for (int i = 0; i < call->nargs; i++)
-        args[i] = build_expression(st, &call->args[i]);
+    int nargs = expr->data.call.nargs;
+    const Variable **args = calloc(nargs + 1, sizeof(args[0]));  // NOLINT
+    for (int i = 0; i < nargs; i++)
+        args[i] = build_expression(st, &expr->data.call.args[i]);
 
+    const ExpressionTypes *types = get_expr_types(st, expr);
     const Variable *return_value;
-    if (sig->returntype)
-        return_value = add_variable(st, sig->returntype);
+    if (types)
+        return_value = add_variable(st, &types->type);
     else
         return_value = NULL;
 
     union CfInstructionData data;
-    safe_strcpy(data.funcname, call->calledname);
-    add_instruction(st, location, CF_CALL, &data, args, return_value);
+    safe_strcpy(data.funcname, expr->data.call.calledname);
+    add_instruction(st, expr->location, CF_CALL, &data, args, return_value);
 
     free(args);
     return return_value;
@@ -436,7 +428,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
 
     switch(expr->kind) {
     case AST_EXPR_FUNCTION_CALL:
-        result = build_function_call(st, &expr->data.call, expr->location);
+        result = build_function_call(st, expr);
         if (!result)
             return NULL;
         break;
