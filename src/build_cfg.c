@@ -447,12 +447,9 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
     case AST_EXPR_DEREF_AND_GET_FIELD:
         // To evaluate foo.bar or foo->bar, we first evaluate &foo.bar or &foo->bar.
         // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
-        {
-            temp = build_address_of_expression(st, expr, false);
-            assert(temp->type.kind == TYPE_POINTER);
-            result = add_variable(st, temp->type.data.valuetype);
-            add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
-        }
+        temp = build_address_of_expression(st, expr, false);
+        result = add_variable(st, &types->type);
+        add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_INDEXING:
         result = build_indexing(st, &expr->data.operands[0], &expr->data.operands[1]);
@@ -463,7 +460,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
     case AST_EXPR_GET_VARIABLE:
         result = find_variable(st, expr->data.varname);
         assert(result);
-        if (!types->type_after_cast) {
+        if (types->type_after_cast == NULL || same_type(&types->type, types->type_after_cast)) {
             // Must take a "snapshot" of this variable, as it may change soon.
             temp = result;
             result = add_variable(st, &temp->type);
@@ -472,13 +469,11 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         break;
     case AST_EXPR_DEREFERENCE:
         temp = build_expression(st, &expr->data.operands[0]);
-        assert(temp->type.kind == TYPE_POINTER);
-        result = add_variable(st, temp->type.data.valuetype);
+        result = add_variable(st, &types->type);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_CONSTANT:
-        temptype = type_of_constant(&expr->data.constant);
-        result = add_variable(st, &temptype);
+        result = add_variable(st, &types->type);
         add_constant(st, expr->location, expr->data.constant, result);
         break;
     case AST_EXPR_AND:
@@ -697,10 +692,8 @@ static void build_body(struct State *st, const AstBody *body)
         build_statement(st, &body->statements[i]);
 }
 
-static CfGraph *build_function(struct State *st, const Signature *sig, const AstBody *body)
+static CfGraph *build_function(struct State *st, const AstBody *body)
 {
-    typecheck_function(&st->typectx, sig, body);
-
     st->cfg = calloc(1, sizeof *st->cfg);
     Append(&st->cfg->all_blocks, &st->cfg->start_block);
     Append(&st->cfg->all_blocks, &st->cfg->end_block);
@@ -718,6 +711,14 @@ static CfGraph *build_function(struct State *st, const Signature *sig, const Ast
     memcpy(&st->cfg->variables, &st->typectx.variables, sizeof st->typectx.variables);
     memset(&st->typectx.variables, 0, sizeof st->typectx.variables);
 
+    for (ExpressionTypes **et = st->typectx.expr_types.ptr; et < End(st->typectx.expr_types); et++) {
+        free_type(&(*et)->type);
+        if ((*et)->type_after_cast) {
+            free_type((*et)->type_after_cast);
+            (*et)->type_after_cast = NULL;
+        }
+        free(*et);
+    }
     st->typectx.expr_types.len = 0;
     return st->cfg;
 }
@@ -792,14 +793,13 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
             assert(0);
         case AST_TOPLEVEL_DECLARE_FUNCTION:
             sig = build_signature(&st, &ast->data.decl_signature, ast->location);
-            Append(&st.typectx.function_signatures, sig);
+            typecheck_function(&st.typectx, &sig, NULL);
             result.graphs[result.nfuncs++] = NULL;
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             sig = build_signature(&st, &ast->data.funcdef.signature, ast->location);
-            // Make signature of current function usable in function calls (recursion)
-            Append(&st.typectx.function_signatures, sig);
-            result.graphs[result.nfuncs++] = build_function(&st, &sig, &ast->data.funcdef.body);
+            typecheck_function(&st.typectx, &sig, &ast->data.funcdef.body);
+            result.graphs[result.nfuncs++] = build_function(&st, &ast->data.funcdef.body);
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
             // careful with evaluation order in Append...
@@ -810,12 +810,14 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
         ast++;
     }
 
+    result.signatures = st.typectx.function_signatures.ptr;
+    result.nfuncs = st.typectx.function_signatures.len;
+
     free(st.breakstack.ptr);
     free(st.continuestack.ptr);
+    free(st.typectx.expr_types.ptr);
     /*for (Type *t = st.structs.ptr; t < End(st.structs); t++)
         free_type(t);
     free(st.structs.ptr);*/
-    result.signatures = st.typectx.function_signatures.ptr;
-    result.nfuncs = st.typectx.function_signatures.len;
     return result;
 }

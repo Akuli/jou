@@ -115,9 +115,11 @@ static void do_implicit_cast(
     ExpressionTypes *types, const Type *to, Location location, const char *errormsg_template)
 {
     const Type *from = &types->type;
+    if (same_type(from, to))
+        return;
+
     bool can_cast =
         errormsg_template == NULL   // This can be used to "force" a cast to happen.
-        || same_type(from, to)
         || (
             // Cast to bigger integer types implicitly, unless it is signed-->unsigned.
             is_integer_type(from)
@@ -133,6 +135,7 @@ static void do_implicit_cast(
     if (!can_cast)
         fail_with_implicit_cast_error(location, errormsg_template, from, to);
 
+    assert(!types->type_after_cast);
     types->type_after_cast = malloc(sizeof *types->type_after_cast);
     *types->type_after_cast = copy_type(to);
 }
@@ -172,8 +175,6 @@ static void typecheck_expression_with_implicit_cast(
 {
     ExpressionTypes *types = typecheck_expression_not_void(ctx, expr);
     do_implicit_cast(types, casttype, expr->location, errormsg_template);
-    types->type_after_cast = malloc(sizeof *types->type_after_cast);
-    *types->type_after_cast = copy_type(casttype);
 }
 
 static Type check_binop(
@@ -230,11 +231,6 @@ static Type check_binop(
     }
     do_implicit_cast(lhstypes, &cast_type, (Location){0}, NULL);
     do_implicit_cast(rhstypes, &cast_type, (Location){0}, NULL);
-
-    lhstypes->type_after_cast = malloc(sizeof *lhstypes->type_after_cast);
-    rhstypes->type_after_cast = malloc(sizeof *rhstypes->type_after_cast);
-    *lhstypes->type_after_cast = cast_type;
-    *rhstypes->type_after_cast = cast_type;
 
     switch(op) {
         case AST_EXPR_ADD:
@@ -357,6 +353,7 @@ static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call
         typecheck_expression_not_void(ctx, &call->args[i]);
     }
 
+    free(sigstr);
     return sig->returntype;
 }
 
@@ -454,7 +451,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         result = *temptype.data.valuetype;
         break;
     case AST_EXPR_CONSTANT:
-        result = type_of_constant(&expr->data.constant);
+        result = copy_type((Type[]){type_of_constant(&expr->data.constant)});
         break;
     case AST_EXPR_AND:
         typecheck_and_or(ctx, &expr->data.operands[0], &expr->data.operands[1], "and");
@@ -504,15 +501,6 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
     types->type = result;
     Append(&ctx->expr_types, types);
     return types;
-}
-
-static int compare_exprtypes(const void *aptr, const void *bptr)
-{
-    const ExpressionTypes *a = aptr, *b = bptr;
-    // Need integers, because comparing pointers to different memory areas is UB.
-    uintptr_t aval = (uintptr_t)a->expr;
-    uintptr_t bval = (uintptr_t)b->expr;
-    return (aval>bval) - (aval<bval);
 }
 
 static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt);
@@ -652,20 +640,23 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
 
 void typecheck_function(TypeContext *ctx, const Signature *sig, const AstBody *body)
 {
+    // Make signature of current function usable in function calls (recursion)
+    Append(&ctx->function_signatures, *sig);
+
     assert(ctx->current_function_signature == NULL);
     assert(ctx->expr_types.len == 0);
-    assert(ctx->function_signatures.len > 0);  // contains at least current function
     assert(ctx->variables.len == 0);
 
-    ctx->current_function_signature = sig;
-    for (int i = 0; i < sig->nargs; i++) {
-        Variable *v = add_variable(ctx, &sig->argtypes[i], sig->argnames[i]);
-        v->is_argument = true;
-    }
-    if (sig->returntype)
-        add_variable(ctx, sig->returntype, "return");
+    if (body) {
+        ctx->current_function_signature = sig;
+        for (int i = 0; i < sig->nargs; i++) {
+            Variable *v = add_variable(ctx, &sig->argtypes[i], sig->argnames[i]);
+            v->is_argument = true;
+        }
+        if (sig->returntype)
+            add_variable(ctx, sig->returntype, "return");
 
-    typecheck_body(ctx, body);
-    ctx->current_function_signature = NULL;
-    // Leave expr_types and variables in the TypeContext
+        typecheck_body(ctx, body);
+        ctx->current_function_signature = NULL;
+    }
 }
