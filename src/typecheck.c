@@ -364,7 +364,7 @@ static Type typecheck_struct_field(
 
     for (int i = 0; i < structtype->data.structfields.count; i++)
         if (!strcmp(structtype->data.structfields.names[i], fieldname))
-            return structtype->data.structfields.types[i];
+            return copy_type(&structtype->data.structfields.types[i]);
 
     fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
 }
@@ -435,6 +435,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_ADDRESS_OF:
         temptype = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
+        temptype = copy_type(&temptype);
         result = create_pointer_type(&temptype, expr->location);
         break;
     case AST_EXPR_GET_VARIABLE:
