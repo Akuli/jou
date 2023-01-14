@@ -113,7 +113,8 @@ static void do_implicit_cast(
 {
     const Type *from = &types->type;
     bool can_cast =
-        same_type(from, to)
+        errormsg_template == NULL   // This can be used to "force" a cast to happen.
+        || same_type(from, to)
         || (
             // Cast to bigger integer types implicitly, unless it is signed-->unsigned.
             is_integer_type(from)
@@ -430,7 +431,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         result = typecheck_struct_field(temptype.data.valuetype, expr->data.field.fieldname, expr->location);
         break;
     case AST_EXPR_INDEXING:
-        typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);
+        result = typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);
         break;
     case AST_EXPR_ADDRESS_OF:
         temptype = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
@@ -441,14 +442,13 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
             const Variable *v = find_variable(ctx, expr->data.varname);
             if (!v)
                 fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
-            result = v->type;
+            result = copy_type(&v->type);
         }
         break;
     case AST_EXPR_DEREFERENCE:
         temptype = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
         typecheck_dereferenced_pointer(expr->location, &temptype);
         result = *temptype.data.valuetype;
-        free(temptype.data.valuetype);
         break;
     case AST_EXPR_CONSTANT:
         result = type_of_constant(&expr->data.constant);
@@ -498,9 +498,9 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
     }
 
     ExpressionTypes *types = calloc(1, sizeof *types);
-    Append(&ctx->expr_types, types);
     types->expr = expr;
     types->type = result;
+    Append(&ctx->expr_types, types);
     return types;
 }
 
