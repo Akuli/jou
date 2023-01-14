@@ -13,7 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
-    - run: make test
+    - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make test
 
   valgrind:
     runs-on: ubuntu-latest
@@ -23,7 +23,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
-    - run: make valgrind
+    - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make valgrind
 
   fuzzer:
     runs-on: ubuntu-latest
@@ -33,4 +33,4 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
-    - run: ./fuzzer.sh
+    - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} ./fuzzer.sh
