@@ -304,8 +304,8 @@ extern const Type *intType;       // int (32-bit signed)
 extern const Type *byteType;      // byte (8-bit unsigned)
 extern const Type *voidPtrType;   // void*
 void init_types();  // Called once when compiler starts
-const Type *create_integer_type(int size_in_bits, bool is_signed);
-const Type *create_pointer_type(const Type *t);
+const Type *get_integer_type(int size_in_bits, bool is_signed);
+const Type *get_pointer_type(const Type *t);
 const Type *type_of_constant(const Constant *c);
 Type *type_struct(int fieldcount, char (*fieldnames)[100], const Type **fieldtypes);
 void free_type_2(Type *type);  // TODO: rename to free_type()

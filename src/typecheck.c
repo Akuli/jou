@@ -62,7 +62,7 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
     }
 
     while (npointers--)
-        t = create_pointer_type(t);
+        t = get_pointer_type(t);
     return t;
 }
 
@@ -213,7 +213,7 @@ static const Type *check_binop(
     // TODO: is this a good idea?
     const Type *cast_type;
     if (got_integers) {
-        cast_type = create_integer_type(
+        cast_type = get_integer_type(
             max(lhstypes->type->data.width_in_bits, rhstypes->type->data.width_in_bits),
             lhstypes->type->kind == TYPE_SIGNED_INTEGER || lhstypes->type->kind == TYPE_SIGNED_INTEGER
         );
@@ -427,7 +427,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_ADDRESS_OF:
         temptype = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
-        result = create_pointer_type(temptype);
+        result = get_pointer_type(temptype);
         break;
     case AST_EXPR_GET_VARIABLE:
         {

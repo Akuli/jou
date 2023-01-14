@@ -168,7 +168,7 @@ static const Variable *build_struct_field_pointer(
             union CfInstructionData dat;
             safe_strcpy(dat.fieldname, name);
 
-            Variable* result = add_variable(st, create_pointer_type(type));
+            Variable* result = add_variable(st, get_pointer_type(type));
             add_instruction(st, location, CF_PTR_STRUCT_FIELD, &dat, (const Variable*[]){structinstance,NULL}, result);
             return result;
         }
@@ -316,7 +316,7 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
     {
         const Variable *var = find_variable(st, address_of_what->data.varname);
         assert(var);
-        const Variable *addr = add_variable(st, create_pointer_type(var->type));
+        const Variable *addr = add_variable(st, get_pointer_type(var->type));
         add_unary_op(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, var, addr);
         return addr;
     }
@@ -398,7 +398,7 @@ static const Variable *build_function_call(struct State *st, const AstExpression
 static const Variable *build_struct_init(struct State *st, const Type *type, const AstCall *call, Location location)
 {
     const Variable *instance = add_variable(st, type);
-    const Variable *instanceptr = add_variable(st, create_pointer_type(type));
+    const Variable *instanceptr = add_variable(st, get_pointer_type(type));
 
     add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
     add_unary_op(st, location, CF_PTR_MEMSET_TO_ZERO, instanceptr, NULL);

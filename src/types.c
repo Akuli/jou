@@ -73,13 +73,13 @@ const Type *type_bool(void)
     return &global_state.boolean.type;
 }
 
-const Type *create_integer_type(int size_in_bits, bool is_signed)
+const Type *get_integer_type(int size_in_bits, bool is_signed)
 {
     assert(size_in_bits==8 || size_in_bits==16 || size_in_bits==32 || size_in_bits==64);
     return &global_state.integers[size_in_bits][is_signed].type;
 }
 
-const Type *create_pointer_type(const Type *t)
+const Type *get_pointer_type(const Type *t)
 {
     assert(offsetof(struct TypeInfo, type) == 0);
     struct TypeInfo *info = (struct TypeInfo *)t;
@@ -108,11 +108,11 @@ const Type *type_of_constant(const Constant *c)
     case CONSTANT_NULL:
         return voidPtrType;
     case CONSTANT_STRING:
-        return create_pointer_type(byteType);
+        return get_pointer_type(byteType);
     case CONSTANT_BOOL:
         return type_bool();
     case CONSTANT_INTEGER:
-        return create_integer_type(c->data.integer.width_in_bits, c->data.integer.is_signed);
+        return get_integer_type(c->data.integer.width_in_bits, c->data.integer.is_signed);
     }
     assert(0);
 }
