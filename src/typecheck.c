@@ -1,7 +1,6 @@
 #include "jou_compiler.h"
 
 
-// If error_location is NULL, this will return NULL when variable is not found.
 static const Variable *find_variable(const TypeContext *ctx, const char *name)
 {
     for (Variable **var = ctx->variables.ptr; var < End(ctx->variables); var++)
