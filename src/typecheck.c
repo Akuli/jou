@@ -49,15 +49,14 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
         npointers--;
         t = voidPtrType;
     } else {
-        bool found = false;
-        for (struct Type *ptr = ctx->structs.ptr; ptr < End(ctx->structs); ptr++) {
-            if (!strcmp(ptr->name, asttype->name)) {
-                t = ptr;
-                found = true;
+        t = NULL;
+        for (Type **ptr = ctx->structs.ptr; ptr < End(ctx->structs); ptr++) {
+            if (!strcmp((*ptr)->name, asttype->name)) {
+                t = *ptr;
                 break;
             }
         }
-        if(!found)
+        if(!t)
             fail_with_error(asttype->location, "there is no type named '%s'", asttype->name);
     }
 
@@ -680,24 +679,21 @@ void typecheck_function(TypeContext *ctx, Location funcname_location, const AstS
 
 void typecheck_struct(struct TypeContext *ctx, const AstStructDef *structdef, Location location)
 {
-    for (Type *t = ctx->structs.ptr; t < End(ctx->structs); t++)
-        if (!strcmp(t->name, structdef->name))
-            fail_with_error(location, "a struct named '%s' already exists", t->name);
-
-    Type result = { .kind = TYPE_STRUCT };
-    safe_strcpy(result.name, structdef->name);
+    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
+        if (!strcmp((*t)->name, structdef->name))
+            fail_with_error(location, "a struct named '%s' already exists", structdef->name);
 
     int n = structdef->nfields;
-    result.data.structfields.count = n;
 
-    result.data.structfields.names = malloc(n * sizeof result.data.structfields.names[0]);
-    memcpy(result.data.structfields.names, structdef->fieldnames, n * sizeof result.data.structfields.names[0]);
+    char (*fieldnames)[100] = malloc(n * sizeof(fieldnames[0]));
+    memcpy(fieldnames, structdef->fieldnames, n * sizeof(fieldnames[0]));
 
-    result.data.structfields.types = malloc(n * sizeof result.data.structfields.types[0]);  // NOLINT
+    const Type **fieldtypes = malloc(n * sizeof fieldtypes[0]);  // NOLINT
     for (int i = 0; i < n; i++)
-        result.data.structfields.types[i] = type_from_ast(ctx, &structdef->fieldtypes[i]);
+        fieldtypes[i] = type_from_ast(ctx, &structdef->fieldtypes[i]);
 
-    Append(&ctx->structs, result);
+    Type *structtype = create_struct(structdef->name, n, fieldnames, fieldtypes);
+    Append(&ctx->structs, structtype);
 }
 
 void reset_type_context(TypeContext *ctx)
@@ -712,7 +708,7 @@ void destroy_type_context(const TypeContext *ctx)
 {
     free(ctx->expr_types.ptr);
     free(ctx->variables.ptr);
-    for (Type *t = ctx->structs.ptr; t < End(ctx->structs); t++)
-        free_type_2(t);
+    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
+        free_type_2(*t);
     free(ctx->structs.ptr);
 }

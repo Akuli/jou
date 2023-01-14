@@ -2,7 +2,7 @@
 
 
 struct State {
-    TypeContext typectx;
+    TypeContext *typectx;
     CfGraph *cfg;
     CfBlock *current_block;
     List(CfBlock *) breakstack;
@@ -11,7 +11,7 @@ struct State {
 
 static const Variable *find_variable(const struct State *st, const char *name)
 {
-    for (Variable **var = st->typectx.variables.ptr; var < End(st->typectx.variables); var++)
+    for (Variable **var = st->typectx->variables.ptr; var < End(st->typectx->variables); var++)
         if (!strcmp((*var)->name, name))
             return *var;
     return NULL;
@@ -20,18 +20,18 @@ static const Variable *find_variable(const struct State *st, const char *name)
 static Variable *add_variable(struct State *st, const Type *t)
 {
     Variable *var = calloc(1, sizeof *var);
-    var->id = st->typectx.variables.len;
+    var->id = st->typectx->variables.len;
     var->type = t;
-    Append(&st->typectx.variables, var);
+    Append(&st->typectx->variables, var);
     return var;
 }
 
 static const ExpressionTypes *get_expr_types(const struct State *st, const AstExpression *expr)
 {
     // TODO: a fancy binary search algorithm (need to add sorting)
-    for (int i = 0; i < st->typectx.expr_types.len; i++)
-        if (st->typectx.expr_types.ptr[i]->expr == expr)
-            return st->typectx.expr_types.ptr[i];
+    for (int i = 0; i < st->typectx->expr_types.len; i++)
+        if (st->typectx->expr_types.ptr[i]->expr == expr)
+            return st->typectx->expr_types.ptr[i];
     return NULL;
 }
 
@@ -690,17 +690,17 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
     st->current_block->iftrue = &st->cfg->end_block;
     st->current_block->iffalse = &st->cfg->end_block;
 
-    for (Variable **v = st->typectx.variables.ptr; v < End(st->typectx.variables); v++)
+    for (Variable **v = st->typectx->variables.ptr; v < End(st->typectx->variables); v++)
         Append(&st->cfg->variables, *v);
 
-    reset_type_context(&st->typectx);
+    reset_type_context(st->typectx);
     return st->cfg;
 }
 
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
 {
     CfGraphFile result = { .filename = ast->location.filename };
-    struct State st = {0};
+    struct State st = { .typectx = &result.typectx };
 
     int n = 0;
     while (ast[n].kind!=AST_TOPLEVEL_END_OF_FILE) n++;
@@ -711,25 +711,24 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         case AST_TOPLEVEL_DECLARE_FUNCTION:
-            typecheck_function(&st.typectx, ast->location, &ast->data.decl_signature, NULL);
+            typecheck_function(&result.typectx, ast->location, &ast->data.decl_signature, NULL);
             result.graphs[result.nfuncs++] = NULL;
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            typecheck_function(&st.typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
+            typecheck_function(&result.typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
             result.graphs[result.nfuncs++] = build_function(&st, &ast->data.funcdef.body);
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
-            typecheck_struct(&st.typectx, &ast->data.structdef, ast->location);
+            typecheck_struct(&result.typectx, &ast->data.structdef, ast->location);
             break;
         }
         ast++;
     }
 
-    assert(result.nfuncs == st.typectx.function_signatures.len);
-    result.signatures = st.typectx.function_signatures.ptr;
+    assert(result.nfuncs == st.typectx->function_signatures.len);
+    result.signatures = st.typectx->function_signatures.ptr;
 
     free(st.breakstack.ptr);
     free(st.continuestack.ptr);
-    destroy_type_context(&st.typectx);
     return result;
 }

@@ -307,7 +307,11 @@ void init_types();  // Called once when compiler starts
 const Type *get_integer_type(int size_in_bits, bool is_signed);
 const Type *get_pointer_type(const Type *t);
 const Type *type_of_constant(const Constant *c);
-Type *type_struct(int fieldcount, char (*fieldnames)[100], const Type **fieldtypes);
+Type *create_struct(
+    const char *name,
+    int fieldcount,
+    char (*fieldnames)[100],  // will be free()d eventually
+    const Type **fieldtypes);  // will be free()d eventually
 void free_type_2(Type *type);  // TODO: rename to free_type()
 
 bool is_integer_type(const Type *t);  // includes signed and unsigned
@@ -345,7 +349,7 @@ struct TypeContext {
     // It contains nothing for calls to "-> void" functions.
     List(ExpressionTypes *) expr_types;
     List(Variable *) variables;
-    List(Type) structs;
+    List(Type *) structs;
     List(Signature) function_signatures;
 };
 
@@ -419,6 +423,7 @@ struct CfGraph {
 };
 
 struct CfGraphFile {
+    TypeContext typectx;
     const char *filename;
     int nfuncs;
     Signature *signatures;

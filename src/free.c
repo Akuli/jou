@@ -194,6 +194,8 @@ static void free_cfg(CfGraph *cfg)
 
 void free_control_flow_graphs(const CfGraphFile *cfgfile)
 {
+    destroy_type_context(&cfgfile->typectx);
+
     for (int i = 0; i < cfgfile->nfuncs; i++) {
         free_signature(&cfgfile->signatures[i]);
         if (cfgfile->graphs[i])
