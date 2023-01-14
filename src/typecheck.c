@@ -322,7 +322,7 @@ static const char *nth(int n)
     return result;
 }
 
-// returns NULL if the function doesn't return anything
+// returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
 static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call, Location location)
 {
     const Signature *sig = find_function(ctx, call->calledname);
@@ -406,7 +406,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
             const Type *ret = typecheck_function_call(ctx, &expr->data.call, expr->location);
             if (!ret)
                 return NULL;
-            result = *ret;
+            result = copy_type(ret);
         }
         break;
     case AST_EXPR_BRACE_INIT:
