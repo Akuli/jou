@@ -641,27 +641,54 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
     }
 }
 
-void typecheck_function(TypeContext *ctx, const Signature *sig, const AstBody *body)
+void typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body)
 {
-    // Make signature of current function usable in function calls (recursion)
-    Append(&ctx->function_signatures, *sig);
+    for (Signature *sig = ctx->function_signatures.ptr; sig < End(ctx->function_signatures); sig++)
+        if (!strcmp(sig->funcname, astsig->funcname))
+            fail_with_error(funcname_location, "a function named '%s' already exists", astsig->funcname);
+
+    Signature sig = { .nargs = astsig->nargs, .takes_varargs = astsig->takes_varargs };
+    safe_strcpy(sig.funcname, astsig->funcname);
+
+    size_t size = sizeof(sig.argnames[0]) * sig.nargs;
+    sig.argnames = malloc(size);
+    memcpy(sig.argnames, astsig->argnames, size);
+
+    sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs);
+    for (int i = 0; i < sig.nargs; i++)
+        sig.argtypes[i] = type_from_ast(ctx, &astsig->argtypes[i]);
+
+    sig.returntype = type_or_void_from_ast(ctx, &astsig->returntype);
+    // TODO: validate main() parameters
+    // TODO: test main() taking parameters
+    if (!strcmp(sig.funcname, "main") &&
+        (sig.returntype == NULL || !same_type(sig.returntype, &intType)))
+    {
+        fail_with_error(astsig->returntype.location, "the main() function must return int");
+    }
+
+    sig.returntype_location = astsig->returntype.location;
 
     assert(ctx->current_function_signature == NULL);
     assert(ctx->expr_types.len == 0);
     assert(ctx->variables.len == 0);
 
+    // Make signature of current function usable in function calls (recursion)
+    Append(&ctx->function_signatures, sig);
+    ctx->current_function_signature = &ctx->function_signatures.ptr[ctx->function_signatures.len - 1];
+
     if (body) {
-        ctx->current_function_signature = sig;
-        for (int i = 0; i < sig->nargs; i++) {
-            Variable *v = add_variable(ctx, &sig->argtypes[i], sig->argnames[i]);
+        for (int i = 0; i < sig.nargs; i++) {
+            Variable *v = add_variable(ctx, &sig.argtypes[i], sig.argnames[i]);
             v->is_argument = true;
         }
-        if (sig->returntype)
-            add_variable(ctx, sig->returntype, "return");
+        if (sig.returntype)
+            add_variable(ctx, sig.returntype, "return");
 
         typecheck_body(ctx, body);
-        ctx->current_function_signature = NULL;
     }
+
+    ctx->current_function_signature = NULL;
 }
 
 void reset_type_context(TypeContext *ctx)

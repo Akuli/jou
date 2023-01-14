@@ -707,36 +707,6 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
     return st->cfg;
 }
 
-static Signature build_signature(const struct State *st, const AstSignature *astsig, Location location)
-{
-    for (int i = 0; i < st->typectx.function_signatures.len; i++)
-        if (!strcmp(st->typectx.function_signatures.ptr[i].funcname, astsig->funcname))
-            fail_with_error(location, "a function named '%s' already exists", astsig->funcname);
-
-    Signature result = { .nargs = astsig->nargs, .takes_varargs = astsig->takes_varargs };
-    safe_strcpy(result.funcname, astsig->funcname);
-
-    size_t size = sizeof(result.argnames[0]) * result.nargs;
-    result.argnames = malloc(size);
-    memcpy(result.argnames, astsig->argnames, size);
-
-    result.argtypes = malloc(sizeof(result.argtypes[0]) * result.nargs);
-    for (int i = 0; i < result.nargs; i++)
-        result.argtypes[i] = type_from_ast(&st->typectx, &astsig->argtypes[i]);
-
-    result.returntype = type_or_void_from_ast(&st->typectx, &astsig->returntype);
-    // TODO: validate main() parameters
-    // TODO: test main() taking parameters
-    if (!strcmp(astsig->funcname, "main") &&
-        (result.returntype == NULL || !same_type(result.returntype, &intType)))
-    {
-        fail_with_error(astsig->returntype.location, "the main() function must return int");
-    }
-
-    result.returntype_location = astsig->returntype.location;
-    return result;
-}
-
 static Type build_struct(struct State *st, const AstStructDef *structdef, Location location)
 {
     for (Type *t = st->typectx.structs.ptr; t < End(st->typectx.structs); t++)
@@ -768,7 +738,6 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
     while (ast[n].kind!=AST_TOPLEVEL_END_OF_FILE) n++;
     result.graphs = malloc(sizeof(result.graphs[0]) * n);  // NOLINT
 
-    Signature sig;
     Type type;
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
@@ -776,13 +745,11 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         case AST_TOPLEVEL_DECLARE_FUNCTION:
-            sig = build_signature(&st, &ast->data.decl_signature, ast->location);
-            typecheck_function(&st.typectx, &sig, NULL);
+            typecheck_function(&st.typectx, ast->location, &ast->data.decl_signature, NULL);
             result.graphs[result.nfuncs++] = NULL;
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            sig = build_signature(&st, &ast->data.funcdef.signature, ast->location);
-            typecheck_function(&st.typectx, &sig, &ast->data.funcdef.body);
+            typecheck_function(&st.typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
             result.graphs[result.nfuncs++] = build_function(&st, &ast->data.funcdef.body);
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:

@@ -110,6 +110,7 @@ struct AstType {
 };
 
 struct AstSignature {
+    Location funcname_location;
     char funcname[100];
     int nargs;
     AstType *argtypes;
@@ -340,7 +341,9 @@ struct TypeContext {
 };
 Type type_from_ast(const TypeContext *ctx, const AstType *asttype);
 Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttype);
-void typecheck_function(TypeContext *ctx, const Signature *sig, const AstBody *body);
+
+// body can be NULL to check a declaration that doesn't define anything
+void typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
 
 /*
 Difference between reset and destroy:
