@@ -631,6 +631,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
                 "initial value for variable of type TO cannot be of type FROM");
         }
         add_variable(ctx, &type, stmt->data.vardecl.name);
+        free_type(&type);
         break;
 
     case AST_STMT_EXPRESSION_STATEMENT:
