@@ -506,6 +506,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
 static int compare_exprtypes(const void *aptr, const void *bptr)
 {
     const ExpressionTypes *a = aptr, *b = bptr;
+    // Need integers, because comparing pointers to different memory areas is UB.
     uintptr_t aval = (uintptr_t)a->expr;
     uintptr_t bval = (uintptr_t)b->expr;
     return (aval>bval) - (aval<bval);
