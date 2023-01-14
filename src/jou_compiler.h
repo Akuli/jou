@@ -312,7 +312,7 @@ Type *create_struct(
     int fieldcount,
     char (*fieldnames)[100],  // will be free()d eventually
     const Type **fieldtypes);  // will be free()d eventually
-void free_type_2(Type *type);  // TODO: rename to free_type()
+void free_type(Type *type);
 
 bool is_integer_type(const Type *t);  // includes signed and unsigned
 bool is_pointer_type(const Type *t);  // includes void pointers

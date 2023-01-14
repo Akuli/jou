@@ -21,7 +21,7 @@ const Type *intType = &global_state.integers[32][true].type;
 const Type *byteType = &global_state.integers[8][false].type;
 const Type *voidPtrType = &global_state.voidptr.type;
 
-void free_type_2(Type *t)
+void free_type(Type *t)
 {
     while(t) {
         if (t->kind == TYPE_STRUCT) {

@@ -709,6 +709,6 @@ void destroy_type_context(const TypeContext *ctx)
     free(ctx->expr_types.ptr);
     free(ctx->variables.ptr);
     for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
-        free_type_2(*t);
+        free_type(*t);
     free(ctx->structs.ptr);
 }
