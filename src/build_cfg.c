@@ -2,46 +2,36 @@
 
 
 struct State {
-    CfGraphFile *cfgfile;
+    TypeContext typectx;
     CfGraph *cfg;
-    const Signature *signature;
     CfBlock *current_block;
     List(CfBlock *) breakstack;
     List(CfBlock *) continuestack;
-    List(Type) structs;
 };
 
-// If error_location is NULL, this will return NULL when variable is not found.
-static const CfVariable *find_variable(const struct State *st, const char *name, const Location *error_location)
+static const Variable *find_variable(const struct State *st, const char *name)
 {
-    for (CfVariable **var = st->cfg->variables.ptr; var < End(st->cfg->variables); var++)
+    for (Variable **var = st->typectx.variables.ptr; var < End(st->typectx.variables); var++)
         if (!strcmp((*var)->name, name))
             return *var;
-
-    if (!error_location)
-        return NULL;
-    fail_with_error(*error_location, "no local variable named '%s'", name);
+    return NULL;
 }
 
-static CfVariable *add_variable(const struct State *st, const Type *t, const char *name)
+static Variable *add_variable(struct State *st, const Type *t)
 {
-    CfVariable *var = calloc(1, sizeof *var);
-    var->id = st->cfg->variables.len;
+    Variable *var = calloc(1, sizeof *var);
+    var->id = st->typectx.variables.len;
     var->type = copy_type(t);
-    if (name) {
-        assert(!find_variable(st, name, NULL));
-        assert(strlen(name) < sizeof var->name);
-        strcpy(var->name, name);
-    }
-    Append(&st->cfg->variables, var);
+    Append(&st->typectx.variables, var);
     return var;
 }
 
-static const Signature *find_function(const struct State *st, const char *name)
+static const ExpressionTypes *get_expr_types(const struct State *st, const AstExpression *expr)
 {
-    for (int i = 0; i < st->cfgfile->nfuncs; i++)
-        if (!strcmp(st->cfgfile->signatures[i].funcname, name))
-            return &st->cfgfile->signatures[i];
+    // TODO: a fancy binary search algorithm (need to add sorting)
+    for (int i = 0; i < st->typectx.expr_types.len; i++)
+        if (st->typectx.expr_types.ptr[i]->expr == expr)
+            return st->typectx.expr_types.ptr[i];
     return NULL;
 }
 
@@ -52,7 +42,7 @@ static CfBlock *add_block(const struct State *st)
     return block;
 }
 
-static void add_jump(struct State *st, const CfVariable *branchvar, CfBlock *iftrue, CfBlock *iffalse, CfBlock *new_current_block)
+static void add_jump(struct State *st, const Variable *branchvar, CfBlock *iftrue, CfBlock *iffalse, CfBlock *new_current_block)
 {
     assert(iftrue);
     assert(iffalse);
@@ -73,8 +63,8 @@ static CfInstruction *add_instruction(
     Location location,
     enum CfInstructionKind k,
     const union CfInstructionData *dat,
-    const CfVariable **operands, // NULL terminated, or NULL for empty
-    const CfVariable *destvar)
+    const Variable **operands, // NULL terminated, or NULL for empty
+    const Variable *destvar)
 {
     CfInstruction ins = { .location=location, .kind=k, .destvar=destvar };
     if (dat)
@@ -94,240 +84,46 @@ static CfInstruction *add_instruction(
 
 // add_instruction() takes many arguments. Let's hide the mess a bit.
 #define add_unary_op(st, loc, op, arg, target) \
-    add_instruction((st), (loc), (op), NULL, (const CfVariable*[]){(arg),NULL}, (target))
+    add_instruction((st), (loc), (op), NULL, (const Variable*[]){(arg),NULL}, (target))
 #define add_binary_op(st, loc, op, lhs, rhs, target) \
-    add_instruction((st), (loc), (op), NULL, (const CfVariable*[]){(lhs),(rhs),NULL}, (target))
+    add_instruction((st), (loc), (op), NULL, (const Variable*[]){(lhs),(rhs),NULL}, (target))
 #define add_constant(st, loc, c, target) \
     add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant(&(c)) }, NULL, (target))
 
 
-// NULL return value means it is void
-static Type *build_type_or_void(const struct State *st, const AstType *asttype)
-{
-    (void)st;    // Currently not used. Will later be needed for struct names
-
-    int npointers = asttype->npointers;
-    Type t;
-
-    if (!strcmp(asttype->name, "int"))
-        t = intType;
-    else if (!strcmp(asttype->name, "byte"))
-        t = byteType;
-    else if (!strcmp(asttype->name, "bool"))
-        t = boolType;
-    else if (!strcmp(asttype->name, "void")) {
-        if (npointers == 0)
-            return NULL;
-        npointers--;
-        t = voidPtrType;
-    } else {
-        bool found = false;
-        for (struct Type *ptr = st->structs.ptr; ptr < End(st->structs); ptr++) {
-            if (!strcmp(ptr->name, asttype->name)) {
-                t = copy_type(ptr);
-                found = true;
-                break;
-            }
-        }
-        if(!found)
-            fail_with_error(asttype->location, "there is no type named '%s'", asttype->name);
-    }
-
-    while (npointers--)
-        t = create_pointer_type(&t, asttype->location);
-
-    Type *ptr = malloc(sizeof *ptr);
-    *ptr = t;
-    return ptr;
-}
-
-static Type build_type(const struct State *st, const AstType *asttype)
-{
-    Type *ptr = build_type_or_void(st, asttype);
-    if (!ptr)
-        fail_with_error(asttype->location, "'void' cannot be used here because it is not a type");
-
-    Type t = *ptr;
-    free(ptr);
-    return t;
-}
-
-
-/*
-Implicit casts are used in many places, e.g. function arguments.
-
-When you pass an argument of the wrong type, it's best to give an error message
-that says so, instead of some generic "expected type foo, got object of type bar"
-kind of message.
-
-The template can contain "FROM" and "TO". They will be substituted with names
-of types. We cannot use printf() style functions because the arguments can be in
-any order.
-*/
-static noreturn void fail_with_implicit_cast_error(
-    Location location, const char *template, const Type *from, const Type *to)
-{
-    List(char) msg = {0};
-    while(*template){
-        if (!strncmp(template, "FROM", 4)) {
-            AppendStr(&msg, from->name);
-            template += 4;
-        } else if (!strncmp(template, "TO", 2)) {
-            AppendStr(&msg, to->name);
-            template += 2;
-        } else {
-            Append(&msg, template[0]);
-            template++;
-        }
-    }
-    fail_with_error(location, "%.*s", msg.len, msg.ptr);
-}
-
-static const CfVariable *build_implicit_cast(
-    const struct State *st,
-    const CfVariable *obj,
-    const Type *to,
-    Location location,
-    const char *err_template)
-{
-    const Type *from = &obj->type;
-
-    if (same_type(from, to))
-        return obj;
-
-    const CfVariable *result = add_variable(st, to, NULL);
-
-    // Castasting to bigger integer types implicitly, unless it is signed-->unsigned.
-    if (is_integer_type(from)
-        && is_integer_type(to)
-        && from->data.width_in_bits < to->data.width_in_bits
-        && !(from->kind == TYPE_SIGNED_INTEGER && to->kind == TYPE_UNSIGNED_INTEGER))
-    {
-        add_unary_op(st, location, CF_INT_CAST, obj, result);
-        return result;
-    }
-
-    // Implicitly cast between void* and non-void pointer
-    if ((from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
-        || (from->kind == TYPE_VOID_POINTER && to->kind == TYPE_POINTER))
-    {
-        add_unary_op(st, location, CF_PTR_CAST, obj, result);
-        return result;
-    }
-
-    fail_with_implicit_cast_error(location, err_template, from, to);
-}
-
-static const CfVariable *build_explicit_cast(
-    const struct State *st,
-    const CfVariable *obj,
-    const Type *to,
-    Location location)
+static const Variable *build_cast(
+    struct State *st, const Variable *obj, const Type *to, Location location)
 {
     if (same_type(&obj->type, to))
         return obj;
 
-    const CfVariable *result = add_variable(st, to, NULL);
+    const Variable *result = add_variable(st, to);
 
     if (is_pointer_type(&obj->type) && is_pointer_type(to)) {
         add_unary_op(st, location, CF_PTR_CAST, obj, result);
         return result;
     }
-
     if (is_integer_type(&obj->type) && is_integer_type(to)) {
         add_unary_op(st, location, CF_INT_CAST, obj, result);
         return result;
     }
-
-    // TODO: pointer-to-int, int-to-pointer
-
-    // TODO: test this error once there is something that cannot be casted (e.g. float to pointer)
-    fail_with_error(location, "cannot cast from type %s to %s", obj->type.name, to->name);
+    assert(0);
 }
 
-static const CfVariable *build_binop(
-    const struct State *st,
+static const Variable *build_binop(
+    struct State *st,
     enum AstExpressionKind op,
     Location location,
-    const CfVariable *lhs,
-    const CfVariable *rhs)
+    const Variable *lhs,
+    const Variable *rhs,
+    const Type *result_type)
 {
-    const char *do_what;
-    switch(op) {
-    case AST_EXPR_ADD: do_what = "add"; break;
-    case AST_EXPR_SUB: do_what = "subtract"; break;
-    case AST_EXPR_MUL: do_what = "multiply"; break;
-    case AST_EXPR_DIV: do_what = "divide"; break;
-
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
-        do_what = "compare";
-        break;
-
-    default:
-        assert(0);
-    }
-
     bool got_integers = is_integer_type(&lhs->type) && is_integer_type(&rhs->type);
-    bool got_pointers = (
-        is_pointer_type(&lhs->type)
-        && is_pointer_type(&rhs->type)
-        && (
-            // Ban comparisons like int* == byte*, unless one of the two types is void*
-            same_type(&lhs->type, &rhs->type)
-            || same_type(&lhs->type, &voidPtrType)
-            || same_type(&rhs->type, &voidPtrType)
-        )
-    );
-
-    if (!got_integers && !(got_pointers && (op == AST_EXPR_EQ || op == AST_EXPR_NE)))
-        fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhs->type.name, rhs->type.name);
-
-    // TODO: is this a good idea?
-    Type cast_type;
-    if (got_integers) {
-        cast_type = create_integer_type(
-            max(lhs->type.data.width_in_bits, rhs->type.data.width_in_bits),
-            lhs->type.kind == TYPE_SIGNED_INTEGER || lhs->type.kind == TYPE_SIGNED_INTEGER
-        );
-    }
-    if (got_pointers) {
-        cast_type = voidPtrType;
-    }
-
-    // It shouldn't be possible to make these fail.
-    // TODO: i think it is, with adding same size signed and unsigned for example
-    lhs = build_implicit_cast(st, lhs, &cast_type, location, NULL);
-    rhs = build_implicit_cast(st, rhs, &cast_type, location, NULL);
-
-    Type result_type;
-    switch(op) {
-    case AST_EXPR_ADD:
-    case AST_EXPR_SUB:
-    case AST_EXPR_MUL:
-    case AST_EXPR_DIV:
-        result_type = cast_type;
-        break;
-
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
-        result_type = boolType;
-        break;
-
-    default:
-        assert(0);
-    }
+    bool got_pointers = is_pointer_type(&lhs->type) && is_pointer_type(&rhs->type);
+    bool is_signed = lhs->type.kind == TYPE_SIGNED_INTEGER || rhs->type.kind == TYPE_SIGNED_INTEGER;
+    assert(got_integers || got_pointers);
 
     enum CfInstructionKind k;
-    bool is_signed = cast_type.kind == TYPE_SIGNED_INTEGER;
     bool negate = false;
     bool swap = false;
 
@@ -345,19 +141,19 @@ static const CfVariable *build_binop(
         default: assert(0);
     }
 
-    const CfVariable *destvar = add_variable(st, &result_type, NULL);
+    const Variable *destvar = add_variable(st, result_type);
     add_binary_op(st, location, k, swap?rhs:lhs, swap?lhs:rhs, destvar);
 
     if (!negate)
         return destvar;
 
-    const CfVariable *negated = add_variable(st, &boolType, NULL);
+    const Variable *negated = add_variable(st, &boolType);
     add_unary_op(st, location, CF_BOOL_NEGATE, destvar, negated);
     return negated;
 }
 
-static const CfVariable *build_struct_field_pointer(
-    struct State *st, const CfVariable *structinstance, const char *fieldname, Location location)
+static const Variable *build_struct_field_pointer(
+    struct State *st, const Variable *structinstance, const char *fieldname, Location location)
 {
     assert(structinstance->type.kind == TYPE_POINTER);
     assert(structinstance->type.data.valuetype->kind == TYPE_STRUCT);
@@ -370,25 +166,29 @@ static const CfVariable *build_struct_field_pointer(
 
         if (!strcmp(name, fieldname)) {
             const Type ptrtype = create_pointer_type(type, location);
-            CfVariable* result = add_variable(st, &ptrtype, NULL);
+            Variable* result = add_variable(st, &ptrtype);
             free(ptrtype.data.valuetype);
 
             union CfInstructionData dat;
             safe_strcpy(dat.fieldname, name);
 
-            add_instruction(st, location, CF_PTR_STRUCT_FIELD, &dat, (const CfVariable*[]){structinstance,NULL}, result);
+            add_instruction(st, location, CF_PTR_STRUCT_FIELD, &dat, (const Variable*[]){structinstance,NULL}, result);
             return result;
         }
     }
 
-    fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
+    assert(0);
 }
 
-static const CfVariable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool is_assignment);
+static const Variable *build_expression(struct State *st, const AstExpression *expr);
+static const Variable *build_address_of_expression(
+    struct State *st,
+    const AstExpression *address_of_what,
+    bool is_assignment);
 
 enum PreOrPost { PRE, POST };
 
-static const CfVariable *build_increment_or_decrement(
+static const Variable *build_increment_or_decrement(
     struct State *st,
     Location location,
     const AstExpression *inner,
@@ -397,15 +197,15 @@ static const CfVariable *build_increment_or_decrement(
 {
     assert(diff==1 || diff==-1);  // 1=increment, -1=decrement
 
-    const CfVariable *addr = build_address_of_expression(st, inner, true);
+    const Variable *addr = build_address_of_expression(st, inner, true);
     assert(addr->type.kind == TYPE_POINTER);
     const Type *t = addr->type.data.valuetype;
     if (!is_integer_type(t) && !is_pointer_type(t))
         fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
 
-    const CfVariable *old_value = add_variable(st, t, NULL);
-    const CfVariable *new_value = add_variable(st, t, NULL);
-    const CfVariable *diffvar = add_variable(st, is_integer_type(t)?t:&intType, NULL);
+    const Variable *old_value = add_variable(st, t);
+    const Variable *new_value = add_variable(st, t);
+    const Variable *diffvar = add_variable(st, is_integer_type(t)?t:&intType);
 
     Constant diffconst = {
         .kind = CONSTANT_INTEGER,
@@ -428,166 +228,24 @@ static const CfVariable *build_increment_or_decrement(
     assert(0);
 }
 
-static void check_dereferenced_pointer_type(Location location, const Type *t)
-{
-    // TODO: improved error message for dereferencing void*
-    if (t->kind != TYPE_POINTER)
-        fail_with_error(location, "the dereference operator '*' is only for pointers, not for %s", t->name);
-}
-
-enum AndOr { AND, OR };
-
-static const CfVariable *build_function_call(struct State *st, const AstCall *call, Location location);
-static const CfVariable *build_struct_init(struct State *st, const AstCall *call, Location location);
-static const CfVariable *build_and_or(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr, enum AndOr andor);
-static const CfVariable *build_indexing(struct State *st, const AstExpression *ptrexpr, const AstExpression *indexexpr);
-
-static const CfVariable *build_expression(
-    struct State *st,
-    const AstExpression *expr,
-    const Type *implicit_cast_to,  // can be NULL, there will be no implicit casting
-    const char *casterrormsg,
-    bool needvalue)  // Usually true. False means that calls to "-> void" functions are acceptable.
-{
-    const CfVariable *result, *temp;
-    Type temptype;
-
-    switch(expr->kind) {
-    case AST_EXPR_FUNCTION_CALL:
-        result = build_function_call(st, &expr->data.call, expr->location);
-        if (result == NULL) {
-            if (!needvalue)
-                return NULL;
-            // TODO: add a test for this
-            fail_with_error(expr->location, "function '%s' does not return a value", expr->data.call.calledname);
-        }
-        break;
-    case AST_EXPR_BRACE_INIT:
-        result = build_struct_init(st, &expr->data.call, expr->location);
-        break;
-    case AST_EXPR_GET_FIELD:
-    case AST_EXPR_DEREF_AND_GET_FIELD:
-        // To evaluate foo.bar or foo->bar, we first evaluate &foo.bar or &foo->bar.
-        // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
-        {
-            temp = build_address_of_expression(st, expr, false);
-            assert(temp->type.kind == TYPE_POINTER);
-            result = add_variable(st, temp->type.data.valuetype, NULL);
-            add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
-        }
-        break;
-    case AST_EXPR_INDEXING:
-        result = build_indexing(st, &expr->data.operands[0], &expr->data.operands[1]);
-        break;
-    case AST_EXPR_ADDRESS_OF:
-        result = build_address_of_expression(st, &expr->data.operands[0], false);
-        break;
-    case AST_EXPR_GET_VARIABLE:
-        result = find_variable(st, expr->data.varname, &expr->location);
-        if (implicit_cast_to == NULL || same_type(implicit_cast_to, &result->type)) {
-            // Must take a "snapshot" of this variable, as it may change soon.
-            temp = result;
-            result = add_variable(st, &temp->type, NULL);
-            add_unary_op(st, expr->location, CF_VARCPY, temp, result);
-        }
-        break;
-    case AST_EXPR_DEREFERENCE:
-        temp = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
-        check_dereferenced_pointer_type(expr->location, &temp->type);
-        result = add_variable(st, temp->type.data.valuetype, NULL);
-        add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
-        break;
-    case AST_EXPR_CONSTANT:
-        temptype = type_of_constant(&expr->data.constant);
-        result = add_variable(st, &temptype, NULL);
-        add_constant(st, expr->location, expr->data.constant, result);
-        break;
-    case AST_EXPR_AND:
-        result = build_and_or(st, &expr->data.operands[0], &expr->data.operands[1], AND);
-        break;
-    case AST_EXPR_OR:
-        result = build_and_or(st, &expr->data.operands[0], &expr->data.operands[1], OR);
-        break;
-    case AST_EXPR_NOT:
-        temp = build_expression(st, &expr->data.operands[0], &boolType, "value after 'not' must be a boolean, not FROM", true);
-        result = add_variable(st, &boolType, NULL);
-        add_unary_op(st, expr->location, CF_BOOL_NEGATE, temp, result);
-        break;
-    case AST_EXPR_ADD:
-    case AST_EXPR_SUB:
-    case AST_EXPR_MUL:
-    case AST_EXPR_DIV:
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
-        {
-            // Refactoring note: Make sure to evaluate lhs first. C doesn't guarantee evaluation
-            // order of function arguments.
-            const CfVariable *lhs = build_expression(st, &expr->data.operands[0], NULL, NULL, true);
-            const CfVariable *rhs = build_expression(st, &expr->data.operands[1], NULL, NULL, true);
-            result = build_binop(st, expr->kind, expr->location, lhs, rhs);
-            break;
-        }
-    case AST_EXPR_PRE_INCREMENT:
-    case AST_EXPR_PRE_DECREMENT:
-    case AST_EXPR_POST_INCREMENT:
-    case AST_EXPR_POST_DECREMENT:
-        {
-            enum PreOrPost pop;
-            int diff;
-
-            switch(expr->kind) {
-                case AST_EXPR_PRE_INCREMENT: pop=PRE; diff=1; break;
-                case AST_EXPR_PRE_DECREMENT: pop=PRE; diff=-1; break;
-                case AST_EXPR_POST_INCREMENT: pop=POST; diff=1; break;
-                case AST_EXPR_POST_DECREMENT: pop=POST; diff=-1; break;
-                default: assert(0);
-            }
-            result = build_increment_or_decrement(st, expr->location, &expr->data.operands[0], pop, diff);
-            break;
-        }
-    case AST_EXPR_AS:
-        temp = build_expression(st, expr->data.as.obj, NULL, NULL, true);
-        temptype = build_type(st, &expr->data.as.type);
-        result = build_explicit_cast(st, temp, &temptype, expr->location);
-        free_type(&temptype);
-        break;
-    }
-
-    if (implicit_cast_to == NULL) {
-        assert(!casterrormsg);
-        return result;
-    }
-    assert(casterrormsg);
-    return build_implicit_cast(st, result, implicit_cast_to, expr->location, casterrormsg);
-}
-
 // ptr[index]
-static const CfVariable *build_indexing(struct State *st, const AstExpression *ptrexpr, const AstExpression *indexexpr)
+static const Variable *build_indexing(struct State *st, const AstExpression *ptrexpr, const AstExpression *indexexpr)
 {
-    const CfVariable *ptr = build_expression(st, ptrexpr, NULL, NULL, true);
-    if (ptr->type.kind != TYPE_POINTER)
-        fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", ptr->type.name);
+    const Variable *ptr = build_expression(st, ptrexpr);
+    const Variable *index = build_expression(st, indexexpr);
+    assert(ptr->type.kind == TYPE_POINTER);
+    assert(is_integer_type(&index->type));
 
-    const CfVariable *index = build_expression(st, indexexpr, NULL, NULL, true);
-    if (!is_integer_type(&index->type)) {
-        fail_with_error(
-            indexexpr->location,
-            "the index inside [...] must be an integer, not %s",
-            index->type.name);
-    }
-
-    const CfVariable *ptr2 = add_variable(st, &ptr->type, NULL);
-    const CfVariable *result = add_variable(st, ptr->type.data.valuetype, NULL);
+    const Variable *ptr2 = add_variable(st, &ptr->type);
+    const Variable *result = add_variable(st, ptr->type.data.valuetype);
     add_binary_op(st, ptrexpr->location, CF_PTR_ADD_INT, ptr, index, ptr2);
     add_unary_op(st, ptrexpr->location, CF_PTR_LOAD, ptr2, result);
     return result;
 }
 
-static const CfVariable *build_and_or(
+enum AndOr { AND, OR };
+
+static const Variable *build_and_or(
     struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr, enum AndOr andor)
 {
     /*
@@ -607,12 +265,9 @@ static const CfVariable *build_and_or(
         else:
             result = rhs
     */
-    char errormsg[100];
-    sprintf(errormsg, "'%s' only works with booleans, not FROM", andor==AND ? "and" : "or");
-
-    const CfVariable *lhs = build_expression(st, lhsexpr, &boolType, errormsg, true);
-    const CfVariable *rhs;
-    const CfVariable *result = add_variable(st, &boolType, NULL);
+    const Variable *lhs = build_expression(st, lhsexpr);
+    const Variable *rhs;
+    const Variable *result = add_variable(st, &boolType);
     CfInstruction *ins;
 
     CfBlock *lhstrue = add_block(st);
@@ -625,7 +280,7 @@ static const CfVariable *build_and_or(
     switch(andor) {
     case AND:
         // result = rhs
-        rhs = build_expression(st, rhsexpr, &boolType, errormsg, true);
+        rhs = build_expression(st, rhsexpr);
         add_unary_op(st, rhsexpr->location, CF_VARCPY, rhs, result);
         break;
     case OR:
@@ -646,7 +301,7 @@ static const CfVariable *build_and_or(
         break;
     case OR:
         // result = rhs
-        rhs = build_expression(st, rhsexpr, &boolType, errormsg, true);
+        rhs = build_expression(st, rhsexpr);
         add_unary_op(st, rhsexpr->location, CF_VARCPY, rhs, result);
         break;
     }
@@ -655,50 +310,40 @@ static const CfVariable *build_and_or(
     return result;
 }
 
-static const CfVariable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool is_assignment)
+static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool is_assignment)
 {
     const char *cant_take_address_of;
 
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
     {
-        const CfVariable *var = find_variable(st, address_of_what->data.varname, &address_of_what->location);
+        const Variable *var = find_variable(st, address_of_what->data.varname);
+        assert(var);
         Type t = create_pointer_type(&var->type, (Location){0});
-        const CfVariable *addr = add_variable(st, &t, NULL);
+        const Variable *addr = add_variable(st, &t);
         free(t.data.valuetype);
         add_unary_op(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, var, addr);
         return addr;
     }
     case AST_EXPR_DEREFERENCE:
     {
-        // &*foo --> just evaluate foo, but make sure it is a pointer
-        const CfVariable *result = build_expression(st, &address_of_what->data.operands[0], NULL, NULL, true);
-        check_dereferenced_pointer_type(address_of_what->location, &result->type);
-        return result;
+        // &*foo --> just evaluate foo
+        return build_expression(st, &address_of_what->data.operands[0]);
     }
     case AST_EXPR_DEREF_AND_GET_FIELD:
     {
         // &obj->field aka &(obj->field)
-        const CfVariable *obj = build_expression(st, address_of_what->data.field.obj, NULL, NULL, true);
-        if (obj->type.kind != TYPE_POINTER
-            || obj->type.data.valuetype->kind != TYPE_STRUCT)
-        {
-            fail_with_error(address_of_what->location,
-                "left side of the '->' operator must be a pointer to a struct, not %s",
-                obj->type.name);
-        }
+        const Variable *obj = build_expression(st, address_of_what->data.field.obj);
+        assert(obj->type.kind == TYPE_POINTER);
+        assert(obj->type.data.valuetype->kind == TYPE_STRUCT);
         return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
     }
     case AST_EXPR_GET_FIELD:
     {
         // &obj.field aka &(obj.field), evaluate as &(&obj)->field
-        const CfVariable *obj = build_address_of_expression(st, address_of_what->data.field.obj, false);
+        const Variable *obj = build_address_of_expression(st, address_of_what->data.field.obj, false);
         assert(obj->type.kind == TYPE_POINTER);
-        if (obj->type.data.valuetype->kind != TYPE_STRUCT){
-            fail_with_error(address_of_what->location,
-                "left side of the '.' operator must be a struct, not %s",
-                obj->type.data.valuetype->name);
-        }
+        assert(obj->type.data.valuetype->kind == TYPE_STRUCT);
         return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
     }
 
@@ -731,100 +376,156 @@ static const CfVariable *build_address_of_expression(struct State *st, const Ast
         fail_with_error(address_of_what->location, "the address-of operator '&' cannot be used with %s", cant_take_address_of);
 }
 
-static const char *nth(int n)
+static const Variable *build_function_call(struct State *st, const AstExpression *expr)
 {
-    assert(n >= 1);
+    assert(expr->kind == AST_EXPR_FUNCTION_CALL);
 
-    const char *first_few[] = { NULL, "first", "second", "third", "fourth", "fifth", "sixth" };
-    if (n < (int)(sizeof(first_few)/sizeof(first_few[0])))
-        return first_few[n];
+    int nargs = expr->data.call.nargs;
+    const Variable **args = calloc(nargs + 1, sizeof(args[0]));  // NOLINT
+    for (int i = 0; i < nargs; i++)
+        args[i] = build_expression(st, &expr->data.call.args[i]);
 
-    static char result[100];
-    sprintf(result, "%dth", n);
-    return result;
-}
-
-// returns NULL if the function doesn't return anything
-static const CfVariable *build_function_call(struct State *st, const AstCall *call, Location location)
-{
-    const Signature *sig = find_function(st, call->calledname);
-    if (!sig)
-        fail_with_error(location, "function \"%s\" not found", call->calledname);
-    char *sigstr = signature_to_string(sig, false);
-
-    if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->takes_varargs)) {
-        fail_with_error(
-            location,
-            "function %s takes %d argument%s, but it was called with %d argument%s",
-            sigstr,
-            sig->nargs,
-            sig->nargs==1?"":"s",
-            call->nargs,
-            call->nargs==1?"":"s"
-        );
-    }
-
-    const CfVariable **args = calloc(call->nargs + 1, sizeof(args[0]));  // NOLINT
-    for (int i = 0; i < sig->nargs; i++) {
-        // This is a common error, so worth spending some effort to get a good error message.
-        char msg[500];
-        snprintf(msg, sizeof msg, "%s argument of function %s should have type TO, not FROM", nth(i+1), sigstr);
-        args[i] = build_expression(st, &call->args[i], &sig->argtypes[i], msg, true);
-    }
-    for (int i = sig->nargs; i < call->nargs; i++) {
-        // This code runs for varargs, e.g. the things to format in printf().
-        args[i] = build_expression(st, &call->args[i], NULL, NULL, true);
-    }
-
-    const CfVariable *return_value;
-    if (sig->returntype)
-        return_value = add_variable(st, sig->returntype, NULL);
+    const ExpressionTypes *types = get_expr_types(st, expr);
+    const Variable *return_value;
+    if (types)
+        return_value = add_variable(st, &types->type);
     else
         return_value = NULL;
 
     union CfInstructionData data;
-    safe_strcpy(data.funcname, call->calledname);
-    add_instruction(st, location, CF_CALL, &data, args, return_value);
+    safe_strcpy(data.funcname, expr->data.call.calledname);
+    add_instruction(st, expr->location, CF_CALL, &data, args, return_value);
 
-    free(sigstr);
     free(args);
     return return_value;
 }
 
-static const CfVariable *build_struct_init(struct State *st, const AstCall *call, Location location)
+static const Variable *build_struct_init(struct State *st, const Type *type, const AstCall *call, Location location)
 {
-    struct AstType tmp = { .location = location, .npointers = 0 };
-    safe_strcpy(tmp.name, call->calledname);
-    Type t = build_type(st, &tmp);
-
-    if (t.kind != TYPE_STRUCT) {
-        // TODO: test this error. Currently it can never happen because
-        // all non-struct types are created with keywords, and this
-        // function is called only when there is a name token followed
-        // by a '{'.
-        fail_with_error(location, "type %s cannot be instantiated with the Foo{...} syntax", t.name);
-    }
-
-    const CfVariable *instance = add_variable(st, &t, NULL);
-    Type p = create_pointer_type(&t, location);
-    const CfVariable *instanceptr = add_variable(st, &p, NULL);
+    const Variable *instance = add_variable(st, type);
+    Type p = create_pointer_type(type, location);
+    const Variable *instanceptr = add_variable(st, &p);
     free(p.data.valuetype);
-    free_type(&t);
 
     add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, instance, instanceptr);
     add_unary_op(st, location, CF_PTR_MEMSET_TO_ZERO, instanceptr, NULL);
 
     for (int i = 0; i < call->nargs; i++) {
-        const CfVariable *fieldptr = build_struct_field_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
-        char msg[1000];
-        snprintf(msg, sizeof msg,
-            "value for field '%s' of struct %s must be of type TO, not FROM",
-            call->argnames[i], call->calledname);
-        const CfVariable *fieldval = build_expression(st, &call->args[i], fieldptr->type.data.valuetype, msg, true);
+        const Variable *fieldptr = build_struct_field_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
+        const Variable *fieldval = build_expression(st, &call->args[i]);
         add_binary_op(st, location, CF_PTR_STORE, fieldptr, fieldval, NULL);
     }
 
     return instance;
+}
+
+static const Variable *build_expression(struct State *st, const AstExpression *expr)
+{
+    const ExpressionTypes *types = get_expr_types(st, expr);
+
+    const Variable *result, *temp;
+
+    switch(expr->kind) {
+    case AST_EXPR_FUNCTION_CALL:
+        result = build_function_call(st, expr);
+        if (!result)
+            return NULL;
+        break;
+    case AST_EXPR_BRACE_INIT:
+        result = build_struct_init(st, &types->type, &expr->data.call, expr->location);
+        break;
+    case AST_EXPR_GET_FIELD:
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        // To evaluate foo.bar or foo->bar, we first evaluate &foo.bar or &foo->bar.
+        // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
+        temp = build_address_of_expression(st, expr, false);
+        result = add_variable(st, &types->type);
+        add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
+        break;
+    case AST_EXPR_INDEXING:
+        result = build_indexing(st, &expr->data.operands[0], &expr->data.operands[1]);
+        break;
+    case AST_EXPR_ADDRESS_OF:
+        result = build_address_of_expression(st, &expr->data.operands[0], false);
+        break;
+    case AST_EXPR_GET_VARIABLE:
+        result = find_variable(st, expr->data.varname);
+        assert(result);
+        if (types->type_after_cast == NULL || same_type(&types->type, types->type_after_cast)) {
+            // Must take a "snapshot" of this variable, as it may change soon.
+            temp = result;
+            result = add_variable(st, &temp->type);
+            add_unary_op(st, expr->location, CF_VARCPY, temp, result);
+        }
+        break;
+    case AST_EXPR_DEREFERENCE:
+        temp = build_expression(st, &expr->data.operands[0]);
+        result = add_variable(st, &types->type);
+        add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
+        break;
+    case AST_EXPR_CONSTANT:
+        result = add_variable(st, &types->type);
+        add_constant(st, expr->location, expr->data.constant, result);
+        break;
+    case AST_EXPR_AND:
+        result = build_and_or(st, &expr->data.operands[0], &expr->data.operands[1], AND);
+        break;
+    case AST_EXPR_OR:
+        result = build_and_or(st, &expr->data.operands[0], &expr->data.operands[1], OR);
+        break;
+    case AST_EXPR_NOT:
+        temp = build_expression(st, &expr->data.operands[0]);
+        result = add_variable(st, &boolType);
+        add_unary_op(st, expr->location, CF_BOOL_NEGATE, temp, result);
+        break;
+    case AST_EXPR_ADD:
+    case AST_EXPR_SUB:
+    case AST_EXPR_MUL:
+    case AST_EXPR_DIV:
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
+        {
+            // Refactoring note: Make sure to evaluate lhs first. C doesn't guarantee evaluation
+            // order of function arguments.
+            const Variable *lhs = build_expression(st, &expr->data.operands[0]);
+            const Variable *rhs = build_expression(st, &expr->data.operands[1]);
+            result = build_binop(st, expr->kind, expr->location, lhs, rhs, &types->type);
+            break;
+        }
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_INCREMENT:
+    case AST_EXPR_POST_DECREMENT:
+        {
+            enum PreOrPost pop;
+            int diff;
+
+            switch(expr->kind) {
+                case AST_EXPR_PRE_INCREMENT: pop=PRE; diff=1; break;
+                case AST_EXPR_PRE_DECREMENT: pop=PRE; diff=-1; break;
+                case AST_EXPR_POST_INCREMENT: pop=POST; diff=1; break;
+                case AST_EXPR_POST_DECREMENT: pop=POST; diff=-1; break;
+                default: assert(0);
+            }
+            result = build_increment_or_decrement(st, expr->location, &expr->data.operands[0], pop, diff);
+            break;
+        }
+    case AST_EXPR_AS:
+        temp = build_expression(st, expr->data.as.obj);
+        result = build_cast(st, temp, &types->type, expr->location);
+        break;
+    }
+
+    assert(types);
+    assert(same_type(&result->type, &types->type));
+    if (types->type_after_cast)
+        return build_cast(st, result, types->type_after_cast, expr->location);
+    else
+        return result;
 }
 
 static void build_body(struct State *st, const AstBody *body);
@@ -835,14 +536,8 @@ static void build_if_statement(struct State *st, const AstIfStatement *ifstmt)
 
     CfBlock *done = add_block(st);
     for (int i = 0; i < ifstmt->n_if_and_elifs; i++) {
-        const char *errmsg;
-        if (i == 0)
-            errmsg = "'if' condition must be a boolean, not FROM";
-        else
-            errmsg = "'elif' condition must be a boolean, not FROM";
-
-        const CfVariable *cond = build_expression(
-            st, &ifstmt->if_and_elifs[i].condition, &boolType, errmsg, true);
+        const Variable *cond = build_expression(
+            st, &ifstmt->if_and_elifs[i].condition);
         CfBlock *then = add_block(st);
         CfBlock *otherwise = add_block(st);
 
@@ -870,8 +565,6 @@ static void build_loop(
     const AstBody *body)
 {
     assert(strlen(loopname) < 10);
-    char errormsg[100];
-    sprintf(errormsg, "'%s' condition must be a boolean, not FROM", loopname);
 
     CfBlock *condblock = add_block(st);  // evaluate condition and go to bodyblock or doneblock
     CfBlock *bodyblock = add_block(st);  // run loop body and go to incrblock
@@ -884,7 +577,7 @@ static void build_loop(
 
     // Evaluate condition. Jump to loop body or skip to after loop.
     add_jump(st, NULL, condblock, condblock, condblock);
-    const CfVariable *condvar = build_expression(st, cond, &boolType, errormsg, true);
+    const Variable *condvar = build_expression(st, cond);
     add_jump(st, condvar, bodyblock, doneblock, bodyblock);
 
     // Run loop body: 'break' skips to after loop, 'continue' goes to incr.
@@ -938,37 +631,17 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         {
             const AstExpression *targetexpr = &stmt->data.assignment.target;
             const AstExpression *valueexpr = &stmt->data.assignment.value;
-            if (targetexpr->kind == AST_EXPR_GET_VARIABLE && !find_variable(st, targetexpr->data.varname, NULL))
-            {
-                // Making a new variable. Use the type of the value being assigned.
-                const CfVariable *value = build_expression(st, valueexpr, NULL, NULL, true);
-                const CfVariable *var = add_variable(st, &value->type, targetexpr->data.varname);
-                add_unary_op(st, stmt->location, CF_VARCPY, value, var);
-            } else {
-                // Convert value to the type of an existing variable or other assignment target.
-                char errmsg[500];
-                switch(targetexpr->kind) {
-                    case AST_EXPR_GET_VARIABLE:
-                        strcpy(errmsg, "cannot assign a value of type FROM to variable of type TO");
-                        break;
-                    case AST_EXPR_DEREFERENCE:
-                        strcpy(errmsg, "cannot assign a value of type FROM into a pointer of type TO*");
-                        break;
-                    case AST_EXPR_GET_FIELD:
-                    case AST_EXPR_DEREF_AND_GET_FIELD:
-                        snprintf(
-                            errmsg, sizeof errmsg,
-                            "cannot assign a value of type FROM into field '%s' of type TO",
-                            targetexpr->data.field.fieldname);
-                        break;
-                    default: assert(0);
-                }
 
-                // TODO: is this evaluation order good?
-                const CfVariable *target = build_address_of_expression(st, targetexpr, true);
+            // TODO: is this evaluation order good?
+            if (targetexpr->kind == AST_EXPR_GET_VARIABLE) {
+                // avoid pointers to help simplify_cfg
+                const Variable *target = find_variable(st, targetexpr->data.varname);
+                const Variable *value = build_expression(st, valueexpr);
+                add_unary_op(st, stmt->location, CF_VARCPY, value, target);
+            } else {
+                const Variable *target = build_address_of_expression(st, targetexpr, true);
+                const Variable *value = build_expression(st, valueexpr);
                 assert(target->type.kind == TYPE_POINTER);
-                const CfVariable *value = build_expression(
-                    st, valueexpr, target->type.data.valuetype, errmsg, true);
                 add_binary_op(st, stmt->location, CF_PTR_STORE, target, value, NULL);
             }
             break;
@@ -976,60 +649,28 @@ static void build_statement(struct State *st, const AstStatement *stmt)
 
     case AST_STMT_RETURN_VALUE:
     {
-        if(!st->signature->returntype){
-            fail_with_error(
-                stmt->location,
-                "function '%s' cannot return a value because it was defined with '-> void'",
-                st->signature->funcname);
-        }
-
-        char msg[200];
-        snprintf(msg, sizeof msg,
-            "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
-            st->signature->funcname);
-        const CfVariable *retvalue = build_expression(
-            st, &stmt->data.expression, st->signature->returntype, msg, true);
-        const CfVariable *retvariable = find_variable(st, "return", NULL);
+        const Variable *retvalue = build_expression(st, &stmt->data.expression);
+        const Variable *retvariable = find_variable(st, "return");
         assert(retvariable);
         add_unary_op(st, stmt->location, CF_VARCPY, retvalue, retvariable);
-
-        st->current_block->iftrue = &st->cfg->end_block;
-        st->current_block->iffalse = &st->cfg->end_block;
-        st->current_block = add_block(st);  // an unreachable block
-        break;
-    }
-
+    }  // fall through
     case AST_STMT_RETURN_WITHOUT_VALUE:
-        if (st->signature->returntype) {
-            fail_with_error(
-                stmt->location,
-                "a return value is needed, because the return type of function '%s' is %s",
-                st->signature->funcname,
-                st->signature->returntype->name);
-        }
         st->current_block->iftrue = &st->cfg->end_block;
         st->current_block->iffalse = &st->cfg->end_block;
         st->current_block = add_block(st);  // an unreachable block
         break;
 
     case AST_STMT_DECLARE_LOCAL_VAR:
-        if (find_variable(st, stmt->data.vardecl.name, NULL))
-            fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
-
-        Type type = build_type(st, &stmt->data.vardecl.type);
-        CfVariable *v = add_variable(st, &type, stmt->data.vardecl.name);
         if (stmt->data.vardecl.initial_value) {
-            const CfVariable *cfvar = build_expression(
-                st, stmt->data.vardecl.initial_value, &type,
-                "initial value for variable of type TO cannot be of type FROM",
-                true);
+            const Variable *v = find_variable(st, stmt->data.vardecl.name);
+            assert(v);
+            const Variable *cfvar = build_expression(st, stmt->data.vardecl.initial_value);
             add_unary_op(st, stmt->location, CF_VARCPY, cfvar, v);
         }
-        free_type(&type);
         break;
 
     case AST_STMT_EXPRESSION_STATEMENT:
-        build_expression(st, &stmt->data.expression, NULL, NULL, false);
+        build_expression(st, &stmt->data.expression);
         break;
     }
 }
@@ -1040,21 +681,13 @@ static void build_body(struct State *st, const AstBody *body)
         build_statement(st, &body->statements[i]);
 }
 
-static CfGraph *build_function(struct State *st, const Signature *sig, const AstBody *body)
+static CfGraph *build_function(struct State *st, const AstBody *body)
 {
-    st->signature = sig;
     st->cfg = calloc(1, sizeof *st->cfg);
     Append(&st->cfg->all_blocks, &st->cfg->start_block);
     Append(&st->cfg->all_blocks, &st->cfg->end_block);
 
     st->current_block = &st->cfg->start_block;
-
-    for (int i = 0; i < sig->nargs; i++) {
-        CfVariable *v = add_variable(st, &sig->argtypes[i], sig->argnames[i]);
-        v->is_argument = true;
-    }
-    if (sig->returntype) 
-        add_variable(st, sig->returntype, "return");
 
     assert(st->breakstack.len == 0 && st->continuestack.len == 0);
     build_body(st, body);
@@ -1064,103 +697,46 @@ static CfGraph *build_function(struct State *st, const Signature *sig, const Ast
     st->current_block->iftrue = &st->cfg->end_block;
     st->current_block->iffalse = &st->cfg->end_block;
 
+    for (Variable **v = st->typectx.variables.ptr; v < End(st->typectx.variables); v++)
+        Append(&st->cfg->variables, *v);
+
+    reset_type_context(&st->typectx);
     return st->cfg;
-}
-
-static Signature build_signature(const struct State *st, const AstSignature *astsig, Location location)
-{
-    for (int i = 0; i < st->cfgfile->nfuncs; i++)
-        if (!strcmp(st->cfgfile->signatures[i].funcname, astsig->funcname))
-            fail_with_error(location, "a function named '%s' already exists", astsig->funcname);
-
-    Signature result = { .nargs = astsig->nargs, .takes_varargs = astsig->takes_varargs };
-    safe_strcpy(result.funcname, astsig->funcname);
-
-    size_t size = sizeof(result.argnames[0]) * result.nargs;
-    result.argnames = malloc(size);
-    memcpy(result.argnames, astsig->argnames, size);
-
-    result.argtypes = malloc(sizeof(result.argtypes[0]) * result.nargs);
-    for (int i = 0; i < result.nargs; i++)
-        result.argtypes[i] = build_type(st, &astsig->argtypes[i]);
-
-    result.returntype = build_type_or_void(st, &astsig->returntype);
-    // TODO: validate main() parameters
-    // TODO: test main() taking parameters
-    if (!strcmp(astsig->funcname, "main") &&
-        (result.returntype == NULL || !same_type(result.returntype, &intType)))
-    {
-        fail_with_error(astsig->returntype.location, "the main() function must return int");
-    }
-
-    result.returntype_location = astsig->returntype.location;
-    return result;
-}
-
-static Type build_struct(struct State *st, const AstStructDef *structdef, Location location)
-{
-    for (Type *t = st->structs.ptr; t < End(st->structs); t++)
-        if (!strcmp(t->name, structdef->name))
-            fail_with_error(location, "a struct named '%s' already exists", t->name);
-
-    Type result = { .kind = TYPE_STRUCT };
-    safe_strcpy(result.name, structdef->name);
-
-    int n = structdef->nfields;
-    result.data.structfields.count = n;
-
-    result.data.structfields.names = malloc(n * sizeof result.data.structfields.names[0]);
-    memcpy(result.data.structfields.names, structdef->fieldnames, n * sizeof result.data.structfields.names[0]);
-
-    result.data.structfields.types = malloc(n * sizeof result.data.structfields.types[0]);
-    for (int i = 0; i < n; i++)
-        result.data.structfields.types[i] = build_type(st, &structdef->fieldtypes[i]);
-
-    return result;
 }
 
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
 {
     CfGraphFile result = { .filename = ast->location.filename };
-    struct State st = { .cfgfile = &result };
+    struct State st = {0};
 
     int n = 0;
     while (ast[n].kind!=AST_TOPLEVEL_END_OF_FILE) n++;
     result.graphs = malloc(sizeof(result.graphs[0]) * n);  // NOLINT
-    result.signatures = malloc(sizeof(result.signatures[0]) * n);
-
-    Signature sig;
-    Type type;
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         switch(ast->kind) {
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         case AST_TOPLEVEL_DECLARE_FUNCTION:
-            sig = build_signature(&st, &ast->data.decl_signature, ast->location);
-            result.signatures[result.nfuncs] = sig;
-            result.graphs[result.nfuncs] = NULL;
-            result.nfuncs++;
+            typecheck_function(&st.typectx, ast->location, &ast->data.decl_signature, NULL);
+            result.graphs[result.nfuncs++] = NULL;
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            sig = build_signature(&st, &ast->data.funcdef.signature, ast->location);
-            result.signatures[result.nfuncs] = sig;
-            result.nfuncs++;  // Make signature of current function usable in function calls (recursion)
-            result.graphs[result.nfuncs-1] = build_function(&st, &sig, &ast->data.funcdef.body);
+            typecheck_function(&st.typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
+            result.graphs[result.nfuncs++] = build_function(&st, &ast->data.funcdef.body);
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
-            // careful with evaluation order in Append...
-            type = build_struct(&st, &ast->data.structdef, ast->location);
-            Append(&st.structs, type);
+            typecheck_struct(&st.typectx, &ast->data.structdef, ast->location);
             break;
         }
         ast++;
     }
 
+    assert(result.nfuncs == st.typectx.function_signatures.len);
+    result.signatures = st.typectx.function_signatures.ptr;
+
     free(st.breakstack.ptr);
     free(st.continuestack.ptr);
-    for (Type *t = st.structs.ptr; t < End(st.structs); t++)
-        free_type(t);
-    free(st.structs.ptr);
+    destroy_type_context(&st.typectx);
     return result;
 }

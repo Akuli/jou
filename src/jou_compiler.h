@@ -28,11 +28,14 @@ typedef struct AstToplevelNode AstToplevelNode;
 typedef struct AstFunctionDef AstFunctionDef;
 typedef struct AstStructDef AstStructDef;
 
+typedef struct Variable Variable;
+typedef struct ExpressionTypes ExpressionTypes;
+typedef struct TypeContext TypeContext;
+
 typedef struct CfBlock CfBlock;
 typedef struct CfGraph CfGraph;
 typedef struct CfGraphFile CfGraphFile;
 typedef struct CfInstruction CfInstruction;
-typedef struct CfVariable CfVariable;
 
 
 struct Location {
@@ -107,6 +110,7 @@ struct AstType {
 };
 
 struct AstSignature {
+    Location funcname_location;
     char funcname[100];
     int nargs;
     AstType *argtypes;
@@ -300,7 +304,6 @@ bool is_pointer_type(const Type *t);  // includes void pointers
 bool same_type(const Type *a, const Type *b);
 Type type_of_constant(const Constant *c);
 
-
 struct Signature {
     char funcname[100];
     int nargs;
@@ -315,14 +318,48 @@ char *signature_to_string(const Signature *sig, bool include_return_type);
 Signature copy_signature(const Signature *sig);
 
 
-// Control Flow Graph.
-// Struct names not prefixed with Cfg because it looks too much like "config" to me
-struct CfVariable {
-    int id;  // Unique, but you can also compare pointers to CfVariable.
-    char name[100];  // Same name as in user's code or empty
+struct Variable {
+    int id;  // Unique, but you can also compare pointers to Variable.
+    char name[100];  // Same name as in user's code, empty for temporary variables created by compiler
     Type type;
     bool is_argument;    // First n variables are always the arguments
 };
+
+struct ExpressionTypes {
+    const AstExpression *expr;
+    Type type;
+    Type *type_after_cast;  // NULL for no implicit cast
+};
+struct TypeContext {
+    const Signature *current_function_signature;
+    // expr_types tells what type each expression has.
+    // It contains nothing for calls to "-> void" functions.
+    List(ExpressionTypes *) expr_types;
+    List(Variable *) variables;
+    List(Type) structs;
+    List(Signature) function_signatures;
+};
+
+// function body can be NULL to check a declaration
+void typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
+void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location);
+
+/*
+Difference between reset and destroy:
+
+- reset wipes all function-specific data. For example, the list of local
+  variables is emptied so that the next function doesn't have access to the
+  same local variables. But e.g. the list of all known function signatures
+  is preserved, so that the next function can call the previous function.
+
+- destroy frees all memory used by the type context, making it unusable.
+*/
+void reset_type_context(TypeContext *ctx);
+void destroy_type_context(const TypeContext *ctx);
+
+
+// Control Flow Graph.
+// Struct names not prefixed with Cfg because it looks too much like "config" to me
 struct CfInstruction {
     Location location;
     enum CfInstructionKind {
@@ -352,15 +389,15 @@ struct CfInstruction {
         char funcname[100];     // CF_CALL
         char fieldname[100];    // CF_PTR_STRUCT_FIELD
     } data;
-    const CfVariable **operands;  // e.g. numbers to add, function arguments
+    const Variable **operands;  // e.g. numbers to add, function arguments
     int noperands;
-    const CfVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
+    const Variable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
     bool hide_unreachable_warning; // usually false, can be set to true to avoid unreachable warning false positives
 };
 
 struct CfBlock {
     List(CfInstruction) instructions;
-    const CfVariable *branchvar;  // boolean value used to decide where to jump next
+    const Variable *branchvar;  // boolean value used to decide where to jump next
     CfBlock *iftrue;
     CfBlock *iffalse;
 };
@@ -369,7 +406,7 @@ struct CfGraph {
     CfBlock start_block;  // First block
     CfBlock end_block;  // Always empty. Return statement jumps here.
     List(CfBlock *) all_blocks;
-    List(CfVariable *) variables;   // First n variables are the function arguments
+    List(Variable *) variables;   // First n variables are the function arguments
 };
 
 struct CfGraphFile {
