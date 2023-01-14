@@ -81,7 +81,7 @@ void print_token(const Token *token)
         printf("less indentation (-4 spaces)\n");
         break;
     case TOKEN_OPERATOR:
-        printf("opereator '%s'\n", token->data.operator);
+        printf("operator '%s'\n", token->data.operator);
         break;
     }
 }
