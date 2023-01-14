@@ -493,7 +493,6 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         temptype = typecheck_expression_not_void(ctx, expr->data.as.obj)->type;
         result = type_from_ast(ctx, &expr->data.as.type);
         check_explicit_cast(&temptype, &result, expr->location);
-        free_type(&temptype);
         break;
     }
 
