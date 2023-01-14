@@ -269,7 +269,7 @@ static Type check_increment_or_decrement(TypeContext *ctx, const AstExpression *
     Type t = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
     if (!is_integer_type(&t) && !is_pointer_type(&t))
         fail_with_error(expr->location, "cannot %s a value of type %s", do_what, t.name);
-    return t;
+    return copy_type(&t);
 }
 
 static void typecheck_dereferenced_pointer(Location location, const Type *t)
