@@ -38,7 +38,12 @@ void free_type(Type *t)
 
 static void free_global_state(void)
 {
-    // TODO
+    assert(global_state.inited);
+    free_type(&global_state.boolean.pointer->type);
+    free_type(&global_state.voidptr.pointer->type);
+    for (int size = 8; size <= 64; size *= 2)
+        for (int is_signed = 0; is_signed <= 1; is_signed++)
+            free_type(&global_state.integers[size][is_signed].pointer->type);
 }
 
 void init_types(void)
