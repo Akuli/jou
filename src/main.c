@@ -26,7 +26,7 @@ void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char 
     while (i < argc && argv[i][0] == '-') {
         if (!strcmp(argv[i], "--help")) {
             printf(usage_fmt, argv[0]);
-            printf("\n%s\n", long_help);
+            printf("%s", long_help);
             exit(0);
         } else if (!strcmp(argv[i], "--verbose")) {
             flags->verbose = true;
