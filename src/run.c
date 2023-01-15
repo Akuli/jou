@@ -8,6 +8,10 @@ static void optimize(LLVMModuleRef module, int level)
 
     LLVMPassManagerRef pm = LLVMCreatePassManager();
 
+    /*
+    The default settings should be fine for Jou because they work well for
+    C and C++, and Jou is quite similar to C.
+    */
     LLVMPassManagerBuilderRef pmbuilder = LLVMPassManagerBuilderCreate();
     LLVMPassManagerBuilderSetOptLevel(pmbuilder, level);
     LLVMPassManagerBuilderPopulateModulePassManager(pmbuilder, pm);
