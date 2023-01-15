@@ -78,7 +78,13 @@ static void optimize(LLVMModuleRef module, int level)
 
 static int run_main_with_jit(LLVMModuleRef module, const CommandLineFlags *flags)
 {
+    if (flags->verbose)
+        printf("Optimizing (level %d)\n", flags->optlevel);
+
     optimize(module, flags->optlevel);
+
+    if (flags->verbose)
+        printf("Initializing JIT\n");
 
     if (LLVMInitializeNativeTarget()) {
         fprintf(stderr, "LLVMInitializeNativeTarget() failed\n");
@@ -108,7 +114,7 @@ static int run_main_with_jit(LLVMModuleRef module, const CommandLineFlags *flags
     }
 
     if (flags->verbose)
-        printf("Running with JIT (optlevel %d)...\n", flags->optlevel);
+        printf("Running with JIT\n\n");
 
     extern char **environ;
     int result = LLVMRunFunctionAsMain(jit, main, 1, (const char*[]){"jou-program"}, (const char *const*)environ);

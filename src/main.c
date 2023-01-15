@@ -16,6 +16,12 @@ static const char long_help[] =
     "  -O0/-O1/-O2/-O3  set optimization level (1 = default, 3 = runs fastest)\n"
     ;
 
+static const CommandLineFlags default_flags = {
+    .jit = true,
+    .verbose = false,
+    .optlevel = 1,
+};
+
 void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char **filename)
 {
     if (argc < 2)
@@ -25,7 +31,7 @@ void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char 
     if ((*filename)[0] == '-')
         goto usage;
 
-    *flags = (CommandLineFlags){ .verbose=false, .jit=true, .optlevel=1 };
+    *flags = default_flags;
     for (int i = 1; i < argc-1; i++) {
 #define ArgMatches(s) (!strcmp(argv[i], (s)))
         if (ArgMatches("--help")) {
