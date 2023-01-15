@@ -451,7 +451,7 @@ AstToplevelNode *parse(const Token *tokens);
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile);
-int run_program(LLVMModuleRef module, const CommandLineFlags *flags);  // destroys the module
+int run_program(LLVMModuleRef module, const CommandLineFlags *flags);
 
 /*
 Use these to clean up return values of compiling functions.
