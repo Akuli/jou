@@ -133,17 +133,64 @@ static void read_indentation_as_newline_token(struct State *st, Token *t)
     }
 }
 
-static int read_int(struct State *st, char firstbyte)
+static bool is_hex(char c)
 {
-    int n = firstbyte - '0';
+    return ('0'<=c && c<='9') || ('A'<=c && c<='F') || ('a'<=c && c<='f');
+}
+
+static int hex_value(char c)
+{
+    if ('0'<=c && c<='9')
+        return c - '0';
+    if ('A'<=c && c<='F')
+        return 10 + (c-'A');
+    if ('a'<=c && c<='f')
+        return 10 + (c-'a');
+    assert(0);
+}
+
+static long long read_int(struct State *st, char firstbyte)
+{
+    int base = 10;
+
+    if (firstbyte == '0') {
+        char nextbyte = read_byte(st);
+        if ('0' <= nextbyte && nextbyte <= '9') {
+            // 0777 in C actually means 511. Jou does not allow writing 0777.
+            fail_with_error(st->location, "unnecessary zero at start of number");
+        } else if (nextbyte == 'x') {
+            // hex number, e.g. 0xff
+            base = 16;
+            firstbyte = read_byte(st);
+            if (!is_hex(firstbyte))
+                fail_with_error(st->location, "invalid hex number");
+        } else if (nextbyte == 'b') {
+            // binary number, e.g. 0b1101
+            base = 2;
+            firstbyte = read_byte(st);
+            if (firstbyte != '0' && firstbyte != '1')
+                fail_with_error(st->location, "invalid binary number");
+        } else {
+            // this is the number zero
+            unread_byte(st, nextbyte);
+        }
+    }
+
+    long long n = hex_value(firstbyte);
     while(1) {
         char c = read_byte(st);
-        if (c < '0' || c > '9') {
+        if ((base==2 && (c=='0' || c=='1'))
+            || (base==10 && '0'<=c && c<='9')
+            || (base==16 && is_hex(c)))
+        {
+            n = base*n + hex_value(c);
+        } else {
             unread_byte(st, c);
-            return n;
+            break;
         }
-        n = 10*n + (c-'0');
     }
+
+    return n;
 }
 
 static bool is_keyword(const char *s)

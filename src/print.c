@@ -50,7 +50,7 @@ void print_token(const Token *token)
 {
     switch(token->type) {
     case TOKEN_INT:
-        printf("integer %d\n", token->data.int_value);
+        printf("integer %lld\n", token->data.int_value);
         break;
     case TOKEN_CHAR:
         printf("character ");
