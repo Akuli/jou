@@ -115,7 +115,7 @@ Running tests:
 ```
 $ make test         # Run all tests quickly. Good for local development.
 $ make valgrind     # Run some of the tests with valgrind.
-$ make fulltest     # This is slow. Includes the other two. Runs in CI.
+$ make fulltest     # Very slow. Includes the other two. Runs in CI.
 ```
 
 Each of these commands:
