@@ -159,7 +159,7 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
         printf("dereference and ");
-        // fall through
+        __attribute__((fallthrough));
     case AST_EXPR_GET_FIELD:
         printf("get field \"%s\"\n", expr->data.field.fieldname);
         print_ast_expression(expr->data.field.obj, print_tree_prefix(tp, true));

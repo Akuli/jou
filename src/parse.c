@@ -741,7 +741,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
             result.data.structdef = parse_structdef(tokens);
             break;
         }
-        // fall through
+        __attribute__((fallthrough));
 
     default:
         fail_with_parse_error(*tokens, "a definition or declaration");
