@@ -36,3 +36,7 @@ test: all
 .PHONY: valgrind
 valgrind: all
 	tests/runtests.sh --skip-expected-fails 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou %s'
+
+.PHONY: fulltest
+fulltest: all
+	tests/runtests.sh './jou %s'

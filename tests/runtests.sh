@@ -8,6 +8,7 @@
 #
 #
 
+export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
 skip_expected_fails=no
@@ -31,6 +32,9 @@ mkdir -vp tmp/tests
 
 function generate_expected_output()
 {
+    local joufile="$1"
+    local correct_exit_code="$2"
+
     (grep -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
     (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
     (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
@@ -47,9 +51,20 @@ function run_test()
     local diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
     printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
 
+    local actual_command="( ulimit -v 500000; $command; echo Exit code: \$? ) 2>&1"
+    if [ $joufile = tests/other_errors/null_deref.jou ]; then
+        # Ignore everything except "Segmentation fault", we only want to
+        # ensure we get that somewhere. The rest of the output is complicated.
+        #
+        # This is also a terrible hack. The actual exit code on segfault can
+        # be 1 or 139 depending on how the program is ran, but we take the first
+        # digit so the expected output can always be "Exit code: 1".
+        actual_command="$actual_command | grep -oE 'Segmentation fault|Exit code: [0-9]'"
+    fi
+
     if diff -u --color=always \
-        <(generate_expected_output) \
-        <(bash -c "ulimit -v 500000; $command; echo Exit code: \$?" 2>&1 | sed s/' (core dumped)'//) \
+        <(generate_expected_output $joufile $correct_exit_code) \
+        <(bash -c "$actual_command") \
         &>> $diffpath
     then
         echo -ne "\x1b[32m.\x1b[0m"
