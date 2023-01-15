@@ -7,7 +7,9 @@
 #include "util.h"
 
 // don't like repeating "struct" outside this header file
+typedef struct CommandLineFlags CommandLineFlags;
 typedef struct Location Location;
+
 typedef struct Token Token;
 typedef struct Type Type;
 typedef struct Signature Signature;
@@ -36,6 +38,12 @@ typedef struct CfBlock CfBlock;
 typedef struct CfGraph CfGraph;
 typedef struct CfGraphFile CfGraphFile;
 typedef struct CfInstruction CfInstruction;
+
+
+struct CommandLineFlags {
+    bool verbose;  // Whether to print a LOT of debug info
+    int optlevel;  // Optimization level (0 don't optimize, 3 optimize a lot)
+};
 
 
 struct Location {
@@ -432,8 +440,8 @@ struct CfGraphFile {
 
 
 /*
-The compiling functions, i.e. how to go from source code to LLVM IR.
-Each function's result is fed into the next.
+The compiling functions, i.e. how to go from source code to LLVM IR and
+eventually running the LLVM IR. Each function's result is fed into the next.
 
 Make sure that the filename passed to tokenize() stays alive throughout the
 entire compilation. It is used in error messages.
@@ -443,6 +451,7 @@ AstToplevelNode *parse(const Token *tokens);
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile);
+int run_program(LLVMModuleRef module, const CommandLineFlags *flags);  // destroys the module
 
 /*
 Use these to clean up return values of compiling functions.
@@ -456,7 +465,6 @@ void free_tokens(Token *tokenlist);
 void free_ast(AstToplevelNode *topnodelist);
 void free_control_flow_graphs(const CfGraphFile *cfgfile);
 void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b);
-// To free LLVM IR, use LLVMDisposeModule
 
 /*
 Functions for printing intermediate data for debugging and exploring the compiler.
