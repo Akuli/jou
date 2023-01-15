@@ -3,6 +3,7 @@
 #include "jou_compiler.h"
 #include <llvm-c/Core.h>
 #include <llvm-c/ExecutionEngine.h>
+#include <llvm-c/Transforms/PassManagerBuilder.h>
 
 // TODO: this TempDir code is ridiculous
 static char TempDir[50];
@@ -60,8 +61,25 @@ static int run_main_with_clang(LLVMModuleRef module, const CommandLineFlags *fla
     return !!system(command);
 }
 
+static void optimize(LLVMModuleRef module, int level)
+{
+    assert(0 <= level && level <= 3);
+
+    LLVMPassManagerRef pm = LLVMCreatePassManager();
+
+    LLVMPassManagerBuilderRef pmbuilder = LLVMPassManagerBuilderCreate();
+    LLVMPassManagerBuilderSetOptLevel(pmbuilder, level);
+    LLVMPassManagerBuilderPopulateModulePassManager(pmbuilder, pm);
+    LLVMPassManagerBuilderDispose(pmbuilder);
+
+    LLVMRunPassManager(pm, module);
+    LLVMDisposePassManager(pm);
+}
+
 static int run_main_with_jit(LLVMModuleRef module, const CommandLineFlags *flags)
 {
+    optimize(module, flags->optlevel);
+
     if (LLVMInitializeNativeTarget()) {
         fprintf(stderr, "LLVMInitializeNativeTarget() failed\n");
         return 1;
@@ -88,6 +106,9 @@ static int run_main_with_jit(LLVMModuleRef module, const CommandLineFlags *flags
         fprintf(stderr, "error: main() function not found\n");
         return 1;
     }
+
+    if (flags->verbose)
+        printf("Running with JIT (optlevel %d)...\n", flags->optlevel);
 
     extern char **environ;
     int result = LLVMRunFunctionAsMain(jit, main, 1, (const char*[]){"jou-program"}, (const char *const*)environ);

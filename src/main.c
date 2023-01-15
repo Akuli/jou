@@ -12,7 +12,7 @@ static const char usage_fmt[] = "Usage: %s [--help] [--verbose] [--no-jit] [-O0|
 static const char long_help[] =
     "  --help           display this message\n"
     "  --verbose        display a lot of information about all compilation steps\n"
-    "  --no-jit         compile code to file and run the file (can optimize better)\n"
+    "  --no-jit         compile code to file and run the file (can be faster)\n"
     "  -O0/-O1/-O2/-O3  set optimization level (1 = default, 3 = runs fastest)\n"
     ;
 
@@ -85,8 +85,5 @@ int main(int argc, char **argv)
     */
     LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
 
-    int ret = run_program(module, &flags);
-    LLVMDisposeModule(module);
-
-    return ret;
+    return run_program(module, &flags);
 }
