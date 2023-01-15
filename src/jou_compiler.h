@@ -465,6 +465,7 @@ void free_tokens(Token *tokenlist);
 void free_ast(AstToplevelNode *topnodelist);
 void free_control_flow_graphs(const CfGraphFile *cfgfile);
 void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b);
+// To free LLVM IR, use LLVMDisposeModule
 
 /*
 Functions for printing intermediate data for debugging and exploring the compiler.
