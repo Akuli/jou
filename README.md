@@ -113,13 +113,15 @@ for every feature and for every compiler error/warning.
 Running tests:
 
 ```
-$ make test
+$ make test         # Run all tests quickly. Good for local development.
+$ make valgrind     # Run some of the tests with valgrind.
+$ make fulltest     # Very slow. Includes the other two. Runs in CI.
 ```
 
-This does a few things:
-- It compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled.
-- It runs all Jou files in `examples/` and `tests/`.
-- It ensures that the Jou files output what is expected.
+Each of these commands:
+- compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled
+- runs all Jou files in `examples/` and `tests/` (`make valgrind` only runs some files, see below)
+- ensures that the Jou files output what is expected.
 
 The expected output is auto-generated from comments in the Jou files:
 
@@ -137,14 +139,8 @@ The command that was ran (e.g. `./jou examples/hello.jou`) is shown just above t
 and you can run it again manually to debug a test failure.
 You can also put e.g. `valgrind` or `gdb --args` in front of the command.
 
-You can also run tests in `examples/` and `tests/should_succeed/` with `valgrind`:
-
-```
-$ make valgrind
-```
-
-This finds missing `free()`s and various other memory bugs,
-but does not do anything with tests that are supposed to fail with an error, for a few reasons:
+The purpose of `make valgrind` is to find missing `free()`s and various other memory bugs.
+It doesn't do anything with tests that are supposed to fail with an error, for a few reasons:
 - The compiler does not free memory allocations when it exits with an error.
     This is fine because the operating system will free the memory anyway,
     but `valgrind` would see it as many memory leaks.
