@@ -10,7 +10,6 @@ CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompati
 CFLAGS += -std=c11
 CFLAGS += -g
 CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
-CFLAGS += -DJOU_CLANG_PATH=$(CC)
 LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs)
 
 obj/%.o: src/%.c $(wildcard src/*.h)
