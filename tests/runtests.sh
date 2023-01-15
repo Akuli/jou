@@ -8,6 +8,7 @@
 #
 #
 
+export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
 if [ $# != 1 ] || [[ "$1" =~ ^- ]]; then
@@ -32,6 +33,19 @@ function generate_expected_output()
     (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
     (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
     echo "Exit code: $correct_exit_code"
+}
+
+function post_process_output()
+{
+    local joufile="$1"
+    if grep -q '# Output: Segmentation fault$' $joufile; then
+        # Hide most of the output. We really only care about whether it
+        # mentions "Segmentation fault" somewhere inside it.
+        grep -oE "Segmentation fault|Exit code: .*"
+    else
+        # Pass the output through unchanged.
+        cat
+    fi
 }
 
 YELLOW="\x1b[33m"
@@ -61,7 +75,7 @@ function run_test()
         mv $diffpath $diffpath.skip
     elif diff -u --color=always \
         <(generate_expected_output $joufile $correct_exit_code) \
-        <(bash -c "ulimit -v 500000; $command; echo Exit code: \$?" 2>&1 | sed s/' (core dumped)'//) \
+        <(bash -c "ulimit -v 500000; $command; echo Exit code: \$?" 2>&1 | post_process_output $joufile) \
         &>> $diffpath
     then
         # Ran successfully
@@ -77,6 +91,8 @@ counter=0
 for joufile in examples/*.jou tests/*/*.jou; do
     if [[ $joufile =~ ^(examples/|tests/should_succeed/) ]]; then
         correct_exit_code=0
+    elif grep -q '# Output: Segmentation fault$' $joufile; then
+        correct_exit_code=139  # apparently this is 128+11 where 11 = SIGSEGV
     else
         correct_exit_code=1
     fi

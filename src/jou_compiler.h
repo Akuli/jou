@@ -451,7 +451,7 @@ AstToplevelNode *parse(const Token *tokens);
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile);
-int run_program(LLVMModuleRef module, const CommandLineFlags *flags);
+int run_program(LLVMModuleRef module, const CommandLineFlags *flags);  // destroys the module
 
 /*
 Use these to clean up return values of compiling functions.
@@ -465,7 +465,6 @@ void free_tokens(Token *tokenlist);
 void free_ast(AstToplevelNode *topnodelist);
 void free_control_flow_graphs(const CfGraphFile *cfgfile);
 void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b);
-// To free LLVM IR, use LLVMDisposeModule
 
 /*
 Functions for printing intermediate data for debugging and exploring the compiler.

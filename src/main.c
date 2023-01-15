@@ -85,7 +85,5 @@ int main(int argc, char **argv)
     */
     LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
 
-    int ret = run_program(module, &flags);
-    LLVMDisposeModule(module);
-    return ret;
+    return run_program(module, &flags);
 }
