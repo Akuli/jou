@@ -10,17 +10,11 @@
 
 set -e -o pipefail
 
-skip_expected_fails=no
-while [[ "$1" =~ ^- ]] || [ $# != 1 ]; do
-    if [ "$1" = --skip-expected-fails ]; then
-        skip_expected_fails=yes
-        shift
-    else
-        echo "Usage: $0 [--skip-expected-fails] 'jou %s'" >&2
-        echo "The %s will be replaced by the name of a jou file." >&2
-        exit 2
-    fi
-done
+if [ $# != 1 ] || [[ "$1" =~ ^- ]]; then
+    echo "Usage: $0 'jou %s'" >&2
+    echo "The %s will be replaced by the name of a jou file." >&2
+    exit 2
+fi
 command_template="$1"
 
 # Go to project root.
@@ -31,11 +25,19 @@ mkdir -vp tmp/tests
 
 function generate_expected_output()
 {
+    local joufile="$1"
+    local correct_exit_code="$2"
+
     (grep -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
     (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
     (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
     echo "Exit code: $correct_exit_code"
 }
+
+YELLOW="\x1b[33m"
+GREEN="\x1b[32m"
+RED="\x1b[31m"
+RESET="\x1b[0m"
 
 function run_test()
 {
@@ -47,31 +49,37 @@ function run_test()
     local diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
     printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
 
-    if diff -u --color=always \
-        <(generate_expected_output) \
+    # Skip tests when:
+    #   * the test is supposed to segfault, but optimizations are enabled
+    #     (this is unpredictable by design)
+    #   * the test is supposed to fail and we use valgrind (see README)
+    if ( [[ "$command_template" =~ -O[1-3] ]] && grep -q '# Output: Segmentation fault$' $joufile ) \
+        || ( [[ "$command_template" =~ valgrind ]] && [ $correct_exit_code != 0 ] )
+    then
+        # Skip
+        echo -ne ${YELLOW}s${RESET}
+        mv $diffpath $diffpath.skip
+    elif diff -u --color=always \
+        <(generate_expected_output $joufile $correct_exit_code) \
         <(bash -c "ulimit -v 500000; $command; echo Exit code: \$?" 2>&1 | sed s/' (core dumped)'//) \
         &>> $diffpath
     then
-        echo -ne "\x1b[32m.\x1b[0m"
-        rm $diffpath
+        # Ran successfully
+        echo -ne ${GREEN}.${RESET}
+        rm -f $diffpath
     else
-        echo -ne "\x1b[31mF\x1b[0m"
+        # Failed
+        echo -ne ${RED}F${RESET}
     fi
 }
 
 counter=0
 for joufile in examples/*.jou tests/*/*.jou; do
-    case $joufile in
-        examples/* | tests/should_succeed/*)
-            correct_exit_code=0
-            ;;
-        *)
-            if [ $skip_expected_fails = yes ]; then
-                continue
-            fi
-            correct_exit_code=1
-            ;;
-    esac
+    if [[ $joufile =~ ^(examples/|tests/should_succeed/) ]]; then
+        correct_exit_code=0
+    else
+        correct_exit_code=1
+    fi
     counter=$((counter + 1))
 
     # Run 2 tests in parallel.
@@ -84,16 +92,21 @@ echo ""
 echo ""
 
 failed=$( (ls -1 tmp/tests/diff*.txt 2>/dev/null || true) | wc -l)
-succeeded=$((counter - failed))
+skipped=$( (ls -1 tmp/tests/diff*.txt.skip 2>/dev/null || true) | wc -l)
+succeeded=$((counter - failed - skipped))
 
 if [ $failed != 0 ]; then
     echo "------- FAILURES -------"
     cat tmp/tests/diff*.txt
 fi
 
-if [ $failed = 0 ]; then
-    echo -e "\x1b[32m$succeeded succeeded\x1b[0m"
-else
-    echo -e "$succeeded succeeded, \x1b[31m$failed failed\x1b[0m"
-    exit 1
+echo -ne "${GREEN}${succeeded} succeeded"
+if [ $failed != 0 ]; then
+    echo -ne ", ${RED}${failed} failed"
 fi
+if [ $skipped != 0 ]; then
+    echo -ne ", ${YELLOW}${skipped} skipped"
+fi
+echo -e $RESET
+
+exit $((!!failed))

@@ -13,14 +13,9 @@ static const char long_help[] =
     "  -O0/-O1/-O2/-O3  set optimization level (1 = default, 3 = runs fastest)\n"
     ;
 
-static const CommandLineFlags default_flags = {
-    .verbose = false,
-    .optlevel = 1,
-};
-
 void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char **filename)
 {
-    *flags = default_flags;
+    *flags = (CommandLineFlags){0};
 
     int i = 1;
     while (i < argc && argv[i][0] == '-') {
