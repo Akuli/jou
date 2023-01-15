@@ -29,16 +29,28 @@ function generate_expected_output()
     local joufile="$1"
     local correct_exit_code="$2"
 
-    (grep -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
-    (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
-    (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
+    # In verbose mode, the output is silenced, see below. The point of
+    # testing with --verbose is that the compiler shouldn't crash (#65).
+    if [[ "$command_template" =~ --verbose ]]; then
+        echo "A lot of output hidden..."
+    else
+        (grep -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
+        (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
+        (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
+    fi
     echo "Exit code: $correct_exit_code"
 }
 
 function post_process_output()
 {
     local joufile="$1"
-    if grep -q '# Output: Segmentation fault$' $joufile; then
+    if [[ "$command_template" =~ --verbose ]]; then
+        # There is a LOT of output. We don't want to write the expected
+        # output precisely somewhere, that would be a lot of work.
+        # Instead, ignore the output and check only the exit code.
+        echo "A lot of output hidden..."
+        grep "^Exit code:"
+    elif grep -q '# Output: Segmentation fault$' $joufile; then
         # Hide most of the output. We really only care about whether it
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
