@@ -50,7 +50,7 @@ function post_process_output()
         # Instead, ignore the output and check only the exit code.
         echo "A lot of output hidden..."
         grep "^Exit code:"
-    elif grep -q '# Output: Segmentation fault$' $joufile; then
+    elif [[ $joufile =~ ^tests/crash/ ]]; then
         # Hide most of the output. We really only care about whether it
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
@@ -76,10 +76,9 @@ function run_test()
     printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
 
     # Skip tests when:
-    #   * the test is supposed to segfault, but optimizations are enabled
-    #     (this is unpredictable by design)
-    #   * the test is supposed to fail and we use valgrind (see README)
-    if ( [[ "$command_template" =~ -O[1-3] ]] && grep -q '# Output: Segmentation fault$' $joufile ) \
+    #   * the test is supposed to crash, but optimizations are enabled (unpredictable by design)
+    #   * the test is supposed to fail (crash or otherwise) and we use valgrind (see README)
+    if ( [[ "$command_template" =~ -O[1-3] ]] && [[ $joufile =~ ^tests/crash/ ]] ) \
         || ( [[ "$command_template" =~ valgrind ]] && [ $correct_exit_code != 0 ] )
     then
         # Skip
@@ -101,13 +100,11 @@ function run_test()
 
 counter=0
 for joufile in examples/*.jou tests/*/*.jou; do
-    if [[ $joufile =~ ^(examples/|tests/should_succeed/) ]]; then
-        correct_exit_code=0
-    elif grep -q '# Output: Segmentation fault$' $joufile; then
-        correct_exit_code=139  # apparently this is 128+11 where 11 = SIGSEGV
-    else
-        correct_exit_code=1
-    fi
+    case $joufile in
+        examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
+        tests/crash/*) correct_exit_code=139; ;;  # segfault
+        *) correct_exit_code=1; ;;  # compiler or runtime error
+    esac
     counter=$((counter + 1))
 
     # Run 2 tests in parallel.
