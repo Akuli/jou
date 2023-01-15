@@ -34,8 +34,7 @@ test: all
 	tests/runtests.sh './jou %s'
 
 .PHONY: fulltest
-test: all
-fulltest:
+fulltest: all
 	tests/runtests.sh './jou %s'
 	tests/runtests.sh './jou -O3 %s'
 	tests/runtests.sh 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou %s'
