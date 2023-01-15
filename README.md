@@ -113,7 +113,7 @@ for every feature and for every compiler error/warning.
 Running tests:
 
 ```
-$ make test         # Quick run. Good for local development.
+$ make test         # Run all tests quickly. Good for local development.
 $ make valgrind     # Run some of the tests with valgrind.
 $ make fulltest     # This is slow. Includes the other two. Runs in CI.
 ```
