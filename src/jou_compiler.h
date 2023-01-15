@@ -42,7 +42,6 @@ typedef struct CfInstruction CfInstruction;
 
 struct CommandLineFlags {
     bool verbose;  // Whether to print a LOT of debug info
-    bool jit; // Whether to run with LLVM JIT or clang
     int optlevel;  // Optimization level (0 don't optimize, 3 optimize a lot)
 };
 

@@ -1,12 +1,18 @@
 declare system(command: byte*) -> int
 
 def main() -> int:
-    system("./jou")  # Output: Usage: ./jou [--verbose] FILENAME
+    system("./jou")  # Output: Usage: ./jou [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
     system("./jou examples/hello.jou")  # Output: Hello World
+    system("./jou -O8 examples/hello.jou")  # Output: Usage: ./jou [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
     system("./jou lolwat.jou")  # Output: compiler error in file "lolwat.jou": cannot open file: No such file or directory
-    system("./jou --asdasd")  # Output: Usage: ./jou [--verbose] FILENAME
-    system("./jou --verbose")  # Output: Usage: ./jou [--verbose] FILENAME
-    system("./jou --help")  # Output: Usage: ./jou [--verbose] FILENAME
+    system("./jou --asdasd")  # Output: Usage: ./jou [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    system("./jou --verbose")  # Output: Usage: ./jou [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+
+    # Output: Usage: ./jou [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    # Output:   --help           display this message
+    # Output:   --verbose        display a lot of information about all compilation steps
+    # Output:   -O0/-O1/-O2/-O3  set optimization level (1 = default, 3 = runs fastest)
+    system("./jou --help")
 
     # Test that --verbose kinda works, without asserting the output in too much detail.
     # See README for an explanation of why CFG is twice.
