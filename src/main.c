@@ -19,11 +19,53 @@ static void cleanup()
 }
 
 static void make_temp_dir()
-static const char usage_fmt[] = "Usage: %s [--help] [--verbose] [--no-jit] [-O0|-O1|-O2|-O3] FILENAME\n";
+{
+    system("mkdir -p /tmp/jou");
+    strcpy(TempDir, "/tmp/jou/XXXXXX");
+    if (!mkdtemp(TempDir)){
+        fprintf(stderr, "cannot create temporary directory: %s\n", strerror(errno));
+        exit(1);
+    }
+    atexit(cleanup);
+}
+
+static const char *get_clang_path(void)
+{
+    // Makefile passes e.g. -DJOU_CLANG_PATH=/usr/lib/llvm-11/bin/clang
+    // But retrieving the value is weird...
+#define str(x) #x
+#define str1(x) str(x)
+    return str1(JOU_CLANG_PATH);
+#undef str
+#undef str1
+}
+
+static int run_main_with_clang(LLVMModuleRef module, const CommandLineFlags *flags)
+{
+    // TODO: this is a bit ridiculous...
+    make_temp_dir();
+
+    char filename[200];
+    sprintf(filename, "%s/ir.bc", TempDir);
+
+    char *errormsg;
+    if (LLVMPrintModuleToFile(module, filename, &errormsg)) {
+        fprintf(stderr, "writing LLVM IR to %s failed: %s\n", filename, errormsg);
+        LLVMDisposeMessage(errormsg);
+    }
+
+    char command[2000];
+    snprintf(command, sizeof command, "%s -O%d -Wno-override-module -o %s/exe %s/ir.bc && %s/exe",
+        get_clang_path(), flags->optlevel, TempDir, TempDir, TempDir);
+    if (flags->verbose)
+        puts(command);
+    return !!system(command);
+}
+
+static const char usage_fmt[] = "Usage: %s [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME\n";
 static const char long_help[] =
     "  --help           display this message\n"
     "  --verbose        display a lot of information about all compilation steps\n"
-    "  --no-jit         compile code to file and run the file (can be faster)\n"
     "  -O0/-O1/-O2/-O3  set optimization level (1 = default, 3 = runs fastest)\n"
     ;
 
@@ -34,49 +76,37 @@ static const CommandLineFlags default_flags = {
 
 void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char **filename)
 {
-    system("mkdir -p /tmp/jou");
-    strcpy(TempDir, "/tmp/jou/XXXXXX");
-    if (!mkdtemp(TempDir)){
-        fprintf(stderr, "cannot create temporary directory: %s\n", strerror(errno));
-        exit(1);
-    if (argc < 2)
-        goto usage;
-
-    *filename = argv[argc-1];
-    if ((*filename)[0] == '-')
-        goto usage;
-
     *flags = default_flags;
-    for (int i = 1; i < argc-1; i++) {
-#define ArgMatches(s) (!strcmp(argv[i], (s)))
-        if (ArgMatches("--help")) {
+
+    int i = 1;
+    while (i < argc && argv[i][0] == '-') {
+        if (!strcmp(argv[i], "--help")) {
             printf(usage_fmt, argv[0]);
             printf("\n%s\n", long_help);
             exit(0);
-        } else if (ArgMatches("--verbose"))
+        } else if (!strcmp(argv[i], "--verbose")) {
             flags->verbose = true;
-        else if (ArgMatches("--no-jit"))
-            flags->jit = false;
-        else if (ArgMatches("-O0") || ArgMatches("-O1") || ArgMatches("-O2") || ArgMatches("-O3"))
+            i++;
+        } else if (strlen(argv[i]) == 3
+                && !strncmp(argv[i], "-O", 2)
+                && argv[i][2] >= '0'
+                && argv[i][2] <= '3')
+        {
             flags->optlevel = argv[i][2] - '0';
-        else
+            i++;
+        } else {
             goto usage;
+        }
     }
-    atexit(cleanup);
-}
+
+    if (i != argc-1)
+        goto usage;
+    *filename = argv[i];
+    return;
 
 usage:
     fprintf(stderr, usage_fmt, argv[0]);
     exit(2);
-static const char *get_clang_path(void)
-{
-    // Makefile passes e.g. -DJOU_CLANG_PATH=/usr/lib/llvm-11/bin/clang
-    // But retrieving the value is weird...
-#define str(x) #x
-#define str1(x) str(x)
-    return str1(JOU_CLANG_PATH);
-#undef str
-#undef str1
 }
 
 int main(int argc, char **argv)
@@ -116,23 +146,7 @@ int main(int argc, char **argv)
     */
     LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
 
-    // TODO: this is a ridiculous way to run the IR, figure out something better
-    make_temp_dir();
-    char irfilename[200];
-    sprintf(irfilename, "%s/ir.bc", TempDir);
-    FILE *f = fopen(irfilename, "wb");
-    assert(f);
-    char *s = LLVMPrintModuleToString(module);
-    fprintf(f, "%s", s);
-    LLVMDisposeMessage(s);
-    fclose(f);
-
+    int ret = run_main_with_clang(module, &flags);
     LLVMDisposeModule(module);
-
-    char command[2000];
-    snprintf(command, sizeof command, "%s -Wno-override-module -o %s/exe %s/ir.bc && %s/exe",
-        get_clang_path(), TempDir, TempDir, TempDir);
-    if(verbose)
-        puts(command);
-    return !!system(command);
+    return ret;
 }
