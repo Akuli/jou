@@ -306,8 +306,6 @@ static const Variable *build_and_or(
 
 static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what)
 {
-    const char *cant_take_address_of;
-
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
     {
@@ -339,28 +337,11 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
         return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
     }
 
-    /*
-    The & operator can't go in front of most expressions.
-    You can't do &(1 + 2), for example.
-
-    The same rules apply to assignments: "foo = bar" is treated as setting the
-    value of the pointer &foo to bar.
-    */
-    case AST_EXPR_CONSTANT:
-        cant_take_address_of = "a constant";
-        break;
-    case AST_EXPR_PRE_INCREMENT:
-    case AST_EXPR_POST_INCREMENT:
-        cant_take_address_of = "the result of incrementing a value";
-        break;
-    case AST_EXPR_PRE_DECREMENT:
-    case AST_EXPR_POST_DECREMENT:
-        cant_take_address_of = "the result of decrementing a value";
-        break;
     default:
-        cant_take_address_of = "a newly calculated value";
+        assert(0);
         break;
     }
+
     assert(0);
 }
 

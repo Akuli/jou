@@ -438,15 +438,21 @@ static const char *short_expression_description(const AstExpression *expr)
     return result;
 }
 
-// errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
-// Both assigning and address of work in a similar underlying way.
+/*
+The & operator can't go in front of most expressions.
+You can't do &(1 + 2), for example.
+
+The same rules apply to assignments: "foo = bar" is treated as setting the
+value of the pointer &foo to bar.
+
+errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
+*/
 static void ensure_can_take_address(const AstExpression *expr, const char *errmsg_template)
 {
-    // Please keep in sync with build_cfg
     switch(expr->kind) {
     case AST_EXPR_GET_VARIABLE:
     case AST_EXPR_DEREFERENCE:
-    case AST_EXPR_DEREF_AND_GET_FIELD:  // &foo->bar = foo + offset, only uses value of foo
+    case AST_EXPR_DEREF_AND_GET_FIELD:  // &foo->bar = foo + offset (it doesn't use &foo)
         break;
     case AST_EXPR_GET_FIELD:
         // &foo.bar = &foo + offset
