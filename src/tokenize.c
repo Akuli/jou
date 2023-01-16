@@ -64,27 +64,22 @@ static void unread_byte(struct State *st, char c)
         st->location.lineno--;
 }
 
-static bool is_identifier_first_byte(char c)
+static bool is_identifier_or_number_byte(char c)
 {
-    return ('A'<=c && c<='Z') || ('a'<=c && c<='z') || c=='_';
+    return ('A'<=c && c<='Z') || ('a'<=c && c<='z') || c=='_' || ('0'<=c && c<='9');
 }
 
-static bool is_identifier_continuation(char c)
-{
-    return is_identifier_first_byte(c) || ('0'<=c && c<='9');
-}
-
-static void read_identifier(struct State *st, char firstbyte, char (*dest)[100])
+static void read_identifier_or_number(struct State *st, char firstbyte, char (*dest)[100])
 {
     memset(*dest, 0, sizeof *dest);
     int destlen = 0;
 
-    assert(is_identifier_first_byte(firstbyte));
+    assert(is_identifier_or_number_byte(firstbyte));
     (*dest)[destlen++] = firstbyte;
 
     while(1) {
         char c = read_byte(st);
-        if (!is_identifier_continuation(c)) {
+        if (!is_identifier_or_number_byte(c)) {
             unread_byte(st, c);
             return;
         }
@@ -133,64 +128,33 @@ static void read_indentation_as_newline_token(struct State *st, Token *t)
     }
 }
 
-static bool is_hex(char c)
+static long long parse_integer(const char *str, Location location)
 {
-    return ('0'<=c && c<='9') || ('A'<=c && c<='F') || ('a'<=c && c<='f');
-}
-
-static int hex_value(char c)
-{
-    if ('0'<=c && c<='9')
-        return c - '0';
-    if ('A'<=c && c<='F')
-        return 10 + (c-'A');
-    if ('a'<=c && c<='f')
-        return 10 + (c-'a');
-    assert(0);
-}
-
-static long long read_int(struct State *st, char firstbyte)
-{
-    int base = 10;
-
-    if (firstbyte == '0') {
-        char nextbyte = read_byte(st);
-        if ('0' <= nextbyte && nextbyte <= '9') {
-            // 0777 in C actually means 511. Jou does not allow writing 0777.
-            fail_with_error(st->location, "unnecessary zero at start of number");
-        } else if (nextbyte == 'x') {
-            // hex number, e.g. 0xff
-            base = 16;
-            firstbyte = read_byte(st);
-            if (!is_hex(firstbyte))
-                fail_with_error(st->location, "invalid hex number");
-        } else if (nextbyte == 'b') {
-            // binary number, e.g. 0b1101
-            base = 2;
-            firstbyte = read_byte(st);
-            if (firstbyte != '0' && firstbyte != '1')
-                fail_with_error(st->location, "invalid binary number");
-        } else {
-            // this is the number zero
-            unread_byte(st, nextbyte);
-        }
+    int base;
+    const char *digits, *valid_digits;
+    if (str[0] == '0' && str[1] == 'x') {
+        // 0x123 = hexadecimal number
+        base = 16;
+        digits = &str[2];
+        valid_digits = "0123456789ABCDEFabcdef";
+    } else if (str[0] == '0' && str[1] == 'b') {
+        // 0b1101 = binary number
+        base = 2;
+        digits = &str[2];
+        valid_digits = "01";
+    } else if (str[0] == '0' && str[1] != '\0') {
+        // 0777 in C actually means 511. Jou does not allow writing 0777.
+        fail_with_error(location, "unnecessary zero at start of number");
+    } else {
+        base = 10;
+        digits = &str[0];
+        valid_digits = "0123456789";
     }
 
-    long long n = hex_value(firstbyte);
-    while(1) {
-        char c = read_byte(st);
-        if ((base==2 && (c=='0' || c=='1'))
-            || (base==10 && '0'<=c && c<='9')
-            || (base==16 && is_hex(c)))
-        {
-            n = base*n + hex_value(c);
-        } else {
-            unread_byte(st, c);
-            break;
-        }
-    }
+    if (!*digits || strspn(digits, valid_digits) != strlen(digits))
+        fail_with_error(location, "invalid number or variable name \"%s\"", str);
 
-    return n;
+    return strtoll(digits, NULL, base);
 }
 
 static bool is_keyword(const char *s)
@@ -355,15 +319,16 @@ static Token read_token(struct State *st)
         case '\'': t.type = TOKEN_CHAR; t.data.char_value = read_char_literal(st); break;
         case '"': t.type = TOKEN_STRING; t.data.string_value = read_string(st, '"', NULL); break;
         default:
-            if ('0'<=c && c<='9') {
-                t.type = TOKEN_INT;
-                t.data.int_value = read_int(st, c);
-            } else if(is_identifier_first_byte(c)) {
-                read_identifier(st, c, &t.data.name);
+            if(is_identifier_or_number_byte(c)) {
+                read_identifier_or_number(st, c, &t.data.name);
                 if (is_keyword(t.data.name))
                     t.type = TOKEN_KEYWORD;
-                else
+                else if ('0'<=t.data.name[0] && t.data.name[0]<='9') {
+                    t.type = TOKEN_INT;
+                    t.data.int_value = parse_integer(t.data.name, t.location);
+                } else {
                     t.type = TOKEN_NAME;
+                }
             } else if (strchr(operatorChars, c)) {
                 unread_byte(st, c);
                 t.type = TOKEN_OPERATOR;
