@@ -249,9 +249,9 @@ static const char *short_expression_description(const AstExpression *expr)
     switch(expr->kind) {
     case AST_EXPR_CONSTANT: return "a constant";
     case AST_EXPR_FUNCTION_CALL: return "a function call";
-    case AST_EXPR_BRACE_INIT: return "a brace-initialization";
+    case AST_EXPR_BRACE_INIT: return "a newly created instance";
     case AST_EXPR_INDEXING: return "an indexed value";
-    case AST_EXPR_AS: return "a casted value";
+    case AST_EXPR_AS: return "the result of a cast";
     case AST_EXPR_GET_VARIABLE: return "a variable";
     case AST_EXPR_DEREFERENCE: return "the value of a pointer";
     case AST_EXPR_AND: return "the result of 'and'";
