@@ -386,6 +386,77 @@ static const Type *typecheck_struct_init(TypeContext *ctx, const AstCall *call, 
     return t;
 }
 
+// Intended for errors. Returned string can be overwritten in next call.
+static const char *short_expression_description(const AstExpression *expr)
+{
+    static char result[200];
+
+    switch(expr->kind) {
+    case AST_EXPR_CONSTANT: return "a constant";
+    case AST_EXPR_FUNCTION_CALL: return "a function call";
+    case AST_EXPR_BRACE_INIT: return "a brace-initialization";
+    case AST_EXPR_INDEXING: return "an indexed value";
+    case AST_EXPR_AS: return "a casted value";
+    case AST_EXPR_GET_VARIABLE: return "a variable";
+    case AST_EXPR_DEREFERENCE: return "the value of a pointer";
+    case AST_EXPR_AND: return "the result of 'and'";
+    case AST_EXPR_OR: return "the result of 'or'";
+    case AST_EXPR_NOT: return "the result of 'not'";
+
+    case AST_EXPR_ADD:
+    case AST_EXPR_SUB:
+    case AST_EXPR_MUL:
+    case AST_EXPR_DIV:
+        return "the result of a calculation";
+
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
+        return "the result of a comparison";
+
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_POST_INCREMENT:
+        return "the result of incrementing a value";
+
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_DECREMENT:
+        return "the result of decrementing a value";
+
+    case AST_EXPR_ADDRESS_OF:
+        snprintf(result, sizeof result, "address of %s", short_expression_description(&expr->data.operands[0]));
+        break;
+
+    case AST_EXPR_GET_FIELD:
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        snprintf(result, sizeof result, "field '%s'", expr->data.field.fieldname);
+        break;
+    }
+
+    return result;
+}
+
+// errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
+// Both assigning and address of work in a similar underlying way.
+static void ensure_can_take_address(const AstExpression *expr, const char *errmsg_template)
+{
+    // Please keep in sync with build_cfg
+    switch(expr->kind) {
+    case AST_EXPR_GET_VARIABLE:
+    case AST_EXPR_DEREFERENCE:
+    case AST_EXPR_DEREF_AND_GET_FIELD:  // &foo->bar = foo + offset, only uses value of foo
+        break;
+    case AST_EXPR_GET_FIELD:
+        // &foo.bar = &foo + offset
+        ensure_can_take_address(&expr->data.operands[0], errmsg_template);
+        break;
+    default:
+        fail_with_error(expr->location, errmsg_template, short_expression_description(expr));
+    }
+}
+
 static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpression *expr)
 {
     const Type *temptype;
@@ -425,6 +496,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         result = typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);
         break;
     case AST_EXPR_ADDRESS_OF:
+        ensure_can_take_address(&expr->data.operands[0], "the '&' operator cannot be used with %s");
         temptype = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
         result = get_pointer_type(temptype);
         break;
@@ -559,22 +631,16 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
                 add_variable(ctx, types->type, targetexpr->data.varname);
             } else {
                 // Convert value to the type of an existing variable or other assignment target.
+                ensure_can_take_address(targetexpr, "cannot assign to %s");
+
                 char errmsg[500];
-                switch(targetexpr->kind) {
-                    case AST_EXPR_GET_VARIABLE:
-                        strcpy(errmsg, "cannot assign a value of type FROM to variable of type TO");
-                        break;
-                    case AST_EXPR_DEREFERENCE:
-                        strcpy(errmsg, "cannot assign a value of type FROM into a pointer of type TO*");
-                        break;
-                    case AST_EXPR_GET_FIELD:
-                    case AST_EXPR_DEREF_AND_GET_FIELD:
-                        snprintf(
-                            errmsg, sizeof errmsg,
-                            "cannot assign a value of type FROM into field '%s' of type TO",
-                            targetexpr->data.field.fieldname);
-                        break;
-                    default: assert(0);
+                if (targetexpr->kind == AST_EXPR_DEREFERENCE) {
+                    strcpy(errmsg, "cannot place a value of type FROM into a pointer of type TO*");
+                } else {
+                    snprintf(errmsg, sizeof errmsg,
+                        // TODO: not a nice message when targetexpr->kind == AST_EXPR_DEREFERENCE
+                        "cannot assign a value of type FROM to %s of type TO",
+                        short_expression_description(targetexpr));
                 }
                 const ExpressionTypes *targettypes = typecheck_expression(ctx, targetexpr);
                 typecheck_expression_with_implicit_cast(ctx, valueexpr, targettypes->type, errmsg);
