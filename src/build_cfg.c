@@ -178,10 +178,7 @@ static const Variable *build_struct_field_pointer(
 }
 
 static const Variable *build_expression(struct State *st, const AstExpression *expr);
-static const Variable *build_address_of_expression(
-    struct State *st,
-    const AstExpression *address_of_what,
-    bool is_assignment);
+static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what);
 
 enum PreOrPost { PRE, POST };
 
@@ -194,7 +191,7 @@ static const Variable *build_increment_or_decrement(
 {
     assert(diff==1 || diff==-1);  // 1=increment, -1=decrement
 
-    const Variable *addr = build_address_of_expression(st, inner, true);
+    const Variable *addr = build_address_of_expression(st, inner);
     assert(addr->type->kind == TYPE_POINTER);
     const Type *t = addr->type->data.valuetype;
     if (!is_integer_type(t) && !is_pointer_type(t))
@@ -307,10 +304,8 @@ static const Variable *build_and_or(
     return result;
 }
 
-static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool is_assignment)
+static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what)
 {
-    const char *cant_take_address_of;
-
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
     {
@@ -336,39 +331,18 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
     case AST_EXPR_GET_FIELD:
     {
         // &obj.field aka &(obj.field), evaluate as &(&obj)->field
-        const Variable *obj = build_address_of_expression(st, address_of_what->data.field.obj, false);
+        const Variable *obj = build_address_of_expression(st, address_of_what->data.field.obj);
         assert(obj->type->kind == TYPE_POINTER);
         assert(obj->type->data.valuetype->kind == TYPE_STRUCT);
         return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
     }
 
-    /*
-    The & operator can't go in front of most expressions.
-    You can't do &(1 + 2), for example.
-
-    The same rules apply to assignments: "foo = bar" is treated as setting the
-    value of the pointer &foo to bar.
-    */
-    case AST_EXPR_CONSTANT:
-        cant_take_address_of = "a constant";
-        break;
-    case AST_EXPR_PRE_INCREMENT:
-    case AST_EXPR_POST_INCREMENT:
-        cant_take_address_of = "the result of incrementing a value";
-        break;
-    case AST_EXPR_PRE_DECREMENT:
-    case AST_EXPR_POST_DECREMENT:
-        cant_take_address_of = "the result of decrementing a value";
-        break;
     default:
-        cant_take_address_of = "a newly calculated value";
+        assert(0);
         break;
     }
 
-    if (is_assignment)
-        fail_with_error(address_of_what->location, "cannot assign to %s", cant_take_address_of);
-    else
-        fail_with_error(address_of_what->location, "the address-of operator '&' cannot be used with %s", cant_take_address_of);
+    assert(0);
 }
 
 static const Variable *build_function_call(struct State *st, const AstExpression *expr)
@@ -431,7 +405,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
     case AST_EXPR_DEREF_AND_GET_FIELD:
         // To evaluate foo.bar or foo->bar, we first evaluate &foo.bar or &foo->bar.
         // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
-        temp = build_address_of_expression(st, expr, false);
+        temp = build_address_of_expression(st, expr);
         result = add_variable(st, types->type);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
@@ -439,7 +413,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         result = build_indexing(st, &expr->data.operands[0], &expr->data.operands[1]);
         break;
     case AST_EXPR_ADDRESS_OF:
-        result = build_address_of_expression(st, &expr->data.operands[0], false);
+        result = build_address_of_expression(st, &expr->data.operands[0]);
         break;
     case AST_EXPR_GET_VARIABLE:
         result = find_variable(st, expr->data.varname);
@@ -632,7 +606,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
                 const Variable *value = build_expression(st, valueexpr);
                 add_unary_op(st, stmt->location, CF_VARCPY, value, target);
             } else {
-                const Variable *target = build_address_of_expression(st, targetexpr, true);
+                const Variable *target = build_address_of_expression(st, targetexpr);
                 const Variable *value = build_expression(st, valueexpr);
                 assert(target->type->kind == TYPE_POINTER);
                 add_binary_op(st, stmt->location, CF_PTR_STORE, target, value, NULL);
