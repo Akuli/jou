@@ -241,25 +241,105 @@ static const Type *check_binop(
     }
 }
 
+// Intended for errors. Returned string can be overwritten in next call.
+static const char *short_expression_description(const AstExpression *expr)
+{
+    static char result[200];
+
+    switch(expr->kind) {
+    case AST_EXPR_CONSTANT: return "a constant";
+    case AST_EXPR_FUNCTION_CALL: return "a function call";
+    case AST_EXPR_BRACE_INIT: return "a brace-initialization";
+    case AST_EXPR_INDEXING: return "an indexed value";
+    case AST_EXPR_AS: return "a casted value";
+    case AST_EXPR_GET_VARIABLE: return "a variable";
+    case AST_EXPR_DEREFERENCE: return "the value of a pointer";
+    case AST_EXPR_AND: return "the result of 'and'";
+    case AST_EXPR_OR: return "the result of 'or'";
+    case AST_EXPR_NOT: return "the result of 'not'";
+
+    case AST_EXPR_ADD:
+    case AST_EXPR_SUB:
+    case AST_EXPR_MUL:
+    case AST_EXPR_DIV:
+        return "the result of a calculation";
+
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
+        return "the result of a comparison";
+
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_POST_INCREMENT:
+        return "the result of incrementing a value";
+
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_DECREMENT:
+        return "the result of decrementing a value";
+
+    case AST_EXPR_ADDRESS_OF:
+        snprintf(result, sizeof result, "address of %s", short_expression_description(&expr->data.operands[0]));
+        break;
+
+    case AST_EXPR_GET_FIELD:
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        snprintf(result, sizeof result, "field '%s'", expr->data.field.fieldname);
+        break;
+    }
+
+    return result;
+}
+
+/*
+The & operator can't go in front of most expressions.
+You can't do &(1 + 2), for example.
+
+The same rules apply to assignments: "foo = bar" is treated as setting the
+value of the pointer &foo to bar.
+
+errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
+*/
+static void ensure_can_take_address(const AstExpression *expr, const char *errmsg_template)
+{
+    switch(expr->kind) {
+    case AST_EXPR_GET_VARIABLE:
+    case AST_EXPR_DEREFERENCE:
+    case AST_EXPR_DEREF_AND_GET_FIELD:  // &foo->bar = foo + offset (it doesn't use &foo)
+        break;
+    case AST_EXPR_GET_FIELD:
+        // &foo.bar = &foo + offset
+        ensure_can_take_address(&expr->data.operands[0], errmsg_template);
+        break;
+    default:
+        fail_with_error(expr->location, errmsg_template, short_expression_description(expr));
+    }
+}
+
 static const Type *check_increment_or_decrement(TypeContext *ctx, const AstExpression *expr)
 {
-    const char *do_what;
+    const char *bad_type_fmt, *bad_expr_fmt;
     switch(expr->kind) {
     case AST_EXPR_PRE_INCREMENT:
     case AST_EXPR_POST_INCREMENT:
-        do_what = "increment";
+        bad_type_fmt = "cannot increment a value of type %s";
+        bad_expr_fmt = "cannot increment %s";
         break;
     case AST_EXPR_PRE_DECREMENT:
     case AST_EXPR_POST_DECREMENT:
-        do_what = "decrement";
+        bad_type_fmt = "cannot decrement a value of type %s";
+        bad_expr_fmt = "cannot decrement %s";
         break;
     default:
         assert(0);
     }
 
+    ensure_can_take_address(&expr->data.operands[0], bad_expr_fmt);
     const Type *t = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
     if (!is_integer_type(t) && !is_pointer_type(t))
-        fail_with_error(expr->location, "cannot %s a value of type %s", do_what, t->name);
+        fail_with_error(expr->location, bad_type_fmt, t->name);
     return t;
 }
 
@@ -384,83 +464,6 @@ static const Type *typecheck_struct_init(TypeContext *ctx, const AstCall *call, 
     }
 
     return t;
-}
-
-// Intended for errors. Returned string can be overwritten in next call.
-static const char *short_expression_description(const AstExpression *expr)
-{
-    static char result[200];
-
-    switch(expr->kind) {
-    case AST_EXPR_CONSTANT: return "a constant";
-    case AST_EXPR_FUNCTION_CALL: return "a function call";
-    case AST_EXPR_BRACE_INIT: return "a brace-initialization";
-    case AST_EXPR_INDEXING: return "an indexed value";
-    case AST_EXPR_AS: return "a casted value";
-    case AST_EXPR_GET_VARIABLE: return "a variable";
-    case AST_EXPR_DEREFERENCE: return "the value of a pointer";
-    case AST_EXPR_AND: return "the result of 'and'";
-    case AST_EXPR_OR: return "the result of 'or'";
-    case AST_EXPR_NOT: return "the result of 'not'";
-
-    case AST_EXPR_ADD:
-    case AST_EXPR_SUB:
-    case AST_EXPR_MUL:
-    case AST_EXPR_DIV:
-        return "the result of a calculation";
-
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
-        return "the result of a comparison";
-
-    case AST_EXPR_PRE_INCREMENT:
-    case AST_EXPR_POST_INCREMENT:
-        return "the result of incrementing a value";
-
-    case AST_EXPR_PRE_DECREMENT:
-    case AST_EXPR_POST_DECREMENT:
-        return "the result of decrementing a value";
-
-    case AST_EXPR_ADDRESS_OF:
-        snprintf(result, sizeof result, "address of %s", short_expression_description(&expr->data.operands[0]));
-        break;
-
-    case AST_EXPR_GET_FIELD:
-    case AST_EXPR_DEREF_AND_GET_FIELD:
-        snprintf(result, sizeof result, "field '%s'", expr->data.field.fieldname);
-        break;
-    }
-
-    return result;
-}
-
-/*
-The & operator can't go in front of most expressions.
-You can't do &(1 + 2), for example.
-
-The same rules apply to assignments: "foo = bar" is treated as setting the
-value of the pointer &foo to bar.
-
-errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
-*/
-static void ensure_can_take_address(const AstExpression *expr, const char *errmsg_template)
-{
-    switch(expr->kind) {
-    case AST_EXPR_GET_VARIABLE:
-    case AST_EXPR_DEREFERENCE:
-    case AST_EXPR_DEREF_AND_GET_FIELD:  // &foo->bar = foo + offset (it doesn't use &foo)
-        break;
-    case AST_EXPR_GET_FIELD:
-        // &foo.bar = &foo + offset
-        ensure_can_take_address(&expr->data.operands[0], errmsg_template);
-        break;
-    default:
-        fail_with_error(expr->location, errmsg_template, short_expression_description(expr));
-    }
 }
 
 static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpression *expr)
