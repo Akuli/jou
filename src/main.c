@@ -10,7 +10,7 @@ static const char usage_fmt[] = "Usage: %s [--help] [--verbose] [-O0|-O1|-O2|-O3
 static const char long_help[] =
     "  --help           display this message\n"
     "  --verbose        display a lot of information about all compilation steps\n"
-    "  -O0/-O1/-O2/-O3  set optimization level (1 = default, 3 = runs fastest)\n"
+    "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
     ;
 
 void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char **filename)
