@@ -75,7 +75,7 @@ struct Token {
     } type;
     Location location;
     union {
-        int int_value;  // TOKEN_INT
+        long long int_value;  // TOKEN_INT
         char char_value;  // TOKEN_CHAR
         char *string_value;  // TOKEN_STRING
         int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
