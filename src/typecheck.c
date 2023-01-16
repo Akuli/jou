@@ -247,6 +247,7 @@ static const char *short_expression_description(const AstExpression *expr)
     static char result[200];
 
     switch(expr->kind) {
+    // Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
     case AST_EXPR_CONSTANT: return "a constant";
     case AST_EXPR_FUNCTION_CALL: return "a function call";
     case AST_EXPR_BRACE_INIT: return "a newly created instance";
