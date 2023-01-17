@@ -21,6 +21,11 @@ def main() -> int:
     # Output: ===== AST for file "examples/hello.jou" =====
     # Output: ===== Control Flow Graphs for file "examples/hello.jou" =====
     # Output: ===== Control Flow Graphs for file "examples/hello.jou" =====
-    # Output: ===== LLVM IR for file "examples/hello.jou" =====
+    # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
+
+    # With optimizations enabled, we see also the optimized LLVM IR.
+    system("./jou --verbose -O1 examples/hello.jou | grep 'LLVM IR'")
+    # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
+    # Output: ===== Optimized LLVM IR for file "examples/hello.jou" =====
 
     return 0

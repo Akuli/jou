@@ -475,6 +475,6 @@ void print_tokens(const Token *tokenlist);
 void print_ast(const AstToplevelNode *topnodelist);
 void print_control_flow_graph(const CfGraph *cfg);
 void print_control_flow_graphs(const CfGraphFile *cfgfile);
-void print_llvm_ir(LLVMModuleRef module);
+void print_llvm_ir(LLVMModuleRef module, bool is_optimized);
 
 #endif
