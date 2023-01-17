@@ -48,25 +48,34 @@ def main() -> int:
     return 0
 ```
 
-In each program, the `fib()` function computes the `n`th
-[Fibonacci number](https://en.wikipedia.org/wiki/Fibonacci_number).
-- The first two Fibonacci numbers are `fib(0) == 0` and `fib(1) == 1`.
-- Each Fibonacci number after the first two is the sum of the previous two.
-    For example, the third Fibonacci number is 0 + 1 = 1,
-    the fourth is 1 + 1 = 2,
-    the fifth is 1 + 2 = 3 and so on:
-    ```
-    0 1 1 2 3 5 8 13 ...
-    ```
-    To compute the `n`th Fibonacci number, the `fib` function calls itself recursively
-    to calculate the two previous Fibonacci numbers and adds them.
-    For example, `fib(2)` calculates `fib(0) + fib(1)` and returns 1 (`0 + 1`),
-    and `fib(3)` computes `fib(1) + fib(2)` and returns 2 (`1 + 1`).
+Each program computes the 40th Fibonacci number.
+The first two Fibonacci numbers are 0 and 1.
+After that, you always get the next one by adding the previous two:
+the third Fibonacci number is 0+1 = 1, the fourth is 1+1 = 2,
+the fifth is 1+2 = 3 and so on
 
-This is a very slow way to calculate Fibonacci numbers,
-because passing a large number to the `fib()` function
-makes it call itself many times.
-For example, it takes **39.5 seconds** for the Python program to calculate `fib(40)`:
+```
+0 1 1 2 3 5 8 13 21 34 ...
+
+0+1=1
+  1+1=2
+    1+2=3
+      2+3=5
+         ...
+```
+
+Here's how the `fib()` function in each program works:
+- If `n` is zero or one, it is returned unchanged,
+    so the first two Fibonacci numbers are `fib(0) == 0` and `fib(1) == 1`.
+- To compute any other Fibonacci number, the `fib()` function
+    calls itself to calculate the previous two Fibonacci numbers
+    and adds them.
+    For example, `fib(2)` calculates `fib(0) + fib(1)` and returns 1 (`0 + 1 = 1`),
+    and `fib(3)` computes `fib(1) + fib(2)` and returns 2 (`1 + 1 = 2`).
+
+This is a very slow way to calculate Fibonacci numbers, because passing
+a large number to the `fib()` function makes it call itself many times.
+On my computer, it takes **39.5 seconds** for the Python program to calculate `fib(40)`:
 
 ```
 $ time python3 fib40.py
@@ -77,7 +86,7 @@ user    0m39,401s
 sys     0m0,024s
 ```
 
-In bash, you can see how a command runs by putting `time` in front of it.
+In bash, you can see how long a command runs by writing `time` in front of it.
 You can ignore the `user` and `sys` lines
 and focus only on the line starting with `real`.
 
@@ -87,16 +96,16 @@ We can similarly measure how long the C and Jou programs run.
 $ clang fib40.c && time ./a.out
 fib(40) = 102334155
 
-real	0m1,056s
-user	0m1,036s
-sys	0m0,000s
+real    0m1,056s
+user    0m1,036s
+sys     0m0,000s
 
 $ time ./jou fib40.jou
 fib(40) = 102334155
 
-real	0m2,715s
-user	0m2,711s
-sys	0m0,004s
+real    0m2,715s
+user    0m2,711s
+sys     0m0,004s
 ```
 
 So, all programs compute the same number, but in different amounts of time:
@@ -106,10 +115,10 @@ So, all programs compute the same number, but in different amounts of time:
 | 39.5 seconds  | 1.05 seconds                  | 2.71 seconds  |
 
 Note that an interpreted language like Python is quite slow in comparison.
-In an interpreted language, you typically avoid doing things that need to be fast,
-and you instead do those things using a different language.
+In an interpreted language,
+you typically use a library written in a different language to work around this.
 For example, in Python it is common to use `numpy` to perform calculations,
-and because `numpy` is written in C, it is much faster than pure Python code would be.
+and because `numpy` is written in C, it is much faster than pure Python code.
 
 Another interesting thing is that Jou appears to be about 2-3 times slower than C.
 However, the Jou program runs in only **0.47 seconds** if we enable optimizations:
@@ -118,9 +127,9 @@ However, the Jou program runs in only **0.47 seconds** if we enable optimization
 $ time ./jou -O3 fib40.jou
 fib(40) = 102334155
 
-real	0m0,473s
-user	0m0,469s
-sys	0m0,004s
+real    0m0,473s
+user    0m0,469s
+sys     0m0,004s
 ```
 
 Here the `-O3` flag tells Jou to optimize the code as much as possible.
@@ -156,15 +165,14 @@ Here's what we can learn from these experiments:
 - Enabling optimizations can make your code run a lot faster.
 - Enabling more optimizations doesn't necessarily make your code run faster.
     For example, we got 0.48 seconds with both `-O2` and `-O3`.
+- Unoptimized Jou is slower than unoptimized C,
+    but with optimizations enabled, Jou is just as fast as C.
 - Interpreted languages are slow.
     In this case, Python was about 15 times slower than unoptimized Jou
     and about 80 times slower than Jou with `-O2` or `-O3`.
-- Unoptimized Jou is slower than unoptimized C.
-    However, as soon as you enable the optimizations, even if it's just `-O1`,
-    the differences go away and Jou is just as fast as C.
-- Performance is usually a bit random: even though we measured 0.473 secnds above,
+- Performance is usually a bit random: even though we measured 0.473 seconds above,
     it is closer to 0.48 than 0.47 on average.
-    (As a side note, some people say that it is better to use
+    (Some people say that it is better to use
     the *minimum* of the measured times than their average.
     I personally don't have an opinion on this.)
 
@@ -178,12 +186,13 @@ if I used a different C compiler, such as `gcc`.
 
 Given that optimizations make the code run faster,
 you are probably wondering why they aren't enabled by default in Jou.
-It is easier to work with optimizations disabled (or with only `-O1`),
+It is often easier to work with optimizations disabled (or with `-O1`),
 for two reasons:
-1. Optimizing a large program is slow, even though the optimized program will run faster.
-    A lot of time spent waiting for the optimizer to run makes for an annoying workflow.
+1. Optimizing a large program is slow. The optimized program will run faster,
+    but it takes a while for LLVM to figure out how to make the code faster.
+    Waiting for the optimizer to do its thing is annoying.
 2. The optimizer assumes that your code doesn't do some dumb things.
-    If your code does these things, the results can be surprising
+    This can have surprising consequences.
 
 Let's explore these with more examples.
 
