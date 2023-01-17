@@ -2,13 +2,13 @@
 
 Because Jou uses [LLVM](https://llvm.org/),
 it is about as fast as languages like C, C++ or Rust,
-and much faster than many interpreted languages (e.g. Python).
+and much faster than interpreted languages like Python.
 You can also enable optimizations to make your Jou code run faster.
 
-To see this, let's write the same sample program in Python, C and Jou:
+To see this, let's write a simple but slow program in Python, C and Jou.
 
 ```python
-# fib40.py (Python)
+# fib40.py (Python program)
 def fib(n):
     if n <= 1:
         return n
@@ -18,7 +18,7 @@ print("fib(40) =", fib(40))
 ```
 
 ```c
-// fib40.c
+// fib40.c (C program)
 #include <stdio.h>
 
 int fib(int n) {
@@ -35,7 +35,7 @@ int main()
 ```
 
 ```python
-# fib40.jou
+# fib40.jou (Jou program)
 declare printf(format: byte*, ...) -> int
 
 def fib(n: int) -> int:
@@ -48,12 +48,25 @@ def main() -> int:
     return 0
 ```
 
-Each of these programs computes the 40th
-[Fibonacci number](https://en.wikipedia.org/wiki/Fibonacci_number)
-using a very inefficient algorithm.
-This is dumb if you actually want to compute Fibonacci numbers,
-but it is a simple example of code that takes a while to run.
-For example, the Python program runs in **39.5 seconds**:
+In each program, the `fib()` function computes the `n`th
+[Fibonacci number](https://en.wikipedia.org/wiki/Fibonacci_number).
+- The first two Fibonacci numbers are `fib(0) == 0` and `fib(1) == 1`.
+- Each Fibonacci number after the first two is the sum of the previous two.
+    For example, the third Fibonacci number is 0 + 1 = 1,
+    the fourth is 1 + 1 = 2,
+    the fifth is 1 + 2 = 3 and so on:
+    ```
+    0 1 1 2 3 5 8 13 ...
+    ```
+    To compute the `n`th Fibonacci number, the `fib` function calls itself recursively
+    to calculate the two previous Fibonacci numbers and adds them.
+    For example, `fib(2)` calculates `fib(0) + fib(1)` and returns 1 (`0 + 1`),
+    and `fib(3)` computes `fib(1) + fib(2)` and returns 2 (`1 + 1`).
+
+This is a very slow way to calculate Fibonacci numbers,
+because passing a large number to the `fib()` function
+makes it call itself many times.
+For example, it takes **39.5 seconds** for the Python program to calculate `fib(40)`:
 
 ```
 $ time python3 fib40.py
@@ -86,16 +99,17 @@ user	0m2,711s
 sys	0m0,004s
 ```
 
-Here are the results:
+So, all programs compute the same number, but in different amounts of time:
 
 | Python        | C (with the clang compiler)   | Jou           |
 |---------------|-------------------------------|---------------|
 | 39.5 seconds  | 1.05 seconds                  | 2.71 seconds  |
 
 Note that an interpreted language like Python is quite slow in comparison.
-In an interpreted language, you typically avoid doing anything that requires good performance,
+In an interpreted language, you typically avoid doing things that need to be fast,
 and you instead do those things using a different language.
-For example, in Python it is common to use `numpy`, a library written in C.
+For example, in Python it is common to use `numpy` to perform calculations,
+and because `numpy` is written in C, it is much faster than pure Python code would be.
 
 Another interesting thing is that Jou appears to be about 2-3 times slower than C.
 However, the Jou program runs in only **0.47 seconds** if we enable optimizations:
@@ -128,7 +142,8 @@ $ clang fib40.c -O2 && time ./a.out
 $ clang fib40.c -O3 && time ./a.out
 ```
 
-Here are the results, after running each command a few times and averaging the results:
+Here are the results on my computer,
+after running each command a few times and averaging the results:
 
 | Optimization flag | C (with the clang compiler)   | Jou           |
 |-------------------|-------------------------------|---------------|
@@ -138,7 +153,9 @@ Here are the results, after running each command a few times and averaging the r
 | `-O3`             | 0.48 seconds                  | 0.48 seconds  |
 
 Here's what we can learn from these experiments:
-- Enabling optimizations can make your code run faster.
+- Enabling optimizations can make your code run a lot faster.
+- Enabling more optimizations doesn't necessarily make your code run faster.
+    For example, we got 0.48 seconds with both `-O2` and `-O3`.
 - Interpreted languages are slow.
     In this case, Python was about 15 times slower than unoptimized Jou
     and about 80 times slower than Jou with `-O2` or `-O3`.
@@ -150,8 +167,6 @@ Here's what we can learn from these experiments:
     (As a side note, some people say that it is better to use
     the *minimum* of the measured times than their average.
     I personally don't have an opinion on this.)
-- Enabling more optimizations doesn't necessarily make your code run faster.
-    For example, we got 0.48 seconds with both `-O2` and `-O3`.
 
 Also, note that I used the `clang` C compiler,
 because it uses LLVM and Jou also uses LLVM.
@@ -170,19 +185,19 @@ for two reasons:
 2. The optimizer assumes that your code doesn't do some dumb things.
     If your code does these things, the results can be surprising
 
-Let's explore these things with more examples.
+Let's explore these with more examples.
 
 
-### Time spent optimizing
+### Optimizing a large program is slow
 
-TODO
+TODO: write this section once a large Jou program exists
 
 
-### What the optimizer assumes
+### Optimizer's assumptions
 
-Let's write a program that crashes if the user wants it to crash.
+Let's write a program that crashes if the user selects yes.
 
-```
+```python
 declare printf(msg: byte*, ...) -> int
 declare getchar() -> int
 
@@ -194,9 +209,10 @@ def main() -> int:
     return 0
 ```
 
-Here `foo: int* = NULL` creates a NULL pointer (TODO: document pointers).
-Then `x = *foo` attempts to read a value of the NULL pointer,
-which will fail on any modern operating system.
+The `getchar()` function waits for the user to type a character and press Enter.
+If the user types `y`, the program creates a NULL pointer (TODO: document pointers),
+and then attempts to read the value from the NULL pointer into a variable `x`.
+Reading from a NULL pointer will crash the program on any modern operating system.
 
 Let's run the program. If I type a letter other than `y`, such as `n`,
 the program exits without crashing.
@@ -223,11 +239,12 @@ The optimizer assumes that you don't attempt to access the value of a `NULL` poi
 In other words, it thinks that the `x = *foo` code will never run,
 and it can therefore be ignored.
 
-Correctly written Jou code will not break when optimizations are enabled.
-For example, accessing a `NULL` pointer simply isn't a good way to exit a program.
-If you want something similar to a crash, you can use the `abort()` function:
+Correctly written Jou code does not break when optimizations are enabled.
+For example, accessing a `NULL` pointer simply isn't a good way to exit a program;
+your program shouldn't ever do it.
+If you want the program to crash, you can use the `abort()` function, for example:
 
-```
+```python
 declare printf(msg: byte*, ...) -> int
 declare getchar() -> int
 declare abort() -> void
