@@ -65,6 +65,8 @@ the fifth is 1+2 = 3 and so on
 ```
 
 Here's how the `fib()` function in each program works:
+
+**Python**:
 - If `n` is zero or one, it is returned unchanged,
     so the first two Fibonacci numbers are `fib(0) == 0` and `fib(1) == 1`.
 - To compute any other Fibonacci number, the `fib()` function
@@ -86,6 +88,7 @@ user    0m39,401s
 sys     0m0,024s
 ```
 
+**C / Jou**
 In bash, you can see how long a command runs by writing `time` in front of it.
 You can ignore the `user` and `sys` lines
 and focus only on the line starting with `real`.
@@ -108,7 +111,7 @@ user    0m2,711s
 sys     0m0,004s
 ```
 
-So, all programs compute the same number, but in different amounts of time:
+All three programs computed the same number, but in different amounts of time:
 
 | Python        | C (with the clang compiler)   | Jou           |
 |---------------|-------------------------------|---------------|
@@ -120,7 +123,7 @@ you typically use a library written in a different language to work around this.
 For example, in Python it is common to use `numpy` to perform calculations,
 and because `numpy` is written in C, it is much faster than pure Python code.
 
-Another interesting thing is that Jou appears to be about 2-3 times slower than C.
+In our test Jou appears to be about 2-3 times slower than C.
 However, the Jou program runs in only **0.47 seconds** if we enable optimizations:
 
 ```
@@ -151,8 +154,7 @@ $ clang fib40.c -O2 && time ./a.out
 $ clang fib40.c -O3 && time ./a.out
 ```
 
-Here are the results on my computer,
-after running each command a few times and averaging the results:
+After running each command a few times the result averaged the following:
 
 | Optimization flag | C (with the clang compiler)   | Jou           |
 |-------------------|-------------------------------|---------------|
@@ -161,20 +163,19 @@ after running each command a few times and averaging the results:
 | `-O2`             | 0.48 seconds                  | 0.48 seconds  |
 | `-O3`             | 0.48 seconds                  | 0.48 seconds  |
 
-Here's what we can learn from these experiments:
-- Enabling optimizations can make your code run a lot faster.
-- Enabling more optimizations doesn't necessarily make your code run faster.
-    For example, we got 0.48 seconds with both `-O2` and `-O3`.
+These experiments have shown that:
+- While enabling optimizations can make your code run a lot faster,
+ enabling more of them might not necessarily speed it up even more. For example, we got 0.48 seconds with both `-O2` and `-O3`.
 - Unoptimized Jou is slower than unoptimized C,
     but with optimizations enabled, Jou is just as fast as C.
 - Interpreted languages are slow.
     In this case, Python was about 15 times slower than unoptimized Jou
     and about 80 times slower than Jou with `-O2` or `-O3`.
-- Performance is usually a bit random: even though we measured 0.473 seconds above,
-    it is closer to 0.48 than 0.47 on average.
-    (Some people say that it is better to use
-    the *minimum* of the measured times than their average.
-    I personally don't have an opinion on this.)
+- Performance is usually a bit random: even though we measured 0.473 seconds above,?
+    it is closer to 0.48 than 0.47 on average. ?
+    (Some people say that it is better to use ?
+    the *minimum* of the measured times than their average. ?
+    I personally don't have an opinion on this.) ?
 
 Also, note that I used the `clang` C compiler,
 because it uses LLVM and Jou also uses LLVM.
