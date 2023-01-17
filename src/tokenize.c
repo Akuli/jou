@@ -66,7 +66,11 @@ static void unread_byte(struct State *st, char c)
 
 static bool is_identifier_or_number_byte(char c)
 {
-    return ('A'<=c && c<='Z') || ('a'<=c && c<='z') || c=='_' || ('0'<=c && c<='9');
+    return ('A'<=c && c<='Z')
+        || ('a'<=c && c<='z')
+        || c=='_'
+        || ('0'<=c && c<='9')
+        || (unsigned char)c >= 128;  // Accept everything non-ASCII (#71)
 }
 
 static void read_identifier_or_number(struct State *st, char firstbyte, char (*dest)[100])
