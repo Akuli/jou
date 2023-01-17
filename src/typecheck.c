@@ -308,6 +308,7 @@ static void ensure_can_take_address(const AstExpression *expr, const char *errms
     switch(expr->kind) {
     case AST_EXPR_GET_VARIABLE:
     case AST_EXPR_DEREFERENCE:
+    case AST_EXPR_INDEXING:  // &foo[bar]
     case AST_EXPR_DEREF_AND_GET_FIELD:  // &foo->bar = foo + offset (it doesn't use &foo)
         break;
     case AST_EXPR_GET_FIELD:

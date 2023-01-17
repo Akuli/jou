@@ -1,4 +1,5 @@
 declare putchar(ch: int) -> int
+declare malloc(size: int) -> void*  # TODO: size isn't really int
 
 def putchar_pointer(ch: int*) -> void:
     putchar(*ch)
@@ -27,5 +28,13 @@ def main() -> int:
 
     myputs1("asd\n")  # Output: asd
     myputs2("foo\n")  # Output: foo
+
+    # Test assigning to pointer
+    foo: byte* = malloc(4)
+    foo[0] = 'a'
+    foo[1] = 'b'
+    foo[2] = 'c'
+    foo[3] = '\n'
+    myputs1(foo)  # Output: abc
 
     return 0

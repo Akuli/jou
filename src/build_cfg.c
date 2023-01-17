@@ -222,21 +222,6 @@ static const Variable *build_increment_or_decrement(
     assert(0);
 }
 
-// ptr[index]
-static const Variable *build_indexing(struct State *st, const AstExpression *ptrexpr, const AstExpression *indexexpr)
-{
-    const Variable *ptr = build_expression(st, ptrexpr);
-    const Variable *index = build_expression(st, indexexpr);
-    assert(ptr->type->kind == TYPE_POINTER);
-    assert(is_integer_type(index->type));
-
-    const Variable *ptr2 = add_variable(st, ptr->type);
-    const Variable *result = add_variable(st, ptr->type->data.valuetype);
-    add_binary_op(st, ptrexpr->location, CF_PTR_ADD_INT, ptr, index, ptr2);
-    add_unary_op(st, ptrexpr->location, CF_PTR_LOAD, ptr2, result);
-    return result;
-}
-
 enum AndOr { AND, OR };
 
 static const Variable *build_and_or(
@@ -333,8 +318,19 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
         // &obj.field aka &(obj.field), evaluate as &(&obj)->field
         const Variable *obj = build_address_of_expression(st, address_of_what->data.field.obj);
         assert(obj->type->kind == TYPE_POINTER);
-        assert(obj->type->data.valuetype->kind == TYPE_STRUCT);
         return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
+    }
+    case AST_EXPR_INDEXING:
+    {
+        // &ptr[index]
+        const Variable *ptr = build_expression(st, &address_of_what->data.operands[0]);
+        const Variable *index = build_expression(st, &address_of_what->data.operands[1]);
+        assert(ptr->type->kind == TYPE_POINTER);
+        assert(is_integer_type(index->type));
+
+        const Variable *result = add_variable(st, ptr->type);
+        add_binary_op(st, address_of_what->location, CF_PTR_ADD_INT, ptr, index, result);
+        return result;
     }
 
     default:
@@ -403,14 +399,12 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         break;
     case AST_EXPR_GET_FIELD:
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        // To evaluate foo.bar or foo->bar, we first evaluate &foo.bar or &foo->bar.
+    case AST_EXPR_INDEXING:
+        // To evaluate foo->bar, we first evaluate &foo->bar and then dereference.
         // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
         temp = build_address_of_expression(st, expr);
         result = add_variable(st, types->type);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
-        break;
-    case AST_EXPR_INDEXING:
-        result = build_indexing(st, &expr->data.operands[0], &expr->data.operands[1]);
         break;
     case AST_EXPR_ADDRESS_OF:
         result = build_address_of_expression(st, &expr->data.operands[0]);
