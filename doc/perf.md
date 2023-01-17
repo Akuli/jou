@@ -292,13 +292,23 @@ The rest of Jou's documentation aims to mention other things that are UB.
 
 In some other languages, it is easier to get UB than in Jou.
 For example, in C it is UB to add two signed `int`s so large
-that the result doesn't fit into an `int`.
-In Jou, adding integers is never UB.
-Instead, math operations are guaranteed to "wrap around".
-
+that the result doesn't fit into an `int`,
+but in Jou, math operations are guaranteed to "wrap around".
 For example, Jou's `byte` is an unsigned 8-bit number,
-so it has a range from 0 to 255, and bigger values wrap around back to 0:
+so it has a range from 0 to 255, and bigger values wrap back around to 0:
 
 ```python
 printf("%d\n", (255 as byte) + (1 as byte))   # Output: 0
 ```
+
+Here's what this looks like with `int`:
+
+```python
+printf("%d\n", 2147483647 + 1)   # Output: -2147483648
+
+```
+
+The numbers are bigger, because `int` in Jou is 32 bits and `byte` is only 8 bits.
+This time, the "wrapped around" result is negative, because `int` is signed.
+In C this would be UB with a signed type (such as `int`),
+but in Jou, overflowing integers is never UB.
