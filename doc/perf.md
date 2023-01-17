@@ -272,3 +272,33 @@ $ ./jou -O3 asd.jou
 Crash this program? (y/n) y
 Aborted
 ```
+
+Accessing the value of a NULL pointer is an example of **undefined behavior** (UB).
+The optimizer assumes that your program does not have UB,
+and if your program does something that is UB,
+it could in principle do anything when it is ran with optimizations enabled.
+
+Here are a few examples of things that are UB in Jou:
+- Accessing the value of a `NULL` pointer.
+- Setting the value of a `NULL` pointer.
+- Reading the 11th member from an array of length 10.
+- Using the value of a variable before it has been set.
+    For example, `x: int` followed by `printf("%d\n", x)`
+    without doing something like `x = 0` before printing.
+
+You get the overall idea:
+these are all things that you would never do intentionally.
+The rest of Jou's documentation aims to mention other things that are UB.
+
+In some other languages, it is easier to get UB than in Jou.
+For example, in C it is UB to add two signed `int`s so large
+that the result doesn't fit into an `int`.
+In Jou, adding integers is never UB.
+Instead, math operations are guaranteed to "wrap around".
+
+For example, Jou's `byte` is an unsigned 8-bit number,
+so it has a range from 0 to 255, and bigger values wrap around back to 0:
+
+```python
+printf("%d\n", (255 as byte) + (1 as byte))   # Output: 0
+```
