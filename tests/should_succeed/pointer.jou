@@ -1,5 +1,7 @@
 declare putchar(ch: int) -> int
+declare puts(s: byte*) -> int
 declare malloc(size: int) -> void*  # TODO: size isn't really int
+declare free(ptr: void*) -> void
 
 def putchar_pointer(ch: int*) -> void:
     putchar(*ch)
@@ -34,7 +36,8 @@ def main() -> int:
     foo[0] = 'a'
     foo[1] = 'b'
     foo[2] = 'c'
-    foo[3] = '\n'
-    myputs1(foo)  # Output: abc
+    foo[3] = '\0'
+    puts(foo)  # Output: abc
+    free(foo)
 
     return 0
