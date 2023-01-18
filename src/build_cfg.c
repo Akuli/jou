@@ -189,7 +189,7 @@ static const Variable *build_struct_field(
 }
 
 static const Variable *build_expression(struct State *st, const AstExpression *expr);
-static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool can_copy);
+static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what);
 
 enum PreOrPost { PRE, POST };
 
@@ -202,7 +202,7 @@ static const Variable *build_increment_or_decrement(
 {
     assert(diff==1 || diff==-1);  // 1=increment, -1=decrement
 
-    const Variable *addr = build_address_of_expression(st, inner, false);
+    const Variable *addr = build_address_of_expression(st, inner);
     assert(addr->type->kind == TYPE_POINTER);
     const Type *t = addr->type->data.valuetype;
     if (!is_integer_type(t) && !is_pointer_type(t))
@@ -300,7 +300,7 @@ static const Variable *build_and_or(
     return result;
 }
 
-static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool can_copy)
+static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what)
 {
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
@@ -308,6 +308,7 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
         const Variable *var = find_variable(st, address_of_what->data.varname);
         assert(var);
         const Variable *addr = add_variable(st, get_pointer_type(var->type));
+        add_unary_op(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, var, addr);
         return addr;
     }
     case AST_EXPR_DEREFERENCE:
@@ -326,7 +327,7 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
     case AST_EXPR_GET_FIELD:
     {
         // &obj.field aka &(obj.field), evaluate as &(&obj)->field
-        const Variable *obj = build_address_of_expression(st, address_of_what->data.field.obj, can_copy);
+        const Variable *obj = build_address_of_expression(st, address_of_what->data.field.obj);
         assert(obj->type->kind == TYPE_POINTER);
         return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
     }
@@ -344,19 +345,8 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
     }
 
     default:
-    {
-        /*
-        Just evaluate the expression into a temporary variable.
-
-        We can't always do this, because whenever possible, &foo must point to the actual
-        "foo" object whenever possible, not another variable that has the same value.
-        */
-        assert(can_copy);
-        const Variable *value = build_expression(st, address_of_what);
-        const Variable *result = add_variable(st, get_pointer_type(value->type));
-        add_unary_op(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, value, result);
-        return result;
-    }
+        assert(0);
+        break;
     }
 
     assert(0);
@@ -426,12 +416,12 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
     case AST_EXPR_INDEXING:
         // To evaluate foo->bar, we first evaluate &foo->bar and then dereference.
         // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
-        temp = build_address_of_expression(st, expr, false);
+        temp = build_address_of_expression(st, expr);
         result = add_variable(st, types->type);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_ADDRESS_OF:
-        result = build_address_of_expression(st, &expr->data.operands[0], false);
+        result = build_address_of_expression(st, &expr->data.operands[0]);
         break;
     case AST_EXPR_GET_VARIABLE:
         result = find_variable(st, expr->data.varname);
@@ -624,7 +614,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
                 const Variable *value = build_expression(st, valueexpr);
                 add_unary_op(st, stmt->location, CF_VARCPY, value, target);
             } else {
-                const Variable *target = build_address_of_expression(st, targetexpr, false);
+                const Variable *target = build_address_of_expression(st, targetexpr);
                 const Variable *value = build_expression(st, valueexpr);
                 assert(target->type->kind == TYPE_POINTER);
                 add_binary_op(st, stmt->location, CF_PTR_STORE, target, value, NULL);
