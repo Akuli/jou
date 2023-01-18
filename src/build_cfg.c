@@ -177,8 +177,19 @@ static const Variable *build_struct_field_pointer(
     assert(0);
 }
 
+static const Variable *build_struct_field(
+    struct State *st, const Variable *structinstance, const char *fieldname, Location location)
+{
+    const Variable *ptr = add_variable(st, get_pointer_type(structinstance->type));
+    add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, structinstance, ptr);
+    const Variable *field_ptr = build_struct_field_pointer(st, ptr, fieldname, location);
+    const Variable *field = add_variable(st, field_ptr->type->data.valuetype);
+    add_unary_op(st, location, CF_PTR_LOAD, field_ptr, field);
+    return field;
+}
+
 static const Variable *build_expression(struct State *st, const AstExpression *expr);
-static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what);
+static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool can_copy);
 
 enum PreOrPost { PRE, POST };
 
@@ -191,7 +202,7 @@ static const Variable *build_increment_or_decrement(
 {
     assert(diff==1 || diff==-1);  // 1=increment, -1=decrement
 
-    const Variable *addr = build_address_of_expression(st, inner);
+    const Variable *addr = build_address_of_expression(st, inner, false);
     assert(addr->type->kind == TYPE_POINTER);
     const Type *t = addr->type->data.valuetype;
     if (!is_integer_type(t) && !is_pointer_type(t))
@@ -289,7 +300,7 @@ static const Variable *build_and_or(
     return result;
 }
 
-static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what)
+static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what, bool can_copy)
 {
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
@@ -297,7 +308,6 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
         const Variable *var = find_variable(st, address_of_what->data.varname);
         assert(var);
         const Variable *addr = add_variable(st, get_pointer_type(var->type));
-        add_unary_op(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, var, addr);
         return addr;
     }
     case AST_EXPR_DEREFERENCE:
@@ -316,7 +326,7 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
     case AST_EXPR_GET_FIELD:
     {
         // &obj.field aka &(obj.field), evaluate as &(&obj)->field
-        const Variable *obj = build_address_of_expression(st, address_of_what->data.field.obj);
+        const Variable *obj = build_address_of_expression(st, address_of_what->data.field.obj, can_copy);
         assert(obj->type->kind == TYPE_POINTER);
         return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
     }
@@ -334,8 +344,19 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
     }
 
     default:
-        assert(0);
-        break;
+    {
+        /*
+        Just evaluate the expression into a temporary variable.
+
+        We can't always do this, because whenever possible, &foo must point to the actual
+        "foo" object whenever possible, not another variable that has the same value.
+        */
+        assert(can_copy);
+        const Variable *value = build_expression(st, address_of_what);
+        const Variable *result = add_variable(st, get_pointer_type(value->type));
+        add_unary_op(st, address_of_what->location, CF_ADDRESS_OF_VARIABLE, value, result);
+        return result;
+    }
     }
 
     assert(0);
@@ -398,16 +419,19 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         result = build_struct_init(st, types->type, &expr->data.call, expr->location);
         break;
     case AST_EXPR_GET_FIELD:
+        temp = build_expression(st, expr->data.field.obj);
+        result = build_struct_field(st, temp, expr->data.field.fieldname, expr->location);
+        break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
     case AST_EXPR_INDEXING:
         // To evaluate foo->bar, we first evaluate &foo->bar and then dereference.
         // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
-        temp = build_address_of_expression(st, expr);
+        temp = build_address_of_expression(st, expr, false);
         result = add_variable(st, types->type);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_ADDRESS_OF:
-        result = build_address_of_expression(st, &expr->data.operands[0]);
+        result = build_address_of_expression(st, &expr->data.operands[0], false);
         break;
     case AST_EXPR_GET_VARIABLE:
         result = find_variable(st, expr->data.varname);
@@ -600,7 +624,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
                 const Variable *value = build_expression(st, valueexpr);
                 add_unary_op(st, stmt->location, CF_VARCPY, value, target);
             } else {
-                const Variable *target = build_address_of_expression(st, targetexpr);
+                const Variable *target = build_address_of_expression(st, targetexpr, false);
                 const Variable *value = build_expression(st, valueexpr);
                 assert(target->type->kind == TYPE_POINTER);
                 add_binary_op(st, stmt->location, CF_PTR_STORE, target, value, NULL);
