@@ -513,11 +513,12 @@ void print_control_flow_graphs(const CfGraphFile *cfgfile)
 }
 
 
-void print_llvm_ir(LLVMModuleRef module)
+void print_llvm_ir(LLVMModuleRef module, bool is_optimized)
 {
     size_t len;
     const char *filename = LLVMGetSourceFileName(module, &len);
-    printf("===== LLVM IR for file \"%.*s\" =====\n", (int)len, filename);
+    printf("===== %s LLVM IR for file \"%.*s\" =====\n",
+        is_optimized ? "Optimized" : "Unoptimized", (int)len, filename);
 
     char *s = LLVMPrintModuleToString(module);
     puts(s);

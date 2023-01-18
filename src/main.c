@@ -4,7 +4,27 @@
 #include "jou_compiler.h"
 #include <llvm-c/Analysis.h>
 #include <llvm-c/Core.h>
+#include <llvm-c/Transforms/PassManagerBuilder.h>
 
+
+static void optimize(LLVMModuleRef module, int level)
+{
+    assert(1 <= level && level <= 3);
+
+    LLVMPassManagerRef pm = LLVMCreatePassManager();
+
+    /*
+    The default settings should be fine for Jou because they work well for
+    C and C++, and Jou is quite similar to C.
+    */
+    LLVMPassManagerBuilderRef pmbuilder = LLVMPassManagerBuilderCreate();
+    LLVMPassManagerBuilderSetOptLevel(pmbuilder, level);
+    LLVMPassManagerBuilderPopulateModulePassManager(pmbuilder, pm);
+    LLVMPassManagerBuilderDispose(pmbuilder);
+
+    LLVMRunPassManager(pm, module);
+    LLVMDisposePassManager(pm);
+}
 
 static const char usage_fmt[] = "Usage: %s [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME\n";
 static const char long_help[] =
@@ -76,14 +96,23 @@ int main(int argc, char **argv)
 
     LLVMModuleRef module = codegen(&cfgfile);
     free_control_flow_graphs(&cfgfile);
+
     if(flags.verbose)
-        print_llvm_ir(module);
+        print_llvm_ir(module, false);
 
     /*
     If this fails, it is not just users writing dumb code, it is a bug in this compiler.
     This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
     */
     LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
+
+    if (flags.optlevel) {
+        if (flags.verbose)
+            printf("\n*** Optimizing... (level %d)\n\n\n", flags.optlevel);
+        optimize(module, flags.optlevel);
+        if(flags.verbose)
+            print_llvm_ir(module, true);
+    }
 
     return run_program(module, &flags);
 }
