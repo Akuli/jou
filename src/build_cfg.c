@@ -414,8 +414,15 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
     case AST_EXPR_INDEXING:
-        // To evaluate foo->bar, we first evaluate &foo->bar and then dereference.
-        // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
+        /*
+        To evaluate foo->bar, we first evaluate &foo->bar and then dereference.
+        We can similarly evaluate &foo[bar].
+
+        This technique cannot be used with all expressions. For example, &(1+2)
+        doesn't work, and &foo.bar doesn't work either whenever &foo doesn't work.
+        But &foo->bar and &foo[bar] always work, because foo is already a pointer
+        and we only add a memory offset to it.
+        */
         temp = build_address_of_expression(st, expr);
         result = add_variable(st, types->type);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
