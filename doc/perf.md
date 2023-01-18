@@ -52,7 +52,7 @@ Each program computes the 40th Fibonacci number.
 The first two Fibonacci numbers are 0 and 1.
 After that, you always get the next one by adding the previous two:
 the third Fibonacci number is 0+1 = 1, the fourth is 1+1 = 2,
-the fifth is 1+2 = 3 and so on
+the fifth is 1+2 = 3 and so on:
 
 ```
 0 1 1 2 3 5 8 13 21 34 ...
