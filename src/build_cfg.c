@@ -177,6 +177,17 @@ static const Variable *build_struct_field_pointer(
     assert(0);
 }
 
+static const Variable *build_struct_field(
+    struct State *st, const Variable *structinstance, const char *fieldname, Location location)
+{
+    const Variable *ptr = add_variable(st, get_pointer_type(structinstance->type));
+    add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, structinstance, ptr);
+    const Variable *field_ptr = build_struct_field_pointer(st, ptr, fieldname, location);
+    const Variable *field = add_variable(st, field_ptr->type->data.valuetype);
+    add_unary_op(st, location, CF_PTR_LOAD, field_ptr, field);
+    return field;
+}
+
 static const Variable *build_expression(struct State *st, const AstExpression *expr);
 static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what);
 
@@ -398,10 +409,20 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         result = build_struct_init(st, types->type, &expr->data.call, expr->location);
         break;
     case AST_EXPR_GET_FIELD:
+        temp = build_expression(st, expr->data.field.obj);
+        result = build_struct_field(st, temp, expr->data.field.fieldname, expr->location);
+        break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
     case AST_EXPR_INDEXING:
-        // To evaluate foo->bar, we first evaluate &foo->bar and then dereference.
-        // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
+        /*
+        To evaluate foo->bar, we first evaluate &foo->bar and then dereference.
+        We can similarly evaluate &foo[bar].
+
+        This technique cannot be used with all expressions. For example, &(1+2)
+        doesn't work, and &foo.bar doesn't work either whenever &foo doesn't work.
+        But &foo->bar and &foo[bar] always work, because foo is already a pointer
+        and we only add a memory offset to it.
+        */
         temp = build_address_of_expression(st, expr);
         result = add_variable(st, types->type);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
