@@ -706,7 +706,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
     }
 }
 
-void typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body)
+Signature typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body)
 {
     for (Signature *sig = ctx->function_signatures.ptr; sig < End(ctx->function_signatures); sig++)
         if (!strcmp(sig->funcname, astsig->funcname))
@@ -752,6 +752,7 @@ void typecheck_function(TypeContext *ctx, Location funcname_location, const AstS
     }
 
     ctx->current_function_signature = NULL;
+    return copy_signature(&sig);
 }
 
 void typecheck_struct(struct TypeContext *ctx, const AstStructDef *structdef, Location location)

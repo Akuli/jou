@@ -707,43 +707,67 @@ static AstStructDef parse_structdef(const Token **tokens)
     return result;
 }
 
+static AstImport parse_import(const Token **tokens)
+{
+    assert(is_keyword(*tokens, "from"));
+    ++*tokens;
+
+    if ((*tokens)->type != TOKEN_STRING)
+    // TODO: test this error
+        fail_with_parse_error(*tokens, "a string to specify the file name");
+    char *filename = strdup((*tokens)->data.string_value) ;
+    ++*tokens;
+
+    if (!is_keyword(*tokens, "import"))
+    // TODO: test this error
+        fail_with_parse_error(*tokens, "the 'import' keyword");
+    ++*tokens;
+
+    NameList symbols = {0};
+    do{
+        if (symbols.len) ++*tokens;  // skip comma
+
+        if ((*tokens)->type != TOKEN_NAME)
+        // TODO: test this error
+            fail_with_parse_error(*tokens, "the name of a symbol to import");
+
+        struct Name n;
+        safe_strcpy(n.name, (*tokens)->data.name);
+        Append(&symbols, n);
+        ++*tokens;
+    } while (is_operator(*tokens, ","));
+
+    eat_newline(tokens);
+    Append(&symbols, (struct Name){0});
+
+    return (struct AstImport){.filename=filename, .symbols=(void*)symbols.ptr };
+}
+
 static AstToplevelNode parse_toplevel_node(const Token **tokens)
 {
     AstToplevelNode result = { .location = (*tokens)->location };
 
-    switch((*tokens)->type) {
-    case TOKEN_END_OF_FILE:
+    if ((*tokens)->type == TOKEN_END_OF_FILE) {
         result.kind = AST_TOPLEVEL_END_OF_FILE;
-        break;
-
-    case TOKEN_KEYWORD:
-        if (is_keyword(*tokens, "def")) {
-            ++*tokens;  // skip 'def' keyword
-            result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
-            result.data.funcdef.signature = parse_function_signature(tokens);
-            if (result.data.funcdef.signature.takes_varargs) {
-                // TODO: support "def foo(x: str, ...)" in some way
-                fail_with_error((*tokens)->location, "functions with variadic arguments cannot be defined yet");
-            }
-            result.data.funcdef.body = parse_body(tokens);
-            break;
+    } else if (is_keyword(*tokens, "def")) {
+        ++*tokens;  // skip 'def' keyword
+        result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
+        result.data.funcdef.signature = parse_function_signature(tokens);
+        if (result.data.funcdef.signature.takes_varargs) {
+            // TODO: support "def foo(x: str, ...)" in some way
+            fail_with_error((*tokens)->location, "functions with variadic arguments cannot be defined yet");
         }
-        if (is_keyword(*tokens, "declare")) {
-            ++*tokens;
-            result.kind = AST_TOPLEVEL_DECLARE_FUNCTION;
-            result.data.decl_signature = parse_function_signature(tokens);
-            eat_newline(tokens);
-            break;
-        }
-        if (is_keyword(*tokens, "struct")) {
-            ++*tokens;
-            result.kind = AST_TOPLEVEL_DEFINE_STRUCT;
-            result.data.structdef = parse_structdef(tokens);
-            break;
-        }
-        __attribute__((fallthrough));
-
-    default:
+        result.data.funcdef.body = parse_body(tokens);
+    } else if (is_keyword(*tokens, "declare")) {
+        ++*tokens;
+        result.kind = AST_TOPLEVEL_DECLARE_FUNCTION;
+        result.data.decl_signature = parse_function_signature(tokens);
+        eat_newline(tokens);
+    } else if (is_keyword(*tokens, "struct")) {
+        ++*tokens;
+        result.kind = AST_TOPLEVEL_DEFINE_STRUCT;
+        result.data.structdef = parse_structdef(tokens);
+    } else {
         fail_with_parse_error(*tokens, "a definition or declaration");
     }
 
@@ -753,6 +777,19 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
 AstToplevelNode *parse(const Token *tokens)
 {
     List(AstToplevelNode) result = {0};
+
+    // Parse imports separately. This ensures that we get an error
+    // if an import is not in beginning of the file.
+    // TODO: add a test
+    while (is_keyword(tokens, "from")) {
+        struct Location location = tokens->location;
+        Append(&result, (AstToplevelNode){
+            .location = location,
+            .kind=AST_TOPLEVEL_IMPORT,
+            .data.import=parse_import(&tokens)
+        });
+    }
+
     do {
         Append(&result, parse_toplevel_node(&tokens));
     } while (result.ptr[result.len - 1].kind != AST_TOPLEVEL_END_OF_FILE);

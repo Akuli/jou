@@ -669,7 +669,6 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
     st->cfg = calloc(1, sizeof *st->cfg);
     Append(&st->cfg->all_blocks, &st->cfg->start_block);
     Append(&st->cfg->all_blocks, &st->cfg->end_block);
-
     st->current_block = &st->cfg->start_block;
 
     assert(st->breakstack.len == 0 && st->continuestack.len == 0);
@@ -687,36 +686,45 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
     return st->cfg;
 }
 
-CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
+CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx)
 {
+    // imports are guaranteed to be in the beginning and we no longer need them
+    while (ast->kind == AST_TOPLEVEL_IMPORT)
+        ast++;
+
     CfGraphFile result = { .filename = ast->location.filename };
-    struct State st = { .typectx = &result.typectx };
+    struct State st = { .typectx = typectx };
 
     int n = 0;
     while (ast[n].kind!=AST_TOPLEVEL_END_OF_FILE) n++;
     result.graphs = malloc(sizeof(result.graphs[0]) * n);  // NOLINT
+    result.signatures = malloc(sizeof(result.signatures[0]) * n);
+
+    Signature sig;
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         switch(ast->kind) {
+        case AST_TOPLEVEL_IMPORT:
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         case AST_TOPLEVEL_DECLARE_FUNCTION:
-            typecheck_function(&result.typectx, ast->location, &ast->data.decl_signature, NULL);
-            result.graphs[result.nfuncs++] = NULL;
+            sig = typecheck_function(typectx, ast->location, &ast->data.decl_signature, NULL);
+            result.signatures[result.nfuncs] = sig;
+            result.graphs[result.nfuncs] = NULL;
+            result.nfuncs++;
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            typecheck_function(&result.typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
-            result.graphs[result.nfuncs++] = build_function(&st, &ast->data.funcdef.body);
+            sig = typecheck_function(typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
+            result.signatures[result.nfuncs] = sig;
+            result.graphs[result.nfuncs] = build_function(&st, &ast->data.funcdef.body);
+            result.nfuncs++;
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
-            typecheck_struct(&result.typectx, &ast->data.structdef, ast->location);
+            typecheck_struct(typectx, &ast->data.structdef, ast->location);
             break;
         }
         ast++;
     }
-
-    assert(result.nfuncs == st.typectx->function_signatures.len);
-    result.signatures = st.typectx->function_signatures.ptr;
 
     free(st.breakstack.ptr);
     free(st.continuestack.ptr);

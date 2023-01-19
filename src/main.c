@@ -33,7 +33,7 @@ static const char long_help[] =
     "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
     ;
 
-void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char **filename)
+static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char **filename)
 {
     *flags = (CommandLineFlags){0};
 
@@ -68,51 +68,99 @@ usage:
     exit(2);
 }
 
+
+struct FileState {
+    AstToplevelNode *ast;
+};
+
+struct CompileState {
+    CommandLineFlags flags;
+    List(struct FileState) files;
+    List(const char *) parse_queue;
+    TypeContext typectx;
+    LLVMModuleRef module;
+};
+
+static void parse_file(struct CompileState *compst, const char *filename)
+{
+    for (struct FileState *fs = compst->files.ptr; fs < End(compst->files); fs++)
+        if (!strcmp(fs->ast->location.filename, filename))
+            return;  // already parsed this file
+
+    struct FileState fs = {0};
+
+    Token *tokens = tokenize(filename);
+    if(compst->flags.verbose)
+        print_tokens(tokens);
+
+    fs.ast = parse(tokens);
+    free_tokens(tokens);
+    if(compst->flags.verbose)
+        print_ast(fs.ast);
+
+    for (int i = 0; fs.ast[i].kind == AST_TOPLEVEL_IMPORT; i++)
+        Append(&compst->parse_queue, fs.ast[i].data.import.filename);
+
+    Append(&compst->files, fs);
+}
+
+static void parse_all_pending_files(struct CompileState *compst)
+{
+    while (compst->parse_queue.len > 0) {
+        // TODO: is the order good? probably not, should pop from start?
+        const char *s = Pop(&compst->parse_queue);
+        parse_file(compst, s);
+    }
+}
+
+static void compile_to_module(struct CompileState *compst, AstToplevelNode *ast)
+{
+    CfGraphFile cfgfile = build_control_flow_graphs(ast, &compst->typectx);
+    if(compst->flags.verbose)
+        print_control_flow_graphs(&cfgfile);
+
+    simplify_control_flow_graphs(&cfgfile);
+    if(compst->flags.verbose)
+        print_control_flow_graphs(&cfgfile);
+
+    codegen(&cfgfile, compst->module);
+    free_control_flow_graphs(&cfgfile);
+}
+
 int main(int argc, char **argv)
 {
     init_types();
 
-    CommandLineFlags flags;
+    struct CompileState compst = {0};
     const char *filename;
-    parse_arguments(argc, argv, &flags, &filename);
+    parse_arguments(argc, argv, &compst.flags, &filename);
 
-    Token *tokens = tokenize(filename);
-    if(flags.verbose)
-        print_tokens(tokens);
+    Append(&compst.parse_queue, filename);
+    parse_all_pending_files(&compst);
 
-    AstToplevelNode *ast = parse(tokens);
-    free_tokens(tokens);
-    if(flags.verbose)
-        print_ast(ast);
+    // TODO: create a different module for each file
+    compst.module = LLVMModuleCreateWithName("");
 
-    CfGraphFile cfgfile = build_control_flow_graphs(ast);
-    free_ast(ast);
-    if(flags.verbose)
-        print_control_flow_graphs(&cfgfile);
-
-    simplify_control_flow_graphs(&cfgfile);
-    if(flags.verbose)
-        print_control_flow_graphs(&cfgfile);
-
-    LLVMModuleRef module = codegen(&cfgfile);
-    free_control_flow_graphs(&cfgfile);
-
-    if(flags.verbose)
-        print_llvm_ir(module, false);
+    for (int i = compst.files.len - 1; i >= 0; i--) {
+        struct FileState *fs = &compst.files.ptr[i];
+        compile_to_module(&compst, fs->ast);
+        free_ast(fs->ast);
+        fs->ast = NULL;
+    }
 
     /*
     If this fails, it is not just users writing dumb code, it is a bug in this compiler.
     This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
     */
-    LLVMVerifyModule(module, LLVMAbortProcessAction, NULL);
+    LLVMVerifyModule(compst.module, LLVMAbortProcessAction, NULL);
 
-    if (flags.optlevel) {
-        if (flags.verbose)
-            printf("\n*** Optimizing... (level %d)\n\n\n", flags.optlevel);
-        optimize(module, flags.optlevel);
-        if(flags.verbose)
-            print_llvm_ir(module, true);
+    if (compst.flags.optlevel) {
+        if (compst.flags.verbose)
+            printf("\n*** Optimizing %s... (level %d)\n\n\n", LLVMGetSourceFileName(compst.module, NULL), compst.flags.optlevel);
+        optimize(compst.module, compst.flags.optlevel);
+        if(compst.flags.verbose)
+            print_llvm_ir(compst.module, true);
     }
 
-    return run_program(module, &flags);
+    return run_program(compst.module, &compst.flags);
 }

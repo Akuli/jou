@@ -310,10 +310,10 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
     free(st->llvm_locals);
 }
 
-LLVMModuleRef codegen(const CfGraphFile *cfgfile)
+void codegen(const CfGraphFile *cfgfile, LLVMModuleRef module)
 {
     struct State st = {
-        .module = LLVMModuleCreateWithName(""),  // TODO: pass module name?
+        .module = module,
         .builder = LLVMCreateBuilder(),
     };
     LLVMSetSourceFileName(st.module, cfgfile->filename, strlen(cfgfile->filename));
@@ -326,5 +326,4 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile)
     }
 
     LLVMDisposeBuilder(st.builder);
-    return st.module;
 }

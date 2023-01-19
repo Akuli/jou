@@ -159,6 +159,10 @@ void free_ast(AstToplevelNode *topnodelist)
             free(t->data.structdef.fieldnames);
             free(t->data.structdef.fieldtypes);
             break;
+        case AST_TOPLEVEL_IMPORT:
+            free(t->data.import.filename);
+            free(t->data.import.symbols);
+            break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         }
@@ -194,8 +198,6 @@ static void free_cfg(CfGraph *cfg)
 
 void free_control_flow_graphs(const CfGraphFile *cfgfile)
 {
-    destroy_type_context(&cfgfile->typectx);
-
     for (int i = 0; i < cfgfile->nfuncs; i++) {
         free_signature(&cfgfile->signatures[i]);
         if (cfgfile->graphs[i])

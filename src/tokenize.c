@@ -160,6 +160,7 @@ static long long parse_integer(const char *str, Location location)
 static bool is_keyword(const char *s)
 {
     const char *keywords[] = {
+        "from", "import",
         "def", "declare", "struct",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",

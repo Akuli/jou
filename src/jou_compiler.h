@@ -29,6 +29,7 @@ typedef struct AstStatement AstStatement;
 typedef struct AstToplevelNode AstToplevelNode;
 typedef struct AstFunctionDef AstFunctionDef;
 typedef struct AstStructDef AstStructDef;
+typedef struct AstImport AstImport;
 
 typedef struct Variable Variable;
 typedef struct ExpressionTypes ExpressionTypes;
@@ -259,6 +260,13 @@ struct AstStructDef {
     AstType *fieldtypes;
 };
 
+struct AstImport {
+    // Example: import printf, puts from "stdlib/io.jou"
+    char *filename;  // "stdlib/io.jou"
+    char (*symbols)[100];  // { "printf", "puts" }
+    int nsymbols;  // 2
+};
+
 // Toplevel = outermost in the nested structure i.e. what the file consists of
 struct AstToplevelNode {
     Location location;
@@ -267,11 +275,13 @@ struct AstToplevelNode {
         AST_TOPLEVEL_DECLARE_FUNCTION,
         AST_TOPLEVEL_DEFINE_FUNCTION,
         AST_TOPLEVEL_DEFINE_STRUCT,
+        AST_TOPLEVEL_IMPORT,
     } kind;
     union {
         AstSignature decl_signature;  // AST_TOPLEVEL_DECLARE_FUNCTION
         AstFunctionDef funcdef;  // AST_TOPLEVEL_DEFINE_FUNCTION
         AstStructDef structdef;  // AST_TOPLEVEL_DEFINE_STRUCT
+        AstImport import;       // AST_TOPLEVEL_IMPORT
     } data;
 };
 
@@ -362,7 +372,7 @@ struct TypeContext {
 };
 
 // function body can be NULL to check a declaration
-void typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
+Signature typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
 void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location);
 
 /*
@@ -431,10 +441,9 @@ struct CfGraph {
 };
 
 struct CfGraphFile {
-    TypeContext typectx;
     const char *filename;
     int nfuncs;
-    Signature *signatures;
+    Signature *signatures;  // includes declared and defined functions
     CfGraph **graphs;  // NULL means function is only declared, not defined
 };
 
@@ -448,9 +457,9 @@ entire compilation. It is used in error messages.
 */
 Token *tokenize(const char *filename);
 AstToplevelNode *parse(const Token *tokens);
-CfGraphFile build_control_flow_graphs(AstToplevelNode *ast);
+CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
-LLVMModuleRef codegen(const CfGraphFile *cfgfile);
+void codegen(const CfGraphFile *cfgfile, LLVMModuleRef module);
 int run_program(LLVMModuleRef module, const CommandLineFlags *flags);  // destroys the module
 
 /*
