@@ -74,6 +74,7 @@ usage:
 struct FileState {
     char *filename;
     AstToplevelNode *ast;
+    TypeContext typectx;
     LLVMModuleRef module;
 };
 
@@ -86,7 +87,6 @@ struct CompileState {
     CommandLineFlags flags;
     List(struct FileState) files;
     List(struct ParseQueueItem) parse_queue;
-    TypeContext typectx;  // TODO: should be file-specific
 };
 
 static void parse_file(struct CompileState *compst, const char *filename, const Location *import_location)
@@ -149,7 +149,7 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
     if(compst->flags.verbose)
         print_control_flow_graphs(&cfgfile);
 
-    fs->module = codegen(&cfgfile, &compst->typectx);
+    fs->module = codegen(&cfgfile, &fs->typectx);
     free_control_flow_graphs(&cfgfile);
 
     if(compst->flags.verbose)
@@ -186,24 +186,22 @@ int main(int argc, char **argv)
         compile_ast_to_llvm(&compst, fs);
     }
 
-    for (int i = 1; i < compst.files.len; i++) {
+    LLVMModuleRef main_module = compst.files.ptr[0].module;
+    for (struct FileState *fs = &compst.files.ptr[1]; fs < End(compst.files); fs++) {
         if (compst.flags.verbose)
-            printf("Link %s, %s\n", compst.files.ptr[0].filename, compst.files.ptr[i].filename);
-        if (LLVMLinkModules2(compst.files.ptr[0].module, compst.files.ptr[i].module)) {
+            printf("Link %s\n", fs->filename);
+        if (LLVMLinkModules2(main_module, fs->module)) {
             fprintf(stderr, "error: LLVMLinkModules2() failed\n");
             return 1;
         }
-        compst.files.ptr[i].module = NULL;  // consumed in linking
+        fs->module = NULL;  // consumed in linking
     }
 
-    //LLVMDumpModule(compst.files.ptr[0].module);
-
-    int ret = run_program(compst.files.ptr[0].module, &compst.flags);
-
-    free_type_context(&compst.typectx);
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         free(fs->filename);
+        free_type_context(&fs->typectx);
+    }
     free(compst.files.ptr);
 
-    return ret;
+    return run_program(main_module, &compst.flags);
 }

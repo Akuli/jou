@@ -369,6 +369,7 @@ struct TypeContext {
     List(Variable *) variables;
     List(Type *) structs;
     List(Signature) function_signatures;
+    List(Signature) exports;
 };
 
 // function body can be NULL to check a declaration
