@@ -1,6 +1,8 @@
+#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include "jou_compiler.h"
 #include <llvm-c/Analysis.h>
 #include <llvm-c/Core.h>
@@ -77,6 +79,7 @@ struct FileState {
 };
 
 struct CompileState {
+    char *stdlib_path;
     CommandLineFlags flags;
     List(struct FileState) files;
     List(const char *) parse_queue;
@@ -151,11 +154,30 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
     }
 }
 
+static char *find_stdlib(const char *argv0)
+{
+    char *s = strdup(argv0);
+    const char *exedir = dirname(s);
+
+    char *path = malloc(strlen(exedir) + 10);
+    strcpy(path, exedir);
+    free(s);
+    strcat(path, "/stdlib");
+
+    struct stat st;
+    if (!stat(path, &st) || !S_ISDIR(st.st_mode)) {
+        fprintf(stderr, "error: cannot find the Jou standard library in %s\n", path);
+        exit(1);
+    }
+
+    return path;
+}
+
 int main(int argc, char **argv)
 {
     init_types();
 
-    struct CompileState compst = {0};
+    struct CompileState compst = { .stdlib_path = find_stdlib(argv[0]) };
     const char *filename;
     parse_arguments(argc, argv, &compst.flags, &filename);
 
@@ -185,6 +207,7 @@ int main(int argc, char **argv)
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
         free(fs->filename);
     free(compst.files.ptr);
+    free(compst.stdlib_path);
 
     return ret;
 }

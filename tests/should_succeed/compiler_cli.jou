@@ -32,4 +32,11 @@ def main() -> int:
     # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
     # Output: ===== Optimized LLVM IR for file "examples/hello.jou" =====
 
+    # Different working directory
+    system("cd tests && ../jou ../examples/hello.jou")  # Output: Hello World
+
+    # Executable in weird place
+    system("cp jou tmp/jou_executable")
+    system("tmp/jou_executable 2>&1 | ")  # Output: error: cannot find the Jou standard library in tmp/stdlib
+
     return 0
