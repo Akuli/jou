@@ -224,9 +224,9 @@ If the user types `y`, the program creates a NULL pointer (TODO: document pointe
 and then attempts to read the value from the NULL pointer into a variable `x`.
 Reading from a NULL pointer will crash the program on any modern operating system.
 
-Let's run the program. If I type a letter other than `y`, such as `n`,
-the program exits without crashing.
-If I type `y`, the program crashes with a segmentation fault.
+Let's run the program. Typing a letter other than `y`, such as `n`,
+makes the program exit without crashing.
+Typing `y`, makes it crash with a segmentation fault.
 
 ```
 $ ./jou asd.jou
@@ -237,7 +237,7 @@ Segmentation fault
 $
 ```
 
-But with optimizations enabled, the program does not crash even if I type `y`:
+But with optimizations enabled, the program does not crash even when typing `y`:
 
 ```
 $ ./jou -O3 asd.jou
@@ -246,13 +246,13 @@ $
 ```
 
 The optimizer assumes that you don't attempt to access the value of a `NULL` pointer.
-In other words, it thinks that the `x = *foo` code will never run,
-and it can therefore be ignored.
+In other words it thinks that the `x = *foo` code will never run,
+and therefore can be ignored.
 
-Correctly written Jou code does not break when optimizations are enabled.
-For example, accessing a `NULL` pointer simply isn't a good way to exit a program;
-your program shouldn't ever do it.
-If you want the program to crash, you can use the `abort()` function, for example:
+Correctly written Jou code does not break when optimizations are enabled.           ?
+For example, accessing a `NULL` pointer simply isn't a good way to exit a program;  ?
+your program shouldn't ever do it.                                                  ?
+If you want the program to crash, you can use the `abort()` function, for example:  ?
 
 ```python
 declare printf(msg: byte*, ...) -> int
@@ -266,7 +266,7 @@ def main() -> int:
     return 0
 ```
 
-Now the program crashes when I type `y`, even if optimizations are enabled:
+Now the program crashes when `y` is typed, even if optimizations are enabled:
 
 ```
 $ ./jou -O3 asd.jou
@@ -275,7 +275,7 @@ Aborted
 ```
 
 Accessing the value of a NULL pointer is an example of **undefined behavior** (UB).
-The optimizer assumes that your program does not have UB,
+The optimizer assumes that your program does not have UB, **sounds weird**
 and if your program does something that is UB,
 it could in principle do anything when it is ran with optimizations enabled.
 
@@ -287,8 +287,7 @@ Here are a few examples of things that are UB in Jou:
     For example, `x: int` followed by `printf("%d\n", x)`
     without doing something like `x = 0` before printing.
 
-You get the overall idea:
-these are all things that you would never do intentionally.
+The takeaway from this is that these are all things that one would never do intentionally.
 The rest of Jou's documentation aims to mention other things that are UB.
 
 In some other languages, it is easier to get UB than in Jou.
@@ -302,7 +301,7 @@ so it has a range from 0 to 255, and bigger values wrap back around to 0:
 printf("%d\n", (255 as byte) + (1 as byte))   # Output: 0
 ```
 
-Here's what this looks like with `int`:
+Here's what this looks like with `int`: **ambivalency**
 
 ```python
 printf("%d\n", 2147483647 + 1)   # Output: -2147483648
