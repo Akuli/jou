@@ -737,7 +737,6 @@ static AstImport parse_import(const Token **tokens)
         fail_with_parse_error(*tokens, "a comma or end of line");
     ++*tokens;
 
-    eat_newline(tokens);
     Append(&symbols, (struct Name){0});
 
     return (struct AstImport){.filename=filename, .symbols=(void*)symbols.ptr };
