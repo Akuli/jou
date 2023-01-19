@@ -452,7 +452,7 @@ eventually running the LLVM IR. Each function's result is fed into the next.
 Make sure that the filename passed to tokenize() stays alive throughout the
 entire compilation. It is used in error messages.
 */
-Token *tokenize(const char *filename);
+Token *tokenize(FILE *f, const char *filename);
 AstToplevelNode *parse(const Token *tokens);
 // TODO: type contexts should be file-specific, not shared across the entire compilation.
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx);
