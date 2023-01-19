@@ -713,13 +713,11 @@ static AstImport parse_import(const Token **tokens)
     ++*tokens;
 
     if ((*tokens)->type != TOKEN_STRING)
-    // TODO: test this error
         fail_with_parse_error(*tokens, "a string to specify the file name");
     char *filename = strdup((*tokens)->data.string_value) ;
     ++*tokens;
 
     if (!is_keyword(*tokens, "import"))
-    // TODO: test this error
         fail_with_parse_error(*tokens, "the 'import' keyword");
     ++*tokens;
 
@@ -728,14 +726,16 @@ static AstImport parse_import(const Token **tokens)
         if (symbols.len) ++*tokens;  // skip comma
 
         if ((*tokens)->type != TOKEN_NAME)
-        // TODO: test this error
             fail_with_parse_error(*tokens, "the name of a symbol to import");
-
         struct Name n;
         safe_strcpy(n.name, (*tokens)->data.name);
         Append(&symbols, n);
         ++*tokens;
     } while (is_operator(*tokens, ","));
+
+    if ((*tokens)->type != TOKEN_NEWLINE)
+        fail_with_parse_error(*tokens, "a comma or end of line");
+    ++*tokens;
 
     eat_newline(tokens);
     Append(&symbols, (struct Name){0});
