@@ -346,11 +346,10 @@ static Token read_token(struct State *st)
     }
 }
 
-static Token *tokenize_without_indent_dedent_tokens(const char *filename)
+static Token *tokenize_without_indent_dedent_tokens(FILE *f, const char *filename)
 {
-    struct State st = { .location.filename=filename, .f = fopen(filename, "rb") };
-    if (!st.f)
-        fail_with_error(st.location, "cannot open file: %s", strerror(errno));
+    assert(f);
+    struct State st = { .location.filename=filename, .f = f };
 
     /*
     Add a fake newline to the beginning. It does a few things:
@@ -367,7 +366,6 @@ static Token *tokenize_without_indent_dedent_tokens(const char *filename)
         Append(&tokens, read_token(&st));
 
     free(st.pushback.ptr);
-    fclose(st.f);
     return tokens.ptr;
 }
 
@@ -424,9 +422,9 @@ static Token *handle_indentations(const Token *temp_tokens)
     return tokens.ptr;
 }
 
-Token *tokenize(const char *filename)
+Token *tokenize(FILE *f, const char *filename)
 {
-    Token *tokens1 = tokenize_without_indent_dedent_tokens(filename);
+    Token *tokens1 = tokenize_without_indent_dedent_tokens(f, filename);
     Token *tokens2 = handle_indentations(tokens1);
     free(tokens1);
     return tokens2;

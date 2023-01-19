@@ -1,4 +1,5 @@
 #include <libgen.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,15 +79,20 @@ struct FileState {
     LLVMModuleRef module;
 };
 
+struct ParseQueueItem {
+    const char *filename;
+    Location import_location;
+};
+
 struct CompileState {
     char *stdlib_path;
     CommandLineFlags flags;
     List(struct FileState) files;
-    List(const char *) parse_queue;
+    List(struct ParseQueueItem) parse_queue;
     TypeContext typectx;  // TODO: should be file-specific
 };
 
-static void parse_file(struct CompileState *compst, const char *filename)
+static void parse_file(struct CompileState *compst, const char *filename, const Location *import_location)
 {
     for (struct FileState *fs = compst->files.ptr; fs < End(compst->files); fs++)
         if (!strcmp(fs->ast->location.filename, filename))
@@ -95,7 +101,15 @@ static void parse_file(struct CompileState *compst, const char *filename)
     struct FileState fs = { .filename = strdup(filename) };
 
     // TODO: better error handling, in case file does not exist
-    Token *tokens = tokenize(fs.filename);
+    FILE *f = fopen(fs.filename, "rb");
+    if (!f) {
+        if (import_location)
+            fail_with_error(*import_location, "cannot import from \"%s\": %s", filename, strerror(errno));
+        else
+            fail_with_error((Location){.filename=filename}, "cannot open file: %s", strerror(errno));
+    }
+    Token *tokens = tokenize(f, fs.filename);
+    fclose(f);
     if(compst->flags.verbose)
         print_tokens(tokens);
 
@@ -104,8 +118,13 @@ static void parse_file(struct CompileState *compst, const char *filename)
     if(compst->flags.verbose)
         print_ast(fs.ast);
 
-    for (int i = 0; fs.ast[i].kind == AST_TOPLEVEL_IMPORT; i++)
-        Append(&compst->parse_queue, fs.ast[i].data.import.filename);
+    for (int i = 0; fs.ast[i].kind == AST_TOPLEVEL_IMPORT; i++) {
+        struct ParseQueueItem it = {
+            .filename = fs.ast[i].data.import.filename,
+            .import_location = fs.ast[i].location,
+        };
+        Append(&compst->parse_queue, it);
+    }
 
     Append(&compst->files, fs);
 }
@@ -114,8 +133,8 @@ static void parse_all_pending_files(struct CompileState *compst)
 {
     while (compst->parse_queue.len > 0) {
         // TODO: is the order good? probably not, should pop from start?
-        const char *s = Pop(&compst->parse_queue);
-        parse_file(compst, s);
+        struct ParseQueueItem it = Pop(&compst->parse_queue);
+        parse_file(compst, it.filename, &it.import_location);
     }
     free(compst->parse_queue.ptr);
 }
@@ -181,7 +200,7 @@ int main(int argc, char **argv)
     const char *filename;
     parse_arguments(argc, argv, &compst.flags, &filename);
 
-    Append(&compst.parse_queue, filename);
+    parse_file(&compst, filename, NULL);
     parse_all_pending_files(&compst);
 
     for (int i = compst.files.len - 1; i >= 0; i--) {
