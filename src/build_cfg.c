@@ -687,7 +687,7 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
 }
 
 // TODO: passing a type context here doesn't really make sense.
-// It would be better to pass public symbols that have been imported.
+// It would be better to pass only the public symbols that have been imported.
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx)
 {
     // imports are guaranteed to be in the beginning and we no longer need them
