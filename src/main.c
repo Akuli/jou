@@ -162,7 +162,6 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
             }
         }
         if (!sig) {
-            // TODO: test
             fail_with_error(
                 impnode->location, "file \"%s\" does not contain a function named '%s'",
                 impnode->data.import.path, impnode->data.import.symbol);
