@@ -168,11 +168,6 @@ These experiments have shown that:
 - Interpreted languages are slow.
     In this case, Python was about 15 times slower than unoptimized Jou
     and about 80 times slower than Jou with `-O2` or `-O3`.
-- Performance is usually a bit random: even though we measured 0.473 seconds above,?
-    it is closer to 0.48 than 0.47 on average. ?
-    (Some people say that it is better to use ?
-    the *minimum* of the measured times than their average. ?
-    I personally don't have an opinion on this.) ?
 
 Also, note that I used the `clang` C compiler,
 because it uses LLVM and Jou also uses LLVM.
