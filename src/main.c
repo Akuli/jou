@@ -114,9 +114,7 @@ static void parse_all_pending_files(struct CompileState *compst)
         const char *s = Pop(&compst->parse_queue);
         parse_file(compst, s);
     }
-
     free(compst->parse_queue.ptr);
-    memset(&compst->parse_queue, 0, sizeof compst->parse_queue);
 }
 
 static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *fs)
