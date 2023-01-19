@@ -768,6 +768,7 @@ static AstToplevelNode *parse_import(const Token **tokens, const char *stdlib_pa
         });
         ++*tokens;
     } while (is_operator(*tokens, ","));
+    free(path);
 
     if ((*tokens)->type != TOKEN_NEWLINE)
         fail_with_parse_error(*tokens, "a comma or end of line");

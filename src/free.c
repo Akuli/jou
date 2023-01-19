@@ -178,8 +178,11 @@ void free_type_context(const TypeContext *ctx)
         free_type(*t);
     for (Signature *s = ctx->function_signatures.ptr; s < End(ctx->function_signatures); s++)
         free_signature(s);
-    free(ctx->function_signatures.ptr);
+    for (Signature *s = ctx->exports.ptr; s < End(ctx->exports); s++)
+        free_signature(s);
     free(ctx->structs.ptr);
+    free(ctx->function_signatures.ptr);
+    free(ctx->exports.ptr);
 }
 
 
