@@ -376,17 +376,14 @@ Signature typecheck_function(TypeContext *ctx, Location funcname_location, const
 void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location);
 
 /*
-Difference between reset and destroy:
-
-- reset wipes all function-specific data. For example, the list of local
-  variables is emptied so that the next function doesn't have access to the
-  same local variables. But e.g. the list of all known function signatures
-  is preserved, so that the next function can call the previous function.
-
-- destroy frees all memory used by the type context, making it unusable.
+Wipes all function-specific data, making the type context suitable
+for use with the next function definition. For example, the list of
+local variables is emptied so that the next function doesn't have
+access to the same local variables. But e.g. the list of all known
+function signatures is preserved, so that the next function can
+call the previous function.
 */
 void reset_type_context(TypeContext *ctx);
-void destroy_type_context(const TypeContext *ctx);
 
 
 // Control Flow Graph.
@@ -472,6 +469,7 @@ but not any of the data contained within individual nodes.
 void free_constant(const Constant *c);
 void free_tokens(Token *tokenlist);
 void free_ast(AstToplevelNode *topnodelist);
+void free_type_context(const TypeContext *typectx);
 void free_control_flow_graphs(const CfGraphFile *cfgfile);
 void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b);
 

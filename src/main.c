@@ -113,6 +113,9 @@ static void parse_all_pending_files(struct CompileState *compst)
         const char *s = Pop(&compst->parse_queue);
         parse_file(compst, s);
     }
+
+    free(compst->parse_queue.ptr);
+    memset(&compst->parse_queue, 0, sizeof compst->parse_queue);
 }
 
 static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *fs)
@@ -172,9 +175,17 @@ int main(int argc, char **argv)
             fprintf(stderr, "error: LLVMLinkModules2() failed\n");
             return 1;
         }
+        compst.files.ptr[i].module = NULL;  // consumed in linking
     }
 
     //LLVMDumpModule(compst.files.ptr[0].module);
 
-    return run_program(compst.files.ptr[0].module, &compst.flags);
+    int ret = run_program(compst.files.ptr[0].module, &compst.flags);
+
+    free_type_context(&compst.typectx);
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
+        free(fs->filename);
+    free(compst.files.ptr);
+
+    return ret;
 }

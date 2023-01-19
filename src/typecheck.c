@@ -781,12 +781,3 @@ void reset_type_context(TypeContext *ctx)
     ctx->expr_types.len = 0;
     ctx->variables.len = 0;
 }
-
-void destroy_type_context(const TypeContext *ctx)
-{
-    free(ctx->expr_types.ptr);
-    free(ctx->variables.ptr);
-    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
-        free_type(*t);
-    free(ctx->structs.ptr);
-}

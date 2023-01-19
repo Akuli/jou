@@ -132,12 +132,6 @@ static void free_body(const AstBody *body)
     free(body->statements);
 }
 
-static void free_signature(const Signature *sig)
-{
-    free(sig->argnames);
-    free(sig->argtypes);
-}
-
 static void free_ast_signature(const AstSignature *sig)
 {
     free(sig->argnames);
@@ -168,6 +162,25 @@ void free_ast(AstToplevelNode *topnodelist)
         }
     }
     free(topnodelist);
+}
+
+
+static void free_signature(const Signature *sig)
+{
+    free(sig->argnames);
+    free(sig->argtypes);
+}
+
+void free_type_context(const TypeContext *ctx)
+{
+    free(ctx->expr_types.ptr);
+    free(ctx->variables.ptr);
+    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
+        free_type(*t);
+    for (Signature *s = ctx->function_signatures.ptr; s < End(ctx->function_signatures); s++)
+        free_signature(s);
+    free(ctx->function_signatures.ptr);
+    free(ctx->structs.ptr);
 }
 
 
@@ -207,3 +220,4 @@ void free_control_flow_graphs(const CfGraphFile *cfgfile)
     free(cfgfile->signatures);
     free(cfgfile->graphs);
 }
+
