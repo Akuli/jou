@@ -400,7 +400,7 @@ static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call
 {
     const Signature *sig = find_function(ctx, call->calledname);
     if (!sig)
-        fail_with_error(location, "function \"%s\" not found", call->calledname);
+        fail_with_error(location, "function '%s' not found", call->calledname);
     char *sigstr = signature_to_string(sig, false);
 
     if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->takes_varargs)) {

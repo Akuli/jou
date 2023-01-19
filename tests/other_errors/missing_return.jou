@@ -1,5 +1,3 @@
-declare putchar(ch: int) -> int
-
 def foo(n: int) -> int:  # Warning: function 'foo' doesn't seem to return a value in all cases
     if n > 10:
         return 123
@@ -15,4 +13,4 @@ def bar(n: int) -> int:  # Warning: function 'bar' doesn't seem to return a valu
 
 # This one is an error because the compiler knows that the function will not return anything.
 def baz() -> int:  # Error: function 'baz' must return a value, because it is defined with '-> int'
-    putchar('x')
+    a = 123

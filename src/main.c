@@ -131,6 +131,9 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
     fs->module = codegen(&cfgfile, &compst->typectx);
     free_control_flow_graphs(&cfgfile);
 
+    if(compst->flags.verbose)
+        print_llvm_ir(fs->module, false);
+
     /*
     If this fails, it is not just users writing dumb code, it is a bug in this compiler.
     This compiler should always fail with an error elsewhere, or generate valid LLVM IR.

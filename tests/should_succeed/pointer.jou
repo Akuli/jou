@@ -1,7 +1,5 @@
-declare putchar(ch: int) -> int
-declare puts(s: byte*) -> int
-declare malloc(size: int) -> void*  # TODO: size isn't really int
-declare free(ptr: void*) -> void
+from "stdlib/io.jou" import putchar, puts
+from "stdlib/mem.jou" import malloc, free
 
 def putchar_pointer(ch: int*) -> void:
     putchar(*ch)
