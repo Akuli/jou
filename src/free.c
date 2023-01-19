@@ -155,6 +155,7 @@ void free_ast(AstToplevelNode *topnodelist)
             break;
         case AST_TOPLEVEL_IMPORT:
             free(t->data.import.filename);
+            free(t->data.import.symbols);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
