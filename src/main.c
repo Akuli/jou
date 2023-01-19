@@ -80,7 +80,7 @@ struct FileState {
 };
 
 struct ParseQueueItem {
-    const char *filename;
+    char *filename;  // will be free()d
     Location import_location;
 };
 
@@ -118,12 +118,35 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
     if(compst->flags.verbose)
         print_ast(fs.ast);
 
-    for (int i = 0; fs.ast[i].kind == AST_TOPLEVEL_IMPORT; i++) {
-        struct ParseQueueItem it = {
-            .filename = fs.ast[i].data.import.filename,
-            .import_location = fs.ast[i].location,
-        };
-        Append(&compst->parse_queue, it);
+    for (AstToplevelNode *impnode = fs.ast; impnode->kind == AST_TOPLEVEL_IMPORT; impnode++) {
+        const char *s = impnode->data.import.filename;
+        const char *relative_to;
+        char *tmp = NULL;
+        if (!strncmp(s, "stdlib/", 7)) {
+            // Starts with stdlib --> import from where stdlib actually is
+            s += 7;
+            relative_to = compst->stdlib_path;
+        } else if (s[0] == '.') {
+            // Relative to directory where the file is
+            // TODO: add some tests
+            tmp = strdup(fs.filename);
+            relative_to = dirname(tmp);
+        } else {
+            // TODO: test this error
+            fail_with_error(
+                impnode->location,
+                "import path must start with 'stdlib/' (standard-library import) or a dot (relative import)");
+        }
+
+        // 1 for slash, 1 for \0, 1 for fun
+        char *path = malloc(strlen(relative_to) + strlen(s) + 3);
+        sprintf(path, "%s/%s", relative_to, s);
+        free(tmp);
+
+        Append(&compst->parse_queue, (struct ParseQueueItem){
+            .filename = path,
+            .import_location = impnode->location,
+        });
     }
 
     Append(&compst->files, fs);
@@ -135,6 +158,7 @@ static void parse_all_pending_files(struct CompileState *compst)
         // TODO: is the order good? probably not, should pop from start?
         struct ParseQueueItem it = Pop(&compst->parse_queue);
         parse_file(compst, it.filename, &it.import_location);
+        free(it.filename);
     }
     free(compst->parse_queue.ptr);
 }
@@ -178,13 +202,17 @@ static char *find_stdlib(const char *argv0)
     char *s = strdup(argv0);
     const char *exedir = dirname(s);
 
+    // ./stdlib looks a bit ugly in error messages and debug output IMO
+    if (!strcmp(exedir, "."))
+        return strdup("stdlib");
+
     char *path = malloc(strlen(exedir) + 10);
     strcpy(path, exedir);
     free(s);
     strcat(path, "/stdlib");
 
     struct stat st;
-    if (!stat(path, &st) || !S_ISDIR(st.st_mode)) {
+    if (stat(path, &st) != 0 || !S_ISDIR(st.st_mode)) {
         fprintf(stderr, "error: cannot find the Jou standard library in %s\n", path);
         exit(1);
     }
