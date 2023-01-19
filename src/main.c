@@ -80,7 +80,7 @@ struct CompileState {
     CommandLineFlags flags;
     List(struct FileState) files;
     List(const char *) parse_queue;
-    TypeContext typectx;
+    TypeContext typectx;  // TODO: should be file-specific
 };
 
 static void parse_file(struct CompileState *compst, const char *filename)
