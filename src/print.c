@@ -323,7 +323,7 @@ void print_ast(const AstToplevelNode *topnodelist)
         switch(topnodelist->kind) {
             case AST_TOPLEVEL_IMPORT:
                 printf("Import from \"%s\":", topnodelist->data.import.filename);
-                for (int i = 0; topnodelist->data.import.nsymbols; i++)
+                for (int i = 0; i < topnodelist->data.import.nsymbols; i++)
                     printf(" %s", topnodelist->data.import.symbols[i]);
                 printf("\n");
                 break;
