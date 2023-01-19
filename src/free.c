@@ -154,8 +154,7 @@ void free_ast(AstToplevelNode *topnodelist)
             free(t->data.structdef.fieldtypes);
             break;
         case AST_TOPLEVEL_IMPORT:
-            free(t->data.import.filename);
-            free(t->data.import.symbols);
+            free(t->data.import.path);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
@@ -179,8 +178,11 @@ void free_type_context(const TypeContext *ctx)
         free_type(*t);
     for (Signature *s = ctx->function_signatures.ptr; s < End(ctx->function_signatures); s++)
         free_signature(s);
-    free(ctx->function_signatures.ptr);
+    for (Signature *s = ctx->exports.ptr; s < End(ctx->exports); s++)
+        free_signature(s);
     free(ctx->structs.ptr);
+    free(ctx->function_signatures.ptr);
+    free(ctx->exports.ptr);
 }
 
 
