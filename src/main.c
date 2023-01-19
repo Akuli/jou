@@ -80,7 +80,7 @@ struct CompileState {
     CommandLineFlags flags;
     List(struct FileState) files;
     List(const char *) parse_queue;
-    TypeContext typectx;
+    TypeContext typectx;  // TODO: should be file-specific
 };
 
 static void parse_file(struct CompileState *compst, const char *filename)
@@ -91,6 +91,7 @@ static void parse_file(struct CompileState *compst, const char *filename)
 
     struct FileState fs = { .filename = strdup(filename) };
 
+    // TODO: better error handling, in case file does not exist
     Token *tokens = tokenize(fs.filename);
     if(compst->flags.verbose)
         print_tokens(tokens);
@@ -113,9 +114,7 @@ static void parse_all_pending_files(struct CompileState *compst)
         const char *s = Pop(&compst->parse_queue);
         parse_file(compst, s);
     }
-
     free(compst->parse_queue.ptr);
-    memset(&compst->parse_queue, 0, sizeof compst->parse_queue);
 }
 
 static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *fs)

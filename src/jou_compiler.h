@@ -454,6 +454,7 @@ entire compilation. It is used in error messages.
 */
 Token *tokenize(const char *filename);
 AstToplevelNode *parse(const Token *tokens);
+// TODO: type contexts should be file-specific, not shared across the entire compilation.
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx);

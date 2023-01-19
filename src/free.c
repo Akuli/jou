@@ -220,4 +220,3 @@ void free_control_flow_graphs(const CfGraphFile *cfgfile)
     free(cfgfile->signatures);
     free(cfgfile->graphs);
 }
-
