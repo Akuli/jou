@@ -132,12 +132,6 @@ static void free_body(const AstBody *body)
     free(body->statements);
 }
 
-static void free_signature(const Signature *sig)
-{
-    free(sig->argnames);
-    free(sig->argtypes);
-}
-
 static void free_ast_signature(const AstSignature *sig)
 {
     free(sig->argnames);
@@ -159,11 +153,34 @@ void free_ast(AstToplevelNode *topnodelist)
             free(t->data.structdef.fieldnames);
             free(t->data.structdef.fieldtypes);
             break;
+        case AST_TOPLEVEL_IMPORT:
+            free(t->data.import.filename);
+            free(t->data.import.symbols);
+            break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         }
     }
     free(topnodelist);
+}
+
+
+static void free_signature(const Signature *sig)
+{
+    free(sig->argnames);
+    free(sig->argtypes);
+}
+
+void free_type_context(const TypeContext *ctx)
+{
+    free(ctx->expr_types.ptr);
+    free(ctx->variables.ptr);
+    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
+        free_type(*t);
+    for (Signature *s = ctx->function_signatures.ptr; s < End(ctx->function_signatures); s++)
+        free_signature(s);
+    free(ctx->function_signatures.ptr);
+    free(ctx->structs.ptr);
 }
 
 
@@ -194,8 +211,6 @@ static void free_cfg(CfGraph *cfg)
 
 void free_control_flow_graphs(const CfGraphFile *cfgfile)
 {
-    destroy_type_context(&cfgfile->typectx);
-
     for (int i = 0; i < cfgfile->nfuncs; i++) {
         free_signature(&cfgfile->signatures[i]);
         if (cfgfile->graphs[i])
