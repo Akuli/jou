@@ -91,6 +91,7 @@ static void parse_file(struct CompileState *compst, const char *filename)
 
     struct FileState fs = { .filename = strdup(filename) };
 
+    // TODO: better error handling, in case file does not exist
     Token *tokens = tokenize(fs.filename);
     if(compst->flags.verbose)
         print_tokens(tokens);
