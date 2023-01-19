@@ -20,7 +20,7 @@ Goals:
 - Compatibility with C, not just as one more feature but as the recommended way to do many things
 - Self-hosted compiler
 - Eliminate some stupid things in C. For example:
-    - Manu useful warnings being disabled by default
+    - Many useful warnings being disabled by default
     - UB for comparing pointers into different memory areas
         (as in `array <= foo && foo < array+sizeof(array)/sizeof(array[0])`)
     - `negative % positive` is negative or zero, should IMO be positive or zero
