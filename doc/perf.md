@@ -218,7 +218,7 @@ Reading from a NULL pointer will crash the program on any modern operating syste
 
 Let's run the program. Typing a letter other than `y`, such as `n`,
 makes the program exit without crashing.
-Typing `y`, makes it crash with a segmentation fault.
+Typing `y` makes it crash with a segmentation fault.
 
 ```
 $ ./jou asd.jou
