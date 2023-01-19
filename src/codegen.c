@@ -318,6 +318,7 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
     };
     LLVMSetSourceFileName(st.module, cfgfile->filename, strlen(cfgfile->filename));
 
+    // TODO: this isn't ideal, ideally imports would turn into declarations in some other way
     for (const Signature *sig = typectx->function_signatures.ptr; sig < End(typectx->function_signatures); sig++) {
         bool defined_here = false;
         for (int i = 0; i < cfgfile->nfuncs; i++)
