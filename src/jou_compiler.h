@@ -261,10 +261,8 @@ struct AstStructDef {
 };
 
 struct AstImport {
-    // Example: import printf, puts from "stdlib/io.jou"
-    char *filename;  // "stdlib/io.jou"
-    char (*symbols)[100];  // { "printf", "puts" }
-    int nsymbols;  // 2
+    char *path;  // Relative to current working directory, so e.g. "blah/stdlib/io.jou"
+    char symbol[100];
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -454,8 +452,7 @@ Make sure that the filename passed to tokenize() stays alive throughout the
 entire compilation. It is used in error messages.
 */
 Token *tokenize(FILE *f, const char *filename);
-AstToplevelNode *parse(const Token *tokens);
-// TODO: type contexts should be file-specific, not shared across the entire compilation.
+AstToplevelNode *parse(const Token *tokens, const char *stdlib_path);
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx);

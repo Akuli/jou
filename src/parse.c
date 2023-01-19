@@ -2,6 +2,7 @@
 
 #include "jou_compiler.h"
 #include "util.h"
+#include <libgen.h>
 #include <stdarg.h>
 #include <stdnoreturn.h>
 #include <stdio.h>
@@ -707,29 +708,64 @@ static AstStructDef parse_structdef(const Token **tokens)
     return result;
 }
 
-static AstImport parse_import(const Token **tokens)
+static char *get_actual_import_path(const Token *pathtoken, const char *stdlib_path)
+{
+    if (pathtoken->type != TOKEN_STRING)
+        fail_with_parse_error(pathtoken, "a string to specify the file name");
+
+    const char *part1, *part2;
+    char *tmp = NULL;
+    if (!strncmp(pathtoken->data.string_value, "stdlib/", 7)) {
+        // Starts with stdlib --> import from where stdlib actually is
+        part1 = stdlib_path;
+        part2 = pathtoken->data.string_value + 7;
+    } else if (pathtoken->data.string_value[0] == '.') {
+        // Relative to directory where the file is
+        tmp = strdup(pathtoken->location.filename);
+        part1 = dirname(tmp);
+        part2 = pathtoken->data.string_value;
+    } else {
+        fail_with_error(
+            pathtoken->location,
+            "import path must start with 'stdlib/' (standard-library import) or a dot (relative import)");
+    }
+
+    // 1 for slash, 1 for \0, 1 for fun
+    char *path = malloc(strlen(part1) + strlen(part2) + 3);
+    sprintf(path, "%s/%s", part1, part2);
+    free(tmp);
+
+    return path;
+}
+
+static AstToplevelNode *parse_import(const Token **tokens, const char *stdlib_path, int *n)
 {
     assert(is_keyword(*tokens, "from"));
     ++*tokens;
 
-    if ((*tokens)->type != TOKEN_STRING)
-        fail_with_parse_error(*tokens, "a string to specify the file name");
-    char *filename = strdup((*tokens)->data.string_value) ;
+    char *path = get_actual_import_path(*tokens, stdlib_path);
     ++*tokens;
 
     if (!is_keyword(*tokens, "import"))
         fail_with_parse_error(*tokens, "the 'import' keyword");
     ++*tokens;
 
-    NameList symbols = {0};
+    List(AstToplevelNode) result = {0};
     do{
-        if (symbols.len) ++*tokens;  // skip comma
+        if (result.len) ++*tokens;  // skip comma
 
         if ((*tokens)->type != TOKEN_NAME)
             fail_with_parse_error(*tokens, "the name of a symbol to import");
-        struct Name n;
-        safe_strcpy(n.name, (*tokens)->data.name);
-        Append(&symbols, n);
+
+        struct AstImport imp;
+        imp.path = strdup(path);
+        safe_strcpy(imp.symbol, (*tokens)->data.name);
+
+        Append(&result, (struct AstToplevelNode){
+            .location = (*tokens)->location,
+            .kind = AST_TOPLEVEL_IMPORT,
+            .data.import = imp,
+        });
         ++*tokens;
     } while (is_operator(*tokens, ","));
 
@@ -737,11 +773,8 @@ static AstImport parse_import(const Token **tokens)
         fail_with_parse_error(*tokens, "a comma or end of line");
     ++*tokens;
 
-    return (struct AstImport){
-        .filename = filename,
-        .symbols = (char(*)[100])symbols.ptr,
-        .nsymbols = symbols.len,
-    };
+    *n = result.len;
+    return result.ptr;
 }
 
 static AstToplevelNode parse_toplevel_node(const Token **tokens)
@@ -775,7 +808,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
     return result;
 }   
 
-AstToplevelNode *parse(const Token *tokens)
+AstToplevelNode *parse(const Token *tokens, const char *stdlib_path)
 {
     List(AstToplevelNode) result = {0};
 
@@ -783,12 +816,11 @@ AstToplevelNode *parse(const Token *tokens)
     // if an import is not in beginning of the file.
     // TODO: add a test
     while (is_keyword(tokens, "from")) {
-        struct Location location = tokens->location;
-        Append(&result, (AstToplevelNode){
-            .location = location,
-            .kind=AST_TOPLEVEL_IMPORT,
-            .data.import=parse_import(&tokens)
-        });
+        int n;
+        struct AstToplevelNode *impnodes = parse_import(&tokens, stdlib_path, &n);
+        for (int i = 0; i < n; i++)
+            Append(&result, impnodes[i]);
+        free(impnodes);
     }
 
     do {

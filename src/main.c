@@ -74,14 +74,14 @@ usage:
 
 
 struct FileState {
-    char *filename;
+    char *path;
     AstToplevelNode *ast;
     TypeContext typectx;
     LLVMModuleRef module;
 };
 
 struct ParseQueueItem {
-    char *filename;  // will be free()d
+    const char *filename;
     Location import_location;
 };
 
@@ -98,53 +98,28 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
         if (!strcmp(fs->ast->location.filename, filename))
             return;  // already parsed this file
 
-    struct FileState fs = { .filename = strdup(filename) };
+    struct FileState fs = { .path = strdup(filename) };
 
-    // TODO: better error handling, in case file does not exist
-    FILE *f = fopen(fs.filename, "rb");
+    FILE *f = fopen(fs.path, "rb");
     if (!f) {
         if (import_location)
             fail_with_error(*import_location, "cannot import from \"%s\": %s", filename, strerror(errno));
         else
             fail_with_error((Location){.filename=filename}, "cannot open file: %s", strerror(errno));
     }
-    Token *tokens = tokenize(f, fs.filename);
+    Token *tokens = tokenize(f, fs.path);
     fclose(f);
     if(compst->flags.verbose)
         print_tokens(tokens);
 
-    fs.ast = parse(tokens);
+    fs.ast = parse(tokens, compst->stdlib_path);
     free_tokens(tokens);
     if(compst->flags.verbose)
         print_ast(fs.ast);
 
     for (AstToplevelNode *impnode = fs.ast; impnode->kind == AST_TOPLEVEL_IMPORT; impnode++) {
-        const char *s = impnode->data.import.filename;
-        const char *relative_to;
-        char *tmp = NULL;
-        if (!strncmp(s, "stdlib/", 7)) {
-            // Starts with stdlib --> import from where stdlib actually is
-            s += 7;
-            relative_to = compst->stdlib_path;
-        } else if (s[0] == '.') {
-            // Relative to directory where the file is
-            // TODO: add some tests
-            tmp = strdup(fs.filename);
-            relative_to = dirname(tmp);
-        } else {
-            // TODO: test this error
-            fail_with_error(
-                impnode->location,
-                "import path must start with 'stdlib/' (standard-library import) or a dot (relative import)");
-        }
-
-        // 1 for slash, 1 for \0, 1 for fun
-        char *path = malloc(strlen(relative_to) + strlen(s) + 3);
-        sprintf(path, "%s/%s", relative_to, s);
-        free(tmp);
-
         Append(&compst->parse_queue, (struct ParseQueueItem){
-            .filename = path,
+            .filename = impnode->data.import.path,
             .import_location = impnode->location,
         });
     }
@@ -155,17 +130,48 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
 static void parse_all_pending_files(struct CompileState *compst)
 {
     while (compst->parse_queue.len > 0) {
-        // TODO: is the order good? probably not, should pop from start?
         struct ParseQueueItem it = Pop(&compst->parse_queue);
         parse_file(compst, it.filename, &it.import_location);
-        free(it.filename);
     }
     free(compst->parse_queue.ptr);
 }
 
 static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *fs)
 {
-    CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &compst->typectx);
+    if (compst->flags.verbose)
+        printf("AST to LLVM IR: %s\n", fs->path);
+
+    for (AstToplevelNode *impnode = fs->ast; impnode->kind == AST_TOPLEVEL_IMPORT; impnode++) {
+        if (compst->flags.verbose)
+            printf("  Add imported symbol: %s\n", impnode->data.import.symbol);
+
+        struct FileState *src = NULL;
+        for (struct FileState *p = compst->files.ptr; p < fs; p++) {
+            if (!strcmp(p->path, impnode->data.import.path)) {
+                src = p;
+                break;
+            }
+        }
+        assert(src);
+
+        const Signature *sig = NULL;
+        for (Signature *p = src->typectx.exports.ptr; p < End(src->typectx.exports); p++) {
+            if (!strcmp(p->funcname, impnode->data.import.symbol)) {
+                sig = p;
+                break;
+            }
+        }
+        if (!sig) {
+            // TODO: test
+            fail_with_error(
+                impnode->location, "file \"%s\" does not contain a function named '%s'",
+                impnode->data.import.path, impnode->data.import.symbol);
+        }
+
+        Append(&fs->typectx.function_signatures, copy_signature(sig));
+    }
+
+    CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->typectx);
     free_ast(fs->ast);
     fs->ast = NULL;
 
@@ -190,7 +196,7 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
 
     if (compst->flags.optlevel) {
         if (compst->flags.verbose)
-            printf("\n*** Optimizing %s... (level %d)\n\n\n", fs->filename, compst->flags.optlevel);
+            printf("\n*** Optimizing %s... (level %d)\n\n\n", fs->path, compst->flags.optlevel);
         optimize(fs->module, compst->flags.optlevel);
         if(compst->flags.verbose)
             print_llvm_ir(fs->module, true);
@@ -233,15 +239,22 @@ int main(int argc, char **argv)
     parse_file(&compst, filename, NULL);
     parse_all_pending_files(&compst);
 
-    for (int i = compst.files.len - 1; i >= 0; i--) {
-        struct FileState *fs = &compst.files.ptr[i];
-        compile_ast_to_llvm(&compst, fs);
+    // Reverse files, so that if foo imports bar, we compile bar first.
+    // So far we have followed the imports.
+    for (struct FileState *a = compst.files.ptr, *b = End(compst.files)-1; a<b; a++,b--)
+    {
+        struct FileState tmp = *a;
+        *a = *b;
+        *b = tmp;
     }
 
-    LLVMModuleRef main_module = compst.files.ptr[0].module;
-    for (struct FileState *fs = &compst.files.ptr[1]; fs < End(compst.files); fs++) {
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
+        compile_ast_to_llvm(&compst, fs);
+
+    LLVMModuleRef main_module = LLVMModuleCreateWithName("main");
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         if (compst.flags.verbose)
-            printf("Link %s\n", fs->filename);
+            printf("Link %s\n", fs->path);
         if (LLVMLinkModules2(main_module, fs->module)) {
             fprintf(stderr, "error: LLVMLinkModules2() failed\n");
             return 1;
@@ -250,7 +263,7 @@ int main(int argc, char **argv)
     }
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        free(fs->filename);
+        free(fs->path);
         free_type_context(&fs->typectx);
     }
     free(compst.files.ptr);

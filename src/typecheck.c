@@ -752,6 +752,7 @@ Signature typecheck_function(TypeContext *ctx, Location funcname_location, const
     }
 
     ctx->current_function_signature = NULL;
+    Append(&ctx->exports, copy_signature(&sig));
     return copy_signature(&sig);
 }
 

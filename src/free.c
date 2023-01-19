@@ -154,8 +154,7 @@ void free_ast(AstToplevelNode *topnodelist)
             free(t->data.structdef.fieldtypes);
             break;
         case AST_TOPLEVEL_IMPORT:
-            free(t->data.import.filename);
-            free(t->data.import.symbols);
+            free(t->data.import.path);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
