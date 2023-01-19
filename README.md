@@ -3,7 +3,7 @@
 Jou is an experimental toy programming language. It looks like this:
 
 ```python3
-declare puts(string: byte*) -> int
+from "stdlib/io.jou" import puts
 
 def main() -> int:
     puts("Hello World")
@@ -20,7 +20,7 @@ Goals:
 - Compatibility with C, not just as one more feature but as the recommended way to do many things
 - Self-hosted compiler
 - Eliminate some stupid things in C. For example:
-    - Manu useful warnings being disabled by default
+    - Many useful warnings being disabled by default
     - UB for comparing pointers into different memory areas
         (as in `array <= foo && foo < array+sizeof(array)/sizeof(array[0])`)
     - `negative % positive` is negative or zero, should IMO be positive or zero
@@ -100,6 +100,28 @@ The control flow graphs are shown twice, before and after simplifying them.
 
 After exploring the verbose output, you should probably
 read `src/jou_compiler.h` and have a quick look at `src/util.h`.
+
+
+## Editor support
+
+Tell your editor to syntax-highlight `.jou` files as if they were Python files.
+You may want to copy some other Python settings too,
+such as how to handle indentations and comments.
+
+For example, I use the following configuration with the
+[Porcupine](https://github.com/Akuli/porcupine) editor:
+
+```toml
+[Jou]
+filename_patterns = ["*.jou"]
+pygments_lexer = "pygments.lexers.Python3Lexer"
+syntax_highlighter = "pygments"
+comment_prefix = '#'
+autoindent_regexes = {dedent = 'return( .+)?|break|pass|continue', indent = '.*:'}
+```
+
+To apply this configuration, copy/paste it to end of Porcupine's `filetypes.toml`
+(menubar at top --> *Settings* --> *Config Files* --> *Edit filetypes.toml*).
 
 
 ## Tests

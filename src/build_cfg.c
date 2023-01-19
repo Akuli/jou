@@ -177,6 +177,17 @@ static const Variable *build_struct_field_pointer(
     assert(0);
 }
 
+static const Variable *build_struct_field(
+    struct State *st, const Variable *structinstance, const char *fieldname, Location location)
+{
+    const Variable *ptr = add_variable(st, get_pointer_type(structinstance->type));
+    add_unary_op(st, location, CF_ADDRESS_OF_VARIABLE, structinstance, ptr);
+    const Variable *field_ptr = build_struct_field_pointer(st, ptr, fieldname, location);
+    const Variable *field = add_variable(st, field_ptr->type->data.valuetype);
+    add_unary_op(st, location, CF_PTR_LOAD, field_ptr, field);
+    return field;
+}
+
 static const Variable *build_expression(struct State *st, const AstExpression *expr);
 static const Variable *build_address_of_expression(struct State *st, const AstExpression *address_of_what);
 
@@ -398,10 +409,20 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         result = build_struct_init(st, types->type, &expr->data.call, expr->location);
         break;
     case AST_EXPR_GET_FIELD:
+        temp = build_expression(st, expr->data.field.obj);
+        result = build_struct_field(st, temp, expr->data.field.fieldname, expr->location);
+        break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
     case AST_EXPR_INDEXING:
-        // To evaluate foo->bar, we first evaluate &foo->bar and then dereference.
-        // We can't do this with all expressions: &(1 + 2) doesn't work, for example.
+        /*
+        To evaluate foo->bar, we first evaluate &foo->bar and then dereference.
+        We can similarly evaluate &foo[bar].
+
+        This technique cannot be used with all expressions. For example, &(1+2)
+        doesn't work, and &foo.bar doesn't work either whenever &foo doesn't work.
+        But &foo->bar and &foo[bar] always work, because foo is already a pointer
+        and we only add a memory offset to it.
+        */
         temp = build_address_of_expression(st, expr);
         result = add_variable(st, types->type);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
@@ -648,7 +669,6 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
     st->cfg = calloc(1, sizeof *st->cfg);
     Append(&st->cfg->all_blocks, &st->cfg->start_block);
     Append(&st->cfg->all_blocks, &st->cfg->end_block);
-
     st->current_block = &st->cfg->start_block;
 
     assert(st->breakstack.len == 0 && st->continuestack.len == 0);
@@ -666,36 +686,47 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
     return st->cfg;
 }
 
-CfGraphFile build_control_flow_graphs(AstToplevelNode *ast)
+// TODO: passing a type context here doesn't really make sense.
+// It would be better to pass public symbols that have been imported.
+CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx)
 {
+    // imports are guaranteed to be in the beginning and we no longer need them
+    while (ast->kind == AST_TOPLEVEL_IMPORT)
+        ast++;
+
     CfGraphFile result = { .filename = ast->location.filename };
-    struct State st = { .typectx = &result.typectx };
+    struct State st = { .typectx = typectx };
 
     int n = 0;
     while (ast[n].kind!=AST_TOPLEVEL_END_OF_FILE) n++;
     result.graphs = malloc(sizeof(result.graphs[0]) * n);  // NOLINT
+    result.signatures = malloc(sizeof(result.signatures[0]) * n);
+
+    Signature sig;
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         switch(ast->kind) {
+        case AST_TOPLEVEL_IMPORT:
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         case AST_TOPLEVEL_DECLARE_FUNCTION:
-            typecheck_function(&result.typectx, ast->location, &ast->data.decl_signature, NULL);
-            result.graphs[result.nfuncs++] = NULL;
+            sig = typecheck_function(typectx, ast->location, &ast->data.decl_signature, NULL);
+            result.signatures[result.nfuncs] = sig;
+            result.graphs[result.nfuncs] = NULL;
+            result.nfuncs++;
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            typecheck_function(&result.typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
-            result.graphs[result.nfuncs++] = build_function(&st, &ast->data.funcdef.body);
+            sig = typecheck_function(typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
+            result.signatures[result.nfuncs] = sig;
+            result.graphs[result.nfuncs] = build_function(&st, &ast->data.funcdef.body);
+            result.nfuncs++;
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
-            typecheck_struct(&result.typectx, &ast->data.structdef, ast->location);
+            typecheck_struct(typectx, &ast->data.structdef, ast->location);
             break;
         }
         ast++;
     }
-
-    assert(result.nfuncs == st.typectx->function_signatures.len);
-    result.signatures = st.typectx->function_signatures.ptr;
 
     free(st.breakstack.ptr);
     free(st.continuestack.ptr);

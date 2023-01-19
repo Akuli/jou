@@ -321,6 +321,12 @@ void print_ast(const AstToplevelNode *topnodelist)
         printf("line %d: ", topnodelist->location.lineno);
 
         switch(topnodelist->kind) {
+            case AST_TOPLEVEL_IMPORT:
+                printf("Import from \"%s\":", topnodelist->data.import.filename);
+                for (int i = 0; i < topnodelist->data.import.nsymbols; i++)
+                    printf(" %s", topnodelist->data.import.symbols[i]);
+                printf("\n");
+                break;
             case AST_TOPLEVEL_DECLARE_FUNCTION:
                 printf("Declare a function: ");
                 print_ast_function_signature(&topnodelist->data.decl_signature);
@@ -513,11 +519,12 @@ void print_control_flow_graphs(const CfGraphFile *cfgfile)
 }
 
 
-void print_llvm_ir(LLVMModuleRef module)
+void print_llvm_ir(LLVMModuleRef module, bool is_optimized)
 {
     size_t len;
     const char *filename = LLVMGetSourceFileName(module, &len);
-    printf("===== LLVM IR for file \"%.*s\" =====\n", (int)len, filename);
+    printf("===== %s LLVM IR for file \"%.*s\" =====\n",
+        is_optimized ? "Optimized" : "Unoptimized", (int)len, filename);
 
     char *s = LLVMPrintModuleToString(module);
     puts(s);

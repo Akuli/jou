@@ -1,0 +1,32 @@
+# IO = Input and Output: reading/writing files, printing to terminal,
+# reading keyboard input.
+
+# Printing to terminal (stdout)
+#
+# You can usually ignore the return values of these functions.
+# If you are paranoid about error handling, you can use them to
+# check whether printing failed.
+#
+# See also printf() manual page: https://linux.die.net/man/3/printf
+declare putchar(a_byte: int) -> int  # Print a byte (parameter type is "int" for historical reasons)
+declare puts(s: byte*) -> int  # Print a string followed by "\n"
+declare printf(pattern: byte*, ...) -> int  # Example: printf("%s %d\n", "hi", 123)
+
+# Keyboard input
+# TODO: add EOF and errno, explain here how to use them
+declare getchar() -> int
+
+# Parsing input. For example, this expects the user to type two
+# numbers separated by a comma:
+#
+#    x: int
+#    y: int
+#    printf("Enter coordinates: ")
+#    scanf("%d,%d\n", &x, &y)
+#
+# Return value indicates how many elements were matched. In the
+# example above, return value 2 means success.
+#
+# See also scanf() manual page: https://linux.die.net/man/3/scanf
+declare scanf(pattern: byte*, ...) -> int  # Parse keyboard input (stdin)
+declare sscanf(s: byte*, pattern: byte*, ...) -> int  # Parse a string

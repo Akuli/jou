@@ -29,6 +29,7 @@ typedef struct AstStatement AstStatement;
 typedef struct AstToplevelNode AstToplevelNode;
 typedef struct AstFunctionDef AstFunctionDef;
 typedef struct AstStructDef AstStructDef;
+typedef struct AstImport AstImport;
 
 typedef struct Variable Variable;
 typedef struct ExpressionTypes ExpressionTypes;
@@ -259,6 +260,13 @@ struct AstStructDef {
     AstType *fieldtypes;
 };
 
+struct AstImport {
+    // Example: import printf, puts from "stdlib/io.jou"
+    char *filename;  // "stdlib/io.jou"
+    char (*symbols)[100];  // { "printf", "puts" }
+    int nsymbols;  // 2
+};
+
 // Toplevel = outermost in the nested structure i.e. what the file consists of
 struct AstToplevelNode {
     Location location;
@@ -267,11 +275,13 @@ struct AstToplevelNode {
         AST_TOPLEVEL_DECLARE_FUNCTION,
         AST_TOPLEVEL_DEFINE_FUNCTION,
         AST_TOPLEVEL_DEFINE_STRUCT,
+        AST_TOPLEVEL_IMPORT,
     } kind;
     union {
         AstSignature decl_signature;  // AST_TOPLEVEL_DECLARE_FUNCTION
         AstFunctionDef funcdef;  // AST_TOPLEVEL_DEFINE_FUNCTION
         AstStructDef structdef;  // AST_TOPLEVEL_DEFINE_STRUCT
+        AstImport import;       // AST_TOPLEVEL_IMPORT
     } data;
 };
 
@@ -362,21 +372,18 @@ struct TypeContext {
 };
 
 // function body can be NULL to check a declaration
-void typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
+Signature typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
 void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location);
 
 /*
-Difference between reset and destroy:
-
-- reset wipes all function-specific data. For example, the list of local
-  variables is emptied so that the next function doesn't have access to the
-  same local variables. But e.g. the list of all known function signatures
-  is preserved, so that the next function can call the previous function.
-
-- destroy frees all memory used by the type context, making it unusable.
+Wipes all function-specific data, making the type context suitable
+for use with the next function definition. For example, the list of
+local variables is emptied so that the next function doesn't have
+access to the same local variables. But e.g. the list of all known
+function signatures is preserved, so that the next function can
+call the previous function.
 */
 void reset_type_context(TypeContext *ctx);
-void destroy_type_context(const TypeContext *ctx);
 
 
 // Control Flow Graph.
@@ -431,10 +438,9 @@ struct CfGraph {
 };
 
 struct CfGraphFile {
-    TypeContext typectx;
     const char *filename;
     int nfuncs;
-    Signature *signatures;
+    Signature *signatures;  // includes declared and defined functions
     CfGraph **graphs;  // NULL means function is only declared, not defined
 };
 
@@ -446,11 +452,12 @@ eventually running the LLVM IR. Each function's result is fed into the next.
 Make sure that the filename passed to tokenize() stays alive throughout the
 entire compilation. It is used in error messages.
 */
-Token *tokenize(const char *filename);
+Token *tokenize(FILE *f, const char *filename);
 AstToplevelNode *parse(const Token *tokens);
-CfGraphFile build_control_flow_graphs(AstToplevelNode *ast);
+// TODO: type contexts should be file-specific, not shared across the entire compilation.
+CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
-LLVMModuleRef codegen(const CfGraphFile *cfgfile);
+LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx);
 int run_program(LLVMModuleRef module, const CommandLineFlags *flags);  // destroys the module
 
 /*
@@ -463,6 +470,7 @@ but not any of the data contained within individual nodes.
 void free_constant(const Constant *c);
 void free_tokens(Token *tokenlist);
 void free_ast(AstToplevelNode *topnodelist);
+void free_type_context(const TypeContext *typectx);
 void free_control_flow_graphs(const CfGraphFile *cfgfile);
 void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b);
 
@@ -475,6 +483,6 @@ void print_tokens(const Token *tokenlist);
 void print_ast(const AstToplevelNode *topnodelist);
 void print_control_flow_graph(const CfGraph *cfg);
 void print_control_flow_graphs(const CfGraphFile *cfgfile);
-void print_llvm_ir(LLVMModuleRef module);
+void print_llvm_ir(LLVMModuleRef module, bool is_optimized);
 
 #endif
