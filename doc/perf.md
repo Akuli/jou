@@ -52,7 +52,7 @@ Each program computes the 40th Fibonacci number.
 The first two Fibonacci numbers are 0 and 1.
 After that, you always get the next one by adding the previous two:
 the third Fibonacci number is 0+1 = 1, the fourth is 1+1 = 2,
-the fifth is 1+2 = 3 and so on
+the fifth is 1+2 = 3 and so on:
 
 ```
 0 1 1 2 3 5 8 13 21 34 ...
@@ -65,8 +65,6 @@ the fifth is 1+2 = 3 and so on
 ```
 
 Here's how the `fib()` function in each program works:
-
-**Python**:
 - If `n` is zero or one, it is returned unchanged,
     so the first two Fibonacci numbers are `fib(0) == 0` and `fib(1) == 1`.
 - To compute any other Fibonacci number, the `fib()` function
@@ -88,7 +86,6 @@ user    0m39,401s
 sys     0m0,024s
 ```
 
-**C / Jou**
 In bash, you can see how long a command runs by writing `time` in front of it.
 You can ignore the `user` and `sys` lines
 and focus only on the line starting with `real`.
@@ -301,7 +298,7 @@ so it has a range from 0 to 255, and bigger values wrap back around to 0:
 printf("%d\n", (255 as byte) + (1 as byte))   # Output: 0
 ```
 
-Here's what this looks like with `int`: **ambivalency**
+Here's what this looks like with `int`:
 
 ```python
 printf("%d\n", 2147483647 + 1)   # Output: -2147483648
