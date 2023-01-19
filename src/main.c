@@ -4,6 +4,7 @@
 #include "jou_compiler.h"
 #include <llvm-c/Analysis.h>
 #include <llvm-c/Core.h>
+#include <llvm-c/Linker.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
 
 
@@ -70,7 +71,9 @@ usage:
 
 
 struct FileState {
+    char *filename;
     AstToplevelNode *ast;
+    LLVMModuleRef module;
 };
 
 struct CompileState {
@@ -78,7 +81,6 @@ struct CompileState {
     List(struct FileState) files;
     List(const char *) parse_queue;
     TypeContext typectx;
-    LLVMModuleRef module;
 };
 
 static void parse_file(struct CompileState *compst, const char *filename)
@@ -87,9 +89,9 @@ static void parse_file(struct CompileState *compst, const char *filename)
         if (!strcmp(fs->ast->location.filename, filename))
             return;  // already parsed this file
 
-    struct FileState fs = {0};
+    struct FileState fs = { .filename = strdup(filename) };
 
-    Token *tokens = tokenize(filename);
+    Token *tokens = tokenize(fs.filename);
     if(compst->flags.verbose)
         print_tokens(tokens);
 
@@ -113,9 +115,12 @@ static void parse_all_pending_files(struct CompileState *compst)
     }
 }
 
-static void compile_to_module(struct CompileState *compst, AstToplevelNode *ast)
+static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *fs)
 {
-    CfGraphFile cfgfile = build_control_flow_graphs(ast, &compst->typectx);
+    CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &compst->typectx);
+    free_ast(fs->ast);
+    fs->ast = NULL;
+
     if(compst->flags.verbose)
         print_control_flow_graphs(&cfgfile);
 
@@ -123,8 +128,22 @@ static void compile_to_module(struct CompileState *compst, AstToplevelNode *ast)
     if(compst->flags.verbose)
         print_control_flow_graphs(&cfgfile);
 
-    codegen(&cfgfile, compst->module);
+    fs->module = codegen(&cfgfile, &compst->typectx);
     free_control_flow_graphs(&cfgfile);
+
+    /*
+    If this fails, it is not just users writing dumb code, it is a bug in this compiler.
+    This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
+    */
+    LLVMVerifyModule(fs->module, LLVMAbortProcessAction, NULL);
+
+    if (compst->flags.optlevel) {
+        if (compst->flags.verbose)
+            printf("\n*** Optimizing %s... (level %d)\n\n\n", fs->filename, compst->flags.optlevel);
+        optimize(fs->module, compst->flags.optlevel);
+        if(compst->flags.verbose)
+            print_llvm_ir(fs->module, true);
+    }
 }
 
 int main(int argc, char **argv)
@@ -138,29 +157,21 @@ int main(int argc, char **argv)
     Append(&compst.parse_queue, filename);
     parse_all_pending_files(&compst);
 
-    // TODO: create a different module for each file
-    compst.module = LLVMModuleCreateWithName("");
-
     for (int i = compst.files.len - 1; i >= 0; i--) {
         struct FileState *fs = &compst.files.ptr[i];
-        compile_to_module(&compst, fs->ast);
-        free_ast(fs->ast);
-        fs->ast = NULL;
+        compile_ast_to_llvm(&compst, fs);
     }
 
-    /*
-    If this fails, it is not just users writing dumb code, it is a bug in this compiler.
-    This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
-    */
-    LLVMVerifyModule(compst.module, LLVMAbortProcessAction, NULL);
-
-    if (compst.flags.optlevel) {
+    for (int i = 1; i < compst.files.len; i++) {
         if (compst.flags.verbose)
-            printf("\n*** Optimizing %s... (level %d)\n\n\n", LLVMGetSourceFileName(compst.module, NULL), compst.flags.optlevel);
-        optimize(compst.module, compst.flags.optlevel);
-        if(compst.flags.verbose)
-            print_llvm_ir(compst.module, true);
+            printf("Link %s, %s\n", compst.files.ptr[0].filename, compst.files.ptr[i].filename);
+        if (LLVMLinkModules2(compst.files.ptr[0].module, compst.files.ptr[i].module)) {
+            fprintf(stderr, "error: LLVMLinkModules2() failed\n");
+            return 1;
+        }
     }
 
-    return run_program(compst.module, &compst.flags);
+    //LLVMDumpModule(compst.files.ptr[0].module);
+
+    return run_program(compst.files.ptr[0].module, &compst.flags);
 }

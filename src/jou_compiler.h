@@ -459,7 +459,7 @@ Token *tokenize(const char *filename);
 AstToplevelNode *parse(const Token *tokens);
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
-void codegen(const CfGraphFile *cfgfile, LLVMModuleRef module);
+LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx);
 int run_program(LLVMModuleRef module, const CommandLineFlags *flags);  // destroys the module
 
 /*

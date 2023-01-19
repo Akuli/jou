@@ -310,20 +310,27 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
     free(st->llvm_locals);
 }
 
-void codegen(const CfGraphFile *cfgfile, LLVMModuleRef module)
+LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
 {
     struct State st = {
-        .module = module,
+        .module = LLVMModuleCreateWithName(""),  // TODO: pass module name?
         .builder = LLVMCreateBuilder(),
     };
     LLVMSetSourceFileName(st.module, cfgfile->filename, strlen(cfgfile->filename));
 
-    for (int i = 0; i < cfgfile->nfuncs; i++) {
-        if (cfgfile->graphs[i])
-            codegen_function_def(&st, &cfgfile->signatures[i], cfgfile->graphs[i]);
-        else
-            codegen_function_decl(&st, &cfgfile->signatures[i]);
+    for (const Signature *sig = typectx->function_signatures.ptr; sig < End(typectx->function_signatures); sig++) {
+        bool defined_here = false;
+        for (int i = 0; i < cfgfile->nfuncs; i++)
+            if (cfgfile->graphs[i] && !strcmp(cfgfile->signatures[i].funcname, sig->funcname))
+                defined_here = true;
+        if (!defined_here)
+            codegen_function_decl(&st, sig);
     }
 
+    for (int i = 0; i < cfgfile->nfuncs; i++)
+        if (cfgfile->graphs[i])
+            codegen_function_def(&st, &cfgfile->signatures[i], cfgfile->graphs[i]);
+
     LLVMDisposeBuilder(st.builder);
+    return st.module;
 }
