@@ -1,2 +1,9 @@
-def foo() -> void:
-    bar((1)  # Error: expected a ')', got end of line
+# As usual, I try to point the error at the first line where
+# things go wrong. In this case that means the first unbalanced
+# paren token.
+
+bar(    # Error: '(' without a matching ')'
+    (blah)
+    (blah)
+    (
+        blaah blah
