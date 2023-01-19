@@ -203,8 +203,10 @@ static char *find_stdlib(const char *argv0)
     const char *exedir = dirname(s);
 
     // ./stdlib looks a bit ugly in error messages and debug output IMO
-    if (!strcmp(exedir, "."))
+    if (!strcmp(exedir, ".")) {
+        free(s);
         return strdup("stdlib");
+    }
 
     char *path = malloc(strlen(exedir) + 10);
     strcpy(path, exedir);
