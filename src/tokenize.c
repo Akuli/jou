@@ -66,11 +66,7 @@ static void unread_byte(struct State *st, char c)
 
 static bool is_identifier_or_number_byte(char c)
 {
-    return ('A'<=c && c<='Z')
-        || ('a'<=c && c<='z')
-        || c=='_'
-        || ('0'<=c && c<='9')
-        || (unsigned char)c >= 128;  // Accept everything non-ASCII (#71)
+    return ('A'<=c && c<='Z') || ('a'<=c && c<='z') || c=='_' || ('0'<=c && c<='9');
 }
 
 static void read_identifier_or_number(struct State *st, char firstbyte, char (*dest)[100])
@@ -164,6 +160,7 @@ static long long parse_integer(const char *str, Location location)
 static bool is_keyword(const char *s)
 {
     const char *keywords[] = {
+        "from", "import",
         "def", "declare", "struct",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
@@ -349,11 +346,10 @@ static Token read_token(struct State *st)
     }
 }
 
-static Token *tokenize_without_indent_dedent_tokens(const char *filename)
+static Token *tokenize_without_indent_dedent_tokens(FILE *f, const char *filename)
 {
-    struct State st = { .location.filename=filename, .f = fopen(filename, "rb") };
-    if (!st.f)
-        fail_with_error(st.location, "cannot open file: %s", strerror(errno));
+    assert(f);
+    struct State st = { .location.filename=filename, .f = f };
 
     /*
     Add a fake newline to the beginning. It does a few things:
@@ -370,7 +366,6 @@ static Token *tokenize_without_indent_dedent_tokens(const char *filename)
         Append(&tokens, read_token(&st));
 
     free(st.pushback.ptr);
-    fclose(st.f);
     return tokens.ptr;
 }
 
@@ -427,9 +422,9 @@ static Token *handle_indentations(const Token *temp_tokens)
     return tokens.ptr;
 }
 
-Token *tokenize(const char *filename)
+Token *tokenize(FILE *f, const char *filename)
 {
-    Token *tokens1 = tokenize_without_indent_dedent_tokens(filename);
+    Token *tokens1 = tokenize_without_indent_dedent_tokens(f, filename);
     Token *tokens2 = handle_indentations(tokens1);
     free(tokens1);
     return tokens2;

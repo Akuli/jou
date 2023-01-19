@@ -400,7 +400,7 @@ static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call
 {
     const Signature *sig = find_function(ctx, call->calledname);
     if (!sig)
-        fail_with_error(location, "function \"%s\" not found", call->calledname);
+        fail_with_error(location, "function '%s' not found", call->calledname);
     char *sigstr = signature_to_string(sig, false);
 
     if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->takes_varargs)) {
@@ -706,7 +706,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
     }
 }
 
-void typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body)
+Signature typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body)
 {
     for (Signature *sig = ctx->function_signatures.ptr; sig < End(ctx->function_signatures); sig++)
         if (!strcmp(sig->funcname, astsig->funcname))
@@ -752,6 +752,7 @@ void typecheck_function(TypeContext *ctx, Location funcname_location, const AstS
     }
 
     ctx->current_function_signature = NULL;
+    return copy_signature(&sig);
 }
 
 void typecheck_struct(struct TypeContext *ctx, const AstStructDef *structdef, Location location)
@@ -779,13 +780,4 @@ void reset_type_context(TypeContext *ctx)
         free(*et);
     ctx->expr_types.len = 0;
     ctx->variables.len = 0;
-}
-
-void destroy_type_context(const TypeContext *ctx)
-{
-    free(ctx->expr_types.ptr);
-    free(ctx->variables.ptr);
-    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
-        free_type(*t);
-    free(ctx->structs.ptr);
 }

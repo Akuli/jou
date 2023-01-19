@@ -305,7 +305,6 @@ Here's what this looks like with `int`: **ambivalency**
 
 ```python
 printf("%d\n", 2147483647 + 1)   # Output: -2147483648
-
 ```
 
 The numbers are bigger, because `int` in Jou is 32 bits and `byte` is only 8 bits.

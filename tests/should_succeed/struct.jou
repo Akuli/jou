@@ -1,4 +1,4 @@
-declare printf(format: byte*, ...) -> int
+from "stdlib/io.jou" import printf
 
 struct Foo:
     num: int
@@ -19,5 +19,9 @@ def main() -> int:
     printf("%d\n", foo.num)  # Output: 0
     if foo.text == NULL:
         printf("its null\n")  # Output: its null
+
+    # https://github.com/Akuli/jou/issues/40
+    lol = Foo{num=123}.num
+    printf("%d\n", lol)  # Output: 123
 
     return 0
