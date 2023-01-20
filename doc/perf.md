@@ -183,16 +183,15 @@ It is often easier to work with optimizations disabled (or with `-O1`),
 for two reasons:
 1. Optimizing a large program is slow. The optimized program will run faster,
     but it takes a while for LLVM to figure out how to make the code faster.
-    Waiting for the optimizer to do its thing is annoying.
-2. The optimizer assumes that your code doesn't do some dumb things.
-    This can have surprising consequences.
+    Waiting for the optimizer to do its thing is annoying. See Example #1
+2. The optimizer assumes that your code doesn't contain dumb things, that cause **undefined behavior** (see below). If it does it may behave unpredictably (not crashing when it should do so, etc.). See Example #2
 
 Let's explore these with more examples.
 
 
 ### Optimizing a large program is slow
 
-TODO: write this section once a large Jou program exists
+TODO: write this section once a large Jou program exists and name it Example #1
 
 
 ### Optimizer's assumptions
@@ -237,14 +236,8 @@ Crash this program? (y/n) y
 $
 ```
 
-The optimizer assumes that you don't attempt to access the value of a `NULL` pointer.
-In other words it thinks that the `x = *foo` code will never run,
-and therefore can be ignored.
-
-Correctly written Jou code does not break when optimizations are enabled.           ?
-For example, accessing a `NULL` pointer simply isn't a good way to exit a program;  ?
-your program shouldn't ever do it.                                                  ?
-If you want the program to crash, you can use the `abort()` function, for example:  ?
+The optimizations make the program ignore the code to access the value of a `NULL` pointer.
+Essentially it thinks that the `x = *foo` code will never run, because you aren't supposed to access the value of a NULL pointer. This code will thus get ignored. NOTE: if y0ou want the program to crash with optimizations on, you should do so using `abort()` function for example:
 
 ```python
 declare printf(msg: byte*, ...) -> int
@@ -267,9 +260,8 @@ Aborted
 ```
 
 Accessing the value of a NULL pointer is an example of **undefined behavior** (UB).
-The optimizer assumes that your program does not have UB, **sounds weird**
-and if your program does something that is UB,
-it could in principle do anything when it is ran with optimizations enabled.
+The optimizer is set to assume that your program does not have anything that causes UB,
+and as such if it does, it could in principle do anything when it is ran with optimizations enabled. Use at your own risk.
 
 Here are a few examples of things that are UB in Jou:
 - Accessing the value of a `NULL` pointer.
