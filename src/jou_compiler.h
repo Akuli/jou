@@ -101,6 +101,17 @@ struct Constant {
     } data;
 };
 #define copy_constant(c) ( (c)->kind==CONSTANT_STRING ? (Constant){ CONSTANT_STRING, {.str=strdup((c)->data.str)} } : *(c) )
+#define int_constant(Type, Val) (\
+    assert(is_integer_type((Type))), \
+    (Constant){ \
+        .kind = CONSTANT_INTEGER, \
+        .data.integer = { \
+            .width_in_bits = (Type)->data.width_in_bits, \
+            .is_signed = (Type)->kind==TYPE_SIGNED_INTEGER, \
+            .value = (Val), \
+        } \
+    } \
+)
 
 
 /*
@@ -154,6 +165,7 @@ struct AstExpression {
         AST_EXPR_NOT,
         AST_EXPR_ADD,
         AST_EXPR_SUB,
+        AST_EXPR_NEG,
         AST_EXPR_MUL,
         AST_EXPR_DIV,
         AST_EXPR_EQ,

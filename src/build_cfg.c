@@ -88,7 +88,7 @@ static CfInstruction *add_instruction(
 #define add_binary_op(st, loc, op, lhs, rhs, target) \
     add_instruction((st), (loc), (op), NULL, (const Variable*[]){(lhs),(rhs),NULL}, (target))
 #define add_constant(st, loc, c, target) \
-    add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant(&(c)) }, NULL, (target))
+    add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant((Constant[]){c}) }, NULL, (target))
 
 
 static const Variable *build_cast(
@@ -212,16 +212,7 @@ static const Variable *build_increment_or_decrement(
     const Variable *new_value = add_variable(st, t);
     const Variable *diffvar = add_variable(st, is_integer_type(t) ? t : intType);
 
-    Constant diffconst = {
-        .kind = CONSTANT_INTEGER,
-        .data.integer = {
-            .width_in_bits = diffvar->type->data.width_in_bits,
-            .is_signed = (diffvar->type->kind == TYPE_SIGNED_INTEGER),
-            .value = diff,
-        },
-    };
-
-    add_constant(st, location, diffconst, diffvar);
+    add_constant(st, location, int_constant(diffvar->type, diff), diffvar);
     add_unary_op(st, location, CF_PTR_LOAD, addr, old_value);
     add_binary_op(st, location, is_integer_type(t)?CF_INT_ADD:CF_PTR_ADD_INT, old_value, diffvar, new_value);
     add_binary_op(st, location, CF_PTR_STORE, addr, new_value, NULL);
@@ -459,6 +450,13 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         temp = build_expression(st, &expr->data.operands[0]);
         result = add_variable(st, boolType);
         add_unary_op(st, expr->location, CF_BOOL_NEGATE, temp, result);
+        break;
+    case AST_EXPR_NEG:
+        temp = build_expression(st, &expr->data.operands[0]);
+        const Variable *zero = add_variable(st, temp->type);
+        result = add_variable(st, temp->type);
+        add_constant(st, expr->location, int_constant(temp->type, 0), zero);
+        add_binary_op(st, expr->location, CF_INT_SUB, zero, temp, result);
         break;
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
