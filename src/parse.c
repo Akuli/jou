@@ -305,20 +305,12 @@ static AstExpression parse_elementary_expression(const Token **tokens)
         break;
     case TOKEN_INT:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant = (Constant){ CONSTANT_INTEGER, {.integer={
-            .is_signed = true,
-            .value = (*tokens)->data.int_value,
-            .width_in_bits = 32,
-        }}};
+        expr.data.constant = int_constant(intType, (*tokens)->data.int_value);
         ++*tokens;
         break;
     case TOKEN_CHAR:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant = (Constant){ CONSTANT_INTEGER, {.integer={
-            .is_signed = false,
-            .value = (*tokens)->data.char_value,
-            .width_in_bits = 8,
-        }}};
+        expr.data.constant = int_constant(byteType, (*tokens)->data.char_value);
         ++*tokens;
         break;
     case TOKEN_STRING:

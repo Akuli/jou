@@ -101,6 +101,17 @@ struct Constant {
     } data;
 };
 #define copy_constant(c) ( (c)->kind==CONSTANT_STRING ? (Constant){ CONSTANT_STRING, {.str=strdup((c)->data.str)} } : *(c) )
+#define int_constant(Type, Val) (\
+    assert(is_integer_type((Type))), \
+    (Constant){ \
+        .kind = CONSTANT_INTEGER, \
+        .data.integer = { \
+            .width_in_bits = (Type)->data.width_in_bits, \
+            .is_signed = (Type)->kind==TYPE_SIGNED_INTEGER, \
+            .value = (Val), \
+        } \
+    } \
+)
 
 
 /*
