@@ -760,10 +760,11 @@ static AstToplevelNode *parse_import(const Token **tokens, const char *stdlib_pa
         fail_with_parse_error(*tokens, "the 'import' keyword");
     ++*tokens;
 
-    List(AstToplevelNode) result = {0};
-    do{
-        if (result.len) ++*tokens;  // skip comma
+    bool parens = is_operator(*tokens, "(");
+    if(parens) ++*tokens;
 
+    List(AstToplevelNode) result = {0};
+    do {
         if ((*tokens)->type != TOKEN_NAME)
             fail_with_parse_error(*tokens, "the name of a symbol to import");
 
@@ -777,8 +778,19 @@ static AstToplevelNode *parse_import(const Token **tokens, const char *stdlib_pa
             .data.import = imp,
         });
         ++*tokens;
-    } while (is_operator(*tokens, ","));
+
+        if (is_operator(*tokens, ","))
+            ++*tokens;
+        else
+            break;
+    } while (!is_operator(*tokens, ")") && (*tokens)->type != TOKEN_NEWLINE);
     free(path);
+
+    if (parens) {
+        if (!is_operator(*tokens, ")"))
+            fail_with_parse_error(*tokens, "a ')'");
+        ++*tokens;
+    }
 
     if ((*tokens)->type != TOKEN_NEWLINE)
         fail_with_parse_error(*tokens, "a comma or end of line");
