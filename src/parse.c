@@ -258,8 +258,7 @@ static AstExpression build_operator_expression(const Token *t, int arity, const 
         assert(arity == 2);
         result.kind = AST_EXPR_ADD;
     } else if (is_operator(t, "-")) {
-        assert(arity == 2);
-        result.kind = AST_EXPR_SUB;
+        result.kind = arity==2 ? AST_EXPR_SUB : AST_EXPR_NEG;
     } else if (is_operator(t, "*")) {
         result.kind = arity==2 ? AST_EXPR_MUL : AST_EXPR_DEREFERENCE;
     } else if (is_operator(t, "/")) {
@@ -452,7 +451,11 @@ static AstExpression parse_expression_with_mul_and_div(const Token **tokens)
 
 static AstExpression parse_expression_with_add(const Token **tokens)
 {
+    const Token *minus = is_operator(*tokens, "-") ? (*tokens)++ : NULL;
     AstExpression result = parse_expression_with_mul_and_div(tokens);
+    if (minus)
+        result = build_operator_expression(minus, 1, &result);
+
     while (is_operator(*tokens, "+") || is_operator(*tokens, "-"))
         add_to_binop(tokens, &result, parse_expression_with_mul_and_div);
     return result;

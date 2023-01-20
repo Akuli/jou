@@ -154,6 +154,7 @@ struct AstExpression {
         AST_EXPR_NOT,
         AST_EXPR_ADD,
         AST_EXPR_SUB,
+        AST_EXPR_NEG,
         AST_EXPR_MUL,
         AST_EXPR_DIV,
         AST_EXPR_EQ,

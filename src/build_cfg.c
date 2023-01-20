@@ -393,6 +393,22 @@ static const Variable *build_struct_init(struct State *st, const Type *type, con
     return instance;
 }
 
+const Variable *make_zero(struct State *st, const Type *t, Location location)
+{
+    assert(is_integer_type(t));
+    Constant c = {
+        .kind = CONSTANT_INTEGER,
+        .data.integer = {
+            .width_in_bits = t->data.width_in_bits,
+            .is_signed = (t->kind == TYPE_SIGNED_INTEGER),
+            .value = 0,
+        },
+    };
+    const Variable *v = add_variable(st, t);
+    add_constant(st, location, c, v);
+    return v;
+}
+
 static const Variable *build_expression(struct State *st, const AstExpression *expr)
 {
     const ExpressionTypes *types = get_expr_types(st, expr);
@@ -459,6 +475,12 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         temp = build_expression(st, &expr->data.operands[0]);
         result = add_variable(st, boolType);
         add_unary_op(st, expr->location, CF_BOOL_NEGATE, temp, result);
+        break;
+    case AST_EXPR_NEG:
+        temp = build_expression(st, &expr->data.operands[0]);
+        const Variable *zero = make_zero(st, temp->type, expr->location);
+        result = add_variable(st, temp->type);
+        add_binary_op(st, expr->location, CF_INT_SUB, zero, temp, result);
         break;
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:

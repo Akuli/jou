@@ -57,6 +57,7 @@ static void free_expression(const AstExpression *expr)
         free_expression(&expr->data.operands[1]);
         free(expr->data.operands);
         break;
+    case AST_EXPR_NEG:
     case AST_EXPR_NOT:
     case AST_EXPR_ADDRESS_OF:
     case AST_EXPR_DEREFERENCE:
