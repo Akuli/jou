@@ -787,9 +787,8 @@ static AstToplevelNode *parse_import(const Token **tokens, const char *stdlib_pa
     free(path);
 
     if (parens) {
-        // The tokenizer checks that parentheses are balanced and doesn't place
-        // newline tokens inside parentheses.
-        assert(is_operator(*tokens, ")"));
+        if (!is_operator(*tokens, ")"))
+            fail_with_parse_error(*tokens, "a ')'");
         ++*tokens;
     }
 
