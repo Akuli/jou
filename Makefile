@@ -28,12 +28,12 @@ clean:
 
 .PHONY: fulltest
 fulltest: all
-	tests/runtests.sh './jou %s'
-	tests/runtests.sh './jou -O3 %s'
-	tests/runtests.sh './jou --verbose %s'
-	tests/runtests.sh 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou %s'
-	tests/runtests.sh 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou -O3 %s'
+	./runtests.sh './jou %s'
+	./runtests.sh './jou -O3 %s'
+	./runtests.sh './jou --verbose %s'
+	./runtests.sh 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou %s'
+	./runtests.sh 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou -O3 %s'
 
 .PHONY: valgrind
 valgrind: all
-	tests/runtests.sh 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou %s'
+	./runtests.sh 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou %s'

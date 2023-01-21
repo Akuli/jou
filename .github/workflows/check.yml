@@ -5,14 +5,43 @@ on:
   pull_request:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  windows-test:
     strategy:
       matrix:
         llvm-version: [11, 13]
+    runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
-    - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
+    - uses: egor-tensin/setup-clang@v1
+    - run: 7z x    # https://stackoverflow.com/a/66150675
+    - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make fulltest
+
+  linux-test:
+    strategy:
+      matrix:
+        llvm-version: [11, 13]
+        os: ['ubuntu-latest', 'windows-latest']
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v2
+    - if: ${{ contains(matrix.os, 'ubuntu') }}
+      run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
+    - if: ${{ contains(matrix.os, 'windows') }}
+      uses: egor-tensin/setup-clang@v1
+    - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make fulltest
+
+  linux-fulltest:
+    strategy:
+      matrix:
+        llvm-version: [11, 13]
+        os: ['ubuntu-latest', 'windows-latest']
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v2
+    - if: ${{ contains(matrix.os, 'ubuntu') }}
+      run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
+    - if: ${{ contains(matrix.os, 'windows') }}
+      uses: egor-tensin/setup-clang@v1
     - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make fulltest
 
   fuzzer:
