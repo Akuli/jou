@@ -1,0 +1,107 @@
+# At midnight UTC, create a zip file of everything needed to run
+# Jou on Windows, and upload it to GitHub releases. This makes it
+# easy to use Jou on Windows.
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # Can also be triggered manually from github UI
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: git fetch --tags
+    - id: tagname
+      run: |
+        if git tag -l --contains HEAD | grep .; then
+          # Commit already tagged
+          echo "::set-output name=datetag::"
+        else
+          # When building just after midnight, use the date of the previous day, not current day.
+          # When triggered manually, use (most likely) the current date.
+          # This way, the date represents when the changes were made.
+          echo "::set-output name=datetag::master-$(date -d '5 minutes ago' +'%Y-%m-%d')"
+        fi
+    - if: ${{ steps.tagname.outputs.datetag != '' }}
+      name: Download latest GitHub actions build results
+      uses: actions/github-script@v3
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        script: |
+          const fs = require('fs');
+
+          // Based on:  https://github.com/python/typeshed/blob/82fa8473ffddc57a53b4dbcb1063aa2e66352ca9/.github/workflows/mypy_primer_comment.yml
+          const run = (
+              await github.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: 'main',
+              })
+            ).data.workflow_runs
+            .filter(run => run.name === '.github/workflows/windows.yml')
+            .sort((a, b) => (+new Date(b.created_at)) - (+new Date(a.created_at)))[0];
+
+          const [artifact] = (
+              await github.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id,
+              })
+            ).data.artifacts
+            .filter(a => a.name === 'build');
+
+          const zip = await github.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: artifact.id,
+              archive_format: 'zip',
+          });
+
+          // https://stackoverflow.com/a/46779188
+          fs.writeFileSync("windows-build.zip", Buffer.from(zip.data));
+
+    - if: ${{ steps.tagname.outputs.datetag != '' }}
+      name: Create the zip file
+      run: |
+        unzip windows-build.zip
+        ls -l
+        mkdir -v jou
+        cp -v jou.exe jou
+        cp -v *.dll jou
+        cp -rv stdlib jou
+        zip -r jou.zip jou
+
+    # https://stackoverflow.com/a/64479344
+    - if: ${{ steps.tagname.outputs.datetag != '' }}
+      name: Create tag
+      uses: actions/github-script@v3
+      with:
+        github-token: ${{ github.token }}
+        script: |
+          github.git.createRef({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: "refs/tags/${{ steps.tagname.outputs.datetag }}",
+            sha: context.sha
+          })
+
+    - if: ${{ steps.tagname.outputs.datetag != '' }}
+      name: Create release
+      id: create_release
+      uses: actions/create-release@v1.0.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tagname.outputs.datetag }}
+        release_name: ${{ steps.tagname.outputs.datetag }}
+
+    - if: ${{ steps.tagname.outputs.datetag != '' }}
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: jou.zip
+        asset_name: jou_${{ steps.tagname.outputs.datetag }}.zip
+        asset_content_type: application/zip
