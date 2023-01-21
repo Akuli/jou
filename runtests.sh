@@ -27,7 +27,7 @@ else
     exit 2
 fi
 
-if which make; then
+if which make >/dev/null; then
     make
 fi
 

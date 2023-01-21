@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e -o pipefail
 
-if which make; then
+if which make >/dev/null; then
     make
 fi
 
