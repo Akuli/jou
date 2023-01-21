@@ -22,12 +22,12 @@ jobs:
       # Using gcc instead of clang, because gcc "just works".
       - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
       - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
-      - run: mkdir -v jou
-      - run: cp -vr jou.exe bin/LLVM-C.dll jou/
+      - run: mkdir -v exe-and-dlls
+      - run: cp -vr jou.exe bin/LLVM-C.dll exe-and-dlls/
       - uses: actions/upload-artifact@v3
         with:
           name: exe-and-dlls
-          path: jou/
+          path: exe-and-dlls
 
   # TODO: Doesn't work, lots of errors
 #  test:
