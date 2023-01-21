@@ -10,48 +10,53 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - run: git fetch --tags
     - id: tagname
       run: |
         if git tag -l --contains HEAD | grep .; then
           # Commit already tagged
-          echo "::set-output name=datetag::"
+          echo datetag= >> $GITHUB_OUTPUT
         else
           # When building just after midnight, use the date of the previous day, not current day.
           # When triggered manually, use (most likely) the current date.
           # This way, the date represents when the changes were made.
-          echo "::set-output name=datetag::master-$(date -d '5 minutes ago' +'%Y-%m-%d')"
+          echo datetag=$(date -d '5 minutes ago' +'%Y-%m-%d') > $GITHUB_OUTPUT
         fi
     - if: ${{ steps.tagname.outputs.datetag != '' }}
       name: Download latest GitHub actions build results
-      uses: actions/github-script@v3
+      uses: actions/github-script@v6
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
         script: |
           const fs = require('fs');
 
           // Based on:  https://github.com/python/typeshed/blob/82fa8473ffddc57a53b4dbcb1063aa2e66352ca9/.github/workflows/mypy_primer_comment.yml
-          const run = (
-              await github.actions.listWorkflowRunsForRepo({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                branch: 'main',
-              })
-            ).data.workflow_runs
-            .filter(run => run.name === '.github/workflows/windows.yml')
-            .sort((a, b) => (+new Date(b.created_at)) - (+new Date(a.created_at)))[0];
+          const allRuns = (
+            await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: 'main',
+            })
+          ).data.workflow_runs;
+          console.log(`Found ${allRuns.length} runs`);
+          console.log(allRuns.map(r => r.name));
+          const run = allRuns
+            .filter(r => r.name === '.github/workflows/windows.yml')
+            .sort((a, b) => (+new Date(b.run_started_at)) - (+new Date(a.run_started_at)))[0];
 
-          const [artifact] = (
-              await github.actions.listWorkflowRunArtifacts({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: run.id,
-              })
-            ).data.artifacts
-            .filter(a => a.name === 'build');
+          const allArtifacts = (
+            await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+            })
+          ).data.artifacts;
+          console.log(`Found ${allArtifacts.length} artifacts`);
+          console.log(allArtifacts.map(a => a.name));
+          const artifact = allArtifacts.filter(a => a.name === 'exe-and-dlls')[0];
 
-          const zip = await github.actions.downloadArtifact({
+          const zip = await github.rest.actions.downloadArtifact({
               owner: context.repo.owner,
               repo: context.repo.repo,
               artifact_id: artifact.id,
@@ -59,49 +64,23 @@ jobs:
           });
 
           // https://stackoverflow.com/a/46779188
-          fs.writeFileSync("windows-build.zip", Buffer.from(zip.data));
+          fs.writeFileSync("exe-and-dlls.zip", Buffer.from(zip.data));
 
     - if: ${{ steps.tagname.outputs.datetag != '' }}
       name: Create the zip file
       run: |
-        unzip windows-build.zip
+        unzip exe-and-dlls.zip
         ls -l
         mkdir -v jou
         cp -v jou.exe jou
         cp -v *.dll jou
         cp -rv stdlib jou
-        zip -r jou.zip jou
-
-    # https://stackoverflow.com/a/64479344
-    - if: ${{ steps.tagname.outputs.datetag != '' }}
-      name: Create tag
-      uses: actions/github-script@v3
-      with:
-        github-token: ${{ github.token }}
-        script: |
-          github.git.createRef({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            ref: "refs/tags/${{ steps.tagname.outputs.datetag }}",
-            sha: context.sha
-          })
+        zip -r jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip jou
 
     - if: ${{ steps.tagname.outputs.datetag != '' }}
       name: Create release
-      id: create_release
-      uses: actions/create-release@v1.0.0
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: ncipollo/release-action@v1
       with:
-        tag_name: ${{ steps.tagname.outputs.datetag }}
-        release_name: ${{ steps.tagname.outputs.datetag }}
-
-    - if: ${{ steps.tagname.outputs.datetag != '' }}
-      uses: actions/upload-release-asset@v1.0.1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: jou.zip
-        asset_name: jou_${{ steps.tagname.outputs.datetag }}.zip
-        asset_content_type: application/zip
+        commit: main
+        tag: ${{ steps.tagname.outputs.datetag }}
+        artifacts: jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip
