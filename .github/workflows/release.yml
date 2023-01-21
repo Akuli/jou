@@ -64,13 +64,12 @@ jobs:
           });
 
           // https://stackoverflow.com/a/46779188
-          fs.writeFileSync("windows-build.zip", Buffer.from(zip.data));
-          console.log("Wrote windows-build.zip");
+          fs.writeFileSync("exe-and-dlls.zip", Buffer.from(zip.data));
 
     - if: ${{ steps.tagname.outputs.datetag != '' }}
       name: Create the zip file
       run: |
-        unzip windows-build.zip
+        unzip exe-and-dlls.zip
         ls -l
         mkdir -v jou
         cp -v jou.exe jou
