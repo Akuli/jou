@@ -15,6 +15,34 @@ jobs:
     - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
     - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make fulltest
 
+  # Creates a zip file that contains jou.exe, DLLs and the standard library.
+  # This is the easiest way to use Jou on Windows.
+  #
+  # Even though the resulting executable runs on windows, it is compiled on linux.
+  # This is by far the easiest way to compile for Windows that I know of.
+  windows-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download LLVM binaries
+      # Apparently the exe file is created with nsis installer and 7z can extract from it.
+      # Figured out by looking at source code of https://github.com/KyleMayes/install-llvm-action
+      run: |
+        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/LLVM-13.0.1-win64.exe
+        7z x LLVM-13.0.1-win32.exe bin/LLVM-C.dll lib/LLVM-C.lib
+    # llvm-13-dev needed for the header files
+    # Using gcc instead of clang, because gcc "just works".
+    - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
+    - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
+    - run: mkdir jou
+    - run: cp jou.exe jou
+    - run: cp bin/LLVM-C.dll jou
+    - run: cp -r stdlib jou
+    - uses: actions/upload-artifact@v3
+      with:
+        name: windows-zip
+        path: jou/
+
   fuzzer:
     runs-on: ubuntu-latest
     strategy:

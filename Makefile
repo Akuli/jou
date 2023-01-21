@@ -8,13 +8,7 @@ CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompati
 CFLAGS += -std=c11
 CFLAGS += -g
 CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
-
-ifeq ($(findstring $(CC),w64),w64)
-	# Windows build, link with lib file
-	LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs)
-else
-	LDFLAGS += LLVM-C.lib -static
-endif
+LDFLAGS ?= $(shell $(LLVM_CONFIG) --ldflags --libs)
 
 obj/%.o: src/%.c $(wildcard src/*.h)
 	mkdir -vp obj && $(CC) -c $(CFLAGS) $< -o $@
