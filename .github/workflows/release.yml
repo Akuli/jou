@@ -10,7 +10,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - run: git fetch --tags
     - id: tagname
       run: |
@@ -75,38 +75,12 @@ jobs:
         cp -v jou.exe jou
         cp -v *.dll jou
         cp -rv stdlib jou
-        zip -r jou.zip jou
-
-    # https://stackoverflow.com/a/64479344
-    - if: ${{ steps.tagname.outputs.datetag != '' }}
-      name: Create tag
-      uses: actions/github-script@v6
-      with:
-        github-token: ${{ github.token }}
-        script: |
-          github.rest.git.createRef({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            ref: "refs/tags/${{ steps.tagname.outputs.datetag }}",
-            sha: context.sha
-          })
+        zip -r jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip jou
 
     - if: ${{ steps.tagname.outputs.datetag != '' }}
       name: Create release
-      id: create_release
-      uses: actions/create-release@v1.0.0
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: ncipollo/release-action@v1
       with:
-        tag_name: ${{ steps.tagname.outputs.datetag }}
-        release_name: ${{ steps.tagname.outputs.datetag }}
-
-    - if: ${{ steps.tagname.outputs.datetag != '' }}
-      uses: actions/upload-release-asset@v1.0.1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: jou.zip
-        asset_name: jou_${{ steps.tagname.outputs.datetag }}.zip
-        asset_content_type: application/zip
+        commit: main
+        tag: ${{ steps.tagname.outputs.datetag }}
+        artifacts: jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip
