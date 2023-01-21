@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e -o pipefail
 
-make
+#make
 rm -rf tmp/fuzzer
 mkdir -vp tmp/fuzzer
 
@@ -21,7 +21,7 @@ while [ $(date +%s) -lt $end ]; do
     for file in tmp/fuzzer/input*.jou; do
         # The "sh" shell prints "Segmentation fault" to stderr when that happens.
         # I couldn't get bash to make it redirectable.
-        (sh -c "./jou $file" || true) &> tmp/fuzzer/log.txt
+        (bash -c "./jou $file 2>&1" || true) | tr -d '\r' > tmp/fuzzer/log.txt
 
         # One-line compiler error message made up of printable ASCII chars = good
         # https://unix.stackexchange.com/a/194538
