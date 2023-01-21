@@ -32,11 +32,11 @@ jobs:
           const fs = require('fs');
 
           // Based on:  https://github.com/python/typeshed/blob/82fa8473ffddc57a53b4dbcb1063aa2e66352ca9/.github/workflows/mypy_primer_comment.yml
-          console.log(              await github.actions.listWorkflowRunsForRepo({
+          console.log(      JSON.stringify(        await github.actions.listWorkflowRunsForRepo({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 branch: 'main',
-              }));
+              })));
           const run = (
               await github.actions.listWorkflowRunsForRepo({
                 owner: context.repo.owner,
