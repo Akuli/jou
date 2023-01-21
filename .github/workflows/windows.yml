@@ -5,22 +5,10 @@ on:
   pull_request:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        llvm-version: [11, 13]
-    steps:
-      - uses: actions/checkout@v2
-      - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
-      - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make fulltest
-
-  # Creates a zip file that contains jou.exe, DLLs and the standard library.
-  # This is the easiest way to use Jou on Windows.
-  #
+  # Creates jou.exe and downloads the DLL files it needs.
   # Even though the resulting executable runs on windows, it is compiled on linux.
   # This is by far the easiest way to compile for Windows that I know of.
-  windows-build:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -34,12 +22,12 @@ jobs:
       # Using gcc instead of clang, because gcc "just works".
       - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
       - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
-      - run: mkdir -vp zipfile/jou
-      - run: cp -vr jou.exe bin/LLVM-C.dll stdlib zipfile/jou
+      - run: mkdir -v jou
+      - run: cp -vr jou.exe bin/LLVM-C.dll jou/
       - uses: actions/upload-artifact@v3
         with:
-          name: windows-zip
-          path: zipfile/
+          name: exe-and-dlls
+          path: jou/
 
   windows-test:
     needs: windows-build
@@ -50,16 +38,8 @@ jobs:
         run: rm -rf stdlib
       - uses: actions/download-artifact@v3
         with:
-          name: windows-zip
+          name: exe-and-dlls
       - shell: bash
         run: ls -la
-
-  fuzzer:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        llvm-version: [11, 13]
-    steps:
-      - uses: actions/checkout@v2
-      - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
-      - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} ./fuzzer.sh
+      - shell: bash
+        run: tests/runtests.sh './jou.exe %s'
