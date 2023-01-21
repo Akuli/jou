@@ -17,7 +17,7 @@ jobs:
       - name: Verify LLVM installer
         run: |
           ls -lh LLVM-13.0.1-win64.exe
-          if [ $(sha256sum LLVM-13.0.1-win64.exe) != 9d15be034d52ec57cfc97615634099604d88a54761649498daa7405983a7e12f ]; then
+          if [ "$(sha256sum LLVM-13.0.1-win64.exe)" != "9d15be034d52ec57cfc97615634099604d88a54761649498daa7405983a7e12f  LLVM-13.0.1-win64.exe" ]; then
             echo "sha sum mismatch! something has changed!"
             exit 1
           fi
