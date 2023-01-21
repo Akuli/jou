@@ -39,13 +39,13 @@ jobs:
               branch: 'main',
             })
           ).data.workflow_runs;
-          console.log(runs);
           console.log(runs.map(r => r.name));
-          console.log(runs.map(r => typeof r));
-          console.log(runs.map(r => Object.entries(r)));
+          console.log(runs.filter(run => run.name === '.github/workflows/windows.yml').map(r => r.name));
+          console.log(runs.filter(run => run.name === '.github/workflows/windows.yml').sort((a, b) => (+new Date(b.run_started_at)) - (+new Date(a.run_started_at))).map(r => r.name));
           const run = runs
             .filter(run => run.name === '.github/workflows/windows.yml')
-            .sort((a, b) => (+new Date(b.created_at)) - (+new Date(a.created_at)))[0];
+            .sort((a, b) => (+new Date(b.run_started_at)) - (+new Date(a.run_started_at)))[0];
+          console.log(run);
 
           const [artifact] = (
               await github.actions.listWorkflowRunArtifacts({
