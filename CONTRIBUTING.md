@@ -1,7 +1,9 @@
 This file explains how to develop the Jou compiler.
 
 
-## Setup for Linux
+## Setup
+
+<details> <summary>Linux</summary>
 
 Following the [instructions in the README](README.md#setup-linux) is enough.
 
@@ -9,8 +11,9 @@ To edit the C code, you can use any editor that uses `clangd`.
 The `make` command creates a file `compile_flags.txt`
 to help `clangd` find the LLVM header files.
 
-
-## Setup for 64-bit Windows
+</details>
+    
+<details> <summary>64-bit Windows</summary>
 
 1. Download and install Git from [Git's website](https://git-scm.com/download/win) if you don't have it already.
 1. To install LLVM, download and run LLVM's GitHub releases:
@@ -53,6 +56,8 @@ LLVM conveniently comes with a DLL file that CodeBlocks developers apparently fo
 
 CodeBlocks doesn't have a dark theme by default.
 You can install a dark theme from e.g. [https://github.com/virtualmanu/Codeblocks-Themes](https://github.com/virtualmanu/Codeblocks-Themes).
+
+</details>
 
 
 ## How does the compiler work?
