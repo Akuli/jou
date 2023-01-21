@@ -51,6 +51,9 @@ Non-goals:
 
 ## Setup
 
+These instructions are for using Jou.
+The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 <details> <summary>Linux</summary>
 
 1. Install Git, LLVM 11 or 13, clang 11 or 13 (same version as LLVM) and `make`.
