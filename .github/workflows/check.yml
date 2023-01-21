@@ -28,8 +28,8 @@ jobs:
       # Apparently the exe file is created with nsis installer and 7z can extract from it.
       # Figured out by looking at source code of https://github.com/KyleMayes/install-llvm-action
       run: |
-        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/LLVM-13.0.1-win64.exe
-        7z x LLVM-13.0.1-win32.exe bin/LLVM-C.dll lib/LLVM-C.lib
+        wget --no-verbose https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/LLVM-13.0.1-win64.exe
+        7z x LLVM-13.0.1-win64.exe bin/LLVM-C.dll lib/LLVM-C.lib
     # llvm-13-dev needed for the header files
     # Using gcc instead of clang, because gcc "just works".
     - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
