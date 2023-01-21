@@ -49,20 +49,9 @@ Non-goals:
     (e.g. complicated import system with weird syntax and much more weird runtime behavior)
 
 
-## Setup (64-bit Windows)
+## Setup
 
-1. Go to releases on GitHub. It's in the sidebar at right.
-2. Choose a release (latest is probably good) and download a `.zip` file whose name starts with `jou_windows_64bit_`.
-3. Extract the zip file somewhere on your computer.
-4. You should now have a folder that contains `jou.exe`, lots of `.dll` files, and a subdirectory named `stdlib`.
-    Add this folder to `PATH`.
-    If you don't know how to add a folder to `PATH`,
-    you can e.g. search "windows add to path" on youtube.
-5. Write Jou code into a file and run `jou filename.jou` on a command prompt.
-    Try [the hello world program](examples/hello.jou), for example.
-
-
-## Setup (Linux)
+<details> <summary>Linux</summary>
 
 1. Install Git, LLVM 11 or 13, clang 11 or 13 (same version as LLVM) and `make`.
     Like this, for example, assuming you have `apt`:
@@ -105,6 +94,22 @@ You can also specify the version manually by setting the `LLVM_CONFIG` variable:
 $ make clean    # Delete files that were compiled with previous LLVM version
 $ LLVM_CONFIG=llvm-config-13 make
 ```
+
+</details>
+
+<details> <summary>Windows</summary>
+
+1. Go to releases on GitHub. It's in the sidebar at right.
+2. Choose a release (latest is probably good) and download a `.zip` file whose name starts with `jou_windows_64bit_`.
+3. Extract the zip file somewhere on your computer.
+4. You should now have a folder that contains `jou.exe`, lots of `.dll` files, and a subdirectory named `stdlib`.
+    Add this folder to `PATH`.
+    If you don't know how to add a folder to `PATH`,
+    you can e.g. search "windows add to path" on youtube.
+5. Write Jou code into a file and run `jou filename.jou` on a command prompt.
+    Try [the hello world program](examples/hello.jou), for example.
+
+</details>
 
 
 ## Editor support
