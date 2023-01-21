@@ -24,7 +24,7 @@ to help `clangd` find the LLVM header files.
     [their official website](http://www.codeblocks.org/downloads/binaries/#imagesoswindows48pnglogo-microsoft-windows).
     Make sure to download a version that comes with mingw,
     such as `codeblocks-20.03mingw-setup.exe`.
-    In the setup, the "standard installation" contains everything you need.
+    In the setup, the "Standard" installation contains everything you need.
 4. Add `C:\Program Files\CodeBlocks\MinGW\bin` to the `PATH` environment variable through Control Panel.
     Without this, CodeBlocks doesn't find `clang`, the C compiler that LLVM comes with that is used to compile the Jou compiler.
     Let me know if you need more detailed instructions for this step.
