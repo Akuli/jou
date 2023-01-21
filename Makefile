@@ -2,13 +2,19 @@ LLVM_CONFIG ?= $(shell which llvm-config-13 || which llvm-config-11)
 
 SRC := $(wildcard src/*.c)
 
-CC := $(shell $(LLVM_CONFIG) --bindir)/clang
+CC ?= $(shell $(LLVM_CONFIG) --bindir)/clang
 CFLAGS += -Wall -Wextra -Wpedantic
 CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=implicit-fallthrough
 CFLAGS += -std=c11
 CFLAGS += -g
 CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
-LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs)
+
+ifeq ($(findstring $(CC),w64),w64)
+	# Windows build, link with lib file
+	LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs)
+else
+	LDFLAGS += LLVM-C.lib -static
+endif
 
 obj/%.o: src/%.c $(wildcard src/*.h)
 	mkdir -vp obj && $(CC) -c $(CFLAGS) $< -o $@
