@@ -49,7 +49,7 @@ Non-goals:
     (e.g. complicated import system with weird syntax and much more weird runtime behavior)
 
 
-## Setup (Windows)
+## Setup (64-bit Windows)
 
 1. Go to releases on GitHub. It's in the sidebar at right.
 2. Choose a release (latest is probably good) and download a `.zip` file whose name starts with `jou_windows_64bit_`.
@@ -59,15 +59,17 @@ Non-goals:
     If you don't know how to add a folder to `PATH`,
     you can e.g. search "windows add to path" on youtube.
 5. Write Jou code into a file and run `jou filename.jou` on a command prompt.
+    Try [the hello world program](examples/hello.jou), for example.
 
 
 ## Setup (Linux)
 
-1. Install Git, LLVM 11 or 13, clang 11 or 13 (same version as LLVM) and `make`:
+1. Install Git, LLVM 11 or 13, clang 11 or 13 (same version as LLVM) and `make`.
+    Like this, for example, assuming you have `apt`:
     ```
     $ sudo apt install git llvm-13-dev clang-13 make
     ```
-2. Download and compile Jou:
+2. Download and compile Jou.
     ```
     $ git clone https://github.com/Akuli/jou
     $ cd jou
@@ -79,7 +81,7 @@ Non-goals:
     Hello World
     ```
     You can now run other Jou programs in the same way.
-4. (Optional) If you want to run Jou programs with `jou filename`
+4. (Optional) If you want to run Jou programs with simply `jou filename`
     instead of something like `./jou filename` or `/full/path/to/jou filename`,
     you can add the `jou` directory to your PATH.
     To do so, edit `~/.bashrc` (or whatever other file you have instead, e.g. `~/.zshrc`):
@@ -90,8 +92,9 @@ Non-goals:
     ```
     export PATH="$PATH:/home/yourname/jou/"
     ```
-    Replace `$HOME/jou/` with the path to the folder (not the executable file) where you downloaded Jou.
-    Note that the `~` character does not work here, so you need to use `$HOME` or `/home/yourname` instead.
+    Replace `/home/yourname/jou/` with the path to the folder (not the executable file) where you downloaded Jou.
+    Note that the `~` character does not work here,
+    so you need to use a full path (or `$HOME`) instead.
 
 By default, the `make` command decides automatically
 whether to use LLVM and clang version 11 or 13,
@@ -104,16 +107,18 @@ $ LLVM_CONFIG=llvm-config-13 make
 ```
 
 
-## How does the compiler work?
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-
 ## Editor support
 
 Tell your editor to syntax-highlight `.jou` files as if they were Python files.
 You may want to copy some other Python settings too,
 such as how to handle indentations and comments.
+
+If your editor uses a langserver for Python,
+make sure it doesn't use the same langserver for Jou.
+For example, vscode uses the Pylance language server,
+and you need to disable it for `.jou` files;
+otherwise you get lots of warnings whenever you edit
+Jou code that would be invalid as Python code.
 
 For example, I use the following configuration with the
 [Porcupine](https://github.com/Akuli/porcupine) editor:
@@ -131,16 +136,6 @@ To apply this configuration, copy/paste it to end of Porcupine's `filetypes.toml
 (menubar at top --> *Settings* --> *Config Files* --> *Edit filetypes.toml*).
 
 
-## TODO
+## How does the compiler work?
 
-This list tends to have a few outdated details,
-but it should give you some kind of idea about what is still missing.
-
-- Write syntax spec
-- REPL, if possible?
-- Arrays
-- Enums
-- A reasonable way to import structs from C (not just functions).
-    - I don't like the zig/rust things that attempt to parse header files and get confused by macros. Something else?
-    - A good combination of odd corner cases for testing is probably `struct stat` and the `stat()` function.
-- Self-hosted compiler??!?!
+See [CONTRIBUTING.md](CONTRIBUTING.md).

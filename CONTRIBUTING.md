@@ -1,6 +1,15 @@
 This file explains how to develop the Jou compiler.
 
 
+## Setup for Linux
+
+Following the [instructions in the README](README.md#setup-linux) is enough.
+
+To edit the C code, you can use any editor that uses `clangd`.
+The `make` command creates a file `compile_flags.txt`
+to help `clangd` find the LLVM header files.
+
+
 ## Setup for 64-bit Windows
 
 1. Download and install Git from [Git's website](https://git-scm.com/download/win) if you don't have it already.
@@ -46,15 +55,6 @@ CodeBlocks doesn't have a dark theme by default.
 You can install a dark theme from e.g. [https://github.com/virtualmanu/Codeblocks-Themes](https://github.com/virtualmanu/Codeblocks-Themes).
 
 
-## Setup for Linux
-
-Set up Jou with the [instructions in the README](README.md).
-
-To edit the C code, you can use any editor that uses `clangd`.
-The `make` command creates a file `compile_flags.txt`
-to help `clangd` find the LLVM header files.
-
-
 ## How does the compiler work?
 
 The compiler is currently written in C. At a high level, the compilation steps are:
@@ -82,6 +82,8 @@ read `src/jou_compiler.h` and have a quick look at `src/util.h`.
 
 ## Tests
 
+**Note: Currently tests do not work on windows.**
+
 GitHub Actions runs all tests when you make a pull request,
 so you don't need to run tests locally if you only intend to fix a couple small things.
 That said, test-driven development works very well for developing compilers.
@@ -95,6 +97,8 @@ $ make test         # Run all tests quickly. Good for local development.
 $ make valgrind     # Run some of the tests with valgrind.
 $ make fulltest     # Very slow. Includes the other two. Runs in CI.
 ```
+
+You need valgrind (e.g. `sudo apt install valgrind`) for `make valgrind` and `make fulltest`.
 
 Each of these commands:
 - compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled
