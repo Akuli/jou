@@ -32,18 +32,18 @@ jobs:
           const fs = require('fs');
 
           // Based on:  https://github.com/python/typeshed/blob/82fa8473ffddc57a53b4dbcb1063aa2e66352ca9/.github/workflows/mypy_primer_comment.yml
-          console.log(      JSON.stringify(        await github.actions.listWorkflowRunsForRepo({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                branch: 'main',
-              })));
-          const run = (
-              await github.actions.listWorkflowRunsForRepo({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                branch: 'main',
-              })
-            ).data.workflow_runs
+          const runs = (
+            await github.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: 'main',
+            })
+          ).data.workflow_runs;
+          console.log(runs);
+          console.log(runs.map(r => r.name));
+          console.log(runs.map(r => typeof r));
+          console.log(runs.map(r => Object.entries(r)));
+          const run = runs
             .filter(run => run.name === '.github/workflows/windows.yml')
             .sort((a, b) => (+new Date(b.created_at)) - (+new Date(a.created_at)))[0];
 
