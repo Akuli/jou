@@ -85,8 +85,8 @@ Non-goals:
     ```
     cd Desktop\jou
     jou.exe examples\hello.jou
-    Hello World
     ```
+    You should see `Hello World` printed.
 
 If CodeBlocks won't start and complains about a missing file `api-ms-win-crt-string-l1-1-0.dll`,
 make sure that LLVM is installed and you remembered to add it to `PATH`.
