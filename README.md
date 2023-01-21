@@ -51,11 +51,57 @@ Non-goals:
 
 ## Setup
 
+### Windows (64-bit)
+
+1. Download and install Git from [Git's website](https://git-scm.com/download/win) if you don't have it already.
+1. To install LLVM, download and run LLVM's GitHub releases:
+    [LLVM-13.0.1-win64.exe from here](https://github.com/llvm/llvm-project/releases/tag/llvmorg-13.0.1), or
+    [LLVM-11.1.0-win64.exe from here](https://github.com/llvm/llvm-project/releases/tag/llvmorg-11.1.0).
+    Check the "Add LLVM to the system PATH for all users" checkbox during the installation.
+2. Download and install codeblocks from one of the download sites linked on
+    [their official website](http://www.codeblocks.org/downloads/binaries/#imagesoswindows48pnglogo-microsoft-windows).
+    Make sure to download a version that comes with mingw,
+    such as `codeblocks-20.03mingw-setup.exe`.
+    In the setup, the "standard installation" contains everything you need.
+4. Add `C:\Program Files\CodeBlocks\MinGW\bin` to the `PATH` environment variable through Control Panel.
+    Without this, CodeBlocks doesn't find `clang`, the C compiler that LLVM comes with that is used to compile the Jou compiler.
+    Let me know if you need more detailed instructions for this step.
+5. Clone the project with the command prompt:
+    ```
+    cd Desktop
+    git clone https://github.com/Akuli/jou
+    ```
+    You can put the project anywhere. The above command places it on the desktop.
+6. Open the `jou` folder that you cloned with Git.
+7. Right-click `llvm_headers.zip` and extract it.
+    You should end up with a folder named `llvm_headers` inside the `jou` folder.
+8. Start CodeBlocks. It will probably ask you what should be the default C compiler.
+    This doesn't really matter because Jou comes with configuration that overrides the default anyway.
+8. Open the CodeBlocks project (`jou.cbp` in the `jou` folder) with CodeBlocks.
+10. Click the build button (yellow gear) at top of CodeBlocks.
+    If everything succeeds, this creates `jou.exe`.
+    If something goes wrong, please create an issue on GitHub.
+11. Run a Jou program:
+    ```
+    cd Desktop\jou
+    jou.exe examples\hello.jou
+    ```
+    You should see `Hello World` printed.
+
+If CodeBlocks won't start and complains about a missing file `api-ms-win-crt-string-l1-1-0.dll`,
+make sure that LLVM is installed and you remembered to add it to `PATH`.
+LLVM conveniently comes with a DLL file that CodeBlocks developers apparently forgot to include.
+
+CodeBlocks doesn't have a dark theme by default.
+You can install a dark theme from e.g. [https://github.com/virtualmanu/Codeblocks-Themes](https://github.com/virtualmanu/Codeblocks-Themes).
+
+
+### Linux
+
 You need:
-- An operating system that is something else than Windows
 - Git
-- LLVM 11
-- clang 11
+- LLVM 11 or 13
+- clang 11 or 13 (same version as LLVM)
 - make
 - valgrind
 
@@ -75,6 +121,20 @@ $ make
 $ ./jou examples/hello.jou
 Hello World
 ```
+
+By default, the `make` command decides automatically
+whether to use LLVM and clang version 11 or 13,
+preferring version 13 if it is installed.
+You can also specify the version manually by setting the `LLVM_CONFIG` variable:
+
+```
+$ make clean    # Delete files that were compiled with previous LLVM version
+$ LLVM_CONFIG=llvm-config-13 make
+```
+
+To edit the C code, you can use any editor that uses `clangd`.
+The `make` command creates a file `compile_flags.txt`
+to help `clangd` find the LLVM header files.
 
 
 ## How does the compiler work?
@@ -177,22 +237,6 @@ because the fuzzer works by feeding random bytes to the compiler.
 ```
 $ ./fuzzer.sh
 ```
-
-
-## LLVM versions
-
-Jou supports LLVM 11 and LLVM 13.
-The default is LLVM 11, because I believe it is more widely available.
-To use LLVM 13 instead, set `LLVM_CONFIG` when compiling:
-
-```
-$ sudo apt install llvm-13-dev clang-13
-$ make clean
-$ LLVM_CONFIG=llvm-config-13 make
-```
-
-Other versions of LLVM may work too.
-Please create an issue if you need to use a different version of LLVM.
 
 
 ## TODO
