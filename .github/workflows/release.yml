@@ -16,12 +16,12 @@ jobs:
       run: |
         if git tag -l --contains HEAD | grep .; then
           # Commit already tagged
-          echo "::set-output name=datetag::"
+          echo datetag= >> $GITHUB_OUTPUT
         else
           # When building just after midnight, use the date of the previous day, not current day.
           # When triggered manually, use (most likely) the current date.
           # This way, the date represents when the changes were made.
-          echo "::set-output name=datetag::master-$(date -d '5 minutes ago' +'%Y-%m-%d')"
+          echo datetag=$(date -d '5 minutes ago' +'%Y-%m-%d') > $GITHUB_OUTPUT
         fi
     - if: ${{ steps.tagname.outputs.datetag != '' }}
       name: Download latest GitHub actions build results
@@ -54,8 +54,7 @@ jobs:
           ).data.artifacts;
           console.log(`Found ${allArtifacts.length} artifacts`);
           console.log(allArtifacts.map(a => a.name));
-          console.log(allArtifacts);
-          const artifact = allArtifacts.filter(a => a.name === 'build')[0];
+          const artifact = allArtifacts.filter(a => a.name === 'exe-and-dlls')[0];
 
           const zip = await github.actions.downloadArtifact({
               owner: context.repo.owner,
