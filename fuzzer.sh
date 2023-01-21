@@ -1,7 +1,10 @@
 #!/bin/bash
 set -e -o pipefail
 
-make
+if which make; then
+    make
+fi
+
 rm -rf tmp/fuzzer
 mkdir -vp tmp/fuzzer
 

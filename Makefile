@@ -26,10 +26,6 @@ jou: $(SRC:src/%.c=obj/%.o)
 clean:
 	rm -rvf obj jou tests/tmp
 
-.PHONY: test
-test: all
-	tests/runtests.sh './jou %s'
-
 .PHONY: fulltest
 fulltest: all
 	tests/runtests.sh './jou %s'

@@ -11,15 +11,25 @@
 export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
-if [ $# != 1 ] || [[ "$1" =~ ^- ]]; then
-    echo "Usage: $0 'jou %s'" >&2
-    echo "The %s will be replaced by the name of a jou file." >&2
+if [ $# == 0 ]; then
+    # No arguments --> run tests in the basic/simple way
+    if [ -n "$MINGW_PREFIX" ]; then
+        # windows + git bash
+        command_template='./jou.exe %s'
+    else
+        command_template='./jou %s'
+    fi
+elif [ $# == 1 ] && [[ "$1" =~ ^[^-] ]]; then
+    command_template="$1"
+else
+    echo "Usage: $0 [command_template]" >&2
+    echo "command_template can be e.g. './jou %s', where %s will be replaced by a jou file." >&2
     exit 2
 fi
-command_template="$1"
 
-# Go to project root.
-cd "$(dirname "$0")"/..
+if which make; then
+    make
+fi
 
 rm -rf tmp/tests
 mkdir -vp tmp/tests
