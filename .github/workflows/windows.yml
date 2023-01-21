@@ -29,13 +29,11 @@ jobs:
           name: exe-and-dlls
           path: jou/
 
-  windows-test:
+  test:
     needs: windows-build
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
-      - shell: bash
-        run: rm -rf stdlib
       - uses: actions/download-artifact@v3
         with:
           name: exe-and-dlls
@@ -43,3 +41,5 @@ jobs:
         run: ls -la
       - shell: bash
         run: tests/runtests.sh './jou.exe %s'
+
+  
