@@ -32,29 +32,30 @@ jobs:
           const fs = require('fs');
 
           // Based on:  https://github.com/python/typeshed/blob/82fa8473ffddc57a53b4dbcb1063aa2e66352ca9/.github/workflows/mypy_primer_comment.yml
-          const runs = (
+          const allRuns = (
             await github.actions.listWorkflowRunsForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               branch: 'main',
             })
           ).data.workflow_runs;
-          console.log(runs.map(r => r.name));
-          console.log(runs.filter(run => run.name === '.github/workflows/windows.yml').map(r => r.name));
-          console.log(runs.filter(run => run.name === '.github/workflows/windows.yml').sort((a, b) => (+new Date(b.run_started_at)) - (+new Date(a.run_started_at))).map(r => r.name));
-          const run = runs
-            .filter(run => run.name === '.github/workflows/windows.yml')
+          console.log(`Found ${allRuns.length} runs`);
+          console.log(allRuns.map(r => r.name));
+          const run = allRuns
+            .filter(r => r.name === '.github/workflows/windows.yml')
             .sort((a, b) => (+new Date(b.run_started_at)) - (+new Date(a.run_started_at)))[0];
-          console.log(run);
 
-          const [artifact] = (
-              await github.actions.listWorkflowRunArtifacts({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: run.id,
-              })
-            ).data.artifacts
-            .filter(a => a.name === 'build');
+          const allArtifacts = (
+            await github.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+            })
+          ).data.artifacts;
+          console.log(`Found ${allArtifacts.length} artifacts`);
+          console.log(allArtifacts.map(a => a.name));
+          console.log(allArtifacts);
+          const artifact = allArtifacts.filter(a => a.name === 'build')[0];
 
           const zip = await github.actions.downloadArtifact({
               owner: context.repo.owner,
@@ -65,6 +66,7 @@ jobs:
 
           // https://stackoverflow.com/a/46779188
           fs.writeFileSync("windows-build.zip", Buffer.from(zip.data));
+          console.log("Wrote windows-build.zip");
 
     - if: ${{ steps.tagname.outputs.datetag != '' }}
       name: Create the zip file
