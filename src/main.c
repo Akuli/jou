@@ -1,3 +1,10 @@
+#ifndef _WIN32
+    // readlink() stuff
+    #define _POSIX_C_SOURCE 200112L
+    #include <unistd.h>
+#endif // _WIN32
+
+#include <assert.h>
 #include <libgen.h>
 #include <errno.h>
 #include <stdio.h>
@@ -202,27 +209,64 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
     }
 }
 
-static char *find_stdlib(const char *argv0)
+// argv[0] doesn't work as expected when Jou is ran through PATH.
+char *find_this_executable(void)
 {
-    char *s = strdup(argv0);
-    const char *exedir = dirname(s);
+    char *result;
+    const char *err;
 
-    // ./stdlib looks a bit ugly in error messages and debug output IMO
-    if (!strcmp(exedir, ".")) {
-        free(s);
-        return strdup("stdlib");
+#ifdef _WIN32
+    extern char *_pgmptr;  // A documented global variable in Windows. Full path to executable.
+    result = strdup(_pgmptr);
+    err = NULL;
+#else
+    int n = 10000;
+    result = calloc(1, n);
+    ssize_t ret = readlink("/proc/self/exe", result, n);
+
+    if (ret < 0)
+        err = strerror(errno);
+    else if (ret == n) {
+        static char s[100];
+        sprintf(s, "path is more than %d bytes long", n);
+        err=s;
+    } else {
+        assert(0<ret && ret<n);
+        err = NULL;
     }
+#endif
 
-    char *path = malloc(strlen(exedir) + 10);
-    strcpy(path, exedir);
-    free(s);
-    strcat(path, "/stdlib");
+    if(err) {
+        fprintf(stderr, "error finding current executable, needed to find the Jou standard library: %s\n", err);
+        exit(1);
+    }
+    return result;
+}
 
+static char *find_stdlib()
+{
+    char *exe = find_this_executable();
+    const char *exedir = dirname(exe);
+
+    char *path;
+    if (!strcmp(exedir, ".")) {
+        // ./stdlib looks a bit ugly in error messages and debug output IMO
+        path = strdup("stdlib");
+    } else {
+        path = malloc(strlen(exedir) + 10);
+        strcpy(path, exedir);
+        strcat(path, "/stdlib");
+    }
+    free(exe);
+
+    char *iojou = malloc(strlen(path) + 10);
+    sprintf(iojou, "%s/io.jou", path);
     struct stat st;
-    if (stat(path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+    if (stat(iojou, &st) != 0) {
         fprintf(stderr, "error: cannot find the Jou standard library in %s\n", path);
         exit(1);
     }
+    free(iojou);
 
     return path;
 }
@@ -231,7 +275,7 @@ int main(int argc, char **argv)
 {
     init_types();
 
-    struct CompileState compst = { .stdlib_path = find_stdlib(argv[0]) };
+    struct CompileState compst = { .stdlib_path = find_stdlib() };
     const char *filename;
     parse_arguments(argc, argv, &compst.flags, &filename);
 
