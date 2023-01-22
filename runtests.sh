@@ -11,8 +11,6 @@
 export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
-pwd
-
 if [ "$1" == "--valgrind" ]; then
     valgrind=yes
     shift
@@ -79,7 +77,13 @@ function post_process_output()
     else
         # Pass the output through almost unchanged, but replace
         # path to the project (e.g. /home/akuli/jou) with <joudir>.
-        sed "s,$(pwd),<joudir>,g"
+        local joudir="$(pwd)"
+        if [ -n "$MINGW_PREFIX" ] && [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
+            # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
+            local letter=${joudir:1:1}
+            joudir="${letter^^}:/${joudir:3}"
+        fi
+        sed "s,$joudir,<joudir>,g"
     fi
 }
 
