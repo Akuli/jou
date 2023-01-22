@@ -22,8 +22,6 @@ while [ $(date +%s) -lt $end ]; do
     #cat tests/*/*.jou | shuf -n 10 | rev > tmp/fuzzer/input3.jou
 
     for file in tmp/fuzzer/input*.jou; do
-        # The "sh" shell prints "Segmentation fault" to stderr when that happens.
-        # I couldn't get bash to make it redirectable.
         (bash -c "./jou $file 2>&1" || true) | tr -d '\r' > tmp/fuzzer/log.txt
 
         # One-line compiler error message made up of printable ASCII chars = good
