@@ -37,7 +37,7 @@ if [ $valgrind = yes ]; then
     command_template="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup $command_template"
 fi
 
-if which make >/dev/null; then
+if ! [[ "$OS" =~ Windows ]]; then
     make
 fi
 

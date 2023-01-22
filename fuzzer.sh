@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e -o pipefail
 
-if which make >/dev/null; then
+if ! [[ "$OS" =~ Windows ]]; then
     make
 fi
 
