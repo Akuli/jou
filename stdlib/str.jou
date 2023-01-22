@@ -1,0 +1,20 @@
+# Functions for working with strings (byte* pointers).
+
+# Parsing. See also scanf() in io.jou.
+declare sscanf(s: byte*, pattern: byte*, ...) -> int  # Parse a string. See sscanf() in io.jou.
+
+# Formatting. See also printf() in io.jou.
+#   sprintf() assumes that the result fits in dest (UB happens, if it overflows)
+#   snprintf() truncates the string so that the string and its '\0' fit into a total of n bytes of space
+declare sprintf(dest: byte*, pattern: byte*, ...) -> int
+declare snprintf(dest: byte*, n: int, pattern: byte*, ...) -> int
+
+# Find a substring. Return a pointer to the occurrence in haystack, or NULL if not found.
+declare strstr(haystack: byte*, needle: byte*) -> byte*
+
+# Create a newly allocated copy of the string. See malloc() and free() in mem.jou.
+declare strdup(s: byte*) -> byte*
+
+# Check if the strings start with the same n characters, or are equal and both shorter than n characters.
+# TODO: this function is weird, replace with a starts_with() function?
+declare strncmp(a: byte*, b: byte*) -> int
