@@ -9,3 +9,8 @@ declare system(command: byte*) -> int
 # Exit the current process.
 declare exit(status: int) -> void  # Clean exit. Status 0 is success, other status (usually 1) means fail.
 declare abort() -> void  # Hard exit. Similar to a crash.
+
+# Each process has a list of environment variables, and each child
+# process inherits its parent's variables. These functions access
+# the environment variables of the current process.
+declare getenv(varname: byte*) -> byte*  # Returns NULL if not found.
