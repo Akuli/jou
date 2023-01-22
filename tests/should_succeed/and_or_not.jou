@@ -1,7 +1,7 @@
-from "stdlib/io.jou" import putchar, printf
+from "stdlib/io.jou" import printf
 
 def side_effect(letter: byte, value: bool) -> bool:
-    putchar(letter)
+    printf("%c", letter)
     return value
 
 def main() -> int:
@@ -10,19 +10,19 @@ def main() -> int:
     printf("%d", 1+2==3 and 1+2==4)
     printf("%d", 1+2==4 and 1+2==3)
     printf("%d", 1+2==4 and 1+2==4)
-    putchar('\n')
+    printf("\n")
 
     # Output: 1110
     printf("%d", 1+2==3 or 1+2==3)
     printf("%d", 1+2==3 or 1+2==4)
     printf("%d", 1+2==4 or 1+2==3)
     printf("%d", 1+2==4 or 1+2==4)
-    putchar('\n')
+    printf("\n")
 
     # Output: 01
     printf("%d", not 1+2==3)
     printf("%d", not 1+2==4)
-    putchar('\n')
+    printf("\n")
 
     # Anything with "False and ..." contains code that never runs: the "..." part
     # is not evaluated at all because the result will be False anyway.
@@ -45,7 +45,7 @@ def main() -> int:
     printf("%d", False and True and False)  # Warning: this code will never run
     printf("%d", False and False and True)  # Warning: this code will never run
     printf("%d", False and False and False)  # Warning: this code will never run
-    putchar('\n')
+    printf("\n")
 
     # Output: Triple or 11111110
     printf("Triple or ")
@@ -57,7 +57,7 @@ def main() -> int:
     printf("%d", False or True or False)  # Warning: this code will never run
     printf("%d", False or False or True)
     printf("%d", False or False or False)
-    putchar('\n')
+    printf("\n")
 
     # TODO: presumably these should emit warnings too
 
@@ -67,7 +67,7 @@ def main() -> int:
     printf("%d", not True and not False)
     printf("%d", not False and not True)
     printf("%d", not False and not False)
-    putchar('\n')
+    printf("\n")
 
     # Output: Precedence or 0111
     printf("Precedence or ")
@@ -75,7 +75,7 @@ def main() -> int:
     printf("%d", not True or not False)
     printf("%d", not False or not True)
     printf("%d", not False or not False)
-    putchar('\n')
+    printf("\n")
 
     # Output: Side effects and aAbBcd
     printf("Side effects and ")
@@ -83,7 +83,7 @@ def main() -> int:
     result = side_effect('b', True) and side_effect('B', False)
     result = side_effect('c', False) and side_effect('C', True)
     result = side_effect('d', False) and side_effect('D', False)
-    putchar('\n')
+    printf("\n")
 
     # Output: Side effects or abcCdD
     printf("Side effects or ")
@@ -91,12 +91,12 @@ def main() -> int:
     result = side_effect('b', True) or side_effect('B', False)
     result = side_effect('c', False) or side_effect('C', True)
     result = side_effect('d', False) or side_effect('D', False)
-    putchar('\n')
+    printf("\n")
 
     # Output: Side effects not ab
     printf("Side effects not ")
     result = not side_effect('a', True)
     result = not side_effect('b', False)
-    putchar('\n')
+    printf("\n")
 
     return 0
