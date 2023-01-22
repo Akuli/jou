@@ -1,0 +1,11 @@
+# Functions for working with processes (i.e. running programs).
+#
+# Many functions apply to the current process. Some create new
+# processes as subprocesses of the current process.
+
+# Run a command in a new subprocess. Return value 0 means it succeeded.
+declare system(command: byte*) -> int
+
+# Exit the current process.
+declare exit(status: int) -> void  # Clean exit. Status 0 is success, other status (usually 1) means fail.
+declare abort() -> void  # Hard exit. Similar to a crash.
