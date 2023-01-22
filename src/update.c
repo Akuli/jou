@@ -1,12 +1,30 @@
 // Self-update: "jou --update" updates the Jou compiler.
+#ifndef _WIN32
+    // setenv() stuff
+    #define _POSIX_C_SOURCE 200112L
+#endif
+
 #include <libgen.h>
 #include <ctype.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <stdnoreturn.h>
 #include "util.h"
+
+static noreturn void fail()
+{
+    char *s =
+        "\n"
+        "Updating Jou failed. If you need help, please create an issue on GitHub:\n"
+        "   https://github.com/Akuli/jou/issues/new"
+        ;
+    puts(s);
+    exit(1);
+}
 
 static void trim_whitespace(char *s)
 {
@@ -22,51 +40,32 @@ static void trim_whitespace(char *s)
     memmove(s, start, end-start+1);
 }
 
-static bool detect_jou_git_repo(const char *dir)
-{
-    char *git_config_path = malloc(strlen(dir) + 20);
-    sprintf(git_config_path, "%s/.git/config", dir);
-
-    FILE *f = fopen(git_config_path, "rb");
-    free(git_config_path);
-    if (!f)
-        return false;
-
-    char line[1024];
-    while (fgets(line, sizeof line, f)) {
-        trim_whitespace(line);
-        if (!strcmp(line, "url = https://github.com/Akuli/jou")) {
-            fclose(f);
-            return true;
-        }
-    }
-
-    fclose(f);
-    return false;
-}
-
-// Return values:
-//    NULL = not downloaded from github releases,
-//    other = a version number
-static char *detect_github_releases_download(const char *dir)
+#ifdef _WIN32
+static char *read_jouversiontxt(const char *dir)
 {
     char *jouversiontxt_path = malloc(strlen(dir) + 20);
     sprintf(jouversiontxt_path, "%s/jouversion.txt", dir);
 
     FILE *f = fopen(jouversiontxt_path, "rb");
-    free(jouversiontxt_path);
     if (!f)
-        return false;
+        goto error;
 
     char line[100] = {0};
     fgets(line, sizeof line, f);
     fclose(f);
 
     trim_whitespace(line);
-    if (strlen(line) > 2)
-        return strdup(line);
-    return NULL;
+    if (!line[0])
+        goto error;
+
+    free(jouversiontxt_path);
+    return strdup(line);
+
+error:
+    fprintf(stderr, "error: cannot read version from %s\n", jouversiontxt_path);
+    fail();
 }
+#endif
 
 static void confirm()
 {
@@ -84,36 +83,30 @@ static void confirm()
     }
 }
 
-static void fail()
-{
-    char *s =
-        "\n"
-        "Updating Jou failed. If you need help, please create an issue on GitHub:\n"
-        "   https://github.com/Akuli/jou/issues/new"
-        ;
-    puts(s);
-    exit(1);
-}
-
 void update_jou_compiler()
 {
     char *exe = find_current_executable();
     const char *exedir = dirname(exe);
     printf("Installation directory: %s\n\n", exedir);
 
-    if (detect_jou_git_repo(exedir)) {
-        printf("Jou has been installed with \"git clone\".\n");
-        printf("Run \"git pull && make\"?");
-        confirm();
-        if (system("git pull && make"))
-            fail();
-    } else if (detect_github_releases_download(exedir)) {
-        printf("Not implemented yet :(\n");
-        fail();
-    } else {
-        printf("Cannot detect how Jou is installed.\n");
-        fail();
+#ifdef _WIN32
+    char *current_version = read_jouversiontxt(exedir);
+    char *latest_version = get_latest_github_release();
+    if (!strcmp(current_version, latest_version)) {
+        printf("You already have the latest version of Jou.\n");
+        exit(0);
     }
+    printf("TODO: should update now i guess\n");
+    free(current_version);
+    free(latest_version);
+#else
+    printf("Run \"git pull && make\"?");
+    confirm();
+
+    setenv("JOU_DIR", exedir, true);
+    if (system("cd \"$JOU_DIR\" && git pull && make"))
+        fail();
+#endif
 
     free(exe);
     printf("\n\nYou now have the latest version of Jou :)\n");

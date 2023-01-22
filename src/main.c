@@ -35,8 +35,8 @@ static void optimize(LLVMModuleRef module, int level)
 static const char help_fmt[] =
     "Usage:\n"
     "  <argv0> [--verbose] [-O0|-O1|-O2|-O3] FILENAME\n"
-    "  <argv0> --help\n"
-    "  <argv0> --update\n"
+    "  <argv0> --help       # This message\n"
+    "  <argv0> --update     # Download and install the latest Jou\n"
     "\n"
     "Options:\n"
     "  --help           display this message\n"
