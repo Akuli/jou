@@ -56,11 +56,12 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 <details> <summary>Linux</summary>
 
-1. Install Git, LLVM 11 or 13, clang 11 or 13 (same version as LLVM) and `make`.
-    Like this, for example, assuming you have `apt`:
+1. Install the dependencies:
     ```
     $ sudo apt install git llvm-13-dev clang-13 make
     ```
+    Let me know if you use a distro that doesn't have `apt`,
+    and you need help with this step.
 2. Download and compile Jou.
     ```
     $ git clone https://github.com/Akuli/jou
@@ -88,14 +89,16 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
     Note that the `~` character does not work here,
     so you need to use a full path (or `$HOME`) instead.
 
+It is also possible to use llvm and clang version 11 instead of 13.
 By default, the `make` command decides automatically
 whether to use LLVM and clang version 11 or 13,
 preferring version 13 if it is installed.
 You can also specify the version manually by setting the `LLVM_CONFIG` variable:
 
 ```
+$ sudo apt install llvm-11-dev clang-11
 $ make clean    # Delete files that were compiled with previous LLVM version
-$ LLVM_CONFIG=llvm-config-13 make
+$ LLVM_CONFIG=llvm-config-11 make
 ```
 
 </details>
