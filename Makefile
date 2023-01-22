@@ -2,7 +2,10 @@ LLVM_CONFIG ?= $(shell which llvm-config-13 || which llvm-config-11)
 
 SRC := $(wildcard src/*.c)
 
-CC ?= $(shell $(LLVM_CONFIG) --bindir)/clang
+ifeq ($(CC),cc)
+	# default c compiler --> use clang
+	CC := $(shell $(LLVM_CONFIG) --bindir)/clang
+endif
 CFLAGS += -Wall -Wextra -Wpedantic
 CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=implicit-fallthrough
 CFLAGS += -std=c11
@@ -24,7 +27,7 @@ jou: $(SRC:src/%.c=obj/%.o)
 
 .PHONY: clean
 clean:
-	rm -rvf obj jou tests/tmp
+	rm -rvf obj jou jou.exe tests/tmp
 
 .PHONY: test
 test: all
