@@ -1,10 +1,7 @@
 from "stdlib/str.jou" import sprintf, strstr
 from "stdlib/io.jou" import printf
 from "stdlib/mem.jou" import malloc, free
-
-# TODO: put these to stdlib/something.jou
-declare system(command: byte*) -> int
-declare getenv(var: byte*) -> byte*
+from "stdlib/process.jou" import system, getenv
 
 def is_windows() -> bool:
     return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
