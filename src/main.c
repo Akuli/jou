@@ -248,15 +248,9 @@ static char *find_stdlib()
     char *exe = find_this_executable();
     const char *exedir = dirname(exe);
 
-    char *path;
-    if (!strcmp(exedir, ".")) {
-        // ./stdlib looks a bit ugly in error messages and debug output IMO
-        path = strdup("stdlib");
-    } else {
-        path = malloc(strlen(exedir) + 10);
-        strcpy(path, exedir);
-        strcat(path, "/stdlib");
-    }
+    char *path = malloc(strlen(exedir) + 10);
+    strcpy(path, exedir);
+    strcat(path, "/stdlib");
     free(exe);
 
     char *iojou = malloc(strlen(path) + 10);
