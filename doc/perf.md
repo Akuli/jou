@@ -108,7 +108,7 @@ user    0m2,711s
 sys     0m0,004s
 ```
 
-So, all programs compute the same number, but in different amounts of time:
+All three programs computed the same number, but in different amounts of time:
 
 | Python        | C (with the clang compiler)   | Jou           |
 |---------------|-------------------------------|---------------|
@@ -120,7 +120,7 @@ you typically use a library written in a different language to work around this.
 For example, in Python it is common to use `numpy` to perform calculations,
 and because `numpy` is written in C, it is much faster than pure Python code.
 
-Another interesting thing is that Jou appears to be about 2-3 times slower than C.
+In our test Jou appears to be about 2-3 times slower than C.
 However, the Jou program runs in only **0.47 seconds** if we enable optimizations:
 
 ```
@@ -151,8 +151,7 @@ $ clang fib40.c -O2 && time ./a.out
 $ clang fib40.c -O3 && time ./a.out
 ```
 
-Here are the results on my computer,
-after running each command a few times and averaging the results:
+After running each command a few times the result averaged the following:
 
 | Optimization flag | C (with the clang compiler)   | Jou           |
 |-------------------|-------------------------------|---------------|
@@ -161,20 +160,14 @@ after running each command a few times and averaging the results:
 | `-O2`             | 0.48 seconds                  | 0.48 seconds  |
 | `-O3`             | 0.48 seconds                  | 0.48 seconds  |
 
-Here's what we can learn from these experiments:
-- Enabling optimizations can make your code run a lot faster.
-- Enabling more optimizations doesn't necessarily make your code run faster.
-    For example, we got 0.48 seconds with both `-O2` and `-O3`.
+These experiments have shown that:
+- While enabling optimizations can make your code run a lot faster,
+ enabling more of them might not necessarily speed it up even more. For example, we got 0.48 seconds with both `-O2` and `-O3`.
 - Unoptimized Jou is slower than unoptimized C,
     but with optimizations enabled, Jou is just as fast as C.
 - Interpreted languages are slow.
     In this case, Python was about 15 times slower than unoptimized Jou
     and about 80 times slower than Jou with `-O2` or `-O3`.
-- Performance is usually a bit random: even though we measured 0.473 seconds above,
-    it is closer to 0.48 than 0.47 on average.
-    (Some people say that it is better to use
-    the *minimum* of the measured times than their average.
-    I personally don't have an opinion on this.)
 
 Also, note that I used the `clang` C compiler,
 because it uses LLVM and Jou also uses LLVM.
@@ -190,19 +183,18 @@ It is often easier to work with optimizations disabled (or with `-O1`),
 for two reasons:
 1. Optimizing a large program is slow. The optimized program will run faster,
     but it takes a while for LLVM to figure out how to make the code faster.
-    Waiting for the optimizer to do its thing is annoying.
-2. The optimizer assumes that your code doesn't do some dumb things.
-    This can have surprising consequences.
+    Waiting for the optimizer to do its thing is annoying. See Example #1
+2. The optimizer assumes that your code doesn't contain dumb things, or specifically, things that cause **undefined behavior** (see below). If it does, it may behave unpredictably (crashing, not crashing as expected, some parts of the code not running, etc.). See Example #2 below.
 
 Let's explore these with more examples.
 
 
-### Optimizing a large program is slow
+### Example #1: Optimizing a large program is slow
 
-TODO: write this section once a large Jou program exists
+TODO: write this section once a large Jou program exists and name it Example #1
 
 
-### Optimizer's assumptions
+### Example #2: Optimizer's assumptions
 
 Let's write a program that crashes if the user selects yes.
 
@@ -223,9 +215,9 @@ If the user types `y`, the program creates a NULL pointer (TODO: document pointe
 and then attempts to read the value from the NULL pointer into a variable `x`.
 Reading from a NULL pointer will crash the program on any modern operating system.
 
-Let's run the program. If I type a letter other than `y`, such as `n`,
-the program exits without crashing.
-If I type `y`, the program crashes with a segmentation fault.
+Let's run the program. Typing a letter other than `y`, such as `n`,
+makes the program exit without crashing.
+Typing `y` makes it crash with a segmentation fault.
 
 ```
 $ ./jou asd.jou
@@ -236,7 +228,7 @@ Segmentation fault
 $
 ```
 
-But with optimizations enabled, the program does not crash even if I type `y`:
+But with optimizations enabled, the program does not crash even when typing `y`:
 
 ```
 $ ./jou -O3 asd.jou
@@ -244,14 +236,10 @@ Crash this program? (y/n) y
 $
 ```
 
-The optimizer assumes that you don't attempt to access the value of a `NULL` pointer.
-In other words, it thinks that the `x = *foo` code will never run,
-and it can therefore be ignored.
+The optimizations make the program ignore the code to access the value of a `NULL` pointer.
+Essentially it thinks that the `x = *foo` code will never run, because you aren't supposed to access the value of a NULL pointer. This code will thus get ignored.
 
-Correctly written Jou code does not break when optimizations are enabled.
-For example, accessing a `NULL` pointer simply isn't a good way to exit a program;
-your program shouldn't ever do it.
-If you want the program to crash, you can use the `abort()` function, for example:
+Sidenote: if you want the program to crash with optimizations on, then you should do so using `abort()` function for example:
 
 ```python
 declare printf(msg: byte*, ...) -> int
@@ -265,7 +253,7 @@ def main() -> int:
     return 0
 ```
 
-Now the program crashes when I type `y`, even if optimizations are enabled:
+Now the program crashes when `y` is typed, even if optimizations are enabled:
 
 ```
 $ ./jou -O3 asd.jou
@@ -274,9 +262,8 @@ Aborted
 ```
 
 Accessing the value of a NULL pointer is an example of **undefined behavior** (UB).
-The optimizer assumes that your program does not have UB,
-and if your program does something that is UB,
-it could in principle do anything when it is ran with optimizations enabled.
+The optimizer naturally assumes that your program does not have anything that causes UB,
+and as such if it does, it could in principle do anything when it is ran with optimizations enabled. Use at your own risk.
 
 Here are a few examples of things that are UB in Jou:
 - Accessing the value of a `NULL` pointer.
@@ -286,8 +273,7 @@ Here are a few examples of things that are UB in Jou:
     For example, `x: int` followed by `printf("%d\n", x)`
     without doing something like `x = 0` before printing.
 
-You get the overall idea:
-these are all things that you would never do intentionally.
+The takeaway from this is that these are all things that one would never do intentionally.
 The rest of Jou's documentation aims to mention other things that are UB.
 
 In some other languages, it is easier to get UB than in Jou.
