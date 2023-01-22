@@ -45,13 +45,19 @@ rm -rf tmp/tests
 mkdir -p tmp/tests
 
 joudir="$(pwd)"
-if [[ "$OS" =~ Windows ]] && [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
-    # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
-    letter=${joudir:1:1}
-    joudir="${letter^^}:/${joudir:3}"
-    unset letter
+if [[ "$OS" =~ Windows ]]; then
+    jouexe="jou.exe"
+    if [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
+        # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
+        letter=${joudir:1:1}
+        joudir="${letter^^}:/${joudir:3}"
+        unset letter
+    fi
+else
+    jouexe="./jou"
 fi
 echo "<joudir> in expected output will be replaced with $joudir."
+echo "<jouexe> in expected output will be replaced with $jouexe."
 
 function generate_expected_output()
 {
@@ -67,7 +73,7 @@ function generate_expected_output()
             (grep -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
             (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
             (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
-        ) | sed "s,<joudir>,$joudir,g"
+        ) | sed "s,<joudir>,$joudir,g" | sed "s,<jouexe>,$jouexe,g"
     fi
     echo "Exit code: $correct_exit_code"
 }
