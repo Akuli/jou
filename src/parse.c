@@ -703,15 +703,6 @@ static AstStructDef parse_structdef(const Token **tokens)
     return result;
 }
 
-static void simplify_path(char *path)
-{
-    // ././foo/./bar --> foo/bar
-    // TODO: Presumably we should simplify ../ in the middle of a path as well.
-    char *p;
-    while (((p=strstr(path,"./"))==path) || (p=strstr(path,"/./")))
-        memmove(p, p+2, strlen(p+2) + 1);
-}
-
 static char *get_actual_import_path(const Token *pathtoken, const char *stdlib_path)
 {
     if (pathtoken->type != TOKEN_STRING)
