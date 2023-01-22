@@ -184,7 +184,7 @@ for two reasons:
 1. Optimizing a large program is slow. The optimized program will run faster,
     but it takes a while for LLVM to figure out how to make the code faster.
     Waiting for the optimizer to do its thing is annoying. See Example #1
-2. The optimizer assumes that your code doesn't contain dumb things, that cause **undefined behavior** (see below). If it does it may behave unpredictably (not crashing when it should do so, etc.). See Example #2
+2. The optimizer assumes that your code doesn't contain dumb things, or specifically, things that cause **undefined behavior** (see below). If it does, it may behave unpredictably (crashing, not crashing as expected, some parts of the code not running, etc.). See Example #2 below.
 
 Let's explore these with more examples.
 
