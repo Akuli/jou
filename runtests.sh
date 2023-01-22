@@ -42,7 +42,16 @@ if ! [[ "$OS" =~ Windows ]]; then
 fi
 
 rm -rf tmp/tests
-mkdir -vp tmp/tests
+mkdir -p tmp/tests
+
+joudir="$(pwd)"
+if [[ "$OS" =~ Windows ]] && [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
+    # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
+    letter=${joudir:1:1}
+    joudir="${letter^^}:/${joudir:3}"
+    unset letter
+fi
+echo "<joudir> in expected output will be replaced with $joudir."
 
 function generate_expected_output()
 {
@@ -54,9 +63,11 @@ function generate_expected_output()
     if [[ "$command_template" =~ --verbose ]]; then
         echo "A lot of output hidden..."
     else
-        (grep -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
-        (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
-        (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
+        (
+            (grep -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
+            (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
+            (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
+        ) | sed "s,<joudir>,$joudir,g"
     fi
     echo "Exit code: $correct_exit_code"
 }
@@ -75,15 +86,8 @@ function post_process_output()
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
     else
-        # Pass the output through almost unchanged, but replace
-        # path to the project (e.g. /home/akuli/jou) with <joudir>.
-        local joudir="$(pwd)"
-        if [ -n "$MINGW_PREFIX" ] && [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
-            # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
-            local letter=${joudir:1:1}
-            joudir="${letter^^}:/${joudir:3}"
-        fi
-        sed "s,$joudir,<joudir>,g"
+        # Pass the output through unchanged.
+        cat
     fi
 }
 
