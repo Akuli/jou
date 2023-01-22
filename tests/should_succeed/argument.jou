@@ -1,5 +1,9 @@
 from "stdlib/io.jou" import putchar
 
+# TODO: should there be a warning for this? Not sure.
+def unused_arg(asd: bool) -> void:
+    return
+
 def putchar3(ch: int) -> void:
     putchar(ch)
     putchar(ch)
@@ -10,4 +14,7 @@ def main() -> int:
     putchar3('y')
     putchar3('o')
     putchar('\n')
+
+    unused_arg(True)
+
     return 0
