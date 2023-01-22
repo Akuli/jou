@@ -88,4 +88,12 @@ Gotchas to watch out for:
     strcpy((dest),(src)); \
 } while(0)
 
+/*
+On windows, change backslash to forward slash.
+Delete unnecessary "." components.
+
+Modifies path in place. Does not allocate more memory.
+*/
+void simplify_path(char *path);
+
 #endif
