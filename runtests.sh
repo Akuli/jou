@@ -65,8 +65,9 @@ function post_process_output()
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
     else
-        # Pass the output through unchanged.
-        cat
+        # Pass the output through almost unchanged, but replace
+        # path to the project (e.g. /home/akuli/jou) with <joudir>.
+        sed "s,$(pwd),<joudir>,g"
     fi
 }
 

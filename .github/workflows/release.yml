@@ -1,0 +1,86 @@
+# At midnight UTC, create a zip file of everything needed to run
+# Jou on Windows, and upload it to GitHub releases. This makes it
+# easy to use Jou on Windows.
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # Can also be triggered manually from github UI
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - run: git fetch --tags
+    - id: tagname
+      run: |
+        if git tag -l --contains HEAD | grep .; then
+          # Commit already tagged
+          echo datetag= >> $GITHUB_OUTPUT
+        else
+          # When building just after midnight, use the date of the previous day, not current day.
+          # When triggered manually, use (most likely) the current date.
+          # This way, the date represents when the changes were made.
+          echo datetag=$(date -d '5 minutes ago' +'%Y-%m-%d') > $GITHUB_OUTPUT
+        fi
+    - if: ${{ steps.tagname.outputs.datetag != '' }}
+      name: Download latest GitHub actions build results
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        script: |
+          const fs = require('fs');
+
+          // Based on:  https://github.com/python/typeshed/blob/82fa8473ffddc57a53b4dbcb1063aa2e66352ca9/.github/workflows/mypy_primer_comment.yml
+          const allRuns = (
+            await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: 'main',
+            })
+          ).data.workflow_runs;
+          console.log(`Found ${allRuns.length} runs`);
+          console.log(allRuns.map(r => r.name));
+          const run = allRuns
+            .filter(r => r.name === '.github/workflows/windows.yml')
+            .sort((a, b) => (+new Date(b.run_started_at)) - (+new Date(a.run_started_at)))[0];
+
+          const allArtifacts = (
+            await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+            })
+          ).data.artifacts;
+          console.log(`Found ${allArtifacts.length} artifacts`);
+          console.log(allArtifacts.map(a => a.name));
+          const artifact = allArtifacts.filter(a => a.name === 'exe-and-dlls')[0];
+
+          const zip = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: artifact.id,
+              archive_format: 'zip',
+          });
+
+          // https://stackoverflow.com/a/46779188
+          fs.writeFileSync("exe-and-dlls.zip", Buffer.from(zip.data));
+
+    - if: ${{ steps.tagname.outputs.datetag != '' }}
+      name: Create the zip file
+      run: |
+        unzip exe-and-dlls.zip
+        ls -l
+        mkdir -v jou
+        cp -v jou.exe jou
+        cp -v *.dll jou
+        cp -rv stdlib jou
+        zip -r jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip jou
+
+    - if: ${{ steps.tagname.outputs.datetag != '' }}
+      name: Create release
+      uses: ncipollo/release-action@v1
+      with:
+        commit: main
+        tag: ${{ steps.tagname.outputs.datetag }}
+        artifacts: jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip
