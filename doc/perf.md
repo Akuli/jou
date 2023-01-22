@@ -237,7 +237,7 @@ $
 ```
 
 The optimizations make the program ignore the code to access the value of a `NULL` pointer.
-Essentially it thinks that the `x = *foo` code will never run, because you aren't supposed to access the value of a NULL pointer. This code will thus get ignored. NOTE: if y0ou want the program to crash with optimizations on, you should do so using `abort()` function for example:
+Essentially it thinks that the `x = *foo` code will never run, because you aren't supposed to access the value of a NULL pointer. This code will thus get ignored. As a sidenote, if you want the program to crash with optimizations on, then you should do so using `abort()` function for example:
 
 ```python
 declare printf(msg: byte*, ...) -> int
