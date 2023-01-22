@@ -126,7 +126,7 @@ you can also run the tests under valgrind
 
 ```
 $ sudo apt install valgrind
-$ make valgrind
+$ ./runtests.sh --valgrind
 ```
 
 This doesn't do anything with tests that are supposed to fail with an error, for a few reasons:
@@ -136,6 +136,9 @@ This doesn't do anything with tests that are supposed to fail with an error, for
 - Valgrinding is slow. Most tests are about compiler errors,
     and `make valgrind` would take several minutes if they weren't skipped.
 - Most problems in error message code are spotted by non-valgrinded tests.
+
+There are also a few other ways to run the tests.
+You can look at `.github/workflows/` to see how the CI runs tests.
 
 Sometimes the fuzzer discovers a bug that hasn't been caught with tests.
 It mostly finds bugs in the tokenizer,

@@ -28,15 +28,3 @@ jou: $(SRC:src/%.c=obj/%.o)
 .PHONY: clean
 clean:
 	rm -rvf obj jou jou.exe tests/tmp
-
-.PHONY: fulltest
-fulltest: all
-	./runtests.sh './jou %s'
-	./runtests.sh './jou -O3 %s'
-	./runtests.sh './jou --verbose %s'
-	./runtests.sh 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou %s'
-	./runtests.sh 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou -O3 %s'
-
-.PHONY: valgrind
-valgrind: all
-	./runtests.sh 'valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup ./jou %s'

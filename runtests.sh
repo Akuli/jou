@@ -11,10 +11,16 @@
 export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
+if [ "$1" == "--valgrind" ]; then
+    valgrind=yes
+    shift
+else
+    valgrind=no
+fi
+
 if [ $# == 0 ]; then
     # No arguments --> run tests in the basic/simple way
-    if [ -n "$MINGW_PREFIX" ]; then
-        # windows + git bash
+    if [[ "$OS" =~ Windows ]]; then
         command_template='./jou.exe %s'
     else
         command_template='./jou %s'
@@ -22,9 +28,13 @@ if [ $# == 0 ]; then
 elif [ $# == 1 ] && [[ "$1" =~ ^[^-] ]]; then
     command_template="$1"
 else
-    echo "Usage: $0 [command_template]" >&2
-    echo "command_template can be e.g. './jou %s', where %s will be replaced by a jou file." >&2
+    echo "Usage: $0 [--valgrind] [TEMPLATE]" >&2
+    echo "TEMPLATE can be e.g. './jou %s', where %s will be replaced by a jou file." >&2
     exit 2
+fi
+
+if [ $valgrind = yes ]; then
+    command_template="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup $command_template"
 fi
 
 if which make >/dev/null; then
