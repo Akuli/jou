@@ -425,7 +425,9 @@ static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call
     for (int i = sig->nargs; i < call->nargs; i++) {
         // This code runs for varargs, e.g. the things to format in printf().
         ExpressionTypes *types = typecheck_expression_not_void(ctx, &call->args[i]);
-        if (is_integer_type(types->type) && types->type->data.width_in_bits < 32) {
+        if ((is_integer_type(types->type) && types->type->data.width_in_bits < 32)
+            || types->type == boolType)
+        {
             // Add implicit cast to signed int, just like in C.
             do_implicit_cast(types, intType, (Location){0}, NULL);
         }
