@@ -260,7 +260,7 @@ Aborted
 ```
 
 Accessing the value of a NULL pointer is an example of **undefined behavior** (UB).
-The optimizer is set to assume that your program does not have anything that causes UB,
+The optimizer naturally assumes that your program does not have anything that causes UB,
 and as such if it does, it could in principle do anything when it is ran with optimizations enabled. Use at your own risk.
 
 Here are a few examples of things that are UB in Jou:
