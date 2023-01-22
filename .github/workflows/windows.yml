@@ -60,13 +60,13 @@ jobs:
           path: exe-and-dlls
 
   # TODO: Doesn't work, lots of errors
-#  test:
-#    needs: build
-#    runs-on: windows-latest
-#    steps:
-#      - uses: actions/checkout@v2
-#      - uses: actions/download-artifact@v3
-#        with:
-#          name: exe-and-dlls
-#      - shell: bash
-#        run: tests/runtests.sh './jou.exe %s'
+  test:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v3
+        with:
+          name: exe-and-dlls
+      - shell: bash
+        run: tests/runtests.sh './jou.exe %s'
