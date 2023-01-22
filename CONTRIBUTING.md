@@ -87,28 +87,22 @@ read `src/jou_compiler.h` and have a quick look at `src/util.h`.
 
 ## Tests
 
-**Note: Currently tests do not work on windows.**
-
 GitHub Actions runs all tests when you make a pull request,
 so you don't need to run tests locally if you only intend to fix a couple small things.
 That said, test-driven development works very well for developing compilers.
 There should be a test (or a TODO comment about adding a test)
 for every feature and for every compiler error/warning.
 
-Running tests:
+Running tests (if on Windows, use Git Bash):
 
 ```
-$ make test         # Run all tests quickly. Good for local development.
-$ make valgrind     # Run some of the tests with valgrind.
-$ make fulltest     # Very slow. Includes the other two. Runs in CI.
+$ ./runtests.sh
 ```
 
-You need valgrind (e.g. `sudo apt install valgrind`) for `make valgrind` and `make fulltest`.
-
-Each of these commands:
-- compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled
-- runs all Jou files in `examples/` and `tests/` (`make valgrind` only runs some files, see below)
-- ensures that the Jou files output what is expected.
+This command does a few things:
+- It compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled
+- It runs all Jou files in `examples/` and `tests/`
+- It ensures that the Jou files output what is expected.
 
 The expected output is auto-generated from comments in the Jou files:
 
@@ -126,8 +120,16 @@ The command that was ran (e.g. `./jou examples/hello.jou`) is shown just above t
 and you can run it again manually to debug a test failure.
 You can also put e.g. `valgrind` or `gdb --args` in front of the command.
 
-The purpose of `make valgrind` is to find missing `free()`s and various other memory bugs.
-It doesn't do anything with tests that are supposed to fail with an error, for a few reasons:
+To find missing `free()`s and various other memory bugs,
+you can also run the tests under valgrind
+(but this doesn't work on Windows, because valgrind doesn't support Windows):
+
+```
+$ sudo apt install valgrind
+$ make valgrind
+```
+
+This doesn't do anything with tests that are supposed to fail with an error, for a few reasons:
 - The compiler does not free memory allocations when it exits with an error.
     This is fine because the operating system will free the memory anyway,
     but `valgrind` would see it as many memory leaks.
