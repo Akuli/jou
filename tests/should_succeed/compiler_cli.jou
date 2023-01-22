@@ -27,8 +27,8 @@ def main() -> int:
 
     # With optimizations enabled, we see also the optimized LLVM IR.
     system("./jou --verbose -O1 examples/hello.jou | grep 'LLVM IR for file'")
-    # Output: ===== Unoptimized LLVM IR for file "stdlib/io.jou" =====
-    # Output: ===== Optimized LLVM IR for file "stdlib/io.jou" =====
+    # Output: ===== Unoptimized LLVM IR for file "<joudir>/stdlib/io.jou" =====
+    # Output: ===== Optimized LLVM IR for file "<joudir>/stdlib/io.jou" =====
     # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
     # Output: ===== Optimized LLVM IR for file "examples/hello.jou" =====
 
@@ -37,6 +37,6 @@ def main() -> int:
 
     # Executable in weird place
     system("cp jou tmp/tests/jou_executable")
-    system("tmp/tests/jou_executable 2>&1")  # Output: error: cannot find the Jou standard library in tmp/tests/stdlib
+    system("tmp/tests/jou_executable 2>&1")  # Output: error: cannot find the Jou standard library in <joudir>/tmp/tests/stdlib
 
     return 0
