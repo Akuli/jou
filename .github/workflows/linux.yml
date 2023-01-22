@@ -11,7 +11,7 @@ jobs:
       matrix:
         llvm-version: [11, 13]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
     - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make fulltest
 
@@ -21,6 +21,6 @@ jobs:
       matrix:
         llvm-version: [11, 13]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
     - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} ./fuzzer.sh
