@@ -11,6 +11,8 @@
 export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
+pwd
+
 if [ "$1" == "--valgrind" ]; then
     valgrind=yes
     shift
