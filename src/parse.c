@@ -2,6 +2,7 @@
 
 #include "jou_compiler.h"
 #include "util.h"
+#include <libgen.h>
 #include <stdarg.h>
 #include <stdnoreturn.h>
 #include <stdio.h>
@@ -257,8 +258,7 @@ static AstExpression build_operator_expression(const Token *t, int arity, const 
         assert(arity == 2);
         result.kind = AST_EXPR_ADD;
     } else if (is_operator(t, "-")) {
-        assert(arity == 2);
-        result.kind = AST_EXPR_SUB;
+        result.kind = arity==2 ? AST_EXPR_SUB : AST_EXPR_NEG;
     } else if (is_operator(t, "*")) {
         result.kind = arity==2 ? AST_EXPR_MUL : AST_EXPR_DEREFERENCE;
     } else if (is_operator(t, "/")) {
@@ -305,20 +305,12 @@ static AstExpression parse_elementary_expression(const Token **tokens)
         break;
     case TOKEN_INT:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant = (Constant){ CONSTANT_INTEGER, {.integer={
-            .is_signed = true,
-            .value = (*tokens)->data.int_value,
-            .width_in_bits = 32,
-        }}};
+        expr.data.constant = int_constant(intType, (*tokens)->data.int_value);
         ++*tokens;
         break;
     case TOKEN_CHAR:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant = (Constant){ CONSTANT_INTEGER, {.integer={
-            .is_signed = false,
-            .value = (*tokens)->data.char_value,
-            .width_in_bits = 8,
-        }}};
+        expr.data.constant = int_constant(byteType, (*tokens)->data.char_value);
         ++*tokens;
         break;
     case TOKEN_STRING:
@@ -451,7 +443,11 @@ static AstExpression parse_expression_with_mul_and_div(const Token **tokens)
 
 static AstExpression parse_expression_with_add(const Token **tokens)
 {
+    const Token *minus = is_operator(*tokens, "-") ? (*tokens)++ : NULL;
     AstExpression result = parse_expression_with_mul_and_div(tokens);
+    if (minus)
+        result = build_operator_expression(minus, 1, &result);
+
     while (is_operator(*tokens, "+") || is_operator(*tokens, "-"))
         add_to_binop(tokens, &result, parse_expression_with_mul_and_div);
     return result;
@@ -707,41 +703,87 @@ static AstStructDef parse_structdef(const Token **tokens)
     return result;
 }
 
-static AstImport parse_import(const Token **tokens)
+static char *get_actual_import_path(const Token *pathtoken, const char *stdlib_path)
+{
+    if (pathtoken->type != TOKEN_STRING)
+        fail_with_parse_error(pathtoken, "a string to specify the file name");
+
+    const char *part1, *part2;
+    char *tmp = NULL;
+    if (!strncmp(pathtoken->data.string_value, "stdlib/", 7)) {
+        // Starts with stdlib --> import from where stdlib actually is
+        part1 = stdlib_path;
+        part2 = pathtoken->data.string_value + 7;
+    } else if (pathtoken->data.string_value[0] == '.') {
+        // Relative to directory where the file is
+        tmp = strdup(pathtoken->location.filename);
+        part1 = dirname(tmp);
+        part2 = pathtoken->data.string_value;
+    } else {
+        fail_with_error(
+            pathtoken->location,
+            "import path must start with 'stdlib/' (standard-library import) or a dot (relative import)");
+    }
+
+    // 1 for slash, 1 for \0, 1 for fun
+    char *path = malloc(strlen(part1) + strlen(part2) + 3);
+    sprintf(path, "%s/%s", part1, part2);
+    free(tmp);
+
+    simplify_path(path);
+    return path;
+}
+
+static AstToplevelNode *parse_import(const Token **tokens, const char *stdlib_path, int *n)
 {
     assert(is_keyword(*tokens, "from"));
     ++*tokens;
 
-    if ((*tokens)->type != TOKEN_STRING)
-        fail_with_parse_error(*tokens, "a string to specify the file name");
-    char *filename = strdup((*tokens)->data.string_value) ;
+    char *path = get_actual_import_path(*tokens, stdlib_path);
     ++*tokens;
 
     if (!is_keyword(*tokens, "import"))
         fail_with_parse_error(*tokens, "the 'import' keyword");
     ++*tokens;
 
-    NameList symbols = {0};
-    do{
-        if (symbols.len) ++*tokens;  // skip comma
+    bool parens = is_operator(*tokens, "(");
+    if(parens) ++*tokens;
 
+    List(AstToplevelNode) result = {0};
+    do {
         if ((*tokens)->type != TOKEN_NAME)
             fail_with_parse_error(*tokens, "the name of a symbol to import");
-        struct Name n;
-        safe_strcpy(n.name, (*tokens)->data.name);
-        Append(&symbols, n);
+
+        struct AstImport imp;
+        imp.path = strdup(path);
+        safe_strcpy(imp.symbol, (*tokens)->data.name);
+
+        Append(&result, (struct AstToplevelNode){
+            .location = (*tokens)->location,
+            .kind = AST_TOPLEVEL_IMPORT,
+            .data.import = imp,
+        });
         ++*tokens;
-    } while (is_operator(*tokens, ","));
+
+        if (is_operator(*tokens, ","))
+            ++*tokens;
+        else
+            break;
+    } while (!is_operator(*tokens, ")") && (*tokens)->type != TOKEN_NEWLINE);
+    free(path);
+
+    if (parens) {
+        if (!is_operator(*tokens, ")"))
+            fail_with_parse_error(*tokens, "a ')'");
+        ++*tokens;
+    }
 
     if ((*tokens)->type != TOKEN_NEWLINE)
         fail_with_parse_error(*tokens, "a comma or end of line");
     ++*tokens;
 
-    return (struct AstImport){
-        .filename = filename,
-        .symbols = (char(*)[100])symbols.ptr,
-        .nsymbols = symbols.len,
-    };
+    *n = result.len;
+    return result.ptr;
 }
 
 static AstToplevelNode parse_toplevel_node(const Token **tokens)
@@ -775,7 +817,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
     return result;
 }   
 
-AstToplevelNode *parse(const Token *tokens)
+AstToplevelNode *parse(const Token *tokens, const char *stdlib_path)
 {
     List(AstToplevelNode) result = {0};
 
@@ -783,12 +825,11 @@ AstToplevelNode *parse(const Token *tokens)
     // if an import is not in beginning of the file.
     // TODO: add a test
     while (is_keyword(tokens, "from")) {
-        struct Location location = tokens->location;
-        Append(&result, (AstToplevelNode){
-            .location = location,
-            .kind=AST_TOPLEVEL_IMPORT,
-            .data.import=parse_import(&tokens)
-        });
+        int n;
+        struct AstToplevelNode *impnodes = parse_import(&tokens, stdlib_path, &n);
+        for (int i = 0; i < n; i++)
+            Append(&result, impnodes[i]);
+        free(impnodes);
     }
 
     do {

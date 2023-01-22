@@ -88,8 +88,27 @@ static CfInstruction *add_instruction(
 #define add_binary_op(st, loc, op, lhs, rhs, target) \
     add_instruction((st), (loc), (op), NULL, (const Variable*[]){(lhs),(rhs),NULL}, (target))
 #define add_constant(st, loc, c, target) \
-    add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant(&(c)) }, NULL, (target))
+    add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant((Constant[]){c}) }, NULL, (target))
 
+
+static const Variable *build_bool_to_int_conversion(
+    struct State *st, const Variable *boolvar, const Location location, const Type *t)
+{
+    assert(is_integer_type(t));
+    Variable *result = add_variable(st, t);
+
+    CfBlock *set1 = add_block(st);
+    CfBlock *set0 = add_block(st);
+    CfBlock *done = add_block(st);
+
+    add_jump(st, boolvar, set1, set0, set1);
+    add_constant(st, location, int_constant(t, 1), result)->hide_unreachable_warning = true;
+    add_jump(st, NULL, done, done, set0);
+    add_constant(st, location, int_constant(t, 0), result)->hide_unreachable_warning = true;
+    add_jump(st, NULL, done, done, done);
+
+    return result;
+}
 
 static const Variable *build_cast(
     struct State *st, const Variable *obj, const Type *to, Location location)
@@ -97,16 +116,18 @@ static const Variable *build_cast(
     if (obj->type == to)
         return obj;
 
-    const Variable *result = add_variable(st, to);
-
     if (is_pointer_type(obj->type) && is_pointer_type(to)) {
+        const Variable *result = add_variable(st, to);
         add_unary_op(st, location, CF_PTR_CAST, obj, result);
         return result;
     }
     if (is_integer_type(obj->type) && is_integer_type(to)) {
+        const Variable *result = add_variable(st, to);
         add_unary_op(st, location, CF_INT_CAST, obj, result);
         return result;
     }
+    if (obj->type == boolType && is_integer_type(to))
+        return build_bool_to_int_conversion(st, obj, location, to);
     assert(0);
 }
 
@@ -212,16 +233,7 @@ static const Variable *build_increment_or_decrement(
     const Variable *new_value = add_variable(st, t);
     const Variable *diffvar = add_variable(st, is_integer_type(t) ? t : intType);
 
-    Constant diffconst = {
-        .kind = CONSTANT_INTEGER,
-        .data.integer = {
-            .width_in_bits = diffvar->type->data.width_in_bits,
-            .is_signed = (diffvar->type->kind == TYPE_SIGNED_INTEGER),
-            .value = diff,
-        },
-    };
-
-    add_constant(st, location, diffconst, diffvar);
+    add_constant(st, location, int_constant(diffvar->type, diff), diffvar);
     add_unary_op(st, location, CF_PTR_LOAD, addr, old_value);
     add_binary_op(st, location, is_integer_type(t)?CF_INT_ADD:CF_PTR_ADD_INT, old_value, diffvar, new_value);
     add_binary_op(st, location, CF_PTR_STORE, addr, new_value, NULL);
@@ -460,6 +472,13 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         result = add_variable(st, boolType);
         add_unary_op(st, expr->location, CF_BOOL_NEGATE, temp, result);
         break;
+    case AST_EXPR_NEG:
+        temp = build_expression(st, &expr->data.operands[0]);
+        const Variable *zero = add_variable(st, temp->type);
+        result = add_variable(st, temp->type);
+        add_constant(st, expr->location, int_constant(temp->type, 0), zero);
+        add_binary_op(st, expr->location, CF_INT_SUB, zero, temp, result);
+        break;
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
@@ -687,7 +706,7 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
 }
 
 // TODO: passing a type context here doesn't really make sense.
-// It would be better to pass public symbols that have been imported.
+// It would be better to pass only the public symbols that have been imported.
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx)
 {
     // imports are guaranteed to be in the beginning and we no longer need them

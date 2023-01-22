@@ -17,6 +17,10 @@ struct State {
     FILE *f;
     Location location;
     List(char) pushback;
+    // Not dynamic, so that you can't make the compiler crash due to
+    // too much recursion by feeding it lots of parentheses.
+    Token parens[50];
+    int nparens;
 };
 
 static char read_byte(struct State *st) {
@@ -267,7 +271,7 @@ static char read_char_literal(struct State *st)
     return result;
 }
 
-static const char *const operatorChars = "=<>!.,()[]{};:+-*/&";
+static const char operatorChars[] = "=<>!.,()[]{};:+-*/&";
 
 static const char *read_operator(struct State *st)
 {
@@ -306,17 +310,52 @@ static const char *read_operator(struct State *st)
     fail_with_error(st->location, "there is no '%s' operator", operator);
 }
 
+
+static void handle_parentheses(struct State *st, const struct Token *t)
+{
+    const char open2close[] = { ['[']=']', ['{']='}', ['(']=')' };
+    const char close2open[] = { [']']='[', ['}']='{', [')']='(' };
+
+    if (t->type == TOKEN_END_OF_FILE && st->nparens > 0) {
+        Token opentoken = st->parens[0];
+        char open = opentoken.data.operator[0];
+        char close = open2close[(int)open];
+        fail_with_error(opentoken.location, "'%c' without a matching '%c'", open, close);
+    }
+
+    if (t->type == TOKEN_OPERATOR && strstr("[{(", t->data.operator)) {
+        if (st->nparens == sizeof(st->parens)/sizeof(st->parens[0]))
+            fail_with_error(t->location, "too many nested parentheses");
+        st->parens[st->nparens++] = *t;
+    }
+
+    if (t->type == TOKEN_OPERATOR && strstr("]})", t->data.operator)) {
+        char close = t->data.operator[0];
+        char open = close2open[(int)close];
+
+        if (st->nparens == 0 || st->parens[--st->nparens].data.operator[0] != open)
+            fail_with_error(t->location, "'%c' without a matching '%c'", close, open);
+    }
+}
+
 static Token read_token(struct State *st)
 {
-    Token t = { .location = st->location };
-
     while(1) {
+        Token t = { .location = st->location };
         char c = read_byte(st);
+
         switch(c) {
         case '#': consume_rest_of_line(st); continue;
         case ' ': continue;
-        case '\n': read_indentation_as_newline_token(st, &t); break;
-        case '\0': t.type = TOKEN_END_OF_FILE; break;
+        case '\n':
+            if (st->nparens > 0)
+                continue;  // Ignore newlines when inside parentheses.
+            read_indentation_as_newline_token(st, &t);
+            break;
+        case '\0':
+            t.type = TOKEN_END_OF_FILE;
+            handle_parentheses(st, &t);
+            break;
         case '\'': t.type = TOKEN_CHAR; t.data.char_value = read_char_literal(st); break;
         case '"': t.type = TOKEN_STRING; t.data.string_value = read_string(st, '"', NULL); break;
         default:
@@ -334,6 +373,7 @@ static Token read_token(struct State *st)
                 unread_byte(st, c);
                 t.type = TOKEN_OPERATOR;
                 strcpy(t.data.operator, read_operator(st));
+                handle_parentheses(st, &t);
             } else {
                 if ((unsigned char)c < 0x80 && isprint(c))
                     fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (unsigned char)c);

@@ -51,55 +51,71 @@ Non-goals:
 
 ## Setup
 
-You need:
-- An operating system that is something else than Windows
-- Git
-- LLVM 11
-- clang 11
-- make
-- valgrind
+These instructions are for using Jou.
+The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-If you are on a linux distro that has `apt`, you can install everything you need like this:
+<details> <summary>Linux</summary>
+
+1. Install the dependencies:
+    ```
+    $ sudo apt install git llvm-13-dev clang-13 make
+    ```
+    Let me know if you use a distro that doesn't have `apt`,
+    and you need help with this step.
+2. Download and compile Jou.
+    ```
+    $ git clone https://github.com/Akuli/jou
+    $ cd jou
+    $ make
+    ```
+3. Run the hello world program to make sure that Jou works:
+    ```
+    $ ./jou examples/hello.jou
+    Hello World
+    ```
+    You can now run other Jou programs in the same way.
+4. (Optional) If you want to run Jou programs with simply `jou filename`
+    instead of something like `./jou filename` or `/full/path/to/jou filename`,
+    you can add the `jou` directory to your PATH.
+    To do so, edit `~/.bashrc` (or whatever other file you have instead, e.g. `~/.zshrc`):
+    ```
+    $ nano ~/.bashrc
+    ```
+    Add the following line to the end:
+    ```
+    export PATH="$PATH:/home/yourname/jou/"
+    ```
+    Replace `/home/yourname/jou/` with the path to the folder (not the executable file) where you downloaded Jou.
+    Note that the `~` character does not work here,
+    so you need to use a full path (or `$HOME`) instead.
+
+It is also possible to use llvm and clang version 11 instead of 13.
+By default, the `make` command decides automatically
+whether to use LLVM and clang version 11 or 13,
+preferring version 13 if it is installed.
+You can also specify the version manually by setting the `LLVM_CONFIG` variable:
 
 ```
-$ sudo apt install git llvm-11-dev clang-11 make valgrind
+$ sudo apt install llvm-11-dev clang-11
+$ make clean    # Delete files that were compiled with previous LLVM version
+$ LLVM_CONFIG=llvm-config-11 make
 ```
 
-Once you have installed the dependencies,
-run these commands to compile the Jou compiler and then run a hello world program:
+</details>
 
-```
-$ git clone https://github.com/Akuli/jou
-$ cd jou
-$ make
-$ ./jou examples/hello.jou
-Hello World
-```
+<details> <summary>Windows</summary>
 
+1. Go to releases on GitHub. It's in the sidebar at right.
+2. Choose a release (latest is probably good) and download a `.zip` file whose name starts with `jou_windows_64bit_`.
+3. Extract the zip file somewhere on your computer.
+4. You should now have a folder that contains `jou.exe`, lots of `.dll` files, and a subdirectory named `stdlib`.
+    Add this folder to `PATH`.
+    If you don't know how to add a folder to `PATH`,
+    you can e.g. search "windows add to path" on youtube.
+5. Write Jou code into a file and run `jou filename.jou` on a command prompt.
+    Try [the hello world program](examples/hello.jou), for example.
 
-## How does the compiler work?
-
-The compiler is currently written in C. At a high level, the compilation steps are:
-- Tokenize: split the source code into tokens
-- Parse: build an Abstract Syntax Tree from the tokens
-- Typecheck: errors for wrong number or type of function arguments etc, figure out the type of each expression in the AST
-- Build CFG: build Control Flow Graphs for each function from the AST
-- Simplify CFG: simplify and analyze the control flow graphs in various ways, emit warnings as needed
-- Codegen: convert the CFGs into LLVM IR
-- Invoke `clang` and pass it the generated LLVM IR
-
-To get a good idea of how these steps work,
-you can look at what the compiler produces in each compilation step:
-
-```
-$ ./jou --verbose examples/hello.jou
-```
-
-This shows the tokens, AST, CFGs and LLVM IR generated.
-The control flow graphs are shown twice, before and after simplifying them.
-
-After exploring the verbose output, you should probably
-read `src/jou_compiler.h` and have a quick look at `src/util.h`.
+</details>
 
 
 ## Editor support
@@ -107,6 +123,13 @@ read `src/jou_compiler.h` and have a quick look at `src/util.h`.
 Tell your editor to syntax-highlight `.jou` files as if they were Python files.
 You may want to copy some other Python settings too,
 such as how to handle indentations and comments.
+
+If your editor uses a langserver for Python,
+make sure it doesn't use the same langserver for Jou.
+For example, vscode uses the Pylance language server,
+and you need to disable it for `.jou` files;
+otherwise you get lots of warnings whenever you edit
+Jou code that would be invalid as Python code.
 
 For example, I use the following configuration with the
 [Porcupine](https://github.com/Akuli/porcupine) editor:
@@ -124,89 +147,6 @@ To apply this configuration, copy/paste it to end of Porcupine's `filetypes.toml
 (menubar at top --> *Settings* --> *Config Files* --> *Edit filetypes.toml*).
 
 
-## Tests
+## How does the compiler work?
 
-GitHub Actions runs all tests when you make a pull request,
-so you don't need to run tests locally if you only intend to fix a couple small things.
-That said, test-driven development works very well for developing compilers.
-There should be a test (or a TODO comment about adding a test)
-for every feature and for every compiler error/warning.
-
-Running tests:
-
-```
-$ make test         # Run all tests quickly. Good for local development.
-$ make valgrind     # Run some of the tests with valgrind.
-$ make fulltest     # Very slow. Includes the other two. Runs in CI.
-```
-
-Each of these commands:
-- compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled
-- runs all Jou files in `examples/` and `tests/` (`make valgrind` only runs some files, see below)
-- ensures that the Jou files output what is expected.
-
-The expected output is auto-generated from comments in the Jou files:
-
-- A comment like `# Output: foo` appends a line `foo` to the expected output.
-- A comment like `# Error: foo` on line 123 of file `tests/bar/baz.jou` appends a line
-    `compiler error in file "tests/bar/baz.jou", line 123: foo`.
-- A comment like `# Warning: foo` on line 123 of file `tests/bar/baz.jou` appends a line
-    `compiler warning for file "tests/bar/baz.jou", line 123: foo`.
-- Files in `examples/` and `tests/should_succeed/` should run successfully (exit code 0).
-    All other files should cause a compiler error (exit code 1).
-
-If the actual output doesn't match the expected output, you will see diffs where
-green (+) is the program's output and red (-) is what was expected.
-The command that was ran (e.g. `./jou examples/hello.jou`) is shown just above the diff,
-and you can run it again manually to debug a test failure.
-You can also put e.g. `valgrind` or `gdb --args` in front of the command.
-
-The purpose of `make valgrind` is to find missing `free()`s and various other memory bugs.
-It doesn't do anything with tests that are supposed to fail with an error, for a few reasons:
-- The compiler does not free memory allocations when it exits with an error.
-    This is fine because the operating system will free the memory anyway,
-    but `valgrind` would see it as many memory leaks.
-- Valgrinding is slow. Most tests are about compiler errors,
-    and `make valgrind` would take several minutes if they weren't skipped.
-- Most problems in error message code are spotted by non-valgrinded tests.
-
-Sometimes the fuzzer discovers a bug that hasn't been caught with tests.
-It mostly finds bugs in the tokenizer,
-because the fuzzer works by feeding random bytes to the compiler.
-
-```
-$ ./fuzzer.sh
-```
-
-
-## LLVM versions
-
-Jou supports LLVM 11 and LLVM 13.
-The default is LLVM 11, because I believe it is more widely available.
-To use LLVM 13 instead, set `LLVM_CONFIG` when compiling:
-
-```
-$ sudo apt install llvm-13-dev clang-13
-$ make clean
-$ LLVM_CONFIG=llvm-config-13 make
-```
-
-Other versions of LLVM may work too.
-Please create an issue if you need to use a different version of LLVM.
-
-
-## TODO
-
-This list tends to have a few outdated details,
-but it should give you some kind of idea about what is still missing.
-
-- Write syntax spec once syntax seems relatively stable
-- JIT so that you don't need to go through a compile step
-- REPL, if possible?
-- Arrays
-- Structs
-- Enums
-- A reasonable way to import structs from C (not just functions).
-    - I don't like the zig/rust things that attempt to parse header files and get confused by macros. Something else?
-    - A good combination of odd corner cases for testing is probably `struct stat` and the `stat()` function.
-- Self-hosted compiler??!?!
+See [CONTRIBUTING.md](CONTRIBUTING.md).

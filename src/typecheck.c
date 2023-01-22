@@ -263,6 +263,7 @@ static const char *short_expression_description(const AstExpression *expr)
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
     case AST_EXPR_DIV:
+    case AST_EXPR_NEG:
         return "the result of a calculation";
 
     case AST_EXPR_EQ:
@@ -423,7 +424,13 @@ static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call
     }
     for (int i = sig->nargs; i < call->nargs; i++) {
         // This code runs for varargs, e.g. the things to format in printf().
-        typecheck_expression_not_void(ctx, &call->args[i]);
+        ExpressionTypes *types = typecheck_expression_not_void(ctx, &call->args[i]);
+        if ((is_integer_type(types->type) && types->type->data.width_in_bits < 32)
+            || types->type == boolType)
+        {
+            // Add implicit cast to signed int, just like in C.
+            do_implicit_cast(types, intType, (Location){0}, NULL);
+        }
     }
 
     free(sigstr);
@@ -540,6 +547,14 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
             ctx, &expr->data.operands[0], boolType,
             "value after 'not' must be a boolean, not FROM");
         result = boolType;
+        break;
+    case AST_EXPR_NEG:
+        result = typecheck_expression(ctx, &expr->data.operands[0])->type;
+        if (result->kind != TYPE_SIGNED_INTEGER)
+            fail_with_error(
+                expr->location,
+                "value after '-' must be a signed integer, not %s",
+                result->name);
         break;
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
@@ -752,6 +767,7 @@ Signature typecheck_function(TypeContext *ctx, Location funcname_location, const
     }
 
     ctx->current_function_signature = NULL;
+    Append(&ctx->exports, copy_signature(&sig));
     return copy_signature(&sig);
 }
 

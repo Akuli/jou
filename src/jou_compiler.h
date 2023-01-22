@@ -101,6 +101,17 @@ struct Constant {
     } data;
 };
 #define copy_constant(c) ( (c)->kind==CONSTANT_STRING ? (Constant){ CONSTANT_STRING, {.str=strdup((c)->data.str)} } : *(c) )
+#define int_constant(Type, Val) (\
+    assert(is_integer_type((Type))), \
+    (Constant){ \
+        .kind = CONSTANT_INTEGER, \
+        .data.integer = { \
+            .width_in_bits = (Type)->data.width_in_bits, \
+            .is_signed = (Type)->kind==TYPE_SIGNED_INTEGER, \
+            .value = (Val), \
+        } \
+    } \
+)
 
 
 /*
@@ -154,6 +165,7 @@ struct AstExpression {
         AST_EXPR_NOT,
         AST_EXPR_ADD,
         AST_EXPR_SUB,
+        AST_EXPR_NEG,
         AST_EXPR_MUL,
         AST_EXPR_DIV,
         AST_EXPR_EQ,
@@ -261,10 +273,8 @@ struct AstStructDef {
 };
 
 struct AstImport {
-    // Example: import printf, puts from "stdlib/io.jou"
-    char *filename;  // "stdlib/io.jou"
-    char (*symbols)[100];  // { "printf", "puts" }
-    int nsymbols;  // 2
+    char *path;  // Relative to current working directory, so e.g. "blah/stdlib/io.jou"
+    char symbol[100];
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -369,6 +379,7 @@ struct TypeContext {
     List(Variable *) variables;
     List(Type *) structs;
     List(Signature) function_signatures;
+    List(Signature) exports;
 };
 
 // function body can be NULL to check a declaration
@@ -453,8 +464,7 @@ Make sure that the filename passed to tokenize() stays alive throughout the
 entire compilation. It is used in error messages.
 */
 Token *tokenize(FILE *f, const char *filename);
-AstToplevelNode *parse(const Token *tokens);
-// TODO: type contexts should be file-specific, not shared across the entire compilation.
+AstToplevelNode *parse(const Token *tokens, const char *stdlib_path);
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx);
