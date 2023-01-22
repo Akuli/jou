@@ -88,4 +88,7 @@ Gotchas to watch out for:
     strcpy((dest),(src)); \
 } while(0)
 
+// Return a full path to the currently running executable.
+char *find_current_executable(void);
+
 #endif

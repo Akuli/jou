@@ -118,6 +118,14 @@ $ LLVM_CONFIG=llvm-config-11 make
 </details>
 
 
+## Updating to the latest version of Jou
+
+Run `jou --update`.
+On old versions of Jou that don't have `--update`,
+you need to instead delete the folder where you installed Jou
+and go through the setup instructions above again.
+
+
 ## Editor support
 
 Tell your editor to syntax-highlight `.jou` files as if they were Python files.
