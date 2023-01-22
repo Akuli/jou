@@ -189,7 +189,7 @@ for two reasons:
 Let's explore these with more examples.
 
 
-### Optimizing a large program is slow
+### Example #1: Optimizing a large program is slow
 
 TODO: write this section once a large Jou program exists and name it Example #1
 
