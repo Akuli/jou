@@ -194,7 +194,7 @@ Let's explore these with more examples.
 TODO: write this section once a large Jou program exists and name it Example #1
 
 
-### Optimizer's assumptions
+### Example #2: Optimizer's assumptions
 
 Let's write a program that crashes if the user selects yes.
 
