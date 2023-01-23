@@ -1,9 +1,9 @@
-# At midnight UTC, create a zip file of everything needed to run
+# Every 3 hours, create a zip file of everything needed to run
 # Jou on Windows, and upload it to GitHub releases. This makes it
 # easy to use Jou on Windows.
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 */3 * * *'
   workflow_dispatch:  # Can also be triggered manually from github UI
 
 jobs:
@@ -18,10 +18,7 @@ jobs:
           # Commit already tagged
           echo datetag= >> $GITHUB_OUTPUT
         else
-          # When building just after midnight, use the date of the previous day, not current day.
-          # When triggered manually, use (most likely) the current date.
-          # This way, the date represents when the changes were made.
-          echo datetag=$(date -d '5 minutes ago' +'%Y-%m-%d') > $GITHUB_OUTPUT
+          echo datetag=$(date +'%Y-%m-%d-%H00') > $GITHUB_OUTPUT
         fi
     - if: ${{ steps.tagname.outputs.datetag != '' }}
       name: Download latest GitHub actions build results
@@ -75,7 +72,6 @@ jobs:
         cp -v jou.exe jou
         cp -v *.dll jou
         cp -rv stdlib jou
-        echo ${{ steps.tagname.outputs.datetag }} > jou/jouversion.txt
         zip -r jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip jou
 
     - if: ${{ steps.tagname.outputs.datetag != '' }}
