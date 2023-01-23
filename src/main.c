@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "jou_compiler.h"
+#include "util.h"
 #include <llvm-c/Analysis.h>
 #include <llvm-c/Core.h>
 #include <llvm-c/Linker.h>
@@ -218,6 +219,7 @@ char *find_this_executable(void)
 #ifdef _WIN32
     extern char *_pgmptr;  // A documented global variable in Windows. Full path to executable.
     result = strdup(_pgmptr);
+    simplify_path(result);
     err = NULL;
 #else
     int n = 10000;

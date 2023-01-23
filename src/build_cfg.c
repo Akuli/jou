@@ -91,22 +91,43 @@ static CfInstruction *add_instruction(
     add_instruction((st), (loc), CF_CONSTANT, &(union CfInstructionData){ .constant=copy_constant((Constant[]){c}) }, NULL, (target))
 
 
+static const Variable *build_bool_to_int_conversion(
+    struct State *st, const Variable *boolvar, const Location location, const Type *t)
+{
+    assert(is_integer_type(t));
+    Variable *result = add_variable(st, t);
+
+    CfBlock *set1 = add_block(st);
+    CfBlock *set0 = add_block(st);
+    CfBlock *done = add_block(st);
+
+    add_jump(st, boolvar, set1, set0, set1);
+    add_constant(st, location, int_constant(t, 1), result)->hide_unreachable_warning = true;
+    add_jump(st, NULL, done, done, set0);
+    add_constant(st, location, int_constant(t, 0), result)->hide_unreachable_warning = true;
+    add_jump(st, NULL, done, done, done);
+
+    return result;
+}
+
 static const Variable *build_cast(
     struct State *st, const Variable *obj, const Type *to, Location location)
 {
     if (obj->type == to)
         return obj;
 
-    const Variable *result = add_variable(st, to);
-
     if (is_pointer_type(obj->type) && is_pointer_type(to)) {
+        const Variable *result = add_variable(st, to);
         add_unary_op(st, location, CF_PTR_CAST, obj, result);
         return result;
     }
     if (is_integer_type(obj->type) && is_integer_type(to)) {
+        const Variable *result = add_variable(st, to);
         add_unary_op(st, location, CF_INT_CAST, obj, result);
         return result;
     }
+    if (obj->type == boolType && is_integer_type(to))
+        return build_bool_to_int_conversion(st, obj, location, to);
     assert(0);
 }
 

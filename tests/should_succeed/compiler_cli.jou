@@ -1,24 +1,40 @@
-# TODO: put this to stdlib/something.jou
-declare system(command: byte*) -> int
+from "stdlib/str.jou" import sprintf, strstr
+from "stdlib/io.jou" import printf
+from "stdlib/mem.jou" import malloc, free
+from "stdlib/process.jou" import system, getenv
+
+def is_windows() -> bool:
+    return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
+
+def run_jou(command: byte*) -> void:
+    if is_windows():
+        jou_exe = "jou.exe"
+    else:
+        jou_exe = "./jou"
+
+    full_command = malloc(1000)
+    sprintf(full_command, "%s %s", jou_exe, command)
+    system(full_command)
+    free(full_command)
 
 def main() -> int:
-    system("./jou")  # Output: Usage: ./jou [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
-    system("./jou examples/hello.jou")  # Output: Hello World
-    system("./jou -O8 examples/hello.jou")  # Output: Usage: ./jou [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
-    system("./jou lolwat.jou")  # Output: compiler error in file "lolwat.jou": cannot open file: No such file or directory
-    system("./jou --asdasd")  # Output: Usage: ./jou [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
-    system("./jou --verbose")  # Output: Usage: ./jou [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    run_jou("")  # Output: Usage: <jouexe> [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    run_jou("examples/hello.jou")  # Output: Hello World
+    run_jou("-O8 examples/hello.jou")  # Output: Usage: <jouexe> [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    run_jou("lolwat.jou")  # Output: compiler error in file "lolwat.jou": cannot open file: No such file or directory
+    run_jou("--asdasd")  # Output: Usage: <jouexe> [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    run_jou("--verbose")  # Output: Usage: <jouexe> [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
 
-    # Output: Usage: ./jou [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    # Output: Usage: <jouexe> [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
     # Output:   --help           display this message
     # Output:   --verbose        display a lot of information about all compilation steps
     # Output:   -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)
-    system("./jou --help")
+    run_jou("--help")
 
     # Test that --verbose kinda works, without asserting the output in too much detail.
     # See README for an explanation of why CFG is twice.
     # TODO: shouldn't need to hide stdlib/io.jou stuff, ideally it would be precompiled
-    system("./jou --verbose examples/hello.jou | grep === | grep -v stdlib/io.jou")
+    run_jou("--verbose examples/hello.jou | grep === | grep -v stdlib/io.jou")
     # Output: ===== Tokens for file "examples/hello.jou" =====
     # Output: ===== AST for file "examples/hello.jou" =====
     # Output: ===== Control Flow Graphs for file "examples/hello.jou" =====
@@ -26,17 +42,26 @@ def main() -> int:
     # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
 
     # With optimizations enabled, we see also the optimized LLVM IR.
-    system("./jou --verbose -O1 examples/hello.jou | grep 'LLVM IR for file'")
+    run_jou("--verbose -O1 examples/hello.jou | grep 'LLVM IR for file'")
     # Output: ===== Unoptimized LLVM IR for file "<joudir>/stdlib/io.jou" =====
     # Output: ===== Optimized LLVM IR for file "<joudir>/stdlib/io.jou" =====
     # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
     # Output: ===== Optimized LLVM IR for file "examples/hello.jou" =====
 
-    # Different working directory
-    system("cd tests && ../jou ../examples/hello.jou")  # Output: Hello World
+    # Different working directory.
+    # Output: Hello World
+    if is_windows():
+        system("cd tests & ..\\jou.exe ../examples/hello.jou")
+    else:
+        system("cd tests && ../jou ../examples/hello.jou")
 
     # Executable in weird place
-    system("cp jou tmp/tests/jou_executable")
-    system("tmp/tests/jou_executable 2>&1")  # Output: error: cannot find the Jou standard library in <joudir>/tmp/tests/stdlib
+    # Output: error: cannot find the Jou standard library in <joudir>/tmp/tests/stdlib
+    if is_windows():
+        system("copy jou.exe tmp\\tests\\jou_executable.exe >nul")
+        system("tmp\\tests\\jou_executable.exe")
+    else:
+        system("cp jou tmp/tests/jou_executable")
+        system("tmp/tests/jou_executable")
 
     return 0

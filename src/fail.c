@@ -19,6 +19,7 @@ static void print_message(Location location, const char *start_fmt, const char *
     fprintf(stderr, ": ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
+    fflush(stderr);  // Make sure compiler warnings appear before program output
 }
 
 void show_warning(Location location, const char *fmt, ...)

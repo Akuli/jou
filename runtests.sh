@@ -11,18 +11,53 @@
 export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
-if [ $# != 1 ] || [[ "$1" =~ ^- ]]; then
-    echo "Usage: $0 'jou %s'" >&2
-    echo "The %s will be replaced by the name of a jou file." >&2
+if [ "$1" == "--valgrind" ]; then
+    valgrind=yes
+    shift
+else
+    valgrind=no
+fi
+
+if [ $# == 0 ]; then
+    # No arguments --> run tests in the basic/simple way
+    if [[ "$OS" =~ Windows ]]; then
+        command_template='./jou.exe %s'
+    else
+        command_template='./jou %s'
+    fi
+elif [ $# == 1 ] && [[ "$1" =~ ^[^-] ]]; then
+    command_template="$1"
+else
+    echo "Usage: $0 [--valgrind] [TEMPLATE]" >&2
+    echo "TEMPLATE can be e.g. './jou %s', where %s will be replaced by a jou file." >&2
     exit 2
 fi
-command_template="$1"
 
-# Go to project root.
-cd "$(dirname "$0")"/..
+if [ $valgrind = yes ]; then
+    command_template="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup $command_template"
+fi
+
+if ! [[ "$OS" =~ Windows ]]; then
+    make
+fi
 
 rm -rf tmp/tests
-mkdir -vp tmp/tests
+mkdir -p tmp/tests
+
+joudir="$(pwd)"
+if [[ "$OS" =~ Windows ]]; then
+    jouexe="jou.exe"
+    if [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
+        # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
+        letter=${joudir:1:1}
+        joudir="${letter^^}:/${joudir:3}"
+        unset letter
+    fi
+else
+    jouexe="./jou"
+fi
+echo "<joudir> in expected output will be replaced with $joudir."
+echo "<jouexe> in expected output will be replaced with $jouexe."
 
 function generate_expected_output()
 {
@@ -34,9 +69,11 @@ function generate_expected_output()
     if [[ "$command_template" =~ --verbose ]]; then
         echo "A lot of output hidden..."
     else
-        (grep -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
-        (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
-        (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
+        (
+            (grep -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
+            (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
+            (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
+        ) | sed "s,<joudir>,$joudir,g" | sed "s,<jouexe>,$jouexe,g"
     fi
     echo "Exit code: $correct_exit_code"
 }
@@ -55,9 +92,8 @@ function post_process_output()
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
     else
-        # Pass the output through almost unchanged, but replace
-        # path to the project (e.g. /home/akuli/jou) with <joudir>.
-        sed "s,$(pwd),<joudir>,g"
+        # Pass the output through unchanged.
+        cat
     fi
 }
 
@@ -86,8 +122,8 @@ function run_test()
         echo -ne ${YELLOW}s${RESET}
         mv $diffpath $diffpath.skip
     elif diff -u --color=always \
-        <(generate_expected_output $joufile $correct_exit_code) \
-        <(bash -c "ulimit -v 500000; $command; echo Exit code: \$?" 2>&1 | post_process_output $joufile) \
+        <(generate_expected_output $joufile $correct_exit_code | tr -d '\r') \
+        <(ulimit -v 500000 2>/dev/null; bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r') \
         &>> $diffpath
     then
         # Ran successfully
