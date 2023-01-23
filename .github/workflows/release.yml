@@ -75,6 +75,7 @@ jobs:
         cp -v jou.exe jou
         cp -v *.dll jou
         cp -rv stdlib jou
+        echo ${{ steps.tagname.outputs.datetag }} > jou/jouversion.txt
         zip -r jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip jou
 
     - if: ${{ steps.tagname.outputs.datetag != '' }}

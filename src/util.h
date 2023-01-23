@@ -96,4 +96,7 @@ Modifies path in place. Does not allocate more memory.
 */
 void simplify_path(char *path);
 
+// Return a full path to the currently running executable.
+char *find_current_executable(void);
+
 #endif

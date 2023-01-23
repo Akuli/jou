@@ -6,6 +6,8 @@
 #include <llvm-c/Core.h>
 #include "util.h"
 
+void update_jou_compiler(void);
+
 // don't like repeating "struct" outside this header file
 typedef struct CommandLineFlags CommandLineFlags;
 typedef struct Location Location;
