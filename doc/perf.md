@@ -36,7 +36,7 @@ int main()
 
 ```python
 # fib40.jou (Jou program)
-declare printf(format: byte*, ...) -> int
+from "stdlib/io.jou" import printf
 
 def fib(n: int) -> int:
     if n <= 1:
@@ -199,8 +199,7 @@ TODO: write this section once a large Jou program exists and name it Example #1
 Let's write a program that crashes if the user selects yes.
 
 ```python
-declare printf(msg: byte*, ...) -> int
-declare getchar() -> int
+from "stdlib/io.jou" import printf, getchar
 
 def main() -> int:
     printf("Crash this program? (y/n) ")
@@ -242,9 +241,8 @@ Essentially it thinks that the `x = *foo` code will never run, because you aren'
 Sidenote: if you want the program to crash with optimizations on, then you should do so using `abort()` function for example:
 
 ```python
-declare printf(msg: byte*, ...) -> int
-declare getchar() -> int
-declare abort() -> void
+from "stdlib/io.jou" import printf, getchar
+from "stdlib/process.jou" import abort
 
 def main() -> int:
     printf("Crash this program? (y/n) ")
