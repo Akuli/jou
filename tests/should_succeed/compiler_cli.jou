@@ -18,14 +18,21 @@ def run_jou(command: byte*) -> void:
     free(full_command)
 
 def main() -> int:
-    run_jou("")  # Output: Usage: <jouexe> [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    run_jou("")  # Output: <jouexe>: missing file name to run (try "<jouexe> --help")
+    run_jou("--update -O3")  # Output: <jouexe>: "--update" cannot be used with other arguments (try "<jouexe> --help")
+    run_jou("--verbose")  # Output: <jouexe>: missing file name to run (try "<jouexe> --help")
+    run_jou("x.jou y.jou")  # Output: <jouexe>: you can only pass one Jou file (try "<jouexe> --help")
     run_jou("examples/hello.jou")  # Output: Hello World
-    run_jou("-O8 examples/hello.jou")  # Output: Usage: <jouexe> [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    run_jou("-O8 examples/hello.jou")  # Output: <jouexe>: unknown argument "-O8" (try "<jouexe> --help")
+    run_jou("--lolwat")  # Output: <jouexe>: unknown argument "--lolwat" (try "<jouexe> --help")
     run_jou("lolwat.jou")  # Output: compiler error in file "lolwat.jou": cannot open file: No such file or directory
-    run_jou("--asdasd")  # Output: Usage: <jouexe> [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
-    run_jou("--verbose")  # Output: Usage: <jouexe> [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
 
-    # Output: Usage: <jouexe> [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    # Output: Usage:
+    # Output:   <jouexe> [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    # Output:   <jouexe> --help       # This message
+    # Output:   <jouexe> --update     # Download and install the latest Jou
+    # Output:
+    # Output: Options:
     # Output:   --help           display this message
     # Output:   --verbose        display a lot of information about all compilation steps
     # Output:   -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)

@@ -1,9 +1,3 @@
-#ifndef _WIN32
-    // readlink() stuff
-    #define _POSIX_C_SOURCE 200112L
-    #include <unistd.h>
-#endif // _WIN32
-
 #include <assert.h>
 #include <libgen.h>
 #include <errno.h>
@@ -38,8 +32,13 @@ static void optimize(LLVMModuleRef module, int level)
     LLVMDisposePassManager(pm);
 }
 
-static const char usage_fmt[] = "Usage: %s [--help] [--verbose] [-O0|-O1|-O2|-O3] FILENAME\n";
-static const char long_help[] =
+static const char help_fmt[] =
+    "Usage:\n"
+    "  <argv0> [--verbose] [-O0|-O1|-O2|-O3] FILENAME\n"
+    "  <argv0> --help       # This message\n"
+    "  <argv0> --update     # Download and install the latest Jou\n"
+    "\n"
+    "Options:\n"
     "  --help           display this message\n"
     "  --verbose        display a lot of information about all compilation steps\n"
     "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
@@ -49,12 +48,30 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
 {
     *flags = (CommandLineFlags){0};
 
+    if (argc == 2 && !strcmp(argv[1], "--help")) {
+        // Print help.
+        const char *s = help_fmt;
+        while (*s) {
+            if (!strncmp(s, "<argv0>", 7)) {
+                printf("%s", argv[0]);
+                s += 7;
+            } else {
+                putchar(*s++);
+            }
+        }
+        exit(0);
+    }
+
+    if (argc == 2 && !strcmp(argv[1], "--update")) {
+        update_jou_compiler();
+        exit(0);
+    }
+
     int i = 1;
     while (i < argc && argv[i][0] == '-') {
-        if (!strcmp(argv[i], "--help")) {
-            printf(usage_fmt, argv[0]);
-            printf("%s", long_help);
-            exit(0);
+        if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "--update")) {
+            fprintf(stderr, "%s: \"%s\" cannot be used with other arguments", argv[0], argv[i]);
+            goto wrong_usage;
         } else if (!strcmp(argv[i], "--verbose")) {
             flags->verbose = true;
             i++;
@@ -66,17 +83,26 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
             flags->optlevel = argv[i][2] - '0';
             i++;
         } else {
-            goto usage;
+            fprintf(stderr, "%s: unknown argument \"%s\"", argv[0], argv[i]);
+            goto wrong_usage;
         }
     }
 
-    if (i != argc-1)
-        goto usage;
+    if (i == argc) {
+        fprintf(stderr, "%s: missing file name to run", argv[0]);
+        goto wrong_usage;
+    }
+    if (i < argc-1) {
+        fprintf(stderr, "%s: you can only pass one Jou file", argv[0]);
+        goto wrong_usage;
+    }
+
+    assert(i == argc-1);
     *filename = argv[i];
     return;
 
-usage:
-    fprintf(stderr, usage_fmt, argv[0]);
+wrong_usage:
+    fprintf(stderr, " (try \"%s --help\")\n", argv[0]);
     exit(2);
 }
 
@@ -210,44 +236,12 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
     }
 }
 
-// argv[0] doesn't work as expected when Jou is ran through PATH.
-char *find_this_executable(void)
-{
-    char *result;
-    const char *err;
-
-#ifdef _WIN32
-    extern char *_pgmptr;  // A documented global variable in Windows. Full path to executable.
-    result = strdup(_pgmptr);
-    simplify_path(result);
-    err = NULL;
-#else
-    int n = 10000;
-    result = calloc(1, n);
-    ssize_t ret = readlink("/proc/self/exe", result, n);
-
-    if (ret < 0)
-        err = strerror(errno);
-    else if (ret == n) {
-        static char s[100];
-        sprintf(s, "path is more than %d bytes long", n);
-        err=s;
-    } else {
-        assert(0<ret && ret<n);
-        err = NULL;
-    }
-#endif
-
-    if(err) {
-        fprintf(stderr, "error finding current executable, needed to find the Jou standard library: %s\n", err);
-        exit(1);
-    }
-    return result;
-}
-
 static char *find_stdlib()
 {
-    char *exe = find_this_executable();
+    char *exe = find_current_executable();
+#ifdef _WIN32
+    simplify_path(exe);
+#endif
     const char *exedir = dirname(exe);
 
     char *path = malloc(strlen(exedir) + 10);
