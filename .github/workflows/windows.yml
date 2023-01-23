@@ -61,7 +61,15 @@ jobs:
           name: exe-and-dlls
           path: exe-and-dlls
 
-  # TODO: Doesn't work, lots of errors
+  codeblocks-project:
+    # Ensure that the codeblocks project contains all source files.
+    # It gets outdated easily when I create a new file on linux.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          diff -u --color=always <(ls src/* | sort) <(grep filename= jou.cbp | cut -d'"' -f2 | sort)
+
   test:
     needs: build
     runs-on: windows-latest
