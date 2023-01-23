@@ -70,7 +70,6 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
     int i = 1;
     while (i < argc && argv[i][0] == '-') {
         if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "--update")) {
-            // TODO: test this
             fprintf(stderr, "%s: \"%s\" cannot be used with other arguments", argv[0], argv[i]);
             goto wrong_usage;
         } else if (!strcmp(argv[i], "--verbose")) {
@@ -84,19 +83,16 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
             flags->optlevel = argv[i][2] - '0';
             i++;
         } else {
-            // TODO: test this
             fprintf(stderr, "%s: unknown argument \"%s\"", argv[0], argv[i]);
             goto wrong_usage;
         }
     }
-    
+
     if (i == argc) {
-        // TODO: test this
-        fprintf(stderr, "%s: missing file name to compile", argv[0]);
+        fprintf(stderr, "%s: missing file name to run", argv[0]);
         goto wrong_usage;
     }
     if (i < argc-1) {
-        // TODO: test this
         fprintf(stderr, "%s: you can only pass one Jou file", argv[0]);
         goto wrong_usage;
     }
