@@ -72,7 +72,7 @@ function generate_expected_output()
         (
             (grep -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
             (grep -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
-            (grep -o '# Output: .*' $joufile || true) | sed s/'^# Output: '//
+            (grep -oE '# Output:.*' $joufile || true) | sed -E s/'^# Output: ?'//
         ) | sed "s,<joudir>,$joudir,g" | sed "s,<jouexe>,$jouexe,g"
     fi
     echo "Exit code: $correct_exit_code"
