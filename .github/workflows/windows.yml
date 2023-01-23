@@ -68,7 +68,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: |
-          diff -u --color=always <(ls src/* | sort) <(grep filename= jou.cbp | cut -d'"' -f2 | sort)
+          diff -u --color=always <(ls src/* | sort) <(grep filename= jou.cbp | cut -d'"' -f2)
 
   test:
     needs: build
