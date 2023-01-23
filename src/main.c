@@ -239,6 +239,9 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
 static char *find_stdlib()
 {
     char *exe = find_current_executable();
+#ifdef _WIN32
+    simplify_path(exe);
+#endif
     const char *exedir = dirname(exe);
 
     char *path = malloc(strlen(exedir) + 10);
