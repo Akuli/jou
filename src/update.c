@@ -71,14 +71,14 @@ void update_jou_compiler()
     }
 
 #ifdef _WIN32
-    if (system("pwsh update.ps1") != 0)
+    printf("Download and install the latest version of Jou from GitHub releases?");
+    confirm();
+    if (system("powershell -ExecutionPolicy bypass -File update.ps1") != 0)
         fail();
 #else
     printf("Run \"git pull && make\"?");
     confirm();
-
-    setenv("JOU_DIR", exedir, true);
-    if (system("cd \"$JOU_DIR\" && git pull && make"))
+    if (system("git pull && make"))
         fail();
 #endif
 
