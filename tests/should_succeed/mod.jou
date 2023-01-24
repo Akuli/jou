@@ -23,4 +23,10 @@ def main() -> int:
         (2 as byte) % (-5),
     )
 
+    # Consistency between % and /. No output expected.
+    for a = -5; a < 5; a++:
+        for b = -5; b < 5; b++:
+            if b != 0 and a/b*b + a%b != a:
+                printf("remainder doesn't work correctly when dividing %d by %d (div=%d, rem=%d)\n", a, b, a/b, a%b)
+
     return 0

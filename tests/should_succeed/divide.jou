@@ -14,11 +14,11 @@ def main() -> int:
     # With signed division, 8-bit 255/2 would be (-1)/2 which truncates to 0.
     printf("%d / %d = %d\n", 0xff as byte, 2 as byte, (0xff as byte)/(2 as byte))  # Output: 255 / 2 = 127
 
-    # Dividing ints is signed 32-bit division.
-    printf("%d / %d = %d\n", 7, 2, 7/2)             # Output: 7 / 2 = 3
-    printf("%d / %d = %d\n", 0-7, 2, (0-7)/2)       # Output: -7 / 2 = -3
-    printf("%d / %d = %d\n", 7, 0-2, 7/(0-2))       # Output: 7 / -2 = -3
-    printf("%d / %d = %d\n", 0-7, 0-2, (0-7)/(0-2)) # Output: -7 / -2 = 3
+    # Dividing ints is signed 32-bit floor division.
+    printf("%d / %d = %d\n", 7, 2, 7/2)         # Output: 7 / 2 = 3
+    printf("%d / %d = %d\n", -7, 2, (-7)/2)     # Output: -7 / 2 = -4
+    printf("%d / %d = %d\n", 7, -2, 7/(-2))     # Output: 7 / -2 = -4
+    printf("%d / %d = %d\n", -7, -2, (-7)/(-2)) # Output: -7 / -2 = 3
 
     # Output: 6 3 2 1
     x = side_effect(6)/side_effect(3)/side_effect(2)
