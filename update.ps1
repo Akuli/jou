@@ -17,9 +17,9 @@ Get-ChildItem . -Filter *.old | ForEach-Object { Remove-Item $_ -Recurse }
 
 Write-Output "Finding latest version..."
 # For some reason, Invoke-WebRequest works for me only if I specify -OutFile.
-Invoke-WebRequest -Uri https://api.github.com/repos/Akuli/jou/releases/latest -OutFile update.json
-$version = Get-Content update.json | ConvertFrom-Json | Select-Object -ExpandProperty name
-$download_link = Get-Content update.json | ConvertFrom-Json | Select-Object -ExpandProperty assets | Select-Object -ExpandProperty browser_download_url
+Invoke-WebRequest -Uri https://api.github.com/repos/Akuli/jou/releases/latest -OutFile jou_update_info.json
+$version = Get-Content jou_update_info.json | ConvertFrom-Json | Select-Object -ExpandProperty name
+$download_link = Get-Content jou_update_info.json | ConvertFrom-Json | Select-Object -ExpandProperty assets | Select-Object -ExpandProperty browser_download_url
 
 Write-Output "Downloading Jou $version from GitHub..."
 Invoke-WebRequest -Uri $download_link -OutFile jou_update.zip
@@ -39,4 +39,6 @@ Write-Output "Installing new Jou..."
 Copy-Item ./jou_update/jou/* -Destination . -Recurse
 
 Write-Output "Cleaning up..."
-Remove-Item jou_update -Force -Recurse
+Remove-Item jou_update -Recurse
+Remove-Item jou_update.zip
+Remove-Item jou_update.json
