@@ -36,8 +36,7 @@ Remove-Item jou_update.zip
 #
 # We can't erase the whole installation directory because the user might
 # put their files there. It isn't a good idea anyway, but we really
-# shouldn't wipe the user's files. Instead we delete only a few carefully
-# chosen files.
+# shouldn't wipe the user's files.
 Write-Output "Deleting old Jou..."
 Remove-Item stdlib -Recurse
 Rename-Item jou.exe jou.exe.old
