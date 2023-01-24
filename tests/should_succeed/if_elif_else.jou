@@ -15,6 +15,12 @@ def foo(x: int) -> void:
     printf(">\n")
 
 def main() -> int:
+    if True:
+        putchar('a')  # Output: a
+    if False:
+        putchar('b')  # Warning: this code will never run
+    putchar('\n')
+
     foo(12)     # Output: <Big>
     foo(15)     # Output: <Big>
     foo(5)      # Output: <Five>
