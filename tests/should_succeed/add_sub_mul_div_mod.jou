@@ -1,0 +1,89 @@
+from "stdlib/io.jou" import printf
+
+def side_effect(ch: int) -> int:
+    printf("%d ", ch)
+    return ch
+
+def main() -> int:
+    printf("%d\n", 7+15)    # Output: 22
+    printf("%d\n", -7+15)    # Output: 8
+    printf("%d\n", 7-15)    # Output: -8
+    printf("%d\n", -7-15)    # Output: -22
+
+    printf("%d\n", 1+2*3)       # Output: 7
+    printf("%d\n", 1+(2*3))     # Output: 7
+    printf("%d\n", (1+2)*3)     # Output: 9
+
+    # '2' converts to int 50
+    printf("%d\n", 1000 + '2')  # Output: 1050
+
+    # (3 * ASCII 'a') % 256 = (3*97) % 256 = 35
+    # TODO: this seems dumb, should they convert to int instead?
+    printf("%d\n", 'a')         # Output: 97
+    printf("%d\n", 'a'+'a')     # Output: 194
+    printf("%d\n", 'a'+'a'+'a') # Output: 35
+
+    # Output: 1 2 3 4 10
+    printf("%d\n", side_effect(1) + side_effect(2) + side_effect(3) + side_effect(4))
+
+    printf("%d\n", 7*7*2)    # Output: 98
+
+    # '2' converts to int 50
+    printf("%d\n", 10*'2')  # Output: 500
+
+    # (ASCII 'a' * ASCII 'e') % 256 = (97*101) % 256 = 9797 % 256 = 69
+    # TODO: this seems dumb, what would C do here?
+    printf("%d\n", 'a'*'e')  # Output: 69
+
+    # Output: 1 2 3 4 24
+    x = side_effect(1)*side_effect(2)*side_effect(3)*side_effect(4)
+    printf("%d\n", x)
+
+    printf("%d\n", 7/2)    # Output: 3
+    printf("%d\n", 4/2*3)    # Output: 6
+    printf("%d\n", (4/2)*3)    # Output: 6
+    printf("%d\n", 4/(2*3))    # Output: 0
+
+    # Dividing bytes is unsigned 8-bit division.
+    # With signed division, 8-bit 255/2 would be (-1)/2 which truncates to 0.
+    printf("%d / %d = %d\n", 0xff as byte, 2 as byte, (0xff as byte)/(2 as byte))  # Output: 255 / 2 = 127
+
+    # Dividing ints is signed 32-bit floor division.
+    printf("%d / %d = %d\n", 7, 2, 7/2)         # Output: 7 / 2 = 3
+    printf("%d / %d = %d\n", -7, 2, (-7)/2)     # Output: -7 / 2 = -4
+    printf("%d / %d = %d\n", 7, -2, 7/(-2))     # Output: 7 / -2 = -4
+    printf("%d / %d = %d\n", -7, -2, (-7)/(-2)) # Output: -7 / -2 = 3
+
+    # Output: 6 3 2 1
+    x = side_effect(6)/side_effect(3)/side_effect(2)
+    printf("%d\n", x)
+
+    # Output: 222222
+    printf(
+        "%d%d%d%d%d%d\n",
+        7 % 5,
+        (-3) % 5,
+        7 % (5 as byte),
+        (-3) % (5 as byte),
+        (7 as byte) % 5,
+        (7 as byte) % (5 as byte),
+    )
+
+    # Mod with negative number --> negative result
+    # Output: -3 -3 -3 -3 -3
+    printf(
+        "%d %d %d %d %d\n",
+        7 % (-5),
+        2 % (-5),
+        (-3) % (-5),
+        (7 as byte) % (-5),
+        (2 as byte) % (-5),
+    )
+
+    # Consistency between % and /. No output expected.
+    for a = -5; a < 5; a++:
+        for b = -5; b < 5; b++:
+            if b != 0 and a/b*b + a%b != a:
+                printf("remainder doesn't work correctly when dividing %d by %d (div=%d, rem=%d)\n", a, b, a/b, a%b)
+
+    return 0
