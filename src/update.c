@@ -43,9 +43,9 @@ static void trim_whitespace(char *s)
     memmove(s, start, end-start+1);
 }
 
-static void confirm()
+static void confirm(const char *prompt)
 {
-    printf(" (y/n) ");
+    printf("%s (y/n) ", prompt);
     fflush(stdout);
 
     char line[50] = {0};
@@ -71,13 +71,11 @@ void update_jou_compiler()
     }
 
 #ifdef _WIN32
-    printf("Download and install the latest version of Jou from GitHub releases?");
-    confirm();
+    confirm("Download and install the latest version of Jou from GitHub releases?");
     if (system("powershell -ExecutionPolicy bypass -File update.ps1") != 0)
         fail();
 #else
-    printf("Run \"git pull && make\"?");
-    confirm();
+    confirm("Run \"git pull && make\"?");
     if (system("git pull && make"))
         fail();
 #endif
