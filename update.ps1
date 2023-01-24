@@ -41,11 +41,11 @@ Remove-Item jou_update.zip
 Write-Output "Deleting old Jou..."
 Remove-Item stdlib -Recurse
 Rename-Item jou.exe jou.exe.old
-Get-ChildItem . -Filter *.dll | ForEach-Object {
+foreach ($dll in Get-ChildItem . -Filter *.dll) {
     try {
-        Remove-Item $_
+        Remove-Item $dll
     } catch {
-        Rename-Item $_ "$_.old"
+        Rename-Item $dll "$dll.old"
     }
 }
 
