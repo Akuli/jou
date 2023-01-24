@@ -155,7 +155,7 @@ static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, L
 static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
 {
     /*
-    LLVM's provides two division. One truncates, the other is an "exact div"
+    LLVM's provides two divisions. One truncates, the other is an "exact div"
     that requires there is no remainder. Jou uses floor division which is
     neither of the two, but is quite easy to implement:
 
