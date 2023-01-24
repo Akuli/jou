@@ -1,0 +1,32 @@
+from "stdlib/io.jou" import printf
+
+def main() -> int:
+    # Output: 222222
+    printf(
+        "%d%d%d%d%d%d\n",
+        7 % 5,
+        (-3) % 5,
+        7 % (5 as byte),
+        (-3) % (5 as byte),
+        (7 as byte) % 5,
+        (7 as byte) % (5 as byte),
+    )
+
+    # Mod with negative number --> negative result
+    # Output: -3 -3 -3 -3 -3
+    printf(
+        "%d %d %d %d %d\n",
+        7 % (-5),
+        2 % (-5),
+        (-3) % (-5),
+        (7 as byte) % (-5),
+        (2 as byte) % (-5),
+    )
+
+    # Consistency between % and /. No output expected.
+    for a = -5; a < 5; a++:
+        for b = -5; b < 5; b++:
+            if b != 0 and a/b*b + a%b != a:
+                printf("remainder doesn't work correctly when dividing %d by %d (div=%d, rem=%d)\n", a, b, a/b, a%b)
+
+    return 0

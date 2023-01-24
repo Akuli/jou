@@ -264,6 +264,9 @@ static AstExpression build_operator_expression(const Token *t, int arity, const 
     } else if (is_operator(t, "/")) {
         assert(arity == 2);
         result.kind = AST_EXPR_DIV;
+    } else if (is_operator(t, "%")) {
+        assert(arity == 2);
+        result.kind = AST_EXPR_MOD;
     } else if (is_keyword(t, "and")) {
         assert(arity == 2);
         result.kind = AST_EXPR_AND;
@@ -436,7 +439,7 @@ static AstExpression parse_expression_with_unary_operators(const Token **tokens)
 static AstExpression parse_expression_with_mul_and_div(const Token **tokens)
 {
     AstExpression result = parse_expression_with_unary_operators(tokens);
-    while (is_operator(*tokens, "*") || is_operator(*tokens, "/"))
+    while (is_operator(*tokens, "*") || is_operator(*tokens, "/") || is_operator(*tokens, "%"))
         add_to_binop(tokens, &result, parse_expression_with_unary_operators);
     return result;
 }

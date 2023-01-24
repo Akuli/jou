@@ -141,7 +141,29 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
         return make_a_string_constant(st, c->data.str);
     }
     assert(0);
-}   
+}
+
+static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
+{
+    // Jou's % operator ensures that a%b has same sign as b:
+    // jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
+    LLVMValueRef llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp");
+    LLVMValueRef sum = LLVMBuildAdd(builder, llmod, rhs, "smod_tmp");
+    return LLVMBuildSRem(builder, sum, rhs, "smod");
+}
+
+static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
+{
+    /*
+    LLVM's provides two divisions. One truncates, the other is an "exact div"
+    that requires there is no remainder. Jou uses floor division which is
+    neither of the two, but is quite easy to implement:
+
+        floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
+    */
+    LLVMValueRef top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp");
+    return LLVMBuildExactSDiv(builder, top, rhs, "sdiv");
+}
 
 static void codegen_instruction(const struct State *st, const CfInstruction *ins)
 {
@@ -226,8 +248,10 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CF_INT_ADD: setdest(LLVMBuildAdd(st->builder, getop(0), getop(1), "int_add")); break;
         case CF_INT_SUB: setdest(LLVMBuildSub(st->builder, getop(0), getop(1), "int_sub")); break;
         case CF_INT_MUL: setdest(LLVMBuildMul(st->builder, getop(0), getop(1), "int_mul")); break;
-        case CF_INT_SDIV: setdest(LLVMBuildSDiv(st->builder, getop(0), getop(1), "int_sdiv")); break;
         case CF_INT_UDIV: setdest(LLVMBuildUDiv(st->builder, getop(0), getop(1), "int_udiv")); break;
+        case CF_INT_UMOD: setdest(LLVMBuildURem(st->builder, getop(0), getop(1), "int_umod")); break;
+        case CF_INT_SDIV: setdest(build_signed_div(st->builder, getop(0), getop(1))); break;
+        case CF_INT_SMOD: setdest(build_signed_mod(st->builder, getop(0), getop(1))); break;
         case CF_INT_EQ: setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, getop(0), getop(1), "int_eq")); break;
         // TODO: unsigned less-than
         case CF_INT_LT: setdest(LLVMBuildICmp(st->builder, LLVMIntSLT, getop(0), getop(1), "int_lt")); break;
