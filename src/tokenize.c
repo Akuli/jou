@@ -271,7 +271,7 @@ static char read_char_literal(struct State *st)
     return result;
 }
 
-static const char operatorChars[] = "=<>!.,()[]{};:+-*/&";
+static const char operatorChars[] = "=<>!.,()[]{};:+-*/&%";
 
 static const char *read_operator(struct State *st)
 {
@@ -279,7 +279,7 @@ static const char *read_operator(struct State *st)
         // Longer operators first, so that '==' does not parse as '=' '='
         "...", "===", "!==",
         "==", "!=", "->", "<=", ">=", "++", "--",
-        ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "*", "/", "+", "-", "<", ">",
+        ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">",
         NULL,
     };
 

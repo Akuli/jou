@@ -1,0 +1,26 @@
+from "stdlib/io.jou" import printf
+
+def main() -> int:
+    # Output: 222222
+    printf(
+        "%d%d%d%d%d%d\n",
+        7 % 5,
+        (-3) % 5,
+        7 % (5 as byte),
+        (-3) % (5 as byte),
+        (7 as byte) % 5,
+        (7 as byte) % (5 as byte),
+    )
+
+    # Mod with negative number --> negative result
+    # Output: -3 -3 -3 -3 -3
+    printf(
+        "%d %d %d %d %d\n",
+        7 % (-5),
+        2 % (-5),
+        (-3) % (-5),
+        (7 as byte) % (-5),
+        (2 as byte) % (-5),
+    )
+
+    return 0

@@ -153,6 +153,7 @@ static const Variable *build_binop(
         case AST_EXPR_SUB: k = CF_INT_SUB; break;
         case AST_EXPR_MUL: k = CF_INT_MUL; break;
         case AST_EXPR_DIV: k = (is_signed ? CF_INT_SDIV : CF_INT_UDIV); break;
+        case AST_EXPR_MOD: k = (is_signed ? CF_INT_SMOD : CF_INT_UMOD); break;
         case AST_EXPR_EQ: k = got_pointers?CF_PTR_EQ:CF_INT_EQ; break;
         case AST_EXPR_NE: k = got_pointers?CF_PTR_EQ:CF_INT_EQ; negate=true; break;
         case AST_EXPR_LT: k = CF_INT_LT; break;
@@ -483,6 +484,7 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
     case AST_EXPR_DIV:
+    case AST_EXPR_MOD:
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
     case AST_EXPR_GT:

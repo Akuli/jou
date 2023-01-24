@@ -170,6 +170,7 @@ struct AstExpression {
         AST_EXPR_NEG,
         AST_EXPR_MUL,
         AST_EXPR_DIV,
+        AST_EXPR_MOD,
         AST_EXPR_EQ,
         AST_EXPR_NE,
         // We need all of gt,ge,lt,le (>,>=,<,<=) because a<b and b>a do different
@@ -419,6 +420,8 @@ struct CfInstruction {
         CF_INT_MUL,
         CF_INT_SDIV, // signed division, example with 8 bits: 255 / 2 = (-1) / 2 = 0
         CF_INT_UDIV, // unsigned division: 255 / 2 = 127
+        CF_INT_SMOD, // remainder of signed division
+        CF_INT_UMOD, // remainder of unsigned division
         CF_INT_EQ,
         CF_INT_LT,
         CF_INT_CAST,

@@ -180,6 +180,7 @@ static const Type *check_binop(
     case AST_EXPR_SUB: do_what = "subtract"; break;
     case AST_EXPR_MUL: do_what = "multiply"; break;
     case AST_EXPR_DIV: do_what = "divide"; break;
+    case AST_EXPR_MOD: do_what = "take remainder with"; break;
 
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
@@ -214,7 +215,7 @@ static const Type *check_binop(
     if (got_integers) {
         cast_type = get_integer_type(
             max(lhstypes->type->data.width_in_bits, rhstypes->type->data.width_in_bits),
-            lhstypes->type->kind == TYPE_SIGNED_INTEGER || lhstypes->type->kind == TYPE_SIGNED_INTEGER
+            lhstypes->type->kind == TYPE_SIGNED_INTEGER || rhstypes->type->kind == TYPE_SIGNED_INTEGER
         );
     }
     if (got_pointers) {
@@ -228,6 +229,7 @@ static const Type *check_binop(
         case AST_EXPR_SUB:
         case AST_EXPR_MUL:
         case AST_EXPR_DIV:
+        case AST_EXPR_MOD:
             return cast_type;
         case AST_EXPR_EQ:
         case AST_EXPR_NE:
@@ -263,6 +265,7 @@ static const char *short_expression_description(const AstExpression *expr)
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
     case AST_EXPR_DIV:
+    case AST_EXPR_MOD:
     case AST_EXPR_NEG:
         return "the result of a calculation";
 
@@ -560,6 +563,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
     case AST_EXPR_DIV:
+    case AST_EXPR_MOD:
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
     case AST_EXPR_GT:
