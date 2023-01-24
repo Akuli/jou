@@ -198,6 +198,7 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
     case AST_EXPR_SUB: puts("sub"); n=2; break;
     case AST_EXPR_MUL: puts("mul"); n=2; break;
     case AST_EXPR_DIV: puts("div"); n=2; break;
+    case AST_EXPR_MOD: puts("mod"); n=2; break;
     case AST_EXPR_AND: puts("and"); n=2; break;
     case AST_EXPR_OR: puts("or"); n=2; break;
     }
@@ -410,6 +411,8 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
     case CF_INT_MUL:
     case CF_INT_SDIV:
     case CF_INT_UDIV:
+    case CF_INT_SMOD:
+    case CF_INT_UMOD:
     case CF_INT_EQ:
     case CF_INT_LT:
     case CF_PTR_EQ:
@@ -419,6 +422,8 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
             case CF_INT_MUL: printf("imul "); break;
             case CF_INT_SDIV: printf("sdiv "); break;
             case CF_INT_UDIV: printf("udiv "); break;
+            case CF_INT_SMOD: printf("smod "); break;
+            case CF_INT_UMOD: printf("umod "); break;
             case CF_INT_EQ: printf("ieq "); break;
             case CF_INT_LT: printf("ilt "); break;
             case CF_PTR_EQ: printf("ptreq "); break;

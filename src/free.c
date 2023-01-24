@@ -45,6 +45,7 @@ static void free_expression(const AstExpression *expr)
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
     case AST_EXPR_DIV:
+    case AST_EXPR_MOD:
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
     case AST_EXPR_GT:
