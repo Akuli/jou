@@ -13,7 +13,7 @@ Write-Output "Cleaning up..."
 Remove-Item jou_update -Force -Recurse -ErrorAction Ignore
 Remove-Item jou_update.zip -Force -ErrorAction Ignore
 Remove-Item jou_update_info.json -Force -ErrorAction Ignore
-Get-ChildItem . -Filter *.old | ForEach-Object { Remove-Item $_ -Recurse }
+Get-ChildItem . -Filter *.old | ForEach-Object { Remove-Item $_ }
 
 Write-Output "Finding latest version..."
 # For some reason, Invoke-WebRequest works for me only if I specify -OutFile.
@@ -32,7 +32,7 @@ Remove-Item jou_update.zip
 # jou.exe and some dll files are currently running, so they cannot be
 # deleted, overwritten, or moved. But they can be renamed.
 #
-# Most files (e.g. most DLLs, all of stdlib) can be deleted as usual.
+# Most files (e.g. all of stdlib) can be deleted as usual.
 #
 # We can't erase the whole installation directory because the user might
 # put their files there. It isn't a good idea anyway, but we really
