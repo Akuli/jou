@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
+static AstExpression parse_expression(const Token **tokens);
+
 static noreturn void fail_with_parse_error(const Token *token, const char *what_was_expected_instead)
 {
     char got[200];
@@ -38,7 +40,7 @@ static bool is_operator(const Token *t, const char *op)
 
 static AstType parse_type(const Token **tokens)
 {
-    struct AstType result = { .location = (*tokens)->location };
+    AstType result = { .kind = AST_TYPE_NAMED, .location = (*tokens)->location };
 
     if (!is_keyword(*tokens, "void")
         && !is_keyword(*tokens, "int")
@@ -48,12 +50,35 @@ static AstType parse_type(const Token **tokens)
     {
         fail_with_parse_error(*tokens, "a type");
     }
-    safe_strcpy(result.name, (*tokens)->data.name);
+    safe_strcpy(result.data.name, (*tokens)->data.name);
     ++*tokens;
 
-    while (is_operator(*tokens, "*")) {
-        result.npointers++;
-        ++*tokens;
+    while(is_operator(*tokens, "*") || is_operator(*tokens, "[")) {
+        AstType *p = malloc(sizeof(*p));
+        *p = result;
+
+        if (is_operator(*tokens, "*")) {
+            result = (AstType){
+                .location = (*tokens)++->location,
+                .kind = AST_TYPE_POINTER,
+                .data.valuetype = p,
+            };
+        } else {
+            Location location = (*tokens)++->location;
+
+            AstExpression *len = malloc(sizeof(*len));
+            *len = parse_expression(tokens);
+
+            if (!is_operator(*tokens, "]"))
+                fail_with_parse_error(*tokens, "a ']' to end the array size");
+            ++*tokens;
+
+            result = (AstType){
+                .location = location,
+                .kind = AST_TYPE_ARRAY,
+                .data.array = {.membertype=p, .len=len},
+            };
+        }
     }
 
     return result;
@@ -151,8 +176,6 @@ static AstSignature parse_function_signature(const Token **tokens)
     result.returntype = parse_type(tokens);
     return result;
 }
-
-static AstExpression parse_expression(const Token **tokens);
 
 static AstCall parse_call(const Token **tokens, char openparen, char closeparen, bool args_are_named)
 {

@@ -1,0 +1,15 @@
+# This is a weird corner case in the compiler.
+#
+# &pointer[i] compiles to: pointer + some_offset
+# &array[i] compiles to: cast(&array) + some_offset
+#
+# We can't always evaluate &array, e.g. when it is a function call.
+def foo() -> int[3]:
+    result: int[3]
+    result[0] = 12
+    result[1] = 34
+    result[2] = 56
+    return result
+
+def bar() -> void:
+    x = &foo()[1]  # Error: cannot create a pointer into an array that comes from a function call

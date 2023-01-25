@@ -120,11 +120,29 @@ struct TreePrinter print_tree_prefix(struct TreePrinter tp, bool last)
     return sub;
 }
 
+static void print_ast_type_without_line_number(const struct AstType *t)
+{
+    switch(t->kind) {
+    case AST_TYPE_NAMED:
+        printf("%s", t->data.name);
+        break;
+    case AST_TYPE_ARRAY:
+        print_ast_type_without_line_number(t->data.array.membertype);
+        // TODO: improve this?
+        // The challenge is that expressions are currently printed on multiple lines,
+        // and types on a single line.
+        printf("[<size>]");
+        break;
+    case AST_TYPE_POINTER:
+        print_ast_type_without_line_number(t->data.valuetype);
+        printf("*");
+        break;
+    }
+}
+
 static void print_ast_type(const struct AstType *t)
 {
-    printf("%s", t->name);
-    for (int i=0; i<t->npointers; i++)
-        printf("*");
+    print_ast_type_without_line_number(t);
     printf(" [line %d]", t->location.lineno);
 }
 

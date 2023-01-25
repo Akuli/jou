@@ -20,6 +20,33 @@ void free_constant(const Constant *c)
 
 static void free_expression(const AstExpression *expr);
 
+static void free_ast_type(const AstType *t)
+{
+    switch(t->kind) {
+    case AST_TYPE_ARRAY:
+        free_expression(t->data.array.len);
+        free(t->data.array.len);
+        free_ast_type(t->data.array.membertype);
+        free(t->data.array.membertype);
+        break;
+    case AST_TYPE_POINTER:
+        free_ast_type(t->data.valuetype);
+        free(t->data.valuetype);
+        break;
+    case AST_TYPE_NAMED:
+        break;
+    }
+}
+
+static void free_ast_signature(const AstSignature *sig)
+{
+    free(sig->argnames);
+    for (int i = 0; i < sig->nargs; i++)
+        free_ast_type(&sig->argtypes[i]);
+    free_ast_type(&sig->returntype);
+    free(sig->argtypes);
+}
+
 static void free_call(const AstCall *call)
 {
     for (int i = 0; i < call->nargs; i++)
@@ -72,6 +99,7 @@ static void free_expression(const AstExpression *expr)
     case AST_EXPR_AS:
         free_expression(expr->data.as.obj);
         free(expr->data.as.obj);
+        free_ast_type(&expr->data.as.type);
         break;
     case AST_EXPR_CONSTANT:
         free_constant(&expr->data.constant);
@@ -111,6 +139,7 @@ static void free_statement(const AstStatement *stmt)
         free_expression(&stmt->data.expression);
         break;
     case AST_STMT_DECLARE_LOCAL_VAR:
+        free_ast_type(&stmt->data.vardecl.type);
         if (stmt->data.vardecl.initial_value) {
             free_expression(stmt->data.vardecl.initial_value);
             free(stmt->data.vardecl.initial_value);
@@ -134,12 +163,6 @@ static void free_body(const AstBody *body)
     free(body->statements);
 }
 
-static void free_ast_signature(const AstSignature *sig)
-{
-    free(sig->argnames);
-    free(sig->argtypes);
-}
-
 void free_ast(AstToplevelNode *topnodelist)
 {
     for (AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
@@ -153,6 +176,8 @@ void free_ast(AstToplevelNode *topnodelist)
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
             free(t->data.structdef.fieldnames);
+            for (int i = 0; i < t->data.structdef.nfields; i++)
+                free_ast_type(&t->data.structdef.fieldtypes[i]);
             free(t->data.structdef.fieldtypes);
             break;
         case AST_TOPLEVEL_IMPORT:

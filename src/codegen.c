@@ -11,6 +11,8 @@
 static LLVMTypeRef codegen_type(const Type *type)
 {
     switch(type->kind) {
+    case TYPE_ARRAY:
+        return LLVMArrayType(codegen_type(type->data.array.membertype), type->data.array.len);
     case TYPE_POINTER:
         return LLVMPointerType(codegen_type(type->data.valuetype), 0);
     case TYPE_VOID_POINTER:
