@@ -11,11 +11,11 @@ def make_array() -> int[3]:
 
 # Arrays are passed by value.
 def do_nothing(a: int[3]) -> void:
-    a[0] = a[0] + 7
+    ++a[0]
 
 # Use a pointer instead if you want to modify the array.
 def increment(a: int*) -> void:
-    a[0] = a[0] + 7
+    ++a[0]
 
 def main() -> int:
     #foo = int[3]{1, 2, 3}
@@ -33,6 +33,6 @@ def main() -> int:
     printf("%d %d %d\n", foo[0], foo[1], foo[2])  # Output: 4 5 6
 
     increment(&foo[0])  # Needs explicit &foo[0], doesn't convert implicitly like in C.
-    printf("%d %d %d\n", foo[0], foo[1], foo[2])  # Output: 11 5 6
+    printf("%d %d %d\n", foo[0], foo[1], foo[2])  # Output: 5 5 6
 
     return 0
