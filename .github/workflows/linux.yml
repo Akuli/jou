@@ -10,15 +10,14 @@ jobs:
     strategy:
       matrix:
         llvm-version: [11, 13]
+        opt-level: ['-O0', 'O3']
     steps:
     - uses: actions/checkout@v3
     - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
     - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
-    - run: ./runtests.sh
-    - run: ./runtests.sh './jou -O3 %s'
-    - run: ./runtests.sh './jou --verbose %s'
-    - run: ./runtests.sh --valgrind
-    - run: ./runtests.sh --valgrind './jou -O3 %s'
+    - run: ./runtests.sh './jou ${{ matrix.opt-level }} %s'
+    - run: ./runtests.sh './jou ${{ matrix.opt-level }} --verbose %s'
+    - run: ./runtests.sh --valgrind './jou ${{ matrix.opt-level }} %s'
     # valgrind+verbose isn't meaningful: test script would ignore valgrind output
 
   fuzzer:
