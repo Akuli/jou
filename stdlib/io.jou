@@ -56,8 +56,9 @@ declare fgetc(file: FILE*) -> int  # see getchar()
 declare fscanf(file: FILE*, pattern: byte*, ...) -> int
 
 # Read a line of text from file into a string starting at the given
-# pointer. Reading stops at newline character or when the resulting
-# string (including the '\0') wouldn't fit within n bytes.
+# pointer. Reading stops at newline character, end of file, on error,
+# or when the resulting string (including the '\0') wouldn't fit
+# within n bytes.
 #
 # Return value: NULL on error, same as s on success.
 declare fgets(destination: byte*, n: int, file: FILE*) -> byte*
