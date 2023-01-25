@@ -70,7 +70,6 @@ static AstType parse_type(const Token **tokens)
             *len = parse_expression(tokens);
 
             if (!is_operator(*tokens, "]"))
-                // TODO: test this error
                 fail_with_parse_error(*tokens, "a ']' to end the array size");
             ++*tokens;
 

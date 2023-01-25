@@ -88,7 +88,6 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
         tmp = type_from_ast(ctx, asttype->data.valuetype);
         int len = evaluate_array_length(asttype->data.array.len);
         if (len <= 0)
-            // TODO: test this error
             fail_with_error(asttype->data.array.len->location, "array length must be positive");
         return get_array_type(tmp, len);
     }
