@@ -346,12 +346,33 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
     }
     case AST_EXPR_INDEXING:
     {
-        // &ptr[index]
-        const Variable *ptr = build_expression(st, &address_of_what->data.operands[0]);
+        const Variable *ptr, *arrptr;
+
+        // &pointer[index] = pointer + offset
+        // &array[index] = cast(&array) + offset
+        const Type *indexed_type = get_expr_types(st, &address_of_what->data.operands[0])->type;
+        switch(indexed_type->kind) {
+        case TYPE_POINTER:
+            ptr = build_expression(st, &address_of_what->data.operands[0]);
+            break;
+
+        case TYPE_ARRAY:
+            // TODO: what if &array fails? should get nice compile error, but I think it is assert failure.
+            {
+                arrptr = build_address_of_expression(st, &address_of_what->data.operands[0]);
+                ptr = add_variable(st, get_pointer_type(indexed_type->data.array.membertype));
+                add_unary_op(st, address_of_what->location, CF_PTR_CAST, arrptr, ptr);
+            }
+            break;
+
+        default:
+            assert(0);
+        }
+
         const Variable *index = build_expression(st, &address_of_what->data.operands[1]);
-        assert(ptr->type->kind == TYPE_POINTER);
         assert(is_integer_type(index->type));
 
+        assert(ptr->type->kind == TYPE_POINTER);
         const Variable *result = add_variable(st, ptr->type);
         add_binary_op(st, address_of_what->location, CF_PTR_ADD_INT, ptr, index, result);
         return result;

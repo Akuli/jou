@@ -174,8 +174,6 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
 #define getop(i) get(ins->operands[(i)])
 
     switch(ins->kind) {
-        case CF_ARRAY_TO_PTR:
-            assert(0); // TODO
         case CF_CALL:
             {
                 LLVMValueRef *args = malloc(ins->noperands * sizeof(args[0]));  // NOLINT

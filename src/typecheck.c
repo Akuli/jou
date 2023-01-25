@@ -32,38 +32,21 @@ static const Signature *find_function(const TypeContext *ctx, const char *name)
     return NULL;
 }
 
-static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttype)
+int evaluate_array_length(const AstExpression *expr)
 {
-    int npointers = asttype->npointers;
-    const Type *t;
-
-    if (!strcmp(asttype->name, "int"))
-        t = intType;
-    else if (!strcmp(asttype->name, "byte"))
-        t = byteType;
-    else if (!strcmp(asttype->name, "bool"))
-        t = boolType;
-    else if (!strcmp(asttype->name, "void")) {
-        if (npointers == 0)
-            return NULL;
-        npointers--;
-        t = voidPtrType;
-    } else {
-        t = NULL;
-        for (Type **ptr = ctx->structs.ptr; ptr < End(ctx->structs); ptr++) {
-            if (!strcmp((*ptr)->name, asttype->name)) {
-                t = *ptr;
-                break;
-            }
-        }
-        if(!t)
-            fail_with_error(asttype->location, "there is no type named '%s'", asttype->name);
+    if (expr->kind == AST_EXPR_CONSTANT
+        && expr->data.constant.kind == CONSTANT_INTEGER
+        && expr->data.constant.data.integer.is_signed
+        && expr->data.constant.data.integer.width_in_bits == 32)
+    {
+        return (int)expr->data.constant.data.integer.value;
     }
 
-    while (npointers--)
-        t = get_pointer_type(t);
-    return t;
+    fail_with_error(expr->location, "cannot evaluate array length at compile time");
 }
+
+// NULL return value means it is void
+static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttype);
 
 static const Type *type_from_ast(const TypeContext *ctx, const AstType *asttype)
 {
@@ -71,6 +54,44 @@ static const Type *type_from_ast(const TypeContext *ctx, const AstType *asttype)
     if (!t)
         fail_with_error(asttype->location, "'void' cannot be used here because it is not a type");
     return t;
+}
+
+static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *asttype)
+{
+    const Type *tmp;
+
+    switch(asttype->kind) {
+    case AST_TYPE_NAMED:
+        if (!strcmp(asttype->data.name, "int"))
+            return intType;
+        if (!strcmp(asttype->data.name, "byte"))
+            return byteType;
+        if (!strcmp(asttype->data.name, "bool"))
+            return boolType;
+        if (!strcmp(asttype->data.name, "void"))
+            return NULL;
+
+        for (Type **ptr = ctx->structs.ptr; ptr < End(ctx->structs); ptr++)
+            if (!strcmp((*ptr)->name, asttype->data.name))
+                return *ptr;
+
+        fail_with_error(asttype->location, "there is no type named '%s'", asttype->data.name);
+
+    case AST_TYPE_POINTER:
+        tmp = type_or_void_from_ast(ctx, asttype->data.valuetype);
+        if (tmp)
+            return get_pointer_type(tmp);
+        else
+            return voidPtrType;
+
+    case AST_TYPE_ARRAY:
+        tmp = type_from_ast(ctx, asttype->data.valuetype);
+        int len = evaluate_array_length(asttype->data.array.len);
+        if (len <= 0)
+            // TODO: test this error
+            fail_with_error(asttype->data.array.len->location, "array length must be positive");
+        return get_array_type(tmp, len);
+    }
 }
 
 /*
@@ -361,7 +382,7 @@ static const Type *typecheck_indexing(
     TypeContext *ctx, const AstExpression *ptrexpr, const AstExpression *indexexpr)
 {
     const Type *ptrtype = typecheck_expression_not_void(ctx, ptrexpr)->type;
-    if (ptrtype->kind != TYPE_POINTER)
+    if (ptrtype->kind != TYPE_POINTER && ptrtype->kind != TYPE_ARRAY)
         fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", ptrtype->name);
 
     const Type *indextype = typecheck_expression_not_void(ctx, indexexpr)->type;
@@ -372,7 +393,10 @@ static const Type *typecheck_indexing(
             indextype->name);
     }
 
-    return ptrtype->data.valuetype;
+    if (ptrtype->kind == TYPE_ARRAY)
+        return ptrtype->data.array.membertype;
+    else
+        return ptrtype->data.valuetype;
 }
 
 static void typecheck_and_or(
@@ -454,8 +478,8 @@ static const Type *typecheck_struct_field(
 
 static const Type *typecheck_struct_init(TypeContext *ctx, const AstCall *call, Location location)
 {
-    struct AstType tmp = { .location = location, .npointers = 0 };
-    safe_strcpy(tmp.name, call->calledname);
+    struct AstType tmp = { .kind = AST_TYPE_NAMED, .location = location };
+    safe_strcpy(tmp.data.name, call->calledname);
     const Type *t = type_from_ast(ctx, &tmp);
 
     if (t->kind != TYPE_STRUCT) {

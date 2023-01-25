@@ -416,7 +416,6 @@ struct CfInstruction {
         CF_CONSTANT,
         CF_CALL,
         CF_ADDRESS_OF_VARIABLE,
-        CF_ARRAY_TO_PTR,
         CF_PTR_MEMSET_TO_ZERO,  // takes one operand, a pointer: memset(ptr, 0, sizeof(*ptr))
         CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
         CF_PTR_LOAD,  // aka dereference
