@@ -22,7 +22,9 @@ const Type *intType = &global_state.integers[32][true].type;
 const Type *byteType = &global_state.integers[8][false].type;
 const Type *voidPtrType = &global_state.voidptr.type;
 
-static void free_type_info(const struct TypeInfo *info)
+// The TypeInfo for type T contains the type T* (if it has been used)
+// and all array types with element type T.
+static void free_pointer_and_array_types(const struct TypeInfo *info)
 {
     free_type(&info->pointer->type);
     for (struct TypeInfo **arrtype = info->arrays.ptr; arrtype < End(info->arrays); arrtype++)
@@ -38,7 +40,7 @@ void free_type(Type *t)
             free(t->data.structfields.names);
         }
         assert(offsetof(struct TypeInfo, type) == 0);
-        free_type_info((struct TypeInfo *)t);
+        free_pointer_and_array_types((struct TypeInfo *)t);
         free(t);
     }
 }
@@ -46,11 +48,11 @@ void free_type(Type *t)
 static void free_global_state(void)
 {
     assert(global_state.inited);
-    free_type_info(&global_state.boolean);
-    free_type_info(&global_state.voidptr);
+    free_pointer_and_array_types(&global_state.boolean);
+    free_pointer_and_array_types(&global_state.voidptr);
     for (int size = 8; size <= 64; size *= 2)
         for (int is_signed = 0; is_signed <= 1; is_signed++)
-            free_type_info(&global_state.integers[size][is_signed]);
+            free_pointer_and_array_types(&global_state.integers[size][is_signed]);
 }
 
 void init_types(void)
