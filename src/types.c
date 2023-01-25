@@ -8,13 +8,14 @@
 struct TypeInfo {
     Type type;
     struct TypeInfo *pointer;  // type that represents a pointer to this type, or NULL
+    List(struct TypeInfo *) arrays;  // types that represent arrays of this type
 };
 
 static struct {
     bool inited;
     struct TypeInfo integers[65][2];  // integers[i][j] = i-bit integer, j=1 for signed, j=0 for unsigned
     struct TypeInfo boolean, voidptr;
-} global_state;
+} global_state = {0};
 
 const Type *boolType = &global_state.boolean.type;
 const Type *intType = &global_state.integers[32][true].type;
@@ -73,11 +74,6 @@ void init_types(void)
     atexit(free_global_state);  // not really necessary, but makes valgrind happier
 }
 
-const Type *type_bool(void)
-{
-    return &global_state.boolean.type;
-}
-
 const Type *get_integer_type(int size_in_bits, bool is_signed)
 {
     assert(size_in_bits==8 || size_in_bits==16 || size_in_bits==32 || size_in_bits==64);
@@ -90,11 +86,29 @@ const Type *get_pointer_type(const Type *t)
     struct TypeInfo *info = (struct TypeInfo *)t;
 
     if (!info->pointer) {
-        info->pointer = calloc(1, sizeof *info->pointer);
-        info->pointer->type = (Type){ .kind=TYPE_POINTER, .data.valuetype=t };
-        snprintf(info->pointer->type.name, sizeof info->pointer->type.name, "%s*", t->name);
+        struct TypeInfo *ptr = calloc(1, sizeof *ptr);
+        ptr->type = (Type){ .kind=TYPE_POINTER, .data.valuetype=t };
+        snprintf(ptr->type.name, sizeof ptr->type.name, "%s*", t->name);
+        info->pointer = ptr;
     }
     return &info->pointer->type;
+}
+
+const Type *get_array_type(const Type *t, int len)
+{
+    assert(offsetof(struct TypeInfo, type) == 0);
+    struct TypeInfo *info = (struct TypeInfo *)t;
+
+    assert(len > 0);
+    for (struct TypeInfo **existing = info->arrays.ptr; existing < End(info->arrays); existing++)
+        if ((*existing)->type.data.array.len == len)
+            return &(*existing)->type;
+
+    struct TypeInfo *arr = calloc(1, sizeof *arr);
+    arr->type = (Type){ .kind = TYPE_ARRAY, .data.array.membertype = t, .data.array.len = len };
+    snprintf(arr->type.name, sizeof arr->type.name, "%s[%d]", t->name, len);
+    Append(&info->arrays, arr);
+    return &arr->type;
 }
 
 bool is_integer_type(const Type *t)
@@ -112,10 +126,10 @@ const Type *type_of_constant(const Constant *c)
     switch(c->kind) {
     case CONSTANT_NULL:
         return voidPtrType;
+    case CONSTANT_BOOL:
+        return boolType;
     case CONSTANT_STRING:
         return get_pointer_type(byteType);
-    case CONSTANT_BOOL:
-        return type_bool();
     case CONSTANT_INTEGER:
         return get_integer_type(c->data.integer.width_in_bits, c->data.integer.is_signed);
     }

@@ -11,6 +11,8 @@
 static LLVMTypeRef codegen_type(const Type *type)
 {
     switch(type->kind) {
+    case TYPE_ARRAY:
+        return LLVMArrayType(codegen_type(type->data.array.membertype), type->data.array.len);
     case TYPE_POINTER:
         return LLVMPointerType(codegen_type(type->data.valuetype), 0);
     case TYPE_VOID_POINTER:
@@ -172,6 +174,8 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
 #define getop(i) get(ins->operands[(i)])
 
     switch(ins->kind) {
+        case CF_ARRAY_TO_PTR:
+            assert(0); // TODO
         case CF_CALL:
             {
                 LLVMValueRef *args = malloc(ins->noperands * sizeof(args[0]));  // NOLINT
