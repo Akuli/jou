@@ -1,4 +1,4 @@
-LLVM_CONFIG ?= $(shell which llvm-config-13 || which llvm-config-11)
+LLVM_CONFIG ?= $(shell which llvm-config-11 || which llvm-config-13)
 
 SRC := $(wildcard src/*.c)
 
