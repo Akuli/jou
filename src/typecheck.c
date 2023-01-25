@@ -384,6 +384,8 @@ static const Type *typecheck_indexing(
     const Type *ptrtype = typecheck_expression_not_void(ctx, ptrexpr)->type;
     if (ptrtype->kind != TYPE_POINTER && ptrtype->kind != TYPE_ARRAY)
         fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", ptrtype->name);
+    if (ptrtype->kind == TYPE_ARRAY)
+        ensure_can_take_address(ptrexpr, "cannot create a pointer into an array that comes from %s");
 
     const Type *indextype = typecheck_expression_not_void(ctx, indexexpr)->type;
     if (!is_integer_type(indextype)) {

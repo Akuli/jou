@@ -357,7 +357,6 @@ static const Variable *build_address_of_expression(struct State *st, const AstEx
             break;
 
         case TYPE_ARRAY:
-            // TODO: what if &array fails? should get nice compile error, but I think it is assert failure.
             {
                 arrptr = build_address_of_expression(st, &address_of_what->data.operands[0]);
                 ptr = add_variable(st, get_pointer_type(indexed_type->data.array.membertype));
