@@ -178,7 +178,11 @@ int run_program(LLVMModuleRef module, const CommandLineFlags *flags)
     compile_to_exe(module, exepath, flags);
 
     char *command = malloc(strlen(exepath) + 50);
-    sprintf(command, "\"%s\"", exepath);
+#ifdef _WIN32
+    strcpy(command, exepath);  // TODO: figure out how to quote an executable
+#else
+    sprintf(command, "'%s'", exepath);
+#endif
     free(exepath);
 
     if (flags->verbose)
