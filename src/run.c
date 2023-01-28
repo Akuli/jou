@@ -1,6 +1,6 @@
 #ifdef _WIN32
     #include <direct.h>
-    #define jou_mkdir(x) _mkdir((x), NULL)
+    #define jou_mkdir(x) _mkdir((x))
 #else
     #define jou_mkdir(x) mkdir((x), 0777)  // this is what mkdir in bash does according to strace
 #endif
@@ -74,7 +74,7 @@ static void run_linker(const char *objpath, const char *exepath, const CommandLi
         sprintf(command, "\"%s\" cc -target native-native-gnu \"%s\" -o \"%s\"", zig, objpath, exepath);
     } else {
         // Use clang from PATH. Convenient when developing Jou locally.
-        sprintf(command, "clang '%s' -o '%s'", JOU_CLANG_PATH, objpath, exepath);
+        sprintf(command, "clang \"%s\" -o \"%s\"", objpath, exepath);
     }
     free(zig);
 #else
