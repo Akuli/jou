@@ -55,18 +55,18 @@ jobs:
       # zig comes with a C compiler that Jou uses as a linker.
       # TODO: can we switch to a smaller/simpler linker that is just a linker? lld seems promising
       - name: Download Zig
-        run: wget --no-verbose https://ziglang.org/download/0.7.1/zig-windows-x86_64-0.7.1.zip
+        run: wget --no-verbose https://ziglang.org/download/0.7.0/zig-windows-x86_64-0.7.0.zip
       - name: Verify Zig
         run: |
-          ls -lh zig-windows-x86_64-0.7.1.zip
-          if [ "$(sha256sum zig-windows-x86_64-0.7.1.zip)" == "4818a8a65b4672bc52c0ae7f14d014e0eb8caf10f12c0745176820384cea296a  zig-windows-x86_64-0.7.1.zip" ]; then
+          ls -lh zig-windows-x86_64-0.7.0.zip
+          if [ "$(sha256sum zig-windows-x86_64-0.7.0.zip)" == "965f56c0a36f9cda2125e3a348bc654f7f155e2804c3667d231775ec228f8553  zig-windows-x86_64-0.7.0.zip" ]; then
             echo ok
           else
             echo "sha sum mismatch! something has changed!"
             exit 1
           fi
       - name: Create zig.zip with simpler folder structure
-        run: unzip zig-windows-x86_64-0.7.1.zip && mv zig-windows-x86_64-0.7.1 zig && zip -r zig.zip zig
+        run: unzip zig-windows-x86_64-0.7.0.zip && mv zig-windows-x86_64-0.7.0 zig && zip -r zig.zip zig
       # llvm-13-dev needed for the header files. They seem to be missing from LLVM windows installer.
       # Using gcc instead of clang, because gcc "just works".
       # TODO: use "zig cc" so that we get a statically linked executable instead?
