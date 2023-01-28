@@ -2,13 +2,13 @@
     #include <windows.h>
     #define jou_mkdir(x) _mkdir((x), NULL)
 #else
-    #include <sys/stat.h>
     #define jou_mkdir(x) mkdir((x), 0777)  // this is what mkdir in bash does according to strace
 #endif
 
 #include "jou_compiler.h"
 #include <libgen.h>
 #include <errno.h>
+#include <sys/stat.h>
 #include <llvm-c/TargetMachine.h>
 
 static void compile_to_object_file(LLVMModuleRef module, const char *path, const CommandLineFlags *flags)
