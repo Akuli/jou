@@ -1,5 +1,5 @@
 #ifdef _WIN32
-    #include <windows.h>
+    #include <direct.h>
     #define jou_mkdir(x) _mkdir((x), NULL)
 #else
     #define jou_mkdir(x) mkdir((x), 0777)  // this is what mkdir in bash does according to strace
