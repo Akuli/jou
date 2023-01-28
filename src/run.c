@@ -6,6 +6,7 @@
 #endif
 
 #include "jou_compiler.h"
+#include "../config.h"
 #include <libgen.h>
 #include <errno.h>
 #include <sys/stat.h>
