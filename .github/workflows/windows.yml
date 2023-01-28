@@ -25,6 +25,7 @@ jobs:
           fi
       # Apparently the exe file is created with nsis installer and 7z can extract from it.
       # Figured out by looking at source code of https://github.com/KyleMayes/install-llvm-action
+      # TODO: could we instead statically link the Jou compiler?
       - name: Extract files from LLVM installer
         run: |
           files="lib/LLVM-C.lib"
@@ -51,11 +52,27 @@ jobs:
           done
           echo "Extracting $files"
           7z x LLVM-13.0.1-win64.exe $files
+      # zig comes with a C compiler that Jou uses as a linker.
+      # TODO: can we switch to a smaller/simpler linker that is just a linker? lld seems promising
+      - name: Download Zig
+        run: wget --no-verbose https://ziglang.org/download/0.7.1/zig-windows-x86_64-0.7.1.zip
+      - name: Verify Zig
+        run: |
+          ls -lh zig-windows-x86_64-0.7.1.zip
+          if [ "$(sha256sum zig-windows-x86_64-0.7.1.zip)" == "4818a8a65b4672bc52c0ae7f14d014e0eb8caf10f12c0745176820384cea296a  zig-windows-x86_64-0.7.1.zip" ]; then
+            echo ok
+          else
+            echo "sha sum mismatch! something has changed!"
+            exit 1
+          fi
+      - name: Extract Zig
+        run: unzip zig-windows-x86_64-0.7.1.zip
       # llvm-13-dev needed for the header files. They seem to be missing from LLVM windows installer.
       # Using gcc instead of clang, because gcc "just works".
+      # TODO: use "zig cc" so that we get a statically linked executable instead?
       - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
       - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
-      - run: mkdir -v exe-and-dlls && cp -v jou.exe bin/*.dll exe-and-dlls/
+      - run: mkdir -v exe-and-dlls && cp -v zig jou.exe bin/*.dll exe-and-dlls/
       - uses: actions/upload-artifact@v3
         with:
           name: exe-and-dlls

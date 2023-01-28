@@ -24,6 +24,16 @@ static void compile_to_object_file(LLVMModuleRef module, const char *path, const
     if (flags->verbose)
         printf("Emitting object file \"%s\" for %s\n", path, triple);
 
+    char *error = NULL;
+    LLVMTargetRef target = NULL;
+    if (LLVMGetTargetFromTriple(triple, &target, &error)) {
+        assert(error);
+        fprintf(stderr, "LLVMGetTargetFromTriple failed: %s\n", error);
+        exit(1);
+    }
+    assert(!error);
+    assert(target);
+
     // The CPU name is the first component of the target triple.
     // But it's not quite that simple, achthually the typical cpu name is x86-64 instead of x86_64...
     char cpu[100];
@@ -31,14 +41,10 @@ static void compile_to_object_file(LLVMModuleRef module, const char *path, const
     if (!strcmp(cpu, "x86_64"))
         strcpy(cpu, "x86-64");
 
-    LLVMTargetRef target = LLVMGetTargetFromName(cpu);
-    assert(target);
-
     LLVMTargetMachineRef machine = LLVMCreateTargetMachine(
         target, triple, cpu, "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault);
     assert(machine);
 
-    char *error = NULL;
     char *tmppath = strdup(path);
     if (LLVMTargetMachineEmitToFile(machine, module, tmppath, LLVMObjectFile, &error)) {
         assert(error);
@@ -52,11 +58,28 @@ static void compile_to_object_file(LLVMModuleRef module, const char *path, const
     LLVMDisposeMessage(triple);
 }
 
-static void link(const char *objpath, const char *exepath, const CommandLineFlags *flags)
+static void run_linker(const char *objpath, const char *exepath, const CommandLineFlags *flags)
 {
+    char *jou_exe = find_current_executable();
+    const char *instdir = dirname(jou_exe);
+
 #ifdef _WIN32
-    #error TODO
+    char *command = malloc(strlen(instdir) + strlen(objpath) + strlen(exepath) + 500);
+
+    char *zig = malloc(strlen(instdir) + 50);
+    sprintf(zig, "%s\\zig\\zig.exe", instdir);
+    if (stat(zig, &(struct stat){0}) != -1) {
+        // Jou on Windows comes with zig just to use "zig cc" as a linker.
+        // TODO: switch to a minimal linker, probably lld? we don't need anything super fancy
+        sprintf(command, "\"%s\" cc -target native-native-gnu \"%s\" -o \"%s\"", zig, objpath, exepath);
+    } else {
+        // Use clang from PATH. Convenient when developing Jou locally.
+        sprintf(command, "clang '%s' -o '%s'", JOU_CLANG_PATH, objpath, exepath);
+    }
+    free(zig);
 #else
+    // Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
+    (void)instdir;
     char *command = malloc(strlen(JOU_CLANG_PATH) + strlen(objpath) + strlen(exepath) + 500);
     sprintf(command, "'%s' '%s' -o '%s'", JOU_CLANG_PATH, objpath, exepath);
 #endif
@@ -65,6 +88,8 @@ static void link(const char *objpath, const char *exepath, const CommandLineFlag
         puts(command);
     if (system(command))
         exit(1);
+
+    free(jou_exe);
     free(command);
 }
 
@@ -125,7 +150,7 @@ void compile_to_exe(LLVMModuleRef module, const char *exepath, const CommandLine
     free(objname);
 
     compile_to_object_file(module, objpath, flags);
-    link(objpath, exepath, flags);
+    run_linker(objpath, exepath, flags);
     free(objpath);
 }
 
