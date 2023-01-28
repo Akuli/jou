@@ -66,7 +66,7 @@ jobs:
             exit 1
           fi
       - name: Extract Zig
-        run: unzip zig-windows-x86_64-0.7.1.zip
+        run: unzip zig-windows-x86_64-0.7.1.zip && mv zig-windows-x86_64-0.7.1 zig
       # llvm-13-dev needed for the header files. They seem to be missing from LLVM windows installer.
       # Using gcc instead of clang, because gcc "just works".
       # TODO: use "zig cc" so that we get a statically linked executable instead?

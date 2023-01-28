@@ -14,11 +14,11 @@
 
 static void compile_to_object_file(LLVMModuleRef module, const char *path, const CommandLineFlags *flags)
 {
-    LLVMInitializeAllTargetInfos();
-    LLVMInitializeAllTargets();
-    LLVMInitializeAllTargetMCs();
-    LLVMInitializeAllAsmParsers();
-    LLVMInitializeAllAsmPrinters();
+    LLVMInitializeX86TargetInfo();
+    LLVMInitializeX86Target();
+    LLVMInitializeX86TargetMC();
+    LLVMInitializeX86AsmParser();
+    LLVMInitializeX86AsmPrinter();
 
     char *triple = LLVMGetDefaultTargetTriple();
     assert(triple);
@@ -72,7 +72,8 @@ static void run_linker(const char *objpath, const char *exepath, const CommandLi
     if (stat(zig, &(struct stat){0}) != -1) {
         // Jou on Windows comes with zig just to use "zig cc" as a linker.
         // TODO: switch to a minimal linker, probably lld? we don't need anything super fancy
-        sprintf(command, "\"%s\" cc -target native-native-gnu \"%s\" -o \"%s\"", zig, objpath, exepath);
+        // This looks ridiculous, but is apparently needed to be able to quote the path to zig...
+        sprintf(command, "start /wait /b \"\" \"%s\" cc -target native-native-gnu \"%s\" -o \"%s\"", zig, objpath, exepath);
     } else {
         // Use clang from PATH. Convenient when developing Jou locally.
         sprintf(command, "clang \"%s\" -o \"%s\"", objpath, exepath);
