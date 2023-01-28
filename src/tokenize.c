@@ -278,7 +278,7 @@ static const char *read_operator(struct State *st)
     const char *operators[] = {
         // Longer operators first, so that '==' does not parse as '=' '='
         "...", "===", "!==",
-        "==", "!=", "->", "<=", ">=", "++", "--",
+        "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=",
         ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">",
         NULL,
     };

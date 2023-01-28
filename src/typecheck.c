@@ -693,7 +693,6 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
                     strcpy(errmsg, "cannot place a value of type FROM into a pointer of type TO*");
                 } else {
                     snprintf(errmsg, sizeof errmsg,
-                        // TODO: not a nice message when targetexpr->kind == AST_EXPR_DEREFERENCE
                         "cannot assign a value of type FROM to %s of type TO",
                         short_expression_description(targetexpr));
                 }
@@ -702,6 +701,37 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
             }
             break;
         }
+
+    case AST_STMT_INPLACE_ADD:
+    case AST_STMT_INPLACE_SUB:
+    case AST_STMT_INPLACE_MUL:
+    case AST_STMT_INPLACE_DIV:
+    case AST_STMT_INPLACE_MOD:
+    {
+        const AstExpression *targetexpr = &stmt->data.assignment.target;
+        const AstExpression *valueexpr = &stmt->data.assignment.value;
+
+        // TODO: test this
+        ensure_can_take_address(targetexpr, "cannot assign to %s");
+
+        const char *opname;
+        switch(stmt->kind) {
+            case AST_STMT_INPLACE_ADD: opname = "addition"; break;
+            case AST_STMT_INPLACE_SUB: opname = "subtraction"; break;
+            case AST_STMT_INPLACE_MUL: opname = "multiplication"; break;
+            case AST_STMT_INPLACE_DIV: opname = "division"; break;
+            case AST_STMT_INPLACE_MOD: opname = "modulo"; break;
+            default: assert(0);
+        }
+
+        // TODO: test this
+        char errmsg[500];
+        sprintf(errmsg, "%s produced a value of type FROM which cannot be assigned back to TO", opname);
+
+        const ExpressionTypes *targettypes = typecheck_expression(ctx, targetexpr);
+        typecheck_expression_with_implicit_cast(ctx, valueexpr, targettypes->type, errmsg);
+        break;
+    }
 
     case AST_STMT_RETURN_VALUE:
     {

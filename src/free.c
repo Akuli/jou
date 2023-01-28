@@ -146,6 +146,11 @@ static void free_statement(const AstStatement *stmt)
         }
         break;
     case AST_STMT_ASSIGN:
+    case AST_STMT_INPLACE_ADD:
+    case AST_STMT_INPLACE_SUB:
+    case AST_STMT_INPLACE_MUL:
+    case AST_STMT_INPLACE_DIV:
+    case AST_STMT_INPLACE_MOD:
         free_expression(&stmt->data.assignment.target);
         free_expression(&stmt->data.assignment.value);
         break;

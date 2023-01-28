@@ -319,11 +319,16 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
                 printf("\n");
             }
             break;
-        case AST_STMT_ASSIGN:
-            printf("assign\n");
-            print_ast_expression(&stmt->data.assignment.target, print_tree_prefix(tp, false));
-            print_ast_expression(&stmt->data.assignment.value, print_tree_prefix(tp, true));
-            break;
+#define PrintAssignment \
+    print_ast_expression(&stmt->data.assignment.target, print_tree_prefix(tp, false)); \
+    print_ast_expression(&stmt->data.assignment.value, print_tree_prefix(tp, true));
+        case AST_STMT_ASSIGN: puts("assign"); PrintAssignment; break;
+        case AST_STMT_INPLACE_ADD: puts("in-place add"); PrintAssignment; break;
+        case AST_STMT_INPLACE_SUB: puts("in-place sub"); PrintAssignment; break;
+        case AST_STMT_INPLACE_MUL: puts("in-place mul"); PrintAssignment; break;
+        case AST_STMT_INPLACE_DIV: puts("in-place div"); PrintAssignment; break;
+        case AST_STMT_INPLACE_MOD: puts("in-place mod"); PrintAssignment; break;
+#undef PrintAssignment
     }
 }
 
