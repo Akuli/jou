@@ -95,6 +95,7 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: exe-and-dlls
+      - run: jou.exe --verbose examples/hello.jou
       - shell: bash
         run: ./runtests.sh
 
