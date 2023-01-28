@@ -97,6 +97,10 @@ jobs:
         with:
           name: exe-and-dlls
       - run: unzip zig.zip
+      - run: .\jou.exe -o hello.exe examples/hello.jou
+      - uses: actions/upload-artifact@v3
+        with:
+          path: hello.exe
       - run: .\jou.exe --verbose examples/hello.jou
       - shell: bash
         run: ./runtests.sh
