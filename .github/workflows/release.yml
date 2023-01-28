@@ -68,11 +68,13 @@ jobs:
       run: |
         unzip exe-and-dlls.zip
         ls -l
+        unzip zig.zip
         mkdir -v jou
         cp -v jou.exe jou
         cp -v *.dll jou
         cp -rv stdlib jou
         cp -v update.ps1 jou
+        cp -r zig jou
         zip -r jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip jou
 
     - if: ${{ steps.tagname.outputs.datetag != '' }}
