@@ -72,7 +72,9 @@ jobs:
       # TODO: use "zig cc" so that we get a statically linked executable instead?
       - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
       - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
-      - run: mkdir -v exe-and-dlls && cp -v zig jou.exe bin/*.dll exe-and-dlls/
+      - run: mkdir exe-and-dlls
+      - run: cp -v jou.exe bin/*.dll exe-and-dlls/
+      - run: cp -r zig exe-and-dlls/
       - uses: actions/upload-artifact@v3
         with:
           name: exe-and-dlls
