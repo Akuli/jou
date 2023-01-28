@@ -34,14 +34,12 @@ static void optimize(LLVMModuleRef module, int level)
 
 static const char help_fmt[] =
     "Usage:\n"
-    "  <argv0> [-O0|-O1|-O2|-O3] [--verbose] FILENAME\n"
-    "  <argv0> -o OUTFILE [-c] [-O0|-O1|-O2|-O3] [--verbose] FILENAME\n"
+    "  <argv0> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] FILENAME\n"
     "  <argv0> --help       # This message\n"
     "  <argv0> --update     # Download and install the latest Jou\n"
     "\n"
     "Options:\n"
     "  -o               output a compiled file, don't run the code\n"
-    "  -c               create an object file instead of an executable\n"
     "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
     "  --verbose        display a lot of information about all compilation steps\n"
     ;
@@ -93,9 +91,6 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
             }
             flags->outfile = argv[i+1];
             i += 2;
-        } else if (!strcmp(argv[i], "-c")) {
-            flags->obj_only = true;
-            i++;
         } else {
             fprintf(stderr, "%s: unknown argument \"%s\"", argv[0], argv[i]);
             goto wrong_usage;
@@ -112,13 +107,6 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
     }
     assert(i == argc-1);
     *filename = argv[i];
-
-    if (flags->obj_only && !flags->outfile) {
-        // TODO: test
-        fprintf(stderr, "%s: -c cannot be used without -o", argv[0]);
-        goto wrong_usage;
-    }
-
     return;
 
 wrong_usage:
@@ -304,7 +292,7 @@ int main(int argc, char **argv)
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
         compile_ast_to_llvm(&compst, fs);
 
-    LLVMModuleRef main_module = LLVMModuleCreateWithName("main");
+    LLVMModuleRef main_module = LLVMModuleCreateWithName(filename);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         // This "linking" doesn't mean creating an executable. It only combines LLVM modules together.
         if (compst.flags.verbose)
@@ -324,12 +312,11 @@ int main(int argc, char **argv)
     free(compst.stdlib_path);
 
     int ret = 0;
-    if (compst.flags.outfile) {
-        assert(compst.flags.obj_only);  // TODO: linking
-        compile_to_object_file(main_module, compst.flags.outfile, &compst.flags);
-    } else {
+    if (compst.flags.outfile)
+        compile_to_exe(main_module, compst.flags.outfile, &compst.flags);
+    else
         ret = run_program(main_module, &compst.flags);
-    }
 
+    LLVMDisposeModule(main_module);
     return ret;
 }

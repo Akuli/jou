@@ -87,10 +87,6 @@ function post_process_output()
         # Instead, ignore the output and check only the exit code.
         echo "A lot of output hidden..."
         grep "^Exit code:"
-    elif [[ $joufile =~ ^tests/crash/ ]]; then
-        # Hide most of the output. We really only care about whether it
-        # mentions "Segmentation fault" somewhere inside it.
-        grep -oE "Segmentation fault|Exit code: .*"
     else
         # Pass the output through unchanged.
         cat
@@ -139,7 +135,6 @@ counter=0
 for joufile in examples/*.jou tests/*/*.jou; do
     case $joufile in
         examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
-        tests/crash/*) correct_exit_code=139; ;;  # segfault
         *) correct_exit_code=1; ;;  # compiler or runtime error
     esac
     counter=$((counter + 1))

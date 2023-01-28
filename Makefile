@@ -11,6 +11,7 @@ CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompati
 CFLAGS += -std=c11
 CFLAGS += -g
 CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
+CFLAGS += -DJOU_CLANG_PATH='"$(shell $(LLVM_CONFIG) --bindir)/clang"'
 LDFLAGS ?= $(shell $(LLVM_CONFIG) --ldflags --libs)
 
 obj/%.o: src/%.c $(wildcard src/*.h)
@@ -28,3 +29,4 @@ jou: $(SRC:src/%.c=obj/%.o)
 .PHONY: clean
 clean:
 	rm -rvf obj jou jou.exe tests/tmp
+	find -name jou_compiled -print -exec rm -rf '{}' +
