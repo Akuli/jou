@@ -592,6 +592,25 @@ static AstIfStatement parse_if_statement(const Token **tokens)
     };
 }
 
+// reverse code golfing: https://xkcd.com/1960/
+static enum AstStatementKind determine_the_kind_of_a_statement_that_starts_with_an_expression(
+    const Token *this_token_is_after_that_initial_expression)
+{
+    if (is_operator(this_token_is_after_that_initial_expression, "="))
+        return AST_STMT_ASSIGN;
+    if (is_operator(this_token_is_after_that_initial_expression, "+="))
+        return AST_STMT_INPLACE_ADD;
+    if (is_operator(this_token_is_after_that_initial_expression, "-="))
+        return AST_STMT_INPLACE_SUB;
+    if (is_operator(this_token_is_after_that_initial_expression, "*="))
+        return AST_STMT_INPLACE_MUL;
+    if (is_operator(this_token_is_after_that_initial_expression, "/="))
+        return AST_STMT_INPLACE_DIV;
+    if (is_operator(this_token_is_after_that_initial_expression, "%="))
+        return AST_STMT_INPLACE_MOD;
+    return AST_STMT_EXPRESSION_STATEMENT;
+}
+
 // does not eat a trailing newline
 static AstStatement parse_oneline_statement(const Token **tokens)
 {
@@ -626,16 +645,15 @@ static AstStatement parse_oneline_statement(const Token **tokens)
         }
     } else {
         AstExpression expr = parse_expression(tokens);
-        if (is_operator(*tokens, "=")) {
+        result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(*tokens);
+        if (result.kind == AST_STMT_EXPRESSION_STATEMENT) {
+            validate_expression_statement(&expr);
+            result.data.expression = expr;
+        } else {
             ++*tokens;
-            result.kind = AST_STMT_ASSIGN;
             result.data.assignment = (AstAssignment){.target=expr, .value=parse_expression(tokens)};
             if (is_operator(*tokens, "="))
                 fail_with_error((*tokens)->location, "only one variable can be assigned at a time");
-        } else {
-            validate_expression_statement(&expr);
-            result.kind = AST_STMT_EXPRESSION_STATEMENT;
-            result.data.expression = expr;
         }
     }
     return result;

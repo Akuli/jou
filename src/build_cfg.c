@@ -670,6 +670,34 @@ static void build_statement(struct State *st, const AstStatement *stmt)
             break;
         }
 
+    case AST_STMT_INPLACE_ADD:
+    case AST_STMT_INPLACE_SUB:
+    case AST_STMT_INPLACE_MUL:
+    case AST_STMT_INPLACE_DIV:
+    case AST_STMT_INPLACE_MOD:
+    {
+        const AstExpression *targetexpr = &stmt->data.assignment.target;
+        const AstExpression *rhsexpr = &stmt->data.assignment.value;
+
+        const Variable *targetptr = build_address_of_expression(st, targetexpr);
+        const Variable *rhs = build_expression(st, rhsexpr);
+        assert(targetptr->type->kind == TYPE_POINTER);
+        const Variable *oldvalue = add_variable(st, targetptr->type->data.valuetype);
+        add_unary_op(st, stmt->location, CF_PTR_LOAD, targetptr, oldvalue);
+        enum AstExpressionKind op;
+        switch(stmt->kind){
+            case AST_STMT_INPLACE_ADD: op=AST_EXPR_ADD; break;
+            case AST_STMT_INPLACE_SUB: op=AST_EXPR_SUB; break;
+            case AST_STMT_INPLACE_MUL: op=AST_EXPR_MUL; break;
+            case AST_STMT_INPLACE_DIV: op=AST_EXPR_DIV; break;
+            case AST_STMT_INPLACE_MOD: op=AST_EXPR_MOD; break;
+            default: assert(0);
+        }
+        const Variable *newvalue = build_binop(st, op, stmt->location, oldvalue, rhs, targetptr->type->data.valuetype);
+        add_binary_op(st, stmt->location, CF_PTR_STORE, targetptr, newvalue, NULL);
+        break;
+    }
+
     case AST_STMT_RETURN_VALUE:
     {
         const Variable *retvalue = build_expression(st, &stmt->data.expression);

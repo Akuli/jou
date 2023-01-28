@@ -256,6 +256,11 @@ struct AstStatement {
         AST_STMT_CONTINUE,
         AST_STMT_DECLARE_LOCAL_VAR,
         AST_STMT_ASSIGN,
+        AST_STMT_INPLACE_ADD, // x += y
+        AST_STMT_INPLACE_SUB,
+        AST_STMT_INPLACE_MUL,
+        AST_STMT_INPLACE_DIV,
+        AST_STMT_INPLACE_MOD,
         AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
     } kind;
     union {
@@ -264,7 +269,7 @@ struct AstStatement {
         AstIfStatement ifstatement;
         AstForLoop forloop;
         AstVarDeclaration vardecl;
-        AstAssignment assignment;
+        AstAssignment assignment;  // also used for inplace operations
     } data;
 };
 
