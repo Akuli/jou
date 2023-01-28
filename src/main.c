@@ -39,7 +39,7 @@ static const char help_fmt[] =
     "  <argv0> --update     # Download and install the latest Jou\n"
     "\n"
     "Options:\n"
-    "  -o               output a compiled file, don't run the code\n"
+    "  -o OUTFILE       output an executable file, don't run the code\n"
     "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
     "  --verbose        display a lot of information about all compilation steps\n"
     ;
