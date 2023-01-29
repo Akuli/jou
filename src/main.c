@@ -85,11 +85,14 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
         } else if (!strcmp(argv[i], "-o")) {
             // TODO: test this
             if (argc-i < 2) {
-                // TODO: test this
                 fprintf(stderr, "%s: there must be a file name after -o", argv[0]);
                 goto wrong_usage;
             }
             flags->outfile = argv[i+1];
+            if (strlen(flags->outfile) > 4 && !strcmp(&flags->outfile[strlen(flags->outfile)-4], ".jou")) {
+                fprintf(stderr, "%s: the filename after -o is an executable, not a Jou file", argv[0]);
+                goto wrong_usage;
+            }
             i += 2;
         } else {
             fprintf(stderr, "%s: unknown argument \"%s\"", argv[0], argv[i]);
