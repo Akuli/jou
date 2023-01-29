@@ -85,7 +85,7 @@ jobs:
       - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
       - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
       - run: mkdir exe-and-dlls
-      - run: cp -v jou.exe mingw64 bin/*.dll exe-and-dlls/
+      - run: cp -rv jou.exe mingw64 bin/*.dll exe-and-dlls/
       - uses: actions/upload-artifact@v3
         with:
           name: exe-and-dlls
