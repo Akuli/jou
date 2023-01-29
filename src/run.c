@@ -85,7 +85,7 @@ static void run_linker(const char *objpath, const char *exepath, const CommandLi
         // Use clang from PATH. Convenient when developing Jou locally.
         sprintf(command, "clang \"%s\" -o \"%s\"", objpath, exepath);
     }
-    free(zig);
+    free(gcc);
 #else
     // Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
     (void)instdir;
