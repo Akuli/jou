@@ -75,13 +75,12 @@ static void run_linker(const char *objpath, const char *exepath, const CommandLi
 #ifdef _WIN32
     char *command = malloc(strlen(instdir) + strlen(objpath) + strlen(exepath) + 500);
 
-    char *zig = malloc(strlen(instdir) + 50);
-    sprintf(zig, "%s\\zig\\zig.exe", instdir);
-    if (stat(zig, &(struct stat){0}) != -1) {
-        // Jou on Windows comes with zig just to use "zig cc" as a linker.
-        // TODO: switch to a minimal linker, probably lld? we don't need anything super fancy
-        // TODO: figure out how to quote the executable
-        sprintf(command, "%s cc -target native-native-gnu \"%s\" -o \"%s\"", zig, objpath, exepath);
+    char *gcc = malloc(strlen(instdir) + 50);
+    sprintf(gcc, "%s\\mingw64\\gcc.exe", instdir);
+    if (stat(gcc, &(struct stat){0}) != -1) {
+        // The Windows builds come with the GNU linker.
+        // TODO: figure out how to quote gcc path
+        sprintf(command, "%s \"%s\" -o \"%s\"", gcc, objpath, exepath);
     } else {
         // Use clang from PATH. Convenient when developing Jou locally.
         sprintf(command, "clang \"%s\" -o \"%s\"", objpath, exepath);
