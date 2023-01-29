@@ -76,7 +76,7 @@ static void run_linker(const char *objpath, const char *exepath, const CommandLi
     char *command = malloc(strlen(instdir) + strlen(objpath) + strlen(exepath) + 500);
 
     char *gcc = malloc(strlen(instdir) + 50);
-    sprintf(gcc, "%s\\mingw64\\gcc.exe", instdir);
+    sprintf(gcc, "%s\\mingw64\\bin\\gcc.exe", instdir);
     if (stat(gcc, &(struct stat){0}) != -1) {
         // The Windows builds come with the GNU linker.
         // TODO: figure out how to quote gcc path
