@@ -83,7 +83,6 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
             flags->optlevel = argv[i][2] - '0';
             i++;
         } else if (!strcmp(argv[i], "-o")) {
-            // TODO: test this
             if (argc-i < 2) {
                 // TODO: test this
                 fprintf(stderr, "%s: there must be a file name after -o", argv[0]);
