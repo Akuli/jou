@@ -103,7 +103,7 @@ $ LLVM_CONFIG=llvm-config-11 make
 
 </details>
 
-<details> <summary>Windows</summary>
+<details> <summary>64-bit Windows</summary>
 
 1. Go to releases on GitHub. It's in the sidebar at right.
 2. Choose a release (latest is probably good) and download a `.zip` file whose name starts with `jou_windows_64bit_`.
