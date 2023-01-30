@@ -339,10 +339,9 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
 {
     struct State st = {
-        .module = LLVMModuleCreateWithName(""),  // TODO: pass module name?
+        .module = LLVMModuleCreateWithName(cfgfile->filename),
         .builder = LLVMCreateBuilder(),
     };
-    LLVMSetSourceFileName(st.module, cfgfile->filename, strlen(cfgfile->filename));
 
     // TODO: this isn't ideal, ideally imports would turn into declarations in some other way
     for (const Signature *sig = typectx->function_signatures.ptr; sig < End(typectx->function_signatures); sig++) {

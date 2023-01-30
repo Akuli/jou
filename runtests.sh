@@ -88,6 +88,10 @@ function post_process_output()
         echo "A lot of output hidden..."
         grep "^Exit code:"
     elif [[ $joufile =~ ^tests/crash/ ]]; then
+        if [[ "$OS" =~ Windows ]]; then
+            # Windows doesn't say "Segmentation fault" when a program crashes
+            echo "Segmentation fault"
+        fi
         # Hide most of the output. We really only care about whether it
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
@@ -139,7 +143,6 @@ counter=0
 for joufile in examples/*.jou tests/*/*.jou; do
     case $joufile in
         examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
-        tests/crash/*) correct_exit_code=139; ;;  # segfault
         *) correct_exit_code=1; ;;  # compiler or runtime error
     esac
     counter=$((counter + 1))

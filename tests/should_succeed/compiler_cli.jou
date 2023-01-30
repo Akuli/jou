@@ -18,24 +18,26 @@ def run_jou(command: byte*) -> void:
     free(full_command)
 
 def main() -> int:
-    run_jou("")  # Output: <jouexe>: missing file name to run (try "<jouexe> --help")
+    run_jou("")  # Output: <jouexe>: missing Jou file name (try "<jouexe> --help")
     run_jou("--update -O3")  # Output: <jouexe>: "--update" cannot be used with other arguments (try "<jouexe> --help")
-    run_jou("--verbose")  # Output: <jouexe>: missing file name to run (try "<jouexe> --help")
+    run_jou("--verbose")  # Output: <jouexe>: missing Jou file name (try "<jouexe> --help")
     run_jou("x.jou y.jou")  # Output: <jouexe>: you can only pass one Jou file (try "<jouexe> --help")
     run_jou("examples/hello.jou")  # Output: Hello World
+    run_jou("-o")  # Output: <jouexe>: there must be a file name after -o (try "<jouexe> --help")
+    run_jou("-o examples/hello.jou")  # Output: <jouexe>: the filename after -o should be an executable, not a Jou file (try "<jouexe> --help")
     run_jou("-O8 examples/hello.jou")  # Output: <jouexe>: unknown argument "-O8" (try "<jouexe> --help")
     run_jou("--lolwat")  # Output: <jouexe>: unknown argument "--lolwat" (try "<jouexe> --help")
     run_jou("lolwat.jou")  # Output: compiler error in file "lolwat.jou": cannot open file: No such file or directory
 
     # Output: Usage:
-    # Output:   <jouexe> [--verbose] [-O0|-O1|-O2|-O3] FILENAME
+    # Output:   <jouexe> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] FILENAME
     # Output:   <jouexe> --help       # This message
     # Output:   <jouexe> --update     # Download and install the latest Jou
     # Output:
     # Output: Options:
-    # Output:   --help           display this message
-    # Output:   --verbose        display a lot of information about all compilation steps
+    # Output:   -o OUTFILE       output an executable file, don't run the code
     # Output:   -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)
+    # Output:   --verbose        display a lot of information about all compilation steps
     run_jou("--help")
 
     # Test that --verbose kinda works, without asserting the output in too much detail.
@@ -62,7 +64,15 @@ def main() -> int:
     else:
         system("cd tests && ../jou ../examples/hello.jou")
 
-    # Executable in weird place
+    # Compile to an executable.
+    # Output: Hello World
+    run_jou("-o tmp/tests/hello.exe examples/hello.jou")
+    if is_windows():
+        system("tmp\\tests\\hello.exe")
+    else:
+        system("tmp/tests/hello.exe")
+
+    # Compiler in weird place
     # Output: error: cannot find the Jou standard library in <joudir>/tmp/tests/stdlib
     if is_windows():
         system("copy jou.exe tmp\\tests\\jou_executable.exe >nul")

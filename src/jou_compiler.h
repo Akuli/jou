@@ -46,6 +46,7 @@ typedef struct CfInstruction CfInstruction;
 struct CommandLineFlags {
     bool verbose;  // Whether to print a LOT of debug info
     int optlevel;  // Optimization level (0 don't optimize, 3 optimize a lot)
+    const char *outfile;  // If not NULL, where to output executable
 };
 
 
@@ -486,7 +487,8 @@ AstToplevelNode *parse(const Token *tokens, const char *stdlib_path);
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx);
-int run_program(LLVMModuleRef module, const CommandLineFlags *flags);  // destroys the module
+void compile_to_exe(LLVMModuleRef module, const char *exepath, const CommandLineFlags *flags);
+int run_program(LLVMModuleRef module, const CommandLineFlags *flags);
 
 /*
 Use these to clean up return values of compiling functions.
