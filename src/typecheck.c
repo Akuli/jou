@@ -68,6 +68,8 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
             return byteType;
         if (!strcmp(asttype->data.name, "bool"))
             return boolType;
+        if (!strcmp(asttype->data.name, "double"))
+            return doubleType;
         if (!strcmp(asttype->data.name, "void"))
             return NULL;
 
@@ -138,6 +140,9 @@ static void do_implicit_cast(
             && is_integer_type(to)
             && from->data.width_in_bits < to->data.width_in_bits
             && !(from->kind == TYPE_SIGNED_INTEGER && to->kind == TYPE_UNSIGNED_INTEGER)
+        ) || (
+            // Cast from any integer type to double.
+            is_integer_type(from) && to == doubleType
         ) || (
             // Cast implicitly between void pointer and any other pointer.
             (from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
@@ -216,6 +221,7 @@ static const Type *check_binop(
     }
 
     bool got_integers = is_integer_type(lhstypes->type) && is_integer_type(rhstypes->type);
+    bool got_numbers = is_number_type(lhstypes->type) && is_number_type(rhstypes->type);
     bool got_pointers = (
         is_pointer_type(lhstypes->type)
         && is_pointer_type(rhstypes->type)
@@ -227,7 +233,7 @@ static const Type *check_binop(
         )
     );
 
-    if (!got_integers && !(got_pointers && (op == AST_EXPR_EQ || op == AST_EXPR_NE)))
+    if (!got_integers && !got_numbers && !(got_pointers && (op == AST_EXPR_EQ || op == AST_EXPR_NE)))
         fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name);
 
     // TODO: is this a good idea?
@@ -241,6 +247,10 @@ static const Type *check_binop(
     if (got_pointers) {
         cast_type = voidPtrType;
     }
+    if (got_numbers && !got_integers) {
+        cast_type = doubleType;
+    }
+
     do_implicit_cast(lhstypes, cast_type, (Location){0}, NULL);
     do_implicit_cast(rhstypes, cast_type, (Location){0}, NULL);
 
@@ -578,10 +588,10 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_NEG:
         result = typecheck_expression(ctx, &expr->data.operands[0])->type;
-        if (result->kind != TYPE_SIGNED_INTEGER)
+        if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_DOUBLE)
             fail_with_error(
                 expr->location,
-                "value after '-' must be a signed integer, not %s",
+                "value after '-' must be a double or a signed integer, not %s",
                 result->name);
         break;
     case AST_EXPR_ADD:

@@ -15,6 +15,7 @@ static noreturn void fail_with_parse_error(const Token *token, const char *what_
     char got[200];
     switch(token->type) {
         case TOKEN_INT: strcpy(got, "an integer"); break;
+        case TOKEN_DOUBLE: strcpy(got, "a double constant"); break;
         case TOKEN_CHAR: strcpy(got, "a character"); break;
         case TOKEN_STRING: strcpy(got, "a string"); break;
         case TOKEN_OPERATOR: snprintf(got, sizeof got, "'%s'", token->data.operator); break;
@@ -45,6 +46,7 @@ static AstType parse_type(const Token **tokens)
     if (!is_keyword(*tokens, "void")
         && !is_keyword(*tokens, "int")
         && !is_keyword(*tokens, "byte")
+        && !is_keyword(*tokens, "double")
         && !is_keyword(*tokens, "bool")
         && (*tokens)->type != TOKEN_NAME)
     {
@@ -337,6 +339,12 @@ static AstExpression parse_elementary_expression(const Token **tokens)
     case TOKEN_CHAR:
         expr.kind = AST_EXPR_CONSTANT;
         expr.data.constant = int_constant(byteType, (*tokens)->data.char_value);
+        ++*tokens;
+        break;
+    case TOKEN_DOUBLE:
+        expr.kind = AST_EXPR_CONSTANT;
+        expr.data.constant = (Constant){ .kind=CONSTANT_DOUBLE };
+        safe_strcpy(expr.data.constant.data.double_text, (*tokens)->data.name);
         ++*tokens;
         break;
     case TOKEN_STRING:

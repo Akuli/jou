@@ -121,9 +121,9 @@ static const Variable *build_cast(
         add_unary_op(st, location, CF_PTR_CAST, obj, result);
         return result;
     }
-    if (is_integer_type(obj->type) && is_integer_type(to)) {
+    if (is_number_type(obj->type) && is_number_type(to)) {
         const Variable *result = add_variable(st, to);
-        add_unary_op(st, location, CF_INT_CAST, obj, result);
+        add_unary_op(st, location, CF_NUM_CAST, obj, result);
         return result;
     }
     if (obj->type == boolType && is_integer_type(to))
@@ -139,27 +139,26 @@ static const Variable *build_binop(
     const Variable *rhs,
     const Type *result_type)
 {
-    bool got_integers = is_integer_type(lhs->type) && is_integer_type(rhs->type);
+    bool got_numbers = is_number_type(lhs->type) && is_number_type(rhs->type);
     bool got_pointers = is_pointer_type(lhs->type) && is_pointer_type(rhs->type);
-    bool is_signed = lhs->type->kind == TYPE_SIGNED_INTEGER || rhs->type->kind == TYPE_SIGNED_INTEGER;
-    assert(got_integers || got_pointers);
+    assert(got_numbers || got_pointers);
 
     enum CfInstructionKind k;
     bool negate = false;
     bool swap = false;
 
     switch(op) {
-        case AST_EXPR_ADD: k = CF_INT_ADD; break;
-        case AST_EXPR_SUB: k = CF_INT_SUB; break;
-        case AST_EXPR_MUL: k = CF_INT_MUL; break;
-        case AST_EXPR_DIV: k = (is_signed ? CF_INT_SDIV : CF_INT_UDIV); break;
-        case AST_EXPR_MOD: k = (is_signed ? CF_INT_SMOD : CF_INT_UMOD); break;
-        case AST_EXPR_EQ: k = got_pointers?CF_PTR_EQ:CF_INT_EQ; break;
-        case AST_EXPR_NE: k = got_pointers?CF_PTR_EQ:CF_INT_EQ; negate=true; break;
-        case AST_EXPR_LT: k = CF_INT_LT; break;
-        case AST_EXPR_GT: k = CF_INT_LT; swap=true; break;
-        case AST_EXPR_LE: k = CF_INT_LT; negate=true; swap=true; break;
-        case AST_EXPR_GE: k = CF_INT_LT; negate=true; break;
+        case AST_EXPR_ADD: k = CF_NUM_ADD; break;
+        case AST_EXPR_SUB: k = CF_NUM_SUB; break;
+        case AST_EXPR_MUL: k = CF_NUM_MUL; break;
+        case AST_EXPR_DIV: k = CF_NUM_DIV; break;
+        case AST_EXPR_MOD: k = CF_NUM_MOD; break;
+        case AST_EXPR_EQ: k = got_pointers?CF_PTR_EQ:CF_NUM_EQ; break;
+        case AST_EXPR_NE: k = got_pointers?CF_PTR_EQ:CF_NUM_EQ; negate=true; break;
+        case AST_EXPR_LT: k = CF_NUM_LT; break;
+        case AST_EXPR_GT: k = CF_NUM_LT; swap=true; break;
+        case AST_EXPR_LE: k = CF_NUM_LT; negate=true; swap=true; break;
+        case AST_EXPR_GE: k = CF_NUM_LT; negate=true; break;
         default: assert(0);
     }
 
@@ -236,7 +235,7 @@ static const Variable *build_increment_or_decrement(
 
     add_constant(st, location, int_constant(diffvar->type, diff), diffvar);
     add_unary_op(st, location, CF_PTR_LOAD, addr, old_value);
-    add_binary_op(st, location, is_integer_type(t)?CF_INT_ADD:CF_PTR_ADD_INT, old_value, diffvar, new_value);
+    add_binary_op(st, location, is_number_type(t)?CF_NUM_ADD:CF_PTR_ADD_INT, old_value, diffvar, new_value);
     add_binary_op(st, location, CF_PTR_STORE, addr, new_value, NULL);
 
     switch(pop) {
@@ -497,8 +496,11 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         temp = build_expression(st, &expr->data.operands[0]);
         const Variable *zero = add_variable(st, temp->type);
         result = add_variable(st, temp->type);
-        add_constant(st, expr->location, int_constant(temp->type, 0), zero);
-        add_binary_op(st, expr->location, CF_INT_SUB, zero, temp, result);
+        if (temp->type == doubleType)
+            add_constant(st, expr->location, ((Constant){ CONSTANT_DOUBLE, {.double_text="0"} }), zero);
+        else
+            add_constant(st, expr->location, int_constant(temp->type, 0), zero);
+        add_binary_op(st, expr->location, CF_NUM_SUB, zero, temp, result);
         break;
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
