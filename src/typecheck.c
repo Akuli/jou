@@ -588,10 +588,10 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_NEG:
         result = typecheck_expression(ctx, &expr->data.operands[0])->type;
-        if (result->kind != TYPE_SIGNED_INTEGER)
+        if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_DOUBLE)
             fail_with_error(
                 expr->location,
-                "value after '-' must be a signed integer, not %s",
+                "value after '-' must be a double or a signed integer, not %s",
                 result->name);
         break;
     case AST_EXPR_ADD:
