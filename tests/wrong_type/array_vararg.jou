@@ -1,0 +1,10 @@
+from "stdlib/io.jou" import printf
+
+def main() -> int:
+    s: byte[3]
+    s[0] = 'h'
+    s[1] = 'i'
+    s[2] = '\0'
+    printf("%s\n", &s[0])  # This works. No error
+    printf("%s\n", s)  # Error: arrays cannot be passed as varargs (try &array[0] instead of array)
+    return 0
