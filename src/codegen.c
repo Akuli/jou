@@ -394,19 +394,15 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
         .builder = LLVMCreateBuilder(),
     };
 
-    // TODO: this isn't ideal, ideally imports would turn into declarations in some other way
-    for (const Signature *sig = typectx->function_signatures.ptr; sig < End(typectx->function_signatures); sig++) {
-        bool defined_here = false;
-        for (int i = 0; i < cfgfile->nfuncs; i++)
-            if (cfgfile->graphs[i] && !strcmp(cfgfile->signatures[i].funcname, sig->funcname))
-                defined_here = true;
-        if (!defined_here)
-            codegen_function_decl(&st, sig);
-    }
+    for (const ExportSymbol **es = typectx->imports.ptr; es < End(typectx->imports); es++)
+        if ((*es)->kind == EXPSYM_FUNCTION)
+            codegen_function_decl(&st, &(*es)->data.funcsignature);
 
     for (int i = 0; i < cfgfile->nfuncs; i++)
         if (cfgfile->graphs[i])
             codegen_function_def(&st, &cfgfile->signatures[i], cfgfile->graphs[i]);
+        else
+            codegen_function_decl(&st, &cfgfile->signatures[i]);
 
     LLVMDisposeBuilder(st.builder);
     return st.module;

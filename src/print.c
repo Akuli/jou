@@ -354,7 +354,7 @@ void print_ast(const AstToplevelNode *topnodelist)
         switch(topnodelist->kind) {
             case AST_TOPLEVEL_IMPORT:
                 printf("Import \"%s\" from \"%s\".\n",
-                    topnodelist->data.import.symbol, topnodelist->data.import.path);
+                    topnodelist->data.import.symbolname, topnodelist->data.import.path);
                 break;
             case AST_TOPLEVEL_DECLARE_FUNCTION:
                 printf("Declare a function: ");

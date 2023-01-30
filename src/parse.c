@@ -808,7 +808,7 @@ static AstToplevelNode *parse_import(const Token **tokens, const char *stdlib_pa
 
         struct AstImport imp;
         imp.path = strdup(path);
-        safe_strcpy(imp.symbol, (*tokens)->data.name);
+        safe_strcpy(imp.symbolname, (*tokens)->data.name);
 
         Append(&result, (struct AstToplevelNode){
             .location = (*tokens)->location,
