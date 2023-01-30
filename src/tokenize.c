@@ -83,7 +83,8 @@ static void read_identifier_or_number(struct State *st, char firstbyte, char (*d
 
     while(1) {
         char c = read_byte(st);
-        if (!is_identifier_or_number_byte(c)) {
+        if (!is_identifier_or_number_byte(c) && !(c=='.' && '0'<=firstbyte && firstbyte<='9'))
+        {
             unread_byte(st, c);
             return;
         }
@@ -161,6 +162,14 @@ static long long parse_integer(const char *str, Location location)
     return strtoll(digits, NULL, base);
 }
 
+static bool is_valid_double(const char *str)
+{
+    // exactly one dot, no characters except dot and numbers
+    return strchr(str, '.') != NULL
+        && strchr(str, '.') == strrchr(str, '.')
+        && strspn(str, "0123456789.") == strlen(str);
+}
+
 static bool is_keyword(const char *s)
 {
     const char *keywords[] = {
@@ -169,7 +178,7 @@ static bool is_keyword(const char *s)
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
         "and", "or", "not", "as",
-        "void", "bool", "byte", "int",
+        "void", "bool", "byte", "int", "double",
     };
     for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
         if (!strcmp(*kw, s))
@@ -364,8 +373,12 @@ static Token read_token(struct State *st)
                 if (is_keyword(t.data.name))
                     t.type = TOKEN_KEYWORD;
                 else if ('0'<=t.data.name[0] && t.data.name[0]<='9') {
-                    t.type = TOKEN_INT;
-                    t.data.int_value = parse_integer(t.data.name, t.location);
+                    if (is_valid_double(t.data.name))
+                        t.type = TOKEN_DOUBLE;
+                    else {
+                        t.type = TOKEN_INT;
+                        t.data.int_value = parse_integer(t.data.name, t.location);
+                    }
                 } else {
                     t.type = TOKEN_NAME;
                 }

@@ -66,6 +66,7 @@ struct Location {
 struct Token {
     enum TokenType {
         TOKEN_INT,
+        TOKEN_DOUBLE,
         TOKEN_CHAR,
         TOKEN_STRING,
         TOKEN_NAME,
@@ -82,7 +83,7 @@ struct Token {
         char char_value;  // TOKEN_CHAR
         char *string_value;  // TOKEN_STRING
         int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
-        char name[100];  // TOKEN_NAME and TOKEN_KEYWORD
+        char name[100];  // TOKEN_NAME and TOKEN_KEYWORD. Also TOKEN_DOUBLE (LLVM wants a string anyway)
         char operator[4];  // TOKEN_OPERATOR
     } data;
 };
@@ -92,14 +93,16 @@ struct Token {
 struct Constant {
     enum ConstantKind {
         CONSTANT_INTEGER,
+        CONSTANT_DOUBLE,
         CONSTANT_STRING,
         CONSTANT_NULL,
         CONSTANT_BOOL,
     } kind;
     union {
         struct { int width_in_bits; bool is_signed; long long value; } integer;
-        bool boolean;
         char *str;
+        char double_text[100];  // convenient because LLVM wants a string anyway
+        bool boolean;
     } data;
 };
 #define copy_constant(c) ( (c)->kind==CONSTANT_STRING ? (Constant){ CONSTANT_STRING, {.str=strdup((c)->data.str)} } : *(c) )
@@ -315,13 +318,14 @@ struct Type {
         TYPE_SIGNED_INTEGER,
         TYPE_UNSIGNED_INTEGER,
         TYPE_BOOL,
+        TYPE_DOUBLE,
         TYPE_POINTER,
         TYPE_VOID_POINTER,
         TYPE_ARRAY,
         TYPE_STRUCT,
     } kind;
     union {
-        int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER
+        int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_DOUBLE
         const Type *valuetype;  // TYPE_POINTER
         struct { const Type *membertype; int len; } array;  // TYPE_ARRAY
         struct { int count; char (*names)[100]; const Type **types; } structfields;  // TYPE_STRUCT
@@ -345,6 +349,7 @@ not the same type.
 extern const Type *boolType;      // bool
 extern const Type *intType;       // int (32-bit signed)
 extern const Type *byteType;      // byte (8-bit unsigned)
+extern const Type *doubleType;    // double (64-bit)
 extern const Type *voidPtrType;   // void*
 void init_types();  // Called once when compiler starts
 const Type *get_integer_type(int size_in_bits, bool is_signed);
@@ -359,6 +364,7 @@ Type *create_struct(
 void free_type(Type *type);
 
 bool is_integer_type(const Type *t);  // includes signed and unsigned
+bool is_number_type(const Type *t);  // integers, floats, doubles
 bool is_pointer_type(const Type *t);  // includes void pointers
 
 struct Signature {
@@ -428,16 +434,15 @@ struct CfInstruction {
         CF_PTR_STRUCT_FIELD,  // takes 1 operand (pointer), sets destvar to &op->fieldname
         CF_PTR_CAST,
         CF_PTR_ADD_INT,
-        CF_INT_ADD,
-        CF_INT_SUB,
-        CF_INT_MUL,
-        CF_INT_SDIV, // signed division, example with 8 bits: 255 / 2 = (-1) / 2 = 0
-        CF_INT_UDIV, // unsigned division: 255 / 2 = 127
-        CF_INT_SMOD, // remainder of signed division
-        CF_INT_UMOD, // remainder of unsigned division
-        CF_INT_EQ,
-        CF_INT_LT,
-        CF_INT_CAST,
+        // Left and right side of number operations must be of the same type (except CF_NUM_CAST).
+        CF_NUM_ADD,
+        CF_NUM_SUB,
+        CF_NUM_MUL,
+        CF_NUM_DIV,
+        CF_NUM_MOD,
+        CF_NUM_EQ,
+        CF_NUM_LT,
+        CF_NUM_CAST,
         CF_BOOL_NEGATE,  // TODO: get rid of this?
         CF_VARCPY, // similar to assignment statements: var1 = var2
     } kind;
