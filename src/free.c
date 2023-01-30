@@ -210,8 +210,16 @@ void free_type_context(const TypeContext *ctx)
         free_type(*t);
     for (Signature *s = ctx->function_signatures.ptr; s < End(ctx->function_signatures); s++)
         free_signature(s);
-    for (Signature *s = ctx->exports.ptr; s < End(ctx->exports); s++)
-        free_signature(s);
+    for (ExportSymbol *sym = ctx->exports.ptr; sym < End(ctx->exports); sym++) {
+        switch(sym->kind) {
+        case EXPSYM_FUNCTION:
+            free_signature(&sym->data.funcsignature);
+            break;
+        case EXPSYM_STRUCT:
+            // references a struct type in ctx->structs
+            break;
+        }
+    }
     free(ctx->structs.ptr);
     free(ctx->function_signatures.ptr);
     free(ctx->exports.ptr);

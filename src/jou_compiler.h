@@ -35,6 +35,7 @@ typedef struct AstImport AstImport;
 
 typedef struct Variable Variable;
 typedef struct ExpressionTypes ExpressionTypes;
+typedef struct ExportSymbol ExportSymbol;
 typedef struct TypeContext TypeContext;
 
 typedef struct CfBlock CfBlock;
@@ -291,7 +292,7 @@ struct AstStructDef {
 
 struct AstImport {
     char *path;  // Relative to current working directory, so e.g. "blah/stdlib/io.jou"
-    char symbol[100];
+    char symbolname[100];
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -394,6 +395,16 @@ struct ExpressionTypes {
     const Type *type;
     const Type *type_after_cast;  // NULL for no implicit cast
 };
+
+struct ExportSymbol {
+    enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_STRUCT } kind;
+    char name[100];
+    union {
+        Signature funcsignature;
+        const Type *structtype;
+    } data;
+};
+
 struct TypeContext {
     const Signature *current_function_signature;
     // expr_types tells what type each expression has.
@@ -402,7 +413,8 @@ struct TypeContext {
     List(Variable *) variables;
     List(Type *) structs;
     List(Signature) function_signatures;
-    List(Signature) exports;
+    List(const ExportSymbol *) imports;
+    List(ExportSymbol) exports;
 };
 
 // function body can be NULL to check a declaration

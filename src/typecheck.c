@@ -29,6 +29,11 @@ static const Signature *find_function(const TypeContext *ctx, const char *name)
     for (Signature *sig = ctx->function_signatures.ptr; sig < End(ctx->function_signatures); sig++)
         if (!strcmp(sig->funcname, name))
             return sig;
+
+    for (const ExportSymbol **es = ctx->imports.ptr; es < End(ctx->imports); es++)
+        if ((*es)->kind == EXPSYM_FUNCTION && !strcmp((*es)->name, name))
+            return &(*es)->data.funcsignature;
+
     return NULL;
 }
 
@@ -792,9 +797,8 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
 
 Signature typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body)
 {
-    for (Signature *sig = ctx->function_signatures.ptr; sig < End(ctx->function_signatures); sig++)
-        if (!strcmp(sig->funcname, astsig->funcname))
-            fail_with_error(funcname_location, "a function named '%s' already exists", astsig->funcname);
+    if (find_function(ctx, astsig->funcname))
+        fail_with_error(funcname_location, "a function named '%s' already exists", astsig->funcname);
 
     Signature sig = { .nargs = astsig->nargs, .takes_varargs = astsig->takes_varargs };
     safe_strcpy(sig.funcname, astsig->funcname);
@@ -836,7 +840,11 @@ Signature typecheck_function(TypeContext *ctx, Location funcname_location, const
     }
 
     ctx->current_function_signature = NULL;
-    Append(&ctx->exports, copy_signature(&sig));
+
+    ExportSymbol es = { .kind = EXPSYM_FUNCTION, .data.funcsignature = copy_signature(&sig) };
+    safe_strcpy(es.name, sig.funcname);
+    Append(&ctx->exports, es);
+
     return copy_signature(&sig);
 }
 

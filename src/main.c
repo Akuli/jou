@@ -187,7 +187,7 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
 
     for (AstToplevelNode *impnode = fs->ast; impnode->kind == AST_TOPLEVEL_IMPORT; impnode++) {
         if (compst->flags.verbose)
-            printf("  Add imported symbol: %s\n", impnode->data.import.symbol);
+            printf("  Add imported symbol: %s\n", impnode->data.import.symbolname);
 
         struct FileState *src = NULL;
         for (struct FileState *p = compst->files.ptr; p < fs; p++) {
@@ -198,20 +198,19 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
         }
         assert(src);
 
-        const Signature *sig = NULL;
-        for (Signature *p = src->typectx.exports.ptr; p < End(src->typectx.exports); p++) {
-            if (!strcmp(p->funcname, impnode->data.import.symbol)) {
-                sig = p;
+        const ExportSymbol *sym = NULL;
+        for (ExportSymbol *p = src->typectx.exports.ptr; p < End(src->typectx.exports); p++) {
+            if (!strcmp(p->name, impnode->data.import.symbolname)) {
+                sym = p;
                 break;
             }
         }
-        if (!sig) {
+        if (!sym) {
             fail_with_error(
-                impnode->location, "file \"%s\" does not contain a function named '%s'",
-                impnode->data.import.path, impnode->data.import.symbol);
+                impnode->location, "file \"%s\" does not export a symbol named '%s'",
+                impnode->data.import.path, impnode->data.import.symbolname);
         }
-
-        Append(&fs->typectx.function_signatures, copy_signature(sig));
+        Append(&fs->typectx.imports, sym);
     }
 
     CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->typectx);
