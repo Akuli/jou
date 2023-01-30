@@ -9,11 +9,12 @@
 #
 # See also printf() manual page: https://linux.die.net/man/3/printf
 declare putchar(a_byte: int) -> int  # Print a byte (parameter type is "int" for historical reasons)
-declare puts(s: byte*) -> int  # Print a string followed by "\n"
+declare puts(string: byte*) -> int  # Print a string followed by "\n"
 declare printf(pattern: byte*, ...) -> int  # Example: printf("%s %d\n", "hi", 123)
 
 # Keyboard input
 # TODO: add EOF and errno, explain here how to use them
+# TODO: add stdin and explain how to use fgets(..., stdin)
 declare getchar() -> int
 
 # Parsing input. For example, this expects the user to type two
@@ -29,3 +30,38 @@ declare getchar() -> int
 #
 # See also scanf() manual page: https://linux.die.net/man/3/scanf
 declare scanf(pattern: byte*, ...) -> int  # Parse keyboard input (stdin)
+
+struct FILE:
+    # The members that are actually inside this struct are
+    # platform-specific. Use the functions below instead of trying
+    # to accessing the members directly.
+    _dummy: int
+
+# Open/close a file for reading or writing. Mode can be e.g. "r", "w",
+# "a", "rb", "wb" or "ab". The meanings of these modes are as in many
+# other languages, such as Python.
+#
+# The "b" at the end of the mode makes a difference only on Windows.
+# Text files on Windows typically use two bytes "\r\n" for newlines,
+# even though Jou code typically uses "\n". Without "b", the file will
+# convert between "\n" and "\r\n" automatically.
+declare fopen(path: byte*, mode: byte*) -> FILE*
+declare fclose(file: FILE*) -> int  # Call this when done with the file. Return value is not meaningful.
+
+# Similar to other functions, but these read/write a file.
+declare fputc(a_byte: int, file: FILE*) -> int  # see putchar()
+declare fputs(string: byte*, file: FILE*) -> int  # does NOT add '\n' like puts() does
+declare fprintf(file: FILE *, pattern: byte*, ...) -> int
+declare fgetc(file: FILE*) -> int  # see getchar()
+declare fscanf(file: FILE*, pattern: byte*, ...) -> int
+
+# Read a line of text from file into a string starting at the given
+# pointer. Reading stops at newline character, end of file, on error,
+# or when the resulting string (including the '\0') wouldn't fit
+# within n bytes.
+#
+# Return value: NULL on error, same as s on success.
+declare fgets(destination: byte*, n: int, file: FILE*) -> byte*
+
+# Move back to beginning of file.
+declare rewind(file: FILE*) -> void
