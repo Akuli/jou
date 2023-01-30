@@ -222,6 +222,7 @@ void free_type_context(const TypeContext *ctx)
     }
     free(ctx->structs.ptr);
     free(ctx->function_signatures.ptr);
+    free(ctx->imports.ptr);
     free(ctx->exports.ptr);
 }
 
