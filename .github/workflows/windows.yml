@@ -13,11 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Download LLVM installer
-        run: wget --no-verbose https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/LLVM-11.1.0-win64.exe
+        run: wget --no-verbose https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/LLVM-13.0.1-win64.exe
       - name: Verify LLVM installer
         run: |
-          ls -lh LLVM-11.1.0-win64.exe
-          if [ "$(sha256sum LLVM-11.1.0-win64.exe)" == "b5770bbfac712d273938cd155e232afaa85c2e8d865c7ca504a104a838568516  LLVM-11.1.0-win64.exe" ]; then
+          ls -lh LLVM-13.0.1-win64.exe
+          if [ "$(sha256sum LLVM-13.0.1-win64.exe)" == "9d15be034d52ec57cfc97615634099604d88a54761649498daa7405983a7e12f  LLVM-13.0.1-win64.exe" ]; then
             echo ok
           else
             echo "sha sum mismatch! something has changed!"
@@ -28,7 +28,7 @@ jobs:
       - name: Extract files from LLVM installer
         run: |
           files="lib/LLVM-C.lib"
-          for file in $(7z l LLVM-11.1.0-win64.exe | grep -o 'bin/.*\.dll'); do
+          for file in $(7z l LLVM-13.0.1-win64.exe | grep -o 'bin/.*\.dll'); do
             case $file in
               # To figure out which dll files I need, I deleted them one by one and ran
               # the compiler again.
@@ -50,7 +50,7 @@ jobs:
             esac
           done
           echo "Extracting $files"
-          7z x LLVM-11.1.0-win64.exe $files
+          7z x LLVM-13.0.1-win64.exe $files
       # llvm-13-dev needed for the header files. They seem to be missing from LLVM windows installer.
       # Using gcc instead of clang, because gcc "just works".
       - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
