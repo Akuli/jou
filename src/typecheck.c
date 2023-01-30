@@ -478,6 +478,13 @@ static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call
     for (int i = sig->nargs; i < call->nargs; i++) {
         // This code runs for varargs, e.g. the things to format in printf().
         ExpressionTypes *types = typecheck_expression_not_void(ctx, &call->args[i]);
+
+        if (types->type->kind == TYPE_ARRAY) {
+            fail_with_error(
+                call->args[i].location,
+                "arrays cannot be passed as varargs (try &array[0] instead of array)");
+        }
+
         if ((is_integer_type(types->type) && types->type->data.width_in_bits < 32)
             || types->type == boolType)
         {
