@@ -37,6 +37,19 @@ static const Signature *find_function(const TypeContext *ctx, const char *name)
     return NULL;
 }
 
+static const Type *find_type(const TypeContext *ctx, const char *name)
+{
+    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
+        if (!strcmp((*t)->name, name))
+            return *t;
+
+    for (const ExportSymbol **es = ctx->imports.ptr; es < End(ctx->imports); es++)
+        if ((*es)->kind == EXPSYM_TYPE && !strcmp((*es)->name, name))
+            return (*es)->data.type;
+
+    return NULL;
+}
+
 int evaluate_array_length(const AstExpression *expr)
 {
     if (expr->kind == AST_EXPR_CONSTANT
@@ -77,11 +90,8 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
             return doubleType;
         if (!strcmp(asttype->data.name, "void"))
             return NULL;
-
-        for (Type **ptr = ctx->structs.ptr; ptr < End(ctx->structs); ptr++)
-            if (!strcmp((*ptr)->name, asttype->data.name))
-                return *ptr;
-
+        if ((tmp = find_type(ctx, asttype->data.name)))
+            return tmp;
         fail_with_error(asttype->location, "there is no type named '%s'", asttype->data.name);
 
     case AST_TYPE_POINTER:
@@ -850,9 +860,8 @@ Signature typecheck_function(TypeContext *ctx, Location funcname_location, const
 
 void typecheck_struct(struct TypeContext *ctx, const AstStructDef *structdef, Location location)
 {
-    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
-        if (!strcmp((*t)->name, structdef->name))
-            fail_with_error(location, "a struct named '%s' already exists", structdef->name);
+    if (find_type(ctx, structdef->name))
+        fail_with_error(location, "a type named '%s' already exists", structdef->name);
 
     int n = structdef->nfields;
 
@@ -865,6 +874,10 @@ void typecheck_struct(struct TypeContext *ctx, const AstStructDef *structdef, Lo
 
     Type *structtype = create_struct(structdef->name, n, fieldnames, fieldtypes);
     Append(&ctx->structs, structtype);
+
+    ExportSymbol es = { .kind = EXPSYM_TYPE, .data.type = structtype };
+    safe_strcpy(es.name, structdef->name);
+    Append(&ctx->exports, es);
 }
 
 void reset_type_context(TypeContext *ctx)

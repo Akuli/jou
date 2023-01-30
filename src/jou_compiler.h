@@ -397,11 +397,11 @@ struct ExpressionTypes {
 };
 
 struct ExportSymbol {
-    enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_STRUCT } kind;
+    enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_TYPE } kind;
     char name[100];
     union {
         Signature funcsignature;
-        const Type *structtype;
+        const Type *type;
     } data;
 };
 

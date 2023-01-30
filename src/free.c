@@ -215,7 +215,7 @@ void free_type_context(const TypeContext *ctx)
         case EXPSYM_FUNCTION:
             free_signature(&sym->data.funcsignature);
             break;
-        case EXPSYM_STRUCT:
+        case EXPSYM_TYPE:
             // references a struct type in ctx->structs
             break;
         }
