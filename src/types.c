@@ -14,12 +14,13 @@ struct TypeInfo {
 static struct {
     bool inited;
     struct TypeInfo integers[65][2];  // integers[i][j] = i-bit integer, j=1 for signed, j=0 for unsigned
-    struct TypeInfo boolean, voidptr;
+    struct TypeInfo boolean, doublelele, voidptr;
 } global_state = {0};
 
 const Type *boolType = &global_state.boolean.type;
 const Type *intType = &global_state.integers[32][true].type;
 const Type *byteType = &global_state.integers[8][false].type;
+const Type *doubleType = &global_state.doublelele.type;
 const Type *voidPtrType = &global_state.voidptr.type;
 
 // The TypeInfo for type T contains the type T* (if it has been used)
@@ -49,6 +50,7 @@ static void free_global_state(void)
 {
     assert(global_state.inited);
     free_pointer_and_array_types(&global_state.boolean);
+    free_pointer_and_array_types(&global_state.doublelele);
     free_pointer_and_array_types(&global_state.voidptr);
     for (int size = 8; size <= 64; size *= 2)
         for (int is_signed = 0; is_signed <= 1; is_signed++)
@@ -60,6 +62,7 @@ void init_types(void)
     assert(!global_state.inited);
 
     global_state.boolean.type = (Type){ .name = "bool", .kind = TYPE_BOOL };
+    global_state.doublelele.type = (Type){ .name = "double", .kind = TYPE_DOUBLE, .data.width_in_bits = 64 };
     global_state.voidptr.type = (Type){ .name = "void*", .kind = TYPE_VOID_POINTER };
 
     for (int size = 8; size <= 64; size *= 2) {
@@ -124,6 +127,11 @@ bool is_integer_type(const Type *t)
     return (t->kind == TYPE_SIGNED_INTEGER || t->kind == TYPE_UNSIGNED_INTEGER);
 }
 
+bool is_number_type(const Type *t)
+{
+    return is_integer_type(t) || t->kind == TYPE_DOUBLE;
+}
+
 bool is_pointer_type(const Type *t)
 {
     return (t->kind == TYPE_POINTER || t->kind == TYPE_VOID_POINTER);
@@ -134,6 +142,8 @@ const Type *type_of_constant(const Constant *c)
     switch(c->kind) {
     case CONSTANT_NULL:
         return voidPtrType;
+    case CONSTANT_DOUBLE:
+        return doubleType;
     case CONSTANT_BOOL:
         return boolType;
     case CONSTANT_STRING:

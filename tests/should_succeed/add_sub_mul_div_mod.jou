@@ -10,9 +10,16 @@ def main() -> int:
     printf("%d\n", 7-15)    # Output: -8
     printf("%d\n", -7-15)    # Output: -22
 
+    printf("%.2f\n", 12.34+56.78)    # Output: 69.12
+    printf("%.2f\n", -12.34+56.78)    # Output: 44.44
+    printf("%.2f\n", 12.34-56.78)    # Output: -44.44
+    printf("%.2f\n", -12.34-56.78)    # Output: -69.12
+
     printf("%d\n", 1+2*3)       # Output: 7
     printf("%d\n", 1+(2*3))     # Output: 7
     printf("%d\n", (1+2)*3)     # Output: 9
+
+    printf("%.3f %.3f %.3f %.3f %.3f\n", 1.2+3.4, 1-2.3, 1.2*3, 1/2.3, 1.5%0.2)  # Output: 4.600 -1.300 3.600 0.435 0.100
 
     # '2' converts to int 50
     printf("%d\n", 1000 + '2')  # Output: 1050
@@ -85,5 +92,17 @@ def main() -> int:
         for b = -5; b < 5; b++:
             if b != 0 and a/b*b + a%b != a:
                 printf("remainder doesn't work correctly when dividing %d by %d (div=%d, rem=%d)\n", a, b, a/b, a%b)
+
+    x = 5
+    x += 10
+    printf("%d\n", x)  # Output: 15
+    x -= 16-10
+    printf("%d\n", x)  # Output: 9
+    x *= 3
+    printf("%d\n", x)  # Output: 27
+    x /= 2
+    printf("%d\n", x)  # Output: 13
+    x %= 4
+    printf("%d\n", x)  # Output: 1
 
     return 0

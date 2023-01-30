@@ -30,6 +30,9 @@ static void print_constant(const Constant *c)
     case CONSTANT_BOOL:
         printf(c->data.boolean ? "True" : "False");
         break;
+    case CONSTANT_DOUBLE:
+        printf("double %s", c->data.double_text);
+        break;
     case CONSTANT_INTEGER:
         printf(
             "%lld (%d-bit %s)",
@@ -51,6 +54,9 @@ void print_token(const Token *token)
     switch(token->type) {
     case TOKEN_INT:
         printf("integer %lld\n", token->data.int_value);
+        break;
+    case TOKEN_DOUBLE:
+        printf("double %s\n", token->data.name);
         break;
     case TOKEN_CHAR:
         printf("character ");
@@ -319,11 +325,16 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
                 printf("\n");
             }
             break;
-        case AST_STMT_ASSIGN:
-            printf("assign\n");
-            print_ast_expression(&stmt->data.assignment.target, print_tree_prefix(tp, false));
-            print_ast_expression(&stmt->data.assignment.value, print_tree_prefix(tp, true));
-            break;
+#define PrintAssignment \
+    print_ast_expression(&stmt->data.assignment.target, print_tree_prefix(tp, false)); \
+    print_ast_expression(&stmt->data.assignment.value, print_tree_prefix(tp, true));
+        case AST_STMT_ASSIGN: puts("assign"); PrintAssignment; break;
+        case AST_STMT_INPLACE_ADD: puts("in-place add"); PrintAssignment; break;
+        case AST_STMT_INPLACE_SUB: puts("in-place sub"); PrintAssignment; break;
+        case AST_STMT_INPLACE_MUL: puts("in-place mul"); PrintAssignment; break;
+        case AST_STMT_INPLACE_DIV: puts("in-place div"); PrintAssignment; break;
+        case AST_STMT_INPLACE_MOD: puts("in-place mod"); PrintAssignment; break;
+#undef PrintAssignment
     }
 }
 
@@ -389,6 +400,16 @@ static const char *varname(const Variable *var)
     return s;
 }
 
+static const char *very_short_number_type_description(const Type *t)
+{
+    switch(t->kind) {
+        case TYPE_DOUBLE: return "double";
+        case TYPE_SIGNED_INTEGER: return "signed";
+        case TYPE_UNSIGNED_INTEGER: return "unsigned";
+        default: assert(0);
+    }
+}
+
 static void print_cf_instruction(const CfInstruction *ins, int indent)
 {
     printf("%*sline %-4d  ", indent, "", ins->location.lineno);
@@ -411,40 +432,36 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         }
         printf(")");
         break;
-    case CF_INT_CAST:
-        assert(is_integer_type(ins->operands[0]->type));
-        assert(is_integer_type(ins->destvar->type));
-        printf("int cast %s (%d-bit %s --> %d-bit %s)", varname(ins->operands[0]),
+    case CF_NUM_CAST:
+        printf(
+            "number cast %s (%d-bit %s --> %d-bit %s)",
+            varname(ins->operands[0]),
             ins->operands[0]->type->data.width_in_bits,
-            ins->operands[0]->type->kind==TYPE_SIGNED_INTEGER ? "signed" : "unsigned",
+            very_short_number_type_description(ins->operands[0]->type),
             ins->destvar->type->data.width_in_bits,
-            ins->destvar->type->kind==TYPE_SIGNED_INTEGER ? "signed" : "unsigned");
+            very_short_number_type_description(ins->destvar->type));
         break;
     case CF_CONSTANT:
         print_constant(&ins->data.constant);
         break;
 
-    case CF_INT_ADD:
-    case CF_INT_SUB:
-    case CF_INT_MUL:
-    case CF_INT_SDIV:
-    case CF_INT_UDIV:
-    case CF_INT_SMOD:
-    case CF_INT_UMOD:
-    case CF_INT_EQ:
-    case CF_INT_LT:
+    case CF_NUM_ADD:
+    case CF_NUM_SUB:
+    case CF_NUM_MUL:
+    case CF_NUM_DIV:
+    case CF_NUM_MOD:
+    case CF_NUM_EQ:
+    case CF_NUM_LT:
     case CF_PTR_EQ:
         switch(ins->kind){
-            case CF_INT_ADD: printf("iadd "); break;
-            case CF_INT_SUB: printf("isub "); break;
-            case CF_INT_MUL: printf("imul "); break;
-            case CF_INT_SDIV: printf("sdiv "); break;
-            case CF_INT_UDIV: printf("udiv "); break;
-            case CF_INT_SMOD: printf("smod "); break;
-            case CF_INT_UMOD: printf("umod "); break;
-            case CF_INT_EQ: printf("ieq "); break;
-            case CF_INT_LT: printf("ilt "); break;
-            case CF_PTR_EQ: printf("ptreq "); break;
+            case CF_NUM_ADD: printf("num add "); break;
+            case CF_NUM_SUB: printf("num sub "); break;
+            case CF_NUM_MUL: printf("num mul "); break;
+            case CF_NUM_DIV: printf("num div "); break;
+            case CF_NUM_MOD: printf("num mod "); break;
+            case CF_NUM_EQ: printf("num eq "); break;
+            case CF_NUM_LT: printf("num lt "); break;
+            case CF_PTR_EQ: printf("ptr eq "); break;
             default: assert(0);
         }
         printf("%s, %s", varname(ins->operands[0]), varname(ins->operands[1]));

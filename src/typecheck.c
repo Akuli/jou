@@ -68,6 +68,8 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
             return byteType;
         if (!strcmp(asttype->data.name, "bool"))
             return boolType;
+        if (!strcmp(asttype->data.name, "double"))
+            return doubleType;
         if (!strcmp(asttype->data.name, "void"))
             return NULL;
 
@@ -138,6 +140,9 @@ static void do_implicit_cast(
             && is_integer_type(to)
             && from->data.width_in_bits < to->data.width_in_bits
             && !(from->kind == TYPE_SIGNED_INTEGER && to->kind == TYPE_UNSIGNED_INTEGER)
+        ) || (
+            // Cast from any integer type to double.
+            is_integer_type(from) && to == doubleType
         ) || (
             // Cast implicitly between void pointer and any other pointer.
             (from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
@@ -216,6 +221,7 @@ static const Type *check_binop(
     }
 
     bool got_integers = is_integer_type(lhstypes->type) && is_integer_type(rhstypes->type);
+    bool got_numbers = is_number_type(lhstypes->type) && is_number_type(rhstypes->type);
     bool got_pointers = (
         is_pointer_type(lhstypes->type)
         && is_pointer_type(rhstypes->type)
@@ -227,7 +233,7 @@ static const Type *check_binop(
         )
     );
 
-    if (!got_integers && !(got_pointers && (op == AST_EXPR_EQ || op == AST_EXPR_NE)))
+    if (!got_integers && !got_numbers && !(got_pointers && (op == AST_EXPR_EQ || op == AST_EXPR_NE)))
         fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name);
 
     // TODO: is this a good idea?
@@ -241,6 +247,10 @@ static const Type *check_binop(
     if (got_pointers) {
         cast_type = voidPtrType;
     }
+    if (got_numbers && !got_integers) {
+        cast_type = doubleType;
+    }
+
     do_implicit_cast(lhstypes, cast_type, (Location){0}, NULL);
     do_implicit_cast(rhstypes, cast_type, (Location){0}, NULL);
 
@@ -578,10 +588,10 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_NEG:
         result = typecheck_expression(ctx, &expr->data.operands[0])->type;
-        if (result->kind != TYPE_SIGNED_INTEGER)
+        if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_DOUBLE)
             fail_with_error(
                 expr->location,
-                "value after '-' must be a signed integer, not %s",
+                "value after '-' must be a double or a signed integer, not %s",
                 result->name);
         break;
     case AST_EXPR_ADD:
@@ -693,7 +703,6 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
                     strcpy(errmsg, "cannot place a value of type FROM into a pointer of type TO*");
                 } else {
                     snprintf(errmsg, sizeof errmsg,
-                        // TODO: not a nice message when targetexpr->kind == AST_EXPR_DEREFERENCE
                         "cannot assign a value of type FROM to %s of type TO",
                         short_expression_description(targetexpr));
                 }
@@ -702,6 +711,37 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
             }
             break;
         }
+
+    case AST_STMT_INPLACE_ADD:
+    case AST_STMT_INPLACE_SUB:
+    case AST_STMT_INPLACE_MUL:
+    case AST_STMT_INPLACE_DIV:
+    case AST_STMT_INPLACE_MOD:
+    {
+        const AstExpression *targetexpr = &stmt->data.assignment.target;
+        const AstExpression *valueexpr = &stmt->data.assignment.value;
+
+        // TODO: test this
+        ensure_can_take_address(targetexpr, "cannot assign to %s");
+
+        const char *opname;
+        switch(stmt->kind) {
+            case AST_STMT_INPLACE_ADD: opname = "addition"; break;
+            case AST_STMT_INPLACE_SUB: opname = "subtraction"; break;
+            case AST_STMT_INPLACE_MUL: opname = "multiplication"; break;
+            case AST_STMT_INPLACE_DIV: opname = "division"; break;
+            case AST_STMT_INPLACE_MOD: opname = "modulo"; break;
+            default: assert(0);
+        }
+
+        // TODO: test this
+        char errmsg[500];
+        sprintf(errmsg, "%s produced a value of type FROM which cannot be assigned back to TO", opname);
+
+        const ExpressionTypes *targettypes = typecheck_expression(ctx, targetexpr);
+        typecheck_expression_with_implicit_cast(ctx, valueexpr, targettypes->type, errmsg);
+        break;
+    }
 
     case AST_STMT_RETURN_VALUE:
     {

@@ -25,6 +25,7 @@ jobs:
           fi
       # Apparently the exe file is created with nsis installer and 7z can extract from it.
       # Figured out by looking at source code of https://github.com/KyleMayes/install-llvm-action
+      # TODO: could we instead statically link the Jou compiler?
       - name: Extract files from LLVM installer
         run: |
           files="lib/LLVM-C.lib"
@@ -51,11 +52,39 @@ jobs:
           done
           echo "Extracting $files"
           7z x LLVM-13.0.1-win64.exe $files
+      - name: Download MinGW
+        run: wget --no-verbose https://github.com/niXman/mingw-builds-binaries/releases/download/12.2.0-rt_v10-rev1/x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z
+      - name: Verify MinGW
+        run: |
+          ls -lh x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z
+          if [ "$(sha256sum x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z)" == "774916c4403c5219f8af3a3ee3012de6c017c034895c2c92bc4de99895c2c924  x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z" ]; then
+            echo ok
+          else
+            echo "sha sum mismatch! something has changed!"
+            exit 1
+          fi
+      # Exctract only the parts needed for linking.
+      # Figured out by exctracting only gcc.exe and then other files
+      # until hello world links successfully.
+      #
+      # We could get rid of gcc.exe and take only ld.exe, but
+      # gcc.exe is convenient because ld wants a long and complicated
+      # list of parameters that gcc figures out for us.
+      - name: Extract the linker from MinGW
+        run: >
+          7z x x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z
+          mingw64/bin/gcc.exe
+          mingw64/lib/gcc/x86_64-w64-mingw32/12.2.0/libgcc.a
+          mingw64/lib/gcc/x86_64-w64-mingw32/12.2.0/libgcc_eh.a
+          mingw64/libexec/gcc/x86_64-w64-mingw32/12.2.0/liblto_plugin.dll
+          mingw64/x86_64-w64-mingw32/bin/ld.exe
+          mingw64/x86_64-w64-mingw32/lib/
       # llvm-13-dev needed for the header files. They seem to be missing from LLVM windows installer.
       # Using gcc instead of clang, because gcc "just works".
       - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
       - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
-      - run: mkdir -v exe-and-dlls && cp -v jou.exe bin/*.dll exe-and-dlls/
+      - run: mkdir exe-and-dlls
+      - run: cp -rv jou.exe mingw64 bin/*.dll exe-and-dlls/
       - uses: actions/upload-artifact@v3
         with:
           name: exe-and-dlls
@@ -78,6 +107,7 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: exe-and-dlls
+      - run: .\jou.exe --verbose examples/hello.jou
       - shell: bash
         run: ./runtests.sh
 

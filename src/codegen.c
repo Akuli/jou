@@ -15,6 +15,8 @@ static LLVMTypeRef codegen_type(const Type *type)
         return LLVMArrayType(codegen_type(type->data.array.membertype), type->data.array.len);
     case TYPE_POINTER:
         return LLVMPointerType(codegen_type(type->data.valuetype), 0);
+    case TYPE_DOUBLE:
+        return LLVMDoubleType();
     case TYPE_VOID_POINTER:
         // just use i8* as here https://stackoverflow.com/q/36724399
         return LLVMPointerType(LLVMInt8Type(), 0);
@@ -137,6 +139,8 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
         return LLVMConstInt(LLVMInt1Type(), c->data.boolean, false);
     case CONSTANT_INTEGER:
         return LLVMConstInt(codegen_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
+    case CONSTANT_DOUBLE:
+        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_text);
     case CONSTANT_NULL:
         return LLVMConstNull(codegen_type(voidPtrType));
     case CONSTANT_STRING:
@@ -145,8 +149,10 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
     assert(0);
 }
 
-static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
+static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, const char *ignored)
 {
+    (void)ignored;  // for compatibility with llvm functions
+
     // Jou's % operator ensures that a%b has same sign as b:
     // jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
     LLVMValueRef llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp");
@@ -154,8 +160,9 @@ static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, L
     return LLVMBuildSRem(builder, sum, rhs, "smod");
 }
 
-static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
+static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, const char *ignored)
 {
+    (void)ignored;  // for compatibility with llvm functions
     /*
     LLVM's provides two divisions. One truncates, the other is an "exact div"
     that requires there is no remainder. Jou uses floor division which is
@@ -163,8 +170,30 @@ static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, L
 
         floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
     */
-    LLVMValueRef top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp");
+    LLVMValueRef top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs, NULL), "sdiv_tmp");
     return LLVMBuildExactSDiv(builder, top, rhs, "sdiv");
+}
+
+static LLVMValueRef build_num_operation(
+    LLVMBuilderRef builder,
+    LLVMValueRef lhs,
+    LLVMValueRef rhs,
+    /*
+    Many number operations are not the same for signed and unsigned integers.
+    Signed division example with 8 bits: 255 / 2 = (-1) / 2 = 0
+    Unsigned division example with 8 bits: 255 / 2 = 127
+    */
+    const Type *t,
+    LLVMValueRef (*signedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
+    LLVMValueRef (*unsignedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
+    LLVMValueRef (*doublefn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*))
+{
+    switch(t->kind) {
+        case TYPE_DOUBLE: return doublefn(builder, lhs, rhs, "double_op");
+        case TYPE_SIGNED_INTEGER: return signedfn(builder, lhs, rhs, "signed_op");
+        case TYPE_UNSIGNED_INTEGER: return unsignedfn(builder, lhs, rhs, "unsigned_op");
+        default: assert(0);
+    }
 }
 
 static void codegen_instruction(const struct State *st, const CfInstruction *ins)
@@ -222,42 +251,64 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 setdest(LLVMBuildGEP(st->builder, getop(0), &index, 1, "ptr_add_int"));
             }
             break;
-        case CF_INT_CAST:
+        case CF_NUM_CAST:
             {
                 const Type *from = ins->operands[0]->type;
                 const Type *to = ins->destvar->type;
-                assert(is_integer_type(from));
-                assert(is_integer_type(to));
+                assert(is_number_type(from) && is_number_type(to));
 
-                if (from->data.width_in_bits < to->data.width_in_bits) {
-                    if (from->kind == TYPE_SIGNED_INTEGER) {
-                        // example: signed 8-bit 0xFF --> 16-bit 0xFFFF
-                        setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(to), "int_cast"));
+                if (is_integer_type(from) && is_integer_type(to)) {
+                    if (from->data.width_in_bits < to->data.width_in_bits) {
+                        if (from->kind == TYPE_SIGNED_INTEGER) {
+                            // example: signed 8-bit 0xFF --> 16-bit 0xFFFF
+                            setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(to), "int_cast"));
+                        } else {
+                            // example: unsigned 8-bit 0xFF --> 16-bit 0x00FF
+                            setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(to), "int_cast"));
+                        }
+                    } else if (from->data.width_in_bits > to->data.width_in_bits) {
+                        setdest(LLVMBuildTrunc(st->builder, getop(0), codegen_type(to), "int_cast"));
                     } else {
-                        // example: unsigned 8-bit 0xFF --> 16-bit 0x00FF
-                        setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(to), "int_cast"));
+                        // same size, LLVM doesn't distinguish signed and unsigned integer types
+                        setdest(getop(0));
                     }
-                } else if (from->data.width_in_bits > to->data.width_in_bits) {
-                    setdest(LLVMBuildTrunc(st->builder, getop(0), codegen_type(to), "int_cast"));
+                } else if (is_integer_type(from) && to->kind == TYPE_DOUBLE) {
+                    // integer --> double
+                    if (from->kind == TYPE_SIGNED_INTEGER)
+                        setdest(LLVMBuildSIToFP(st->builder, getop(0), codegen_type(to), "cast"));
+                    else
+                        setdest(LLVMBuildUIToFP(st->builder, getop(0), codegen_type(to), "cast"));
                 } else {
-                    // same size, LLVM doesn't distinguish signed and unsigned integer types
-                    setdest(getop(0));
+                    // TODO: integer --> double
+                    assert(0);
                 }
             }
             break;
+
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate")); break;
         case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(ins->destvar->type), "ptr_cast")); break;
-        case CF_INT_ADD: setdest(LLVMBuildAdd(st->builder, getop(0), getop(1), "int_add")); break;
-        case CF_INT_SUB: setdest(LLVMBuildSub(st->builder, getop(0), getop(1), "int_sub")); break;
-        case CF_INT_MUL: setdest(LLVMBuildMul(st->builder, getop(0), getop(1), "int_mul")); break;
-        case CF_INT_UDIV: setdest(LLVMBuildUDiv(st->builder, getop(0), getop(1), "int_udiv")); break;
-        case CF_INT_UMOD: setdest(LLVMBuildURem(st->builder, getop(0), getop(1), "int_umod")); break;
-        case CF_INT_SDIV: setdest(build_signed_div(st->builder, getop(0), getop(1))); break;
-        case CF_INT_SMOD: setdest(build_signed_mod(st->builder, getop(0), getop(1))); break;
-        case CF_INT_EQ: setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, getop(0), getop(1), "int_eq")); break;
-        // TODO: unsigned less-than
-        case CF_INT_LT: setdest(LLVMBuildICmp(st->builder, LLVMIntSLT, getop(0), getop(1), "int_lt")); break;
         case CF_VARCPY: setdest(getop(0)); break;
+
+        case CF_NUM_ADD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildAdd, LLVMBuildAdd, LLVMBuildFAdd)); break;
+        case CF_NUM_SUB: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildSub, LLVMBuildSub, LLVMBuildFSub)); break;
+        case CF_NUM_MUL: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildMul, LLVMBuildMul, LLVMBuildFMul)); break;
+        case CF_NUM_DIV: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_div, LLVMBuildUDiv, LLVMBuildFDiv)); break;
+        case CF_NUM_MOD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_mod, LLVMBuildURem, LLVMBuildFRem)); break;
+
+        case CF_NUM_EQ:
+            if (is_integer_type(ins->operands[0]->type))
+                setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, getop(0), getop(1), "num_eq"));
+            else
+                setdest(LLVMBuildFCmp(st->builder, LLVMRealOEQ, getop(0), getop(1), "num_eq"));
+            break;
+        case CF_NUM_LT:
+            if (is_integer_type(ins->operands[0]->type))
+                // TODO: unsigned less than
+                setdest(LLVMBuildICmp(st->builder, LLVMIntSLT, getop(0), getop(1), "num_lt"));
+            else
+                // TODO: signed less than
+                setdest(LLVMBuildFCmp(st->builder, LLVMRealOLT, getop(0), getop(1), "num_lt"));
+            break;
     }
 
 #undef setdest
@@ -339,10 +390,9 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
 {
     struct State st = {
-        .module = LLVMModuleCreateWithName(""),  // TODO: pass module name?
+        .module = LLVMModuleCreateWithName(cfgfile->filename),
         .builder = LLVMCreateBuilder(),
     };
-    LLVMSetSourceFileName(st.module, cfgfile->filename, strlen(cfgfile->filename));
 
     // TODO: this isn't ideal, ideally imports would turn into declarations in some other way
     for (const Signature *sig = typectx->function_signatures.ptr; sig < End(typectx->function_signatures); sig++) {
