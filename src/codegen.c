@@ -17,7 +17,7 @@ static LLVMTypeRef codegen_type(const Type *type)
         return LLVMPointerType(codegen_type(type->data.valuetype), 0);
     case TYPE_DOUBLE:
         return LLVMDoubleType();
-    case TYPE_FLOATS:
+    case TYPE_FLOAT:
         return LLVMFloatType();
     case TYPE_VOID_POINTER:
         // just use i8* as here https://stackoverflow.com/q/36724399
@@ -190,7 +190,8 @@ static LLVMValueRef build_num_operation(
     const Type *t,
     LLVMValueRef (*signedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
     LLVMValueRef (*unsignedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
-    LLVMValueRef (*doublefn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*))
+    LLVMValueRef (*doublefn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*)),
+    LLVMValueRef (*floatfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*)
 {
     switch(t->kind) {
         case TYPE_DOUBLE: return doublefn(builder, lhs, rhs, "double_op");
@@ -277,7 +278,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                         // same size, LLVM doesn't distinguish signed and unsigned integer types
                         setdest(getop(0));
                     }
-                } else if (is_integer_type(from) && to->kind == TYPE_DOUBLE || TYPE_FLOAT) {
+                } else if (is_integer_type(from) && to->kind == TYPE_DOUBLE || is_integer_type(from) && to->kind == TYPE_FLOAT) {
                     // integer --> double / float
                     if (from->kind == TYPE_SIGNED_INTEGER)
                         setdest(LLVMBuildSIToFP(st->builder, getop(0), codegen_type(to), "cast"));
