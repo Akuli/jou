@@ -1,8 +1,11 @@
 #!/bin/bash
 set -e -o pipefail
 
-if ! [[ "$OS" =~ Windows ]]; then
+if [[ "$OS" =~ Windows ]]; then
+    jouexe="./jou.exe"
+else
     make
+    jouexe="./jou"
 fi
 
 rm -rf tmp/fuzzer
@@ -22,7 +25,7 @@ while [ $(date +%s) -lt $end ]; do
     #cat tests/*/*.jou | shuf -n 10 | rev > tmp/fuzzer/input3.jou
 
     for file in tmp/fuzzer/input*.jou; do
-        (bash -c "./jou $file 2>&1" || true) | tr -d '\r' > tmp/fuzzer/log.txt
+        (bash -c "$jouexe $file 2>&1" || true) | tr -d '\r' > tmp/fuzzer/log.txt
 
         # One-line compiler error message made up of printable ASCII chars = good
         # https://unix.stackexchange.com/a/194538
@@ -35,7 +38,7 @@ while [ $(date +%s) -lt $end ]; do
             echo ""
             echo "*** found a possible bug ***"
             echo ""
-            echo "To reproduce, run:  ./jou $file"
+            echo "To reproduce, run:  $jouexe $file"
             if [ "$CI" = "true" ]; then
                 echo ""
                 echo "For CI environments and such, here's a hexdump of $file:"
