@@ -15,6 +15,7 @@ static noreturn void fail_with_parse_error(const Token *token, const char *what_
     char got[200];
     switch(token->type) {
         case TOKEN_INT: strcpy(got, "an integer"); break;
+        case TOKEN_LONG: strcpy(got, "a long integer"); break;
         case TOKEN_DOUBLE: strcpy(got, "a double constant"); break;
         case TOKEN_FLOAT: strcpy(got, "a float constant"); break;
         case TOKEN_CHAR: strcpy(got, "a character"); break;
@@ -46,6 +47,7 @@ static AstType parse_type(const Token **tokens)
 
     if (!is_keyword(*tokens, "void")
         && !is_keyword(*tokens, "int")
+        && !is_keyword(*tokens, "long")
         && !is_keyword(*tokens, "byte")
         && !is_keyword(*tokens, "double")
         && !is_keyword(*tokens, "float")
@@ -338,6 +340,11 @@ static AstExpression parse_elementary_expression(const Token **tokens)
         expr.data.constant = int_constant(intType, (*tokens)->data.int_value);
         ++*tokens;
         break;
+    case TOKEN_LONG:
+        expr.kind = AST_EXPR_CONSTANT;
+        expr.data.constant = int_constant(longType, (*tokens)->data.long_value);
+        ++*tokens;
+        break;
     case TOKEN_CHAR:
         expr.kind = AST_EXPR_CONSTANT;
         expr.data.constant = int_constant(byteType, (*tokens)->data.char_value);
@@ -425,12 +432,12 @@ static AstExpression parse_expression_with_fields_and_indexing(const Token **tok
     return result;
 }
 
-// Unary operators: foo++, foo--, ++foo, --foo, &foo, *foo
+// Unary operators: foo++, foo--, ++foo, --foo, &foo, *foo, sizeof foo
 static AstExpression parse_expression_with_unary_operators(const Token **tokens)
 {
     // sequneces of 0 or more unary operator tokens: start,start+1,...,end-1
     const Token *prefixstart = *tokens;
-    while(is_operator(*tokens,"++")||is_operator(*tokens,"--")||is_operator(*tokens,"&")||is_operator(*tokens,"*")) ++*tokens;
+    while(is_operator(*tokens,"++")||is_operator(*tokens,"--")||is_operator(*tokens,"&")||is_operator(*tokens,"*")||is_keyword(*tokens,"sizeof")) ++*tokens;
     const Token *prefixend = *tokens;
 
     AstExpression result = parse_expression_with_fields_and_indexing(tokens);
@@ -462,6 +469,8 @@ static AstExpression parse_expression_with_unary_operators(const Token **tokens)
                 k = AST_EXPR_DEREFERENCE;
             else if (is_operator(prefixend-1, "&"))
                 k = AST_EXPR_ADDRESS_OF;
+            else if (is_keyword(prefixend-1, "sizeof"))
+                k = AST_EXPR_SIZEOF;
             else
                 assert(0);
             loc = (--prefixend)->location;

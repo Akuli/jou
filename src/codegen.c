@@ -221,6 +221,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             }
             break;
         case CF_CONSTANT: setdest(codegen_constant(st, &ins->data.constant)); break;
+        case CF_SIZEOF: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
         case CF_ADDRESS_OF_VARIABLE: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_PTR_LOAD: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
         case CF_PTR_STORE: LLVMBuildStore(st->builder, getop(1), getop(0)); break;

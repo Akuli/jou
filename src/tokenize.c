@@ -83,15 +83,17 @@ static void read_identifier_or_number(struct State *st, char firstbyte, char (*d
 
     while(1) {
         char c = read_byte(st);
-        if (!is_identifier_or_number_byte(c) && !(c=='.' && '0'<=firstbyte && firstbyte<='9'))
+        if (is_identifier_or_number_byte(c)
+            || ('0'<=firstbyte && firstbyte<='9' && c=='.')
+            || ('0'<=firstbyte && firstbyte<='9' && (*dest)[destlen-1]=='e' && c=='-'))
         {
+            if (destlen == sizeof *dest - 1)
+                fail_with_error(st->location, "name is too long: %.20s...", *dest);
+            (*dest)[destlen++] = c;
+        } else {
             unread_byte(st, c);
             return;
         }
-
-        if (destlen == sizeof *dest - 1)
-            fail_with_error(st->location, "name is too long: %.20s...", *dest);
-        (*dest)[destlen++] = c;
     }
 }
 
@@ -133,7 +135,7 @@ static void read_indentation_as_newline_token(struct State *st, Token *t)
     }
 }
 
-static long long parse_integer(const char *str, Location location)
+static long long parse_integer(const char *str, Location location, int nbits)
 {
     int base;
     const char *digits, *valid_digits;
@@ -159,26 +161,36 @@ static long long parse_integer(const char *str, Location location)
     if (!*digits || strspn(digits, valid_digits) != strlen(digits))
         fail_with_error(location, "invalid number or variable name \"%s\"", str);
 
-    return strtoll(digits, NULL, base);
+    errno = 0;
+    long long result = strtoll(digits, NULL, base);
+    if (errno == ERANGE || result >> (nbits-1) != 0)
+        fail_with_error(location, "value does not fit in a signed %d-bit integer", nbits);
+    return result;
+}
+
+static bool has_multiple(const char *s, char c)
+{
+    return strchr(s, c) != strrchr(s, c);
 }
 
 static bool is_valid_double(const char *str)
 {
-    // exactly one dot, no characters except dot and numbers
-    return strchr(str, '.') != NULL
-        && strchr(str, '.') == strrchr(str, '.')
-        && strspn(str, "0123456789.") == strlen(str);
-        // through if we want to split double and float, shall we need to check bits too?
-        // && strspn(str, "0123456789.") == strlen(str) == 64;
-}
+    if (strspn(str, "0123456789.-e") < strlen(str))
+        return false;
+    if (has_multiple(str, '.') || has_multiple(str, '-') || has_multiple(str, 'e'))
+        return false;
 
-static bool is_vaild_float(const char *str)
-{
-    return strchr(str, '.') != NULL
-        && strchr(str, '.') == strchr(str, '.')
-        && strspn(str, "0123456798.") == strlen(str);
-        // through if we want to split double and float, shall we need to check bits too?
-        // && strspn(str, "0123456798.") == strlen(str) == 32;
+    const char *dot = strchr(str, '.');
+    const char *minus = strchr(str, '-');
+    const char *e = strchr(str, 'e');
+
+    return (
+        // 123.456
+        !e && !minus && dot
+    ) || (
+        // 1e-4
+        e && e[1] && (!dot || dot<e) && (!minus || (minus==e+1 && minus[1]))
+    );
 }
 
 static bool is_keyword(const char *s)
@@ -188,8 +200,8 @@ static bool is_keyword(const char *s)
         "def", "declare", "struct",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
-        "and", "or", "not", "as",
-        "void", "bool", "byte", "int", "double", "float",
+        "and", "or", "not", "as", "sizeof",
+        "void", "bool", "byte", "int", "long", "double", "float",
     };
     for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
         if (!strcmp(*kw, s))
@@ -388,9 +400,13 @@ static Token read_token(struct State *st)
                         t.type = TOKEN_FLOAT;
                     if (is_valid_double(t.data.name))
                         t.type = TOKEN_DOUBLE;
-                    else {
+                    else if (t.data.name[strlen(t.data.name)-1] == 'L') {
+                        t.data.name[strlen(t.data.name)-1] = '\0';
+                        t.type = TOKEN_LONG;
+                        t.data.long_value = (int64_t)parse_integer(t.data.name, t.location, 64);
+                    } else {
                         t.type = TOKEN_INT;
-                        t.data.int_value = parse_integer(t.data.name, t.location);
+                        t.data.int_value = (int32_t)parse_integer(t.data.name, t.location, 32);
                     }
                 } else {
                     t.type = TOKEN_NAME;
