@@ -147,3 +147,27 @@ because the fuzzer works by feeding random bytes to the compiler.
 ```
 $ ./fuzzer.sh
 ```
+
+
+## Windows Release Builds
+
+Using Jou on Linux is easy,
+because you can install Jou's dependencies with `apt` (or whatever package manager you have).
+To make using Jou on Windows equally easy, or at least as painless as possible,
+users can download a zip file that contains everything needed to run Jou.
+See the README for how to install Jou from a zip file.
+
+A zip file is built and released in GitHub Actions every 3 hours,
+or when triggered manually from GitHub's UI
+(e.g. to release an important bugfix as quickly as possible).
+
+Some parts of the build are done in `.github/workflows/windows.yml`,
+and the rest is in `.github/workflows/release.yml`.
+The difference is that `windows.yml` runs on every pull request and on every push to `main`,
+but `release.yml` runs every 3 hours and when triggered manually.
+This means that:
+- `windows.yml` should do most of the build.
+    It should also run tests on the build results and make sure that everything works.
+- `release.yml` should release whatever `windows.yml` created.
+    Releasing-specific logic belongs here.
+    For example, `release.yml` generates a name for the release based on the current UTC time.
