@@ -71,8 +71,8 @@ jobs:
     #   * Inner zip file: The build creates a releasing-ready zip file. This is
     #     good because you can test the zip file before Jou is released.
     #   * Outer zip file: It is possible to include multiple files to the same
-    #     GitHub Actions artifact. We only need to include one file, which is
-    #     the zip file that contains everything you need to run Jou.
+    #     GitHub Actions artifact, and downloadArtifact() gives a zip of all
+    #     files that the artifact consists of.
     - if: ${{ steps.tagname.outputs.datetag != '' }}
       run: unzip nested-zip-file.zip
 
