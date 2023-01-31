@@ -39,7 +39,8 @@ while [ $(date +%s) -lt $end ]; do
             if [ "$CI" = "true" ]; then
                 echo ""
                 echo "For CI environments and such, here's a hexdump of $file:"
-                hexdump -C $file
+                # git bash on windows doesn't have hexdump, but has od which can also output hex
+                od -t x1 $file | cut -s -d' ' -f2-
             fi
             exit 1
         fi
