@@ -79,8 +79,8 @@ static void run_linker(const char *objpath, const char *exepath, const CommandLi
     sprintf(gcc, "%s\\mingw64\\bin\\gcc.exe", instdir);
     if (stat(gcc, &(struct stat){0}) != -1) {
         // The Windows builds come with the GNU linker.
-        // TODO: figure out how to quote gcc path
-        sprintf(command, "%s \"%s\" -o \"%s\"", gcc, objpath, exepath);
+        // Windows quoting is weird, in this command it strips the outermost quotes.
+        sprintf(command, "\"\"%s\" \"%s\" -o \"%s\"\"", gcc, objpath, exepath);
     } else {
         // Use clang from PATH. Convenient when developing Jou locally.
         sprintf(command, "clang \"%s\" -o \"%s\"", objpath, exepath);
