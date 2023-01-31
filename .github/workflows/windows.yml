@@ -117,13 +117,9 @@ jobs:
         with:
           name: windows-zip
       - run: unzip jou.zip
-      - name: Rearrange files
+      - run: mv jou/* repo/tests repo/runtests.sh repo/examples .
         shell: bash
-        run: |
-          mv jou/* .
-          mv repo/tests .
-          mv repo/runtests.sh .
-      - run: .\jou.exe --verbose repo/examples/hello.jou
+      - run: .\jou.exe --verbose examples/hello.jou
       - run: ./runtests.sh
         shell: bash
 
@@ -138,11 +134,7 @@ jobs:
         with:
           name: windows-zip
       - run: unzip jou.zip
-      - name: Rearrange files
+      - run: mv jou/* repo/tests repo/fuzzer.sh .
         shell: bash
-        run: |
-          mv jou/* .
-          mv repo/tests .
-          mv repo/runtests.sh .
       - run: ./fuzzer.sh
         shell: bash
