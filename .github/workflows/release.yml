@@ -1,6 +1,10 @@
-# Every 3 hours, create a zip file of everything needed to run
-# Jou on Windows, and upload it to GitHub releases. This makes it
-# easy to use Jou on Windows.
+#
+#
+#
+# *** If you edit this file, make sure that CONTRIBUTING.md stays up to date.
+#
+#
+#
 on:
   schedule:
     - cron: '0 */3 * * *'
@@ -63,6 +67,8 @@ jobs:
           // https://stackoverflow.com/a/46779188
           fs.writeFileSync("exe-and-dlls.zip", Buffer.from(zip.data));
 
+    # TODO: Ideally the zip file would already contain everything it
+    # needs, and we wouldn't need this step at all.
     - if: ${{ steps.tagname.outputs.datetag != '' }}
       name: Create the zip file
       run: |

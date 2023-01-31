@@ -1,3 +1,10 @@
+#
+#
+#
+# *** If you edit this file, make sure that CONTRIBUTING.md stays up to date.
+#
+#
+#
 on:
   push:
     branches:
@@ -5,10 +12,9 @@ on:
   pull_request:
 
 jobs:
-  # Creates jou.exe and downloads the DLL files it needs.
-  # Even though the resulting executable runs on windows, it is compiled on linux.
-  # This is by far the easiest way to compile for Windows that I know of.
   build:
+    # Even though jou.exe runs on windows, it is compiled on linux.
+    # This is by far the easiest way to compile for Windows that I know of.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -69,7 +75,7 @@ jobs:
       #
       # We could get rid of gcc.exe and take only ld.exe, but
       # gcc.exe is convenient because ld wants a long and complicated
-      # list of parameters that gcc figures out for us.
+      # list of parameters that gcc can figure out for us.
       - name: Extract the linker from MinGW
         run: >
           7z x x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z
