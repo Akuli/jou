@@ -135,7 +135,7 @@ static void read_indentation_as_newline_token(struct State *st, Token *t)
     }
 }
 
-static long long parse_integer(const char *str, Location location)
+static long long parse_integer(const char *str, Location location, int nbits)
 {
     int base;
     const char *digits, *valid_digits;
@@ -161,7 +161,11 @@ static long long parse_integer(const char *str, Location location)
     if (!*digits || strspn(digits, valid_digits) != strlen(digits))
         fail_with_error(location, "invalid number or variable name \"%s\"", str);
 
-    return strtoll(digits, NULL, base);
+    errno = 0;
+    long long result = strtoll(digits, NULL, base);
+    if (errno == ERANGE || result >> (nbits-1) != 0)
+        fail_with_error(location, "value does not fit in a signed %d-bit integer", nbits);
+    return result;
 }
 
 static bool has_multiple(const char *s, char c)
@@ -197,7 +201,7 @@ static bool is_keyword(const char *s)
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
         "and", "or", "not", "as",
-        "void", "bool", "byte", "int", "double",
+        "void", "bool", "byte", "int", "long", "double",
     };
     for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
         if (!strcmp(*kw, s))
@@ -394,9 +398,13 @@ static Token read_token(struct State *st)
                 else if ('0'<=t.data.name[0] && t.data.name[0]<='9') {
                     if (is_valid_double(t.data.name))
                         t.type = TOKEN_DOUBLE;
-                    else {
+                    else if (t.data.name[strlen(t.data.name)-1] == 'L') {
+                        t.data.name[strlen(t.data.name)-1] = '\0';
+                        t.type = TOKEN_LONG;
+                        t.data.long_value = (int64_t)parse_integer(t.data.name, t.location, 64);
+                    } else {
                         t.type = TOKEN_INT;
-                        t.data.int_value = parse_integer(t.data.name, t.location);
+                        t.data.int_value = (int32_t)parse_integer(t.data.name, t.location, 32);
                     }
                 } else {
                     t.type = TOKEN_NAME;

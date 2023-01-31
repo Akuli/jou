@@ -82,6 +82,8 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
     case AST_TYPE_NAMED:
         if (!strcmp(asttype->data.name, "int"))
             return intType;
+        if (!strcmp(asttype->data.name, "long"))
+            return longType;
         if (!strcmp(asttype->data.name, "byte"))
             return byteType;
         if (!strcmp(asttype->data.name, "bool"))

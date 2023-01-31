@@ -53,7 +53,10 @@ void print_token(const Token *token)
 {
     switch(token->type) {
     case TOKEN_INT:
-        printf("integer %lld\n", token->data.int_value);
+        printf("integer %d\n", (int)token->data.int_value);
+        break;
+    case TOKEN_LONG:
+        printf("long %lld\n", (long long)token->data.long_value);
         break;
     case TOKEN_DOUBLE:
         printf("double %s\n", token->data.name);
