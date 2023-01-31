@@ -83,15 +83,17 @@ static void read_identifier_or_number(struct State *st, char firstbyte, char (*d
 
     while(1) {
         char c = read_byte(st);
-        if (!is_identifier_or_number_byte(c) && !(c=='.' && '0'<=firstbyte && firstbyte<='9'))
+        if (is_identifier_or_number_byte(c)
+            || ('0'<=firstbyte && firstbyte<='9' && c=='.')
+            || ('0'<=firstbyte && firstbyte<='9' && (*dest)[destlen-1]=='e' && c=='-'))
         {
+            if (destlen == sizeof *dest - 1)
+                fail_with_error(st->location, "name is too long: %.20s...", *dest);
+            (*dest)[destlen++] = c;
+        } else {
             unread_byte(st, c);
             return;
         }
-
-        if (destlen == sizeof *dest - 1)
-            fail_with_error(st->location, "name is too long: %.20s...", *dest);
-        (*dest)[destlen++] = c;
     }
 }
 
@@ -162,12 +164,29 @@ static long long parse_integer(const char *str, Location location)
     return strtoll(digits, NULL, base);
 }
 
+static bool has_multiple(const char *s, char c)
+{
+    return strchr(s, c) != strrchr(s, c);
+}
+
 static bool is_valid_double(const char *str)
 {
-    // exactly one dot, no characters except dot and numbers
-    return strchr(str, '.') != NULL
-        && strchr(str, '.') == strrchr(str, '.')
-        && strspn(str, "0123456789.") == strlen(str);
+    if (strspn(str, "0123456789.-e") < strlen(str))
+        return false;
+    if (has_multiple(str, '.') || has_multiple(str, '-') || has_multiple(str, 'e'))
+        return false;
+
+    const char *dot = strchr(str, '.');
+    const char *minus = strchr(str, '-');
+    const char *e = strchr(str, 'e');
+
+    return (
+        // 123.456
+        !e && !minus && dot
+    ) || (
+        // 1e-4
+        e && e[1] && (!dot || dot<e) && (!minus || (minus==e+1 && minus[1]))
+    );
 }
 
 static bool is_keyword(const char *s)
