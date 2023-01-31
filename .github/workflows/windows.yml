@@ -114,10 +114,15 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: windows-zip
+          path: repo
       - run: unzip jou.zip
-      - run: mv jou/jou.exe jou/*.dll .
+      - name: Rearrange files
         shell: bash
-      - run: .\jou.exe --verbose examples/hello.jou
+        run: |
+          mv jou/* .
+          mv repo/tests .
+          mv repo/runtests.sh .
+      - run: .\jou.exe --verbose repo/examples/hello.jou
       - run: ./runtests.sh
         shell: bash
 
@@ -129,8 +134,13 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: windows-zip
+          path: repo
       - run: unzip jou.zip
-      - run: mv jou/jou.exe jou/*.dll .
+      - name: Rearrange files
         shell: bash
+        run: |
+          mv jou/* .
+          mv repo/tests .
+          mv repo/runtests.sh .
       - run: ./fuzzer.sh
         shell: bash
