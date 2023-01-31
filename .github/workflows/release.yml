@@ -55,7 +55,7 @@ jobs:
           ).data.artifacts;
           console.log(`Found ${allArtifacts.length} artifacts`);
           console.log(allArtifacts.map(a => a.name));
-          const artifact = allArtifacts.filter(a => a.name === 'exe-and-dlls')[0];
+          const artifact = allArtifacts.filter(a => a.name === 'windows-zip')[0];
 
           const zip = await github.rest.actions.downloadArtifact({
               owner: context.repo.owner,
@@ -65,22 +65,19 @@ jobs:
           });
 
           // https://stackoverflow.com/a/46779188
-          fs.writeFileSync("exe-and-dlls.zip", Buffer.from(zip.data));
+          fs.writeFileSync("nested-zip-file.zip", Buffer.from(zip.data));
 
-    # TODO: Ideally the zip file would already contain everything it
-    # needs, and we wouldn't need this step at all.
+    # We get a zip file inside a zip file:
+    #   * Inner zip file: The build creates a releasing-ready zip file. This is
+    #     good because you can test the zip file before Jou is released.
+    #   * Outer zip file: It is possible to include multiple files to the same
+    #     GitHub Actions artifact. We only need to include one file, which is
+    #     the zip file that contains everything you need to run Jou.
     - if: ${{ steps.tagname.outputs.datetag != '' }}
-      name: Create the zip file
-      run: |
-        unzip exe-and-dlls.zip
-        ls -l
-        mkdir -v jou
-        cp -v jou.exe jou
-        cp -v *.dll jou
-        cp -rv stdlib jou
-        cp -rv mingw64 jou
-        cp -v update.ps1 jou
-        zip -r jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip jou
+      run: unzip nested-zip-file.zip
+
+    - if: ${{ steps.tagname.outputs.datetag != '' }}
+      run: mv jou.zip jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip
 
     - if: ${{ steps.tagname.outputs.datetag != '' }}
       name: Create release
