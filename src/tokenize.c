@@ -185,7 +185,7 @@ static bool is_valid_double(const char *str)
         !e && !minus && dot
     ) || (
         // 1e-4
-        e && (!dot || dot<e) && (!minus || (minus==e+1 && minus[1]))
+        e && e[1] && (!dot || dot<e) && (!minus || (minus==e+1 && minus[1]))
     );
 }
 
