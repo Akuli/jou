@@ -155,7 +155,7 @@ Using Jou on Linux is easy,
 because you can install Jou's dependencies with `apt` (or whatever package manager you have).
 To make using Jou on Windows equally easy, or at least as painless as possible,
 users can download a zip file that contains everything needed to run Jou.
-See the README for how to install Jou from a zip file.
+See the README for instructions to install Jou from a zip file.
 
 A zip file is built and released in GitHub Actions every 3 hours,
 or when triggered manually from GitHub's UI
@@ -167,7 +167,7 @@ The difference is that `windows.yml` runs on every pull request and on every pus
 but `release.yml` runs every 3 hours and when triggered manually.
 This means that:
 - `windows.yml` should do most of the build.
-    It should also run tests on the build results and make sure that everything works.
+    It should also run tests on the build results to make sure that everything works.
     If something in this file stops working, it will be noticed very quickly when someone makes a pull request.
 - `release.yml` should release whatever `windows.yml` created.
     It should be simple and small, because if it breaks, it might take a while for someone to notice it.
