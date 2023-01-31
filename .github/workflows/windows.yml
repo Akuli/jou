@@ -116,9 +116,10 @@ jobs:
           name: windows-zip
       - run: unzip jou.zip
       - run: mv jou.zip/jou.exe jou.zip/*.dll .
+        shell: bash
       - run: .\jou.exe --verbose examples/hello.jou
-      - shell: bash
-        run: ./runtests.sh
+      - run: ./runtests.sh
+        shell: bash
 
   fuzzer:
     needs: build
@@ -130,5 +131,5 @@ jobs:
           name: windows-zip
       - run: unzip jou.zip
       - run: mv jou.zip/jou.exe jou.zip/*.dll .
-      - shell: bash
-        run: ./fuzzer.sh
+      - run: ./fuzzer.sh
+        shell: bash
