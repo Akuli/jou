@@ -39,7 +39,10 @@ Remove-Item jou_update.zip
 # shouldn't wipe the user's files.
 Write-Output "Deleting old Jou..."
 Remove-Item stdlib -Recurse
+Remove-Item doc -Recurse
+Remove-Item examples -Recurse
 Remove-Item mingw64 -Recurse
+Remove-Item LICENSE
 Rename-Item jou.exe jou.exe.old
 foreach ($dll in Get-ChildItem . -Filter *.dll) {
     try {
