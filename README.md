@@ -108,7 +108,7 @@ $ LLVM_CONFIG=llvm-config-11 make
 1. Go to releases on GitHub. It's in the sidebar at right.
 2. Choose a release (latest is probably good) and download a `.zip` file whose name starts with `jou_windows_64bit_`.
 3. Extract the zip file somewhere on your computer.
-4. You should now have a folder that contains `jou.exe`, lots of `.dll` files, and a subdirectory named `stdlib`.
+4. You should now have a folder that contains `jou.exe`, lots of `.dll` files, and subfolders named `stdlib` and `mingw64`.
     Add this folder to `PATH`.
     If you don't know how to add a folder to `PATH`,
     you can e.g. search "windows add to path" on youtube.
