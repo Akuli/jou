@@ -172,3 +172,7 @@ This means that:
 - `release.yml` should release whatever `windows.yml` created.
     It should be simple and small, because if it breaks, it might take a while for someone to notice it.
     Ideally it would only download the build results of `windows.yml` and create a release.
+
+There is also `jou --update`.
+On Linux it simply runs `git pull` and recompiles the Jou compiler.
+On Windows it runs a PowerShell script that downloads and installs the latest release from GitHub Actions.
