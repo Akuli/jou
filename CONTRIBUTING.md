@@ -168,6 +168,7 @@ but `release.yml` runs every 3 hours and when triggered manually.
 This means that:
 - `windows.yml` should do most of the build.
     It should also run tests on the build results and make sure that everything works.
+    If something in this file stops working, it will be noticed very quickly when someone makes a pull request.
 - `release.yml` should release whatever `windows.yml` created.
-    Releasing-specific logic belongs here.
-    For example, `release.yml` generates a name for the release based on the current UTC time.
+    It should be simple and small, because if it breaks, it might take a while for someone to notice it.
+    Ideally it would only download the build results of `windows.yml` and create a release.
