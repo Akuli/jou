@@ -1,4 +1,4 @@
-// Self-update: "jou --update" updates the Jou compiler.
+// Self-update: "jou --update" updates the Jou compiler
 
 #ifdef _WIN32
     #include <direct.h>

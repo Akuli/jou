@@ -1,4 +1,4 @@
-// Boring boilerplate code to free up data structures used in compilation.
+// Boring boilerplate code to free up data structures used in compilation
 
 #include "jou_compiler.h"
 #include <assert.h>

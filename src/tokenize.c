@@ -1,4 +1,4 @@
-// Implementation of the tokenize() function.
+// Implementation of the tokenize() function
 
 #include <assert.h>
 #include <ctype.h>
@@ -168,6 +168,17 @@ static bool is_valid_double(const char *str)
     return strchr(str, '.') != NULL
         && strchr(str, '.') == strrchr(str, '.')
         && strspn(str, "0123456789.") == strlen(str);
+        // through if we want to split double and float, shall we need to check bits too?
+        // && strspn(str, "0123456789.") == strlen(str) == 64;
+}
+
+static bool is_vaild_float(const char *str)
+{
+    return strchr(str, '.') != NULL
+        && strchr(str, '.') == strchr(str, '.')
+        && strspn(str, "0123456798.") == strlen(str);
+        // through if we want to split double and float, shall we need to check bits too?
+        // && strspn(str, "0123456798.") == strlen(str) == 32;
 }
 
 static bool is_keyword(const char *s)
@@ -178,7 +189,7 @@ static bool is_keyword(const char *s)
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
         "and", "or", "not", "as",
-        "void", "bool", "byte", "int", "double",
+        "void", "bool", "byte", "int", "double", "float",
     };
     for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
         if (!strcmp(*kw, s))
@@ -373,6 +384,8 @@ static Token read_token(struct State *st)
                 if (is_keyword(t.data.name))
                     t.type = TOKEN_KEYWORD;
                 else if ('0'<=t.data.name[0] && t.data.name[0]<='9') {
+                    if (is_vaild_float(t.data.name))
+                        t.type = TOKEN_FLOAT;
                     if (is_valid_double(t.data.name))
                         t.type = TOKEN_DOUBLE;
                     else {

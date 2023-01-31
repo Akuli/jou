@@ -1,6 +1,5 @@
 #include "jou_compiler.h"
 
-
 struct State {
     TypeContext *typectx;
     CfGraph *cfg;
@@ -500,6 +499,10 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
             add_constant(st, expr->location, ((Constant){ CONSTANT_DOUBLE, {.double_text="0"} }), zero);
         else
             add_constant(st, expr->location, int_constant(temp->type, 0), zero);
+        if (temp->type == floatType)
+			ass_constant(st, expr->location, ((Constant){ CONSTANT_FLOAT, {.float_text="0"}}), zero);
+		else
+			add_constant(st, expr->location, int_constant(temp->type, 0), zero);
         add_binary_op(st, expr->location, CF_NUM_SUB, zero, temp, result);
         break;
     case AST_EXPR_ADD:

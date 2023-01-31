@@ -17,6 +17,8 @@ static LLVMTypeRef codegen_type(const Type *type)
         return LLVMPointerType(codegen_type(type->data.valuetype), 0);
     case TYPE_DOUBLE:
         return LLVMDoubleType();
+    case TYPE_FLOATS:
+        return LLVMFloatType();
     case TYPE_VOID_POINTER:
         // just use i8* as here https://stackoverflow.com/q/36724399
         return LLVMPointerType(LLVMInt8Type(), 0);
@@ -141,6 +143,8 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
         return LLVMConstInt(codegen_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
     case CONSTANT_DOUBLE:
         return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_text);
+    case CONSTANT_FLOAT:
+        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.float_text);
     case CONSTANT_NULL:
         return LLVMConstNull(codegen_type(voidPtrType));
     case CONSTANT_STRING:
@@ -190,6 +194,7 @@ static LLVMValueRef build_num_operation(
 {
     switch(t->kind) {
         case TYPE_DOUBLE: return doublefn(builder, lhs, rhs, "double_op");
+        case TYPE_FLOAT: return floatfn(builder, lhs, rhs, "float_op");
         case TYPE_SIGNED_INTEGER: return signedfn(builder, lhs, rhs, "signed_op");
         case TYPE_UNSIGNED_INTEGER: return unsignedfn(builder, lhs, rhs, "unsigned_op");
         default: assert(0);
@@ -272,8 +277,8 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                         // same size, LLVM doesn't distinguish signed and unsigned integer types
                         setdest(getop(0));
                     }
-                } else if (is_integer_type(from) && to->kind == TYPE_DOUBLE) {
-                    // integer --> double
+                } else if (is_integer_type(from) && to->kind == TYPE_DOUBLE || TYPE_FLOAT) {
+                    // integer --> double / float
                     if (from->kind == TYPE_SIGNED_INTEGER)
                         setdest(LLVMBuildSIToFP(st->builder, getop(0), codegen_type(to), "cast"));
                     else

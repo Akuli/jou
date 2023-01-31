@@ -69,6 +69,7 @@ struct Token {
     enum TokenType {
         TOKEN_INT,
         TOKEN_DOUBLE,
+        TOKEN_FLOAT,
         TOKEN_CHAR,
         TOKEN_STRING,
         TOKEN_NAME,
@@ -96,6 +97,7 @@ struct Constant {
     enum ConstantKind {
         CONSTANT_INTEGER,
         CONSTANT_DOUBLE,
+        CONSTANT_FLOAT,
         CONSTANT_STRING,
         CONSTANT_NULL,
         CONSTANT_BOOL,
@@ -104,6 +106,7 @@ struct Constant {
         struct { int width_in_bits; bool is_signed; long long value; } integer;
         char *str;
         char double_text[100];  // convenient because LLVM wants a string anyway
+        char float_text[100]; // same as double
         bool boolean;
     } data;
 };
@@ -321,6 +324,7 @@ struct Type {
         TYPE_UNSIGNED_INTEGER,
         TYPE_BOOL,
         TYPE_DOUBLE,
+        TYPE_FLOAT,
         TYPE_POINTER,
         TYPE_VOID_POINTER,
         TYPE_ARRAY,
@@ -352,6 +356,7 @@ extern const Type *boolType;      // bool
 extern const Type *intType;       // int (32-bit signed)
 extern const Type *byteType;      // byte (8-bit unsigned)
 extern const Type *doubleType;    // double (64-bit)
+extern const Type *floatType;     // float (32-bit)
 extern const Type *voidPtrType;   // void*
 void init_types();  // Called once when compiler starts
 const Type *get_integer_type(int size_in_bits, bool is_signed);
@@ -366,7 +371,8 @@ Type *create_struct(
 void free_type(Type *type);
 
 bool is_integer_type(const Type *t);  // includes signed and unsigned
-bool is_number_type(const Type *t);  // integers, floats, doubles
+bool is_number_type(const Type *t);  // integers, doubles
+bool is_float_type(const Type *t); // floats need split with doubles
 bool is_pointer_type(const Type *t);  // includes void pointers
 
 struct Signature {

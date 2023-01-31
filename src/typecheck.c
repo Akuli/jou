@@ -1,6 +1,5 @@
 #include "jou_compiler.h"
 
-
 static const Variable *find_variable(const TypeContext *ctx, const char *name)
 {
     for (Variable **var = ctx->variables.ptr; var < End(ctx->variables); var++)
@@ -88,6 +87,8 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
             return boolType;
         if (!strcmp(asttype->data.name, "double"))
             return doubleType;
+        if (!strcmp(astype->data.name, "float"))
+            return floatType;
         if (!strcmp(asttype->data.name, "void"))
             return NULL;
         if ((tmp = find_type(ctx, asttype->data.name)))
@@ -158,6 +159,8 @@ static void do_implicit_cast(
         ) || (
             // Cast from any integer type to double.
             is_integer_type(from) && to == doubleType
+        ) || (
+            is_integer_type(from) && to == floatType
         ) || (
             // Cast implicitly between void pointer and any other pointer.
             (from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
@@ -237,6 +240,7 @@ static const Type *check_binop(
 
     bool got_integers = is_integer_type(lhstypes->type) && is_integer_type(rhstypes->type);
     bool got_numbers = is_number_type(lhstypes->type) && is_number_type(rhstypes->type);
+    bool got_floats = is_float_type(lhstypes->type) && is_float_type(rhstypes->type);
     bool got_pointers = (
         is_pointer_type(lhstypes->type)
         && is_pointer_type(rhstypes->type)
@@ -261,6 +265,9 @@ static const Type *check_binop(
     }
     if (got_pointers) {
         cast_type = voidPtrType;
+    }
+    if (got_numbers && got_floats) {
+        cast_type = floatType;
     }
     if (got_numbers && !got_integers) {
         cast_type = doubleType;
@@ -610,10 +617,10 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_NEG:
         result = typecheck_expression(ctx, &expr->data.operands[0])->type;
-        if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_DOUBLE)
+        if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_DOUBLE && result->kind != TYPE_FLOAT)
             fail_with_error(
                 expr->location,
-                "value after '-' must be a double or a signed integer, not %s",
+                "value after '-' must be a float or a double or a signed integer, not %s",
                 result->name);
         break;
     case AST_EXPR_ADD:

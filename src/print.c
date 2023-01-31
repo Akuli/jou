@@ -33,6 +33,8 @@ static void print_constant(const Constant *c)
     case CONSTANT_DOUBLE:
         printf("double %s", c->data.double_text);
         break;
+    case CONSTANT_FLOAT:
+        printf("float %s", c->data.float_text);
     case CONSTANT_INTEGER:
         printf(
             "%lld (%d-bit %s)",
@@ -58,6 +60,8 @@ void print_token(const Token *token)
     case TOKEN_DOUBLE:
         printf("double %s\n", token->data.name);
         break;
+    case TOKEN_FLOAT:
+        printf("float %s\n", token->data.name);
     case TOKEN_CHAR:
         printf("character ");
         print_byte(token->data.char_value);
@@ -404,6 +408,7 @@ static const char *very_short_number_type_description(const Type *t)
 {
     switch(t->kind) {
         case TYPE_DOUBLE: return "double";
+        case TYPE_FLOAT: return "float";
         case TYPE_SIGNED_INTEGER: return "signed";
         case TYPE_UNSIGNED_INTEGER: return "unsigned";
         default: assert(0);
