@@ -22,7 +22,7 @@ def main() -> int:
 
     string: byte[50]
     snprintf(
-        &string[0], 50,
+        &string[0], sizeof string,
         "blah blah. Int %d, float %f, string %s.",
         12345, 12.34, "hello")
     puts(&string[0])  # Output: blah blah. Int 12345, float 12.340000, string hel

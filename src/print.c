@@ -191,6 +191,10 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         printf("get field \"%s\"\n", expr->data.field.fieldname);
         print_ast_expression(expr->data.field.obj, print_tree_prefix(tp, true));
         break;
+    case AST_EXPR_SIZEOF:
+        printf("sizeof expression\n");
+        print_ast_expression(expr->data.field.obj, print_tree_prefix(tp, true));
+        break;
     case AST_EXPR_GET_VARIABLE:
         printf("get variable \"%s\"\n", expr->data.varname);
         break;
@@ -324,8 +328,6 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
                 sub = print_tree_prefix(tp, true);
                 printf("initial value:\n");
                 print_ast_expression(stmt->data.vardecl.initial_value, print_tree_prefix(sub, true));
-            } else {
-                printf("\n");
             }
             break;
 #define PrintAssignment \
@@ -423,6 +425,9 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
     switch(ins->kind) {
     case CF_ADDRESS_OF_VARIABLE:
         printf("address of %s", varname(ins->operands[0]));
+        break;
+    case CF_SIZEOF:
+        printf("sizeof %s", ins->data.type->name);
         break;
     case CF_BOOL_NEGATE:
         printf("boolean negation of %s", varname(ins->operands[0]));

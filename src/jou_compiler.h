@@ -173,6 +173,7 @@ struct AstExpression {
         AST_EXPR_AS,  // foo as SomeType
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF,
+        AST_EXPR_SIZEOF,
         AST_EXPR_DEREFERENCE,
         AST_EXPR_AND,
         AST_EXPR_OR,
@@ -443,6 +444,7 @@ struct CfInstruction {
         CF_CONSTANT,
         CF_CALL,
         CF_ADDRESS_OF_VARIABLE,
+        CF_SIZEOF,
         CF_PTR_MEMSET_TO_ZERO,  // takes one operand, a pointer: memset(ptr, 0, sizeof(*ptr))
         CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
         CF_PTR_LOAD,  // aka dereference
@@ -466,6 +468,7 @@ struct CfInstruction {
         Constant constant;      // CF_CONSTANT
         char funcname[100];     // CF_CALL
         char fieldname[100];    // CF_PTR_STRUCT_FIELD
+        const Type *type;       // CF_SIZEOF
     } data;
     const Variable **operands;  // e.g. numbers to add, function arguments
     int noperands;
