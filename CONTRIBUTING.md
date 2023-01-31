@@ -155,7 +155,7 @@ Using Jou on Linux is easy,
 because you can install Jou's dependencies with `apt` (or whatever package manager you have).
 To make using Jou on Windows equally easy, or at least as painless as possible,
 users can download a zip file that contains everything needed to run Jou.
-See the README for how to install Jou from a zip file.
+See the README for instructions to install Jou from a zip file.
 
 A zip file is built and released in GitHub Actions every 3 hours,
 or when triggered manually from GitHub's UI
