@@ -167,7 +167,7 @@ The difference is that `windows.yml` runs on every pull request and on every pus
 but `release.yml` runs every 3 hours and when triggered manually.
 This means that:
 - `windows.yml` should do most of the build.
-    It should also run tests on the build results and make sure that everything works.
+    It should also run tests on the build results to make sure that everything works.
 - `release.yml` should release whatever `windows.yml` created.
     Releasing-specific logic belongs here.
     For example, `release.yml` generates a name for the release based on the current UTC time.
