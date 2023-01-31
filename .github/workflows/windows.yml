@@ -111,10 +111,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          path: repo
       - uses: actions/download-artifact@v3
         with:
           name: windows-zip
-          path: repo
       - run: unzip jou.zip
       - name: Rearrange files
         shell: bash
@@ -131,10 +132,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          path: repo
       - uses: actions/download-artifact@v3
         with:
           name: windows-zip
-          path: repo
       - run: unzip jou.zip
       - name: Rearrange files
         shell: bash
