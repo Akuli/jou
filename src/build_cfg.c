@@ -464,6 +464,9 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
         break;
     case AST_EXPR_SIZEOF:
         result = add_variable(st, longType);
+        union CfInstructionData data = { .type = get_expr_types(st, &expr->data.operands[0])->type };
+        add_instruction(st, expr->location, CF_SIZEOF, &data, NULL, result);
+        break;
     case AST_EXPR_GET_VARIABLE:
         result = find_variable(st, expr->data.varname);
         assert(result);

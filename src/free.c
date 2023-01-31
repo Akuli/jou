@@ -93,6 +93,7 @@ static void free_expression(const AstExpression *expr)
     case AST_EXPR_PRE_DECREMENT:
     case AST_EXPR_POST_INCREMENT:
     case AST_EXPR_POST_DECREMENT:
+    case AST_EXPR_SIZEOF:
         free_expression(&expr->data.operands[0]);
         free(expr->data.operands);
         break;

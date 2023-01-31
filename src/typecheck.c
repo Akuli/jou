@@ -298,6 +298,7 @@ static const char *short_expression_description(const AstExpression *expr)
     switch(expr->kind) {
     // Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
     case AST_EXPR_CONSTANT: return "a constant";
+    case AST_EXPR_SIZEOF: return "a sizeof expression";
     case AST_EXPR_FUNCTION_CALL: return "a function call";
     case AST_EXPR_BRACE_INIT: return "a newly created instance";
     case AST_EXPR_INDEXING: return "an indexed value";
@@ -550,6 +551,10 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
                 return NULL;
             result = ret;
         }
+        break;
+    case AST_EXPR_SIZEOF:
+        typecheck_expression_not_void(ctx, &expr->data.operands[0]);
+        result = longType;
         break;
     case AST_EXPR_BRACE_INIT:
         result = typecheck_struct_init(ctx, &expr->data.call, expr->location);
