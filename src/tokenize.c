@@ -177,7 +177,7 @@ static bool is_keyword(const char *s)
         "def", "declare", "struct",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
-        "and", "or", "not", "as",
+        "and", "or", "not", "as", "sizeof",
         "void", "bool", "byte", "int", "double",
     };
     for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)

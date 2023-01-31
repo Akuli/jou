@@ -171,6 +171,7 @@ struct AstExpression {
         AST_EXPR_AS,  // foo as SomeType
         AST_EXPR_GET_VARIABLE,
         AST_EXPR_ADDRESS_OF,
+        AST_EXPR_SIZEOF,
         AST_EXPR_DEREFERENCE,
         AST_EXPR_AND,
         AST_EXPR_OR,

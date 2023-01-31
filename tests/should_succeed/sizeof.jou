@@ -1,0 +1,24 @@
+from "stdlib/io.jou" import printf
+
+def side_effect() -> int:
+    printf("Side Effect !!!!!\n")
+    return 123
+
+def main() -> int:
+    b: byte
+    n: int
+    m: long
+
+    printf("%lld %lld %lld\n", sizeof b, sizeof n, sizeof m)  # Output: 1 4 8
+
+    # test that operator precedence works
+    printf("%lld\n", sizeof b + sizeof n + sizeof m)  # Output: 32
+
+    arr: long[100]
+    printf("%lld\n", sizeof arr)  # Output: 800
+
+    # The "array length trick"
+    printf("%lld\n", sizeof arr / sizeof arr[0])  # Output: 100
+
+    # Evaluating a sizeof has no side effects.
+    printf("%lld\n", sizeof side_effect())  # Output: 4

@@ -462,6 +462,8 @@ static const Variable *build_expression(struct State *st, const AstExpression *e
     case AST_EXPR_ADDRESS_OF:
         result = build_address_of_expression(st, &expr->data.operands[0]);
         break;
+    case AST_EXPR_SIZEOF:
+        result = add_variable(st, longType);
     case AST_EXPR_GET_VARIABLE:
         result = find_variable(st, expr->data.varname);
         assert(result);

@@ -417,12 +417,12 @@ static AstExpression parse_expression_with_fields_and_indexing(const Token **tok
     return result;
 }
 
-// Unary operators: foo++, foo--, ++foo, --foo, &foo, *foo
+// Unary operators: foo++, foo--, ++foo, --foo, &foo, *foo, sizeof foo
 static AstExpression parse_expression_with_unary_operators(const Token **tokens)
 {
     // sequneces of 0 or more unary operator tokens: start,start+1,...,end-1
     const Token *prefixstart = *tokens;
-    while(is_operator(*tokens,"++")||is_operator(*tokens,"--")||is_operator(*tokens,"&")||is_operator(*tokens,"*")) ++*tokens;
+    while(is_operator(*tokens,"++")||is_operator(*tokens,"--")||is_operator(*tokens,"&")||is_operator(*tokens,"*")||is_keyword(*tokens,"sizeof")) ++*tokens;
     const Token *prefixend = *tokens;
 
     AstExpression result = parse_expression_with_fields_and_indexing(tokens);
@@ -454,6 +454,8 @@ static AstExpression parse_expression_with_unary_operators(const Token **tokens)
                 k = AST_EXPR_DEREFERENCE;
             else if (is_operator(prefixend-1, "&"))
                 k = AST_EXPR_ADDRESS_OF;
+            else if (is_keyword(prefixend-1, "sizeof"))
+                k = AST_EXPR_SIZEOF;
             else
                 assert(0);
             loc = (--prefixend)->location;
