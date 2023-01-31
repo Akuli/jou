@@ -89,12 +89,14 @@ jobs:
       # Using gcc instead of clang, because gcc "just works".
       - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
       - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
-      - run: mkdir exe-and-dlls
-      - run: cp -rv jou.exe mingw64 bin/*.dll exe-and-dlls/
+      - run: mkdir jou
+      # Please keep this list of files in sync with update.ps1
+      - run: cp -rv jou.exe bin/*.dll stdlib mingw64 update.ps1 jou
+      - run: zip -r jou.zip jou
       - uses: actions/upload-artifact@v3
         with:
-          name: exe-and-dlls
-          path: exe-and-dlls
+          name: windows-zip
+          path: jou.zip
 
   codeblocks-project:
     # Ensure that the codeblocks project contains all source files.
@@ -110,20 +112,30 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          path: repo
       - uses: actions/download-artifact@v3
         with:
-          name: exe-and-dlls
+          name: windows-zip
+      - run: unzip jou.zip
+      - run: mv jou/* repo/tests repo/runtests.sh repo/examples .
+        shell: bash
       - run: .\jou.exe --verbose examples/hello.jou
-      - shell: bash
-        run: ./runtests.sh
+      - run: ./runtests.sh
+        shell: bash
 
   fuzzer:
     needs: build
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          path: repo
       - uses: actions/download-artifact@v3
         with:
-          name: exe-and-dlls
-      - shell: bash
-        run: ./fuzzer.sh
+          name: windows-zip
+      - run: unzip jou.zip
+      - run: mv jou/* repo/tests repo/fuzzer.sh .
+        shell: bash
+      - run: ./fuzzer.sh
+        shell: bash
