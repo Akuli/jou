@@ -7,7 +7,7 @@ declare sscanf(s: byte*, pattern: byte*, ...) -> int  # Parse a string. See ssca
 #   sprintf() assumes that the result fits in dest (UB happens, if it overflows)
 #   snprintf() truncates the string so that the string and its '\0' fit into a total of n bytes of space
 declare sprintf(dest: byte*, pattern: byte*, ...) -> int
-declare snprintf(dest: byte*, n: int, pattern: byte*, ...) -> int  # FIXME: size should be 64-bit
+declare snprintf(dest: byte*, n: long, pattern: byte*, ...) -> int
 
 # Find a substring. Return a pointer to the occurrence in haystack, or NULL if not found.
 declare strstr(haystack: byte*, needle: byte*) -> byte*

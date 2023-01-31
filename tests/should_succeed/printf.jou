@@ -1,8 +1,10 @@
-from "stdlib/io.jou" import printf
+from "stdlib/io.jou" import printf, puts
+from "stdlib/str.jou" import snprintf
 
 def main() -> int:
     printf("Hello world\n")  # Output: Hello world
     printf("number %d\n", 123)  # Output: number 123
+    printf("long %lld\n", 123451234512345L)  # Output: long 123451234512345
     s = "yo"
     printf("string %s\n", s)  # Output: string yo
     printf("string %s\n", "yo")  # Output: string yo
@@ -17,5 +19,12 @@ def main() -> int:
         "hey",
         3549,
     )
+
+    string: byte[50]
+    snprintf(
+        &string[0], 50,
+        "blah blah. Int %d, float %f, string %s.",
+        12345, 12.34, "hello")
+    puts(&string[0])  # Output: blah blah. Int 12345, float 12.340000, string hel
 
     return 0

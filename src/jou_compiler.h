@@ -68,6 +68,7 @@ struct Location {
 struct Token {
     enum TokenType {
         TOKEN_INT,
+        TOKEN_LONG,
         TOKEN_DOUBLE,
         TOKEN_CHAR,
         TOKEN_STRING,
@@ -81,7 +82,8 @@ struct Token {
     } type;
     Location location;
     union {
-        long long int_value;  // TOKEN_INT
+        int32_t int_value;  // TOKEN_INT
+        int64_t long_value;  // TOKEN_LONG
         char char_value;  // TOKEN_CHAR
         char *string_value;  // TOKEN_STRING
         int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
@@ -351,6 +353,7 @@ not the same type.
 */
 extern const Type *boolType;      // bool
 extern const Type *intType;       // int (32-bit signed)
+extern const Type *longType;      // long (64-bit signed)
 extern const Type *byteType;      // byte (8-bit unsigned)
 extern const Type *doubleType;    // double (64-bit)
 extern const Type *voidPtrType;   // void*
