@@ -908,7 +908,7 @@ void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location 
     Append(&ctx->exports, es);
 }
 
-void typecheck_global_var(TypeContext *ctx, const AstVarDeclaration *vardecl)
+GlobalVariable *typecheck_global_var(TypeContext *ctx, const AstVarDeclaration *vardecl)
 {
     assert(!vardecl->initial_value);
     GlobalVariable *g = malloc(sizeof *g);
@@ -919,6 +919,8 @@ void typecheck_global_var(TypeContext *ctx, const AstVarDeclaration *vardecl)
     ExportSymbol es = { .kind = EXPSYM_GLOBAL_VAR, .data.type = g->type };
     safe_strcpy(es.name, g->name);
     Append(&ctx->exports, es);
+
+    return g;
 }
 
 void reset_type_context(TypeContext *ctx)

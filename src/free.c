@@ -176,12 +176,15 @@ void free_ast(AstToplevelNode *topnodelist)
         case AST_TOPLEVEL_DECLARE_FUNCTION:
             free_ast_signature(&t->data.decl_signature);
             break;
-        case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-            assert(!t->data.globalvar.initial_value);
-            break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             free_ast_signature(&t->data.funcdef.signature);
             free_body(&t->data.funcdef.body);
+            break;
+        case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
+            assert(!t->data.globalvar.initial_value);
+            break;
+        case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
+            assert(!t->data.globalvar.initial_value);  // TODO
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
             free(t->data.structdef.fieldnames);

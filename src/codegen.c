@@ -403,6 +403,12 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
             LLVMAddGlobal(st.module, codegen_type((*es)->data.type), (*es)->name);
     }
 
+    for (GlobalVariable **v = cfgfile->defined_globals.ptr; v < End(cfgfile->defined_globals); v++) {
+        LLVMTypeRef t = codegen_type((*v)->type);
+        LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
+        LLVMSetInitializer(globalptr, LLVMGetUndef(t));
+    }
+
     for (int i = 0; i < cfgfile->nfuncs; i++)
         if (cfgfile->graphs[i])
             codegen_function_def(&st, &cfgfile->signatures[i], cfgfile->graphs[i]);

@@ -678,15 +678,17 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         {
             const AstExpression *targetexpr = &stmt->data.assignment.target;
             const AstExpression *valueexpr = &stmt->data.assignment.value;
+            const LocalVariable *target;
 
             // TODO: is this evaluation order good?
-            if (targetexpr->kind == AST_EXPR_GET_VARIABLE) {
+            if (targetexpr->kind == AST_EXPR_GET_VARIABLE
+                && (target = find_local_var(st, targetexpr->data.varname)))
+            {
                 // avoid pointers to help simplify_cfg
-                const LocalVariable *target = find_local_var(st, targetexpr->data.varname);
                 const LocalVariable *value = build_expression(st, valueexpr);
                 add_unary_op(st, stmt->location, CF_VARCPY, value, target);
             } else {
-                const LocalVariable *target = build_address_of_expression(st, targetexpr);
+                target = build_address_of_expression(st, targetexpr);
                 const LocalVariable *value = build_expression(st, valueexpr);
                 assert(target->type->kind == TYPE_POINTER);
                 add_binary_op(st, stmt->location, CF_PTR_STORE, target, value, NULL);
@@ -796,20 +798,25 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx
     result.signatures = malloc(sizeof(result.signatures[0]) * n);
 
     Signature sig;
+    GlobalVariable *g;
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         switch(ast->kind) {
         case AST_TOPLEVEL_IMPORT:
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
+        case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
+            typecheck_global_var(typectx, &ast->data.globalvar);
+            break;
+        case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
+            g = typecheck_global_var(typectx, &ast->data.globalvar);
+            Append(&result.defined_globals, g);
+            break;
         case AST_TOPLEVEL_DECLARE_FUNCTION:
             sig = typecheck_function(typectx, ast->location, &ast->data.decl_signature, NULL);
             result.signatures[result.nfuncs] = sig;
             result.graphs[result.nfuncs] = NULL;
             result.nfuncs++;
-            break;
-        case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-            typecheck_global_var(typectx, &ast->data.globalvar);
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             sig = typecheck_function(typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);

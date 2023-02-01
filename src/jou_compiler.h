@@ -307,6 +307,7 @@ struct AstToplevelNode {
         AST_TOPLEVEL_DECLARE_FUNCTION,
         AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE,
         AST_TOPLEVEL_DEFINE_FUNCTION,
+        AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE,
         AST_TOPLEVEL_DEFINE_STRUCT,
         AST_TOPLEVEL_IMPORT,
     } kind;
@@ -432,7 +433,7 @@ struct TypeContext {
 // function body can be NULL to check a declaration
 Signature typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
 void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location);
-void typecheck_global_var(TypeContext *ctx, const AstVarDeclaration *vardecl);
+GlobalVariable *typecheck_global_var(TypeContext *ctx, const AstVarDeclaration *vardecl);
 
 /*
 Wipes all function-specific data, making the type context suitable
@@ -506,6 +507,7 @@ struct CfGraphFile {
     int nfuncs;
     Signature *signatures;  // includes declared and defined functions
     CfGraph **graphs;  // NULL means function is only declared, not defined
+    List(GlobalVariable *) defined_globals;  // does not include variables defined in other files or libraries
 };
 
 

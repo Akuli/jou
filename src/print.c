@@ -361,15 +361,21 @@ void print_ast(const AstToplevelNode *topnodelist)
                 printf("Import \"%s\" from \"%s\".\n",
                     topnodelist->data.import.symbolname, topnodelist->data.import.path);
                 break;
+            case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
+                assert(!topnodelist->data.globalvar.initial_value);
+                printf("Declare a global variable %s: ", topnodelist->data.globalvar.name);
+                print_ast_type(&topnodelist->data.globalvar.type);
+                printf("\n");
+                break;
+            case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
+                assert(!topnodelist->data.globalvar.initial_value);
+                printf("Define a global variable %s: ", topnodelist->data.globalvar.name);
+                print_ast_type(&topnodelist->data.globalvar.type);
+                printf("\n");
+                break;
             case AST_TOPLEVEL_DECLARE_FUNCTION:
                 printf("Declare a function: ");
                 print_ast_function_signature(&topnodelist->data.decl_signature);
-                break;
-            case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-                assert(!topnodelist->data.globalvar.initial_value);
-                printf("Declare a variable %s: ", topnodelist->data.globalvar.name);
-                print_ast_type(&topnodelist->data.globalvar.type);
-                printf("\n");
                 break;
             case AST_TOPLEVEL_DEFINE_FUNCTION:
                 printf("Define a function: ");

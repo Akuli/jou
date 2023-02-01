@@ -889,6 +889,11 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
             result.data.decl_signature = parse_function_signature(tokens);
         }
         eat_newline(tokens);
+    } else if (is_keyword(*tokens, "global")) {
+        ++*tokens;
+        result.kind = AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE;
+        result.data.globalvar = parse_var_declaration(tokens);
+        eat_newline(tokens);
     } else if (is_keyword(*tokens, "struct")) {
         ++*tokens;
         result.kind = AST_TOPLEVEL_DEFINE_STRUCT;
