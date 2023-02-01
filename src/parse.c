@@ -609,6 +609,27 @@ static AstIfStatement parse_if_statement(const Token **tokens)
     };
 }
 
+// does not eat a trailing newline
+static AstVarDeclaration parse_var_declaration(const Token **tokens)
+{
+    AstVarDeclaration result;
+
+    safe_strcpy(result.name, (*tokens)->data.name);
+    *tokens += 2;
+    result.type = parse_type(tokens);
+
+    if (is_operator(*tokens, "=")) {
+        ++*tokens;
+        AstExpression *p = malloc(sizeof *p);
+        *p = parse_expression(tokens);
+        result.initial_value = p;
+    } else {
+        result.initial_value = NULL;
+    }
+
+    return result;
+}
+
 // reverse code golfing: https://xkcd.com/1960/
 static enum AstStatementKind determine_the_kind_of_a_statement_that_starts_with_an_expression(
     const Token *this_token_is_after_that_initial_expression)
@@ -649,17 +670,7 @@ static AstStatement parse_oneline_statement(const Token **tokens)
     } else if ((*tokens)->type == TOKEN_NAME && is_operator(&(*tokens)[1], ":")) {
         // "foo: int" creates a variable "foo" of type "int"
         result.kind = AST_STMT_DECLARE_LOCAL_VAR;
-        safe_strcpy(result.data.vardecl.name, (*tokens)->data.name);
-        *tokens += 2;
-        result.data.vardecl.type = parse_type(tokens);
-        if (is_operator(*tokens, "=")) {
-            ++*tokens;
-            AstExpression *p = malloc(sizeof *p);
-            *p = parse_expression(tokens);
-            result.data.vardecl.initial_value = p;
-        } else {
-            result.data.vardecl.initial_value = NULL;
-        }
+        result.data.vardecl = parse_var_declaration(tokens);
     } else {
         AstExpression expr = parse_expression(tokens);
         result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(*tokens);
@@ -864,8 +875,19 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
         result.data.funcdef.body = parse_body(tokens);
     } else if (is_keyword(*tokens, "declare")) {
         ++*tokens;
-        result.kind = AST_TOPLEVEL_DECLARE_FUNCTION;
-        result.data.decl_signature = parse_function_signature(tokens);
+        if (is_keyword(*tokens, "global")) {
+            ++*tokens;
+            result.kind = AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE;
+            result.data.globalvar = parse_var_declaration(tokens);
+            if (result.data.globalvar.initial_value) {
+                fail_with_error(
+                    result.data.globalvar.initial_value->location,
+                    "a value cannot be given when declaring a global variable");
+            }
+        } else {
+            result.kind = AST_TOPLEVEL_DECLARE_FUNCTION;
+            result.data.decl_signature = parse_function_signature(tokens);
+        }
         eat_newline(tokens);
     } else if (is_keyword(*tokens, "struct")) {
         ++*tokens;

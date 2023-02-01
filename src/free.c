@@ -176,6 +176,9 @@ void free_ast(AstToplevelNode *topnodelist)
         case AST_TOPLEVEL_DECLARE_FUNCTION:
             free_ast_signature(&t->data.decl_signature);
             break;
+        case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
+            assert(!t->data.globalvar.initial_value);
+            break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             free_ast_signature(&t->data.funcdef.signature);
             free_body(&t->data.funcdef.body);
@@ -205,8 +208,8 @@ static void free_signature(const Signature *sig)
 
 void free_type_context(const TypeContext *ctx)
 {
-    free(ctx->expr_types.ptr);
-    free(ctx->variables.ptr);
+    for (GlobalVariable **g = ctx->globals.ptr; g < End(ctx->globals); g++)
+        free(*g);
     for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
         free_type(*t);
     for (Signature *s = ctx->function_signatures.ptr; s < End(ctx->function_signatures); s++)
@@ -217,10 +220,14 @@ void free_type_context(const TypeContext *ctx)
             free_signature(&sym->data.funcsignature);
             break;
         case EXPSYM_TYPE:
-            // references a struct type in ctx->structs
+        case EXPSYM_GLOBAL_VAR:
+            // doesn't own the type, could e.g. reference a struct type in ctx->structs
             break;
         }
     }
+    free(ctx->expr_types.ptr);
+    free(ctx->globals.ptr);
+    free(ctx->locals.ptr);
     free(ctx->structs.ptr);
     free(ctx->function_signatures.ptr);
     free(ctx->imports.ptr);
@@ -245,11 +252,11 @@ static void free_cfg(CfGraph *cfg)
     for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++)
         free_control_flow_graph_block(cfg, *b);
 
-    for (Variable **v = cfg->variables.ptr; v < End(cfg->variables); v++)
+    for (LocalVariable **v = cfg->locals.ptr; v < End(cfg->locals); v++)
         free(*v);
 
     free(cfg->all_blocks.ptr);
-    free(cfg->variables.ptr);
+    free(cfg->locals.ptr);
     free(cfg);
 }
 

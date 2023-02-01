@@ -9,10 +9,10 @@ static int find_block_index(const CfGraph *cfg, const CfBlock *b)
     assert(0);
 }
 
-static int find_var_index(const CfGraph *cfg, const Variable *v)
+static int find_var_index(const CfGraph *cfg, const LocalVariable *v)
 {
-    for (int i = 0; i < cfg->variables.len; i++)
-        if (cfg->variables.ptr[i] == v)
+    for (int i = 0; i < cfg->locals.len; i++)
+        if (cfg->locals.ptr[i] == v)
             return i;
     assert(0);
 }
@@ -86,7 +86,7 @@ static bool merge_arrays_in_place(enum VarStatus *dest, const enum VarStatus *sr
 // Figure out how an instruction affects variables when it runs.
 static void update_statuses_with_instruction(const CfGraph *cfg, enum VarStatus *statuses, const CfInstruction *ins)
 {
-    for (int i = 0; i < cfg->variables.len; i++)
+    for (int i = 0; i < cfg->locals.len; i++)
         assert(statuses[i] != VS_UNVISITED);
 
     if (!ins->destvar)
@@ -105,7 +105,7 @@ static void update_statuses_with_instruction(const CfGraph *cfg, enum VarStatus 
             statuses[destidx] = VS_DEFINED;
         }
         break;
-    case CF_ADDRESS_OF_VARIABLE:
+    case CF_ADDRESS_OF_LOCAL_VAR:
         statuses[find_var_index(cfg, ins->operands[0])] = VS_UNPREDICTABLE;
         statuses[destidx] = VS_DEFINED;
         break;
@@ -185,7 +185,7 @@ static enum VarStatus **determine_var_statuses(const CfGraph *cfg)
 #endif
 
     int nblocks = cfg->all_blocks.len;
-    int nvars = cfg->variables.len;
+    int nvars = cfg->locals.len;
 
     enum VarStatus **result = malloc(sizeof(result[0]) * nblocks);  // NOLINT
     for (int i = 0; i < nblocks; i++)
@@ -210,7 +210,7 @@ static enum VarStatus **determine_var_statuses(const CfGraph *cfg)
         for (int i = 0; i < nvars; i++) {
             if (visiting == 0) {
                 // start block
-                tempstatus[i] = cfg->variables.ptr[i]->is_argument ? VS_DEFINED : VS_UNDEFINED;
+                tempstatus[i] = cfg->locals.ptr[i]->is_argument ? VS_DEFINED : VS_UNDEFINED;
             } else {
                 // What is possible in other blocks is determined based on only how
                 // they are jumped into.
@@ -431,7 +431,7 @@ static void remove_unreachable_blocks(CfGraph *cfg)
 
 static void remove_unused_variables(CfGraph *cfg)
 {
-    char *used = calloc(1, cfg->variables.len);
+    char *used = calloc(1, cfg->locals.len);
 
     for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
         for (CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++) {
@@ -442,10 +442,10 @@ static void remove_unused_variables(CfGraph *cfg)
         }
     }
 
-    for (int i = cfg->variables.len - 1; i>=0; i--) {
-        if (!used[i] && !cfg->variables.ptr[i]->is_argument) {
-            free(cfg->variables.ptr[i]);
-            cfg->variables.ptr[i] = Pop(&cfg->variables);
+    for (int i = cfg->locals.len - 1; i>=0; i--) {
+        if (!used[i] && !cfg->locals.ptr[i]->is_argument) {
+            free(cfg->locals.ptr[i]);
+            cfg->locals.ptr[i] = Pop(&cfg->locals);
         }
     }
 
@@ -500,8 +500,8 @@ static void error_about_missing_return(CfGraph *cfg, const Signature *sig)
 
     // When a function returns a value, it is stored in a variable named "return".
     int varidx = -1;
-    for (int i = 0; i < cfg->variables.len; i++) {
-        if (!strcmp(cfg->variables.ptr[i]->name, "return")) {
+    for (int i = 0; i < cfg->locals.len; i++) {
+        if (!strcmp(cfg->locals.ptr[i]->name, "return")) {
             varidx = i;
             break;
         }

@@ -197,7 +197,7 @@ static bool is_keyword(const char *s)
 {
     const char *keywords[] = {
         "from", "import",
-        "def", "declare", "struct",
+        "def", "declare", "struct", "global",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
         "and", "or", "not", "as", "sizeof",

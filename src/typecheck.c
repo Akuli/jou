@@ -1,26 +1,43 @@
 #include "jou_compiler.h"
 
 
-static const Variable *find_variable(const TypeContext *ctx, const char *name)
+static const LocalVariable *find_local_var(const TypeContext *ctx, const char *name)
 {
-    for (Variable **var = ctx->variables.ptr; var < End(ctx->variables); var++)
+    for (LocalVariable **var = ctx->locals.ptr; var < End(ctx->locals); var++)
         if (!strcmp((*var)->name, name))
             return *var;
     return NULL;
 }
 
-static Variable *add_variable(TypeContext *ctx, const Type *t, const char *name)
+static const Type *find_any_var(const TypeContext *ctx, const char *name)
 {
-    Variable *var = calloc(1, sizeof *var);
-    var->id = ctx->variables.len;
+    for (LocalVariable **var = ctx->locals.ptr; var < End(ctx->locals); var++)
+        if (!strcmp((*var)->name, name))
+            return (*var)->type;
+
+    for (GlobalVariable **var = ctx->globals.ptr; var < End(ctx->globals); var++)
+        if (!strcmp((*var)->name, name))
+            return (*var)->type;
+
+    for (const ExportSymbol **es = ctx->imports.ptr; es < End(ctx->imports); es++)
+        if ((*es)->kind == EXPSYM_GLOBAL_VAR && !strcmp((*es)->name, name))
+            return (*es)->data.type;
+
+    return NULL;
+}
+
+static LocalVariable *add_variable(TypeContext *ctx, const Type *t, const char *name)
+{
+    LocalVariable *var = calloc(1, sizeof *var);
+    var->id = ctx->locals.len;
     var->type = t;
 
     assert(name);
-    assert(!find_variable(ctx, name));
+    assert(!find_local_var(ctx, name));
     assert(strlen(name) < sizeof var->name);
     strcpy(var->name, name);
 
-    Append(&ctx->variables, var);
+    Append(&ctx->locals, var);
     return var;
 }
 
@@ -586,12 +603,9 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         result = get_pointer_type(temptype);
         break;
     case AST_EXPR_GET_VARIABLE:
-        {
-            const Variable *v = find_variable(ctx, expr->data.varname);
-            if (!v)
-                fail_with_error(expr->location, "no local variable named '%s'", expr->data.varname);
-            result = v->type;
-        }
+        result = find_any_var(ctx, expr->data.varname);
+        if (!result)
+            fail_with_error(expr->location, "no variable named '%s'", expr->data.varname);
         break;
     case AST_EXPR_DEREFERENCE:
         temptype = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
@@ -718,7 +732,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
             const AstExpression *targetexpr = &stmt->data.assignment.target;
             const AstExpression *valueexpr = &stmt->data.assignment.value;
             if (targetexpr->kind == AST_EXPR_GET_VARIABLE
-                && !find_variable(ctx, targetexpr->data.varname))
+                && !find_any_var(ctx, targetexpr->data.varname))
             {
                 // Making a new variable. Use the type of the value being assigned.
                 const ExpressionTypes *types = typecheck_expression(ctx, valueexpr);
@@ -786,7 +800,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
             "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
             ctx->current_function_signature->funcname);
         typecheck_expression_with_implicit_cast(
-            ctx, &stmt->data.expression, find_variable(ctx, "return")->type, msg);
+            ctx, &stmt->data.expression, find_local_var(ctx, "return")->type, msg);
         break;
     }
 
@@ -801,7 +815,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
         break;
 
     case AST_STMT_DECLARE_LOCAL_VAR:
-        if (find_variable(ctx, stmt->data.vardecl.name))
+        if (find_any_var(ctx, stmt->data.vardecl.name))
             fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
 
         const Type *type = type_from_ast(ctx, &stmt->data.vardecl.type);
@@ -846,7 +860,7 @@ Signature typecheck_function(TypeContext *ctx, Location funcname_location, const
 
     assert(ctx->current_function_signature == NULL);
     assert(ctx->expr_types.len == 0);
-    assert(ctx->variables.len == 0);
+    assert(ctx->locals.len == 0);
 
     // Make signature of current function usable in function calls (recursion)
     Append(&ctx->function_signatures, sig);
@@ -854,7 +868,7 @@ Signature typecheck_function(TypeContext *ctx, Location funcname_location, const
 
     if (body) {
         for (int i = 0; i < sig.nargs; i++) {
-            Variable *v = add_variable(ctx, sig.argtypes[i], sig.argnames[i]);
+            LocalVariable *v = add_variable(ctx, sig.argtypes[i], sig.argnames[i]);
             v->is_argument = true;
         }
         if (sig.returntype)
@@ -872,7 +886,7 @@ Signature typecheck_function(TypeContext *ctx, Location funcname_location, const
     return copy_signature(&sig);
 }
 
-void typecheck_struct(struct TypeContext *ctx, const AstStructDef *structdef, Location location)
+void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location)
 {
     if (find_type(ctx, structdef->name))
         fail_with_error(location, "a type named '%s' already exists", structdef->name);
@@ -894,10 +908,23 @@ void typecheck_struct(struct TypeContext *ctx, const AstStructDef *structdef, Lo
     Append(&ctx->exports, es);
 }
 
+void typecheck_global_var(TypeContext *ctx, const AstVarDeclaration *vardecl)
+{
+    assert(!vardecl->initial_value);
+    GlobalVariable *g = malloc(sizeof *g);
+    safe_strcpy(g->name, vardecl->name);
+    g->type = type_from_ast(ctx, &vardecl->type);
+    Append(&ctx->globals, g);
+
+    ExportSymbol es = { .kind = EXPSYM_GLOBAL_VAR, .data.type = g->type };
+    safe_strcpy(es.name, g->name);
+    Append(&ctx->exports, es);
+}
+
 void reset_type_context(TypeContext *ctx)
 {
     for (ExpressionTypes **et = ctx->expr_types.ptr; et < End(ctx->expr_types); et++)
         free(*et);
     ctx->expr_types.len = 0;
-    ctx->variables.len = 0;
+    ctx->locals.len = 0;
 }

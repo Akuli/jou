@@ -1,4 +1,4 @@
-from "stdlib/io.jou" import printf, puts
+from "stdlib/io.jou" import printf, fprintf, puts, stdout
 from "stdlib/str.jou" import snprintf
 
 def main() -> int:
@@ -11,6 +11,9 @@ def main() -> int:
     printf("char %c\n", 'x')  # Output: char x
     printf("hex smiley %#X\n", 13)  # Output: hex smiley 0XD
     printf("all things %d %s %c %#X\n", 123, "yo", 'x', 13)  # Output: all things 123 yo x 0XD
+
+    # With explicit file
+    fprintf(stdout, "hello %s\n", s)  # Output: hello yo
 
     # Output: this is on multiple lines 123 hey 0XDDD
     printf(

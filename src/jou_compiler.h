@@ -33,7 +33,8 @@ typedef struct AstFunctionDef AstFunctionDef;
 typedef struct AstStructDef AstStructDef;
 typedef struct AstImport AstImport;
 
-typedef struct Variable Variable;
+typedef struct GlobalVariable GlobalVariable;
+typedef struct LocalVariable LocalVariable;
 typedef struct ExpressionTypes ExpressionTypes;
 typedef struct ExportSymbol ExportSymbol;
 typedef struct TypeContext TypeContext;
@@ -304,12 +305,14 @@ struct AstToplevelNode {
     enum AstToplevelNodeKind {
         AST_TOPLEVEL_END_OF_FILE,  // indicates end of array of AstToplevelNodeKind
         AST_TOPLEVEL_DECLARE_FUNCTION,
+        AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE,
         AST_TOPLEVEL_DEFINE_FUNCTION,
         AST_TOPLEVEL_DEFINE_STRUCT,
         AST_TOPLEVEL_IMPORT,
     } kind;
     union {
         AstSignature decl_signature;  // AST_TOPLEVEL_DECLARE_FUNCTION
+        AstVarDeclaration globalvar;  // AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE
         AstFunctionDef funcdef;  // AST_TOPLEVEL_DEFINE_FUNCTION
         AstStructDef structdef;  // AST_TOPLEVEL_DEFINE_STRUCT
         AstImport import;       // AST_TOPLEVEL_IMPORT
@@ -387,7 +390,11 @@ char *signature_to_string(const Signature *sig, bool include_return_type);
 Signature copy_signature(const Signature *sig);
 
 
-struct Variable {
+struct GlobalVariable {
+    char name[100];  // Same as in user's code, never empty
+    const Type *type;
+};
+struct LocalVariable {
     int id;  // Unique, but you can also compare pointers to Variable.
     char name[100];  // Same name as in user's code, empty for temporary variables created by compiler
     const Type *type;
@@ -401,11 +408,11 @@ struct ExpressionTypes {
 };
 
 struct ExportSymbol {
-    enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_TYPE } kind;
+    enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_TYPE, EXPSYM_GLOBAL_VAR } kind;
     char name[100];
     union {
         Signature funcsignature;
-        const Type *type;
+        const Type *type;  // EXPSYM_TYPE and EXPSYM_GLOBAL_VAR
     } data;
 };
 
@@ -414,7 +421,8 @@ struct TypeContext {
     // expr_types tells what type each expression has.
     // It contains nothing for calls to "-> void" functions.
     List(ExpressionTypes *) expr_types;
-    List(Variable *) variables;
+    List(GlobalVariable *) globals;
+    List(LocalVariable *) locals;
     List(Type *) structs;
     List(Signature) function_signatures;
     List(const ExportSymbol *) imports;
@@ -424,6 +432,7 @@ struct TypeContext {
 // function body can be NULL to check a declaration
 Signature typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
 void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location);
+void typecheck_global_var(TypeContext *ctx, const AstVarDeclaration *vardecl);
 
 /*
 Wipes all function-specific data, making the type context suitable
@@ -443,7 +452,8 @@ struct CfInstruction {
     enum CfInstructionKind {
         CF_CONSTANT,
         CF_CALL,
-        CF_ADDRESS_OF_VARIABLE,
+        CF_ADDRESS_OF_LOCAL_VAR,
+        CF_ADDRESS_OF_GLOBAL_VAR,
         CF_SIZEOF,
         CF_PTR_MEMSET_TO_ZERO,  // takes one operand, a pointer: memset(ptr, 0, sizeof(*ptr))
         CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
@@ -468,17 +478,18 @@ struct CfInstruction {
         Constant constant;      // CF_CONSTANT
         char funcname[100];     // CF_CALL
         char fieldname[100];    // CF_PTR_STRUCT_FIELD
+        char globalname[100];   // CF_ADDRESS_OF_GLOBAL_VAR
         const Type *type;       // CF_SIZEOF
     } data;
-    const Variable **operands;  // e.g. numbers to add, function arguments
+    const LocalVariable **operands;  // e.g. numbers to add, function arguments
     int noperands;
-    const Variable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
+    const LocalVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
     bool hide_unreachable_warning; // usually false, can be set to true to avoid unreachable warning false positives
 };
 
 struct CfBlock {
     List(CfInstruction) instructions;
-    const Variable *branchvar;  // boolean value used to decide where to jump next
+    const LocalVariable *branchvar;  // boolean value used to decide where to jump next
     CfBlock *iftrue;
     CfBlock *iffalse;
 };
@@ -487,7 +498,7 @@ struct CfGraph {
     CfBlock start_block;  // First block
     CfBlock end_block;  // Always empty. Return statement jumps here.
     List(CfBlock *) all_blocks;
-    List(Variable *) variables;   // First n variables are the function arguments
+    List(LocalVariable *) locals;   // First n variables are the function arguments
 };
 
 struct CfGraphFile {
