@@ -11,12 +11,22 @@
 export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
-if [ "$1" == "--valgrind" ]; then
-    valgrind=yes
-    shift
-else
-    valgrind=no
-fi
+function usage() {
+    echo "Usage: $0 [--valgrind] [--verbose] [TEMPLATE]" >&2
+    echo "TEMPLATE can be e.g. './jou %s', where %s will be replaced by a jou file." >&2
+    exit 2
+}
+
+valgrind=no
+verbose=no
+
+while [[ "$1" =~ ^- ]]; do
+    case "$1" in
+        --valgrind) valgrind=yes; shift ;;
+        --verbose) verbose=yes; shift ;;
+        *) usage ;;
+    esac
+done
 
 if [ $# == 0 ]; then
     # No arguments --> run tests in the basic/simple way
@@ -25,12 +35,10 @@ if [ $# == 0 ]; then
     else
         command_template='./jou %s'
     fi
-elif [ $# == 1 ] && [[ "$1" =~ ^[^-] ]]; then
+elif [ $# == 1 ]; then
     command_template="$1"
 else
-    echo "Usage: $0 [--valgrind] [TEMPLATE]" >&2
-    echo "TEMPLATE can be e.g. './jou %s', where %s will be replaced by a jou file." >&2
-    exit 2
+    usage
 fi
 
 if [ $valgrind = yes ]; then
@@ -106,6 +114,18 @@ GREEN="\x1b[32m"
 RED="\x1b[31m"
 RESET="\x1b[0m"
 
+if [ $verbose = yes ]; then
+    function show_run() { echo "run: $1"; }
+    function show_skip() { echo -e "${YELLOW}skip${RESET} $1"; }
+    function show_ok() { echo -e "${GREEN}ok${RESET}   $1"; }
+    function show_fail() { echo -e "${RED}FAIL${RESET} $1"; }
+else
+    function show_run() { true; }
+    function show_skip() { echo -ne ${YELLOW}s${RESET}; }
+    function show_ok() { echo -ne ${GREEN}.${RESET}; }
+    function show_fail() { echo -ne ${RED}F${RESET}; }
+fi
+
 function run_test()
 {
     local joufile="$1"
@@ -122,20 +142,22 @@ function run_test()
     if ( [[ "$command_template" =~ -O[1-3] ]] && [[ $joufile =~ ^tests/crash/ ]] ) \
         || ( [[ "$command_template" =~ valgrind ]] && [ $correct_exit_code != 0 ] )
     then
-        # Skip
-        echo -ne ${YELLOW}s${RESET}
+        show_skip $joufile
         mv $diffpath $diffpath.skip
-    elif diff -u --color=always \
+        return
+    fi
+
+    show_run $joufile
+    if diff -u --color=always \
         <(generate_expected_output $joufile $correct_exit_code | tr -d '\r') \
         <(ulimit -v 500000 2>/dev/null; bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r') \
         &>> $diffpath
     then
-        # Ran successfully
-        echo -ne ${GREEN}.${RESET}
+        show_ok $joufile
         rm -f $diffpath
     else
-        # Failed
-        echo -ne ${RED}F${RESET}
+        show_fail $joufile
+        # Do not delete diff file. It will be displayed at end of test run.
     fi
 }
 

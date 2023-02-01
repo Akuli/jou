@@ -101,7 +101,7 @@ $ ./runtests.sh
 
 This command does a few things:
 - If not on Windows, it compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled. (On Windows you need to use the build button in CodeBlocks to compile.)
-- It runs all Jou files in `examples/` and `tests/`
+- It runs all Jou files in `examples/` and `tests/`. To speed things up, it runs two files in parallel.
 - It ensures that the Jou files output what is expected.
 
 The expected output is auto-generated from comments in the Jou files:
