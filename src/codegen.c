@@ -326,6 +326,15 @@ static int find_block(const CfGraph *cfg, const CfBlock *b)
     assert(0);
 }
 
+#ifdef _WIN32
+static void codegen_call_to_the_special_startup_function(const struct State *st)
+{
+    LLVMTypeRef functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
+    LLVMValueRef func = LLVMAddFunction(st->module, "_jou_windows_startup", functype);
+    LLVMBuildCall2(st->builder, functype, func, NULL, 0, "");
+}
+#endif
+
 static void codegen_function_def(struct State *st, const Signature *sig, const CfGraph *cfg)
 {
     st->cfvars = cfg->locals.ptr;
@@ -342,6 +351,11 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
 
     assert(cfg->all_blocks.ptr[0] == &cfg->start_block);
     LLVMPositionBuilderAtEnd(st->builder, blocks[0]);
+
+#ifdef _WIN32
+    if (!strcmp(sig->funcname, "main"))
+        codegen_call_to_the_special_startup_function(st);
+#endif
 
     // Allocate stack space for local variables at start of function.
     LLVMValueRef return_value = NULL;
