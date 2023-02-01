@@ -186,10 +186,8 @@ void free_ast(AstToplevelNode *topnodelist)
             free_body(&t->data.funcdef.body);
             break;
         case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-            assert(!t->data.globalvar.value);
-            break;
         case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-            assert(!t->data.globalvar.value);  // TODO
+            free_name_type_value(&t->data.globalvar);
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
             free(t->data.structdef.fieldnames);
