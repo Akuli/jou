@@ -70,6 +70,7 @@ struct Token {
         TOKEN_INT,
         TOKEN_LONG,
         TOKEN_DOUBLE,
+        TOKEN_FLOAT,
         TOKEN_CHAR,
         TOKEN_STRING,
         TOKEN_NAME,
@@ -87,7 +88,7 @@ struct Token {
         char char_value;  // TOKEN_CHAR
         char *string_value;  // TOKEN_STRING
         int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
-        char name[100];  // TOKEN_NAME and TOKEN_KEYWORD. Also TOKEN_DOUBLE (LLVM wants a string anyway)
+        char name[100];  // TOKEN_NAME and TOKEN_KEYWORD. Also TOKEN_DOUBLE & TOKEN_FLOAT (LLVM wants a string anyway)
         char operator[4];  // TOKEN_OPERATOR
     } data;
 };
@@ -97,6 +98,7 @@ struct Token {
 struct Constant {
     enum ConstantKind {
         CONSTANT_INTEGER,
+        CONSTANT_FLOAT,
         CONSTANT_DOUBLE,
         CONSTANT_STRING,
         CONSTANT_NULL,
@@ -105,7 +107,7 @@ struct Constant {
     union {
         struct { int width_in_bits; bool is_signed; long long value; } integer;
         char *str;
-        char double_text[100];  // convenient because LLVM wants a string anyway
+        char double_or_float_text[100];  // convenient because LLVM wants a string anyway
         bool boolean;
     } data;
 };
@@ -323,6 +325,7 @@ struct Type {
         TYPE_SIGNED_INTEGER,
         TYPE_UNSIGNED_INTEGER,
         TYPE_BOOL,
+        TYPE_FLOAT,
         TYPE_DOUBLE,
         TYPE_POINTER,
         TYPE_VOID_POINTER,
@@ -355,6 +358,7 @@ extern const Type *boolType;      // bool
 extern const Type *intType;       // int (32-bit signed)
 extern const Type *longType;      // long (64-bit signed)
 extern const Type *byteType;      // byte (8-bit unsigned)
+extern const Type *floatType;     // float (32-bit)
 extern const Type *doubleType;    // double (64-bit)
 extern const Type *voidPtrType;   // void*
 void init_types();  // Called once when compiler starts
@@ -370,7 +374,8 @@ Type *create_struct(
 void free_type(Type *type);
 
 bool is_integer_type(const Type *t);  // includes signed and unsigned
-bool is_number_type(const Type *t);  // integers, floats, doubles
+bool is_number_type(const Type *t);  // integers, doubles
+bool is_float_type(const Type *t); // floats
 bool is_pointer_type(const Type *t);  // includes void pointers
 
 struct Signature {

@@ -88,6 +88,8 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
             return byteType;
         if (!strcmp(asttype->data.name, "bool"))
             return boolType;
+        if (!strcmp(asttype->data.name, "float"))
+            return floatTypel;
         if (!strcmp(asttype->data.name, "double"))
             return doubleType;
         if (!strcmp(asttype->data.name, "void"))
@@ -157,6 +159,8 @@ static void do_implicit_cast(
             && is_integer_type(to)
             && from->data.width_in_bits < to->data.width_in_bits
             && !(from->kind == TYPE_SIGNED_INTEGER && to->kind == TYPE_UNSIGNED_INTEGER)
+        ) || (
+            is_integer_type(from) && is_float_Type(to)
         ) || (
             // Cast from any integer type to double.
             is_integer_type(from) && to == doubleType
@@ -265,7 +269,7 @@ static const Type *check_binop(
         cast_type = voidPtrType;
     }
     if (got_numbers && !got_integers) {
-        cast_type = doubleType;
+        cast_type = (lhstypes->type == doubleType || rhstypes->type == doubleType) ? doubleType : floatType;
     }
 
     do_implicit_cast(lhstypes, cast_type, (Location){0}, NULL);
@@ -617,10 +621,10 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_NEG:
         result = typecheck_expression(ctx, &expr->data.operands[0])->type;
-        if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_DOUBLE)
+        if (result->kind != TYPE_SIGNED_INTEGER && !is_float_type(result))
             fail_with_error(
                 expr->location,
-                "value after '-' must be a double or a signed integer, not %s",
+                "value after '-' must be a float or double or a signed integer, not %s",
                 result->name);
         break;
     case AST_EXPR_ADD:

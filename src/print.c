@@ -31,8 +31,10 @@ static void print_constant(const Constant *c)
         printf(c->data.boolean ? "True" : "False");
         break;
     case CONSTANT_DOUBLE:
-        printf("double %s", c->data.double_text);
+        printf("double %s", c->data.double_or_float_text);
         break;
+    case CONSTANT_FLOAT:
+        printf("float %s", c->data.double_or_float_text);
     case CONSTANT_INTEGER:
         printf(
             "%lld (%d-bit %s)",
@@ -409,6 +411,7 @@ static const char *very_short_number_type_description(const Type *t)
 {
     switch(t->kind) {
         case TYPE_DOUBLE: return "double";
+        case TYPE_FLOAT: return "float";
         case TYPE_SIGNED_INTEGER: return "signed";
         case TYPE_UNSIGNED_INTEGER: return "unsigned";
         default: assert(0);

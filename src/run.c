@@ -120,7 +120,7 @@ static char *get_filename_without_suffix(const LLVMModuleRef module)
     char *result = malloc(len+1);
     memcpy(result, filename, len);
     result[len] = '\0';
-    
+
     return result;
 }
 
