@@ -281,7 +281,7 @@ int main(int argc, char **argv)
 #ifdef _WIN32
     char *startup_path = malloc(strlen(compst->stdlib_path) + 50);
     sprintf(startup_path, "%s/_windows_startup.jou", compst->stdlib_path);
-    parse_file(compst, startup_path, NULL);
+    parse_file(&compst, startup_path, NULL);
     free(startup_path);
 #endif
 
