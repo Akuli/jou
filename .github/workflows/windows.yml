@@ -119,10 +119,13 @@ jobs:
         with:
           name: windows-zip
       - run: unzip jou.zip
-      - run: mv jou/* repo/tests repo/runtests.sh .
+      # Add a space in the folder name to trigger bugs like #165
+      - run: mkdir "test dir"
+      - run: mv jou/* repo/tests repo/runtests.sh "test dir"
         shell: bash
-      - run: .\jou.exe --verbose examples/hello.jou
-      - run: ./runtests.sh
+      - run: cd "test dir" && ./jou.exe --verbose examples/hello.jou
+        shell: bash
+      - run: cd "test dir" && ./runtests.sh
         shell: bash
 
   fuzzer:
