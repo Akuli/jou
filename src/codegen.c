@@ -397,10 +397,16 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
     };
 
     for (const ExportSymbol **es = typectx->imports.ptr; es < End(typectx->imports); es++) {
-        if ((*es)->kind == EXPSYM_FUNCTION)
+        switch((*es)->kind) {
+        case EXPSYM_FUNCTION:
             codegen_function_decl(&st, &(*es)->data.funcsignature);
-        else if ((*es)->kind == EXPSYM_GLOBAL_VAR)
+            break;
+        case EXPSYM_GLOBAL_VAR:
             LLVMAddGlobal(st.module, codegen_type((*es)->data.type), (*es)->name);
+            break;
+        case EXPSYM_TYPE:
+            break;
+        }
     }
 
     for (GlobalVariable **v = cfgfile->defined_globals.ptr; v < End(cfgfile->defined_globals); v++) {
