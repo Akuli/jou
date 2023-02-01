@@ -409,10 +409,12 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
         }
     }
 
-    for (GlobalVariable **v = cfgfile->defined_globals.ptr; v < End(cfgfile->defined_globals); v++) {
-        LLVMTypeRef t = codegen_type((*v)->type);
-        LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
-        LLVMSetInitializer(globalptr, LLVMGetUndef(t));
+    for (GlobalVariable **v = typectx->globals.ptr; v < End(typectx->globals); v++) {
+        if (!(*v)->defined_outside_jou) {
+            LLVMTypeRef t = codegen_type((*v)->type);
+            LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
+            LLVMSetInitializer(globalptr, LLVMGetUndef(t));
+        }
     }
 
     for (int i = 0; i < cfgfile->nfuncs; i++)

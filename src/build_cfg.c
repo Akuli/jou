@@ -806,11 +806,11 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
         case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-            typecheck_global_var(typectx, &ast->data.globalvar);
+            g = typecheck_global_var(typectx, &ast->data.globalvar);
+            g->defined_outside_jou = true;
             break;
         case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-            g = typecheck_global_var(typectx, &ast->data.globalvar);
-            Append(&result.defined_globals, g);
+            typecheck_global_var(typectx, &ast->data.globalvar);
             break;
         case AST_TOPLEVEL_DECLARE_FUNCTION:
             sig = typecheck_function(typectx, ast->location, &ast->data.decl_signature, NULL);

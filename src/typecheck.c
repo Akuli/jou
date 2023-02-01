@@ -911,7 +911,7 @@ void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location 
 GlobalVariable *typecheck_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl)
 {
     assert(!vardecl->value);
-    GlobalVariable *g = malloc(sizeof *g);
+    GlobalVariable *g = calloc(1, sizeof *g);
     safe_strcpy(g->name, vardecl->name);
     g->type = type_from_ast(ctx, &vardecl->type);
     Append(&ctx->globals, g);

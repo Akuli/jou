@@ -394,6 +394,7 @@ Signature copy_signature(const Signature *sig);
 struct GlobalVariable {
     char name[100];  // Same as in user's code, never empty
     const Type *type;
+    bool defined_outside_jou;  // true for variables like stdout
 };
 struct LocalVariable {
     int id;  // Unique, but you can also compare pointers to Variable.
@@ -507,7 +508,6 @@ struct CfGraphFile {
     int nfuncs;
     Signature *signatures;  // includes declared and defined functions
     CfGraph **graphs;  // NULL means function is only declared, not defined
-    List(GlobalVariable *) defined_globals;  // does not include variables defined in other files or libraries
 };
 
 
