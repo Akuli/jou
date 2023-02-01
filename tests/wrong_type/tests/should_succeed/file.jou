@@ -1,0 +1,53 @@
+from "stdlib/io.jou" import (
+    printf,
+    fopen, fclose, rewind,
+    fputc, fputs, fprintf,
+    fgetc, fgets, fscanf,
+)
+from "stdlib/process.jou" import abort
+
+def write_hello_123() -> void:
+    f = fopen("tmp/tests/hello.txt", "w")
+    if f == NULL:
+        printf("can't write tmp/tests/hello.txt\n")
+        abort()
+
+    fputc('h', f)
+    fputs("ell", f)
+    fprintf(f, "o %d\n", 123)
+    fclose(f)
+
+def read_hello_123() -> void:
+    f = fopen("tmp/tests/hello.txt", "r")
+    if f == NULL:
+        printf("can't read tmp/tests/hello.txt\n")
+        abort()
+
+    n: int
+    fscanf(f, "hello %d\n", &n)
+    printf("got %d\n", n)  # Output: got 123
+
+    rewind(f)
+    while True:
+        c = fgetc(f)
+        if c < 0:
+            break
+        printf("%c", c as byte)  # Output: hello 123
+
+    rewind(f)
+    text: byte[100]
+    fgets(&text[0], sizeof text as int, f)
+    printf("got %s", &text[0])  # Output: got hello 123
+
+    fclose(f)
+
+def main() -> int:
+    f = fopen("_does_not_exist.txt", "r")
+    if f != NULL:
+        printf("this should not happen ...\n")
+        abort()
+
+    write_hello_123()
+    read_hello_123()
+
+    return 0

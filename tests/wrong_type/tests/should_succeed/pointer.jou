@@ -1,0 +1,57 @@
+from "stdlib/io.jou" import putchar, puts, printf
+from "stdlib/mem.jou" import malloc, free
+
+def putchar_pointer(ch: int*) -> void:
+    putchar(*ch)
+    putchar(*&*ch)
+
+def putchar2(ch: int) -> void:
+    putchar_pointer(&ch)
+
+def myputs1(s: byte*) -> void:
+    for i = 0; s[i] != '\0'; i++:
+        putchar(s[i])
+
+def myputs2(s: byte*) -> void:
+    while *s != '\0':
+        putchar(*s++)
+
+def foo(ptr: int*) -> void:
+    if ptr == NULL:
+        printf("Got NULL\n")
+    else:
+        printf("Got %d\n", *ptr)
+
+def main() -> int:
+    # Test assigning to pointer
+    foo: byte* = malloc(4)
+    *foo = 'a'
+    foo[1] = 'b'
+    foo[2] = 'c'
+    foo[3] = '\0'
+    puts(foo)  # Output: abc
+    free(foo)
+
+    # Output: hhii
+    putchar2('h')
+    putchar2('i')
+    putchar('\n')
+
+    # https://github.com/Akuli/jou/issues/52
+    putchar("hey"[1+1])  # Output: y
+    putchar('\n')
+
+    # Make sure that unsigned indexes work. The compiler must
+    # convert them to signed for LLVM to be happy.
+    # Output: i
+    putchar("012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789abcdefghi"[128 as byte])
+    putchar('\n')
+
+    myputs1("asd\n")  # Output: asd
+    myputs2("foo\n")  # Output: foo
+
+    x = 123
+    foo(&x)  # Output: Got 123
+    foo(NULL)  # Output: Got NULL
+
+    return 0
