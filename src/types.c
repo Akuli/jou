@@ -52,7 +52,7 @@ static void free_global_state(void)
 {
     assert(global_state.inited);
     free_pointer_and_array_types(&global_state.boolean);
-    free_pointer_and_array_types(&gloabl_state.floater);
+    free_pointer_and_array_types(&global_state.floater);
     free_pointer_and_array_types(&global_state.doublelele);
     free_pointer_and_array_types(&global_state.voidptr);
     for (int size = 8; size <= 64; size *= 2)
@@ -65,7 +65,7 @@ void init_types(void)
     assert(!global_state.inited);
 
     global_state.boolean.type = (Type){ .name = "bool", .kind = TYPE_BOOL };
-    global_state.floater.type = (Type){ .name = "float", .kind = TYPE_FLOAT .data.width_in_bits = 32};
+    global_state.floater.type = (Type){ .name = "float", .kind = TYPE_FLOAT, .data.width_in_bits = 32 };
     global_state.doublelele.type = (Type){ .name = "double", .kind = TYPE_DOUBLE, .data.width_in_bits = 64 };
     global_state.voidptr.type = (Type){ .name = "void*", .kind = TYPE_VOID_POINTER };
 
@@ -139,7 +139,7 @@ bool is_number_type(const Type *t)
 
 bool is_float_type(const Type *t)
 {
-    return is_integer_type(t) || i->kind == TYPE_FLOAT;
+    return is_integer_type(t) || t->kind == TYPE_FLOAT;
 }
 
 bool is_pointer_type(const Type *t)

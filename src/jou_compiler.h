@@ -69,8 +69,8 @@ struct Token {
     enum TokenType {
         TOKEN_INT,
         TOKEN_LONG,
-        TOKEN_DOUBLE,
         TOKEN_FLOAT,
+        TOKEN_DOUBLE,
         TOKEN_CHAR,
         TOKEN_STRING,
         TOKEN_NAME,
@@ -333,7 +333,7 @@ struct Type {
         TYPE_STRUCT,
     } kind;
     union {
-        int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_DOUBLE
+        int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_DOUBLE TYPE_FLOAT
         const Type *valuetype;  // TYPE_POINTER
         struct { const Type *membertype; int len; } array;  // TYPE_ARRAY
         struct { int count; char (*names)[100]; const Type **types; } structfields;  // TYPE_STRUCT

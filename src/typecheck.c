@@ -89,7 +89,7 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
         if (!strcmp(asttype->data.name, "bool"))
             return boolType;
         if (!strcmp(asttype->data.name, "float"))
-            return floatTypel;
+            return floatType;
         if (!strcmp(asttype->data.name, "double"))
             return doubleType;
         if (!strcmp(asttype->data.name, "void"))
@@ -160,7 +160,7 @@ static void do_implicit_cast(
             && from->data.width_in_bits < to->data.width_in_bits
             && !(from->kind == TYPE_SIGNED_INTEGER && to->kind == TYPE_UNSIGNED_INTEGER)
         ) || (
-            is_integer_type(from) && is_float_Type(to)
+            is_integer_type(from) && is_float_type(to)
         ) || (
             // Cast from any integer type to double.
             is_integer_type(from) && to == doubleType

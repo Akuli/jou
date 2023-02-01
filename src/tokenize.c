@@ -398,7 +398,7 @@ static Token read_token(struct State *st)
                 else if ('0'<=t.data.name[0] && t.data.name[0]<='9') {
                     if (is_valid_double(t.data.name))
                         t.type = TOKEN_DOUBLE;
-                    else if (t.data.name[strlen(t.data.name)-1] == 'F' && is_vaild_double(t.data.name))
+                    else if (t.data.name[strlen(t.data.name)-1] == 'F' && is_valid_double(t.data.name))
                         t.type = TOKEN_FLOAT;
                     else if (t.data.name[strlen(t.data.name)-1] == 'L') {
                         t.data.name[strlen(t.data.name)-1] = '\0';
