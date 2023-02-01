@@ -419,7 +419,7 @@ static const char *very_short_number_type_description(const Type *t)
         case TYPE_FLOAT: return "float";
         case TYPE_SIGNED_INTEGER: return "signed";
         case TYPE_UNSIGNED_INTEGER: return "unsigned";
-        default: assert(0);
+        default: assert(0); // Warning: non-void function does not return a value in all control paths [-Wreturn-type]
     }
 }
 
@@ -505,7 +505,6 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         printf("%s", varname(ins->operands[0]));
         break;
     }
-
     printf("\n");
 }
 
@@ -572,7 +571,6 @@ void print_control_flow_graphs(const CfGraphFile *cfgfile)
         printf("\n");
     }
 }
-
 
 void print_llvm_ir(LLVMModuleRef module, bool is_optimized)
 {
