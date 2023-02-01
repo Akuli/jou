@@ -324,10 +324,10 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             printf("declare local var \"%s\", type ", stmt->data.vardecl.name);
             print_ast_type(&stmt->data.vardecl.type);
             printf("\n");
-            if (stmt->data.vardecl.initial_value) {
+            if (stmt->data.vardecl.value) {
                 sub = print_tree_prefix(tp, true);
                 printf("initial value:\n");
-                print_ast_expression(stmt->data.vardecl.initial_value, print_tree_prefix(sub, true));
+                print_ast_expression(stmt->data.vardecl.value, print_tree_prefix(sub, true));
             }
             break;
 #define PrintAssignment \
@@ -361,6 +361,18 @@ void print_ast(const AstToplevelNode *topnodelist)
                 printf("Import \"%s\" from \"%s\".\n",
                     topnodelist->data.import.symbolname, topnodelist->data.import.path);
                 break;
+            case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
+                assert(!topnodelist->data.globalvar.value);
+                printf("Declare a global variable %s: ", topnodelist->data.globalvar.name);
+                print_ast_type(&topnodelist->data.globalvar.type);
+                printf("\n");
+                break;
+            case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
+                assert(!topnodelist->data.globalvar.value);
+                printf("Define a global variable %s: ", topnodelist->data.globalvar.name);
+                print_ast_type(&topnodelist->data.globalvar.type);
+                printf("\n");
+                break;
             case AST_TOPLEVEL_DECLARE_FUNCTION:
                 printf("Declare a function: ");
                 print_ast_function_signature(&topnodelist->data.decl_signature);
@@ -389,7 +401,7 @@ void print_ast(const AstToplevelNode *topnodelist)
 }
 
 
-static const char *varname(const Variable *var)
+static const char *varname(const LocalVariable *var)
 {
     if (var->name[0])
         return var->name;
@@ -423,8 +435,11 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         printf("%s = ", varname(ins->destvar));
 
     switch(ins->kind) {
-    case CF_ADDRESS_OF_VARIABLE:
-        printf("address of %s", varname(ins->operands[0]));
+    case CF_ADDRESS_OF_LOCAL_VAR:
+        printf("address of %s (local variable)", varname(ins->operands[0]));
+        break;
+    case CF_ADDRESS_OF_GLOBAL_VAR:
+        printf("address of %s (global variable)", ins->data.globalname);
         break;
     case CF_SIZEOF:
         printf("sizeof %s", ins->data.type->name);
@@ -509,7 +524,7 @@ static void print_control_flow_graph_with_indent(const CfGraph *cfg, int indent)
     }
 
     printf("%*sVariables:\n", indent, "");
-    for (Variable **var = cfg->variables.ptr; var < End(cfg->variables); var++) {
+    for (LocalVariable **var = cfg->locals.ptr; var < End(cfg->locals); var++) {
         printf("%*s  %-20s  %s\n", indent, "", varname(*var), (*var)->type->name);
     }
 

@@ -88,6 +88,36 @@ static AstType parse_type(const Token **tokens)
     return result;
 }
 
+// name: type = value
+// The value is optional, and will be NULL if missing.
+static AstNameTypeValue parse_name_type_value(const Token **tokens, const char *expected_what_for_name)
+{
+    AstNameTypeValue result;
+
+    if ((*tokens)->type != TOKEN_NAME) {
+        assert(expected_what_for_name);
+        fail_with_parse_error(*tokens, expected_what_for_name);
+    }
+    safe_strcpy(result.name, (*tokens)->data.name);
+    ++*tokens;
+
+    if (!is_operator(*tokens, ":"))
+        fail_with_parse_error(*tokens, "':' and a type after it (example: \"foo: int\")");
+    ++*tokens;
+    result.type = parse_type(tokens);
+
+    if (is_operator(*tokens, "=")) {
+        ++*tokens;
+        AstExpression *p = malloc(sizeof *p);
+        *p = parse_expression(tokens);
+        result.value = p;
+    } else {
+        result.value = NULL;
+    }
+
+    return result;
+}
+
 // char[100] is wrapped in a struct so that you can do List(Name).
 // You can't do List(char[100]) or similar because C doesn't allow assigning arrays.
 struct Name { char name[100]; };
@@ -95,29 +125,25 @@ static_assert(sizeof(struct Name) == 100, "u have weird c compiler...");
 typedef List(struct Name) NameList;
 typedef List(AstType) TypeList;
 
-static void parse_name_and_type(
+static void parse_name_and_type_to_list(
     const Token **tokens, NameList *names, TypeList *types,
     const char *expected_what_for_name, // e.g. "an argument name" to get error message "expected an argument name, got blah"
-    const char *duplicate_name_error_fmt)  // %s will be replaced by a name
+    const char *duplicate_name_error_fmt,  // %s will be replaced by a name
+    const char *defaults_error_msg)
 {
-    if((*tokens)->type != TOKEN_NAME)
-        fail_with_parse_error(*tokens, expected_what_for_name);
+    Location name_location = (*tokens)->location;
+    AstNameTypeValue result = parse_name_type_value(tokens, expected_what_for_name);
+    if (result.value)
+        fail_with_error(result.value->location, "%s", defaults_error_msg);
 
-    for (int i = 0; i < names->len; i++) {
-        if (!strcmp(names->ptr[i].name, (*tokens)->data.name)) {
-            fail_with_error((*tokens)->location, duplicate_name_error_fmt, (*tokens)->data.name);
-        }
-    }
+    for (int i = 0; i < names->len; i++)
+        if (!strcmp(names->ptr[i].name, result.name))
+            fail_with_error(name_location, duplicate_name_error_fmt, result.name);
 
     struct Name n;
-    safe_strcpy(n.name, (*tokens)->data.name);
+    safe_strcpy(n.name, result.name);
     Append(names, n);
-    ++*tokens;
-
-    if (!is_operator(*tokens, ":"))
-        fail_with_parse_error(*tokens, "':' and a type after it (example: \"foo: int\")");
-    ++*tokens;
-    Append(types, parse_type(tokens));
+    Append(types, result.type);
 }
 
 static AstSignature parse_function_signature(const Token **tokens)
@@ -144,9 +170,11 @@ static AstSignature parse_function_signature(const Token **tokens)
             result.takes_varargs = true;
             ++*tokens;
         } else {
-            parse_name_and_type(
+            parse_name_and_type_to_list(
                 tokens, &argnames, &argtypes,
-                "an argument name", "there are multiple arguments named '%s'");
+                "an argument name",
+                "there are multiple arguments named '%s'",
+                "function arguments cannot have default values");
         }
 
         if (is_operator(*tokens, ","))
@@ -649,17 +677,7 @@ static AstStatement parse_oneline_statement(const Token **tokens)
     } else if ((*tokens)->type == TOKEN_NAME && is_operator(&(*tokens)[1], ":")) {
         // "foo: int" creates a variable "foo" of type "int"
         result.kind = AST_STMT_DECLARE_LOCAL_VAR;
-        safe_strcpy(result.data.vardecl.name, (*tokens)->data.name);
-        *tokens += 2;
-        result.data.vardecl.type = parse_type(tokens);
-        if (is_operator(*tokens, "=")) {
-            ++*tokens;
-            AstExpression *p = malloc(sizeof *p);
-            *p = parse_expression(tokens);
-            result.data.vardecl.initial_value = p;
-        } else {
-            result.data.vardecl.initial_value = NULL;
-        }
+        result.data.vardecl = parse_name_type_value(tokens, NULL);
     } else {
         AstExpression expr = parse_expression(tokens);
         result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(*tokens);
@@ -750,9 +768,11 @@ static AstStructDef parse_structdef(const Token **tokens)
 
     parse_start_of_body(tokens);
     while ((*tokens)->type != TOKEN_DEDENT) {
-        parse_name_and_type(
+        parse_name_and_type_to_list(
             tokens, &fieldnames, &fieldtypes,
-            "a name for a struct field", "there are multiple fields named '%s'");
+            "a name for a struct field",
+            "there are multiple fields named '%s'",
+            "struct members cannot have default values");
         eat_newline(tokens);
     }
     ++*tokens;
@@ -864,8 +884,24 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
         result.data.funcdef.body = parse_body(tokens);
     } else if (is_keyword(*tokens, "declare")) {
         ++*tokens;
-        result.kind = AST_TOPLEVEL_DECLARE_FUNCTION;
-        result.data.decl_signature = parse_function_signature(tokens);
+        if (is_keyword(*tokens, "global")) {
+            ++*tokens;
+            result.kind = AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE;
+            result.data.globalvar = parse_name_type_value(tokens, "a variable name");
+            if (result.data.globalvar.value) {
+                fail_with_error(
+                    result.data.globalvar.value->location,
+                    "a value cannot be given when declaring a global variable");
+            }
+        } else {
+            result.kind = AST_TOPLEVEL_DECLARE_FUNCTION;
+            result.data.decl_signature = parse_function_signature(tokens);
+        }
+        eat_newline(tokens);
+    } else if (is_keyword(*tokens, "global")) {
+        ++*tokens;
+        result.kind = AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE;
+        result.data.globalvar = parse_name_type_value(tokens, "a variable name");
         eat_newline(tokens);
     } else if (is_keyword(*tokens, "struct")) {
         ++*tokens;

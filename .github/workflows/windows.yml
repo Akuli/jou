@@ -86,9 +86,10 @@ jobs:
           mingw64/x86_64-w64-mingw32/bin/ld.exe
           mingw64/x86_64-w64-mingw32/lib/
           mingw64/licenses/
-      # llvm-13-dev needed for the header files. They seem to be missing from LLVM windows installer.
       # Using gcc instead of clang, because gcc "just works".
-      - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
+      # llvm-13-dev needed for the header files. They seem to be missing from LLVM windows installer.
+      - name: Install gcc and LLVM for cross-compiling
+        run: sudo apt update && sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
       - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
       - run: mkdir jou
       # Please keep this list of files in sync with update.ps1
