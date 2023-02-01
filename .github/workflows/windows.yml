@@ -85,13 +85,14 @@ jobs:
           mingw64/libexec/gcc/x86_64-w64-mingw32/12.2.0/liblto_plugin.dll
           mingw64/x86_64-w64-mingw32/bin/ld.exe
           mingw64/x86_64-w64-mingw32/lib/
+          mingw64/licenses/
       # llvm-13-dev needed for the header files. They seem to be missing from LLVM windows installer.
       # Using gcc instead of clang, because gcc "just works".
       - run: sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
       - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
       - run: mkdir jou
       # Please keep this list of files in sync with update.ps1
-      - run: cp -rv jou.exe bin/*.dll stdlib mingw64 update.ps1 jou
+      - run: cp -rv stdlib doc examples mingw64 LICENSE jou.exe update.ps1 bin/*.dll jou
       - run: zip -r jou.zip jou
       - uses: actions/upload-artifact@v3
         with:
@@ -118,7 +119,7 @@ jobs:
         with:
           name: windows-zip
       - run: unzip jou.zip
-      - run: mv jou/* repo/tests repo/runtests.sh repo/examples .
+      - run: mv jou/* repo/tests repo/runtests.sh .
         shell: bash
       - run: .\jou.exe --verbose examples/hello.jou
       - run: ./runtests.sh
