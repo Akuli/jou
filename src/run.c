@@ -190,6 +190,10 @@ int run_program(LLVMModuleRef module, const CommandLineFlags *flags)
     if (flags->verbose)
         puts(command);
 
+    // Make sure that everything else shows up before the user's prints.
+    fflush(stdout);
+    fflush(stderr);
+
     int ret = system(command);
     free(command);
     return !!ret;
