@@ -63,7 +63,7 @@ void print_token(const Token *token)
         printf("long %lld\n", (long long)token->data.long_value);
         break;
     case TOKEN_FLOAT:
-        printf("float %f\n", token->data.name);
+        printf("float %s\n", token->data.name);
         break;
     case TOKEN_DOUBLE:
         printf("double %s\n", token->data.name);
