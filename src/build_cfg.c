@@ -680,7 +680,6 @@ static void build_statement(struct State *st, const AstStatement *stmt)
             const AstExpression *valueexpr = &stmt->data.assignment.value;
             const LocalVariable *target;
 
-            // TODO: is this evaluation order good?
             if (targetexpr->kind == AST_EXPR_GET_VARIABLE
                 && (target = find_local_var(st, targetexpr->data.varname)))
             {
@@ -688,6 +687,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
                 const LocalVariable *value = build_expression(st, valueexpr);
                 add_unary_op(st, stmt->location, CF_VARCPY, value, target);
             } else {
+                // TODO: is this evaluation order good?
                 target = build_address_of_expression(st, targetexpr);
                 const LocalVariable *value = build_expression(st, valueexpr);
                 assert(target->type->kind == TYPE_POINTER);
