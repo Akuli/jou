@@ -838,16 +838,17 @@ Signature typecheck_function(TypeContext *ctx, Location funcname_location, const
     if (find_function(ctx, astsig->funcname))
         fail_with_error(funcname_location, "a function named '%s' already exists", astsig->funcname);
 
-    Signature sig = { .nargs = astsig->nargs, .takes_varargs = astsig->takes_varargs };
+    Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
     safe_strcpy(sig.funcname, astsig->funcname);
 
     size_t size = sizeof(sig.argnames[0]) * sig.nargs;
     sig.argnames = malloc(size);
-    memcpy(sig.argnames, astsig->argnames, size);
+    for (int i = 0; i < sig.nargs; i++)
+        safe_strcpy(sig.argnames[i], astsig->args.ptr[i].name);
 
     sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs);  // NOLINT
     for (int i = 0; i < sig.nargs; i++)
-        sig.argtypes[i] = type_from_ast(ctx, &astsig->argtypes[i]);
+        sig.argtypes[i] = type_from_ast(ctx, &astsig->args.ptr[i].type);
 
     sig.returntype = type_or_void_from_ast(ctx, &astsig->returntype);
     // TODO: validate main() parameters
@@ -891,14 +892,15 @@ void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location 
     if (find_type(ctx, structdef->name))
         fail_with_error(location, "a type named '%s' already exists", structdef->name);
 
-    int n = structdef->nfields;
+    int n = structdef->fields.len;
 
     char (*fieldnames)[100] = malloc(n * sizeof(fieldnames[0]));
-    memcpy(fieldnames, structdef->fieldnames, n * sizeof(fieldnames[0]));
+    for (int i = 0; i<n; i++)
+        safe_strcpy(fieldnames[i], structdef->fields.ptr[i].name);
 
     const Type **fieldtypes = malloc(n * sizeof fieldtypes[0]);  // NOLINT
     for (int i = 0; i < n; i++)
-        fieldtypes[i] = type_from_ast(ctx, &structdef->fieldtypes[i]);
+        fieldtypes[i] = type_from_ast(ctx, &structdef->fields.ptr[i].type);
 
     Type *structtype = create_struct(structdef->name, n, fieldnames, fieldtypes);
     Append(&ctx->structs, structtype);

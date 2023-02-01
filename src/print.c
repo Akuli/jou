@@ -158,10 +158,11 @@ static void print_ast_type(const struct AstType *t)
 static void print_ast_function_signature(const AstSignature *sig)
 {
     printf("%s(", sig->funcname);
-    for (int i = 0; i < sig->nargs; i++) {
-        if(i) printf(", ");
-        printf("%s: ", sig->argnames[i]);
-        print_ast_type(&sig->argtypes[i]);
+    for (const AstNameTypeValue *ntv = sig->args.ptr; ntv < End(sig->args); ntv++) {
+        if (ntv > sig->args.ptr) printf(", ");
+        printf("%s: ", ntv->name);
+        print_ast_type(&ntv->type);
+        assert(!ntv->value);
     }
     printf(") -> ");
     print_ast_type(&sig->returntype);
@@ -384,10 +385,10 @@ void print_ast(const AstToplevelNode *topnodelist)
                 break;
             case AST_TOPLEVEL_DEFINE_STRUCT:
                 printf("Define struct \"%s\" with %d fields:\n",
-                    topnodelist->data.structdef.name, topnodelist->data.structdef.nfields);
-                for (int i = 0; i < topnodelist->data.structdef.nfields; i++) {
-                    printf("  %s: ", topnodelist->data.structdef.fieldnames[i]);
-                    print_ast_type(&topnodelist->data.structdef.fieldtypes[i]);
+                    topnodelist->data.structdef.name, topnodelist->data.structdef.fields.len);
+                for (const AstNameTypeValue *ntv = topnodelist->data.structdef.fields.ptr; ntv < End(topnodelist->data.structdef.fields); ntv++) {
+                    printf("  %s: ", ntv->name);
+                    print_ast_type(&ntv->type);
                     printf("\n");
                 }
                 break;

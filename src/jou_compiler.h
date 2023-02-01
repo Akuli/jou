@@ -147,9 +147,7 @@ struct AstType {
 struct AstSignature {
     Location funcname_location;
     char funcname[100];
-    int nargs;
-    AstType *argtypes;
-    char (*argnames)[100];
+    List(AstNameTypeValue) args;
     bool takes_varargs;  // true for functions like printf()
     AstType returntype;  // can represent void
 };
@@ -289,9 +287,7 @@ struct AstFunctionDef {
 
 struct AstStructDef {
     char name[100];
-    int nfields;
-    char (*fieldnames)[100];
-    AstType *fieldtypes;
+    List(AstNameTypeValue) fields;
 };
 
 struct AstImport {
