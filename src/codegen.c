@@ -142,9 +142,10 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
     case CONSTANT_INTEGER:
         return LLVMConstInt(codegen_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
     case CONSTANT_FLOAT:
+        floatlabel:
         return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_or_float_text);
     case CONSTANT_DOUBLE:
-        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_or_float_text);
+        goto floatlabel;
     case CONSTANT_NULL:
         return LLVMConstNull(codegen_type(voidPtrType));
     case CONSTANT_STRING:
@@ -190,11 +191,10 @@ static LLVMValueRef build_num_operation(
     const Type *t,
     LLVMValueRef (*signedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
     LLVMValueRef (*unsignedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
-    LLVMValueRef (*floatfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
     LLVMValueRef (*doublefn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*))
 {
     switch(t->kind) {
-        case TYPE_FLOAT: return floatfn(builder, lhs, rhs, "float_op");
+        case TYPE_FLOAT: return doublefn(builder, lhs, rhs, "float_op");
         case TYPE_DOUBLE: return doublefn(builder, lhs, rhs, "double_op");
         case TYPE_SIGNED_INTEGER: return signedfn(builder, lhs, rhs, "signed_op");
         case TYPE_UNSIGNED_INTEGER: return unsignedfn(builder, lhs, rhs, "unsigned_op");
@@ -296,11 +296,11 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(ins->destvar->type), "ptr_cast")); break;
         case CF_VARCPY: setdest(getop(0)); break;
 
-        case CF_NUM_ADD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildAdd, LLVMBuildAdd, LLVMBuildFAdd, LLVMBuildFAdd)); break;
-        case CF_NUM_SUB: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildSub, LLVMBuildSub, LLVMBuildFSub, LLVMBuildFSub)); break;
-        case CF_NUM_MUL: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildMul, LLVMBuildMul, LLVMBuildFMul, LLVMBuildFMul)); break;
-        case CF_NUM_DIV: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_div, LLVMBuildUDiv, LLVMBuildFDiv, LLVMBuildFDiv)); break;
-        case CF_NUM_MOD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_mod, LLVMBuildURem, LLVMBuildFRem, LLVMBuildFRem)); break;
+        case CF_NUM_ADD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildAdd, LLVMBuildAdd, LLVMBuildFAdd)); break;
+        case CF_NUM_SUB: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildSub, LLVMBuildSub, LLVMBuildFSub)); break;
+        case CF_NUM_MUL: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildMul, LLVMBuildMul, LLVMBuildFMul)); break;
+        case CF_NUM_DIV: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_div, LLVMBuildUDiv, LLVMBuildFDiv)); break;
+        case CF_NUM_MOD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_mod, LLVMBuildURem, LLVMBuildFRem)); break;
 
         case CF_NUM_EQ:
             if (is_integer_type(ins->operands[0]->type))
