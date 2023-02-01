@@ -79,13 +79,13 @@ jobs:
       - name: Extract the linker from MinGW
         run: >
           7z x x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z
-#      mingw64/bin/gcc.exe
-#      mingw64/lib/gcc/x86_64-w64-mingw32/12.2.0/libgcc.a
-#      mingw64/lib/gcc/x86_64-w64-mingw32/12.2.0/libgcc_eh.a
-#      mingw64/libexec/gcc/x86_64-w64-mingw32/12.2.0/liblto_plugin.dll
-#      mingw64/x86_64-w64-mingw32/bin/ld.exe
-#      mingw64/x86_64-w64-mingw32/lib/
-#      mingw64/licenses/
+          mingw64/bin/gcc.exe
+          mingw64/lib/gcc/x86_64-w64-mingw32/12.2.0/libgcc.a
+          mingw64/lib/gcc/x86_64-w64-mingw32/12.2.0/libgcc_eh.a
+          mingw64/libexec/gcc/x86_64-w64-mingw32/12.2.0/liblto_plugin.dll
+          mingw64/x86_64-w64-mingw32/bin/ld.exe
+          mingw64/x86_64-w64-mingw32/lib/
+          mingw64/licenses/
       # Using gcc instead of clang, because gcc "just works".
       # llvm-13-dev needed for the header files. They seem to be missing from LLVM windows installer.
       - name: Install gcc and LLVM for cross-compiling
