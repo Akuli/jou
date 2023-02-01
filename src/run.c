@@ -3,10 +3,10 @@
     #define jou_mkdir(x) _mkdir((x))
 #else
     #define jou_mkdir(x) mkdir((x), 0777)  // this is what mkdir in bash does according to strace
+    #include "../config.h"  // specifies path where clang is installed
 #endif
 
 #include "jou_compiler.h"
-#include "../config.h"
 #include <libgen.h>
 #include <errno.h>
 #include <sys/stat.h>
