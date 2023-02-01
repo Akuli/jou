@@ -25,7 +25,7 @@ typedef struct AstConditionAndBody AstConditionAndBody;
 typedef struct AstExpression AstExpression;
 typedef struct AstAssignment AstAssignment;
 typedef struct AstForLoop AstForLoop;
-typedef struct AstVarDeclaration AstVarDeclaration;
+typedef struct AstNameTypeValue AstNameTypeValue;
 typedef struct AstIfStatement AstIfStatement;
 typedef struct AstStatement AstStatement;
 typedef struct AstToplevelNode AstToplevelNode;
@@ -241,11 +241,11 @@ struct AstIfStatement {
     int n_if_and_elifs;  // Always >= 1 for the initial "if"
     AstBody elsebody;  // Empty (0 statements) means no else
 };
-struct AstVarDeclaration {
-    // name: type = initial_value
+struct AstNameTypeValue {
+    // name: type = value
     char name[100];
     AstType type;
-    AstExpression *initial_value; // can be NULL
+    AstExpression *value; // can be NULL if value is missing
 };
 struct AstAssignment {
     // target = value
@@ -277,7 +277,7 @@ struct AstStatement {
         AstConditionAndBody whileloop;
         AstIfStatement ifstatement;
         AstForLoop forloop;
-        AstVarDeclaration vardecl;
+        AstNameTypeValue vardecl;
         AstAssignment assignment;  // also used for inplace operations
     } data;
 };
@@ -313,7 +313,7 @@ struct AstToplevelNode {
     } kind;
     union {
         AstSignature decl_signature;  // AST_TOPLEVEL_DECLARE_FUNCTION
-        AstVarDeclaration globalvar;  // AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE
+        AstNameTypeValue globalvar;  // AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE
         AstFunctionDef funcdef;  // AST_TOPLEVEL_DEFINE_FUNCTION
         AstStructDef structdef;  // AST_TOPLEVEL_DEFINE_STRUCT
         AstImport import;       // AST_TOPLEVEL_IMPORT
@@ -433,7 +433,7 @@ struct TypeContext {
 // function body can be NULL to check a declaration
 Signature typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
 void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location);
-GlobalVariable *typecheck_global_var(TypeContext *ctx, const AstVarDeclaration *vardecl);
+GlobalVariable *typecheck_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl);
 
 /*
 Wipes all function-specific data, making the type context suitable

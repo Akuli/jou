@@ -739,10 +739,10 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         break;
 
     case AST_STMT_DECLARE_LOCAL_VAR:
-        if (stmt->data.vardecl.initial_value) {
+        if (stmt->data.vardecl.value) {
             const LocalVariable *v = find_local_var(st, stmt->data.vardecl.name);
             assert(v);
-            const LocalVariable *cfvar = build_expression(st, stmt->data.vardecl.initial_value);
+            const LocalVariable *cfvar = build_expression(st, stmt->data.vardecl.value);
             add_unary_op(st, stmt->location, CF_VARCPY, cfvar, v);
         }
         break;

@@ -324,10 +324,10 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             printf("declare local var \"%s\", type ", stmt->data.vardecl.name);
             print_ast_type(&stmt->data.vardecl.type);
             printf("\n");
-            if (stmt->data.vardecl.initial_value) {
+            if (stmt->data.vardecl.value) {
                 sub = print_tree_prefix(tp, true);
                 printf("initial value:\n");
-                print_ast_expression(stmt->data.vardecl.initial_value, print_tree_prefix(sub, true));
+                print_ast_expression(stmt->data.vardecl.value, print_tree_prefix(sub, true));
             }
             break;
 #define PrintAssignment \
@@ -362,13 +362,13 @@ void print_ast(const AstToplevelNode *topnodelist)
                     topnodelist->data.import.symbolname, topnodelist->data.import.path);
                 break;
             case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-                assert(!topnodelist->data.globalvar.initial_value);
+                assert(!topnodelist->data.globalvar.value);
                 printf("Declare a global variable %s: ", topnodelist->data.globalvar.name);
                 print_ast_type(&topnodelist->data.globalvar.type);
                 printf("\n");
                 break;
             case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-                assert(!topnodelist->data.globalvar.initial_value);
+                assert(!topnodelist->data.globalvar.value);
                 printf("Define a global variable %s: ", topnodelist->data.globalvar.name);
                 print_ast_type(&topnodelist->data.globalvar.type);
                 printf("\n");

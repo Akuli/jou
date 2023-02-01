@@ -88,10 +88,11 @@ static AstType parse_type(const Token **tokens)
     return result;
 }
 
-// does not eat a trailing newline
-static AstVarDeclaration parse_var_declaration(const Token **tokens, const char *expected_what_for_name)
+// name: type = value
+// The value is optional, and will be NULL if missing.
+static AstNameTypeValue parse_name_type_value(const Token **tokens, const char *expected_what_for_name)
 {
-    AstVarDeclaration result;
+    AstNameTypeValue result;
 
     if ((*tokens)->type != TOKEN_NAME) {
         assert(expected_what_for_name);
@@ -109,9 +110,9 @@ static AstVarDeclaration parse_var_declaration(const Token **tokens, const char 
         ++*tokens;
         AstExpression *p = malloc(sizeof *p);
         *p = parse_expression(tokens);
-        result.initial_value = p;
+        result.value = p;
     } else {
-        result.initial_value = NULL;
+        result.value = NULL;
     }
 
     return result;
@@ -131,9 +132,9 @@ static void parse_name_and_type_to_list(
     const char *defaults_error_msg)
 {
     Location name_location = (*tokens)->location;
-    AstVarDeclaration result = parse_var_declaration(tokens, expected_what_for_name);
-    if (result.initial_value)
-        fail_with_error(result.initial_value->location, "%s", defaults_error_msg);
+    AstNameTypeValue result = parse_name_type_value(tokens, expected_what_for_name);
+    if (result.value)
+        fail_with_error(result.value->location, "%s", defaults_error_msg);
 
     for (int i = 0; i < names->len; i++)
         if (!strcmp(names->ptr[i].name, result.name))
@@ -676,7 +677,7 @@ static AstStatement parse_oneline_statement(const Token **tokens)
     } else if ((*tokens)->type == TOKEN_NAME && is_operator(&(*tokens)[1], ":")) {
         // "foo: int" creates a variable "foo" of type "int"
         result.kind = AST_STMT_DECLARE_LOCAL_VAR;
-        result.data.vardecl = parse_var_declaration(tokens, NULL);
+        result.data.vardecl = parse_name_type_value(tokens, NULL);
     } else {
         AstExpression expr = parse_expression(tokens);
         result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(*tokens);
@@ -886,10 +887,10 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
         if (is_keyword(*tokens, "global")) {
             ++*tokens;
             result.kind = AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE;
-            result.data.globalvar = parse_var_declaration(tokens, "a variable name");
-            if (result.data.globalvar.initial_value) {
+            result.data.globalvar = parse_name_type_value(tokens, "a variable name");
+            if (result.data.globalvar.value) {
                 fail_with_error(
-                    result.data.globalvar.initial_value->location,
+                    result.data.globalvar.value->location,
                     "a value cannot be given when declaring a global variable");
             }
         } else {
@@ -900,7 +901,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
     } else if (is_keyword(*tokens, "global")) {
         ++*tokens;
         result.kind = AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE;
-        result.data.globalvar = parse_var_declaration(tokens, "a variable name");
+        result.data.globalvar = parse_name_type_value(tokens, "a variable name");
         eat_newline(tokens);
     } else if (is_keyword(*tokens, "struct")) {
         ++*tokens;

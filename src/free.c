@@ -55,6 +55,15 @@ static void free_call(const AstCall *call)
     free(call->args);
 }
 
+static void free_name_type_value(const AstNameTypeValue *ntv)
+{
+    free_ast_type(&ntv->type);
+    if(ntv->value) {
+        free_expression(ntv->value);
+        free(ntv->value);
+    }
+}
+
 static void free_expression(const AstExpression *expr)
 {
     switch(expr->kind) {
@@ -140,11 +149,7 @@ static void free_statement(const AstStatement *stmt)
         free_expression(&stmt->data.expression);
         break;
     case AST_STMT_DECLARE_LOCAL_VAR:
-        free_ast_type(&stmt->data.vardecl.type);
-        if (stmt->data.vardecl.initial_value) {
-            free_expression(stmt->data.vardecl.initial_value);
-            free(stmt->data.vardecl.initial_value);
-        }
+        free_name_type_value(&stmt->data.vardecl);
         break;
     case AST_STMT_ASSIGN:
     case AST_STMT_INPLACE_ADD:
@@ -181,10 +186,10 @@ void free_ast(AstToplevelNode *topnodelist)
             free_body(&t->data.funcdef.body);
             break;
         case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-            assert(!t->data.globalvar.initial_value);
+            assert(!t->data.globalvar.value);
             break;
         case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-            assert(!t->data.globalvar.initial_value);  // TODO
+            assert(!t->data.globalvar.value);  // TODO
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
             free(t->data.structdef.fieldnames);

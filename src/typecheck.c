@@ -819,9 +819,9 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
             fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
 
         const Type *type = type_from_ast(ctx, &stmt->data.vardecl.type);
-        if (stmt->data.vardecl.initial_value) {
+        if (stmt->data.vardecl.value) {
             typecheck_expression_with_implicit_cast(
-                ctx, stmt->data.vardecl.initial_value, type,
+                ctx, stmt->data.vardecl.value, type,
                 "initial value for variable of type TO cannot be of type FROM");
         }
         add_variable(ctx, type, stmt->data.vardecl.name);
@@ -908,9 +908,9 @@ void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location 
     Append(&ctx->exports, es);
 }
 
-GlobalVariable *typecheck_global_var(TypeContext *ctx, const AstVarDeclaration *vardecl)
+GlobalVariable *typecheck_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl)
 {
-    assert(!vardecl->initial_value);
+    assert(!vardecl->value);
     GlobalVariable *g = malloc(sizeof *g);
     safe_strcpy(g->name, vardecl->name);
     g->type = type_from_ast(ctx, &vardecl->type);
