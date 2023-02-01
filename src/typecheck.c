@@ -1,6 +1,5 @@
 #include "jou_compiler.h"
 
-
 static const Variable *find_variable(const TypeContext *ctx, const char *name)
 {
     for (Variable **var = ctx->variables.ptr; var < End(ctx->variables); var++)

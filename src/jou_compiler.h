@@ -50,7 +50,6 @@ struct CommandLineFlags {
     const char *outfile;  // If not NULL, where to output executable
 };
 
-
 struct Location {
     const char *filename;
     int lineno;
@@ -63,7 +62,6 @@ struct Location {
     void show_warning(Location location, const char *fmt, ...);
     noreturn void fail_with_error(Location location, const char *fmt, ...);
 #endif
-
 
 struct Token {
     enum TokenType {
@@ -92,7 +90,6 @@ struct Token {
         char operator[4];  // TOKEN_OPERATOR
     } data;
 };
-
 
 // Constants can appear in AST and also compilation steps after AST.
 struct Constant {
@@ -123,7 +120,6 @@ struct Constant {
         } \
     } \
 )
-
 
 /*
 There is AstType and Type. The distinction is that Type contains more
@@ -390,7 +386,6 @@ struct Signature {
 
 char *signature_to_string(const Signature *sig, bool include_return_type);
 Signature copy_signature(const Signature *sig);
-
 
 struct Variable {
     int id;  // Unique, but you can also compare pointers to Variable.

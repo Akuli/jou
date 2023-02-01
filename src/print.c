@@ -35,6 +35,7 @@ static void print_constant(const Constant *c)
         break;
     case CONSTANT_FLOAT:
         printf("float %s", c->data.double_or_float_text);
+        break;
     case CONSTANT_INTEGER:
         printf(
             "%lld (%d-bit %s)",
