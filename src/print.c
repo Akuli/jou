@@ -49,8 +49,8 @@ static void print_constant(const Constant *c)
     case CONSTANT_STRING:
         print_string(c->data.str);
         break;
-    }
     default:break;
+    }
 }
 
 void print_token(const Token *token)
@@ -61,6 +61,9 @@ void print_token(const Token *token)
         break;
     case TOKEN_LONG:
         printf("long %lld\n", (long long)token->data.long_value);
+        break;
+    case TOKEN_FLOAT:
+        printf("float %f\n", token->data.name);
         break;
     case TOKEN_DOUBLE:
         printf("double %s\n", token->data.name);
