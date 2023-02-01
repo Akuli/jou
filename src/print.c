@@ -30,11 +30,11 @@ static void print_constant(const Constant *c)
     case CONSTANT_BOOL:
         printf(c->data.boolean ? "True" : "False");
         break;
-    case CONSTANT_DOUBLE:
-        printf("double %s", c->data.double_or_float_text);
-        break;
     case CONSTANT_FLOAT:
         printf("float %s", c->data.double_or_float_text);
+        break;
+    case CONSTANT_DOUBLE:
+        printf("double %s", c->data.double_or_float_text);
         break;
     case CONSTANT_INTEGER:
         printf(
@@ -50,6 +50,7 @@ static void print_constant(const Constant *c)
         print_string(c->data.str);
         break;
     }
+    default:break;
 }
 
 void print_token(const Token *token)
