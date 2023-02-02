@@ -38,13 +38,21 @@ static void free_ast_type(const AstType *t)
     }
 }
 
+static void free_name_type_value(const AstNameTypeValue *ntv)
+{
+    free_ast_type(&ntv->type);
+    if(ntv->value) {
+        free_expression(ntv->value);
+        free(ntv->value);
+    }
+}
+
 static void free_ast_signature(const AstSignature *sig)
 {
-    free(sig->argnames);
-    for (int i = 0; i < sig->nargs; i++)
-        free_ast_type(&sig->argtypes[i]);
+    for (const AstNameTypeValue *ntv = sig->args.ptr; ntv < End(sig->args); ntv++)
+        free_name_type_value(ntv);
+    free(sig->args.ptr);
     free_ast_type(&sig->returntype);
-    free(sig->argtypes);
 }
 
 static void free_call(const AstCall *call)
@@ -53,15 +61,6 @@ static void free_call(const AstCall *call)
         free_expression(&call->args[i]);
     free(call->argnames);
     free(call->args);
-}
-
-static void free_name_type_value(const AstNameTypeValue *ntv)
-{
-    free_ast_type(&ntv->type);
-    if(ntv->value) {
-        free_expression(ntv->value);
-        free(ntv->value);
-    }
 }
 
 static void free_expression(const AstExpression *expr)
@@ -190,10 +189,9 @@ void free_ast(AstToplevelNode *topnodelist)
             free_name_type_value(&t->data.globalvar);
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
-            free(t->data.structdef.fieldnames);
-            for (int i = 0; i < t->data.structdef.nfields; i++)
-                free_ast_type(&t->data.structdef.fieldtypes[i]);
-            free(t->data.structdef.fieldtypes);
+            for (const AstNameTypeValue *ntv = t->data.structdef.fields.ptr; ntv < End(t->data.structdef.fields); ntv++)
+                free_name_type_value(ntv);
+            free(t->data.structdef.fields.ptr);
             break;
         case AST_TOPLEVEL_IMPORT:
             free(t->data.import.path);

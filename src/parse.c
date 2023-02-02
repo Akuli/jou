@@ -118,34 +118,6 @@ static AstNameTypeValue parse_name_type_value(const Token **tokens, const char *
     return result;
 }
 
-// char[100] is wrapped in a struct so that you can do List(Name).
-// You can't do List(char[100]) or similar because C doesn't allow assigning arrays.
-struct Name { char name[100]; };
-static_assert(sizeof(struct Name) == 100, "u have weird c compiler...");
-typedef List(struct Name) NameList;
-typedef List(AstType) TypeList;
-
-static void parse_name_and_type_to_list(
-    const Token **tokens, NameList *names, TypeList *types,
-    const char *expected_what_for_name, // e.g. "an argument name" to get error message "expected an argument name, got blah"
-    const char *duplicate_name_error_fmt,  // %s will be replaced by a name
-    const char *defaults_error_msg)
-{
-    Location name_location = (*tokens)->location;
-    AstNameTypeValue result = parse_name_type_value(tokens, expected_what_for_name);
-    if (result.value)
-        fail_with_error(result.value->location, "%s", defaults_error_msg);
-
-    for (int i = 0; i < names->len; i++)
-        if (!strcmp(names->ptr[i].name, result.name))
-            fail_with_error(name_location, duplicate_name_error_fmt, result.name);
-
-    struct Name n;
-    safe_strcpy(n.name, result.name);
-    Append(names, n);
-    Append(types, result.type);
-}
-
 static AstSignature parse_function_signature(const Token **tokens)
 {
     AstSignature result = {0};
@@ -159,9 +131,6 @@ static AstSignature parse_function_signature(const Token **tokens)
         fail_with_parse_error(*tokens, "a '(' to denote the start of function arguments");
     ++*tokens;
 
-    NameList argnames = {0};
-    TypeList argtypes = {0};
-
     while (!is_operator(*tokens, ")")) {
         if (result.takes_varargs)
             fail_with_error((*tokens)->location, "if '...' is used, it must be the last parameter");
@@ -170,11 +139,16 @@ static AstSignature parse_function_signature(const Token **tokens)
             result.takes_varargs = true;
             ++*tokens;
         } else {
-            parse_name_and_type_to_list(
-                tokens, &argnames, &argtypes,
-                "an argument name",
-                "there are multiple arguments named '%s'",
-                "function arguments cannot have default values");
+            Location name_location = (*tokens)->location;
+            AstNameTypeValue arg = parse_name_type_value(tokens, "an argument name");
+
+            if (arg.value)
+                fail_with_error(arg.value->location, "function arguments cannot have default values");
+
+            for (const AstNameTypeValue *prevarg = result.args.ptr; prevarg < End(result.args); prevarg++)
+                if (!strcmp(prevarg->name, arg.name))
+                    fail_with_error(name_location, "there are multiple arguments named '%s'", prevarg->name);
+            Append(&result.args, arg);
         }
 
         if (is_operator(*tokens, ","))
@@ -186,11 +160,6 @@ static AstSignature parse_function_signature(const Token **tokens)
     if (!is_operator(*tokens, ")"))
         fail_with_parse_error(*tokens, "a ')'");
     ++*tokens;
-
-    result.argnames = (char(*)[100])argnames.ptr;  // sometimes c syntax surprises me
-    result.argtypes = argtypes.ptr;
-    assert(argnames.len == argtypes.len);
-    result.nargs = argnames.len;
 
     if (!is_operator(*tokens, "->")) {
         // Special case for common typo:   def foo():
@@ -225,6 +194,11 @@ static AstCall parse_call(const Token **tokens, char openparen, char closeparen,
     ++*tokens;
 
     List(AstExpression) args = {0};
+
+    // char[100] is wrapped in a struct so we can make a list of it.
+    // You can't do List(char[100]) or similar because C doesn't allow assigning arrays.
+    struct Name { char name[100]; };
+    static_assert(sizeof(struct Name) == 100, "u have weird c compiler...");
     List(struct Name) argnames = {0};
 
     while (!is_operator(*tokens, (char[]){closeparen,'\0'})) {
@@ -757,30 +731,29 @@ static AstBody parse_body(const Token **tokens)
 
 static AstStructDef parse_structdef(const Token **tokens)
 {
-    AstStructDef result;
+    AstStructDef result = {0};
     if ((*tokens)->type != TOKEN_NAME)
         fail_with_parse_error(*tokens, "a name for the struct");
     safe_strcpy(result.name, (*tokens)->data.name);
     ++*tokens;
 
-    NameList fieldnames = {0};
-    TypeList fieldtypes = {0};
-
     parse_start_of_body(tokens);
     while ((*tokens)->type != TOKEN_DEDENT) {
-        parse_name_and_type_to_list(
-            tokens, &fieldnames, &fieldtypes,
-            "a name for a struct field",
-            "there are multiple fields named '%s'",
-            "struct members cannot have default values");
+        Location name_location = (*tokens)->location;
+        AstNameTypeValue field = parse_name_type_value(tokens, "a name for a struct field");
+
+        if (field.value)
+            fail_with_error(field.value->location, "struct fields cannot have default values");
+
+        for (const AstNameTypeValue *prevfield = result.fields.ptr; prevfield < End(result.fields); prevfield++)
+            if (!strcmp(prevfield->name, field.name))
+                fail_with_error(name_location, "there are multiple fields named '%s'", field.name);
+        Append(&result.fields, field);
+
         eat_newline(tokens);
     }
-    ++*tokens;
 
-    result.fieldnames = (char(*)[100])fieldnames.ptr;
-    result.fieldtypes = fieldtypes.ptr;
-    assert(fieldnames.len == fieldtypes.len);
-    result.nfields = fieldnames.len;
+    ++*tokens;
     return result;
 }
 
