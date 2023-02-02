@@ -29,6 +29,14 @@ void simplify_path(char *path)
     char *p;
     while ((p = strstr(path, "/./")))
         delete_slice(p, p+2);
+
+    // Delete unnecessary ".." components.
+    while ((p = strstr(path, "/../"))) {
+        char *delstart = p;
+        while (delstart > path && delstart[-1] != '/')
+            delstart--;
+        delete_slice(delstart, p+4);
+    }
 }
 
 
