@@ -118,13 +118,6 @@ static AstNameTypeValue parse_name_type_value(const Token **tokens, const char *
     return result;
 }
 
-// char[100] is wrapped in a struct so that you can do List(Name).
-// You can't do List(char[100]) or similar because C doesn't allow assigning arrays.
-struct Name { char name[100]; };
-static_assert(sizeof(struct Name) == 100, "u have weird c compiler...");
-typedef List(struct Name) NameList;
-typedef List(AstType) TypeList;
-
 static AstSignature parse_function_signature(const Token **tokens)
 {
     AstSignature result = {0};
@@ -201,6 +194,11 @@ static AstCall parse_call(const Token **tokens, char openparen, char closeparen,
     ++*tokens;
 
     List(AstExpression) args = {0};
+
+    // char[100] is wrapped in a struct so we can make a list of it.
+    // You can't do List(char[100]) or similar because C doesn't allow assigning arrays.
+    struct Name { char name[100]; };
+    static_assert(sizeof(struct Name) == 100, "u have weird c compiler...");
     List(struct Name) argnames = {0};
 
     while (!is_operator(*tokens, (char[]){closeparen,'\0'})) {
