@@ -92,8 +92,11 @@ jobs:
         run: sudo apt update && sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
       - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
       - run: mkdir jou
-      # Please keep this list of files in sync with update.ps1
-      - run: cp -rv stdlib doc examples mingw64 LICENSE jou.exe update.ps1 bin/*.dll jou
+      - name: Copy files
+        # Please keep this list of files in sync with update.ps1
+        run: cp -rv stdlib doc examples mingw64 LICENSE jou.exe update.ps1 bin/*.dll jou
+      - name: Convert files to Windows-style CRLF line endings
+        run: unix2dos $(find jou -name '*.jou') $(find jou/doc -name '*.md') jou/LICENSE
       - run: zip -r jou.zip jou
       - uses: actions/upload-artifact@v3
         with:
