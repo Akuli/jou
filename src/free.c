@@ -49,6 +49,8 @@ static void free_name_type_value(const AstNameTypeValue *ntv)
 
 static void free_ast_signature(const AstSignature *sig)
 {
+    for (const AstNameTypeValue *ntv = sig->args.ptr; ntv < End(sig->args); ntv++)
+        free_name_type_value(ntv);
     free(sig->args.ptr);
     free_ast_type(&sig->returntype);
 }

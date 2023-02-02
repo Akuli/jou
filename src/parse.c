@@ -125,27 +125,6 @@ static_assert(sizeof(struct Name) == 100, "u have weird c compiler...");
 typedef List(struct Name) NameList;
 typedef List(AstType) TypeList;
 
-static void parse_name_and_type_to_list(
-    const Token **tokens, NameList *names, TypeList *types,
-    const char *expected_what_for_name, // e.g. "an argument name" to get error message "expected an argument name, got blah"
-    const char *duplicate_name_error_fmt,  // %s will be replaced by a name
-    const char *defaults_error_msg)
-{
-    Location name_location = (*tokens)->location;
-    AstNameTypeValue result = parse_name_type_value(tokens, expected_what_for_name);
-    if (result.value)
-        fail_with_error(result.value->location, "%s", defaults_error_msg);
-
-    for (int i = 0; i < names->len; i++)
-        if (!strcmp(names->ptr[i].name, result.name))
-            fail_with_error(name_location, duplicate_name_error_fmt, result.name);
-
-    struct Name n;
-    safe_strcpy(n.name, result.name);
-    Append(names, n);
-    Append(types, result.type);
-}
-
 static AstSignature parse_function_signature(const Token **tokens)
 {
     AstSignature result = {0};
