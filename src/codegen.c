@@ -44,13 +44,13 @@ static LLVMTypeRef codegen_type(const Type *type)
 struct State {
     LLVMModuleRef module;
     LLVMBuilderRef builder;
-    Variable **cfvars, **cfvars_end;
+    LocalVariable **cfvars, **cfvars_end;
     // All local variables are represented as pointers to stack space, even
     // if they are never reassigned. LLVM will optimize the mess.
     LLVMValueRef *llvm_locals;
 };
 
-static LLVMValueRef get_pointer_to_local_var(const struct State *st, const Variable *cfvar)
+static LLVMValueRef get_pointer_to_local_var(const struct State *st, const LocalVariable *cfvar)
 {
     assert(cfvar);
     /*
@@ -66,22 +66,22 @@ static LLVMValueRef get_pointer_to_local_var(const struct State *st, const Varia
     so I wouldn't need to ever resize the list of variables, but the CFG building
     is already complicated enough as is.
     */
-    for (Variable **v = st->cfvars; v < st->cfvars_end; v++)
+    for (LocalVariable **v = st->cfvars; v < st->cfvars_end; v++)
         if (*v == cfvar)
             return st->llvm_locals[v - st->cfvars];
     assert(0);
 }
 
-static LLVMValueRef get_local_var(const struct State *st, const Variable *cfvar)
+static LLVMValueRef get_local_var(const struct State *st, const LocalVariable *cfvar)
 {
     LLVMValueRef varptr = get_pointer_to_local_var(st, cfvar);
     return LLVMBuildLoad(st->builder, varptr, cfvar->name);
 }
 
-static void set_local_var(const struct State *st, const Variable *cfvar, LLVMValueRef value)
+static void set_local_var(const struct State *st, const LocalVariable *cfvar, LLVMValueRef value)
 {
     assert(cfvar);
-    for (Variable **v = st->cfvars; v < st->cfvars_end; v++) {
+    for (LocalVariable **v = st->cfvars; v < st->cfvars_end; v++) {
         if (*v == cfvar) {
             LLVMBuildStore(st->builder, value, st->llvm_locals[v - st->cfvars]);
             return;
@@ -222,7 +222,8 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             break;
         case CF_CONSTANT: setdest(codegen_constant(st, &ins->data.constant)); break;
         case CF_SIZEOF: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
-        case CF_ADDRESS_OF_VARIABLE: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
+        case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
+        case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
         case CF_PTR_LOAD: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
         case CF_PTR_STORE: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
         case CF_PTR_EQ:
@@ -331,11 +332,20 @@ static int find_block(const CfGraph *cfg, const CfBlock *b)
     assert(0);
 }
 
+#ifdef _WIN32
+static void codegen_call_to_the_special_startup_function(const struct State *st)
+{
+    LLVMTypeRef functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
+    LLVMValueRef func = LLVMAddFunction(st->module, "_jou_windows_startup", functype);
+    LLVMBuildCall2(st->builder, functype, func, NULL, 0, "");
+}
+#endif
+
 static void codegen_function_def(struct State *st, const Signature *sig, const CfGraph *cfg)
 {
-    st->cfvars = cfg->variables.ptr;
-    st->cfvars_end = End(cfg->variables);
-    st->llvm_locals = malloc(sizeof(st->llvm_locals[0]) * cfg->variables.len); // NOLINT
+    st->cfvars = cfg->locals.ptr;
+    st->cfvars_end = End(cfg->locals);
+    st->llvm_locals = malloc(sizeof(st->llvm_locals[0]) * cfg->locals.len); // NOLINT
 
     LLVMValueRef llvm_func = codegen_function_decl(st, sig);
     LLVMBasicBlockRef *blocks = malloc(sizeof(blocks[0]) * cfg->all_blocks.len); // NOLINT
@@ -348,10 +358,15 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
     assert(cfg->all_blocks.ptr[0] == &cfg->start_block);
     LLVMPositionBuilderAtEnd(st->builder, blocks[0]);
 
+#ifdef _WIN32
+    if (!strcmp(sig->funcname, "main"))
+        codegen_call_to_the_special_startup_function(st);
+#endif
+
     // Allocate stack space for local variables at start of function.
     LLVMValueRef return_value = NULL;
-    for (int i = 0; i < cfg->variables.len; i++) {
-        Variable *v = cfg->variables.ptr[i];
+    for (int i = 0; i < cfg->locals.len; i++) {
+        LocalVariable *v = cfg->locals.ptr[i];
         st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(v->type), v->name);
         if (!strcmp(v->name, "return"))
             return_value = st->llvm_locals[i];
@@ -359,7 +374,7 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
 
     // Place arguments into the first n local variables.
     for (int i = 0; i < sig->nargs; i++)
-        set_local_var(st, cfg->variables.ptr[i], LLVMGetParam(llvm_func, i));
+        set_local_var(st, cfg->locals.ptr[i], LLVMGetParam(llvm_func, i));
 
     for (CfBlock **b = cfg->all_blocks.ptr; b <End(cfg->all_blocks); b++) {
         LLVMPositionBuilderAtEnd(st->builder, blocks[b - cfg->all_blocks.ptr]);
@@ -401,9 +416,25 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
         .builder = LLVMCreateBuilder(),
     };
 
-    for (const ExportSymbol **es = typectx->imports.ptr; es < End(typectx->imports); es++)
-        if ((*es)->kind == EXPSYM_FUNCTION)
+    for (const ExportSymbol **es = typectx->imports.ptr; es < End(typectx->imports); es++) {
+        switch((*es)->kind) {
+        case EXPSYM_FUNCTION:
             codegen_function_decl(&st, &(*es)->data.funcsignature);
+            break;
+        case EXPSYM_GLOBAL_VAR:
+            LLVMAddGlobal(st.module, codegen_type((*es)->data.type), (*es)->name);
+            break;
+        case EXPSYM_TYPE:
+            break;
+        }
+    }
+
+    for (GlobalVariable **v = typectx->globals.ptr; v < End(typectx->globals); v++) {
+        LLVMTypeRef t = codegen_type((*v)->type);
+        LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
+        if (!(*v)->defined_outside_jou)
+            LLVMSetInitializer(globalptr, LLVMGetUndef(t));
+    }
 
     for (int i = 0; i < cfgfile->nfuncs; i++)
         if (cfgfile->graphs[i])

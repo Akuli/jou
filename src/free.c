@@ -38,13 +38,21 @@ static void free_ast_type(const AstType *t)
     }
 }
 
+static void free_name_type_value(const AstNameTypeValue *ntv)
+{
+    free_ast_type(&ntv->type);
+    if(ntv->value) {
+        free_expression(ntv->value);
+        free(ntv->value);
+    }
+}
+
 static void free_ast_signature(const AstSignature *sig)
 {
-    free(sig->argnames);
-    for (int i = 0; i < sig->nargs; i++)
-        free_ast_type(&sig->argtypes[i]);
+    for (const AstNameTypeValue *ntv = sig->args.ptr; ntv < End(sig->args); ntv++)
+        free_name_type_value(ntv);
+    free(sig->args.ptr);
     free_ast_type(&sig->returntype);
-    free(sig->argtypes);
 }
 
 static void free_call(const AstCall *call)
@@ -140,11 +148,7 @@ static void free_statement(const AstStatement *stmt)
         free_expression(&stmt->data.expression);
         break;
     case AST_STMT_DECLARE_LOCAL_VAR:
-        free_ast_type(&stmt->data.vardecl.type);
-        if (stmt->data.vardecl.initial_value) {
-            free_expression(stmt->data.vardecl.initial_value);
-            free(stmt->data.vardecl.initial_value);
-        }
+        free_name_type_value(&stmt->data.vardecl);
         break;
     case AST_STMT_ASSIGN:
     case AST_STMT_INPLACE_ADD:
@@ -180,11 +184,14 @@ void free_ast(AstToplevelNode *topnodelist)
             free_ast_signature(&t->data.funcdef.signature);
             free_body(&t->data.funcdef.body);
             break;
+        case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
+        case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
+            free_name_type_value(&t->data.globalvar);
+            break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
-            free(t->data.structdef.fieldnames);
-            for (int i = 0; i < t->data.structdef.nfields; i++)
-                free_ast_type(&t->data.structdef.fieldtypes[i]);
-            free(t->data.structdef.fieldtypes);
+            for (const AstNameTypeValue *ntv = t->data.structdef.fields.ptr; ntv < End(t->data.structdef.fields); ntv++)
+                free_name_type_value(ntv);
+            free(t->data.structdef.fields.ptr);
             break;
         case AST_TOPLEVEL_IMPORT:
             free(t->data.import.path);
@@ -205,8 +212,8 @@ static void free_signature(const Signature *sig)
 
 void free_type_context(const TypeContext *ctx)
 {
-    free(ctx->expr_types.ptr);
-    free(ctx->variables.ptr);
+    for (GlobalVariable **g = ctx->globals.ptr; g < End(ctx->globals); g++)
+        free(*g);
     for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
         free_type(*t);
     for (Signature *s = ctx->function_signatures.ptr; s < End(ctx->function_signatures); s++)
@@ -217,10 +224,14 @@ void free_type_context(const TypeContext *ctx)
             free_signature(&sym->data.funcsignature);
             break;
         case EXPSYM_TYPE:
-            // references a struct type in ctx->structs
+        case EXPSYM_GLOBAL_VAR:
+            // doesn't own the type, could e.g. reference a struct type in ctx->structs
             break;
         }
     }
+    free(ctx->expr_types.ptr);
+    free(ctx->globals.ptr);
+    free(ctx->locals.ptr);
     free(ctx->structs.ptr);
     free(ctx->function_signatures.ptr);
     free(ctx->imports.ptr);
@@ -245,11 +256,11 @@ static void free_cfg(CfGraph *cfg)
     for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++)
         free_control_flow_graph_block(cfg, *b);
 
-    for (Variable **v = cfg->variables.ptr; v < End(cfg->variables); v++)
+    for (LocalVariable **v = cfg->locals.ptr; v < End(cfg->locals); v++)
         free(*v);
 
     free(cfg->all_blocks.ptr);
-    free(cfg->variables.ptr);
+    free(cfg->locals.ptr);
     free(cfg);
 }
 

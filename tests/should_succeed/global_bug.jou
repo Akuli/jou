@@ -1,0 +1,7 @@
+# Previously this segfaulted the compiler.
+declare global stdout: byte*
+declare fputs(s: byte*, file: byte*) -> int
+
+def main() -> int:
+    fputs("Hello World\n", stdout)  # Output: Hello World
+    return 0
