@@ -1,0 +1,9 @@
+# This file is meant to be imported, not ran directly.
+
+from "stdlib/io.jou" import printf
+from "../import_cycle.jou" import a
+
+def b(x: int) -> int:
+    printf("b %d\n", x)
+    if x > 0:
+        a(x-1)

@@ -1,0 +1,10 @@
+from "stdlib/io.jou" import printf
+from "./imported/cycle.jou" import b
+
+def a(x: int) -> int:
+    printf("a %d\n", x)
+    if x > 0:
+        b(x-1)
+
+def main() -> int:
+    a(10)
