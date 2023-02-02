@@ -88,12 +88,15 @@ jobs:
           mingw64/licenses/
       # Using gcc instead of clang, because gcc "just works".
       # llvm-13-dev needed for the header files. They seem to be missing from LLVM windows installer.
-      - name: Install gcc and LLVM for cross-compiling
-        run: sudo apt update && sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32
+      - name: Install gcc and dependencies for cross-compiling
+        run: sudo apt update && sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32 dos2unix
       - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
       - run: mkdir jou
-      # Please keep this list of files in sync with update.ps1
-      - run: cp -rv stdlib doc examples mingw64 LICENSE jou.exe update.ps1 bin/*.dll jou
+      - name: Copy files
+        # Please keep this list of files in sync with update.ps1
+        run: cp -rv stdlib doc examples mingw64 LICENSE jou.exe update.ps1 bin/*.dll jou
+      - name: Convert files to Windows-style CRLF line endings
+        run: unix2dos $(find jou -name '*.jou') $(find jou -name '*.md') jou/LICENSE
       - run: zip -r jou.zip jou
       - uses: actions/upload-artifact@v3
         with:
