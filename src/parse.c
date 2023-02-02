@@ -762,17 +762,25 @@ static char *get_actual_import_path(const Token *pathtoken, const char *stdlib_p
     if (pathtoken->type != TOKEN_STRING)
         fail_with_parse_error(pathtoken, "a string to specify the file name");
 
-    const char *part1, *part2;
-    char *tmp = NULL;
+    char *part1;
+    const char *part2;
+
     if (!strncmp(pathtoken->data.string_value, "stdlib/", 7)) {
         // Starts with stdlib --> import from where stdlib actually is
-        part1 = stdlib_path;
+        part1 = strdup(stdlib_path);
         part2 = pathtoken->data.string_value + 7;
     } else if (pathtoken->data.string_value[0] == '.') {
         // Relative to directory where the file is
-        tmp = strdup(pathtoken->location.filename);
-        part1 = dirname(tmp);
+        char *tmp = strdup(pathtoken->location.filename);
+        part1 = strdup(dirname(tmp));
+        free(tmp);
         part2 = pathtoken->data.string_value;
+        while (!strncmp(part2, "../", 3)) {
+            part2 += 3;
+            char *tmp = strdup(dirname(part1));
+            free(part1);
+            part1 = tmp;
+        }
     } else {
         fail_with_error(
             pathtoken->location,
@@ -782,7 +790,7 @@ static char *get_actual_import_path(const Token *pathtoken, const char *stdlib_p
     // 1 for slash, 1 for \0, 1 for fun
     char *path = malloc(strlen(part1) + strlen(part2) + 3);
     sprintf(path, "%s/%s", part1, part2);
-    free(tmp);
+    free(part1);
 
     simplify_path(path);
     return path;
