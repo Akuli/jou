@@ -176,7 +176,7 @@ static void do_implicit_cast(
             && from->data.width_in_bits < to->data.width_in_bits
             && !(from->kind == TYPE_SIGNED_INTEGER && to->kind == TYPE_UNSIGNED_INTEGER)
         ) || (
-            is_integer_type(from) && is_float_type(to)
+            is_integer_type(from) && to == floatType
         ) || (
             // Cast from any integer type to double.
             is_integer_type(from) && to == doubleType
@@ -634,7 +634,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_NEG:
         result = typecheck_expression(ctx, &expr->data.operands[0])->type;
-        if (result->kind != TYPE_SIGNED_INTEGER && !is_float_type(result))
+        if (result->kind != TYPE_SIGNED_INTEGER && !is_vaild_double(result))
             fail_with_error(
                 expr->location,
                 "value after '-' must be a float or double or a signed integer, not %s",

@@ -134,12 +134,7 @@ bool is_integer_type(const Type *t)
 
 bool is_number_type(const Type *t)
 {
-    return is_integer_type(t) || t->kind == TYPE_DOUBLE;
-}
-
-bool is_float_type(const Type *t)
-{
-    return is_integer_type(t) || t->kind == TYPE_FLOAT;
+      return is_integer_type(t) || t->kind == TYPE_DOUBLE || t->kind == TYPE_FLOAT;
 }
 
 bool is_pointer_type(const Type *t)

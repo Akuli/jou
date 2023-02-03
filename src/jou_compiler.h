@@ -370,8 +370,7 @@ Type *create_struct(
 void free_type(Type *type);
 
 bool is_integer_type(const Type *t);  // includes signed and unsigned
-bool is_number_type(const Type *t);  // integers, doubles
-bool is_float_type(const Type *t); // floats
+bool is_number_type(const Type *t);  // integers, floats, doubles
 bool is_pointer_type(const Type *t);  // includes void pointers
 
 struct Signature {
