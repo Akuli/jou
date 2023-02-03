@@ -634,7 +634,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_NEG:
         result = typecheck_expression(ctx, &expr->data.operands[0])->type;
-        if (result->kind != TYPE_SIGNED_INTEGER && !is_vaild_double(result))
+        if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_DOUBLE && result->kind != TYPE_FLOAT)
             fail_with_error(
                 expr->location,
                 "value after '-' must be a float or double or a signed integer, not %s",
