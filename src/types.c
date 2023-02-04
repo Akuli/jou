@@ -65,9 +65,9 @@ void init_types(void)
     assert(!global_state.inited);
 
     global_state.boolean.type = (Type){ .name = "bool", .kind = TYPE_BOOL };
-    global_state.floater.type = (Type){ .name = "float", .kind = TYPE_FLOAT, .data.width_in_bits = 32 };
-    global_state.doublelele.type = (Type){ .name = "double", .kind = TYPE_DOUBLE, .data.width_in_bits = 64 };
     global_state.voidptr.type = (Type){ .name = "void*", .kind = TYPE_VOID_POINTER };
+    global_state.floater.type = (Type){ .name = "float", .kind = TYPE_FLOATING_POINT, .data.width_in_bits = 32 };
+    global_state.doublelele.type = (Type){ .name = "double", .kind = TYPE_FLOATING_POINT, .data.width_in_bits = 64 };
 
     for (int size = 8; size <= 64; size *= 2) {
         global_state.integers[size][true].type.kind = TYPE_SIGNED_INTEGER;
@@ -134,7 +134,7 @@ bool is_integer_type(const Type *t)
 
 bool is_number_type(const Type *t)
 {
-      return is_integer_type(t) || t->kind == TYPE_DOUBLE || t->kind == TYPE_FLOAT;
+      return is_integer_type(t) || t->kind == TYPE_FLOATING_POINT;
 }
 
 bool is_pointer_type(const Type *t)

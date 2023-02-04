@@ -180,7 +180,7 @@ static void do_implicit_cast(
             from == floatType && to == doubleType
         ) || (
             // Cast from any integer type to float/double.
-            is_integer_type(from) && (to == floatType || to == doubleType)
+            is_integer_type(from) && to->kind == TYPE_FLOATING_POINT
         ) || (
             // Cast implicitly between void pointer and any other pointer.
             (from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
@@ -638,7 +638,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_NEG:
         result = typecheck_expression(ctx, &expr->data.operands[0])->type;
-        if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_DOUBLE && result->kind != TYPE_FLOAT)
+        if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_FLOATING_POINT)
             fail_with_error(
                 expr->location,
                 "value after '-' must be a float or double or a signed integer, not %s",

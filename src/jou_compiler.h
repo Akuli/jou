@@ -321,15 +321,14 @@ struct Type {
         TYPE_SIGNED_INTEGER,
         TYPE_UNSIGNED_INTEGER,
         TYPE_BOOL,
-        TYPE_FLOAT,
-        TYPE_DOUBLE,
+        TYPE_FLOATING_POINT,  // float or double
         TYPE_POINTER,
         TYPE_VOID_POINTER,
         TYPE_ARRAY,
         TYPE_STRUCT,
     } kind;
     union {
-        int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_DOUBLE TYPE_FLOAT
+        int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_FLOATING_POINT
         const Type *valuetype;  // TYPE_POINTER
         struct { const Type *membertype; int len; } array;  // TYPE_ARRAY
         struct { int count; char (*names)[100]; const Type **types; } structfields;  // TYPE_STRUCT

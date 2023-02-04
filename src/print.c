@@ -427,8 +427,7 @@ static const char *varname(const LocalVariable *var)
 static const char *very_short_number_type_description(const Type *t)
 {
     switch(t->kind) {
-        case TYPE_DOUBLE: return "double";
-        case TYPE_FLOAT: return "float";
+        case TYPE_FLOATING_POINT: return "floating";
         case TYPE_SIGNED_INTEGER: return "signed";
         case TYPE_UNSIGNED_INTEGER: return "unsigned";
         default: assert(0);
