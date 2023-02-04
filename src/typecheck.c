@@ -180,7 +180,7 @@ static void do_implicit_cast(
             from == floatType && to == doubleType
         ) || (
             // Cast from any integer type to float/double.
-            is_integer_type(from) && (to == floatType || to == doubleType)
+            is_integer_type(from) && to->kind == TYPE_FLOATING_POINT
         ) || (
             // Cast implicitly between void pointer and any other pointer.
             (from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)

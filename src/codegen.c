@@ -290,7 +290,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                         setdest(LLVMBuildFPToSI(st->builder, getop(0), codegen_type(to), "cast"));
                     else
                         setdest(LLVMBuildFPToUI(st->builder, getop(0), codegen_type(to), "cast"));
-                } else if ((from == floatType || from == doubleType) && (to == floatType || to == doubleType)) {
+                } else if (from->kind == TYPE_FLOATING_POINT && to->kind == TYPE_FLOATING_POINT) {
                     setdest(LLVMBuildFPCast(st->builder, getop(0), codegen_type(to), "cast"));
                 } else {
                     assert(0);
