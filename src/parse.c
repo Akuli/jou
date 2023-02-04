@@ -16,6 +16,7 @@ static noreturn void fail_with_parse_error(const Token *token, const char *what_
     switch(token->type) {
         case TOKEN_INT: strcpy(got, "an integer"); break;
         case TOKEN_LONG: strcpy(got, "a long integer"); break;
+        case TOKEN_FLOAT: strcpy(got, "a float constant"); break;
         case TOKEN_DOUBLE: strcpy(got, "a double constant"); break;
         case TOKEN_CHAR: strcpy(got, "a character"); break;
         case TOKEN_STRING: strcpy(got, "a string"); break;
@@ -48,6 +49,7 @@ static AstType parse_type(const Token **tokens)
         && !is_keyword(*tokens, "int")
         && !is_keyword(*tokens, "long")
         && !is_keyword(*tokens, "byte")
+        && !is_keyword(*tokens, "float")
         && !is_keyword(*tokens, "double")
         && !is_keyword(*tokens, "bool")
         && (*tokens)->type != TOKEN_NAME)
@@ -350,10 +352,16 @@ static AstExpression parse_elementary_expression(const Token **tokens)
         expr.data.constant = int_constant(byteType, (*tokens)->data.char_value);
         ++*tokens;
         break;
+    case TOKEN_FLOAT:
+        expr.kind = AST_EXPR_CONSTANT;
+        expr.data.constant = (Constant){ .kind=CONSTANT_FLOAT };
+        safe_strcpy(expr.data.constant.data.double_or_float_text, (*tokens)->data.name);
+        ++*tokens;
+        break;
     case TOKEN_DOUBLE:
         expr.kind = AST_EXPR_CONSTANT;
         expr.data.constant = (Constant){ .kind=CONSTANT_DOUBLE };
-        safe_strcpy(expr.data.constant.data.double_text, (*tokens)->data.name);
+        safe_strcpy(expr.data.constant.data.double_or_float_text, (*tokens)->data.name);
         ++*tokens;
         break;
     case TOKEN_STRING:
@@ -885,7 +893,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
     }
 
     return result;
-}   
+}
 
 AstToplevelNode *parse(const Token *tokens, const char *stdlib_path)
 {

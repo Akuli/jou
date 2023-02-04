@@ -201,7 +201,7 @@ static bool is_keyword(const char *s)
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
         "and", "or", "not", "as", "sizeof",
-        "void", "bool", "byte", "int", "long", "double",
+        "void", "bool", "byte", "int", "long", "float", "double",
     };
     for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
         if (!strcmp(*kw, s))
@@ -398,6 +398,8 @@ static Token read_token(struct State *st)
                 else if ('0'<=t.data.name[0] && t.data.name[0]<='9') {
                     if (is_valid_double(t.data.name))
                         t.type = TOKEN_DOUBLE;
+                    else if (t.data.name[strlen(t.data.name)-1] == 'F' && is_valid_double(t.data.name))
+                        t.type = TOKEN_FLOAT;
                     else if (t.data.name[strlen(t.data.name)-1] == 'L') {
                         t.data.name[strlen(t.data.name)-1] = '\0';
                         t.type = TOKEN_LONG;

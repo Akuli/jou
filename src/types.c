@@ -14,13 +14,14 @@ struct TypeInfo {
 static struct {
     bool inited;
     struct TypeInfo integers[65][2];  // integers[i][j] = i-bit integer, j=1 for signed, j=0 for unsigned
-    struct TypeInfo boolean, doublelele, voidptr;
+    struct TypeInfo boolean, doublelele, floater, voidptr;
 } global_state = {0};
 
 const Type *boolType = &global_state.boolean.type;
 const Type *intType = &global_state.integers[32][true].type;
 const Type *longType = &global_state.integers[64][true].type;
 const Type *byteType = &global_state.integers[8][false].type;
+const Type *floatType = &global_state.floater.type;
 const Type *doubleType = &global_state.doublelele.type;
 const Type *voidPtrType = &global_state.voidptr.type;
 
@@ -51,6 +52,7 @@ static void free_global_state(void)
 {
     assert(global_state.inited);
     free_pointer_and_array_types(&global_state.boolean);
+    free_pointer_and_array_types(&global_state.floater);
     free_pointer_and_array_types(&global_state.doublelele);
     free_pointer_and_array_types(&global_state.voidptr);
     for (int size = 8; size <= 64; size *= 2)
@@ -63,6 +65,7 @@ void init_types(void)
     assert(!global_state.inited);
 
     global_state.boolean.type = (Type){ .name = "bool", .kind = TYPE_BOOL };
+    global_state.floater.type = (Type){ .name = "float", .kind = TYPE_FLOAT, .data.width_in_bits = 32 };
     global_state.doublelele.type = (Type){ .name = "double", .kind = TYPE_DOUBLE, .data.width_in_bits = 64 };
     global_state.voidptr.type = (Type){ .name = "void*", .kind = TYPE_VOID_POINTER };
 
@@ -131,7 +134,7 @@ bool is_integer_type(const Type *t)
 
 bool is_number_type(const Type *t)
 {
-    return is_integer_type(t) || t->kind == TYPE_DOUBLE;
+      return is_integer_type(t) || t->kind == TYPE_DOUBLE || t->kind == TYPE_FLOAT;
 }
 
 bool is_pointer_type(const Type *t)
@@ -146,6 +149,8 @@ const Type *type_of_constant(const Constant *c)
         return voidPtrType;
     case CONSTANT_DOUBLE:
         return doubleType;
+    case CONSTANT_FLOAT:
+        return floatType;
     case CONSTANT_BOOL:
         return boolType;
     case CONSTANT_STRING:

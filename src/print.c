@@ -30,8 +30,11 @@ static void print_constant(const Constant *c)
     case CONSTANT_BOOL:
         printf(c->data.boolean ? "True" : "False");
         break;
+    case CONSTANT_FLOAT:
+        printf("float %s", c->data.double_or_float_text);
+        break;
     case CONSTANT_DOUBLE:
-        printf("double %s", c->data.double_text);
+        printf("double %s", c->data.double_or_float_text);
         break;
     case CONSTANT_INTEGER:
         printf(
@@ -57,6 +60,9 @@ void print_token(const Token *token)
         break;
     case TOKEN_LONG:
         printf("long %lld\n", (long long)token->data.long_value);
+        break;
+    case TOKEN_FLOAT:
+        printf("float %s\n", token->data.name);
         break;
     case TOKEN_DOUBLE:
         printf("double %s\n", token->data.name);
@@ -422,6 +428,7 @@ static const char *very_short_number_type_description(const Type *t)
 {
     switch(t->kind) {
         case TYPE_DOUBLE: return "double";
+        case TYPE_FLOAT: return "float";
         case TYPE_SIGNED_INTEGER: return "signed";
         case TYPE_UNSIGNED_INTEGER: return "unsigned";
         default: assert(0);
@@ -513,7 +520,6 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
         printf("%s", varname(ins->operands[0]));
         break;
     }
-
     printf("\n");
 }
 
@@ -580,7 +586,6 @@ void print_control_flow_graphs(const CfGraphFile *cfgfile)
         printf("\n");
     }
 }
-
 
 void print_llvm_ir(LLVMModuleRef module, bool is_optimized)
 {

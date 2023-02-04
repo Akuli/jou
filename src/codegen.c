@@ -15,6 +15,8 @@ static LLVMTypeRef codegen_type(const Type *type)
         return LLVMArrayType(codegen_type(type->data.array.membertype), type->data.array.len);
     case TYPE_POINTER:
         return LLVMPointerType(codegen_type(type->data.valuetype), 0);
+    case TYPE_FLOAT:
+        return LLVMFloatType();
     case TYPE_DOUBLE:
         return LLVMDoubleType();
     case TYPE_VOID_POINTER:
@@ -139,8 +141,9 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
         return LLVMConstInt(LLVMInt1Type(), c->data.boolean, false);
     case CONSTANT_INTEGER:
         return LLVMConstInt(codegen_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
+    case CONSTANT_FLOAT:
     case CONSTANT_DOUBLE:
-        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_text);
+        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_or_float_text);
     case CONSTANT_NULL:
         return LLVMConstNull(codegen_type(voidPtrType));
     case CONSTANT_STRING:
@@ -189,6 +192,7 @@ static LLVMValueRef build_num_operation(
     LLVMValueRef (*doublefn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*))
 {
     switch(t->kind) {
+        case TYPE_FLOAT: return doublefn(builder, lhs, rhs, "float_op");
         case TYPE_DOUBLE: return doublefn(builder, lhs, rhs, "double_op");
         case TYPE_SIGNED_INTEGER: return signedfn(builder, lhs, rhs, "signed_op");
         case TYPE_UNSIGNED_INTEGER: return unsignedfn(builder, lhs, rhs, "unsigned_op");
@@ -274,14 +278,14 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                         // same size, LLVM doesn't distinguish signed and unsigned integer types
                         setdest(getop(0));
                     }
-                } else if (is_integer_type(from) && to->kind == TYPE_DOUBLE) {
-                    // integer --> double
+                } else if ((is_integer_type(from) && to->kind == TYPE_DOUBLE) || (is_integer_type(from) && to->kind == TYPE_FLOAT)) {
+                    // integer --> double / float
                     if (from->kind == TYPE_SIGNED_INTEGER)
                         setdest(LLVMBuildSIToFP(st->builder, getop(0), codegen_type(to), "cast"));
                     else
                         setdest(LLVMBuildUIToFP(st->builder, getop(0), codegen_type(to), "cast"));
                 } else {
-                    // TODO: integer --> double
+                    // TODO: integer --> double / float
                     assert(0);
                 }
             }
