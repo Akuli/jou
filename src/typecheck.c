@@ -176,11 +176,11 @@ static void do_implicit_cast(
             && from->data.width_in_bits < to->data.width_in_bits
             && !(from->kind == TYPE_SIGNED_INTEGER && to->kind == TYPE_UNSIGNED_INTEGER)
         ) || (
-            // Cast from any integer type to float.
-            is_integer_type(from) && to == floatType
+            // Cast to bigger floating-point type.
+            from == floatType && to == doubleType
         ) || (
-            // Cast from any integer type to double.
-            is_integer_type(from) && to == doubleType
+            // Cast from any integer type to float/double.
+            is_integer_type(from) && (to == floatType || to == doubleType)
         ) || (
             // Cast implicitly between void pointer and any other pointer.
             (from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
