@@ -287,6 +287,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 } else if ((from == floatType || from == doubleType) && (to == floatType || to == doubleType)) {
                     setdest(LLVMBuildFPCast(st->builder, getop(0), codegen_type(to), "cast"));
                 } else {
+                    // TODO: double/float --> integer
                     assert(0);
                 }
             }
