@@ -291,6 +291,8 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                         setdest(LLVMBuildFPToUI(st->builder, getop(0), codegen_type(to), "cast"));
                 } else if ((from == floatType || from == doubleType) && (to == floatType || to == doubleType)) {
                     setdest(LLVMBuildFPCast(st->builder, getop(0), codegen_type(to), "cast"));
+                } else {
+                    assert(0);
                 }
             }
             break;
