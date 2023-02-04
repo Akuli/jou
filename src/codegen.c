@@ -143,7 +143,7 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
         return LLVMConstInt(codegen_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
     case CONSTANT_FLOAT:
     case CONSTANT_DOUBLE:
-        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_text);
+        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_or_float_text);
     case CONSTANT_NULL:
         return LLVMConstNull(codegen_type(voidPtrType));
     case CONSTANT_STRING:
