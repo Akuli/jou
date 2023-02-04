@@ -140,14 +140,6 @@ This doesn't do anything with tests that are supposed to fail with an error, for
 There are also a few other ways to run the tests.
 You can look at `.github/workflows/` to see how the CI runs tests.
 
-Sometimes the fuzzer discovers a bug that hasn't been caught with tests.
-It mostly finds bugs in the tokenizer,
-because the fuzzer works by feeding random bytes to the compiler.
-
-```
-$ ./fuzzer.sh
-```
-
 
 ## Windows Release Builds
 

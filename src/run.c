@@ -80,17 +80,17 @@ static void run_linker(const char *objpath, const char *exepath, const CommandLi
     if (stat(gcc, &(struct stat){0}) != -1) {
         // The Windows builds come with the GNU linker.
         // Windows quoting is weird, in this command it strips the outermost quotes.
-        sprintf(command, "\"\"%s\" \"%s\" -o \"%s\"\"", gcc, objpath, exepath);
+        sprintf(command, "\"\"%s\" \"%s\" -o \"%s\" -lm\"", gcc, objpath, exepath);
     } else {
         // Use clang from PATH. Convenient when developing Jou locally.
-        sprintf(command, "clang \"%s\" -o \"%s\"", objpath, exepath);
+        sprintf(command, "clang \"%s\" -o \"%s\" -lm", objpath, exepath);
     }
     free(gcc);
 #else
     // Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
     (void)instdir;
     char *command = malloc(strlen(JOU_CLANG_PATH) + strlen(objpath) + strlen(exepath) + 500);
-    sprintf(command, "'%s' '%s' -o '%s'", JOU_CLANG_PATH, objpath, exepath);
+    sprintf(command, "'%s' '%s' -o '%s' -lm", JOU_CLANG_PATH, objpath, exepath);
 #endif
 
     if (flags->verbose)
@@ -120,7 +120,7 @@ static char *get_filename_without_suffix(const LLVMModuleRef module)
     char *result = malloc(len+1);
     memcpy(result, filename, len);
     result[len] = '\0';
-    
+
     return result;
 }
 

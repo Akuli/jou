@@ -1,6 +1,5 @@
 #include "jou_compiler.h"
 
-
 static const LocalVariable *find_local_var(const TypeContext *ctx, const char *name)
 {
     for (LocalVariable **var = ctx->locals.ptr; var < End(ctx->locals); var++)
@@ -105,6 +104,8 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
             return byteType;
         if (!strcmp(asttype->data.name, "bool"))
             return boolType;
+        if (!strcmp(asttype->data.name, "float"))
+            return floatType;
         if (!strcmp(asttype->data.name, "double"))
             return doubleType;
         if (!strcmp(asttype->data.name, "void"))
@@ -175,8 +176,11 @@ static void do_implicit_cast(
             && from->data.width_in_bits < to->data.width_in_bits
             && !(from->kind == TYPE_SIGNED_INTEGER && to->kind == TYPE_UNSIGNED_INTEGER)
         ) || (
-            // Cast from any integer type to double.
-            is_integer_type(from) && to == doubleType
+            // Cast to bigger floating-point type.
+            from == floatType && to == doubleType
+        ) || (
+            // Cast from any integer type to float/double.
+            is_integer_type(from) && to->kind == TYPE_FLOATING_POINT
         ) || (
             // Cast implicitly between void pointer and any other pointer.
             (from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
@@ -195,7 +199,7 @@ static void check_explicit_cast(const Type *from, const Type *to, Location locat
     if (
         from != to  // TODO: should probably be error if it's the same type.
         && !(is_pointer_type(from) && is_pointer_type(to))
-        && !(is_integer_type(from) && is_integer_type(to))
+        && !(is_number_type(from) && is_number_type(to))
         // TODO: pointer-to-int, int-to-pointer
     )
     {
@@ -282,7 +286,7 @@ static const Type *check_binop(
         cast_type = voidPtrType;
     }
     if (got_numbers && !got_integers) {
-        cast_type = doubleType;
+        cast_type = (lhstypes->type == doubleType || rhstypes->type == doubleType) ? doubleType : floatType;
     }
 
     do_implicit_cast(lhstypes, cast_type, (Location){0}, NULL);
@@ -511,6 +515,9 @@ static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call
             // Add implicit cast to signed int, just like in C.
             do_implicit_cast(types, intType, (Location){0}, NULL);
         }
+
+        if (types->type == floatType)
+            do_implicit_cast(types, doubleType, (Location){0}, NULL);
     }
 
     free(sigstr);
@@ -631,10 +638,10 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_NEG:
         result = typecheck_expression(ctx, &expr->data.operands[0])->type;
-        if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_DOUBLE)
+        if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_FLOATING_POINT)
             fail_with_error(
                 expr->location,
-                "value after '-' must be a double or a signed integer, not %s",
+                "value after '-' must be a float or double or a signed integer, not %s",
                 result->name);
         break;
     case AST_EXPR_ADD:

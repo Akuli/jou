@@ -15,8 +15,12 @@ static LLVMTypeRef codegen_type(const Type *type)
         return LLVMArrayType(codegen_type(type->data.array.membertype), type->data.array.len);
     case TYPE_POINTER:
         return LLVMPointerType(codegen_type(type->data.valuetype), 0);
-    case TYPE_DOUBLE:
-        return LLVMDoubleType();
+    case TYPE_FLOATING_POINT:
+        switch(type->data.width_in_bits) {
+            case 32: return LLVMFloatType();
+            case 64: return LLVMDoubleType();
+            default: assert(0);
+        }
     case TYPE_VOID_POINTER:
         // just use i8* as here https://stackoverflow.com/q/36724399
         return LLVMPointerType(LLVMInt8Type(), 0);
@@ -139,8 +143,9 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
         return LLVMConstInt(LLVMInt1Type(), c->data.boolean, false);
     case CONSTANT_INTEGER:
         return LLVMConstInt(codegen_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
+    case CONSTANT_FLOAT:
     case CONSTANT_DOUBLE:
-        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_text);
+        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_or_float_text);
     case CONSTANT_NULL:
         return LLVMConstNull(codegen_type(voidPtrType));
     case CONSTANT_STRING:
@@ -186,10 +191,10 @@ static LLVMValueRef build_num_operation(
     const Type *t,
     LLVMValueRef (*signedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
     LLVMValueRef (*unsignedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
-    LLVMValueRef (*doublefn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*))
+    LLVMValueRef (*floatfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*))
 {
     switch(t->kind) {
-        case TYPE_DOUBLE: return doublefn(builder, lhs, rhs, "double_op");
+        case TYPE_FLOATING_POINT: return floatfn(builder, lhs, rhs, "float_op");
         case TYPE_SIGNED_INTEGER: return signedfn(builder, lhs, rhs, "signed_op");
         case TYPE_UNSIGNED_INTEGER: return unsignedfn(builder, lhs, rhs, "unsigned_op");
         default: assert(0);
@@ -274,14 +279,20 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                         // same size, LLVM doesn't distinguish signed and unsigned integer types
                         setdest(getop(0));
                     }
-                } else if (is_integer_type(from) && to->kind == TYPE_DOUBLE) {
-                    // integer --> double
+                } else if (is_integer_type(from) && to->kind == TYPE_FLOATING_POINT) {
+                    // integer --> double / float
                     if (from->kind == TYPE_SIGNED_INTEGER)
                         setdest(LLVMBuildSIToFP(st->builder, getop(0), codegen_type(to), "cast"));
                     else
                         setdest(LLVMBuildUIToFP(st->builder, getop(0), codegen_type(to), "cast"));
+                } else if (from->kind == TYPE_FLOATING_POINT && is_integer_type(to)) {
+                    if (to->kind == TYPE_SIGNED_INTEGER)
+                        setdest(LLVMBuildFPToSI(st->builder, getop(0), codegen_type(to), "cast"));
+                    else
+                        setdest(LLVMBuildFPToUI(st->builder, getop(0), codegen_type(to), "cast"));
+                } else if (from->kind == TYPE_FLOATING_POINT && to->kind == TYPE_FLOATING_POINT) {
+                    setdest(LLVMBuildFPCast(st->builder, getop(0), codegen_type(to), "cast"));
                 } else {
-                    // TODO: integer --> double
                     assert(0);
                 }
             }

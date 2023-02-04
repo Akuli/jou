@@ -51,7 +51,6 @@ struct CommandLineFlags {
     const char *outfile;  // If not NULL, where to output executable
 };
 
-
 struct Location {
     const char *filename;
     int lineno;
@@ -65,11 +64,11 @@ struct Location {
     noreturn void fail_with_error(Location location, const char *fmt, ...);
 #endif
 
-
 struct Token {
     enum TokenType {
         TOKEN_INT,
         TOKEN_LONG,
+        TOKEN_FLOAT,
         TOKEN_DOUBLE,
         TOKEN_CHAR,
         TOKEN_STRING,
@@ -88,16 +87,16 @@ struct Token {
         char char_value;  // TOKEN_CHAR
         char *string_value;  // TOKEN_STRING
         int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
-        char name[100];  // TOKEN_NAME and TOKEN_KEYWORD. Also TOKEN_DOUBLE (LLVM wants a string anyway)
+        char name[100];  // TOKEN_NAME and TOKEN_KEYWORD. Also TOKEN_DOUBLE & TOKEN_FLOAT (LLVM wants a string anyway)
         char operator[4];  // TOKEN_OPERATOR
     } data;
 };
-
 
 // Constants can appear in AST and also compilation steps after AST.
 struct Constant {
     enum ConstantKind {
         CONSTANT_INTEGER,
+        CONSTANT_FLOAT,
         CONSTANT_DOUBLE,
         CONSTANT_STRING,
         CONSTANT_NULL,
@@ -106,7 +105,7 @@ struct Constant {
     union {
         struct { int width_in_bits; bool is_signed; long long value; } integer;
         char *str;
-        char double_text[100];  // convenient because LLVM wants a string anyway
+        char double_or_float_text[100];  // convenient because LLVM wants a string anyway
         bool boolean;
     } data;
 };
@@ -122,7 +121,6 @@ struct Constant {
         } \
     } \
 )
-
 
 /*
 There is AstType and Type. The distinction is that Type contains more
@@ -323,14 +321,14 @@ struct Type {
         TYPE_SIGNED_INTEGER,
         TYPE_UNSIGNED_INTEGER,
         TYPE_BOOL,
-        TYPE_DOUBLE,
+        TYPE_FLOATING_POINT,  // float or double
         TYPE_POINTER,
         TYPE_VOID_POINTER,
         TYPE_ARRAY,
         TYPE_STRUCT,
     } kind;
     union {
-        int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_DOUBLE
+        int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_FLOATING_POINT
         const Type *valuetype;  // TYPE_POINTER
         struct { const Type *membertype; int len; } array;  // TYPE_ARRAY
         struct { int count; char (*names)[100]; const Type **types; } structfields;  // TYPE_STRUCT
@@ -355,6 +353,7 @@ extern const Type *boolType;      // bool
 extern const Type *intType;       // int (32-bit signed)
 extern const Type *longType;      // long (64-bit signed)
 extern const Type *byteType;      // byte (8-bit unsigned)
+extern const Type *floatType;     // float (32-bit)
 extern const Type *doubleType;    // double (64-bit)
 extern const Type *voidPtrType;   // void*
 void init_types();  // Called once when compiler starts
