@@ -23,8 +23,10 @@ def main() -> int:
 
     printf("%d\n", 12.34 as byte)  # Output: 12
     printf("%d\n", 12.99 as int)  # Output: 12
-    # Bytes operate mod 256, so -12 becomes 256-12 = 244
-    printf("%d\n", -12.34 as byte)  # Output: 244
-    printf("%d\n", -12.99 as byte)  # Output: 244
+
+    # The following two lines are UB and produce different
+    # values depending on the -O3 flag:
+    #printf("%d\n", -12.34 as byte)
+    #printf("%d\n", -12.99 as byte)
 
     return 0
