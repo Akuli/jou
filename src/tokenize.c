@@ -193,6 +193,19 @@ static bool is_valid_double(const char *str)
     );
 }
 
+static bool is_valid_float(const char *str)
+{
+    int n = strlen(str);
+    if (n==0 || (str[n-1]!='F' && str[n-1]!='f'))
+        return false;
+
+    char *tmp = strdup(str);
+    tmp[n-1] = '\0';
+    bool result = is_valid_double(tmp) || strspn(tmp, "0123456789") == strlen(tmp);
+    free(tmp);
+    return result;
+}
+
 static bool is_keyword(const char *s)
 {
     const char *keywords[] = {
@@ -396,17 +409,12 @@ static Token read_token(struct State *st)
                 if (is_keyword(t.data.name))
                     t.type = TOKEN_KEYWORD;
                 else if ('0'<=t.data.name[0] && t.data.name[0]<='9') {
-                    if ((t.data.name[strlen(t.data.name)-1] == 'F' || t.data.name[strlen(t.data.name)-1] == 'f')
-                        && strncmp(t.data.name, "0x", 2)) // 0xff is not a float
-                    {
-                        t.type = TOKEN_FLOAT;
-                        t.data.name[strlen(t.data.name)-1] = '\0';
-                        if (!is_valid_double(t.data.name) && strspn(t.data.name, "0123456789") < strlen(t.data.name))
-                            fail_with_error(t.location, "invalid number or variable name \"%sf\"", t.data.name);
-                    }
-                    else if (is_valid_double(t.data.name))
+                    if (is_valid_double(t.data.name)) {
                         t.type = TOKEN_DOUBLE;
-                    else if (t.data.name[strlen(t.data.name)-1] == 'L') {
+                    } else if (is_valid_float(t.data.name)) {
+                        t.data.name[strlen(t.data.name)-1] = '\0';  // remove 'F' or 'f' suffix
+                        t.type = TOKEN_FLOAT;
+                    } else if (t.data.name[strlen(t.data.name)-1] == 'L') {
                         t.data.name[strlen(t.data.name)-1] = '\0';
                         t.type = TOKEN_LONG;
                         t.data.long_value = (int64_t)parse_integer(t.data.name, t.location, 64);
