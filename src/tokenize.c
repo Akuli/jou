@@ -397,7 +397,7 @@ static Token read_token(struct State *st)
                     t.type = TOKEN_KEYWORD;
                 else if ('0'<=t.data.name[0] && t.data.name[0]<='9') {
                     if ((t.data.name[strlen(t.data.name)-1] == 'F' || t.data.name[strlen(t.data.name)-1] == 'f')
-                        && strncmp(t.data.name, "0x", 2)) // no error for 0xff
+                        && strncmp(t.data.name, "0x", 2)) // 0xff is not a float
                     {
                         t.type = TOKEN_FLOAT;
                         t.data.name[strlen(t.data.name)-1] = '\0';
