@@ -176,6 +176,7 @@ static void do_implicit_cast(
             && from->data.width_in_bits < to->data.width_in_bits
             && !(from->kind == TYPE_SIGNED_INTEGER && to->kind == TYPE_UNSIGNED_INTEGER)
         ) || (
+            // Cast from any integer type to float.
             is_integer_type(from) && to == floatType
         ) || (
             // Cast from any integer type to double.

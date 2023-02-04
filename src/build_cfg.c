@@ -132,7 +132,7 @@ static const LocalVariable *build_cast(
     }
     if (obj->type == boolType && is_integer_type(to))
         return build_bool_to_int_conversion(st, obj, location, to);
-    assert(0); //non-void function does not return a value in all control paths [-Wreturn-type]
+    assert(0);
 }
 
 static const LocalVariable *build_binop(
@@ -163,7 +163,7 @@ static const LocalVariable *build_binop(
         case AST_EXPR_GT: k = CF_NUM_LT; swap=true; break;
         case AST_EXPR_LE: k = CF_NUM_LT; negate=true; swap=true; break;
         case AST_EXPR_GE: k = CF_NUM_LT; negate=true; break;
-        default: assert(0); //warning: variable 'k' is used uninitialized whenever switch default is taken [-Wsometimes-uninitialized]
+        default: assert(0);
     }
 
     const LocalVariable *destvar = add_local_var(st, result_type);
@@ -199,7 +199,7 @@ static const LocalVariable *build_struct_field_pointer(
         }
     }
 
-    assert(0); // warning: non-void function does not return a value in all control paths [-Wreturn-type]
+    assert(0);
 }
 
 static const LocalVariable *build_struct_field(
@@ -375,7 +375,8 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
             }
             break;
 
-        default: assert(0); // warning: variable 'ptr' is used uninitialized whenever switch default is taken [-Wsometimes-uninitialized]
+        default:
+            assert(0);
         }
 
         const LocalVariable *index = build_expression(st, &address_of_what->data.operands[1]);
@@ -392,7 +393,7 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
         break;
     }
 
-    assert(0); // warning: non-void function does not return a value in all control paths [-Wreturn-type]
+    assert(0);
 }
 
 static const LocalVariable *build_function_call(struct State *st, const AstExpression *expr)
@@ -556,7 +557,7 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
                 case AST_EXPR_PRE_DECREMENT: pop=PRE; diff=-1; break;
                 case AST_EXPR_POST_INCREMENT: pop=POST; diff=1; break;
                 case AST_EXPR_POST_DECREMENT: pop=POST; diff=-1; break;
-                default: assert(0); // warning: variable 'diff' is used uninitialized whenever switch default is taken [-Wsometimes-uninitialized]
+                default: assert(0);
             }
             result = build_increment_or_decrement(st, expr->location, &expr->data.operands[0], pop, diff);
             break;
@@ -717,7 +718,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
             case AST_STMT_INPLACE_MUL: op=AST_EXPR_MUL; break;
             case AST_STMT_INPLACE_DIV: op=AST_EXPR_DIV; break;
             case AST_STMT_INPLACE_MOD: op=AST_EXPR_MOD; break;
-            default: assert(0); // warning: variable 'op' is used uninitialized whenever switch default is taken [-Wsometimes-uninitialized]
+            default: assert(0);
         }
         const LocalVariable *newvalue = build_binop(st, op, stmt->location, oldvalue, rhs, targetptr->type->data.valuetype);
         add_binary_op(st, stmt->location, CF_PTR_STORE, targetptr, newvalue, NULL);

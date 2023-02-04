@@ -49,7 +49,6 @@ static void print_constant(const Constant *c)
     case CONSTANT_STRING:
         print_string(c->data.str);
         break;
-    default:break;
     }
 }
 
@@ -432,7 +431,7 @@ static const char *very_short_number_type_description(const Type *t)
         case TYPE_FLOAT: return "float";
         case TYPE_SIGNED_INTEGER: return "signed";
         case TYPE_UNSIGNED_INTEGER: return "unsigned";
-        default: assert(0); // Warning: non-void function does not return a value in all control paths [-Wreturn-type]
+        default: assert(0);
     }
 }
 
