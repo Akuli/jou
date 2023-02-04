@@ -515,6 +515,9 @@ static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call
             // Add implicit cast to signed int, just like in C.
             do_implicit_cast(types, intType, (Location){0}, NULL);
         }
+
+        if (types->type == floatType)
+            do_implicit_cast(types, doubleType, (Location){0}, NULL);
     }
 
     free(sigstr);
