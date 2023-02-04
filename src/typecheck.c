@@ -199,7 +199,7 @@ static void check_explicit_cast(const Type *from, const Type *to, Location locat
     if (
         from != to  // TODO: should probably be error if it's the same type.
         && !(is_pointer_type(from) && is_pointer_type(to))
-        && !(is_integer_type(from) && is_integer_type(to))
+        && !(is_number_type(from) && is_number_type(to))
         // TODO: pointer-to-int, int-to-pointer
     )
     {

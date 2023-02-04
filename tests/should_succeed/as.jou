@@ -11,4 +11,22 @@ def main() -> int:
 
     printf("%#x\n", *("aaaa" as int*))  # Output: 0x61616161
 
+    printf("%.2f\n", 12.34f as double)  # Output: 12.34
+    printf("%.2f\n", 12.34 as float)  # Output: 12.34
+
+    printf("%.2f\n", 123 as float)  # Output: 123.00
+
+    printf("%d\n", 12.34 as int)  # Output: 12
+    printf("%d\n", 12.99 as int)  # Output: 12
+    printf("%d\n", -12.34 as int)  # Output: -12
+    printf("%d\n", -12.99 as int)  # Output: -12
+
+    printf("%d\n", 12.34 as byte)  # Output: 12
+    printf("%d\n", 12.99 as int)  # Output: 12
+
+    # The following two lines are UB and produce different
+    # values with -O3 and without:
+    #printf("%d\n", -12.34 as byte)
+    #printf("%d\n", -12.99 as byte)
+
     return 0

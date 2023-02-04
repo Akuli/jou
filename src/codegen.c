@@ -278,16 +278,20 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                         // same size, LLVM doesn't distinguish signed and unsigned integer types
                         setdest(getop(0));
                     }
-                } else if ((is_integer_type(from) && to->kind == TYPE_DOUBLE) || (is_integer_type(from) && to->kind == TYPE_FLOAT)) {
+                } else if (is_integer_type(from) && (to->kind == TYPE_DOUBLE || to->kind == TYPE_FLOAT)) {
                     // integer --> double / float
                     if (from->kind == TYPE_SIGNED_INTEGER)
                         setdest(LLVMBuildSIToFP(st->builder, getop(0), codegen_type(to), "cast"));
                     else
                         setdest(LLVMBuildUIToFP(st->builder, getop(0), codegen_type(to), "cast"));
+                } else if ((from == floatType || from == doubleType) && is_integer_type(to)) {
+                    if (to->kind == TYPE_SIGNED_INTEGER)
+                        setdest(LLVMBuildFPToSI(st->builder, getop(0), codegen_type(to), "cast"));
+                    else
+                        setdest(LLVMBuildFPToUI(st->builder, getop(0), codegen_type(to), "cast"));
                 } else if ((from == floatType || from == doubleType) && (to == floatType || to == doubleType)) {
                     setdest(LLVMBuildFPCast(st->builder, getop(0), codegen_type(to), "cast"));
                 } else {
-                    // TODO: double/float --> integer
                     assert(0);
                 }
             }
