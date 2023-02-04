@@ -139,12 +139,12 @@ static long long parse_integer(const char *str, Location location, int nbits)
 {
     int base;
     const char *digits, *valid_digits;
-    if (str[0] == '0' && str[1] == 'x') {
+    if (!strncmp(str, "0x", 2)) {
         // 0x123 = hexadecimal number
         base = 16;
         digits = &str[2];
         valid_digits = "0123456789ABCDEFabcdef";
-    } else if (str[0] == '0' && str[1] == 'b') {
+    } else if (!strncmp(str, "0b", 2)) {
         // 0b1101 = binary number
         base = 2;
         digits = &str[2];
@@ -396,10 +396,16 @@ static Token read_token(struct State *st)
                 if (is_keyword(t.data.name))
                     t.type = TOKEN_KEYWORD;
                 else if ('0'<=t.data.name[0] && t.data.name[0]<='9') {
-                    if (is_valid_double(t.data.name))
-                        t.type = TOKEN_DOUBLE;
-                    else if (t.data.name[strlen(t.data.name)-1] == 'F' && is_valid_double(t.data.name))
+                    if ((t.data.name[strlen(t.data.name)-1] == 'F' || t.data.name[strlen(t.data.name)-1] == 'f')
+                        && strncmp(t.data.name, "0x", 2)) // no error for 0xff
+                    {
                         t.type = TOKEN_FLOAT;
+                        t.data.name[strlen(t.data.name)-1] = '\0';
+                        if (!is_valid_double(t.data.name) && strspn(t.data.name, "0123456789") < strlen(t.data.name))
+                            fail_with_error(t.location, "invalid number or variable name \"%sf\"", t.data.name);
+                    }
+                    else if (is_valid_double(t.data.name))
+                        t.type = TOKEN_DOUBLE;
                     else if (t.data.name[strlen(t.data.name)-1] == 'L') {
                         t.data.name[strlen(t.data.name)-1] = '\0';
                         t.type = TOKEN_LONG;
