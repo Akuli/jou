@@ -149,9 +149,11 @@ static long long parse_integer(const char *str, Location location, int nbits)
         base = 2;
         digits = &str[2];
         valid_digits = "01";
-    } else if (str[0] == '0' && str[1] != '\0') {
-        // 0777 in C actually means 511. Jou does not allow writing 0777.
-        fail_with_error(location, "unnecessary zero at start of number");
+    } else if (str[0] == '0' && str[1] == 'o') {
+        // 0o777
+        base = 8;
+        digits = &str[2];
+        valid_digits = "1234567";
     } else {
         base = 10;
         digits = &str[0];
