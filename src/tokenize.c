@@ -150,11 +150,15 @@ static long long parse_integer(const char *str, Location location, int nbits)
         digits = &str[2];
         valid_digits = "01";
     } else if (str[0] == '0' && str[1] == 'o') {
-        // 0o777
+        // 0o777 = octal number
         base = 8;
         digits = &str[2];
-        valid_digits = "1234567";
+        valid_digits = "01234567";
+    } else if (str[0] == '0' && str[1] != '\0') {
+        // wrong syntax like 0777
+        fail_with_error(location, "unnecessary zero at start of number");
     } else {
+        // default decimal umber
         base = 10;
         digits = &str[0];
         valid_digits = "0123456789";
