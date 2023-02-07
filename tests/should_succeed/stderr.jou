@@ -1,0 +1,8 @@
+from "stdlib/io.jou" import fputs, fprintf, stderr
+
+# Must be in a separate file, because mixed stdout and stderr prints
+# tend to appear in inconsistent order when the output is piped.
+def main() -> int:
+    fputs(stderr, "hello\n")  # Output: hello
+    fprintf(stderr, "hello %d\n", 123)  # Output: hello 123
+    return 0
