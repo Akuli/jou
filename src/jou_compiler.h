@@ -315,6 +315,8 @@ struct AstToplevelNode {
 };
 
 
+struct StructField { char name[100]; const Type *type; };
+
 struct Type {
     char name[500];   // All types have a name for error messages and debugging.
     enum TypeKind {
@@ -326,6 +328,7 @@ struct Type {
         TYPE_VOID_POINTER,
         TYPE_ARRAY,
         TYPE_STRUCT,
+        TYPE_OPAQUE_STRUCT,  // struct with unknown members
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_FLOATING_POINT
@@ -361,8 +364,12 @@ const Type *get_integer_type(int size_in_bits, bool is_signed);
 const Type *get_pointer_type(const Type *t);  // result lives as long as t
 const Type *get_array_type(const Type *t, int len);  // result lives as long as t
 const Type *type_of_constant(const Constant *c);
-Type *create_struct(
-    const char *name,
+
+// creates an opaque struct
+Type *create_struct(const char *name);
+// makes an opaque struct not opaque
+void set_struct_fields(
+    Type *structtype,
     int fieldcount,
     char (*fieldnames)[100],  // will be free()d eventually
     const Type **fieldtypes);  // will be free()d eventually
@@ -426,10 +433,23 @@ struct TypeContext {
     List(ExportSymbol) exports;
 };
 
-// function body can be NULL to check a declaration
-Signature typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
-void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location);
-GlobalVariable *typecheck_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl);
+
+/*
+Step 1 in type checking. Figure out struct names and function
+signatures without looking at function and struct bodies.
+Takes in the AST of an entire file as an array.
+
+This needs to be a separate step so that we can handle cyclic imports correctly.
+For example, say functions a() and b() call each other.
+If they are in the same file, this needs a forward-declaration.
+If they are in different files, this function basically does the same:
+when it visits the file containing a(), it only reads the signature of a().
+*/
+void typecheck_signatures(TypeContext *ctx, const AstToplevelNode *ast);
+
+// Step 2 in type checking. Interleaved with build_cfg (see reset_type_context())
+void typecheck_function_body(TypeContext *ctx, const char *name, const AstBody *body);
+void typecheck_struct_body(TypeContext *ctx, const AstStructDef *structdef, Location location);
 
 /*
 Wipes all function-specific data, making the type context suitable
@@ -492,6 +512,7 @@ struct CfBlock {
 };
 
 struct CfGraph {
+    Signature signature;
     CfBlock start_block;  // First block
     CfBlock end_block;  // Always empty. Return statement jumps here.
     List(CfBlock *) all_blocks;
@@ -500,9 +521,7 @@ struct CfGraph {
 
 struct CfGraphFile {
     const char *filename;
-    int nfuncs;
-    Signature *signatures;  // includes declared and defined functions
-    CfGraph **graphs;  // NULL means function is only declared, not defined
+    List(CfGraph) graphs;  // only for defined functions
 };
 
 

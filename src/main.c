@@ -199,6 +199,7 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
         assert(src);
 
         const ExportSymbol *sym = NULL;
+        
         for (ExportSymbol *p = src->typectx.exports.ptr; p < End(src->typectx.exports); p++) {
             if (!strcmp(p->name, impnode->data.import.symbolname)) {
                 sym = p;
@@ -296,6 +297,9 @@ int main(int argc, char **argv)
         *a = *b;
         *b = tmp;
     }
+
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
+        typecheck_signatures(&fs->typectx, fs->ast);
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
         compile_ast_to_llvm(&compst, fs);

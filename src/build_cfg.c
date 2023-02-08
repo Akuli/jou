@@ -760,73 +760,46 @@ static void build_body(struct State *st, const AstBody *body)
         build_statement(st, &body->statements[i]);
 }
 
-static CfGraph *build_function(struct State *st, const AstBody *body)
+static CfGraph build_function(struct State *st, const AstBody *body)
 {
-    st->cfg = calloc(1, sizeof *st->cfg);
-    Append(&st->cfg->all_blocks, &st->cfg->start_block);
-    Append(&st->cfg->all_blocks, &st->cfg->end_block);
-    st->current_block = &st->cfg->start_block;
+    struct CfGraph graph = {0};
+    st->cfg = &graph;
+    Append(&graph.all_blocks, &graph.start_block);
+    Append(&graph.all_blocks, &graph.end_block);
+    st->current_block = &graph.start_block;
 
     assert(st->breakstack.len == 0 && st->continuestack.len == 0);
     build_body(st, body);
     assert(st->breakstack.len == 0 && st->continuestack.len == 0);
 
     // Implicit return at the end of the function
-    st->current_block->iftrue = &st->cfg->end_block;
-    st->current_block->iffalse = &st->cfg->end_block;
+    st->current_block->iftrue = &graph.end_block;
+    st->current_block->iffalse = &graph.end_block;
 
     for (LocalVariable **v = st->typectx->locals.ptr; v < End(st->typectx->locals); v++)
-        Append(&st->cfg->locals, *v);
+        Append(&graph.locals, *v);
 
     reset_type_context(st->typectx);
-    return st->cfg;
+    return graph;
 }
 
 // TODO: passing a type context here doesn't really make sense.
 // It would be better to pass only the public symbols that have been imported.
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx)
 {
-    // imports are guaranteed to be in the beginning and we no longer need them
-    while (ast->kind == AST_TOPLEVEL_IMPORT)
-        ast++;
-
     CfGraphFile result = { .filename = ast->location.filename };
     struct State st = { .typectx = typectx };
 
-    int n = 0;
-    while (ast[n].kind!=AST_TOPLEVEL_END_OF_FILE) n++;
-    result.graphs = malloc(sizeof(result.graphs[0]) * n);  // NOLINT
-    result.signatures = malloc(sizeof(result.signatures[0]) * n);
-
-    Signature sig;
-    GlobalVariable *g;
-
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         switch(ast->kind) {
-        case AST_TOPLEVEL_IMPORT:
-        case AST_TOPLEVEL_END_OF_FILE:
-            assert(0);
-        case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-            g = typecheck_global_var(typectx, &ast->data.globalvar);
-            g->defined_outside_jou = true;
-            break;
-        case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-            typecheck_global_var(typectx, &ast->data.globalvar);
-            break;
-        case AST_TOPLEVEL_DECLARE_FUNCTION:
-            sig = typecheck_function(typectx, ast->location, &ast->data.decl_signature, NULL);
-            result.signatures[result.nfuncs] = sig;
-            result.graphs[result.nfuncs] = NULL;
-            result.nfuncs++;
-            break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            sig = typecheck_function(typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
-            result.signatures[result.nfuncs] = sig;
-            result.graphs[result.nfuncs] = build_function(&st, &ast->data.funcdef.body);
-            result.nfuncs++;
+            typecheck_function_body(typectx, ast->data.funcdef.signature.funcname, &ast->data.funcdef.body);
+            Append(&result.graphs, build_function(&st, &ast->data.funcdef.body));
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
-            typecheck_struct(typectx, &ast->data.structdef, ast->location);
+            typecheck_struct_body(typectx, &ast->data.structdef, ast->location);
+            break;
+        default:
             break;
         }
         ast++;
