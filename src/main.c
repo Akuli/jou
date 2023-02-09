@@ -264,6 +264,8 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es)
                 && !strcmp(ast->data.funcdef.signature.funcname, es->name))
             {
                 // A function with this name will be declared/defined in the file.
+                // Emit an error at the declaration/definition, because it comes after the import in the file.
+                // We must do this here, because the declaration/definition was already processed.
                 fail_with_error(ast->location, "a function named '%s' already exists", es->name);
             }
         }
@@ -324,7 +326,7 @@ static void add_imported_symbols(struct CompileState *compst)
 Check whether each import statement in AST actually imported something.
 
 This is trickier than you would expect, because multiple passes over
-the AST look at the imports, and any of them could use it.
+the AST look at the imports, and any of them could provide the symbol to import.
 */
 static void check_for_404_imports(const struct CompileState *compst)
 {
