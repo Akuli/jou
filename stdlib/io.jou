@@ -37,6 +37,11 @@ struct FILE:
     # to accessing the members directly.
     _dummy: int
 
+# Special files for terminal input and output.
+declare global stdin: FILE*
+declare global stdout: FILE*
+declare global stderr: FILE*
+
 # Open/close a file for reading or writing. Mode can be e.g. "r", "w",
 # "a", "rb", "wb" or "ab". The meanings of these modes are as in many
 # other languages, such as Python.
@@ -60,7 +65,7 @@ declare fscanf(file: FILE*, pattern: byte*, ...) -> int
 # or when the resulting string (including the '\0') wouldn't fit
 # within n bytes.
 #
-# Return value: NULL on error, same as s on success.
+# Return value: NULL on error, same as destination on success.
 declare fgets(destination: byte*, n: int, file: FILE*) -> byte*
 
 # Move back to beginning of file.
