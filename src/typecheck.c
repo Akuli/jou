@@ -2,7 +2,7 @@
 
 static const Type *find_type(const TypeContext *ctx, const char *name)
 {
-    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
+    for (const Type **t = ctx->types.ptr; t < End(ctx->types); t++)
         if (!strcmp((*t)->name, name))
             return *t;
     return NULL;

@@ -290,7 +290,7 @@ static void add_imported_symbols(struct CompileState *compst)
                                 case EXPSYM_GLOBAL_VAR: kindstr="global var"; break;
                                 case EXPSYM_TYPE: kindstr="type"; break;
                             }
-                            printf("Adding imported %s %s: %s --> \"%s\"\n",
+                            printf("Adding imported %s %s: %s --> %s\n",
                                 kindstr, es->name, from->path, to->path);
                         }
                         add_imported_symbol(to, es);
