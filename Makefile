@@ -31,5 +31,5 @@ jou: $(SRC:src/%.c=obj/%.o)
 
 .PHONY: clean
 clean:
-	rm -rvf obj jou jou.exe tmp config.h
+	rm -rvf obj jou jou.exe tests/tmp config.h
 	find -name jou_compiled -print -exec rm -rf '{}' +
