@@ -219,8 +219,6 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
             Append(&exports, handle_global_var(ctx, &ast->data.globalvar, true));
             break;
         case AST_TOPLEVEL_DECLARE_FUNCTION:
-            Append(&exports, handle_signature(ctx, &ast->data.decl_signature));
-            break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             Append(&exports, handle_signature(ctx, &ast->data.funcdef.signature));
             break;

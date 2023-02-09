@@ -877,7 +877,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
             }
         } else {
             result.kind = AST_TOPLEVEL_DECLARE_FUNCTION;
-            result.data.decl_signature = parse_function_signature(tokens);
+            result.data.funcdef.signature = parse_function_signature(tokens);
         }
         eat_newline(tokens);
     } else if (is_keyword(*tokens, "global")) {

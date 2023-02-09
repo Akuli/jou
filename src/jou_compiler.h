@@ -307,9 +307,8 @@ struct AstToplevelNode {
         AST_TOPLEVEL_IMPORT,
     } kind;
     union {
-        AstSignature decl_signature;  // AST_TOPLEVEL_DECLARE_FUNCTION
         AstNameTypeValue globalvar;  // AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE
-        AstFunctionDef funcdef;  // AST_TOPLEVEL_DEFINE_FUNCTION
+        AstFunctionDef funcdef;  // AST_TOPLEVEL_DECLARE_FUNCTION, AST_TOPLEVEL_DEFINE_FUNCTION (body is empty for declaring)
         AstStructDef structdef;  // AST_TOPLEVEL_DEFINE_STRUCT
         AstImport import;       // AST_TOPLEVEL_IMPORT
     } data;

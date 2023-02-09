@@ -382,7 +382,7 @@ void print_ast(const AstToplevelNode *topnodelist)
                 break;
             case AST_TOPLEVEL_DECLARE_FUNCTION:
                 printf("Declare a function: ");
-                print_ast_function_signature(&topnodelist->data.decl_signature);
+                print_ast_function_signature(&topnodelist->data.funcdef.signature);
                 break;
             case AST_TOPLEVEL_DEFINE_FUNCTION:
                 printf("Define a function: ");

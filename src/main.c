@@ -258,11 +258,19 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es)
     struct GlobalVariable *g;
 
     switch(es->kind) {
-    // TODO: assert that the symbol doesn't exist yet instead of blindly appending
     case EXPSYM_FUNCTION:
+        for (AstToplevelNode *ast = fs->ast; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
+            if ((ast->kind==AST_TOPLEVEL_DECLARE_FUNCTION || ast->kind==AST_TOPLEVEL_DEFINE_FUNCTION)
+                && !strcmp(ast->data.funcdef.signature.funcname, es->name))
+            {
+                // A function with this name will be declared/defined in the file.
+                fail_with_error(ast->location, "a function named '%s' already exists", es->name);
+            }
+        }
         Append(&fs->typectx.function_signatures, copy_signature(&es->data.funcsignature));
         break;
     case EXPSYM_GLOBAL_VAR:
+        // TODO: ensure the symbol doesn't exist yet
         g = calloc(1, sizeof(*g));
         g->type = es->data.type;
         g->defined_outside_jou = true;  // TODO rename this field
@@ -270,6 +278,7 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es)
         Append(&fs->typectx.globals, g);
         break;
     case EXPSYM_TYPE:
+        // TODO: ensure the symbol doesn't exist yet
         Append(&fs->typectx.types, es->data.type);
         break;
     }
