@@ -21,7 +21,7 @@ jobs:
     # valgrind+verbose isn't meaningful: test script would ignore valgrind output
     # Make sure that "make clean" cleans everything
     - run: |
-        if [ "$(git status --porcelain)" != "" ]; then
-          git status
+        if [ "$(git status --porcelain --ignored)" != "" ]; then
+          git status --ignored
           exit 1
         fi
