@@ -315,8 +315,6 @@ struct AstToplevelNode {
 };
 
 
-struct StructField { char name[100]; const Type *type; };
-
 struct Type {
     char name[500];   // All types have a name for error messages and debugging.
     enum TypeKind {
