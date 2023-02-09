@@ -19,3 +19,9 @@ jobs:
     - run: ./runtests.sh --verbose './jou ${{ matrix.opt-level }} --verbose %s'
     - run: ./runtests.sh --verbose --valgrind './jou ${{ matrix.opt-level }} %s'
     # valgrind+verbose isn't meaningful: test script would ignore valgrind output
+    # Make sure that "make clean" cleans everything
+    - run: |
+        if [ "$(git status --porcelain)" != "" ]; then
+          git status
+          exit 1
+        fi
