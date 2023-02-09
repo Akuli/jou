@@ -123,7 +123,6 @@ struct FileState {
     TypeContext typectx;
     LLVMModuleRef module;
     ExportSymbol *pending_exports;
-    List(ExportSymbol) previously_exported;
 };
 
 struct ParseQueueItem {
@@ -281,12 +280,13 @@ static void add_imported_symbols(struct CompileState *compst)
     // TODO: should it be possible for a file to import from itself?
     // Should fail with error?
     for (struct FileState *to = compst->files.ptr; to < End(compst->files); to++) {
-        for (const AstToplevelNode *imp = to->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++) {
-            struct FileState *from = find_file(compst, imp->data.import.path);
+        for (AstToplevelNode *ast = to->ast; ast->kind == AST_TOPLEVEL_IMPORT; ast++) {
+            AstImport *imp = &ast->data.import;
+            struct FileState *from = find_file(compst, imp->path);
             assert(from);
 
             for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
-                if (!strcmp(imp->data.import.symbolname, es->name)) {
+                if (!strcmp(imp->symbolname, es->name)) {
                     if (compst->flags.verbose) {
                         const char *kindstr;
                         switch(es->kind) {
@@ -297,6 +297,7 @@ static void add_imported_symbols(struct CompileState *compst)
                         printf("Adding imported %s %s: %s --> %s\n",
                             kindstr, es->name, from->path, to->path);
                     }
+                    imp->found = true;
                     add_imported_symbol(to, es);
                 }
             }
@@ -305,8 +306,6 @@ static void add_imported_symbols(struct CompileState *compst)
 
     // Mark all exports as no longer pending.
     for (struct FileState *fs = compst->files.ptr; fs < End(compst->files); fs++) {
-        for (struct ExportSymbol *es = fs->pending_exports; es->name[0]; es++)
-            Append(&fs->previously_exported, *es);
         free(fs->pending_exports);
         fs->pending_exports = NULL;
     }
@@ -320,20 +319,9 @@ the AST look at the imports, and any of them could use it.
 */
 static void check_for_404_imports(const struct CompileState *compst)
 {
-    for (struct FileState *to = compst->files.ptr; to < End(compst->files); to++) {
-        for (const AstToplevelNode *imp = to->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++) {
-            struct FileState *from = find_file(compst, imp->data.import.path);
-            assert(from);
-
-            bool found = false;
-            for (const ExportSymbol *es = from->previously_exported.ptr; es < End(from->previously_exported); es++) {
-                if (!strcmp(es->name, imp->data.import.symbolname)) {
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found){
+    for (struct FileState *fs = compst->files.ptr; fs < End(compst->files); fs++) {
+        for (const AstToplevelNode *imp = fs->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++) {
+            if (!imp->data.import.found) {
                 fail_with_error(
                     imp->location, "file \"%s\" does not export a symbol named '%s'",
                     imp->data.import.path, imp->data.import.symbolname);

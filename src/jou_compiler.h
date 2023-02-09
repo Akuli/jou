@@ -291,6 +291,7 @@ struct AstStructDef {
 struct AstImport {
     char *path;  // Relative to current working directory, so e.g. "blah/stdlib/io.jou"
     char symbolname[100];
+    bool found;    // For error messages
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
