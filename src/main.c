@@ -184,7 +184,7 @@ static void parse_all_pending_files(struct CompileState *compst)
 static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *fs)
 {
     if (compst->flags.verbose)
-        printf("AST to LLVM IR: %s\n", fs->path);
+        printf("Build CFG: %s\n", fs->path);
 
     CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->typectx);
     free_ast(fs->ast);
@@ -196,6 +196,9 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
     simplify_control_flow_graphs(&cfgfile);
     if(compst->flags.verbose)
         print_control_flow_graphs(&cfgfile);
+
+    if (compst->flags.verbose)
+        printf("Build LLVM IR: %s\n", fs->path);
 
     fs->module = codegen(&cfgfile, &fs->typectx);
     free_control_flow_graphs(&cfgfile);
@@ -280,6 +283,16 @@ static void add_imported_symbols(struct CompileState *compst)
                     if (!strcmp(imp->data.import.path, from->path)
                         && !strcmp(imp->data.import.symbolname, es->name))
                     {
+                        if (compst->flags.verbose) {
+                            const char *kindstr;
+                            switch(es->kind) {
+                                case EXPSYM_FUNCTION: kindstr="function"; break;
+                                case EXPSYM_GLOBAL_VAR: kindstr="global var"; break;
+                                case EXPSYM_TYPE: kindstr="type"; break;
+                            }
+                            printf("Adding imported %s %s: %s --> \"%s\"\n",
+                                kindstr, es->name, from->path, to->path);
+                        }
                         add_imported_symbol(to, es);
                     }
                 }
@@ -309,13 +322,22 @@ int main(int argc, char **argv)
     parse_file(&compst, filename, NULL);
     parse_all_pending_files(&compst);
 
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
+        if (compst.flags.verbose)
+            printf("Typecheck step 1: %s\n", fs->path);
         fs->pending_exports = typecheck_step1_create_types(&fs->typectx, fs->ast);
+    }
     add_imported_symbols(&compst);
 
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
+        if (compst.flags.verbose)
+            printf("Typecheck step 2: %s\n", fs->path);
         fs->pending_exports = typecheck_step2_signatures_globals_structbodies(&fs->typectx, fs->ast);
+    }
     add_imported_symbols(&compst);
+
+    if (compst.flags.verbose)
+        printf("\n");
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
         compile_ast_to_llvm(&compst, fs);
