@@ -363,12 +363,9 @@ const Type *get_integer_type(int size_in_bits, bool is_signed);
 const Type *get_pointer_type(const Type *t);  // result lives as long as t
 const Type *get_array_type(const Type *t, int len);  // result lives as long as t
 const Type *type_of_constant(const Constant *c);
-
-// creates an opaque struct
-Type *create_struct(const char *name);
-// makes an opaque struct not opaque
+Type *create_opaque_struct(const char *name);
 void set_struct_fields(
-    Type *structtype,
+    Type *structtype,  // must be opaque struct, becomes non-opaque
     int fieldcount,
     char (*fieldnames)[100],  // will be free()d eventually
     const Type **fieldtypes);  // will be free()d eventually

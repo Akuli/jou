@@ -161,7 +161,7 @@ const Type *type_of_constant(const Constant *c)
     assert(0);
 }
 
-Type *create_struct(const char *name)
+Type *create_opaque_struct(const char *name)
 {
     struct TypeInfo *result = calloc(1, sizeof *result);
     result->type = (Type){ .kind = TYPE_OPAQUE_STRUCT };

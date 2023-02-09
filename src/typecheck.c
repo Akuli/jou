@@ -48,7 +48,7 @@ ExportSymbol *typecheck_step1_create_types(TypeContext *ctx, const AstToplevelNo
 
         if (find_type(ctx, name))
             fail_with_error(ast->location, "a type named '%s' already exists", name);
-        Type *t = create_struct(name);
+        Type *t = create_opaque_struct(name);
         Append(&ctx->structs, t);
         Append(&ctx->types, t);
 
