@@ -344,7 +344,7 @@ static void add_imported_symbols(struct CompileState *compst)
 Check whether each import statement in AST actually imported something.
 
 This is trickier than you would expect, because multiple passes over
-the AST look at the imports, and any of them could use it.
+the AST look at the imports, and any of them could provide the symbol to import.
 */
 static void check_for_404_imports(const struct CompileState *compst)
 {
