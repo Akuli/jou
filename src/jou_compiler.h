@@ -426,7 +426,6 @@ struct TypeContext {
     List(Type *) structs;   // These will be freed later
     List(const Type *) types;
     List(Signature) function_signatures;
-    List(ExportSymbol) exports;
 };
 
 /*
