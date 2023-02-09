@@ -126,6 +126,7 @@ static AstSignature parse_function_signature(const Token **tokens)
 
     if ((*tokens)->type != TOKEN_NAME)
         fail_with_parse_error(*tokens, "a function name");
+    result.funcname_location = (*tokens)->location;
     safe_strcpy(result.funcname, (*tokens)->data.name);
     ++*tokens;
 
