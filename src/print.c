@@ -573,8 +573,8 @@ void print_control_flow_graph(const CfGraph *cfg)
 void print_control_flow_graphs(const CfGraphFile *cfgfile)
 {
     printf("===== Control Flow Graphs for file \"%s\" =====\n", cfgfile->filename);
-    for (CfGraph *cfg = cfgfile->graphs.ptr; cfg < End(cfgfile->graphs); cfg++)
-        print_control_flow_graph(cfg);
+    for (CfGraph **cfg = cfgfile->graphs.ptr; cfg < End(cfgfile->graphs); cfg++)
+        print_control_flow_graph(*cfg);
 }
 
 void print_llvm_ir(LLVMModuleRef module, bool is_optimized)

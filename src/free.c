@@ -223,7 +223,6 @@ void free_type_context(const TypeContext *ctx)
     free(ctx->locals.ptr);
     free(ctx->structs.ptr);
     free(ctx->function_signatures.ptr);
-    free(ctx->imports.ptr);
 }
 
 
@@ -255,7 +254,7 @@ static void free_cfg(CfGraph *cfg)
 
 void free_control_flow_graphs(const CfGraphFile *cfgfile)
 {
-    for (CfGraph *cfg = cfgfile->graphs.ptr; cfg < End(cfgfile->graphs); cfg++)
-        free_cfg(cfg);
+    for (CfGraph **cfg = cfgfile->graphs.ptr; cfg < End(cfgfile->graphs); cfg++)
+        free_cfg(*cfg);
     free(cfgfile->graphs.ptr);
 }

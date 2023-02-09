@@ -760,24 +760,25 @@ static void build_body(struct State *st, const AstBody *body)
         build_statement(st, &body->statements[i]);
 }
 
-static CfGraph build_function(struct State *st, const AstBody *body)
+static CfGraph *build_function(struct State *st, const AstBody *body, const Signature *sig)
 {
-    struct CfGraph graph = {0};
-    st->cfg = &graph;
-    Append(&graph.all_blocks, &graph.start_block);
-    Append(&graph.all_blocks, &graph.end_block);
-    st->current_block = &graph.start_block;
+    struct CfGraph *graph = calloc(1, sizeof *graph);
+    graph->signature = copy_signature(sig);
+    st->cfg = graph;
+    Append(&graph->all_blocks, &graph->start_block);
+    Append(&graph->all_blocks, &graph->end_block);
+    st->current_block = &graph->start_block;
 
     assert(st->breakstack.len == 0 && st->continuestack.len == 0);
     build_body(st, body);
     assert(st->breakstack.len == 0 && st->continuestack.len == 0);
 
     // Implicit return at the end of the function
-    st->current_block->iftrue = &graph.end_block;
-    st->current_block->iffalse = &graph.end_block;
+    st->current_block->iftrue = &graph->end_block;
+    st->current_block->iffalse = &graph->end_block;
 
     for (LocalVariable **v = st->typectx->locals.ptr; v < End(st->typectx->locals); v++)
-        Append(&graph.locals, *v);
+        Append(&graph->locals, *v);
 
     reset_type_context(st->typectx);
     return graph;
@@ -791,16 +792,11 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx
     struct State st = { .typectx = typectx };
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
-        switch(ast->kind) {
-        case AST_TOPLEVEL_DEFINE_FUNCTION:
-            typecheck_function_body(typectx, ast->data.funcdef.signature.funcname, &ast->data.funcdef.body);
-            Append(&result.graphs, build_function(&st, &ast->data.funcdef.body));
-            break;
-        case AST_TOPLEVEL_DEFINE_STRUCT:
-            typecheck_struct_body(typectx, &ast->data.structdef, ast->location);
-            break;
-        default:
-            break;
+        if(ast->kind == AST_TOPLEVEL_DEFINE_FUNCTION) {
+            const Signature *sig = typecheck_function_body(typectx, ast->data.funcdef.signature.funcname, &ast->data.funcdef.body);
+            CfGraph *g = build_function(&st, &ast->data.funcdef.body, sig);
+            g->signature = copy_signature(sig);
+            Append(&result.graphs, g);
         }
         ast++;
     }

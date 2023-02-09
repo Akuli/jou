@@ -122,6 +122,7 @@ struct FileState {
     AstToplevelNode *ast;
     TypeContext typectx;
     LLVMModuleRef module;
+    ExportSymbol *pending_exports;
 };
 
 struct ParseQueueItem {
@@ -185,35 +186,6 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
     if (compst->flags.verbose)
         printf("AST to LLVM IR: %s\n", fs->path);
 
-    for (AstToplevelNode *impnode = fs->ast; impnode->kind == AST_TOPLEVEL_IMPORT; impnode++) {
-        if (compst->flags.verbose)
-            printf("  Add imported symbol: %s\n", impnode->data.import.symbolname);
-
-        struct FileState *src = NULL;
-        for (struct FileState *p = compst->files.ptr; p < fs; p++) {
-            if (!strcmp(p->path, impnode->data.import.path)) {
-                src = p;
-                break;
-            }
-        }
-        assert(src);
-
-        const ExportSymbol *sym = NULL;
-        
-        for (ExportSymbol *p = src->typectx.exports.ptr; p < End(src->typectx.exports); p++) {
-            if (!strcmp(p->name, impnode->data.import.symbolname)) {
-                sym = p;
-                break;
-            }
-        }
-        if (!sym) {
-            fail_with_error(
-                impnode->location, "file \"%s\" does not export a symbol named '%s'",
-                impnode->data.import.path, impnode->data.import.symbolname);
-        }
-        Append(&fs->typectx.imports, sym);
-    }
-
     CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->typectx);
     free_ast(fs->ast);
     fs->ast = NULL;
@@ -271,6 +243,54 @@ static char *find_stdlib()
     return path;
 }
 
+static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es)
+{
+    struct GlobalVariable *g;
+
+    switch(es->kind) {
+    // TODO: assert that the symbol doesn't exist yet instead of blindly appending
+    case EXPSYM_FUNCTION:
+        Append(&fs->typectx.function_signatures, copy_signature(&es->data.funcsignature));
+        break;
+    case EXPSYM_GLOBAL_VAR:
+        g = calloc(1, sizeof(*g));
+        g->type = es->data.type;
+        g->defined_outside_jou = true;  // TODO rename this field
+        safe_strcpy(g->name, es->name);
+        Append(&fs->typectx.globals, g);
+        break;
+    case EXPSYM_TYPE:
+        Append(&fs->typectx.types, es->data.type);
+        break;
+    }
+}
+
+static void add_imported_symbols(struct CompileState *compst)
+{
+    for (struct FileState *from = compst->files.ptr; from < End(compst->files); from++) {
+        for (struct FileState *to = compst->files.ptr; to < End(compst->files); to++) {
+            if (from == to) {
+                // TODO: should it be possible for a file to import from itself?
+                // Should fail with error?
+                continue;
+            }
+
+            for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
+                for (const AstToplevelNode *imp = to->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++) {
+                    if (!strcmp(imp->data.import.path, from->path)
+                        && !strcmp(imp->data.import.symbolname, es->name))
+                    {
+                        add_imported_symbol(to, es);
+                    }
+                }
+            }
+        }
+
+        free(from->pending_exports);
+        from->pending_exports = NULL;
+    }
+}
+
 int main(int argc, char **argv)
 {
     init_types();
@@ -289,17 +309,13 @@ int main(int argc, char **argv)
     parse_file(&compst, filename, NULL);
     parse_all_pending_files(&compst);
 
-    // Reverse files, so that if foo imports bar, we compile bar first.
-    // So far we have followed the imports.
-    for (struct FileState *a = compst.files.ptr, *b = End(compst.files)-1; a<b; a++,b--)
-    {
-        struct FileState tmp = *a;
-        *a = *b;
-        *b = tmp;
-    }
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
+        fs->pending_exports = typecheck_step1_create_types(&fs->typectx, fs->ast);
+    add_imported_symbols(&compst);
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
-        typecheck_signatures(&fs->typectx, fs->ast);
+        fs->pending_exports = typecheck_step2_signatures_globals_structbodies(&fs->typectx, fs->ast);
+    add_imported_symbols(&compst);
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
         compile_ast_to_llvm(&compst, fs);

@@ -109,6 +109,7 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const Signatur
     LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
     free(argtypes);
 
+    printf("Add Function %s\n", sig->funcname);
     return LLVMAddFunction(st->module, sig->funcname, functype);
 }
 
@@ -354,6 +355,7 @@ static void codegen_function_def(struct State *st, const CfGraph *cfg)
     st->cfvars_end = End(cfg->locals);
     st->llvm_locals = malloc(sizeof(st->llvm_locals[0]) * cfg->locals.len); // NOLINT
 
+    printf("Find Function %s\n", cfg->signature.funcname);
     LLVMValueRef llvm_func = LLVMGetNamedFunction(st->module, cfg->signature.funcname);
     assert(llvm_func);
 
@@ -434,8 +436,8 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
 
     for (Signature* s = typectx->function_signatures.ptr; s < End(typectx->function_signatures); s++)
         codegen_function_decl(&st, s);
-    for (CfGraph *g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
-        codegen_function_def(&st, g);
+    for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
+        codegen_function_def(&st, *g);
 
     LLVMDisposeBuilder(st.builder);
     return st.module;

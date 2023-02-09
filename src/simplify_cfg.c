@@ -535,6 +535,6 @@ static void simplify_cfg(CfGraph *cfg)
 
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile)
 {
-    for (CfGraph *cfg = cfgfile->graphs.ptr; cfg < End(cfgfile->graphs); cfg++)
-        simplify_cfg(cfg);
+    for (CfGraph **cfg = cfgfile->graphs.ptr; cfg < End(cfgfile->graphs); cfg++)
+        simplify_cfg(*cfg);
 }
