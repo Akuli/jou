@@ -240,6 +240,7 @@ struct AstIfStatement {
 struct AstNameTypeValue {
     // name: type = value
     char name[100];
+    Location name_location;
     AstType type;
     AstExpression *value; // can be NULL if value is missing
 };

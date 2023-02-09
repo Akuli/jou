@@ -127,7 +127,10 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
 
 static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl, bool definedhere)
 {
-    // TODO: error for duplicate name?
+    assert(ctx->locals.len == 0);  // find_any_var() only finds global vars
+    if (find_any_var(ctx, vardecl->name))
+        fail_with_error(vardecl->name_location, "a global variable named '%s' already exists", vardecl->name);
+
     assert(!vardecl->value);
     GlobalVariable *g = calloc(1, sizeof *g);
     safe_strcpy(g->name, vardecl->name);

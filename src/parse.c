@@ -101,6 +101,7 @@ static AstNameTypeValue parse_name_type_value(const Token **tokens, const char *
         fail_with_parse_error(*tokens, expected_what_for_name);
     }
     safe_strcpy(result.name, (*tokens)->data.name);
+    result.name_location = (*tokens)->location;
     ++*tokens;
 
     if (!is_operator(*tokens, ":"))
