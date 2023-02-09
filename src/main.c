@@ -253,24 +253,45 @@ static char *find_stdlib()
     return path;
 }
 
+static bool astnode_conflicts_with_an_import(const AstToplevelNode *astnode, const ExportSymbol *import)
+{
+    switch(astnode->kind) {
+    case AST_TOPLEVEL_DECLARE_FUNCTION:
+    case AST_TOPLEVEL_DEFINE_FUNCTION:
+        return import->kind == EXPSYM_FUNCTION && !strcmp(import->name, astnode->data.funcdef.signature.funcname);
+    case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
+    case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
+        return import->kind == EXPSYM_GLOBAL_VAR && !strcmp(import->name, astnode->data.globalvar.name);
+    case AST_TOPLEVEL_DEFINE_STRUCT:
+        return import->kind == EXPSYM_TYPE && !strcmp(import->name, astnode->data.structdef.name);
+    case AST_TOPLEVEL_IMPORT:
+        return false;
+    case AST_TOPLEVEL_END_OF_FILE:
+        assert(0);
+    }
+}
+
 static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es)
 {
+    for (AstToplevelNode *ast = fs->ast; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
+        if (astnode_conflicts_with_an_import(ast, es)) {
+            const char *wat;
+            switch(es->kind) {
+                case EXPSYM_FUNCTION: wat = "function"; break;
+                case EXPSYM_GLOBAL_VAR: wat = "global variable"; break;
+                case EXPSYM_TYPE: wat = "type"; break;
+            }
+            fail_with_error(ast->location, "a %s named '%s' already exists", wat, es->name);
+        }
+    }
+
     struct GlobalVariable *g;
 
     switch(es->kind) {
     case EXPSYM_FUNCTION:
-        for (AstToplevelNode *ast = fs->ast; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
-            if ((ast->kind==AST_TOPLEVEL_DECLARE_FUNCTION || ast->kind==AST_TOPLEVEL_DEFINE_FUNCTION)
-                && !strcmp(ast->data.funcdef.signature.funcname, es->name))
-            {
-                // A function with this name will be declared/defined in the file.
-                fail_with_error(ast->location, "a function named '%s' already exists", es->name);
-            }
-        }
         Append(&fs->typectx.function_signatures, copy_signature(&es->data.funcsignature));
         break;
     case EXPSYM_GLOBAL_VAR:
-        // TODO: ensure the symbol doesn't exist yet
         g = calloc(1, sizeof(*g));
         g->type = es->data.type;
         g->defined_outside_jou = true;  // TODO rename this field
@@ -278,7 +299,6 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es)
         Append(&fs->typectx.globals, g);
         break;
     case EXPSYM_TYPE:
-        // TODO: ensure the symbol doesn't exist yet
         Append(&fs->typectx.types, es->data.type);
         break;
     }
