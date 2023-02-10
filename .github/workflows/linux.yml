@@ -19,3 +19,10 @@ jobs:
     - run: ./runtests.sh --verbose './jou ${{ matrix.opt-level }} --verbose %s'
     - run: ./runtests.sh --verbose --valgrind './jou ${{ matrix.opt-level }} %s'
     # valgrind+verbose isn't meaningful: test script would ignore valgrind output
+    - run: make clean
+    - name: Check that "make clean" deleted all files not committed to Git
+      run: |
+        if [ "$(git status --porcelain --ignored)" != "" ]; then
+          git status --ignored
+          exit 1
+        fi
