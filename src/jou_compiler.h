@@ -552,6 +552,7 @@ void free_constant(const Constant *c);
 void free_tokens(Token *tokenlist);
 void free_ast(AstToplevelNode *topnodelist);
 void free_type_context(const TypeContext *typectx);
+void free_export_symbol(const ExportSymbol *es);
 void free_control_flow_graphs(const CfGraphFile *cfgfile);
 void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b);
 

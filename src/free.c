@@ -210,6 +210,12 @@ static void free_signature(const Signature *sig)
     free(sig->argtypes);
 }
 
+void free_export_symbol(const ExportSymbol *es)
+{
+    if (es->kind == EXPSYM_FUNCTION)
+        free_signature(&es->data.funcsignature);
+}
+
 void free_type_context(const TypeContext *ctx)
 {
     for (GlobalVariable **g = ctx->globals.ptr; g < End(ctx->globals); g++)
@@ -221,6 +227,7 @@ void free_type_context(const TypeContext *ctx)
     free(ctx->expr_types.ptr);
     free(ctx->globals.ptr);
     free(ctx->locals.ptr);
+    free(ctx->types.ptr);
     free(ctx->structs.ptr);
     free(ctx->function_signatures.ptr);
 }

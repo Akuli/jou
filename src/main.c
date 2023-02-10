@@ -335,6 +335,8 @@ static void add_imported_symbols(struct CompileState *compst)
 
     // Mark all exports as no longer pending.
     for (struct FileState *fs = compst->files.ptr; fs < End(compst->files); fs++) {
+        for (struct ExportSymbol *es = fs->pending_exports; es->name[0]; es++)
+            free_export_symbol(es);
         free(fs->pending_exports);
         fs->pending_exports = NULL;
     }

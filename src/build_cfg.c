@@ -760,10 +760,9 @@ static void build_body(struct State *st, const AstBody *body)
         build_statement(st, &body->statements[i]);
 }
 
-static CfGraph *build_function(struct State *st, const AstBody *body, const Signature *sig)
+static CfGraph *build_function(struct State *st, const AstBody *body)
 {
     st->cfg = calloc(1, sizeof *st->cfg);
-    st->cfg->signature = copy_signature(sig);
     Append(&st->cfg->all_blocks, &st->cfg->start_block);
     Append(&st->cfg->all_blocks, &st->cfg->end_block);
     st->current_block = &st->cfg->start_block;
@@ -793,7 +792,7 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         if(ast->kind == AST_TOPLEVEL_DEFINE_FUNCTION) {
             const Signature *sig = typecheck_function_body(typectx, ast->data.funcdef.signature.funcname, &ast->data.funcdef.body);
-            CfGraph *g = build_function(&st, &ast->data.funcdef.body, sig);
+            CfGraph *g = build_function(&st, &ast->data.funcdef.body);
             g->signature = copy_signature(sig);
             Append(&result.graphs, g);
         }
