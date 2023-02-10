@@ -101,6 +101,7 @@ static AstNameTypeValue parse_name_type_value(const Token **tokens, const char *
         fail_with_parse_error(*tokens, expected_what_for_name);
     }
     safe_strcpy(result.name, (*tokens)->data.name);
+    result.name_location = (*tokens)->location;
     ++*tokens;
 
     if (!is_operator(*tokens, ":"))
@@ -126,6 +127,7 @@ static AstSignature parse_function_signature(const Token **tokens)
 
     if ((*tokens)->type != TOKEN_NAME)
         fail_with_parse_error(*tokens, "a function name");
+    result.funcname_location = (*tokens)->location;
     safe_strcpy(result.funcname, (*tokens)->data.name);
     ++*tokens;
 
@@ -876,7 +878,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
             }
         } else {
             result.kind = AST_TOPLEVEL_DECLARE_FUNCTION;
-            result.data.decl_signature = parse_function_signature(tokens);
+            result.data.funcdef.signature = parse_function_signature(tokens);
         }
         eat_newline(tokens);
     } else if (is_keyword(*tokens, "global")) {

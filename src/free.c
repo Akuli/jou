@@ -178,7 +178,7 @@ void free_ast(AstToplevelNode *topnodelist)
     for (AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
         switch(t->kind) {
         case AST_TOPLEVEL_DECLARE_FUNCTION:
-            free_ast_signature(&t->data.decl_signature);
+            free_ast_signature(&t->data.funcdef.signature);
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             free_ast_signature(&t->data.funcdef.signature);
@@ -210,6 +210,12 @@ static void free_signature(const Signature *sig)
     free(sig->argtypes);
 }
 
+void free_export_symbol(const ExportSymbol *es)
+{
+    if (es->kind == EXPSYM_FUNCTION)
+        free_signature(&es->data.funcsignature);
+}
+
 void free_type_context(const TypeContext *ctx)
 {
     for (GlobalVariable **g = ctx->globals.ptr; g < End(ctx->globals); g++)
@@ -218,24 +224,12 @@ void free_type_context(const TypeContext *ctx)
         free_type(*t);
     for (Signature *s = ctx->function_signatures.ptr; s < End(ctx->function_signatures); s++)
         free_signature(s);
-    for (ExportSymbol *sym = ctx->exports.ptr; sym < End(ctx->exports); sym++) {
-        switch(sym->kind) {
-        case EXPSYM_FUNCTION:
-            free_signature(&sym->data.funcsignature);
-            break;
-        case EXPSYM_TYPE:
-        case EXPSYM_GLOBAL_VAR:
-            // doesn't own the type, could e.g. reference a struct type in ctx->structs
-            break;
-        }
-    }
     free(ctx->expr_types.ptr);
     free(ctx->globals.ptr);
     free(ctx->locals.ptr);
+    free(ctx->types.ptr);
     free(ctx->structs.ptr);
     free(ctx->function_signatures.ptr);
-    free(ctx->imports.ptr);
-    free(ctx->exports.ptr);
 }
 
 
@@ -253,9 +247,10 @@ void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b)
 
 static void free_cfg(CfGraph *cfg)
 {
+    free_signature(&cfg->signature);
+
     for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++)
         free_control_flow_graph_block(cfg, *b);
-
     for (LocalVariable **v = cfg->locals.ptr; v < End(cfg->locals); v++)
         free(*v);
 
@@ -266,12 +261,7 @@ static void free_cfg(CfGraph *cfg)
 
 void free_control_flow_graphs(const CfGraphFile *cfgfile)
 {
-    for (int i = 0; i < cfgfile->nfuncs; i++) {
-        free_signature(&cfgfile->signatures[i]);
-        if (cfgfile->graphs[i])
-            free_cfg(cfgfile->graphs[i]);
-    }
-
-    free(cfgfile->signatures);
-    free(cfgfile->graphs);
+    for (CfGraph **cfg = cfgfile->graphs.ptr; cfg < End(cfgfile->graphs); cfg++)
+        free_cfg(*cfg);
+    free(cfgfile->graphs.ptr);
 }

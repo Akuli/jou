@@ -161,18 +161,24 @@ const Type *type_of_constant(const Constant *c)
     assert(0);
 }
 
-Type *create_struct(const char *name, int fieldcount, char (*fieldnames)[100], const Type **fieldtypes)
+Type *create_opaque_struct(const char *name)
 {
     struct TypeInfo *result = calloc(1, sizeof *result);
-    result->type = (Type){
-        .kind = TYPE_STRUCT,
-        .data.structfields = {.count=fieldcount, .types=fieldtypes, .names=fieldnames},
-    };
+    result->type = (Type){ .kind = TYPE_OPAQUE_STRUCT };
 
     assert(strlen(name) < sizeof result->type.name);
     strcpy(result->type.name, name);
 
     return &result->type;
+}
+
+void set_struct_fields(Type *structtype, int count, char (*names)[100], const Type **types)
+{
+    assert(structtype->kind == TYPE_OPAQUE_STRUCT);
+    structtype->kind = TYPE_STRUCT;
+    structtype->data.structfields.count = count;
+    structtype->data.structfields.names = names;
+    structtype->data.structfields.types = types;
 }
 
 

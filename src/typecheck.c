@@ -1,5 +1,21 @@
 #include "jou_compiler.h"
 
+static const Type *find_type(const TypeContext *ctx, const char *name)
+{
+    for (const Type **t = ctx->types.ptr; t < End(ctx->types); t++)
+        if (!strcmp((*t)->name, name))
+            return *t;
+    return NULL;
+}
+
+static const Signature *find_function(const TypeContext *ctx, const char *name)
+{
+    for (Signature *sig = ctx->function_signatures.ptr; sig < End(ctx->function_signatures); sig++)
+        if (!strcmp(sig->funcname, name))
+            return sig;
+    return NULL;
+}
+
 static const LocalVariable *find_local_var(const TypeContext *ctx, const char *name)
 {
     for (LocalVariable **var = ctx->locals.ptr; var < End(ctx->locals); var++)
@@ -13,57 +29,36 @@ static const Type *find_any_var(const TypeContext *ctx, const char *name)
     for (LocalVariable **var = ctx->locals.ptr; var < End(ctx->locals); var++)
         if (!strcmp((*var)->name, name))
             return (*var)->type;
-
     for (GlobalVariable **var = ctx->globals.ptr; var < End(ctx->globals); var++)
         if (!strcmp((*var)->name, name))
             return (*var)->type;
-
-    for (const ExportSymbol **es = ctx->imports.ptr; es < End(ctx->imports); es++)
-        if ((*es)->kind == EXPSYM_GLOBAL_VAR && !strcmp((*es)->name, name))
-            return (*es)->data.type;
-
     return NULL;
 }
 
-static LocalVariable *add_variable(TypeContext *ctx, const Type *t, const char *name)
+ExportSymbol *typecheck_step1_create_types(TypeContext *ctx, const AstToplevelNode *ast)
 {
-    LocalVariable *var = calloc(1, sizeof *var);
-    var->id = ctx->locals.len;
-    var->type = t;
+    List(ExportSymbol) exports = {0};
 
-    assert(name);
-    assert(!find_local_var(ctx, name));
-    assert(strlen(name) < sizeof var->name);
-    strcpy(var->name, name);
+    for (; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
+        if (ast->kind != AST_TOPLEVEL_DEFINE_STRUCT)
+            continue;
 
-    Append(&ctx->locals, var);
-    return var;
-}
+        char name[100];
+        safe_strcpy(name, ast->data.structdef.name);
 
-static const Signature *find_function(const TypeContext *ctx, const char *name)
-{
-    for (Signature *sig = ctx->function_signatures.ptr; sig < End(ctx->function_signatures); sig++)
-        if (!strcmp(sig->funcname, name))
-            return sig;
+        if (find_type(ctx, name))
+            fail_with_error(ast->location, "a type named '%s' already exists", name);
+        Type *t = create_opaque_struct(name);
+        Append(&ctx->structs, t);
+        Append(&ctx->types, t);
 
-    for (const ExportSymbol **es = ctx->imports.ptr; es < End(ctx->imports); es++)
-        if ((*es)->kind == EXPSYM_FUNCTION && !strcmp((*es)->name, name))
-            return &(*es)->data.funcsignature;
+        struct ExportSymbol es = { .kind = EXPSYM_TYPE, .data.type = t };
+        safe_strcpy(es.name, name);
+        Append(&exports, es);
+    }
 
-    return NULL;
-}
-
-static const Type *find_type(const TypeContext *ctx, const char *name)
-{
-    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
-        if (!strcmp((*t)->name, name))
-            return *t;
-
-    for (const ExportSymbol **es = ctx->imports.ptr; es < End(ctx->imports); es++)
-        if ((*es)->kind == EXPSYM_TYPE && !strcmp((*es)->name, name))
-            return (*es)->data.type;
-
-    return NULL;
+    Append(&exports, (ExportSymbol){0});
+    return exports.ptr;
 }
 
 int evaluate_array_length(const AstExpression *expr)
@@ -128,6 +123,136 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
             fail_with_error(asttype->data.array.len->location, "array length must be positive");
         return get_array_type(tmp, len);
     }
+}
+
+static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl, bool definedhere)
+{
+    assert(ctx->locals.len == 0);  // find_any_var() only finds global vars
+    if (find_any_var(ctx, vardecl->name))
+        fail_with_error(vardecl->name_location, "a global variable named '%s' already exists", vardecl->name);
+
+    assert(!vardecl->value);
+    GlobalVariable *g = calloc(1, sizeof *g);
+    safe_strcpy(g->name, vardecl->name);
+    g->type = type_from_ast(ctx, &vardecl->type);
+    g->defined_outside_jou = !definedhere;
+    Append(&ctx->globals, g);
+
+    ExportSymbol es = { .kind = EXPSYM_GLOBAL_VAR, .data.type = g->type };
+    safe_strcpy(es.name, g->name);
+    return es;
+}
+
+static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsig)
+{
+    if (find_function(ctx, astsig->funcname))
+        fail_with_error(astsig->funcname_location, "a function named '%s' already exists", astsig->funcname);
+
+    Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
+    safe_strcpy(sig.funcname, astsig->funcname);
+
+    size_t size = sizeof(sig.argnames[0]) * sig.nargs;
+    sig.argnames = malloc(size);
+    for (int i = 0; i < sig.nargs; i++)
+        safe_strcpy(sig.argnames[i], astsig->args.ptr[i].name);
+
+    sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs);  // NOLINT
+    for (int i = 0; i < sig.nargs; i++)
+        sig.argtypes[i] = type_from_ast(ctx, &astsig->args.ptr[i].type);
+
+    sig.returntype = type_or_void_from_ast(ctx, &astsig->returntype);
+    // TODO: validate main() parameters
+    // TODO: test main() taking parameters
+    if (!strcmp(sig.funcname, "main") && sig.returntype != intType) {
+        fail_with_error(astsig->returntype.location, "the main() function must return int");
+    }
+
+    sig.returntype_location = astsig->returntype.location;
+
+    Append(&ctx->function_signatures, copy_signature(&sig));
+
+    ExportSymbol es = { .kind = EXPSYM_FUNCTION, .data.funcsignature = sig };
+    safe_strcpy(es.name, sig.funcname);
+    return es;
+}
+
+static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef)
+{
+    // Previous type-checking pass created an opaque struct.
+    Type *type = NULL;
+    for (Type **s = ctx->structs.ptr; s < End(ctx->structs); s++)
+        if (!strcmp((*s)->name, structdef->name)) {
+            type = *s;
+            break;
+        }
+    assert(type);
+    assert(type->kind == TYPE_OPAQUE_STRUCT);
+
+    int n = structdef->fields.len;
+
+    char (*fieldnames)[100] = malloc(n * sizeof(fieldnames[0]));
+    for (int i = 0; i<n; i++)
+        safe_strcpy(fieldnames[i], structdef->fields.ptr[i].name);
+
+    const Type **fieldtypes = malloc(n * sizeof fieldtypes[0]);  // NOLINT
+    for (int i = 0; i < n; i++)
+        fieldtypes[i] = type_from_ast(ctx, &structdef->fields.ptr[i].type);
+
+    Type *structtype = NULL;
+    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++) {
+        if (!strcmp((*t)->name, structdef->name)) {
+            structtype = *t;
+            break;
+        }
+    }
+    assert(structtype);
+    set_struct_fields(structtype, n, fieldnames, fieldtypes);
+}
+
+ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast)
+{
+    List(ExportSymbol) exports = {0};
+
+    for (; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
+        switch(ast->kind) {
+        case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
+            Append(&exports, handle_global_var(ctx, &ast->data.globalvar, false));
+            break;
+        case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
+            Append(&exports, handle_global_var(ctx, &ast->data.globalvar, true));
+            break;
+        case AST_TOPLEVEL_DECLARE_FUNCTION:
+        case AST_TOPLEVEL_DEFINE_FUNCTION:
+            Append(&exports, handle_signature(ctx, &ast->data.funcdef.signature));
+            break;
+        case AST_TOPLEVEL_DEFINE_STRUCT:
+            // No new export symbols, because the previous type-checking step already
+            // took care of that.
+            handle_struct_fields(ctx, &ast->data.structdef);
+            break;
+        case AST_TOPLEVEL_END_OF_FILE:
+        case AST_TOPLEVEL_IMPORT:
+            break;
+        }
+    }
+
+    Append(&exports, (ExportSymbol){0});
+    return exports.ptr;
+}
+
+static LocalVariable *add_variable(TypeContext *ctx, const Type *t, const char *name)
+{
+    LocalVariable *var = calloc(1, sizeof *var);
+    var->id = ctx->locals.len;
+    var->type = t;
+
+    assert(name);
+    assert(!find_local_var(ctx, name));
+    assert(strlen(name) < sizeof var->name);
+    strcpy(var->name, name);
+
+    Append(&ctx->locals, var);
+    return var;
 }
 
 /*
@@ -840,96 +965,27 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
     }
 }
 
-Signature typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body)
+const Signature *typecheck_function_body(TypeContext *ctx, const char *name, const AstBody *body)
 {
-    if (find_function(ctx, astsig->funcname))
-        fail_with_error(funcname_location, "a function named '%s' already exists", astsig->funcname);
-
-    Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
-    safe_strcpy(sig.funcname, astsig->funcname);
-
-    size_t size = sizeof(sig.argnames[0]) * sig.nargs;
-    sig.argnames = malloc(size);
-    for (int i = 0; i < sig.nargs; i++)
-        safe_strcpy(sig.argnames[i], astsig->args.ptr[i].name);
-
-    sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs);  // NOLINT
-    for (int i = 0; i < sig.nargs; i++)
-        sig.argtypes[i] = type_from_ast(ctx, &astsig->args.ptr[i].type);
-
-    sig.returntype = type_or_void_from_ast(ctx, &astsig->returntype);
-    // TODO: validate main() parameters
-    // TODO: test main() taking parameters
-    if (!strcmp(sig.funcname, "main") && sig.returntype != intType) {
-        fail_with_error(astsig->returntype.location, "the main() function must return int");
-    }
-
-    sig.returntype_location = astsig->returntype.location;
+    const Signature *sig = find_function(ctx, name);
+    assert(sig);
 
     assert(ctx->current_function_signature == NULL);
     assert(ctx->expr_types.len == 0);
     assert(ctx->locals.len == 0);
 
-    // Make signature of current function usable in function calls (recursion)
-    Append(&ctx->function_signatures, sig);
-    ctx->current_function_signature = &ctx->function_signatures.ptr[ctx->function_signatures.len - 1];
-
-    if (body) {
-        for (int i = 0; i < sig.nargs; i++) {
-            LocalVariable *v = add_variable(ctx, sig.argtypes[i], sig.argnames[i]);
-            v->is_argument = true;
-        }
-        if (sig.returntype)
-            add_variable(ctx, sig.returntype, "return");
-
-        typecheck_body(ctx, body);
+    for (int i = 0; i < sig->nargs; i++) {
+        LocalVariable *v = add_variable(ctx, sig->argtypes[i], sig->argnames[i]);
+        v->is_argument = true;
     }
+    if (sig->returntype)
+        add_variable(ctx, sig->returntype, "return");
 
+    ctx->current_function_signature = sig;
+    typecheck_body(ctx, body);
     ctx->current_function_signature = NULL;
 
-    ExportSymbol es = { .kind = EXPSYM_FUNCTION, .data.funcsignature = copy_signature(&sig) };
-    safe_strcpy(es.name, sig.funcname);
-    Append(&ctx->exports, es);
-
-    return copy_signature(&sig);
-}
-
-void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location)
-{
-    if (find_type(ctx, structdef->name))
-        fail_with_error(location, "a type named '%s' already exists", structdef->name);
-
-    int n = structdef->fields.len;
-
-    char (*fieldnames)[100] = malloc(n * sizeof(fieldnames[0]));
-    for (int i = 0; i<n; i++)
-        safe_strcpy(fieldnames[i], structdef->fields.ptr[i].name);
-
-    const Type **fieldtypes = malloc(n * sizeof fieldtypes[0]);  // NOLINT
-    for (int i = 0; i < n; i++)
-        fieldtypes[i] = type_from_ast(ctx, &structdef->fields.ptr[i].type);
-
-    Type *structtype = create_struct(structdef->name, n, fieldnames, fieldtypes);
-    Append(&ctx->structs, structtype);
-
-    ExportSymbol es = { .kind = EXPSYM_TYPE, .data.type = structtype };
-    safe_strcpy(es.name, structdef->name);
-    Append(&ctx->exports, es);
-}
-
-GlobalVariable *typecheck_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl)
-{
-    assert(!vardecl->value);
-    GlobalVariable *g = calloc(1, sizeof *g);
-    safe_strcpy(g->name, vardecl->name);
-    g->type = type_from_ast(ctx, &vardecl->type);
-    Append(&ctx->globals, g);
-
-    ExportSymbol es = { .kind = EXPSYM_GLOBAL_VAR, .data.type = g->type };
-    safe_strcpy(es.name, g->name);
-    Append(&ctx->exports, es);
-
-    return g;
+    return sig;
 }
 
 void reset_type_context(TypeContext *ctx)

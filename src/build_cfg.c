@@ -786,48 +786,15 @@ static CfGraph *build_function(struct State *st, const AstBody *body)
 // It would be better to pass only the public symbols that have been imported.
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx)
 {
-    // imports are guaranteed to be in the beginning and we no longer need them
-    while (ast->kind == AST_TOPLEVEL_IMPORT)
-        ast++;
-
     CfGraphFile result = { .filename = ast->location.filename };
     struct State st = { .typectx = typectx };
 
-    int n = 0;
-    while (ast[n].kind!=AST_TOPLEVEL_END_OF_FILE) n++;
-    result.graphs = malloc(sizeof(result.graphs[0]) * n);  // NOLINT
-    result.signatures = malloc(sizeof(result.signatures[0]) * n);
-
-    Signature sig;
-    GlobalVariable *g;
-
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
-        switch(ast->kind) {
-        case AST_TOPLEVEL_IMPORT:
-        case AST_TOPLEVEL_END_OF_FILE:
-            assert(0);
-        case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-            g = typecheck_global_var(typectx, &ast->data.globalvar);
-            g->defined_outside_jou = true;
-            break;
-        case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-            typecheck_global_var(typectx, &ast->data.globalvar);
-            break;
-        case AST_TOPLEVEL_DECLARE_FUNCTION:
-            sig = typecheck_function(typectx, ast->location, &ast->data.decl_signature, NULL);
-            result.signatures[result.nfuncs] = sig;
-            result.graphs[result.nfuncs] = NULL;
-            result.nfuncs++;
-            break;
-        case AST_TOPLEVEL_DEFINE_FUNCTION:
-            sig = typecheck_function(typectx, ast->location, &ast->data.funcdef.signature, &ast->data.funcdef.body);
-            result.signatures[result.nfuncs] = sig;
-            result.graphs[result.nfuncs] = build_function(&st, &ast->data.funcdef.body);
-            result.nfuncs++;
-            break;
-        case AST_TOPLEVEL_DEFINE_STRUCT:
-            typecheck_struct(typectx, &ast->data.structdef, ast->location);
-            break;
+        if(ast->kind == AST_TOPLEVEL_DEFINE_FUNCTION) {
+            const Signature *sig = typecheck_function_body(typectx, ast->data.funcdef.signature.funcname, &ast->data.funcdef.body);
+            CfGraph *g = build_function(&st, &ast->data.funcdef.body);
+            g->signature = copy_signature(sig);
+            Append(&result.graphs, g);
         }
         ast++;
     }

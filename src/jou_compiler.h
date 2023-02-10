@@ -240,6 +240,7 @@ struct AstIfStatement {
 struct AstNameTypeValue {
     // name: type = value
     char name[100];
+    Location name_location;
     AstType type;
     AstExpression *value; // can be NULL if value is missing
 };
@@ -291,6 +292,7 @@ struct AstStructDef {
 struct AstImport {
     char *path;  // Relative to current working directory, so e.g. "blah/stdlib/io.jou"
     char symbolname[100];
+    bool found;    // For error messages
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -306,9 +308,8 @@ struct AstToplevelNode {
         AST_TOPLEVEL_IMPORT,
     } kind;
     union {
-        AstSignature decl_signature;  // AST_TOPLEVEL_DECLARE_FUNCTION
         AstNameTypeValue globalvar;  // AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE
-        AstFunctionDef funcdef;  // AST_TOPLEVEL_DEFINE_FUNCTION
+        AstFunctionDef funcdef;  // AST_TOPLEVEL_DECLARE_FUNCTION, AST_TOPLEVEL_DEFINE_FUNCTION (body is empty for declaring)
         AstStructDef structdef;  // AST_TOPLEVEL_DEFINE_STRUCT
         AstImport import;       // AST_TOPLEVEL_IMPORT
     } data;
@@ -326,6 +327,7 @@ struct Type {
         TYPE_VOID_POINTER,
         TYPE_ARRAY,
         TYPE_STRUCT,
+        TYPE_OPAQUE_STRUCT,  // struct with unknown members
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_FLOATING_POINT
@@ -361,8 +363,9 @@ const Type *get_integer_type(int size_in_bits, bool is_signed);
 const Type *get_pointer_type(const Type *t);  // result lives as long as t
 const Type *get_array_type(const Type *t, int len);  // result lives as long as t
 const Type *type_of_constant(const Constant *c);
-Type *create_struct(
-    const char *name,
+Type *create_opaque_struct(const char *name);
+void set_struct_fields(
+    Type *structtype,  // must be opaque struct, becomes non-opaque
     int fieldcount,
     char (*fieldnames)[100],  // will be free()d eventually
     const Type **fieldtypes);  // will be free()d eventually
@@ -418,18 +421,36 @@ struct TypeContext {
     // expr_types tells what type each expression has.
     // It contains nothing for calls to "-> void" functions.
     List(ExpressionTypes *) expr_types;
-    List(GlobalVariable *) globals;
+    List(GlobalVariable *) globals;  // TODO: probably doesn't need to has pointers
     List(LocalVariable *) locals;
-    List(Type *) structs;
+    List(Type *) structs;   // These will be freed later
+    List(const Type *) types;
     List(Signature) function_signatures;
-    List(const ExportSymbol *) imports;
-    List(ExportSymbol) exports;
 };
 
-// function body can be NULL to check a declaration
-Signature typecheck_function(TypeContext *ctx, Location funcname_location, const AstSignature *astsig, const AstBody *body);
-void typecheck_struct(TypeContext *ctx, const AstStructDef *structdef, Location location);
-GlobalVariable *typecheck_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl);
+/*
+Type checking is split into several stages:
+    1. Create types. After this, structs defined in Jou exist, but
+       they are opaque and contain no members.
+    2. Check signatures, global variables and struct bodies. This step
+       assumes that all types exist, but doesn't need to know what
+       fields each struct has.
+    3. Check function bodies.
+
+Each step is ran on all files before we move on to the next step. This
+ensures that different files can import things from each other. You
+also never need to forward-declare a struct: the struct exists by the
+time we check the function signature or struct body that uses it.
+
+Steps 1 and 2 return a list of ExportSymbols for other files to use.
+The list is terminated with (ExportSymbol){0}, which you can detect by
+checking if the name of the ExportSymbol is empty.
+
+Step 3 is interleaved with build_cfg (see the reset_type_context() function).
+*/
+ExportSymbol *typecheck_step1_create_types(TypeContext *ctx, const AstToplevelNode *ast);
+ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast);
+const Signature *typecheck_function_body(TypeContext *ctx, const char *name, const AstBody *body);
 
 /*
 Wipes all function-specific data, making the type context suitable
@@ -492,6 +513,7 @@ struct CfBlock {
 };
 
 struct CfGraph {
+    Signature signature;
     CfBlock start_block;  // First block
     CfBlock end_block;  // Always empty. Return statement jumps here.
     List(CfBlock *) all_blocks;
@@ -500,9 +522,7 @@ struct CfGraph {
 
 struct CfGraphFile {
     const char *filename;
-    int nfuncs;
-    Signature *signatures;  // includes declared and defined functions
-    CfGraph **graphs;  // NULL means function is only declared, not defined
+    List(CfGraph*) graphs;  // only for defined functions
 };
 
 
@@ -532,6 +552,7 @@ void free_constant(const Constant *c);
 void free_tokens(Token *tokenlist);
 void free_ast(AstToplevelNode *topnodelist);
 void free_type_context(const TypeContext *typectx);
+void free_export_symbol(const ExportSymbol *es);
 void free_control_flow_graphs(const CfGraphFile *cfgfile);
 void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b);
 

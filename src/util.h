@@ -90,7 +90,7 @@ Gotchas to watch out for:
 
 /*
 On windows, change backslash to forward slash.
-Delete unnecessary "." components.
+Delete unnecessary "." and ".." components.
 
 Modifies path in place. Does not allocate more memory.
 */

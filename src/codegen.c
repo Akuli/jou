@@ -29,6 +29,8 @@ static LLVMTypeRef codegen_type(const Type *type)
         return LLVMIntType(type->data.width_in_bits);
     case TYPE_BOOL:
         return LLVMInt1Type();
+    case TYPE_OPAQUE_STRUCT:
+        assert(0);
     case TYPE_STRUCT:
         {
             int n = type->data.structfields.count;
@@ -346,13 +348,15 @@ static void codegen_call_to_the_special_startup_function(const struct State *st)
 }
 #endif
 
-static void codegen_function_def(struct State *st, const Signature *sig, const CfGraph *cfg)
+static void codegen_function_def(struct State *st, const CfGraph *cfg)
 {
     st->cfvars = cfg->locals.ptr;
     st->cfvars_end = End(cfg->locals);
     st->llvm_locals = malloc(sizeof(st->llvm_locals[0]) * cfg->locals.len); // NOLINT
 
-    LLVMValueRef llvm_func = codegen_function_decl(st, sig);
+    LLVMValueRef llvm_func = LLVMGetNamedFunction(st->module, cfg->signature.funcname);
+    assert(llvm_func);
+
     LLVMBasicBlockRef *blocks = malloc(sizeof(blocks[0]) * cfg->all_blocks.len); // NOLINT
     for (int i = 0; i < cfg->all_blocks.len; i++) {
         char name[50];
@@ -364,7 +368,7 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
     LLVMPositionBuilderAtEnd(st->builder, blocks[0]);
 
 #ifdef _WIN32
-    if (!strcmp(sig->funcname, "main"))
+    if (!strcmp(cfg->signature.funcname, "main"))
         codegen_call_to_the_special_startup_function(st);
 #endif
 
@@ -378,7 +382,7 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
     }
 
     // Place arguments into the first n local variables.
-    for (int i = 0; i < sig->nargs; i++)
+    for (int i = 0; i < cfg->signature.nargs; i++)
         set_local_var(st, cfg->locals.ptr[i], LLVMGetParam(llvm_func, i));
 
     for (CfBlock **b = cfg->all_blocks.ptr; b <End(cfg->all_blocks); b++) {
@@ -391,7 +395,7 @@ static void codegen_function_def(struct State *st, const Signature *sig, const C
             assert((*b)->instructions.len == 0);
             if (return_value)
                 LLVMBuildRet(st->builder, LLVMBuildLoad(st->builder, return_value, "return_value"));
-            else if (sig->returntype)  // "return" variable was deleted as unused
+            else if (cfg->signature.returntype)  // "return" variable was deleted as unused
                 LLVMBuildUnreachable(st->builder);
             else
                 LLVMBuildRetVoid(st->builder);
@@ -421,19 +425,6 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
         .builder = LLVMCreateBuilder(),
     };
 
-    for (const ExportSymbol **es = typectx->imports.ptr; es < End(typectx->imports); es++) {
-        switch((*es)->kind) {
-        case EXPSYM_FUNCTION:
-            codegen_function_decl(&st, &(*es)->data.funcsignature);
-            break;
-        case EXPSYM_GLOBAL_VAR:
-            LLVMAddGlobal(st.module, codegen_type((*es)->data.type), (*es)->name);
-            break;
-        case EXPSYM_TYPE:
-            break;
-        }
-    }
-
     for (GlobalVariable **v = typectx->globals.ptr; v < End(typectx->globals); v++) {
         LLVMTypeRef t = codegen_type((*v)->type);
         LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
@@ -441,11 +432,10 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
             LLVMSetInitializer(globalptr, LLVMGetUndef(t));
     }
 
-    for (int i = 0; i < cfgfile->nfuncs; i++)
-        if (cfgfile->graphs[i])
-            codegen_function_def(&st, &cfgfile->signatures[i], cfgfile->graphs[i]);
-        else
-            codegen_function_decl(&st, &cfgfile->signatures[i]);
+    for (Signature* s = typectx->function_signatures.ptr; s < End(typectx->function_signatures); s++)
+        codegen_function_decl(&st, s);
+    for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
+        codegen_function_def(&st, *g);
 
     LLVMDisposeBuilder(st.builder);
     return st.module;

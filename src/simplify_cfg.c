@@ -491,9 +491,9 @@ static void warn_about_undefined_variables(CfGraph *cfg)
     free_var_statuses(cfg, statuses);
 }
 
-static void error_about_missing_return(CfGraph *cfg, const Signature *sig)
+static void error_about_missing_return(CfGraph *cfg)
 {
-    if (!sig->returntype)
+    if (!cfg->signature.returntype)
         return;
 
     enum VarStatus **statuses = determine_var_statuses(cfg);
@@ -511,31 +511,30 @@ static void error_about_missing_return(CfGraph *cfg, const Signature *sig)
     enum VarStatus s = statuses[find_block_index(cfg, &cfg->end_block)][varidx];
     if (s == VS_POSSIBLY_UNDEFINED) {
         show_warning(
-            sig->returntype_location,
-            "function '%s' doesn't seem to return a value in all cases", sig->funcname);
+            cfg->signature.returntype_location,
+            "function '%s' doesn't seem to return a value in all cases", cfg->signature.funcname);
     }
     if (s == VS_UNDEFINED) {
         fail_with_error(
-            sig->returntype_location,
+            cfg->signature.returntype_location,
             "function '%s' must return a value, because it is defined with '-> %s'",
-            sig->funcname, sig->returntype->name);
+            cfg->signature.funcname, cfg->signature.returntype->name);
     }
 
     free_var_statuses(cfg, statuses);
 }
 
-static void simplify_cfg(CfGraph *cfg, const Signature *sig)
+static void simplify_cfg(CfGraph *cfg)
 {
     clean_jumps_where_condition_always_true_or_always_false(cfg);
     remove_unreachable_blocks(cfg);
-    error_about_missing_return(cfg, sig);
+    error_about_missing_return(cfg);
     remove_unused_variables(cfg);
     warn_about_undefined_variables(cfg);
 }
 
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile)
 {
-    for (int i = 0; i < cfgfile->nfuncs; i++)
-        if (cfgfile->graphs[i])
-            simplify_cfg(cfgfile->graphs[i], &cfgfile->signatures[i]);
+    for (CfGraph **cfg = cfgfile->graphs.ptr; cfg < End(cfgfile->graphs); cfg++)
+        simplify_cfg(*cfg);
 }

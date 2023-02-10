@@ -382,7 +382,7 @@ void print_ast(const AstToplevelNode *topnodelist)
                 break;
             case AST_TOPLEVEL_DECLARE_FUNCTION:
                 printf("Declare a function: ");
-                print_ast_function_signature(&topnodelist->data.decl_signature);
+                print_ast_function_signature(&topnodelist->data.funcdef.signature);
                 break;
             case AST_TOPLEVEL_DEFINE_FUNCTION:
                 printf("Define a function: ");
@@ -434,9 +434,9 @@ static const char *very_short_number_type_description(const Type *t)
     }
 }
 
-static void print_cf_instruction(const CfInstruction *ins, int indent)
+static void print_cf_instruction(const CfInstruction *ins)
 {
-    printf("%*sline %-4d  ", indent, "", ins->location.lineno);
+    printf("    line %-4d  ", ins->location.lineno);
 
     if (ins->destvar)
         printf("%s = ", varname(ins->destvar));
@@ -522,20 +522,19 @@ static void print_cf_instruction(const CfInstruction *ins, int indent)
     printf("\n");
 }
 
-static void print_control_flow_graph_with_indent(const CfGraph *cfg, int indent)
+void print_control_flow_graph(const CfGraph *cfg)
 {
-    if (!cfg) {
-        printf("%*sControl Flow Graph = NULL\n", indent, "");
-        return;
-    }
+    char *sigstr = signature_to_string(&cfg->signature, true);
+    printf("Function %s\n", sigstr);
+    free(sigstr);
 
-    printf("%*sVariables:\n", indent, "");
+    printf("  Variables:\n");
     for (LocalVariable **var = cfg->locals.ptr; var < End(cfg->locals); var++) {
-        printf("%*s  %-20s  %s\n", indent, "", varname(*var), (*var)->type->name);
+        printf("    %-20s  %s\n", varname(*var), (*var)->type->name);
     }
 
     for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
-        printf("%*sBlock %d", indent, "", (int)(b - cfg->all_blocks.ptr));
+        printf("  Block %d", (int)(b - cfg->all_blocks.ptr));
         if (*b == &cfg->start_block)
             printf(" (start block)");
         if (*b == &cfg->end_block) {
@@ -545,7 +544,7 @@ static void print_control_flow_graph_with_indent(const CfGraph *cfg, int indent)
         }
         printf(":\n");
         for (CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
-            print_cf_instruction(ins, indent+2);
+            print_cf_instruction(ins);
 
         if (*b == &cfg->end_block) {
             assert((*b)->iftrue == NULL);
@@ -559,31 +558,23 @@ static void print_control_flow_graph_with_indent(const CfGraph *cfg, int indent)
             assert(trueidx!=-1);
             assert(falseidx!=-1);
             if (trueidx==falseidx)
-                printf("%*s  Jump to block %d.\n", indent, "", trueidx);
+                printf("    Jump to block %d.\n", trueidx);
             else {
                 assert((*b)->branchvar);
-                printf("%*s  If %s is True jump to block %d, otherwise block %d.\n",
-                    indent, "", varname((*b)->branchvar), trueidx, falseidx);
+                printf("    If %s is True jump to block %d, otherwise block %d.\n",
+                    varname((*b)->branchvar), trueidx, falseidx);
             }
         }
     }
-}
 
-void print_control_flow_graph(const CfGraph *cfg)
-{
-    print_control_flow_graph_with_indent(cfg, 0);
+    printf("\n");
 }
 
 void print_control_flow_graphs(const CfGraphFile *cfgfile)
 {
     printf("===== Control Flow Graphs for file \"%s\" =====\n", cfgfile->filename);
-    for (int i = 0; i < cfgfile->nfuncs; i++) {
-        char *sigstr = signature_to_string(&cfgfile->signatures[i], true);
-        printf("Function %s\n", sigstr);
-        free(sigstr);
-        print_control_flow_graph_with_indent(cfgfile->graphs[i], 2);
-        printf("\n");
-    }
+    for (CfGraph **cfg = cfgfile->graphs.ptr; cfg < End(cfgfile->graphs); cfg++)
+        print_control_flow_graph(*cfg);
 }
 
 void print_llvm_ir(LLVMModuleRef module, bool is_optimized)
