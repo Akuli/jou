@@ -27,6 +27,9 @@ static void print_string(const char *s)
 static void print_constant(const Constant *c)
 {
     switch(c->kind) {
+    case CONSTANT_ENUM_MEMBER:
+        printf("enum member %d of %s", c->data.enum_member.memberidx, c->data.enum_member.enumtype->name);
+        break;
     case CONSTANT_BOOL:
         printf(c->data.boolean ? "True" : "False");
         break;
@@ -195,12 +198,16 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         printf("dereference and ");
         __attribute__((fallthrough));
     case AST_EXPR_GET_FIELD:
-        printf("get field \"%s\"\n", expr->data.field.fieldname);
-        print_ast_expression(expr->data.field.obj, print_tree_prefix(tp, true));
+        printf("get struct field \"%s\"\n", expr->data.structfield.fieldname);
+        print_ast_expression(expr->data.structfield.obj, print_tree_prefix(tp, true));
+        break;
+    case AST_EXPR_GET_ENUM_MEMBER:
+        printf("get member \"%s\" from enum \"%s\"\n",
+            expr->data.enummember.membername, expr->data.enummember.enumname);
         break;
     case AST_EXPR_SIZEOF:
         printf("sizeof expression\n");
-        print_ast_expression(expr->data.field.obj, print_tree_prefix(tp, true));
+        print_ast_expression(expr->data.structfield.obj, print_tree_prefix(tp, true));
         break;
     case AST_EXPR_GET_VARIABLE:
         printf("get variable \"%s\"\n", expr->data.varname);
@@ -397,6 +404,12 @@ void print_ast(const AstToplevelNode *topnodelist)
                     print_ast_type(&ntv->type);
                     printf("\n");
                 }
+                break;
+            case AST_TOPLEVEL_DEFINE_ENUM:
+                printf("Define enum \"%s\" with %d members:\n",
+                    topnodelist->data.enumdef.name, topnodelist->data.enumdef.nmembers);
+                for (int i = 0; i < topnodelist->data.enumdef.nmembers; i++)
+                    printf("  %s\n", topnodelist->data.enumdef.membernames[i]);
                 break;
             case AST_TOPLEVEL_END_OF_FILE:
                 printf("End of file.\n");

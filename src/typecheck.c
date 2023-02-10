@@ -40,17 +40,27 @@ ExportSymbol *typecheck_step1_create_types(TypeContext *ctx, const AstToplevelNo
     List(ExportSymbol) exports = {0};
 
     for (; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
-        if (ast->kind != AST_TOPLEVEL_DEFINE_STRUCT)
-            continue;
-
+        Type *t;
         char name[100];
-        safe_strcpy(name, ast->data.structdef.name);
+
+        switch(ast->kind) {
+        case AST_TOPLEVEL_DEFINE_STRUCT:
+            safe_strcpy(name, ast->data.structdef.name);
+            t = create_opaque_struct(name);
+            break;
+        case AST_TOPLEVEL_DEFINE_ENUM:
+            safe_strcpy(name, ast->data.enumdef.name);
+            t = create_enum(name, ast->data.enumdef.nmembers, ast->data.enumdef.membernames);
+            break;
+        default:
+            continue;
+        }
 
         if (find_type(ctx, name))
             fail_with_error(ast->location, "a type named '%s' already exists", name);
-        Type *t = create_opaque_struct(name);
-        Append(&ctx->structs, t);
+
         Append(&ctx->types, t);
+        Append(&ctx->owned_types, t);
 
         struct ExportSymbol es = { .kind = EXPSYM_TYPE, .data.type = t };
         safe_strcpy(es.name, name);
@@ -180,7 +190,7 @@ static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef
 {
     // Previous type-checking pass created an opaque struct.
     Type *type = NULL;
-    for (Type **s = ctx->structs.ptr; s < End(ctx->structs); s++)
+    for (Type **s = ctx->owned_types.ptr; s < End(ctx->owned_types); s++)
         if (!strcmp((*s)->name, structdef->name)) {
             type = *s;
             break;
@@ -199,7 +209,7 @@ static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef
         fieldtypes[i] = type_from_ast(ctx, &structdef->fields.ptr[i].type);
 
     Type *structtype = NULL;
-    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++) {
+    for (Type **t = ctx->owned_types.ptr; t < End(ctx->owned_types); t++) {
         if (!strcmp((*t)->name, structdef->name)) {
             structtype = *t;
             break;
@@ -230,9 +240,12 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
             // took care of that.
             handle_struct_fields(ctx, &ast->data.structdef);
             break;
-        case AST_TOPLEVEL_END_OF_FILE:
+        case AST_TOPLEVEL_DEFINE_ENUM:
         case AST_TOPLEVEL_IMPORT:
+            // Everything done in previous type-checking steps.
             break;
+        case AST_TOPLEVEL_END_OF_FILE:
+            assert(0);
         }
     }
 
@@ -325,6 +338,8 @@ static void check_explicit_cast(const Type *from, const Type *to, Location locat
         from != to  // TODO: should probably be error if it's the same type.
         && !(is_pointer_type(from) && is_pointer_type(to))
         && !(is_number_type(from) && is_number_type(to))
+        && !(is_integer_type(from) && to->kind == TYPE_ENUM)
+        && !(from->kind == TYPE_ENUM && is_integer_type(to))
         // TODO: pointer-to-int, int-to-pointer
     )
     {
@@ -385,6 +400,7 @@ static const Type *check_binop(
 
     bool got_integers = is_integer_type(lhstypes->type) && is_integer_type(rhstypes->type);
     bool got_numbers = is_number_type(lhstypes->type) && is_number_type(rhstypes->type);
+    bool got_enums = lhstypes->type->kind == TYPE_ENUM && rhstypes->type->kind == TYPE_ENUM;
     bool got_pointers = (
         is_pointer_type(lhstypes->type)
         && is_pointer_type(rhstypes->type)
@@ -396,7 +412,11 @@ static const Type *check_binop(
         )
     );
 
-    if (!got_integers && !got_numbers && !(got_pointers && (op == AST_EXPR_EQ || op == AST_EXPR_NE)))
+    if(!(
+        got_integers
+        || got_numbers
+        || ((got_enums || got_pointers) && (op == AST_EXPR_EQ || op == AST_EXPR_NE))
+    ))
         fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name);
 
     // TODO: is this a good idea?
@@ -444,6 +464,7 @@ static const char *short_expression_description(const AstExpression *expr)
     switch(expr->kind) {
     // Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
     case AST_EXPR_CONSTANT: return "a constant";
+    case AST_EXPR_GET_ENUM_MEMBER: return "an enum member";
     case AST_EXPR_SIZEOF: return "a sizeof expression";
     case AST_EXPR_FUNCTION_CALL: return "a function call";
     case AST_EXPR_BRACE_INIT: return "a newly created instance";
@@ -485,7 +506,7 @@ static const char *short_expression_description(const AstExpression *expr)
 
     case AST_EXPR_GET_FIELD:
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        snprintf(result, sizeof result, "field '%s'", expr->data.field.fieldname);
+        snprintf(result, sizeof result, "field '%s'", expr->data.structfield.fieldname);
         break;
     }
 
@@ -687,12 +708,44 @@ static const Type *typecheck_struct_init(TypeContext *ctx, const AstCall *call, 
     return t;
 }
 
+static const char *very_short_type_description(const Type *t)
+{
+    switch(t->kind) {
+        case TYPE_STRUCT:
+        case TYPE_OPAQUE_STRUCT:
+            return "a struct";
+        case TYPE_ENUM:
+            return "an enum";
+        case TYPE_VOID_POINTER:
+        case TYPE_POINTER:
+            return "a pointer type";
+        case TYPE_SIGNED_INTEGER:
+        case TYPE_UNSIGNED_INTEGER:
+        case TYPE_FLOATING_POINT:
+            return "a number type";
+        case TYPE_ARRAY:
+            return "an array type";
+        case TYPE_BOOL:
+            return "the built-in boolean type";
+    }
+}
+
 static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpression *expr)
 {
     const Type *temptype;
     const Type *result;
 
     switch(expr->kind) {
+    case AST_EXPR_GET_ENUM_MEMBER:
+        result = find_type(ctx, expr->data.enummember.enumname);
+        if (!result)
+            fail_with_error(
+                expr->location, "there is no type named '%s'", expr->data.enummember.enumname);
+        if (result->kind != TYPE_ENUM)
+            fail_with_error(
+                expr->location, "the '::' syntax is only for enums, but %s is %s",
+                expr->data.enummember.enumname, very_short_type_description(result));
+        break;
     case AST_EXPR_FUNCTION_CALL:
         {
             const Type *ret = typecheck_function_call(ctx, &expr->data.call, expr->location);
@@ -709,22 +762,22 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         result = typecheck_struct_init(ctx, &expr->data.call, expr->location);
         break;
     case AST_EXPR_GET_FIELD:
-        temptype = typecheck_expression_not_void(ctx, expr->data.field.obj)->type;
+        temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
         if (temptype->kind != TYPE_STRUCT)
             fail_with_error(
                 expr->location,
                 "left side of the '.' operator must be a struct, not %s",
                 temptype->name);
-        result = typecheck_struct_field(temptype, expr->data.field.fieldname, expr->location);
+        result = typecheck_struct_field(temptype, expr->data.structfield.fieldname, expr->location);
         break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        temptype = typecheck_expression_not_void(ctx, expr->data.field.obj)->type;
+        temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
         if (temptype->kind != TYPE_POINTER || temptype->data.valuetype->kind != TYPE_STRUCT)
             fail_with_error(
                 expr->location,
                 "left side of the '->' operator must be a pointer to a struct, not %s",
                 temptype->name);
-        result = typecheck_struct_field(temptype->data.valuetype, expr->data.field.fieldname, expr->location);
+        result = typecheck_struct_field(temptype->data.valuetype, expr->data.structfield.fieldname, expr->location);
         break;
     case AST_EXPR_INDEXING:
         result = typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);

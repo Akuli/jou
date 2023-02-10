@@ -216,7 +216,7 @@ static bool is_keyword(const char *s)
 {
     const char *keywords[] = {
         "from", "import",
-        "def", "declare", "struct", "global",
+        "def", "declare", "struct", "enum", "global",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
         "and", "or", "not", "as", "sizeof",
@@ -329,7 +329,7 @@ static const char *read_operator(struct State *st)
     const char *operators[] = {
         // Longer operators first, so that '==' does not parse as '=' '='
         "...", "===", "!==",
-        "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=",
+        "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "::",
         ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">",
         NULL,
     };

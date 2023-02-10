@@ -125,13 +125,18 @@ static const LocalVariable *build_cast(
         add_unary_op(st, location, CF_PTR_CAST, obj, result);
         return result;
     }
-    if (is_number_type(obj->type) && is_number_type(to)) {
+
+    if ((is_number_type(obj->type) || obj->type->kind == TYPE_ENUM)
+        && (is_number_type(to) || to->kind == TYPE_ENUM))
+    {
         const LocalVariable *result = add_local_var(st, to);
         add_unary_op(st, location, CF_NUM_CAST, obj, result);
         return result;
     }
+
     if (obj->type == boolType && is_integer_type(to))
         return build_bool_to_int_conversion(st, obj, location, to);
+
     assert(0);
 }
 
@@ -343,17 +348,17 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
     case AST_EXPR_DEREF_AND_GET_FIELD:
     {
         // &obj->field aka &(obj->field)
-        const LocalVariable *obj = build_expression(st, address_of_what->data.field.obj);
+        const LocalVariable *obj = build_expression(st, address_of_what->data.structfield.obj);
         assert(obj->type->kind == TYPE_POINTER);
         assert(obj->type->data.valuetype->kind == TYPE_STRUCT);
-        return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
+        return build_struct_field_pointer(st, obj, address_of_what->data.structfield.fieldname, address_of_what->location);
     }
     case AST_EXPR_GET_FIELD:
     {
         // &obj.field aka &(obj.field), evaluate as &(&obj)->field
-        const LocalVariable *obj = build_address_of_expression(st, address_of_what->data.field.obj);
+        const LocalVariable *obj = build_address_of_expression(st, address_of_what->data.structfield.obj);
         assert(obj->type->kind == TYPE_POINTER);
-        return build_struct_field_pointer(st, obj, address_of_what->data.field.fieldname, address_of_what->location);
+        return build_struct_field_pointer(st, obj, address_of_what->data.structfield.fieldname, address_of_what->location);
     }
     case AST_EXPR_INDEXING:
     {
@@ -437,6 +442,14 @@ static const LocalVariable *build_struct_init(struct State *st, const Type *type
     return instance;
 }
 
+static int find_enum_member(const Type *enumtype, const char *name)
+{
+    for (int i = 0; i < enumtype->data.enummembers.count; i++)
+        if (!strcmp(enumtype->data.enummembers.names[i], name))
+            return i;
+    assert(0);
+}
+
 static const LocalVariable *build_expression(struct State *st, const AstExpression *expr)
 {
     const ExpressionTypes *types = get_expr_types(st, expr);
@@ -453,8 +466,16 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
         result = build_struct_init(st, types->type, &expr->data.call, expr->location);
         break;
     case AST_EXPR_GET_FIELD:
-        temp = build_expression(st, expr->data.field.obj);
-        result = build_struct_field(st, temp, expr->data.field.fieldname, expr->location);
+        temp = build_expression(st, expr->data.structfield.obj);
+        result = build_struct_field(st, temp, expr->data.structfield.fieldname, expr->location);
+        break;
+    case AST_EXPR_GET_ENUM_MEMBER:
+        result = add_local_var(st, types->type);
+        Constant c = { CONSTANT_ENUM_MEMBER, {
+            .enum_member.enumtype = types->type,
+            .enum_member.memberidx = find_enum_member(types->type, expr->data.enummember.membername),
+        }};
+        add_constant(st, expr->location, c, result);
         break;
     case AST_EXPR_GET_VARIABLE:
         if ((temp = find_local_var(st, expr->data.varname))) {

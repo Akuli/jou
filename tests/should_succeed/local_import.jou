@@ -1,5 +1,12 @@
-from "./imported/bar.jou" import bar, Point
+from "./imported/bar.jou" import bar, Point, TheEnum
 
 def main() -> int:
     bar(Point{x=1, y=2})  # Output: Bar Bar 1 2
+
+    foo = FooBar::Foo
+    if foo == FooBar::Foo:
+        printf("Yay\n")  # Output: Yay
+    if foo == FooBar::Bar:
+        printf("waaaat\n")
+
     return 0

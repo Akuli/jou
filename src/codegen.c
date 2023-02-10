@@ -41,6 +41,8 @@ static LLVMTypeRef codegen_type(const Type *type)
             free(elems);
             return result;
         }
+    case TYPE_ENUM:
+        return LLVMInt32Type();
     }
     assert(0);
 }
@@ -152,6 +154,8 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
         return LLVMConstNull(codegen_type(voidPtrType));
     case CONSTANT_STRING:
         return make_a_string_constant(st, c->data.str);
+    case CONSTANT_ENUM_MEMBER:
+        return LLVMConstInt(LLVMInt32Type(), c->data.enum_member.memberidx, false);
     }
     assert(0);
 }
@@ -264,6 +268,10 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             {
                 const Type *from = ins->operands[0]->type;
                 const Type *to = ins->destvar->type;
+                if (from->kind == TYPE_ENUM)
+                    from = intType;
+                if (to->kind == TYPE_ENUM)
+                    to = intType;
                 assert(is_number_type(from) && is_number_type(to));
 
                 if (is_integer_type(from) && is_integer_type(to)) {

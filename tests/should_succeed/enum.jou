@@ -1,0 +1,17 @@
+from "stdlib/io.jou" import printf
+
+enum FooBar:
+    Foo
+    Bar
+
+def main() -> int:
+    printf("%d\n", FooBar::Foo as int)  # Output: 0
+    printf("%d\n", FooBar::Bar as int)  # Output: 1
+
+    x = FooBar::Foo
+    if x == FooBar::Foo:
+        printf("yass\n")  # Output: yass
+    if x == FooBar::Bar:
+        printf("wut wut why dis\n")
+
+    return 0

@@ -72,8 +72,8 @@ static void free_expression(const AstExpression *expr)
         break;
     case AST_EXPR_GET_FIELD:
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        free_expression(expr->data.field.obj);
-        free(expr->data.field.obj);
+        free_expression(expr->data.structfield.obj);
+        free(expr->data.structfield.obj);
         break;
     case AST_EXPR_INDEXING:
     case AST_EXPR_ADD:
@@ -114,6 +114,7 @@ static void free_expression(const AstExpression *expr)
         free_constant(&expr->data.constant);
         break;
     case AST_EXPR_GET_VARIABLE:
+    case AST_EXPR_GET_ENUM_MEMBER:
         break;
     }
 }
@@ -193,6 +194,9 @@ void free_ast(AstToplevelNode *topnodelist)
                 free_name_type_value(ntv);
             free(t->data.structdef.fields.ptr);
             break;
+        case AST_TOPLEVEL_DEFINE_ENUM:
+            free(t->data.enumdef.membernames);
+            break;
         case AST_TOPLEVEL_IMPORT:
             free(t->data.import.path);
             break;
@@ -220,7 +224,7 @@ void free_type_context(const TypeContext *ctx)
 {
     for (GlobalVariable **g = ctx->globals.ptr; g < End(ctx->globals); g++)
         free(*g);
-    for (Type **t = ctx->structs.ptr; t < End(ctx->structs); t++)
+    for (Type **t = ctx->owned_types.ptr; t < End(ctx->owned_types); t++)
         free_type(*t);
     for (Signature *s = ctx->function_signatures.ptr; s < End(ctx->function_signatures); s++)
         free_signature(s);
@@ -228,7 +232,7 @@ void free_type_context(const TypeContext *ctx)
     free(ctx->globals.ptr);
     free(ctx->locals.ptr);
     free(ctx->types.ptr);
-    free(ctx->structs.ptr);
+    free(ctx->owned_types.ptr);
     free(ctx->function_signatures.ptr);
 }
 
