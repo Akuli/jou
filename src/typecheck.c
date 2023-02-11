@@ -730,6 +730,15 @@ static const char *very_short_type_description(const Type *t)
     }
 }
 
+static bool enum_member_exists(const Type *t, const char *name)
+{
+    assert(t->kind == TYPE_ENUM);
+    for (int i = 0; i < t->data.enummembers.count; i++)
+        if (!strcmp(t->data.enummembers.names[i], name))
+            return true;
+    return false;
+}
+
 static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpression *expr)
 {
     const Type *temptype;
@@ -745,6 +754,9 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
             fail_with_error(
                 expr->location, "the '::' syntax is only for enums, but %s is %s",
                 expr->data.enummember.enumname, very_short_type_description(result));
+        if (!enum_member_exists(result, expr->data.enummember.membername))
+            fail_with_error(expr->location, "enum %s has no member named '%s'",
+                expr->data.enummember.enumname, expr->data.enummember.membername);
         break;
     case AST_EXPR_FUNCTION_CALL:
         {
