@@ -786,7 +786,7 @@ static AstEnumDef parse_enumdef(const Token **tokens)
     while ((*tokens)->type != TOKEN_DEDENT) {
         for (const char **old = membernames.ptr; old < End(membernames); old++)
             if (!strcmp(*old, (*tokens)->data.name))
-                fail_with_error((*tokens)->location, "the enum has two fields named '%s'", (*tokens)->data.name);
+                fail_with_error((*tokens)->location, "the enum has two members named '%s'", (*tokens)->data.name);
 
         Append(&membernames, (*tokens)->data.name);
         ++*tokens;
