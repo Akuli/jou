@@ -504,7 +504,9 @@ struct CfInstruction {
         CF_NUM_MOD,
         CF_NUM_EQ,
         CF_NUM_LT,
-        CF_NUM_CAST,  // Handles any number type or enum.
+        CF_NUM_CAST,
+        CF_ENUM_TO_INT32,
+        CF_INT32_TO_ENUM,
         CF_BOOL_NEGATE,  // TODO: get rid of this?
         CF_VARCPY, // similar to assignment statements: var1 = var2
     } kind;

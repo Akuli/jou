@@ -268,10 +268,6 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             {
                 const Type *from = ins->operands[0]->type;
                 const Type *to = ins->destvar->type;
-                if (from->kind == TYPE_ENUM)
-                    from = intType;
-                if (to->kind == TYPE_ENUM)
-                    to = intType;
                 assert(is_number_type(from) && is_number_type(to));
 
                 if (is_integer_type(from) && is_integer_type(to)) {
@@ -310,7 +306,13 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
 
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate")); break;
         case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(ins->destvar->type), "ptr_cast")); break;
-        case CF_VARCPY: setdest(getop(0)); break;
+
+        // various no-ops
+        case CF_VARCPY:
+        case CF_INT32_TO_ENUM:
+        case CF_ENUM_TO_INT32:
+            setdest(getop(0));
+            break;
 
         case CF_NUM_ADD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildAdd, LLVMBuildAdd, LLVMBuildFAdd)); break;
         case CF_NUM_SUB: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildSub, LLVMBuildSub, LLVMBuildFSub)); break;

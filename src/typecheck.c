@@ -419,20 +419,20 @@ static const Type *check_binop(
     ))
         fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name);
 
-    // TODO: is this a good idea?
-    const Type *cast_type;
+    const Type *cast_type = NULL;
     if (got_integers) {
         cast_type = get_integer_type(
             max(lhstypes->type->data.width_in_bits, rhstypes->type->data.width_in_bits),
             lhstypes->type->kind == TYPE_SIGNED_INTEGER || rhstypes->type->kind == TYPE_SIGNED_INTEGER
         );
     }
-    if (got_pointers) {
-        cast_type = voidPtrType;
-    }
-    if (got_numbers && !got_integers) {
+    if (got_numbers && !got_integers)
         cast_type = (lhstypes->type == doubleType || rhstypes->type == doubleType) ? doubleType : floatType;
-    }
+    if (got_pointers)
+        cast_type = voidPtrType;
+    if (got_enums)
+        cast_type = intType;
+    assert(cast_type);
 
     do_implicit_cast(lhstypes, cast_type, (Location){0}, NULL);
     do_implicit_cast(rhstypes, cast_type, (Location){0}, NULL);

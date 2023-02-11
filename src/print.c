@@ -484,6 +484,12 @@ static void print_cf_instruction(const CfInstruction *ins)
             ins->destvar->type->data.width_in_bits,
             very_short_number_type_description(ins->destvar->type));
         break;
+    case CF_ENUM_TO_INT32:
+        printf("cast %s from enum to 32-bit signed int", varname(ins->operands[0]));
+        break;
+    case CF_INT32_TO_ENUM:
+        printf("cast %s from 32-bit signed int to enum", varname(ins->operands[0]));
+        break;
     case CF_CONSTANT:
         print_constant(&ins->data.constant);
         break;

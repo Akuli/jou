@@ -126,11 +126,25 @@ static const LocalVariable *build_cast(
         return result;
     }
 
-    if ((is_number_type(obj->type) || obj->type->kind == TYPE_ENUM)
-        && (is_number_type(to) || to->kind == TYPE_ENUM))
-    {
+    if (is_number_type(obj->type) && is_number_type(to)) {
         const LocalVariable *result = add_local_var(st, to);
         add_unary_op(st, location, CF_NUM_CAST, obj, result);
+        return result;
+    }
+
+    if (is_integer_type(obj->type) || to->kind == TYPE_ENUM) {
+        const LocalVariable *i32var = add_local_var(st, intType);
+        const LocalVariable *result = add_local_var(st, to);
+        add_unary_op(st, location, CF_NUM_CAST, obj, i32var);
+        add_unary_op(st, location, CF_INT32_TO_ENUM, i32var, result);
+        return result;
+    }
+
+    if (obj->type->kind == TYPE_ENUM && is_integer_type(to)) {
+        const LocalVariable *i32var = add_local_var(st, intType);
+        const LocalVariable *result = add_local_var(st, to);
+        add_unary_op(st, location, CF_ENUM_TO_INT32, obj, i32var);
+        add_unary_op(st, location, CF_NUM_CAST, i32var, result);
         return result;
     }
 
