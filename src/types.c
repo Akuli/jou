@@ -145,6 +145,8 @@ bool is_pointer_type(const Type *t)
 const Type *type_of_constant(const Constant *c)
 {
     switch(c->kind) {
+    case CONSTANT_ENUM_MEMBER:
+        return c->data.enum_member.enumtype;
     case CONSTANT_NULL:
         return voidPtrType;
     case CONSTANT_DOUBLE:
@@ -179,6 +181,20 @@ void set_struct_fields(Type *structtype, int count, char (*names)[100], const Ty
     structtype->data.structfields.count = count;
     structtype->data.structfields.names = names;
     structtype->data.structfields.types = types;
+}
+
+Type *create_enum(const char *name, int membercount, char (*membernames)[100])
+{
+    struct TypeInfo *result = calloc(1, sizeof *result);
+    result->type = (Type){
+        .kind = TYPE_ENUM,
+        .data.enummembers = { .count=membercount, .names=membernames },
+    };
+
+    assert(strlen(name) < sizeof result->type.name);
+    strcpy(result->type.name, name);
+
+    return &result->type;
 }
 
 

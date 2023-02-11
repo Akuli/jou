@@ -31,6 +31,7 @@ typedef struct AstStatement AstStatement;
 typedef struct AstToplevelNode AstToplevelNode;
 typedef struct AstFunctionDef AstFunctionDef;
 typedef struct AstStructDef AstStructDef;
+typedef struct AstEnumDef AstEnumDef;
 typedef struct AstImport AstImport;
 
 typedef struct GlobalVariable GlobalVariable;
@@ -95,6 +96,7 @@ struct Token {
 // Constants can appear in AST and also compilation steps after AST.
 struct Constant {
     enum ConstantKind {
+        CONSTANT_ENUM_MEMBER,
         CONSTANT_INTEGER,
         CONSTANT_FLOAT,
         CONSTANT_DOUBLE,
@@ -107,6 +109,7 @@ struct Constant {
         char *str;
         char double_or_float_text[100];  // convenient because LLVM wants a string anyway
         bool boolean;
+        struct { const Type *enumtype; int memberidx; } enum_member;
     } data;
 };
 #define copy_constant(c) ( (c)->kind==CONSTANT_STRING ? (Constant){ CONSTANT_STRING, {.str=strdup((c)->data.str)} } : *(c) )
@@ -162,6 +165,7 @@ struct AstExpression {
 
     enum AstExpressionKind {
         AST_EXPR_CONSTANT,
+        AST_EXPR_GET_ENUM_MEMBER,  // Cannot be just a Constant because ast doesn't know about Types.
         AST_EXPR_FUNCTION_CALL,
         AST_EXPR_BRACE_INIT,
         AST_EXPR_GET_FIELD,     // foo.bar
@@ -198,7 +202,8 @@ struct AstExpression {
         Constant constant;  // AST_EXPR_CONSTANT
         char varname[100];  // AST_EXPR_GET_VARIABLE
         AstCall call;       // AST_EXPR_CALL, AST_EXPR_INSTANTIATE
-        struct { AstExpression *obj; char fieldname[100]; } field;  // AST_EXPR_GET_FIELD, AST_EXPR_DEREF_AND_GET_FIELD
+        struct { AstExpression *obj; char fieldname[100]; } structfield;  // AST_EXPR_GET_FIELD, AST_EXPR_DEREF_AND_GET_FIELD
+        struct { char enumname[100]; char membername[100]; } enummember;
         struct { AstExpression *obj; AstType type; } as;
         /*
         The "operands" pointer is an array of 1 to 2 expressions.
@@ -289,6 +294,12 @@ struct AstStructDef {
     List(AstNameTypeValue) fields;
 };
 
+struct AstEnumDef {
+    char name[100];
+    char (*membernames)[100];
+    int nmembers;
+};
+
 struct AstImport {
     char *path;  // Relative to current working directory, so e.g. "blah/stdlib/io.jou"
     char symbolname[100];
@@ -305,12 +316,14 @@ struct AstToplevelNode {
         AST_TOPLEVEL_DEFINE_FUNCTION,
         AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE,
         AST_TOPLEVEL_DEFINE_STRUCT,
+        AST_TOPLEVEL_DEFINE_ENUM,
         AST_TOPLEVEL_IMPORT,
     } kind;
     union {
         AstNameTypeValue globalvar;  // AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE
         AstFunctionDef funcdef;  // AST_TOPLEVEL_DECLARE_FUNCTION, AST_TOPLEVEL_DEFINE_FUNCTION (body is empty for declaring)
         AstStructDef structdef;  // AST_TOPLEVEL_DEFINE_STRUCT
+        AstEnumDef enumdef;     // AST_TOPLEVEL_DEFINE_ENUM
         AstImport import;       // AST_TOPLEVEL_IMPORT
     } data;
 };
@@ -328,12 +341,14 @@ struct Type {
         TYPE_ARRAY,
         TYPE_STRUCT,
         TYPE_OPAQUE_STRUCT,  // struct with unknown members
+        TYPE_ENUM,
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_FLOATING_POINT
         const Type *valuetype;  // TYPE_POINTER
         struct { const Type *membertype; int len; } array;  // TYPE_ARRAY
         struct { int count; char (*names)[100]; const Type **types; } structfields;  // TYPE_STRUCT
+        struct { int count; char (*names)[100]; } enummembers;
     } data;
 };
 
@@ -364,6 +379,7 @@ const Type *get_pointer_type(const Type *t);  // result lives as long as t
 const Type *get_array_type(const Type *t, int len);  // result lives as long as t
 const Type *type_of_constant(const Constant *c);
 Type *create_opaque_struct(const char *name);
+Type *create_enum(const char *name, int membercount, char (*membernames)[100]);
 void set_struct_fields(
     Type *structtype,  // must be opaque struct, becomes non-opaque
     int fieldcount,
@@ -423,7 +439,7 @@ struct TypeContext {
     List(ExpressionTypes *) expr_types;
     List(GlobalVariable *) globals;  // TODO: probably doesn't need to has pointers
     List(LocalVariable *) locals;
-    List(Type *) structs;   // These will be freed later
+    List(Type *) owned_types;   // These will be freed later
     List(const Type *) types;
     List(Signature) function_signatures;
 };
@@ -431,7 +447,9 @@ struct TypeContext {
 /*
 Type checking is split into several stages:
     1. Create types. After this, structs defined in Jou exist, but
-       they are opaque and contain no members.
+       they are opaque and contain no members. Enums exist and contain
+       their members (although it doesn't really matter whether enum
+       members are handled in step 1 or 2).
     2. Check signatures, global variables and struct bodies. This step
        assumes that all types exist, but doesn't need to know what
        fields each struct has.
@@ -489,6 +507,8 @@ struct CfInstruction {
         CF_NUM_EQ,
         CF_NUM_LT,
         CF_NUM_CAST,
+        CF_ENUM_TO_INT32,
+        CF_INT32_TO_ENUM,
         CF_BOOL_NEGATE,  // TODO: get rid of this?
         CF_VARCPY, // similar to assignment statements: var1 = var2
     } kind;

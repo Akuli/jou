@@ -378,6 +378,11 @@ static AstExpression parse_elementary_expression(const Token **tokens)
         } else if (is_operator(&(*tokens)[1], "{")) {
             expr.kind = AST_EXPR_BRACE_INIT;
             expr.data.call = parse_call(tokens, '{', '}', true);
+        } else if (is_operator(&(*tokens)[1], "::") && (*tokens)[2].type == TOKEN_NAME) {
+            expr.kind = AST_EXPR_GET_ENUM_MEMBER;
+            safe_strcpy(expr.data.enummember.enumname, (*tokens)[0].data.name);
+            safe_strcpy(expr.data.enummember.membername, (*tokens)[2].data.name);
+            *tokens += 3;
         } else {
             expr.kind = AST_EXPR_GET_VARIABLE;
             safe_strcpy(expr.data.varname, (*tokens)->data.name);
@@ -422,12 +427,12 @@ static AstExpression parse_expression_with_fields_and_indexing(const Token **tok
                 .location = startop->location,
                 .kind = (is_operator(startop, "->") ? AST_EXPR_DEREF_AND_GET_FIELD : AST_EXPR_GET_FIELD),
             };
-            result2.data.field.obj = malloc(sizeof *result2.data.field.obj);
-            *result2.data.field.obj = result;
+            result2.data.structfield.obj = malloc(sizeof *result2.data.structfield.obj);
+            *result2.data.structfield.obj = result;
 
             if ((*tokens)->type != TOKEN_NAME)
                 fail_with_parse_error(*tokens, "a field name");
-            safe_strcpy(result2.data.field.fieldname, (*tokens)->data.name);
+            safe_strcpy(result2.data.structfield.fieldname, (*tokens)->data.name);
             ++*tokens;
 
             result = result2;
@@ -767,6 +772,37 @@ static AstStructDef parse_structdef(const Token **tokens)
     return result;
 }
 
+static AstEnumDef parse_enumdef(const Token **tokens)
+{
+    AstEnumDef result = {0};
+    if ((*tokens)->type != TOKEN_NAME)
+        fail_with_parse_error(*tokens, "a name for the enum");
+    safe_strcpy(result.name, (*tokens)->data.name);
+    ++*tokens;
+
+    parse_start_of_body(tokens);
+    List(const char*) membernames = {0};
+
+    while ((*tokens)->type != TOKEN_DEDENT) {
+        for (const char **old = membernames.ptr; old < End(membernames); old++)
+            if (!strcmp(*old, (*tokens)->data.name))
+                fail_with_error((*tokens)->location, "the enum has two members named '%s'", (*tokens)->data.name);
+
+        Append(&membernames, (*tokens)->data.name);
+        ++*tokens;
+        eat_newline(tokens);
+    }
+
+    result.nmembers = membernames.len;
+    result.membernames = malloc(sizeof(result.membernames[0]) * result.nmembers);
+    for (int i = 0; i < result.nmembers; i++)
+        strcpy(result.membernames[i], membernames.ptr[i]);
+
+    free(membernames.ptr);
+    ++*tokens;
+    return result;
+}
+
 static char *get_actual_import_path(const Token *pathtoken, const char *stdlib_path)
 {
     if (pathtoken->type != TOKEN_STRING)
@@ -890,6 +926,10 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
         ++*tokens;
         result.kind = AST_TOPLEVEL_DEFINE_STRUCT;
         result.data.structdef = parse_structdef(tokens);
+    } else if (is_keyword(*tokens, "enum")) {
+        ++*tokens;
+        result.kind = AST_TOPLEVEL_DEFINE_ENUM;
+        result.data.enumdef = parse_enumdef(tokens);
     } else {
         fail_with_parse_error(*tokens, "a definition or declaration");
     }

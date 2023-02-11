@@ -41,6 +41,8 @@ static LLVMTypeRef codegen_type(const Type *type)
             free(elems);
             return result;
         }
+    case TYPE_ENUM:
+        return LLVMInt32Type();
     }
     assert(0);
 }
@@ -152,6 +154,8 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
         return LLVMConstNull(codegen_type(voidPtrType));
     case CONSTANT_STRING:
         return make_a_string_constant(st, c->data.str);
+    case CONSTANT_ENUM_MEMBER:
+        return LLVMConstInt(LLVMInt32Type(), c->data.enum_member.memberidx, false);
     }
     assert(0);
 }
@@ -302,7 +306,13 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
 
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate")); break;
         case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(ins->destvar->type), "ptr_cast")); break;
-        case CF_VARCPY: setdest(getop(0)); break;
+
+        // various no-ops
+        case CF_VARCPY:
+        case CF_INT32_TO_ENUM:
+        case CF_ENUM_TO_INT32:
+            setdest(getop(0));
+            break;
 
         case CF_NUM_ADD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildAdd, LLVMBuildAdd, LLVMBuildFAdd)); break;
         case CF_NUM_SUB: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildSub, LLVMBuildSub, LLVMBuildFSub)); break;

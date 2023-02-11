@@ -264,6 +264,8 @@ static bool astnode_conflicts_with_an_import(const AstToplevelNode *astnode, con
         return import->kind == EXPSYM_GLOBAL_VAR && !strcmp(import->name, astnode->data.globalvar.name);
     case AST_TOPLEVEL_DEFINE_STRUCT:
         return import->kind == EXPSYM_TYPE && !strcmp(import->name, astnode->data.structdef.name);
+    case AST_TOPLEVEL_DEFINE_ENUM:
+        return import->kind == EXPSYM_TYPE && !strcmp(import->name, astnode->data.enumdef.name);
     case AST_TOPLEVEL_IMPORT:
         return false;
     case AST_TOPLEVEL_END_OF_FILE:
