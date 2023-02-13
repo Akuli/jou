@@ -859,7 +859,7 @@ static void parse_import(const Token **tokens, const char *stdlib_path, Toplevel
         if ((*tokens)->type != TOKEN_NAME)
             fail_with_parse_error(*tokens, "the name of a symbol to import");
 
-        struct AstImport imp;
+        struct AstImport imp = {0};
         imp.path = strdup(path);
         safe_strcpy(imp.symbolname, (*tokens)->data.name);
 

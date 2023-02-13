@@ -2,17 +2,25 @@
 
 static const Type *find_type(const TypeContext *ctx, const char *name)
 {
-    for (const Type **t = ctx->types.ptr; t < End(ctx->types); t++)
-        if (!strcmp((*t)->name, name))
-            return *t;
+    for (struct TypeContextType *t = ctx->types.ptr; t < End(ctx->types); t++) {
+        if (!strcmp(t->type->name, name)) {
+            if (t->usedptr)
+                *t->usedptr = true;
+            return t->type;
+        }
+    }
     return NULL;
 }
 
 static const Signature *find_function(const TypeContext *ctx, const char *name)
 {
-    for (Signature *sig = ctx->function_signatures.ptr; sig < End(ctx->function_signatures); sig++)
-        if (!strcmp(sig->funcname, name))
-            return sig;
+    for (struct TypeContextFunction *f = ctx->functions.ptr; f < End(ctx->functions); f++) {
+        if (!strcmp(f->signature.funcname, name)) {
+            if (f->usedptr)
+                *f->usedptr = true;
+            return &f->signature;
+        }
+    }
     return NULL;
 }
 
@@ -30,8 +38,11 @@ static const Type *find_any_var(const TypeContext *ctx, const char *name)
         if (!strcmp((*var)->name, name))
             return (*var)->type;
     for (GlobalVariable **var = ctx->globals.ptr; var < End(ctx->globals); var++)
-        if (!strcmp((*var)->name, name))
+        if (!strcmp((*var)->name, name)) {
+            if ((*var)->usedptr)
+                *(*var)->usedptr = true;
             return (*var)->type;
+        }
     return NULL;
 }
 
@@ -59,7 +70,7 @@ ExportSymbol *typecheck_step1_create_types(TypeContext *ctx, const AstToplevelNo
         if (find_type(ctx, name))
             fail_with_error(ast->location, "a type named '%s' already exists", name);
 
-        Append(&ctx->types, t);
+        Append(&ctx->types, (struct TypeContextType){ .type=t });
         Append(&ctx->owned_types, t);
 
         struct ExportSymbol es = { .kind = EXPSYM_TYPE, .data.type = t };
@@ -135,7 +146,7 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
     }
 }
 
-static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl, bool definedhere)
+static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl, bool defined_elsewhere)
 {
     assert(ctx->locals.len == 0);  // find_any_var() only finds global vars
     if (find_any_var(ctx, vardecl->name))
@@ -145,7 +156,7 @@ static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *
     GlobalVariable *g = calloc(1, sizeof *g);
     safe_strcpy(g->name, vardecl->name);
     g->type = type_from_ast(ctx, &vardecl->type);
-    g->defined_outside_jou = !definedhere;
+    g->defined_outside_current_file = defined_elsewhere;
     Append(&ctx->globals, g);
 
     ExportSymbol es = { .kind = EXPSYM_GLOBAL_VAR, .data.type = g->type };
@@ -179,7 +190,7 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
 
     sig.returntype_location = astsig->returntype.location;
 
-    Append(&ctx->function_signatures, copy_signature(&sig));
+    Append(&ctx->functions, (struct TypeContextFunction){ .signature = copy_signature(&sig) });
 
     ExportSymbol es = { .kind = EXPSYM_FUNCTION, .data.funcsignature = sig };
     safe_strcpy(es.name, sig.funcname);
@@ -226,10 +237,10 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
     for (; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
         switch(ast->kind) {
         case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-            Append(&exports, handle_global_var(ctx, &ast->data.globalvar, false));
+            Append(&exports, handle_global_var(ctx, &ast->data.globalvar, true));
             break;
         case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-            Append(&exports, handle_global_var(ctx, &ast->data.globalvar, true));
+            Append(&exports, handle_global_var(ctx, &ast->data.globalvar, false));
             break;
         case AST_TOPLEVEL_DECLARE_FUNCTION:
         case AST_TOPLEVEL_DEFINE_FUNCTION:

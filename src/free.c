@@ -226,14 +226,14 @@ void free_type_context(const TypeContext *ctx)
         free(*g);
     for (Type **t = ctx->owned_types.ptr; t < End(ctx->owned_types); t++)
         free_type(*t);
-    for (Signature *s = ctx->function_signatures.ptr; s < End(ctx->function_signatures); s++)
-        free_signature(s);
+    for (struct TypeContextFunction *f = ctx->functions.ptr; f < End(ctx->functions); f++)
+        free_signature(&f->signature);
     free(ctx->expr_types.ptr);
     free(ctx->globals.ptr);
     free(ctx->locals.ptr);
     free(ctx->types.ptr);
     free(ctx->owned_types.ptr);
-    free(ctx->function_signatures.ptr);
+    free(ctx->functions.ptr);
 }
 
 

@@ -438,12 +438,12 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
     for (GlobalVariable **v = typectx->globals.ptr; v < End(typectx->globals); v++) {
         LLVMTypeRef t = codegen_type((*v)->type);
         LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
-        if (!(*v)->defined_outside_jou)
+        if (!(*v)->defined_outside_current_file)
             LLVMSetInitializer(globalptr, LLVMGetUndef(t));
     }
 
-    for (Signature* s = typectx->function_signatures.ptr; s < End(typectx->function_signatures); s++)
-        codegen_function_decl(&st, s);
+    for (struct TypeContextFunction *f = typectx->functions.ptr; f < End(typectx->functions); f++)
+        codegen_function_decl(&st, &f->signature);
     for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
         codegen_function_def(&st, *g);
 
