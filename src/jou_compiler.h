@@ -409,7 +409,7 @@ struct GlobalVariable {
     char name[100];  // Same as in user's code, never empty
     const Type *type;
     bool defined_in_current_file;  // not declare-only (e.g. stdout) or imported
-    bool *usedptr;
+    bool *usedptr;  // If non-NULL, set to true when the variable is used. This is how we detect unused imports.
 };
 struct LocalVariable {
     int id;  // Unique, but you can also compare pointers to Variable.
