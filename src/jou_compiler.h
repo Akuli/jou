@@ -303,7 +303,7 @@ struct AstEnumDef {
 struct AstImport {
     char *path;  // Relative to current working directory, so e.g. "blah/stdlib/io.jou"
     char symbolname[100];
-    bool found;    // For error messages
+    bool found, used;    // For errors/warnings
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
@@ -408,7 +408,8 @@ Signature copy_signature(const Signature *sig);
 struct GlobalVariable {
     char name[100];  // Same as in user's code, never empty
     const Type *type;
-    bool defined_outside_jou;  // true for variables like stdout
+    bool defined_in_current_file;  // not declare-only (e.g. stdout) or imported
+    bool *usedptr;  // If non-NULL, set to true when the variable is used. This is how we detect unused imports.
 };
 struct LocalVariable {
     int id;  // Unique, but you can also compare pointers to Variable.
@@ -440,8 +441,8 @@ struct TypeContext {
     List(GlobalVariable *) globals;  // TODO: probably doesn't need to has pointers
     List(LocalVariable *) locals;
     List(Type *) owned_types;   // These will be freed later
-    List(const Type *) types;
-    List(Signature) function_signatures;
+    List(struct TypeContextType { const Type *type; bool *usedptr; }) types;
+    List(struct TypeContextFunction { Signature signature; bool *usedptr; }) functions;
 };
 
 /*

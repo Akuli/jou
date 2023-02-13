@@ -194,6 +194,9 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
         printf("Build CFG: %s\n", fs->path);
 
     CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->typectx);
+    for (AstToplevelNode *imp = fs->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++)
+        if (!imp->data.import.used)
+            show_warning(imp->location, "'%s' imported but not used", imp->data.import.symbolname);
     free_ast(fs->ast);
     fs->ast = NULL;
 
@@ -273,7 +276,7 @@ static bool astnode_conflicts_with_an_import(const AstToplevelNode *astnode, con
     }
 }
 
-static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es)
+static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, AstImport *imp)
 {
     for (AstToplevelNode *ast = fs->ast; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
         if (astnode_conflicts_with_an_import(ast, es)) {
@@ -291,17 +294,20 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es)
 
     switch(es->kind) {
     case EXPSYM_FUNCTION:
-        Append(&fs->typectx.function_signatures, copy_signature(&es->data.funcsignature));
+        Append(&fs->typectx.functions, (struct TypeContextFunction){
+            .signature = copy_signature(&es->data.funcsignature),
+            .usedptr = &imp->used,
+        });
         break;
     case EXPSYM_GLOBAL_VAR:
         g = calloc(1, sizeof(*g));
         g->type = es->data.type;
-        g->defined_outside_jou = true;  // TODO rename this field
+        g->usedptr = &imp->used;
         safe_strcpy(g->name, es->name);
         Append(&fs->typectx.globals, g);
         break;
     case EXPSYM_TYPE:
-        Append(&fs->typectx.types, es->data.type);
+        Append(&fs->typectx.types, (struct TypeContextType){ .type=es->data.type, .usedptr=&imp->used });
         break;
     }
 }
@@ -329,7 +335,7 @@ static void add_imported_symbols(struct CompileState *compst)
                             kindstr, es->name, from->path, to->path);
                     }
                     imp->found = true;
-                    add_imported_symbol(to, es);
+                    add_imported_symbol(to, es, imp);
                 }
             }
         }
