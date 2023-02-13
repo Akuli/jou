@@ -82,7 +82,6 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
                 goto wrong_usage;
             }
             if (argc-i < 2) {
-                // TODO: test
                 fprintf(stderr, "%s: there must be a string of flags after --linker-flags", argv[0]);
                 goto wrong_usage;
             }
