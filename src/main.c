@@ -34,7 +34,7 @@ static void optimize(LLVMModuleRef module, int level)
 
 static const char help_fmt[] =
     "Usage:\n"
-    "  <argv0> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] FILENAME\n"
+    "  <argv0> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags \"...\"] FILENAME\n"
     "  <argv0> --help       # This message\n"
     "  <argv0> --update     # Download and install the latest Jou\n"
     "\n"
@@ -42,6 +42,7 @@ static const char help_fmt[] =
     "  -o OUTFILE       output an executable file, don't run the code\n"
     "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
     "  --verbose        display a lot of information about all compilation steps\n"
+    "  --linker-flags   appended to the linker command, so you can use external libraries\n"
     ;
 
 static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char **filename)
@@ -75,6 +76,19 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
         } else if (!strcmp(argv[i], "--verbose")) {
             flags->verbose = true;
             i++;
+        } else if (!strcmp(argv[i], "--linker-flags")) {
+            if (flags->linker_flags) {
+                // TODO: test
+                fprintf(stderr, "%s: --linker-flags cannot be given multiple times", argv[0]);
+                goto wrong_usage;
+            }
+            if (argc-i < 2) {
+                // TODO: test
+                fprintf(stderr, "%s: there must be a string of flags after --linker-flags", argv[0]);
+                goto wrong_usage;
+            }
+            flags->linker_flags = argv[i+1];
+            i += 2;
         } else if (strlen(argv[i]) == 3
                 && !strncmp(argv[i], "-O", 2)
                 && argv[i][2] >= '0'

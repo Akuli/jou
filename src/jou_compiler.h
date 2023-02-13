@@ -50,6 +50,7 @@ struct CommandLineFlags {
     bool verbose;  // Whether to print a LOT of debug info
     int optlevel;  // Optimization level (0 don't optimize, 3 optimize a lot)
     const char *outfile;  // If not NULL, where to output executable
+    const char *linker_flags;  // String that is appended to linking command
 };
 
 struct Location {

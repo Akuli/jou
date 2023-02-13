@@ -8,6 +8,7 @@
 
 #include "jou_compiler.h"
 #include <libgen.h>
+#include <stdarg.h>
 #include <errno.h>
 #include <sys/stat.h>
 #include <llvm-c/TargetMachine.h>
@@ -67,30 +68,53 @@ static void compile_to_object_file(LLVMModuleRef module, const char *path, const
     LLVMDisposeTargetMachine(machine);
 }
 
+static char *malloc_sprintf(const char *fmt, ...)
+{
+    int size;
+
+    va_list ap;
+    va_start(ap, fmt);
+    size = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+
+    assert(size >= 0);
+    char *str = malloc(size+1);
+    assert(str);
+
+    va_start(ap, fmt);
+    vsprintf(str, fmt, ap);
+    va_end(ap);
+
+    return str;
+}
+
 static void run_linker(const char *objpath, const char *exepath, const CommandLineFlags *flags)
 {
     char *jou_exe = find_current_executable();
     const char *instdir = dirname(jou_exe);
 
-#ifdef _WIN32
-    char *command = malloc(strlen(instdir) + strlen(objpath) + strlen(exepath) + 500);
+    char *linker_flags;
+    if (flags->linker_flags)
+        linker_flags = malloc_sprintf("-lm %s", flags->linker_flags);
+    else
+        linker_flags = strdup("-lm");
 
-    char *gcc = malloc(strlen(instdir) + 50);
-    sprintf(gcc, "%s\\mingw64\\bin\\gcc.exe", instdir);
+    char *command;
+#ifdef _WIN32
+    char *gcc = malloc_sprintf("%s\\mingw64\\bin\\gcc.exe", instdir);
     if (stat(gcc, &(struct stat){0}) != -1) {
         // The Windows builds come with the GNU linker.
         // Windows quoting is weird, in this command it strips the outermost quotes.
-        sprintf(command, "\"\"%s\" \"%s\" -o \"%s\" -lm\"", gcc, objpath, exepath);
+        command = malloc_sprintf("\"\"%s\" \"%s\" -o \"%s\" %s\"", gcc, objpath, exepath, linker_flags);
     } else {
         // Use clang from PATH. Convenient when developing Jou locally.
-        sprintf(command, "clang \"%s\" -o \"%s\" -lm", objpath, exepath);
+        command = malloc_sprintf("clang \"%s\" -o \"%s\" %s", objpath, exepath, linker_flags);
     }
     free(gcc);
 #else
     // Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
     (void)instdir;
-    char *command = malloc(strlen(JOU_CLANG_PATH) + strlen(objpath) + strlen(exepath) + 500);
-    sprintf(command, "'%s' '%s' -o '%s' -lm", JOU_CLANG_PATH, objpath, exepath);
+    command = malloc_sprintf("'%s' '%s' -o '%s' %s", JOU_CLANG_PATH, objpath, exepath, linker_flags);
 #endif
 
     if (flags->verbose)
@@ -100,6 +124,7 @@ static void run_linker(const char *objpath, const char *exepath, const CommandLi
 
     free(jou_exe);
     free(command);
+    free(linker_flags);
 }
 
 static char *get_filename_without_suffix(const LLVMModuleRef module)

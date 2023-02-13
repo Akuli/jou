@@ -29,7 +29,7 @@ def main() -> int:
     run_jou("lolwat.jou")  # Output: compiler error in file "lolwat.jou": cannot open file: No such file or directory
 
     # Output: Usage:
-    # Output:   <jouexe> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] FILENAME
+    # Output:   <jouexe> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags "..."] FILENAME
     # Output:   <jouexe> --help       # This message
     # Output:   <jouexe> --update     # Download and install the latest Jou
     # Output:
@@ -37,6 +37,7 @@ def main() -> int:
     # Output:   -o OUTFILE       output an executable file, don't run the code
     # Output:   -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)
     # Output:   --verbose        display a lot of information about all compilation steps
+    # Output:   --linker-flags   appended to the linker command, so you can use external libraries
     run_jou("--help")
 
     # Test that --verbose kinda works, without asserting the output in too much detail.
