@@ -834,8 +834,14 @@ static char *get_actual_import_path(const Token *pathtoken, const char *stdlib_p
     return path;
 }
 
-static AstToplevelNode *parse_import(const Token **tokens, const char *stdlib_path, int *n)
+typedef List(AstToplevelNode) ToplevelNodeList;
+
+static void parse_import(const Token **tokens, const char *stdlib_path, ToplevelNodeList *dest)
 {
+    // This simplifies the compiler: it's easy to loop through all imports of the file.
+    if (dest->len > 0 && dest->ptr[dest->len - 1].kind != AST_TOPLEVEL_IMPORT)
+        fail_with_error((*tokens)->location, "imports must be in the beginning of the file");
+
     assert(is_keyword(*tokens, "from"));
     ++*tokens;
 
@@ -849,7 +855,6 @@ static AstToplevelNode *parse_import(const Token **tokens, const char *stdlib_pa
     bool parens = is_operator(*tokens, "(");
     if(parens) ++*tokens;
 
-    List(AstToplevelNode) result = {0};
     do {
         if ((*tokens)->type != TOKEN_NAME)
             fail_with_parse_error(*tokens, "the name of a symbol to import");
@@ -858,7 +863,7 @@ static AstToplevelNode *parse_import(const Token **tokens, const char *stdlib_pa
         imp.path = strdup(path);
         safe_strcpy(imp.symbolname, (*tokens)->data.name);
 
-        Append(&result, (struct AstToplevelNode){
+        Append(dest, (struct AstToplevelNode){
             .location = (*tokens)->location,
             .kind = AST_TOPLEVEL_IMPORT,
             .data.import = imp,
@@ -881,9 +886,6 @@ static AstToplevelNode *parse_import(const Token **tokens, const char *stdlib_pa
     if ((*tokens)->type != TOKEN_NEWLINE)
         fail_with_parse_error(*tokens, "a comma or end of line");
     ++*tokens;
-
-    *n = result.len;
-    return result.ptr;
 }
 
 static AstToplevelNode parse_toplevel_node(const Token **tokens)
@@ -939,22 +941,13 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
 
 AstToplevelNode *parse(const Token *tokens, const char *stdlib_path)
 {
-    List(AstToplevelNode) result = {0};
-
-    // Parse imports separately. This ensures that we get an error
-    // if an import is not in beginning of the file.
-    // TODO: add a test
-    while (is_keyword(tokens, "from")) {
-        int n;
-        struct AstToplevelNode *impnodes = parse_import(&tokens, stdlib_path, &n);
-        for (int i = 0; i < n; i++)
-            Append(&result, impnodes[i]);
-        free(impnodes);
-    }
-
+    ToplevelNodeList result = {0};
     do {
-        Append(&result, parse_toplevel_node(&tokens));
+        // Imports are separate because one import statement can become multiple ast nodes.
+        if (is_keyword(tokens, "from"))
+            parse_import(&tokens, stdlib_path, &result);
+        else
+            Append(&result, parse_toplevel_node(&tokens));
     } while (result.ptr[result.len - 1].kind != AST_TOPLEVEL_END_OF_FILE);
-
     return result.ptr;
 }
