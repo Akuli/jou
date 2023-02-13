@@ -935,6 +935,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
     return result;
 }
 
+// This simplifies the compiler: it's easy to loop through all imports of the file.
 static void verify_imports_are_at_top_of_file(const AstToplevelNode *ast)
 {
     while (ast->kind == AST_TOPLEVEL_IMPORT)
