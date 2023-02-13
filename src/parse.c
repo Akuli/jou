@@ -838,6 +838,10 @@ typedef List(AstToplevelNode) ToplevelNodeList;
 
 static void parse_import(const Token **tokens, const char *stdlib_path, ToplevelNodeList *dest)
 {
+    // This simplifies the compiler: it's easy to loop through all imports of the file.
+    if (dest->len > 0 && dest->ptr[dest->len - 1].kind != AST_TOPLEVEL_IMPORT)
+        fail_with_error((*tokens)->location, "imports must be in the beginning of the file");
+
     assert(is_keyword(*tokens, "from"));
     ++*tokens;
 
@@ -935,19 +939,6 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
     return result;
 }
 
-// This simplifies the compiler: it's easy to loop through all imports of the file.
-static void verify_imports_are_at_top_of_file(const AstToplevelNode *ast)
-{
-    while (ast->kind == AST_TOPLEVEL_IMPORT)
-        ast++;
-
-    while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
-        if (ast->kind == AST_TOPLEVEL_IMPORT)
-            fail_with_error(ast->location, "imports must be in the beginning of the file");
-        ast++;
-    }
-}
-
 AstToplevelNode *parse(const Token *tokens, const char *stdlib_path)
 {
     ToplevelNodeList result = {0};
@@ -958,7 +949,5 @@ AstToplevelNode *parse(const Token *tokens, const char *stdlib_path)
         else
             Append(&result, parse_toplevel_node(&tokens));
     } while (result.ptr[result.len - 1].kind != AST_TOPLEVEL_END_OF_FILE);
-
-    verify_imports_are_at_top_of_file(result.ptr);
     return result.ptr;
 }
