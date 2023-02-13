@@ -302,7 +302,6 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
     case EXPSYM_GLOBAL_VAR:
         g = calloc(1, sizeof(*g));
         g->type = es->data.type;
-        g->defined_outside_current_file = true;
         g->usedptr = &imp->used;
         safe_strcpy(g->name, es->name);
         Append(&fs->typectx.globals, g);

@@ -408,7 +408,7 @@ Signature copy_signature(const Signature *sig);
 struct GlobalVariable {
     char name[100];  // Same as in user's code, never empty
     const Type *type;
-    bool defined_outside_current_file;  // imported variables, also external variables like stdout
+    bool defined_in_current_file;  // not declare-only (e.g. stdout) or imported
     bool *usedptr;
 };
 struct LocalVariable {

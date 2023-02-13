@@ -146,7 +146,7 @@ static const Type *type_or_void_from_ast(const TypeContext *ctx, const AstType *
     }
 }
 
-static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl, bool defined_elsewhere)
+static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *vardecl, bool defined_here)
 {
     assert(ctx->locals.len == 0);  // find_any_var() only finds global vars
     if (find_any_var(ctx, vardecl->name))
@@ -156,7 +156,7 @@ static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *
     GlobalVariable *g = calloc(1, sizeof *g);
     safe_strcpy(g->name, vardecl->name);
     g->type = type_from_ast(ctx, &vardecl->type);
-    g->defined_outside_current_file = defined_elsewhere;
+    g->defined_in_current_file = defined_here;
     Append(&ctx->globals, g);
 
     ExportSymbol es = { .kind = EXPSYM_GLOBAL_VAR, .data.type = g->type };
@@ -237,10 +237,10 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
     for (; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
         switch(ast->kind) {
         case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-            Append(&exports, handle_global_var(ctx, &ast->data.globalvar, true));
+            Append(&exports, handle_global_var(ctx, &ast->data.globalvar, false));
             break;
         case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-            Append(&exports, handle_global_var(ctx, &ast->data.globalvar, false));
+            Append(&exports, handle_global_var(ctx, &ast->data.globalvar, true));
             break;
         case AST_TOPLEVEL_DECLARE_FUNCTION:
         case AST_TOPLEVEL_DEFINE_FUNCTION:
