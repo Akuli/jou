@@ -78,7 +78,6 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
             i++;
         } else if (!strcmp(argv[i], "--linker-flags")) {
             if (flags->linker_flags) {
-                // TODO: test
                 fprintf(stderr, "%s: --linker-flags cannot be given multiple times", argv[0]);
                 goto wrong_usage;
             }
