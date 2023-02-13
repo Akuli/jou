@@ -1,6 +1,7 @@
 from "stdlib/str.jou" import sprintf, strstr
 from "stdlib/mem.jou" import malloc, free
 from "stdlib/process.jou" import system, getenv
+from "stdlib/io.jou" import printf
 
 def is_windows() -> bool:
     return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
@@ -80,5 +81,11 @@ def main() -> int:
     else:
         system("cp jou tmp/tests/jou_executable")
         system("tmp/tests/jou_executable")
+
+    # Compile a GUI program
+    if not is_windows():
+        ret = system("./jou -o /dev/null --linker-flags \"-lX11\" examples/x11_window.jou")
+        if ret != 0:
+            printf("Compiling failed???\n")
 
     return 0
