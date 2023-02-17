@@ -1,0 +1,58 @@
+# To run this program, you need linux:
+#
+#   $ ./jou --linker-flags "-lX11" examples/x11_window.jou
+#
+
+declare usleep(x: int) -> int
+
+struct Display:
+    _dummy: int
+struct XGCValues:
+    _dummy: int
+struct GC:
+    _dummy: int
+
+declare XOpenDisplay(name: byte*) -> Display*
+declare XCreateSimpleWindow(
+    display: Display*,
+    parent: long,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    border_width: int,
+    border: long,
+    background: long,
+) -> long
+declare XCreateGC(display: Display*, drawable: long, valuemask: long, values: XGCValues*) -> GC*
+declare XSetForeground(display: Display*, gc: GC*, foreground: long) -> int
+declare XSelectInput(display: Display*, window: long, event_mask: long) -> int
+declare XMapRaised(display: Display*, window: long) -> int
+declare XDrawImageString(
+    display: Display*,
+    drawable: long,
+    gc: GC*,
+    x: int,
+    y: int,
+    string: byte*,
+    length: int,
+) -> int
+declare XDefaultRootWindow(display: Display*) -> long
+declare XStoreName(display: Display*, window: long, name: byte*) -> int
+declare XFlush(display: Display*) -> int
+
+def main() -> int:
+    display = XOpenDisplay("")
+    window = XCreateSimpleWindow(display, XDefaultRootWindow(display), 200, 200, 200, 200, 5, 0, 0xff00ffL)
+    XStoreName(display, window, "Hello pink world")
+
+    gc = XCreateGC(display, window, 0, NULL)
+    XSetForeground(display, gc, 0xffffffL)
+
+    XSelectInput(display, window, 32768)
+    XMapRaised(display, window)
+
+    while True:
+        usleep(100)
+        XDrawImageString(display, window, gc, 50, 50, "hello", 5)
+        XFlush(display)  # This makes the program die when closed. Don't know why :)

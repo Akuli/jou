@@ -1,6 +1,7 @@
 from "stdlib/str.jou" import sprintf, strstr
 from "stdlib/mem.jou" import malloc, free
 from "stdlib/process.jou" import system, getenv
+from "stdlib/io.jou" import printf
 
 def is_windows() -> bool:
     return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
@@ -27,9 +28,11 @@ def main() -> int:
     run_jou("-O8 examples/hello.jou")  # Output: <jouexe>: unknown argument "-O8" (try "<jouexe> --help")
     run_jou("--lolwat")  # Output: <jouexe>: unknown argument "--lolwat" (try "<jouexe> --help")
     run_jou("lolwat.jou")  # Output: compiler error in file "lolwat.jou": cannot open file: No such file or directory
+    run_jou("--linker-flags")  # Output: <jouexe>: there must be a string of flags after --linker-flags (try "<jouexe> --help")
+    run_jou("--linker-flags x --linker-flags y")  # Output: <jouexe>: --linker-flags cannot be given multiple times (try "<jouexe> --help")
 
     # Output: Usage:
-    # Output:   <jouexe> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] FILENAME
+    # Output:   <jouexe> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags "..."] FILENAME
     # Output:   <jouexe> --help       # This message
     # Output:   <jouexe> --update     # Download and install the latest Jou
     # Output:
@@ -37,6 +40,7 @@ def main() -> int:
     # Output:   -o OUTFILE       output an executable file, don't run the code
     # Output:   -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)
     # Output:   --verbose        display a lot of information about all compilation steps
+    # Output:   --linker-flags   appended to the linker command, so you can use external libraries
     run_jou("--help")
 
     # Test that --verbose kinda works, without asserting the output in too much detail.
@@ -79,5 +83,11 @@ def main() -> int:
     else:
         system("cp jou tmp/tests/jou_executable")
         system("tmp/tests/jou_executable")
+
+    # Compile a GUI program
+    if not is_windows():
+        ret = system("./jou -o /dev/null --linker-flags \"-lX11\" examples/x11_window.jou")
+        if ret != 0:
+            printf("Compiling failed???\n")
 
     return 0
