@@ -60,6 +60,10 @@ declare fprintf(file: FILE *, pattern: byte*, ...) -> int
 declare fgetc(file: FILE*) -> int  # see getchar()
 declare fscanf(file: FILE*, pattern: byte*, ...) -> int
 
+# Ensure that output is actually written. It may remain buffered
+# without calling this function.
+declare fflush(file: FILE*) -> int
+
 # Read a line of text from file into a string starting at the given
 # pointer. Reading stops at newline character, end of file, on error,
 # or when the resulting string (including the '\0') wouldn't fit
@@ -67,6 +71,10 @@ declare fscanf(file: FILE*, pattern: byte*, ...) -> int
 #
 # Return value: NULL on error, same as destination on success.
 declare fgets(destination: byte*, n: int, file: FILE*) -> byte*
+
+# TODO: document
+declare feof(file: FILE*) -> int
+declare ferror(file: FILE*) -> int
 
 # Move back to beginning of file.
 declare rewind(file: FILE*) -> void
