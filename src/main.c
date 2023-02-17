@@ -323,6 +323,9 @@ static void add_imported_symbols(struct CompileState *compst)
             assert(from);
 
             for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
+                if (es->name == '*') {
+                    printf("WOW, it successed!                                             sd");
+                }
                 if (!strcmp(imp->symbolname, es->name)) {
                     if (compst->flags.verbose) {
                         const char *kindstr;

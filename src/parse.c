@@ -854,9 +854,14 @@ static void parse_import(const Token **tokens, const char *stdlib_path, Toplevel
 
     bool parens = is_operator(*tokens, "(");
     if(parens) ++*tokens;
+    /*
+    if (!strcmp((*tokens)->data.name, '*') && (*tokens)->type != TOKEN_NAME)
+        printf("%d", !strcmp((*tokens)->data.name, '*'));
+        printf("\n");
+    */
 
     do {
-        if ((*tokens)->type != TOKEN_NAME)
+        if ((*tokens)->type != TOKEN_NAME && (*tokens)->type != TOKEN_OPERATOR) // Hah, failed many times make it to check *(tokens)->data.name == '*' successed
             fail_with_parse_error(*tokens, "the name of a symbol to import");
 
         struct AstImport imp = {0};
