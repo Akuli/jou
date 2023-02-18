@@ -458,11 +458,17 @@ static char *get_data_layout()
     LLVMTargetMachineRef machine = LLVMCreateTargetMachine(
         target, triple, "x86-64", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault);
     assert(machine);
+    free(triple);
 
     LLVMTargetDataRef data_layout = LLVMCreateTargetDataLayout(machine);
+    LLVMDisposeTargetMachine(machine);
+
     char *tmp = LLVMCopyStringRepOfTargetData(data_layout);
+    LLVMDisposeTargetData(data_layout);
+
     char *result = strdup(tmp);
     LLVMDisposeMessage(tmp);
+
     return result;
 }
 
