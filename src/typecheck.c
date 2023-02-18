@@ -838,7 +838,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         result = boolType;
         break;
     case AST_EXPR_NEG:
-        result = typecheck_expression(ctx, &expr->data.operands[0])->type;
+        result = typecheck_expression_not_void(ctx, &expr->data.operands[0])->type;
         if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_FLOATING_POINT)
             fail_with_error(
                 expr->location,
@@ -943,7 +943,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
                 && !find_any_var(ctx, targetexpr->data.varname))
             {
                 // Making a new variable. Use the type of the value being assigned.
-                const ExpressionTypes *types = typecheck_expression(ctx, valueexpr);
+                const ExpressionTypes *types = typecheck_expression_not_void(ctx, valueexpr);
                 add_variable(ctx, types->type, targetexpr->data.varname);
             } else {
                 // Convert value to the type of an existing variable or other assignment target.
@@ -957,7 +957,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
                         "cannot assign a value of type FROM to %s of type TO",
                         short_expression_description(targetexpr));
                 }
-                const ExpressionTypes *targettypes = typecheck_expression(ctx, targetexpr);
+                const ExpressionTypes *targettypes = typecheck_expression_not_void(ctx, targetexpr);
                 typecheck_expression_with_implicit_cast(ctx, valueexpr, targettypes->type, errmsg);
             }
             break;
@@ -989,7 +989,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
         char errmsg[500];
         sprintf(errmsg, "%s produced a value of type FROM which cannot be assigned back to TO", opname);
 
-        const ExpressionTypes *targettypes = typecheck_expression(ctx, targetexpr);
+        const ExpressionTypes *targettypes = typecheck_expression_not_void(ctx, targetexpr);
         typecheck_expression_with_implicit_cast(ctx, valueexpr, targettypes->type, errmsg);
         break;
     }
