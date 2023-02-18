@@ -5,7 +5,8 @@ static struct Target target = {0};
 
 static void cleanup(void)
 {
-    printf("Cleaning! Hurd´rrr Durr\n");
+    LLVMDisposeTargetMachine(target.target_machine_ref);
+    LLVMDisposeTargetData(target.target_data_ref);
 }
 
 void init_target(void)
