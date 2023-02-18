@@ -3,7 +3,6 @@
 
 static struct Target target = {0};
 
-
 static void cleanup(void)
 {
     printf("Cleaning! Hurd´rrr Durr\n");
@@ -37,7 +36,7 @@ void init_target(void)
     assert(target.target_ref);
 
     target.target_machine_ref = LLVMCreateTargetMachine(
-        target.target_ref, triple, "x86-64", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault);
+        target.target_ref, target.triple, "x86-64", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault);
     assert(target.target_machine_ref);
 
     target.target_data_ref = LLVMCreateTargetDataLayout(target.target_machine_ref);
