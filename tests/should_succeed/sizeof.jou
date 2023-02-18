@@ -1,17 +1,27 @@
 from "stdlib/io.jou" import printf
-from "stdlib/mem.jou" import memcpy
+from "stdlib/mem.jou" import memcpy, malloc, free
 
 def side_effect() -> int:
     printf("Side Effect !!!!!\n")
     return 123
 
-struct WeirdCornerCase:
-    # See #224
+struct Foo:
     a: int
     b: long
     c: byte
 
+# See issue #224.
+def ensure_sizeof_isnt_too_small_in_a_weird_corner_case() -> void:
+    value = Foo{a=1, b=2, c='x'}
+    ptr = malloc(50) as Foo*
+    memcpy(ptr, &value, sizeof value)
+    # If sizeof is too small, this prints garbage.
+    printf("%c\n", ptr->c)  # Output: x
+    free(ptr)
+
 def main() -> int:
+    ensure_sizeof_isnt_too_small_in_a_weird_corner_case()
+
     b: byte
     n: int
     m: long
@@ -29,11 +39,5 @@ def main() -> int:
 
     # Evaluating a sizeof has no side effects.
     printf("%lld\n", sizeof side_effect())  # Output: 4
-
-    # Make sure that size of WeirdCornerCase isn't too small.
-    obj = WeirdCornerCase{a=1, b=2, c='3'}
-    obj2: WeirdCornerCase
-    memcpy(&obj, &obj2, sizeof obj)
-    printf("%d %lld %c\n", obj2.a, obj2.b, obj2.c)  # Output: 1 2 3
 
     return 0
