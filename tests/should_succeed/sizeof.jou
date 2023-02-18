@@ -1,8 +1,15 @@
 from "stdlib/io.jou" import printf
+from "stdlib/mem.jou" import memcpy
 
 def side_effect() -> int:
     printf("Side Effect !!!!!\n")
     return 123
+
+struct WeirdCornerCase:
+    # See #224
+    a: int
+    b: long
+    c: byte
 
 def main() -> int:
     b: byte
@@ -22,5 +29,11 @@ def main() -> int:
 
     # Evaluating a sizeof has no side effects.
     printf("%lld\n", sizeof side_effect())  # Output: 4
+
+    # Make sure that size of WeirdCornerCase isn't too small.
+    obj = WeirdCornerCase{a=1, b=2, c='3'}
+    obj2: WeirdCornerCase
+    memcpy(&obj, &obj2, sizeof obj)
+    printf("%d %lld %c\n", obj2.a, obj2.b, obj2.c)  # Output: 1 2 3
 
     return 0
