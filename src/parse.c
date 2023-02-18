@@ -861,7 +861,7 @@ static void parse_import(const Token **tokens, const char *stdlib_path, Toplevel
     */
 
     do {
-        if ((*tokens)->type != TOKEN_NAME && (*tokens)->type != TOKEN_OPERATOR) // Hah, failed many times make it to check *(tokens)->data.name == '*' successed
+        if ((*tokens)->type != TOKEN_NAME && !is_operator(*tokens, "*"))
             fail_with_parse_error(*tokens, "the name of a symbol to import");
 
         struct AstImport imp = {0};
