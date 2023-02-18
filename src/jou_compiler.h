@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdnoreturn.h>
 #include <llvm-c/Core.h>
+#include <llvm-c/TargetMachine.h>
 #include "util.h"
 
 void update_jou_compiler(void);
@@ -547,6 +548,25 @@ struct CfGraphFile {
     List(CfGraph*) graphs;  // only for defined functions
 };
 
+
+/*
+LLVM makes a mess of how to define what kind of computer will run the
+compiled programs. Sometimes it wants a target triple, sometimes a
+data layout. Sometimes it wants a string, sometimes an object
+representing the thing.
+
+This struct aims to provide everything you may ever need. Hopefully it
+will make the mess slightly less miserable to you.
+*/
+struct Target {
+    char triple[100];
+    char data_layout[500];
+    LLVMTargetRef target_ref;
+    LLVMTargetMachineRef target_machine_ref;
+    LLVMTargetDataRef target_data_ref;
+};
+void init_target(void);
+const struct Target *get_target(void);
 
 /*
 The compiling functions, i.e. how to go from source code to LLVM IR and
