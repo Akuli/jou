@@ -129,5 +129,15 @@ jobs:
         shell: bash
       - run: cd "test dir" && ./jou.exe --verbose examples/hello.jou
         shell: bash
+      # Testing all levels because there was a bug that only happened with -O1. (#224)
+      # Also checking that it works with level unspecified.
       - run: cd "test dir" && ./runtests.sh --verbose
+        shell: bash
+      - run: cd "test dir" && ./runtests.sh --verbose "./jou.exe -O0"
+        shell: bash
+      - run: cd "test dir" && ./runtests.sh --verbose "./jou.exe -O1"
+        shell: bash
+      - run: cd "test dir" && ./runtests.sh --verbose "./jou.exe -O2"
+        shell: bash
+      - run: cd "test dir" && ./runtests.sh --verbose "./jou.exe -O3"
         shell: bash
