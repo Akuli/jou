@@ -5,6 +5,8 @@
 #include <string.h>
 #include <llvm-c/Core.h>
 #include <llvm-c/Types.h>
+#include <llvm-c/Target.h>
+#include <llvm-c/TargetMachine.h>
 #include "jou_compiler.h"
 #include "util.h"
 
@@ -428,12 +430,57 @@ static void codegen_function_def(struct State *st, const CfGraph *cfg)
     free(st->llvm_locals);
 }
 
+static char *get_target_triple()
+{
+#ifdef _WIN32
+    // Default is x86_64-pc-windows-msvc
+    return strdup("x86_64-pc-windows-gnu");
+#else
+    char *tmp = LLVMGetDefaultTargetTriple();
+    char *result = strdup(tmp);
+    LLVMDisposeMessage(tmp);
+    return result;
+#endif
+}
+
+static char *get_data_layout()
+{
+    char *triple = get_target_triple();
+
+    char *error = NULL;
+    LLVMTargetRef target = NULL;
+    if (LLVMGetTargetFromTriple(triple, &target, &error)) {
+        assert(error);
+        fprintf(stderr, "LLVMGetTargetFromTriple failed: %s\n", error);
+        exit(1);
+    }
+
+    LLVMTargetMachineRef machine = LLVMCreateTargetMachine(
+        target, triple, "x86-64", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault);
+    assert(machine);
+
+    LLVMTargetDataRef data_layout = LLVMCreateTargetDataLayout(machine);
+    char *tmp = LLVMCopyStringRepOfTargetData(data_layout);
+    char *result = strdup(tmp);
+    LLVMDisposeMessage(tmp);
+    return result;
+}
+
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
 {
     struct State st = {
         .module = LLVMModuleCreateWithName(cfgfile->filename),
         .builder = LLVMCreateBuilder(),
     };
+
+    char *t = get_target_triple();
+    LLVMSetTarget(st.module, t);
+    free(t);
+    t = get_data_layout();
+    LLVMSetDataLayout(st.module, t);
+    free(t);
+
+    //LLVMSetDataLayout(st.module, "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128");
 
     for (GlobalVariable **v = typectx->globals.ptr; v < End(typectx->globals); v++) {
         LLVMTypeRef t = codegen_type((*v)->type);

@@ -15,29 +15,13 @@
 
 static void compile_to_object_file(LLVMModuleRef module, const char *path, const CommandLineFlags *flags)
 {
-    LLVMInitializeX86TargetInfo();
-    LLVMInitializeX86Target();
-    LLVMInitializeX86TargetMC();
-    LLVMInitializeX86AsmParser();
-    LLVMInitializeX86AsmPrinter();
-
-    char triple[100];
-#ifdef _WIN32
-    // Default is x86_64-pc-windows-msvc
-    strcpy(triple, "x86_64-pc-windows-gnu");
-#else
-    char *tmp = LLVMGetDefaultTargetTriple();
-    assert(strlen(tmp) < sizeof triple);
-    strcpy(triple, tmp);
-    LLVMDisposeMessage(tmp);
-#endif
-
+    const char *triple = LLVMGetTarget(module);
     if (flags->verbose)
         printf("Emitting object file \"%s\" for %s\n", path, triple);
 
     char *error = NULL;
     LLVMTargetRef target = NULL;
-    if (LLVMGetTargetFromTriple(triple, &target, &error)) {
+    if (LLVMGetTargetFromTriple(LLVMGetTarget(module), &target, &error)) {
         assert(error);
         fprintf(stderr, "LLVMGetTargetFromTriple failed: %s\n", error);
         exit(1);

@@ -11,6 +11,7 @@
 #include <llvm-c/Core.h>
 #include <llvm-c/Linker.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
+#include <llvm-c/TargetMachine.h>
 
 
 static void optimize(LLVMModuleRef module, int level)
@@ -383,6 +384,12 @@ static void check_for_404_imports(const struct CompileState *compst)
 
 int main(int argc, char **argv)
 {
+    LLVMInitializeX86TargetInfo();
+    LLVMInitializeX86Target();
+    LLVMInitializeX86TargetMC();
+    LLVMInitializeX86AsmParser();
+    LLVMInitializeX86AsmPrinter();
+
     init_types();
 
     struct CompileState compst = { .stdlib_path = find_stdlib() };
