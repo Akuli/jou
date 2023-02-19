@@ -5,7 +5,6 @@
 #include <string.h>
 #include <llvm-c/Core.h>
 #include <llvm-c/Types.h>
-#include <llvm-c/TargetMachine.h>
 #include "jou_compiler.h"
 #include "util.h"
 
