@@ -11,7 +11,6 @@
 #include <llvm-c/Core.h>
 #include <llvm-c/Linker.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
-#include <llvm-c/TargetMachine.h>
 
 
 static void optimize(LLVMModuleRef module, int level)
