@@ -1,10 +1,28 @@
 from "stdlib/io.jou" import printf
+from "stdlib/mem.jou" import memcpy, malloc, free
 
 def side_effect() -> int:
     printf("Side Effect !!!!!\n")
     return 123
 
+struct Foo:
+    a: int
+    b: long
+    c: byte
+
+# See issue #224.
+def ensure_sizeof_isnt_too_small_in_a_weird_corner_case() -> void:
+    value = Foo{a=1, b=2, c='x'}
+    # We need the heap allocation, because otherwise the optimizer happens to make things work.
+    ptr = malloc(50) as Foo*
+    memcpy(ptr, &value, sizeof value)
+    # If sizeof is too small, this prints garbage.
+    printf("%c\n", ptr->c)  # Output: x
+    free(ptr)
+
 def main() -> int:
+    ensure_sizeof_isnt_too_small_in_a_weird_corner_case()
+
     b: byte
     n: int
     m: long

@@ -435,6 +435,9 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
         .builder = LLVMCreateBuilder(),
     };
 
+    LLVMSetTarget(st.module, get_target()->triple);
+    LLVMSetDataLayout(st.module, get_target()->data_layout);
+
     for (GlobalVariable **v = typectx->globals.ptr; v < End(typectx->globals); v++) {
         LLVMTypeRef t = codegen_type((*v)->type);
         LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);

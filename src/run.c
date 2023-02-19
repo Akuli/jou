@@ -15,57 +15,18 @@
 
 static void compile_to_object_file(LLVMModuleRef module, const char *path, const CommandLineFlags *flags)
 {
-    LLVMInitializeX86TargetInfo();
-    LLVMInitializeX86Target();
-    LLVMInitializeX86TargetMC();
-    LLVMInitializeX86AsmParser();
-    LLVMInitializeX86AsmPrinter();
-
-    char triple[100];
-#ifdef _WIN32
-    // Default is x86_64-pc-windows-msvc
-    strcpy(triple, "x86_64-pc-windows-gnu");
-#else
-    char *tmp = LLVMGetDefaultTargetTriple();
-    assert(strlen(tmp) < sizeof triple);
-    strcpy(triple, tmp);
-    LLVMDisposeMessage(tmp);
-#endif
-
     if (flags->verbose)
-        printf("Emitting object file \"%s\" for %s\n", path, triple);
-
-    char *error = NULL;
-    LLVMTargetRef target = NULL;
-    if (LLVMGetTargetFromTriple(triple, &target, &error)) {
-        assert(error);
-        fprintf(stderr, "LLVMGetTargetFromTriple failed: %s\n", error);
-        exit(1);
-    }
-    assert(!error);
-    assert(target);
-
-    // The CPU name is the first component of the target triple.
-    // But it's not quite that simple, achthually the typical cpu name is x86-64 instead of x86_64...
-    char cpu[100];
-    snprintf(cpu, sizeof cpu, "%.*s", (int)strcspn(triple, "-"), triple);
-    if (!strcmp(cpu, "x86_64"))
-        strcpy(cpu, "x86-64");
-
-    LLVMTargetMachineRef machine = LLVMCreateTargetMachine(
-        target, triple, cpu, "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault);
-    assert(machine);
+        printf("Emitting object file \"%s\"\n", path);
 
     char *tmppath = strdup(path);
-    if (LLVMTargetMachineEmitToFile(machine, module, tmppath, LLVMObjectFile, &error)) {
+    char *error = NULL;
+    if (LLVMTargetMachineEmitToFile(get_target()->target_machine_ref, module, tmppath, LLVMObjectFile, &error)) {
         assert(error);
         fprintf(stderr, "failed to emit object file \"%s\": %s\n", path, error);
         exit(1);
     }
     free(tmppath);
     assert(!error);
-
-    LLVMDisposeTargetMachine(machine);
 }
 
 static char *malloc_sprintf(const char *fmt, ...)

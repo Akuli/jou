@@ -150,7 +150,7 @@ function run_test()
     fi
 
     show_run $joufile
-    if diff -u --color=always \
+    if diff --text -u --color=always \
         <(generate_expected_output $joufile $correct_exit_code | tr -d '\r') \
         <(ulimit -v 500000 2>/dev/null; bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r') \
         &>> $diffpath

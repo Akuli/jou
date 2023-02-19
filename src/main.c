@@ -383,11 +383,16 @@ static void check_for_404_imports(const struct CompileState *compst)
 
 int main(int argc, char **argv)
 {
+    init_target();
     init_types();
 
     struct CompileState compst = { .stdlib_path = find_stdlib() };
     const char *filename;
     parse_arguments(argc, argv, &compst.flags, &filename);
+    if (compst.flags.verbose) {
+        printf("Target triple: %s\n", get_target()->triple);
+        printf("Data layout: %s\n", get_target()->data_layout);
+    }
 
 #ifdef _WIN32
     char *startup_path = malloc(strlen(compst.stdlib_path) + 50);
