@@ -111,26 +111,26 @@ static void consume_rest_of_line(struct State *st)
 }
 
 // Assumes that the initial '\n' byte has been read already.
-static void read_indentation_as_newline_token(struct State *st, Token *t)
+// Reads everything else that we need to read to get a newline token.
+// Returns the resulting indentation level.
+static int read_indentation_level_for_newline_token(struct State *st)
 {
-    t->type = TOKEN_NEWLINE;
-
+    int level = 0;
     while(1) {
         char c = read_byte(st);
         if (c == ' ')
-            t->data.indentation_level++;
+            level++;
         else if (c == '\n')
-            t->data.indentation_level = 0;
+            level = 0;
         else if (c == '#')
             consume_rest_of_line(st);
         else if (c == '\0') {
             // Ignore newline+spaces at end of file. Do not validate 4 spaces.
             // TODO: test case
-            t->data.indentation_level = 0;
-            return;
+            return 0;
         } else {
             unread_byte(st, c);
-            break;
+            return level;
         }
     }
 }
