@@ -401,7 +401,8 @@ static Token read_token(struct State *st)
         case '\n':
             if (st->nparens > 0)
                 continue;  // Ignore newlines when inside parentheses.
-            read_indentation_as_newline_token(st, &t);
+            t.type = TOKEN_NEWLINE;
+            t.data.indentation_level = read_indentation_level_for_newline_token(st);
             break;
         case '\0':
             t.type = TOKEN_END_OF_FILE;
