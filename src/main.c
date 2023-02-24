@@ -42,6 +42,7 @@ static const char help_fmt[] =
     "  -o OUTFILE       output an executable file, don't run the code\n"
     "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
     "  --verbose        display a lot of information about all compilation steps\n"
+    "  --tokenize-only  display only the output of the tokenizer, and don't run other compile steps\n"
     "  --linker-flags   appended to the linker command, so you can use external libraries\n"
     ;
 
@@ -75,6 +76,13 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
             goto wrong_usage;
         } else if (!strcmp(argv[i], "--verbose")) {
             flags->verbose = true;
+            i++;
+        } else if (!strcmp(argv[i], "--tokenize-only")) {
+            if (argc > 3) {
+                fprintf(stderr, "%s: --tokenize-only cannot be used together with other flags", argv[0]);
+                goto wrong_usage;
+            }
+            flags->tokenize_only = true;
             i++;
         } else if (!strcmp(argv[i], "--linker-flags")) {
             if (flags->linker_flags) {
@@ -173,8 +181,11 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
     }
     Token *tokens = tokenize(f, fs.path);
     fclose(f);
-    if(compst->flags.verbose)
+
+    if(compst->flags.verbose || compst->flags.tokenize_only)
         print_tokens(tokens);
+    if (compst->flags.tokenize_only)
+        exit(0);
 
     fs.ast = parse(tokens, compst->stdlib_path);
     free_tokens(tokens);

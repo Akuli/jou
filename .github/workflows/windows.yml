@@ -131,3 +131,17 @@ jobs:
         shell: bash
       - run: cd "test dir" && ./runtests.sh --verbose
         shell: bash
+
+  tokenizers:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: windows-zip
+      - run: unzip jou.zip
+      - run: mv jou/* .
+        shell: bash
+      - run: ./tokenizers.sh
+        shell: bash
