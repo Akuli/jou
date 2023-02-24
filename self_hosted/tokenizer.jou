@@ -31,6 +31,7 @@ struct Token:
     short_string: byte[100] # Name, Keyword, Operator
     long_string: byte*      # String
 
+# TODO: import this (#227 maybe?)
 declare isprint(b: int) -> int
 
 def print_token(token: Token*) -> void:
@@ -130,8 +131,7 @@ def is_identifier_or_number_byte(b: byte) -> bool:
 
 def read_identifier_or_number(self: Tokenizer*, first_byte: byte) -> byte[100]:
     dest: byte[100]
-    for i = 0; i < 100; i++:  # TODO: memset
-        dest[i] = '\0'
+    memset(&dest, 0, sizeof dest)
     destlen = 0
 
     assert(is_identifier_or_number_byte(first_byte))
@@ -230,6 +230,7 @@ def is_operator_byte(c: byte) -> bool:
 
 declare strncmp(s1: byte*, s2: byte*, n: long) -> int
 
+# TODO: move to stdlib
 def starts_with(s: byte*, prefix: byte*) -> bool:
     return strncmp(s, prefix, strlen(prefix)) == 0
 
@@ -344,6 +345,7 @@ def is_keyword(word: byte*) -> bool:
             return True
     return False
 
+# TODO: move to stdlib
 declare atoi(s: byte*) -> int
 
 def read_token(self: Tokenizer*) -> Token:
