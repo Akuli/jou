@@ -1,22 +1,22 @@
 # Syntax Specification
 
-This page explains in detail how Jou's syntax work.
+This page explains in detail how Jou's syntax works.
 It is probably too detailed for most Jou users,
 and it is meant to be useful for people who work on the Jou compiler
-or who want to know how it works.
+or who just want to know how it works.
 
 
 ## Source files
 
 Jou files should be saved with the UTF-8 encoding, without the BOM mark.
 Windows CRLF line endings (`\r\n`) and Linux/UNIX LF line endings (`\n`) are both accepted.
-However, `\r` bytes can be used only for this purpose:
+However, `\r` bytes can be used only in CRLF line endings:
 it is an error if the file contains a `\r` byte that isn't immediately followed by `\n`.
 
 It is also an error if a Jou source file contains tab characters or zero bytes.
 They cannot occur even inside strings or byte literals.
 Use spaces for indentation, and use backslashes to express zero bytes and tabs,
-as in `'\0'` or `foo\tbar`.
+as in `'\0'` or `"foo\tbar"`.
 
 
 ## Tokenizing
@@ -24,7 +24,7 @@ as in `'\0'` or `foo\tbar`.
 Tokenizing is basically the first step in compiling a Jou file.
 It converts the file's contents into a sequence of tokens.
 For example, `print("hello")` on a line of its own turns into 5 tokens:
-`print`, `(`, `"hello"`, `)`, and a newline token that marks the end of a line of code.
+`print`, `(`, `"hello"`, `)`, and a newline token that marks the end of the line of code.
 
 To see the tokens of a file, run the Jou compiler with `--tokenize-only`.
 For example, to see the tokens of the hello world program,
@@ -36,7 +36,7 @@ Jou has a few different kinds of tokens:
     A minus sign is never a part of an int literal token: `-10` tokenizes as two separate tokens.
 
     It is an error if the value of an int literal does not fit in a signed 32-bit integer (Jou `int`);
-    that is, if its value is greater than or equal to 2^31.
+    that is, if its value is greater than or equal to 2<sup>31</sup>.
 
     Unnecessary zeros in the beginning are allowed in hex, octal and binary, but are not allowed in base 10.
     This is because in C, `0123` is somewhat surprisingly same as `83`, because the extra `0` makes it an octal number.
