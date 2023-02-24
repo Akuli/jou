@@ -42,7 +42,7 @@ static const char help_fmt[] =
     "  -o OUTFILE       output an executable file, don't run the code\n"
     "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
     "  --verbose        display a lot of information about all compilation steps\n"
-    "  --tokenize-only  display only the output of the tokenizer, and don't run other compile steps\n"
+    "  --tokenize-only  display only the output of the tokenizer, don't do anything else\n"
     "  --linker-flags   appended to the linker command, so you can use external libraries\n"
     ;
 
