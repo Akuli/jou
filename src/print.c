@@ -93,10 +93,10 @@ void print_token(const Token *token)
         printf("end of file\n");
         break;
     case TOKEN_INDENT:
-        printf("more indentation (+4 spaces)\n");
+        printf("indent (+4 spaces)\n");
         break;
     case TOKEN_DEDENT:
-        printf("less indentation (-4 spaces)\n");
+        printf("dedent (-4 spaces)\n");
         break;
     case TOKEN_OPERATOR:
         printf("operator '%s'\n", token->data.operator);

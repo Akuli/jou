@@ -11,3 +11,12 @@ declare snprintf(dest: byte*, n: long, pattern: byte*, ...) -> int
 
 # Find a substring. Return a pointer to the occurrence in haystack, or NULL if not found.
 declare strstr(haystack: byte*, needle: byte*) -> byte*
+
+# Similar to strstr(), but searches for a single byte rather than a substring.
+declare strchr(haystack: byte*, needle: byte) -> byte*
+
+# Calculate the length of a string in bytes. Note that strlen("ö") == 2, for example.
+declare strlen(s: byte*) -> long
+
+# Compare the strings. Return 0 for equal, or nonzero for not equal.
+declare strcmp(s1: byte*, s2: byte*) -> int

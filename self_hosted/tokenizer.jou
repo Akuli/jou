@@ -1,0 +1,498 @@
+from "stdlib/io.jou" import printf, FILE, fgetc, ferror, fopen
+from "stdlib/str.jou" import sprintf, strlen, strchr, strcmp
+from "stdlib/mem.jou" import malloc, realloc, free, memset, memmove
+from "./errors_and_warnings.jou" import Location, fail, assert
+
+enum TokenKind:
+    Int
+    Long
+    Float
+    Double
+    Byte    # example: 'a' is 97 as a byte
+    String
+    Name
+    Keyword
+    Newline
+    Indent
+    Dedent
+    Operator
+    EndOfFile  # Marks the end of an array of tokens.
+
+struct Token:
+    kind: TokenKind
+    location: Location
+
+    # Only one of these is used at a time.
+    # TODO: union
+    int_value: int          # Int
+    long_value: long        # Long
+    byte_value: byte        # Byte
+    indentation_level: int  # Newline (indicates how many spaces there are after the newline)
+    short_string: byte[100] # Name, Keyword, Operator
+    long_string: byte*      # String
+
+# TODO: import this (#227 maybe?)
+declare isprint(b: int) -> int
+
+def print_token(token: Token*) -> void:
+    if token->kind == TokenKind::Int:
+        printf("integer %d\n", token->int_value)
+    elif token->kind == TokenKind::Long:
+        printf("long %lld\n", token->long_value)
+    elif token->kind == TokenKind::Float:
+        printf("float %s\n", &token->short_string[0])
+    elif token->kind == TokenKind::Double:
+        printf("double %s\n", &token->short_string[0])
+    elif token->kind == TokenKind::Byte:
+        printf("character %#02x", token->byte_value)
+        if isprint(token->byte_value) != 0:
+            printf(" '%c'", token->byte_value)
+        printf("\n")
+    elif token->kind == TokenKind::EndOfFile:
+        printf("end of file\n")
+    elif token->kind == TokenKind::Operator:
+        printf("operator '%s'\n", &token->short_string[0])
+    elif token->kind == TokenKind::Name:
+        printf("name \"%s\"\n", &token->short_string[0])
+    elif token->kind == TokenKind::Keyword:
+        printf("keyword \"%s\"\n", &token->short_string[0])
+    elif token->kind == TokenKind::Newline:
+        printf("newline token (next line has %d spaces of indentation)\n", token->indentation_level)
+    elif token->kind == TokenKind::String:
+        printf("string \"%s\"\n", token->long_string)
+    elif token->kind == TokenKind::Indent:
+        printf("indent (+4 spaces)\n")
+    elif token->kind == TokenKind::Dedent:
+        printf("dedent (-4 spaces)\n")
+    else:
+        printf("????\n")
+
+struct Tokenizer:
+    f: FILE*
+    location: Location
+    pushback: byte*
+    pushback_len: int  # TODO: dynamic array
+    # Parens array isn't dynamic, so that you can't segfault
+    # the compiler by feeding it lots of nested parentheses,
+    # which would make it recurse too deep.
+    parens: Token[50]
+    parens_len: int
+
+def read_byte(self: Tokenizer*) -> byte:
+    EOF = -1  # FIXME
+
+    c: byte
+    if self->pushback_len > 0:
+        c = self->pushback[--self->pushback_len]
+    else:
+        temp = fgetc(self->f)
+        if temp == '\r':
+            # On Windows, \r just before \n is ignored.
+            temp = fgetc(self->f)
+            if temp != EOF and temp != '\n':
+                # TODO: test this, if possible?
+                fail(self->location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
+
+        if temp == EOF:
+            if ferror(self->f) != 0:
+                # TODO: include errno in the error message
+                fail(self->location, "cannot read file")
+            # Use the zero byte to denote end of file.
+            c = '\0'
+        elif temp == '\0':
+            # TODO: test this
+            fail(self->location, "source file contains a zero byte")
+            c = 'x'  # TODO: silences compiler warning, but never runs
+        else:
+            c = temp as byte
+
+    if c == '\n':
+        self->location.lineno++
+    return c
+
+
+def unread_byte(self: Tokenizer*, b: byte) -> void:
+    if b == '\0':
+        return
+
+    assert(b != '\r')
+    self->pushback = realloc(self->pushback, self->pushback_len + 1)
+    self->pushback[self->pushback_len++] = b
+    if b == '\n':
+        self->location.lineno--
+
+def is_identifier_or_number_byte(b: byte) -> bool:
+    return (
+        ('A' <= b and b <= 'Z')
+        or ('a' <= b and b <= 'z')
+        or ('0' <= b and b <= '9')
+        or b == '_'
+    )
+
+def read_identifier_or_number(self: Tokenizer*, first_byte: byte) -> byte[100]:
+    dest: byte[100]
+    memset(&dest, 0, sizeof dest)
+    destlen = 0
+
+    assert(is_identifier_or_number_byte(first_byte))
+    dest[destlen++] = first_byte
+
+    while True:
+        b = read_byte(self)
+        if is_identifier_or_number_byte(b):
+            if destlen == sizeof dest - 1:
+                fail(self->location, "name or number is too long")
+            dest[destlen++] = b
+        else:
+            unread_byte(self, b)
+            return dest
+
+def consume_rest_of_line(self: Tokenizer*) -> void:
+    while True:
+        c = read_byte(self)
+        if c == '\0' or c == '\n':
+            break
+
+# Returns the indentation level for the next line
+def read_newline_token(self: Tokenizer*) -> int:
+    level = 0
+    while True:
+        c = read_byte(self)
+        if c == '\0':
+            # End of file. Do not validate that indentation is a
+            # multiple of 4 spaces. Add a trailing newline implicitly
+            # if needed.
+            #
+            # TODO: test this
+            return 0
+        elif c == '\n':
+            level = 0
+        elif c == '#':
+            consume_rest_of_line(self)
+            level = 0
+        elif c == ' ':
+            level++
+        else:
+            unread_byte(self, c)
+            return level
+
+def read_string(self: Tokenizer*) -> byte*:
+    result: byte* = NULL
+    len = 0
+
+    while True:
+        c = read_byte(self)
+        if c == '"':
+            break
+        elif c == '\n' or c == '\0':
+            if c == '\n':
+                self->location.lineno--
+            fail(self->location, "missing \" to end the string")
+        elif c == '\n':
+            # \n means newline, for example
+            after_backslash = read_byte(self)
+            if after_backslash == '\0':
+                fail(self->location, "missing \" to end the string")
+            elif after_backslash == '\n':
+                result = realloc(result, len+1)
+                result[len++] = '\n'
+            elif after_backslash == 'r':
+                result = realloc(result, len+1)
+                result[len++] = '\r'
+            elif after_backslash == '\\' or after_backslash == '"':
+                result = realloc(result, len+1)
+                result[len++] = after_backslash
+            elif after_backslash == '0':
+                fail(self->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte")
+            elif '0' <= after_backslash and after_backslash <= '9':
+                result = realloc(result, len+1)
+                result[len++] = after_backslash - '0'
+            elif after_backslash == '\n':
+                # \ at end of line, string continues on next line
+                len = len  # TODO: pass statement
+            else:
+                if after_backslash < 0x80 and isprint(after_backslash) != 0:
+                    message: byte* = malloc(100)
+                    sprintf(message, "unknown escape: '\\%c'", after_backslash)
+                    fail(self->location, message)
+                else:
+                    fail(self->location, "unknown '\\' escape")
+        else:
+            result = realloc(result, len+1)
+            result[len++] = c
+
+    result = realloc(result, len+1)
+    result[len] = '\0'
+    return result
+
+def is_operator_byte(c: byte) -> bool:
+    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%", c) != NULL
+
+declare strncmp(s1: byte*, s2: byte*, n: long) -> int
+
+# TODO: move to stdlib
+def starts_with(s: byte*, prefix: byte*) -> bool:
+    return strncmp(s, prefix, strlen(prefix)) == 0
+
+def read_operator(self: Tokenizer*) -> byte[100]:
+    # TODO: nicer array syntax
+    operators: byte*[100]
+    i = 0
+    # Longer operators first, so that '==' does not parse as '=' '='
+    operators[i++] = "..."
+    operators[i++] = "==="
+    operators[i++] = "!=="
+    operators[i++] = "=="
+    operators[i++] = "!="
+    operators[i++] = "->"
+    operators[i++] = "<="
+    operators[i++] = ">="
+    operators[i++] = "++"
+    operators[i++] = "--"
+    operators[i++] = "+="
+    operators[i++] = "-="
+    operators[i++] = "*="
+    operators[i++] = "/="
+    operators[i++] = "%="
+    operators[i++] = "::"
+    operators[i++] = "."
+    operators[i++] = ","
+    operators[i++] = ":"
+    operators[i++] = ";"
+    operators[i++] = "="
+    operators[i++] = "("
+    operators[i++] = ")"
+    operators[i++] = "{"
+    operators[i++] = "}"
+    operators[i++] = "["
+    operators[i++] = "]"
+    operators[i++] = "&"
+    operators[i++] = "%"
+    operators[i++] = "*"
+    operators[i++] = "/"
+    operators[i++] = "+"
+    operators[i++] = "-"
+    operators[i++] = "<"
+    operators[i++] = ">"
+    operators[i] = NULL
+
+    operator: byte[100]
+    memset(&operator, 0, sizeof operator)
+
+    # Read as many operator characters as we may need.
+    while strlen(&operator[0]) < 3:
+        c = read_byte(self)
+        if not is_operator_byte(c):
+            unread_byte(self, c)
+            break
+        operator[strlen(&operator[0])] = c
+
+    for op = &operators[0]; *op != NULL; op++:
+        if starts_with(&operator[0], *op):
+            # Unread the bytes we didn't use.
+            while strlen(&operator[0]) > strlen(*op):
+                last = &operator[strlen(&operator[0]) - 1]
+                unread_byte(self, *last)
+                *last = '\0'
+
+            # "===" and "!==" are here only to give a better error message to javascript people.
+            if strcmp(&operator[0], "===") != 0 and strcmp(&operator[0], "!==") != 0:
+                return operator
+
+    message: byte[100]
+    sprintf(&message[0], "there is no '%s' operator", &operator[0])
+    fail(self->location, &message[0])
+    return operator  # TODO: never actually runs, but causes a compiler warning
+
+def is_keyword(word: byte*) -> bool:
+    # TODO: better array syntax
+    keywords: byte*[100]
+    i = 0
+    keywords[i++] = "from"
+    keywords[i++] = "import"
+    keywords[i++] = "def"
+    keywords[i++] = "declare"
+    keywords[i++] = "struct"
+    keywords[i++] = "enum"
+    keywords[i++] = "global"
+    keywords[i++] = "return"
+    keywords[i++] = "if"
+    keywords[i++] = "elif"
+    keywords[i++] = "else"
+    keywords[i++] = "while"
+    keywords[i++] = "for"
+    keywords[i++] = "break"
+    keywords[i++] = "continue"
+    keywords[i++] = "True"
+    keywords[i++] = "False"
+    keywords[i++] = "NULL"
+    keywords[i++] = "and"
+    keywords[i++] = "or"
+    keywords[i++] = "not"
+    keywords[i++] = "as"
+    keywords[i++] = "sizeof"
+    keywords[i++] = "void"
+    keywords[i++] = "bool"
+    keywords[i++] = "byte"
+    keywords[i++] = "int"
+    keywords[i++] = "long"
+    keywords[i++] = "float"
+    keywords[i++] = "double"
+    keywords[i++] = NULL
+
+    for kw = &keywords[0]; *kw != NULL; kw++:
+        if strcmp(*kw, word) == 0:
+            return True
+    return False
+
+# TODO: move to stdlib
+declare atoi(s: byte*) -> int
+
+def read_token(self: Tokenizer*) -> Token:
+    while True:
+        token = Token{location = self->location}
+        b = read_byte(self)
+        if b == ' ':
+            continue
+
+        if b == '\n':
+            if self->parens_len > 0:
+                continue
+            token.kind = TokenKind::Newline
+            token.indentation_level = read_newline_token(self)
+        elif b == '"':
+            token.kind = TokenKind::String
+            token.long_string = read_string(self)
+        elif is_identifier_or_number_byte(b):
+            token.short_string = read_identifier_or_number(self, b)
+            if is_keyword(&token.short_string[0]):
+                token.kind = TokenKind::Keyword
+            elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
+                # TODO: support various other things
+                token.kind = TokenKind::Int
+                token.int_value = atoi(&token.short_string[0])
+            else:
+                token.kind = TokenKind::Name
+        elif is_operator_byte(b):
+            unread_byte(self, b)
+            token.kind = TokenKind::Operator
+            token.short_string = read_operator(self)
+        elif b == '\0':
+            token.kind = TokenKind::EndOfFile
+        else:
+            message: byte[100]
+            sprintf(&message[0], "unexpected byte %#02x", b)
+            fail(self->location, &message[0])
+        return token
+
+def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
+    tokenizer = Tokenizer{
+        location = Location{path = path},
+        f = file,
+    }
+
+    # Add a fake newline to the beginning. It does a few things:
+    #  * Less special-casing: blank lines in the beginning of the file can
+    #    cause there to be a newline token anyway.
+    #  * It is easier to detect an unexpected indentation in the beginning
+    #    of the file, as it becomes just like any other indentation.
+    #  * Line numbers start at 1.
+    tokenizer.pushback = malloc(1)
+    tokenizer.pushback[0] = '\n'
+    tokenizer.pushback_len = 1
+
+    tokens: Token* = NULL
+    len = 0
+    while len == 0 or tokens[len-1].kind != TokenKind::EndOfFile:
+        tokens = realloc(tokens, sizeof(tokens[0]) * (len+1))
+        tokens[len++] = read_token(&tokenizer)
+
+    free(tokenizer.pushback)
+    return tokens
+
+# Creates a new array of tokens with indent/dedent tokens added after
+# newline tokens that change the indentation level.
+def handle_indentations(raw_tokens: Token*) -> Token*:
+    tokens: Token* = NULL
+    ntokens = 0
+    level = 0
+
+    for t = raw_tokens; True; t++:
+        if t->kind == TokenKind::EndOfFile:
+            # Add an extra newline token at end of file and the dedents after it.
+            # This makes it similar to how other newline and dedent tokens work:
+            # the dedents always come after a newline token.
+            tokens = realloc(tokens, sizeof tokens[0] * (ntokens + level/4 + 1))
+            while level != 0:
+                tokens[ntokens++] = Token{location = t->location, kind = TokenKind::Dedent}
+                level -= 4
+            tokens[ntokens++] = *t
+            break
+
+        tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
+        tokens[ntokens++] = *t
+
+        if t->kind == TokenKind::Newline:
+            after_newline = t->location
+            after_newline.lineno++
+
+            if t->indentation_level % 4 != 0:
+                fail(after_newline, "indentation must be a multiple of 4 spaces")
+
+            while level < t->indentation_level:
+                tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
+                tokens[ntokens++] = Token{location = after_newline, kind = TokenKind::Indent}
+                level += 4
+
+            while level > t->indentation_level:
+                tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
+                tokens[ntokens++] = Token{location = after_newline, kind = TokenKind::Dedent}
+                level -= 4
+
+    # Delete the newline token in the beginning.
+    #
+    # If the file has indentations after it, they are now represented by separate
+    # indent tokens and parsing will fail. If the file doesn't have any blank/comment
+    # lines in the beginning, it has a newline token anyway to avoid special casing.
+    assert(tokens[0].kind == TokenKind::Newline)
+    memmove(&tokens[0], &tokens[1], sizeof tokens[0] * (ntokens - 1))
+
+    return tokens
+
+def tokenize(path: byte*) -> Token*:
+    file = fopen(path, "rb")
+    if file == NULL:
+        # TODO: test this
+        # TODO: include errno in the message
+        fail(Location{path=path}, "cannot open file")
+
+    raw_tokens = tokenize_without_indent_dedent_tokens(file, path)
+    better_tokens = handle_indentations(raw_tokens)
+    free(raw_tokens)
+    return better_tokens
+
+def print_tokens(tokens: Token*) -> void:
+    printf("===== Tokens for file \"%s\" =====\n", tokens->location.path)
+    t = tokens
+    current_lineno = -1
+
+    while True:
+        if t->location.lineno != current_lineno:
+            current_lineno = t->location.lineno
+            printf("\nLine %d:\n", current_lineno)
+
+        printf("  ")
+        print_token(t)
+
+        if t->kind == TokenKind::EndOfFile:
+            break
+        t++
+
+    printf("\n")
+
+def main(argc: int, argv: byte**) -> int:
+    assert(argc == 2)
+    tokens = tokenize(argv[1])
+    print_tokens(tokens)
+    free(tokens)
+    return 0

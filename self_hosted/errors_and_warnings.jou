@@ -1,0 +1,25 @@
+from "stdlib/process.jou" import exit
+from "stdlib/io.jou" import stdout, stderr, fprintf, fflush
+
+struct Location:
+    path: byte*  # Not owned. Points to a string that is held elsewhere.
+    lineno: int
+
+def fail(location: Location, message: byte*) -> void:
+    # When stdout is redirected to same place as stderr,
+    # make sure that normal printf()s show up before our error.
+    fflush(stdout)
+    fflush(stderr)
+
+    fprintf(stderr, "compiler error in file \"%s\"", location.path)
+    if location.lineno != 0:
+        fprintf(stderr, ", line %d", location.lineno)
+    fprintf(stderr, ": %s\n", message)
+
+    exit(1)
+
+# TODO: doesn't really belong here
+def assert(b: bool) -> void:
+    if not b:
+        fprintf(stderr, "assertion failed\n")
+        exit(1)
