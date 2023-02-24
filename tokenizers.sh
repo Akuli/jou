@@ -30,7 +30,7 @@ for file in $(find examples tests -name '*.jou'); do
             echo "  To fix this error, delete the \"$file\" line from self_hosted/tokenizes_wrong.txt."
             exit 1
         else
-            echo "  Tokenizers behave differently as expected (listed in self_hosted_skip.txt)"
+            echo "  Tokenizers behave differently as expected (listed in self_hosted/tokenizes_wrong.txt)"
         fi
     else
         if diff -u --color=always tmp/tokenizers/compiler_written_in_c.txt tmp/tokenizers/self_hosted.txt; then
