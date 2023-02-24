@@ -1,6 +1,6 @@
 from "stdlib/io.jou" import printf, FILE, fgetc, ferror, fopen
-from "stdlib/str.jou" import sprintf
-from "stdlib/mem.jou" import malloc, realloc, free
+from "stdlib/str.jou" import sprintf, strlen, strchr, strcmp
+from "stdlib/mem.jou" import malloc, realloc, free, memset
 from "./errors_and_warnings.jou" import Location, fail, assert
 
 enum TokenKind:
@@ -49,6 +49,8 @@ def print_token(token: Token*) -> void:
         printf("\n")
     elif token->kind == TokenKind::EndOfFile:
         printf("end of file\n")
+    elif token->kind == TokenKind::Operator:
+        printf("operator '%s'\n", &token->short_string[0])
     elif token->kind == TokenKind::Name:
         printf("name \"%s\"\n", &token->short_string[0])
     elif token->kind == TokenKind::Newline:
@@ -217,6 +219,84 @@ def read_string(self: Tokenizer*) -> byte*:
     result[len] = '\0'
     return result
 
+def is_operator_byte(c: byte) -> bool:
+    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%", c) != NULL
+
+declare strncmp(s1: byte*, s2: byte*, n: long) -> int
+
+def starts_with(s: byte*, prefix: byte*) -> bool:
+    return strncmp(s, prefix, strlen(prefix)) == 0
+
+def read_operator(self: Tokenizer*) -> byte[100]:
+    # TODO: nicer array syntax
+    operators: byte*[100]
+    i = 0
+    # Longer operators first, so that '==' does not parse as '=' '='
+    operators[i++] = "..."
+    operators[i++] = "==="
+    operators[i++] = "!=="
+    operators[i++] = "=="
+    operators[i++] = "!="
+    operators[i++] = "->"
+    operators[i++] = "<="
+    operators[i++] = ">="
+    operators[i++] = "++"
+    operators[i++] = "--"
+    operators[i++] = "+="
+    operators[i++] = "-="
+    operators[i++] = "*="
+    operators[i++] = "/="
+    operators[i++] = "%="
+    operators[i++] = "::"
+    operators[i++] = "."
+    operators[i++] = ","
+    operators[i++] = ":"
+    operators[i++] = ";"
+    operators[i++] = "="
+    operators[i++] = "("
+    operators[i++] = ")"
+    operators[i++] = "{"
+    operators[i++] = "}"
+    operators[i++] = "["
+    operators[i++] = "]"
+    operators[i++] = "&"
+    operators[i++] = "%"
+    operators[i++] = "*"
+    operators[i++] = "/"
+    operators[i++] = "+"
+    operators[i++] = "-"
+    operators[i++] = "<"
+    operators[i++] = ">"
+    operators[i] = NULL
+
+    operator: byte[100]
+    memset(&operator, 0, sizeof operator)
+
+    # Read as many operator characters as we may need.
+    while strlen(&operator[0]) < 3:
+        c = read_byte(self)
+        if not is_operator_byte(c):
+            unread_byte(self, c)
+            break
+        operator[strlen(&operator[0])] = c
+
+    for op = &operators[0]; *op != NULL; op++:
+        if starts_with(&operator[0], *op):
+            # Unread the bytes we didn't use.
+            while strlen(&operator[0]) > strlen(*op):
+                last = &operator[strlen(&operator[0]) - 1]
+                unread_byte(self, *last)
+                *last = '\0'
+
+            # "===" and "!==" are here only to give a better error message to javascript people.
+            if strcmp(&operator[0], "===") != 0 and strcmp(&operator[0], "!==") != 0:
+                return operator
+
+    message: byte[100]
+    sprintf(&message[0], "there is no '%s' operator", &operator[0])
+    fail(self->location, &message[0])
+    return operator  # TODO: never actually runs, but causes a compiler warning
+
 def read_token(self: Tokenizer*) -> Token:
     while True:
         token = Token{location = self->location}
@@ -235,10 +315,16 @@ def read_token(self: Tokenizer*) -> Token:
         elif is_identifier_or_number_byte(b):
             token.kind = TokenKind::Name
             token.short_string = read_identifier_or_number(self, b)
-        else:
-            printf("TODO '%c'\n", b)
-            # TODO
+        elif is_operator_byte(b):
+            unread_byte(self, b)
+            token.kind = TokenKind::Operator
+            token.short_string = read_operator(self)
+        elif b == '\0':
             token.kind = TokenKind::EndOfFile
+        else:
+            message: byte[100]
+            sprintf(&message[0], "unexpected byte %#02x", b)
+            fail(self->location, &message[0])
         return token
 
 def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
