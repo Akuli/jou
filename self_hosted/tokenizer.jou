@@ -1,4 +1,5 @@
 from "stdlib/io.jou" import printf, FILE, fgetc, ferror, fopen
+from "stdlib/str.jou" import sprintf
 from "stdlib/mem.jou" import malloc, realloc, free
 from "./errors_and_warnings.jou" import Location, fail, assert
 
@@ -52,6 +53,8 @@ def print_token(token: Token*) -> void:
         printf("name \"%s\"\n", &token->short_string[0])
     elif token->kind == TokenKind::Newline:
         printf("newline, next indent %d\n", token->indentation_level)
+    elif token->kind == TokenKind::String:
+        printf("string \"%s\"\n", token->long_string)
     else:
         printf("????\n")
 
@@ -165,18 +168,70 @@ def read_newline_token(self: Tokenizer*) -> int:
             unread_byte(self, c)
             return level
 
+def read_string(self: Tokenizer*) -> byte*:
+    result: byte* = NULL
+    len = 0
+
+    while True:
+        c = read_byte(self)
+        if c == '"':
+            break
+        elif c == '\n' or c == '\0':
+            if c == '\n':
+                self->location.lineno--
+            fail(self->location, "missing \" to end the string")
+        elif c == '\n':
+            # \n means newline, for example
+            after_backslash = read_byte(self)
+            if after_backslash == '\0':
+                fail(self->location, "missing \" to end the string")
+            elif after_backslash == '\n':
+                result = realloc(result, len+1)
+                result[len++] = '\n'
+            elif after_backslash == 'r':
+                result = realloc(result, len+1)
+                result[len++] = '\r'
+            elif after_backslash == '\\' or after_backslash == '"':
+                result = realloc(result, len+1)
+                result[len++] = after_backslash
+            elif after_backslash == '0':
+                fail(self->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte")
+            elif '0' <= after_backslash and after_backslash <= '9':
+                result = realloc(result, len+1)
+                result[len++] = after_backslash - '0'
+            elif after_backslash == '\n':
+                # \ at end of line, string continues on next line
+                len = len  # TODO: pass statement
+            else:
+                if after_backslash < 0x80 and isprint(after_backslash) != 0:
+                    message: byte* = malloc(100)
+                    sprintf(message, "unknown escape: '\\%c'", after_backslash)
+                    fail(self->location, message)
+                else:
+                    fail(self->location, "unknown '\\' escape")
+        else:
+            result = realloc(result, len+1)
+            result[len++] = c
+
+    result = realloc(result, len+1)
+    result[len] = '\0'
+    return result
+
 def read_token(self: Tokenizer*) -> Token:
     while True:
         token = Token{location = self->location}
         b = read_byte(self)
-
         if b == ' ':
             continue
+
         if b == '\n':
             if self->parens_len > 0:
                 continue
             token.kind = TokenKind::Newline
             token.indentation_level = read_newline_token(self)
+        elif b == '"':
+            token.kind = TokenKind::String
+            token.long_string = read_string(self)
         elif is_identifier_or_number_byte(b):
             token.kind = TokenKind::Name
             token.short_string = read_identifier_or_number(self, b)
