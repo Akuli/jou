@@ -1,6 +1,6 @@
 from "stdlib/io.jou" import printf, FILE, fgetc, ferror, fopen
 from "stdlib/str.jou" import sprintf, strlen, strchr, strcmp
-from "stdlib/mem.jou" import malloc, realloc, free, memset
+from "stdlib/mem.jou" import malloc, realloc, free, memset, memmove
 from "./errors_and_warnings.jou" import Location, fail, assert
 
 enum TokenKind:
@@ -53,10 +53,16 @@ def print_token(token: Token*) -> void:
         printf("operator '%s'\n", &token->short_string[0])
     elif token->kind == TokenKind::Name:
         printf("name \"%s\"\n", &token->short_string[0])
+    elif token->kind == TokenKind::Keyword:
+        printf("keyword \"%s\"\n", &token->short_string[0])
     elif token->kind == TokenKind::Newline:
-        printf("newline, next indent %d\n", token->indentation_level)
+        printf("newline token (next line has %d spaces of indentation)\n", token->indentation_level)
     elif token->kind == TokenKind::String:
         printf("string \"%s\"\n", token->long_string)
+    elif token->kind == TokenKind::Indent:
+        printf("indent (+4 spaces)\n")
+    elif token->kind == TokenKind::Dedent:
+        printf("dedent (-4 spaces)\n")
     else:
         printf("????\n")
 
@@ -297,6 +303,49 @@ def read_operator(self: Tokenizer*) -> byte[100]:
     fail(self->location, &message[0])
     return operator  # TODO: never actually runs, but causes a compiler warning
 
+def is_keyword(word: byte*) -> bool:
+    # TODO: better array syntax
+    keywords: byte*[100]
+    i = 0
+    keywords[i++] = "from"
+    keywords[i++] = "import"
+    keywords[i++] = "def"
+    keywords[i++] = "declare"
+    keywords[i++] = "struct"
+    keywords[i++] = "enum"
+    keywords[i++] = "global"
+    keywords[i++] = "return"
+    keywords[i++] = "if"
+    keywords[i++] = "elif"
+    keywords[i++] = "else"
+    keywords[i++] = "while"
+    keywords[i++] = "for"
+    keywords[i++] = "break"
+    keywords[i++] = "continue"
+    keywords[i++] = "True"
+    keywords[i++] = "False"
+    keywords[i++] = "NULL"
+    keywords[i++] = "and"
+    keywords[i++] = "or"
+    keywords[i++] = "not"
+    keywords[i++] = "as"
+    keywords[i++] = "sizeof"
+    keywords[i++] = "void"
+    keywords[i++] = "bool"
+    keywords[i++] = "byte"
+    keywords[i++] = "int"
+    keywords[i++] = "long"
+    keywords[i++] = "float"
+    keywords[i++] = "double"
+    keywords[i++] = NULL
+
+    for kw = &keywords[0]; *kw != NULL; kw++:
+        if strcmp(*kw, word) == 0:
+            return True
+    return False
+
+declare atoi(s: byte*) -> int
+
 def read_token(self: Tokenizer*) -> Token:
     while True:
         token = Token{location = self->location}
@@ -313,8 +362,15 @@ def read_token(self: Tokenizer*) -> Token:
             token.kind = TokenKind::String
             token.long_string = read_string(self)
         elif is_identifier_or_number_byte(b):
-            token.kind = TokenKind::Name
             token.short_string = read_identifier_or_number(self, b)
+            if is_keyword(&token.short_string[0]):
+                token.kind = TokenKind::Keyword
+            elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
+                # TODO: support various other things
+                token.kind = TokenKind::Int
+                token.int_value = atoi(&token.short_string[0])
+            else:
+                token.kind = TokenKind::Name
         elif is_operator_byte(b):
             unread_byte(self, b)
             token.kind = TokenKind::Operator
@@ -352,26 +408,86 @@ def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
     free(tokenizer.pushback)
     return tokens
 
+# Creates a new array of tokens with indent/dedent tokens added after
+# newline tokens that change the indentation level.
+def handle_indentations(raw_tokens: Token*) -> Token*:
+    tokens: Token* = NULL
+    ntokens = 0
+    level = 0
+
+    for t = raw_tokens; True; t++:
+        if t->kind == TokenKind::EndOfFile:
+            # Add an extra newline token at end of file and the dedents after it.
+            # This makes it similar to how other newline and dedent tokens work:
+            # the dedents always come after a newline token.
+            tokens = realloc(tokens, sizeof tokens[0] * (ntokens + level/4 + 1))
+            while level != 0:
+                tokens[ntokens++] = Token{location = t->location, kind = TokenKind::Dedent}
+                level -= 4
+            tokens[ntokens++] = *t
+            break
+
+        tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
+        tokens[ntokens++] = *t
+
+        if t->kind == TokenKind::Newline:
+            after_newline = t->location
+            after_newline.lineno++
+
+            if t->indentation_level % 4 != 0:
+                fail(after_newline, "indentation must be a multiple of 4 spaces")
+
+            while level < t->indentation_level:
+                tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
+                tokens[ntokens++] = Token{location = after_newline, kind = TokenKind::Indent}
+                level += 4
+
+            while level > t->indentation_level:
+                tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
+                tokens[ntokens++] = Token{location = after_newline, kind = TokenKind::Dedent}
+                level -= 4
+
+    # Delete the newline token in the beginning.
+    #
+    # If the file has indentations after it, they are now represented by separate
+    # indent tokens and parsing will fail. If the file doesn't have any blank/comment
+    # lines in the beginning, it has a newline token anyway to avoid special casing.
+    assert(tokens[0].kind == TokenKind::Newline)
+    memmove(&tokens[0], &tokens[1], sizeof tokens[0] * (ntokens - 1))
+
+    return tokens
+
 def tokenize(path: byte*) -> Token*:
     file = fopen(path, "rb")
     if file == NULL:
         # TODO: test this
         # TODO: include errno in the message
         fail(Location{path=path}, "cannot open file")
-    raw_tokens = tokenize_without_indent_dedent_tokens(file, path)
-    # TODO: handle indentations and such
-    return raw_tokens
 
+    raw_tokens = tokenize_without_indent_dedent_tokens(file, path)
+    better_tokens = handle_indentations(raw_tokens)
+    free(raw_tokens)
+    return better_tokens
+
+def print_tokens(tokens: Token*) -> void:
+    printf("===== Tokens for file \"%s\" =====\n", tokens->location.path)
+    t = tokens
+    current_lineno = -1
+
+    while True:
+        if t->location.lineno != current_lineno:
+            current_lineno = t->location.lineno
+            printf("\nLine %d:\n", current_lineno)
+
+        printf("  ")
+        print_token(t)
+
+        if t->kind == TokenKind::EndOfFile:
+            break
+        t++
 
 def main() -> int:
     tokens = tokenize("../examples/hello.jou")
-
-    t = tokens
-    while True:
-        print_token(t)
-        # TODO: Shouldn't need parentheses.
-        if (t++)->kind == TokenKind::EndOfFile:
-            break
-
+    print_tokens(tokens)
     free(tokens)
     return 0
