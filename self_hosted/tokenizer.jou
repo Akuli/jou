@@ -48,6 +48,10 @@ def print_token(token: Token*) -> void:
         printf("\n")
     elif token->kind == TokenKind::EndOfFile:
         printf("end of file\n")
+    elif token->kind == TokenKind::Name:
+        printf("name \"%s\"\n", &token->short_string[0])
+    elif token->kind == TokenKind::Newline:
+        printf("newline, next indent %d\n", token->indentation_level)
     else:
         printf("????\n")
 
@@ -132,15 +136,53 @@ def read_identifier_or_number(self: Tokenizer*, first_byte: byte) -> byte[100]:
             unread_byte(self, b)
             return dest
 
+def consume_rest_of_line(self: Tokenizer*) -> void:
+    while True:
+        c = read_byte(self)
+        if c == '\0' or c == '\n':
+            break
+
+# Returns the indentation level for the next line
+def read_newline_token(self: Tokenizer*) -> int:
+    level = 0
+    while True:
+        c = read_byte(self)
+        if c == '\0':
+            # End of file. Do not validate that indentation is a
+            # multiple of 4 spaces. Add a trailing newline implicitly
+            # if needed.
+            #
+            # TODO: test this
+            return 0
+        elif c == '\n':
+            level = 0
+        elif c == '#':
+            consume_rest_of_line(self)
+            level = 0
+        elif c == ' ':
+            level++
+        else:
+            unread_byte(self, c)
+            return level
+
 def read_token(self: Tokenizer*) -> Token:
     while True:
         token = Token{location = self->location}
         b = read_byte(self)
 
-        if is_identifier_or_number_byte(b):
-            token.short_string = read_identifier_or_number(self, b)
+        if b == ' ':
+            continue
+        if b == '\n':
+            if self->parens_len > 0:
+                continue
+            token.kind = TokenKind::Newline
+            token.indentation_level = read_newline_token(self)
+        elif is_identifier_or_number_byte(b):
             token.kind = TokenKind::Name
+            token.short_string = read_identifier_or_number(self, b)
         else:
+            printf("TODO '%c'\n", b)
+            # TODO
             token.kind = TokenKind::EndOfFile
         return token
 
@@ -164,16 +206,7 @@ def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
     len = 0
     while len == 0 or tokens[len-1].kind != TokenKind::EndOfFile:
         tokens = realloc(tokens, sizeof(tokens[0]) * (len+1))
-        printf("Size of token = %lld\n", sizeof(tokens[0]))
-        printf("Just realloced to %lld\n", sizeof(tokens[0])* (len+1))
-        printf("base=%p dest=%p\n", tokens, &tokens[len])
-        # FIXME: can't do tokens[len++]
-        t = read_token(&tokenizer)
-        printf("Asd\n")
-        printf("base=%p dest=%p\n", tokens, &tokens[len])
-        tokens[len] = t
-        printf("base=%p dest=%p\n", tokens, &tokens[len])
-        len++
+        tokens[len++] = read_token(&tokenizer)
 
     free(tokenizer.pushback)
     return tokens
@@ -190,7 +223,7 @@ def tokenize(path: byte*) -> Token*:
 
 
 def main() -> int:
-    tokens = tokenize("examples/hello.jou")
+    tokens = tokenize("../examples/hello.jou")
 
     t = tokens
     while True:
