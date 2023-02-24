@@ -126,7 +126,7 @@ static void read_indentation_as_newline_token(struct State *st, Token *t)
         else if (c == '\0') {
             // Ignore newline+spaces at end of file. Do not validate 4 spaces.
             // TODO: test case
-            t->type = TOKEN_END_OF_FILE;
+            t->data.indentation_level = 0;
             return;
         } else {
             unread_byte(st, c);
@@ -480,10 +480,6 @@ static Token *handle_indentations(const Token *temp_tokens)
 
     do{
         if (t->type == TOKEN_END_OF_FILE) {
-            // Add an extra newline token at end of file and the dedents after it.
-            // This makes it similar to how other newline and dedent tokens work:
-            // the dedents always come after a newline token.
-            Append(&tokens, (Token){ .location=t->location, .type=TOKEN_NEWLINE });
             while(level) {
                 Append(&tokens, (Token){ .location=t->location, .type=TOKEN_DEDENT });
                 level -= 4;
