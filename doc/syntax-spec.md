@@ -38,7 +38,7 @@ Jou has a few different kinds of tokens:
     It is an error if the value of an int literal does not fit in a signed 32-bit integer (Jou `int`);
     that is, if its value is greater than or equal to 2<sup>31</sup>.
 
-    Unnecessary zeros in the beginning are allowed in hex, octal and binary, but are not allowed in base 10.
+    Unnecessary zeros in the beginning are allowed in hex, octal and binary (so `0x000f` is fine), but are not allowed in base 10.
     This is because in C, `0123` is somewhat surprisingly same as `83`, because the extra `0` makes it an octal number.
     Jou uses an explicit `0o` prefix for octal numbers, similarly to Python.
 
@@ -58,7 +58,7 @@ Jou has a few different kinds of tokens:
     The backslash character has a special meaning (see below for details).
 - **String literals** are similar to byte literals,
     except that they use double quotes and they can contain any number of bytes.
-- **Name tokens** consist of one or more letters A-Z or a-z, numbers 0-9 or underscores `_`.
+- **Name tokens** consist of one or more letters A-Z or a-z, numbers 0-9 and underscores `_`.
     The first character of a name token cannot be a number.
 
     If the name token is in the keyword list below, it is not actually a name token
@@ -115,19 +115,24 @@ The backslash character has a special meaning in string literals (e.g. `"hello\n
 - `\r` represents the carriage return byte (also known as the CR byte).
 - `\t` represents a tab character.
 - `\` at the end of a line means that the string continues from the start of the next line.
-    This cannot be used in character literals.
+    This cannot be used in byte literals.
 - `\'` is the single quote byte.
-    This is supported only in characters, not in strings,
+    This is supported only in byte literals, not in strings,
     because you can simply type `'` as is into a string.
 - `\"` is the double quote byte. This is supported only in strings.
+- `\0` is the zero byte. It cannot be used inside a string, because in strings,
+    it is a special byte that marks the end of the string.
+- `\1`, `\2`, `\3` and so on until `\9` work similarly to `\0`,
+    except that they can be used in strings and in byte literals.
+    For example, `\3` is the value 3 as a `byte` (8-bit unsigned integer),
+    so it is same as `3 as byte`.
 - `\` followed by anything else is an error.
 
 Before tokenizing, the compiler adds an imaginary newline character to the beginning of the file.
 This seems a little weird at first, but it simplifies tokenizing,
-because it means that indentation is always placed after a newline character
-and can be handled whenever a newline character occurs.
+because it is enough to handle indentations just after producing a newline token.
 
-Spaces are ignored everywhere except when handling indentation just after a newline token.
+Spaces are ignored everywhere except in indentations (just after a newline token).
 
 The tokenizer also ignores comments.
 A comment starts with a `#` character that is anywhere except inside a string literal or a byte literal,
@@ -136,7 +141,7 @@ and continues until the end of the line.
 When a `(`, `[` or `{` operator appears, the tokenizer enters **space-ignoring mode**.
 In space-ignoring mode, all newline characters and spaces
 that aren't inside string literals or byte literals are ignored.
-This means that the codebelow does not get newline tokens or indent/dedent tokens
+This means that the code below does not get newline tokens or indent/dedent tokens
 inside the function call:
 
 ```python
@@ -147,10 +152,11 @@ printf(
 )
 ```
 
-As you would expect, the tokenizer exits space-ignoring when a corresponding `)`, `]` or `}` occurs.
+The tokenizer exits space-ignoring when a corresponding `)`, `]` or `}` occurs,
+so in the above example, there will be a newline token after the last `)`.
 Nested parentheses work as you would expect:
-the `)` of `foobar()` in the above example does not actually make the tokenizer exit space-ignoring mode,
-because the `(` from `printf()` hasn't been closed yet.
+the `)` of `foobar()` doesn't make the tokenizer exit space-ignoring mode just yet,
+because the `(` from `printf(` hasn't been closed.
 
 
 ## Parsing
