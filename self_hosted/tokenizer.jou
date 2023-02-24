@@ -238,7 +238,12 @@ def read_operator(self: Tokenizer*) -> byte[100]:
     # TODO: nicer array syntax
     operators: byte*[100]
     i = 0
-    # Longer operators first, so that '==' does not parse as '=' '='
+    # This list of operators is in 3 places. Please keep them in sync:
+    #   - the Jou compiler written in C
+    #   - self-hosted compiler
+    #   - syntax documentation
+    #
+    # Longer operators are first, so that '==' does not tokenize as '=' '='
     operators[i++] = "..."
     operators[i++] = "==="
     operators[i++] = "!=="
@@ -308,6 +313,10 @@ def is_keyword(word: byte*) -> bool:
     # TODO: better array syntax
     keywords: byte*[100]
     i = 0
+    # This keyword list is in 3 places. Please keep them in sync:
+    #   - the Jou compiler written in C
+    #   - self-hosted compiler
+    #   - syntax documentation
     keywords[i++] = "from"
     keywords[i++] = "import"
     keywords[i++] = "def"
