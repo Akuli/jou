@@ -13,7 +13,7 @@ fi
 set -e
 
 rm -rf tmp/tokenizers
-mkdir -v tmp/tokenizers
+mkdir -vp tmp/tokenizers
 
 echo "Compiling the self-hosted compiler..."
 ./jou${dotexe} -O1 -o tmp/tokenizers/self_hosted${dotexe} self_hosted/tokenizer.jou 
