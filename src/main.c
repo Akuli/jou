@@ -165,6 +165,18 @@ static struct FileState *find_file(const struct CompileState *compst, const char
     return NULL;
 }
 
+static FILE *open_the_file(const char *path, const Location *import_location)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        if (import_location)
+            fail_with_error(*import_location, "cannot import from \"%s\": %s", path, strerror(errno));
+        else
+            fail_with_error((Location){.filename=path}, "cannot open file: %s", strerror(errno));
+    }
+    return f;
+}
+
 static void parse_file(struct CompileState *compst, const char *filename, const Location *import_location)
 {
     if (find_file(compst, filename))
@@ -172,20 +184,12 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
 
     struct FileState fs = { .path = strdup(filename) };
 
-    FILE *f = fopen(fs.path, "rb");
-    if (!f) {
-        if (import_location)
-            fail_with_error(*import_location, "cannot import from \"%s\": %s", filename, strerror(errno));
-        else
-            fail_with_error((Location){.filename=filename}, "cannot open file: %s", strerror(errno));
-    }
+    FILE *f = open_the_file(fs.path, import_location);
     Token *tokens = tokenize(f, fs.path);
     fclose(f);
 
-    if(compst->flags.verbose || compst->flags.tokenize_only)
+    if(compst->flags.verbose)
         print_tokens(tokens);
-    if (compst->flags.tokenize_only)
-        exit(0);
 
     fs.ast = parse(tokens, compst->stdlib_path);
     free_tokens(tokens);
@@ -403,6 +407,15 @@ int main(int argc, char **argv)
     if (compst.flags.verbose) {
         printf("Target triple: %s\n", get_target()->triple);
         printf("Data layout: %s\n", get_target()->data_layout);
+    }
+
+    if (compst.flags.tokenize_only) {
+        FILE *f = open_the_file(filename, NULL);
+        Token *tokens = tokenize(f, filename);
+        fclose(f);
+        print_tokens(tokens);
+        free_tokens(tokens);
+        return 0;
     }
 
 #ifdef _WIN32
