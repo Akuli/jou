@@ -248,7 +248,7 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
             // took care of that.
             handle_struct_fields(ctx, &ast->data.structdef);
             for (const AstFunctionDef *m = ast->data.structdef.methods.ptr; m < End(ast->data.structdef.methods); m++)
-                handle_signature(ctx, &m->signature, ast->data.structdef.name);
+                Append(&exports, handle_signature(ctx, &m->signature, ast->data.structdef.name));
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
         case AST_TOPLEVEL_IMPORT:
