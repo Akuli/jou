@@ -834,7 +834,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         result = typecheck_function_or_method_call(ctx, &expr->data.methodcall.call, temptype, expr->location);
         break;
     case AST_EXPR_DEREF_AND_CALL_METHOD:
-        assert(0);
+        assert(0);  // TODO
     case AST_EXPR_INDEXING:
         result = typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);
         break;
