@@ -75,6 +75,12 @@ static void free_expression(const AstExpression *expr)
         free_expression(expr->data.structfield.obj);
         free(expr->data.structfield.obj);
         break;
+    case AST_EXPR_CALL_METHOD:
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        free_expression(expr->data.methodcall.obj);
+        free(expr->data.methodcall.obj);
+        free_call(&expr->data.methodcall.call);
+        break;
     case AST_EXPR_INDEXING:
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:

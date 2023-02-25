@@ -197,7 +197,7 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
     return es;
 }
 
-static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef)
+static void handle_struct_body(TypeContext *ctx, const AstStructDef *structdef)
 {
     // Previous type-checking pass created an opaque struct.
     Type *type = NULL;
@@ -208,26 +208,16 @@ static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef
         }
     assert(type);
     assert(type->kind == TYPE_OPAQUE_STRUCT);
+    type->kind = TYPE_STRUCT;
+    memset(&type->data.structmembers, 0, sizeof type->data.structmembers);
 
-    int n = structdef->fields.len;
-
-    char (*fieldnames)[100] = malloc(n * sizeof(fieldnames[0]));
-    for (int i = 0; i<n; i++)
-        safe_strcpy(fieldnames[i], structdef->fields.ptr[i].name);
-
-    const Type **fieldtypes = malloc(n * sizeof fieldtypes[0]);  // NOLINT
-    for (int i = 0; i < n; i++)
-        fieldtypes[i] = type_from_ast(ctx, &structdef->fields.ptr[i].type);
-
-    Type *structtype = NULL;
-    for (Type **t = ctx->owned_types.ptr; t < End(ctx->owned_types); t++) {
-        if (!strcmp((*t)->name, structdef->name)) {
-            structtype = *t;
-            break;
-        }
+    for (const AstNameTypeValue *ntv = structdef->fields.ptr; ntv < End(structdef->fields); ntv++) {
+        assert(!ntv->value);
+        struct StructField f;
+        safe_strcpy(f.name, ntv->name);
+        f.type = type_from_ast(ctx, &ntv->type);
+        Append(&type->data.structmembers.fields, f);
     }
-    assert(structtype);
-    set_struct_fields(structtype, n, fieldnames, fieldtypes);
 }
 
 ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast)
@@ -249,7 +239,7 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
         case AST_TOPLEVEL_DEFINE_STRUCT:
             // No new export symbols, because the previous type-checking step already
             // took care of that.
-            handle_struct_fields(ctx, &ast->data.structdef);
+            handle_struct_body(ctx, &ast->data.structdef);
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
         case AST_TOPLEVEL_IMPORT:
@@ -478,6 +468,8 @@ static const char *short_expression_description(const AstExpression *expr)
     case AST_EXPR_GET_ENUM_MEMBER: return "an enum member";
     case AST_EXPR_SIZEOF: return "a sizeof expression";
     case AST_EXPR_FUNCTION_CALL: return "a function call";
+    case AST_EXPR_CALL_METHOD: return "a method call";
+    case AST_EXPR_DEREF_AND_CALL_METHOD: return "a method call";
     case AST_EXPR_BRACE_INIT: return "a newly created instance";
     case AST_EXPR_INDEXING: return "an indexed value";
     case AST_EXPR_AS: return "the result of a cast";
@@ -631,11 +623,26 @@ static const char *nth(int n)
 }
 
 // returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
-static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call, Location location)
+static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call, const Type *method_of_what_type, Location location)
 {
-    const Signature *sig = find_function(ctx, call->calledname);
-    if (!sig)
-        fail_with_error(location, "function '%s' not found", call->calledname);
+    const Signature *sig;
+    char function_or_method[20];
+
+    if (method_of_what_type) {
+        strcpy(function_or_method, "method");
+        sig = NULL;
+        if (method_of_what_type->kind == TYPE_STRUCT) {
+            for (const Signature *m = method_of_what_type->data.structmembers.methods.ptr; m < End(method_of_what_type->data.structmembers.methods); m++) {
+                if (!strcmp(
+            }
+        }
+    } else {
+        strcpy(function_or_method, "function");
+        sig = find_function(ctx, call->calledname);
+        if (!sig)
+            fail_with_error(location, "function '%s' not found", call->calledname);
+    }
+
     char *sigstr = signature_to_string(sig, false);
 
     if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->takes_varargs)) {
@@ -686,10 +693,24 @@ static const Type *typecheck_struct_field(
 {
     assert(structtype->kind == TYPE_STRUCT);
 
-    for (int i = 0; i < structtype->data.structfields.count; i++)
-        if (!strcmp(structtype->data.structfields.names[i], fieldname))
-            return structtype->data.structfields.types[i];
+    for (struct StructField *f = structtype->data.structmembers.fields.ptr; f < End(structtype->data.structmembers.fields); f++)
+        if (!strcmp(f->name, fieldname))
+            return f->type;
 
+    fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
+}
+
+static const Type *typecheck_method_call(const Type *structtype, const AstCall *call)
+{
+    assert(structtype->kind == TYPE_STRUCT);
+
+    for (Signature *m = structtype->data.structmembers.methods.ptr; m < End(structtype->data.structmembers.methods); m++) {
+        if (!strcmp(m->funcname, call->calledname)) {
+            return typecheck_function_call
+            return m->returntype;
+            return f->type;
+        }
+    }
     fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
 }
 
@@ -802,6 +823,17 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
                 temptype->name);
         result = typecheck_struct_field(temptype->data.valuetype, expr->data.structfield.fieldname, expr->location);
         break;
+    case AST_EXPR_CALL_METHOD:
+        temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
+        if (temptype->kind != TYPE_STRUCT)
+            fail_with_error(
+                expr->location,
+                "left side of the '.' operator must be a struct, not %s",
+                temptype->name);
+        result = typecheck_method_call(temptype, expr->data.structfield.fieldname, expr->location);
+        break;
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        assert(0);
     case AST_EXPR_INDEXING:
         result = typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);
         break;

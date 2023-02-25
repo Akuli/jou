@@ -157,7 +157,7 @@ struct AstSignature {
 };
 
 struct AstCall {
-    char calledname[100];  // e.g. function name of function call, struct name of instantiation
+    char calledname[100];  // e.g. function name, method name, struct name (instantiation)
     char (*argnames)[100];  // NULL when arguments are not named, e.g. function calls
     AstExpression *args;
     int nargs;
@@ -173,6 +173,8 @@ struct AstExpression {
         AST_EXPR_BRACE_INIT,
         AST_EXPR_GET_FIELD,     // foo.bar
         AST_EXPR_DEREF_AND_GET_FIELD,  // foo->bar (shorthand for (*foo).bar)
+        AST_EXPR_CALL_METHOD,  // foo.bar()
+        AST_EXPR_DEREF_AND_CALL_METHOD,  // foo->bar()
         AST_EXPR_INDEXING,  // foo[bar]
         AST_EXPR_AS,  // foo as SomeType
         AST_EXPR_GET_VARIABLE,
@@ -205,6 +207,7 @@ struct AstExpression {
         Constant constant;  // AST_EXPR_CONSTANT
         char varname[100];  // AST_EXPR_GET_VARIABLE
         AstCall call;       // AST_EXPR_CALL, AST_EXPR_INSTANTIATE
+        struct { AstExpression *obj; struct AstCall call; } methodcall;  // AST_EXPR_CALL_METHOD, AST_EXPR_DEREF_AND_CALL_METHOD
         struct { AstExpression *obj; char fieldname[100]; } structfield;  // AST_EXPR_GET_FIELD, AST_EXPR_DEREF_AND_GET_FIELD
         struct { char enumname[100]; char membername[100]; } enummember;
         struct { AstExpression *obj; AstType type; } as;
@@ -295,6 +298,7 @@ struct AstFunctionDef {
 struct AstStructDef {
     char name[100];
     List(AstNameTypeValue) fields;
+    List(AstFunctionDef) methods;
 };
 
 struct AstEnumDef {
@@ -332,6 +336,8 @@ struct AstToplevelNode {
 };
 
 
+struct StructField { char name[100]; const Type *type; };
+
 struct Type {
     char name[500];   // All types have a name for error messages and debugging.
     enum TypeKind {
@@ -350,7 +356,7 @@ struct Type {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_FLOATING_POINT
         const Type *valuetype;  // TYPE_POINTER
         struct { const Type *membertype; int len; } array;  // TYPE_ARRAY
-        struct { int count; char (*names)[100]; const Type **types; } structfields;  // TYPE_STRUCT
+        struct { List(struct StructField) fields; List(Signature) methods; } structmembers;  // TYPE_STRUCT (not TYPE_OPAQUE_STRUCT)
         struct { int count; char (*names)[100]; } enummembers;
     } data;
 };
@@ -383,11 +389,6 @@ const Type *get_array_type(const Type *t, int len);  // result lives as long as 
 const Type *type_of_constant(const Constant *c);
 Type *create_opaque_struct(const char *name);
 Type *create_enum(const char *name, int membercount, char (*membernames)[100]);
-void set_struct_fields(
-    Type *structtype,  // must be opaque struct, becomes non-opaque
-    int fieldcount,
-    char (*fieldnames)[100],  // will be free()d eventually
-    const Type **fieldtypes);  // will be free()d eventually
 void free_type(Type *type);
 
 bool is_integer_type(const Type *t);  // includes signed and unsigned

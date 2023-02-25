@@ -203,16 +203,12 @@ static const LocalVariable *build_struct_field_pointer(
     assert(structinstance->type->data.valuetype->kind == TYPE_STRUCT);
     const Type *structtype = structinstance->type->data.valuetype;
 
-    for (int i = 0; i < structtype->data.structfields.count; i++) {
-        char name[100];
-        safe_strcpy(name, structtype->data.structfields.names[i]);
-        const Type *type = structtype->data.structfields.types[i];
-
-        if (!strcmp(name, fieldname)) {
+    for (struct StructField *f = structtype->data.structmembers.fields.ptr; f < End(structtype->data.structmembers.fields); f++) {
+        if (!strcmp(f->name, fieldname)) {
             union CfInstructionData dat;
-            safe_strcpy(dat.fieldname, name);
+            safe_strcpy(dat.fieldname, f->name);
 
-            LocalVariable* result = add_local_var(st, get_pointer_type(type));
+            LocalVariable* result = add_local_var(st, get_pointer_type(f->type));
             add_instruction(st, location, CF_PTR_STRUCT_FIELD, &dat, (const LocalVariable*[]){structinstance,NULL}, result);
             return result;
         }
@@ -471,6 +467,9 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
     const LocalVariable *result, *temp;
 
     switch(expr->kind) {
+    case AST_EXPR_CALL_METHOD:
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        assert(0);
     case AST_EXPR_FUNCTION_CALL:
         result = build_function_call(st, expr);
         if (!result)
