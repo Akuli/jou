@@ -257,9 +257,16 @@ static char *read_string(struct State *st, char quote, int *len)
             case 'r':
                 Append(&result, '\r');
                 break;
+            case 't':
+                Append(&result, '\t');
+                break;
             case '\\':
             case '\'':
             case '"':
+                if (after_backslash == '"' && quote == '\'')
+                    fail_with_error(st->location, "double quotes shouldn't be escaped in byte literals");
+                if (after_backslash == '\'' && quote == '"')
+                    fail_with_error(st->location, "single quotes shouldn't be escaped in strings");
                 Append(&result, after_backslash);
                 break;
             case '0':

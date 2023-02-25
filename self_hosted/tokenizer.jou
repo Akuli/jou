@@ -232,6 +232,9 @@ struct Tokenizer:
                 elif after_backslash == 'r':
                     result = realloc(result, len+1)
                     result[len++] = '\r'
+                elif after_backslash == 't':
+                    result = realloc(result, len+1)
+                    result[len++] = '\t'
                 elif after_backslash == '\\' or after_backslash == '"':
                     result = realloc(result, len+1)
                     result[len++] = after_backslash
