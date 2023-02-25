@@ -1,4 +1,5 @@
 #include "jou_compiler.h"
+#include <stdnoreturn.h>
 
 static const Type *find_type(const TypeContext *ctx, const char *name)
 {
@@ -639,6 +640,42 @@ static const Type *get_self_type(const Signature *sig)
     return NULL;
 }
 
+// In Jou, a method being not found can be caused by many things.
+// To help with that we try to generate helpful error messages.
+static noreturn void fail_with_method_404_error(const Location location, const char *methodname, const Type *expected_self_type, const Type *actual_self_type)
+{
+    if (expected_self_type) {
+        // The method exists, but it expects a slightly different type.
+        // For example, if the method expecting self as a pointer, but it is called directly on an instance that isn't a pointer.
+        if (actual_self_type == get_pointer_type(expected_self_type)) {
+            // (&foo).bar() when you should do foo.bar() or (&foo)->bar()
+            fail_with_error(location,
+                "the method '%s' is defined for type %s, not for type %s, so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
+                methodname, expected_self_type->name, actual_self_type->name);
+        }
+        if (get_pointer_type(actual_self_type) == expected_self_type) {
+            // foo.bar() when you should do (&foo).bar()
+            fail_with_error(location,
+                "the method '%s' is defined for type %s, not for type %s, so you need to call it on a pointer",
+                methodname, expected_self_type->name, actual_self_type->name);
+        }
+    }
+
+    const Type *t = actual_self_type;
+    while (t->kind == TYPE_POINTER) t = t->data.valuetype;
+    if (t->kind != TYPE_STRUCT) {
+        // examples: some_int.blah(), (&some_int).blah()
+        fail_with_error(location,
+            "type %s does not have a method named '%s', and in fact, it doesn't have any methods because %s is not a struct",
+            actual_self_type->name, methodname, t->name);
+    }
+
+    // We get here if the method truly doesn't exist, e.g. its name is misspelled.
+    fail_with_error(location, "%s %s does not have a method named '%s'",
+        actual_self_type->kind == TYPE_STRUCT ? "struct" : "type",
+        actual_self_type->name, methodname);
+}
+
 // returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
 static const Type *typecheck_function_or_method_call(TypeContext *ctx, const AstCall *call, const Type *self_type, Location location)
 {
@@ -655,7 +692,7 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
 
         sig = find_function(ctx, name_to_search);
         if (!sig || get_self_type(sig) != self_type)
-            fail_with_error(location, "type %s does not have a method named '%s'", self_type->name, call->calledname);
+            fail_with_method_404_error(location, call->calledname, sig ? get_self_type(sig) : NULL, self_type);
     } else {
         strcpy(function_or_method, "function");
         sig = find_function(ctx, call->calledname);
@@ -834,12 +871,19 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
                 temptype->name);
         result = typecheck_struct_field(temptype->data.valuetype, expr->data.structfield.fieldname, expr->location);
         break;
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
+        if (temptype->kind != TYPE_POINTER)
+            fail_with_error(
+                expr->location,
+                "left side of the '->' operator must be a pointer, not %s",
+                temptype->name);
+        result = typecheck_function_or_method_call(ctx, &expr->data.methodcall.call, temptype->data.valuetype, expr->location);
+        break;
     case AST_EXPR_CALL_METHOD:
         temptype = typecheck_expression_not_void(ctx, expr->data.methodcall.obj)->type;
         result = typecheck_function_or_method_call(ctx, &expr->data.methodcall.call, temptype, expr->location);
         break;
-    case AST_EXPR_DEREF_AND_CALL_METHOD:
-        assert(0);  // TODO
     case AST_EXPR_INDEXING:
         result = typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);
         break;

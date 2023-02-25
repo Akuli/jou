@@ -1,0 +1,10 @@
+struct Foo:
+    x: int
+
+    def bar(self: Foo*) -> void:
+        return
+
+def asdf() -> void:
+    f = Foo{x=1}
+    (&f).bar()
+    f.bar()  # Error: the method 'bar' is defined for type Foo*, not for type Foo, so you need to call it on a pointer
