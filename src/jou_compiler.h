@@ -520,7 +520,7 @@ struct CfInstruction {
     } kind;
     union CfInstructionData {
         Constant constant;      // CF_CONSTANT
-        char funcname[100];     // CF_CALL
+        char funcname[200];     // CF_CALL
         char fieldname[100];    // CF_PTR_STRUCT_FIELD
         char globalname[100];   // CF_ADDRESS_OF_GLOBAL_VAR
         const Type *type;       // CF_SIZEOF

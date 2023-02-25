@@ -678,7 +678,6 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
         snprintf(msg, sizeof msg, "%s argument of %s %s should have type TO, not FROM", nth(i+1), function_or_method, sigstr);
-        const Type *passed;
         if (strcmp(sig->argnames[i], "self"))
             typecheck_expression_with_implicit_cast(ctx, &call->args[k++], sig->argtypes[i], msg);
     }
