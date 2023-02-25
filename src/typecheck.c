@@ -1097,24 +1097,6 @@ const Signature *typecheck_function_body(TypeContext *ctx, const char *name, con
     return sig;
 }
 
-void typecheck_method_bodies(TypeContext *ctx, const AstStructDef *structdef)
-{
-    Type *structtype = NULL;
-    for (Type **t = ctx->owned_types.ptr; t < End(ctx->owned_types); t++)
-        if (!strcmp((*t)->name, structdef->name)) {
-            structtype = *t;
-            break;
-        }
-    assert(structtype);
-
-    for (AstFunctionDef *m = structdef->methods.ptr; m < End(structdef->methods); m++) {
-        char name[sizeof structtype->name + sizeof "." + sizeof m->signature.funcname];
-        sprintf(name, "%s.%s", structtype->name, m->signature.funcname);
-        typecheck_function_body(ctx, name, &m->body);
-        reset_type_context(ctx);
-    }
-}
-
 void reset_type_context(TypeContext *ctx)
 {
     for (ExpressionTypes **et = ctx->expr_types.ptr; et < End(ctx->expr_types); et++)
