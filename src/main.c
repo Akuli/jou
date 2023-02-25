@@ -42,12 +42,16 @@ static const char help_fmt[] =
     "  -o OUTFILE       output an executable file, don't run the code\n"
     "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
     "  --verbose        display a lot of information about all compilation steps\n"
+    "  --tokenize-only  display only the output of the tokenizer, don't do anything else\n"
     "  --linker-flags   appended to the linker command, so you can use external libraries\n"
     ;
 
 static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char **filename)
 {
     *flags = (CommandLineFlags){0};
+    flags->optlevel = 1; /* Set default optimize to O1
+                            User sets optimize will overwrite the default flag
+                         */
 
     if (argc == 2 && !strcmp(argv[1], "--help")) {
         // Print help.
@@ -75,6 +79,13 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
             goto wrong_usage;
         } else if (!strcmp(argv[i], "--verbose")) {
             flags->verbose = true;
+            i++;
+        } else if (!strcmp(argv[i], "--tokenize-only")) {
+            if (argc > 3) {
+                fprintf(stderr, "%s: --tokenize-only cannot be used together with other flags", argv[0]);
+                goto wrong_usage;
+            }
+            flags->tokenize_only = true;
             i++;
         } else if (!strcmp(argv[i], "--linker-flags")) {
             if (flags->linker_flags) {
@@ -157,6 +168,18 @@ static struct FileState *find_file(const struct CompileState *compst, const char
     return NULL;
 }
 
+static FILE *open_the_file(const char *path, const Location *import_location)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        if (import_location)
+            fail_with_error(*import_location, "cannot import from \"%s\": %s", path, strerror(errno));
+        else
+            fail_with_error((Location){.filename=path}, "cannot open file: %s", strerror(errno));
+    }
+    return f;
+}
+
 static void parse_file(struct CompileState *compst, const char *filename, const Location *import_location)
 {
     if (find_file(compst, filename))
@@ -164,15 +187,10 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
 
     struct FileState fs = { .path = strdup(filename) };
 
-    FILE *f = fopen(fs.path, "rb");
-    if (!f) {
-        if (import_location)
-            fail_with_error(*import_location, "cannot import from \"%s\": %s", filename, strerror(errno));
-        else
-            fail_with_error((Location){.filename=filename}, "cannot open file: %s", strerror(errno));
-    }
+    FILE *f = open_the_file(fs.path, import_location);
     Token *tokens = tokenize(f, fs.path);
     fclose(f);
+
     if(compst->flags.verbose)
         print_tokens(tokens);
 
@@ -392,6 +410,15 @@ int main(int argc, char **argv)
     if (compst.flags.verbose) {
         printf("Target triple: %s\n", get_target()->triple);
         printf("Data layout: %s\n", get_target()->data_layout);
+    }
+
+    if (compst.flags.tokenize_only) {
+        FILE *f = open_the_file(filename, NULL);
+        Token *tokens = tokenize(f, filename);
+        fclose(f);
+        print_tokens(tokens);
+        free_tokens(tokens);
+        return 0;
     }
 
 #ifdef _WIN32

@@ -111,26 +111,26 @@ static void consume_rest_of_line(struct State *st)
 }
 
 // Assumes that the initial '\n' byte has been read already.
-static void read_indentation_as_newline_token(struct State *st, Token *t)
+// Reads everything else that we need to read to get a newline token.
+// Returns the resulting indentation level.
+static int read_indentation_level_for_newline_token(struct State *st)
 {
-    t->type = TOKEN_NEWLINE;
-
+    int level = 0;
     while(1) {
         char c = read_byte(st);
         if (c == ' ')
-            t->data.indentation_level++;
+            level++;
         else if (c == '\n')
-            t->data.indentation_level = 0;
+            level = 0;
         else if (c == '#')
             consume_rest_of_line(st);
         else if (c == '\0') {
             // Ignore newline+spaces at end of file. Do not validate 4 spaces.
             // TODO: test case
-            t->type = TOKEN_END_OF_FILE;
-            return;
+            return 0;
         } else {
             unread_byte(st, c);
-            break;
+            return level;
         }
     }
 }
@@ -215,6 +215,10 @@ static bool is_valid_float(const char *str)
 static bool is_keyword(const char *s)
 {
     const char *keywords[] = {
+        // This keyword list is in 3 places. Please keep them in sync:
+        //   - the Jou compiler written in C
+        //   - self-hosted compiler
+        //   - syntax documentation
         "from", "import",
         "def", "declare", "struct", "enum", "global",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
@@ -327,7 +331,12 @@ static const char operatorChars[] = "=<>!.,()[]{};:+-*/&%";
 static const char *read_operator(struct State *st)
 {
     const char *operators[] = {
-        // Longer operators first, so that '==' does not parse as '=' '='
+        // This list of operators is in 3 places. Please keep them in sync:
+        //   - the Jou compiler written in C
+        //   - self-hosted compiler
+        //   - syntax documentation
+        //
+        // Longer operators are first, so that '==' does not tokenize as '=' '='
         "...", "===", "!==",
         "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "::",
         ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">",
@@ -401,7 +410,8 @@ static Token read_token(struct State *st)
         case '\n':
             if (st->nparens > 0)
                 continue;  // Ignore newlines when inside parentheses.
-            read_indentation_as_newline_token(st, &t);
+            t.type = TOKEN_NEWLINE;
+            t.data.indentation_level = read_indentation_level_for_newline_token(st);
             break;
         case '\0':
             t.type = TOKEN_END_OF_FILE;
@@ -480,10 +490,6 @@ static Token *handle_indentations(const Token *temp_tokens)
 
     do{
         if (t->type == TOKEN_END_OF_FILE) {
-            // Add an extra newline token at end of file and the dedents after it.
-            // This makes it similar to how other newline and dedent tokens work:
-            // the dedents always come after a newline token.
-            Append(&tokens, (Token){ .location=t->location, .type=TOKEN_NEWLINE });
             while(level) {
                 Append(&tokens, (Token){ .location=t->location, .type=TOKEN_DEDENT });
                 level -= 4;
