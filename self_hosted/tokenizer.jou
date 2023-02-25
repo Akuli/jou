@@ -209,6 +209,56 @@ struct Tokenizer:
                 self.unread_byte(c)
                 return level
 
+    # Assumes the initial ' has been read.
+    def read_byte_literal(self: Tokenizer*) -> byte:
+        c = self.read_byte()
+        if c == '\'':
+            fail(self->location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?")
+        if c == '\0' or c == '\n':
+            if c == '\n':
+                self->location.lineno--
+            fail(self->location, "missing ' to end the byte literal")
+
+        if c == '\\':
+            after_backslash = self.read_byte()
+            if after_backslash == '\0':
+                fail(self->location, "missing ' to end the byte literal")
+            elif after_backslash == 'n':
+                c = '\n'
+            elif after_backslash == 'r':
+                c = '\r'
+            elif after_backslash == 't':
+                c = '\t'
+            elif after_backslash == '\\':
+                c = '\\'
+            elif after_backslash == '\'':
+                c = '\''
+            elif after_backslash == '"':
+                fail(self->location, "double quotes shouldn't be escaped in byte literals")
+            elif '0' <= after_backslash and after_backslash <= '9':
+                c = after_backslash - '0'
+            elif after_backslash < 0x80 and isprint(after_backslash) != 0:
+                message: byte* = malloc(100)
+                sprintf(message, "unknown escape: '\\%c'", after_backslash)
+                fail(self->location, message)
+            else:
+                fail(self->location, "unknown '\\' escape")
+
+        end = self.read_byte()
+        if end != '\'':
+            # If there's another single quote later on the same line, suggest using double quotes.
+            location = self->location
+            while True:
+                c = self.read_byte()
+                if c == '\0' or c == '\n':
+                    break
+                if c == '\'':
+                    fail(location, "single quotes are for a single character, maybe use double quotes to instead make a string?")
+            fail(location, "missing ' to end the byte literal")
+
+        return c
+
+    # Assumes the initial " has been read.
     def read_string(self: Tokenizer*) -> byte*:
         result: byte* = NULL
         len = 0
@@ -238,9 +288,11 @@ struct Tokenizer:
                 elif after_backslash == '\\' or after_backslash == '"':
                     result = realloc(result, len+1)
                     result[len++] = after_backslash
+                elif after_backslash == '\'':
+                    fail(self->location, "single quotes shouldn't be escaped in strings")
                 elif after_backslash == '0':
                     fail(self->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte")
-                elif '0' <= after_backslash and after_backslash <= '9':
+                elif '1' <= after_backslash and after_backslash <= '9':
                     result = realloc(result, len+1)
                     result[len++] = after_backslash - '0'
                 elif after_backslash == '\n':
@@ -260,7 +312,6 @@ struct Tokenizer:
         result = realloc(result, len+1)
         result[len] = '\0'
         return result
-
 
     def read_operator(self: Tokenizer*) -> byte[100]:
         operators = [
@@ -322,6 +373,9 @@ struct Tokenizer:
             elif b == '"':
                 token.kind = TokenKind::String
                 token.long_string = self.read_string()
+            elif b == '\'':
+                token.kind = TokenKind::Byte
+                token.byte_value = self.read_byte_literal()
             elif is_identifier_or_number_byte(b):
                 token.short_string = self.read_identifier_or_number(b)
                 if is_keyword(&token.short_string[0]):
