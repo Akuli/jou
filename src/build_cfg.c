@@ -474,7 +474,7 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
 
     switch(expr->kind) {
     case AST_EXPR_DEREF_AND_CALL_METHOD:
-        assert(0);
+        assert(0);  // TODO: implement
     case AST_EXPR_CALL_METHOD:
         temp = build_expression(st, expr->data.methodcall.obj);
         assert(temp);
