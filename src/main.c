@@ -340,6 +340,12 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
     }
 }
 
+static bool exportsymbol_matches_import(const ExportSymbol *es, const AstImport *imp)
+{
+    // Method bar in struct Foo appears as a function with name "Foo.bar". Match it when importing Foo.
+    return !strcmp(es->name, imp->symbolname) || (strlen(es->name) > strlen(imp->symbolname) && es->name[strlen(imp->symbolname)] == '.');
+}
+
 static void add_imported_symbols(struct CompileState *compst)
 {
     // TODO: should it be possible for a file to import from itself?
@@ -351,7 +357,7 @@ static void add_imported_symbols(struct CompileState *compst)
             assert(from);
 
             for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
-                if (!strcmp(imp->symbolname, es->name)) {
+                if (exportsymbol_matches_import(es, imp)) {
                     if (compst->flags.verbose) {
                         const char *kindstr;
                         switch(es->kind) {
