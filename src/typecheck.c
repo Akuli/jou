@@ -647,15 +647,13 @@ static noreturn void fail_with_method_404_error(const Location location, const c
 {
     if (expected_self_type) {
         // The method exists, but it expects a slightly different type.
-        // For example, if the method expecting self as a pointer, but it is called directly on an instance that isn't a pointer.
+        // For example, the method wants self as a pointer, but it is called directly on an instance that isn't a pointer.
         if (actual_self_type == get_pointer_type(expected_self_type)) {
-            // (&foo).bar() when you should do foo.bar() or (&foo)->bar()
             fail_with_error(location,
                 "the method '%s' is defined for type %s, not for type %s, so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
                 methodname, expected_self_type->name, actual_self_type->name);
         }
         if (get_pointer_type(actual_self_type) == expected_self_type) {
-            // foo.bar() when you should do (&foo).bar()
             fail_with_error(location,
                 "the method '%s' is defined for type %s, not for type %s, so you need to call it on a pointer",
                 methodname, expected_self_type->name, actual_self_type->name);
@@ -671,7 +669,6 @@ static noreturn void fail_with_method_404_error(const Location location, const c
             actual_self_type->name, methodname, t->name);
     }
 
-    // We get here if the method truly doesn't exist, e.g. its name is misspelled.
     fail_with_error(location, "%s %s does not have a method named '%s'",
         actual_self_type->kind == TYPE_STRUCT ? "struct" : "type",
         actual_self_type->name, methodname);
