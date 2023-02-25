@@ -415,7 +415,7 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
     assert(0);
 }
 
-static const LocalVariable *build_function_call(struct State *st, const Location location, const AstCall *call, const LocalVariable *self, const Type *returntype)
+static const LocalVariable *build_function_or_method_call(struct State *st, const Location location, const AstCall *call, const LocalVariable *self, const Type *returntype)
 {
     const LocalVariable **args = calloc(call->nargs + 2, sizeof(args[0]));  // NOLINT
     int k = 0;
@@ -478,12 +478,12 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
     case AST_EXPR_CALL_METHOD:
         temp = build_expression(st, expr->data.methodcall.obj);
         assert(temp);
-        result = build_function_call(st, expr->location, &expr->data.methodcall.call, temp, types ? types->type : NULL);
+        result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, temp, types ? types->type : NULL);
         if (!result)
             return NULL;
         break;
     case AST_EXPR_FUNCTION_CALL:
-        result = build_function_call(st, expr->location, &expr->data.call, NULL, types ? types->type : NULL);
+        result = build_function_or_method_call(st, expr->location, &expr->data.call, NULL, types ? types->type : NULL);
         if (!result)
             return NULL;
         break;
