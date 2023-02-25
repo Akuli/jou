@@ -396,7 +396,7 @@ bool is_number_type(const Type *t);  // integers, floats, doubles
 bool is_pointer_type(const Type *t);  // includes void pointers
 
 struct Signature {
-    char funcname[100];
+    char funcname[200];  // For methods this is "ClassName.methodname"
     int nargs;
     const Type **argtypes;
     char (*argnames)[100];
@@ -430,7 +430,7 @@ struct ExpressionTypes {
 
 struct ExportSymbol {
     enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_TYPE, EXPSYM_GLOBAL_VAR } kind;
-    char name[100];
+    char name[200];
     union {
         Signature funcsignature;
         const Type *type;  // EXPSYM_TYPE and EXPSYM_GLOBAL_VAR
@@ -474,6 +474,7 @@ Step 3 is interleaved with build_cfg (see the reset_type_context() function).
 ExportSymbol *typecheck_step1_create_types(TypeContext *ctx, const AstToplevelNode *ast);
 ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast);
 const Signature *typecheck_function_body(TypeContext *ctx, const char *name, const AstBody *body);
+void typecheck_method_bodies(TypeContext *ctx, const AstStructDef *structdef);
 
 /*
 Wipes all function-specific data, making the type context suitable

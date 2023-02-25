@@ -829,6 +829,8 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx
             CfGraph *g = build_function(&st, &ast->data.funcdef.body);
             g->signature = copy_signature(sig);
             Append(&result.graphs, g);
+        } else if (ast->kind == AST_TOPLEVEL_DEFINE_STRUCT) {
+            typecheck_method_bodies(typectx, &ast->data.structdef);
         }
         ast++;
     }
