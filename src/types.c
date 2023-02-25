@@ -39,8 +39,7 @@ void free_type(Type *t)
 {
     if (t) {
         if (t->kind == TYPE_STRUCT) {
-            free(t->data.structdata.fieldtypes);
-            free(t->data.structdata.fieldnames);
+            // TODO
         }
         assert(offsetof(struct TypeInfo, type) == 0);
         free_pointer_and_array_types((struct TypeInfo *)t);

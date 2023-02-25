@@ -623,7 +623,7 @@ static const char *nth(int n)
 }
 
 // returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
-static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call, const Type *method_of_what_type, Location location)
+static const Type *typecheck_function_or_method_call(TypeContext *ctx, const AstCall *call, const Type *method_of_what_type, Location location)
 {
     const Signature *sig;
     char function_or_method[20];
@@ -633,8 +633,15 @@ static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call
         sig = NULL;
         if (method_of_what_type->kind == TYPE_STRUCT) {
             for (const Signature *m = method_of_what_type->data.structmembers.methods.ptr; m < End(method_of_what_type->data.structmembers.methods); m++) {
-                if (!strcmp(
+                if (!strcmp(m->funcname, call->calledname)) {
+                    sig = m;
+                    break;
+                }
             }
+        }
+        if (!sig) {
+            // TODO: test
+            fail_with_error(location, "type %s has no method named '%s'", method_of_what_type->name, call->calledname);
         }
     } else {
         strcpy(function_or_method, "function");
@@ -697,20 +704,6 @@ static const Type *typecheck_struct_field(
         if (!strcmp(f->name, fieldname))
             return f->type;
 
-    fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
-}
-
-static const Type *typecheck_method_call(const Type *structtype, const AstCall *call)
-{
-    assert(structtype->kind == TYPE_STRUCT);
-
-    for (Signature *m = structtype->data.structmembers.methods.ptr; m < End(structtype->data.structmembers.methods); m++) {
-        if (!strcmp(m->funcname, call->calledname)) {
-            return typecheck_function_call
-            return m->returntype;
-            return f->type;
-        }
-    }
     fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
 }
 
@@ -792,7 +785,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_FUNCTION_CALL:
         {
-            const Type *ret = typecheck_function_call(ctx, &expr->data.call, expr->location);
+            const Type *ret = typecheck_function_or_method_call(ctx, &expr->data.call, NULL, expr->location);
             if (!ret)
                 return NULL;
             result = ret;
@@ -824,13 +817,8 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         result = typecheck_struct_field(temptype->data.valuetype, expr->data.structfield.fieldname, expr->location);
         break;
     case AST_EXPR_CALL_METHOD:
-        temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
-        if (temptype->kind != TYPE_STRUCT)
-            fail_with_error(
-                expr->location,
-                "left side of the '.' operator must be a struct, not %s",
-                temptype->name);
-        result = typecheck_method_call(temptype, expr->data.structfield.fieldname, expr->location);
+        temptype = typecheck_expression_not_void(ctx, expr->data.methodcall.obj)->type;
+        result = typecheck_function_or_method_call(ctx, &expr->data.methodcall.call, temptype, expr->location);
         break;
     case AST_EXPR_DEREF_AND_CALL_METHOD:
         assert(0);
