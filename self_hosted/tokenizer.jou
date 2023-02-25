@@ -151,17 +151,17 @@ struct Tokenizer:
                 temp = fgetc(self->f)
                 if temp != EOF and temp != '\n':
                     # TODO: test this, if possible?
-                    self->location.fail("source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
+                    fail(self->location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
 
             if temp == EOF:
                 if ferror(self->f) != 0:
                     # TODO: include errno in the error message
-                    self->location.fail("cannot read file")
+                    fail(self->location, "cannot read file")
                 # Use the zero byte to denote end of file.
                 c = '\0'
             elif temp == '\0':
                 # TODO: test this
-                self->location.fail("source file contains a zero byte")
+                fail(self->location, "source file contains a zero byte")
                 c = 'x'  # TODO: silences compiler warning, but never runs
             else:
                 c = temp as byte
@@ -192,7 +192,7 @@ struct Tokenizer:
             b = self.read_byte()
             if is_identifier_or_number_byte(b):
                 if destlen == sizeof dest - 1:
-                    self->location.fail("name or number is too long")
+                    fail(self->location, "name or number is too long")
                 dest[destlen++] = b
             else:
                 self.unread_byte(b)
@@ -238,12 +238,12 @@ struct Tokenizer:
             elif c == '\n' or c == '\0':
                 if c == '\n':
                     self->location.lineno--
-                self->location.fail("missing \" to end the string")
+                fail(self->location, "missing \" to end the string")
             elif c == '\n':
                 # \n means newline, for example
                 after_backslash = self.read_byte()
                 if after_backslash == '\0':
-                    self->location.fail("missing \" to end the string")
+                    fail(self->location, "missing \" to end the string")
                 elif after_backslash == '\n':
                     result = realloc(result, len+1)
                     result[len++] = '\n'
@@ -254,7 +254,7 @@ struct Tokenizer:
                     result = realloc(result, len+1)
                     result[len++] = after_backslash
                 elif after_backslash == '0':
-                    self->location.fail("strings cannot contain zero bytes (\\0), because that is the special end marker byte")
+                    fail(self->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte")
                 elif '0' <= after_backslash and after_backslash <= '9':
                     result = realloc(result, len+1)
                     result[len++] = after_backslash - '0'
@@ -265,9 +265,9 @@ struct Tokenizer:
                     if after_backslash < 0x80 and isprint(after_backslash) != 0:
                         message: byte* = malloc(100)
                         sprintf(message, "unknown escape: '\\%c'", after_backslash)
-                        self->location.fail(message)
+                        fail(self->location, message)
                     else:
-                        self->location.fail("unknown '\\' escape")
+                        fail(self->location, "unknown '\\' escape")
             else:
                 result = realloc(result, len+1)
                 result[len++] = c
@@ -349,7 +349,7 @@ struct Tokenizer:
 
         message: byte[100]
         sprintf(&message[0], "there is no '%s' operator", &operator[0])
-        self->location.fail(&message[0])
+        fail(self->location, &message[0])
         return operator  # TODO: never actually runs, but causes a compiler warning
 
     def read_token(self: Tokenizer*) -> Token:
@@ -390,7 +390,7 @@ struct Tokenizer:
             else:
                 message: byte[100]
                 sprintf(&message[0], "unexpected byte %#02x", b)
-                self->location.fail(&message[0])
+                fail(self->location, &message[0])
             return token
 
 
@@ -447,7 +447,7 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
             after_newline.lineno++
 
             if t->indentation_level % 4 != 0:
-                after_newline.fail("indentation must be a multiple of 4 spaces")
+                fail(after_newline, "indentation must be a multiple of 4 spaces")
 
             while level < t->indentation_level:
                 tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
@@ -475,7 +475,7 @@ def tokenize(path: byte*) -> Token*:
     if file == NULL:
         # TODO: test this
         # TODO: include errno in the message
-        Location{path=path}.fail("cannot open file")
+        fail(Location{path=path}, "cannot open file")
 
     raw_tokens = tokenize_without_indent_dedent_tokens(file, path)
     better_tokens = handle_indentations(raw_tokens)
