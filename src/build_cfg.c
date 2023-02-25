@@ -432,7 +432,9 @@ static const LocalVariable *build_function_or_method_call(struct State *st, cons
 
     union CfInstructionData data;
     if (self)
-        snprintf(data.funcname, sizeof data.funcname, "%s.%s", self->type->name, call->calledname);
+        snprintf(data.funcname, sizeof data.funcname, "%.*s.%s",
+            (int)strcspn(self->type->name, "*"), self->type->name,  // strip "*" (Foo* --> Foo)
+            call->calledname);
     else
         safe_strcpy(data.funcname, call->calledname);
     add_instruction(st, location, CF_CALL, &data, args, return_value);

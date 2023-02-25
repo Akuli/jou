@@ -631,6 +631,14 @@ static const char *nth(int n)
     return result;
 }
 
+static const Type *get_self_type(const Signature *sig)
+{
+    for (int i = 0; i < sig->nargs; i++)
+        if (!strcmp(sig->argnames[i], "self"))
+            return sig->argtypes[i];
+    return NULL;
+}
+
 // returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
 static const Type *typecheck_function_or_method_call(TypeContext *ctx, const AstCall *call, const Type *self_type, Location location)
 {
@@ -640,17 +648,14 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
     if (self_type) {
         strcpy(function_or_method, "method");
 
-        if (self_type->kind != TYPE_STRUCT) {
-            fail_with_error(location,
-                "type %s does not have a method named '%s', and in fact, it doesn't have any methods because it is not a struct",
-                self_type->name, call->calledname);
-        }
-
         char name_to_search[sizeof self_type->name + sizeof "." + sizeof call->calledname];
-        sprintf(name_to_search, "%s.%s", self_type->name, call->calledname);
+        sprintf(name_to_search, "%.*s.%s",
+            (int)strcspn(self_type->name, "*"), self_type->name,  // strip "*" suffix (Foo* --> Foo)
+            call->calledname);
+
         sig = find_function(ctx, name_to_search);
-        if (!sig)
-            fail_with_error(location, "struct %s does not have a method named '%s'", self_type->name, call->calledname);
+        if (!sig || get_self_type(sig) != self_type)
+            fail_with_error(location, "type %s does not have a method named '%s'", self_type->name, call->calledname);
     } else {
         strcpy(function_or_method, "function");
         sig = find_function(ctx, call->calledname);
