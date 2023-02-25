@@ -219,15 +219,7 @@ static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef
     for (int i = 0; i < n; i++)
         fieldtypes[i] = type_from_ast(ctx, &structdef->fields.ptr[i].type);
 
-    Type *structtype = NULL;
-    for (Type **t = ctx->owned_types.ptr; t < End(ctx->owned_types); t++) {
-        if (!strcmp((*t)->name, structdef->name)) {
-            structtype = *t;
-            break;
-        }
-    }
-    assert(structtype);
-    set_struct_fields(structtype, n, fieldnames, fieldtypes);
+    set_struct_fields(type, n, fieldnames, fieldtypes);
 }
 
 ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast)
