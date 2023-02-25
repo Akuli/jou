@@ -317,7 +317,7 @@ missing_end_quote:
     if (quote == '"')
         fail_with_error(st->location, "missing \" to end the string");
     else
-        fail_with_error(st->location, "missing ' to end the character");
+        fail_with_error(st->location, "missing ' to end the byte literal");
 }
 
 static char read_char_literal(struct State *st)
