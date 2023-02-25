@@ -20,3 +20,16 @@ declare strlen(s: byte*) -> long
 
 # Compare the strings. Return 0 for equal, or nonzero for not equal.
 declare strcmp(s1: byte*, s2: byte*) -> int
+
+# Similar to strcmp(), but imagines the strings are at most n bytes long.
+# In other words, if s1 or s2 is more than n bytes long, the rest is not compared.
+declare strncmp(s1: byte*, s2: byte*, n: long) -> int
+
+# Returns true if the string s starts with the given prefix.
+def starts_with(s: byte*, prefix: byte*) -> bool:
+    return strncmp(s, prefix, strlen(prefix)) == 0
+
+# Returns true if the string s ends with the given prefix.
+def ends_with(s: byte*, suffix: byte*) -> bool:
+    offset = strlen(s) - strlen(suffix)
+    return offset >= 0 and strcmp(&s[offset], suffix) == 0
