@@ -415,25 +415,27 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
     assert(0);
 }
 
-static const LocalVariable *build_function_call(struct State *st, const AstExpression *expr)
+static const LocalVariable *build_function_or_method_call(struct State *st, const Location location, const AstCall *call, const LocalVariable *self, const Type *returntype)
 {
-    assert(expr->kind == AST_EXPR_FUNCTION_CALL);
+    const LocalVariable **args = calloc(call->nargs + 2, sizeof(args[0]));  // NOLINT
+    int k = 0;
+    if (self)
+        args[k++] = self;
+    for (int i = 0; i < call->nargs; i++)
+        args[k++] = build_expression(st, &call->args[i]);
 
-    int nargs = expr->data.call.nargs;
-    const LocalVariable **args = calloc(nargs + 1, sizeof(args[0]));  // NOLINT
-    for (int i = 0; i < nargs; i++)
-        args[i] = build_expression(st, &expr->data.call.args[i]);
-
-    const ExpressionTypes *types = get_expr_types(st, expr);
     const LocalVariable *return_value;
-    if (types)
-        return_value = add_local_var(st, types->type);
+    if (returntype)
+        return_value = add_local_var(st, returntype);
     else
         return_value = NULL;
 
     union CfInstructionData data;
-    safe_strcpy(data.funcname, expr->data.call.calledname);
-    add_instruction(st, expr->location, CF_CALL, &data, args, return_value);
+    if (self)
+        snprintf(data.funcname, sizeof data.funcname, "%s.%s", self->type->name, call->calledname);
+    else
+        safe_strcpy(data.funcname, call->calledname);
+    add_instruction(st, location, CF_CALL, &data, args, return_value);
 
     free(args);
     return return_value;
@@ -471,8 +473,17 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
     const LocalVariable *result, *temp;
 
     switch(expr->kind) {
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        assert(0);  // TODO: implement
+    case AST_EXPR_CALL_METHOD:
+        temp = build_expression(st, expr->data.methodcall.obj);
+        assert(temp);
+        result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, temp, types ? types->type : NULL);
+        if (!result)
+            return NULL;
+        break;
     case AST_EXPR_FUNCTION_CALL:
-        result = build_function_call(st, expr);
+        result = build_function_or_method_call(st, expr->location, &expr->data.call, NULL, types ? types->type : NULL);
         if (!result)
             return NULL;
         break;
@@ -830,6 +841,26 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx
             CfGraph *g = build_function(&st, &ast->data.funcdef.body);
             g->signature = copy_signature(sig);
             Append(&result.graphs, g);
+        }
+
+        if (ast->kind == AST_TOPLEVEL_DEFINE_STRUCT) {
+            Type *structtype = NULL;
+            for (Type **t = typectx->owned_types.ptr; t < End(typectx->owned_types); t++)
+                if (!strcmp((*t)->name, ast->data.structdef.name)) {
+                    structtype = *t;
+                    break;
+                }
+            assert(structtype);
+
+            for (AstFunctionDef *m = ast->data.structdef.methods.ptr; m < End(ast->data.structdef.methods); m++) {
+                char name[sizeof structtype->name + sizeof "." + sizeof m->signature.funcname];
+                sprintf(name, "%s.%s", structtype->name, m->signature.funcname);
+                const Signature *sig = typecheck_function_body(typectx, name, &m->body);
+                CfGraph *g = build_function(&st, &m->body);
+                g->signature = copy_signature(sig);
+                Append(&result.graphs, g);
+                reset_type_context(typectx);
+            }
         }
         ast++;
     }

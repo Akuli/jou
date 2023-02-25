@@ -411,7 +411,7 @@ not_an_expression:
     fail_with_parse_error(*tokens, "an expression");
 }
 
-static AstExpression parse_expression_with_fields_and_indexing(const Token **tokens)
+static AstExpression parse_expression_with_fields_and_methods_and_indexing(const Token **tokens)
 {
     AstExpression result = parse_elementary_expression(tokens);
     while (is_operator(*tokens, ".") || is_operator(*tokens, "->") || is_operator(*tokens, "["))
@@ -422,20 +422,30 @@ static AstExpression parse_expression_with_fields_and_indexing(const Token **tok
                 fail_with_parse_error(*tokens, "a ']'");
             ++*tokens;
         } else {
+            AstExpression *obj = malloc(sizeof *obj);
+            *obj = result;
+            memset(&result, 0, sizeof result);
+
             const Token *startop = (*tokens)++;
-            AstExpression result2 = {
-                .location = startop->location,
-                .kind = (is_operator(startop, "->") ? AST_EXPR_DEREF_AND_GET_FIELD : AST_EXPR_GET_FIELD),
-            };
-            result2.data.structfield.obj = malloc(sizeof *result2.data.structfield.obj);
-            *result2.data.structfield.obj = result;
-
             if ((*tokens)->type != TOKEN_NAME)
-                fail_with_parse_error(*tokens, "a field name");
-            safe_strcpy(result2.data.structfield.fieldname, (*tokens)->data.name);
-            ++*tokens;
+                fail_with_parse_error(*tokens, "a field or method name");
+            result.location = (*tokens)->location;
 
-            result = result2;
+            bool is_deref = is_operator(startop, "->");
+            bool is_call = is_operator(&(*tokens)[1], "(");
+            if (is_deref && is_call) result.kind = AST_EXPR_DEREF_AND_CALL_METHOD;
+            if (is_deref && !is_call) result.kind = AST_EXPR_DEREF_AND_GET_FIELD;
+            if (!is_deref && is_call) result.kind = AST_EXPR_CALL_METHOD;
+            if (!is_deref && !is_call) result.kind = AST_EXPR_GET_FIELD;
+
+            if (is_call) {
+                result.data.methodcall.obj = obj;
+                result.data.methodcall.call = parse_call(tokens, '(', ')', false);
+            } else {
+                result.data.structfield.obj = obj;
+                safe_strcpy(result.data.structfield.fieldname, (*tokens)->data.name);
+                ++*tokens;
+            }
         }
     }
     return result;
@@ -449,7 +459,7 @@ static AstExpression parse_expression_with_unary_operators(const Token **tokens)
     while(is_operator(*tokens,"++")||is_operator(*tokens,"--")||is_operator(*tokens,"&")||is_operator(*tokens,"*")||is_keyword(*tokens,"sizeof")) ++*tokens;
     const Token *prefixend = *tokens;
 
-    AstExpression result = parse_expression_with_fields_and_indexing(tokens);
+    AstExpression result = parse_expression_with_fields_and_methods_and_indexing(tokens);
 
     const Token *suffixstart = *tokens;
     while(is_operator(*tokens,"++")||is_operator(*tokens,"--")) ++*tokens;
@@ -588,6 +598,8 @@ static void validate_expression_statement(const AstExpression *expr)
 {
     switch(expr->kind) {
     case AST_EXPR_FUNCTION_CALL:
+    case AST_EXPR_CALL_METHOD:
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
     case AST_EXPR_PRE_INCREMENT:
     case AST_EXPR_PRE_DECREMENT:
     case AST_EXPR_POST_INCREMENT:
@@ -744,6 +756,22 @@ static AstBody parse_body(const Token **tokens)
     return (AstBody){ .statements=result.ptr, .nstatements=result.len };
 }
 
+static AstFunctionDef parse_funcdef(const Token **tokens)
+{
+    assert(is_keyword(*tokens, "def"));
+    ++*tokens;
+
+    struct AstFunctionDef funcdef = {0};
+    funcdef.signature = parse_function_signature(tokens);
+    if (funcdef.signature.takes_varargs) {
+        // TODO: support "def foo(x: str, ...)" in some way
+        fail_with_error((*tokens)->location, "functions with variadic arguments cannot be defined yet");
+    }
+    funcdef.body = parse_body(tokens);
+
+    return funcdef;
+}
+
 static AstStructDef parse_structdef(const Token **tokens)
 {
     AstStructDef result = {0};
@@ -754,18 +782,21 @@ static AstStructDef parse_structdef(const Token **tokens)
 
     parse_start_of_body(tokens);
     while ((*tokens)->type != TOKEN_DEDENT) {
-        Location name_location = (*tokens)->location;
-        AstNameTypeValue field = parse_name_type_value(tokens, "a name for a struct field");
+        if (is_keyword(*tokens, "def")) {
+            Append(&result.methods, parse_funcdef(tokens));
+        } else {
+            Location name_location = (*tokens)->location;
+            AstNameTypeValue field = parse_name_type_value(tokens, "a method or a struct field");
 
-        if (field.value)
-            fail_with_error(field.value->location, "struct fields cannot have default values");
+            if (field.value)
+                fail_with_error(field.value->location, "struct fields cannot have default values");
 
-        for (const AstNameTypeValue *prevfield = result.fields.ptr; prevfield < End(result.fields); prevfield++)
-            if (!strcmp(prevfield->name, field.name))
-                fail_with_error(name_location, "there are multiple fields named '%s'", field.name);
-        Append(&result.fields, field);
-
-        eat_newline(tokens);
+            for (const AstNameTypeValue *prevfield = result.fields.ptr; prevfield < End(result.fields); prevfield++)
+                if (!strcmp(prevfield->name, field.name))
+                    fail_with_error(name_location, "there are multiple fields named '%s'", field.name);
+            Append(&result.fields, field);
+            eat_newline(tokens);
+        }
     }
 
     ++*tokens;

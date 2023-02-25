@@ -157,7 +157,7 @@ struct AstSignature {
 };
 
 struct AstCall {
-    char calledname[100];  // e.g. function name of function call, struct name of instantiation
+    char calledname[100];  // e.g. function name, method name, struct name (instantiation)
     char (*argnames)[100];  // NULL when arguments are not named, e.g. function calls
     AstExpression *args;
     int nargs;
@@ -173,6 +173,8 @@ struct AstExpression {
         AST_EXPR_BRACE_INIT,
         AST_EXPR_GET_FIELD,     // foo.bar
         AST_EXPR_DEREF_AND_GET_FIELD,  // foo->bar (shorthand for (*foo).bar)
+        AST_EXPR_CALL_METHOD,  // foo.bar()
+        AST_EXPR_DEREF_AND_CALL_METHOD,  // foo->bar()
         AST_EXPR_INDEXING,  // foo[bar]
         AST_EXPR_AS,  // foo as SomeType
         AST_EXPR_GET_VARIABLE,
@@ -205,6 +207,7 @@ struct AstExpression {
         Constant constant;  // AST_EXPR_CONSTANT
         char varname[100];  // AST_EXPR_GET_VARIABLE
         AstCall call;       // AST_EXPR_CALL, AST_EXPR_INSTANTIATE
+        struct { AstExpression *obj; struct AstCall call; } methodcall;  // AST_EXPR_CALL_METHOD, AST_EXPR_DEREF_AND_CALL_METHOD
         struct { AstExpression *obj; char fieldname[100]; } structfield;  // AST_EXPR_GET_FIELD, AST_EXPR_DEREF_AND_GET_FIELD
         struct { char enumname[100]; char membername[100]; } enummember;
         struct { AstExpression *obj; AstType type; } as;
@@ -295,6 +298,7 @@ struct AstFunctionDef {
 struct AstStructDef {
     char name[100];
     List(AstNameTypeValue) fields;
+    List(AstFunctionDef) methods;
 };
 
 struct AstEnumDef {
@@ -395,7 +399,7 @@ bool is_number_type(const Type *t);  // integers, floats, doubles
 bool is_pointer_type(const Type *t);  // includes void pointers
 
 struct Signature {
-    char funcname[100];
+    char funcname[200];  // For methods this is "ClassName.methodname"
     int nargs;
     const Type **argtypes;
     char (*argnames)[100];
@@ -429,7 +433,7 @@ struct ExpressionTypes {
 
 struct ExportSymbol {
     enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_TYPE, EXPSYM_GLOBAL_VAR } kind;
-    char name[100];
+    char name[200];  // For methods this is "StructName.method_name"
     union {
         Signature funcsignature;
         const Type *type;  // EXPSYM_TYPE and EXPSYM_GLOBAL_VAR
@@ -518,7 +522,7 @@ struct CfInstruction {
     } kind;
     union CfInstructionData {
         Constant constant;      // CF_CONSTANT
-        char funcname[100];     // CF_CALL
+        char funcname[200];     // CF_CALL
         char fieldname[100];    // CF_PTR_STRUCT_FIELD
         char globalname[100];   // CF_ADDRESS_OF_GLOBAL_VAR
         const Type *type;       // CF_SIZEOF

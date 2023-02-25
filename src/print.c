@@ -201,6 +201,14 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         printf("get struct field \"%s\"\n", expr->data.structfield.fieldname);
         print_ast_expression(expr->data.structfield.obj, print_tree_prefix(tp, true));
         break;
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        printf("dereference and ");
+        __attribute__((fallthrough));
+    case AST_EXPR_CALL_METHOD:
+        printf("call method \"%s\"\n", expr->data.methodcall.call.calledname);
+        print_ast_expression(expr->data.methodcall.obj, print_tree_prefix(tp, false));
+        print_ast_call(&expr->data.methodcall.call, print_tree_prefix(tp, true));
+        break;
     case AST_EXPR_GET_ENUM_MEMBER:
         printf("get member \"%s\" from enum \"%s\"\n",
             expr->data.enummember.membername, expr->data.enummember.enumname);

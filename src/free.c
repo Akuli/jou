@@ -75,6 +75,12 @@ static void free_expression(const AstExpression *expr)
         free_expression(expr->data.structfield.obj);
         free(expr->data.structfield.obj);
         break;
+    case AST_EXPR_CALL_METHOD:
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        free_expression(expr->data.methodcall.obj);
+        free(expr->data.methodcall.obj);
+        free_call(&expr->data.methodcall.call);
+        break;
     case AST_EXPR_INDEXING:
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
@@ -119,7 +125,7 @@ static void free_expression(const AstExpression *expr)
     }
 }
 
-static void free_body(const AstBody *body);
+static void free_ast_body(const AstBody *body);
 
 static void free_statement(const AstStatement *stmt)
 {
@@ -127,14 +133,14 @@ static void free_statement(const AstStatement *stmt)
     case AST_STMT_IF:
         for (int i = 0; i < stmt->data.ifstatement.n_if_and_elifs; i++) {
             free_expression(&stmt->data.ifstatement.if_and_elifs[i].condition);
-            free_body(&stmt->data.ifstatement.if_and_elifs[i].body);
+            free_ast_body(&stmt->data.ifstatement.if_and_elifs[i].body);
         }
         free(stmt->data.ifstatement.if_and_elifs);
-        free_body(&stmt->data.ifstatement.elsebody);
+        free_ast_body(&stmt->data.ifstatement.elsebody);
         break;
     case AST_STMT_WHILE:
         free_expression(&stmt->data.whileloop.condition);
-        free_body(&stmt->data.whileloop.body);
+        free_ast_body(&stmt->data.whileloop.body);
         break;
     case AST_STMT_FOR:
         free_statement(stmt->data.forloop.init);
@@ -142,7 +148,7 @@ static void free_statement(const AstStatement *stmt)
         free_statement(stmt->data.forloop.incr);
         free(stmt->data.forloop.init);
         free(stmt->data.forloop.incr);
-        free_body(&stmt->data.forloop.body);
+        free_ast_body(&stmt->data.forloop.body);
         break;
     case AST_STMT_EXPRESSION_STATEMENT:
     case AST_STMT_RETURN_VALUE:
@@ -167,7 +173,7 @@ static void free_statement(const AstStatement *stmt)
     }
 }
 
-static void free_body(const AstBody *body)
+static void free_ast_body(const AstBody *body)
 {
     for (int i = 0; i < body->nstatements; i++)
         free_statement(&body->statements[i]);
@@ -183,7 +189,7 @@ void free_ast(AstToplevelNode *topnodelist)
             break;
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             free_ast_signature(&t->data.funcdef.signature);
-            free_body(&t->data.funcdef.body);
+            free_ast_body(&t->data.funcdef.body);
             break;
         case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
         case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
@@ -193,6 +199,11 @@ void free_ast(AstToplevelNode *topnodelist)
             for (const AstNameTypeValue *ntv = t->data.structdef.fields.ptr; ntv < End(t->data.structdef.fields); ntv++)
                 free_name_type_value(ntv);
             free(t->data.structdef.fields.ptr);
+            for (const AstFunctionDef *m = t->data.structdef.methods.ptr; m < End(t->data.structdef.methods); m++) {
+                free_ast_signature(&m->signature);
+                free_ast_body(&m->body);
+            }
+            free(t->data.structdef.methods.ptr);
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
             free(t->data.enumdef.membernames);

@@ -78,48 +78,48 @@ struct Tokenizer:
     parens: Token[50]
     parens_len: int
 
-def read_byte(self: Tokenizer*) -> byte:
+def read_byte(self_: Tokenizer*) -> byte:
     EOF = -1  # FIXME
 
     c: byte
-    if self->pushback_len > 0:
-        c = self->pushback[--self->pushback_len]
+    if self_->pushback_len > 0:
+        c = self_->pushback[--self_->pushback_len]
     else:
-        temp = fgetc(self->f)
+        temp = fgetc(self_->f)
         if temp == '\r':
             # On Windows, \r just before \n is ignored.
-            temp = fgetc(self->f)
+            temp = fgetc(self_->f)
             if temp != EOF and temp != '\n':
                 # TODO: test this, if possible?
-                fail(self->location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
+                fail(self_->location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
 
         if temp == EOF:
-            if ferror(self->f) != 0:
+            if ferror(self_->f) != 0:
                 # TODO: include errno in the error message
-                fail(self->location, "cannot read file")
+                fail(self_->location, "cannot read file")
             # Use the zero byte to denote end of file.
             c = '\0'
         elif temp == '\0':
             # TODO: test this
-            fail(self->location, "source file contains a zero byte")
+            fail(self_->location, "source file contains a zero byte")
             c = 'x'  # TODO: silences compiler warning, but never runs
         else:
             c = temp as byte
 
     if c == '\n':
-        self->location.lineno++
+        self_->location.lineno++
     return c
 
 
-def unread_byte(self: Tokenizer*, b: byte) -> void:
+def unread_byte(self_: Tokenizer*, b: byte) -> void:
     if b == '\0':
         return
 
     assert(b != '\r')
-    self->pushback = realloc(self->pushback, self->pushback_len + 1)
-    self->pushback[self->pushback_len++] = b
+    self_->pushback = realloc(self_->pushback, self_->pushback_len + 1)
+    self_->pushback[self_->pushback_len++] = b
     if b == '\n':
-        self->location.lineno--
+        self_->location.lineno--
 
 def is_identifier_or_number_byte(b: byte) -> bool:
     return (
@@ -129,7 +129,7 @@ def is_identifier_or_number_byte(b: byte) -> bool:
         or b == '_'
     )
 
-def read_identifier_or_number(self: Tokenizer*, first_byte: byte) -> byte[100]:
+def read_identifier_or_number(self_: Tokenizer*, first_byte: byte) -> byte[100]:
     dest: byte[100]
     memset(&dest, 0, sizeof dest)
     destlen = 0
@@ -138,27 +138,27 @@ def read_identifier_or_number(self: Tokenizer*, first_byte: byte) -> byte[100]:
     dest[destlen++] = first_byte
 
     while True:
-        b = read_byte(self)
+        b = read_byte(self_)
         if is_identifier_or_number_byte(b):
             if destlen == sizeof dest - 1:
-                fail(self->location, "name or number is too long")
+                fail(self_->location, "name or number is too long")
             dest[destlen++] = b
         else:
-            unread_byte(self, b)
+            unread_byte(self_, b)
             return dest
 
-def consume_rest_of_line(self: Tokenizer*) -> void:
+def consume_rest_of_line(self_: Tokenizer*) -> void:
     while True:
-        c = read_byte(self)
+        c = read_byte(self_)
         if c == '\0' or c == '\n':
-            unread_byte(self, c)
+            unread_byte(self_, c)
             break
 
 # Returns the indentation level for the next line
-def read_newline_token(self: Tokenizer*) -> int:
+def read_newline_token(self_: Tokenizer*) -> int:
     level = 0
     while True:
-        c = read_byte(self)
+        c = read_byte(self_)
         if c == '\0':
             # End of file. Do not validate that indentation is a
             # multiple of 4 spaces. Add a trailing newline implicitly
@@ -169,30 +169,30 @@ def read_newline_token(self: Tokenizer*) -> int:
         elif c == '\n':
             level = 0
         elif c == '#':
-            consume_rest_of_line(self)
+            consume_rest_of_line(self_)
         elif c == ' ':
             level++
         else:
-            unread_byte(self, c)
+            unread_byte(self_, c)
             return level
 
-def read_string(self: Tokenizer*) -> byte*:
+def read_string(self_: Tokenizer*) -> byte*:
     result: byte* = NULL
     len = 0
 
     while True:
-        c = read_byte(self)
+        c = read_byte(self_)
         if c == '"':
             break
         elif c == '\n' or c == '\0':
             if c == '\n':
-                self->location.lineno--
-            fail(self->location, "missing \" to end the string")
+                self_->location.lineno--
+            fail(self_->location, "missing \" to end the string")
         elif c == '\n':
             # \n means newline, for example
-            after_backslash = read_byte(self)
+            after_backslash = read_byte(self_)
             if after_backslash == '\0':
-                fail(self->location, "missing \" to end the string")
+                fail(self_->location, "missing \" to end the string")
             elif after_backslash == '\n':
                 result = realloc(result, len+1)
                 result[len++] = '\n'
@@ -203,7 +203,7 @@ def read_string(self: Tokenizer*) -> byte*:
                 result = realloc(result, len+1)
                 result[len++] = after_backslash
             elif after_backslash == '0':
-                fail(self->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte")
+                fail(self_->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte")
             elif '0' <= after_backslash and after_backslash <= '9':
                 result = realloc(result, len+1)
                 result[len++] = after_backslash - '0'
@@ -214,9 +214,9 @@ def read_string(self: Tokenizer*) -> byte*:
                 if after_backslash < 0x80 and isprint(after_backslash) != 0:
                     message: byte* = malloc(100)
                     sprintf(message, "unknown escape: '\\%c'", after_backslash)
-                    fail(self->location, message)
+                    fail(self_->location, message)
                 else:
-                    fail(self->location, "unknown '\\' escape")
+                    fail(self_->location, "unknown '\\' escape")
         else:
             result = realloc(result, len+1)
             result[len++] = c
@@ -228,13 +228,13 @@ def read_string(self: Tokenizer*) -> byte*:
 def is_operator_byte(c: byte) -> bool:
     return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%", c) != NULL
 
-def read_operator(self: Tokenizer*) -> byte[100]:
+def read_operator(self_: Tokenizer*) -> byte[100]:
     # TODO: nicer array syntax
     operators: byte*[100]
     i = 0
     # This list of operators is in 3 places. Please keep them in sync:
     #   - the Jou compiler written in C
-    #   - self-hosted compiler
+    #   - self_-hosted compiler
     #   - syntax documentation
     #
     # Longer operators are first, so that '==' does not tokenize as '=' '='
@@ -280,9 +280,9 @@ def read_operator(self: Tokenizer*) -> byte[100]:
 
     # Read as many operator characters as we may need.
     while strlen(&operator[0]) < 3:
-        c = read_byte(self)
+        c = read_byte(self_)
         if not is_operator_byte(c):
-            unread_byte(self, c)
+            unread_byte(self_, c)
             break
         operator[strlen(&operator[0])] = c
 
@@ -291,7 +291,7 @@ def read_operator(self: Tokenizer*) -> byte[100]:
             # Unread the bytes we didn't use.
             while strlen(&operator[0]) > strlen(*op):
                 last = &operator[strlen(&operator[0]) - 1]
-                unread_byte(self, *last)
+                unread_byte(self_, *last)
                 *last = '\0'
 
             # "===" and "!==" are here only to give a better error message to javascript people.
@@ -300,7 +300,7 @@ def read_operator(self: Tokenizer*) -> byte[100]:
 
     message: byte[100]
     sprintf(&message[0], "there is no '%s' operator", &operator[0])
-    fail(self->location, &message[0])
+    fail(self_->location, &message[0])
     return operator  # TODO: never actually runs, but causes a compiler warning
 
 def is_keyword(word: byte*) -> bool:
@@ -309,7 +309,7 @@ def is_keyword(word: byte*) -> bool:
     i = 0
     # This keyword list is in 3 places. Please keep them in sync:
     #   - the Jou compiler written in C
-    #   - self-hosted compiler
+    #   - self_-hosted compiler
     #   - syntax documentation
     keywords[i++] = "from"
     keywords[i++] = "import"
@@ -351,27 +351,27 @@ def is_keyword(word: byte*) -> bool:
 # TODO: move to stdlib
 declare atoi(s: byte*) -> int
 
-def read_token(self: Tokenizer*) -> Token:
+def read_token(self_: Tokenizer*) -> Token:
     while True:
-        token = Token{location = self->location}
-        b = read_byte(self)
+        token = Token{location = self_->location}
+        b = read_byte(self_)
 
         if b == ' ':
             continue
         if b == '#':
-            consume_rest_of_line(self)
+            consume_rest_of_line(self_)
             continue
 
         if b == '\n':
-            if self->parens_len > 0:
+            if self_->parens_len > 0:
                 continue
             token.kind = TokenKind::Newline
-            token.indentation_level = read_newline_token(self)
+            token.indentation_level = read_newline_token(self_)
         elif b == '"':
             token.kind = TokenKind::String
-            token.long_string = read_string(self)
+            token.long_string = read_string(self_)
         elif is_identifier_or_number_byte(b):
-            token.short_string = read_identifier_or_number(self, b)
+            token.short_string = read_identifier_or_number(self_, b)
             if is_keyword(&token.short_string[0]):
                 token.kind = TokenKind::Keyword
             elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
@@ -381,15 +381,15 @@ def read_token(self: Tokenizer*) -> Token:
             else:
                 token.kind = TokenKind::Name
         elif is_operator_byte(b):
-            unread_byte(self, b)
+            unread_byte(self_, b)
             token.kind = TokenKind::Operator
-            token.short_string = read_operator(self)
+            token.short_string = read_operator(self_)
         elif b == '\0':
             token.kind = TokenKind::EndOfFile
         else:
             message: byte[100]
             sprintf(&message[0], "unexpected byte %#02x", b)
-            fail(self->location, &message[0])
+            fail(self_->location, &message[0])
         return token
 
 def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:

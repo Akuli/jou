@@ -164,13 +164,18 @@ static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *
     return es;
 }
 
-static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsig)
+static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsig, const char *method_of_what_struct)
 {
     if (find_function(ctx, astsig->funcname))
         fail_with_error(astsig->funcname_location, "a function named '%s' already exists", astsig->funcname);
 
     Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
-    safe_strcpy(sig.funcname, astsig->funcname);
+    if (method_of_what_struct) {
+        assert(strlen(method_of_what_struct) + strlen(".") + strlen(astsig->funcname) < sizeof sig.funcname);
+        sprintf(sig.funcname, "%s.%s", method_of_what_struct, astsig->funcname);
+    } else {
+        safe_strcpy(sig.funcname, astsig->funcname);
+    }
 
     size_t size = sizeof(sig.argnames[0]) * sig.nargs;
     sig.argnames = malloc(size);
@@ -184,7 +189,7 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
     sig.returntype = type_or_void_from_ast(ctx, &astsig->returntype);
     // TODO: validate main() parameters
     // TODO: test main() taking parameters
-    if (!strcmp(sig.funcname, "main") && sig.returntype != intType) {
+    if (!method_of_what_struct && !strcmp(sig.funcname, "main") && sig.returntype != intType) {
         fail_with_error(astsig->returntype.location, "the main() function must return int");
     }
 
@@ -236,12 +241,14 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
             break;
         case AST_TOPLEVEL_DECLARE_FUNCTION:
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            Append(&exports, handle_signature(ctx, &ast->data.funcdef.signature));
+            Append(&exports, handle_signature(ctx, &ast->data.funcdef.signature, NULL));
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
             // No new export symbols, because the previous type-checking step already
             // took care of that.
             handle_struct_fields(ctx, &ast->data.structdef);
+            for (const AstFunctionDef *m = ast->data.structdef.methods.ptr; m < End(ast->data.structdef.methods); m++)
+                Append(&exports, handle_signature(ctx, &m->signature, ast->data.structdef.name));
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
         case AST_TOPLEVEL_IMPORT:
@@ -470,6 +477,8 @@ static const char *short_expression_description(const AstExpression *expr)
     case AST_EXPR_GET_ENUM_MEMBER: return "an enum member";
     case AST_EXPR_SIZEOF: return "a sizeof expression";
     case AST_EXPR_FUNCTION_CALL: return "a function call";
+    case AST_EXPR_CALL_METHOD: return "a method call";
+    case AST_EXPR_DEREF_AND_CALL_METHOD: return "a method call";
     case AST_EXPR_BRACE_INIT: return "a newly created instance";
     case AST_EXPR_INDEXING: return "an indexed value";
     case AST_EXPR_AS: return "the result of a cast";
@@ -623,17 +632,40 @@ static const char *nth(int n)
 }
 
 // returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
-static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call, Location location)
+static const Type *typecheck_function_or_method_call(TypeContext *ctx, const AstCall *call, const Type *self_type, Location location)
 {
-    const Signature *sig = find_function(ctx, call->calledname);
-    if (!sig)
-        fail_with_error(location, "function '%s' not found", call->calledname);
+    const Signature *sig;
+    char function_or_method[20];
+
+    if (self_type) {
+        strcpy(function_or_method, "method");
+
+        if (self_type->kind != TYPE_STRUCT) {
+            fail_with_error(location,
+                "type %s does not have a method named '%s', and in fact, it doesn't have any methods because it is not a struct",
+                self_type->name, call->calledname);
+        }
+
+        char name_to_search[sizeof self_type->name + sizeof "." + sizeof call->calledname];
+        sprintf(name_to_search, "%s.%s", self_type->name, call->calledname);
+        sig = find_function(ctx, name_to_search);
+        if (!sig)
+            fail_with_error(location, "struct %s does not have a method named '%s'", self_type->name, call->calledname);
+    } else {
+        strcpy(function_or_method, "function");
+        sig = find_function(ctx, call->calledname);
+        if (!sig)
+            fail_with_error(location, "function '%s' not found", call->calledname);
+    }
+
     char *sigstr = signature_to_string(sig, false);
 
-    if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->takes_varargs)) {
+    int n = call->nargs + !!self_type;
+    if (n < sig->nargs || (n > sig->nargs && !sig->takes_varargs)) {
         fail_with_error(
             location,
-            "function %s takes %d argument%s, but it was called with %d argument%s",
+            "%s %s takes %d argument%s, but it was called with %d argument%s",
+            function_or_method,
             sigstr,
             sig->nargs,
             sig->nargs==1?"":"s",
@@ -642,13 +674,16 @@ static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call
         );
     }
 
+    int k = 0;
     for (int i = 0; i < sig->nargs; i++) {
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
-        snprintf(msg, sizeof msg, "%s argument of function %s should have type TO, not FROM", nth(i+1), sigstr);
-        typecheck_expression_with_implicit_cast(ctx, &call->args[i], sig->argtypes[i], msg);
+        snprintf(msg, sizeof msg, "%s argument of %s %s should have type TO, not FROM", nth(i+1), function_or_method, sigstr);
+        if (strcmp(sig->argnames[i], "self"))
+            typecheck_expression_with_implicit_cast(ctx, &call->args[k++], sig->argtypes[i], msg);
     }
-    for (int i = sig->nargs; i < call->nargs; i++) {
+
+    for (int i = k; i < call->nargs; i++) {
         // This code runs for varargs, e.g. the things to format in printf().
         ExpressionTypes *types = typecheck_expression_not_void(ctx, &call->args[i]);
 
@@ -763,7 +798,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_FUNCTION_CALL:
         {
-            const Type *ret = typecheck_function_call(ctx, &expr->data.call, expr->location);
+            const Type *ret = typecheck_function_or_method_call(ctx, &expr->data.call, NULL, expr->location);
             if (!ret)
                 return NULL;
             result = ret;
@@ -794,6 +829,12 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
                 temptype->name);
         result = typecheck_struct_field(temptype->data.valuetype, expr->data.structfield.fieldname, expr->location);
         break;
+    case AST_EXPR_CALL_METHOD:
+        temptype = typecheck_expression_not_void(ctx, expr->data.methodcall.obj)->type;
+        result = typecheck_function_or_method_call(ctx, &expr->data.methodcall.call, temptype, expr->location);
+        break;
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        assert(0);  // TODO
     case AST_EXPR_INDEXING:
         result = typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);
         break;
