@@ -458,6 +458,30 @@ static const LocalVariable *build_struct_init(struct State *st, const Type *type
     return instance;
 }
 
+static const LocalVariable *build_array(struct State *st, const Type *type, const AstExpression *items, Location location)
+{
+    assert(type->kind == TYPE_ARRAY);
+
+    const LocalVariable *arr = add_local_var(st, type);
+    const LocalVariable *arrptr = add_local_var(st, get_pointer_type(type));
+    add_unary_op(st, location, CF_ADDRESS_OF_LOCAL_VAR, arr, arrptr);
+    const LocalVariable *first_item_ptr = add_local_var(st, get_pointer_type(type->data.array.membertype));
+    add_unary_op(st, location, CF_PTR_CAST, arrptr, first_item_ptr);
+
+    for (int i = 0; i < type->data.array.len; i++) {
+        const LocalVariable *value = build_expression(st, &items[i]);
+
+        const LocalVariable *ivar = add_local_var(st, intType);
+        add_constant(st, location, int_constant(intType, i), ivar);
+
+        const LocalVariable *destptr = add_local_var(st, first_item_ptr->type);
+        add_binary_op(st, location, CF_PTR_ADD_INT, first_item_ptr, ivar, destptr);
+        add_binary_op(st, location, CF_PTR_STORE, destptr, value, NULL);
+    }
+
+    return arr;
+}
+
 static int find_enum_member(const Type *enumtype, const char *name)
 {
     for (int i = 0; i < enumtype->data.enummembers.count; i++)
@@ -489,6 +513,11 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
         break;
     case AST_EXPR_BRACE_INIT:
         result = build_struct_init(st, types->type, &expr->data.call, expr->location);
+        break;
+    case AST_EXPR_ARRAY:
+        assert(types->type->kind == TYPE_ARRAY);
+        assert(types->type->data.array.len == expr->data.array.count);
+        result = build_array(st, types->type, expr->data.array.items, expr->location);
         break;
     case AST_EXPR_GET_FIELD:
         temp = build_expression(st, expr->data.structfield.obj);

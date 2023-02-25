@@ -325,19 +325,45 @@ static void add_to_binop(const Token **tokens, AstExpression *result, AstExpress
     *result = build_operator_expression(t, 2, (AstExpression[]){*result, rhs});
 }
 
+static AstExpression parse_array(const Token **tokens)
+{
+    const Token *openbracket = *tokens;
+    assert(is_operator(openbracket, "["));
+    ++*tokens;
+
+    List(AstExpression) items = {0};
+    do {
+        Append(&items, parse_expression(tokens));
+    } while (is_operator(*tokens, ",") && !is_operator(++*tokens, "]"));
+
+    if (!is_operator(*tokens, "]"))
+        fail_with_parse_error(*tokens, "a ']' to end the array");
+    ++*tokens;
+
+    return (AstExpression){
+        .kind=AST_EXPR_ARRAY,
+        .location = openbracket->location,
+        .data.array = {.count=items.len, .items=items.ptr},
+    };
+}
+
 static AstExpression parse_elementary_expression(const Token **tokens)
 {
     AstExpression expr = { .location = (*tokens)->location };
 
     switch((*tokens)->type) {
     case TOKEN_OPERATOR:
-        if (!is_operator(*tokens, "("))
+        if (is_operator(*tokens, "[")) {
+            expr = parse_array(tokens);
+        } else if (is_operator(*tokens, "(")) {
+            ++*tokens;
+            expr = parse_expression(tokens);
+            if (!is_operator(*tokens, ")"))
+                fail_with_parse_error(*tokens, "a ')'");
+            ++*tokens;
+        } else {
             goto not_an_expression;
-        ++*tokens;
-        expr = parse_expression(tokens);
-        if (!is_operator(*tokens, ")"))
-            fail_with_parse_error(*tokens, "a ')'");
-        ++*tokens;
+        }
         break;
     case TOKEN_INT:
         expr.kind = AST_EXPR_CONSTANT;

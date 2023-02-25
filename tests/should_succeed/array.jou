@@ -2,12 +2,7 @@ declare printf(fmt: byte*, ...) -> int
 
 # c can't do this
 def make_array() -> int[3]:
-    #return [4, 5, 6]
-    result: int[3]
-    result[0] = 4
-    result[1] = 5
-    result[2] = 6
-    return result
+    return [4, 5, 6]
 
 # Arrays are passed by value.
 def do_nothing(a: int[3]) -> void:
@@ -18,7 +13,6 @@ def increment(a: int*) -> void:
     ++a[0]
 
 def main() -> int:
-    #foo = int[3]{1, 2, 3}
     foo: int[3]
     foo[0] = 1
     foo[1] = 2
@@ -27,6 +21,13 @@ def main() -> int:
     printf("%d %d %d\n", foo[0], foo[1], foo[2])  # Output: 1 2 3
 
     foo = make_array()
+    printf("%d %d %d\n", foo[0], foo[1], foo[2])  # Output: 4 5 6
+
+    foo = [
+        4,
+        '\5',  # converts to int
+        6,
+    ]
     printf("%d %d %d\n", foo[0], foo[1], foo[2])  # Output: 4 5 6
 
     do_nothing(foo)

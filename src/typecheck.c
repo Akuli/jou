@@ -310,15 +310,10 @@ static noreturn void fail_with_implicit_cast_error(
     fail_with_error(location, "%.*s", msg.len, msg.ptr);
 }
 
-static void do_implicit_cast(
-    ExpressionTypes *types, const Type *to, Location location, const char *errormsg_template)
+static bool can_cast_implicitly(const Type *from, const Type *to)
 {
-    const Type *from = types->type;
-    if (from == to)
-        return;
-
-    bool can_cast =
-        errormsg_template == NULL   // This can be used to "force" a cast to happen.
+    return
+        from == to
         || (
             // Cast to bigger integer types implicitly, unless it is signed-->unsigned.
             is_integer_type(from)
@@ -336,8 +331,17 @@ static void do_implicit_cast(
             (from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
             || (from->kind == TYPE_VOID_POINTER && to->kind == TYPE_POINTER)
         );
+}
 
-    if (!can_cast)
+static void do_implicit_cast(
+    ExpressionTypes *types, const Type *to, Location location, const char *errormsg_template)
+{
+    const Type *from = types->type;
+    if (from == to)
+        return;
+
+    // Passing in NULL for errormsg_template can be used to "force" a cast to happen.
+    if (errormsg_template != NULL && !can_cast_implicitly(from, to))
         fail_with_implicit_cast_error(location, errormsg_template, from, to);
 
     assert(!types->type_after_cast);
@@ -482,6 +486,7 @@ static const char *short_expression_description(const AstExpression *expr)
     case AST_EXPR_CALL_METHOD: return "a method call";
     case AST_EXPR_DEREF_AND_CALL_METHOD: return "a method call";
     case AST_EXPR_BRACE_INIT: return "a newly created instance";
+    case AST_EXPR_ARRAY: return "an array";
     case AST_EXPR_INDEXING: return "an indexed value";
     case AST_EXPR_AS: return "the result of a cast";
     case AST_EXPR_GET_VARIABLE: return "a variable";
@@ -815,6 +820,62 @@ static bool enum_member_exists(const Type *t, const char *name)
     return false;
 }
 
+static const Type *cast_array_members_to_a_common_type(Location error_location, ExpressionTypes **exprtypes)
+{
+    // Avoid O(ntypes^2) code in a long array where all or almost all items have the same type.
+    // This is at most O(ntypes*k) where k is the number of distinct types.
+    List(const Type *) distinct = {0};
+    for (ExpressionTypes **et = exprtypes; *et; et++) {
+        bool found = false;
+        for (const Type **t = distinct.ptr; t < End(distinct); t++) {
+            if ((*et)->type == *t) {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            Append(&distinct, (*et)->type);
+    }
+
+    const Type *result = NULL;
+    for (const Type **t = distinct.ptr; t < End(distinct); t++) {
+        bool t_compatible_with_all_others = true;
+        for (const Type **t2 = distinct.ptr; t2 < End(distinct); t2++) {
+            if (!can_cast_implicitly(*t2,*t)) {
+                t_compatible_with_all_others = false;
+                break;
+            }
+        }
+        if (t_compatible_with_all_others) {
+            /*
+            This assertion should never fail, assuming that
+
+                can_cast_implicitly(A,B) && can_cast_implicitly(B,A)
+
+            is possible only when A and B are the same type.
+            */
+            assert(!result);
+            result = *t;
+        }
+    }
+
+    if (!result) {
+        List(char) namestr = {0};
+        for (const Type **t = distinct.ptr; t < End(distinct); t++) {
+            AppendStr(&namestr, (*t)->name);
+            AppendStr(&namestr, ", ");
+        }
+        fail_with_error(
+            error_location, "array items have different types (%.*s)",
+            namestr.len - 2, namestr.ptr);
+    }
+
+    free(distinct.ptr);
+    for (ExpressionTypes **et = exprtypes; *et; et++)
+        do_implicit_cast(*et, result, error_location, NULL);
+    return result;
+}
+
 static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpression *expr)
 {
     const Type *temptype;
@@ -848,6 +909,18 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_BRACE_INIT:
         result = typecheck_struct_init(ctx, &expr->data.call, expr->location);
+        break;
+    case AST_EXPR_ARRAY:
+        {
+            int n = expr->data.array.count;
+            ExpressionTypes **exprtypes = calloc(sizeof(exprtypes[0]), n+1);  // NOLINT
+            for (int i = 0; i < n; i++)
+                exprtypes[i] = typecheck_expression_not_void(ctx, &expr->data.array.items[i]);
+
+            const Type *membertype = cast_array_members_to_a_common_type(expr->location, exprtypes);
+            free(exprtypes);
+            result = get_array_type(membertype, n);
+        }
         break;
     case AST_EXPR_GET_FIELD:
         temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
