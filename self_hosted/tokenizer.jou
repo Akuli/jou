@@ -361,7 +361,11 @@ def read_token(self: Tokenizer*) -> Token:
     while True:
         token = Token{location = self->location}
         b = read_byte(self)
+
         if b == ' ':
+            continue
+        if b == '#':
+            consume_rest_of_line(self)
             continue
 
         if b == '\n':
