@@ -151,6 +151,7 @@ def consume_rest_of_line(self: Tokenizer*) -> void:
     while True:
         c = read_byte(self)
         if c == '\0' or c == '\n':
+            unread_byte(self, c)
             break
 
 # Returns the indentation level for the next line
@@ -169,7 +170,6 @@ def read_newline_token(self: Tokenizer*) -> int:
             level = 0
         elif c == '#':
             consume_rest_of_line(self)
-            level = 0
         elif c == ' ':
             level++
         else:
