@@ -215,6 +215,10 @@ static bool is_valid_float(const char *str)
 static bool is_keyword(const char *s)
 {
     const char *keywords[] = {
+        // This keyword list is in 3 places. Please keep them in sync:
+        //   - the Jou compiler written in C
+        //   - self-hosted compiler
+        //   - syntax documentation
         "from", "import",
         "def", "declare", "struct", "enum", "global",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
@@ -327,7 +331,12 @@ static const char operatorChars[] = "=<>!.,()[]{};:+-*/&%";
 static const char *read_operator(struct State *st)
 {
     const char *operators[] = {
-        // Longer operators first, so that '==' does not parse as '=' '='
+        // This list of operators is in 3 places. Please keep them in sync:
+        //   - the Jou compiler written in C
+        //   - self-hosted compiler
+        //   - syntax documentation
+        //
+        // Longer operators are first, so that '==' does not tokenize as '=' '='
         "...", "===", "!==",
         "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "::",
         ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">",
