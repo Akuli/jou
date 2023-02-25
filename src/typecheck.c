@@ -837,7 +837,7 @@ static const Type *cast_array_members_to_a_common_type(Location error_location, 
             Append(&distinct, (*et)->type);
     }
 
-    const Type *result = NULL;
+    List(const Type *) compatible_with_all = {0};
     for (const Type **t = distinct.ptr; t < End(distinct); t++) {
         bool t_compatible_with_all_others = true;
         for (const Type **t2 = distinct.ptr; t2 < End(distinct); t2++) {
@@ -846,20 +846,11 @@ static const Type *cast_array_members_to_a_common_type(Location error_location, 
                 break;
             }
         }
-        if (t_compatible_with_all_others) {
-            /*
-            This assertion should never fail, assuming that
-
-                can_cast_implicitly(A,B) && can_cast_implicitly(B,A)
-
-            is possible only when A and B are the same type.
-            */
-            assert(!result);
-            result = *t;
-        }
+        if (t_compatible_with_all_others)
+            Append(&compatible_with_all, *t);
     }
 
-    if (!result) {
+    if (compatible_with_all.len != 1) {
         List(char) namestr = {0};
         for (const Type **t = distinct.ptr; t < End(distinct); t++) {
             AppendStr(&namestr, (*t)->name);
@@ -869,11 +860,13 @@ static const Type *cast_array_members_to_a_common_type(Location error_location, 
             error_location, "array items have different types (%.*s)",
             namestr.len - 2, namestr.ptr);
     }
-
+    const Type *elemtype = compatible_with_all.ptr[0];
     free(distinct.ptr);
+    free(compatible_with_all.ptr);
+
     for (ExpressionTypes **et = exprtypes; *et; et++)
-        do_implicit_cast(*et, result, error_location, NULL);
-    return result;
+        do_implicit_cast(*et, elemtype, error_location, NULL);
+    return elemtype;
 }
 
 static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpression *expr)

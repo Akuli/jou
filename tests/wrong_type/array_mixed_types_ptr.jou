@@ -1,0 +1,9 @@
+def foo() -> void:
+    # When we make an array of int* and void*:
+    #   - we could cast int* to void*, and get an array of void*
+    #   - we could cast void* to int*, and get an array of int*
+    #
+    # Because the compiler cannot be sure what you want, it refuses to
+    # guess and instead errors.
+    a = 1
+    x = [&a, &a as void*]  # Error: array items have different types (int*, void*)
