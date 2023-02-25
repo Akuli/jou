@@ -1,4 +1,5 @@
 #include "jou_compiler.h"
+#include <stdnoreturn.h>
 
 static const Type *find_type(const TypeContext *ctx, const char *name)
 {
@@ -164,18 +165,16 @@ static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *
     return es;
 }
 
-static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsig, const char *method_of_what_struct)
+static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsig, const Type *self_type)
 {
     if (find_function(ctx, astsig->funcname))
         fail_with_error(astsig->funcname_location, "a function named '%s' already exists", astsig->funcname);
 
     Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
-    if (method_of_what_struct) {
-        assert(strlen(method_of_what_struct) + strlen(".") + strlen(astsig->funcname) < sizeof sig.funcname);
-        sprintf(sig.funcname, "%s.%s", method_of_what_struct, astsig->funcname);
-    } else {
+    if (self_type)
+        create_dotted_method_name(&sig.funcname, self_type, astsig->funcname);
+    else
         safe_strcpy(sig.funcname, astsig->funcname);
-    }
 
     size_t size = sizeof(sig.argnames[0]) * sig.nargs;
     sig.argnames = malloc(size);
@@ -189,7 +188,7 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
     sig.returntype = type_or_void_from_ast(ctx, &astsig->returntype);
     // TODO: validate main() parameters
     // TODO: test main() taking parameters
-    if (!method_of_what_struct && !strcmp(sig.funcname, "main") && sig.returntype != intType) {
+    if (!self_type && !strcmp(sig.funcname, "main") && sig.returntype != intType) {
         fail_with_error(astsig->returntype.location, "the main() function must return int");
     }
 
@@ -202,7 +201,7 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
     return es;
 }
 
-static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef)
+static const Type *handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef)
 {
     // Previous type-checking pass created an opaque struct.
     Type *type = NULL;
@@ -225,6 +224,7 @@ static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef
         fieldtypes[i] = type_from_ast(ctx, &structdef->fields.ptr[i].type);
 
     set_struct_fields(type, n, fieldnames, fieldtypes);
+    return type;
 }
 
 ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast)
@@ -246,9 +246,11 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
         case AST_TOPLEVEL_DEFINE_STRUCT:
             // No new export symbols, because the previous type-checking step already
             // took care of that.
-            handle_struct_fields(ctx, &ast->data.structdef);
-            for (const AstFunctionDef *m = ast->data.structdef.methods.ptr; m < End(ast->data.structdef.methods); m++)
-                Append(&exports, handle_signature(ctx, &m->signature, ast->data.structdef.name));
+            {
+                const Type *t = handle_struct_fields(ctx, &ast->data.structdef);
+                for (const AstFunctionDef *m = ast->data.structdef.methods.ptr; m < End(ast->data.structdef.methods); m++)
+                    Append(&exports, handle_signature(ctx, &m->signature, t));
+            }
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
         case AST_TOPLEVEL_IMPORT:
@@ -631,6 +633,47 @@ static const char *nth(int n)
     return result;
 }
 
+static const Type *get_self_type(const Signature *sig)
+{
+    for (int i = 0; i < sig->nargs; i++)
+        if (!strcmp(sig->argnames[i], "self"))
+            return sig->argtypes[i];
+    return NULL;
+}
+
+// In Jou, a method being not found can be caused by many things.
+// To help with that we try to generate helpful error messages.
+static noreturn void fail_with_method_404_error(const Location location, const char *methodname, const Type *expected_self_type, const Type *actual_self_type)
+{
+    if (expected_self_type) {
+        // The method exists, but it expects a slightly different type.
+        // For example, the method wants self as a pointer, but it is called directly on an instance that isn't a pointer.
+        if (actual_self_type == get_pointer_type(expected_self_type)) {
+            fail_with_error(location,
+                "the method '%s' is defined for type %s, not for type %s, so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
+                methodname, expected_self_type->name, actual_self_type->name);
+        }
+        if (get_pointer_type(actual_self_type) == expected_self_type) {
+            fail_with_error(location,
+                "the method '%s' is defined for type %s, not for type %s, so you need to call it on a pointer",
+                methodname, expected_self_type->name, actual_self_type->name);
+        }
+    }
+
+    const Type *t = actual_self_type;
+    while (t->kind == TYPE_POINTER) t = t->data.valuetype;
+    if (t->kind != TYPE_STRUCT) {
+        // examples: some_int.blah(), (&some_int).blah()
+        fail_with_error(location,
+            "type %s does not have a method named '%s', and in fact, it doesn't have any methods because %s is not a struct",
+            actual_self_type->name, methodname, t->name);
+    }
+
+    fail_with_error(location, "%s %s does not have a method named '%s'",
+        actual_self_type->kind == TYPE_STRUCT ? "struct" : "type",
+        actual_self_type->name, methodname);
+}
+
 // returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
 static const Type *typecheck_function_or_method_call(TypeContext *ctx, const AstCall *call, const Type *self_type, Location location)
 {
@@ -640,17 +683,12 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
     if (self_type) {
         strcpy(function_or_method, "method");
 
-        if (self_type->kind != TYPE_STRUCT) {
-            fail_with_error(location,
-                "type %s does not have a method named '%s', and in fact, it doesn't have any methods because it is not a struct",
-                self_type->name, call->calledname);
-        }
+        char name_to_search[200];
+        create_dotted_method_name(&name_to_search, self_type, call->calledname);
 
-        char name_to_search[sizeof self_type->name + sizeof "." + sizeof call->calledname];
-        sprintf(name_to_search, "%s.%s", self_type->name, call->calledname);
         sig = find_function(ctx, name_to_search);
-        if (!sig)
-            fail_with_error(location, "struct %s does not have a method named '%s'", self_type->name, call->calledname);
+        if (!sig || get_self_type(sig) != self_type)
+            fail_with_method_404_error(location, call->calledname, sig ? get_self_type(sig) : NULL, self_type);
     } else {
         strcpy(function_or_method, "function");
         sig = find_function(ctx, call->calledname);
@@ -829,12 +867,19 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
                 temptype->name);
         result = typecheck_struct_field(temptype->data.valuetype, expr->data.structfield.fieldname, expr->location);
         break;
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
+        if (temptype->kind != TYPE_POINTER)
+            fail_with_error(
+                expr->location,
+                "left side of the '->' operator must be a pointer, not %s",
+                temptype->name);
+        result = typecheck_function_or_method_call(ctx, &expr->data.methodcall.call, temptype->data.valuetype, expr->location);
+        break;
     case AST_EXPR_CALL_METHOD:
         temptype = typecheck_expression_not_void(ctx, expr->data.methodcall.obj)->type;
         result = typecheck_function_or_method_call(ctx, &expr->data.methodcall.call, temptype, expr->location);
         break;
-    case AST_EXPR_DEREF_AND_CALL_METHOD:
-        assert(0);  // TODO
     case AST_EXPR_INDEXING:
         result = typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);
         break;
