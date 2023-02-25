@@ -82,47 +82,21 @@ def is_operator_byte(c: byte) -> bool:
     return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%", c) != NULL
 
 def is_keyword(word: byte*) -> bool:
-    # TODO: better array syntax
-    keywords: byte*[100]
-    i = 0
     # This keyword list is in 3 places. Please keep them in sync:
     #   - the Jou compiler written in C
     #   - self-hosted compiler
     #   - syntax documentation
-    keywords[i++] = "from"
-    keywords[i++] = "import"
-    keywords[i++] = "def"
-    keywords[i++] = "declare"
-    keywords[i++] = "struct"
-    keywords[i++] = "enum"
-    keywords[i++] = "global"
-    keywords[i++] = "return"
-    keywords[i++] = "if"
-    keywords[i++] = "elif"
-    keywords[i++] = "else"
-    keywords[i++] = "while"
-    keywords[i++] = "for"
-    keywords[i++] = "break"
-    keywords[i++] = "continue"
-    keywords[i++] = "True"
-    keywords[i++] = "False"
-    keywords[i++] = "NULL"
-    keywords[i++] = "and"
-    keywords[i++] = "or"
-    keywords[i++] = "not"
-    keywords[i++] = "as"
-    keywords[i++] = "sizeof"
-    keywords[i++] = "void"
-    keywords[i++] = "bool"
-    keywords[i++] = "byte"
-    keywords[i++] = "int"
-    keywords[i++] = "long"
-    keywords[i++] = "float"
-    keywords[i++] = "double"
-    keywords[i++] = NULL
+    keywords = [
+        "from", "import",
+        "def", "declare", "struct", "enum", "global",
+        "return", "if", "elif", "else", "while", "for", "break", "continue",
+        "True", "False", "NULL",
+        "and", "or", "not", "as", "sizeof",
+        "void", "bool", "byte", "int", "long", "float", "double",
+    ]
 
-    for kw = &keywords[0]; *kw != NULL; kw++:
-        if strcmp(*kw, word) == 0:
+    for i = 0; i < sizeof keywords / sizeof keywords[0]; i++:
+        if strcmp(keywords[i], word) == 0:
             return True
     return False
 
@@ -278,51 +252,17 @@ struct Tokenizer:
 
 
     def read_operator(self: Tokenizer*) -> byte[100]:
-        # TODO: nicer array syntax
-        operators: byte*[100]
-        i = 0
-        # This list of operators is in 3 places. Please keep them in sync:
-        #   - the Jou compiler written in C
-        #   - self-hosted compiler
-        #   - syntax documentation
-        #
-        # Longer operators are first, so that '==' does not tokenize as '=' '='
-        operators[i++] = "..."
-        operators[i++] = "==="
-        operators[i++] = "!=="
-        operators[i++] = "=="
-        operators[i++] = "!="
-        operators[i++] = "->"
-        operators[i++] = "<="
-        operators[i++] = ">="
-        operators[i++] = "++"
-        operators[i++] = "--"
-        operators[i++] = "+="
-        operators[i++] = "-="
-        operators[i++] = "*="
-        operators[i++] = "/="
-        operators[i++] = "%="
-        operators[i++] = "::"
-        operators[i++] = "."
-        operators[i++] = ","
-        operators[i++] = ":"
-        operators[i++] = ";"
-        operators[i++] = "="
-        operators[i++] = "("
-        operators[i++] = ")"
-        operators[i++] = "{"
-        operators[i++] = "}"
-        operators[i++] = "["
-        operators[i++] = "]"
-        operators[i++] = "&"
-        operators[i++] = "%"
-        operators[i++] = "*"
-        operators[i++] = "/"
-        operators[i++] = "+"
-        operators[i++] = "-"
-        operators[i++] = "<"
-        operators[i++] = ">"
-        operators[i] = NULL
+        operators = [
+            # This list of operators is in 3 places. Please keep them in sync:
+            #   - the Jou compiler written in C
+            #   - self-hosted compiler
+            #   - syntax documentation
+            #
+            # Longer operators are first, so that '==' does not tokenize as '=' '='
+            "...", "===", "!==",
+            "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "::",
+            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">",
+        ]
 
         operator: byte[100]
         memset(&operator, 0, sizeof operator)
@@ -335,10 +275,10 @@ struct Tokenizer:
                 break
             operator[strlen(&operator[0])] = c
 
-        for op = &operators[0]; *op != NULL; op++:
-            if starts_with(&operator[0], *op):
+        for i = 0; i < sizeof operators / sizeof operators[0]; i++:
+            if starts_with(&operator[0], operators[i]):
                 # Unread the bytes we didn't use.
-                while strlen(&operator[0]) > strlen(*op):
+                while strlen(&operator[0]) > strlen(operators[i]):
                     last = &operator[strlen(&operator[0]) - 1]
                     self.unread_byte(*last)
                     *last = '\0'
