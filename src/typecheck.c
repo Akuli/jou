@@ -630,19 +630,23 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
 
     if (method_of_what_type) {
         strcpy(function_or_method, "method");
+
+        assert(method_of_what_type->kind != TYPE_OPAQUE_STRUCT);
+        if (method_of_what_type->kind != TYPE_STRUCT) {
+            fail_with_error(location,
+                "type %s does not have a method named '%s', and in fact, it doesn't have any methods because it is not a struct",
+                method_of_what_type->name, call->calledname);
+        }
+
         sig = NULL;
-        if (method_of_what_type->kind == TYPE_STRUCT) {
-            for (const Signature *m = method_of_what_type->data.structmembers.methods.ptr; m < End(method_of_what_type->data.structmembers.methods); m++) {
-                if (!strcmp(m->funcname, call->calledname)) {
-                    sig = m;
-                    break;
-                }
+        for (const Signature *m = method_of_what_type->data.structmembers.methods.ptr; m < End(method_of_what_type->data.structmembers.methods); m++) {
+            if (!strcmp(m->funcname, call->calledname)) {
+                sig = m;
+                break;
             }
         }
-        if (!sig) {
-            // TODO: test
-            fail_with_error(location, "type %s has no method named '%s'", method_of_what_type->name, call->calledname);
-        }
+        if (!sig)
+            fail_with_error(location, "struct %s does not have a method named '%s'", method_of_what_type->name, call->calledname);
     } else {
         strcpy(function_or_method, "function");
         sig = find_function(ctx, call->calledname);
@@ -655,7 +659,8 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
     if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->takes_varargs)) {
         fail_with_error(
             location,
-            "function %s takes %d argument%s, but it was called with %d argument%s",
+            "%s %s takes %d argument%s, but it was called with %d argument%s",
+            function_or_method,
             sigstr,
             sig->nargs,
             sig->nargs==1?"":"s",
@@ -667,7 +672,7 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
     for (int i = 0; i < sig->nargs; i++) {
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
-        snprintf(msg, sizeof msg, "%s argument of function %s should have type TO, not FROM", nth(i+1), sigstr);
+        snprintf(msg, sizeof msg, "%s argument of %s %s should have type TO, not FROM", nth(i+1), function_or_method, sigstr);
         typecheck_expression_with_implicit_cast(ctx, &call->args[i], sig->argtypes[i], msg);
     }
     for (int i = sig->nargs; i < call->nargs; i++) {

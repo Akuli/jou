@@ -433,7 +433,6 @@ static AstExpression parse_expression_with_fields_and_methods_and_indexing(const
 
             bool is_deref = is_operator(startop, "->");
             bool is_call = is_operator(&(*tokens)[1], "(");
-            printf("%s:%d is_deref=%d is_call=%d\n", result.location.filename, result.location.lineno, is_deref, is_call);
             if (is_deref && is_call) result.kind = AST_EXPR_DEREF_AND_CALL_METHOD;
             if (is_deref && !is_call) result.kind = AST_EXPR_DEREF_AND_GET_FIELD;
             if (!is_deref && is_call) result.kind = AST_EXPR_CALL_METHOD;
@@ -599,6 +598,8 @@ static void validate_expression_statement(const AstExpression *expr)
 {
     switch(expr->kind) {
     case AST_EXPR_FUNCTION_CALL:
+    case AST_EXPR_CALL_METHOD:
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
     case AST_EXPR_PRE_INCREMENT:
     case AST_EXPR_PRE_DECREMENT:
     case AST_EXPR_POST_INCREMENT:
