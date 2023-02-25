@@ -57,7 +57,7 @@ def main() -> int:
     # Output: ===== Optimized LLVM IR for file "examples/hello.jou" =====
 
     # With optimizations disabled, we don't see the optimized LLVM IR.
-    run_jou("--verbose -O1 examples/hello.jou | grep 'LLVM IR for file' | grep -v stdlib/_windows_startup.jou")
+    run_jou("--verbose -O0 examples/hello.jou | grep 'LLVM IR for file' | grep -v stdlib/_windows_startup.jou")
     # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
     # Output: ===== Unoptimized LLVM IR for file "<joudir>/stdlib/io.jou" =====
 
