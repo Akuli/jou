@@ -203,12 +203,16 @@ static const LocalVariable *build_struct_field_pointer(
     assert(structinstance->type->data.valuetype->kind == TYPE_STRUCT);
     const Type *structtype = structinstance->type->data.valuetype;
 
-    for (struct StructField *f = structtype->data.structmembers.fields.ptr; f < End(structtype->data.structmembers.fields); f++) {
-        if (!strcmp(f->name, fieldname)) {
-            union CfInstructionData dat;
-            safe_strcpy(dat.fieldname, f->name);
+    for (int i = 0; i < structtype->data.structfields.count; i++) {
+        char name[100];
+        safe_strcpy(name, structtype->data.structfields.names[i]);
+        const Type *type = structtype->data.structfields.types[i];
 
-            LocalVariable* result = add_local_var(st, get_pointer_type(f->type));
+        if (!strcmp(name, fieldname)) {
+            union CfInstructionData dat;
+            safe_strcpy(dat.fieldname, name);
+
+            LocalVariable* result = add_local_var(st, get_pointer_type(type));
             add_instruction(st, location, CF_PTR_STRUCT_FIELD, &dat, (const LocalVariable*[]){structinstance,NULL}, result);
             return result;
         }

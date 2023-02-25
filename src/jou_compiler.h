@@ -336,8 +336,6 @@ struct AstToplevelNode {
 };
 
 
-struct StructField { char name[100]; const Type *type; };
-
 struct Type {
     char name[500];   // All types have a name for error messages and debugging.
     enum TypeKind {
@@ -356,7 +354,7 @@ struct Type {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_FLOATING_POINT
         const Type *valuetype;  // TYPE_POINTER
         struct { const Type *membertype; int len; } array;  // TYPE_ARRAY
-        struct { List(struct StructField) fields; List(Signature) methods; } structmembers;  // TYPE_STRUCT (not TYPE_OPAQUE_STRUCT)
+        struct { int count; char (*names)[100]; const Type **types; } structfields;  // TYPE_STRUCT
         struct { int count; char (*names)[100]; } enummembers;
     } data;
 };
@@ -389,6 +387,11 @@ const Type *get_array_type(const Type *t, int len);  // result lives as long as 
 const Type *type_of_constant(const Constant *c);
 Type *create_opaque_struct(const char *name);
 Type *create_enum(const char *name, int membercount, char (*membernames)[100]);
+void set_struct_fields(
+    Type *structtype,  // must be opaque struct, becomes non-opaque
+    int fieldcount,
+    char (*fieldnames)[100],  // will be free()d eventually
+    const Type **fieldtypes);  // will be free()d eventually
 void free_type(Type *type);
 
 bool is_integer_type(const Type *t);  // includes signed and unsigned
@@ -430,7 +433,7 @@ struct ExpressionTypes {
 
 struct ExportSymbol {
     enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_TYPE, EXPSYM_GLOBAL_VAR } kind;
-    char name[200];
+    char name[200];  // For methods this is "StructName.method_name"
     union {
         Signature funcsignature;
         const Type *type;  // EXPSYM_TYPE and EXPSYM_GLOBAL_VAR
@@ -474,7 +477,6 @@ Step 3 is interleaved with build_cfg (see the reset_type_context() function).
 ExportSymbol *typecheck_step1_create_types(TypeContext *ctx, const AstToplevelNode *ast);
 ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast);
 const Signature *typecheck_function_body(TypeContext *ctx, const char *name, const AstBody *body);
-void typecheck_method_bodies(TypeContext *ctx, const AstStructDef *structdef);
 
 /*
 Wipes all function-specific data, making the type context suitable

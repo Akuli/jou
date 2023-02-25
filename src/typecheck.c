@@ -213,17 +213,18 @@ static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef
         }
     assert(type);
     assert(type->kind == TYPE_OPAQUE_STRUCT);
-    type->kind = TYPE_STRUCT;
-    memset(&type->data.structmembers, 0, sizeof type->data.structmembers);
 
-    for (const AstNameTypeValue *ntv = structdef->fields.ptr; ntv < End(structdef->fields); ntv++) {
-        assert(!ntv->value);
-        struct StructField f;
-        safe_strcpy(f.name, ntv->name);
-        f.type = type_from_ast(ctx, &ntv->type);
-        Append(&type->data.structmembers.fields, f);
-    }
+    int n = structdef->fields.len;
 
+    char (*fieldnames)[100] = malloc(n * sizeof(fieldnames[0]));
+    for (int i = 0; i<n; i++)
+        safe_strcpy(fieldnames[i], structdef->fields.ptr[i].name);
+
+    const Type **fieldtypes = malloc(n * sizeof fieldtypes[0]);  // NOLINT
+    for (int i = 0; i < n; i++)
+        fieldtypes[i] = type_from_ast(ctx, &structdef->fields.ptr[i].type);
+
+    set_struct_fields(type, n, fieldnames, fieldtypes);
 }
 
 ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast)
@@ -712,9 +713,9 @@ static const Type *typecheck_struct_field(
 {
     assert(structtype->kind == TYPE_STRUCT);
 
-    for (struct StructField *f = structtype->data.structmembers.fields.ptr; f < End(structtype->data.structmembers.fields); f++)
-        if (!strcmp(f->name, fieldname))
-            return f->type;
+    for (int i = 0; i < structtype->data.structfields.count; i++)
+        if (!strcmp(structtype->data.structfields.names[i], fieldname))
+            return structtype->data.structfields.types[i];
 
     fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
 }

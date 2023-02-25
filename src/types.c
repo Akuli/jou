@@ -39,7 +39,8 @@ void free_type(Type *t)
 {
     if (t) {
         if (t->kind == TYPE_STRUCT) {
-            // TODO
+            free(t->data.structfields.types);
+            free(t->data.structfields.names);
         }
         assert(offsetof(struct TypeInfo, type) == 0);
         free_pointer_and_array_types((struct TypeInfo *)t);
@@ -171,6 +172,15 @@ Type *create_opaque_struct(const char *name)
     strcpy(result->type.name, name);
 
     return &result->type;
+}
+
+void set_struct_fields(Type *structtype, int count, char (*names)[100], const Type **types)
+{
+    assert(structtype->kind == TYPE_OPAQUE_STRUCT);
+    structtype->kind = TYPE_STRUCT;
+    structtype->data.structfields.count = count;
+    structtype->data.structfields.names = names;
+    structtype->data.structfields.types = types;
 }
 
 Type *create_enum(const char *name, int membercount, char (*membernames)[100])
