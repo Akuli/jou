@@ -1,5 +1,5 @@
 from "stdlib/io.jou" import printf, FILE, fgetc, ferror, fopen
-from "stdlib/str.jou" import sprintf, strlen, strchr, strcmp
+from "stdlib/str.jou" import sprintf, strlen, strchr, strcmp, starts_with
 from "stdlib/mem.jou" import malloc, realloc, free, memset, memmove
 from "./errors_and_warnings.jou" import Location, fail, assert
 
@@ -227,12 +227,6 @@ def read_string(self: Tokenizer*) -> byte*:
 
 def is_operator_byte(c: byte) -> bool:
     return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%", c) != NULL
-
-declare strncmp(s1: byte*, s2: byte*, n: long) -> int
-
-# TODO: move to stdlib
-def starts_with(s: byte*, prefix: byte*) -> bool:
-    return strncmp(s, prefix, strlen(prefix)) == 0
 
 def read_operator(self: Tokenizer*) -> byte[100]:
     # TODO: nicer array syntax
