@@ -432,9 +432,7 @@ static const LocalVariable *build_function_or_method_call(struct State *st, cons
 
     union CfInstructionData data;
     if (self)
-        snprintf(data.funcname, sizeof data.funcname, "%.*s.%s",
-            (int)strcspn(self->type->name, "*"), self->type->name,  // strip "*" (Foo* --> Foo)
-            call->calledname);
+        create_dotted_method_name(&data.funcname, self->type, call->calledname);
     else
         safe_strcpy(data.funcname, call->calledname);
     add_instruction(st, location, CF_CALL, &data, args, return_value);
@@ -855,8 +853,8 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx
             assert(structtype);
 
             for (AstFunctionDef *m = ast->data.structdef.methods.ptr; m < End(ast->data.structdef.methods); m++) {
-                char name[sizeof structtype->name + sizeof "." + sizeof m->signature.funcname];
-                sprintf(name, "%s.%s", structtype->name, m->signature.funcname);
+                char name[200];
+                create_dotted_method_name(&name, structtype, m->signature.funcname);
                 const Signature *sig = typecheck_function_body(typectx, name, &m->body);
                 CfGraph *g = build_function(&st, &m->body);
                 g->signature = copy_signature(sig);

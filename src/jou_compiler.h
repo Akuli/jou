@@ -412,6 +412,13 @@ char *signature_to_string(const Signature *sig, bool include_return_type);
 Signature copy_signature(const Signature *sig);
 
 
+/*
+If a struct Foo defines a method bar(self: Foo) or bar(self: Foo*), the compiler
+internally treats it as a function named "Foo.bar".
+*/
+void create_dotted_method_name(char (*dest)[200], const Type *t, const char *methodname);
+
+
 struct GlobalVariable {
     char name[100];  // Same as in user's code, never empty
     const Type *type;

@@ -165,18 +165,16 @@ static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *
     return es;
 }
 
-static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsig, const char *method_of_what_struct)
+static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsig, const Type *self_type)
 {
     if (find_function(ctx, astsig->funcname))
         fail_with_error(astsig->funcname_location, "a function named '%s' already exists", astsig->funcname);
 
     Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
-    if (method_of_what_struct) {
-        assert(strlen(method_of_what_struct) + strlen(".") + strlen(astsig->funcname) < sizeof sig.funcname);
-        sprintf(sig.funcname, "%s.%s", method_of_what_struct, astsig->funcname);
-    } else {
+    if (self_type)
+        create_dotted_method_name(&sig.funcname, self_type, astsig->funcname);
+    else
         safe_strcpy(sig.funcname, astsig->funcname);
-    }
 
     size_t size = sizeof(sig.argnames[0]) * sig.nargs;
     sig.argnames = malloc(size);
@@ -190,7 +188,7 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
     sig.returntype = type_or_void_from_ast(ctx, &astsig->returntype);
     // TODO: validate main() parameters
     // TODO: test main() taking parameters
-    if (!method_of_what_struct && !strcmp(sig.funcname, "main") && sig.returntype != intType) {
+    if (!self_type && !strcmp(sig.funcname, "main") && sig.returntype != intType) {
         fail_with_error(astsig->returntype.location, "the main() function must return int");
     }
 
@@ -203,7 +201,7 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
     return es;
 }
 
-static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef)
+static const Type *handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef)
 {
     // Previous type-checking pass created an opaque struct.
     Type *type = NULL;
@@ -226,6 +224,7 @@ static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef
         fieldtypes[i] = type_from_ast(ctx, &structdef->fields.ptr[i].type);
 
     set_struct_fields(type, n, fieldnames, fieldtypes);
+    return type;
 }
 
 ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast)
@@ -247,9 +246,11 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
         case AST_TOPLEVEL_DEFINE_STRUCT:
             // No new export symbols, because the previous type-checking step already
             // took care of that.
-            handle_struct_fields(ctx, &ast->data.structdef);
-            for (const AstFunctionDef *m = ast->data.structdef.methods.ptr; m < End(ast->data.structdef.methods); m++)
-                Append(&exports, handle_signature(ctx, &m->signature, ast->data.structdef.name));
+            {
+                const Type *t = handle_struct_fields(ctx, &ast->data.structdef);
+                for (const AstFunctionDef *m = ast->data.structdef.methods.ptr; m < End(ast->data.structdef.methods); m++)
+                    Append(&exports, handle_signature(ctx, &m->signature, t));
+            }
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
         case AST_TOPLEVEL_IMPORT:
@@ -685,10 +686,8 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
     if (self_type) {
         strcpy(function_or_method, "method");
 
-        char name_to_search[sizeof self_type->name + sizeof "." + sizeof call->calledname];
-        sprintf(name_to_search, "%.*s.%s",
-            (int)strcspn(self_type->name, "*"), self_type->name,  // strip "*" suffix (Foo* --> Foo)
-            call->calledname);
+        char name_to_search[200];
+        create_dotted_method_name(&name_to_search, self_type, call->calledname);
 
         sig = find_function(ctx, name_to_search);
         if (!sig || get_self_type(sig) != self_type)
