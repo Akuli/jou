@@ -1,0 +1,21 @@
+from "stdlib/str.jou" import starts_with, ends_with
+from "stdlib/io.jou" import printf
+
+def main() -> int:
+    printf("%d\n", starts_with("hello", ""))  # Output: 1
+    printf("%d\n", starts_with("hello", "hel"))  # Output: 1
+    printf("%d\n", starts_with("hello", "hello"))  # Output: 1
+    printf("%d\n", starts_with("hello", "hellooooooo"))  # Output: 0
+    printf("%d\n", starts_with("hello", "ello"))  # Output: 0
+    printf("%d\n", starts_with("hello", "H"))  # Output: 0
+    printf("%d\n", starts_with("hello", "O"))  # Output: 0
+
+    printf("%d\n", ends_with("hello", ""))  # Output: 1
+    printf("%d\n", ends_with("hello", "llo"))  # Output: 1
+    printf("%d\n", ends_with("hello", "hello"))  # Output: 1
+    printf("%d\n", ends_with("hello", "hhhhhhello"))  # Output: 0
+    printf("%d\n", ends_with("hello", "hell"))  # Output: 0
+    printf("%d\n", ends_with("hello", "H"))  # Output: 0
+    printf("%d\n", ends_with("hello", "O"))  # Output: 0
+
+    return 0

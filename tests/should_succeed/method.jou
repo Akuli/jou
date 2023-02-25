@@ -1,0 +1,18 @@
+from "stdlib/io.jou" import printf
+
+struct Foo:
+    x: int
+    y: int
+
+    def get_sum(self: Foo) -> int:
+        return self.x + self.y
+
+    def increment_x(self: Foo*) -> void:
+        self->x += 1
+
+def main() -> int:
+    f = Foo{x = 1, y = 2}
+    printf("%d\n", f.get_sum())  # Output: 3
+    (&f).increment_x()
+    printf("%d\n", f.get_sum())  # Output: 4
+    return 0

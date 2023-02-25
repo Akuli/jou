@@ -1,4 +1,5 @@
 #include "jou_compiler.h"
+#include <stdnoreturn.h>
 
 static const Type *find_type(const TypeContext *ctx, const char *name)
 {
@@ -164,13 +165,16 @@ static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *
     return es;
 }
 
-static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsig)
+static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsig, const Type *self_type)
 {
     if (find_function(ctx, astsig->funcname))
         fail_with_error(astsig->funcname_location, "a function named '%s' already exists", astsig->funcname);
 
     Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
-    safe_strcpy(sig.funcname, astsig->funcname);
+    if (self_type)
+        create_dotted_method_name(&sig.funcname, self_type, astsig->funcname);
+    else
+        safe_strcpy(sig.funcname, astsig->funcname);
 
     size_t size = sizeof(sig.argnames[0]) * sig.nargs;
     sig.argnames = malloc(size);
@@ -184,7 +188,7 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
     sig.returntype = type_or_void_from_ast(ctx, &astsig->returntype);
     // TODO: validate main() parameters
     // TODO: test main() taking parameters
-    if (!strcmp(sig.funcname, "main") && sig.returntype != intType) {
+    if (!self_type && !strcmp(sig.funcname, "main") && sig.returntype != intType) {
         fail_with_error(astsig->returntype.location, "the main() function must return int");
     }
 
@@ -197,7 +201,7 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
     return es;
 }
 
-static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef)
+static const Type *handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef)
 {
     // Previous type-checking pass created an opaque struct.
     Type *type = NULL;
@@ -219,15 +223,8 @@ static void handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef
     for (int i = 0; i < n; i++)
         fieldtypes[i] = type_from_ast(ctx, &structdef->fields.ptr[i].type);
 
-    Type *structtype = NULL;
-    for (Type **t = ctx->owned_types.ptr; t < End(ctx->owned_types); t++) {
-        if (!strcmp((*t)->name, structdef->name)) {
-            structtype = *t;
-            break;
-        }
-    }
-    assert(structtype);
-    set_struct_fields(structtype, n, fieldnames, fieldtypes);
+    set_struct_fields(type, n, fieldnames, fieldtypes);
+    return type;
 }
 
 ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast)
@@ -244,12 +241,16 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
             break;
         case AST_TOPLEVEL_DECLARE_FUNCTION:
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            Append(&exports, handle_signature(ctx, &ast->data.funcdef.signature));
+            Append(&exports, handle_signature(ctx, &ast->data.funcdef.signature, NULL));
             break;
         case AST_TOPLEVEL_DEFINE_STRUCT:
             // No new export symbols, because the previous type-checking step already
             // took care of that.
-            handle_struct_fields(ctx, &ast->data.structdef);
+            {
+                const Type *t = handle_struct_fields(ctx, &ast->data.structdef);
+                for (const AstFunctionDef *m = ast->data.structdef.methods.ptr; m < End(ast->data.structdef.methods); m++)
+                    Append(&exports, handle_signature(ctx, &m->signature, t));
+            }
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
         case AST_TOPLEVEL_IMPORT:
@@ -309,15 +310,10 @@ static noreturn void fail_with_implicit_cast_error(
     fail_with_error(location, "%.*s", msg.len, msg.ptr);
 }
 
-static void do_implicit_cast(
-    ExpressionTypes *types, const Type *to, Location location, const char *errormsg_template)
+static bool can_cast_implicitly(const Type *from, const Type *to)
 {
-    const Type *from = types->type;
-    if (from == to)
-        return;
-
-    bool can_cast =
-        errormsg_template == NULL   // This can be used to "force" a cast to happen.
+    return
+        from == to
         || (
             // Cast to bigger integer types implicitly, unless it is signed-->unsigned.
             is_integer_type(from)
@@ -335,8 +331,17 @@ static void do_implicit_cast(
             (from->kind == TYPE_POINTER && to->kind == TYPE_VOID_POINTER)
             || (from->kind == TYPE_VOID_POINTER && to->kind == TYPE_POINTER)
         );
+}
 
-    if (!can_cast)
+static void do_implicit_cast(
+    ExpressionTypes *types, const Type *to, Location location, const char *errormsg_template)
+{
+    const Type *from = types->type;
+    if (from == to)
+        return;
+
+    // Passing in NULL for errormsg_template can be used to "force" a cast to happen.
+    if (errormsg_template != NULL && !can_cast_implicitly(from, to))
         fail_with_implicit_cast_error(location, errormsg_template, from, to);
 
     assert(!types->type_after_cast);
@@ -478,7 +483,10 @@ static const char *short_expression_description(const AstExpression *expr)
     case AST_EXPR_GET_ENUM_MEMBER: return "an enum member";
     case AST_EXPR_SIZEOF: return "a sizeof expression";
     case AST_EXPR_FUNCTION_CALL: return "a function call";
+    case AST_EXPR_CALL_METHOD: return "a method call";
+    case AST_EXPR_DEREF_AND_CALL_METHOD: return "a method call";
     case AST_EXPR_BRACE_INIT: return "a newly created instance";
+    case AST_EXPR_ARRAY: return "an array";
     case AST_EXPR_INDEXING: return "an indexed value";
     case AST_EXPR_AS: return "the result of a cast";
     case AST_EXPR_GET_VARIABLE: return "a variable";
@@ -630,18 +638,77 @@ static const char *nth(int n)
     return result;
 }
 
-// returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
-static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call, Location location)
+static const Type *get_self_type(const Signature *sig)
 {
-    const Signature *sig = find_function(ctx, call->calledname);
-    if (!sig)
-        fail_with_error(location, "function '%s' not found", call->calledname);
+    for (int i = 0; i < sig->nargs; i++)
+        if (!strcmp(sig->argnames[i], "self"))
+            return sig->argtypes[i];
+    return NULL;
+}
+
+// In Jou, a method being not found can be caused by many things.
+// To help with that we try to generate helpful error messages.
+static noreturn void fail_with_method_404_error(const Location location, const char *methodname, const Type *expected_self_type, const Type *actual_self_type)
+{
+    if (expected_self_type) {
+        // The method exists, but it expects a slightly different type.
+        // For example, the method wants self as a pointer, but it is called directly on an instance that isn't a pointer.
+        if (actual_self_type == get_pointer_type(expected_self_type)) {
+            fail_with_error(location,
+                "the method '%s' is defined for type %s, not for type %s, so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
+                methodname, expected_self_type->name, actual_self_type->name);
+        }
+        if (get_pointer_type(actual_self_type) == expected_self_type) {
+            fail_with_error(location,
+                "the method '%s' is defined for type %s, not for type %s, so you need to call it on a pointer",
+                methodname, expected_self_type->name, actual_self_type->name);
+        }
+    }
+
+    const Type *t = actual_self_type;
+    while (t->kind == TYPE_POINTER) t = t->data.valuetype;
+    if (t->kind != TYPE_STRUCT) {
+        // examples: some_int.blah(), (&some_int).blah()
+        fail_with_error(location,
+            "type %s does not have a method named '%s', and in fact, it doesn't have any methods because %s is not a struct",
+            actual_self_type->name, methodname, t->name);
+    }
+
+    fail_with_error(location, "%s %s does not have a method named '%s'",
+        actual_self_type->kind == TYPE_STRUCT ? "struct" : "type",
+        actual_self_type->name, methodname);
+}
+
+// returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
+static const Type *typecheck_function_or_method_call(TypeContext *ctx, const AstCall *call, const Type *self_type, Location location)
+{
+    const Signature *sig;
+    char function_or_method[20];
+
+    if (self_type) {
+        strcpy(function_or_method, "method");
+
+        char name_to_search[200];
+        create_dotted_method_name(&name_to_search, self_type, call->calledname);
+
+        sig = find_function(ctx, name_to_search);
+        if (!sig || get_self_type(sig) != self_type)
+            fail_with_method_404_error(location, call->calledname, sig ? get_self_type(sig) : NULL, self_type);
+    } else {
+        strcpy(function_or_method, "function");
+        sig = find_function(ctx, call->calledname);
+        if (!sig)
+            fail_with_error(location, "function '%s' not found", call->calledname);
+    }
+
     char *sigstr = signature_to_string(sig, false);
 
-    if (call->nargs < sig->nargs || (call->nargs > sig->nargs && !sig->takes_varargs)) {
+    int n = call->nargs + !!self_type;
+    if (n < sig->nargs || (n > sig->nargs && !sig->takes_varargs)) {
         fail_with_error(
             location,
-            "function %s takes %d argument%s, but it was called with %d argument%s",
+            "%s %s takes %d argument%s, but it was called with %d argument%s",
+            function_or_method,
             sigstr,
             sig->nargs,
             sig->nargs==1?"":"s",
@@ -650,13 +717,16 @@ static const Type *typecheck_function_call(TypeContext *ctx, const AstCall *call
         );
     }
 
+    int k = 0;
     for (int i = 0; i < sig->nargs; i++) {
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
-        snprintf(msg, sizeof msg, "%s argument of function %s should have type TO, not FROM", nth(i+1), sigstr);
-        typecheck_expression_with_implicit_cast(ctx, &call->args[i], sig->argtypes[i], msg);
+        snprintf(msg, sizeof msg, "%s argument of %s %s should have type TO, not FROM", nth(i+1), function_or_method, sigstr);
+        if (strcmp(sig->argnames[i], "self"))
+            typecheck_expression_with_implicit_cast(ctx, &call->args[k++], sig->argtypes[i], msg);
     }
-    for (int i = sig->nargs; i < call->nargs; i++) {
+
+    for (int i = k; i < call->nargs; i++) {
         // This code runs for varargs, e.g. the things to format in printf().
         ExpressionTypes *types = typecheck_expression_not_void(ctx, &call->args[i]);
 
@@ -750,6 +820,55 @@ static bool enum_member_exists(const Type *t, const char *name)
     return false;
 }
 
+static const Type *cast_array_members_to_a_common_type(Location error_location, ExpressionTypes **exprtypes)
+{
+    // Avoid O(ntypes^2) code in a long array where all or almost all items have the same type.
+    // This is at most O(ntypes*k) where k is the number of distinct types.
+    List(const Type *) distinct = {0};
+    for (ExpressionTypes **et = exprtypes; *et; et++) {
+        bool found = false;
+        for (const Type **t = distinct.ptr; t < End(distinct); t++) {
+            if ((*et)->type == *t) {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            Append(&distinct, (*et)->type);
+    }
+
+    List(const Type *) compatible_with_all = {0};
+    for (const Type **t = distinct.ptr; t < End(distinct); t++) {
+        bool t_compatible_with_all_others = true;
+        for (const Type **t2 = distinct.ptr; t2 < End(distinct); t2++) {
+            if (!can_cast_implicitly(*t2,*t)) {
+                t_compatible_with_all_others = false;
+                break;
+            }
+        }
+        if (t_compatible_with_all_others)
+            Append(&compatible_with_all, *t);
+    }
+
+    if (compatible_with_all.len != 1) {
+        List(char) namestr = {0};
+        for (const Type **t = distinct.ptr; t < End(distinct); t++) {
+            AppendStr(&namestr, (*t)->name);
+            AppendStr(&namestr, ", ");
+        }
+        fail_with_error(
+            error_location, "array items have different types (%.*s)",
+            namestr.len - 2, namestr.ptr);
+    }
+    const Type *elemtype = compatible_with_all.ptr[0];
+    free(distinct.ptr);
+    free(compatible_with_all.ptr);
+
+    for (ExpressionTypes **et = exprtypes; *et; et++)
+        do_implicit_cast(*et, elemtype, error_location, NULL);
+    return elemtype;
+}
+
 static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpression *expr)
 {
     const Type *temptype;
@@ -771,7 +890,7 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_FUNCTION_CALL:
         {
-            const Type *ret = typecheck_function_call(ctx, &expr->data.call, expr->location);
+            const Type *ret = typecheck_function_or_method_call(ctx, &expr->data.call, NULL, expr->location);
             if (!ret)
                 return NULL;
             result = ret;
@@ -783,6 +902,18 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         break;
     case AST_EXPR_BRACE_INIT:
         result = typecheck_struct_init(ctx, &expr->data.call, expr->location);
+        break;
+    case AST_EXPR_ARRAY:
+        {
+            int n = expr->data.array.count;
+            ExpressionTypes **exprtypes = calloc(sizeof(exprtypes[0]), n+1);  // NOLINT
+            for (int i = 0; i < n; i++)
+                exprtypes[i] = typecheck_expression_not_void(ctx, &expr->data.array.items[i]);
+
+            const Type *membertype = cast_array_members_to_a_common_type(expr->location, exprtypes);
+            free(exprtypes);
+            result = get_array_type(membertype, n);
+        }
         break;
     case AST_EXPR_GET_FIELD:
         temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
@@ -801,6 +932,19 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
                 "left side of the '->' operator must be a pointer to a struct, not %s",
                 temptype->name);
         result = typecheck_struct_field(temptype->data.valuetype, expr->data.structfield.fieldname, expr->location);
+        break;
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
+        if (temptype->kind != TYPE_POINTER)
+            fail_with_error(
+                expr->location,
+                "left side of the '->' operator must be a pointer, not %s",
+                temptype->name);
+        result = typecheck_function_or_method_call(ctx, &expr->data.methodcall.call, temptype->data.valuetype, expr->location);
+        break;
+    case AST_EXPR_CALL_METHOD:
+        temptype = typecheck_expression_not_void(ctx, expr->data.methodcall.obj)->type;
+        result = typecheck_function_or_method_call(ctx, &expr->data.methodcall.call, temptype, expr->location);
         break;
     case AST_EXPR_INDEXING:
         result = typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);
