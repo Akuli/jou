@@ -2,7 +2,9 @@ from "stdlib/io.jou" import printf
 from "./imported/bar.jou" import bar, Point, FooBar
 
 def main() -> int:
-    bar(Point{x=1, y=2})  # Output: Bar Bar 1 2
+    p = Point{x=1, y=2}
+    bar(p)  # Output: Bar Bar 1 2
+    printf("%d\n", p.get_sum())  # Output: 3
 
     foo = FooBar::Foo
     if foo == FooBar::Foo:
