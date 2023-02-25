@@ -1,4 +1,4 @@
-from "stdlib/io.jou" import puts
+from "stdlib/io.jou" import puts, printf
 
 def main() -> int:
     # Output: New
@@ -10,6 +10,25 @@ def main() -> int:
 bar")
 
     puts("Foo'Bar")  # Output: Foo'Bar
-    puts("Foo\'Bar")  # Output: Foo'Bar
     puts("Foo\"Bar")  # Output: Foo"Bar
+
+    # All supported escapes (see documentation)
+    printf("%d %d\n", '\n', "\n"[0])  # Output: 10 10
+    printf("%d %d\n", '\r', "\r"[0])  # Output: 13 13
+    printf("%d %d\n", '\t', "\t"[0])  # Output: 9 9
+    printf("%d %d\n", '\\', "\\"[0])  # Output: 92 92
+    printf("%d %d\n", '\'', "'"[0])  # Output: 39 39
+    printf("%d %d\n", '"', "\""[0])  # Output: 34 34
+    # \0 cannot occur inside a string, that is an error. There's another test for it.
+    printf("%d\n", '\0')  # Output: 0
+    printf("%d %d\n", '\1', "\1"[0])  # Output: 1 1
+    printf("%d %d\n", '\2', "\2"[0])  # Output: 2 2
+    printf("%d %d\n", '\3', "\3"[0])  # Output: 3 3
+    printf("%d %d\n", '\4', "\4"[0])  # Output: 4 4
+    printf("%d %d\n", '\5', "\5"[0])  # Output: 5 5
+    printf("%d %d\n", '\6', "\6"[0])  # Output: 6 6
+    printf("%d %d\n", '\7', "\7"[0])  # Output: 7 7
+    printf("%d %d\n", '\8', "\8"[0])  # Output: 8 8
+    printf("%d %d\n", '\9', "\9"[0])  # Output: 9 9
+
     return 0

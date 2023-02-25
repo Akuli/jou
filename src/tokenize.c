@@ -257,9 +257,16 @@ static char *read_string(struct State *st, char quote, int *len)
             case 'r':
                 Append(&result, '\r');
                 break;
+            case 't':
+                Append(&result, '\t');
+                break;
             case '\\':
             case '\'':
             case '"':
+                if (after_backslash == '"' && quote == '\'')
+                    fail_with_error(st->location, "double quotes shouldn't be escaped in byte literals");
+                if (after_backslash == '\'' && quote == '"')
+                    fail_with_error(st->location, "single quotes shouldn't be escaped in strings");
                 Append(&result, after_backslash);
                 break;
             case '0':
@@ -310,7 +317,7 @@ missing_end_quote:
     if (quote == '"')
         fail_with_error(st->location, "missing \" to end the string");
     else
-        fail_with_error(st->location, "missing ' to end the character");
+        fail_with_error(st->location, "missing ' to end the byte literal");
 }
 
 static char read_char_literal(struct State *st)
@@ -318,7 +325,7 @@ static char read_char_literal(struct State *st)
     int len;
     char *s = read_string(st, '\'', &len);
     if (len == 0)
-        fail_with_error(st->location, "empty character literal: ''");
+        fail_with_error(st->location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?");
     if (len >= 2)
         fail_with_error(st->location, "single quotes are for a single character, maybe use double quotes to instead make a string?");
     char result = s[0];
