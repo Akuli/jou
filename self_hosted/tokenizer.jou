@@ -1,4 +1,4 @@
-from "stdlib/io.jou" import printf, FILE, fgetc, ferror, fopen
+from "stdlib/io.jou" import printf, putchar, FILE, fgetc, ferror, fopen
 from "stdlib/str.jou" import sprintf, strlen, strchr, strcmp, starts_with
 from "stdlib/mem.jou" import malloc, realloc, free, memset, memmove
 from "./errors_and_warnings.jou" import Location, fail, assert
@@ -61,7 +61,15 @@ struct Token:
         elif self->kind == TokenKind::Newline:
             printf("newline token (next line has %d spaces of indentation)\n", self->indentation_level)
         elif self->kind == TokenKind::String:
-            printf("string \"%s\"\n", self->long_string)
+            printf("string \"")
+            for s = self->long_string; *s != 0; s++:
+                if isprint(*s) != 0:
+                    putchar(*s)
+                elif *s == '\n':
+                    printf("\\n")
+                else:
+                    printf("\\x%02x", *s)
+            printf("\"\n")
         elif self->kind == TokenKind::Indent:
             printf("indent (+4 spaces)\n")
         elif self->kind == TokenKind::Dedent:
@@ -213,12 +221,12 @@ struct Tokenizer:
                 if c == '\n':
                     self->location.lineno--
                 fail(self->location, "missing \" to end the string")
-            elif c == '\n':
+            elif c == '\\':
                 # \n means newline, for example
                 after_backslash = self.read_byte()
                 if after_backslash == '\0':
                     fail(self->location, "missing \" to end the string")
-                elif after_backslash == '\n':
+                elif after_backslash == 'n':
                     result = realloc(result, len+1)
                     result[len++] = '\n'
                 elif after_backslash == 'r':
