@@ -81,6 +81,11 @@ static void free_expression(const AstExpression *expr)
         free(expr->data.methodcall.obj);
         free_call(&expr->data.methodcall.call);
         break;
+    case AST_EXPR_ARRAY:
+        for (int i = 0; i < expr->data.array.count; i++)
+            free_expression(&expr->data.array.items[i]);
+        free(expr->data.array.items);
+        break;
     case AST_EXPR_INDEXING:
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:

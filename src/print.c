@@ -194,6 +194,11 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         printf("brace init \"%s\"\n", expr->data.call.calledname);
         print_ast_call(&expr->data.call, tp);
         break;
+    case AST_EXPR_ARRAY:
+        printf("array\n");
+        for (int i = 0; i < expr->data.array.count; i++)
+            print_ast_expression(&expr->data.array.items[i], print_tree_prefix(tp, i==expr->data.array.count-1));
+        break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
         printf("dereference and ");
         __attribute__((fallthrough));
