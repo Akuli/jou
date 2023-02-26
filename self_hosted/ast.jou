@@ -83,12 +83,17 @@ class AstType:
     valuetype: AstType* # AstTypeKind::Pointer
     array: AstArrayType # AstTypeKind::Array
 
-    def print(self: AstType*) -> void:
+    def print(self: AstType*, show_lineno: bool) -> void:
         if self->kind == AstTypeKind::Named:
             printf("%s", &self->name[0])
+        elif self->kind == AstTypeKind::Pointer:
+            self->valuetype.print(False)
+            printf("*")
         else:
             printf("???")
-        printf(" [line %d]", self->location.lineno)
+
+        if show_lineno:
+            printf(" [line %d]", self->location.lineno)
 
     def free(self: AstType*) -> void:
         if self->kind == AstTypeKind::Pointer:
@@ -104,6 +109,13 @@ class AstNameTypeValue:
     type: AstType
     value: AstExpression*  # can be NULL
 
+    def print(self: AstNameTypeValue*) -> void:
+        printf("%s: ", &self->name[0])
+        (&self->type).print(True)
+        if self->value != NULL:
+            # TODO: figure out a good way to print the value (wants a TreePrinter)
+            printf(" = <default>")
+
     def free(self: AstNameTypeValue*) -> void:
         if self->value != NULL:
             self->value.free()
@@ -117,8 +129,13 @@ class AstSignature:
     return_type: AstType
 
     def print(self: AstSignature*) -> void:
-        printf("%s() -> ", &self->funcname[0])
-        (&self->return_type).print()
+        printf("%s(", &self->funcname[0])
+        for i = 0; i < self->nargs; i++:
+            if i != 0:
+                printf(", ")
+            (&self->args[i]).print()
+        printf(") -> ")
+        (&self->return_type).print(True)
         printf("\n")
 
     def free(self: AstSignature*) -> void:

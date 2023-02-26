@@ -28,6 +28,17 @@ def parse_type(tokens: Token**) -> AstType:
         name = (*tokens)->short_string,
     }
     ++*tokens
+
+    while (*tokens).is_operator("*"):
+        p: AstType*
+        p = malloc(sizeof *p)
+        *p = result
+        result = AstType{
+            location = ((*tokens)++)->location,  # TODO: shouldn't need all the parentheses
+            kind = AstTypeKind::Pointer,
+            valuetype = p,
+        }
+
     return result
 
 def parse_name_type_value(tokens: Token**, expected_what_for_name: byte*) -> AstNameTypeValue:
