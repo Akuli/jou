@@ -380,39 +380,39 @@ void print_ast(const AstToplevelNode *topnodelist)
 {
     printf("===== AST for file \"%s\" =====\n", topnodelist->location.filename);
 
-    do {
-        printf("line %d: ", topnodelist->location.lineno);
+    for (const AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
+        printf("line %d: ", t->location.lineno);
 
-        switch(topnodelist->kind) {
+        switch(t->kind) {
             case AST_TOPLEVEL_IMPORT:
                 printf("Import \"%s\" from \"%s\".\n",
-                    topnodelist->data.import.symbolname, topnodelist->data.import.path);
+                    t->data.import.symbolname, t->data.import.path);
                 break;
             case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-                assert(!topnodelist->data.globalvar.value);
-                printf("Declare a global variable %s: ", topnodelist->data.globalvar.name);
-                print_ast_type(&topnodelist->data.globalvar.type);
+                assert(!t->data.globalvar.value);
+                printf("Declare a global variable %s: ", t->data.globalvar.name);
+                print_ast_type(&t->data.globalvar.type);
                 printf("\n");
                 break;
             case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-                assert(!topnodelist->data.globalvar.value);
-                printf("Define a global variable %s: ", topnodelist->data.globalvar.name);
-                print_ast_type(&topnodelist->data.globalvar.type);
+                assert(!t->data.globalvar.value);
+                printf("Define a global variable %s: ", t->data.globalvar.name);
+                print_ast_type(&t->data.globalvar.type);
                 printf("\n");
                 break;
             case AST_TOPLEVEL_DECLARE_FUNCTION:
                 printf("Declare a function: ");
-                print_ast_function_signature(&topnodelist->data.funcdef.signature);
+                print_ast_function_signature(&t->data.funcdef.signature);
                 break;
             case AST_TOPLEVEL_DEFINE_FUNCTION:
                 printf("Define a function: ");
-                print_ast_function_signature(&topnodelist->data.funcdef.signature);
-                print_ast_body(&topnodelist->data.funcdef.body, (struct TreePrinter){0});
+                print_ast_function_signature(&t->data.funcdef.signature);
+                print_ast_body(&t->data.funcdef.body, (struct TreePrinter){0});
                 break;
             case AST_TOPLEVEL_DEFINE_CLASS:
                 printf("Define struct \"%s\" with %d fields:\n",
-                    topnodelist->data.classdef.name, topnodelist->data.classdef.fields.len);
-                for (const AstNameTypeValue *ntv = topnodelist->data.classdef.fields.ptr; ntv < End(topnodelist->data.classdef.fields); ntv++) {
+                    t->data.classdef.name, t->data.classdef.fields.len);
+                for (const AstNameTypeValue *ntv = t->data.classdef.fields.ptr; ntv < End(t->data.classdef.fields); ntv++) {
                     printf("  %s: ", ntv->name);
                     print_ast_type(&ntv->type);
                     printf("\n");
@@ -420,17 +420,15 @@ void print_ast(const AstToplevelNode *topnodelist)
                 break;
             case AST_TOPLEVEL_DEFINE_ENUM:
                 printf("Define enum \"%s\" with %d members:\n",
-                    topnodelist->data.enumdef.name, topnodelist->data.enumdef.nmembers);
-                for (int i = 0; i < topnodelist->data.enumdef.nmembers; i++)
-                    printf("  %s\n", topnodelist->data.enumdef.membernames[i]);
+                    t->data.enumdef.name, t->data.enumdef.nmembers);
+                for (int i = 0; i < t->data.enumdef.nmembers; i++)
+                    printf("  %s\n", t->data.enumdef.membernames[i]);
                 break;
             case AST_TOPLEVEL_END_OF_FILE:
-                printf("End of file.\n");
-                break;
+                assert(0);
         }
         printf("\n");
-
-    } while (topnodelist++->kind != AST_TOPLEVEL_END_OF_FILE);
+    }
 }
 
 

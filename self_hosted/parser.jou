@@ -11,8 +11,12 @@ from "./ast.jou" import (
 from "./errors_and_warnings.jou" import assert, fail
 
 def parse_type(tokens: Token**) -> AstType:
-    if not (*tokens).is_keyword("int"):
-        (*tokens).expect_kind(TokenKind::Name, "a type")
+    if not (
+        (*tokens).is_keyword("int")
+        or (*tokens)->kind == TokenKind::Name
+    ):
+        (*tokens).fail_expected_got("a type")
+
     return AstType{
         kind = AstTypeKind::Named,
         location = (*tokens)->location,
@@ -20,28 +24,32 @@ def parse_type(tokens: Token**) -> AstType:
     }
 
 def parse_function_signature(tokens: Token**) -> AstSignature:
-    result = AstSignature{}
+
     if (*tokens)->kind != TokenKind::Name:
-        (*tokens).fail_with_expected_got_error("a function name")
-    result.funcname_location = (*tokens)->location
-    result.funcname = (*tokens)->short_string
+        (*tokens).fail_expected_got("a function name")
+
+    result = AstSignature{
+        funcname_location = (*tokens)->location,
+        funcname = (*tokens)->short_string,
+    }
     ++*tokens
 
     if not (*tokens).is_operator("("):
-        (*tokens).fail_with_expected_got_error("a '(' to denote the start of function arguments")
+        (*tokens).fail_expected_got("a '(' to denote the start of function arguments")
     ++*tokens
 
     # TODO: parse arguments
 
     if not (*tokens).is_operator(")"):
-        (*tokens).fail_with_expected_got_error("a ')'")
+        (*tokens).fail_expected_got("a ')'")
     ++*tokens
 
     # Special case for common typo:   def foo():
     if (*tokens).is_operator(":"):
         fail((*tokens)->location, "return type must be specified with '->', or with '-> void' if the function doesn't return anything")
     if not (*tokens).is_operator("->"):
-        (*tokens).fail_with_expected_got_error("a '->'")
+        (*tokens).fail_expected_got("a '->'")
+    ++*tokens
 
     result.returntype = parse_type(tokens)
     return result
@@ -64,10 +72,10 @@ def parse_toplevel_node(dest: AstFile*, tokens: Token**) -> void:
         ++*tokens
         ts.the_import.path = get_actual_import_path((*tokens)++)
         if not (*tokens).is_keyword("import"):
-            (*tokens).fail_with_expected_got_error("the 'import' keyword")
+            (*tokens).fail_expected_got("the 'import' keyword")
         ++*tokens
         if (*tokens)->kind != TokenKind::Name:
-            (*tokens).fail_with_expected_got_error("the name of a symbol to import")
+            (*tokens).fail_expected_got("the name of a symbol to import")
         ts.the_import.symbol = (*tokens)->short_string
         ++*tokens
     elif (*tokens).is_keyword("def"):

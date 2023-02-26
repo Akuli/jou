@@ -3,8 +3,9 @@ from "stdlib/str.jou" import sprintf, strlen, strchr, strcmp, strcpy
 from "stdlib/mem.jou" import malloc, realloc, free, memset, memmove
 from "./errors_and_warnings.jou" import Location, fail, assert
 
-# TODO: move these to stdlib
+# TODO: move to stdlib
 declare isprint(b: int) -> int
+
 
 enum TokenKind:
     Int
@@ -20,7 +21,6 @@ enum TokenKind:
     Dedent
     Operator
     EndOfFile  # Marks the end of an array of tokens.
-
 
 class Token:
     kind: TokenKind
@@ -82,7 +82,7 @@ class Token:
     def is_operator(self: Token*, op: byte*) -> bool:
         return self->kind == TokenKind::Operator and strcmp(&self->short_string[0], op) == 0
 
-    def fail_with_expected_got_error(self: Token*, what_was_expected_instead: byte*) -> void:
+    def fail_expected_got(self: Token*, what_was_expected_instead: byte*) -> void:
         got: byte[100]
         if self->kind == TokenKind::Int:
             strcpy(&got[0], "an integer")
@@ -116,14 +116,3 @@ class Token:
         message: byte* = malloc(strlen(what_was_expected_instead) + 500)
         sprintf(message, "expected %s, got %s", what_was_expected_instead, &got[0])
         fail(self->location, message)
-
-    def expect_kind(self: Token*, expected_kind: TokenKind, expected_description: byte*) -> void:
-        if self->kind != expected_kind:
-            self.fail_with_expected_got_error(expected_description)
-
-    def expect_operator(self: Token*, op: byte*) -> void:
-        assert(strlen(op) < 50)
-        if not self.is_operator(op):
-            s: byte[100]
-            sprintf(&s[0], "'%s'", op)
-            self.fail_with_expected_got_error(&s[0])

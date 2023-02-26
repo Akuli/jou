@@ -34,7 +34,8 @@ class AstToplevelStatement:
         if self->kind == AstToplevelStatementKind::Import:
             printf("Import \"%s\" from \"%s\".\n", &self->the_import.symbol[0], self->the_import.path)
         elif self->kind == AstToplevelStatementKind::DefineFunction:
-            printf("hi\n")
+            printf("Define a function: ")
+            (&self->funcdef.signature).print()
         else:
             assert(False)
         printf("\n")
@@ -72,6 +73,13 @@ class AstType:
     valuetype: AstType* # AstTypeKind::Pointer
     array: AstArrayType # AstTypeKind::Array
 
+    def print(self: AstType*) -> void:
+        if self->kind == AstTypeKind::Named:
+            printf("%s", &self->name[0])
+        else:
+            printf("???")
+        printf(" [line %d]", self->location.lineno)
+
     def free(self: AstType*) -> void:
         if self->kind == AstTypeKind::Pointer:
             self->valuetype.free()
@@ -83,6 +91,11 @@ class AstSignature:
     funcname_location: Location
     funcname: byte[100]
     returntype: AstType
+
+    def print(self: AstSignature*) -> void:
+        printf("%s() -> ", &self->funcname[0])
+        (&self->returntype).print()
+        printf("\n")
 
     def free(self: AstSignature*) -> void:
         (&self->returntype).free()
