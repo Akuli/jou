@@ -23,7 +23,7 @@ jobs:
         id: check-need-valgrind
         run: |
           git fetch https://github.com/Akuli/jou main
-          if git diff --name-only FETCH_HEAD HEAD | grep -E '(linux\.yml|\.c|\.h)$'; then
+          if git diff --name-only FETCH_HEAD HEAD | grep -E '(\.c|\.h)$'; then
             echo doit=yes >> $GITHUB_OUTPUT
           else
             echo doit=no >> $GITHUB_OUTPUT
@@ -39,10 +39,10 @@ jobs:
             exit 1
           fi
 
-  tokenizers:
+  compare-compilers:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - run: sudo apt install -y llvm-13-dev clang-13 make valgrind
       - run: LLVM_CONFIG=llvm-config-13 make
-      - run: ./tokenizers.sh
+      - run: ./compare_compilers.sh

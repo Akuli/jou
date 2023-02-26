@@ -132,7 +132,7 @@ jobs:
       - run: cd "test dir" && ./runtests.sh --verbose
         shell: bash
 
-  tokenizers:
+  compare-compilers:
     needs: build
     runs-on: windows-latest
     steps:
@@ -141,7 +141,7 @@ jobs:
         with:
           name: windows-zip
       - run: unzip jou.zip
-      - run: mv tokenizers.sh self_hosted jou
+      - run: mv compare_compilers.sh self_hosted tests jou
         shell: bash
-      - run: (cd jou && ./tokenizers.sh)
+      - run: (cd jou && ./compare_compilers.sh)
         shell: bash
