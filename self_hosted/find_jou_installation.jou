@@ -1,10 +1,9 @@
 from "stdlib/mem.jou" import malloc, realloc, free
-from "stdlib/str.jou" import strlen, sprintf
+from "stdlib/str.jou" import strlen, sprintf, strstr
 from "stdlib/io.jou" import fprintf, stderr
-from "stdlib/process.jou" import exit
+from "stdlib/process.jou" import exit, getenv
 
-# TODO: how to compile these only on their respective platforms?
-#declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
+declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
 declare readlink(linkpath: byte*, result: byte*, result_size: long) -> long
 
 # Return a path to the currently running program. Return value must be free()d.
@@ -13,11 +12,10 @@ def find_current_executable() -> byte*:
     for size = 2L; True; size *= 2:
         buf = realloc(buf, size)
 
-#        if getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL:
-#            ret: long = GetModuleFileNameA(NULL, buf, size as int)
-#        else:
-#            ret = readlink("/proc/self/exe", buf, size)
-        ret = readlink("/proc/self/exe", buf, size)
+        if getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL:
+            ret: long = GetModuleFileNameA(NULL, buf, size as int)
+        else:
+            ret = readlink("/proc/self/exe", buf, size)
 
         if ret <= 0:
             # TODO: include os error message (GetLastError / errno)
