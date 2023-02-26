@@ -273,10 +273,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                     // Apparently the default is to interpret indexes as signed.
                     index = LLVMBuildZExt(st->builder, index, LLVMInt64Type(), "ptr_add_int_implicit_cast");
                 }
-                index = LLVMBuildSExt(st->builder, index, LLVMInt64Type(), "ptr_add_int_implicit_cast");
-                // Multiply by element size explicitly, because we use i8* pointers
-                index = LLVMBuildMul(st->builder, index, LLVMSizeOf(codegen_type(ins->operands[0]->type->data.valuetype)), "ptr_add_int_multiplication");
-                setdest(LLVMBuildGEP(st->builder, getop(0), &index, 1, "ptr_add_int"));
+                setdest(LLVMBuildGEP2(st->builder, codegen_type(ins->operands[0]->type->data.valuetype), getop(0), &index, 1, "ptr_add_int"));
             }
             break;
         case CF_NUM_CAST:
