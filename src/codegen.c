@@ -255,7 +255,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 const Type *fieldtype = classtype->data.classfields.types[i];
                 if (fieldtype->kind == TYPE_POINTER) {
                     // We lied to LLVM that the struct member is i8*, so that we can do self-referencing types
-                    val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(fieldtype),0), "asd");
+                    val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(fieldtype),0), "struct_member_i8_hack");
                 }
                 setdest(val);
             }
