@@ -35,8 +35,14 @@ static LLVMTypeRef codegen_type(const Type *type)
         {
             int n = type->data.classfields.count;
             LLVMTypeRef *elems = malloc(sizeof(elems[0]) * n);  // NOLINT
-            for (int i = 0; i < n; i++)
-                elems[i] = codegen_type(type->data.classfields.types[i]);
+            for (int i = 0; i < n; i++) {
+                // Treat all pointers inside structs as if they were void*.
+                // This allows structs to contain pointers to themselves.
+                if (type->data.classfields.types[i]->kind == TYPE_POINTER)
+                    elems[i] = codegen_type(voidPtrType);
+                else
+                    elems[i] = codegen_type(type->data.classfields.types[i]);
+            }
             LLVMTypeRef result = LLVMStructType(elems, type->data.classfields.count, false);
             free(elems);
             return result;
@@ -244,7 +250,14 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 int i = 0;
                 while (strcmp(classtype->data.classfields.names[i], ins->data.fieldname))
                     i++;
-                setdest(LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), i, ins->data.fieldname));
+
+                LLVMValueRef val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), i, ins->data.fieldname);
+                const Type *fieldtype = classtype->data.classfields.types[i];
+                if (fieldtype->kind == TYPE_POINTER) {
+                    // We lied to LLVM that the struct member is i8*, so that we can do self-referencing types
+                    val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(fieldtype),0), "struct_member_i8_hack");
+                }
+                setdest(val);
             }
             break;
         case CF_PTR_MEMSET_TO_ZERO:
