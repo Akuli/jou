@@ -33,14 +33,6 @@ def find_current_executable() -> byte*:
 declare dirname(path: byte*) -> byte*
 declare stat(path: byte*, buf: byte[1000]*) -> int  # lol
 
-# Should work on windows and linux
-def seems_like_root_of_file_system(path: byte*) -> bool:
-    if is_windows():
-        # C:\ or C:/ or C:
-        return strlen(path) <= 3
-    else:
-        return strcmp(path, "/") == 0
-
 def find_stdlib() -> byte*:
     checked: byte*[3]
     memset(&checked, 0, sizeof checked)
@@ -49,10 +41,14 @@ def find_stdlib() -> byte*:
     while is_windows() and strstr(exedir, "\\"):
         *strstr(exedir, "\\") = '/'
 
-    for i = 0; i < sizeof checked / sizeof checked[0] and not seems_like_root_of_file_system(exedir); i++:
+    for i = 0; i < sizeof checked / sizeof checked[0]; i++:
         tmp = strdup(dirname(exedir))
         free(exedir)
         exedir = tmp
+
+        if strlen(exedir) <= 3:
+            # give up, seems like we reached root of file system (e.g. "C:/" or "/")
+            break
 
         path = malloc(strlen(exedir) + 10)
         sprintf(path, "%s/stdlib", exedir)
