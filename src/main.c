@@ -43,6 +43,7 @@ static const char help_fmt[] =
     "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
     "  --verbose        display a lot of information about all compilation steps\n"
     "  --tokenize-only  display only the output of the tokenizer, don't do anything else\n"
+    "  --parse-only     display only the AST (parse tree), don't do anything else\n"
     "  --linker-flags   appended to the linker command, so you can use external libraries\n"
     ;
 
@@ -83,6 +84,13 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
                 goto wrong_usage;
             }
             flags->tokenize_only = true;
+            i++;
+        } else if (!strcmp(argv[i], "--parse-only")) {
+            if (argc > 3) {
+                fprintf(stderr, "%s: --parse-only cannot be used together with other flags", argv[0]);
+                goto wrong_usage;
+            }
+            flags->parse_only = true;
             i++;
         } else if (!strcmp(argv[i], "--linker-flags")) {
             if (flags->linker_flags) {
@@ -416,11 +424,17 @@ int main(int argc, char **argv)
         printf("Data layout: %s\n", get_target()->data_layout);
     }
 
-    if (compst.flags.tokenize_only) {
+    if (compst.flags.tokenize_only || compst.flags.parse_only) {
         FILE *f = open_the_file(filename, NULL);
         Token *tokens = tokenize(f, filename);
         fclose(f);
-        print_tokens(tokens);
+        if (compst.flags.tokenize_only) {
+            print_tokens(tokens);
+        } else {
+            AstToplevelNode *ast = parse(tokens, filename);
+            print_ast(ast);
+            free_ast(ast);
+        }
         free_tokens(tokens);
         return 0;
     }
