@@ -23,7 +23,7 @@ enum TokenKind:
     EndOfFile  # Marks the end of an array of tokens.
 
 
-struct Token:
+class Token:
     kind: TokenKind
     location: Location
 
@@ -96,7 +96,7 @@ def is_keyword(word: byte*) -> bool:
     #   - syntax documentation
     keywords = [
         "from", "import",
-        "def", "declare", "struct", "enum", "global",
+        "def", "declare", "class", "enum", "global",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
         "and", "or", "not", "as", "sizeof",
@@ -109,7 +109,7 @@ def is_keyword(word: byte*) -> bool:
     return False
 
 
-struct Tokenizer:
+class Tokenizer:
     f: FILE*
     location: Location
     pushback: byte*

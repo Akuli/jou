@@ -203,8 +203,8 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         printf("dereference and ");
         __attribute__((fallthrough));
     case AST_EXPR_GET_FIELD:
-        printf("get struct field \"%s\"\n", expr->data.structfield.fieldname);
-        print_ast_expression(expr->data.structfield.obj, print_tree_prefix(tp, true));
+        printf("get class field \"%s\"\n", expr->data.classfield.fieldname);
+        print_ast_expression(expr->data.classfield.obj, print_tree_prefix(tp, true));
         break;
     case AST_EXPR_DEREF_AND_CALL_METHOD:
         printf("dereference and ");
@@ -220,7 +220,7 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         break;
     case AST_EXPR_SIZEOF:
         printf("sizeof expression\n");
-        print_ast_expression(expr->data.structfield.obj, print_tree_prefix(tp, true));
+        print_ast_expression(expr->data.classfield.obj, print_tree_prefix(tp, true));
         break;
     case AST_EXPR_GET_VARIABLE:
         printf("get variable \"%s\"\n", expr->data.varname);
@@ -409,10 +409,10 @@ void print_ast(const AstToplevelNode *topnodelist)
                 print_ast_function_signature(&topnodelist->data.funcdef.signature);
                 print_ast_body(&topnodelist->data.funcdef.body, (struct TreePrinter){0});
                 break;
-            case AST_TOPLEVEL_DEFINE_STRUCT:
+            case AST_TOPLEVEL_DEFINE_CLASS:
                 printf("Define struct \"%s\" with %d fields:\n",
-                    topnodelist->data.structdef.name, topnodelist->data.structdef.fields.len);
-                for (const AstNameTypeValue *ntv = topnodelist->data.structdef.fields.ptr; ntv < End(topnodelist->data.structdef.fields); ntv++) {
+                    topnodelist->data.classdef.name, topnodelist->data.classdef.fields.len);
+                for (const AstNameTypeValue *ntv = topnodelist->data.classdef.fields.ptr; ntv < End(topnodelist->data.classdef.fields); ntv++) {
                     printf("  %s: ", ntv->name);
                     print_ast_type(&ntv->type);
                     printf("\n");
@@ -538,7 +538,7 @@ static void print_cf_instruction(const CfInstruction *ins)
     case CF_PTR_ADD_INT:
         printf("ptr %s + integer %s", varname(ins->operands[0]), varname(ins->operands[1]));
         break;
-    case CF_PTR_STRUCT_FIELD:
+    case CF_PTR_CLASS_FIELD:
         printf("%s + offset of field \"%s\"", varname(ins->operands[0]), ins->data.fieldname);
         break;
     case CF_PTR_CAST:

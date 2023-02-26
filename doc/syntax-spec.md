@@ -71,7 +71,7 @@ Jou has a few different kinds of tokens:
     - `import`
     - `def`
     - `declare`
-    - `struct`
+    - `class`
     - `enum`
     - `global`
     - `return`

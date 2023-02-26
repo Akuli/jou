@@ -56,8 +56,8 @@ ExportSymbol *typecheck_step1_create_types(TypeContext *ctx, const AstToplevelNo
         char name[100];
 
         switch(ast->kind) {
-        case AST_TOPLEVEL_DEFINE_STRUCT:
-            safe_strcpy(name, ast->data.structdef.name);
+        case AST_TOPLEVEL_DEFINE_CLASS:
+            safe_strcpy(name, ast->data.classdef.name);
             t = create_opaque_struct(name);
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
@@ -201,29 +201,29 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
     return es;
 }
 
-static const Type *handle_struct_fields(TypeContext *ctx, const AstStructDef *structdef)
+static const Type *handle_class_fields(TypeContext *ctx, const AstClassDef *classdef)
 {
     // Previous type-checking pass created an opaque struct.
     Type *type = NULL;
     for (Type **s = ctx->owned_types.ptr; s < End(ctx->owned_types); s++)
-        if (!strcmp((*s)->name, structdef->name)) {
+        if (!strcmp((*s)->name, classdef->name)) {
             type = *s;
             break;
         }
     assert(type);
-    assert(type->kind == TYPE_OPAQUE_STRUCT);
+    assert(type->kind == TYPE_OPAQUE_CLASS);
 
-    int n = structdef->fields.len;
+    int n = classdef->fields.len;
 
     char (*fieldnames)[100] = malloc(n * sizeof(fieldnames[0]));
     for (int i = 0; i<n; i++)
-        safe_strcpy(fieldnames[i], structdef->fields.ptr[i].name);
+        safe_strcpy(fieldnames[i], classdef->fields.ptr[i].name);
 
     const Type **fieldtypes = malloc(n * sizeof fieldtypes[0]);  // NOLINT
     for (int i = 0; i < n; i++)
-        fieldtypes[i] = type_from_ast(ctx, &structdef->fields.ptr[i].type);
+        fieldtypes[i] = type_from_ast(ctx, &classdef->fields.ptr[i].type);
 
-    set_struct_fields(type, n, fieldnames, fieldtypes);
+    set_class_fields(type, n, fieldnames, fieldtypes);
     return type;
 }
 
@@ -243,12 +243,12 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
         case AST_TOPLEVEL_DEFINE_FUNCTION:
             Append(&exports, handle_signature(ctx, &ast->data.funcdef.signature, NULL));
             break;
-        case AST_TOPLEVEL_DEFINE_STRUCT:
+        case AST_TOPLEVEL_DEFINE_CLASS:
             // No new export symbols, because the previous type-checking step already
             // took care of that.
             {
-                const Type *t = handle_struct_fields(ctx, &ast->data.structdef);
-                for (const AstFunctionDef *m = ast->data.structdef.methods.ptr; m < End(ast->data.structdef.methods); m++)
+                const Type *t = handle_class_fields(ctx, &ast->data.classdef);
+                for (const AstFunctionDef *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++)
                     Append(&exports, handle_signature(ctx, &m->signature, t));
             }
             break;
@@ -525,7 +525,7 @@ static const char *short_expression_description(const AstExpression *expr)
 
     case AST_EXPR_GET_FIELD:
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        snprintf(result, sizeof result, "field '%s'", expr->data.structfield.fieldname);
+        snprintf(result, sizeof result, "field '%s'", expr->data.classfield.fieldname);
         break;
     }
 
@@ -667,15 +667,15 @@ static noreturn void fail_with_method_404_error(const Location location, const c
 
     const Type *t = actual_self_type;
     while (t->kind == TYPE_POINTER) t = t->data.valuetype;
-    if (t->kind != TYPE_STRUCT) {
+    if (t->kind != TYPE_CLASS) {
         // examples: some_int.blah(), (&some_int).blah()
         fail_with_error(location,
-            "type %s does not have a method named '%s', and in fact, it doesn't have any methods because %s is not a struct",
+            "type %s does not have a method named '%s', and in fact, it doesn't have any methods because %s is not a class",
             actual_self_type->name, methodname, t->name);
     }
 
     fail_with_error(location, "%s %s does not have a method named '%s'",
-        actual_self_type->kind == TYPE_STRUCT ? "struct" : "type",
+        actual_self_type->kind == TYPE_CLASS ? "class" : "type",
         actual_self_type->name, methodname);
 }
 
@@ -751,16 +751,16 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
     return sig->returntype;
 }
 
-static const Type *typecheck_struct_field(
-    const Type *structtype, const char *fieldname, Location location)
+static const Type *typecheck_class_field(
+    const Type *classtype, const char *fieldname, Location location)
 {
-    assert(structtype->kind == TYPE_STRUCT);
+    assert(classtype->kind == TYPE_CLASS);
 
-    for (int i = 0; i < structtype->data.structfields.count; i++)
-        if (!strcmp(structtype->data.structfields.names[i], fieldname))
-            return structtype->data.structfields.types[i];
+    for (int i = 0; i < classtype->data.classfields.count; i++)
+        if (!strcmp(classtype->data.classfields.names[i], fieldname))
+            return classtype->data.classfields.types[i];
 
-    fail_with_error(location, "struct %s has no field named '%s'", structtype->name, fieldname);
+    fail_with_error(location, "class %s has no field named '%s'", classtype->name, fieldname);
 }
 
 static const Type *typecheck_struct_init(TypeContext *ctx, const AstCall *call, Location location)
@@ -769,7 +769,7 @@ static const Type *typecheck_struct_init(TypeContext *ctx, const AstCall *call, 
     safe_strcpy(tmp.data.name, call->calledname);
     const Type *t = type_from_ast(ctx, &tmp);
 
-    if (t->kind != TYPE_STRUCT) {
+    if (t->kind != TYPE_CLASS) {
         // TODO: test this error. Currently it can never happen because
         // all non-struct types are created with keywords, and this
         // function is called only when there is a name token followed
@@ -778,10 +778,10 @@ static const Type *typecheck_struct_init(TypeContext *ctx, const AstCall *call, 
     }
 
     for (int i = 0; i < call->nargs; i++) {
-        const Type *fieldtype = typecheck_struct_field(t, call->argnames[i], call->args[i].location);
+        const Type *fieldtype = typecheck_class_field(t, call->argnames[i], call->args[i].location);
         char msg[1000];
         snprintf(msg, sizeof msg,
-            "value for field '%s' of struct %s must be of type TO, not FROM",
+            "value for field '%s' of class %s must be of type TO, not FROM",
             call->argnames[i], call->calledname);
         typecheck_expression_with_implicit_cast(ctx, &call->args[i], fieldtype, msg);
     }
@@ -792,9 +792,9 @@ static const Type *typecheck_struct_init(TypeContext *ctx, const AstCall *call, 
 static const char *very_short_type_description(const Type *t)
 {
     switch(t->kind) {
-        case TYPE_STRUCT:
-        case TYPE_OPAQUE_STRUCT:
-            return "a struct";
+        case TYPE_CLASS:
+        case TYPE_OPAQUE_CLASS:
+            return "a class";
         case TYPE_ENUM:
             return "an enum";
         case TYPE_VOID_POINTER:
@@ -916,25 +916,25 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
         }
         break;
     case AST_EXPR_GET_FIELD:
-        temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
-        if (temptype->kind != TYPE_STRUCT)
+        temptype = typecheck_expression_not_void(ctx, expr->data.classfield.obj)->type;
+        if (temptype->kind != TYPE_CLASS)
             fail_with_error(
                 expr->location,
-                "left side of the '.' operator must be a struct, not %s",
+                "left side of the '.' operator must be a class, not %s",
                 temptype->name);
-        result = typecheck_struct_field(temptype, expr->data.structfield.fieldname, expr->location);
+        result = typecheck_class_field(temptype, expr->data.classfield.fieldname, expr->location);
         break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
-        if (temptype->kind != TYPE_POINTER || temptype->data.valuetype->kind != TYPE_STRUCT)
+        temptype = typecheck_expression_not_void(ctx, expr->data.classfield.obj)->type;
+        if (temptype->kind != TYPE_POINTER || temptype->data.valuetype->kind != TYPE_CLASS)
             fail_with_error(
                 expr->location,
-                "left side of the '->' operator must be a pointer to a struct, not %s",
+                "left side of the '->' operator must be a pointer to a class, not %s",
                 temptype->name);
-        result = typecheck_struct_field(temptype->data.valuetype, expr->data.structfield.fieldname, expr->location);
+        result = typecheck_class_field(temptype->data.valuetype, expr->data.classfield.fieldname, expr->location);
         break;
     case AST_EXPR_DEREF_AND_CALL_METHOD:
-        temptype = typecheck_expression_not_void(ctx, expr->data.structfield.obj)->type;
+        temptype = typecheck_expression_not_void(ctx, expr->data.classfield.obj)->type;
         if (temptype->kind != TYPE_POINTER)
             fail_with_error(
                 expr->location,

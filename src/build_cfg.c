@@ -196,24 +196,24 @@ static const LocalVariable *build_binop(
     return negated;
 }
 
-static const LocalVariable *build_struct_field_pointer(
-    struct State *st, const LocalVariable *structinstance, const char *fieldname, Location location)
+static const LocalVariable *build_class_field_pointer(
+    struct State *st, const LocalVariable *instance, const char *fieldname, Location location)
 {
-    assert(structinstance->type->kind == TYPE_POINTER);
-    assert(structinstance->type->data.valuetype->kind == TYPE_STRUCT);
-    const Type *structtype = structinstance->type->data.valuetype;
+    assert(instance->type->kind == TYPE_POINTER);
+    assert(instance->type->data.valuetype->kind == TYPE_CLASS);
+    const Type *classtype = instance->type->data.valuetype;
 
-    for (int i = 0; i < structtype->data.structfields.count; i++) {
+    for (int i = 0; i < classtype->data.classfields.count; i++) {
         char name[100];
-        safe_strcpy(name, structtype->data.structfields.names[i]);
-        const Type *type = structtype->data.structfields.types[i];
+        safe_strcpy(name, classtype->data.classfields.names[i]);
+        const Type *type = classtype->data.classfields.types[i];
 
         if (!strcmp(name, fieldname)) {
             union CfInstructionData dat;
             safe_strcpy(dat.fieldname, name);
 
             LocalVariable* result = add_local_var(st, get_pointer_type(type));
-            add_instruction(st, location, CF_PTR_STRUCT_FIELD, &dat, (const LocalVariable*[]){structinstance,NULL}, result);
+            add_instruction(st, location, CF_PTR_CLASS_FIELD, &dat, (const LocalVariable*[]){instance,NULL}, result);
             return result;
         }
     }
@@ -221,12 +221,12 @@ static const LocalVariable *build_struct_field_pointer(
     assert(0);
 }
 
-static const LocalVariable *build_struct_field(
-    struct State *st, const LocalVariable *structinstance, const char *fieldname, Location location)
+static const LocalVariable *build_class_field(
+    struct State *st, const LocalVariable *instance, const char *fieldname, Location location)
 {
-    const LocalVariable *ptr = add_local_var(st, get_pointer_type(structinstance->type));
-    add_unary_op(st, location, CF_ADDRESS_OF_LOCAL_VAR, structinstance, ptr);
-    const LocalVariable *field_ptr = build_struct_field_pointer(st, ptr, fieldname, location);
+    const LocalVariable *ptr = add_local_var(st, get_pointer_type(instance->type));
+    add_unary_op(st, location, CF_ADDRESS_OF_LOCAL_VAR, instance, ptr);
+    const LocalVariable *field_ptr = build_class_field_pointer(st, ptr, fieldname, location);
     const LocalVariable *field = add_local_var(st, field_ptr->type->data.valuetype);
     add_unary_op(st, location, CF_PTR_LOAD, field_ptr, field);
     return field;
@@ -362,17 +362,17 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
     case AST_EXPR_DEREF_AND_GET_FIELD:
     {
         // &obj->field aka &(obj->field)
-        const LocalVariable *obj = build_expression(st, address_of_what->data.structfield.obj);
+        const LocalVariable *obj = build_expression(st, address_of_what->data.classfield.obj);
         assert(obj->type->kind == TYPE_POINTER);
-        assert(obj->type->data.valuetype->kind == TYPE_STRUCT);
-        return build_struct_field_pointer(st, obj, address_of_what->data.structfield.fieldname, address_of_what->location);
+        assert(obj->type->data.valuetype->kind == TYPE_CLASS);
+        return build_class_field_pointer(st, obj, address_of_what->data.classfield.fieldname, address_of_what->location);
     }
     case AST_EXPR_GET_FIELD:
     {
         // &obj.field aka &(obj.field), evaluate as &(&obj)->field
-        const LocalVariable *obj = build_address_of_expression(st, address_of_what->data.structfield.obj);
+        const LocalVariable *obj = build_address_of_expression(st, address_of_what->data.classfield.obj);
         assert(obj->type->kind == TYPE_POINTER);
-        return build_struct_field_pointer(st, obj, address_of_what->data.structfield.fieldname, address_of_what->location);
+        return build_class_field_pointer(st, obj, address_of_what->data.classfield.fieldname, address_of_what->location);
     }
     case AST_EXPR_INDEXING:
     {
@@ -450,7 +450,7 @@ static const LocalVariable *build_struct_init(struct State *st, const Type *type
     add_unary_op(st, location, CF_PTR_MEMSET_TO_ZERO, instanceptr, NULL);
 
     for (int i = 0; i < call->nargs; i++) {
-        const LocalVariable *fieldptr = build_struct_field_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
+        const LocalVariable *fieldptr = build_class_field_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
         const LocalVariable *fieldval = build_expression(st, &call->args[i]);
         add_binary_op(st, location, CF_PTR_STORE, fieldptr, fieldval, NULL);
     }
@@ -520,8 +520,8 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
         result = build_array(st, types->type, expr->data.array.items, expr->location);
         break;
     case AST_EXPR_GET_FIELD:
-        temp = build_expression(st, expr->data.structfield.obj);
-        result = build_struct_field(st, temp, expr->data.structfield.fieldname, expr->location);
+        temp = build_expression(st, expr->data.classfield.obj);
+        result = build_class_field(st, temp, expr->data.classfield.fieldname, expr->location);
         break;
     case AST_EXPR_GET_ENUM_MEMBER:
         result = add_local_var(st, types->type);
@@ -872,18 +872,18 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx
             Append(&result.graphs, g);
         }
 
-        if (ast->kind == AST_TOPLEVEL_DEFINE_STRUCT) {
-            Type *structtype = NULL;
+        if (ast->kind == AST_TOPLEVEL_DEFINE_CLASS) {
+            Type *classtype = NULL;
             for (Type **t = typectx->owned_types.ptr; t < End(typectx->owned_types); t++)
-                if (!strcmp((*t)->name, ast->data.structdef.name)) {
-                    structtype = *t;
+                if (!strcmp((*t)->name, ast->data.classdef.name)) {
+                    classtype = *t;
                     break;
                 }
-            assert(structtype);
+            assert(classtype);
 
-            for (AstFunctionDef *m = ast->data.structdef.methods.ptr; m < End(ast->data.structdef.methods); m++) {
+            for (AstFunctionDef *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
                 char name[200];
-                create_dotted_method_name(&name, structtype, m->signature.funcname);
+                create_dotted_method_name(&name, classtype, m->signature.funcname);
                 const Signature *sig = typecheck_function_body(typectx, name, &m->body);
                 CfGraph *g = build_function(&st, &m->body);
                 g->signature = copy_signature(sig);

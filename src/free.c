@@ -72,8 +72,8 @@ static void free_expression(const AstExpression *expr)
         break;
     case AST_EXPR_GET_FIELD:
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        free_expression(expr->data.structfield.obj);
-        free(expr->data.structfield.obj);
+        free_expression(expr->data.classfield.obj);
+        free(expr->data.classfield.obj);
         break;
     case AST_EXPR_CALL_METHOD:
     case AST_EXPR_DEREF_AND_CALL_METHOD:
@@ -200,15 +200,15 @@ void free_ast(AstToplevelNode *topnodelist)
         case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
             free_name_type_value(&t->data.globalvar);
             break;
-        case AST_TOPLEVEL_DEFINE_STRUCT:
-            for (const AstNameTypeValue *ntv = t->data.structdef.fields.ptr; ntv < End(t->data.structdef.fields); ntv++)
+        case AST_TOPLEVEL_DEFINE_CLASS:
+            for (const AstNameTypeValue *ntv = t->data.classdef.fields.ptr; ntv < End(t->data.classdef.fields); ntv++)
                 free_name_type_value(ntv);
-            free(t->data.structdef.fields.ptr);
-            for (const AstFunctionDef *m = t->data.structdef.methods.ptr; m < End(t->data.structdef.methods); m++) {
+            free(t->data.classdef.fields.ptr);
+            for (const AstFunctionDef *m = t->data.classdef.methods.ptr; m < End(t->data.classdef.methods); m++) {
                 free_ast_signature(&m->signature);
                 free_ast_body(&m->body);
             }
-            free(t->data.structdef.methods.ptr);
+            free(t->data.classdef.methods.ptr);
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
             free(t->data.enumdef.membernames);

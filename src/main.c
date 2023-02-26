@@ -300,8 +300,8 @@ static bool astnode_conflicts_with_an_import(const AstToplevelNode *astnode, con
     case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
     case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
         return import->kind == EXPSYM_GLOBAL_VAR && !strcmp(import->name, astnode->data.globalvar.name);
-    case AST_TOPLEVEL_DEFINE_STRUCT:
-        return import->kind == EXPSYM_TYPE && !strcmp(import->name, astnode->data.structdef.name);
+    case AST_TOPLEVEL_DEFINE_CLASS:
+        return import->kind == EXPSYM_TYPE && !strcmp(import->name, astnode->data.classdef.name);
     case AST_TOPLEVEL_DEFINE_ENUM:
         return import->kind == EXPSYM_TYPE && !strcmp(import->name, astnode->data.enumdef.name);
     case AST_TOPLEVEL_IMPORT:
