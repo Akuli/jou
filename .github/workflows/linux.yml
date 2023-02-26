@@ -19,7 +19,7 @@ jobs:
       - run: ./runtests.sh --verbose './jou ${{ matrix.opt-level }} %s'
       - run: ./runtests.sh --verbose './jou ${{ matrix.opt-level }} --verbose %s'
       # Valgrinding is slow. Do it only when this file or something in the compiler has been modified.
-      - name: Figure out if we need to run valgrind
+      - name: Figure out if we need to run tests with valgrind
         id: check-need-valgrind
         run: |
           git fetch https://github.com/Akuli/jou main
