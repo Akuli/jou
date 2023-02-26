@@ -483,6 +483,8 @@ int main(int argc, char **argv)
         fs->module = NULL;  // consumed in linking
     }
 
+    LLVMVerifyModule(main_module, LLVMAbortProcessAction, NULL);
+
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         free(fs->path);
         free_type_context(&fs->typectx);
