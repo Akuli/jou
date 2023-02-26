@@ -38,9 +38,9 @@ static void free_pointer_and_array_types(const struct TypeInfo *info)
 void free_type(Type *t)
 {
     if (t) {
-        if (t->kind == TYPE_STRUCT) {
-            free(t->data.structfields.types);
-            free(t->data.structfields.names);
+        if (t->kind == TYPE_CLASS) {
+            free(t->data.classfields.types);
+            free(t->data.classfields.names);
         }
         assert(offsetof(struct TypeInfo, type) == 0);
         free_pointer_and_array_types((struct TypeInfo *)t);
@@ -166,7 +166,7 @@ const Type *type_of_constant(const Constant *c)
 Type *create_opaque_struct(const char *name)
 {
     struct TypeInfo *result = calloc(1, sizeof *result);
-    result->type = (Type){ .kind = TYPE_OPAQUE_STRUCT };
+    result->type = (Type){ .kind = TYPE_OPAQUE_CLASS };
 
     assert(strlen(name) < sizeof result->type.name);
     strcpy(result->type.name, name);
@@ -174,13 +174,13 @@ Type *create_opaque_struct(const char *name)
     return &result->type;
 }
 
-void set_struct_fields(Type *structtype, int count, char (*names)[100], const Type **types)
+void set_class_fields(Type *classtype, int count, char (*names)[100], const Type **types)
 {
-    assert(structtype->kind == TYPE_OPAQUE_STRUCT);
-    structtype->kind = TYPE_STRUCT;
-    structtype->data.structfields.count = count;
-    structtype->data.structfields.names = names;
-    structtype->data.structfields.types = types;
+    assert(classtype->kind == TYPE_OPAQUE_CLASS);
+    classtype->kind = TYPE_CLASS;
+    classtype->data.classfields.count = count;
+    classtype->data.classfields.names = names;
+    classtype->data.classfields.types = types;
 }
 
 Type *create_enum(const char *name, int membercount, char (*membernames)[100])

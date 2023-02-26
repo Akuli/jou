@@ -29,15 +29,15 @@ static LLVMTypeRef codegen_type(const Type *type)
         return LLVMIntType(type->data.width_in_bits);
     case TYPE_BOOL:
         return LLVMInt1Type();
-    case TYPE_OPAQUE_STRUCT:
+    case TYPE_OPAQUE_CLASS:
         assert(0);
-    case TYPE_STRUCT:
+    case TYPE_CLASS:
         {
-            int n = type->data.structfields.count;
+            int n = type->data.classfields.count;
             LLVMTypeRef *elems = malloc(sizeof(elems[0]) * n);  // NOLINT
             for (int i = 0; i < n; i++)
-                elems[i] = codegen_type(type->data.structfields.types[i]);
-            LLVMTypeRef result = LLVMStructType(elems, type->data.structfields.count, false);
+                elems[i] = codegen_type(type->data.classfields.types[i]);
+            LLVMTypeRef result = LLVMStructType(elems, type->data.classfields.count, false);
             free(elems);
             return result;
         }
@@ -238,13 +238,13 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, lhsint, rhsint, "ptr_eq"));
             }
             break;
-        case CF_PTR_STRUCT_FIELD:
+        case CF_PTR_CLASS_FIELD:
             {
-                const Type *structtype = ins->operands[0]->type->data.valuetype;
+                const Type *classtype = ins->operands[0]->type->data.valuetype;
                 int i = 0;
-                while (strcmp(structtype->data.structfields.names[i], ins->data.fieldname))
+                while (strcmp(classtype->data.classfields.names[i], ins->data.fieldname))
                     i++;
-                setdest(LLVMBuildStructGEP2(st->builder, codegen_type(structtype), getop(0), i, ins->data.fieldname));
+                setdest(LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), i, ins->data.fieldname));
             }
             break;
         case CF_PTR_MEMSET_TO_ZERO:

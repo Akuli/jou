@@ -31,7 +31,7 @@ typedef struct AstIfStatement AstIfStatement;
 typedef struct AstStatement AstStatement;
 typedef struct AstToplevelNode AstToplevelNode;
 typedef struct AstFunctionDef AstFunctionDef;
-typedef struct AstStructDef AstStructDef;
+typedef struct AstClassDef AstClassDef;
 typedef struct AstEnumDef AstEnumDef;
 typedef struct AstImport AstImport;
 
@@ -212,7 +212,7 @@ struct AstExpression {
         struct { int count; AstExpression *items; } array;  // AST_EXPR_ARRAY
         struct { AstExpression *obj; AstType type; } as;    // AST_EXPR_AS
         struct { AstExpression *obj; struct AstCall call; } methodcall; // AST_EXPR_CALL_METHOD, AST_EXPR_DEREF_AND_CALL_METHOD
-        struct { AstExpression *obj; char fieldname[100]; } structfield; // AST_EXPR_GET_FIELD, AST_EXPR_DEREF_AND_GET_FIELD
+        struct { AstExpression *obj; char fieldname[100]; } classfield; // AST_EXPR_GET_FIELD, AST_EXPR_DEREF_AND_GET_FIELD
         struct { char enumname[100]; char membername[100]; } enummember; // AST_EXPR_GET_ENUM_MEMBER
         /*
         The "operands" pointer is an array of 1 to 2 expressions.
@@ -298,7 +298,7 @@ struct AstFunctionDef {
     AstBody body;
 };
 
-struct AstStructDef {
+struct AstClassDef {
     char name[100];
     List(AstNameTypeValue) fields;
     List(AstFunctionDef) methods;
@@ -325,14 +325,14 @@ struct AstToplevelNode {
         AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE,
         AST_TOPLEVEL_DEFINE_FUNCTION,
         AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE,
-        AST_TOPLEVEL_DEFINE_STRUCT,
+        AST_TOPLEVEL_DEFINE_CLASS,
         AST_TOPLEVEL_DEFINE_ENUM,
         AST_TOPLEVEL_IMPORT,
     } kind;
     union {
         AstNameTypeValue globalvar;  // AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE
         AstFunctionDef funcdef;  // AST_TOPLEVEL_DECLARE_FUNCTION, AST_TOPLEVEL_DEFINE_FUNCTION (body is empty for declaring)
-        AstStructDef structdef;  // AST_TOPLEVEL_DEFINE_STRUCT
+        AstClassDef classdef;  // AST_TOPLEVEL_DEFINE_CLASS
         AstEnumDef enumdef;     // AST_TOPLEVEL_DEFINE_ENUM
         AstImport import;       // AST_TOPLEVEL_IMPORT
     } data;
@@ -349,15 +349,15 @@ struct Type {
         TYPE_POINTER,
         TYPE_VOID_POINTER,
         TYPE_ARRAY,
-        TYPE_STRUCT,
-        TYPE_OPAQUE_STRUCT,  // struct with unknown members
+        TYPE_CLASS,
+        TYPE_OPAQUE_CLASS,  // struct with unknown members
         TYPE_ENUM,
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_FLOATING_POINT
         const Type *valuetype;  // TYPE_POINTER
         struct { const Type *membertype; int len; } array;  // TYPE_ARRAY
-        struct { int count; char (*names)[100]; const Type **types; } structfields;  // TYPE_STRUCT
+        struct { int count; char (*names)[100]; const Type **types; } classfields;  // TYPE_CLASS
         struct { int count; char (*names)[100]; } enummembers;
     } data;
 };
@@ -371,9 +371,9 @@ frees with valgrind.
 This also simplifies checking whether two types are the same type: you
 can simply use "==" between two "const Type *" pointers.
 
-Struct types are a bit different. When you make a struct, you get a
+Classes are a bit different. When you make a class, you get a
 pointer that you must pass to free_type() later. You can still "=="
-compare types, because two different structs with the same members are
+compare types, because two different classes with the same members are
 not the same type.
 */
 extern const Type *boolType;      // bool
@@ -390,8 +390,8 @@ const Type *get_array_type(const Type *t, int len);  // result lives as long as 
 const Type *type_of_constant(const Constant *c);
 Type *create_opaque_struct(const char *name);
 Type *create_enum(const char *name, int membercount, char (*membernames)[100]);
-void set_struct_fields(
-    Type *structtype,  // must be opaque struct, becomes non-opaque
+void set_class_fields(
+    Type *classtype,  // must be opaque struct, becomes non-opaque
     int fieldcount,
     char (*fieldnames)[100],  // will be free()d eventually
     const Type **fieldtypes);  // will be free()d eventually
@@ -513,7 +513,7 @@ struct CfInstruction {
         CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
         CF_PTR_LOAD,  // aka dereference
         CF_PTR_EQ,
-        CF_PTR_STRUCT_FIELD,  // takes 1 operand (pointer), sets destvar to &op->fieldname
+        CF_PTR_CLASS_FIELD,  // takes 1 operand (pointer), sets destvar to &op->fieldname
         CF_PTR_CAST,
         CF_PTR_ADD_INT,
         // Left and right side of number operations must be of the same type (except CF_NUM_CAST).
@@ -533,7 +533,7 @@ struct CfInstruction {
     union CfInstructionData {
         Constant constant;      // CF_CONSTANT
         char funcname[200];     // CF_CALL
-        char fieldname[100];    // CF_PTR_STRUCT_FIELD
+        char fieldname[100];    // CF_PTR_CLASS_FIELD
         char globalname[100];   // CF_ADDRESS_OF_GLOBAL_VAR
         const Type *type;       // CF_SIZEOF
     } data;

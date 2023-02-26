@@ -468,8 +468,8 @@ static AstExpression parse_expression_with_fields_and_methods_and_indexing(const
                 result.data.methodcall.obj = obj;
                 result.data.methodcall.call = parse_call(tokens, '(', ')', false);
             } else {
-                result.data.structfield.obj = obj;
-                safe_strcpy(result.data.structfield.fieldname, (*tokens)->data.name);
+                result.data.classfield.obj = obj;
+                safe_strcpy(result.data.classfield.fieldname, (*tokens)->data.name);
                 ++*tokens;
             }
         }
@@ -798,11 +798,11 @@ static AstFunctionDef parse_funcdef(const Token **tokens)
     return funcdef;
 }
 
-static AstStructDef parse_structdef(const Token **tokens)
+static AstClassDef parse_classdef(const Token **tokens)
 {
-    AstStructDef result = {0};
+    AstClassDef result = {0};
     if ((*tokens)->type != TOKEN_NAME)
-        fail_with_parse_error(*tokens, "a name for the struct");
+        fail_with_parse_error(*tokens, "a name for the class");
     safe_strcpy(result.name, (*tokens)->data.name);
     ++*tokens;
 
@@ -812,10 +812,10 @@ static AstStructDef parse_structdef(const Token **tokens)
             Append(&result.methods, parse_funcdef(tokens));
         } else {
             Location name_location = (*tokens)->location;
-            AstNameTypeValue field = parse_name_type_value(tokens, "a method or a struct field");
+            AstNameTypeValue field = parse_name_type_value(tokens, "a method or a class field");
 
             if (field.value)
-                fail_with_error(field.value->location, "struct fields cannot have default values");
+                fail_with_error(field.value->location, "class fields cannot have default values");
 
             for (const AstNameTypeValue *prevfield = result.fields.ptr; prevfield < End(result.fields); prevfield++)
                 if (!strcmp(prevfield->name, field.name))
@@ -981,10 +981,10 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
         result.kind = AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE;
         result.data.globalvar = parse_name_type_value(tokens, "a variable name");
         eat_newline(tokens);
-    } else if (is_keyword(*tokens, "struct")) {
+    } else if (is_keyword(*tokens, "class")) {
         ++*tokens;
-        result.kind = AST_TOPLEVEL_DEFINE_STRUCT;
-        result.data.structdef = parse_structdef(tokens);
+        result.kind = AST_TOPLEVEL_DEFINE_CLASS;
+        result.data.classdef = parse_classdef(tokens);
     } else if (is_keyword(*tokens, "enum")) {
         ++*tokens;
         result.kind = AST_TOPLEVEL_DEFINE_ENUM;

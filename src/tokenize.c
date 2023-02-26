@@ -220,7 +220,7 @@ static bool is_keyword(const char *s)
         //   - self-hosted compiler
         //   - syntax documentation
         "from", "import",
-        "def", "declare", "struct", "enum", "global",
+        "def", "declare", "class", "enum", "global",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL",
         "and", "or", "not", "as", "sizeof",
