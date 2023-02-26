@@ -63,6 +63,7 @@ def find_stdlib() -> byte*:
 
         checked[i] = path
 
+    # TODO: test this
     fprintf(stderr, "error: cannot find the Jou standard library in any of the following locations:\n")
     for i = 0; i < sizeof checked / sizeof checked[0] and checked[i] != NULL; i++:
         fprintf(stderr, "  %s\n", checked[i])
