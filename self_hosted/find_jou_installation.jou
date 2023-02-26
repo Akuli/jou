@@ -1,5 +1,5 @@
-from "stdlib/mem.jou" import malloc, realloc, free
-from "stdlib/str.jou" import strlen, sprintf, strstr
+from "stdlib/mem.jou" import malloc, realloc, free, memset
+from "stdlib/str.jou" import strlen, sprintf, strstr, strcmp, strdup
 from "stdlib/io.jou" import fprintf, stderr
 from "stdlib/process.jou" import exit, getenv
 
@@ -29,19 +29,42 @@ def find_current_executable() -> byte*:
 declare dirname(path: byte*) -> byte*
 declare stat(path: byte*, buf: byte[1000]*) -> int  # lol
 
+# Should work on windows and linux
+def seems_like_root_of_file_system(path: byte*) -> bool:
+    if getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL:
+        # windows: C:\ or C:/ or C:
+        return strlen(path) <= 3
+    else:
+        # linux
+        return strcmp(path, "/") == 0
+
 def find_stdlib() -> byte*:
-    exe = find_current_executable()
-    exedir = dirname(exe)
-    path = malloc(strlen(exedir) + 10)
-    sprintf(path, "%s/stdlib", exedir)
-    free(exe)
+    checked: byte*[3]
+    memset(&checked, 0, sizeof checked)
 
-    iojou: byte* = malloc(strlen(path) + 10)
-    sprintf(iojou, "%s/io.jou", path)
-    buf: byte[1000]
-    if stat(iojou, &buf) != 0:
-        fprintf(stderr, "error: cannot find the Jou standard library in %s\n", path)
-        exit(1)
-    free(iojou)
+    exedir = find_current_executable()
+    for i = 0; i < sizeof checked / sizeof checked[0] and not seems_like_root_of_file_system(exedir); i++:
+        tmp = strdup(dirname(exedir))
+        free(exedir)
+        exedir = tmp
 
-    return path
+        path = malloc(strlen(exedir) + 10)
+        sprintf(path, "%s/stdlib", exedir)
+
+        iojou: byte* = malloc(strlen(path) + 10)
+        sprintf(iojou, "%s/io.jou", path)
+        buf: byte[1000]
+        stat_result = stat(iojou, &buf)
+        free(iojou)
+
+        if stat_result == 0:
+            free(exedir)
+            return path
+
+        checked[i] = path
+
+    fprintf(stderr, "error: cannot find the Jou standard library in any of the following locations:\n")
+    for i = 0; i < sizeof checked / sizeof checked[0] and checked[i] != NULL; i++:
+        fprintf(stderr, "  %s\n", checked[i])
+    exit(1)
+    return NULL  # TODO: never runs, but compiler shows warning if I delete this
