@@ -23,7 +23,7 @@ def find_current_executable() -> byte*:
 
         if ret <= 0:
             # TODO: include os error message (GetLastError / errno)
-            fprintf(stderr, "cannot locate currently running executable, needed for finding the Jou standard library\n")
+            fprintf(stderr, "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
             exit(1)
         if ret < size:
             # buffer is big enough, it fits
@@ -69,6 +69,7 @@ def find_stdlib() -> byte*:
 
         checked[i] = path
 
+    # TODO: test this
     fprintf(stderr, "error: cannot find the Jou standard library in any of the following locations:\n")
     for i = 0; i < sizeof checked / sizeof checked[0] and checked[i] != NULL; i++:
         fprintf(stderr, "  %s\n", checked[i])
