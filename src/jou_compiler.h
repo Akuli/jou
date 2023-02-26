@@ -391,7 +391,7 @@ const Type *type_of_constant(const Constant *c);
 Type *create_opaque_struct(const char *name);
 Type *create_enum(const char *name, int membercount, char (*membernames)[100]);
 void set_class_fields(
-    Type *classtype,  // must be opaque struct, becomes non-opaque
+    Type *classtype,  // must be opaque class, becomes non-opaque
     int fieldcount,
     char (*fieldnames)[100],  // will be free()d eventually
     const Type **fieldtypes);  // will be free()d eventually
