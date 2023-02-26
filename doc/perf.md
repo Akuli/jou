@@ -155,8 +155,8 @@ After running each command a few times the result averaged the following:
 
 | Optimization flag | C (with the clang compiler)   | Jou           |
 |-------------------|-------------------------------|---------------|
-| `-O0` (default)   | 1.05 seconds                  | 2.71 seconds  |
-| `-O1`             | 0.67 seconds                  | 0.67 seconds  |
+| `-O0`             | 1.05 seconds                  | 2.71 seconds  |
+| `-O1` (default)   | 0.67 seconds                  | 0.67 seconds  |
 | `-O2`             | 0.48 seconds                  | 0.48 seconds  |
 | `-O3`             | 0.48 seconds                  | 0.48 seconds  |
 
@@ -174,6 +174,12 @@ because it uses LLVM and Jou also uses LLVM.
 The results would not be so consistent with Jou
 if I used a different C compiler, such as `gcc`.
 
+## Why is `-O1` default now?
+
+See (Large programs compile really slowly without optimizations) #236
+If there is no optimize the large programs compile very slow.
+So the default optmize is `-O1` now.
+You can also use `-O0` to compile with no optimize.
 
 ## Why is `-O3` not the default?
 
