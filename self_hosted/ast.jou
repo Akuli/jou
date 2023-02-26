@@ -66,5 +66,42 @@ class AstSignature:
     funcname: byte[100]
     returntype: AstType
 
+    def free(self: AstSignature*) -> void:
+        (&self->returntype).free()
+
 class AstFunctionDef:
+    signature: AstSignature
+    body: AstBody
+
+    def free(self: AstFunctionDef*) -> void:
+        (&self->signature).free()
+        (&self->body).free()
+
+class AstBody:
+    statements: AstStatement*
+    nstatements: int
+
+    def free(self: AstBody*) -> void:
+        for i = 0; i < self->nstatements; i++:
+            (&self->statements[i]).free()
+        free(self->statements)
+
+enum AstStatementKind:
+    ExpressionStatement  # Evaluate an expression. Discard the result.
+
+class AstStatement:
+    location: Location
+    kind: AstStatementKind
+
+    # TODO: union
+    expression: AstExpression  # AstStatementKind::ExpressionStatement
+
+    def free(self: AstStatement*) -> void:
+        if self->kind == AstStatementKind::ExpressionStatement:
+            (&self->expression).free()
+
+class AstExpression:
     todo: int
+
+    def free(self: AstExpression*) -> void:
+        return
