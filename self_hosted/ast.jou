@@ -1,6 +1,10 @@
-from "stdlib/io.jou" import printf
+from "stdlib/io.jou" import printf, putchar
+from "stdlib/str.jou" import snprintf
 from "stdlib/mem.jou" import free
 from "./errors_and_warnings.jou" import Location, assert
+
+# TODO: move to stdlib
+declare isprint(b: int) -> int
 
 class AstFile:
     path: byte*  # not owned
@@ -36,6 +40,7 @@ class AstToplevelStatement:
         elif self->kind == AstToplevelStatementKind::DefineFunction:
             printf("Define a function: ")
             (&self->funcdef.signature).print()
+            (&self->funcdef.body).print(TreePrinter{})
         else:
             assert(False)
         printf("\n")
@@ -90,15 +95,15 @@ class AstType:
 class AstSignature:
     funcname_location: Location
     funcname: byte[100]
-    returntype: AstType
+    return_type: AstType
 
     def print(self: AstSignature*) -> void:
         printf("%s() -> ", &self->funcname[0])
-        (&self->returntype).print()
+        (&self->return_type).print()
         printf("\n")
 
     def free(self: AstSignature*) -> void:
-        (&self->returntype).free()
+        (&self->return_type).free()
 
 class AstFunctionDef:
     signature: AstSignature
@@ -108,9 +113,32 @@ class AstFunctionDef:
         (&self->signature).free()
         (&self->body).free()
 
+# Statements and expressions can be printed in a tree.
+# To see a tree, run:
+#
+#   $ jou --parse-only examples/hello.jou
+#
+class TreePrinter:
+    prefix: byte[100]
+
+    # Returned subprinter can be used to print elements "inside" the current line.
+    def print_prefix(self: TreePrinter, is_last_child: bool) -> TreePrinter:
+        subprinter = TreePrinter{}
+        if is_last_child:
+            printf("%s`--- ", &self.prefix[0])
+            snprintf(&subprinter.prefix[0], sizeof subprinter.prefix, "%s  ", &self.prefix[0])
+        else:
+            printf("%s|--- ", &self.prefix[0])
+            snprintf(&subprinter.prefix[0], sizeof subprinter.prefix, "%s| ", &self.prefix[0])
+        return subprinter
+
 class AstBody:
     statements: AstStatement*
     nstatements: int
+
+    def print(self: AstBody*, tp: TreePrinter) -> void:
+        for i = 0; i < self->nstatements; i++:
+            (&self->statements[i]).print(tp.print_prefix(i == self->nstatements - 1))
 
     def free(self: AstBody*) -> void:
         for i = 0; i < self->nstatements; i++:
@@ -119,17 +147,32 @@ class AstBody:
 
 enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
+    ReturnWithValue
 
 class AstStatement:
     location: Location
     kind: AstStatementKind
 
     # TODO: union
-    expression: AstExpression  # AstStatementKind::ExpressionStatement
+    expression: AstExpression       # AstStatementKind::ExpressionStatement
+    return_value: AstExpression     # AstStatementKind::ReturnWithValue
+
+    def print(self: AstStatement*, tp: TreePrinter) -> void:
+        printf("[line %d] ", self->location.lineno)
+        if self->kind == AstStatementKind::ExpressionStatement:
+            printf("expression statement\n")
+            (&self->expression).print(tp.print_prefix(True))
+        elif self->kind == AstStatementKind::ReturnWithValue:
+            printf("return a value\n")
+            (&self->return_value).print(tp.print_prefix(True))
+        else:
+            printf("??????\n")
 
     def free(self: AstStatement*) -> void:
         if self->kind == AstStatementKind::ExpressionStatement:
             (&self->expression).free()
+        if self->kind == AstStatementKind::ReturnWithValue:
+            (&self->return_value).free()
 
 enum AstExpressionKind:
     String
@@ -141,20 +184,46 @@ class AstExpression:
     kind: AstExpressionKind
 
     # TODO: union
-    string_value: byte*
+    string: byte*
     int_value: int
     call: AstCall
 
+    def print(self: AstExpression*, tp: TreePrinter) -> void:
+        printf("[line %d] ", self->location.lineno)
+        if self->kind == AstExpressionKind::String:
+            printf("\"")
+            for s = self->string; *s != 0; s++:
+                if isprint(*s) != 0:
+                    putchar(*s)
+                elif *s == '\n':
+                    printf("\\n")
+                else:
+                    printf("\\x%02x", *s)
+            printf("\"\n")
+        elif self->kind == AstExpressionKind::Int:
+            printf("%d (32-bit signed)\n", self->int_value)
+        elif self->kind == AstExpressionKind::FunctionCall:
+            printf("call function \"%s\"\n", &self->call.called_name[0])
+            (&self->call).print(tp)
+        else:
+            assert(False)
+            
     def free(self: AstExpression*) -> void:
         if self->kind == AstExpressionKind::FunctionCall:
             (&self->call).free()
         if self->kind == AstExpressionKind::String:
-            free(self->string_value)
+            free(self->string)
 
 class AstCall:
     called_name: byte[100]  # e.g. name of function, name of class to instantiate
     nargs: int
     args: AstExpression*
+
+    def print(self: AstCall*, tp: TreePrinter) -> void:
+        for i = 0; i < self->nargs; i++:
+            sub = tp.print_prefix(i == self->nargs - 1)
+            printf("argument %d: ", i)
+            (&self->args[i]).print(sub)
 
     def free(self: AstCall*) -> void:
         for i = 0; i < self->nargs; i++:

@@ -1,12 +1,13 @@
-from "stdlib/io.jou" import printf
-from "stdlib/str.jou" import starts_with, strlen, strcpy, sprintf, snprintf
+from "stdlib/str.jou" import strlen, sprintf, strdup
 from "stdlib/mem.jou" import malloc, realloc
 from "./token.jou" import Token, TokenKind
 from "./ast.jou" import (
     AstType, AstTypeKind, AstSignature,
-    AstFile,
+    AstCall,
+    AstExpression, AstExpressionKind,
+    AstStatement, AstStatementKind, AstBody,
     AstToplevelStatement, AstToplevelStatementKind,
-    AstBody,
+    AstFile,
 )
 from "./errors_and_warnings.jou" import assert, fail
 
@@ -17,14 +18,15 @@ def parse_type(tokens: Token**) -> AstType:
     ):
         (*tokens).fail_expected_got("a type")
 
-    return AstType{
+    result = AstType{
         kind = AstTypeKind::Named,
         location = (*tokens)->location,
         name = (*tokens)->short_string,
     }
+    ++*tokens
+    return result
 
 def parse_function_signature(tokens: Token**) -> AstSignature:
-
     if (*tokens)->kind != TokenKind::Name:
         (*tokens).fail_expected_got("a function name")
 
@@ -51,7 +53,7 @@ def parse_function_signature(tokens: Token**) -> AstSignature:
         (*tokens).fail_expected_got("a '->'")
     ++*tokens
 
-    result.returntype = parse_type(tokens)
+    result.return_type = parse_type(tokens)
     return result
 
 def get_actual_import_path(path_token: Token*) -> byte*:
@@ -62,8 +64,102 @@ def get_actual_import_path(path_token: Token*) -> byte*:
     sprintf(path, "/home/akuli/jou/%s", path_token->long_string)
     return path
 
+def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCall:
+    result = AstCall{}
+
+    assert((*tokens)->kind == TokenKind::Name)  # must be checked when calling this function
+    result = AstCall{called_name = (*tokens)->short_string}
+    ++*tokens
+
+    if not (*tokens).is_operator(open_paren):
+        expected = malloc(100)
+        sprintf(expected, "a '%c' to denote the start of arguments", open_paren)
+        (*tokens).fail_expected_got(expected)
+    ++*tokens
+
+    while not (*tokens).is_operator(close_paren):
+        result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
+        result.args[result.nargs++] = parse_expression(tokens)
+        if not (*tokens).is_operator(","):
+            break
+        ++*tokens
+
+    if not (*tokens).is_operator(close_paren):
+        expected = malloc(100)
+        sprintf(expected, "a '%c'", close_paren)
+        (*tokens).fail_expected_got(expected)
+    ++*tokens
+
+    return result
+
+def parse_expression(tokens: Token**) -> AstExpression:
+    expr = AstExpression{location = (*tokens)->location}
+
+    if (*tokens)->kind == TokenKind::Int:
+        expr.kind = AstExpressionKind::Int
+        expr.int_value = (*tokens)->int_value
+        ++*tokens
+    elif (*tokens)->kind == TokenKind::String:
+        expr.kind = AstExpressionKind::String
+        expr.string = strdup((*tokens)->long_string)
+        ++*tokens
+    elif (*tokens)->kind == TokenKind::Name and (&(*tokens)[1]).is_operator("("):
+        expr.kind = AstExpressionKind::FunctionCall
+        expr.call = parse_call(tokens, "(", ")")
+    else:
+        (*tokens).fail_expected_got("an expression")
+
+    return expr
+
+# does not eat a trailing newline
+def parse_oneline_statement(tokens: Token**) -> AstStatement:
+    result = AstStatement{ location = (*tokens)->location }
+    if (*tokens).is_keyword("return"):
+        ++*tokens
+        result.kind = AstStatementKind::ReturnWithValue
+        result.return_value = parse_expression(tokens)
+    else:
+        expr = parse_expression(tokens)
+        if expr.kind != AstExpressionKind::FunctionCall:
+            fail(expr.location, "not a valid statement")
+        result.kind = AstStatementKind::ExpressionStatement
+        result.expression = expr
+    return result
+
+def eat_newline(tokens: Token**) -> void:
+    if (*tokens)->kind != TokenKind::Newline:
+        (*tokens).fail_expected_got("end of line")
+    ++*tokens
+
+def parse_statement(tokens: Token**) -> AstStatement:
+    result = parse_oneline_statement(tokens)
+    eat_newline(tokens)
+    return result
+
+def parse_start_of_body(tokens: Token**) -> void:
+    if not (*tokens).is_operator(":"):
+        (*tokens).fail_expected_got("':' followed by a new line with more indentation")
+    ++*tokens
+
+    if (*tokens)->kind != TokenKind::Newline:
+        (*tokens).fail_expected_got("a new line with more indentation after ':'")
+    ++*tokens
+
+    if (*tokens)->kind != TokenKind::Indent:
+        (*tokens).fail_expected_got("more indentation after ':'")
+    ++*tokens
+
 def parse_body(tokens: Token**) -> AstBody:
-    return AstBody{}
+    parse_start_of_body(tokens)
+
+    result: AstStatement* = NULL
+    n = 0
+    while (*tokens)->kind != TokenKind::Dedent:
+        result = realloc(result, sizeof result[0] * (n+1))
+        result[n++] = parse_statement(tokens)
+    ++*tokens
+
+    return AstBody{ statements = result, nstatements = n }
 
 def parse_toplevel_node(dest: AstFile*, tokens: Token**) -> void:
     ts = AstToplevelStatement{location = (*tokens)->location}
