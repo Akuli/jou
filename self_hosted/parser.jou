@@ -13,8 +13,12 @@ from "./errors_and_warnings.jou" import assert, fail
 
 def parse_type(tokens: Token**) -> AstType:
     if not (
-        (*tokens).is_keyword("int")
-        or (*tokens)->kind == TokenKind::Name
+        (*tokens)->kind == TokenKind::Name
+        or (*tokens).is_keyword("int")
+        or (*tokens).is_keyword("long")
+        or (*tokens).is_keyword("bool")
+        or (*tokens).is_keyword("byte")
+        or (*tokens).is_keyword("void")
     ):
         (*tokens).fail_expected_got("a type")
 
@@ -174,14 +178,19 @@ def parse_toplevel_node(dest: AstFile*, tokens: Token**, stdlib_path: byte*) -> 
             (*tokens).fail_expected_got("the name of a symbol to import")
         ts.the_import.symbol = (*tokens)->short_string
         ++*tokens
+        eat_newline(tokens)
     elif (*tokens).is_keyword("def"):
         ++*tokens
-        ts.kind = AstToplevelStatementKind::DefineFunction
+        ts.kind = AstToplevelStatementKind::FunctionDefinition
         ts.funcdef.signature = parse_function_signature(tokens)
         ts.funcdef.body = parse_body(tokens)
-    else:
+    elif (*tokens).is_keyword("declare"):
         ++*tokens
-        return
+        ts.kind = AstToplevelStatementKind::FunctionDeclaration
+        ts.decl_signature = parse_function_signature(tokens)
+        eat_newline(tokens)
+    else:
+        (*tokens).fail_expected_got("a definition or declaration")
 
     dest->body = realloc(dest->body, sizeof dest->body[0] * (dest->body_len + 1))
     dest->body[dest->body_len++] = ts

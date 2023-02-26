@@ -23,7 +23,8 @@ class AstFile:
 
 enum AstToplevelStatementKind:
     Import
-    DefineFunction
+    FunctionDeclaration
+    FunctionDefinition
 
 class AstToplevelStatement:
     kind: AstToplevelStatementKind
@@ -31,13 +32,17 @@ class AstToplevelStatement:
 
     # TODO: union
     the_import: AstImport
+    decl_signature: AstSignature
     funcdef: AstFunctionDef
 
     def print(self: AstToplevelStatement*) -> void:
         printf("line %d: ", self->location.lineno)
         if self->kind == AstToplevelStatementKind::Import:
             printf("Import \"%s\" from \"%s\".\n", &self->the_import.symbol[0], self->the_import.path)
-        elif self->kind == AstToplevelStatementKind::DefineFunction:
+        elif self->kind == AstToplevelStatementKind::FunctionDeclaration:
+            printf("Declare a function: ")
+            (&self->decl_signature).print()
+        elif self->kind == AstToplevelStatementKind::FunctionDefinition:
             printf("Define a function: ")
             (&self->funcdef.signature).print()
             (&self->funcdef.body).print(TreePrinter{})
