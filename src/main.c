@@ -232,8 +232,6 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
     for (AstToplevelNode *imp = fs->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++)
         if (!imp->data.import.used)
             show_warning(imp->location, "'%s' imported but not used", imp->data.import.symbolname);
-    free_ast(fs->ast);
-    fs->ast = NULL;
 
     if(compst->flags.verbose)
         print_control_flow_graphs(&cfgfile);
@@ -470,6 +468,11 @@ int main(int argc, char **argv)
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
         compile_ast_to_llvm(&compst, fs);
+
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
+        free_ast(fs->ast);
+        fs->ast = NULL;
+    }
 
     LLVMModuleRef main_module = LLVMModuleCreateWithName(filename);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
