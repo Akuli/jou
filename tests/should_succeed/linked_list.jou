@@ -15,7 +15,12 @@ class Node:
 def prepend(list: Node**, value: byte) -> void:
     new_first: Node*
     new_first = malloc(sizeof *new_first)
-    *new_first = Node{value = value, next = *list}
+
+    # TODO: for some reason this doesn't work:
+    #*new_first = Node{value = value, next = *list}
+    new_first->value = value
+    new_first->next = *list
+
     *list = new_first
 
 def main() -> int:
