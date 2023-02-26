@@ -117,7 +117,24 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const Signatur
     LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
     free(argtypes);
 
-    return LLVMAddFunction(st->module, sig->funcname, functype);
+    LLVMValueRef func = LLVMAddFunction(st->module, sig->funcname, functype);
+
+    // Terrible hack: if declaring an OS function that doesn't exist on current platform,
+    // make it a definition instead of a declaration so that there are no linker errors.
+    // Ideally it would be possible to compile some parts of Jou code only for a specific platform.
+    const char *doesnt_exist;
+    #ifdef _WIN32
+    doesnt_exist = "readlink";
+    #else
+    doesnt_exist = "GetModuleFileNameA";
+    #endif
+    if (!strcmp(sig->funcname, doesnt_exist)) {
+        LLVMBasicBlockRef block = LLVMAppendBasicBlock(func, "my_block");
+        LLVMPositionBuilderAtEnd(st->builder, block);
+        LLVMBuildUnreachable(st->builder);
+    }
+
+    return func;
 }
 
 static LLVMValueRef codegen_call(const struct State *st, const char *funcname, LLVMValueRef *args, int nargs)

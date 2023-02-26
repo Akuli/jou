@@ -1,7 +1,10 @@
+from "./ast.jou" import AstFile
 from "./tokenizer.jou" import tokenize, print_tokens
+from "./parser.jou" import parse
+from "./find_jou_installation.jou" import find_stdlib
 from "stdlib/mem.jou" import free
 from "stdlib/str.jou" import strcmp
-from "stdlib/io.jou" import printf, fprintf, stderr
+from "stdlib/io.jou" import fprintf, stderr
 
 def main(argc: int, argv: byte**) -> int:
     if argc == 3 and strcmp(argv[1], "--tokenize-only") == 0:
@@ -9,7 +12,13 @@ def main(argc: int, argv: byte**) -> int:
         print_tokens(tokens)
         free(tokens)
     elif argc == 3 and strcmp(argv[1], "--parse-only") == 0:
-        printf("Parsing asd asd\n")
+        tokens = tokenize(argv[2])
+        stdlib_path = find_stdlib()
+        ast = parse(tokens, stdlib_path)
+        (&ast).print()
+        (&ast).free()
+        free(tokens)
+        free(stdlib_path)
     else:
         fprintf(stderr, "Usage:\n")
         fprintf(stderr, "  %s --tokenize-only FILENAME\n", argv[0])

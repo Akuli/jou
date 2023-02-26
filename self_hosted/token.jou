@@ -1,0 +1,118 @@
+from "stdlib/io.jou" import printf, putchar
+from "stdlib/str.jou" import sprintf, strlen, strcmp, strcpy
+from "stdlib/mem.jou" import malloc
+from "./errors_and_warnings.jou" import Location, fail, assert
+
+# TODO: move to stdlib
+declare isprint(b: int) -> int
+
+
+enum TokenKind:
+    Int
+    Long
+    Float
+    Double
+    Byte    # example: 'a' is 97 as a byte
+    String
+    Name
+    Keyword
+    Newline
+    Indent
+    Dedent
+    Operator
+    EndOfFile  # Marks the end of an array of tokens.
+
+class Token:
+    kind: TokenKind
+    location: Location
+
+    # Only one of these is used at a time.
+    # TODO: union
+    int_value: int          # Int
+    long_value: long        # Long
+    byte_value: byte        # Byte
+    indentation_level: int  # Newline (indicates how many spaces there are after the newline)
+    short_string: byte[100] # Name, Keyword, Operator
+    long_string: byte*      # String
+
+    def print(self: Token*) -> void:
+        if self->kind == TokenKind::Int:
+            printf("integer %d\n", self->int_value)
+        elif self->kind == TokenKind::Long:
+            printf("long %lld\n", self->long_value)
+        elif self->kind == TokenKind::Float:
+            printf("float %s\n", &self->short_string[0])
+        elif self->kind == TokenKind::Double:
+            printf("double %s\n", &self->short_string[0])
+        elif self->kind == TokenKind::Byte:
+            printf("character %#02x", self->byte_value)
+            if isprint(self->byte_value) != 0:
+                printf(" '%c'", self->byte_value)
+            printf("\n")
+        elif self->kind == TokenKind::EndOfFile:
+            printf("end of file\n")
+        elif self->kind == TokenKind::Operator:
+            printf("operator '%s'\n", &self->short_string[0])
+        elif self->kind == TokenKind::Name:
+            printf("name \"%s\"\n", &self->short_string[0])
+        elif self->kind == TokenKind::Keyword:
+            printf("keyword \"%s\"\n", &self->short_string[0])
+        elif self->kind == TokenKind::Newline:
+            printf("newline token (next line has %d spaces of indentation)\n", self->indentation_level)
+        elif self->kind == TokenKind::String:
+            printf("string \"")
+            for s = self->long_string; *s != 0; s++:
+                if isprint(*s) != 0:
+                    putchar(*s)
+                elif *s == '\n':
+                    printf("\\n")
+                else:
+                    printf("\\x%02x", *s)
+            printf("\"\n")
+        elif self->kind == TokenKind::Indent:
+            printf("indent (+4 spaces)\n")
+        elif self->kind == TokenKind::Dedent:
+            printf("dedent (-4 spaces)\n")
+        else:
+            printf("????\n")
+
+    def is_keyword(self: Token*, kw: byte*) -> bool:
+        return self->kind == TokenKind::Keyword and strcmp(&self->short_string[0], kw) == 0
+
+    def is_operator(self: Token*, op: byte*) -> bool:
+        return self->kind == TokenKind::Operator and strcmp(&self->short_string[0], op) == 0
+
+    def fail_expected_got(self: Token*, what_was_expected_instead: byte*) -> void:
+        got: byte[100]
+        if self->kind == TokenKind::Int:
+            strcpy(&got[0], "an integer")
+        elif self->kind == TokenKind::Long:
+            strcpy(&got[0], "a long integer")
+        elif self->kind == TokenKind::Float:
+            strcpy(&got[0], "a float constant")
+        elif self->kind == TokenKind::Double:
+            strcpy(&got[0], "a double constant")
+        elif self->kind == TokenKind::Byte:
+            strcpy(&got[0], "a byte literal")
+        elif self->kind == TokenKind::String:
+            strcpy(&got[0], "a string")
+        elif self->kind == TokenKind::Name:
+            strcpy(&got[0], "a name")
+        elif self->kind == TokenKind::Keyword:
+            sprintf(&got[0], "the '%s' keyword", &self->short_string[0])
+        elif self->kind == TokenKind::Newline:
+            strcpy(&got[0], "end of line")
+        elif self->kind == TokenKind::Indent:
+            strcpy(&got[0], "more indentation")
+        elif self->kind == TokenKind::Dedent:
+            strcpy(&got[0], "less indentation")
+        elif self->kind == TokenKind::Operator:
+            sprintf(&got[0], "'%s'", &self->short_string[0])
+        elif self->kind == TokenKind::EndOfFile:
+            strcpy(&got[0], "end of file")
+        else:
+            assert(False)
+
+        message: byte* = malloc(strlen(what_was_expected_instead) + 500)
+        sprintf(message, "expected %s, got %s", what_was_expected_instead, &got[0])
+        fail(self->location, message)
