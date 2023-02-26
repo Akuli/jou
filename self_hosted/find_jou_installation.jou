@@ -6,13 +6,17 @@ from "stdlib/process.jou" import exit, getenv
 declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
 declare readlink(linkpath: byte*, result: byte*, result_size: long) -> long
 
+def is_windows() -> bool:
+    # TODO: this is just weird...
+    return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
+
 # Return a path to the currently running program. Return value must be free()d.
 def find_current_executable() -> byte*:
     buf = NULL
     for size = 2L; True; size *= 2:
         buf = realloc(buf, size)
 
-        if getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL:
+        if is_windows():
             ret: long = GetModuleFileNameA(NULL, buf, size as int)
         else:
             ret = readlink("/proc/self/exe", buf, size)
@@ -31,11 +35,10 @@ declare stat(path: byte*, buf: byte[1000]*) -> int  # lol
 
 # Should work on windows and linux
 def seems_like_root_of_file_system(path: byte*) -> bool:
-    if getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL:
-        # windows: C:\ or C:/ or C:
+    if is_windows():
+        # C:\ or C:/ or C:
         return strlen(path) <= 3
     else:
-        # linux
         return strcmp(path, "/") == 0
 
 def find_stdlib() -> byte*:
@@ -43,6 +46,9 @@ def find_stdlib() -> byte*:
     memset(&checked, 0, sizeof checked)
 
     exedir = find_current_executable()
+    while is_windows() and strstr(exedir, "\\"):
+        *strstr(exedir, "\\") = '/'
+
     for i = 0; i < sizeof checked / sizeof checked[0] and not seems_like_root_of_file_system(exedir); i++:
         tmp = strdup(dirname(exedir))
         free(exedir)
