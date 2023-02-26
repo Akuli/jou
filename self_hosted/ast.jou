@@ -25,6 +25,7 @@ enum AstToplevelStatementKind:
     Import
     FunctionDeclaration
     FunctionDefinition
+    ClassDefinition
 
 class AstToplevelStatement:
     kind: AstToplevelStatementKind
@@ -34,6 +35,7 @@ class AstToplevelStatement:
     the_import: AstImport
     decl_signature: AstSignature
     funcdef: AstFunctionDef
+    classdef: AstClassDef
 
     def print(self: AstToplevelStatement*) -> void:
         printf("line %d: ", self->location.lineno)
@@ -44,8 +46,7 @@ class AstToplevelStatement:
             (&self->decl_signature).print()
         elif self->kind == AstToplevelStatementKind::FunctionDefinition:
             printf("Define a function: ")
-            (&self->funcdef.signature).print()
-            (&self->funcdef.body).print(TreePrinter{})
+            (&self->funcdef).print()
         else:
             assert(False)
         printf("\n")
@@ -152,9 +153,30 @@ class AstFunctionDef:
     signature: AstSignature
     body: AstBody
 
+    def print(self: AstFunctionDef*) -> void:
+        (&self->signature).print()
+        (&self->body).print(TreePrinter{})
+
     def free(self: AstFunctionDef*) -> void:
         (&self->signature).free()
         (&self->body).free()
+
+class AstClassDef:
+    name: byte[100]
+    name_location: Location
+    fields: AstNameTypeValue*
+    nfields: int
+    methods: AstFunctionDef*
+    nmethods: int
+
+    def print(self: AstClassDef*) -> void:
+        printf("hi\n")
+
+    def free(self: AstClassDef*) -> void:
+        for i = 0; i < self->nfields; i++:
+            (&self->fields[i]).free()
+        for i = 0; i < self->nmethods; i++:
+            (&self->methods[i]).free()
 
 # Statements and expressions can be printed in a tree.
 # To see a tree, run:

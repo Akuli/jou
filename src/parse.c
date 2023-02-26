@@ -810,7 +810,6 @@ static AstClassDef parse_classdef(const Token **tokens)
         if (is_keyword(*tokens, "def")) {
             Append(&result.methods, parse_funcdef(tokens));
         } else {
-            Location name_location = (*tokens)->location;
             AstNameTypeValue field = parse_name_type_value(tokens, "a method or a class field");
 
             if (field.value)
@@ -818,7 +817,7 @@ static AstClassDef parse_classdef(const Token **tokens)
 
             for (const AstNameTypeValue *prevfield = result.fields.ptr; prevfield < End(result.fields); prevfield++)
                 if (!strcmp(prevfield->name, field.name))
-                    fail_with_error(name_location, "there are multiple fields named '%s'", field.name);
+                    fail_with_error(field.name_location, "there are multiple fields named '%s'", field.name);
             Append(&result.fields, field);
             eat_newline(tokens);
         }
