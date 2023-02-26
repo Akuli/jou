@@ -13,16 +13,16 @@ static LLVMTypeRef codegen_type(const Type *type)
     switch(type->kind) {
     case TYPE_ARRAY:
         return LLVMArrayType(codegen_type(type->data.array.membertype), type->data.array.len);
+    case TYPE_POINTER:
+        return LLVMPointerType(codegen_type(type->data.valuetype), 0);
     case TYPE_FLOATING_POINT:
         switch(type->data.width_in_bits) {
             case 32: return LLVMFloatType();
             case 64: return LLVMDoubleType();
             default: assert(0);
         }
-    case TYPE_POINTER:
     case TYPE_VOID_POINTER:
         // just use i8* as here https://stackoverflow.com/q/36724399
-        // We do this for all pointers so that self-referencing isn't a problem (#264)
         return LLVMPointerType(LLVMInt8Type(), 0);
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
@@ -35,8 +35,14 @@ static LLVMTypeRef codegen_type(const Type *type)
         {
             int n = type->data.classfields.count;
             LLVMTypeRef *elems = malloc(sizeof(elems[0]) * n);  // NOLINT
-            for (int i = 0; i < n; i++)
-                elems[i] = codegen_type(type->data.classfields.types[i]);
+            for (int i = 0; i < n; i++) {
+                // Treat all pointers inside structs as if they were void*.
+                // This allows structs to contain pointers to themselves.
+                if (type->data.classfields.types[i]->kind == TYPE_POINTER)
+                    elems[i] = codegen_type(voidPtrType);
+                else
+                    elems[i] = codegen_type(type->data.classfields.types[i]);
+            }
             LLVMTypeRef result = LLVMStructType(elems, type->data.classfields.count, false);
             free(elems);
             return result;
@@ -89,8 +95,7 @@ static void set_local_var(const struct State *st, const LocalVariable *cfvar, LL
     assert(cfvar);
     for (LocalVariable **v = st->cfvars; v < st->cfvars_end; v++) {
         if (*v == cfvar) {
-            LLVMValueRef ptr = LLVMBuildBitCast(st->builder, st->llvm_locals[v - st->cfvars], LLVMPointerType(LLVMTypeOf(value), 0), "set_local_var");
-            LLVMBuildStore(st->builder, value, ptr);
+            LLVMBuildStore(st->builder, value, st->llvm_locals[v - st->cfvars]);
             return;
         }
     }
@@ -230,19 +235,8 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CF_SIZEOF: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
         case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
-        case CF_PTR_LOAD:
-            {
-                LLVMValueRef ptr = getop(0);
-                setdest(LLVMBuildLoad2(st->builder, codegen_type(ins->operands[0]->type->data.valuetype), ptr, "ptr_load"));
-                break;
-            }
-        case CF_PTR_STORE:
-            {
-                LLVMValueRef value = getop(1);
-                LLVMValueRef ptr = LLVMBuildBitCast(st->builder, getop(0), LLVMPointerType(LLVMTypeOf(value), 0), "ptr_store");
-                LLVMBuildStore(st->builder, value, ptr);
-                break;
-            }
+        case CF_PTR_LOAD: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
+        case CF_PTR_STORE: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
         case CF_PTR_EQ:
             {
                 LLVMValueRef lhsint = LLVMBuildPtrToInt(st->builder, getop(0), LLVMInt64Type(), "ptreq_lhs");
@@ -256,8 +250,14 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 int i = 0;
                 while (strcmp(classtype->data.classfields.names[i], ins->data.fieldname))
                     i++;
-                LLVMValueRef structptr = LLVMBuildBitCast(st->builder, getop(0), LLVMPointerType(codegen_type(classtype), 0), "structgep_cast");
-                setdest(LLVMBuildStructGEP2(st->builder, codegen_type(classtype), structptr, i, ins->data.fieldname));
+
+                LLVMValueRef val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), i, ins->data.fieldname);
+                const Type *fieldtype = classtype->data.classfields.types[i];
+                if (fieldtype->kind == TYPE_POINTER) {
+                    // We lied to LLVM that the struct member is i8*, so that we can do self-referencing types
+                    val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(fieldtype),0), "asd");
+                }
+                setdest(val);
             }
             break;
         case CF_PTR_MEMSET_TO_ZERO:
@@ -274,9 +274,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                     // Apparently the default is to interpret indexes as signed.
                     index = LLVMBuildZExt(st->builder, index, LLVMInt64Type(), "ptr_add_int_implicit_cast");
                 }
-                LLVMTypeRef t = codegen_type(ins->operands[0]->type->data.valuetype);
-                LLVMValueRef ptr = LLVMBuildBitCast(st->builder, getop(0), LLVMPointerType(t,0), "gep_cast");
-                setdest(LLVMBuildGEP2(st->builder, t, ptr, &index, 1, "ptr_add_int"));
+                setdest(LLVMBuildGEP(st->builder, getop(0), &index, 1, "ptr_add_int"));
             }
             break;
         case CF_NUM_CAST:
