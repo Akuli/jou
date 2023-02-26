@@ -57,7 +57,6 @@ for file in $(find examples tests -name '*.jou' | sort); do
             else
                 echo "  Error: Tokenizers behave differently when given \"$file\"."
                 echo "  Ideally the tokenizers would behave in the same way for all files, but we aren't there yet."
-                echo ""
                 echo "  To silence this error, add \"$file\" to self_hosted/tokenizes_wrong.txt (or run again with --fix)."
                 exit 1
             fi
