@@ -431,7 +431,7 @@ int main(int argc, char **argv)
         if (compst.flags.tokenize_only) {
             print_tokens(tokens);
         } else {
-            AstToplevelNode *ast = parse(tokens, filename);
+            AstToplevelNode *ast = parse(tokens, compst.stdlib_path);
             print_ast(ast);
             free_ast(ast);
         }

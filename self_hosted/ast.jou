@@ -1,9 +1,16 @@
+from "stdlib/io.jou" import printf
 from "stdlib/mem.jou" import free
-from "./errors_and_warnings.jou" import Location
+from "./errors_and_warnings.jou" import Location, assert
 
 class AstFile:
+    path: byte*  # not owned
     body: AstToplevelStatement*
     body_len: int
+
+    def print(self: AstFile*) -> void:
+        printf("===== AST for file \"%s\" =====\n", self->path)
+        for i = 0; i < self->body_len; i++:
+            (&self->body[i]).print()
 
     def free(self: AstFile*) -> void:
         for i = 0; i < self->body_len; i++:
@@ -16,21 +23,32 @@ enum AstToplevelStatementKind:
 
 class AstToplevelStatement:
     kind: AstToplevelStatementKind
+    location: Location
 
     # TODO: union
     the_import: AstImport
     funcdef: AstFunctionDef
+
+    def print(self: AstToplevelStatement*) -> void:
+        printf("line %d: ", self->location.lineno)
+        if self->kind == AstToplevelStatementKind::Import:
+            printf("Import \"%s\" from \"%s\".\n", &self->the_import.symbol[0], self->the_import.path)
+        elif self->kind == AstToplevelStatementKind::DefineFunction:
+            printf("hi\n")
+        else:
+            assert(False)
+        printf("\n")
 
     def free(self: AstToplevelStatement*) -> void:
         if self->kind == AstToplevelStatementKind::Import:
             (&self->the_import).free()
 
 class AstImport:
-    filename: byte*
+    path: byte*
     symbol: byte[100]
 
     def free(self: AstImport*) -> void:
-        free(self->filename)
+        free(self->path)
 
 enum AstTypeKind:
     Named
@@ -100,8 +118,32 @@ class AstStatement:
         if self->kind == AstStatementKind::ExpressionStatement:
             (&self->expression).free()
 
+enum AstExpressionKind:
+    String
+    Int
+    FunctionCall
+
 class AstExpression:
-    todo: int
+    location: Location
+    kind: AstExpressionKind
+
+    # TODO: union
+    string_value: byte*
+    int_value: int
+    call: AstCall
 
     def free(self: AstExpression*) -> void:
-        return
+        if self->kind == AstExpressionKind::FunctionCall:
+            (&self->call).free()
+        if self->kind == AstExpressionKind::String:
+            free(self->string_value)
+
+class AstCall:
+    called_name: byte[100]  # e.g. name of function, name of class to instantiate
+    nargs: int
+    args: AstExpression*
+
+    def free(self: AstCall*) -> void:
+        for i = 0; i < self->nargs; i++:
+            (&self->args[i]).free()
+        free(self->args)

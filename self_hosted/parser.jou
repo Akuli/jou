@@ -1,0 +1,89 @@
+from "stdlib/io.jou" import printf
+from "stdlib/str.jou" import starts_with, strlen, strcpy, sprintf, snprintf
+from "stdlib/mem.jou" import malloc, realloc
+from "./token.jou" import Token, TokenKind
+from "./ast.jou" import (
+    AstType, AstTypeKind, AstSignature,
+    AstFile,
+    AstToplevelStatement, AstToplevelStatementKind,
+    AstBody,
+)
+from "./errors_and_warnings.jou" import assert, fail
+
+def parse_type(tokens: Token**) -> AstType:
+    if not (*tokens).is_keyword("int"):
+        (*tokens).expect_kind(TokenKind::Name, "a type")
+    return AstType{
+        kind = AstTypeKind::Named,
+        location = (*tokens)->location,
+        name = (*tokens)->short_string,
+    }
+
+def parse_function_signature(tokens: Token**) -> AstSignature:
+    result = AstSignature{}
+    if (*tokens)->kind != TokenKind::Name:
+        (*tokens).fail_with_expected_got_error("a function name")
+    result.funcname_location = (*tokens)->location
+    result.funcname = (*tokens)->short_string
+    ++*tokens
+
+    if not (*tokens).is_operator("("):
+        (*tokens).fail_with_expected_got_error("a '(' to denote the start of function arguments")
+    ++*tokens
+
+    # TODO: parse arguments
+
+    if not (*tokens).is_operator(")"):
+        (*tokens).fail_with_expected_got_error("a ')'")
+    ++*tokens
+
+    # Special case for common typo:   def foo():
+    if (*tokens).is_operator(":"):
+        fail((*tokens)->location, "return type must be specified with '->', or with '-> void' if the function doesn't return anything")
+    if not (*tokens).is_operator("->"):
+        (*tokens).fail_with_expected_got_error("a '->'")
+
+    result.returntype = parse_type(tokens)
+    return result
+
+def get_actual_import_path(path_token: Token*) -> byte*:
+    assert(path_token->kind == TokenKind::String)
+
+    # FIXME
+    path = malloc(strlen(path_token->long_string) + 100)
+    sprintf(path, "/home/akuli/jou/%s", path_token->long_string)
+    return path
+
+def parse_body(tokens: Token**) -> AstBody:
+    return AstBody{}
+
+def parse_toplevel_node(dest: AstFile*, tokens: Token**) -> void:
+    ts = AstToplevelStatement{location = (*tokens)->location}
+
+    if (*tokens).is_keyword("from"):
+        ++*tokens
+        ts.the_import.path = get_actual_import_path((*tokens)++)
+        if not (*tokens).is_keyword("import"):
+            (*tokens).fail_with_expected_got_error("the 'import' keyword")
+        ++*tokens
+        if (*tokens)->kind != TokenKind::Name:
+            (*tokens).fail_with_expected_got_error("the name of a symbol to import")
+        ts.the_import.symbol = (*tokens)->short_string
+        ++*tokens
+    elif (*tokens).is_keyword("def"):
+        ++*tokens
+        ts.kind = AstToplevelStatementKind::DefineFunction
+        ts.funcdef.signature = parse_function_signature(tokens)
+        ts.funcdef.body = parse_body(tokens)
+    else:
+        ++*tokens
+        return
+
+    dest->body = realloc(dest->body, sizeof dest->body[0] * (dest->body_len + 1))
+    dest->body[dest->body_len++] = ts
+
+def parse(tokens: Token*) -> AstFile:
+    result = AstFile{path = tokens[0].location.path}
+    while tokens->kind != TokenKind::EndOfFile:
+        parse_toplevel_node(&result, &tokens)
+    return result
