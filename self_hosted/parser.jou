@@ -1,4 +1,4 @@
-from "stdlib/str.jou" import strlen, sprintf, strdup
+from "stdlib/str.jou" import strlen, sprintf, strdup, starts_with
 from "stdlib/mem.jou" import malloc, realloc
 from "./token.jou" import Token, TokenKind
 from "./ast.jou" import (
@@ -56,12 +56,12 @@ def parse_function_signature(tokens: Token**) -> AstSignature:
     result.return_type = parse_type(tokens)
     return result
 
-def get_actual_import_path(path_token: Token*) -> byte*:
+def get_actual_import_path(path_token: Token*, stdlib_path: byte*) -> byte*:
     assert(path_token->kind == TokenKind::String)
+    assert(starts_with(path_token->long_string, "stdlib/"))
 
-    # FIXME
     path = malloc(strlen(path_token->long_string) + 100)
-    sprintf(path, "/home/akuli/jou/%s", path_token->long_string)
+    sprintf(path, "%s/%s", stdlib_path, &path_token->long_string[7])
     return path
 
 def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCall:
@@ -161,12 +161,12 @@ def parse_body(tokens: Token**) -> AstBody:
 
     return AstBody{ statements = result, nstatements = n }
 
-def parse_toplevel_node(dest: AstFile*, tokens: Token**) -> void:
+def parse_toplevel_node(dest: AstFile*, tokens: Token**, stdlib_path: byte*) -> void:
     ts = AstToplevelStatement{location = (*tokens)->location}
 
     if (*tokens).is_keyword("from"):
         ++*tokens
-        ts.the_import.path = get_actual_import_path((*tokens)++)
+        ts.the_import.path = get_actual_import_path((*tokens)++, stdlib_path)
         if not (*tokens).is_keyword("import"):
             (*tokens).fail_expected_got("the 'import' keyword")
         ++*tokens
@@ -186,8 +186,8 @@ def parse_toplevel_node(dest: AstFile*, tokens: Token**) -> void:
     dest->body = realloc(dest->body, sizeof dest->body[0] * (dest->body_len + 1))
     dest->body[dest->body_len++] = ts
 
-def parse(tokens: Token*) -> AstFile:
+def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
     result = AstFile{path = tokens[0].location.path}
     while tokens->kind != TokenKind::EndOfFile:
-        parse_toplevel_node(&result, &tokens)
+        parse_toplevel_node(&result, &tokens, stdlib_path)
     return result
