@@ -147,7 +147,7 @@ static AstSignature parse_function_signature(const Token **tokens)
             AstNameTypeValue arg = parse_name_type_value(tokens, "an argument name");
 
             if (arg.value)
-                fail_with_error(arg.value->location, "function arguments cannot have default values");
+                fail_with_error(arg.value->location, "arguments cannot have default values");
 
             for (const AstNameTypeValue *prevarg = result.args.ptr; prevarg < End(result.args); prevarg++)
                 if (!strcmp(prevarg->name, arg.name))

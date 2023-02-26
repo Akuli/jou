@@ -2,7 +2,7 @@ from "stdlib/str.jou" import strlen, sprintf, strdup, starts_with
 from "stdlib/mem.jou" import malloc, realloc
 from "./token.jou" import Token, TokenKind
 from "./ast.jou" import (
-    AstType, AstTypeKind, AstSignature,
+    AstType, AstTypeKind, AstNameTypeValue, AstSignature,
     AstCall,
     AstExpression, AstExpressionKind,
     AstStatement, AstStatementKind, AstBody,
@@ -30,6 +30,28 @@ def parse_type(tokens: Token**) -> AstType:
     ++*tokens
     return result
 
+def parse_name_type_value(tokens: Token**, expected_what_for_name: byte*) -> AstNameTypeValue:
+    if (*tokens)->kind != TokenKind::Name:
+        assert(expected_what_for_name != NULL)
+        (*tokens).fail_expected_got(expected_what_for_name)
+
+    result = AstNameTypeValue{name = (*tokens)->short_string, name_location = (*tokens)->location}
+    ++*tokens
+
+    if not (*tokens).is_operator(":"):
+        (*tokens).fail_expected_got("':' and a type after it (example: \"foo: int\")")
+    ++*tokens
+    result.type = parse_type(tokens)
+
+    if (*tokens).is_operator("="):
+        ++*tokens
+        p: AstExpression*
+        p = malloc(sizeof *p)
+        *p = parse_expression(tokens)
+        result.value = p
+
+    return result
+
 def parse_function_signature(tokens: Token**) -> AstSignature:
     if (*tokens)->kind != TokenKind::Name:
         (*tokens).fail_expected_got("a function name")
@@ -44,7 +66,17 @@ def parse_function_signature(tokens: Token**) -> AstSignature:
         (*tokens).fail_expected_got("a '(' to denote the start of function arguments")
     ++*tokens
 
-    # TODO: parse arguments
+    while not (*tokens).is_operator(")"):
+        arg = parse_name_type_value(tokens, "an argument name")
+        if arg.value != NULL:
+            fail(arg.value->location, "arguments cannot have default values")
+
+        result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
+        result.args[result.nargs++] = arg
+
+        if not (*tokens).is_operator(","):
+            break
+        ++*tokens
 
     if not (*tokens).is_operator(")"):
         (*tokens).fail_expected_got("a ')'")

@@ -97,9 +97,23 @@ class AstType:
         if self->kind == AstTypeKind::Array:
             (&self->array).free()
 
+class AstNameTypeValue:
+    # name: type = value
+    name: byte[100]
+    name_location: Location
+    type: AstType
+    value: AstExpression*  # can be NULL
+
+    def free(self: AstNameTypeValue*) -> void:
+        if self->value != NULL:
+            self->value.free()
+        free(self->value)
+
 class AstSignature:
     funcname_location: Location
     funcname: byte[100]
+    args: AstNameTypeValue*
+    nargs: int
     return_type: AstType
 
     def print(self: AstSignature*) -> void:
