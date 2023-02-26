@@ -38,7 +38,7 @@ def find_stdlib() -> byte*:
     memset(&checked, 0, sizeof checked)
 
     exedir = find_current_executable()
-    while is_windows() and strstr(exedir, "\\"):
+    while is_windows() and strstr(exedir, "\\") != NULL:
         *strstr(exedir, "\\") = '/'
 
     for i = 0; i < sizeof checked / sizeof checked[0]; i++:
