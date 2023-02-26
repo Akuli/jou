@@ -256,7 +256,8 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 int i = 0;
                 while (strcmp(classtype->data.classfields.names[i], ins->data.fieldname))
                     i++;
-                setdest(LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), i, ins->data.fieldname));
+                LLVMValueRef structptr = LLVMBuildBitCast(st->builder, getop(0), LLVMPointerType(codegen_type(classtype), 0), "structgep_cast");
+                setdest(LLVMBuildStructGEP2(st->builder, codegen_type(classtype), structptr, i, ins->data.fieldname));
             }
             break;
         case CF_PTR_MEMSET_TO_ZERO:
@@ -273,7 +274,9 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                     // Apparently the default is to interpret indexes as signed.
                     index = LLVMBuildZExt(st->builder, index, LLVMInt64Type(), "ptr_add_int_implicit_cast");
                 }
-                setdest(LLVMBuildGEP2(st->builder, codegen_type(ins->operands[0]->type->data.valuetype), getop(0), &index, 1, "ptr_add_int"));
+                LLVMTypeRef t = codegen_type(ins->operands[0]->type->data.valuetype);
+                LLVMValueRef ptr = LLVMBuildBitCast(st->builder, getop(0), LLVMPointerType(t,0), "gep_cast");
+                setdest(LLVMBuildGEP2(st->builder, t, ptr, &index, 1, "ptr_add_int"));
             }
             break;
         case CF_NUM_CAST:
