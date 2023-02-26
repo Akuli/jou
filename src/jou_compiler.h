@@ -371,7 +371,7 @@ frees with valgrind.
 This also simplifies checking whether two types are the same type: you
 can simply use "==" between two "const Type *" pointers.
 
-Classes are a bit different. When you make a class, you get a
+Class types are a bit different. When you make a class, you get a
 pointer that you must pass to free_type() later. You can still "=="
 compare types, because two different classes with the same members are
 not the same type.
