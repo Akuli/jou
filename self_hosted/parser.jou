@@ -78,12 +78,19 @@ def parse_function_signature(tokens: Token**) -> AstSignature:
     ++*tokens
 
     while not (*tokens).is_operator(")"):
-        arg = parse_name_type_value(tokens, "an argument name")
-        if arg.value != NULL:
-            fail(arg.value->location, "arguments cannot have default values")
+        if result.takes_varargs:
+            fail((*tokens)->location, "if '...' is used, it must be the last parameter")
 
-        result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
-        result.args[result.nargs++] = arg
+        if (*tokens).is_operator("..."):
+            result.takes_varargs = True
+            ++*tokens
+        else:
+            arg = parse_name_type_value(tokens, "an argument name")
+            if arg.value != NULL:
+                fail(arg.value->location, "arguments cannot have default values")
+
+            result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
+            result.args[result.nargs++] = arg
 
         if not (*tokens).is_operator(","):
             break

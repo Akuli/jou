@@ -143,7 +143,6 @@ static AstSignature parse_function_signature(const Token **tokens)
             result.takes_varargs = true;
             ++*tokens;
         } else {
-            Location name_location = (*tokens)->location;
             AstNameTypeValue arg = parse_name_type_value(tokens, "an argument name");
 
             if (arg.value)
@@ -151,7 +150,7 @@ static AstSignature parse_function_signature(const Token **tokens)
 
             for (const AstNameTypeValue *prevarg = result.args.ptr; prevarg < End(result.args); prevarg++)
                 if (!strcmp(prevarg->name, arg.name))
-                    fail_with_error(name_location, "there are multiple arguments named '%s'", prevarg->name);
+                    fail_with_error(arg.name_location, "there are multiple arguments named '%s'", prevarg->name);
             Append(&result.args, arg);
         }
 

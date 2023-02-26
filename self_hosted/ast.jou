@@ -126,6 +126,7 @@ class AstSignature:
     funcname: byte[100]
     args: AstNameTypeValue*
     nargs: int
+    takes_varargs: bool  # is there a "..." argument
     return_type: AstType
 
     def print(self: AstSignature*) -> void:
@@ -134,6 +135,12 @@ class AstSignature:
             if i != 0:
                 printf(", ")
             (&self->args[i]).print()
+
+        if self->takes_varargs:
+            if self->nargs != 0:
+                printf(", ")
+            printf("...")
+
         printf(") -> ")
         (&self->return_type).print(True)
         printf("\n")
