@@ -1,0 +1,29 @@
+from "stdlib/io.jou" import putchar
+from "stdlib/mem.jou" import malloc
+
+class Node:
+    value: byte
+    next: Node*
+
+    def print(self: Node*) -> void:
+        putchar(self->value)
+        if self->next != NULL:
+            self->next.print()
+        else:
+            putchar('\n')
+
+def prepend(list: Node**, value: byte) -> void:
+    new_first: Node*
+    new_first = malloc(sizeof *new_first)
+    *new_first = Node{value = value, next = *list}
+    *list = new_first
+
+def main() -> int:
+    list: Node* = NULL
+    prepend(&list, 'o')
+    prepend(&list, 'l')
+    prepend(&list, 'l')
+    prepend(&list, 'e')
+    prepend(&list, 'h')
+    list.print()  # Output: hello
+    return 0
