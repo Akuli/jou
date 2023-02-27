@@ -143,15 +143,14 @@ static AstSignature parse_function_signature(const Token **tokens)
             result.takes_varargs = true;
             ++*tokens;
         } else {
-            Location name_location = (*tokens)->location;
             AstNameTypeValue arg = parse_name_type_value(tokens, "an argument name");
 
             if (arg.value)
-                fail_with_error(arg.value->location, "function arguments cannot have default values");
+                fail_with_error(arg.value->location, "arguments cannot have default values");
 
             for (const AstNameTypeValue *prevarg = result.args.ptr; prevarg < End(result.args); prevarg++)
                 if (!strcmp(prevarg->name, arg.name))
-                    fail_with_error(name_location, "there are multiple arguments named '%s'", prevarg->name);
+                    fail_with_error(arg.name_location, "there are multiple arguments named '%s'", prevarg->name);
             Append(&result.args, arg);
         }
 
@@ -811,7 +810,6 @@ static AstClassDef parse_classdef(const Token **tokens)
         if (is_keyword(*tokens, "def")) {
             Append(&result.methods, parse_funcdef(tokens));
         } else {
-            Location name_location = (*tokens)->location;
             AstNameTypeValue field = parse_name_type_value(tokens, "a method or a class field");
 
             if (field.value)
@@ -819,7 +817,7 @@ static AstClassDef parse_classdef(const Token **tokens)
 
             for (const AstNameTypeValue *prevfield = result.fields.ptr; prevfield < End(result.fields); prevfield++)
                 if (!strcmp(prevfield->name, field.name))
-                    fail_with_error(name_location, "there are multiple fields named '%s'", field.name);
+                    fail_with_error(field.name_location, "there are multiple fields named '%s'", field.name);
             Append(&result.fields, field);
             eat_newline(tokens);
         }
