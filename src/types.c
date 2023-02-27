@@ -198,14 +198,6 @@ Type *create_enum(const char *name, int membercount, char (*membernames)[100])
 }
 
 
-void create_dotted_method_name(char (*dest)[200], const Type *t, const char *methodname)
-{
-    if (t->kind == TYPE_POINTER)
-        t = t->data.valuetype;
-    snprintf(*dest, sizeof *dest, "%s.%s", t->name, methodname);
-}
-
-
 char *signature_to_string(const Signature *sig, bool include_return_type)
 {
     List(char) result = {0};

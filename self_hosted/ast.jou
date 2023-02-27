@@ -14,11 +14,11 @@ class AstFile:
     def print(self: AstFile*) -> void:
         printf("===== AST for file \"%s\" =====\n", self->path)
         for i = 0; i < self->body_len; i++:
-            (&self->body[i]).print()
+            self->body[i].print()
 
     def free(self: AstFile*) -> void:
         for i = 0; i < self->body_len; i++:
-            (&self->body[i]).free()
+            self->body[i].free()
         free(self->body)
 
 enum AstToplevelStatementKind:
@@ -45,16 +45,16 @@ class AstToplevelStatement:
             printf("Import \"%s\" from \"%s\".\n", &self->the_import.symbol[0], self->the_import.path)
         elif self->kind == AstToplevelStatementKind::FunctionDeclaration:
             printf("Declare a function: ")
-            (&self->decl_signature).print()
+            self->decl_signature.print()
         elif self->kind == AstToplevelStatementKind::FunctionDefinition:
             printf("Define a function: ")
-            (&self->funcdef).print()
+            self->funcdef.print()
         elif self->kind == AstToplevelStatementKind::ClassDefinition:
             printf("Define a ")
-            (&self->classdef).print()
+            self->classdef.print()
         elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
             printf("Declare a global variable ")
-            (&self->global_var).print()
+            self->global_var.print()
             printf("\n")
         else:
             printf("????????\n")
@@ -62,7 +62,7 @@ class AstToplevelStatement:
 
     def free(self: AstToplevelStatement*) -> void:
         if self->kind == AstToplevelStatementKind::Import:
-            (&self->the_import).free()
+            self->the_import.free()
 
 class AstImport:
     path: byte*
@@ -81,7 +81,7 @@ class AstArrayType:
     len: int
 
     def free(self: AstArrayType*) -> void:
-        self->membertype.free()
+        self->membertype->free()
         free(self->membertype)
 
 class AstType:
@@ -97,7 +97,7 @@ class AstType:
         if self->kind == AstTypeKind::Named:
             printf("%s", &self->name[0])
         elif self->kind == AstTypeKind::Pointer:
-            self->valuetype.print(False)
+            self->valuetype->print(False)
             printf("*")
         else:
             printf("???")
@@ -107,10 +107,10 @@ class AstType:
 
     def free(self: AstType*) -> void:
         if self->kind == AstTypeKind::Pointer:
-            self->valuetype.free()
+            self->valuetype->free()
             free(self->valuetype)
         if self->kind == AstTypeKind::Array:
-            (&self->array).free()
+            self->array.free()
 
 class AstNameTypeValue:
     # name: type = value
@@ -121,14 +121,14 @@ class AstNameTypeValue:
 
     def print(self: AstNameTypeValue*) -> void:
         printf("%s: ", &self->name[0])
-        (&self->type).print(True)
+        self->type.print(True)
         if self->value != NULL:
             # TODO: figure out a good way to print the value (wants a TreePrinter)
             printf(" = <default>")
 
     def free(self: AstNameTypeValue*) -> void:
         if self->value != NULL:
-            self->value.free()
+            self->value->free()
         free(self->value)
 
 class AstSignature:
@@ -144,7 +144,7 @@ class AstSignature:
         for i = 0; i < self->nargs; i++:
             if i != 0:
                 printf(", ")
-            (&self->args[i]).print()
+            self->args[i].print()
 
         if self->takes_varargs:
             if self->nargs != 0:
@@ -152,23 +152,23 @@ class AstSignature:
             printf("...")
 
         printf(") -> ")
-        (&self->return_type).print(True)
+        self->return_type.print(True)
         printf("\n")
 
     def free(self: AstSignature*) -> void:
-        (&self->return_type).free()
+        self->return_type.free()
 
 class AstFunctionDef:
     signature: AstSignature
     body: AstBody
 
     def print(self: AstFunctionDef*) -> void:
-        (&self->signature).print()
-        (&self->body).print(TreePrinter{})
+        self->signature.print()
+        self->body.print(TreePrinter{})
 
     def free(self: AstFunctionDef*) -> void:
-        (&self->signature).free()
-        (&self->body).free()
+        self->signature.free()
+        self->body.free()
 
 class AstClassDef:
     name: byte[100]
@@ -182,20 +182,20 @@ class AstClassDef:
         printf("class \"%s\" with %d fields and %d methods:\n", &self->name[0], self->nfields, self->nmethods)
         for i = 0; i < self->nfields; i++:
             printf("  field ")
-            (&self->fields[i]).print()
+            self->fields[i].print()
             printf("\n")
         for i = 0; i < self->nmethods; i++:
             printf("  method ")
-            (&self->methods[i].signature).print()
+            self->methods[i].signature.print()
             tp = TreePrinter{}
             strcpy(&tp.prefix[0], "  ")
-            (&self->methods[i].body).print(tp)
+            self->methods[i].body.print(tp)
 
     def free(self: AstClassDef*) -> void:
         for i = 0; i < self->nfields; i++:
-            (&self->fields[i]).free()
+            self->fields[i].free()
         for i = 0; i < self->nmethods; i++:
-            (&self->methods[i]).free()
+            self->methods[i].free()
 
 # Statements and expressions can be printed in a tree.
 # To see a tree, run:
@@ -206,14 +206,14 @@ class TreePrinter:
     prefix: byte[100]
 
     # Returned subprinter can be used to print elements "inside" the current line.
-    def print_prefix(self: TreePrinter, is_last_child: bool) -> TreePrinter:
+    def print_prefix(self: TreePrinter*, is_last_child: bool) -> TreePrinter:
         subprinter = TreePrinter{}
         if is_last_child:
-            printf("%s`--- ", &self.prefix[0])
-            snprintf(&subprinter.prefix[0], sizeof subprinter.prefix, "%s  ", &self.prefix[0])
+            printf("%s`--- ", &self->prefix[0])
+            snprintf(&subprinter.prefix[0], sizeof subprinter.prefix, "%s  ", &self->prefix[0])
         else:
-            printf("%s|--- ", &self.prefix[0])
-            snprintf(&subprinter.prefix[0], sizeof subprinter.prefix, "%s| ", &self.prefix[0])
+            printf("%s|--- ", &self->prefix[0])
+            snprintf(&subprinter.prefix[0], sizeof subprinter.prefix, "%s| ", &self->prefix[0])
         return subprinter
 
 class AstBody:
@@ -222,11 +222,11 @@ class AstBody:
 
     def print(self: AstBody*, tp: TreePrinter) -> void:
         for i = 0; i < self->nstatements; i++:
-            (&self->statements[i]).print(tp.print_prefix(i == self->nstatements - 1))
+            self->statements[i].print(tp.print_prefix(i == self->nstatements - 1))
 
     def free(self: AstBody*) -> void:
         for i = 0; i < self->nstatements; i++:
-            (&self->statements[i]).free()
+            self->statements[i].free()
         free(self->statements)
 
 enum AstStatementKind:
@@ -245,18 +245,18 @@ class AstStatement:
         printf("[line %d] ", self->location.lineno)
         if self->kind == AstStatementKind::ExpressionStatement:
             printf("expression statement\n")
-            (&self->expression).print(tp.print_prefix(True))
+            self->expression.print(tp.print_prefix(True))
         elif self->kind == AstStatementKind::ReturnWithValue:
             printf("return a value\n")
-            (&self->return_value).print(tp.print_prefix(True))
+            self->return_value.print(tp.print_prefix(True))
         else:
             printf("??????\n")
 
     def free(self: AstStatement*) -> void:
         if self->kind == AstStatementKind::ExpressionStatement:
-            (&self->expression).free()
+            self->expression.free()
         if self->kind == AstStatementKind::ReturnWithValue:
-            (&self->return_value).free()
+            self->return_value.free()
 
 enum AstExpressionKind:
     String
@@ -288,13 +288,13 @@ class AstExpression:
             printf("%d (32-bit signed)\n", self->int_value)
         elif self->kind == AstExpressionKind::FunctionCall:
             printf("call function \"%s\"\n", &self->call.called_name[0])
-            (&self->call).print(tp)
+            self->call.print(tp)
         else:
             printf("?????\n")
             
     def free(self: AstExpression*) -> void:
         if self->kind == AstExpressionKind::FunctionCall:
-            (&self->call).free()
+            self->call.free()
         if self->kind == AstExpressionKind::String:
             free(self->string)
 
@@ -307,9 +307,9 @@ class AstCall:
         for i = 0; i < self->nargs; i++:
             sub = tp.print_prefix(i == self->nargs - 1)
             printf("argument %d: ", i)
-            (&self->args[i]).print(sub)
+            self->args[i].print(sub)
 
     def free(self: AstCall*) -> void:
         for i = 0; i < self->nargs; i++:
-            (&self->args[i]).free()
+            self->args[i].free()
         free(self->args)

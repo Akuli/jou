@@ -101,27 +101,27 @@ class Tokenizer:
         dest[destlen++] = first_byte
 
         while True:
-            b = self.read_byte()
+            b = self->read_byte()
             if is_identifier_or_number_byte(b):
                 if destlen == sizeof dest - 1:
                     fail(self->location, "name or number is too long")
                 dest[destlen++] = b
             else:
-                self.unread_byte(b)
+                self->unread_byte(b)
                 return dest
 
     def consume_rest_of_line(self: Tokenizer*) -> void:
         while True:
-            c = self.read_byte()
+            c = self->read_byte()
             if c == '\0' or c == '\n':
-                self.unread_byte(c)
+                self->unread_byte(c)
                 break
 
     # Returns the indentation level for the next line
     def read_newline_token(self: Tokenizer*) -> int:
         level = 0
         while True:
-            c = self.read_byte()
+            c = self->read_byte()
             if c == '\0':
                 # End of file. Do not validate that indentation is a
                 # multiple of 4 spaces. Add a trailing newline implicitly
@@ -132,16 +132,16 @@ class Tokenizer:
             elif c == '\n':
                 level = 0
             elif c == '#':
-                self.consume_rest_of_line()
+                self->consume_rest_of_line()
             elif c == ' ':
                 level++
             else:
-                self.unread_byte(c)
+                self->unread_byte(c)
                 return level
 
     # Assumes the initial ' has been read.
     def read_byte_literal(self: Tokenizer*) -> byte:
-        c = self.read_byte()
+        c = self->read_byte()
         if c == '\'':
             fail(self->location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?")
         if c == '\0' or c == '\n':
@@ -150,7 +150,7 @@ class Tokenizer:
             fail(self->location, "missing ' to end the byte literal")
 
         if c == '\\':
-            after_backslash = self.read_byte()
+            after_backslash = self->read_byte()
             if after_backslash == '\0' or after_backslash == '\n':
                 fail(self->location, "missing ' to end the byte literal")
             elif after_backslash == 'n':
@@ -174,12 +174,12 @@ class Tokenizer:
             else:
                 fail(self->location, "unknown '\\' escape")
 
-        end = self.read_byte()
+        end = self->read_byte()
         if end != '\'':
             # If there's another single quote later on the same line, suggest using double quotes.
             location = self->location
             while True:
-                c = self.read_byte()
+                c = self->read_byte()
                 if c == '\0' or c == '\n':
                     break
                 if c == '\'':
@@ -194,7 +194,7 @@ class Tokenizer:
         len = 0
 
         while True:
-            c = self.read_byte()
+            c = self->read_byte()
             if c == '"':
                 break
             elif c == '\n' or c == '\0':
@@ -203,7 +203,7 @@ class Tokenizer:
                 fail(self->location, "missing \" to end the string")
             elif c == '\\':
                 # \n means newline, for example
-                after_backslash = self.read_byte()
+                after_backslash = self->read_byte()
                 if after_backslash == '\0':
                     fail(self->location, "missing \" to end the string")
                 elif after_backslash == 'n':
@@ -261,9 +261,9 @@ class Tokenizer:
 
         # Read as many operator characters as we may need.
         while strlen(&operator[0]) < 3:
-            c = self.read_byte()
+            c = self->read_byte()
             if not is_operator_byte(c):
-                self.unread_byte(c)
+                self->unread_byte(c)
                 break
             operator[strlen(&operator[0])] = c
 
@@ -272,7 +272,7 @@ class Tokenizer:
                 # Unread the bytes we didn't use.
                 while strlen(&operator[0]) > strlen(operators[i]):
                     last = &operator[strlen(&operator[0]) - 1]
-                    self.unread_byte(*last)
+                    self->unread_byte(*last)
                     *last = '\0'
 
                 # "===" and "!==" are here only to give a better error message to javascript people.
@@ -287,27 +287,27 @@ class Tokenizer:
     def read_token(self: Tokenizer*) -> Token:
         while True:
             token = Token{location = self->location}
-            b = self.read_byte()
+            b = self->read_byte()
 
             if b == ' ':
                 continue
             if b == '#':
-                self.consume_rest_of_line()
+                self->consume_rest_of_line()
                 continue
 
             if b == '\n':
                 if self->parens_len > 0:
                     continue
                 token.kind = TokenKind::Newline
-                token.indentation_level = self.read_newline_token()
+                token.indentation_level = self->read_newline_token()
             elif b == '"':
                 token.kind = TokenKind::String
-                token.long_string = self.read_string()
+                token.long_string = self->read_string()
             elif b == '\'':
                 token.kind = TokenKind::Byte
-                token.byte_value = self.read_byte_literal()
+                token.byte_value = self->read_byte_literal()
             elif is_identifier_or_number_byte(b):
-                token.short_string = self.read_identifier_or_number(b)
+                token.short_string = self->read_identifier_or_number(b)
                 if is_keyword(&token.short_string[0]):
                     token.kind = TokenKind::Keyword
                 elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
@@ -317,9 +317,9 @@ class Tokenizer:
                 else:
                     token.kind = TokenKind::Name
             elif is_operator_byte(b):
-                self.unread_byte(b)
+                self->unread_byte(b)
                 token.kind = TokenKind::Operator
-                token.short_string = self.read_operator()
+                token.short_string = self->read_operator()
             elif b == '\0':
                 token.kind = TokenKind::EndOfFile
             else:
@@ -349,7 +349,7 @@ def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
     len = 0
     while len == 0 or tokens[len-1].kind != TokenKind::EndOfFile:
         tokens = realloc(tokens, sizeof(tokens[0]) * (len+1))
-        tokens[len++] = (&tokenizer).read_token()
+        tokens[len++] = tokenizer.read_token()
 
     free(tokenizer.pushback)
     return tokens
@@ -428,7 +428,7 @@ def print_tokens(tokens: Token*) -> void:
             printf("\nLine %d:\n", current_lineno)
 
         printf("  ")
-        t.print()
+        t->print()
 
         if t->kind == TokenKind::EndOfFile:
             break
