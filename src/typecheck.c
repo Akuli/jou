@@ -182,8 +182,12 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
         safe_strcpy(sig.argnames[i], astsig->args.ptr[i].name);
 
     sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs);  // NOLINT
-    for (int i = 0; i < sig.nargs; i++)
-        sig.argtypes[i] = type_from_ast(ctx, &astsig->args.ptr[i].type);
+    for (int i = 0; i < sig.nargs; i++) {
+        if (!strcmp(sig.argnames[i], "self"))
+            sig.argtypes[i] = get_pointer_type(self_type);
+        else
+            sig.argtypes[i] = type_from_ast(ctx, &astsig->args.ptr[i].type);
+    }
 
     sig.returntype = type_or_void_from_ast(ctx, &astsig->returntype);
     // TODO: validate main() parameters

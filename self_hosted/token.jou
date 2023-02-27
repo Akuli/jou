@@ -35,7 +35,7 @@ class Token:
     short_string: byte[100] # Name, Keyword, Operator
     long_string: byte*      # String
 
-    def print(self: Token*) -> void:
+    def print(self) -> void:
         if self->kind == TokenKind::Int:
             printf("integer %d\n", self->int_value)
         elif self->kind == TokenKind::Long:
@@ -76,13 +76,13 @@ class Token:
         else:
             printf("????\n")
 
-    def is_keyword(self: Token*, kw: byte*) -> bool:
+    def is_keyword(self, kw: byte*) -> bool:
         return self->kind == TokenKind::Keyword and strcmp(&self->short_string[0], kw) == 0
 
-    def is_operator(self: Token*, op: byte*) -> bool:
+    def is_operator(self, op: byte*) -> bool:
         return self->kind == TokenKind::Operator and strcmp(&self->short_string[0], op) == 0
 
-    def fail_expected_got(self: Token*, what_was_expected_instead: byte*) -> void:
+    def fail_expected_got(self, what_was_expected_instead: byte*) -> void:
         got: byte[100]
         if self->kind == TokenKind::Int:
             strcpy(&got[0], "an integer")

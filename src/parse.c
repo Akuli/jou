@@ -121,7 +121,7 @@ static AstNameTypeValue parse_name_type_value(const Token **tokens, const char *
     return result;
 }
 
-static AstSignature parse_function_signature(const Token **tokens)
+static AstSignature parse_function_signature(const Token **tokens, bool accept_self)
 {
     AstSignature result = {0};
 
@@ -142,6 +142,11 @@ static AstSignature parse_function_signature(const Token **tokens)
         if (is_operator(*tokens, "...")) {
             result.takes_varargs = true;
             ++*tokens;
+        } else if (is_keyword(*tokens, "self")) {
+            if (!accept_self)
+                fail_with_error((*tokens)->location, "'self' cannot be used here");
+            AstNameTypeValue self_arg = { .name="self", .name_location=(*tokens)++->location };
+            Append(&result.args, self_arg);
         } else {
             AstNameTypeValue arg = parse_name_type_value(tokens, "an argument name");
 
@@ -422,6 +427,10 @@ static AstExpression parse_elementary_expression(const Token **tokens)
         } else if (is_keyword(*tokens, "NULL")) {
             expr.kind = AST_EXPR_CONSTANT;
             expr.data.constant = (Constant){ CONSTANT_NULL, {{0}} };
+            ++*tokens;
+        } else if (is_keyword(*tokens, "self")) {
+            expr.kind = AST_EXPR_GET_VARIABLE;
+            strcpy(expr.data.varname, "self");
             ++*tokens;
         } else {
             goto not_an_expression;
@@ -781,13 +790,13 @@ static AstBody parse_body(const Token **tokens)
     return (AstBody){ .statements=result.ptr, .nstatements=result.len };
 }
 
-static AstFunctionDef parse_funcdef(const Token **tokens)
+static AstFunctionDef parse_funcdef(const Token **tokens, bool is_method)
 {
     assert(is_keyword(*tokens, "def"));
     ++*tokens;
 
     struct AstFunctionDef funcdef = {0};
-    funcdef.signature = parse_function_signature(tokens);
+    funcdef.signature = parse_function_signature(tokens, is_method);
     if (funcdef.signature.takes_varargs) {
         // TODO: support "def foo(x: str, ...)" in some way
         fail_with_error((*tokens)->location, "functions with variadic arguments cannot be defined yet");
@@ -808,7 +817,7 @@ static AstClassDef parse_classdef(const Token **tokens)
     parse_start_of_body(tokens);
     while ((*tokens)->type != TOKEN_DEDENT) {
         if (is_keyword(*tokens, "def")) {
-            Append(&result.methods, parse_funcdef(tokens));
+            Append(&result.methods, parse_funcdef(tokens, true));
         } else {
             AstNameTypeValue field = parse_name_type_value(tokens, "a method or a class field");
 
@@ -952,7 +961,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
     } else if (is_keyword(*tokens, "def")) {
         ++*tokens;  // skip 'def' keyword
         result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
-        result.data.funcdef.signature = parse_function_signature(tokens);
+        result.data.funcdef.signature = parse_function_signature(tokens, false);
         if (result.data.funcdef.signature.takes_varargs) {
             // TODO: support "def foo(x: str, ...)" in some way
             fail_with_error((*tokens)->location, "functions with variadic arguments cannot be defined yet");
@@ -971,7 +980,7 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens)
             }
         } else {
             result.kind = AST_TOPLEVEL_DECLARE_FUNCTION;
-            result.data.funcdef.signature = parse_function_signature(tokens);
+            result.data.funcdef.signature = parse_function_signature(tokens, false);
         }
         eat_newline(tokens);
     } else if (is_keyword(*tokens, "global")) {
