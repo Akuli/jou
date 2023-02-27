@@ -183,7 +183,7 @@ static void print_ast_function_signature(const AstSignature *sig)
     printf("\n");
 }
 
-static void print_ast_call(const AstCall *call, struct TreePrinter tp);
+static void print_ast_call(const AstCall *call, struct TreePrinter tp, const AstExpression *self);
 
 static void print_ast_expression(const AstExpression *expr, struct TreePrinter tp)
 {
@@ -193,11 +193,11 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
     switch(expr->kind) {
     case AST_EXPR_FUNCTION_CALL:
         printf("call function \"%s\"\n", expr->data.call.calledname);
-        print_ast_call(&expr->data.call, tp);
+        print_ast_call(&expr->data.call, tp, NULL);
         break;
     case AST_EXPR_BRACE_INIT:
         printf("brace init \"%s\"\n", expr->data.call.calledname);
-        print_ast_call(&expr->data.call, tp);
+        print_ast_call(&expr->data.call, tp, NULL);
         break;
     case AST_EXPR_ARRAY:
         printf("array\n");
@@ -216,10 +216,7 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         __attribute__((fallthrough));
     case AST_EXPR_CALL_METHOD:
         printf("call method \"%s\"\n", expr->data.methodcall.call.calledname);
-        struct TreePrinter self_printer = print_tree_prefix(tp, expr->data.methodcall.call.nargs == 0);
-        printf("self: ");
-        print_ast_expression(expr->data.methodcall.obj, self_printer);
-        print_ast_call(&expr->data.methodcall.call, tp);
+        print_ast_call(&expr->data.methodcall.call, tp, expr->data.methodcall.obj);
         break;
     case AST_EXPR_GET_ENUM_MEMBER:
         printf("get member \"%s\" from enum \"%s\"\n",
@@ -272,8 +269,14 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         print_ast_expression(&expr->data.operands[i], print_tree_prefix(tp, i==n-1));
 }
 
-static void print_ast_call(const AstCall *call, struct TreePrinter tp)
+static void print_ast_call(const AstCall *call, struct TreePrinter tp, const AstExpression *self)
 {
+    if(self){
+        struct TreePrinter self_printer = print_tree_prefix(tp, call->nargs == 0);
+        printf("self: ");
+        print_ast_expression(self, self_printer);
+    }
+
     for (int i = 0; i < call->nargs; i++) {
         struct TreePrinter sub = print_tree_prefix(tp, i == call->nargs - 1);
         if (call->argnames)
