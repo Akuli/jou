@@ -1,7 +1,7 @@
 from "stdlib/io.jou" import printf, putchar
-from "stdlib/str.jou" import snprintf
+from "stdlib/str.jou" import snprintf, strcpy
 from "stdlib/mem.jou" import free
-from "./errors_and_warnings.jou" import Location, assert
+from "./errors_and_warnings.jou" import Location
 
 # TODO: move to stdlib
 declare isprint(b: int) -> int
@@ -26,6 +26,7 @@ enum AstToplevelStatementKind:
     FunctionDeclaration
     FunctionDefinition
     ClassDefinition
+    GlobalVariableDeclaration
 
 class AstToplevelStatement:
     kind: AstToplevelStatementKind
@@ -36,6 +37,7 @@ class AstToplevelStatement:
     decl_signature: AstSignature
     funcdef: AstFunctionDef
     classdef: AstClassDef
+    global_var: AstNameTypeValue
 
     def print(self: AstToplevelStatement*) -> void:
         printf("line %d: ", self->location.lineno)
@@ -47,8 +49,15 @@ class AstToplevelStatement:
         elif self->kind == AstToplevelStatementKind::FunctionDefinition:
             printf("Define a function: ")
             (&self->funcdef).print()
+        elif self->kind == AstToplevelStatementKind::ClassDefinition:
+            printf("Define a ")
+            (&self->classdef).print()
+        elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
+            printf("Declare a global variable ")
+            (&self->global_var).print()
+            printf("\n")
         else:
-            assert(False)
+            printf("????????\n")
         printf("\n")
 
     def free(self: AstToplevelStatement*) -> void:
@@ -170,7 +179,17 @@ class AstClassDef:
     nmethods: int
 
     def print(self: AstClassDef*) -> void:
-        printf("hi\n")
+        printf("class \"%s\" with %d fields and %d methods:\n", &self->name[0], self->nfields, self->nmethods)
+        for i = 0; i < self->nfields; i++:
+            printf("  field ")
+            (&self->fields[i]).print()
+            printf("\n")
+        for i = 0; i < self->nmethods; i++:
+            printf("  method ")
+            (&self->methods[i].signature).print()
+            tp = TreePrinter{}
+            strcpy(&tp.prefix[0], "  ")
+            (&self->methods[i].body).print(tp)
 
     def free(self: AstClassDef*) -> void:
         for i = 0; i < self->nfields; i++:
@@ -271,7 +290,7 @@ class AstExpression:
             printf("call function \"%s\"\n", &self->call.called_name[0])
             (&self->call).print(tp)
         else:
-            assert(False)
+            printf("?????\n")
             
     def free(self: AstExpression*) -> void:
         if self->kind == AstExpressionKind::FunctionCall:

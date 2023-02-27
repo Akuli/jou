@@ -173,6 +173,11 @@ static void print_ast_function_signature(const AstSignature *sig)
         print_ast_type(&ntv->type);
         assert(!ntv->value);
     }
+    if (sig->takes_varargs) {
+        if (sig->args.len != 0)
+            printf(", ");
+        printf("...");
+    }
     printf(") -> ");
     print_ast_type(&sig->returntype);
     printf("\n");

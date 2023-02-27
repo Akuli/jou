@@ -258,19 +258,33 @@ def parse_toplevel_node(dest: AstFile*, tokens: Token**, stdlib_path: byte*) -> 
         ts.the_import.symbol = (*tokens)->short_string
         ++*tokens
         eat_newline(tokens)
+
     elif (*tokens).is_keyword("def"):
         ++*tokens
         ts.kind = AstToplevelStatementKind::FunctionDefinition
         ts.funcdef = parse_funcdef(tokens)
+
     elif (*tokens).is_keyword("declare"):
         ++*tokens
-        ts.kind = AstToplevelStatementKind::FunctionDeclaration
-        ts.decl_signature = parse_function_signature(tokens)
+        if (*tokens).is_keyword("global"):
+            ++*tokens
+            ts.kind = AstToplevelStatementKind::GlobalVariableDeclaration
+            ts.global_var = parse_name_type_value(tokens, "a variable name")
+            if ts.global_var.value != NULL:
+                fail(
+                    ts.global_var.value->location,
+                    "a value cannot be given when declaring a global variable",
+                )
+        else:
+            ts.kind = AstToplevelStatementKind::FunctionDeclaration
+            ts.decl_signature = parse_function_signature(tokens)
         eat_newline(tokens)
+
     elif (*tokens).is_keyword("class"):
         ++*tokens
         ts.kind = AstToplevelStatementKind::ClassDefinition
         ts.classdef = parse_classdef(tokens)
+
     else:
         (*tokens).fail_expected_got("a definition or declaration")
 
