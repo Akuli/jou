@@ -34,6 +34,9 @@ def ends_with(s: byte*, suffix: byte*) -> bool:
     offset = strlen(s) - strlen(suffix)
     return offset >= 0 and strcmp(&s[offset], suffix) == 0
 
+# Return how many bytes at start of s appear in the accept string.
+declare strspn(s: byte*, accept: byte*) -> long
+
 # Copy a string. Assumes it fits. Returned value is dest.
 declare strcpy(dest: byte*, source: byte*) -> byte*
 
