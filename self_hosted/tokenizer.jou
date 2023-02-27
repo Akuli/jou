@@ -81,7 +81,7 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
             digit_value = digits[i] - '0'
 
         # Overflow isn't UB in Jou
-        if result * base < 0:
+        if (result * base) / base != result:
             overflow = True
             break
         result *= base
