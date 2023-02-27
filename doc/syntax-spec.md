@@ -85,6 +85,7 @@ Jou has a few different kinds of tokens:
     - `True`
     - `False`
     - `NULL`
+    - `self`
     - `and`
     - `or`
     - `not`

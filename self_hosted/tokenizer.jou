@@ -28,7 +28,7 @@ def is_keyword(word: byte*) -> bool:
         "from", "import",
         "def", "declare", "class", "enum", "global",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
-        "True", "False", "NULL",
+        "True", "False", "NULL", "self",
         "and", "or", "not", "as", "sizeof",
         "void", "bool", "byte", "int", "long", "float", "double",
     ]
@@ -50,7 +50,7 @@ class Tokenizer:
     parens: Token[50]
     parens_len: int
 
-    def read_byte(self: Tokenizer*) -> byte:
+    def read_byte(self) -> byte:
         EOF = -1  # FIXME
 
         c: byte
@@ -82,7 +82,7 @@ class Tokenizer:
             self->location.lineno++
         return c
 
-    def unread_byte(self: Tokenizer*, b: byte) -> void:
+    def unread_byte(self, b: byte) -> void:
         if b == '\0':
             return
 
@@ -92,7 +92,7 @@ class Tokenizer:
         if b == '\n':
             self->location.lineno--
 
-    def read_identifier_or_number(self: Tokenizer*, first_byte: byte) -> byte[100]:
+    def read_identifier_or_number(self, first_byte: byte) -> byte[100]:
         dest: byte[100]
         memset(&dest, 0, sizeof dest)
         destlen = 0
@@ -110,7 +110,7 @@ class Tokenizer:
                 self->unread_byte(b)
                 return dest
 
-    def consume_rest_of_line(self: Tokenizer*) -> void:
+    def consume_rest_of_line(self) -> void:
         while True:
             c = self->read_byte()
             if c == '\0' or c == '\n':
@@ -118,7 +118,7 @@ class Tokenizer:
                 break
 
     # Returns the indentation level for the next line
-    def read_newline_token(self: Tokenizer*) -> int:
+    def read_newline_token(self) -> int:
         level = 0
         while True:
             c = self->read_byte()
@@ -140,7 +140,7 @@ class Tokenizer:
                 return level
 
     # Assumes the initial ' has been read.
-    def read_byte_literal(self: Tokenizer*) -> byte:
+    def read_byte_literal(self) -> byte:
         c = self->read_byte()
         if c == '\'':
             fail(self->location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?")
@@ -189,7 +189,7 @@ class Tokenizer:
         return c
 
     # Assumes the initial " has been read.
-    def read_string(self: Tokenizer*) -> byte*:
+    def read_string(self) -> byte*:
         result: byte* = NULL
         len = 0
 
@@ -243,7 +243,7 @@ class Tokenizer:
         result[len] = '\0'
         return result
 
-    def read_operator(self: Tokenizer*) -> byte[100]:
+    def read_operator(self) -> byte[100]:
         operators = [
             # This list of operators is in 3 places. Please keep them in sync:
             #   - the Jou compiler written in C
@@ -284,7 +284,7 @@ class Tokenizer:
         fail(self->location, &message[0])
         return operator  # TODO: never actually runs, but causes a compiler warning
 
-    def read_token(self: Tokenizer*) -> Token:
+    def read_token(self) -> Token:
         while True:
             token = Token{location = self->location}
             b = self->read_byte()
