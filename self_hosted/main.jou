@@ -15,8 +15,8 @@ def main(argc: int, argv: byte**) -> int:
         tokens = tokenize(argv[2])
         stdlib_path = find_stdlib()
         ast = parse(tokens, stdlib_path)
-        (&ast).print()
-        (&ast).free()
+        ast.print()
+        ast.free()
         free(tokens)
         free(stdlib_path)
     else:
