@@ -173,6 +173,11 @@ static void print_ast_function_signature(const AstSignature *sig)
         print_ast_type(&ntv->type);
         assert(!ntv->value);
     }
+    if (sig->takes_varargs) {
+        if (sig->args.len != 0)
+            printf(", ");
+        printf("...");
+    }
     printf(") -> ");
     print_ast_type(&sig->returntype);
     printf("\n");
@@ -211,8 +216,10 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         __attribute__((fallthrough));
     case AST_EXPR_CALL_METHOD:
         printf("call method \"%s\"\n", expr->data.methodcall.call.calledname);
-        print_ast_expression(expr->data.methodcall.obj, print_tree_prefix(tp, false));
-        print_ast_call(&expr->data.methodcall.call, print_tree_prefix(tp, true));
+        struct TreePrinter self_printer = print_tree_prefix(tp, expr->data.methodcall.call.nargs == 0);
+        printf("self: ");
+        print_ast_expression(expr->data.methodcall.obj, self_printer);
+        print_ast_call(&expr->data.methodcall.call, tp);
         break;
     case AST_EXPR_GET_ENUM_MEMBER:
         printf("get member \"%s\" from enum \"%s\"\n",
@@ -410,12 +417,19 @@ void print_ast(const AstToplevelNode *topnodelist)
                 print_ast_body(&t->data.funcdef.body, (struct TreePrinter){0});
                 break;
             case AST_TOPLEVEL_DEFINE_CLASS:
-                printf("Define struct \"%s\" with %d fields:\n",
-                    t->data.classdef.name, t->data.classdef.fields.len);
+                printf("Define a class \"%s\" with %d fields and %d methods:\n",
+                    t->data.classdef.name,
+                    t->data.classdef.fields.len,
+                    t->data.classdef.methods.len);
                 for (const AstNameTypeValue *ntv = t->data.classdef.fields.ptr; ntv < End(t->data.classdef.fields); ntv++) {
-                    printf("  %s: ", ntv->name);
+                    printf("  field %s: ", ntv->name);
                     print_ast_type(&ntv->type);
                     printf("\n");
+                }
+                for (const AstFunctionDef *m = t->data.classdef.methods.ptr; m < End(t->data.classdef.methods); m++) {
+                    printf("  method ");
+                    print_ast_function_signature(&m->signature);
+                    print_ast_body(&m->body, (struct TreePrinter){.prefix="  "});
                 }
                 break;
             case AST_TOPLEVEL_DEFINE_ENUM:
