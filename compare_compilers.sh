@@ -21,11 +21,11 @@ fi
 
 set -e
 
-rm -rf tmp/tokenizers
-mkdir -vp tmp/tokenizers
+rm -rf tmp/compare_compilers
+mkdir -vp tmp/compare_compilers
 
 echo "Compiling the self-hosted compiler..."
-./jou${dotexe} -O1 -o tmp/tokenizers/self_hosted${dotexe} self_hosted/main.jou
+./jou${dotexe} -O1 -o tmp/compare_compilers/self_hosted${dotexe} self_hosted/main.jou
 
 for file in $(find stdlib examples tests -name '*.jou' | sort); do
 for action in tokenize parse; do
@@ -33,16 +33,16 @@ for action in tokenize parse; do
     flag=--${action}-only
     error_list_file=self_hosted/${action}s_wrong.txt
 
-    (./jou${dotexe} $flag $file || true) &> tmp/tokenizers/compiler_written_in_c.txt
-    (tmp/tokenizers/self_hosted${dotexe} $flag $file || true) &> tmp/tokenizers/self_hosted.txt
+    (./jou${dotexe} $flag $file || true) &> tmp/compare_compilers/compiler_written_in_c.txt
+    (tmp/compare_compilers/self_hosted${dotexe} $flag $file || true) &> tmp/compare_compilers/self_hosted.txt
 
     if grep -qxF $file $error_list_file; then
         # The file is skipped, so the two compilers should behave differently
-        if diff tmp/tokenizers/compiler_written_in_c.txt tmp/tokenizers/self_hosted.txt >/dev/null; then
+        if diff tmp/compare_compilers/compiler_written_in_c.txt tmp/compare_compilers/self_hosted.txt >/dev/null; then
             if [ $fix = yes ]; then
                 echo "  Deleting $file from $error_list_file"
-                grep -vxF $file $error_list_file > tmp/tokenizers/newlist.txt
-                mv tmp/tokenizers/newlist.txt $error_list_file
+                grep -vxF $file $error_list_file > tmp/compare_compilers/newlist.txt
+                mv tmp/compare_compilers/newlist.txt $error_list_file
             else
                 echo "  Error: Compilers behave the same even though the file is listed in $error_list_file."
                 echo "  To fix this error, delete the \"$file\" line from $error_list_file (or run again with --fix)."
@@ -52,7 +52,7 @@ for action in tokenize parse; do
             echo "  Compilers behave differently as expected (listed in $error_list_file)"
         fi
     else
-        if diff -u --color=always tmp/tokenizers/compiler_written_in_c.txt tmp/tokenizers/self_hosted.txt; then
+        if diff -u --color=always tmp/compare_compilers/compiler_written_in_c.txt tmp/compare_compilers/self_hosted.txt; then
             echo "  Compilers behave the same as expected"
         else
             if [ $fix = yes ]; then
@@ -60,7 +60,7 @@ for action in tokenize parse; do
                 echo $file >> $error_list_file
             else
                 echo "  Error: Compilers behave differently when given \"$file\"."
-                echo "  Ideally the tokenizers would behave in the same way for all files, but we aren't there yet."
+                echo "  Ideally the compilers would behave in the same way for all files, but we aren't there yet."
                 echo "  To silence this error, add \"$file\" to $error_list_file (or run again with --fix)."
                 exit 1
             fi
