@@ -144,7 +144,6 @@ static AstSignature parse_function_signature(const Token **tokens, bool accept_s
             ++*tokens;
         } else if (is_keyword(*tokens, "self")) {
             if (!accept_self)
-                // TODO: test this
                 fail_with_error((*tokens)->location, "'self' cannot be used here");
             AstNameTypeValue self_arg = { .name="self", .name_location=(*tokens)++->location };
             Append(&result.args, self_arg);
