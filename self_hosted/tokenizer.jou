@@ -101,6 +101,22 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
 
     return result
 
+def flip_paren(c: byte) -> byte:
+    if c == '(':
+        return ')'
+    if c == ')':
+        return '('
+    if c == '[':
+        return ']'
+    if c == ']':
+        return '['
+    if c == '{':
+        return '}'
+    if c == '}':
+        return '{'
+    assert(False)
+    return 'x'  # never actually runs, but silences compiler warning
+
 
 class Tokenizer:
     f: FILE*
@@ -110,8 +126,8 @@ class Tokenizer:
     # Parens array isn't dynamic, so that you can't segfault
     # the compiler by feeding it lots of nested parentheses,
     # which would make it recurse too deep.
-    parens: Token[50]
-    parens_len: int
+    open_parens: Token[50]
+    open_parens_len: int
 
     def read_byte(self) -> byte:
         EOF = -1  # FIXME
@@ -347,6 +363,29 @@ class Tokenizer:
         fail(self->location, &message[0])
         return operator  # TODO: never actually runs, but causes a compiler warning
 
+    def handle_parentheses(self, token: Token*) -> void:
+        if token->kind == TokenKind::EndOfFile and self->open_parens_len > 0:
+            open_token = self->open_parens[0]
+            actual_open = open_token.short_string[0]
+            expected_close = flip_paren(actual_open)
+
+            message = malloc(100)
+            sprintf(message, "'%c' without a matching '%c'", actual_open, expected_close)
+            fail(open_token.location, message)
+
+        if token->is_open_paren():
+            if self->open_parens_len == sizeof self->open_parens / sizeof self->open_parens[0]:
+                fail(token->location, "too many nested parentheses")
+            self->open_parens[self->open_parens_len++] = *token
+
+        if token->is_close_paren():
+            actual_close = token->short_string[0]
+            expected_open = flip_paren(actual_close)
+            if self->open_parens_len == 0 or self->open_parens[--self->open_parens_len].short_string[0] != expected_open:
+                message = malloc(100)
+                sprintf(message, "'%c' without a matching '%c'", actual_close, expected_open)
+                fail(token->location, message)
+
     def read_token(self) -> Token:
         while True:
             token = Token{location = self->location}
@@ -359,7 +398,7 @@ class Tokenizer:
                 continue
 
             if b == '\n':
-                if self->parens_len > 0:
+                if self->open_parens_len > 0:
                     continue
                 token.kind = TokenKind::Newline
                 token.indentation_level = self->read_newline_token()
@@ -393,6 +432,8 @@ class Tokenizer:
                 message: byte[100]
                 sprintf(&message[0], "unexpected byte %#02x", b)
                 fail(self->location, &message[0])
+
+            self->handle_parentheses(&token)
             return token
 
 

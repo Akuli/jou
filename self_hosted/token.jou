@@ -82,6 +82,12 @@ class Token:
     def is_operator(self, op: byte*) -> bool:
         return self->kind == TokenKind::Operator and strcmp(&self->short_string[0], op) == 0
 
+    def is_open_paren(self) -> bool:
+        return self->is_operator("(") or self->is_operator("[") or self->is_operator("{")
+
+    def is_close_paren(self) -> bool:
+        return self->is_operator(")") or self->is_operator("]") or self->is_operator("}")
+
     def fail_expected_got(self, what_was_expected_instead: byte*) -> void:
         got: byte[100]
         if self->kind == TokenKind::Int:
