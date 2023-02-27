@@ -1,11 +1,10 @@
 from "stdlib/io.jou" import printf, FILE, fgetc, ferror, fopen
-from "stdlib/str.jou" import sprintf, strlen, strchr, strcmp, starts_with
+from "stdlib/str.jou" import sprintf, strlen, strchr, strcmp, strspn, starts_with
 from "stdlib/mem.jou" import malloc, realloc, free, memset, memmove
 from "./errors_and_warnings.jou" import Location, fail, assert
 from "./token.jou" import Token, TokenKind
 
 # TODO: move these to stdlib
-declare atoi(s: byte*) -> int
 declare isprint(b: int) -> int
 
 def is_identifier_or_number_byte(b: byte) -> bool:
@@ -38,6 +37,86 @@ def is_keyword(word: byte*) -> bool:
             return True
     return False
 
+def parse_integer(string: byte*, location: Location, nbits: int) -> long:
+    if starts_with(string, "0b"):
+        base = 2
+        digits = &string[2]
+        valid_digits = "01"
+    elif starts_with(string, "0o"):
+        base = 8
+        digits = &string[2]
+        valid_digits = "01234567"
+    elif starts_with(string, "0x"):
+        base = 16
+        digits = &string[2]
+        valid_digits = "0123456789ABCDEFabcdef"
+    elif starts_with(string, "0") and strlen(string) >= 2:
+        # wrong syntax like 0777
+        fail(location, "unnecessary zero at start of number")
+        # silence compiler warnings... this code can never actually run
+        base = 0
+        digits = ""
+        valid_digits = ""
+    else:
+        # default decimal number
+        base = 10
+        digits = string
+        valid_digits = "0123456789"
+
+    if strlen(digits) == 0 or strspn(digits, valid_digits) != strlen(digits):
+        message = malloc(strlen(string) + 100)
+        sprintf(message, "invalid number or variable name \"%s\"", string)
+        fail(location, message)
+
+    # We can't use strtoll() or similar, because there's not yet a way to check errno.
+    # We would need it to check for overflow.
+    result = 0L
+    overflow = False
+    for i = 0; i < strlen(digits); i++:
+        if 'A' <= digits[i] and digits[i] <= 'F':
+            digit_value = 10 + (digits[i] - 'A')
+        elif 'a' <= digits[i] and digits[i] <= 'f':
+            digit_value = 10 + (digits[i] - 'a')
+        else:
+            digit_value = digits[i] - '0'
+
+        # Overflow isn't UB in Jou
+        if (result * base) / base != result:
+            overflow = True
+            break
+        result *= base
+        if result + digit_value < 0:
+            overflow = True
+            break
+        result += digit_value
+
+    assert(nbits == 32 or nbits == 64)
+    if nbits == 32 and (result as int) != result:
+        overflow = True
+
+    if overflow:
+        message = malloc(100)
+        sprintf(message, "value does not fit in a signed %d-bit integer", nbits)
+        fail(location, message)
+
+    return result
+
+def flip_paren(c: byte) -> byte:
+    if c == '(':
+        return ')'
+    if c == ')':
+        return '('
+    if c == '[':
+        return ']'
+    if c == ']':
+        return '['
+    if c == '{':
+        return '}'
+    if c == '}':
+        return '{'
+    assert(False)
+    return 'x'  # never actually runs, but silences compiler warning
+
 
 class Tokenizer:
     f: FILE*
@@ -47,8 +126,8 @@ class Tokenizer:
     # Parens array isn't dynamic, so that you can't segfault
     # the compiler by feeding it lots of nested parentheses,
     # which would make it recurse too deep.
-    parens: Token[50]
-    parens_len: int
+    open_parens: Token[50]
+    open_parens_len: int
 
     def read_byte(self) -> byte:
         EOF = -1  # FIXME
@@ -284,6 +363,29 @@ class Tokenizer:
         fail(self->location, &message[0])
         return operator  # TODO: never actually runs, but causes a compiler warning
 
+    def handle_parentheses(self, token: Token*) -> void:
+        if token->kind == TokenKind::EndOfFile and self->open_parens_len > 0:
+            open_token = self->open_parens[0]
+            actual_open = open_token.short_string[0]
+            expected_close = flip_paren(actual_open)
+
+            message = malloc(100)
+            sprintf(message, "'%c' without a matching '%c'", actual_open, expected_close)
+            fail(open_token.location, message)
+
+        if token->is_open_paren():
+            if self->open_parens_len == sizeof self->open_parens / sizeof self->open_parens[0]:
+                fail(token->location, "too many nested parentheses")
+            self->open_parens[self->open_parens_len++] = *token
+
+        if token->is_close_paren():
+            actual_close = token->short_string[0]
+            expected_open = flip_paren(actual_close)
+            if self->open_parens_len == 0 or self->open_parens[--self->open_parens_len].short_string[0] != expected_open:
+                message = malloc(100)
+                sprintf(message, "'%c' without a matching '%c'", actual_close, expected_open)
+                fail(token->location, message)
+
     def read_token(self) -> Token:
         while True:
             token = Token{location = self->location}
@@ -296,7 +398,7 @@ class Tokenizer:
                 continue
 
             if b == '\n':
-                if self->parens_len > 0:
+                if self->open_parens_len > 0:
                     continue
                 token.kind = TokenKind::Newline
                 token.indentation_level = self->read_newline_token()
@@ -311,9 +413,13 @@ class Tokenizer:
                 if is_keyword(&token.short_string[0]):
                     token.kind = TokenKind::Keyword
                 elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
-                    # TODO: support various other things
-                    token.kind = TokenKind::Int
-                    token.int_value = atoi(&token.short_string[0])
+                    if token.short_string[strlen(&token.short_string[0]) - 1] == 'L':
+                        token.short_string[strlen(&token.short_string[0]) - 1] = '\0'
+                        token.kind = TokenKind::Long
+                        token.long_value = parse_integer(&token.short_string[0], token.location, 64)
+                    else:
+                        token.kind = TokenKind::Int
+                        token.int_value = parse_integer(&token.short_string[0], token.location, 32) as int
                 else:
                     token.kind = TokenKind::Name
             elif is_operator_byte(b):
@@ -326,6 +432,8 @@ class Tokenizer:
                 message: byte[100]
                 sprintf(&message[0], "unexpected byte %#02x", b)
                 fail(self->location, &message[0])
+
+            self->handle_parentheses(&token)
             return token
 
 
