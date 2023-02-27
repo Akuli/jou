@@ -27,7 +27,7 @@ mkdir -vp tmp/tokenizers
 echo "Compiling the self-hosted compiler..."
 ./jou${dotexe} -O1 -o tmp/tokenizers/self_hosted${dotexe} self_hosted/main.jou
 
-for file in $(find examples tests -name '*.jou' | sort); do
+for file in $(find stdlib examples tests -name '*.jou' | sort); do
 for action in tokenize parse; do
     echo "$action $file"
     flag=--${action}-only

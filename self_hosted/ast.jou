@@ -1,7 +1,7 @@
 from "stdlib/io.jou" import printf, putchar
-from "stdlib/str.jou" import snprintf
+from "stdlib/str.jou" import snprintf, strcpy
 from "stdlib/mem.jou" import free
-from "./errors_and_warnings.jou" import Location, assert
+from "./errors_and_warnings.jou" import Location
 
 # TODO: move to stdlib
 declare isprint(b: int) -> int
@@ -23,7 +23,10 @@ class AstFile:
 
 enum AstToplevelStatementKind:
     Import
-    DefineFunction
+    FunctionDeclaration
+    FunctionDefinition
+    ClassDefinition
+    GlobalVariableDeclaration
 
 class AstToplevelStatement:
     kind: AstToplevelStatementKind
@@ -31,18 +34,30 @@ class AstToplevelStatement:
 
     # TODO: union
     the_import: AstImport
+    decl_signature: AstSignature
     funcdef: AstFunctionDef
+    classdef: AstClassDef
+    global_var: AstNameTypeValue
 
     def print(self: AstToplevelStatement*) -> void:
         printf("line %d: ", self->location.lineno)
         if self->kind == AstToplevelStatementKind::Import:
             printf("Import \"%s\" from \"%s\".\n", &self->the_import.symbol[0], self->the_import.path)
-        elif self->kind == AstToplevelStatementKind::DefineFunction:
+        elif self->kind == AstToplevelStatementKind::FunctionDeclaration:
+            printf("Declare a function: ")
+            (&self->decl_signature).print()
+        elif self->kind == AstToplevelStatementKind::FunctionDefinition:
             printf("Define a function: ")
-            (&self->funcdef.signature).print()
-            (&self->funcdef.body).print(TreePrinter{})
+            (&self->funcdef).print()
+        elif self->kind == AstToplevelStatementKind::ClassDefinition:
+            printf("Define a ")
+            (&self->classdef).print()
+        elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
+            printf("Declare a global variable ")
+            (&self->global_var).print()
+            printf("\n")
         else:
-            assert(False)
+            printf("????????\n")
         printf("\n")
 
     def free(self: AstToplevelStatement*) -> void:
@@ -78,12 +93,17 @@ class AstType:
     valuetype: AstType* # AstTypeKind::Pointer
     array: AstArrayType # AstTypeKind::Array
 
-    def print(self: AstType*) -> void:
+    def print(self: AstType*, show_lineno: bool) -> void:
         if self->kind == AstTypeKind::Named:
             printf("%s", &self->name[0])
+        elif self->kind == AstTypeKind::Pointer:
+            self->valuetype.print(False)
+            printf("*")
         else:
             printf("???")
-        printf(" [line %d]", self->location.lineno)
+
+        if show_lineno:
+            printf(" [line %d]", self->location.lineno)
 
     def free(self: AstType*) -> void:
         if self->kind == AstTypeKind::Pointer:
@@ -92,14 +112,47 @@ class AstType:
         if self->kind == AstTypeKind::Array:
             (&self->array).free()
 
+class AstNameTypeValue:
+    # name: type = value
+    name: byte[100]
+    name_location: Location
+    type: AstType
+    value: AstExpression*  # can be NULL
+
+    def print(self: AstNameTypeValue*) -> void:
+        printf("%s: ", &self->name[0])
+        (&self->type).print(True)
+        if self->value != NULL:
+            # TODO: figure out a good way to print the value (wants a TreePrinter)
+            printf(" = <default>")
+
+    def free(self: AstNameTypeValue*) -> void:
+        if self->value != NULL:
+            self->value.free()
+        free(self->value)
+
 class AstSignature:
     funcname_location: Location
     funcname: byte[100]
+    args: AstNameTypeValue*
+    nargs: int
+    takes_varargs: bool  # is there a "..." argument
     return_type: AstType
 
     def print(self: AstSignature*) -> void:
-        printf("%s() -> ", &self->funcname[0])
-        (&self->return_type).print()
+        printf("%s(", &self->funcname[0])
+        for i = 0; i < self->nargs; i++:
+            if i != 0:
+                printf(", ")
+            (&self->args[i]).print()
+
+        if self->takes_varargs:
+            if self->nargs != 0:
+                printf(", ")
+            printf("...")
+
+        printf(") -> ")
+        (&self->return_type).print(True)
         printf("\n")
 
     def free(self: AstSignature*) -> void:
@@ -109,9 +162,40 @@ class AstFunctionDef:
     signature: AstSignature
     body: AstBody
 
+    def print(self: AstFunctionDef*) -> void:
+        (&self->signature).print()
+        (&self->body).print(TreePrinter{})
+
     def free(self: AstFunctionDef*) -> void:
         (&self->signature).free()
         (&self->body).free()
+
+class AstClassDef:
+    name: byte[100]
+    name_location: Location
+    fields: AstNameTypeValue*
+    nfields: int
+    methods: AstFunctionDef*
+    nmethods: int
+
+    def print(self: AstClassDef*) -> void:
+        printf("class \"%s\" with %d fields and %d methods:\n", &self->name[0], self->nfields, self->nmethods)
+        for i = 0; i < self->nfields; i++:
+            printf("  field ")
+            (&self->fields[i]).print()
+            printf("\n")
+        for i = 0; i < self->nmethods; i++:
+            printf("  method ")
+            (&self->methods[i].signature).print()
+            tp = TreePrinter{}
+            strcpy(&tp.prefix[0], "  ")
+            (&self->methods[i].body).print(tp)
+
+    def free(self: AstClassDef*) -> void:
+        for i = 0; i < self->nfields; i++:
+            (&self->fields[i]).free()
+        for i = 0; i < self->nmethods; i++:
+            (&self->methods[i]).free()
 
 # Statements and expressions can be printed in a tree.
 # To see a tree, run:
@@ -206,7 +290,7 @@ class AstExpression:
             printf("call function \"%s\"\n", &self->call.called_name[0])
             (&self->call).print(tp)
         else:
-            assert(False)
+            printf("?????\n")
             
     def free(self: AstExpression*) -> void:
         if self->kind == AstExpressionKind::FunctionCall:
