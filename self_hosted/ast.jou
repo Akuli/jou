@@ -45,7 +45,7 @@ class AstToplevelStatement:
             printf("Import \"%s\" from \"%s\".\n", &self->the_import.symbol[0], self->the_import.path)
         elif self->kind == AstToplevelStatementKind::FunctionDeclaration:
             printf("Declare a function: ")
-            (&self->decl_signature).print()
+            self->decl_signature.print()
         elif self->kind == AstToplevelStatementKind::FunctionDefinition:
             printf("Define a function: ")
             (&self->funcdef).print()

@@ -172,7 +172,7 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
 
     Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
     if (self_type)
-        create_dotted_method_name(&sig.funcname, self_type, astsig->funcname);
+        snprintf(sig.funcname, sizeof sig.funcname, "%s.%s", self_type->name, astsig->funcname);
     else
         safe_strcpy(sig.funcname, astsig->funcname);
 
@@ -638,47 +638,6 @@ static const char *nth(int n)
     return result;
 }
 
-static const Type *get_self_type(const Signature *sig)
-{
-    for (int i = 0; i < sig->nargs; i++)
-        if (!strcmp(sig->argnames[i], "self"))
-            return sig->argtypes[i];
-    return NULL;
-}
-
-// In Jou, a method being not found can be caused by many things.
-// To help with that we try to generate helpful error messages.
-static noreturn void fail_with_method_404_error(const Location location, const char *methodname, const Type *expected_self_type, const Type *actual_self_type)
-{
-    if (expected_self_type) {
-        // The method exists, but it expects a slightly different type.
-        // For example, the method wants self as a pointer, but it is called directly on an instance that isn't a pointer.
-        if (actual_self_type == get_pointer_type(expected_self_type)) {
-            fail_with_error(location,
-                "the method '%s' is defined for type %s, not for type %s, so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
-                methodname, expected_self_type->name, actual_self_type->name);
-        }
-        if (get_pointer_type(actual_self_type) == expected_self_type) {
-            fail_with_error(location,
-                "the method '%s' is defined for type %s, not for type %s, so you need to call it on a pointer",
-                methodname, expected_self_type->name, actual_self_type->name);
-        }
-    }
-
-    const Type *t = actual_self_type;
-    while (t->kind == TYPE_POINTER) t = t->data.valuetype;
-    if (t->kind != TYPE_CLASS) {
-        // examples: some_int.blah(), (&some_int).blah()
-        fail_with_error(location,
-            "type %s does not have a method named '%s', and in fact, it doesn't have any methods because %s is not a class",
-            actual_self_type->name, methodname, t->name);
-    }
-
-    fail_with_error(location, "%s %s does not have a method named '%s'",
-        actual_self_type->kind == TYPE_CLASS ? "class" : "type",
-        actual_self_type->name, methodname);
-}
-
 // returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
 static const Type *typecheck_function_or_method_call(TypeContext *ctx, const AstCall *call, const Type *self_type, Location location)
 {
@@ -689,11 +648,28 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
         strcpy(function_or_method, "method");
 
         char name_to_search[200];
-        create_dotted_method_name(&name_to_search, self_type, call->calledname);
+        snprintf(name_to_search, sizeof name_to_search, "%s.%s", self_type->name, call->calledname);
 
         sig = find_function(ctx, name_to_search);
-        if (!sig || get_self_type(sig) != self_type)
-            fail_with_method_404_error(location, call->calledname, sig ? get_self_type(sig) : NULL, self_type);
+        if (!sig) {
+            // If self type is a pointer to a struct that has the method, mention it in the error message
+            if (self_type->kind == TYPE_POINTER && self_type->data.valuetype->kind == TYPE_CLASS) {
+                snprintf(name_to_search, sizeof name_to_search, "%s.%s", self_type->data.valuetype->name, call->calledname);
+                if (find_function(ctx, name_to_search)) {
+                    fail_with_error(
+                        location,
+                        "the method '%s' is defined on class %s, not on the pointer type %s,"
+                        " so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
+                        call->calledname, self_type->data.valuetype->name, self_type->name);
+                }
+            }
+            // If it is not a class, explain to the user that there are no methods
+            if (self_type->kind != TYPE_CLASS) {
+                fail_with_error(location, "type %s does not have any methods because it is not a class", self_type->name);
+            }
+            fail_with_error(location, "class %s does not have a method named '%s'",
+                self_type->name, call->calledname);
+        }
     } else {
         strcpy(function_or_method, "function");
         sig = find_function(ctx, call->calledname);

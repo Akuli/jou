@@ -417,6 +417,11 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
 
 static const LocalVariable *build_function_or_method_call(struct State *st, const Location location, const AstCall *call, const LocalVariable *self, const Type *returntype)
 {
+    if(self) {
+        assert(self->type->kind == TYPE_POINTER);
+        assert(self->type->data.valuetype->kind == TYPE_CLASS);
+    }
+
     const LocalVariable **args = calloc(call->nargs + 2, sizeof(args[0]));  // NOLINT
     int k = 0;
     if (self)
@@ -432,7 +437,7 @@ static const LocalVariable *build_function_or_method_call(struct State *st, cons
 
     union CfInstructionData data;
     if (self)
-        create_dotted_method_name(&data.funcname, self->type, call->calledname);
+        snprintf(data.funcname, sizeof data.funcname, "%s.%s", self->type->data.valuetype->name, call->calledname);
     else
         safe_strcpy(data.funcname, call->calledname);
     add_instruction(st, location, CF_CALL, &data, args, return_value);
@@ -498,9 +503,14 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
 
     switch(expr->kind) {
     case AST_EXPR_DEREF_AND_CALL_METHOD:
-        assert(0);  // TODO: implement
-    case AST_EXPR_CALL_METHOD:
         temp = build_expression(st, expr->data.methodcall.obj);
+        assert(temp);
+        result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, temp, types ? types->type : NULL);
+        if (!result)
+            return NULL;
+        break;
+    case AST_EXPR_CALL_METHOD:
+        temp = build_address_of_expression(st, expr->data.methodcall.obj);
         assert(temp);
         result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, temp, types ? types->type : NULL);
         if (!result)
@@ -883,7 +893,7 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx
 
             for (AstFunctionDef *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
                 char name[200];
-                create_dotted_method_name(&name, classtype, m->signature.funcname);
+                snprintf(name, sizeof name, "%s.%s", classtype->name, m->signature.funcname);
                 const Signature *sig = typecheck_function_body(typectx, name, &m->body);
                 CfGraph *g = build_function(&st, &m->body);
                 g->signature = copy_signature(sig);
