@@ -339,6 +339,11 @@ struct AstToplevelNode {
 };
 
 
+struct ClassData {
+    List(struct ClassField { char name[100]; const Type *type; }) fields;
+    List(Signature) methods;
+};
+
 struct Type {
     char name[500];   // All types have a name for error messages and debugging.
     enum TypeKind {
@@ -356,8 +361,8 @@ struct Type {
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_FLOATING_POINT
         const Type *valuetype;  // TYPE_POINTER
+        struct ClassData classdata;  // TYPE_CLASS
         struct { const Type *membertype; int len; } array;  // TYPE_ARRAY
-        struct { int count; char (*names)[100]; const Type **types; } classfields;  // TYPE_CLASS
         struct { int count; char (*names)[100]; } enummembers;
     } data;
 };
@@ -390,11 +395,6 @@ const Type *get_array_type(const Type *t, int len);  // result lives as long as 
 const Type *type_of_constant(const Constant *c);
 Type *create_opaque_struct(const char *name);
 Type *create_enum(const char *name, int membercount, char (*membernames)[100]);
-void set_class_fields(
-    Type *classtype,  // must be opaque class, becomes non-opaque
-    int fieldcount,
-    char (*fieldnames)[100],  // will be free()d eventually
-    const Type **fieldtypes);  // will be free()d eventually
 void free_type(Type *type);
 
 bool is_integer_type(const Type *t);  // includes signed and unsigned

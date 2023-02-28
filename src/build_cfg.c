@@ -203,16 +203,12 @@ static const LocalVariable *build_class_field_pointer(
     assert(instance->type->data.valuetype->kind == TYPE_CLASS);
     const Type *classtype = instance->type->data.valuetype;
 
-    for (int i = 0; i < classtype->data.classfields.count; i++) {
-        char name[100];
-        safe_strcpy(name, classtype->data.classfields.names[i]);
-        const Type *type = classtype->data.classfields.types[i];
-
-        if (!strcmp(name, fieldname)) {
+    for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++) {
+        if (!strcmp(f->name, fieldname)) {
             union CfInstructionData dat;
-            safe_strcpy(dat.fieldname, name);
+            safe_strcpy(dat.fieldname, f->name);
 
-            LocalVariable* result = add_local_var(st, get_pointer_type(type));
+            LocalVariable* result = add_local_var(st, get_pointer_type(f->type));
             add_instruction(st, location, CF_PTR_CLASS_FIELD, &dat, (const LocalVariable*[]){instance,NULL}, result);
             return result;
         }

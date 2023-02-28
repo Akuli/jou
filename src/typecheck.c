@@ -216,18 +216,14 @@ static const Type *handle_class_fields(TypeContext *ctx, const AstClassDef *clas
         }
     assert(type);
     assert(type->kind == TYPE_OPAQUE_CLASS);
+    type->kind = TYPE_CLASS;
 
-    int n = classdef->fields.len;
-
-    char (*fieldnames)[100] = malloc(n * sizeof(fieldnames[0]));
-    for (int i = 0; i<n; i++)
-        safe_strcpy(fieldnames[i], classdef->fields.ptr[i].name);
-
-    const Type **fieldtypes = malloc(n * sizeof fieldtypes[0]);  // NOLINT
-    for (int i = 0; i < n; i++)
-        fieldtypes[i] = type_from_ast(ctx, &classdef->fields.ptr[i].type);
-
-    set_class_fields(type, n, fieldnames, fieldtypes);
+    memset(&type->data.classdata, 0, sizeof type->data.classdata);
+    for (const AstNameTypeValue *classfield = classdef->fields.ptr; classfield < End(classdef->fields); classfield++) {
+        struct ClassField f = {.type = type_from_ast(ctx, &classfield->type)};
+        safe_strcpy(f.name, classfield->name);
+        Append(&type->data.classdata.fields, f);
+    }
     return type;
 }
 
@@ -736,9 +732,9 @@ static const Type *typecheck_class_field(
 {
     assert(classtype->kind == TYPE_CLASS);
 
-    for (int i = 0; i < classtype->data.classfields.count; i++)
-        if (!strcmp(classtype->data.classfields.names[i], fieldname))
-            return classtype->data.classfields.types[i];
+    for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++)
+        if (!strcmp(f->name, fieldname))
+            return f->type;
 
     fail_with_error(location, "class %s has no field named '%s'", classtype->name, fieldname);
 }
