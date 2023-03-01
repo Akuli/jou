@@ -374,9 +374,18 @@ static ExpressionTypes *typecheck_expression_not_void(TypeContext *ctx, const As
 {
     ExpressionTypes *types = typecheck_expression(ctx, expr);
     if (!types) {
-        assert(expr->kind == AST_EXPR_FUNCTION_CALL);
-        fail_with_error(
-            expr->location, "function '%s' does not return a value", expr->data.call.calledname);
+        switch(expr->kind) {
+        case AST_EXPR_FUNCTION_CALL:
+            fail_with_error(
+                expr->location, "function '%s' does not return a value", expr->data.call.calledname);
+            break;
+        case AST_EXPR_CALL_METHOD:
+            fail_with_error(
+                expr->location, "method '%s' does not return a value", expr->data.methodcall.call.calledname);
+            break;
+        default:
+            assert(0);
+        }
     }
     return types;
 }
@@ -869,12 +878,9 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
                 expr->data.enummember.enumname, expr->data.enummember.membername);
         break;
     case AST_EXPR_FUNCTION_CALL:
-        {
-            const Type *ret = typecheck_function_or_method_call(ctx, &expr->data.call, NULL, expr->location);
-            if (!ret)
-                return NULL;
-            result = ret;
-        }
+        result = typecheck_function_or_method_call(ctx, &expr->data.call, NULL, expr->location);
+        if (!result)
+            return NULL;
         break;
     case AST_EXPR_SIZEOF:
         typecheck_expression_not_void(ctx, &expr->data.operands[0]);
@@ -925,6 +931,8 @@ static ExpressionTypes *typecheck_expression(TypeContext *ctx, const AstExpressi
     case AST_EXPR_CALL_METHOD:
         temptype = typecheck_expression_not_void(ctx, expr->data.methodcall.obj)->type;
         result = typecheck_function_or_method_call(ctx, &expr->data.methodcall.call, temptype, expr->location);
+        if (!result)
+            return NULL;
         break;
     case AST_EXPR_INDEXING:
         result = typecheck_indexing(ctx, &expr->data.operands[0], &expr->data.operands[1]);

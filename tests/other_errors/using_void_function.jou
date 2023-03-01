@@ -1,5 +1,7 @@
-def f() -> void:
-    return
+class Foo:
+    def f(self) -> void:
+        return
 
 def g() -> void:
-    x = f() + 123  # Error: function 'f' does not return a value
+    foo = Foo{}
+    x = foo.f() + 123  # Error: method 'f' does not return a value
