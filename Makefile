@@ -29,6 +29,9 @@ obj/%.o: src/%.c $(wildcard src/*.h) config.h
 jou: $(SRC:src/%.c=obj/%.o)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
+self_hosted_compiler: jou $(wildcard self_hosted/*.jou)
+	./jou -O1 -o $@ self_hosted/main.jou
+
 .PHONY: clean
 clean:
 	rm -rvf obj jou jou.exe tmp config.h compile_flags.txt

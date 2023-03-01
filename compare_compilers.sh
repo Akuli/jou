@@ -25,7 +25,11 @@ rm -rf tmp/compare_compilers
 mkdir -vp tmp/compare_compilers
 
 echo "Compiling the self-hosted compiler..."
-./jou${dotexe} -O1 -o tmp/compare_compilers/self_hosted${dotexe} self_hosted/main.jou
+if [[ "$OS" =~ Windows ]]; then
+    ./jou.exe -O1 -o self_hosted_compiler.exe self_hosted/main.jou
+else
+    make self_hosted_compiler
+fi
 
 for file in $(find stdlib examples tests -name '*.jou' | sort); do
 for action in tokenize parse run; do
@@ -38,7 +42,7 @@ for action in tokenize parse run; do
     fi
 
     (./jou${dotexe} $flag $file || true) &> tmp/compare_compilers/compiler_written_in_c.txt
-    (tmp/compare_compilers/self_hosted${dotexe} $flag $file || true) &> tmp/compare_compilers/self_hosted.txt
+    (./self_hosted_compiler${dotexe} $flag $file || true) &> tmp/compare_compilers/self_hosted.txt
 
     if grep -qxF $file $error_list_file; then
         # The file is skipped, so the two compilers should behave differently
