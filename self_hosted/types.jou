@@ -23,6 +23,9 @@ class Type:
     cached_pointer_type: Type*
     # TODO: arrays
 
+    def is_integer_type(self) -> bool:
+        return self->kind == TypeKind::SignedInteger or self->kind == TypeKind::UnsignedInteger
+
     def get_pointer_type(self) -> Type*:
         if self->cached_pointer_type == NULL:
             pointer_name: byte[100]

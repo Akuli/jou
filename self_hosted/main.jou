@@ -5,6 +5,7 @@ from "./types.jou" import init_types
 from "./typecheck.jou" import (
     TypeContext,
     typecheck_stage2_signatures_globals_structbodies,
+    typecheck_stage3_function_and_method_bodies,
 )
 from "./find_jou_installation.jou" import find_stdlib
 from "stdlib/mem.jou" import malloc, realloc, free
@@ -53,9 +54,18 @@ class Compiler:
 
     def typecheck_stage2_all_files(self) -> void:
         for i = 0; i < self->nfiles; i++:
-            printf("Type-checking %s\n", self->files[i].ast.path)
-            self->files[i].ast.print()
+            printf("Type-check stage 2: %s\n", self->files[i].ast.path)
+            #self->files[i].ast.print()
             typecheck_stage2_signatures_globals_structbodies(
+                &self->files[i].typectx,
+                &self->files[i].ast,
+            )
+
+    def typecheck_stage3_all_files(self) -> void:
+        for i = 0; i < self->nfiles; i++:
+            printf("Type-check stage 3: %s\n", self->files[i].ast.path)
+            #self->files[i].ast.print()
+            typecheck_stage3_function_and_method_bodies(
                 &self->files[i].typectx,
                 &self->files[i].ast,
             )
@@ -80,6 +90,7 @@ def main(argc: int, argv: byte**) -> int:
         compiler = Compiler{stdlib_path = find_stdlib()}
         compiler.parse_all_files(argv[1])
         compiler.typecheck_stage2_all_files()
+        compiler.typecheck_stage3_all_files()
     else:
         fprintf(stderr, "Usage:\n")
         fprintf(stderr, "  %s FILENAME\n", argv[0])

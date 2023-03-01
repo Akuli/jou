@@ -120,10 +120,8 @@ def get_actual_import_path(path_token: Token*, stdlib_path: byte*) -> byte*:
     return path
 
 def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCall:
-    result = AstCall{}
-
     assert((*tokens)->kind == TokenKind::Name)  # must be checked when calling this function
-    result = AstCall{called_name = (*tokens)->short_string}
+    result = AstCall{location = (*tokens)->location, called_name = (*tokens)->short_string}
     ++*tokens
 
     if not (*tokens)->is_operator(open_paren):

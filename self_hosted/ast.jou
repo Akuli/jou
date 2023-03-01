@@ -319,6 +319,7 @@ class AstExpression:
             free(self->string)
 
 class AstCall:
+    location: Location
     called_name: byte[100]  # e.g. name of function, name of class to instantiate
     nargs: int
     args: AstExpression*
