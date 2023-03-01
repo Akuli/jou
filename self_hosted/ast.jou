@@ -1,7 +1,7 @@
 from "stdlib/io.jou" import printf, putchar
 from "stdlib/str.jou" import snprintf, strcpy
 from "stdlib/mem.jou" import free
-from "./errors_and_warnings.jou" import Location
+from "./errors_and_warnings.jou" import Location, assert
 
 # TODO: move to stdlib
 declare isprint(b: int) -> int
@@ -10,6 +10,26 @@ class AstFile:
     path: byte*  # not owned
     body: AstToplevelStatement*
     body_len: int
+
+    # Iterating over imports:
+    #   imp: AstImport* = NULL
+    #   while file->next_import(&imp):
+    #       ...
+    def next_import(self, imp: AstImport**) -> bool:
+        # Get the corresponding AstToplevelStatement.
+        ts = *imp as AstToplevelStatement*
+        assert(&ts->the_import as void* == ts)  # TODO: offsetof() or similar
+
+        # Assume all imports are in the beginning of the file.
+        if ts == NULL:
+            ts = &self->body[0]
+        else:
+            ts++
+
+        if ts == &self->body[self->body_len] or ts->kind != AstToplevelStatementKind::Import:
+            return False
+        *imp = &ts->the_import
+        return True
 
     def print(self) -> void:
         printf("===== AST for file \"%s\" =====\n", self->path)
@@ -29,15 +49,15 @@ enum AstToplevelStatementKind:
     GlobalVariableDeclaration
 
 class AstToplevelStatement:
-    kind: AstToplevelStatementKind
-    location: Location
-
     # TODO: union
-    the_import: AstImport
+    the_import: AstImport   # must be first
     decl_signature: AstSignature
     funcdef: AstFunctionDef
     classdef: AstClassDef
     global_var: AstNameTypeValue
+
+    kind: AstToplevelStatementKind
+    location: Location
 
     def print(self) -> void:
         printf("line %d: ", self->location.lineno)
@@ -65,7 +85,7 @@ class AstToplevelStatement:
             self->the_import.free()
 
 class AstImport:
-    path: byte*
+    path: byte*  # is owned
     symbol: byte[100]
 
     def free(self) -> void:
@@ -77,12 +97,12 @@ enum AstTypeKind:
     Array
 
 class AstArrayType:
-    membertype: AstType*
+    member_type: AstType*
     len: int
 
     def free(self) -> void:
-        self->membertype->free()
-        free(self->membertype)
+        self->member_type->free()
+        free(self->member_type)
 
 class AstType:
     kind: AstTypeKind
@@ -90,14 +110,14 @@ class AstType:
 
     # TODO: union
     name: byte[100]     # AstTypeKind::Named
-    valuetype: AstType* # AstTypeKind::Pointer
+    value_type: AstType* # AstTypeKind::Pointer
     array: AstArrayType # AstTypeKind::Array
 
     def print(self, show_lineno: bool) -> void:
         if self->kind == AstTypeKind::Named:
             printf("%s", &self->name[0])
         elif self->kind == AstTypeKind::Pointer:
-            self->valuetype->print(False)
+            self->value_type->print(False)
             printf("*")
         else:
             printf("???")
@@ -107,8 +127,8 @@ class AstType:
 
     def free(self) -> void:
         if self->kind == AstTypeKind::Pointer:
-            self->valuetype->free()
-            free(self->valuetype)
+            self->value_type->free()
+            free(self->value_type)
         if self->kind == AstTypeKind::Array:
             self->array.free()
 
@@ -132,15 +152,15 @@ class AstNameTypeValue:
         free(self->value)
 
 class AstSignature:
-    funcname_location: Location
-    funcname: byte[100]
+    name_location: Location
+    name: byte[100]  # name of function or method, after "def" keyword
     args: AstNameTypeValue*
     nargs: int
-    takes_varargs: bool  # is there a "..." argument
+    takes_varargs: bool  # True for functions like printf()
     return_type: AstType
 
     def print(self) -> void:
-        printf("%s(", &self->funcname[0])
+        printf("%s(", &self->name[0])
         for i = 0; i < self->nargs; i++:
             if i != 0:
                 printf(", ")
@@ -299,6 +319,7 @@ class AstExpression:
             free(self->string)
 
 class AstCall:
+    location: Location
     called_name: byte[100]  # e.g. name of function, name of class to instantiate
     nargs: int
     args: AstExpression*

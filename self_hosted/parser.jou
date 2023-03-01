@@ -37,7 +37,7 @@ def parse_type(tokens: Token**) -> AstType:
         result = AstType{
             location = ((*tokens)++)->location,  # TODO: shouldn't need all the parentheses
             kind = AstTypeKind::Pointer,
-            valuetype = p,
+            value_type = p,
         }
 
     return result
@@ -69,8 +69,8 @@ def parse_function_signature(tokens: Token**) -> AstSignature:
         (*tokens)->fail_expected_got("a function name")
 
     result = AstSignature{
-        funcname_location = (*tokens)->location,
-        funcname = (*tokens)->short_string,
+        name_location = (*tokens)->location,
+        name = (*tokens)->short_string,
     }
     ++*tokens
 
@@ -120,10 +120,8 @@ def get_actual_import_path(path_token: Token*, stdlib_path: byte*) -> byte*:
     return path
 
 def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCall:
-    result = AstCall{}
-
     assert((*tokens)->kind == TokenKind::Name)  # must be checked when calling this function
-    result = AstCall{called_name = (*tokens)->short_string}
+    result = AstCall{location = (*tokens)->location, called_name = (*tokens)->short_string}
     ++*tokens
 
     if not (*tokens)->is_operator(open_paren):
