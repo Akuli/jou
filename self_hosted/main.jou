@@ -9,6 +9,7 @@ from "./typecheck.jou" import (
     typecheck_stage3_function_and_method_bodies,
 )
 from "./find_jou_installation.jou" import find_stdlib
+from "./target.jou" import init_target
 from "stdlib/mem.jou" import malloc, realloc, free
 from "stdlib/process.jou" import exit
 from "stdlib/str.jou" import strcmp, strlen, sprintf, starts_with, strspn
@@ -181,9 +182,16 @@ class Compiler:
                 &self->files[i].ast,
             )
 
+    def create_object_files(self) -> void:
+        for i = 0; i < self->nfiles; i++:
+            if self->verbosity >= 1:
+                printf("Build LLVM IR: %s\n", self->files[i].ast.path)
+
 
 def main(argc: int, argv: byte**) -> int:
+    init_target()
     init_types()
+
     args = parse_args(argc, argv)
 
     if args.mode == CompilerMode::TokenizeOnly:
@@ -204,5 +212,6 @@ def main(argc: int, argv: byte**) -> int:
         compiler.typecheck_stage2_all_files()
         compiler.process_imports_and_exports()
         compiler.typecheck_stage3_all_files()
+        compiler.create_object_files()
 
     return 0

@@ -19,10 +19,25 @@ class LLVMTargetMachine:
     _dummy: int
 
 # =========== Target.h ===========
+declare LLVMInitializeX86TargetInfo() -> void
+declare LLVMInitializeX86Target() -> void
+declare LLVMInitializeX86TargetMC() -> void
+declare LLVMInitializeX86AsmPrinter() -> void
+declare LLVMInitializeX86AsmParser() -> void
+declare LLVMInitializeX86Disassembler() -> void
+
 declare LLVMDisposeTargetData(TD: LLVMTargetData*) -> void
 declare LLVMCopyStringRepOfTargetData(TD: LLVMTargetData*) -> byte*
 
+
+
 # =========== TargetMachine.h ===========
+enum LLVMCodeGenOptLevel:
+    none    # can't make it None because that is a keyword
+    Less
+    Default
+    Aggressive
+
 enum LLVMRelocMode:
     Default
     Static
@@ -45,7 +60,7 @@ enum LLVMCodeGenFileType:
     AssemblyFile
     ObjectFile
 
-declare LLVMCreateTargetMachine(T: LLVMTarget*, Triple: byte*, CPU: byte*, Features: byte*, Level: int, Reloc: LLVMRelocMode, CodeModel: LLVMCodeModel) -> LLVMTargetMachine*
+declare LLVMCreateTargetMachine(T: LLVMTarget*, Triple: byte*, CPU: byte*, Features: byte*, Level: LLVMCodeGenOptLevel, Reloc: LLVMRelocMode, CodeModel: LLVMCodeModel) -> LLVMTargetMachine*
 declare LLVMDisposeTargetMachine(T: LLVMTargetMachine*) -> void
 declare LLVMCreateTargetDataLayout(T: LLVMTargetMachine*) -> LLVMTargetData*
 declare LLVMTargetMachineEmitToFile(T: LLVMTargetMachine*, M: LLVMModule*, Filename: byte*, codegen: LLVMCodeGenFileType, ErrorMessage: byte**) -> bool
