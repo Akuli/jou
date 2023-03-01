@@ -30,7 +30,7 @@ jou: $(SRC:src/%.c=obj/%.o)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 self_hosted_compiler: jou $(wildcard self_hosted/*.jou)
-	./jou -O1 -o $@ self_hosted/main.jou
+	./jou -O1 -o $@ --linker-flags "$(LDFLAGS)" self_hosted/main.jou
 
 .PHONY: clean
 clean:
