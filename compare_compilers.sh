@@ -28,10 +28,14 @@ echo "Compiling the self-hosted compiler..."
 ./jou${dotexe} -O1 -o tmp/compare_compilers/self_hosted${dotexe} self_hosted/main.jou
 
 for file in $(find stdlib examples tests -name '*.jou' | sort); do
-for action in tokenize parse; do
+for action in tokenize parse run; do
     echo "$action $file"
-    flag=--${action}-only
     error_list_file=self_hosted/${action}s_wrong.txt
+    if [ $action == run ]; then
+        flag=
+    else
+        flag=--${action}-only
+    fi
 
     (./jou${dotexe} $flag $file || true) &> tmp/compare_compilers/compiler_written_in_c.txt
     (tmp/compare_compilers/self_hosted${dotexe} $flag $file || true) &> tmp/compare_compilers/self_hosted.txt
