@@ -111,8 +111,6 @@ def type_or_void_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
     return NULL  # never runs, but silences compiler warning
 
 def handle_signature(ctx: TypeContext*, astsig: AstSignature*) -> Signature:
-    printf("Handle sig:\n")
-    astsig->print()
     sig = Signature{
         function_or_method_name = astsig->funcname,
         nargs = astsig->nargs,
@@ -283,7 +281,6 @@ def typecheck_function_call(ctx: TypeContext*, call: AstCall*) -> Type*:
 
 
 def typecheck_expression_maybe_void(ctx: TypeContext*, expression: AstExpression*) -> ExpressionTypes*:
-    printf("Hello %s\n", ctx->current_function_signature->to_string(True))
     result: Type*
 
     if expression->kind == AstExpressionKind::String:

@@ -10,8 +10,83 @@ from "./typecheck.jou" import (
 )
 from "./find_jou_installation.jou" import find_stdlib
 from "stdlib/mem.jou" import malloc, realloc, free
-from "stdlib/str.jou" import strcmp
+from "stdlib/process.jou" import exit
+from "stdlib/str.jou" import strcmp, strlen, sprintf, starts_with, strspn
 from "stdlib/io.jou" import fprintf, stderr, printf
+
+enum CompilerMode:
+    TokenizeOnly    # Tokenize one file, don't recurse to imports
+    ParseOnly       # Tokenize and parse one file, don't recurse to imports
+    Compile         # Compile and link
+    CompileAndRun   # Compile, link and run a program (default)
+
+class CommandLineArgs:
+    mode: CompilerMode
+    output_file: byte*  # The argument after -o, possibly with .exe appended to it
+    verbosity: int      # Number of -v/--verbose flags given
+    main_path: byte*    # Jou file path passed on command line
+
+
+# An error message should have already been printed to stderr, without a trailing \n
+def fail_parsing_args(argv0: byte*, message: byte*) -> void:
+    fprintf(stderr, "%s: %s (try \"%s --help\")\n", argv0, message, argv0)
+    exit(2)
+
+def print_help(argv0: byte*) -> void:
+    printf("Usage:\n")
+    printf("  %s [options] FILENAME.jou\n", argv0)
+    printf("  %s --help         # This message\n", argv0)
+    printf("\n")
+    printf("Options:\n")
+    printf("  -o OUTFILE                 output an executable file, don't run the code\n")
+    printf("  -v/--verbose               print what compilation steps are done\n")
+    printf("  -vv / --verbose --verbose  show what each compilation step produces\n")
+    printf("  --tokenize-only            tokenize one file and display the resulting tokens\n")
+    printf("  --parse-only               tokenize and parse one file and display the AST\n")
+
+def parse_args(argc: int, argv: byte**) -> CommandLineArgs:
+    result = CommandLineArgs{mode = CompilerMode::CompileAndRun}
+
+    i = 1
+    while i < argc:
+        arg = argv[i++]
+
+        if strcmp(arg, "--help") == 0:
+            print_help(argv[0])
+            exit(0)
+
+        if result.mode != CompilerMode::CompileAndRun and (
+            strcmp(arg, "--tokenize-only") == 0
+            or strcmp(arg, "--parse-only") == 0
+            or strcmp(arg, "-o") == 0
+        ):
+            fail_parsing_args(argv[0], "only one of --tokenize-only, --parse-only or -o can be given")
+
+        if strcmp(arg, "--tokenize-only") == 0:
+            result.mode = CompilerMode::TokenizeOnly
+        elif strcmp(arg, "--parse-only") == 0:
+            result.mode = CompilerMode::ParseOnly
+        elif strcmp(arg, "-o") == 0:
+            result.mode = CompilerMode::Compile
+            result.output_file = argv[i++]
+            if result.output_file == NULL:
+                fail_parsing_args(argv[0], "-o must be followed by the name of an output file")
+        elif starts_with(arg, "-v") and strspn(&arg[1], "v") == strlen(arg) - 1:
+            result.verbosity += (strlen(arg) as int) - 1
+        elif arg[0] == '-':
+            message = malloc(strlen(arg) + 100)
+            sprintf(message, "unknown option '%s'", arg)
+            fail_parsing_args(argv[0], message)
+        elif result.main_path == NULL:
+            result.main_path = arg
+        else:
+            fail_parsing_args(argv[0], "you can pass only one Jou file")
+
+    if result.main_path == NULL:
+        fail_parsing_args(argv[0], "missing Jou file name")
+
+    return result
+
 
 class FileState:
     ast: AstFile
@@ -19,6 +94,7 @@ class FileState:
     pending_exports: ExportSymbol*
 
 class Compiler:
+    verbosity: int
     stdlib_path: byte*
     files: FileState*
     nfiles: int
@@ -39,9 +115,15 @@ class Compiler:
             if found:
                 continue
 
-            printf("Parsing %s\n", path)
+            if self->verbosity >= 1:
+                printf("Parsing %s\n", path)
+
             tokens = tokenize(path)
+            if self->verbosity >= 2:
+                print_tokens(tokens)
             ast = parse(tokens, self->stdlib_path)
+            if self->verbosity >= 2:
+                ast.print()
             free(tokens)  # TODO: do this properly
 
             self->files = realloc(self->files, sizeof self->files[0] * (self->nfiles + 1))
@@ -55,7 +137,9 @@ class Compiler:
         free(queue)
 
     def process_imports_and_exports(self) -> void:
-        printf("Processing imports/exports\n")
+        if self->verbosity >= 1:
+            printf("Processing imports/exports\n")
+
         for isrc = 0; isrc < self->nfiles; isrc++:
             for idest = 0; idest < self->nfiles; idest++:
                 src = &self->files[isrc]
@@ -65,10 +149,11 @@ class Compiler:
                 while dest->ast.next_import(&imp):
                     for exp = src->pending_exports; exp->name[0] != '\0'; exp++:
                         if strcmp(&imp->symbol[0], &exp->name[0]) == 0:
-                            printf(
-                                "  %s: imported in %s, exported in %s\n",
-                                &exp->name[0], src->ast.path, dest->ast.path,
-                            )
+                            if self->verbosity >= 1:
+                                printf(
+                                    "  %s: imported in %s, exported in %s\n",
+                                    &exp->name[0], src->ast.path, dest->ast.path,
+                                )
                             dest->typectx.add_imported_symbol(exp)
 
         for i = 0; i < self->nfiles; i++:
@@ -77,8 +162,9 @@ class Compiler:
 
     def typecheck_stage2_all_files(self) -> void:
         for i = 0; i < self->nfiles; i++:
-            printf("Type-check stage 2: %s\n", self->files[i].ast.path)
-            #self->files[i].ast.print()
+            if self->verbosity >= 1:
+                printf("Type-check stage 2: %s\n", self->files[i].ast.path)
+
             assert(self->files[i].pending_exports == NULL)
             self->files[i].pending_exports = typecheck_stage2_signatures_globals_structbodies(
                 &self->files[i].typectx,
@@ -87,8 +173,9 @@ class Compiler:
 
     def typecheck_stage3_all_files(self) -> void:
         for i = 0; i < self->nfiles; i++:
-            printf("Type-check stage 3: %s\n", self->files[i].ast.path)
-            #self->files[i].ast.print()
+            if self->verbosity >= 1:
+                printf("Type-check stage 3: %s\n", self->files[i].ast.path)
+
             typecheck_stage3_function_and_method_bodies(
                 &self->files[i].typectx,
                 &self->files[i].ast,
@@ -97,30 +184,25 @@ class Compiler:
 
 def main(argc: int, argv: byte**) -> int:
     init_types()
+    args = parse_args(argc, argv)
 
-    if argc == 3 and strcmp(argv[1], "--tokenize-only") == 0:
-        tokens = tokenize(argv[2])
+    if args.mode == CompilerMode::TokenizeOnly:
+        tokens = tokenize(args.main_path)
         print_tokens(tokens)
         free(tokens)
-    elif argc == 3 and strcmp(argv[1], "--parse-only") == 0:
-        tokens = tokenize(argv[2])
+    elif args.mode == CompilerMode::ParseOnly:
+        tokens = tokenize(args.main_path)
         stdlib_path = find_stdlib()
         ast = parse(tokens, stdlib_path)
         ast.print()
         ast.free()
         free(tokens)
         free(stdlib_path)
-    elif argc == 2:
-        compiler = Compiler{stdlib_path = find_stdlib()}
-        compiler.parse_all_files(argv[1])
+    else:
+        compiler = Compiler{verbosity = args.verbosity, stdlib_path = find_stdlib()}
+        compiler.parse_all_files(args.main_path)
         compiler.typecheck_stage2_all_files()
         compiler.process_imports_and_exports()
         compiler.typecheck_stage3_all_files()
-    else:
-        fprintf(stderr, "Usage:\n")
-        fprintf(stderr, "  %s FILENAME\n", argv[0])
-        fprintf(stderr, "  %s --tokenize-only FILENAME\n", argv[0])
-        fprintf(stderr, "  %s --parse-only FILENAME\n", argv[0])
-        return 2
 
     return 0
