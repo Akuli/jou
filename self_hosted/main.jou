@@ -1,9 +1,10 @@
+from "./errors_and_warnings.jou" import assert
 from "./ast.jou" import AstFile, AstImport
 from "./tokenizer.jou" import tokenize, print_tokens
 from "./parser.jou" import parse
 from "./types.jou" import init_types
 from "./typecheck.jou" import (
-    TypeContext,
+    TypeContext, ExportSymbol,
     typecheck_stage2_signatures_globals_structbodies,
     typecheck_stage3_function_and_method_bodies,
 )
@@ -15,6 +16,7 @@ from "stdlib/io.jou" import fprintf, stderr, printf
 class FileState:
     ast: AstFile
     typectx: TypeContext
+    pending_exports: ExportSymbol*
 
 class Compiler:
     stdlib_path: byte*
@@ -52,11 +54,33 @@ class Compiler:
 
         free(queue)
 
+    def process_imports_and_exports(self) -> void:
+        printf("Processing imports/exports\n")
+        for isrc = 0; isrc < self->nfiles; isrc++:
+            for idest = 0; idest < self->nfiles; idest++:
+                src = &self->files[isrc]
+                dest = &self->files[idest]
+
+                imp: AstImport* = NULL
+                while dest->ast.next_import(&imp):
+                    for exp = src->pending_exports; exp->name[0] != '\0'; exp++:
+                        if strcmp(&imp->symbol[0], &exp->name[0]) == 0:
+                            printf(
+                                "  %s: imported in %s, exported in %s\n",
+                                &exp->name[0], src->ast.path, dest->ast.path,
+                            )
+                            dest->typectx.add_imported_symbol(exp)
+
+        for i = 0; i < self->nfiles; i++:
+            free(self->files[i].pending_exports)
+            self->files[i].pending_exports = NULL
+
     def typecheck_stage2_all_files(self) -> void:
         for i = 0; i < self->nfiles; i++:
             printf("Type-check stage 2: %s\n", self->files[i].ast.path)
             #self->files[i].ast.print()
-            typecheck_stage2_signatures_globals_structbodies(
+            assert(self->files[i].pending_exports == NULL)
+            self->files[i].pending_exports = typecheck_stage2_signatures_globals_structbodies(
                 &self->files[i].typectx,
                 &self->files[i].ast,
             )
@@ -90,6 +114,7 @@ def main(argc: int, argv: byte**) -> int:
         compiler = Compiler{stdlib_path = find_stdlib()}
         compiler.parse_all_files(argv[1])
         compiler.typecheck_stage2_all_files()
+        compiler.process_imports_and_exports()
         compiler.typecheck_stage3_all_files()
     else:
         fprintf(stderr, "Usage:\n")

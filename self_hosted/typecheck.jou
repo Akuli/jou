@@ -62,6 +62,11 @@ class TypeContext:
 
     current_function_signature: Signature*
 
+    def add_imported_symbol(self, symbol: ExportSymbol*) -> void:
+        assert(symbol->kind == ExportSymbolKind::Function)
+        self->functions = realloc(self->functions, sizeof self->functions[0] * (self->nfunctions + 1))
+        self->functions[self->nfunctions++] = symbol->signature.copy()
+
     def find_function(self, name: byte*) -> Signature*:
         for i = 0; i < self->nfunctions; i++:
             if strcmp(&self->functions[i].function_or_method_name[0], name) == 0:
@@ -283,6 +288,8 @@ def typecheck_expression_maybe_void(ctx: TypeContext*, expression: AstExpression
 
     if expression->kind == AstExpressionKind::String:
         result = byte_type->get_pointer_type()
+    elif expression->kind == AstExpressionKind::Int:
+        result = int_type
     elif expression->kind == AstExpressionKind::FunctionCall:
         result = typecheck_function_call(ctx, &expression->call)
         if result == NULL:
