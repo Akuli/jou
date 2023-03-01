@@ -69,7 +69,7 @@ class TypeContext:
 
     def find_function(self, name: byte*) -> Signature*:
         for i = 0; i < self->nfunctions; i++:
-            if strcmp(&self->functions[i].function_or_method_name[0], name) == 0:
+            if strcmp(&self->functions[i].name[0], name) == 0:
                 return &self->functions[i]
         return NULL
 
@@ -112,7 +112,7 @@ def type_or_void_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
 
 def handle_signature(ctx: TypeContext*, astsig: AstSignature*) -> Signature:
     sig = Signature{
-        function_or_method_name = astsig->funcname,
+        name = astsig->name,
         nargs = astsig->nargs,
         takes_varargs = astsig->takes_varargs,
         return_type = type_or_void_from_ast(ctx, &astsig->return_type),
@@ -139,7 +139,7 @@ def typecheck_stage2_signatures_globals_structbodies(ctx: TypeContext*, ast_file
         if ts->kind == AstToplevelStatementKind::FunctionDeclaration:
             # TODO: terrible hack: skip functions that use FILE, such as fopen()
             # Will be no longer needed once struct FILE works.
-            if ts->decl_signature.funcname[0] == 'f' or strcmp(&ts->decl_signature.funcname[0], "rewind") == 0:
+            if ts->decl_signature.name[0] == 'f' or strcmp(&ts->decl_signature.name[0], "rewind") == 0:
                 continue
 
             sig = handle_signature(ctx, &ts->decl_signature)
@@ -148,7 +148,7 @@ def typecheck_stage2_signatures_globals_structbodies(ctx: TypeContext*, ast_file
             exports = realloc(exports, sizeof exports[0] * (nexports + 1))
             exports[nexports++] = ExportSymbol{
                 kind = ExportSymbolKind::Function,
-                name = sig.function_or_method_name,
+                name = sig.name,
                 signature = sig,
             }
         if ts->kind == AstToplevelStatementKind::FunctionDefinition:
@@ -158,7 +158,7 @@ def typecheck_stage2_signatures_globals_structbodies(ctx: TypeContext*, ast_file
             exports = realloc(exports, sizeof exports[0] * (nexports + 1))
             exports[nexports++] = ExportSymbol{
                 kind = ExportSymbolKind::Function,
-                name = sig.function_or_method_name,
+                name = sig.name,
                 signature = sig,
             }
 
@@ -310,9 +310,9 @@ def typecheck_expression(ctx: TypeContext*, expression: AstExpression*) -> Expre
     types = typecheck_expression_maybe_void(ctx, expression)
     if types == NULL:
         assert(expression->kind == AstExpressionKind::FunctionCall)
-        funcname = &expression->call.called_name[0]
-        message = malloc(strlen(funcname) + 100)
-        sprintf(message, "function '%s' does not return a value", funcname)
+        name = &expression->call.called_name[0]
+        message = malloc(strlen(name) + 100)
+        sprintf(message, "function '%s' does not return a value", name)
         fail(expression->location, message)
     return types
 
@@ -331,18 +331,18 @@ def typecheck_statement(ctx: TypeContext*, statement: AstStatement*) -> void:
         typecheck_expression_maybe_void(ctx, &statement->expression)
 
     elif statement->kind == AstStatementKind::ReturnWithValue:
-        funcname = &ctx->current_function_signature->function_or_method_name[0]
+        name = &ctx->current_function_signature->name[0]
 
         if ctx->current_function_signature->return_type == NULL:
             msg: byte[500]
-            snprintf(&msg[0], sizeof msg, "function '%s' cannot return a value because it was defined with '-> void'", funcname)
-            fail(statement->location, funcname)
+            snprintf(&msg[0], sizeof msg, "function '%s' cannot return a value because it was defined with '-> void'", name)
+            fail(statement->location, name)
 
         cast_error_msg: byte[500]
         snprintf(
             &cast_error_msg[0], sizeof cast_error_msg,
             "attempting to return a value of type <from> from function '%s' defined with '-> <to>'",
-            funcname,
+            name,
         )
         typecheck_expression_with_implicit_cast(
             ctx,
@@ -364,7 +364,7 @@ def typecheck_stage3_function_and_method_bodies(ctx: TypeContext*, ast_file: Ast
         if ts->kind != AstToplevelStatementKind::FunctionDefinition:
             continue
 
-        sig = ctx->find_function(&ts->funcdef.signature.funcname[0])
+        sig = ctx->find_function(&ts->funcdef.signature.name[0])
         assert(sig != NULL)
 
         assert(ctx->current_function_signature == NULL)

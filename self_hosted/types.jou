@@ -74,7 +74,7 @@ def init_types() -> void:
 
 
 class Signature:
-    function_or_method_name: byte[100]
+    name: byte[100]  # name of function or method, after "def" keyword
     nargs: int
     argnames: byte[100]*
     argtypes: Type**
@@ -83,7 +83,7 @@ class Signature:
 
     def to_string(self, include_return_type: bool) -> byte*:
         result: byte* = malloc(500*(self->nargs + 1))
-        strcpy(result, &self->function_or_method_name[0])
+        strcpy(result, &self->name[0])
 
         strcat(result, "(")
         for i = 0; i < self->nargs; i++:

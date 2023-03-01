@@ -152,15 +152,15 @@ class AstNameTypeValue:
         free(self->value)
 
 class AstSignature:
-    funcname_location: Location
-    funcname: byte[100]  # TODO: rename to function_or_method_name
+    name_location: Location
+    name: byte[100]  # name of function or method, after "def" keyword
     args: AstNameTypeValue*
     nargs: int
     takes_varargs: bool  # True for functions like printf()
     return_type: AstType
 
     def print(self) -> void:
-        printf("%s(", &self->funcname[0])
+        printf("%s(", &self->name[0])
         for i = 0; i < self->nargs; i++:
             if i != 0:
                 printf(", ")

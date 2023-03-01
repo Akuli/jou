@@ -69,8 +69,8 @@ def parse_function_signature(tokens: Token**) -> AstSignature:
         (*tokens)->fail_expected_got("a function name")
 
     result = AstSignature{
-        funcname_location = (*tokens)->location,
-        funcname = (*tokens)->short_string,
+        name_location = (*tokens)->location,
+        name = (*tokens)->short_string,
     }
     ++*tokens
 
