@@ -1,12 +1,63 @@
-from "./ast.jou" import AstFile
+from "./ast.jou" import AstFile, AstImport
 from "./tokenizer.jou" import tokenize, print_tokens
 from "./parser.jou" import parse
+from "./types.jou" import init_types
+from "./typecheck.jou" import TypeChecker
 from "./find_jou_installation.jou" import find_stdlib
-from "stdlib/mem.jou" import free
+from "stdlib/mem.jou" import malloc, realloc, free
 from "stdlib/str.jou" import strcmp
-from "stdlib/io.jou" import fprintf, stderr
+from "stdlib/io.jou" import fprintf, stderr, printf
+
+class FileState:
+    ast: AstFile
+    type_checker: TypeChecker
+
+class Compiler:
+    stdlib_path: byte*
+    files: FileState*
+    nfiles: int
+
+    def parse_all_files(self, main_path: byte*) -> void:
+        queue: byte** = malloc(sizeof main_path)
+        queue[0] = main_path
+        queue_len = 1
+
+        while queue_len > 0:
+            path = queue[--queue_len]
+
+            found = False
+            for i = 0; i < self->nfiles; i++:
+                if strcmp(self->files[i].ast.path, path) == 0:
+                    found = True
+                    break
+            if found:
+                continue
+
+            printf("Parsing %s\n", path)
+            tokens = tokenize(path)
+            ast = parse(tokens, self->stdlib_path)
+            free(tokens)  # TODO: do this properly
+
+            self->files = realloc(self->files, sizeof self->files[0] * (self->nfiles + 1))
+            self->files[self->nfiles++] = FileState{ast = ast}
+
+            imp: AstImport* = NULL
+            while ast.next_import(&imp):
+                queue = realloc(queue, sizeof queue[0] * (queue_len + 1))
+                queue[queue_len++] = imp->path
+
+        free(queue)
+
+    def typecheck_stage2_all_files(self) -> void:
+        for i = 0; i < self->nfiles; i++:
+            printf("Type-checking %s\n", self->files[i].ast.path)
+            self->files[i].ast.print()
+            self->files[i].type_checker.typecheck_stage2_signatures_globals_structbodies(&self->files[i].ast)
+
 
 def main(argc: int, argv: byte**) -> int:
+    init_types()
+
     if argc == 3 and strcmp(argv[1], "--tokenize-only") == 0:
         tokens = tokenize(argv[2])
         print_tokens(tokens)
@@ -19,8 +70,13 @@ def main(argc: int, argv: byte**) -> int:
         ast.free()
         free(tokens)
         free(stdlib_path)
+    elif argc == 2:
+        compiler = Compiler{stdlib_path = find_stdlib()}
+        compiler.parse_all_files(argv[1])
+        compiler.typecheck_stage2_all_files()
     else:
         fprintf(stderr, "Usage:\n")
+        fprintf(stderr, "  %s FILENAME\n", argv[0])
         fprintf(stderr, "  %s --tokenize-only FILENAME\n", argv[0])
         fprintf(stderr, "  %s --parse-only FILENAME\n", argv[0])
         return 2

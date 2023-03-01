@@ -40,5 +40,9 @@ declare strspn(s: byte*, accept: byte*) -> long
 # Copy a string. Assumes it fits. Returned value is dest.
 declare strcpy(dest: byte*, source: byte*) -> byte*
 
+# Append source to end of dest. Assumes it fits. Returned value is dest.
+# Can be slow if dest is long, because it needs to find the end of dest.
+declare strcat(dest: byte*, source: byte*) -> byte*
+
 # Return a newly allocated (as in malloc()) copy of the string.
 declare strdup(s: byte*) -> byte*
