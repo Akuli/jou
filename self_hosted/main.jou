@@ -2,7 +2,10 @@ from "./ast.jou" import AstFile, AstImport
 from "./tokenizer.jou" import tokenize, print_tokens
 from "./parser.jou" import parse
 from "./types.jou" import init_types
-from "./typecheck.jou" import TypeChecker
+from "./typecheck.jou" import (
+    TypeContext,
+    typecheck_stage2_signatures_globals_structbodies,
+)
 from "./find_jou_installation.jou" import find_stdlib
 from "stdlib/mem.jou" import malloc, realloc, free
 from "stdlib/str.jou" import strcmp
@@ -10,7 +13,7 @@ from "stdlib/io.jou" import fprintf, stderr, printf
 
 class FileState:
     ast: AstFile
-    type_checker: TypeChecker
+    typectx: TypeContext
 
 class Compiler:
     stdlib_path: byte*
@@ -52,7 +55,10 @@ class Compiler:
         for i = 0; i < self->nfiles; i++:
             printf("Type-checking %s\n", self->files[i].ast.path)
             self->files[i].ast.print()
-            self->files[i].type_checker.typecheck_stage2_signatures_globals_structbodies(&self->files[i].ast)
+            typecheck_stage2_signatures_globals_structbodies(
+                &self->files[i].typectx,
+                &self->files[i].ast,
+            )
 
 
 def main(argc: int, argv: byte**) -> int:

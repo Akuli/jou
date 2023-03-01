@@ -44,7 +44,7 @@ class ExpressionTypes:
     next: ExpressionTypes*  # TODO: switch to more efficient structure than linked list
 
 # There's supposed to be one of these for each Jou file.
-class TypeChecker:
+class TypeContext:
     # Types of all expressions in the file except calls to "-> void" functions.
     # Filled during stage 3.
     expr_types: ExpressionTypes*
@@ -53,92 +53,92 @@ class TypeChecker:
     functions: Signature*
     nfunctions: int
 
-    # TODO: implement
-    #def typecheck_stage1_create_types(ctx: TypeContext*, file: AstFile*) -> ExportSymbol*:
-    #    assert(False)
+# TODO: implement
+#def typecheck_stage1_create_types(ctx: TypeContext*, file: AstFile*) -> ExportSymbol*:
+#    assert(False)
 
-    def type_from_ast(self, ast_type: AstType*) -> Type*:
-        result = self->type_or_void_from_ast(ast_type)
-        if result == NULL:
-            fail(ast_type->location, "'void' cannot be used here because it is not a type")
-        return result
+def type_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
+    result = type_or_void_from_ast(ctx, ast_type)
+    if result == NULL:
+        fail(ast_type->location, "'void' cannot be used here because it is not a type")
+    return result
 
-    def type_or_void_from_ast(self, ast_type: AstType*) -> Type*:
-        if ast_type->kind == AstTypeKind::Named:
-            if strcmp(&ast_type->name[0], "int") == 0:
-                return int_type
-            if strcmp(&ast_type->name[0], "long") == 0:
-                return long_type
-            if strcmp(&ast_type->name[0], "byte") == 0:
-                return byte_type
-            if strcmp(&ast_type->name[0], "bool") == 0:
-                return &bool_type
-            # TODO: float, double
-            if strcmp(&ast_type->name[0], "void") == 0:
-                return NULL
+def type_or_void_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
+    if ast_type->kind == AstTypeKind::Named:
+        if strcmp(&ast_type->name[0], "int") == 0:
+            return int_type
+        if strcmp(&ast_type->name[0], "long") == 0:
+            return long_type
+        if strcmp(&ast_type->name[0], "byte") == 0:
+            return byte_type
+        if strcmp(&ast_type->name[0], "bool") == 0:
+            return &bool_type
+        # TODO: float, double
+        if strcmp(&ast_type->name[0], "void") == 0:
+            return NULL
 
-            message: byte* = malloc(strlen(&ast_type->name[0]) + 100)
-            sprintf(message, "there is no type named '%s'", &ast_type->name[0])
-            fail(ast_type->location, message)
+        message: byte* = malloc(strlen(&ast_type->name[0]) + 100)
+        sprintf(message, "there is no type named '%s'", &ast_type->name[0])
+        fail(ast_type->location, message)
 
-        if ast_type->kind == AstTypeKind::Pointer:
-            return self->type_from_ast(ast_type->value_type)->get_pointer_type()
+    if ast_type->kind == AstTypeKind::Pointer:
+        return type_from_ast(ctx, ast_type->value_type)->get_pointer_type()
 
-        ast_type->print(True)
-        printf("\n")
-        assert(False)  # TODO
-        return NULL  # never runs, but silences compiler warning
+    ast_type->print(True)
+    printf("\n")
+    assert(False)  # TODO
+    return NULL  # never runs, but silences compiler warning
 
-    def handle_signature(self, astsig: AstSignature*) -> Signature:
-        printf("Handle sig:\n")
-        astsig->print()
-        sig = Signature{
-            function_or_method_name = astsig->funcname,
-            nargs = astsig->nargs,
-            takes_varargs = astsig->takes_varargs,
-            return_type = self->type_or_void_from_ast(&astsig->return_type),
-        }
+def handle_signature(ctx: TypeContext*, astsig: AstSignature*) -> Signature:
+    printf("Handle sig:\n")
+    astsig->print()
+    sig = Signature{
+        function_or_method_name = astsig->funcname,
+        nargs = astsig->nargs,
+        takes_varargs = astsig->takes_varargs,
+        return_type = type_or_void_from_ast(ctx, &astsig->return_type),
+    }
 
-        sig.argnames = malloc(sizeof sig.argnames[0] * sig.nargs)
-        for i = 0; i < sig.nargs; i++:
-            sig.argnames[i] = astsig->args[i].name
+    sig.argnames = malloc(sizeof sig.argnames[0] * sig.nargs)
+    for i = 0; i < sig.nargs; i++:
+        sig.argnames[i] = astsig->args[i].name
 
-        sig.argtypes = malloc(sizeof sig.argtypes[0] * sig.nargs)
-        for i = 0; i < sig.nargs; i++:
-            sig.argtypes[i] = self->type_from_ast(&astsig->args[i].type)
+    sig.argtypes = malloc(sizeof sig.argtypes[0] * sig.nargs)
+    for i = 0; i < sig.nargs; i++:
+        sig.argtypes[i] = type_from_ast(ctx, &astsig->args[i].type)
 
-        return sig
+    return sig
 
-    # Returned array is terminated by ExportSymbol with empty name.
-    def typecheck_stage2_signatures_globals_structbodies(self, ast_file: AstFile*) -> ExportSymbol*:
-        exports: ExportSymbol* = NULL
-        nexports = 0
+# Returned array is terminated by ExportSymbol with empty name.
+def typecheck_stage2_signatures_globals_structbodies(ctx: TypeContext*, ast_file: AstFile*) -> ExportSymbol*:
+    exports: ExportSymbol* = NULL
+    nexports = 0
 
-        for i = 0; i < ast_file->body_len; i++:
-            ts = &ast_file->body[i]
-            # TODO: get rid of declare/define copy pasta
-            if ts->kind == AstToplevelStatementKind::FunctionDeclaration:
-                # TODO: terrible hack: skip functions that use FILE, such as fopen()
-                # Will be no longer needed once struct FILE works.
-                if ts->decl_signature.funcname[0] == 'f' or strcmp(&ts->decl_signature.funcname[0], "rewind") == 0:
-                    continue
-                exports = realloc(exports, sizeof exports[0] * (nexports + 1))
-                exports[nexports++] = ExportSymbol{
-                    kind = ExportSymbolKind::Function,
-                    name = ts->decl_signature.funcname,
-                    signature = self->handle_signature(&ts->decl_signature),
-                }
-            if ts->kind == AstToplevelStatementKind::FunctionDefinition:
-                exports = realloc(exports, sizeof exports[0] * (nexports + 1))
-                exports[nexports++] = ExportSymbol{
-                    kind = ExportSymbolKind::Function,
-                    name = ts->funcdef.signature.funcname,
-                    signature = self->handle_signature(&ts->funcdef.signature),
-                }
+    for i = 0; i < ast_file->body_len; i++:
+        ts = &ast_file->body[i]
+        # TODO: get rid of declare/define copy pasta
+        if ts->kind == AstToplevelStatementKind::FunctionDeclaration:
+            # TODO: terrible hack: skip functions that use FILE, such as fopen()
+            # Will be no longer needed once struct FILE works.
+            if ts->decl_signature.funcname[0] == 'f' or strcmp(&ts->decl_signature.funcname[0], "rewind") == 0:
+                continue
+            exports = realloc(exports, sizeof exports[0] * (nexports + 1))
+            exports[nexports++] = ExportSymbol{
+                kind = ExportSymbolKind::Function,
+                name = ts->decl_signature.funcname,
+                signature = handle_signature(ctx, &ts->decl_signature),
+            }
+        if ts->kind == AstToplevelStatementKind::FunctionDefinition:
+            exports = realloc(exports, sizeof exports[0] * (nexports + 1))
+            exports[nexports++] = ExportSymbol{
+                kind = ExportSymbolKind::Function,
+                name = ts->funcdef.signature.funcname,
+                signature = handle_signature(ctx, &ts->funcdef.signature),
+            }
 
-        exports = realloc(exports, sizeof exports[0] * (nexports + 1))
-        exports[nexports] = ExportSymbol{}
-        return exports
+    exports = realloc(exports, sizeof exports[0] * (nexports + 1))
+    exports[nexports] = ExportSymbol{}
+    return exports
 
 #
 #def main() -> int:
