@@ -11,11 +11,11 @@ from "./typecheck.jou" import (
 from "./find_jou_installation.jou" import find_stdlib
 from "./target.jou" import init_target
 from "./create_llvm_ir.jou" import create_llvm_ir
-from "./llvm.jou" import LLVMDumpModule
+from "./llvm.jou" import LLVMPrintModuleToString, LLVMDisposeMessage
 from "stdlib/mem.jou" import malloc, realloc, free
 from "stdlib/process.jou" import exit
 from "stdlib/str.jou" import strcmp, strlen, sprintf, starts_with, strspn
-from "stdlib/io.jou" import fprintf, stdout, stderr, printf, fflush
+from "stdlib/io.jou" import fprintf, stderr, printf, puts
 
 enum CompilerMode:
     TokenizeOnly    # Tokenize one file, don't recurse to imports
@@ -188,10 +188,14 @@ class Compiler:
         for i = 0; i < self->nfiles; i++:
             if self->verbosity >= 1:
                 printf("Build LLVM IR: %s\n", self->files[i].ast.path)
+
             module = create_llvm_ir(&self->files[i].ast, &self->files[i].typectx)
-            fflush(stdout)
-            fflush(stderr)
-            LLVMDumpModule(module)
+            if self->verbosity >= 2:
+                # Don't want to use LLVMDumpModule() because it dumps to stdout.
+                # When redirected, stdout and stderr tend to get mixed up into a weird order.
+                s = LLVMPrintModuleToString(module)
+                puts(s)
+                LLVMDisposeMessage(s)
 
 
 def main(argc: int, argv: byte**) -> int:

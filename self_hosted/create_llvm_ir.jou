@@ -105,7 +105,9 @@ class AstToIR:
             args = malloc(sizeof args[0] * ast->call.nargs)
             for i = 0; i < ast->call.nargs; i++:
                 args[i] = self->do_expression(&ast->call.args[i])
-            return LLVMBuildCall2(self->builder, function_type, function, args, ast->call.nargs, "function_call")
+            result = LLVMBuildCall2(self->builder, function_type, function, args, ast->call.nargs, "function_call")
+            free(args)
+            return result
 
         else:
             printf("Asd-asd. Unknown expr %d...\n", ast->kind)
@@ -125,7 +127,6 @@ class AstToIR:
             assert(False)
 
     def do_body(self, body: AstBody*) -> void:
-        printf("do_body %d\n", body->nstatements)
         for i = 0; i < body->nstatements; i++:
             self->do_statement(&body->statements[i])
 
