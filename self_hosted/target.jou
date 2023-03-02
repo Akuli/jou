@@ -67,7 +67,8 @@ def init_target() -> void:
         assert(error != NULL)
         fprintf(stderr, "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", &target.triple[0], error)
         exit(1)
-    assert(error == NULL and target.target != NULL)
+    assert(error == NULL)
+    assert(target.target != NULL)
 
     target.target_machine = LLVMCreateTargetMachine(
         target.target,

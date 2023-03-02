@@ -210,11 +210,11 @@ class Compiler:
                 printf("Verify LLVM IR: %s\n", self->files[i].ast.path)
             LLVMVerifyModule(module, LLVMVerifierFailureAction::AbortProcess)
 
-            if self->verbosity >= 1:
-                printf("Emit LLVM IR: %s\n", self->files[i].ast.path)
-
             path: byte[100]
             sprintf(&path[0], "tmp/self_hosted_obj/object%d.o", i)
+
+            if self->verbosity >= 1:
+                printf("Emit LLVM IR: %s --> %s\n", self->files[i].ast.path, &path[0])
 
             error: byte* = NULL
             if LLVMTargetMachineEmitToFile(target.target_machine, module, &path[0], LLVMCodeGenFileType::ObjectFile, &error):
