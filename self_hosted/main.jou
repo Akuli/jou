@@ -10,10 +10,12 @@ from "./typecheck.jou" import (
 )
 from "./find_jou_installation.jou" import find_stdlib
 from "./target.jou" import init_target
+from "./create_llvm_ir.jou" import create_llvm_ir
+from "./llvm.jou" import LLVMDumpModule
 from "stdlib/mem.jou" import malloc, realloc, free
 from "stdlib/process.jou" import exit
 from "stdlib/str.jou" import strcmp, strlen, sprintf, starts_with, strspn
-from "stdlib/io.jou" import fprintf, stderr, printf
+from "stdlib/io.jou" import fprintf, stdout, stderr, printf, fflush
 
 enum CompilerMode:
     TokenizeOnly    # Tokenize one file, don't recurse to imports
@@ -186,6 +188,10 @@ class Compiler:
         for i = 0; i < self->nfiles; i++:
             if self->verbosity >= 1:
                 printf("Build LLVM IR: %s\n", self->files[i].ast.path)
+            module = create_llvm_ir(&self->files[i].ast, &self->files[i].typectx)
+            fflush(stdout)
+            fflush(stderr)
+            LLVMDumpModule(module)
 
 
 def main(argc: int, argv: byte**) -> int:

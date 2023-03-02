@@ -1,0 +1,162 @@
+# This file turns type-checked AST into LLVM IR. It produces an LLVMModule for each Jou file.
+from "./llvm.jou" import (
+    LLVMValue,
+    LLVMBuilder,
+    LLVMCreateBuilder,
+    LLVMDisposeBuilder,
+    LLVMAppendBasicBlock,
+    LLVMPositionBuilderAtEnd,
+    LLVMModule,
+    LLVMModuleCreateWithName,
+    LLVMSetTarget,
+    LLVMSetDataLayout,
+    LLVMFunctionType,
+    LLVMAddFunction,
+    LLVMType,
+    LLVMVoidType,
+    LLVMIntType,
+    LLVMInt8Type,
+    LLVMInt32Type,
+    LLVMPointerType,
+    LLVMTypeKind,
+    LLVMGetTypeKind,
+    LLVMGetElementType,
+    LLVMTypeOf,
+    LLVMGetNamedFunction,
+    LLVMSetLinkage,
+    LLVMLinkage,
+    LLVMConstString,
+    LLVMConstInt,
+    LLVMSetInitializer,
+    LLVMBuildBitCast,
+    LLVMBuildRet,
+    LLVMBuildCall2,
+    LLVMAddGlobal,
+)
+from "./typecheck.jou" import TypeContext
+from "./types.jou" import Type, TypeKind, Signature
+from "./ast.jou" import AstFile, AstFunctionDef, AstBody, AstExpression, AstExpressionKind, AstStatement, AstStatementKind, AstToplevelStatementKind
+from "./target.jou" import target
+from "./errors_and_warnings.jou" import assert
+from "stdlib/io.jou" import printf
+from "stdlib/mem.jou" import malloc, free
+from "stdlib/str.jou" import strlen
+
+class AstToIR:
+    module: LLVMModule*
+    builder: LLVMBuilder*
+    typectx: TypeContext*  # Results of type-checking, so that we know what type each expression is.
+    current_function: LLVMValue*
+
+    def do_type(self, type: Type*) -> LLVMType*:
+        if type->is_integer_type():
+            return LLVMIntType(type->size_in_bits)
+        if type->kind == TypeKind::Pointer:
+            return LLVMPointerType(self->do_type(type->value_type), 0)
+        printf("asd-Asd., %s\n", &type->name)
+        assert(False)
+        return NULL
+
+    def declare_function(self, signature: Signature*) -> void:
+        argtypes: LLVMType**
+        argtypes = malloc(signature->nargs * sizeof argtypes[0])
+        for i = 0; i < signature->nargs; i++:
+            argtypes[i] = self->do_type(signature->argtypes[i])
+
+        if signature->return_type == NULL:
+            return_type = LLVMVoidType()
+        else:
+            return_type = self->do_type(signature->return_type)
+
+        function_type = LLVMFunctionType(return_type, argtypes, signature->nargs, signature->takes_varargs)
+        free(argtypes)
+
+        LLVMAddFunction(self->module, &signature->name[0], function_type)
+
+    def new_block(self, name_hint: byte*) -> void:
+        assert(self->current_function != NULL)
+        block = LLVMAppendBasicBlock(self->current_function, name_hint)
+        LLVMPositionBuilderAtEnd(self->builder, block)
+
+    def make_a_string_constant(self, s: byte*) -> LLVMValue*:
+        array = LLVMConstString(s, strlen(s) as int, False)
+        global_var = LLVMAddGlobal(self->module, LLVMTypeOf(array), "string_literal")
+        LLVMSetLinkage(global_var, LLVMLinkage::Private)  # This makes it a static global variable
+        LLVMSetInitializer(global_var, array)
+
+        string_type = LLVMPointerType(LLVMInt8Type(), 0)
+        return LLVMBuildBitCast(self->builder, global_var, string_type, "string_ptr")
+
+    def do_expression(self, ast: AstExpression*) -> LLVMValue*:
+        if ast->kind == AstExpressionKind::String:
+            return self->make_a_string_constant(ast->string)
+
+        elif ast->kind == AstExpressionKind::Int:
+            return LLVMConstInt(LLVMInt32Type(), ast->int_value, False)
+
+        elif ast->kind == AstExpressionKind::FunctionCall:
+            function = LLVMGetNamedFunction(self->module, &ast->call.called_name[0])
+            assert(function != NULL)
+            assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind::Pointer)
+            function_type = LLVMGetElementType(LLVMTypeOf(function))
+            assert(LLVMGetTypeKind(function_type) == LLVMTypeKind::Function)
+
+            args: LLVMValue**
+            args = malloc(sizeof args[0] * ast->call.nargs)
+            for i = 0; i < ast->call.nargs; i++:
+                args[i] = self->do_expression(&ast->call.args[i])
+            return LLVMBuildCall2(self->builder, function_type, function, args, ast->call.nargs, "function_call")
+
+        else:
+            printf("Asd-asd. Unknown expr %d...\n", ast->kind)
+            assert(False)
+            return NULL
+
+    def do_statement(self, ast: AstStatement*) -> void:
+        if ast->kind == AstStatementKind::ExpressionStatement:
+            self->do_expression(&ast->expression)
+        elif ast->kind == AstStatementKind::ReturnWithValue:
+            return_value = self->do_expression(&ast->return_value)
+            LLVMBuildRet(self->builder, return_value)
+            # If more code follows, place it into a new block that never actually runs
+            self->new_block("after_return")
+        else:
+            printf("Asd-asd. Unknown statement...\n")
+            assert(False)
+
+    def do_body(self, body: AstBody*) -> void:
+        printf("do_body %d\n", body->nstatements)
+        for i = 0; i < body->nstatements; i++:
+            self->do_statement(&body->statements[i])
+
+    # The function must already be declared.
+    def define_function(self, funcdef: AstFunctionDef*) -> void:
+        llvm_func = LLVMGetNamedFunction(self->module, &funcdef->signature.name[0])
+        assert(llvm_func != NULL)
+        assert(self->current_function == NULL)
+        self->current_function = llvm_func
+        self->new_block("start")
+        self->do_body(&funcdef->body)
+        self->current_function = NULL
+
+
+def create_llvm_ir(ast: AstFile*, typectx: TypeContext*) -> LLVMModule*:
+    module = LLVMModuleCreateWithName(ast->path)
+    LLVMSetTarget(module, &target.triple[0])
+    LLVMSetDataLayout(module, &target.data_layout[0])
+
+    a2i = AstToIR{
+        module = module,
+        builder = LLVMCreateBuilder(),
+        typectx = typectx
+    }
+
+    for i = 0; i < typectx->nfunctions; i++:
+        a2i.declare_function(&typectx->functions[i])
+
+    for i = 0; i < ast->body_len; i++:
+        if ast->body[i].kind == AstToplevelStatementKind::FunctionDefinition:
+            a2i.define_function(&ast->body[i].funcdef)
+
+    LLVMDisposeBuilder(a2i.builder)
+    return module
