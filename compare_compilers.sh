@@ -19,7 +19,11 @@ rm -rf tmp/compare_compilers
 mkdir -vp tmp/compare_compilers
 
 echo "Compiling the self-hosted compiler..."
-make self_hosted_compiler
+if [[ "$OS" =~ Windows ]]; then
+    make self_hosted_compiler.exe
+else
+    make self_hosted_compiler
+fi
 
 for file in $(find stdlib examples tests -name '*.jou' | sort); do
 for action in tokenize parse run; do
