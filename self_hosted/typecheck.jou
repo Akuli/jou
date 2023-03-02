@@ -296,8 +296,7 @@ def typecheck_expression_maybe_void(ctx: TypeContext*, expression: AstExpression
         assert(False)
         result = NULL  # never runs, but silences compiler warning
 
-    p: ExpressionTypes*
-    p = malloc(sizeof *p)
+    p: ExpressionTypes* = malloc(sizeof *p)
     *p = ExpressionTypes{
         expression = expression,
         type = result,
