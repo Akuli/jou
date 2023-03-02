@@ -8,12 +8,17 @@ from "./typecheck.jou" import (
     typecheck_stage2_signatures_globals_structbodies,
     typecheck_stage3_function_and_method_bodies,
 )
-from "./find_jou_installation.jou" import find_stdlib
-from "./target.jou" import init_target
+from "./find_jou_installation.jou" import find_stdlib, is_windows
+from "./target.jou" import init_target, target
 from "./create_llvm_ir.jou" import create_llvm_ir
-from "./llvm.jou" import LLVMPrintModuleToString, LLVMDisposeMessage
+from "./llvm.jou" import (
+    LLVMPrintModuleToString, LLVMDisposeMessage,
+    LLVMCodeGenFileType,
+    LLVMTargetMachineEmitToFile,
+    LLVMVerifyModule, LLVMVerifierFailureAction,
+)
 from "stdlib/mem.jou" import malloc, realloc, free
-from "stdlib/process.jou" import exit
+from "stdlib/process.jou" import exit, system
 from "stdlib/str.jou" import strcmp, strlen, sprintf, starts_with, strspn
 from "stdlib/io.jou" import fprintf, stderr, printf, puts
 
@@ -185,6 +190,10 @@ class Compiler:
             )
 
     def create_object_files(self) -> void:
+        # TODO: do this in a way that doesn't suck
+        if not is_windows():
+            system("rm -rf tmp/self_hosted_obj && mkdir -p tmp/self_hosted_obj")
+
         for i = 0; i < self->nfiles; i++:
             if self->verbosity >= 1:
                 printf("Build LLVM IR: %s\n", self->files[i].ast.path)
@@ -196,6 +205,23 @@ class Compiler:
                 s = LLVMPrintModuleToString(module)
                 puts(s)
                 LLVMDisposeMessage(s)
+
+            if self->verbosity >= 1:
+                printf("Verify LLVM IR: %s\n", self->files[i].ast.path)
+            LLVMVerifyModule(module, LLVMVerifierFailureAction::AbortProcess)
+
+            if self->verbosity >= 1:
+                printf("Emit LLVM IR: %s\n", self->files[i].ast.path)
+
+            path: byte[100]
+            sprintf(&path[0], "tmp/self_hosted_obj/object%d.o", i)
+
+            error: byte* = NULL
+            if LLVMTargetMachineEmitToFile(target.target_machine, module, &path[0], LLVMCodeGenFileType::ObjectFile, &error):
+                assert(error != NULL)
+                fprintf(stderr, "error in LLVMTargetMachineEmitToFile(): %s\n", error)
+                exit(1)
+            assert(error == NULL)
 
 
 def main(argc: int, argv: byte**) -> int:

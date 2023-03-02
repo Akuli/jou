@@ -31,6 +31,7 @@ from "./llvm.jou" import (
     LLVMBuildBitCast,
     LLVMBuildRet,
     LLVMBuildCall2,
+    LLVMBuildUnreachable,
     LLVMAddGlobal,
 )
 from "./typecheck.jou" import TypeContext
@@ -138,6 +139,7 @@ class AstToIR:
         self->current_function = llvm_func
         self->new_block("start")
         self->do_body(&funcdef->body)
+        LLVMBuildUnreachable(self->builder)
         self->current_function = NULL
 
 
