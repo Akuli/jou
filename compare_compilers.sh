@@ -13,12 +13,6 @@ else
     exit 2
 fi
 
-if [[ "$OS" =~ Windows ]]; then
-    dotexe=.exe
-else
-    dotexe=
-fi
-
 set -e
 
 rm -rf tmp/compare_compilers
@@ -37,8 +31,8 @@ for action in tokenize parse run; do
         flag=--${action}-only
     fi
 
-    (./jou${dotexe} $flag $file || true) &> tmp/compare_compilers/compiler_written_in_c.txt
-    (./self_hosted_compiler${dotexe} $flag $file || true) &> tmp/compare_compilers/self_hosted.txt
+    (./jou $flag $file || true) &> tmp/compare_compilers/compiler_written_in_c.txt
+    (./self_hosted_compiler $flag $file || true) &> tmp/compare_compilers/self_hosted.txt
 
     if grep -qxF $file $error_list_file; then
         # The file is skipped, so the two compilers should behave differently
