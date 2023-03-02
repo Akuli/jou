@@ -30,6 +30,12 @@ def find_current_executable() -> byte*:
             # buffer is big enough, it fits
             return buf
 
+def find_installation_directory() -> byte*:
+    exe = find_current_executable()
+    result = strdup(dirname(exe))
+    free(exe)
+    return result
+
 # TODO: move to stdlib
 declare dirname(path: byte*) -> byte*
 declare stat(path: byte*, buf: byte[1000]*) -> int  # lol

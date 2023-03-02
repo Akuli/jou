@@ -1,3 +1,4 @@
+from "../config.jou" import get_jou_clang_path
 from "./errors_and_warnings.jou" import assert
 from "./ast.jou" import AstFile, AstImport
 from "./tokenizer.jou" import tokenize, print_tokens
@@ -8,7 +9,7 @@ from "./typecheck.jou" import (
     typecheck_stage2_signatures_globals_structbodies,
     typecheck_stage3_function_and_method_bodies,
 )
-from "./find_jou_installation.jou" import find_stdlib, is_windows
+from "./find_jou_installation.jou" import find_stdlib, is_windows, find_installation_directory
 from "./target.jou" import init_target, target
 from "./create_llvm_ir.jou" import create_llvm_ir
 from "./llvm.jou" import (
@@ -19,7 +20,7 @@ from "./llvm.jou" import (
 )
 from "stdlib/mem.jou" import malloc, realloc, free
 from "stdlib/process.jou" import exit, system
-from "stdlib/str.jou" import strcmp, strlen, sprintf, starts_with, strspn
+from "stdlib/str.jou" import strcmp, strlen, sprintf, starts_with, strspn, snprintf
 from "stdlib/io.jou" import fprintf, stderr, printf, puts, fflush, stdout
 
 enum CompilerMode:
@@ -225,18 +226,26 @@ class Compiler:
             assert(error == NULL)
 
     def link(self) -> void:
-        command = "clang-13 tmp/self_hosted_obj/* -o tmp/self_hosted_obj/program.exe"
+        if is_windows():
+            c_compiler = find_installation_directory()
+            c_compiler = realloc(c_compiler, strlen(c_compiler) + 100)
+            strcat(c_compiler, "\\mingw64\\bin\\gcc.exe")
+        else:
+            c_compiler = get_jou_clang_path()
+
+        command: byte[1000]
+        snprintf(&command[0], sizeof command, "\"%s\" tmp/self_hosted_obj/* -o tmp/self_hosted_obj/program.exe", c_compiler)
         if self->verbosity >= 1:
             printf("Run linker command\n")
         if self->verbosity >= 2:
-            printf("%s\n\n", command)
+            printf("%s\n\n", &command[0])
 
         # make sure that compiler output shows up before command output, even if redirected
         fflush(stdout)
         fflush(stderr)
 
         # TODO: hard-codes clang version... and just sucks in general
-        ret = system(command)
+        ret = system(&command[0])
         if ret != 0:
             fprintf(stderr, "%s: linking failed\n", self->argv0)
             exit(1)
