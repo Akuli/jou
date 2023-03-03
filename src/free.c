@@ -224,7 +224,7 @@ void free_ast(AstToplevelNode *topnodelist)
 }
 
 
-static void free_signature(const Signature *sig)
+void free_signature(const Signature *sig)
 {
     free(sig->argnames);
     free(sig->argtypes);

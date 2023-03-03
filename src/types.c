@@ -39,6 +39,8 @@ void free_type(Type *t)
 {
     if (t) {
         if (t->kind == TYPE_CLASS) {
+            for (const Signature *m = t->data.classdata.methods.ptr; m < End(t->data.classdata.methods); m++)
+                free_signature(m);
             free(t->data.classdata.fields.ptr);
             free(t->data.classdata.methods.ptr);
         }

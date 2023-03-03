@@ -243,7 +243,8 @@ static const Type *handle_class_members_stage2(TypeContext *ctx, const AstClassD
 
     for (const AstFunctionDef *m = classdef->methods.ptr; m < End(classdef->methods); m++) {
         // Don't handle the method body yet: that is a part of stage 3, not stage 2
-        Append(&type->data.classdata.methods, handle_signature(ctx, &m->signature, type));
+        Signature sig = handle_signature(ctx, &m->signature, type);
+        Append(&type->data.classdata.methods, sig);
     }
 
     return type;
