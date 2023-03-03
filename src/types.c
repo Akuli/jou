@@ -189,10 +189,19 @@ Type *create_enum(const char *name, int membercount, char (*membernames)[100])
 }
 
 
+const Type *get_self_class(const Signature *sig)
+{
+    if (sig->nargs > 0 && !strcmp(sig->argnames[0], "self")) {
+        assert(sig->argtypes[0]->kind == TYPE_POINTER);
+        return sig->argtypes[0]->data.valuetype;
+    }
+    return NULL;
+}
+
 char *signature_to_string(const Signature *sig, bool include_return_type)
 {
     List(char) result = {0};
-    AppendStr(&result, sig->funcname);
+    AppendStr(&result, sig->name);
     Append(&result, '(');
 
     for (int i = 0; i < sig->nargs; i++) {

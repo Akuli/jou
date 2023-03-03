@@ -512,13 +512,13 @@ static void error_about_missing_return(CfGraph *cfg)
     if (s == VS_POSSIBLY_UNDEFINED) {
         show_warning(
             cfg->signature.returntype_location,
-            "function '%s' doesn't seem to return a value in all cases", cfg->signature.funcname);
+            "function '%s' doesn't seem to return a value in all cases", cfg->signature.name);
     }
     if (s == VS_UNDEFINED) {
         fail_with_error(
             cfg->signature.returntype_location,
             "function '%s' must return a value, because it is defined with '-> %s'",
-            cfg->signature.funcname, cfg->signature.returntype->name);
+            cfg->signature.name, cfg->signature.returntype->name);
     }
 
     free_var_statuses(cfg, statuses);

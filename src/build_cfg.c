@@ -431,11 +431,29 @@ static const LocalVariable *build_function_or_method_call(struct State *st, cons
     else
         return_value = NULL;
 
-    union CfInstructionData data;
-    if (self)
-        snprintf(data.funcname, sizeof data.funcname, "%s.%s", self->type->data.valuetype->name, call->calledname);
-    else
-        safe_strcpy(data.funcname, call->calledname);
+    const Signature *sig = NULL;
+    if(self) {
+        assert(self->type->kind == TYPE_POINTER);
+        const Type *selfclass = self->type->data.valuetype;
+        assert(selfclass->kind == TYPE_CLASS);
+        for (const Signature *s = selfclass->data.classdata.methods.ptr; s < End(selfclass->data.classdata.methods); s++) {
+            assert(get_self_class(s) == selfclass);
+            if (!strcmp(s->name, call->calledname)) {
+                sig = s;
+                break;
+            }
+        }
+    } else {
+        for (const struct TypeContextFunction *f = st->typectx->functions.ptr; f < End(st->typectx->functions); f++) {
+            if (!strcmp(f->signature.name, call->calledname)) {
+                sig = &f->signature;
+                break;
+            }
+        }
+    }
+    assert(sig);
+
+    union CfInstructionData data = { .signature = copy_signature(sig) };
     add_instruction(st, location, CF_CALL, &data, args, return_value);
 
     free(args);
@@ -872,7 +890,7 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         if(ast->kind == AST_TOPLEVEL_DEFINE_FUNCTION) {
-            const Signature *sig = typecheck_function_body(typectx, ast->data.funcdef.signature.funcname, &ast->data.funcdef.body);
+            const Signature *sig = typecheck_function_or_method_body(typectx, NULL, &ast->data.funcdef);
             CfGraph *g = build_function(&st, &ast->data.funcdef.body);
             g->signature = copy_signature(sig);
             Append(&result.graphs, g);
@@ -888,9 +906,7 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx
             assert(classtype);
 
             for (AstFunctionDef *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
-                char name[200];
-                snprintf(name, sizeof name, "%s.%s", classtype->name, m->signature.funcname);
-                const Signature *sig = typecheck_function_body(typectx, name, &m->body);
+                const Signature *sig = typecheck_function_or_method_body(typectx, classtype, m);
                 CfGraph *g = build_function(&st, &m->body);
                 g->signature = copy_signature(sig);
                 Append(&result.graphs, g);

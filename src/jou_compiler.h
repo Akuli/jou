@@ -150,8 +150,8 @@ struct AstType {
 };
 
 struct AstSignature {
-    Location funcname_location;
-    char funcname[100];
+    Location name_location;
+    char name[100];
     List(AstNameTypeValue) args;
     bool takes_varargs;  // true for functions like printf()
     AstType returntype;  // can represent void
@@ -402,7 +402,7 @@ bool is_number_type(const Type *t);  // integers, floats, doubles
 bool is_pointer_type(const Type *t);  // includes void pointers
 
 struct Signature {
-    char funcname[200];  // For methods this is "ClassName.methodname"
+    char name[100];  // Function or method name. For methods it does not include the name of the class.
     int nargs;
     const Type **argtypes;
     char (*argnames)[100];
@@ -411,6 +411,7 @@ struct Signature {
     Location returntype_location;  // meaningful even if returntype is NULL
 };
 
+const Type *get_self_class(const Signature *sig);  // NULL for functions, a class for methods
 char *signature_to_string(const Signature *sig, bool include_return_type);
 Signature copy_signature(const Signature *sig);
 
@@ -479,7 +480,7 @@ Step 3 is interleaved with build_cfg (see the reset_type_context() function).
 */
 ExportSymbol *typecheck_step1_create_types(TypeContext *ctx, const AstToplevelNode *ast);
 ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast);
-const Signature *typecheck_function_body(TypeContext *ctx, const char *name, const AstBody *body);
+const Signature *typecheck_function_or_method_body(TypeContext *ctx, const Type *classtype, const AstFunctionDef *ast);
 
 /*
 Wipes all function-specific data, making the type context suitable
@@ -498,7 +499,7 @@ struct CfInstruction {
     Location location;
     enum CfInstructionKind {
         CF_CONSTANT,
-        CF_CALL,
+        CF_CALL,  // function or method call, depending on whether self_type is NULL (see below)
         CF_ADDRESS_OF_LOCAL_VAR,
         CF_ADDRESS_OF_GLOBAL_VAR,
         CF_SIZEOF,
@@ -525,7 +526,7 @@ struct CfInstruction {
     } kind;
     union CfInstructionData {
         Constant constant;      // CF_CONSTANT
-        char funcname[200];     // CF_CALL
+        Signature signature;    // CF_CALL
         char fieldname[100];    // CF_PTR_CLASS_FIELD
         char globalname[100];   // CF_ADDRESS_OF_GLOBAL_VAR
         const Type *type;       // CF_SIZEOF

@@ -102,8 +102,19 @@ static void set_local_var(const struct State *st, const LocalVariable *cfvar, LL
     assert(0);
 }
 
-static LLVMValueRef codegen_function_decl(const struct State *st, const Signature *sig)
+static LLVMValueRef codegen_function_or_method_decl(const struct State *st, const Signature *sig)
 {
+    char fullname[200];
+    if (get_self_class(sig))
+        snprintf(fullname, sizeof fullname, "%s.%s", get_self_class(sig)->name, sig->name);
+    else
+        safe_strcpy(fullname, sig->name);
+
+    // Make it so that this can be called many times without issue
+    LLVMValueRef func = LLVMGetNamedFunction(st->module, fullname);
+    if (func)
+        return func;
+
     LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
     for (int i = 0; i < sig->nargs; i++)
         argtypes[i] = codegen_type(sig->argtypes[i]);
@@ -117,7 +128,7 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const Signatur
     LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
     free(argtypes);
 
-    LLVMValueRef func = LLVMAddFunction(st->module, sig->funcname, functype);
+    func = LLVMAddFunction(st->module, fullname, functype);
 
     // Terrible hack: if declaring an OS function that doesn't exist on current platform,
     // make it a definition instead of a declaration so that there are no linker errors.
@@ -128,7 +139,7 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const Signatur
     #else
     doesnt_exist = "GetModuleFileNameA";
     #endif
-    if (!strcmp(sig->funcname, doesnt_exist)) {
+    if (!strcmp(fullname, doesnt_exist)) {
         LLVMBasicBlockRef block = LLVMAppendBasicBlock(func, "my_block");
         LLVMPositionBuilderAtEnd(st->builder, block);
         LLVMBuildUnreachable(st->builder);
@@ -137,9 +148,9 @@ static LLVMValueRef codegen_function_decl(const struct State *st, const Signatur
     return func;
 }
 
-static LLVMValueRef codegen_call(const struct State *st, const char *funcname, LLVMValueRef *args, int nargs)
+static LLVMValueRef codegen_call(const struct State *st, const Signature *sig, LLVMValueRef *args, int nargs)
 {
-    LLVMValueRef function = LLVMGetNamedFunction(st->module, funcname);
+    LLVMValueRef function = codegen_function_or_method_decl(st, sig);
     assert(function);
     assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMPointerTypeKind);
     LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(function));
@@ -147,7 +158,7 @@ static LLVMValueRef codegen_call(const struct State *st, const char *funcname, L
 
     char debug_name[100] = {0};
     if (LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMVoidTypeKind)
-        snprintf(debug_name, sizeof debug_name, "%s_return_value", funcname);
+        snprintf(debug_name, sizeof debug_name, "%s_return_value", sig->name);
 
     return LLVMBuildCall2(st->builder, function_type, function, args, nargs, debug_name);
 }
@@ -242,7 +253,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 LLVMValueRef *args = malloc(ins->noperands * sizeof(args[0]));  // NOLINT
                 for (int i = 0; i < ins->noperands; i++)
                     args[i] = getop(i);
-                LLVMValueRef return_value = codegen_call(st, ins->data.funcname, args, ins->noperands);
+                LLVMValueRef return_value = codegen_call(st, &ins->data.signature, args, ins->noperands);
                 if (ins->destvar)
                     setdest(return_value);
                 free(args);
@@ -390,14 +401,13 @@ static void codegen_call_to_the_special_startup_function(const struct State *st)
 }
 #endif
 
-static void codegen_function_def(struct State *st, const CfGraph *cfg)
+static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
 {
     st->cfvars = cfg->locals.ptr;
     st->cfvars_end = End(cfg->locals);
     st->llvm_locals = malloc(sizeof(st->llvm_locals[0]) * cfg->locals.len); // NOLINT
 
-    LLVMValueRef llvm_func = LLVMGetNamedFunction(st->module, cfg->signature.funcname);
-    assert(llvm_func);
+    LLVMValueRef llvm_func = codegen_function_or_method_decl(st, &cfg->signature);
 
     LLVMBasicBlockRef *blocks = malloc(sizeof(blocks[0]) * cfg->all_blocks.len); // NOLINT
     for (int i = 0; i < cfg->all_blocks.len; i++) {
@@ -477,10 +487,8 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
             LLVMSetInitializer(globalptr, LLVMGetUndef(t));
     }
 
-    for (struct TypeContextFunction *f = typectx->functions.ptr; f < End(typectx->functions); f++)
-        codegen_function_decl(&st, &f->signature);
     for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
-        codegen_function_def(&st, *g);
+        codegen_function_or_method_def(&st, *g);
 
     LLVMDisposeBuilder(st.builder);
     return st.module;
