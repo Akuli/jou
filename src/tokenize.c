@@ -232,6 +232,17 @@ static bool is_keyword(const char *s)
     return false;
 }
 
+static char read_hex_escape_byte(struct State *st)
+{
+    char c1 = read_byte(st);
+    char c2 = read_byte(st);
+    if (!isxdigit(c1) || !isxdigit(c2))
+        fail_with_error(st->location, "\\x must be followed by two hexadecimal digits (0-9, A-F) to specify a byte");
+
+    char s[] = {c1, c2, '\0'};
+    return strtol(s, NULL, 16);
+}
+
 // Assumes the initial quote has been read already
 static char *read_string(struct State *st, char quote, int *len)
 {
@@ -272,17 +283,15 @@ static char *read_string(struct State *st, char quote, int *len)
             case '0':
                 if (quote == '"')
                     fail_with_error(st->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte");
-                __attribute__((fallthrough));
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-                Append(&result, after_backslash - '0');
+                Append(&result, '\0');
+                break;
+            case 'x':
+                {
+                    char b = read_hex_escape_byte(st);
+                    if (quote == '"' && b == 0)
+                        fail_with_error(st->location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte");
+                    Append(&result, b);
+                }
                 break;
             case '\n':
                 // \ at end of line, string continues on next line
