@@ -232,7 +232,7 @@ static bool is_keyword(const char *s)
     return false;
 }
 
-static char read_hex_byte_for_string(struct State *st)
+static char read_hex_escape_byte(struct State *st)
 {
     char c1 = read_byte(st);
     char c2 = read_byte(st);
@@ -286,7 +286,7 @@ static char *read_string(struct State *st, char quote, int *len)
                 Append(&result, '\0');
                 break;
             case 'x':
-                Append(&result, read_hex_byte_for_string(st));
+                Append(&result, read_hex_escape_byte(st));
                 break;
             case '\n':
                 // \ at end of line, string continues on next line
