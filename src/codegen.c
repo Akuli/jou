@@ -420,7 +420,7 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
     LLVMPositionBuilderAtEnd(st->builder, blocks[0]);
 
 #ifdef _WIN32
-    if (!strcmp(cfg->signature.funcname, "main"))
+    if (!get_self_class(&cfg->signature) && !strcmp(cfg->signature.name, "main"))
         codegen_call_to_the_special_startup_function(st);
 #endif
 
