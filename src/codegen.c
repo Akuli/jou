@@ -141,8 +141,10 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
     #endif
     if (!strcmp(fullname, doesnt_exist)) {
         LLVMBasicBlockRef block = LLVMAppendBasicBlock(func, "my_block");
-        LLVMPositionBuilderAtEnd(st->builder, block);
-        LLVMBuildUnreachable(st->builder);
+        LLVMBuilderRef b = LLVMCreateBuilder();
+        LLVMPositionBuilderAtEnd(b, block);
+        LLVMBuildUnreachable(b);
+        LLVMDisposeBuilder(b);
     }
 
     return func;
