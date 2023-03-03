@@ -10,13 +10,8 @@ if ! [[ "$OS" =~ Windows ]]; then
     run=wine
 fi
 
-# These files can be left behind if this script is interrupted mid-way
-# *.o and *.s come from dlltool.exe and there can be very many of them :D
-echo "Cleaning up..."
-rm -rvf *.o *.s *.def mingw64.zip
-
 # Keep the size in the command below up to date if you update WinLibs:
-if [ -d mingw64 ] && [ $(du -s mingw64 | cut -f1) == 989496 ]; then
+if [ -d mingw64 ] && [ $(du -s mingw64 | cut -f1) -gt 900000 ]; then
     echo "mingw64 has already been downloaded and extracted."
 else
     # The WinLibs version we use ships with LLVM 14, which is latest LLVM that Jou can use.
@@ -42,14 +37,26 @@ fi
 #
 # A simple "grep -r LLVMCreatePassManager" reveals that only libLLVMCore.dll
 # contains the functions we need, so we generate a corresponding .a file.
-if [ -f libLLVMCore.a ]; then
-    echo "libLLVMCore.a has already been generated."
-else
-    echo "Generating libLLVMCore.a (this takes a while)"
-    $run mingw64/bin/gendef.exe mingw64/bin/libLLVMCore.dll
-    $run mingw64/bin/dlltool.exe -d libLLVMCore.def -l libLLVMCore.a
-    rm libLLVMCore.def
-fi
+# There are also a few other files that I found similarly.
+mkdir -vp libs
+echo "Generating .a files (this can take a while)"
+for name in \
+        libLLVMCore libLLVMX86CodeGen libLLVMAnalysis libLLVMTarget \
+        libLLVMipo libLLVMLinker libLTO libLLVMX86AsmParser \
+        libLLVMX86Info libLLVMX86Desc
+do
+    if [ -f libs/$name.a ]; then
+        echo "  libs/$name.a has already been generated."
+    else
+        echo "  Generating libs/$name.a..."
+        cd libs
+        $run ../mingw64/bin/gendef.exe ../mingw64/bin/$name.dll
+        $run ../mingw64/bin/dlltool.exe -d $name.def -l $name.a
+        rm $name.def
+        cd ..
+        echo "    done"
+    fi
+done
 
 # These headers are a bit of a hack. They have been taken from a different
 # LLVM version, specifically, LLVM 13 compiled for Linux. We really only

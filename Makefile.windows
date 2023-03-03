@@ -1,7 +1,8 @@
-SRC := $(wildcard src/*.c)
-
+# assume llvm_headers.zip has been extracted
 CFLAGS += -I.
-LDFLAGS += libLLVMCore.a
+
+# .a files generated in windows-setup.sh
+LDFLAGS += $(wildcard libs/lib*.a)
 
 ifeq ($(CC),cc)
 	# default c compiler --> use clang
@@ -21,12 +22,15 @@ compile_flags.txt:
 obj/%.o: src/%.c $(wildcard src/*.h)
 	mkdir obj 2>NUL && $(CC) -c $(CFLAGS) $< -o $@
 
-jou.exe: $(SRC:src/%.c=obj/%.o)
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+%.dll: mingw64/bin/%.dll
+	copy "$(subst /,\,$^)" .
+
+jou.exe: $(OBJ) libgcc_s_seh-1.dll libgmp-10.dll libLLVMAggressiveInstCombine.dll libLLVMAnalysis.dll libLLVMAsmParser.dll libLLVMAsmPrinter.dll libLLVMBinaryFormat.dll libLLVMBitReader.dll libLLVMBitstreamReader.dll libLLVMBitWriter.dll libLLVMCFGuard.dll libLLVMCodeGen.dll libLLVMCore.dll libLLVMDebugInfoCodeView.dll libLLVMDebugInfoDWARF.dll libLLVMDemangle.dll libLLVMFrontendOpenMP.dll libLLVMGlobalISel.dll libLLVMInstCombine.dll libLLVMInstrumentation.dll libLLVMipo.dll libLLVMIRReader.dll libLLVMLinker.dll libLLVMMCDisassembler.dll libLLVMMC.dll libLLVMMCParser.dll libLLVMObject.dll libLLVMProfileData.dll libLLVMRemarks.dll libLLVMScalarOpts.dll libLLVMSelectionDAG.dll libLLVMSupport.dll libLLVMTarget.dll libLLVMTextAPI.dll libLLVMTransformUtils.dll libLLVMVectorize.dll libLLVMX86AsmParser.dll libLLVMX86CodeGen.dll libLLVMX86Desc.dll libLLVMX86Info.dll libLLVMX86TargetMCA.dll libLTO.dll libstdc++-6.dll libwinpthread-1.dll libz3.dll zlib1.dll
+	$(CC) $(CFLAGS) $(OBJ) -o $@ $(LDFLAGS)
 
 .PHONY: clean
 clean:
 	rmdir /s /q obj tmp 2>NUL
-	del /s /q jou.exe compile_flags.txt 2>NUL
-# TODO: ideally we would also delete jou_compiled directories
+	del /q jou.exe *.dll compile_flags.txt 2>NUL
+# TODO: ideally we would also delete jou_compiled directories, but not sure how:
 #	find -name jou_compiled -print -exec rm -rf '{}' +
