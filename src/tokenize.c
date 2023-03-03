@@ -286,7 +286,12 @@ static char *read_string(struct State *st, char quote, int *len)
                 Append(&result, '\0');
                 break;
             case 'x':
-                Append(&result, read_hex_escape_byte(st));
+                {
+                    char b = read_hex_escape_byte(st);
+                    if (quote == '"' && b == 0)
+                        fail_with_error(st->location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte");
+                    Append(&result, b);
+                }
                 break;
             case '\n':
                 // \ at end of line, string continues on next line

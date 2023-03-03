@@ -123,10 +123,11 @@ The backslash character has a special meaning in string literals (e.g. `"hello\n
 - `\"` is the double quote byte. This is supported only in strings.
 - `\0` is the zero byte. It cannot be used inside a string, because in strings,
     it is a special byte that marks the end of the string.
-- `\x` followed by two digits or letters A-F or a-f specifies a byte in hexadecimal.
+- `\x` followed by two hexadecimal digits (0-9, A-F, a-f) specifies a byte in hexadecimal.
     For example, `\x6a` or `\x6A` is equivalent to `j`,
     because the ASCII value of the `j` character is 106,
     which is 6A in hexadecimal.
+    Note that because `\x00` is equivalent to `\0`, it cannot be used inside strings.
 - `\` followed by anything else is an error.
 
 Before tokenizing, the compiler adds an imaginary newline character to the beginning of the file.

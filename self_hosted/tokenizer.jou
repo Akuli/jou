@@ -315,8 +315,11 @@ class Tokenizer:
                 elif after_backslash == '0':
                     fail(self->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte")
                 elif after_backslash == 'x':
+                    b = self->read_hex_escape_byte()
+                    if b == '\0':
+                        fail(self->location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte")
                     result = realloc(result, len+1)
-                    result[len++] = self->read_hex_escape_byte()
+                    result[len++] = b
                 elif after_backslash == '\n':
                     # \ at end of line, string continues on next line
                     len = len  # TODO: pass statement
