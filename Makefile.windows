@@ -1,0 +1,24 @@
+CC ?= mingw64/bin/clang.exe
+CFLAGS += -Wall -Wextra -Wpedantic
+CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=implicit-fallthrough
+CFLAGS += -std=c11
+CFLAGS += -g
+LDFLAGS += libLLVMCore.a
+
+all: jou.exe compile_flags.txt
+
+# point clangd to the right include folder so i don't get red squiggles in my editor
+compile_flags.txt:
+	echo -I$(CURDIR)/llvm   > compile_flags.txt
+	echo -I$(CURDIR)/llvm-c >> compile_flags.txt
+#
+#obj/%.o: src/%.c $(wildcard src/*.h) config.h
+#	mkdir -vp obj && $(CC) -c $(CFLAGS) $< -o $@
+#
+#jou.exe: $(SRC:src/%.c=obj/%.o)
+#	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+#
+.PHONY: clean
+clean:
+	del obj jou.exe tmp config.h compile_flags.txt 2>NUL
+#	find -name jou_compiled -print -exec rm -rf '{}' +
