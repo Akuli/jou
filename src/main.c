@@ -294,7 +294,7 @@ static bool astnode_conflicts_with_an_import(const AstToplevelNode *astnode, con
     switch(astnode->kind) {
     case AST_TOPLEVEL_DECLARE_FUNCTION:
     case AST_TOPLEVEL_DEFINE_FUNCTION:
-        return import->kind == EXPSYM_FUNCTION && !strcmp(import->name, astnode->data.funcdef.signature.funcname);
+        return import->kind == EXPSYM_FUNCTION && !strcmp(import->name, astnode->data.funcdef.signature.name);
     case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
     case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
         return import->kind == EXPSYM_GLOBAL_VAR && !strcmp(import->name, astnode->data.globalvar.name);

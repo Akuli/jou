@@ -39,8 +39,10 @@ void free_type(Type *t)
 {
     if (t) {
         if (t->kind == TYPE_CLASS) {
-            free(t->data.classfields.types);
-            free(t->data.classfields.names);
+            for (const Signature *m = t->data.classdata.methods.ptr; m < End(t->data.classdata.methods); m++)
+                free_signature(m);
+            free(t->data.classdata.fields.ptr);
+            free(t->data.classdata.methods.ptr);
         }
         assert(offsetof(struct TypeInfo, type) == 0);
         free_pointer_and_array_types((struct TypeInfo *)t);
@@ -174,15 +176,6 @@ Type *create_opaque_struct(const char *name)
     return &result->type;
 }
 
-void set_class_fields(Type *classtype, int count, char (*names)[100], const Type **types)
-{
-    assert(classtype->kind == TYPE_OPAQUE_CLASS);
-    classtype->kind = TYPE_CLASS;
-    classtype->data.classfields.count = count;
-    classtype->data.classfields.names = names;
-    classtype->data.classfields.types = types;
-}
-
 Type *create_enum(const char *name, int membercount, char (*membernames)[100])
 {
     struct TypeInfo *result = calloc(1, sizeof *result);
@@ -198,10 +191,19 @@ Type *create_enum(const char *name, int membercount, char (*membernames)[100])
 }
 
 
+const Type *get_self_class(const Signature *sig)
+{
+    if (sig->nargs > 0 && !strcmp(sig->argnames[0], "self")) {
+        assert(sig->argtypes[0]->kind == TYPE_POINTER);
+        return sig->argtypes[0]->data.valuetype;
+    }
+    return NULL;
+}
+
 char *signature_to_string(const Signature *sig, bool include_return_type)
 {
     List(char) result = {0};
-    AppendStr(&result, sig->funcname);
+    AppendStr(&result, sig->name);
     Append(&result, '(');
 
     for (int i = 0; i < sig->nargs; i++) {
