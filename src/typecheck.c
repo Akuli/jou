@@ -360,6 +360,7 @@ static void check_explicit_cast(const Type *from, const Type *to, Location locat
         && !(is_number_type(from) && is_number_type(to))
         && !(is_integer_type(from) && to->kind == TYPE_ENUM)
         && !(from->kind == TYPE_ENUM && is_integer_type(to))
+        && !(from->kind == TYPE_BOOL && is_integer_type(to))
         // TODO: pointer-to-int, int-to-pointer
     )
     {
