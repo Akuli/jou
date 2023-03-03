@@ -258,6 +258,8 @@ void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b)
     for (const CfInstruction *ins = b->instructions.ptr; ins < End(b->instructions); ins++) {
         if (ins->kind == CF_CONSTANT)
             free_constant(&ins->data.constant);
+        if (ins->kind == CF_CALL)
+            free_signature(&ins->data.signature);
         free(ins->operands);
     }
     free(b->instructions.ptr);
