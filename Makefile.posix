@@ -1,17 +1,13 @@
-LLVM_CONFIG ?= $(shell which llvm-config-13 || which llvm-config-11)
-
 SRC := $(wildcard src/*.c)
+
+LLVM_CONFIG ?= $(shell which llvm-config-13 || which llvm-config-11)
+CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
+LDFLAGS ?= $(shell $(LLVM_CONFIG) --ldflags --libs)
 
 ifeq ($(CC),cc)
 	# default c compiler --> use clang
 	CC := $(shell $(LLVM_CONFIG) --bindir)/clang
 endif
-CFLAGS += -Wall -Wextra -Wpedantic
-CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=implicit-fallthrough
-CFLAGS += -std=c11
-CFLAGS += -g
-CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
-LDFLAGS ?= $(shell $(LLVM_CONFIG) --ldflags --libs)
 
 all: jou compile_flags.txt
 

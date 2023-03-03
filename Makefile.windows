@@ -1,24 +1,32 @@
-CC ?= mingw64/bin/clang.exe
-CFLAGS += -Wall -Wextra -Wpedantic
-CFLAGS += -Werror=switch -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=implicit-fallthrough
-CFLAGS += -std=c11
-CFLAGS += -g
+SRC := $(wildcard src/*.c)
+
+CFLAGS += -I.
 LDFLAGS += libLLVMCore.a
+
+ifeq ($(CC),cc)
+	# default c compiler --> use clang
+	CC := mingw64/bin/clang.exe
+endif
+
+# clang version in mingw doesn't seem as mature as what I have on linux...
+# it shows a lot of unnecssary/dumb warnings by default
+CFLAGS += -Wno-return-type -Wno-uninitialized -Wno-implicit-fallthrough
 
 all: jou.exe compile_flags.txt
 
 # point clangd to the right include folder so i don't get red squiggles in my editor
 compile_flags.txt:
-	echo -I$(CURDIR)/llvm   > compile_flags.txt
-	echo -I$(CURDIR)/llvm-c >> compile_flags.txt
-#
-#obj/%.o: src/%.c $(wildcard src/*.h) config.h
-#	mkdir -vp obj && $(CC) -c $(CFLAGS) $< -o $@
-#
-#jou.exe: $(SRC:src/%.c=obj/%.o)
-#	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
-#
+	echo -I$(CURDIR) > compile_flags.txt
+
+obj/%.o: src/%.c $(wildcard src/*.h)
+	mkdir obj 2>NUL && $(CC) -c $(CFLAGS) $< -o $@
+
+jou.exe: $(SRC:src/%.c=obj/%.o)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
 .PHONY: clean
 clean:
-	del obj jou.exe tmp config.h compile_flags.txt 2>NUL
+	rmdir /s /q obj tmp 2>NUL
+	del /s /q jou.exe compile_flags.txt 2>NUL
+# TODO: ideally we would also delete jou_compiled directories
 #	find -name jou_compiled -print -exec rm -rf '{}' +
