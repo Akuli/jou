@@ -14,11 +14,9 @@ else
 fi
 
 if [[ "$OS" =~ Windows ]]; then
-    dotexe=.exe
     source activate
     mingw32-make
 else
-    dotexe=
     make
 fi
 
