@@ -37,11 +37,13 @@ jobs:
 
           # executables without their DLLs (added later)
           #
-          # clang is needed only to run the linker. It would be possible to invoke ld.exe
+          # gcc is needed only to run the linker. It would be possible to invoke ld.exe
           # directly, but the command-line it wants is a bit complicated and it's just
-          # easier to let clang figure it out.
+          # easier to let a C compiler figure it out.
+          #
+          # We use gcc instead of clang because it depends on fewer DLLs.
           mkdir -v jou/mingw64/bin
-          cp -v mingw64/bin/clang.exe mingw64/bin/ld.exe jou/mingw64/bin/
+          cp -v mingw64/bin/gcc.exe mingw64/bin/ld.exe jou/mingw64/bin/
       - name: Copy more files to jou/
         # Please keep this list of files in sync with update.ps1
         run: cp -rv stdlib doc examples LICENSE jou.exe update.ps1 jou
