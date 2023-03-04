@@ -22,22 +22,43 @@ jobs:
         shell: bash
       - run: source activate && mingw32-make
         shell: bash
-      - run: mkdir jou
-      - name: Copy files
-        # Please keep this list of files in sync with update.ps1
-        run: cp -rv stdlib doc examples mingw64 LICENSE jou.exe update.ps1 jou
-        shell: bash
-      - name: Copy DLL files
+      # We don't need to copy all of mingw64. We only need the linker.
+      # The less we copy, the smaller the resulting zip becomes.
+      - name: Copy some parts of mingw64 to jou/mingw64
         shell: bash
         run: |
-          ready=no
-          while [ $ready == no ]; do
-            ready=yes
-            for file in $(objdump -p jou/jou.exe jou/*.dll | grep 'DLL Name:' | cut -d: -f2 | grep -vEi 'kernel32.dll|msvcrt.dll|advapi32.dll|ole32.dll|shell32.dll'); do
-              if ! [ -f jou/$file ]; then
-                cp -v mingw64/bin/$file jou/
-                ready=no
-              fi
+          # .a files compress well, so copy them all.
+          # CRT (C RunTime) files are needed because the linker implicitly adds them to every executable.
+          # version_info.txt is only for curious humans.
+          for file in $(find mingw64 -name '*.a') $(find mingw64 -name 'crt*.o') mingw64/version_info.txt; do
+            mkdir -vp jou/$(dirname $file)
+            cp -v $file jou/$file
+          done
+
+          # executables without their DLLs (added later)
+          #
+          # clang is needed only to run the linker. It would be possible to invoke ld.exe
+          # directly, but the command-line it wants is a bit complicated and it's just
+          # easier to let clang figure it out.
+          mkdir -v jou/mingw64/bin
+          cp -v mingw64/bin/clang.exe mingw64/bin/ld.exe jou/mingw64/bin/
+      - name: Copy more files to jou/
+        # Please keep this list of files in sync with update.ps1
+        run: cp -rv stdlib doc examples LICENSE jou.exe update.ps1 jou
+        shell: bash
+      - name: Copy missing DLL files to jou/
+        shell: bash
+        run: |
+          for bindir in jou jou/mingw64/bin; do
+            ready=no
+            while [ $ready == no ]; do
+              ready=yes
+              for file in $(mingw64/bin/objdump -p $bindir/*.exe $bindir/*.dll | grep 'DLL Name:' | cut -d: -f2 | sort -u); do
+                if [ -f mingw64/bin/$file ] && ! [ -f $bindir/$file ]; then
+                  cp -v mingw64/bin/$file $bindir/
+                  ready=no
+                fi
+              done
             done
           done
       - name: Convert text files to Windows-style CRLF line endings
