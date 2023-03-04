@@ -258,6 +258,11 @@ class Compiler:
             exe = realloc(exe, strlen(exe) + 10)
             strcat(exe, ".exe")
 
+        if is_windows():
+            for i = 0; exe[i] != '\0'; i++:
+                if exe[i] == '/':
+                    exe[i] = '\\'
+
         return exe
 
     def create_object_files(self) -> byte**:
