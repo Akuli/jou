@@ -45,7 +45,10 @@ if [ $valgrind = yes ]; then
     command_template="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup $command_template"
 fi
 
-if ! [[ "$OS" =~ Windows ]]; then
+if [[ "$OS" =~ Windows ]]; then
+    source activate
+    mingw32-make
+else
     make
 fi
 

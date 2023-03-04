@@ -12,136 +12,60 @@ on:
   pull_request:
 
 jobs:
-  build:
+  build-zip:
     # Even though jou.exe runs on windows, it is compiled on linux.
     # This is by far the easiest way to compile for Windows that I know of.
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Download LLVM installer
-        run: wget --no-verbose https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/LLVM-13.0.1-win64.exe
-      - name: Verify LLVM installer
-        run: |
-          ls -lh LLVM-13.0.1-win64.exe
-          if [ "$(sha256sum LLVM-13.0.1-win64.exe)" == "9d15be034d52ec57cfc97615634099604d88a54761649498daa7405983a7e12f  LLVM-13.0.1-win64.exe" ]; then
-            echo ok
-          else
-            echo "sha sum mismatch! something has changed!"
-            exit 1
-          fi
-      # Apparently the exe file is created with nsis installer and 7z can extract from it.
-      # Figured out by looking at source code of https://github.com/KyleMayes/install-llvm-action
-      # TODO: could we instead statically link the Jou compiler?
-      - name: Extract files from LLVM installer
-        run: |
-          files="lib/LLVM-C.lib"
-          for file in $(7z l LLVM-13.0.1-win64.exe | grep -o 'bin/.*\.dll'); do
-            case $file in
-              # To figure out which dll files I need, I deleted them one by one and ran
-              # the compiler again.
-              #
-              # Unfortunately you need to do this locally instead of relying on github
-              # actions, because github actions comes with lots of software and hence lots
-              # of DLL files preinstalled. I used a Windows VM with nothing installed.
-              bin/LLVM-C.dll | \
-              bin/msvcp140.dll | \
-              bin/ucrtbase.dll | \
-              bin/vcruntime140.dll | \
-              bin/vcruntime140_1.dll | \
-              bin/api-ms-win-*.dll)     # Not sure which of these we need and what each one does.
-                files="$files $file"
-                ;;
-              *)
-                echo "*** skip dll: $file ***"
-                ;;
-            esac
-          done
-          echo "Extracting $files"
-          7z x LLVM-13.0.1-win64.exe $files
-      - name: Download MinGW
-        run: wget --no-verbose https://github.com/niXman/mingw-builds-binaries/releases/download/12.2.0-rt_v10-rev1/x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z
-      - name: Verify MinGW
-        run: |
-          ls -lh x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z
-          if [ "$(sha256sum x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z)" == "774916c4403c5219f8af3a3ee3012de6c017c034895c2c92bc4de99895c2c924  x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z" ]; then
-            echo ok
-          else
-            echo "sha sum mismatch! something has changed!"
-            exit 1
-          fi
-      # Exctract only the parts needed for linking.
-      # Figured out by exctracting only gcc.exe and then other files
-      # until hello world links successfully.
-      #
-      # We could get rid of gcc.exe and take only ld.exe, but
-      # gcc.exe is convenient because ld wants a long and complicated
-      # list of parameters that gcc can figure out for us.
-      - name: Extract the linker from MinGW
-        run: >
-          7z x x86_64-12.2.0-release-win32-seh-rt_v10-rev1.7z
-          mingw64/bin/gcc.exe
-          mingw64/lib/gcc/x86_64-w64-mingw32/12.2.0/libgcc.a
-          mingw64/lib/gcc/x86_64-w64-mingw32/12.2.0/libgcc_eh.a
-          mingw64/libexec/gcc/x86_64-w64-mingw32/12.2.0/liblto_plugin.dll
-          mingw64/x86_64-w64-mingw32/bin/ld.exe
-          mingw64/x86_64-w64-mingw32/lib/
-          mingw64/licenses/
-      # Using gcc instead of clang, because gcc "just works".
-      # llvm-13-dev needed for the header files. They seem to be missing from LLVM windows installer.
-      - name: Install gcc and dependencies for cross-compiling
-        run: sudo apt update && sudo apt install -y llvm-13-dev gcc-mingw-w64-x86-64-win32 dos2unix
-      - run: CC=x86_64-w64-mingw32-gcc LDFLAGS=lib/LLVM-C.lib make
+      - run: source activate && ./windows_setup.sh
+        shell: bash
+      - run: source activate && mingw32-make
+        shell: bash
       - run: mkdir jou
       - name: Copy files
         # Please keep this list of files in sync with update.ps1
-        run: cp -rv stdlib doc examples mingw64 LICENSE jou.exe update.ps1 bin/*.dll jou
-      - name: Convert files to Windows-style CRLF line endings
-        run: unix2dos $(find jou -name '*.jou') $(find jou -name '*.md') jou/LICENSE
-      - run: zip -r jou.zip jou
+        run: cp -rv stdlib doc examples mingw64 LICENSE jou.exe update.ps1 jou
+        shell: bash
+      - name: Copy DLL files
+        shell: bash
+        run: |
+          ready=no
+          while [ $ready == no ]; do
+            ready=yes
+            for file in $(objdump -p jou/jou.exe jou/*.dll | grep 'DLL Name:' | cut -d: -f2 | grep -vEi 'kernel32.dll|msvcrt.dll|advapi32.dll|ole32.dll|shell32.dll'); do
+              if ! [ -f jou/$file ]; then
+                cp -v mingw64/bin/$file jou/
+                ready=no
+              fi
+            done
+          done
+      - name: Convert text files to Windows-style CRLF line endings
+        run: mingw64/bin/unix2dos $(find jou -name '*.jou') $(find jou -name '*.md') jou/LICENSE
+        shell: bash
+      - run: Compress-Archive -Path jou -DestinationPath jou.zip
       - uses: actions/upload-artifact@v3
         with:
           name: windows-zip
           path: jou.zip
 
-  codeblocks-project:
-    # Ensure that the codeblocks project contains all source files.
-    # It gets outdated easily when I create a new file on linux.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - run: |
-          diff -u --color=always <(ls src/* | sort) <(grep filename= jou.cbp | cut -d'"' -f2)
-
   test:
-    needs: build
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
         with:
-          path: repo
-      - uses: actions/download-artifact@v3
-        with:
-          name: windows-zip
-      - run: unzip jou.zip
-      # Add a space in the folder name to trigger bugs like #165
-      - run: mkdir "test dir"
-      - run: mv jou/* repo/tests repo/runtests.sh "test dir"
+          # Add a space in the folder name to trigger bugs like #165
+          path: "test dir"
+      - run: cd "test dir" && ./windows_setup.sh
         shell: bash
-      - run: cd "test dir" && ./jou.exe --verbose examples/hello.jou
-        shell: bash
-      - run: cd "test dir" && ./runtests.sh --verbose
+      - run: cd "test dir" && source activate && ./runtests.sh --verbose
         shell: bash
 
   compare-compilers:
-    needs: build
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
-        with:
-          name: windows-zip
-      - run: unzip jou.zip
-      - run: mv compare_compilers.sh self_hosted tests jou
+      - run: source activate && ./windows_setup.sh
         shell: bash
-      - run: (cd jou && ./compare_compilers.sh)
+      - run: source activate && ./compare_compilers.sh
         shell: bash
