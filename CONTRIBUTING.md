@@ -16,46 +16,40 @@ to help `clangd` find the LLVM header files.
 <details> <summary>64-bit Windows</summary>
 
 1. Download and install Git from [Git's website](https://git-scm.com/download/win) if you don't have it already.
-1. To install LLVM, download and run LLVM's GitHub releases:
-    [LLVM-13.0.1-win64.exe from here](https://github.com/llvm/llvm-project/releases/tag/llvmorg-13.0.1), or
-    [LLVM-11.1.0-win64.exe from here](https://github.com/llvm/llvm-project/releases/tag/llvmorg-11.1.0).
-    Check the "Add LLVM to the system PATH for all users" checkbox during the installation.
-2. Download and install codeblocks from one of the download sites linked on
-    [their official website](http://www.codeblocks.org/downloads/binaries/#imagesoswindows48pnglogo-microsoft-windows).
-    Make sure to download a version that comes with mingw,
-    such as `codeblocks-20.03mingw-setup.exe`.
-    In the setup, the "Standard" installation contains everything you need.
-4. Add `C:\Program Files\CodeBlocks\MinGW\bin` to the `PATH` environment variable through Control Panel.
-    Without this, CodeBlocks doesn't find `clang`, the C compiler that LLVM comes with that is used to compile the Jou compiler.
-    Let me know if you need more detailed instructions for this step.
-5. Clone the project with the command prompt:
+2. Open Git Bash from the start menu.
+    **You must use Git Bash** for running bash scripts such as `windows-setup.sh` and `runtests.sh`.
+3. Clone the project with the command prompt:
     ```
     cd Desktop
     git clone https://github.com/Akuli/jou
     ```
     You can put the project anywhere. The above command places it on the desktop.
-6. Open the `jou` folder that you cloned with Git.
-7. Right-click `llvm_headers.zip` and extract it.
-    You should end up with a folder named `llvm_headers` inside the `jou` folder.
-8. Start CodeBlocks. It will probably ask you what should be the default C compiler.
-    This doesn't really matter because Jou comes with configuration that overrides the default anyway.
-8. Open the CodeBlocks project (`jou.cbp` in the `jou` folder) with CodeBlocks.
-10. Click the build button (yellow gear) at top of CodeBlocks.
-    If everything succeeds, this creates `jou.exe`.
-    If something goes wrong, please create an issue on GitHub.
-11. Run a Jou program:
+4. Run a script that does the rest of the setup for you:
     ```
-    cd Desktop\jou
-    jou.exe examples\hello.jou
+    cd jou
+    ./windows-setup.sh
+    ```
+5. Compile Jou:
+    ```
+    source activate
+    mingw32-make
+    ```
+    The `source activate` command adds `Desktop\jou\mingw64\bin` to your PATH,
+    where `Desktop` is the folder where you cloned Jou.
+    If you don't want to run it every time you open a Git Bash window to work on Jou,
+    you can instead add it to your PATH permanently with Control Panel.
+6. Compile and run hello world:
+    ```
+    ./jou.exe examples/hello.jou
     ```
     You should see `Hello World` printed.
-
-If CodeBlocks won't start and complains about a missing file `api-ms-win-crt-string-l1-1-0.dll`,
-make sure that LLVM is installed and you remembered to add it to `PATH`.
-LLVM conveniently comes with a DLL file that CodeBlocks developers apparently forgot to include.
-
-CodeBlocks doesn't have a dark theme by default.
-You can install a dark theme from e.g. [https://github.com/virtualmanu/Codeblocks-Themes](https://github.com/virtualmanu/Codeblocks-Themes).
+    If you instead get errors about missing DLL files, run `jou activate` first.
+    The Jou compiler depends on DLLs in `mingw64\bin`,
+    so `mingw64\bin` must be in PATH when running it.
+7. Run Jou's test suite:
+    ```
+    ./runtests.sh
+    ```
 
 </details>
 

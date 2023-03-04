@@ -1,6 +1,10 @@
-PS1="(jou dev) $PS1"
-if [[ "$OS" =~ Windows ]]; then
-    export PATH="$PATH:$PWD/mingw64/bin"
+if echo "$PATH" | tr : '\n' | grep -qFx "$PWD/mingw64/bin" || [ "$WINEPATH" = "$PWD/mingw64/bin" ]; then
+    echo "Already activated."
 else
-    export WINEPATH="$PWD/mingw64/bin"
+    PS1="(jou dev) $PS1"
+    if [[ "$OS" =~ Windows ]]; then
+        export PATH="$PWD/mingw64/bin:$PATH"
+    else
+        export WINEPATH="$PWD/mingw64/bin"
+    fi
 fi
