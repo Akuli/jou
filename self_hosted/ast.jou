@@ -69,6 +69,7 @@ class TreePrinter:
 enum AstExpressionKind:
     String
     Int
+    Bool
     FunctionCall
     GetVariable
     # unary operators
@@ -99,6 +100,7 @@ class AstExpression:
     # TODO: union
     string: byte*
     int_value: int
+    bool_value: bool
     call: AstCall
     varname: byte[100]
     operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
@@ -117,6 +119,11 @@ class AstExpression:
             printf("\"\n")
         elif self->kind == AstExpressionKind::Int:
             printf("%d (32-bit signed)\n", self->int_value)
+        elif self->kind == AstExpressionKind::Bool:
+            if self->bool_value:
+                printf("True\n")
+            else:
+                printf("False\n")
         elif self->kind == AstExpressionKind::FunctionCall:
             printf("call function \"%s\"\n", &self->call.called_name[0])
             self->call.print(tp)

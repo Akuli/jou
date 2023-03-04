@@ -154,6 +154,14 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
         expr.kind = AstExpressionKind::String
         expr.string = strdup((*tokens)->long_string)
         ++*tokens
+    elif (*tokens)->is_keyword("True"):
+        expr.kind = AstExpressionKind::Bool
+        expr.bool_value = True
+        ++*tokens
+    elif (*tokens)->is_keyword("False"):
+        expr.kind = AstExpressionKind::Bool
+        expr.bool_value = False
+        ++*tokens
     elif (*tokens)->kind == TokenKind::Name and (&(*tokens)[1])->is_operator("("):
         expr.kind = AstExpressionKind::FunctionCall
         expr.call = parse_call(tokens, "(", ")")
