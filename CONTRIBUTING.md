@@ -34,8 +34,8 @@ to help `clangd` find the LLVM header files.
     source activate
     mingw32-make
     ```
-    The `source activate` command adds `Desktop\jou\mingw64\bin` to your PATH,
-    where `Desktop` is the folder where you cloned Jou.
+    The `source activate` command adds `C:\Users\YourName\Desktop\jou\mingw64\bin` to your PATH,
+    where `C:\Users\YourName\Desktop` is the folder where you cloned Jou.
     If you don't want to run it every time you open a Git Bash window to work on Jou,
     you can instead add it to your PATH permanently with Control Panel.
 6. Compile and run hello world:
@@ -46,7 +46,7 @@ to help `clangd` find the LLVM header files.
     If you instead get errors about missing DLL files, run `jou activate` first.
     The Jou compiler depends on DLLs in `mingw64\bin`,
     so `mingw64\bin` must be in PATH when running it.
-7. Run Jou's test suite:
+7. Run tests:
     ```
     ./runtests.sh
     ```
@@ -94,7 +94,7 @@ $ ./runtests.sh
 ```
 
 This command does a few things:
-- If not on Windows, it compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled. (On Windows you need to use the build button in CodeBlocks to compile.)
+- I compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled.
 - It runs all Jou files in `examples/` and `tests/`. To speed things up, it runs two files in parallel.
 - It ensures that the Jou files output what is expected.
 

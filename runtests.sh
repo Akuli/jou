@@ -46,6 +46,7 @@ if [ $valgrind = yes ]; then
 fi
 
 if [[ "$OS" =~ Windows ]]; then
+    source activate
     mingw32-make
 else
     make
