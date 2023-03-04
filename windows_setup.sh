@@ -5,10 +5,11 @@
 
 set -e
 
-# Make this script work on linux, so that I can develop it without windows
 if [[ "$OS" =~ Windows ]]; then
     run=
 else
+    # Make this script work on linux, so that I can develop it without windows
+    echo "Wine will be used to run Windows commands."
     run=wine
 fi
 
@@ -89,17 +90,3 @@ else
     echo "    $run ./jou.exe examples/hello.jou"
 fi
 echo ""
-
-
-
-
-#echo "Extracting LLVM..."
-#mkdir downloads/llvm
-#(cd downloads/llvm && ../7z/x64/7za x ../LLVM-13.0.1-win64.exe >/dev/null)
-
-
-# TODO: Stuck at not finding command-line 7z that would extract NSIS installers (for LLVM)
-#       After extracting 7z's own nsis installer from https://sourceforge.net/projects/sevenzip/files/7-Zip/22.01/ it came with 7z.exe that seems to work??? (in wine)
-
-
-# standalone make https://sourceforge.net/projects/gnuwin32/files/make/3.81/
