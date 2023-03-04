@@ -29,13 +29,17 @@ jobs:
         shell: bash
         run: |
           # .a files compress well, so copy them all.
-          # Also add the .o files that it fails to link without
-          for file in $(find mingw64 -name '*.a') mingw64/lib/gcc/x86_64-w64-mingw32/12.1.0/crtbegin.o mingw64/x86_64-w64-mingw32/lib/crt2.o mingw64/x86_64-w64-mingw32/lib/crtend.o; do
+          # CRT (C RunTime) files are needed because the linker implicitly adds them to every executable.
+          for file in $(find mingw64 -name '*.a') $(find mingw64 -name 'crt*.o'); do
             mkdir -vp jou/$(dirname $file)
             cp -v $file jou/$file
           done
 
           # executables without their DLLs (added later)
+          #
+          # clang is needed only to run the linker. It would be possible to invoke ld.exe
+          # directly, but the command-line it wants is a bit complicated and it's just
+          # easier to let clang figure it out.
           mkdir -v jou/mingw64/bin
           cp -v mingw64/bin/clang.exe mingw64/bin/ld.exe jou/mingw64/bin/
       - name: Copy more files to jou/
