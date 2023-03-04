@@ -133,18 +133,20 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
     // Terrible hack: if declaring an OS function that doesn't exist on current platform,
     // make it a definition instead of a declaration so that there are no linker errors.
     // Ideally it would be possible to compile some parts of Jou code only for a specific platform.
-    const char *doesnt_exist;
-    #ifdef _WIN32
-    doesnt_exist = "readlink";
-    #else
-    doesnt_exist = "GetModuleFileNameA";
-    #endif
-    if (!strcmp(fullname, doesnt_exist)) {
-        LLVMBasicBlockRef block = LLVMAppendBasicBlock(func, "my_block");
-        LLVMBuilderRef b = LLVMCreateBuilder();
-        LLVMPositionBuilderAtEnd(b, block);
-        LLVMBuildUnreachable(b);
-        LLVMDisposeBuilder(b);
+#ifdef _WIN32
+    const char *doesnt_exist[] = { "readlink", "mkdir" };
+#else
+    const char *doesnt_exist[] = { "GetModuleFileNameA", "_mkdir" };
+#endif
+    for (unsigned i = 0; i < sizeof doesnt_exist / sizeof doesnt_exist[0]; i++) {
+        if (!strcmp(fullname, doesnt_exist[i])) {
+            LLVMBasicBlockRef block = LLVMAppendBasicBlock(func, "my_block");
+            LLVMBuilderRef b = LLVMCreateBuilder();
+            LLVMPositionBuilderAtEnd(b, block);
+            LLVMBuildUnreachable(b);
+            LLVMDisposeBuilder(b);
+            break;
+        }
     }
 
     return func;

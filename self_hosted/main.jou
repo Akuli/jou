@@ -1,3 +1,4 @@
+from "../config.jou" import get_jou_clang_path
 from "./errors_and_warnings.jou" import assert
 from "./ast.jou" import AstFile, AstImport
 from "./tokenizer.jou" import tokenize, print_tokens
@@ -8,11 +9,19 @@ from "./typecheck.jou" import (
     typecheck_stage2_signatures_globals_structbodies,
     typecheck_stage3_function_and_method_bodies,
 )
-from "./find_jou_installation.jou" import find_stdlib
-from "stdlib/mem.jou" import malloc, realloc, free
-from "stdlib/process.jou" import exit
-from "stdlib/str.jou" import strcmp, strlen, sprintf, starts_with, strspn
-from "stdlib/io.jou" import fprintf, stderr, printf
+from "./paths.jou" import find_stdlib, is_windows, find_installation_directory, get_path_to_file_in_jou_compiled
+from "./target.jou" import init_target, target
+from "./create_llvm_ir.jou" import create_llvm_ir
+from "./llvm.jou" import (
+    LLVMPrintModuleToString, LLVMDisposeMessage,
+    LLVMCodeGenFileType,
+    LLVMTargetMachineEmitToFile,
+    LLVMVerifyModule, LLVMVerifierFailureAction,
+)
+from "stdlib/mem.jou" import malloc, calloc, realloc, free, memmove
+from "stdlib/process.jou" import exit, system
+from "stdlib/str.jou" import strcmp, strlen, sprintf, starts_with, strspn, snprintf, strcat, strstr, strdup, ends_with
+from "stdlib/io.jou" import fprintf, stderr, printf, puts, fflush, stdout
 
 enum CompilerMode:
     TokenizeOnly    # Tokenize one file, don't recurse to imports
@@ -71,6 +80,8 @@ def parse_args(argc: int, argv: byte**) -> CommandLineArgs:
             result.output_file = argv[i++]
             if result.output_file == NULL:
                 fail_parsing_args(argv[0], "-o must be followed by the name of an output file")
+        elif strcmp(arg, "--verbose") == 0:
+            result.verbosity++
         elif starts_with(arg, "-v") and strspn(&arg[1], "v") == strlen(arg) - 1:
             result.verbosity += (strlen(arg) as int) - 1
         elif arg[0] == '-':
@@ -88,20 +99,49 @@ def parse_args(argc: int, argv: byte**) -> CommandLineArgs:
     return result
 
 
+# C:\Users\myname\.foo-bar.jou --> "_foo_bar"
+# Result never contains "-", so you can add "-" separated suffixes without conflicts.
+def get_sane_filename(path: byte*) -> byte[50]:
+    while True:
+        if strstr(path, "/") != NULL:
+            path = strstr(path, "/")
+        elif strstr(path, "\\") != NULL:
+            path = strstr(path, "\\")
+        else:
+            break
+        path++  # skip slash
+
+    name: byte[50]
+    snprintf(&name[0], sizeof name, "%s", path)
+    assert(name[0] != '\0')
+
+    if name[0] == '.':
+        name[0] = '_'
+    for i = 0; name[i] != '\0'; i++:
+        if name[i] == '.':
+            name[i] = '\0'
+            break
+        if name[i] == '-':
+            name[i] = '_'
+    return name
+
+
 class FileState:
     ast: AstFile
     typectx: TypeContext
     pending_exports: ExportSymbol*
 
 class Compiler:
+    argv0: byte*
     verbosity: int
     stdlib_path: byte*
+    args: CommandLineArgs*
     files: FileState*
     nfiles: int
 
-    def parse_all_files(self, main_path: byte*) -> void:
+    def parse_all_files(self) -> void:
         queue: byte** = malloc(sizeof queue[0])
-        queue[0] = main_path
+        queue[0] = self->args->main_path
         queue_len = 1
 
         while queue_len > 0:
@@ -181,9 +221,142 @@ class Compiler:
                 &self->files[i].ast,
             )
 
+    def get_object_file_paths(self) -> byte**:
+        sane_names: byte[50]* = calloc(sizeof sane_names[0], self->nfiles)
+        result: byte** = calloc(sizeof result[0], self->nfiles + 1)  # NULL terminated
+
+        # First, extract just the names from file paths.
+        # "blah/blah/foo.jou" --> "foo"
+        for i = 0; i < self->nfiles; i++:
+            sane_names[i] = get_sane_filename(self->files[i].ast.path)
+
+        for i = 0; i < self->nfiles; i++:
+            # If there are 3 files named foo.jou in different directories, their object files will be foo.o, foo-1.o, foo-2.o
+            counter = 0
+            for k = 0; k < i; k++:
+                if strcmp(&sane_names[k][0], &sane_names[i][0]) == 0:
+                    counter++
+
+            name: byte[100]
+            if counter == 0:
+                sprintf(&name[0], "%s.o", &sane_names[i][0])
+            else:
+                sprintf(&name[0], "%s-%d.o", &sane_names[i][0], counter)
+            result[i] = get_path_to_file_in_jou_compiled(&name[0])
+
+        free(sane_names)
+        return result
+
+    def get_exe_file_path(self) -> byte*:
+        if self->args->output_file == NULL:
+            tmp = get_sane_filename(self->args->main_path)
+            exe = get_path_to_file_in_jou_compiled(&tmp[0])
+        else:
+            exe = strdup(self->args->output_file)
+
+        if is_windows() and not ends_with(exe, ".exe") and not ends_with(exe, ".EXE"):
+            exe = realloc(exe, strlen(exe) + 10)
+            strcat(exe, ".exe")
+
+        if is_windows():
+            for i = 0; exe[i] != '\0'; i++:
+                if exe[i] == '/':
+                    exe[i] = '\\'
+
+        return exe
+
+    def create_object_files(self) -> byte**:
+        paths = self->get_object_file_paths()
+
+        for i = 0; i < self->nfiles; i++:
+            if self->verbosity >= 1:
+                printf("Build LLVM IR: %s\n", self->files[i].ast.path)
+
+            module = create_llvm_ir(&self->files[i].ast, &self->files[i].typectx)
+            if self->verbosity >= 2:
+                # Don't want to use LLVMDumpModule() because it dumps to stdout.
+                # When redirected, stdout and stderr tend to get mixed up into a weird order.
+                s = LLVMPrintModuleToString(module)
+                puts(s)
+                LLVMDisposeMessage(s)
+
+            if self->verbosity >= 1:
+                printf("Verify LLVM IR: %s\n", self->files[i].ast.path)
+            LLVMVerifyModule(module, LLVMVerifierFailureAction::AbortProcess, NULL)
+
+            path = paths[i]
+            if self->verbosity >= 1:
+                printf("Emit LLVM IR: %s --> %s\n", self->files[i].ast.path, path)
+
+            error: byte* = NULL
+            if LLVMTargetMachineEmitToFile(target.target_machine, module, path, LLVMCodeGenFileType::ObjectFile, &error):
+                assert(error != NULL)
+                fprintf(stderr, "error in LLVMTargetMachineEmitToFile(): %s\n", error)
+                exit(1)
+            assert(error == NULL)
+
+        return paths
+
+    def link(self, object_files: byte**) -> byte*:
+        exe = self->get_exe_file_path()
+        if is_windows():
+            clang = find_installation_directory()
+            clang = realloc(clang, strlen(clang) + 100)
+            strcat(clang, "\\mingw64\\bin\\clang.exe")
+        else:
+            clang = get_jou_clang_path()
+
+        command_size = strlen(clang) + strlen(exe) + 100
+        for i = 0; object_files[i] != NULL; i++:
+            command_size += 5
+            command_size += strlen(object_files[i])
+        command: byte* = malloc(command_size)
+
+        sprintf(command, "\"%s\" -o \"%s\"", clang, exe)
+        for i = 0; object_files[i] != NULL; i++:
+            sprintf(&command[strlen(command)], " \"%s\"", object_files[i])
+ 
+        if is_windows():
+            # windows strips outermost quotes for some reason, so let's quote it all one more time...
+            memmove(&command[1], &command[0], strlen(command) + 1)
+            command[0] = '"'
+            strcat(command, "\"")
+
+        if self->verbosity >= 1:
+            printf("Run linker command: %s\n", command)
+
+        # make sure that compiler output shows up before command output, even if redirected
+        fflush(stdout)
+        fflush(stderr)
+
+        ret = system(command)
+        free(command)
+        if ret != 0:
+            fprintf(stderr, "%s: linking failed\n", self->argv0)
+            exit(1)
+
+        return exe
+
+    def run(self, exe: byte*) -> void:
+        command = malloc(strlen(exe) + 10)
+        sprintf(command, "\"%s\"", exe)
+        if self->verbosity >= 1:
+            printf("Run the compiled program command: %s\n", command)
+
+        # make sure that compiler output shows up before command output, even if redirected
+        fflush(stdout)
+        fflush(stderr)
+
+        ret = system(command)
+        if ret != 0:
+            fprintf(stderr, "%s: running the program failed\n", self->argv0)
+            exit(1)
+
 
 def main(argc: int, argv: byte**) -> int:
+    init_target()
     init_types()
+
     args = parse_args(argc, argv)
 
     if args.mode == CompilerMode::TokenizeOnly:
@@ -198,11 +371,30 @@ def main(argc: int, argv: byte**) -> int:
         ast.free()
         free(tokens)
         free(stdlib_path)
-    else:
-        compiler = Compiler{verbosity = args.verbosity, stdlib_path = find_stdlib()}
-        compiler.parse_all_files(args.main_path)
+    elif args.mode == CompilerMode::Compile or args.mode == CompilerMode::CompileAndRun:
+        compiler = Compiler{
+            argv0 = argv[0],
+            verbosity = args.verbosity,
+            stdlib_path = find_stdlib(),
+            args = &args,
+        }
+        compiler.parse_all_files()
         compiler.typecheck_stage2_all_files()
         compiler.process_imports_and_exports()
         compiler.typecheck_stage3_all_files()
+
+        object_files = compiler.create_object_files()
+        executable = compiler.link(object_files)
+        for i = 0; object_files[i] != NULL; i++:
+            free(object_files[i])
+        free(object_files)
+
+        # TODO: make the -o flag work
+        if args.mode == CompilerMode::CompileAndRun:
+            compiler.run(executable)
+        free(executable)
+
+    else:
+        assert(False)
 
     return 0
