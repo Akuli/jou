@@ -1,11 +1,11 @@
 from "stdlib/str.jou" import strlen, sprintf, strdup, starts_with
-from "stdlib/mem.jou" import malloc, realloc
+from "stdlib/mem.jou" import malloc, realloc, memcpy
 from "./token.jou" import Token, TokenKind
 from "./ast.jou" import (
     AstType, AstTypeKind, AstNameTypeValue, AstSignature,
     AstCall,
     AstExpression, AstExpressionKind,
-    AstStatement, AstStatementKind, AstBody,
+    AstStatement, AstStatementKind, AstIfStatement, AstConditionAndBody, AstBody,
     AstFunctionDef, AstClassDef,
     AstToplevelStatement, AstToplevelStatementKind,
     AstFile,
@@ -143,7 +143,7 @@ def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCal
 
     return result
 
-def parse_expression(tokens: Token**) -> AstExpression:
+def parse_elementary_expression(tokens: Token**) -> AstExpression:
     expr = AstExpression{location = (*tokens)->location}
 
     if (*tokens)->kind == TokenKind::Int:
@@ -157,10 +157,111 @@ def parse_expression(tokens: Token**) -> AstExpression:
     elif (*tokens)->kind == TokenKind::Name and (&(*tokens)[1])->is_operator("("):
         expr.kind = AstExpressionKind::FunctionCall
         expr.call = parse_call(tokens, "(", ")")
+    elif (*tokens)->kind == TokenKind::Name:
+        expr.kind = AstExpressionKind::GetVariable
+        expr.varname = (*tokens)->short_string
+        ++*tokens
     else:
         (*tokens)->fail_expected_got("an expression")
 
     return expr
+
+# arity = number of operands, e.g. 2 for a binary operator such as "+"
+def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -> AstExpression:
+    assert(arity == 1 or arity == 2)
+    nbytes = arity * sizeof operands[0]
+    ptr = malloc(nbytes)
+    memcpy(ptr, operands, nbytes)
+
+    result = AstExpression{location = t->location, operands = ptr}
+
+    if t->is_operator("&"):
+        assert(arity == 1)
+        result.kind = AstExpressionKind::AddressOf
+    elif t->is_operator("["):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::Indexing
+    elif t->is_operator("=="):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::Eq
+    elif t->is_operator("!="):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::Ne
+    elif t->is_operator(">"):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::Gt
+    elif t->is_operator(">="):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::Ge
+    elif t->is_operator("<"):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::Lt
+    elif t->is_operator("<="):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::Le
+    elif t->is_operator("+"):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::Add
+    elif t->is_operator("-"):
+        if arity == 2:
+            result.kind = AstExpressionKind::Subtract
+        else:
+            result.kind = AstExpressionKind::Negate
+    elif t->is_operator("*"):
+        if arity == 2:
+            result.kind = AstExpressionKind::Multiply
+        else:
+            result.kind = AstExpressionKind::Dereference
+    elif t->is_operator("/"):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::Divide
+    elif t->is_operator("%"):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::Modulo
+    elif t->is_keyword("and"):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::And
+    elif t->is_keyword("or"):
+        assert(arity == 2)
+        result.kind = AstExpressionKind::Or
+    elif t->is_keyword("not"):
+        assert(arity == 1)
+        result.kind = AstExpressionKind::Not
+    else:
+        assert(False)
+
+    assert(result.get_arity() == arity)
+    return result
+
+def parse_expression_with_add(tokens: Token**) -> AstExpression:
+    if (*tokens)->is_operator("-"):
+        minus = (*tokens)++
+    else:
+        minus = NULL
+
+    result = parse_elementary_expression(tokens)
+    if minus != NULL:
+        result = build_operator_expression(minus, 1, &result)
+
+    while (*tokens)->is_operator("+") or (*tokens)->is_operator("-"):
+        t = (*tokens)++
+        lhs_rhs = [result, parse_elementary_expression(tokens)]
+        result = build_operator_expression(t, 2, &lhs_rhs[0])
+
+    return result
+
+def parse_expression_with_comparisons(tokens: Token**) -> AstExpression:
+    result = parse_expression_with_add(tokens)
+    if (*tokens)->is_comparison():
+        t = (*tokens)++
+        lhs_rhs = [result, parse_expression_with_add(tokens)]
+        result = build_operator_expression(t, 2, &lhs_rhs[0])
+    if (*tokens)->is_comparison():
+        fail((*tokens)->location, "comparisons cannot be chained")
+    return result
+
+def parse_expression(tokens: Token**) -> AstExpression:
+    return parse_expression_with_comparisons(tokens)
 
 # does not eat a trailing newline
 def parse_oneline_statement(tokens: Token**) -> AstStatement:
@@ -177,12 +278,44 @@ def parse_oneline_statement(tokens: Token**) -> AstStatement:
         result.expression = expr
     return result
 
+def parse_if_statement(tokens: Token**) -> AstIfStatement:
+    ifs_and_elifs: AstConditionAndBody* = NULL
+    n = 0
+
+    assert((*tokens)->is_keyword("if"))
+    while True:
+        ++*tokens
+        cond = parse_expression(tokens)
+        body = parse_body(tokens)
+        ifs_and_elifs = realloc(ifs_and_elifs, sizeof ifs_and_elifs[0] * (n+1))
+        ifs_and_elifs[n++] = AstConditionAndBody{condition = cond, body = body}
+        if not (*tokens)->is_keyword("elif"):
+            break
+
+    if (*tokens)->is_keyword("else"):
+        ++*tokens
+        else_body = parse_body(tokens)
+    else:
+        else_body = AstBody{}
+
+    return AstIfStatement{
+        if_and_elifs = ifs_and_elifs,
+        n_if_and_elifs = n,
+        else_body = else_body,
+    }
+
 def eat_newline(tokens: Token**) -> void:
     if (*tokens)->kind != TokenKind::Newline:
         (*tokens)->fail_expected_got("end of line")
     ++*tokens
 
 def parse_statement(tokens: Token**) -> AstStatement:
+    if (*tokens)->is_keyword("if"):
+        return AstStatement{
+            location = (*tokens)->location,
+            kind = AstStatementKind::If,
+            if_statement = parse_if_statement(tokens),
+        }
     result = parse_oneline_statement(tokens)
     eat_newline(tokens)
     return result

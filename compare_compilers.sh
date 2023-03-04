@@ -4,13 +4,22 @@
 # They should be able to tokenize and parse each Jou file in exactly the same way.
 # If tokenizing/parsing a Jou file fails, both compilers should fail with the same error message.
 
-if [ $# = 0 ]; then
-    fix=no
-elif [ $# = 1 ] && [ "$1" = --fix ]; then
+if [ "$1" = --fix ]; then
     fix=yes
+    shift
 else
-    echo "Usage: $0 [--fix]" >&2
+    fix=no
+fi
+
+if [[ "$1" =~ ^- ]]; then
+    echo "Usage: $0 [--fix] [FILENAME1.jou FILENAME2.jou ...]" >&2
     exit 2
+fi
+
+if [ $# = 0 ]; then
+    files=$(find stdlib examples tests -name '*.jou' | sort)
+else
+    files=$@
 fi
 
 if [[ "$OS" =~ Windows ]]; then
@@ -32,7 +41,7 @@ else
     make self_hosted_compiler
 fi
 
-for file in $(find stdlib examples tests -name '*.jou' | sort); do
+for file in $files; do
 for action in tokenize parse run; do
     echo "$action $file"
     error_list_file=self_hosted/${action}s_wrong.txt

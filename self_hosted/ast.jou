@@ -70,6 +70,27 @@ enum AstExpressionKind:
     String
     Int
     FunctionCall
+    GetVariable
+    # unary operators
+    AddressOf   # -x
+    Dereference # *x
+    Negate      # &x
+    Not         # not x
+    # binary operators
+    Add         # x+y
+    Subtract    # x-y
+    Multiply    # x*y
+    Divide      # x/y
+    Indexing    # x[y]
+    Modulo      # x % y
+    Eq          # x == y
+    Ne          # x != y
+    Gt          # x > y
+    Lt          # x < y
+    Ge          # x >= y
+    Le          # x <= y
+    And         # x and y
+    Or          # x or y
 
 class AstExpression:
     location: Location
@@ -79,6 +100,8 @@ class AstExpression:
     string: byte*
     int_value: int
     call: AstCall
+    varname: byte[100]
+    operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
 
     def print(self, tp: TreePrinter) -> void:
         printf("[line %d] ", self->location.lineno)
@@ -97,14 +120,67 @@ class AstExpression:
         elif self->kind == AstExpressionKind::FunctionCall:
             printf("call function \"%s\"\n", &self->call.called_name[0])
             self->call.print(tp)
+        elif self->kind == AstExpressionKind::GetVariable:
+            printf("get variable \"%s\"\n", &self->varname[0])
+        elif self->kind == AstExpressionKind::Add:
+            printf("add\n")
+        elif self->kind == AstExpressionKind::Subtract:
+            printf("sub\n")
+        elif self->kind == AstExpressionKind::Multiply:
+            printf("mul\n")
+        elif self->kind == AstExpressionKind::Divide:
+            printf("div\n")
+        elif self->kind == AstExpressionKind::Eq:
+            printf("eq\n")
+        elif self->kind == AstExpressionKind::Ne:
+            printf("ne\n")
+        elif self->kind == AstExpressionKind::Gt:
+            printf("gt\n")
+        elif self->kind == AstExpressionKind::Ge:
+            printf("ge\n")
+        elif self->kind == AstExpressionKind::Lt:
+            printf("lt\n")
+        elif self->kind == AstExpressionKind::Le:
+            printf("le\n")
         else:
             printf("?????\n")
-            
+
+        for i = 0; i < self->get_arity(); i++:
+            self->operands[i].print(tp.print_prefix(i == self->get_arity()-1))
+
     def free(self) -> void:
         if self->kind == AstExpressionKind::FunctionCall:
             self->call.free()
         if self->kind == AstExpressionKind::String:
             free(self->string)
+
+    # arity = number of operands, e.g. 2 for a binary operator such as "+"
+    def get_arity(self) -> int:
+        if (
+            self->kind == AstExpressionKind::AddressOf
+            or self->kind == AstExpressionKind::Dereference
+            or self->kind == AstExpressionKind::Negate
+            or self->kind == AstExpressionKind::Not
+        ):
+            return 1
+        if (
+            self->kind == AstExpressionKind::Add
+            or self->kind == AstExpressionKind::Subtract
+            or self->kind == AstExpressionKind::Multiply
+            or self->kind == AstExpressionKind::Divide
+            or self->kind == AstExpressionKind::Indexing
+            or self->kind == AstExpressionKind::Modulo
+            or self->kind == AstExpressionKind::Eq
+            or self->kind == AstExpressionKind::Ne
+            or self->kind == AstExpressionKind::Gt
+            or self->kind == AstExpressionKind::Lt
+            or self->kind == AstExpressionKind::Ge
+            or self->kind == AstExpressionKind::Le
+            or self->kind == AstExpressionKind::And
+            or self->kind == AstExpressionKind::Or
+        ):
+            return 2
+        return 0
 
 class AstCall:
     location: Location
@@ -126,6 +202,7 @@ class AstCall:
 enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
     ReturnWithValue
+    If
 
 class AstStatement:
     location: Location
@@ -133,6 +210,7 @@ class AstStatement:
 
     # TODO: union
     expression: AstExpression       # AstStatementKind::ExpressionStatement
+    if_statement: AstIfStatement
     return_value: AstExpression     # AstStatementKind::ReturnWithValue
 
     def print(self, tp: TreePrinter) -> void:
@@ -143,6 +221,9 @@ class AstStatement:
         elif self->kind == AstStatementKind::ReturnWithValue:
             printf("return a value\n")
             self->return_value.print(tp.print_prefix(True))
+        elif self->kind == AstStatementKind::If:
+            printf("if\n")
+            self->if_statement.print(tp)
         else:
             printf("??????\n")
 
@@ -164,6 +245,32 @@ class AstBody:
         for i = 0; i < self->nstatements; i++:
             self->statements[i].free()
         free(self->statements)
+
+# Useful for e.g. "while condition: body", "if condition: body"
+class AstConditionAndBody:
+    condition: AstExpression
+    body: AstBody
+
+class AstIfStatement:
+    if_and_elifs: AstConditionAndBody*
+    n_if_and_elifs: int  # At least 1 (the if statement). The rest, if any, are elifs.
+    else_body: AstBody    # Empty if there is no else
+
+    def print(self, tp: TreePrinter) -> void:
+        for i = 0; i < self->n_if_and_elifs; i++:
+            sub = tp.print_prefix(False)
+            printf("condition: ")
+            self->if_and_elifs[i].condition.print(sub)
+
+            is_last_row = i == self->n_if_and_elifs - 1 and self->else_body.nstatements == 0
+            sub = tp.print_prefix(is_last_row)
+            printf("body:\n")
+            self->if_and_elifs[i].body.print(sub)
+
+        if self->else_body.nstatements > 0:
+            sub = tp.print_prefix(True)
+            printf("else body:\n")
+            self->else_body.print(sub)
 
 class AstNameTypeValue:
     # name: type = value

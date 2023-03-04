@@ -323,7 +323,7 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             }
             if (stmt->data.ifstatement.elsebody.nstatements > 0) {
                 sub = print_tree_prefix(tp, true);
-                printf("elsebody:\n");
+                printf("else body:\n");
                 print_ast_body(&stmt->data.ifstatement.elsebody, sub);
             }
             break;
