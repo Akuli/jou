@@ -300,19 +300,19 @@ class Compiler:
     def link(self, object_files: byte**) -> byte*:
         exe = self->get_exe_file_path()
         if is_windows():
-            clang = find_installation_directory()
-            clang = realloc(clang, strlen(clang) + 100)
-            strcat(clang, "\\mingw64\\bin\\clang.exe")
+            c_compiler = find_installation_directory()
+            c_compiler = realloc(c_compiler, strlen(c_compiler) + 100)
+            strcat(c_compiler, "\\mingw64\\bin\\gcc.exe")
         else:
-            clang = get_jou_clang_path()
+            c_compiler = get_jou_clang_path()
 
-        command_size = strlen(clang) + strlen(exe) + 100
+        command_size = strlen(c_compiler) + strlen(exe) + 100
         for i = 0; object_files[i] != NULL; i++:
             command_size += 5
             command_size += strlen(object_files[i])
         command: byte* = malloc(command_size)
 
-        sprintf(command, "\"%s\" -o \"%s\"", clang, exe)
+        sprintf(command, "\"%s\" -o \"%s\"", c_compiler, exe)
         for i = 0; object_files[i] != NULL; i++:
             sprintf(&command[strlen(command)], " \"%s\"", object_files[i])
  
