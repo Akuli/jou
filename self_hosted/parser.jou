@@ -31,8 +31,7 @@ def parse_type(tokens: Token**) -> AstType:
     ++*tokens
 
     while (*tokens)->is_operator("*"):
-        p: AstType*
-        p = malloc(sizeof *p)
+        p: AstType* = malloc(sizeof *p)
         *p = result
         result = AstType{
             location = ((*tokens)++)->location,  # TODO: shouldn't need all the parentheses
@@ -57,8 +56,7 @@ def parse_name_type_value(tokens: Token**, expected_what_for_name: byte*) -> Ast
 
     if (*tokens)->is_operator("="):
         ++*tokens
-        p: AstExpression*
-        p = malloc(sizeof *p)
+        p: AstExpression* = malloc(sizeof *p)
         *p = parse_expression(tokens)
         result.value = p
 

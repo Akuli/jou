@@ -166,7 +166,7 @@ static void print_ast_type(const struct AstType *t)
 
 static void print_ast_function_signature(const AstSignature *sig)
 {
-    printf("%s(", sig->funcname);
+    printf("%s(", sig->name);
     for (const AstNameTypeValue *ntv = sig->args.ptr; ntv < End(sig->args); ntv++) {
         if (ntv > sig->args.ptr) printf(", ");
         printf("%s: ", ntv->name);
@@ -496,7 +496,11 @@ static void print_cf_instruction(const CfInstruction *ins)
         printf("boolean negation of %s", varname(ins->operands[0]));
         break;
     case CF_CALL:
-        printf("call %s(", ins->data.funcname);
+        if (get_self_class(&ins->data.signature))
+            printf("call method %s.", get_self_class(&ins->data.signature)->name);
+        else
+            printf("call function ");
+        printf("%s(", ins->data.signature.name);
         for (int i = 0; i < ins->noperands; i++) {
             if(i) printf(", ");
             printf("%s", varname(ins->operands[i]));

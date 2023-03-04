@@ -13,8 +13,7 @@ class Node:
             putchar('\n')
 
 def prepend(list: Node**, value: byte) -> void:
-    new_first: Node*
-    new_first = malloc(sizeof *new_first)
+    new_first: Node* = malloc(sizeof *new_first)
     *new_first = Node{value = value, next = *list}
     *list = new_first
 

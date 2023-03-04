@@ -1,0 +1,33 @@
+# assume llvm_headers.zip has been extracted
+CFLAGS += -I.
+
+# .a files generated in windows_setup.sh
+LDFLAGS += $(wildcard libs/lib*.a)
+
+ifeq ($(CC),cc)
+	# default c compiler --> use clang
+	CC := mingw64/bin/clang.exe
+endif
+
+# clang version in mingw doesn't seem as mature as what I have on linux...
+# it shows a lot of unnecssary/dumb warnings by default
+CFLAGS += -Wno-return-type -Wno-uninitialized -Wno-implicit-fallthrough
+
+all: jou.exe compile_flags.txt
+
+# point clangd to the right include folder so i don't get red squiggles in my editor
+compile_flags.txt:
+	echo -I$(CURDIR) > compile_flags.txt
+
+obj/%.o: src/%.c $(wildcard src/*.h)
+	(mkdir obj 2>NUL || cd .) && $(CC) -c $(CFLAGS) $< -o $@
+
+jou.exe: $(OBJ)
+	$(CC) $(CFLAGS) $(OBJ) -o $@ $(LDFLAGS)
+
+.PHONY: clean
+clean:
+	rmdir /s /q obj tmp 2>NUL
+	del /q jou.exe compile_flags.txt 2>NUL
+# TODO: ideally we would also delete jou_compiled directories, but not sure how:
+#	find -name jou_compiled -print -exec rm -rf '{}' +

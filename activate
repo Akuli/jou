@@ -1,0 +1,15 @@
+if (echo "$PATH" | tr : '\n' | grep -qFx "$PWD/mingw64/bin") || [ "$WINEPATH" = "$PWD/mingw64/bin" ]; then
+    echo "Already activated."
+else
+    PS1="(jou dev) $PS1"
+    if [[ "$OS" =~ Windows ]]; then
+        export PATH="$PWD/mingw64/bin:$PATH"
+    else
+        echo "The activate script is useful in two scenarios:"
+        echo " 1) You use Windows"
+        echo " 2) You don't use Windows, but you want to work on Windows support with wine"
+        echo ""
+        echo "Assuming scenario 2."
+        export WINEPATH="$PWD/mingw64/bin"
+    fi
+fi

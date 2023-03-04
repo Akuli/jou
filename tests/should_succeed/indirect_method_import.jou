@@ -1,0 +1,9 @@
+from "stdlib/io.jou" import printf
+from "./imported/point_factory.jou" import make_point
+
+def main() -> int:
+    p = make_point()
+    # This should work even though this file doesn't import the file
+    # that defines the get_sum() method.
+    printf("%d\n", p.get_sum())  # Output: 3
+    return 0

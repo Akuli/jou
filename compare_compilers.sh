@@ -13,6 +13,15 @@ else
     exit 2
 fi
 
+if [[ "$OS" =~ Windows ]]; then
+    dotexe=.exe
+    source activate
+    mingw32-make
+else
+    dotexe=
+    make
+fi
+
 set -e
 
 rm -rf tmp/compare_compilers

@@ -50,6 +50,9 @@ static const char help_fmt[] =
 static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char **filename)
 {
     *flags = (CommandLineFlags){0};
+    flags->optlevel = 1; /* Set default optimize to O1
+                            User sets optimize will overwrite the default flag
+                         */
 
     if (argc == 2 && !strcmp(argv[1], "--help")) {
         // Print help.
@@ -294,7 +297,7 @@ static bool astnode_conflicts_with_an_import(const AstToplevelNode *astnode, con
     switch(astnode->kind) {
     case AST_TOPLEVEL_DECLARE_FUNCTION:
     case AST_TOPLEVEL_DEFINE_FUNCTION:
-        return import->kind == EXPSYM_FUNCTION && !strcmp(import->name, astnode->data.funcdef.signature.funcname);
+        return import->kind == EXPSYM_FUNCTION && !strcmp(import->name, astnode->data.funcdef.signature.name);
     case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
     case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
         return import->kind == EXPSYM_GLOBAL_VAR && !strcmp(import->name, astnode->data.globalvar.name);

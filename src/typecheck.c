@@ -16,13 +16,31 @@ static const Type *find_type(const TypeContext *ctx, const char *name)
 static const Signature *find_function(const TypeContext *ctx, const char *name)
 {
     for (struct TypeContextFunction *f = ctx->functions.ptr; f < End(ctx->functions); f++) {
-        if (!strcmp(f->signature.funcname, name)) {
+        if (!strcmp(f->signature.name, name)) {
             if (f->usedptr)
                 *f->usedptr = true;
             return &f->signature;
         }
     }
     return NULL;
+}
+
+static const Signature *find_method(const Type *selfclass, const char *name)
+{
+    if (selfclass->kind != TYPE_CLASS)
+        return NULL;
+    for (const Signature *m = selfclass->data.classdata.methods.ptr; m < End(selfclass->data.classdata.methods); m++)
+        if (!strcmp(m->name, name))
+            return m;
+    return NULL;
+}
+
+static const Signature *find_function_or_method(const TypeContext *ctx, const Type *selfclass, const char *name)
+{
+    if (selfclass)
+        return find_method(selfclass, name);
+    else
+        return find_function(ctx, name);
 }
 
 static const LocalVariable *find_local_var(const TypeContext *ctx, const char *name)
@@ -165,16 +183,13 @@ static ExportSymbol handle_global_var(TypeContext *ctx, const AstNameTypeValue *
     return es;
 }
 
-static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsig, const Type *self_type)
+static Signature handle_signature(TypeContext *ctx, const AstSignature *astsig, const Type *self_type)
 {
-    if (find_function(ctx, astsig->funcname))
-        fail_with_error(astsig->funcname_location, "a function named '%s' already exists", astsig->funcname);
+    if (find_function_or_method(ctx, self_type, astsig->name))
+        fail_with_error(astsig->name_location, "a %s named '%s' already exists", self_type ? "method" : "function", astsig->name);
 
     Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
-    if (self_type)
-        snprintf(sig.funcname, sizeof sig.funcname, "%s.%s", self_type->name, astsig->funcname);
-    else
-        safe_strcpy(sig.funcname, astsig->funcname);
+    safe_strcpy(sig.name, astsig->name);
 
     size_t size = sizeof(sig.argnames[0]) * sig.nargs;
     sig.argnames = malloc(size);
@@ -192,42 +207,46 @@ static ExportSymbol handle_signature(TypeContext *ctx, const AstSignature *astsi
     sig.returntype = type_or_void_from_ast(ctx, &astsig->returntype);
     // TODO: validate main() parameters
     // TODO: test main() taking parameters
-    if (!self_type && !strcmp(sig.funcname, "main") && sig.returntype != intType) {
+    if (!self_type && !strcmp(sig.name, "main") && sig.returntype != intType) {
         fail_with_error(astsig->returntype.location, "the main() function must return int");
     }
 
     sig.returntype_location = astsig->returntype.location;
 
-    Append(&ctx->functions, (struct TypeContextFunction){ .signature = copy_signature(&sig) });
+    if (!self_type)
+        Append(&ctx->functions, (struct TypeContextFunction){ .signature = copy_signature(&sig) });
 
-    ExportSymbol es = { .kind = EXPSYM_FUNCTION, .data.funcsignature = sig };
-    safe_strcpy(es.name, sig.funcname);
-    return es;
+    return sig;
 }
 
-static const Type *handle_class_fields(TypeContext *ctx, const AstClassDef *classdef)
+static const Type *handle_class_members_stage2(TypeContext *ctx, const AstClassDef *classdef)
 {
-    // Previous type-checking pass created an opaque struct.
+    // Previous type-checking stage created an opaque struct.
     Type *type = NULL;
-    for (Type **s = ctx->owned_types.ptr; s < End(ctx->owned_types); s++)
+    for (Type **s = ctx->owned_types.ptr; s < End(ctx->owned_types); s++) {
         if (!strcmp((*s)->name, classdef->name)) {
             type = *s;
             break;
         }
+    }
     assert(type);
     assert(type->kind == TYPE_OPAQUE_CLASS);
+    type->kind = TYPE_CLASS;
 
-    int n = classdef->fields.len;
+    memset(&type->data.classdata, 0, sizeof type->data.classdata);
 
-    char (*fieldnames)[100] = malloc(n * sizeof(fieldnames[0]));
-    for (int i = 0; i<n; i++)
-        safe_strcpy(fieldnames[i], classdef->fields.ptr[i].name);
+    for (const AstNameTypeValue *classfield = classdef->fields.ptr; classfield < End(classdef->fields); classfield++) {
+        struct ClassField f = {.type = type_from_ast(ctx, &classfield->type)};
+        safe_strcpy(f.name, classfield->name);
+        Append(&type->data.classdata.fields, f);
+    }
 
-    const Type **fieldtypes = malloc(n * sizeof fieldtypes[0]);  // NOLINT
-    for (int i = 0; i < n; i++)
-        fieldtypes[i] = type_from_ast(ctx, &classdef->fields.ptr[i].type);
+    for (const AstFunctionDef *m = classdef->methods.ptr; m < End(classdef->methods); m++) {
+        // Don't handle the method body yet: that is a part of stage 3, not stage 2
+        Signature sig = handle_signature(ctx, &m->signature, type);
+        Append(&type->data.classdata.methods, sig);
+    }
 
-    set_class_fields(type, n, fieldnames, fieldtypes);
     return type;
 }
 
@@ -245,16 +264,15 @@ ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, 
             break;
         case AST_TOPLEVEL_DECLARE_FUNCTION:
         case AST_TOPLEVEL_DEFINE_FUNCTION:
-            Append(&exports, handle_signature(ctx, &ast->data.funcdef.signature, NULL));
+            {
+                Signature sig = handle_signature(ctx, &ast->data.funcdef.signature, NULL);
+                ExportSymbol es = { .kind = EXPSYM_FUNCTION, .data.funcsignature = sig };
+                safe_strcpy(es.name, sig.name);
+                Append(&exports, es);
+            }
             break;
         case AST_TOPLEVEL_DEFINE_CLASS:
-            // No new export symbols, because the previous type-checking step already
-            // took care of that.
-            {
-                const Type *t = handle_class_fields(ctx, &ast->data.classdef);
-                for (const AstFunctionDef *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++)
-                    Append(&exports, handle_signature(ctx, &m->signature, t));
-            }
+            handle_class_members_stage2(ctx, &ast->data.classdef);
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
         case AST_TOPLEVEL_IMPORT:
@@ -360,6 +378,7 @@ static void check_explicit_cast(const Type *from, const Type *to, Location locat
         && !(is_number_type(from) && is_number_type(to))
         && !(is_integer_type(from) && to->kind == TYPE_ENUM)
         && !(from->kind == TYPE_ENUM && is_integer_type(to))
+        && !(from->kind == TYPE_BOOL && is_integer_type(to))
         // TODO: pointer-to-int, int-to-pointer
     )
     {
@@ -654,40 +673,25 @@ static const char *nth(int n)
 // returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
 static const Type *typecheck_function_or_method_call(TypeContext *ctx, const AstCall *call, const Type *self_type, Location location)
 {
-    const Signature *sig;
-    char function_or_method[20];
-
-    if (self_type) {
-        strcpy(function_or_method, "method");
-
-        char name_to_search[200];
-        snprintf(name_to_search, sizeof name_to_search, "%s.%s", self_type->name, call->calledname);
-
-        sig = find_function(ctx, name_to_search);
-        if (!sig) {
-            // If self type is a pointer to a struct that has the method, mention it in the error message
-            if (self_type->kind == TYPE_POINTER && self_type->data.valuetype->kind == TYPE_CLASS) {
-                snprintf(name_to_search, sizeof name_to_search, "%s.%s", self_type->data.valuetype->name, call->calledname);
-                if (find_function(ctx, name_to_search)) {
-                    fail_with_error(
-                        location,
-                        "the method '%s' is defined on class %s, not on the pointer type %s,"
-                        " so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
-                        call->calledname, self_type->data.valuetype->name, self_type->name);
-                }
-            }
-            // If it is not a class, explain to the user that there are no methods
-            if (self_type->kind != TYPE_CLASS) {
-                fail_with_error(location, "type %s does not have any methods because it is not a class", self_type->name);
-            }
-            fail_with_error(location, "class %s does not have a method named '%s'",
-                self_type->name, call->calledname);
-        }
-    } else {
-        strcpy(function_or_method, "function");
-        sig = find_function(ctx, call->calledname);
-        if (!sig)
+    const Signature *sig = find_function_or_method(ctx, self_type, call->calledname);
+    if (!sig) {
+        if (!self_type)
             fail_with_error(location, "function '%s' not found", call->calledname);
+
+        // If self type is a pointer to a struct that has the method, mention it in the error message
+        if (self_type->kind == TYPE_POINTER && find_method(self_type->data.valuetype, call->calledname)) {
+            fail_with_error(
+                location,
+                "the method '%s' is defined on class %s, not on the pointer type %s,"
+                " so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
+                call->calledname, self_type->data.valuetype->name, self_type->name);
+        }
+        // If it is not a class, explain to the user that there are no methods
+        if (self_type->kind != TYPE_CLASS) {
+            fail_with_error(location, "type %s does not have any methods because it is not a class", self_type->name);
+        }
+        fail_with_error(location, "class %s does not have a method named '%s'",
+            self_type->name, call->calledname);
     }
 
     char *sigstr = signature_to_string(sig, false);
@@ -697,7 +701,7 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
         fail_with_error(
             location,
             "%s %s takes %d argument%s, but it was called with %d argument%s",
-            function_or_method,
+            self_type ? "method" : "function",
             sigstr,
             sig->nargs,
             sig->nargs==1?"":"s",
@@ -710,7 +714,7 @@ static const Type *typecheck_function_or_method_call(TypeContext *ctx, const Ast
     for (int i = 0; i < sig->nargs; i++) {
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
-        snprintf(msg, sizeof msg, "%s argument of %s %s should have type TO, not FROM", nth(i+1), function_or_method, sigstr);
+        snprintf(msg, sizeof msg, "%s argument of %s %s should have type TO, not FROM", nth(i+1), self_type ? "method" : "function", sigstr);
         if (strcmp(sig->argnames[i], "self"))
             typecheck_expression_with_implicit_cast(ctx, &call->args[k++], sig->argtypes[i], msg);
     }
@@ -745,9 +749,9 @@ static const Type *typecheck_class_field(
 {
     assert(classtype->kind == TYPE_CLASS);
 
-    for (int i = 0; i < classtype->data.classfields.count; i++)
-        if (!strcmp(classtype->data.classfields.names[i], fieldname))
-            return classtype->data.classfields.types[i];
+    for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++)
+        if (!strcmp(f->name, fieldname))
+            return f->type;
 
     fail_with_error(location, "class %s has no field named '%s'", classtype->name, fieldname);
 }
@@ -1132,13 +1136,13 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
             fail_with_error(
                 stmt->location,
                 "function '%s' cannot return a value because it was defined with '-> void'",
-                ctx->current_function_signature->funcname);
+                ctx->current_function_signature->name);
         }
 
         char msg[200];
         snprintf(msg, sizeof msg,
             "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
-            ctx->current_function_signature->funcname);
+            ctx->current_function_signature->name);
         typecheck_expression_with_implicit_cast(
             ctx, &stmt->data.expression, find_local_var(ctx, "return")->type, msg);
         break;
@@ -1149,7 +1153,7 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
             fail_with_error(
                 stmt->location,
                 "a return value is needed, because the return type of function '%s' is %s",
-                ctx->current_function_signature->funcname,
+                ctx->current_function_signature->name,
                 ctx->current_function_signature->returntype->name);
         }
         break;
@@ -1159,12 +1163,12 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
             fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
 
         const Type *type = type_from_ast(ctx, &stmt->data.vardecl.type);
+        add_variable(ctx, type, stmt->data.vardecl.name);
         if (stmt->data.vardecl.value) {
             typecheck_expression_with_implicit_cast(
                 ctx, stmt->data.vardecl.value, type,
                 "initial value for variable of type TO cannot be of type FROM");
         }
-        add_variable(ctx, type, stmt->data.vardecl.name);
         break;
 
     case AST_STMT_EXPRESSION_STATEMENT:
@@ -1173,9 +1177,9 @@ static void typecheck_statement(TypeContext *ctx, const AstStatement *stmt)
     }
 }
 
-const Signature *typecheck_function_body(TypeContext *ctx, const char *name, const AstBody *body)
+const Signature *typecheck_function_or_method_body(TypeContext *ctx, const Type *selfclass, const AstFunctionDef *ast)
 {
-    const Signature *sig = find_function(ctx, name);
+    const Signature *sig = find_function_or_method(ctx, selfclass, ast->signature.name);
     assert(sig);
 
     assert(ctx->current_function_signature == NULL);
@@ -1190,7 +1194,7 @@ const Signature *typecheck_function_body(TypeContext *ctx, const char *name, con
         add_variable(ctx, sig->returntype, "return");
 
     ctx->current_function_signature = sig;
-    typecheck_body(ctx, body);
+    typecheck_body(ctx, &ast->body);
     ctx->current_function_signature = NULL;
 
     return sig;

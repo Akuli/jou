@@ -100,7 +100,7 @@ real    0m1,056s
 user    0m1,036s
 sys     0m0,000s
 
-$ time ./jou fib40.jou
+$ time ./jou -O0 fib40.jou
 fib(40) = 102334155
 
 real    0m2,715s
@@ -134,7 +134,10 @@ sys     0m0,004s
 
 Here the `-O3` flag tells Jou to optimize the code as much as possible.
 The number after `-O` must be between 0 and 3, and it tells how much to optimize.
-The default is `-O0`, which means that Jou doesn't optimize the code at all.
+
+**Note:** We previously passed the `-O0` flag to Jou,
+which meant that it didn't optimize the code at all.
+In a future version of Jou, `-O0` will probably become the default.
 
 To be fair, C compilers also accept
 `-O0`, `-O1`, `-O2` and `-O3` options that work in the same way.
@@ -153,12 +156,12 @@ $ clang fib40.c -O3 && time ./a.out
 
 After running each command a few times the result averaged the following:
 
-| Optimization flag | C (with the clang compiler)   | Jou           |
-|-------------------|-------------------------------|---------------|
-| `-O0` (default)   | 1.05 seconds                  | 2.71 seconds  |
-| `-O1`             | 0.67 seconds                  | 0.67 seconds  |
-| `-O2`             | 0.48 seconds                  | 0.48 seconds  |
-| `-O3`             | 0.48 seconds                  | 0.48 seconds  |
+| Optimization flag     | C (with the clang compiler)   | Jou           |
+|-----------------------|-------------------------------|---------------|
+| `-O0`                 | 1.05 seconds                  | 2.71 seconds  |
+| `-O1` (Jou default)   | 0.67 seconds                  | 0.67 seconds  |
+| `-O2`                 | 0.48 seconds                  | 0.48 seconds  |
+| `-O3`                 | 0.48 seconds                  | 0.48 seconds  |
 
 These experiments have shown that:
 - While enabling optimizations can make your code run a lot faster,
@@ -178,7 +181,8 @@ if I used a different C compiler, such as `gcc`.
 ## Why is `-O3` not the default?
 
 Given that optimizations make the code run faster,
-you are probably wondering why they aren't enabled by default in Jou.
+you are probably wondering why not all optimizations are enabled by default in Jou,
+and why making `-O0` the default is planned.
 It is often easier to work with optimizations disabled (or with `-O1`),
 for two reasons:
 1. Optimizing a large program is slow. The optimized program will run faster,
@@ -219,9 +223,9 @@ makes the program exit without crashing.
 Typing `y` makes it crash with a segmentation fault.
 
 ```
-$ ./jou asd.jou
+$ ./jou -O0 asd.jou
 Crash this program? (y/n) n
-$ ./jou asd.jou
+$ ./jou -O0 asd.jou
 Crash this program? (y/n) y
 Segmentation fault
 $
