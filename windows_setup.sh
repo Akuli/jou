@@ -5,7 +5,7 @@
 
 set -e
 
-# Make this script kinda work on operating systems other than Windows.
+# Make this script work on linux, so that I can develop it without windows
 if [[ "$OS" =~ Windows ]]; then
     run=
 else
