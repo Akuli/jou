@@ -52,7 +52,7 @@ jobs:
             ready=no
             while [ $ready == no ]; do
               ready=yes
-              for file in $(objdump -p $bindir/*.exe $bindir/*.dll | grep 'DLL Name:' | cut -d: -f2 | sort -u); do
+              for file in $(mingw64/bin/objdump -p $bindir/*.exe $bindir/*.dll | grep 'DLL Name:' | cut -d: -f2 | sort -u); do
                 if [ -f mingw64/bin/$file ] && ! [ -f $bindir/$file ]; then
                   cp -v mingw64/bin/$file $bindir/
                   ready=no
