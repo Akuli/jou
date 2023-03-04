@@ -6,7 +6,9 @@
 set -e
 
 # Make this script kinda work on operating systems other than Windows.
-if ! [[ "$OS" =~ Windows ]]; then
+if [[ "$OS" =~ Windows ]]; then
+    run=
+else
     run=wine
 fi
 
@@ -75,10 +77,17 @@ echo ""
 echo ""
 echo ""
 echo ""
-echo "Your Jou development environment has been set up."
-echo "To compile Jou, run:"
+echo "Your Jou development environment is now ready."
+echo "Next you can compile the Jou compiler and run hello world:"
 echo ""
-echo "   $run mingw64/bin/mingw32-make.exe"
+echo "    source activate"
+if [ "$run" = "" ]; then
+    echo "    mingw32-make"
+    echo "    ./jou.exe examples/hello.jou"
+else
+    echo "    $run mingw32-make"
+    echo "    $run ./jou.exe examples/hello.jou"
+fi
 echo ""
 
 
