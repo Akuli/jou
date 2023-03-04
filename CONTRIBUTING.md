@@ -17,7 +17,7 @@ to help `clangd` find the LLVM header files.
 
 1. Download and install Git from [Git's website](https://git-scm.com/download/win) if you don't have it already.
 2. Open Git Bash from the start menu.
-    **You must use Git Bash** for running bash scripts such as `windows-setup.sh` and `runtests.sh`.
+    **You must use Git Bash** for running bash scripts such as `windows_setup.sh` and `runtests.sh`.
 3. Clone the project with the command prompt:
     ```
     cd Desktop
@@ -27,7 +27,7 @@ to help `clangd` find the LLVM header files.
 4. Run a script that does the rest of the setup for you:
     ```
     cd jou
-    ./windows-setup.sh
+    ./windows_setup.sh
     ```
 5. Compile Jou:
     ```

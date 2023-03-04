@@ -22,8 +22,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: libs/*.a
-          key: ${{ runner.os }}-${{ hashFiles('windows-setup.sh') }}
-      - run: source activate && ./windows-setup.sh
+          key: ${{ runner.os }}-${{ hashFiles('windows_setup.sh') }}
+      - run: source activate && ./windows_setup.sh
         shell: bash
       - run: source activate && mingw32-make
         shell: bash
@@ -61,13 +61,12 @@ jobs:
         with:
           # Add a space in the folder name to trigger bugs like #165
           path: "test dir"
-      - uses: actions/checkout@v3
       - name: "Cache generated .a files"
         uses: actions/cache@v3
         with:
           path: "test dir/libs/*.a"
-          key: ${{ runner.os }}-${{ hashFiles('windows-setup.sh') }}
-      - run: cd "test dir" && ./windows-setup.sh
+          key: ${{ runner.os }}-${{ hashFiles('windows_setup.sh') }}
+      - run: cd "test dir" && ./windows_setup.sh
         shell: bash
       - run: cd "test dir" && source activate && ./runtests.sh --verbose
         shell: bash
@@ -80,6 +79,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: libs/*.a
-          key: ${{ runner.os }}-${{ hashFiles('windows-setup.sh') }}
+          key: ${{ runner.os }}-${{ hashFiles('windows_setup.sh') }}
+      - run: source activate && ./windows_setup.sh
       - run: source activate && ./compare_compilers.sh
         shell: bash
