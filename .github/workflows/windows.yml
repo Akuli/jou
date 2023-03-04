@@ -24,13 +24,12 @@ jobs:
         shell: bash
       # We don't need to copy all of mingw64. We only need the linker.
       # The less we copy, the smaller the resulting zip becomes.
-      # What is needed was figured out with a script that deletes files one by one.
       - name: Copy some parts of mingw64 to jou/mingw64
         shell: bash
         run: |
           # .a files compress well, so copy them all.
           # CRT (C RunTime) files are needed because the linker implicitly adds them to every executable.
-          for file in $(find mingw64 -name '*.a') $(find mingw64 -name 'crt*.o'); do
+          for file in $(find mingw64 -name '*.a') $(find mingw64 -name 'crt*.o') mingw64/version_info.txt; do
             mkdir -vp jou/$(dirname $file)
             cp -v $file jou/$file
           done
