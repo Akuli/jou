@@ -48,8 +48,7 @@ jobs:
       - name: Convert text files to Windows-style CRLF line endings
         run: mingw64/bin/unix2dos $(find jou -name '*.jou') $(find jou -name '*.md') jou/LICENSE
         shell: bash
-      - run: zip -r jou.zip jou
-        shell: bash
+      - run: Compress-Archive -Path jou -DestinationPath jou.zip
       - uses: actions/upload-artifact@v3
         with:
           name: windows-zip
