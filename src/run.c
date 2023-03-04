@@ -62,9 +62,10 @@ static void run_linker(const char *objpath, const char *exepath, const CommandLi
 
     char *command;
 #ifdef _WIN32
-    // Assume mingw with clang has been downloaded with windows_setup.sh
+    // Assume mingw with clang has been downloaded with windows_setup.sh.
+    // Could also use clang, but but gcc has less dependencies so we can make the Windows zips smaller.
     // Windows quoting is weird. The outermost quotes get stripped here.
-    command = malloc_sprintf("\"\"%s\\mingw64\\bin\\clang.exe\" \"%s\" -o \"%s\" %s\"", instdir, objpath, exepath, linker_flags);
+    command = malloc_sprintf("\"\"%s\\mingw64\\bin\\gcc.exe\" \"%s\" -o \"%s\" %s\"", instdir, objpath, exepath, linker_flags);
 #else
     // Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
     (void)instdir;
