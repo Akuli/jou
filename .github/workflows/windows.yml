@@ -22,7 +22,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: libs/*.a
-          key: ${{ runner.os }}-${{ hashFiles('windows_setup.sh') }}
+          key: ${{ runner.os }}-${{ hashFiles('./windows_setup.sh') }}
       - run: source activate && ./windows_setup.sh
         shell: bash
       - run: source activate && mingw32-make
@@ -31,6 +31,7 @@ jobs:
       - name: Copy files
         # Please keep this list of files in sync with update.ps1
         run: cp -rv stdlib doc examples mingw64 LICENSE jou.exe update.ps1 jou
+        shell: bash
       - name: Copy DLL files
         shell: bash
         run: |
@@ -65,7 +66,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: "test dir/libs/*.a"
-          key: ${{ runner.os }}-${{ hashFiles('windows_setup.sh') }}
+          key: ${{ runner.os }}-${{ hashFiles('./windows_setup.sh') }}
       - run: cd "test dir" && ./windows_setup.sh
         shell: bash
       - run: cd "test dir" && source activate && ./runtests.sh --verbose
@@ -79,7 +80,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: libs/*.a
-          key: ${{ runner.os }}-${{ hashFiles('windows_setup.sh') }}
+          key: ${{ runner.os }}-${{ hashFiles('./windows_setup.sh') }}
       - run: source activate && ./windows_setup.sh
         shell: bash
       - run: source activate && ./compare_compilers.sh
