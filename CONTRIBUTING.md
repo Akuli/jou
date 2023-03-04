@@ -43,7 +43,7 @@ to help `clangd` find the LLVM header files.
     ./jou.exe examples/hello.jou
     ```
     You should see `Hello World` printed.
-    If you instead get errors about missing DLL files, run `jou activate` first.
+    If you instead get errors about missing DLL files, run `source activate` first.
     The Jou compiler depends on DLLs in `mingw64\bin`,
     so `mingw64\bin` must be in PATH when running it.
 7. Run tests:
