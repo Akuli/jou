@@ -62,16 +62,9 @@ static void run_linker(const char *objpath, const char *exepath, const CommandLi
 
     char *command;
 #ifdef _WIN32
-    char *gcc = malloc_sprintf("%s\\mingw64\\bin\\gcc.exe", instdir);
-    if (stat(gcc, &(struct stat){0}) != -1) {
-        // The Windows builds come with the GNU linker.
-        // Windows quoting is weird, in this command it strips the outermost quotes.
-        command = malloc_sprintf("\"\"%s\" \"%s\" -o \"%s\" %s\"", gcc, objpath, exepath, linker_flags);
-    } else {
-        // Use clang from PATH. Convenient when developing Jou locally.
-        command = malloc_sprintf("clang \"%s\" -o \"%s\" %s", objpath, exepath, linker_flags);
-    }
-    free(gcc);
+    // Assume mingw with clang has been downloaded with windows_setup.sh
+    // Windows quoting is weird. The outermost quotes get stripped here.
+    command = malloc_sprintf("\"\"%s\\mingw64\\bin\\clang.exe\" \"%s\" -o \"%s\" %s\"", instdir, objpath, exepath, linker_flags);
 #else
     // Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
     (void)instdir;
