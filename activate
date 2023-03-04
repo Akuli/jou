@@ -1,4 +1,4 @@
-if echo "$PATH" | tr : '\n' | grep -qFx "$PWD/mingw64/bin" || [ "$WINEPATH" = "$PWD/mingw64/bin" ]; then
+if (echo "$PATH" | tr : '\n' | grep -qFx "$PWD/mingw64/bin") || [ "$WINEPATH" = "$PWD/mingw64/bin" ]; then
     echo "Already activated."
 else
     PS1="(jou dev) $PS1"
