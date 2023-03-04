@@ -50,13 +50,14 @@ jobs:
         shell: bash
         run: |
           for bindir in jou jou/mingw64/bin; do
-            ready=no
-            while [ $ready == no ]; do
-              ready=yes
-              for file in $(mingw64/bin/objdump -p $bindir/*.exe $bindir/*.dll | grep 'DLL Name:' | cut -d: -f2 | sort -u); do
-                if [ -f mingw64/bin/$file ] && ! [ -f $bindir/$file ]; then
-                  cp -v mingw64/bin/$file $bindir/
-                  ready=no
+            queue=($bindir/*.exe)
+            while [ ${#queue[@]} != 0 ]; do
+              args=(${queue[@]})
+              queue=()
+              for dll in $(mingw64/bin/objdump -p ${args[@]} | grep 'DLL Name:' | cut -d: -f2 | sort -u); do
+                if [ -f mingw64/bin/$dll ] && ! [ -f $bindir/$dll ]; then
+                  cp -v mingw64/bin/$dll $bindir/
+                  queue+=($bindir/$dll)
                 fi
               done
             done
