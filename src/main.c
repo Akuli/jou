@@ -50,6 +50,9 @@ static const char help_fmt[] =
 static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char **filename)
 {
     *flags = (CommandLineFlags){0};
+    flags->optlevel = 1; /* Set default optimize to O1
+                            User sets optimize will overwrite the default flag
+                         */
 
     if (argc == 2 && !strcmp(argv[1], "--help")) {
         // Print help.
