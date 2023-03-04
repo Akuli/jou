@@ -61,6 +61,24 @@ jobs:
       - run: cd "test dir" && source activate && ./runtests.sh --verbose
         shell: bash
 
+  test-zip:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: repo
+      - uses: actions/download-artifact@v3
+        with:
+          name: windows-zip
+      - run: unzip jou.zip
+      - run: cp -r repo/tests repo/runtests.sh jou
+        shell: bash
+      - run: cd jou && ./jou.exe --verbose examples/hello.jou
+        shell: bash
+      - run: cd jou && ./runtests.sh --verbose
+        shell: bash
+
   compare-compilers:
     runs-on: windows-latest
     steps:
