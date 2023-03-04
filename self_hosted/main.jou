@@ -102,9 +102,7 @@ def parse_args(argc: int, argv: byte**) -> CommandLineArgs:
 # C:\Users\myname\.foo-bar.jou --> "_foo_bar"
 # Result never contains "-", so you can add "-" separated suffixes without conflicts.
 def get_sane_filename(path: byte*) -> byte[50]:
-    printf("Loop Start %s\n", path)
     while True:
-        printf("Loop Body %s\n", path)
         if strstr(path, "/") != NULL:
             path = strstr(path, "/")
         elif strstr(path, "\\") != NULL:
@@ -112,7 +110,6 @@ def get_sane_filename(path: byte*) -> byte[50]:
         else:
             break
         path++  # skip slash
-    printf("Loop Done %s\n", path)
 
     name: byte[50]
     snprintf(&name[0], sizeof name, "%s", path)
@@ -225,7 +222,6 @@ class Compiler:
             )
 
     def get_object_file_paths(self) -> byte**:
-        printf("Aaaaa\n")
         sane_names: byte[50]* = calloc(sizeof sane_names[0], self->nfiles)
         result: byte** = calloc(sizeof result[0], self->nfiles + 1)  # NULL terminated
 
@@ -234,7 +230,6 @@ class Compiler:
         for i = 0; i < self->nfiles; i++:
             sane_names[i] = get_sane_filename(self->files[i].ast.path)
 
-        printf("Bbbbb\n")
         for i = 0; i < self->nfiles; i++:
             # If there are 3 files named foo.jou in different directories, their object files will be foo.o, foo-1.o, foo-2.o
             counter = 0
@@ -249,7 +244,6 @@ class Compiler:
                 sprintf(&name[0], "%s-%d.o", &sane_names[i][0], counter)
             result[i] = get_path_to_file_in_jou_compiled(&name[0])
 
-        printf("ccccc\n")
         free(sane_names)
         return result
 
