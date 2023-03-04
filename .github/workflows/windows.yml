@@ -29,6 +29,7 @@ jobs:
         run: |
           # .a files compress well, so copy them all.
           # CRT (C RunTime) files are needed because the linker implicitly adds them to every executable.
+          # version_info.txt is only for curious humans.
           for file in $(find mingw64 -name '*.a') $(find mingw64 -name 'crt*.o') mingw64/version_info.txt; do
             mkdir -vp jou/$(dirname $file)
             cp -v $file jou/$file
