@@ -223,9 +223,9 @@ makes the program exit without crashing.
 Typing `y` makes it crash with a segmentation fault.
 
 ```
-$ ./jou asd.jou
+$ ./jou -O0 asd.jou
 Crash this program? (y/n) n
-$ ./jou asd.jou
+$ ./jou -O0 asd.jou
 Crash this program? (y/n) y
 Segmentation fault
 $
