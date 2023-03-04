@@ -20,7 +20,7 @@ compile_flags.txt:
 	echo -I$(CURDIR) > compile_flags.txt
 
 obj/%.o: src/%.c $(wildcard src/*.h)
-	mkdir obj 2>NUL && $(CC) -c $(CFLAGS) $< -o $@
+	(mkdir obj 2>NUL || cd .) && $(CC) -c $(CFLAGS) $< -o $@
 
 jou.exe: $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) -o $@ $(LDFLAGS)
