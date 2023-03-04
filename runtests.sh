@@ -12,18 +12,20 @@ export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
 function usage() {
-    echo "Usage: $0 [--valgrind] [--verbose] [TEMPLATE]" >&2
+    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [TEMPLATE]" >&2
     echo "TEMPLATE can be e.g. './jou %s', where %s will be replaced by a jou file." >&2
     exit 2
 }
 
 valgrind=no
 verbose=no
+run_make=yes
 
 while [[ "$1" =~ ^- ]]; do
     case "$1" in
         --valgrind) valgrind=yes; shift ;;
         --verbose) verbose=yes; shift ;;
+        --dont-run-make) run_make=no; shift ;;
         *) usage ;;
     esac
 done
@@ -45,11 +47,13 @@ if [ $valgrind = yes ]; then
     command_template="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup $command_template"
 fi
 
-if [[ "$OS" =~ Windows ]]; then
-    source activate
-    mingw32-make
-else
-    make
+if [ $run_make = yes ]; then
+    if [[ "$OS" =~ Windows ]]; then
+        source activate
+        mingw32-make
+    else
+        make
+    fi
 fi
 
 rm -rf tmp/tests
