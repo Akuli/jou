@@ -5,6 +5,11 @@ else
     if [[ "$OS" =~ Windows ]]; then
         export PATH="$PWD/mingw64/bin:$PATH"
     else
+        echo "The activate script is useful in two scenarios:"
+        echo " 1) You use Windows"
+        echo " 2) You don't use Windows, but you want to work on Windows support with wine"
+        echo ""
+        echo "Assuming scenario 2."
         export WINEPATH="$PWD/mingw64/bin"
     fi
 fi
