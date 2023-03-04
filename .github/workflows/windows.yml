@@ -34,7 +34,10 @@ jobs:
         run: |
           # Executables are copied without their DLLs (added later)
           # Names of .a files figured out by deleting them all and looking at error message.
+          # CRT (C RunTime) files are needed because the linker implicitly adds them to every executable.
           for file in \
+              mingw64/version_info.txt \
+              $(find mingw64 -name 'crt*.o') \
               mingw64/bin/gcc.exe \
               mingw64/lib/gcc/x86_64-w64-mingw32/12.1.0/libgcc.a \
               mingw64/lib/gcc/x86_64-w64-mingw32/12.1.0/libgcc_eh.a \
