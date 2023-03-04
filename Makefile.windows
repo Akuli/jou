@@ -35,7 +35,7 @@ self_hosted_compiler.exe: jou.exe config.jou $(wildcard self_hosted/*.jou)
 
 .PHONY: clean
 clean:
-	rmdir /s /q obj tmp 2>NUL
-	del /q jou.exe self_hosted_compiler.exe compile_flags.txt 2>NUL
+	rmdir /s /q obj tmp 2>NUL || cd .
+	del /q jou.exe self_hosted_compiler.exe compile_flags.txt config.jou 2>NUL || cd .
 # TODO: ideally we would also delete jou_compiled directories, but not sure how:
 #	find -name jou_compiled -print -exec rm -rf '{}' +
