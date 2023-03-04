@@ -1,5 +1,3 @@
-SRC := $(wildcard src/*.c)
-
 LLVM_CONFIG ?= $(shell which llvm-config-13 || which llvm-config-11)
 CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
 LDFLAGS ?= $(shell $(LLVM_CONFIG) --ldflags --libs)
