@@ -81,5 +81,6 @@ jobs:
           path: libs/*.a
           key: ${{ runner.os }}-${{ hashFiles('windows_setup.sh') }}
       - run: source activate && ./windows_setup.sh
+        shell: bash
       - run: source activate && ./compare_compilers.sh
         shell: bash
