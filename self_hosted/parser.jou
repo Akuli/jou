@@ -405,6 +405,13 @@ def parse_if_statement(tokens: Token**) -> AstIfStatement:
         else_body = else_body,
     }
 
+def parse_while_loop(tokens: Token**) -> AstConditionAndBody:
+    assert((*tokens)->is_keyword("while"))
+    ++*tokens
+    cond = parse_expression(tokens)
+    body = parse_body(tokens)
+    return AstConditionAndBody{condition = cond, body = body}
+
 def parse_for_loop(tokens: Token**) -> AstForLoop:
     assert((*tokens)->is_keyword("for"))
     ++*tokens
@@ -446,6 +453,12 @@ def parse_statement(tokens: Token**) -> AstStatement:
             location = (*tokens)->location,
             kind = AstStatementKind::ForLoop,
             for_loop = parse_for_loop(tokens),
+        }
+    if (*tokens)->is_keyword("while"):
+        return AstStatement{
+            location = (*tokens)->location,
+            kind = AstStatementKind::WhileLoop,
+            while_loop = parse_while_loop(tokens),
         }
     result = parse_oneline_statement(tokens)
     eat_newline(tokens)

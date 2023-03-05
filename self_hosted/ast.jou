@@ -239,6 +239,7 @@ enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
     ReturnWithValue
     If
+    WhileLoop
     ForLoop
     Assign          # x = y
     InPlaceAdd      # x += y
@@ -254,6 +255,7 @@ class AstStatement:
     # TODO: union
     expression: AstExpression       # AstStatementKind::ExpressionStatement
     if_statement: AstIfStatement
+    while_loop: AstConditionAndBody
     for_loop: AstForLoop
     return_value: AstExpression     # AstStatementKind::ReturnWithValue
     assignment: AstAssignment
@@ -272,6 +274,9 @@ class AstStatement:
         elif self->kind == AstStatementKind::ForLoop:
             printf("for loop\n")
             self->for_loop.print(tp)
+        elif self->kind == AstStatementKind::WhileLoop:
+            printf("while loop\n")
+            self->while_loop.print(tp, True)
         elif self->kind == AstStatementKind::Assign:
             printf("assign\n")
             self->assignment.print(tp)

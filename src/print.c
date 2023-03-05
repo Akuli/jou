@@ -328,8 +328,8 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             }
             break;
         case AST_STMT_WHILE:
-            printf("while\n");
-            sub = print_tree_prefix(tp, true);
+            printf("while loop\n");
+            sub = print_tree_prefix(tp, false);
             printf("condition: ");
             print_ast_expression(&stmt->data.whileloop.condition, sub);
             sub = print_tree_prefix(tp, true);
