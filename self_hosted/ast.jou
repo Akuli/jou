@@ -142,6 +142,8 @@ class AstExpression:
             printf("mul\n")
         elif self->kind == AstExpressionKind::Divide:
             printf("div\n")
+        elif self->kind == AstExpressionKind::Modulo:
+            printf("mod\n")
         elif self->kind == AstExpressionKind::Eq:
             printf("eq\n")
         elif self->kind == AstExpressionKind::Ne:
@@ -154,6 +156,14 @@ class AstExpression:
             printf("lt\n")
         elif self->kind == AstExpressionKind::Le:
             printf("le\n")
+        elif self->kind == AstExpressionKind::PreIncr:
+            printf("pre-increment\n")
+        elif self->kind == AstExpressionKind::PreDecr:
+            printf("pre-decrement\n")
+        elif self->kind == AstExpressionKind::PostIncr:
+            printf("post-increment\n")
+        elif self->kind == AstExpressionKind::PostDecr:
+            printf("post-decrement\n")
         else:
             printf("?????\n")
 
@@ -240,16 +250,13 @@ enum AstStatementKind:
 class AstStatement:
     location: Location
     kind: AstStatementKind
-    assignment: AstAssignment
 
     # TODO: union
     expression: AstExpression       # AstStatementKind::ExpressionStatement
     if_statement: AstIfStatement
     for_loop: AstForLoop
     return_value: AstExpression     # AstStatementKind::ReturnWithValue
-    # assignments
-    target: AstExpression
-    value: AstExpression
+    assignment: AstAssignment
 
     def print(self, tp: TreePrinter) -> void:
         printf("[line %d] ", self->location.lineno)
@@ -262,6 +269,12 @@ class AstStatement:
         elif self->kind == AstStatementKind::If:
             printf("if\n")
             self->if_statement.print(tp)
+        elif self->kind == AstStatementKind::ForLoop:
+            printf("for loop\n")
+            self->for_loop.print(tp)
+        elif self->kind == AstStatementKind::Assign:
+            printf("assign\n")
+            self->assignment.print(tp)
         else:
             printf("??????\n")
 
@@ -270,15 +283,36 @@ class AstStatement:
             self->expression.free()
         if self->kind == AstStatementKind::ReturnWithValue:
             self->return_value.free()
+        if self->kind == AstStatementKind::If:
+            self->if_statement.free()
+        if self->kind == AstStatementKind::ForLoop:
+            self->for_loop.free()
 
 # Useful for e.g. "while condition: body", "if condition: body"
 class AstConditionAndBody:
     condition: AstExpression
     body: AstBody
 
+    def print(self, tp: TreePrinter, body_is_last_sub_item: bool) -> void:
+        sub = tp.print_prefix(False)
+        printf("condition: ")
+        self->condition.print(sub)
+
+        sub = tp.print_prefix(body_is_last_sub_item)
+        printf("body:\n")
+        self->body.print(sub)
+
+    def free(self) -> void:
+        self->condition.free()
+        self->body.free()
+
 class AstAssignment:
     target: AstExpression
     value: AstExpression
+
+    def print(self, tp: TreePrinter) -> void:
+        self->target.print(tp.print_prefix(False))
+        self->value.print(tp.print_prefix(True))
 
 class AstIfStatement:
     if_and_elifs: AstConditionAndBody*
@@ -287,19 +321,18 @@ class AstIfStatement:
 
     def print(self, tp: TreePrinter) -> void:
         for i = 0; i < self->n_if_and_elifs; i++:
-            sub = tp.print_prefix(False)
-            printf("condition: ")
-            self->if_and_elifs[i].condition.print(sub)
-
-            is_last_row = i == self->n_if_and_elifs - 1 and self->else_body.nstatements == 0
-            sub = tp.print_prefix(is_last_row)
-            printf("body:\n")
-            self->if_and_elifs[i].body.print(sub)
+            self->if_and_elifs[i].print(tp, i == self->n_if_and_elifs - 1 and self->else_body.nstatements == 0)
 
         if self->else_body.nstatements > 0:
             sub = tp.print_prefix(True)
             printf("else body:\n")
             self->else_body.print(sub)
+
+    def free(self) -> void:
+        for i = 0; i < self->n_if_and_elifs; i++:
+            self->if_and_elifs[i].free()
+        free(self->if_and_elifs)
+        self->else_body.free()
 
 class AstForLoop:
     # for init; cond; incr:
@@ -310,6 +343,31 @@ class AstForLoop:
     cond: AstExpression
     incr: AstStatement*
     body: AstBody
+
+    def print(self, tp: TreePrinter) -> void:
+        sub = tp.print_prefix(False)
+        printf("init: ")
+        self->init->print(sub)
+
+        sub = tp.print_prefix(False)
+        printf("cond: ")
+        self->cond.print(sub)
+
+        sub = tp.print_prefix(False)
+        printf("incr: ")
+        self->incr->print(sub)
+
+        sub = tp.print_prefix(True)
+        printf("body:\n")
+        self->body.print(sub)
+
+    def free(self) -> void:
+        self->init->free()
+        free(self->init)
+        self->cond.free()
+        self->incr->free()
+        free(self->incr)
+        self->body.free()
 
 class AstBody:
     statements: AstStatement*

@@ -337,7 +337,7 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             print_ast_body(&stmt->data.whileloop.body, sub);
             break;
         case AST_STMT_FOR:
-            printf("For loop\n");
+            printf("for loop\n");
             sub = print_tree_prefix(tp, false);
             printf("init: ");
             print_ast_statement(stmt->data.forloop.init, sub);
