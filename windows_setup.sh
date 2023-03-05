@@ -5,12 +5,9 @@
 
 set -e
 
-if [[ "$OS" =~ Windows ]]; then
-    run=
-else
-    # Make this script work on linux, so that I can develop it without windows
-    echo "Wine will be used to run Windows commands."
-    run=wine
+if ! [[ "$OS" =~ Windows ]]; then
+    echo "This script must be ran on Windows." >&2
+    exit 1
 fi
 
 # Keep the size in the command below up to date if you update WinLibs:
@@ -53,8 +50,8 @@ do
     else
         echo "  Generating libs/$name.a..."
         cd libs
-        $run ../mingw64/bin/gendef.exe ../mingw64/bin/$name.dll
-        $run ../mingw64/bin/dlltool.exe -d $name.def -l $name.a
+        ../mingw64/bin/gendef.exe ../mingw64/bin/$name.dll
+        ../mingw64/bin/dlltool.exe -d $name.def -l $name.a
         rm $name.def
         cd ..
         echo "    done"
@@ -82,11 +79,6 @@ echo "Your Jou development environment is now ready."
 echo "Next you can compile the Jou compiler and run hello world:"
 echo ""
 echo "    source activate"
-if [ "$run" = "" ]; then
-    echo "    mingw32-make"
-    echo "    ./jou.exe examples/hello.jou"
-else
-    echo "    $run mingw32-make"
-    echo "    $run ./jou.exe examples/hello.jou"
-fi
+echo "    mingw32-make"
+echo "    ./jou.exe examples/hello.jou"
 echo ""
