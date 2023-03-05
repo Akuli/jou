@@ -476,41 +476,43 @@ int main(int argc, char **argv)
     if (compst.flags.verbose)
         printf("\n");
 
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
+    char **objpaths = calloc(sizeof objpaths[0], compst.files.len + 1);
+    LLVMModuleRef mainmodule = NULL;
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         compile_ast_to_llvm(&compst, fs);
+        objpaths[fs - compst.files.ptr] = compile_to_object_file(fs->module, &compst.flags);
+        if (!strcmp(fs->path, filename))
+            mainmodule = fs->module;
+    }
+
+    assert(mainmodule);
+    char *exepath;
+    if (compst.flags.outfile)
+        exepath = strdup(compst.flags.outfile);
+    else
+        exepath = get_default_exe_path(mainmodule);
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
+        LLVMDisposeModule(fs->module);
         free_ast(fs->ast);
         fs->ast = NULL;
-    }
-
-    LLVMModuleRef main_module = LLVMModuleCreateWithName(filename);
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        // This "linking" doesn't mean creating an executable. It only combines LLVM modules together.
-        if (compst.flags.verbose)
-            printf("LLVMLinkModules2 %s\n", fs->path);
-        if (LLVMLinkModules2(main_module, fs->module)) {
-            fprintf(stderr, "error: LLVMLinkModules2() failed\n");
-            return 1;
-        }
-        fs->module = NULL;  // consumed in linking
-    }
-
-    LLVMVerifyModule(main_module, LLVMAbortProcessAction, NULL);
-
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         free(fs->path);
         free_file_types(&fs->types);
     }
     free(compst.files.ptr);
     free(compst.stdlib_path);
 
-    int ret = 0;
-    if (compst.flags.outfile)
-        compile_to_exe(main_module, compst.flags.outfile, &compst.flags);
-    else
-        ret = run_program(main_module, &compst.flags);
+    run_linker((const char *const*)objpaths, exepath, &compst.flags);
+    for (int i = 0; objpaths[i]; i++)
+        free(objpaths[i]);
 
-    LLVMDisposeModule(main_module);
+    int ret = 0;
+    if (!compst.flags.outfile) {
+        if(compst.flags.verbose) printf("Run: %s\n", exepath);
+        ret = run_exe(exepath);
+    }
+
+    free(exepath);
+
     return ret;
 }
