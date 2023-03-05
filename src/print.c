@@ -71,7 +71,7 @@ void print_token(const Token *token)
         printf("double %s\n", token->data.name);
         break;
     case TOKEN_CHAR:
-        printf("character ");
+        printf("byte ");
         print_byte(token->data.char_value);
         printf("\n");
         break;

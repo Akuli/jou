@@ -69,6 +69,7 @@ class TreePrinter:
 enum AstExpressionKind:
     String
     Int
+    Byte
     Bool
     FunctionCall
     GetVariable
@@ -105,6 +106,7 @@ class AstExpression:
     # TODO: union
     string: byte*
     int_value: int
+    byte_value: byte
     bool_value: bool
     call: AstCall
     varname: byte[100]
@@ -124,6 +126,8 @@ class AstExpression:
             printf("\"\n")
         elif self->kind == AstExpressionKind::Int:
             printf("%d (32-bit signed)\n", self->int_value)
+        elif self->kind == AstExpressionKind::Byte:
+            printf("%d (8-bit unsigned)\n", self->byte_value)
         elif self->kind == AstExpressionKind::Bool:
             if self->bool_value:
                 printf("True\n")
@@ -238,6 +242,7 @@ class AstCall:
 enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
     ReturnWithValue
+    ReturnWithoutValue
     If
     WhileLoop
     ForLoop
@@ -268,6 +273,8 @@ class AstStatement:
         elif self->kind == AstStatementKind::ReturnWithValue:
             printf("return a value\n")
             self->return_value.print(tp.print_prefix(True))
+        elif self->kind == AstStatementKind::ReturnWithoutValue:
+            printf("return without a value\n")
         elif self->kind == AstStatementKind::If:
             printf("if\n")
             self->if_statement.print(tp)
