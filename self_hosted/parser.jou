@@ -5,7 +5,7 @@ from "./ast.jou" import (
     AstAssignment,
     AstType, AstTypeKind, AstNameTypeValue, AstSignature,
     AstCall,
-    AstExpression, AstExpressionKind,
+    AstExpression, AstExpressionKind, AstAsExpression,
     AstStatement, AstStatementKind, AstIfStatement, AstForLoop, AstConditionAndBody, AstBody,
     AstFunctionDef, AstClassDef,
     AstToplevelStatement, AstToplevelStatementKind,
@@ -329,18 +329,68 @@ def parse_expression_with_add(tokens: Token**) -> AstExpression:
 
     return result
 
-def parse_expression_with_comparisons(tokens: Token**) -> AstExpression:
+# "as" operator has somewhat low precedence, so that "1+2 as float" works as expected
+def parse_expression_with_as(tokens: Token**) -> AstExpression:
     result = parse_expression_with_add(tokens)
+    while (*tokens)->is_keyword("as"):
+        as_location = ((*tokens)++)->location  # TODO: shouldn't need so many parentheses
+        p: AstAsExpression* = malloc(sizeof(*p))
+        *p = AstAsExpression{type = parse_type(tokens), value = result}
+        result = AstExpression{
+            location = as_location,
+            kind = AstExpressionKind::As,
+            as_expression = p,
+        }
+    return result
+
+def parse_expression_with_comparisons(tokens: Token**) -> AstExpression:
+    result = parse_expression_with_as(tokens)
     if (*tokens)->is_comparison():
         t = (*tokens)++
-        lhs_rhs = [result, parse_expression_with_add(tokens)]
+        lhs_rhs = [result, parse_expression_with_as(tokens)]
         result = build_operator_expression(t, 2, &lhs_rhs[0])
     if (*tokens)->is_comparison():
         fail((*tokens)->location, "comparisons cannot be chained")
     return result
 
+def parse_expression_with_not(tokens: Token**) -> AstExpression:
+    if (*tokens)->is_keyword("not"):
+        not_token = *tokens
+        ++*tokens
+    else:
+        not_token = NULL
+
+    if (*tokens)->is_keyword("not"):
+        fail((*tokens)->location, "'not' cannot be repeated")
+
+    result = parse_expression_with_comparisons(tokens)
+    if not_token != NULL:
+        result = build_operator_expression(not_token, 1, &result)
+    return result
+
+def parse_expression_with_and_or(tokens: Token**) -> AstExpression:
+    result = parse_expression_with_not(tokens)
+    got_and = False
+    got_or = False
+
+    while True:
+        if (*tokens)->is_keyword("and"):
+            got_and = True
+        elif (*tokens)->is_keyword("or"):
+            got_or = True
+        else:
+            break
+        if got_and and got_or:
+            fail((*tokens)->location, "'and' cannot be chained with 'or', you need more parentheses")
+
+        t = (*tokens)++
+        lhs_rhs = [result, parse_expression_with_not(tokens)]
+        result = build_operator_expression(t, 2, &lhs_rhs[0])
+
+    return result
+
 def parse_expression(tokens: Token**) -> AstExpression:
-    return parse_expression_with_comparisons(tokens)
+    return parse_expression_with_and_or(tokens)
 
 # reverse code golfing: https://xkcd.com/1960/
 def determine_the_kind_of_a_statement_that_starts_with_an_expression(

@@ -73,6 +73,7 @@ enum AstExpressionKind:
     Bool
     FunctionCall
     GetVariable
+    As
     # unary operators
     SizeOf      # sizeof x
     AddressOf   # -x
@@ -109,6 +110,7 @@ class AstExpression:
     byte_value: byte
     bool_value: bool
     call: AstCall
+    as_expression: AstAsExpression*  # Must be pointer, because it contains an AstExpression
     varname: byte[100]
     operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
 
@@ -136,6 +138,11 @@ class AstExpression:
         elif self->kind == AstExpressionKind::FunctionCall:
             printf("call function \"%s\"\n", &self->call.called_name[0])
             self->call.print(tp)
+        elif self->kind == AstExpressionKind::As:
+            printf("as ")
+            self->as_expression->type.print(True)
+            printf("\n")
+            self->as_expression->value.print(tp.print_prefix(True))
         elif self->kind == AstExpressionKind::GetVariable:
             printf("get variable \"%s\"\n", &self->varname[0])
         elif self->kind == AstExpressionKind::Add:
@@ -160,6 +167,12 @@ class AstExpression:
             printf("lt\n")
         elif self->kind == AstExpressionKind::Le:
             printf("le\n")
+        elif self->kind == AstExpressionKind::And:
+            printf("and\n")
+        elif self->kind == AstExpressionKind::Or:
+            printf("or\n")
+        elif self->kind == AstExpressionKind::Not:
+            printf("not\n")
         elif self->kind == AstExpressionKind::PreIncr:
             printf("pre-increment\n")
         elif self->kind == AstExpressionKind::PreDecr:
@@ -177,8 +190,15 @@ class AstExpression:
     def free(self) -> void:
         if self->kind == AstExpressionKind::FunctionCall:
             self->call.free()
-        if self->kind == AstExpressionKind::String:
+        elif self->kind == AstExpressionKind::As:
+            self->as_expression->free()
+            free(self->as_expression)
+        elif self->kind == AstExpressionKind::String:
             free(self->string)
+
+        for i = 0; i < self->get_arity(); i++:
+            self->operands[i].free()
+        free(self->operands)
 
     # arity = number of operands, e.g. 2 for a binary operator such as "+"
     def get_arity(self) -> int:
@@ -221,6 +241,14 @@ class AstExpression:
             or self->kind == AstExpressionKind::PostIncr
             or self->kind == AstExpressionKind::PostDecr
         )
+
+class AstAsExpression:
+    value: AstExpression
+    type: AstType
+
+    def free(self) -> void:
+        self->value.free()
+        self->type.free()
 
 class AstCall:
     location: Location
