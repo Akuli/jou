@@ -174,6 +174,12 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
         expr.kind = AstExpressionKind::GetVariable
         expr.varname = (*tokens)->short_string
         ++*tokens
+    elif (*tokens)->is_operator("("):
+        ++*tokens
+        expr = parse_expression(tokens)
+        if not (*tokens)->is_operator(")"):
+            (*tokens)->fail_expected_got("a ')'")
+        ++*tokens
     else:
         (*tokens)->fail_expected_got("an expression")
 
