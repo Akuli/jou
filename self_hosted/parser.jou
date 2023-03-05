@@ -2,10 +2,11 @@ from "stdlib/str.jou" import strlen, sprintf, strdup, starts_with
 from "stdlib/mem.jou" import malloc, realloc, memcpy
 from "./token.jou" import Token, TokenKind
 from "./ast.jou" import (
+    AstAssignment,
     AstType, AstTypeKind, AstNameTypeValue, AstSignature,
     AstCall,
     AstExpression, AstExpressionKind,
-    AstStatement, AstStatementKind, AstIfStatement, AstConditionAndBody, AstBody,
+    AstStatement, AstStatementKind, AstIfStatement, AstForLoop, AstConditionAndBody, AstBody,
     AstFunctionDef, AstClassDef,
     AstToplevelStatement, AstToplevelStatementKind,
     AstFile,
@@ -175,6 +176,9 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
     return expr
 
 # arity = number of operands, e.g. 2 for a binary operator such as "+"
+#
+# This cannot be used for ++ and --, because with them we can't know the kind from
+# just the token (e.g. ++ could mean pre-increment or post-increment).
 def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -> AstExpression:
     assert(arity == 1 or arity == 2)
     nbytes = arity * sizeof operands[0]
@@ -241,19 +245,82 @@ def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -
     assert(result.get_arity() == arity)
     return result
 
+def parse_expression_with_unary_operators(tokens: Token**) -> AstExpression:
+    # prefix = sequneces of 0 or more unary operator tokens: start,start+1,...,end-1
+    prefix_start = *tokens
+    while (
+        (*tokens)->is_operator("++")
+        or (*tokens)->is_operator("--")
+        or (*tokens)->is_operator("&")
+        or (*tokens)->is_operator("*")
+        or (*tokens)->is_keyword("sizeof")
+    ):
+        ++*tokens
+    prefix_end = *tokens
+
+    result = parse_elementary_expression(tokens)
+
+    suffix_start = *tokens
+    while (*tokens)->is_operator("++") or (*tokens)->is_operator("--"):
+        ++*tokens
+    suffix_end = *tokens
+
+    while prefix_start != prefix_end or suffix_start != suffix_end:
+        # ++ and -- "bind tighter", so *foo++ is equivalent to *(foo++)
+        # It is implemented by always consuming ++/-- prefixes and suffixes when they exist.
+        if prefix_start != prefix_end and prefix_end[-1].is_operator("++"):
+            token = --prefix_end
+            kind = AstExpressionKind::PreIncr
+        elif prefix_start != prefix_end and prefix_end[-1].is_operator("--"):
+            token = --prefix_end
+            kind = AstExpressionKind::PreDecr
+        elif suffix_start != suffix_end and suffix_start[0].is_operator("++"):
+            token = suffix_start++
+            kind = AstExpressionKind::PostIncr
+        elif suffix_start != suffix_end and suffix_start[0].is_operator("--"):
+            token = suffix_start++
+            kind = AstExpressionKind::PostDecr
+        else:
+            # We don't have ++ or --, so it must be something in the prefix
+            assert(prefix_start != prefix_end and suffix_start == suffix_end)
+            token = --prefix_end
+            if token->is_operator("*"):
+                kind = AstExpressionKind::Dereference
+            elif token->is_operator("&"):
+                kind = AstExpressionKind::AddressOf
+            elif token->is_keyword("sizeof"):
+                kind = AstExpressionKind::SizeOf
+            else:
+                assert(False)
+                kind = AstExpressionKind::SizeOf  # dummy value to silence compiler warning
+
+        p: AstExpression* = malloc(sizeof(*p))
+        *p = result
+        result = AstExpression{location = token->location, kind = kind, operands = p}
+
+    return result
+
+def parse_expression_with_mul_and_div(tokens: Token**) -> AstExpression:
+    result = parse_expression_with_unary_operators(tokens)
+    while (*tokens)->is_operator("*") or (*tokens)->is_operator("/") or (*tokens)->is_operator("%"):
+        t = (*tokens)++
+        lhs_rhs = [result, parse_expression_with_unary_operators(tokens)]
+        result = build_operator_expression(t, 2, &lhs_rhs[0])
+    return result
+
 def parse_expression_with_add(tokens: Token**) -> AstExpression:
     if (*tokens)->is_operator("-"):
         minus = (*tokens)++
     else:
         minus = NULL
 
-    result = parse_elementary_expression(tokens)
+    result = parse_expression_with_mul_and_div(tokens)
     if minus != NULL:
         result = build_operator_expression(minus, 1, &result)
 
     while (*tokens)->is_operator("+") or (*tokens)->is_operator("-"):
         t = (*tokens)++
-        lhs_rhs = [result, parse_elementary_expression(tokens)]
+        lhs_rhs = [result, parse_expression_with_mul_and_div(tokens)]
         result = build_operator_expression(t, 2, &lhs_rhs[0])
 
     return result
@@ -271,6 +338,24 @@ def parse_expression_with_comparisons(tokens: Token**) -> AstExpression:
 def parse_expression(tokens: Token**) -> AstExpression:
     return parse_expression_with_comparisons(tokens)
 
+# reverse code golfing: https://xkcd.com/1960/
+def determine_the_kind_of_a_statement_that_starts_with_an_expression(
+    this_token_is_after_that_initial_expression: Token*
+) -> AstStatementKind:
+    if this_token_is_after_that_initial_expression->is_operator("="):
+        return AstStatementKind::Assign
+    if this_token_is_after_that_initial_expression->is_operator("+="):
+        return AstStatementKind::InPlaceAdd
+    if this_token_is_after_that_initial_expression->is_operator("-="):
+        return AstStatementKind::InPlaceSubtract
+    if this_token_is_after_that_initial_expression->is_operator("*="):
+        return AstStatementKind::InPlaceMultiply
+    if this_token_is_after_that_initial_expression->is_operator("/="):
+        return AstStatementKind::InPlaceDivide
+    if this_token_is_after_that_initial_expression->is_operator("%="):
+        return AstStatementKind::InPlaceModulo
+    return AstStatementKind::ExpressionStatement
+
 # does not eat a trailing newline
 def parse_oneline_statement(tokens: Token**) -> AstStatement:
     result = AstStatement{ location = (*tokens)->location }
@@ -280,10 +365,18 @@ def parse_oneline_statement(tokens: Token**) -> AstStatement:
         result.return_value = parse_expression(tokens)
     else:
         expr = parse_expression(tokens)
-        if expr.kind != AstExpressionKind::FunctionCall:
-            fail(expr.location, "not a valid statement")
-        result.kind = AstStatementKind::ExpressionStatement
-        result.expression = expr
+        result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(*tokens)
+        if result.kind == AstStatementKind::ExpressionStatement:
+            if not expr.can_have_side_effects():
+                fail(expr.location, "not a valid statement")
+            result.expression = expr
+        else:
+            ++*tokens
+            result.assignment = AstAssignment{target = expr, value = parse_expression(tokens)}
+            if (*tokens)->is_operator("="):
+                # Would fail elsewhere anyway, but let's make the error message clear
+                fail((*tokens)->location, "only one variable can be assigned at a time")
+
     return result
 
 def parse_if_statement(tokens: Token**) -> AstIfStatement:
@@ -312,6 +405,30 @@ def parse_if_statement(tokens: Token**) -> AstIfStatement:
         else_body = else_body,
     }
 
+def parse_for_loop(tokens: Token**) -> AstForLoop:
+    assert((*tokens)->is_keyword("for"))
+    ++*tokens
+
+    init: AstStatement* = malloc(sizeof *init)
+    incr: AstStatement* = malloc(sizeof *incr)
+
+    *init = parse_oneline_statement(tokens)
+    if not (*tokens)->is_operator(";"):
+        (*tokens)->fail_expected_got("a ';'")
+    ++*tokens
+    cond = parse_expression(tokens)
+    if not (*tokens)->is_operator(";"):
+        (*tokens)->fail_expected_got("a ';'")
+    ++*tokens
+    *incr = parse_oneline_statement(tokens)
+
+    return AstForLoop{
+        init = init,
+        cond = cond,
+        incr = incr,
+        body = parse_body(tokens),
+    }
+
 def eat_newline(tokens: Token**) -> void:
     if (*tokens)->kind != TokenKind::Newline:
         (*tokens)->fail_expected_got("end of line")
@@ -323,6 +440,12 @@ def parse_statement(tokens: Token**) -> AstStatement:
             location = (*tokens)->location,
             kind = AstStatementKind::If,
             if_statement = parse_if_statement(tokens),
+        }
+    if (*tokens)->is_keyword("for"):
+        return AstStatement{
+            location = (*tokens)->location,
+            kind = AstStatementKind::ForLoop,
+            for_loop = parse_for_loop(tokens),
         }
     result = parse_oneline_statement(tokens)
     eat_newline(tokens)

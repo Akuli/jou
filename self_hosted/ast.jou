@@ -73,10 +73,15 @@ enum AstExpressionKind:
     FunctionCall
     GetVariable
     # unary operators
+    SizeOf      # sizeof x
     AddressOf   # -x
     Dereference # *x
     Negate      # &x
     Not         # not x
+    PreIncr     # ++x
+    PostIncr    # x++
+    PreDecr     # --x
+    PostDecr    # x--
     # binary operators
     Add         # x+y
     Subtract    # x-y
@@ -164,10 +169,15 @@ class AstExpression:
     # arity = number of operands, e.g. 2 for a binary operator such as "+"
     def get_arity(self) -> int:
         if (
-            self->kind == AstExpressionKind::AddressOf
+            self->kind == AstExpressionKind::SizeOf
+            or self->kind == AstExpressionKind::AddressOf
             or self->kind == AstExpressionKind::Dereference
             or self->kind == AstExpressionKind::Negate
             or self->kind == AstExpressionKind::Not
+            or self->kind == AstExpressionKind::PreIncr
+            or self->kind == AstExpressionKind::PreDecr
+            or self->kind == AstExpressionKind::PostIncr
+            or self->kind == AstExpressionKind::PostDecr
         ):
             return 1
         if (
@@ -188,6 +198,15 @@ class AstExpression:
         ):
             return 2
         return 0
+
+    def can_have_side_effects(self) -> bool:
+        return (
+            self->kind == AstExpressionKind::FunctionCall
+            or self->kind == AstExpressionKind::PreIncr
+            or self->kind == AstExpressionKind::PreDecr
+            or self->kind == AstExpressionKind::PostIncr
+            or self->kind == AstExpressionKind::PostDecr
+        )
 
 class AstCall:
     location: Location
@@ -210,15 +229,27 @@ enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
     ReturnWithValue
     If
+    ForLoop
+    Assign          # x = y
+    InPlaceAdd      # x += y
+    InPlaceSubtract # x -= y
+    InPlaceMultiply # x *= y
+    InPlaceDivide   # x /= y
+    InPlaceModulo   # x %= y
 
 class AstStatement:
     location: Location
     kind: AstStatementKind
+    assignment: AstAssignment
 
     # TODO: union
     expression: AstExpression       # AstStatementKind::ExpressionStatement
     if_statement: AstIfStatement
+    for_loop: AstForLoop
     return_value: AstExpression     # AstStatementKind::ReturnWithValue
+    # assignments
+    target: AstExpression
+    value: AstExpression
 
     def print(self, tp: TreePrinter) -> void:
         printf("[line %d] ", self->location.lineno)
@@ -240,23 +271,14 @@ class AstStatement:
         if self->kind == AstStatementKind::ReturnWithValue:
             self->return_value.free()
 
-class AstBody:
-    statements: AstStatement*
-    nstatements: int
-
-    def print(self, tp: TreePrinter) -> void:
-        for i = 0; i < self->nstatements; i++:
-            self->statements[i].print(tp.print_prefix(i == self->nstatements - 1))
-
-    def free(self) -> void:
-        for i = 0; i < self->nstatements; i++:
-            self->statements[i].free()
-        free(self->statements)
-
 # Useful for e.g. "while condition: body", "if condition: body"
 class AstConditionAndBody:
     condition: AstExpression
     body: AstBody
+
+class AstAssignment:
+    target: AstExpression
+    value: AstExpression
 
 class AstIfStatement:
     if_and_elifs: AstConditionAndBody*
@@ -278,6 +300,29 @@ class AstIfStatement:
             sub = tp.print_prefix(True)
             printf("else body:\n")
             self->else_body.print(sub)
+
+class AstForLoop:
+    # for init; cond; incr:
+    #     ...body...
+    #
+    # init and incr must be pointers because this struct goes inside AstStatement.
+    init: AstStatement*
+    cond: AstExpression
+    incr: AstStatement*
+    body: AstBody
+
+class AstBody:
+    statements: AstStatement*
+    nstatements: int
+
+    def print(self, tp: TreePrinter) -> void:
+        for i = 0; i < self->nstatements; i++:
+            self->statements[i].print(tp.print_prefix(i == self->nstatements - 1))
+
+    def free(self) -> void:
+        for i = 0; i < self->nstatements; i++:
+            self->statements[i].free()
+        free(self->statements)
 
 class AstNameTypeValue:
     # name: type = value
