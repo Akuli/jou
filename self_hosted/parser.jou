@@ -426,6 +426,16 @@ def parse_oneline_statement(tokens: Token**) -> AstStatement:
         else:
             result.kind = AstStatementKind::ReturnWithValue
             result.return_value = parse_expression(tokens)
+    elif (*tokens)->is_keyword("break"):
+        ++*tokens
+        result.kind = AstStatementKind::Break
+    elif (*tokens)->is_keyword("continue"):
+        ++*tokens
+        result.kind = AstStatementKind::Continue
+    elif (*tokens)->kind == TokenKind::Name and (*tokens)[1].is_operator(":"):
+        # "foo: int" creates a variable "foo" of type "int"
+        result.kind = AstStatementKind::DeclareLocalVar
+        result.var_declaration = parse_name_type_value(tokens, NULL)
     else:
         expr = parse_expression(tokens)
         result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(*tokens)

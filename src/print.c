@@ -358,13 +358,13 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             printf("continue\n");
             break;
         case AST_STMT_DECLARE_LOCAL_VAR:
-            printf("declare local var \"%s\", type ", stmt->data.vardecl.name);
+            printf("declare local var %s: ", stmt->data.vardecl.name);
             print_ast_type(&stmt->data.vardecl.type);
             printf("\n");
             if (stmt->data.vardecl.value) {
                 sub = print_tree_prefix(tp, true);
-                printf("initial value:\n");
-                print_ast_expression(stmt->data.vardecl.value, print_tree_prefix(sub, true));
+                printf("initial value: ");
+                print_ast_expression(stmt->data.vardecl.value, sub);
             }
             break;
 #define PrintAssignment \

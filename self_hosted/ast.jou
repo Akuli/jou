@@ -274,6 +274,9 @@ enum AstStatementKind:
     If
     WhileLoop
     ForLoop
+    Break
+    Continue
+    DeclareLocalVar # x: SomeType = y (the "= y" is optional)
     Assign          # x = y
     InPlaceAdd      # x += y
     InPlaceSubtract # x -= y
@@ -292,6 +295,7 @@ class AstStatement:
     for_loop: AstForLoop
     return_value: AstExpression     # AstStatementKind::ReturnWithValue
     assignment: AstAssignment
+    var_declaration: AstNameTypeValue  # AstStatementKind::DeclareLocalVar
 
     def print(self, tp: TreePrinter) -> void:
         printf("[line %d] ", self->location.lineno)
@@ -312,8 +316,30 @@ class AstStatement:
         elif self->kind == AstStatementKind::WhileLoop:
             printf("while loop\n")
             self->while_loop.print(tp, True)
+        elif self->kind == AstStatementKind::Break:
+            printf("break\n")
+        elif self->kind == AstStatementKind::Continue:
+            printf("continue\n")
+        elif self->kind == AstStatementKind::DeclareLocalVar:
+            printf("declare local var ")
+            self->var_declaration.print(&tp)
         elif self->kind == AstStatementKind::Assign:
             printf("assign\n")
+            self->assignment.print(tp)
+        elif self->kind == AstStatementKind::InPlaceAdd:
+            printf("in-place add\n")
+            self->assignment.print(tp)
+        elif self->kind == AstStatementKind::InPlaceSubtract:
+            printf("in-place sub\n")
+            self->assignment.print(tp)
+        elif self->kind == AstStatementKind::InPlaceMultiply:
+            printf("in-place mul\n")
+            self->assignment.print(tp)
+        elif self->kind == AstStatementKind::InPlaceDivide:
+            printf("in-place div\n")
+            self->assignment.print(tp)
+        elif self->kind == AstStatementKind::InPlaceModulo:
+            printf("in-place mod\n")
             self->assignment.print(tp)
         else:
             printf("??????\n")
@@ -409,6 +435,31 @@ class AstForLoop:
         free(self->incr)
         self->body.free()
 
+class AstNameTypeValue:
+    # name: type = value
+    name: byte[100]
+    name_location: Location
+    type: AstType
+    value: AstExpression*  # can be NULL
+
+    # tp can be set to NULL, in that case no trailing newline is printed
+    def print(self, tp: TreePrinter*) -> void:
+        printf("%s: ", &self->name[0])
+        self->type.print(True)
+        if tp == NULL:
+            assert(self->value == NULL)
+        else:
+            printf("\n")
+            if self->value != NULL:
+                sub = tp->print_prefix(True)
+                printf("initial value: ")
+                self->value->print(sub)
+
+    def free(self) -> void:
+        if self->value != NULL:
+            self->value->free()
+        free(self->value)
+
 class AstBody:
     statements: AstStatement*
     nstatements: int
@@ -421,25 +472,6 @@ class AstBody:
         for i = 0; i < self->nstatements; i++:
             self->statements[i].free()
         free(self->statements)
-
-class AstNameTypeValue:
-    # name: type = value
-    name: byte[100]
-    name_location: Location
-    type: AstType
-    value: AstExpression*  # can be NULL
-
-    def print(self) -> void:
-        printf("%s: ", &self->name[0])
-        self->type.print(True)
-        if self->value != NULL:
-            # TODO: figure out a good way to print the value (wants a TreePrinter)
-            printf(" = <default>")
-
-    def free(self) -> void:
-        if self->value != NULL:
-            self->value->free()
-        free(self->value)
 
 class AstSignature:
     name_location: Location
@@ -454,7 +486,7 @@ class AstSignature:
         for i = 0; i < self->nargs; i++:
             if i != 0:
                 printf(", ")
-            self->args[i].print()
+            self->args[i].print(NULL)
 
         if self->takes_varargs:
             if self->nargs != 0:
@@ -508,7 +540,7 @@ class AstToplevelStatement:
             self->classdef.print()
         elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
             printf("Declare a global variable ")
-            self->global_var.print()
+            self->global_var.print(NULL)
             printf("\n")
         else:
             printf("????????\n")
@@ -577,7 +609,7 @@ class AstClassDef:
         printf("class \"%s\" with %d fields and %d methods:\n", &self->name[0], self->nfields, self->nmethods)
         for i = 0; i < self->nfields; i++:
             printf("  field ")
-            self->fields[i].print()
+            self->fields[i].print(NULL)
             printf("\n")
         for i = 0; i < self->nmethods; i++:
             printf("  method ")
