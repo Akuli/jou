@@ -27,7 +27,7 @@ mkdir -vp tmp/compare_compilers
 
 echo "Compiling the self-hosted compiler..."
 if [[ "$OS" =~ Windows ]]; then
-    make self_hosted_compiler.exe
+    mingw32-make self_hosted_compiler.exe
 else
     make self_hosted_compiler
 fi
@@ -45,12 +45,18 @@ for action in tokenize parse run; do
     (./jou $flag $file || true) &> tmp/compare_compilers/compiler_written_in_c.txt
     (./self_hosted_compiler $flag $file || true) &> tmp/compare_compilers/self_hosted.txt
 
-    if grep -qxF $file $error_list_file; then
+    if grep -q '\r' $error_list_file; then
+        newline=crlf
+    else
+        newline=lf
+    fi
+
+    if grep -qxF $file <(cat $error_list_file | tr -d '\r'); then
         # The file is skipped, so the two compilers should behave differently
         if diff tmp/compare_compilers/compiler_written_in_c.txt tmp/compare_compilers/self_hosted.txt >/dev/null; then
             if [ $fix = yes ]; then
                 echo "  Deleting $file from $error_list_file"
-                grep -vxF $file $error_list_file > tmp/compare_compilers/newlist.txt
+                grep -vxF $file <(cat $error_list_file | tr -d '\r') > tmp/compare_compilers/newlist.txt
                 mv tmp/compare_compilers/newlist.txt $error_list_file
             else
                 echo "  Error: Compilers behave the same even though the file is listed in $error_list_file."
@@ -74,6 +80,11 @@ for action in tokenize parse run; do
                 exit 1
             fi
         fi
+    fi
+
+    if [ $newline = crlf ] && [ $fix = yes ]; then
+        # Some of the edits (e.g. appending with echo) leave LF line endings
+        unix2dos -q $error_list_file
     fi
 done
 done
