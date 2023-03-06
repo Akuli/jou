@@ -230,6 +230,43 @@ static LLVMValueRef build_binop(
 
 static LLVMValueRef build_cast(const struct State *st, LLVMValueRef obj, const Type *from, const Type *to)
 {
+    if (from->kind == TYPE_BOOL && is_integer_type(to))
+        return LLVMBuildZExt(st->builder, obj, build_type(to), "cast");
+
+    if (is_number_type(from) && is_number_type(to)) {
+        if (is_integer_type(from) && is_integer_type(to)) {
+            if (from->data.width_in_bits < to->data.width_in_bits) {
+                if (from->kind == TYPE_SIGNED_INTEGER) {
+                    // example: signed 8-bit 0xFF --> 16-bit 0xFFFF
+                    return LLVMBuildSExt(st->builder, obj, build_type(to), "cast");
+                } else {
+                    // example: unsigned 8-bit 0xFF --> 16-bit 0x00FF
+                    return LLVMBuildZExt(st->builder, obj, build_type(to), "cast");
+                }
+            } else if (from->data.width_in_bits > to->data.width_in_bits) {
+                LLVMBuildTrunc(st->builder, obj, build_type(to), "cast");
+            } else {
+                // same size, LLVM doesn't distinguish signed and unsigned integer types
+                return obj;
+            }
+        } else if (is_integer_type(from) && to->kind == TYPE_FLOATING_POINT) {
+            // integer --> double / float
+            if (from->kind == TYPE_SIGNED_INTEGER)
+                return LLVMBuildSIToFP(st->builder, obj, build_type(to), "cast");
+            else
+                return LLVMBuildUIToFP(st->builder, obj, build_type(to), "cast");
+        } else if (from->kind == TYPE_FLOATING_POINT && is_integer_type(to)) {
+            if (to->kind == TYPE_SIGNED_INTEGER)
+                return LLVMBuildFPToSI(st->builder, obj, build_type(to), "cast");
+            else
+                return LLVMBuildFPToUI(st->builder, obj, build_type(to), "cast");
+        } else if (from->kind == TYPE_FLOATING_POINT && to->kind == TYPE_FLOATING_POINT) {
+            return LLVMBuildFPCast(st->builder, obj, build_type(to), "cast");
+        } else {
+            assert(0);
+        }
+    }
+
     assert(0);
 }
 
