@@ -59,8 +59,8 @@ struct Variable {
 };
 
 struct State {
-    const TypeContext *typectx;
-    const TypeContextFunctionDef *typectxfunc;
+    const FileTypes *filetypes;
+    const FunctionOrMethodTypes *fomtypes;
     LLVMValueRef llvmfunc;
     List(LLVMBasicBlockRef) breakstack, continuestack;
     LLVMModuleRef module;
@@ -72,7 +72,7 @@ struct State {
 
 static const ExpressionTypes *get_expr_types(const struct State *st, const AstExpression *expr)
 {
-    for (ExpressionTypes **et = st->typectxfunc->expr_types.ptr; et < End(st->typectxfunc->expr_types); et++)
+    for (ExpressionTypes **et = st->fomtypes->expr_types.ptr; et < End(st->fomtypes->expr_types); et++)
         if ((*et)->expr == expr)
             return *et;
     assert(0);
@@ -159,6 +159,28 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
 static void build_statement(struct State *st, const AstStatement *stmt);
 static void build_body(struct State *st, const AstBody *body);
 
+static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
+{
+    // Jou's % operator ensures that a%b has same sign as b:
+    // jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
+    LLVMValueRef llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp");
+    LLVMValueRef sum = LLVMBuildAdd(builder, llmod, rhs, "smod_tmp");
+    return LLVMBuildSRem(builder, sum, rhs, "smod");
+}
+
+static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
+{
+    /*
+    LLVM's provides two divisions. One truncates, the other is an "exact div"
+    that requires there is no remainder. Jou uses floor division which is
+    neither of the two, but is quite easy to implement:
+
+        floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
+    */
+    LLVMValueRef top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp");
+    return LLVMBuildExactSDiv(builder, top, rhs, "sdiv");
+}
+
 static LLVMValueRef build_binop(
     const struct State *st,
     const enum AstExpressionKind op,
@@ -166,6 +188,46 @@ static LLVMValueRef build_binop(
     const Type *lhstype,
     LLVMValueRef rhs,
     const Type *rhstype)
+{
+    bool got_numbers = is_number_type(lhstype) && is_number_type(rhstype);
+    bool got_pointers = is_pointer_type(lhstype) && is_pointer_type(rhstype);
+    assert(got_numbers || got_pointers);
+
+    if (lhstype->kind == TYPE_FLOATING_POINT && rhstype->kind == TYPE_FLOATING_POINT) {
+        switch(op) {
+            case AST_EXPR_ADD: return LLVMBuildFAdd(st->builder, lhs, rhs, "add"); break;
+            case AST_EXPR_SUB: return LLVMBuildFSub(st->builder, lhs, rhs, "sub"); break;
+            case AST_EXPR_MUL: return LLVMBuildFMul(st->builder, lhs, rhs, "mul"); break;
+            case AST_EXPR_DIV: return LLVMBuildFDiv(st->builder, lhs, rhs, "div"); break;
+            case AST_EXPR_MOD: return LLVMBuildFRem(st->builder, lhs, rhs, "mod"); break;
+            case AST_EXPR_EQ: return LLVMBuildFCmp(st->builder, LLVMRealOEQ, lhs, rhs, "eq"); break;
+            case AST_EXPR_GT: return LLVMBuildFCmp(st->builder, LLVMRealOGT, lhs, rhs, "gt"); break;
+            case AST_EXPR_GE: return LLVMBuildFCmp(st->builder, LLVMRealOGE, lhs, rhs, "ge"); break;
+            case AST_EXPR_LT: return LLVMBuildFCmp(st->builder, LLVMRealOLT, lhs, rhs, "lt"); break;
+            case AST_EXPR_LE: return LLVMBuildFCmp(st->builder, LLVMRealOLE, lhs, rhs, "le"); break;
+            default: assert(0);
+        }
+    } else if (is_integer_type(lhstype) && is_integer_type(rhstype)) {
+        bool is_signed = lhstype->kind == TYPE_SIGNED_INTEGER && rhstype->kind == TYPE_SIGNED_INTEGER;
+        switch(op) {
+            case AST_EXPR_ADD: return LLVMBuildAdd(st->builder, lhs, rhs, "add"); break;
+            case AST_EXPR_SUB: return LLVMBuildSub(st->builder, lhs, rhs, "sub"); break;
+            case AST_EXPR_MUL: return LLVMBuildMul(st->builder, lhs, rhs, "mul"); break;
+            case AST_EXPR_DIV: return build_signed_div(st->builder, lhs, rhs); break;
+            case AST_EXPR_MOD: return build_signed_mod(st->builder, lhs, rhs); break;
+            case AST_EXPR_EQ: return LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "eq"); break;
+            case AST_EXPR_GT: return LLVMBuildICmp(st->builder, is_signed ? LLVMIntSGT : LLVMIntUGT, lhs, rhs, "gt"); break;
+            case AST_EXPR_GE: return LLVMBuildICmp(st->builder, is_signed ? LLVMIntSGE : LLVMIntUGE, lhs, rhs, "ge"); break;
+            case AST_EXPR_LT: return LLVMBuildICmp(st->builder, is_signed ? LLVMIntSLT : LLVMIntULT, lhs, rhs, "lt"); break;
+            case AST_EXPR_LE: return LLVMBuildICmp(st->builder, is_signed ? LLVMIntSLE : LLVMIntULE, lhs, rhs, "le"); break;
+            default: assert(0);
+        }
+    } else {
+        assert(0);
+    }
+}
+
+static LLVMValueRef build_cast(const struct State *st, LLVMValueRef obj, const Type *from, const Type *to)
 {
     assert(0);
 }
@@ -175,9 +237,128 @@ static LLVMValueRef build_address_of_expression(const struct State *st, const As
     assert(0);
 }
 
+static LLVMValueRef build_call(const struct State *st, LLVMValueRef self, const Type *selftype, const AstCall *call)
+{
+    assert((self && selftype) || (!self && !selftype));
+
+    const Signature *sig = NULL;
+    if(self) {
+        assert(selftype->kind == TYPE_POINTER);
+        const Type *selfclass = selftype->data.valuetype;
+        assert(selfclass->kind == TYPE_CLASS);
+        for (const Signature *s = selfclass->data.classdata.methods.ptr; s < End(selfclass->data.classdata.methods); s++) {
+            assert(get_self_class(s) == selfclass);
+            if (!strcmp(s->name, call->calledname)) {
+                sig = s;
+                break;
+            }
+        }
+    } else {
+        for (const struct SignatureAndUsedPtr *f = st->filetypes->functions.ptr; f < End(st->filetypes->functions); f++) {
+            if (!strcmp(f->signature.name, call->calledname)) {
+                sig = &f->signature;
+                break;
+            }
+        }
+    }
+    assert(sig);
+    LLVMValueRef function = build_function_or_method_decl(st, sig);
+
+    LLVMValueRef *args = malloc(call->nargs * sizeof args[0]);  // NOLINT
+    for (int i = 0; i < call->nargs; i++)
+        args[i] = build_expression(st, &call->args[i]);
+
+    assert(function);
+    assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMPointerTypeKind);
+    LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(function));
+    assert(LLVMGetTypeKind(function_type) == LLVMFunctionTypeKind);
+
+    char debug_name[100] = {0};
+    if (LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMVoidTypeKind)
+        snprintf(debug_name, sizeof debug_name, "%s_return_value", sig->name);
+
+    LLVMValueRef result = LLVMBuildCall2(st->builder, function_type, function, args, call->nargs, debug_name);
+    free(args);
+    return result;
+}
+
+static LLVMValueRef make_a_string_constant(const struct State *st, const char *s)
+{
+    LLVMValueRef array = LLVMConstString(s, strlen(s), false);
+    LLVMValueRef global_var = LLVMAddGlobal(st->module, LLVMTypeOf(array), "string_literal");
+    LLVMSetLinkage(global_var, LLVMPrivateLinkage);  // This makes it a static global variable
+    LLVMSetInitializer(global_var, array);
+
+    LLVMTypeRef string_type = LLVMPointerType(LLVMInt8Type(), 0);
+    return LLVMBuildBitCast(st->builder, global_var, string_type, "string_ptr");
+}
+
+static LLVMValueRef build_constant(const struct State *st, const Constant *c)
+{
+    switch(c->kind) {
+    case CONSTANT_BOOL:
+        return LLVMConstInt(LLVMInt1Type(), c->data.boolean, false);
+    case CONSTANT_INTEGER:
+        return LLVMConstInt(build_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
+    case CONSTANT_FLOAT:
+    case CONSTANT_DOUBLE:
+        return LLVMConstRealOfString(build_type(type_of_constant(c)), c->data.double_or_float_text);
+    case CONSTANT_NULL:
+        return LLVMConstNull(build_type(voidPtrType));
+    case CONSTANT_STRING:
+        return make_a_string_constant(st, c->data.str);
+    case CONSTANT_ENUM_MEMBER:
+        return LLVMConstInt(LLVMInt32Type(), c->data.enum_member.memberidx, false);
+    }
+    assert(0);
+}
+
 static LLVMValueRef build_expression(const struct State *st, const AstExpression *expr)
 {
-    assert(0);
+    const ExpressionTypes *types = get_expr_types(st, expr);
+    LLVMValueRef result, temp;
+
+    switch(expr->kind) {
+    case AST_EXPR_FUNCTION_CALL:
+        result = build_call(st, NULL, NULL, &expr->data.call);
+        break;
+    case AST_EXPR_CONSTANT:
+        result = build_constant(st, &expr->data.constant);
+        break;
+    case AST_EXPR_ADD:
+    case AST_EXPR_SUB:
+    case AST_EXPR_MUL:
+    case AST_EXPR_DIV:
+    case AST_EXPR_MOD:
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
+        {
+            // Refactoring note: Make sure to evaluate lhs first. C doesn't guarantee evaluation
+            // order of function arguments.
+            LLVMValueRef lhs = build_expression(st, &expr->data.operands[0]);
+            LLVMValueRef rhs = build_expression(st, &expr->data.operands[1]);
+            const Type *lhstype = get_type_after_cast(st, &expr->data.operands[0]);
+            const Type *rhstype = get_type_after_cast(st, &expr->data.operands[1]);
+            result = build_binop(st, expr->kind, lhs, lhstype, rhs, rhstype);
+            break;
+        }
+    case AST_EXPR_GET_VARIABLE:
+        result = load_local_var(st, expr->data.varname);
+        break;
+    default:
+        printf("%d\n", expr->kind);
+        assert(0);
+    }
+
+    assert(types);
+    if (types->type_after_cast)
+        return build_cast(st, result, types->type, types->type_after_cast);
+    else
+        return result;
 }
 
 // for init; cond; incr:
@@ -236,9 +417,12 @@ static void build_if_statement(struct State *st, const AstIfStatement *ifstmt)
 
         LLVMValueRef cond = build_expression(st, &ifstmt->if_and_elifs[i].condition);
         LLVMBuildCondBr(st->builder, cond, then, otherwise);
+
         LLVMPositionBuilderAtEnd(st->builder, then);
+        LLVMDumpModule(st->module);
         build_body(st, &ifstmt->if_and_elifs[i].body);
         LLVMBuildBr(st->builder, done);
+
         LLVMPositionBuilderAtEnd(st->builder, otherwise);
     }
 
@@ -339,77 +523,6 @@ static void build_body(struct State *st, const AstBody *body)
 {
     for (int i = 0; i < body->nstatements; i++)
         build_statement(st, &body->statements[i]);
-}
-
-static LLVMValueRef build_call(const struct State *st, const Signature *sig, LLVMValueRef *args, int nargs)
-{
-    LLVMValueRef function = build_function_or_method_decl(st, sig);
-    assert(function);
-    assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMPointerTypeKind);
-    LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(function));
-    assert(LLVMGetTypeKind(function_type) == LLVMFunctionTypeKind);
-
-    char debug_name[100] = {0};
-    if (LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMVoidTypeKind)
-        snprintf(debug_name, sizeof debug_name, "%s_return_value", sig->name);
-
-    return LLVMBuildCall2(st->builder, function_type, function, args, nargs, debug_name);
-}
-
-static LLVMValueRef make_a_string_constant(const struct State *st, const char *s)
-{
-    LLVMValueRef array = LLVMConstString(s, strlen(s), false);
-    LLVMValueRef global_var = LLVMAddGlobal(st->module, LLVMTypeOf(array), "string_literal");
-    LLVMSetLinkage(global_var, LLVMPrivateLinkage);  // This makes it a static global variable
-    LLVMSetInitializer(global_var, array);
-
-    LLVMTypeRef string_type = LLVMPointerType(LLVMInt8Type(), 0);
-    return LLVMBuildBitCast(st->builder, global_var, string_type, "string_ptr");
-}
-
-static LLVMValueRef build_constant(const struct State *st, const Constant *c)
-{
-    switch(c->kind) {
-    case CONSTANT_BOOL:
-        return LLVMConstInt(LLVMInt1Type(), c->data.boolean, false);
-    case CONSTANT_INTEGER:
-        return LLVMConstInt(build_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
-    case CONSTANT_FLOAT:
-    case CONSTANT_DOUBLE:
-        return LLVMConstRealOfString(build_type(type_of_constant(c)), c->data.double_or_float_text);
-    case CONSTANT_NULL:
-        return LLVMConstNull(build_type(voidPtrType));
-    case CONSTANT_STRING:
-        return make_a_string_constant(st, c->data.str);
-    case CONSTANT_ENUM_MEMBER:
-        return LLVMConstInt(LLVMInt32Type(), c->data.enum_member.memberidx, false);
-    }
-    assert(0);
-}
-
-static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, const char *ignored)
-{
-    (void)ignored;  // for compatibility with llvm functions
-
-    // Jou's % operator ensures that a%b has same sign as b:
-    // jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
-    LLVMValueRef llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp");
-    LLVMValueRef sum = LLVMBuildAdd(builder, llmod, rhs, "smod_tmp");
-    return LLVMBuildSRem(builder, sum, rhs, "smod");
-}
-
-static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, const char *ignored)
-{
-    (void)ignored;  // for compatibility with llvm functions
-    /*
-    LLVM's provides two divisions. One truncates, the other is an "exact div"
-    that requires there is no remainder. Jou uses floor division which is
-    neither of the two, but is quite easy to implement:
-
-        floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
-    */
-    LLVMValueRef top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs, NULL), "sdiv_tmp");
-    return LLVMBuildExactSDiv(builder, top, rhs, "sdiv");
 }
 
 static LLVMValueRef build_num_operation(
@@ -588,11 +701,21 @@ static void build_call_to_the_special_startup_function(const struct State *st)
 }
 #endif
 
-static void build_function_or_method_def(struct State *st, const Signature *sig, const AstBody *body)
+static void build_function_or_method_def(struct State *st, const Type *selfclass, const char *name, const AstBody *body)
 {
-    LLVMValueRef llvm_func = build_function_or_method_decl(st, sig);
+    assert(!st->fomtypes);
+    for (const FunctionOrMethodTypes *f = st->filetypes->fomtypes.ptr; f < End(st->filetypes->fomtypes); f++) {
+        if (!strcmp(f->signature.name, name) && get_self_class(&f->signature) == selfclass) {
+            st->fomtypes = f;
+            break;
+        }
+    }
+    assert(st->fomtypes);
 
-    LLVMBasicBlockRef startblock = LLVMAppendBasicBlock(llvm_func, "start");
+    const Signature *sig = &st->fomtypes->signature;
+    st->llvmfunc = build_function_or_method_decl(st, sig);
+
+    LLVMBasicBlockRef startblock = LLVMAppendBasicBlock(st->llvmfunc, "start");
     LLVMPositionBuilderAtEnd(st->builder, startblock);
 
 #ifdef _WIN32
@@ -603,18 +726,24 @@ static void build_function_or_method_def(struct State *st, const Signature *sig,
     // Create local variables for the arguments.
     for (int i = 0; i < sig->nargs; i++) {
         LLVMValueRef ptr = LLVMBuildAlloca(st->builder, build_type(sig->argtypes[i]), sig->argnames[i]);
-        LLVMBuildStore(st->builder, LLVMGetParam(llvm_func, i), ptr);
+        LLVMBuildStore(st->builder, LLVMGetParam(st->llvmfunc, i), ptr);
         struct Variable v = { .ptr = ptr };
         safe_strcpy(v.name, sig->argnames[i]);
         Append(&st->locals, v);
     }
 
     build_body(st, body);
+    if (sig->returntype)
+        LLVMBuildUnreachable(st->builder);
+    else
+        LLVMBuildRetVoid(st->builder);
+    st->fomtypes = NULL;
 }
 
-LLVMModuleRef codegen(const AstToplevelNode *ast, const TypeContext *typectx)
+LLVMModuleRef codegen(AstToplevelNode *ast, FileTypes *ft)
 {
     struct State st = {
+        .filetypes = ft,
         .module = LLVMModuleCreateWithName(ast[0].location.filename),
         .builder = LLVMCreateBuilder(),
     };
@@ -622,15 +751,32 @@ LLVMModuleRef codegen(const AstToplevelNode *ast, const TypeContext *typectx)
     LLVMSetTarget(st.module, get_target()->triple);
     LLVMSetDataLayout(st.module, get_target()->data_layout);
 
-    for (GlobalVariable **v = typectx->globals.ptr; v < End(typectx->globals); v++) {
+    for (GlobalVariable **v = ft->globals.ptr; v < End(ft->globals); v++) {
         LLVMTypeRef t = build_type((*v)->type);
         LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
         if ((*v)->defined_in_current_file)
             LLVMSetInitializer(globalptr, LLVMGetUndef(t));
     }
 
-    for (const TypeContextFunctionDef *f = typectx->defined_functions.ptr; f < End(typectx->defined_functions); f++)
-        build_function_or_method_def(&st, &f->signature, f->astbody);
+    while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
+        if(ast->kind == AST_TOPLEVEL_DEFINE_FUNCTION)
+            build_function_or_method_def(&st, NULL, ast->data.funcdef.signature.name, &ast->data.funcdef.body);
+
+        if (ast->kind == AST_TOPLEVEL_DEFINE_CLASS) {
+            Type *classtype = NULL;
+            for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++) {
+                if (!strcmp((*t)->name, ast->data.classdef.name)) {
+                    classtype = *t;
+                    break;
+                }
+            }
+            assert(classtype);
+
+            for (AstFunctionDef *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++)
+                build_function_or_method_def(&st, classtype, m->signature.name, &m->body);
+        }
+        ast++;
+    }
 
     LLVMDisposeBuilder(st.builder);
     return st.module;

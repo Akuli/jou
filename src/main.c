@@ -238,16 +238,14 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
 
     if(compst->flags.verbose)
         print_control_flow_graphs(&cfgfile);
-
     simplify_control_flow_graphs(&cfgfile);
     if(compst->flags.verbose)
         print_control_flow_graphs(&cfgfile);
+    free_control_flow_graphs(&cfgfile);
 
     if (compst->flags.verbose)
         printf("Build LLVM IR: %s\n", fs->path);
-
-    fs->module = codegen(&cfgfile, &fs->types);
-    free_control_flow_graphs(&cfgfile);
+    fs->module = codegen(fs->ast, &fs->types);
 
     if(compst->flags.verbose)
         print_llvm_ir(fs->module, false);
