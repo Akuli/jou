@@ -8,13 +8,13 @@
 #include "jou_compiler.h"
 #include "util.h"
 
-static LLVMTypeRef codegen_type(const Type *type)
+static LLVMTypeRef build_type(const Type *type)
 {
     switch(type->kind) {
     case TYPE_ARRAY:
-        return LLVMArrayType(codegen_type(type->data.array.membertype), type->data.array.len);
+        return LLVMArrayType(build_type(type->data.array.membertype), type->data.array.len);
     case TYPE_POINTER:
-        return LLVMPointerType(codegen_type(type->data.valuetype), 0);
+        return LLVMPointerType(build_type(type->data.valuetype), 0);
     case TYPE_FLOATING_POINT:
         switch(type->data.width_in_bits) {
             case 32: return LLVMFloatType();
@@ -39,9 +39,9 @@ static LLVMTypeRef codegen_type(const Type *type)
                 // Treat all pointers inside structs as if they were void*.
                 // This allows structs to contain pointers to themselves.
                 if (type->data.classdata.fields.ptr[i].type->kind == TYPE_POINTER)
-                    elems[i] = codegen_type(voidPtrType);
+                    elems[i] = build_type(voidPtrType);
                 else
-                    elems[i] = codegen_type(type->data.classdata.fields.ptr[i].type);
+                    elems[i] = build_type(type->data.classdata.fields.ptr[i].type);
             }
             LLVMTypeRef result = LLVMStructType(elems, n, false);
             free(elems);
@@ -53,56 +53,59 @@ static LLVMTypeRef codegen_type(const Type *type)
     assert(0);
 }
 
-struct State {
-    LLVMModuleRef module;
-    LLVMBuilderRef builder;
-    LocalVariable **cfvars, **cfvars_end;
-    // All local variables are represented as pointers to stack space, even
-    // if they are never reassigned. LLVM will optimize the mess.
-    LLVMValueRef *llvm_locals;
+struct Variable {
+    char name[100];
+    LLVMValueRef ptr;
 };
 
-static LLVMValueRef get_pointer_to_local_var(const struct State *st, const LocalVariable *cfvar)
+struct State {
+    const TypeContext *typectx;
+    const TypeContextFunctionDef *typectxfunc;
+    LLVMValueRef llvmfunc;
+    List(LLVMBasicBlockRef) breakstack, continuestack;
+    LLVMModuleRef module;
+    LLVMBuilderRef builder;
+    // All local variables are represented as pointers to stack space, even
+    // if they are never reassigned. LLVM will optimize the mess.
+    List(struct Variable) locals, globals;
+};
+
+static const ExpressionTypes *get_expr_types(const struct State *st, const AstExpression *expr)
 {
-    assert(cfvar);
-    /*
-    The loop below looks stupid, but I don't see a better alternative.
-
-    I want CFG variables to be used as pointers, so that it's easy to refer to a
-    variable's name and type, check if you have the same variable, etc. But I
-    can't make a List of variables when building CFG, because existing variable
-    pointers would become invalid as the list grows. The solution is to allocate
-    each variable separately when building the CFG.
-
-    Another idea I had was to count the number of variables needed beforehand,
-    so I wouldn't need to ever resize the list of variables, but the CFG building
-    is already complicated enough as is.
-    */
-    for (LocalVariable **v = st->cfvars; v < st->cfvars_end; v++)
-        if (*v == cfvar)
-            return st->llvm_locals[v - st->cfvars];
+    for (ExpressionTypes **et = st->typectxfunc->expr_types.ptr; et < End(st->typectxfunc->expr_types); et++)
+        if ((*et)->expr == expr)
+            return *et;
     assert(0);
 }
 
-static LLVMValueRef get_local_var(const struct State *st, const LocalVariable *cfvar)
+const Type *get_type_after_cast(const struct State *st, const AstExpression *expr)
 {
-    LLVMValueRef varptr = get_pointer_to_local_var(st, cfvar);
-    return LLVMBuildLoad(st->builder, varptr, cfvar->name);
+    const ExpressionTypes *et = get_expr_types(st, expr);
+    assert(et->type);
+    if (et->type_after_cast)
+        return et->type_after_cast;
+    return et->type;
 }
 
-static void set_local_var(const struct State *st, const LocalVariable *cfvar, LLVMValueRef value)
+static struct Variable *get_local_var(const struct State *st, const char *name)
 {
-    assert(cfvar);
-    for (LocalVariable **v = st->cfvars; v < st->cfvars_end; v++) {
-        if (*v == cfvar) {
-            LLVMBuildStore(st->builder, value, st->llvm_locals[v - st->cfvars]);
-            return;
-        }
-    }
+    for (struct Variable *v = st->locals.ptr; v < End(st->locals); v++)
+        if (!strcmp(v->name, name))
+            return v;
     assert(0);
 }
 
-static LLVMValueRef codegen_function_or_method_decl(const struct State *st, const Signature *sig)
+static LLVMValueRef load_local_var(const struct State *st, const char *name)
+{
+    return LLVMBuildLoad(st->builder, get_local_var(st, name)->ptr, name);
+}
+
+static void store_local_var(const struct State *st, const char *name, LLVMValueRef value)
+{
+    LLVMBuildStore(st->builder, value, get_local_var(st, name)->ptr);
+}
+
+static LLVMValueRef build_function_or_method_decl(const struct State *st, const Signature *sig)
 {
     char fullname[200];
     if (get_self_class(sig))
@@ -117,13 +120,13 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
 
     LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
     for (int i = 0; i < sig->nargs; i++)
-        argtypes[i] = codegen_type(sig->argtypes[i]);
+        argtypes[i] = build_type(sig->argtypes[i]);
 
     LLVMTypeRef returntype;
     if (sig->returntype == NULL)
         returntype = LLVMVoidType();
     else
-        returntype = codegen_type(sig->returntype);
+        returntype = build_type(sig->returntype);
 
     LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
     free(argtypes);
@@ -152,9 +155,195 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
     return func;
 }
 
-static LLVMValueRef codegen_call(const struct State *st, const Signature *sig, LLVMValueRef *args, int nargs)
+static LLVMValueRef build_expression(const struct State *st, const AstExpression *expr);
+static void build_statement(struct State *st, const AstStatement *stmt);
+static void build_body(struct State *st, const AstBody *body);
+
+static LLVMValueRef build_binop(
+    const struct State *st,
+    const enum AstExpressionKind op,
+    LLVMValueRef lhs,
+    const Type *lhstype,
+    LLVMValueRef rhs,
+    const Type *rhstype)
 {
-    LLVMValueRef function = codegen_function_or_method_decl(st, sig);
+    assert(0);
+}
+
+static LLVMValueRef build_address_of_expression(const struct State *st, const AstExpression *expr)
+{
+    assert(0);
+}
+
+static LLVMValueRef build_expression(const struct State *st, const AstExpression *expr)
+{
+    assert(0);
+}
+
+// for init; cond; incr:
+//     ...body...
+//
+// While loop is basically a special case of for loop, so it uses this too.
+static void build_loop(
+    struct State *st,
+    const AstStatement *init,
+    const AstExpression *cond,
+    const AstStatement *incr,
+    const AstBody *body)
+{
+    LLVMBasicBlockRef condblock = LLVMAppendBasicBlock(st->llvmfunc, "loop_cond");
+    LLVMBasicBlockRef bodyblock = LLVMAppendBasicBlock(st->llvmfunc, "loop_body");
+    LLVMBasicBlockRef incrblock = LLVMAppendBasicBlock(st->llvmfunc, "loop_incr");
+    LLVMBasicBlockRef doneblock = LLVMAppendBasicBlock(st->llvmfunc, "loop_done");
+
+    // Loop start: evaluate init and go to condition
+    if (init)
+        build_statement(st, init);
+    LLVMBuildBr(st->builder, condblock);
+
+    // Evaluate condition.
+    LLVMPositionBuilderAtEnd(st->builder, condblock);
+    LLVMBuildCondBr(st->builder, build_expression(st, cond), bodyblock, doneblock);
+
+    // Run loop body: 'break' skips to after loop, 'continue' goes to incr.
+    LLVMPositionBuilderAtEnd(st->builder, bodyblock);
+    Append(&st->breakstack, doneblock);
+    Append(&st->continuestack, incrblock);
+    build_body(st, body);
+    LLVMBasicBlockRef tmp;
+    tmp = Pop(&st->breakstack); assert(tmp == doneblock);
+    tmp = Pop(&st->continuestack); assert(tmp == incrblock);
+    LLVMBuildBr(st->builder, incrblock);
+
+    // Run incr and jump back to condition.
+    LLVMPositionBuilderAtEnd(st->builder, incrblock);
+    if (incr)
+        build_statement(st, incr);
+    LLVMBuildBr(st->builder, condblock);
+
+    // Stuff after the loop goes to doneblock
+    LLVMPositionBuilderAtEnd(st->builder, doneblock);
+}
+
+static void build_if_statement(struct State *st, const AstIfStatement *ifstmt)
+{
+    assert(ifstmt->n_if_and_elifs >= 1);
+
+    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvmfunc, "if_done");
+    for (int i = 0; i < ifstmt->n_if_and_elifs; i++) {
+        LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->llvmfunc, "then");
+        LLVMBasicBlockRef otherwise = LLVMAppendBasicBlock(st->llvmfunc, "otherwise");
+
+        LLVMValueRef cond = build_expression(st, &ifstmt->if_and_elifs[i].condition);
+        LLVMBuildCondBr(st->builder, cond, then, otherwise);
+        LLVMPositionBuilderAtEnd(st->builder, then);
+        build_body(st, &ifstmt->if_and_elifs[i].body);
+        LLVMBuildBr(st->builder, done);
+        LLVMPositionBuilderAtEnd(st->builder, otherwise);
+    }
+
+    build_body(st, &ifstmt->elsebody);
+    LLVMBuildBr(st->builder, done);
+    LLVMPositionBuilderAtEnd(st->builder, done);
+}
+
+// Used in situations where we can have code after something, but it will never run.
+// For example, there can be code after a "break" or "continue" statement in a loop.
+// It goes into an unreachable dummy block.
+static void position_builder_to_dummy_block(struct State *st)
+{
+    LLVMBasicBlockRef b = LLVMAppendBasicBlock(st->llvmfunc, "unreachable");
+    LLVMPositionBuilderAtEnd(st->builder, b);
+}
+
+static void build_statement(struct State *st, const AstStatement *stmt)
+{
+    switch(stmt->kind) {
+    case AST_STMT_ASSIGN:
+        {
+            LLVMValueRef targetptr = build_address_of_expression(st, &stmt->data.assignment.target);
+            LLVMValueRef value = build_expression(st, &stmt->data.assignment.value);
+            LLVMBuildStore(st->builder, value, targetptr);
+            break;
+        }
+    case AST_STMT_BREAK:
+        assert(st->breakstack.len > 0);
+        LLVMBuildBr(st->builder, End(st->breakstack)[-1]);
+        position_builder_to_dummy_block(st);
+        break;
+    case AST_STMT_CONTINUE:
+        assert(st->breakstack.len > 0);
+        LLVMBuildBr(st->builder, End(st->breakstack)[-1]);
+        position_builder_to_dummy_block(st);
+        break;
+    case AST_STMT_DECLARE_LOCAL_VAR:
+        if (stmt->data.vardecl.value) {
+            LLVMValueRef value = build_expression(st, stmt->data.vardecl.value);
+            LLVMBuildStore(st->builder, get_local_var(st, stmt->data.vardecl.name)->ptr, value);
+        }
+        break;
+    case AST_STMT_EXPRESSION_STATEMENT:
+        build_expression(st, &stmt->data.expression);
+        break;
+    case AST_STMT_FOR:
+        build_loop(
+            st,
+            stmt->data.forloop.init, &stmt->data.forloop.cond, stmt->data.forloop.incr,
+            &stmt->data.forloop.body);
+        break;
+    case AST_STMT_WHILE:
+        build_loop(st, NULL, &stmt->data.whileloop.condition, NULL, &stmt->data.whileloop.body);
+        break;
+    case AST_STMT_INPLACE_ADD:
+    case AST_STMT_INPLACE_SUB:
+    case AST_STMT_INPLACE_MUL:
+    case AST_STMT_INPLACE_DIV:
+    case AST_STMT_INPLACE_MOD:
+    {
+        const AstExpression *targetexpr = &stmt->data.assignment.target;
+        const AstExpression *rhsexpr = &stmt->data.assignment.value;
+        const Type *targettype = get_type_after_cast(st, targetexpr);
+        const Type *rhstype = get_type_after_cast(st, rhsexpr);
+
+        LLVMValueRef targetptr = build_address_of_expression(st, targetexpr);
+        LLVMValueRef rhs = build_expression(st, rhsexpr);
+        LLVMValueRef oldvalue = LLVMBuildLoad(st->builder, targetptr, "old");
+        enum AstExpressionKind op;
+        switch(stmt->kind){
+            case AST_STMT_INPLACE_ADD: op=AST_EXPR_ADD; break;
+            case AST_STMT_INPLACE_SUB: op=AST_EXPR_SUB; break;
+            case AST_STMT_INPLACE_MUL: op=AST_EXPR_MUL; break;
+            case AST_STMT_INPLACE_DIV: op=AST_EXPR_DIV; break;
+            case AST_STMT_INPLACE_MOD: op=AST_EXPR_MOD; break;
+            default: assert(0);
+        }
+        LLVMValueRef newvalue = build_binop(st, op, oldvalue, targettype, rhs, rhstype);
+        LLVMBuildStore(st->builder, targetptr, newvalue);
+        break;
+    }
+    case AST_STMT_IF:
+        build_if_statement(st, &stmt->data.ifstatement);
+        break;
+    case AST_STMT_RETURN_VALUE:
+        LLVMBuildRet(st->builder, build_expression(st, &stmt->data.expression));
+        position_builder_to_dummy_block(st);
+        break;
+    case AST_STMT_RETURN_WITHOUT_VALUE:
+        LLVMBuildRetVoid(st->builder);
+        position_builder_to_dummy_block(st);
+        break;
+    }
+}
+
+static void build_body(struct State *st, const AstBody *body)
+{
+    for (int i = 0; i < body->nstatements; i++)
+        build_statement(st, &body->statements[i]);
+}
+
+static LLVMValueRef build_call(const struct State *st, const Signature *sig, LLVMValueRef *args, int nargs)
+{
+    LLVMValueRef function = build_function_or_method_decl(st, sig);
     assert(function);
     assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMPointerTypeKind);
     LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(function));
@@ -178,18 +367,18 @@ static LLVMValueRef make_a_string_constant(const struct State *st, const char *s
     return LLVMBuildBitCast(st->builder, global_var, string_type, "string_ptr");
 }
 
-static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
+static LLVMValueRef build_constant(const struct State *st, const Constant *c)
 {
     switch(c->kind) {
     case CONSTANT_BOOL:
         return LLVMConstInt(LLVMInt1Type(), c->data.boolean, false);
     case CONSTANT_INTEGER:
-        return LLVMConstInt(codegen_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
+        return LLVMConstInt(build_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
     case CONSTANT_FLOAT:
     case CONSTANT_DOUBLE:
-        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_or_float_text);
+        return LLVMConstRealOfString(build_type(type_of_constant(c)), c->data.double_or_float_text);
     case CONSTANT_NULL:
-        return LLVMConstNull(codegen_type(voidPtrType));
+        return LLVMConstNull(build_type(voidPtrType));
     case CONSTANT_STRING:
         return make_a_string_constant(st, c->data.str);
     case CONSTANT_ENUM_MEMBER:
@@ -245,7 +434,8 @@ static LLVMValueRef build_num_operation(
     }
 }
 
-static void codegen_instruction(const struct State *st, const CfInstruction *ins)
+#if 0
+static void build_instruction(const struct State *st, const CfInstruction *ins)
 {
 #define setdest(val) set_local_var(st, ins->destvar, (val))
 #define get(var) get_local_var(st, (var))
@@ -257,14 +447,14 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 LLVMValueRef *args = malloc(ins->noperands * sizeof(args[0]));  // NOLINT
                 for (int i = 0; i < ins->noperands; i++)
                     args[i] = getop(i);
-                LLVMValueRef return_value = codegen_call(st, &ins->data.signature, args, ins->noperands);
+                LLVMValueRef return_value = build_call(st, &ins->data.signature, args, ins->noperands);
                 if (ins->destvar)
                     setdest(return_value);
                 free(args);
             }
             break;
-        case CF_CONSTANT: setdest(codegen_constant(st, &ins->data.constant)); break;
-        case CF_SIZEOF: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
+        case CF_CONSTANT: setdest(build_constant(st, &ins->data.constant)); break;
+        case CF_SIZEOF: setdest(LLVMSizeOf(build_type(ins->data.type))); break;
         case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
         case CF_PTR_LOAD: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
@@ -286,17 +476,17 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                     i++;
                 }
 
-                LLVMValueRef val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), i, ins->data.fieldname);
+                LLVMValueRef val = LLVMBuildStructGEP2(st->builder, build_type(classtype), getop(0), i, ins->data.fieldname);
                 if (f->type->kind == TYPE_POINTER) {
                     // We lied to LLVM that the struct member is i8*, so that we can do self-referencing types
-                    val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(f->type),0), "struct_member_i8_hack");
+                    val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(build_type(f->type),0), "struct_member_i8_hack");
                 }
                 setdest(val);
             }
             break;
         case CF_PTR_MEMSET_TO_ZERO:
             {
-                LLVMValueRef size = LLVMSizeOf(codegen_type(ins->operands[0]->type->data.valuetype));
+                LLVMValueRef size = LLVMSizeOf(build_type(ins->operands[0]->type->data.valuetype));
                 LLVMBuildMemSet(st->builder, getop(0), LLVMConstInt(LLVMInt8Type(), 0, false), size, 0);
             }
             break;
@@ -321,13 +511,13 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                     if (from->data.width_in_bits < to->data.width_in_bits) {
                         if (from->kind == TYPE_SIGNED_INTEGER) {
                             // example: signed 8-bit 0xFF --> 16-bit 0xFFFF
-                            setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(to), "int_cast"));
+                            setdest(LLVMBuildSExt(st->builder, getop(0), build_type(to), "int_cast"));
                         } else {
                             // example: unsigned 8-bit 0xFF --> 16-bit 0x00FF
-                            setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(to), "int_cast"));
+                            setdest(LLVMBuildZExt(st->builder, getop(0), build_type(to), "int_cast"));
                         }
                     } else if (from->data.width_in_bits > to->data.width_in_bits) {
-                        setdest(LLVMBuildTrunc(st->builder, getop(0), codegen_type(to), "int_cast"));
+                        setdest(LLVMBuildTrunc(st->builder, getop(0), build_type(to), "int_cast"));
                     } else {
                         // same size, LLVM doesn't distinguish signed and unsigned integer types
                         setdest(getop(0));
@@ -335,16 +525,16 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 } else if (is_integer_type(from) && to->kind == TYPE_FLOATING_POINT) {
                     // integer --> double / float
                     if (from->kind == TYPE_SIGNED_INTEGER)
-                        setdest(LLVMBuildSIToFP(st->builder, getop(0), codegen_type(to), "cast"));
+                        setdest(LLVMBuildSIToFP(st->builder, getop(0), build_type(to), "cast"));
                     else
-                        setdest(LLVMBuildUIToFP(st->builder, getop(0), codegen_type(to), "cast"));
+                        setdest(LLVMBuildUIToFP(st->builder, getop(0), build_type(to), "cast"));
                 } else if (from->kind == TYPE_FLOATING_POINT && is_integer_type(to)) {
                     if (to->kind == TYPE_SIGNED_INTEGER)
-                        setdest(LLVMBuildFPToSI(st->builder, getop(0), codegen_type(to), "cast"));
+                        setdest(LLVMBuildFPToSI(st->builder, getop(0), build_type(to), "cast"));
                     else
-                        setdest(LLVMBuildFPToUI(st->builder, getop(0), codegen_type(to), "cast"));
+                        setdest(LLVMBuildFPToUI(st->builder, getop(0), build_type(to), "cast"));
                 } else if (from->kind == TYPE_FLOATING_POINT && to->kind == TYPE_FLOATING_POINT) {
-                    setdest(LLVMBuildFPCast(st->builder, getop(0), codegen_type(to), "cast"));
+                    setdest(LLVMBuildFPCast(st->builder, getop(0), build_type(to), "cast"));
                 } else {
                     assert(0);
                 }
@@ -352,7 +542,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             break;
 
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate")); break;
-        case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(ins->destvar->type), "ptr_cast")); break;
+        case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), build_type(ins->destvar->type), "ptr_cast")); break;
 
         // various no-ops
         case CF_VARCPY:
@@ -387,17 +577,10 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
 #undef get
 #undef getop
 }
-
-static int find_block(const CfGraph *cfg, const CfBlock *b)
-{
-    for (int i = 0; i < cfg->all_blocks.len; i++)
-        if (cfg->all_blocks.ptr[i] == b)
-            return i;
-    assert(0);
-}
+#endif
 
 #ifdef _WIN32
-static void codegen_call_to_the_special_startup_function(const struct State *st)
+static void build_call_to_the_special_startup_function(const struct State *st)
 {
     LLVMTypeRef functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
     LLVMValueRef func = LLVMAddFunction(st->module, "_jou_windows_startup", functype);
@@ -405,94 +588,49 @@ static void codegen_call_to_the_special_startup_function(const struct State *st)
 }
 #endif
 
-static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
+static void build_function_or_method_def(struct State *st, const Signature *sig, const AstBody *body)
 {
-    st->cfvars = cfg->locals.ptr;
-    st->cfvars_end = End(cfg->locals);
-    st->llvm_locals = malloc(sizeof(st->llvm_locals[0]) * cfg->locals.len); // NOLINT
+    LLVMValueRef llvm_func = build_function_or_method_decl(st, sig);
 
-    LLVMValueRef llvm_func = codegen_function_or_method_decl(st, &cfg->signature);
-
-    LLVMBasicBlockRef *blocks = malloc(sizeof(blocks[0]) * cfg->all_blocks.len); // NOLINT
-    for (int i = 0; i < cfg->all_blocks.len; i++) {
-        char name[50];
-        sprintf(name, "block%d", i);
-        blocks[i] = LLVMAppendBasicBlock(llvm_func, name);
-    }
-
-    assert(cfg->all_blocks.ptr[0] == &cfg->start_block);
-    LLVMPositionBuilderAtEnd(st->builder, blocks[0]);
+    LLVMBasicBlockRef startblock = LLVMAppendBasicBlock(llvm_func, "start");
+    LLVMPositionBuilderAtEnd(st->builder, startblock);
 
 #ifdef _WIN32
-    if (!get_self_class(&cfg->signature) && !strcmp(cfg->signature.name, "main"))
-        codegen_call_to_the_special_startup_function(st);
+    if (!get_self_class(sig) && !strcmp(sig->name, "main"))
+        build_call_to_the_special_startup_function(st);
 #endif
 
-    // Allocate stack space for local variables at start of function.
-    LLVMValueRef return_value = NULL;
-    for (int i = 0; i < cfg->locals.len; i++) {
-        LocalVariable *v = cfg->locals.ptr[i];
-        st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(v->type), v->name);
-        if (!strcmp(v->name, "return"))
-            return_value = st->llvm_locals[i];
+    // Create local variables for the arguments.
+    for (int i = 0; i < sig->nargs; i++) {
+        LLVMValueRef ptr = LLVMBuildAlloca(st->builder, build_type(sig->argtypes[i]), sig->argnames[i]);
+        LLVMBuildStore(st->builder, LLVMGetParam(llvm_func, i), ptr);
+        struct Variable v = { .ptr = ptr };
+        safe_strcpy(v.name, sig->argnames[i]);
+        Append(&st->locals, v);
     }
 
-    // Place arguments into the first n local variables.
-    for (int i = 0; i < cfg->signature.nargs; i++)
-        set_local_var(st, cfg->locals.ptr[i], LLVMGetParam(llvm_func, i));
-
-    for (CfBlock **b = cfg->all_blocks.ptr; b <End(cfg->all_blocks); b++) {
-        LLVMPositionBuilderAtEnd(st->builder, blocks[b - cfg->all_blocks.ptr]);
-
-        for (CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
-            codegen_instruction(st, ins);
-
-        if (*b == &cfg->end_block) {
-            assert((*b)->instructions.len == 0);
-            if (return_value)
-                LLVMBuildRet(st->builder, LLVMBuildLoad(st->builder, return_value, "return_value"));
-            else if (cfg->signature.returntype)  // "return" variable was deleted as unused
-                LLVMBuildUnreachable(st->builder);
-            else
-                LLVMBuildRetVoid(st->builder);
-        } else {
-            assert((*b)->iftrue && (*b)->iffalse);
-            if ((*b)->iftrue == (*b)->iffalse) {
-                LLVMBuildBr(st->builder, blocks[find_block(cfg, (*b)->iftrue)]);
-            } else {
-                assert((*b)->branchvar);
-                LLVMBuildCondBr(
-                    st->builder,
-                    get_local_var(st, (*b)->branchvar),
-                    blocks[find_block(cfg, (*b)->iftrue)],
-                    blocks[find_block(cfg, (*b)->iffalse)]);
-            }
-        }
-    }
-
-    free(blocks);
-    free(st->llvm_locals);
+    build_body(st, body);
 }
 
-LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft)
+LLVMModuleRef codegen(const AstToplevelNode *ast, const TypeContext *typectx)
 {
     struct State st = {
-        .module = LLVMModuleCreateWithName(cfgfile->filename),
+        .module = LLVMModuleCreateWithName(ast[0].location.filename),
         .builder = LLVMCreateBuilder(),
     };
 
     LLVMSetTarget(st.module, get_target()->triple);
     LLVMSetDataLayout(st.module, get_target()->data_layout);
 
-    for (GlobalVariable **v = ft->globals.ptr; v < End(ft->globals); v++) {
-        LLVMTypeRef t = codegen_type((*v)->type);
+    for (GlobalVariable **v = typectx->globals.ptr; v < End(typectx->globals); v++) {
+        LLVMTypeRef t = build_type((*v)->type);
         LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
         if ((*v)->defined_in_current_file)
             LLVMSetInitializer(globalptr, LLVMGetUndef(t));
     }
 
-    for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
-        codegen_function_or_method_def(&st, *g);
+    for (const TypeContextFunctionDef *f = typectx->defined_functions.ptr; f < End(typectx->defined_functions); f++)
+        build_function_or_method_def(&st, &f->signature, f->astbody);
 
     LLVMDisposeBuilder(st.builder);
     return st.module;
