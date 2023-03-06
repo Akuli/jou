@@ -39,7 +39,8 @@ typedef struct GlobalVariable GlobalVariable;
 typedef struct LocalVariable LocalVariable;
 typedef struct ExpressionTypes ExpressionTypes;
 typedef struct ExportSymbol ExportSymbol;
-typedef struct TypeContext TypeContext;
+typedef struct FileTypes FileTypes;
+typedef struct FunctionOrMethodTypes FunctionOrMethodTypes;
 
 typedef struct CfBlock CfBlock;
 typedef struct CfGraph CfGraph;
@@ -445,16 +446,21 @@ struct ExportSymbol {
     } data;
 };
 
-struct TypeContext {
-    const Signature *current_function_signature;
-    // expr_types tells what type each expression has.
-    // It contains nothing for calls to "-> void" functions.
+// Type information about a function or method defined in the current file.
+struct FunctionOrMethodTypes {
+    Signature signature;
     List(ExpressionTypes *) expr_types;
-    List(GlobalVariable *) globals;  // TODO: probably doesn't need to has pointers
     List(LocalVariable *) locals;
+};
+
+// Type information about a file.
+struct FileTypes {
+    FunctionOrMethodTypes *current_fom_types;  // conceptually this is internal to typecheck.c
+    List(FunctionOrMethodTypes) fomtypes;
+    List(GlobalVariable *) globals;  // TODO: probably doesn't need to has pointers
     List(Type *) owned_types;   // These will be freed later
-    List(struct TypeContextType { const Type *type; bool *usedptr; }) types;
-    List(struct TypeContextFunction { Signature signature; bool *usedptr; }) functions;
+    List(struct TypeAndUsedPtr { const Type *type; bool *usedptr; }) types;
+    List(struct SignatureAndUsedPtr { Signature signature; bool *usedptr; }) functions;
 };
 
 /*
@@ -477,21 +483,11 @@ Steps 1 and 2 return a list of ExportSymbols for other files to use.
 The list is terminated with (ExportSymbol){0}, which you can detect by
 checking if the name of the ExportSymbol is empty.
 
-Step 3 is interleaved with build_cfg (see the reset_type_context() function).
+Step 3 is currently interleaved with build_cfg, for no good reason.
 */
-ExportSymbol *typecheck_step1_create_types(TypeContext *ctx, const AstToplevelNode *ast);
-ExportSymbol *typecheck_step2_signatures_globals_structbodies(TypeContext *ctx, const AstToplevelNode *ast);
-const Signature *typecheck_function_or_method_body(TypeContext *ctx, const Type *classtype, const AstFunctionDef *ast);
-
-/*
-Wipes all function-specific data, making the type context suitable
-for use with the next function definition. For example, the list of
-local variables is emptied so that the next function doesn't have
-access to the same local variables. But e.g. the list of all known
-function signatures is preserved, so that the next function can
-call the previous function.
-*/
-void reset_type_context(TypeContext *ctx);
+ExportSymbol *typecheck_step1_create_types(FileTypes *ft, const AstToplevelNode *ast);
+ExportSymbol *typecheck_step2_signatures_globals_structbodies(FileTypes *ft, const AstToplevelNode *ast);
+void typecheck_function_or_method_body(FileTypes *ft, const AstBody *body);
 
 
 // Control Flow Graph.
@@ -587,9 +583,9 @@ entire compilation. It is used in error messages.
 */
 Token *tokenize(FILE *f, const char *filename);
 AstToplevelNode *parse(const Token *tokens, const char *stdlib_path);
-CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, TypeContext *typectx);
+CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *ft);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
-LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx);
+LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft);
 void compile_to_exe(LLVMModuleRef module, const char *exepath, const CommandLineFlags *flags);
 int run_program(LLVMModuleRef module, const CommandLineFlags *flags);
 
@@ -603,7 +599,7 @@ but not any of the data contained within individual nodes.
 void free_constant(const Constant *c);
 void free_tokens(Token *tokenlist);
 void free_ast(AstToplevelNode *topnodelist);
-void free_type_context(const TypeContext *typectx);
+void free_file_types(const FileTypes *ft);
 void free_export_symbol(const ExportSymbol *es);
 void free_control_flow_graphs(const CfGraphFile *cfgfile);
 void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b);

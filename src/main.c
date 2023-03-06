@@ -151,7 +151,7 @@ wrong_usage:
 struct FileState {
     char *path;
     AstToplevelNode *ast;
-    TypeContext typectx;
+    FileTypes types;
     LLVMModuleRef module;
     ExportSymbol *pending_exports;
 };
@@ -231,7 +231,7 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
     if (compst->flags.verbose)
         printf("Build CFG: %s\n", fs->path);
 
-    CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->typectx);
+    CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->types);
     for (AstToplevelNode *imp = fs->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++)
         if (!imp->data.import.used)
             show_warning(imp->location, "'%s' imported but not used", imp->data.import.symbolname);
@@ -246,7 +246,7 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
     if (compst->flags.verbose)
         printf("Build LLVM IR: %s\n", fs->path);
 
-    fs->module = codegen(&cfgfile, &fs->typectx);
+    fs->module = codegen(&cfgfile, &fs->types);
     free_control_flow_graphs(&cfgfile);
 
     if(compst->flags.verbose)
@@ -330,9 +330,15 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
 
     switch(es->kind) {
     case EXPSYM_FUNCTION:
-        Append(&fs->typectx.functions, (struct TypeContextFunction){
+        Append(&fs->types.functions, (struct SignatureAndUsedPtr){
             .signature = copy_signature(&es->data.funcsignature),
             .usedptr = &imp->used,
+        });
+        break;
+    case EXPSYM_TYPE:
+        Append(&fs->types.types, (struct TypeAndUsedPtr){
+            .type=es->data.type,
+            .usedptr=&imp->used,
         });
         break;
     case EXPSYM_GLOBAL_VAR:
@@ -341,10 +347,7 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
         g->usedptr = &imp->used;
         assert(strlen(es->name) < sizeof g->name);
         strcpy(g->name, es->name);
-        Append(&fs->typectx.globals, g);
-        break;
-    case EXPSYM_TYPE:
-        Append(&fs->typectx.types, (struct TypeContextType){ .type=es->data.type, .usedptr=&imp->used });
+        Append(&fs->types.globals, g);
         break;
     }
 }
@@ -453,14 +456,14 @@ int main(int argc, char **argv)
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         if (compst.flags.verbose)
             printf("Typecheck step 1: %s\n", fs->path);
-        fs->pending_exports = typecheck_step1_create_types(&fs->typectx, fs->ast);
+        fs->pending_exports = typecheck_step1_create_types(&fs->types, fs->ast);
     }
     add_imported_symbols(&compst);
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         if (compst.flags.verbose)
             printf("Typecheck step 2: %s\n", fs->path);
-        fs->pending_exports = typecheck_step2_signatures_globals_structbodies(&fs->typectx, fs->ast);
+        fs->pending_exports = typecheck_step2_signatures_globals_structbodies(&fs->types, fs->ast);
     }
     add_imported_symbols(&compst);
 
@@ -493,7 +496,7 @@ int main(int argc, char **argv)
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         free(fs->path);
-        free_type_context(&fs->typectx);
+        free_file_types(&fs->types);
     }
     free(compst.files.ptr);
     free(compst.stdlib_path);

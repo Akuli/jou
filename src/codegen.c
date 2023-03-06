@@ -474,7 +474,7 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
     free(st->llvm_locals);
 }
 
-LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
+LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft)
 {
     struct State st = {
         .module = LLVMModuleCreateWithName(cfgfile->filename),
@@ -484,7 +484,7 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const TypeContext *typectx)
     LLVMSetTarget(st.module, get_target()->triple);
     LLVMSetDataLayout(st.module, get_target()->data_layout);
 
-    for (GlobalVariable **v = typectx->globals.ptr; v < End(typectx->globals); v++) {
+    for (GlobalVariable **v = ft->globals.ptr; v < End(ft->globals); v++) {
         LLVMTypeRef t = codegen_type((*v)->type);
         LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
         if ((*v)->defined_in_current_file)

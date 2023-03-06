@@ -236,20 +236,23 @@ void free_export_symbol(const ExportSymbol *es)
         free_signature(&es->data.funcsignature);
 }
 
-void free_type_context(const TypeContext *ctx)
+void free_file_types(const FileTypes *ft)
 {
-    for (GlobalVariable **g = ctx->globals.ptr; g < End(ctx->globals); g++)
+    for (GlobalVariable **g = ft->globals.ptr; g < End(ft->globals); g++)
         free(*g);
-    for (Type **t = ctx->owned_types.ptr; t < End(ctx->owned_types); t++)
+    for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++)
         free_type(*t);
-    for (struct TypeContextFunction *f = ctx->functions.ptr; f < End(ctx->functions); f++)
+    for (FunctionOrMethodTypes *f = ft->fomtypes.ptr; f < End(ft->fomtypes); f++) {
+        for (ExpressionTypes **et = f->expr_types.ptr; et < End(f->expr_types); et++)
+            free(*et);
+        free(f->expr_types.ptr);
+        free(f->locals.ptr);  // Don't free individual locals because they're owned by CFG now
         free_signature(&f->signature);
-    free(ctx->expr_types.ptr);
-    free(ctx->globals.ptr);
-    free(ctx->locals.ptr);
-    free(ctx->types.ptr);
-    free(ctx->owned_types.ptr);
-    free(ctx->functions.ptr);
+    }
+    free(ft->globals.ptr);
+    free(ft->types.ptr);
+    free(ft->owned_types.ptr);
+    free(ft->functions.ptr);
 }
 
 
