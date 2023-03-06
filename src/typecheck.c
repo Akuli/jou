@@ -67,7 +67,7 @@ static const Type *find_any_var(const FileTypes *ft, const char *name)
     return NULL;
 }
 
-ExportSymbol *typecheck_step1_create_types(FileTypes *ft, const AstToplevelNode *ast)
+ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstToplevelNode *ast)
 {
     List(ExportSymbol) exports = {0};
 
@@ -252,7 +252,7 @@ static const Type *handle_class_members_stage2(FileTypes *ft, const AstClassDef 
     return type;
 }
 
-ExportSymbol *typecheck_step2_signatures_globals_structbodies(FileTypes *ft, const AstToplevelNode *ast)
+ExportSymbol *typecheck_stage2_signatures_globals_structbodies(FileTypes *ft, const AstToplevelNode *ast)
 {
     List(ExportSymbol) exports = {0};
 
@@ -1179,10 +1179,12 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
     }
 }
 
-void typecheck_function_or_method_body(FileTypes *ft, const AstBody *body)
+static void typecheck_function_or_method_body(FileTypes *ft, const Signature *sig, const AstBody *body)
 {
-    assert(ft->current_fom_types != NULL);
-    const Signature *sig = &ft->current_fom_types->signature;
+    assert(!ft->current_fom_types);
+    Append(&ft->fomtypes, (struct FunctionOrMethodTypes){0});
+    ft->current_fom_types = End(ft->fomtypes) - 1;
+    ft->current_fom_types->signature = copy_signature(sig);
 
     for (int i = 0; i < sig->nargs; i++) {
         LocalVariable *v = add_variable(ft, sig->argtypes[i], sig->argnames[i]);
@@ -1192,4 +1194,45 @@ void typecheck_function_or_method_body(FileTypes *ft, const AstBody *body)
         add_variable(ft, sig->returntype, "return");
 
     typecheck_body(ft, body);
+    ft->current_fom_types = NULL;
+}
+
+void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstToplevelNode *ast)
+{
+    for (; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
+        if (ast->kind == AST_TOPLEVEL_DEFINE_FUNCTION) {
+            const Signature *sig = NULL;
+            for (struct SignatureAndUsedPtr *f = ft->functions.ptr; f < End(ft->functions); f++) {
+                if (!strcmp(f->signature.name, ast->data.funcdef.signature.name)) {
+                    sig = &f->signature;
+                    break;
+                }
+            }
+            assert(sig);
+            typecheck_function_or_method_body(ft, sig, &ast->data.funcdef.body);
+        }
+
+        if (ast->kind == AST_TOPLEVEL_DEFINE_CLASS) {
+            Type *classtype = NULL;
+            for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++) {
+                if (!strcmp((*t)->name, ast->data.classdef.name)) {
+                    classtype = *t;
+                    break;
+                }
+            }
+            assert(classtype);
+
+            for (AstFunctionDef *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
+                Signature *sig = NULL;
+                for (Signature *s = classtype->data.classdata.methods.ptr; s < End(classtype->data.classdata.methods); s++) {
+                    if (!strcmp(s->name, m->signature.name)) {
+                        sig = s;
+                        break;
+                    }
+                }
+                assert(sig);
+                typecheck_function_or_method_body(ft, sig, &m->body);
+            }
+        }
+    }
 }

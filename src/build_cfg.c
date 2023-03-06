@@ -1,8 +1,8 @@
 #include "jou_compiler.h"
 
 struct State {
-    FileTypes *filetypes;
-    FunctionOrMethodTypes *fomtypes;
+    const FileTypes *filetypes;
+    const FunctionOrMethodTypes *fomtypes;
     CfGraph *cfg;
     CfBlock *current_block;
     List(CfBlock *) breakstack;
@@ -11,7 +11,7 @@ struct State {
 
 static const LocalVariable *find_local_var(const struct State *st, const char *name)
 {
-    for (LocalVariable **var = st->fomtypes->locals.ptr; var < End(st->fomtypes->locals); var++)
+    for (LocalVariable **var = st->cfg->locals.ptr; var < End(st->cfg->locals); var++)
         if (!strcmp((*var)->name, name))
             return *var;
     return NULL;
@@ -20,15 +20,16 @@ static const LocalVariable *find_local_var(const struct State *st, const char *n
 static LocalVariable *add_local_var(struct State *st, const Type *t)
 {
     LocalVariable *var = calloc(1, sizeof *var);
-    var->id = st->fomtypes->locals.len;
+    var->id = st->cfg->locals.len;
     var->type = t;
-    Append(&st->fomtypes->locals, var);
+    Append(&st->cfg->locals, var);
     return var;
 }
 
 static const ExpressionTypes *get_expr_types(const struct State *st, const AstExpression *expr)
 {
     // TODO: a fancy binary search algorithm (need to add sorting)
+    assert(st->fomtypes);
     for (int i = 0; i < st->fomtypes->expr_types.len; i++)
         if (st->fomtypes->expr_types.ptr[i]->expr == expr)
             return st->fomtypes->expr_types.ptr[i];
@@ -860,23 +861,25 @@ static void build_body(struct State *st, const AstBody *body)
         build_statement(st, &body->statements[i]);
 }
 
-static CfGraph *build_function(struct State *st, const Signature *sig, const AstBody *body)
+static CfGraph *build_function_or_method(struct State *st, const Type *selfclass, const char *name, const AstBody *body)
 {
     assert(!st->fomtypes);
-    assert(!st->filetypes->current_fom_types);
     assert(!st->cfg);
 
-    Append(&st->filetypes->fomtypes, (struct FunctionOrMethodTypes){0});
-    st->fomtypes = End(st->filetypes->fomtypes) - 1;
-    st->filetypes->current_fom_types = End(st->filetypes->fomtypes) - 1;
-    st->fomtypes->signature = copy_signature(sig);
-
-    typecheck_function_or_method_body(st->filetypes, body);
+    for (const FunctionOrMethodTypes *f = st->filetypes->fomtypes.ptr; f < End(st->filetypes->fomtypes); f++) {
+        if (!strcmp(f->signature.name, name) && get_self_class(&f->signature) == selfclass) {
+            st->fomtypes = f;
+            break;
+        }
+    }
+    assert(st->fomtypes);
 
     st->cfg = calloc(1, sizeof *st->cfg);
+    st->cfg->signature = copy_signature(&st->fomtypes->signature);
+    for (LocalVariable **v = st->fomtypes->locals.ptr; v < End(st->fomtypes->locals); v++)
+        Append(&st->cfg->locals, *v);
     Append(&st->cfg->all_blocks, &st->cfg->start_block);
     Append(&st->cfg->all_blocks, &st->cfg->end_block);
-    st->cfg->signature = copy_signature(sig);
     st->current_block = &st->cfg->start_block;
 
     assert(st->breakstack.len == 0 && st->continuestack.len == 0);
@@ -887,12 +890,8 @@ static CfGraph *build_function(struct State *st, const Signature *sig, const Ast
     st->current_block->iftrue = &st->cfg->end_block;
     st->current_block->iffalse = &st->cfg->end_block;
 
-    for (LocalVariable **v = st->fomtypes->locals.ptr; v < End(st->fomtypes->locals); v++)
-        Append(&st->cfg->locals, *v);
-
     CfGraph *cfg = st->cfg;
     st->fomtypes = NULL;
-    st->filetypes->current_fom_types = NULL;
     st->cfg = NULL;
     return cfg;
 }
@@ -906,38 +905,22 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *filetypes
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
         if(ast->kind == AST_TOPLEVEL_DEFINE_FUNCTION) {
-            assert(!filetypes->current_fom_types);
-            Signature *sig = NULL;
-            for (struct SignatureAndUsedPtr *f = filetypes->functions.ptr; f < End(filetypes->functions); f++) {
-                if (!strcmp(f->signature.name, ast->data.funcdef.signature.name)) {
-                    sig = &f->signature;
-                    break;
-                }
-            }
-            assert(sig);
-            CfGraph *g = build_function(&st, sig, &ast->data.funcdef.body);
+            CfGraph *g = build_function_or_method(&st, NULL, ast->data.funcdef.signature.name, &ast->data.funcdef.body);
             Append(&result.graphs, g);
         }
 
         if (ast->kind == AST_TOPLEVEL_DEFINE_CLASS) {
             Type *classtype = NULL;
-            for (Type **t = filetypes->owned_types.ptr; t < End(filetypes->owned_types); t++)
+            for (Type **t = filetypes->owned_types.ptr; t < End(filetypes->owned_types); t++) {
                 if (!strcmp((*t)->name, ast->data.classdef.name)) {
                     classtype = *t;
                     break;
                 }
+            }
             assert(classtype);
 
             for (AstFunctionDef *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
-                Signature *sig = NULL;
-                for (Signature *s = classtype->data.classdata.methods.ptr; s < End(classtype->data.classdata.methods); s++) {
-                    if (!strcmp(s->name, m->signature.name)) {
-                        sig = s;
-                        break;
-                    }
-                }
-                assert(sig);
-                CfGraph *g = build_function(&st, sig, &m->body);
+                CfGraph *g = build_function_or_method(&st, classtype, m->signature.name, &m->body);
                 Append(&result.graphs, g);
             }
         }

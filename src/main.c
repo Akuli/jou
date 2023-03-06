@@ -455,17 +455,21 @@ int main(int argc, char **argv)
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         if (compst.flags.verbose)
-            printf("Typecheck step 1: %s\n", fs->path);
-        fs->pending_exports = typecheck_step1_create_types(&fs->types, fs->ast);
+            printf("Typecheck stage 1: %s\n", fs->path);
+        fs->pending_exports = typecheck_stage1_create_types(&fs->types, fs->ast);
     }
     add_imported_symbols(&compst);
-
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         if (compst.flags.verbose)
-            printf("Typecheck step 2: %s\n", fs->path);
-        fs->pending_exports = typecheck_step2_signatures_globals_structbodies(&fs->types, fs->ast);
+            printf("Typecheck stage 2: %s\n", fs->path);
+        fs->pending_exports = typecheck_stage2_signatures_globals_structbodies(&fs->types, fs->ast);
     }
     add_imported_symbols(&compst);
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
+        if (compst.flags.verbose)
+            printf("Typecheck stage 3: %s\n", fs->path);
+        typecheck_stage3_function_and_method_bodies(&fs->types, fs->ast);
+    }
 
     check_for_404_imports(&compst);
 

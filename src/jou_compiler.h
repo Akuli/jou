@@ -474,7 +474,7 @@ Type checking is split into several stages:
        fields each struct has.
     3. Check function bodies.
 
-Each step is ran on all files before we move on to the next step. This
+Each stage is ran on all files before we move on to the next stage. This
 ensures that different files can import things from each other. You
 also never need to forward-declare a struct: the struct exists by the
 time we check the function signature or struct body that uses it.
@@ -482,12 +482,10 @@ time we check the function signature or struct body that uses it.
 Steps 1 and 2 return a list of ExportSymbols for other files to use.
 The list is terminated with (ExportSymbol){0}, which you can detect by
 checking if the name of the ExportSymbol is empty.
-
-Step 3 is currently interleaved with build_cfg, for no good reason.
 */
-ExportSymbol *typecheck_step1_create_types(FileTypes *ft, const AstToplevelNode *ast);
-ExportSymbol *typecheck_step2_signatures_globals_structbodies(FileTypes *ft, const AstToplevelNode *ast);
-void typecheck_function_or_method_body(FileTypes *ft, const AstBody *body);
+ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstToplevelNode *ast);
+ExportSymbol *typecheck_stage2_signatures_globals_structbodies(FileTypes *ft, const AstToplevelNode *ast);
+void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstToplevelNode *ast);
 
 
 // Control Flow Graph.
@@ -583,6 +581,7 @@ entire compilation. It is used in error messages.
 */
 Token *tokenize(FILE *f, const char *filename);
 AstToplevelNode *parse(const Token *tokens, const char *stdlib_path);
+// Type checking happens between parsing and building CFGs.
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *ft);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft);
