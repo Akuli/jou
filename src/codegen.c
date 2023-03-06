@@ -92,6 +92,7 @@ static struct Variable *get_local_var(const struct State *st, const char *name)
     for (struct Variable *v = st->locals.ptr; v < End(st->locals); v++)
         if (!strcmp(v->name, name))
             return v;
+    LLVMDumpModule(st->module);
     assert(0);
 }
 
@@ -234,7 +235,12 @@ static LLVMValueRef build_cast(const struct State *st, LLVMValueRef obj, const T
 
 static LLVMValueRef build_address_of_expression(const struct State *st, const AstExpression *expr)
 {
-    assert(0);
+    switch(expr->kind) {
+    case AST_EXPR_GET_VARIABLE:
+        return get_local_var(st, expr->data.varname)->ptr;
+    default:
+        assert(0);
+    }
 }
 
 static LLVMValueRef build_call(const struct State *st, LLVMValueRef self, const Type *selftype, const AstCall *call)
@@ -313,6 +319,35 @@ static LLVMValueRef build_constant(const struct State *st, const Constant *c)
     assert(0);
 }
 
+enum PrePost { PRE, POST };
+
+static LLVMValueRef build_incr_decr(const struct State *st, const AstExpression *expr, enum PrePost pp, int diff)
+{
+    assert(diff==-1 || diff==1);
+    LLVMValueRef ptr = build_address_of_expression(st, expr);
+    LLVMValueRef oldval = LLVMBuildLoad(st->builder, ptr, "oldval");
+    LLVMValueRef newval;
+
+    switch(get_type_after_cast(st, expr)->kind) {
+    case TYPE_POINTER:
+        newval = LLVMBuildGEP(st->builder, oldval, (LLVMValueRef[]){LLVMConstInt(LLVMInt64Type(), diff, true)}, 1, "newval");
+        break;
+    case TYPE_SIGNED_INTEGER:
+    case TYPE_UNSIGNED_INTEGER:
+        newval = LLVMBuildAdd(st->builder, oldval, LLVMConstInt(LLVMTypeOf(oldval), diff, true), "newval");
+        break;
+    default:
+        assert(0);
+    }
+    LLVMBuildStore(st->builder, newval, ptr);
+
+    switch(pp) {
+        case PRE: return newval;
+        case POST: return oldval;
+    }
+    assert(0);
+}
+
 static LLVMValueRef build_expression(const struct State *st, const AstExpression *expr)
 {
     const ExpressionTypes *types = get_expr_types(st, expr);
@@ -349,6 +384,10 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
     case AST_EXPR_GET_VARIABLE:
         result = load_local_var(st, expr->data.varname);
         break;
+    case AST_EXPR_PRE_INCREMENT: result = build_incr_decr(st, &expr->data.operands[0], PRE, +1); break;
+    case AST_EXPR_PRE_DECREMENT: result = build_incr_decr(st, &expr->data.operands[0], PRE, -1); break;
+    case AST_EXPR_POST_INCREMENT: result = build_incr_decr(st, &expr->data.operands[0], POST, +1); break;
+    case AST_EXPR_POST_DECREMENT: result = build_incr_decr(st, &expr->data.operands[0], POST, -1); break;
     default:
         printf("%d\n", expr->kind);
         assert(0);
@@ -419,7 +458,6 @@ static void build_if_statement(struct State *st, const AstIfStatement *ifstmt)
         LLVMBuildCondBr(st->builder, cond, then, otherwise);
 
         LLVMPositionBuilderAtEnd(st->builder, then);
-        LLVMDumpModule(st->module);
         build_body(st, &ifstmt->if_and_elifs[i].body);
         LLVMBuildBr(st->builder, done);
 
@@ -723,20 +761,27 @@ static void build_function_or_method_def(struct State *st, const Type *selfclass
         build_call_to_the_special_startup_function(st);
 #endif
 
-    // Create local variables for the arguments.
-    for (int i = 0; i < sig->nargs; i++) {
-        LLVMValueRef ptr = LLVMBuildAlloca(st->builder, build_type(sig->argtypes[i]), sig->argnames[i]);
-        LLVMBuildStore(st->builder, LLVMGetParam(st->llvmfunc, i), ptr);
+    // Create local variables.
+    assert(st->locals.len == 0);
+    for (LocalVariable **var = st->fomtypes->locals.ptr; var < End(st->fomtypes->locals); var++) {
+        LLVMValueRef ptr = LLVMBuildAlloca(st->builder, build_type((*var)->type), (*var)->name);
         struct Variable v = { .ptr = ptr };
-        safe_strcpy(v.name, sig->argnames[i]);
+        safe_strcpy(v.name, (*var)->name);
         Append(&st->locals, v);
     }
+
+    // Store arguments to first n local variables.
+    for (int i = 0; i < sig->nargs; i++)
+        LLVMBuildStore(st->builder, LLVMGetParam(st->llvmfunc, i), st->locals.ptr[i].ptr);
 
     build_body(st, body);
     if (sig->returntype)
         LLVMBuildUnreachable(st->builder);
     else
         LLVMBuildRetVoid(st->builder);
+
+    free(st->locals.ptr);
+    memset(&st->locals, 0, sizeof st->locals);
     st->fomtypes = NULL;
 }
 
