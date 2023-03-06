@@ -242,6 +242,8 @@ void free_file_types(const FileTypes *ft)
         free(*g);
     for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++)
         free_type(*t);
+    for (struct SignatureAndUsedPtr *f = ft->functions.ptr; f < End(ft->functions); f++)
+        free_signature(&f->signature);
     for (FunctionOrMethodTypes *f = ft->fomtypes.ptr; f < End(ft->fomtypes); f++) {
         for (ExpressionTypes **et = f->expr_types.ptr; et < End(f->expr_types); et++)
             free(*et);
@@ -253,6 +255,7 @@ void free_file_types(const FileTypes *ft)
     free(ft->types.ptr);
     free(ft->owned_types.ptr);
     free(ft->functions.ptr);
+    free(ft->fomtypes.ptr);
 }
 
 
