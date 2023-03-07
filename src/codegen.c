@@ -234,7 +234,12 @@ static LLVMValueRef build_binop(
     if (is_pointer_type(lhstype) && is_pointer_type(rhstype)) {
         LLVMValueRef lhsint = LLVMBuildPtrToInt(st->builder, lhs, LLVMInt64Type(), "ptreq_lhs");
         LLVMValueRef rhsint = LLVMBuildPtrToInt(st->builder, rhs, LLVMInt64Type(), "ptreq_rhs");
-        return LLVMBuildICmp(st->builder, LLVMIntEQ, lhsint, rhsint, "ptreq");
+        switch(op) {
+            case AST_EXPR_EQ: return LLVMBuildICmp(st->builder, LLVMIntEQ, lhsint, rhsint, "ptreq");
+            case AST_EXPR_NE: return LLVMBuildICmp(st->builder, LLVMIntNE, lhsint, rhsint, "ptreq");
+            default: assert(0);
+        }
+        
     }
 
     printf("%s %d %s\n", lhstype->name, op, rhstype->name);
@@ -533,6 +538,10 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
         temp = build_address_of_expression(st, expr->data.methodcall.obj);
         result = build_call(st, temp, get_pointer_type(get_type_after_cast(st, expr->data.methodcall.obj)), &expr->data.methodcall.call);
         break;
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        temp = build_expression(st, expr->data.methodcall.obj);
+        result = build_call(st, temp, get_type_after_cast(st, expr->data.methodcall.obj), &expr->data.methodcall.call);
+        break;
     case AST_EXPR_CONSTANT:
         result = build_constant(st, &expr->data.constant);
         break;
@@ -639,9 +648,7 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
             break;
         }
     case AST_EXPR_ARRAY:
-    case AST_EXPR_DEREF_AND_CALL_METHOD:
-        printf("%d\n", expr->kind);
-        assert(0);
+        assert(0);  // TODO
     }
 
     if (!result) {
