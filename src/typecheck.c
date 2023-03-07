@@ -1146,7 +1146,7 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
             "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
             ft->current_fom_types->signature.name);
         typecheck_expression_with_implicit_cast(
-            ft, &stmt->data.expression, find_local_var(ft, "return")->type, msg);
+            ft, &stmt->data.expression, ft->current_fom_types->signature.returntype, msg);
         break;
     }
 
@@ -1190,8 +1190,6 @@ static void typecheck_function_or_method_body(FileTypes *ft, const Signature *si
         LocalVariable *v = add_variable(ft, sig->argtypes[i], sig->argnames[i]);
         v->is_argument = true;
     }
-    if (sig->returntype)
-        add_variable(ft, sig->returntype, "return");
 
     typecheck_body(ft, body);
     ft->current_fom_types = NULL;

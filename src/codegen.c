@@ -88,23 +88,23 @@ const Type *get_type_after_cast(const struct State *st, const AstExpression *exp
     return et->type;
 }
 
-static struct Variable *get_local_var(const struct State *st, const char *name)
+static struct Variable *find_local_var(const struct State *st, const char *name)
 {
     for (struct Variable *v = st->locals.ptr; v < End(st->locals); v++)
         if (!strcmp(v->name, name))
             return v;
+
+    printf("Fatal Codegen Error 404: variable not found: %s\n", name);
     LLVMDumpModule(st->module);
     assert(0);
 }
 
-static LLVMValueRef load_local_var(const struct State *st, const char *name)
+static LLVMValueRef find_var(const struct State *st, const char *name)
 {
-    return LLVMBuildLoad(st->builder, get_local_var(st, name)->ptr, name);
-}
-
-static void store_local_var(const struct State *st, const char *name, LLVMValueRef value)
-{
-    LLVMBuildStore(st->builder, value, get_local_var(st, name)->ptr);
+    LLVMValueRef varptr = LLVMGetNamedGlobal(st->module, name);
+    if (varptr)
+        return varptr;
+    return find_local_var(st, name)->ptr;
 }
 
 static LLVMValueRef build_function_or_method_decl(const struct State *st, const Signature *sig)
@@ -275,8 +275,20 @@ static LLVMValueRef build_address_of_expression(const struct State *st, const As
 {
     switch(expr->kind) {
     case AST_EXPR_GET_VARIABLE:
-        return get_local_var(st, expr->data.varname)->ptr;
+        return find_var(st, expr->data.varname);
+    case AST_EXPR_INDEXING:
+        {
+            LLVMValueRef ptr = build_expression(st, &expr->data.operands[0]);
+            LLVMValueRef idx = build_expression(st, &expr->data.operands[1]);
+            if (get_type_after_cast(st, &expr->data.operands[1])->kind == TYPE_UNSIGNED_INTEGER) {
+                // https://github.com/Akuli/jou/issues/48
+                // Apparently the default is to interpret indexes as signed.
+                idx = LLVMBuildZExt(st->builder, idx, LLVMInt64Type(), "indexcast");
+            }
+            return LLVMBuildGEP(st->builder, ptr, &idx, 1, "indexed");
+        }
     default:
+        printf("%d\n", expr->kind);
         assert(0);
     }
 }
@@ -386,6 +398,35 @@ static LLVMValueRef build_incr_decr(const struct State *st, const AstExpression 
     assert(0);
 }
 
+enum AndOr { AND, OR };
+
+static LLVMValueRef build_and_or(const struct State *st, const AstExpression *lhs, const AstExpression *rhs, enum AndOr andor)
+{
+    LLVMBasicBlockRef lhsstartblock = LLVMAppendBasicBlock(st->llvmfunc, "andor_lhs");
+    LLVMBasicBlockRef rhsstartblock = LLVMAppendBasicBlock(st->llvmfunc, "andor_rhs");
+    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvmfunc, "andor_done");
+    LLVMBuildBr(st->builder, lhsstartblock);
+
+    LLVMPositionBuilderAtEnd(st->builder, lhsstartblock);
+    LLVMValueRef lhsvalue = build_expression(st, lhs);
+    LLVMBasicBlockRef lhsendblock = LLVMGetInsertBlock(st->builder);
+    switch(andor) {
+        case AND: LLVMBuildCondBr(st->builder, lhsvalue, rhsstartblock, done); break;
+        case OR: LLVMBuildCondBr(st->builder, lhsvalue, done, rhsstartblock); break;
+    }
+
+    LLVMPositionBuilderAtEnd(st->builder, rhsstartblock);
+    LLVMValueRef rhsvalue = build_expression(st, rhs);
+    LLVMBasicBlockRef rhsendblock = LLVMGetInsertBlock(st->builder);
+    LLVMBuildBr(st->builder, done);
+
+    LLVMPositionBuilderAtEnd(st->builder, done);
+    LLVMValueRef phi = LLVMBuildPhi(st->builder, LLVMInt1Type(), "and");
+    LLVMAddIncoming(phi, &lhsvalue, &lhsendblock, 1);
+    LLVMAddIncoming(phi, &rhsvalue, &rhsendblock, 1);
+    return phi;
+}
+
 static LLVMValueRef build_expression(const struct State *st, const AstExpression *expr)
 {
     const ExpressionTypes *types = get_expr_types(st, expr);
@@ -420,12 +461,23 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
             break;
         }
     case AST_EXPR_GET_VARIABLE:
-        result = load_local_var(st, expr->data.varname);
+        result = LLVMBuildLoad(st->builder, build_address_of_expression(st, expr), "val");
         break;
     case AST_EXPR_PRE_INCREMENT: result = build_incr_decr(st, &expr->data.operands[0], PRE, +1); break;
     case AST_EXPR_PRE_DECREMENT: result = build_incr_decr(st, &expr->data.operands[0], PRE, -1); break;
     case AST_EXPR_POST_INCREMENT: result = build_incr_decr(st, &expr->data.operands[0], POST, +1); break;
     case AST_EXPR_POST_DECREMENT: result = build_incr_decr(st, &expr->data.operands[0], POST, -1); break;
+    case AST_EXPR_ADDRESS_OF:
+        return build_address_of_expression(st, &expr->data.operands[0]);
+    case AST_EXPR_AND:
+        result = build_and_or(st, &expr->data.operands[0], &expr->data.operands[1], AND);
+        break;
+    case AST_EXPR_OR:
+        result = build_and_or(st, &expr->data.operands[0], &expr->data.operands[1], OR);
+        break;
+    case AST_EXPR_NOT:
+        result = LLVMBuildNot(st->builder, build_expression(st, &expr->data.operands[0]), "not");
+        break;
     default:
         printf("%d\n", expr->kind);
         assert(0);
@@ -544,7 +596,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
     case AST_STMT_DECLARE_LOCAL_VAR:
         if (stmt->data.vardecl.value) {
             LLVMValueRef value = build_expression(st, stmt->data.vardecl.value);
-            LLVMBuildStore(st->builder, get_local_var(st, stmt->data.vardecl.name)->ptr, value);
+            LLVMBuildStore(st->builder, find_local_var(st, stmt->data.vardecl.name)->ptr, value);
         }
         break;
     case AST_STMT_EXPRESSION_STATEMENT:
