@@ -622,8 +622,10 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
             const Type *e = get_expr_types(st, expr)->type;
             assert(e->kind == TYPE_ENUM);
             int i = 0;
-            while (strcmp(e->data.enummembers.names[i], expr->data.enummember.enumname))
+            while (strcmp(e->data.enummembers.names[i], expr->data.enummember.membername)) {
                 i++;
+                assert(i < e->data.enummembers.count);
+            }
             result = LLVMConstInt(LLVMInt32Type(), i, false);
             break;
         }
