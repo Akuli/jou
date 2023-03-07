@@ -6,91 +6,6 @@ from "./errors_and_warnings.jou" import Location, assert
 # TODO: move to stdlib
 declare isprint(b: int) -> int
 
-class AstFile:
-    path: byte*  # not owned
-    body: AstToplevelStatement*
-    body_len: int
-
-    # Iterating over imports:
-    #   imp: AstImport* = NULL
-    #   while file->next_import(&imp):
-    #       ...
-    def next_import(self, imp: AstImport**) -> bool:
-        # Get the corresponding AstToplevelStatement.
-        ts = *imp as AstToplevelStatement*
-        assert(&ts->the_import as void* == ts)  # TODO: offsetof() or similar
-
-        # Assume all imports are in the beginning of the file.
-        if ts == NULL:
-            ts = &self->body[0]
-        else:
-            ts++
-
-        if ts == &self->body[self->body_len] or ts->kind != AstToplevelStatementKind::Import:
-            return False
-        *imp = &ts->the_import
-        return True
-
-    def print(self) -> void:
-        printf("===== AST for file \"%s\" =====\n", self->path)
-        for i = 0; i < self->body_len; i++:
-            self->body[i].print()
-
-    def free(self) -> void:
-        for i = 0; i < self->body_len; i++:
-            self->body[i].free()
-        free(self->body)
-
-enum AstToplevelStatementKind:
-    Import
-    FunctionDeclaration
-    FunctionDefinition
-    ClassDefinition
-    GlobalVariableDeclaration
-
-class AstToplevelStatement:
-    # TODO: union
-    the_import: AstImport   # must be first
-    decl_signature: AstSignature
-    funcdef: AstFunctionDef
-    classdef: AstClassDef
-    global_var: AstNameTypeValue
-
-    kind: AstToplevelStatementKind
-    location: Location
-
-    def print(self) -> void:
-        printf("line %d: ", self->location.lineno)
-        if self->kind == AstToplevelStatementKind::Import:
-            printf("Import \"%s\" from \"%s\".\n", &self->the_import.symbol[0], self->the_import.path)
-        elif self->kind == AstToplevelStatementKind::FunctionDeclaration:
-            printf("Declare a function: ")
-            self->decl_signature.print()
-        elif self->kind == AstToplevelStatementKind::FunctionDefinition:
-            printf("Define a function: ")
-            self->funcdef.print()
-        elif self->kind == AstToplevelStatementKind::ClassDefinition:
-            printf("Define a ")
-            self->classdef.print()
-        elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
-            printf("Declare a global variable ")
-            self->global_var.print()
-            printf("\n")
-        else:
-            printf("????????\n")
-        printf("\n")
-
-    def free(self) -> void:
-        if self->kind == AstToplevelStatementKind::Import:
-            self->the_import.free()
-
-class AstImport:
-    path: byte*  # is owned
-    symbol: byte[100]
-
-    def free(self) -> void:
-        free(self->path)
-
 enum AstTypeKind:
     Named
     Pointer
@@ -132,91 +47,6 @@ class AstType:
         if self->kind == AstTypeKind::Array:
             self->array.free()
 
-class AstNameTypeValue:
-    # name: type = value
-    name: byte[100]
-    name_location: Location
-    type: AstType
-    value: AstExpression*  # can be NULL
-
-    def print(self) -> void:
-        printf("%s: ", &self->name[0])
-        self->type.print(True)
-        if self->value != NULL:
-            # TODO: figure out a good way to print the value (wants a TreePrinter)
-            printf(" = <default>")
-
-    def free(self) -> void:
-        if self->value != NULL:
-            self->value->free()
-        free(self->value)
-
-class AstSignature:
-    name_location: Location
-    name: byte[100]  # name of function or method, after "def" keyword
-    args: AstNameTypeValue*
-    nargs: int
-    takes_varargs: bool  # True for functions like printf()
-    return_type: AstType
-
-    def print(self) -> void:
-        printf("%s(", &self->name[0])
-        for i = 0; i < self->nargs; i++:
-            if i != 0:
-                printf(", ")
-            self->args[i].print()
-
-        if self->takes_varargs:
-            if self->nargs != 0:
-                printf(", ")
-            printf("...")
-
-        printf(") -> ")
-        self->return_type.print(True)
-        printf("\n")
-
-    def free(self) -> void:
-        self->return_type.free()
-
-class AstFunctionDef:
-    signature: AstSignature
-    body: AstBody
-
-    def print(self) -> void:
-        self->signature.print()
-        self->body.print(TreePrinter{})
-
-    def free(self) -> void:
-        self->signature.free()
-        self->body.free()
-
-class AstClassDef:
-    name: byte[100]
-    name_location: Location
-    fields: AstNameTypeValue*
-    nfields: int
-    methods: AstFunctionDef*
-    nmethods: int
-
-    def print(self) -> void:
-        printf("class \"%s\" with %d fields and %d methods:\n", &self->name[0], self->nfields, self->nmethods)
-        for i = 0; i < self->nfields; i++:
-            printf("  field ")
-            self->fields[i].print()
-            printf("\n")
-        for i = 0; i < self->nmethods; i++:
-            printf("  method ")
-            self->methods[i].signature.print()
-            tp = TreePrinter{}
-            strcpy(&tp.prefix[0], "  ")
-            self->methods[i].body.print(tp)
-
-    def free(self) -> void:
-        for i = 0; i < self->nfields; i++:
-            self->fields[i].free()
-        for i = 0; i < self->nmethods; i++:
-            self->methods[i].free()
-
 # Statements and expressions can be printed in a tree.
 # To see a tree, run:
 #
@@ -235,48 +65,6 @@ class TreePrinter:
             printf("%s|--- ", &self->prefix[0])
             snprintf(&subprinter.prefix[0], sizeof subprinter.prefix, "%s| ", &self->prefix[0])
         return subprinter
-
-class AstBody:
-    statements: AstStatement*
-    nstatements: int
-
-    def print(self, tp: TreePrinter) -> void:
-        for i = 0; i < self->nstatements; i++:
-            self->statements[i].print(tp.print_prefix(i == self->nstatements - 1))
-
-    def free(self) -> void:
-        for i = 0; i < self->nstatements; i++:
-            self->statements[i].free()
-        free(self->statements)
-
-enum AstStatementKind:
-    ExpressionStatement  # Evaluate an expression. Discard the result.
-    ReturnWithValue
-
-class AstStatement:
-    location: Location
-    kind: AstStatementKind
-
-    # TODO: union
-    expression: AstExpression       # AstStatementKind::ExpressionStatement
-    return_value: AstExpression     # AstStatementKind::ReturnWithValue
-
-    def print(self, tp: TreePrinter) -> void:
-        printf("[line %d] ", self->location.lineno)
-        if self->kind == AstStatementKind::ExpressionStatement:
-            printf("expression statement\n")
-            self->expression.print(tp.print_prefix(True))
-        elif self->kind == AstStatementKind::ReturnWithValue:
-            printf("return a value\n")
-            self->return_value.print(tp.print_prefix(True))
-        else:
-            printf("??????\n")
-
-    def free(self) -> void:
-        if self->kind == AstStatementKind::ExpressionStatement:
-            self->expression.free()
-        if self->kind == AstStatementKind::ReturnWithValue:
-            self->return_value.free()
 
 enum AstExpressionKind:
     String
@@ -334,3 +122,215 @@ class AstCall:
         for i = 0; i < self->nargs; i++:
             self->args[i].free()
         free(self->args)
+
+enum AstStatementKind:
+    ExpressionStatement  # Evaluate an expression. Discard the result.
+    ReturnWithValue
+
+class AstStatement:
+    location: Location
+    kind: AstStatementKind
+
+    # TODO: union
+    expression: AstExpression       # AstStatementKind::ExpressionStatement
+    return_value: AstExpression     # AstStatementKind::ReturnWithValue
+
+    def print(self, tp: TreePrinter) -> void:
+        printf("[line %d] ", self->location.lineno)
+        if self->kind == AstStatementKind::ExpressionStatement:
+            printf("expression statement\n")
+            self->expression.print(tp.print_prefix(True))
+        elif self->kind == AstStatementKind::ReturnWithValue:
+            printf("return a value\n")
+            self->return_value.print(tp.print_prefix(True))
+        else:
+            printf("??????\n")
+
+    def free(self) -> void:
+        if self->kind == AstStatementKind::ExpressionStatement:
+            self->expression.free()
+        if self->kind == AstStatementKind::ReturnWithValue:
+            self->return_value.free()
+
+class AstBody:
+    statements: AstStatement*
+    nstatements: int
+
+    def print(self, tp: TreePrinter) -> void:
+        for i = 0; i < self->nstatements; i++:
+            self->statements[i].print(tp.print_prefix(i == self->nstatements - 1))
+
+    def free(self) -> void:
+        for i = 0; i < self->nstatements; i++:
+            self->statements[i].free()
+        free(self->statements)
+
+class AstNameTypeValue:
+    # name: type = value
+    name: byte[100]
+    name_location: Location
+    type: AstType
+    value: AstExpression*  # can be NULL
+
+    def print(self) -> void:
+        printf("%s: ", &self->name[0])
+        self->type.print(True)
+        if self->value != NULL:
+            # TODO: figure out a good way to print the value (wants a TreePrinter)
+            printf(" = <default>")
+
+    def free(self) -> void:
+        if self->value != NULL:
+            self->value->free()
+        free(self->value)
+
+class AstSignature:
+    name_location: Location
+    name: byte[100]  # name of function or method, after "def" keyword
+    args: AstNameTypeValue*
+    nargs: int
+    takes_varargs: bool  # True for functions like printf()
+    return_type: AstType
+
+    def print(self) -> void:
+        printf("%s(", &self->name[0])
+        for i = 0; i < self->nargs; i++:
+            if i != 0:
+                printf(", ")
+            self->args[i].print()
+
+        if self->takes_varargs:
+            if self->nargs != 0:
+                printf(", ")
+            printf("...")
+
+        printf(") -> ")
+        self->return_type.print(True)
+        printf("\n")
+
+    def free(self) -> void:
+        self->return_type.free()
+
+class AstImport:
+    path: byte*  # is owned
+    symbol: byte[100]
+
+    def free(self) -> void:
+        free(self->path)
+
+enum AstToplevelStatementKind:
+    Import
+    FunctionDeclaration
+    FunctionDefinition
+    ClassDefinition
+    GlobalVariableDeclaration
+
+class AstToplevelStatement:
+    # TODO: union
+    the_import: AstImport   # must be first
+    decl_signature: AstSignature
+    funcdef: AstFunctionDef
+    classdef: AstClassDef
+    global_var: AstNameTypeValue
+
+    kind: AstToplevelStatementKind
+    location: Location
+
+    def print(self) -> void:
+        printf("line %d: ", self->location.lineno)
+        if self->kind == AstToplevelStatementKind::Import:
+            printf("Import \"%s\" from \"%s\".\n", &self->the_import.symbol[0], self->the_import.path)
+        elif self->kind == AstToplevelStatementKind::FunctionDeclaration:
+            printf("Declare a function: ")
+            self->decl_signature.print()
+        elif self->kind == AstToplevelStatementKind::FunctionDefinition:
+            printf("Define a function: ")
+            self->funcdef.print()
+        elif self->kind == AstToplevelStatementKind::ClassDefinition:
+            printf("Define a ")
+            self->classdef.print()
+        elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
+            printf("Declare a global variable ")
+            self->global_var.print()
+            printf("\n")
+        else:
+            printf("????????\n")
+        printf("\n")
+
+    def free(self) -> void:
+        if self->kind == AstToplevelStatementKind::Import:
+            self->the_import.free()
+
+class AstFile:
+    path: byte*  # not owned
+    body: AstToplevelStatement*
+    body_len: int
+
+    # Iterating over imports:
+    #   imp: AstImport* = NULL
+    #   while file->next_import(&imp):
+    #       ...
+    def next_import(self, imp: AstImport**) -> bool:
+        # Get the corresponding AstToplevelStatement.
+        ts = *imp as AstToplevelStatement*
+        assert(&ts->the_import as void* == ts)  # TODO: offsetof() or similar
+
+        # Assume all imports are in the beginning of the file.
+        if ts == NULL:
+            ts = &self->body[0]
+        else:
+            ts++
+
+        if ts == &self->body[self->body_len] or ts->kind != AstToplevelStatementKind::Import:
+            return False
+        *imp = &ts->the_import
+        return True
+
+    def print(self) -> void:
+        printf("===== AST for file \"%s\" =====\n", self->path)
+        for i = 0; i < self->body_len; i++:
+            self->body[i].print()
+
+    def free(self) -> void:
+        for i = 0; i < self->body_len; i++:
+            self->body[i].free()
+        free(self->body)
+
+class AstFunctionDef:
+    signature: AstSignature
+    body: AstBody
+
+    def print(self) -> void:
+        self->signature.print()
+        self->body.print(TreePrinter{})
+
+    def free(self) -> void:
+        self->signature.free()
+        self->body.free()
+
+class AstClassDef:
+    name: byte[100]
+    name_location: Location
+    fields: AstNameTypeValue*
+    nfields: int
+    methods: AstFunctionDef*
+    nmethods: int
+
+    def print(self) -> void:
+        printf("class \"%s\" with %d fields and %d methods:\n", &self->name[0], self->nfields, self->nmethods)
+        for i = 0; i < self->nfields; i++:
+            printf("  field ")
+            self->fields[i].print()
+            printf("\n")
+        for i = 0; i < self->nmethods; i++:
+            printf("  method ")
+            self->methods[i].signature.print()
+            tp = TreePrinter{}
+            strcpy(&tp.prefix[0], "  ")
+            self->methods[i].body.print(tp)
+
+    def free(self) -> void:
+        for i = 0; i < self->nfields; i++:
+            self->fields[i].free()
+        for i = 0; i < self->nmethods; i++:
+            self->methods[i].free()

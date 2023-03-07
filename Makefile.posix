@@ -29,7 +29,7 @@ config.jou:
 	echo "    return \"$(shell $(LLVM_CONFIG) --bindir)/clang\"" >> config.jou
 
 self_hosted_compiler: jou config.jou $(wildcard self_hosted/*.jou)
-	./jou -O1 -o $@ --linker-flags "$(LDFLAGS)" self_hosted/main.jou
+	./jou -v -o $@ --linker-flags "$(LDFLAGS)" self_hosted/main.jou
 
 .PHONY: clean
 clean:

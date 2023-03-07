@@ -40,16 +40,17 @@ def main() -> int:
     # Output: Options:
     # Output:   -o OUTFILE       output an executable file, don't run the code
     # Output:   -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)
-    # Output:   --verbose        display a lot of information about all compilation steps
+    # Output:   -v / --verbose   display some progress information
+    # Output:   -vv              display a lot of information about all compilation steps
     # Output:   --tokenize-only  display only the output of the tokenizer, don't do anything else
     # Output:   --parse-only     display only the AST (parse tree), don't do anything else
     # Output:   --linker-flags   appended to the linker command, so you can use external libraries
     run_jou("--help")
 
-    # Test that --verbose kinda works, without asserting the output in too much detail.
+    # Test that double-verbose kinda works, without asserting the output in too much detail.
     # See README for an explanation of why CFG is twice.
     # TODO: shouldn't need to hide stdlib/io.jou or _windows_startup stuff, ideally it would be precompiled
-    run_jou("--verbose examples/hello.jou | grep === | grep -v stdlib/io.jou | grep -v stdlib/_windows_startup.jou")
+    run_jou("-vv examples/hello.jou | grep === | grep -v stdlib/io.jou | grep -v stdlib/_windows_startup.jou")
     # Output: ===== Tokens for file "examples/hello.jou" =====
     # Output: ===== AST for file "examples/hello.jou" =====
     # Output: ===== Control Flow Graphs for file "examples/hello.jou" =====
@@ -58,7 +59,7 @@ def main() -> int:
     # Output: ===== Optimized LLVM IR for file "examples/hello.jou" =====
 
     # With optimizations disabled, we don't see the optimized LLVM IR.
-    run_jou("--verbose -O0 examples/hello.jou | grep 'LLVM IR for file' | grep -v stdlib/_windows_startup.jou")
+    run_jou("-vv -O0 examples/hello.jou | grep 'LLVM IR for file' | grep -v stdlib/_windows_startup.jou")
     # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
     # Output: ===== Unoptimized LLVM IR for file "<joudir>/stdlib/io.jou" =====
 

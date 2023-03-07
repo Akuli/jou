@@ -66,14 +66,17 @@ The compiler is currently written in C. At a high level, the compilation steps a
 - Invoke `clang` and pass it the generated LLVM IR
 
 To get a good idea of how these steps work,
-you can look at what the compiler produces in each compilation step:
+you can run the compiler in verbose mode:
 
 ```
-$ ./jou --verbose examples/hello.jou
+$ ./jou -v examples/hello.jou   # High-level overview
+$ ./jou -vv examples/hello.jou  # Show all details
 ```
 
-This shows the tokens, AST, CFGs and LLVM IR generated.
+With `-vv` (or `--verbose --verbose`), the compiler shows
+the tokens, AST, CFGs and LLVM IR generated.
 The control flow graphs are shown twice, before and after simplifying them.
+Similarly, LLVM IR is shown before and after optimizing.
 
 After exploring the verbose output, you should probably
 read `src/jou_compiler.h` and have a quick look at `src/util.h`.
