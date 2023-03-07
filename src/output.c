@@ -38,8 +38,8 @@ static char *get_filename_without_suffix(const char *path)
     if (strrchr(path, '/'))
         path = strrchr(path, '/') + 1;
 #ifdef _WIN32
-    if (strrchr(filename, '\\'))
-        filename = strrchr(path, '\\') + 1;
+    if (strrchr(path, '\\'))
+        path = strrchr(path, '\\') + 1;
 #endif
 
     int len = strlen(path);
@@ -58,11 +58,7 @@ void run_linker(const char *const *objpaths, const char *exepath)
     char *jou_exe = find_current_executable();
     const char *instdir = dirname(jou_exe);
 
-    char *linker_flags;
-    if (command_line_args.linker_flags)
-        linker_flags = malloc_sprintf("-lm %s", command_line_args.linker_flags);
-    else
-        linker_flags = strdup("-lm");
+    char *linker_flags = malloc_sprintf("-lm %s", command_line_args.linker_flags ? command_line_args.linker_flags : "");
 
     List(char) quoted_object_files = {0};
     for (int i = 0; objpaths[i]; i++) {
@@ -89,8 +85,11 @@ void run_linker(const char *const *objpaths, const char *exepath)
     free(jou_exe);
     free(linker_flags);
 
-    if (command_line_args.verbosity >= 1)
-        printf("Running linker command: %s\n", command);
+    if (command_line_args.verbosity >= 2)
+        printf("Running linker: %s\n", command);
+    else if (command_line_args.verbosity >= 1)
+        printf("Running linker\n");
+
     if (system(command))
         exit(1);
     free(command);
@@ -106,20 +105,26 @@ static void mkdir_exist_ok(const char *p)
 
 static char *get_path_to_file_in_jou_compiled(const char *filename)
 {
-    // Place it to current working directory. We need subdirectories based on the
-    // jou file passed as argument, otherwise there's a race condition when running
-    // the tests (they compile and run 2 jou files in parallel)
-    char *foldername = get_filename_without_suffix(command_line_args.infile);
-    char *path = malloc(strlen(foldername) + strlen(filename) + 100);
-    strcpy(path, "jou_compiled");
-    sprintf(path, "jou_compiled/%s", foldername);
-    free(foldername);
+    /*
+    Place compiled files so that it's difficult to get race conditions when
+    compiling multiple Jou files simultaneously (tests do that)
+    */
+    char *tmp = strdup(command_line_args.infile);
+    char *path1 = strdup(dirname(tmp));
+    free(tmp);
+    char *path2 = malloc_sprintf("%s/jou_compiled", path1);
+    tmp = get_filename_without_suffix(command_line_args.infile);
+    char *path3 = malloc_sprintf("%s/%s", path2, tmp);
+    free(tmp);
+    char *path4 = malloc_sprintf("%s/%s", path3, filename);
 
-    mkdir_exist_ok("jou_compiled");
-    mkdir_exist_ok(path);
-    strcat(path, "/");
-    strcat(path, filename);
-    return path;
+    // path1 is known to exist
+    mkdir_exist_ok(path2);
+    mkdir_exist_ok(path3);
+    free(path1);
+    free(path2);
+    free(path3);
+    return path4;
 }
 
 char *get_default_exe_path(void)
