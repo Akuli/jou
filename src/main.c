@@ -468,7 +468,7 @@ int main(int argc, char **argv)
     parse_all_pending_files(&compst);
 
     if (command_line_args.verbosity >= 1)
-        printf("Type-checking all files...\n");
+        printf("Type-checking...\n");
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         if (command_line_args.verbosity >= 2)
