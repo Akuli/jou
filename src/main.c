@@ -515,6 +515,7 @@ int main(int argc, char **argv)
     run_linker((const char *const*)objpaths, exepath);
     for (int i = 0; objpaths[i]; i++)
         free(objpaths[i]);
+    free(objpaths);
 
     int ret = 0;
     if (!command_line_args.outfile) {
