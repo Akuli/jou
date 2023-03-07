@@ -80,6 +80,7 @@ static const ExpressionTypes *get_expr_types(const struct State *st, const AstEx
 
 const Type *get_type_after_cast(const struct State *st, const AstExpression *expr)
 {
+    // TODO: type vs type_after_cast is unclear. The "type" field should be named type_before_cast
     const ExpressionTypes *et = get_expr_types(st, expr);
     assert(et);
     assert(et->type);
@@ -203,6 +204,7 @@ static LLVMValueRef build_binop(
             case AST_EXPR_DIV: return LLVMBuildFDiv(st->builder, lhs, rhs, "div"); break;
             case AST_EXPR_MOD: return LLVMBuildFRem(st->builder, lhs, rhs, "mod"); break;
             case AST_EXPR_EQ: return LLVMBuildFCmp(st->builder, LLVMRealOEQ, lhs, rhs, "eq"); break;
+            case AST_EXPR_NE: return LLVMBuildFCmp(st->builder, LLVMRealONE, lhs, rhs, "ne"); break;
             case AST_EXPR_GT: return LLVMBuildFCmp(st->builder, LLVMRealOGT, lhs, rhs, "gt"); break;
             case AST_EXPR_GE: return LLVMBuildFCmp(st->builder, LLVMRealOGE, lhs, rhs, "ge"); break;
             case AST_EXPR_LT: return LLVMBuildFCmp(st->builder, LLVMRealOLT, lhs, rhs, "lt"); break;
@@ -215,14 +217,15 @@ static LLVMValueRef build_binop(
             case AST_EXPR_ADD: return LLVMBuildAdd(st->builder, lhs, rhs, "add"); break;
             case AST_EXPR_SUB: return LLVMBuildSub(st->builder, lhs, rhs, "sub"); break;
             case AST_EXPR_MUL: return LLVMBuildMul(st->builder, lhs, rhs, "mul"); break;
-            case AST_EXPR_DIV: return build_signed_div(st->builder, lhs, rhs); break;
-            case AST_EXPR_MOD: return build_signed_mod(st->builder, lhs, rhs); break;
+            case AST_EXPR_DIV: return is_signed ? build_signed_div(st->builder, lhs, rhs) : LLVMBuildUDiv(st->builder, lhs, rhs, "div"); break;
+            case AST_EXPR_MOD: return is_signed ? build_signed_mod(st->builder, lhs, rhs) : LLVMBuildURem(st->builder, lhs, rhs, "mod"); break;
             case AST_EXPR_EQ: return LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "eq"); break;
+            case AST_EXPR_NE: return LLVMBuildICmp(st->builder, LLVMIntNE, lhs, rhs, "ne"); break;
             case AST_EXPR_GT: return LLVMBuildICmp(st->builder, is_signed ? LLVMIntSGT : LLVMIntUGT, lhs, rhs, "gt"); break;
             case AST_EXPR_GE: return LLVMBuildICmp(st->builder, is_signed ? LLVMIntSGE : LLVMIntUGE, lhs, rhs, "ge"); break;
             case AST_EXPR_LT: return LLVMBuildICmp(st->builder, is_signed ? LLVMIntSLT : LLVMIntULT, lhs, rhs, "lt"); break;
             case AST_EXPR_LE: return LLVMBuildICmp(st->builder, is_signed ? LLVMIntSLE : LLVMIntULE, lhs, rhs, "le"); break;
-            default: assert(0);
+            default: printf("%d\n", op); assert(0);
         }
     } else {
         assert(0);
@@ -245,7 +248,7 @@ static LLVMValueRef build_cast(const struct State *st, LLVMValueRef obj, const T
                     return LLVMBuildZExt(st->builder, obj, build_type(to), "cast");
                 }
             } else if (from->data.width_in_bits > to->data.width_in_bits) {
-                LLVMBuildTrunc(st->builder, obj, build_type(to), "cast");
+                return LLVMBuildTrunc(st->builder, obj, build_type(to), "cast");
             } else {
                 // same size, LLVM doesn't distinguish signed and unsigned integer types
                 return obj;
@@ -268,6 +271,7 @@ static LLVMValueRef build_cast(const struct State *st, LLVMValueRef obj, const T
         }
     }
 
+    printf("Don't know how cast %s --> %s\n", from->name, to->name);
     assert(0);
 }
 
@@ -429,7 +433,6 @@ static LLVMValueRef build_and_or(const struct State *st, const AstExpression *lh
 
 static LLVMValueRef build_expression(const struct State *st, const AstExpression *expr)
 {
-    const ExpressionTypes *types = get_expr_types(st, expr);
     LLVMValueRef result, temp;
 
     switch(expr->kind) {
@@ -460,6 +463,19 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
             result = build_binop(st, expr->kind, lhs, lhstype, rhs, rhstype);
             break;
         }
+    case AST_EXPR_NEG:
+        temp = build_expression(st, &expr->data.operands[0]);
+        switch(get_type_after_cast(st, &expr->data.operands[0])->kind) {
+        case TYPE_FLOATING_POINT:
+            result = LLVMBuildFNeg(st->builder, temp, "neg");
+            break;
+        case TYPE_SIGNED_INTEGER:
+            result = LLVMBuildNeg(st->builder, temp, "neg");
+            break;
+        default:
+            assert(0);
+        }
+        break;
     case AST_EXPR_GET_VARIABLE:
         result = LLVMBuildLoad(st->builder, build_address_of_expression(st, expr), "val");
         break;
@@ -478,7 +494,20 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
     case AST_EXPR_NOT:
         result = LLVMBuildNot(st->builder, build_expression(st, &expr->data.operands[0]), "not");
         break;
-    default:
+    case AST_EXPR_AS:
+        temp = build_expression(st, expr->data.as.obj);
+        result = build_cast(st, temp, get_type_after_cast(st, expr->data.as.obj), get_expr_types(st, expr)->type);
+        break;
+    case AST_EXPR_ARRAY:
+    case AST_EXPR_BRACE_INIT:
+    case AST_EXPR_CALL_METHOD:
+    case AST_EXPR_DEREFERENCE:
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+    case AST_EXPR_GET_ENUM_MEMBER:
+    case AST_EXPR_GET_FIELD:
+    case AST_EXPR_INDEXING:
+    case AST_EXPR_SIZEOF:
         printf("%d\n", expr->kind);
         assert(0);
     }
@@ -488,6 +517,7 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
         return NULL;
     }
 
+    const ExpressionTypes *types = get_expr_types(st, expr);
     assert(types);
     if (types->type_after_cast)
         return build_cast(st, result, types->type, types->type_after_cast);
@@ -596,7 +626,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
     case AST_STMT_DECLARE_LOCAL_VAR:
         if (stmt->data.vardecl.value) {
             LLVMValueRef value = build_expression(st, stmt->data.vardecl.value);
-            LLVMBuildStore(st->builder, find_local_var(st, stmt->data.vardecl.name)->ptr, value);
+            LLVMBuildStore(st->builder, value, find_local_var(st, stmt->data.vardecl.name)->ptr);
         }
         break;
     case AST_STMT_EXPRESSION_STATEMENT:
@@ -635,7 +665,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
             default: assert(0);
         }
         LLVMValueRef newvalue = build_binop(st, op, oldvalue, targettype, rhs, rhstype);
-        LLVMBuildStore(st->builder, targetptr, newvalue);
+        LLVMBuildStore(st->builder, newvalue, targetptr);
         break;
     }
     case AST_STMT_IF:
@@ -657,173 +687,6 @@ static void build_body(struct State *st, const AstBody *body)
     for (int i = 0; i < body->nstatements; i++)
         build_statement(st, &body->statements[i]);
 }
-
-static LLVMValueRef build_num_operation(
-    LLVMBuilderRef builder,
-    LLVMValueRef lhs,
-    LLVMValueRef rhs,
-    /*
-    Many number operations are not the same for signed and unsigned integers.
-    Signed division example with 8 bits: 255 / 2 = (-1) / 2 = 0
-    Unsigned division example with 8 bits: 255 / 2 = 127
-    */
-    const Type *t,
-    LLVMValueRef (*signedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
-    LLVMValueRef (*unsignedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
-    LLVMValueRef (*floatfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*))
-{
-    switch(t->kind) {
-        case TYPE_FLOATING_POINT: return floatfn(builder, lhs, rhs, "float_op");
-        case TYPE_SIGNED_INTEGER: return signedfn(builder, lhs, rhs, "signed_op");
-        case TYPE_UNSIGNED_INTEGER: return unsignedfn(builder, lhs, rhs, "unsigned_op");
-        default: assert(0);
-    }
-}
-
-#if 0
-static void build_instruction(const struct State *st, const CfInstruction *ins)
-{
-#define setdest(val) set_local_var(st, ins->destvar, (val))
-#define get(var) get_local_var(st, (var))
-#define getop(i) get(ins->operands[(i)])
-
-    switch(ins->kind) {
-        case CF_CALL:
-            {
-                LLVMValueRef *args = malloc(ins->noperands * sizeof(args[0]));  // NOLINT
-                for (int i = 0; i < ins->noperands; i++)
-                    args[i] = getop(i);
-                LLVMValueRef return_value = build_call(st, &ins->data.signature, args, ins->noperands);
-                if (ins->destvar)
-                    setdest(return_value);
-                free(args);
-            }
-            break;
-        case CF_CONSTANT: setdest(build_constant(st, &ins->data.constant)); break;
-        case CF_SIZEOF: setdest(LLVMSizeOf(build_type(ins->data.type))); break;
-        case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
-        case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
-        case CF_PTR_LOAD: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
-        case CF_PTR_STORE: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
-        case CF_PTR_EQ:
-            {
-                LLVMValueRef lhsint = LLVMBuildPtrToInt(st->builder, getop(0), LLVMInt64Type(), "ptreq_lhs");
-                LLVMValueRef rhsint = LLVMBuildPtrToInt(st->builder, getop(1), LLVMInt64Type(), "ptreq_rhs");
-                setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, lhsint, rhsint, "ptr_eq"));
-            }
-            break;
-        case CF_PTR_CLASS_FIELD:
-            {
-                const Type *classtype = ins->operands[0]->type->data.valuetype;
-                const struct ClassField *f = classtype->data.classdata.fields.ptr;
-                int i = 0;
-                while (strcmp(f->name, ins->data.fieldname)) {
-                    f++;
-                    i++;
-                }
-
-                LLVMValueRef val = LLVMBuildStructGEP2(st->builder, build_type(classtype), getop(0), i, ins->data.fieldname);
-                if (f->type->kind == TYPE_POINTER) {
-                    // We lied to LLVM that the struct member is i8*, so that we can do self-referencing types
-                    val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(build_type(f->type),0), "struct_member_i8_hack");
-                }
-                setdest(val);
-            }
-            break;
-        case CF_PTR_MEMSET_TO_ZERO:
-            {
-                LLVMValueRef size = LLVMSizeOf(build_type(ins->operands[0]->type->data.valuetype));
-                LLVMBuildMemSet(st->builder, getop(0), LLVMConstInt(LLVMInt8Type(), 0, false), size, 0);
-            }
-            break;
-        case CF_PTR_ADD_INT:
-            {
-                LLVMValueRef index = getop(1);
-                if (ins->operands[1]->type->kind == TYPE_UNSIGNED_INTEGER) {
-                    // https://github.com/Akuli/jou/issues/48
-                    // Apparently the default is to interpret indexes as signed.
-                    index = LLVMBuildZExt(st->builder, index, LLVMInt64Type(), "ptr_add_int_implicit_cast");
-                }
-                setdest(LLVMBuildGEP(st->builder, getop(0), &index, 1, "ptr_add_int"));
-            }
-            break;
-        case CF_NUM_CAST:
-            {
-                const Type *from = ins->operands[0]->type;
-                const Type *to = ins->destvar->type;
-                assert(is_number_type(from) && is_number_type(to));
-
-                if (is_integer_type(from) && is_integer_type(to)) {
-                    if (from->data.width_in_bits < to->data.width_in_bits) {
-                        if (from->kind == TYPE_SIGNED_INTEGER) {
-                            // example: signed 8-bit 0xFF --> 16-bit 0xFFFF
-                            setdest(LLVMBuildSExt(st->builder, getop(0), build_type(to), "int_cast"));
-                        } else {
-                            // example: unsigned 8-bit 0xFF --> 16-bit 0x00FF
-                            setdest(LLVMBuildZExt(st->builder, getop(0), build_type(to), "int_cast"));
-                        }
-                    } else if (from->data.width_in_bits > to->data.width_in_bits) {
-                        setdest(LLVMBuildTrunc(st->builder, getop(0), build_type(to), "int_cast"));
-                    } else {
-                        // same size, LLVM doesn't distinguish signed and unsigned integer types
-                        setdest(getop(0));
-                    }
-                } else if (is_integer_type(from) && to->kind == TYPE_FLOATING_POINT) {
-                    // integer --> double / float
-                    if (from->kind == TYPE_SIGNED_INTEGER)
-                        setdest(LLVMBuildSIToFP(st->builder, getop(0), build_type(to), "cast"));
-                    else
-                        setdest(LLVMBuildUIToFP(st->builder, getop(0), build_type(to), "cast"));
-                } else if (from->kind == TYPE_FLOATING_POINT && is_integer_type(to)) {
-                    if (to->kind == TYPE_SIGNED_INTEGER)
-                        setdest(LLVMBuildFPToSI(st->builder, getop(0), build_type(to), "cast"));
-                    else
-                        setdest(LLVMBuildFPToUI(st->builder, getop(0), build_type(to), "cast"));
-                } else if (from->kind == TYPE_FLOATING_POINT && to->kind == TYPE_FLOATING_POINT) {
-                    setdest(LLVMBuildFPCast(st->builder, getop(0), build_type(to), "cast"));
-                } else {
-                    assert(0);
-                }
-            }
-            break;
-
-        case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate")); break;
-        case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), build_type(ins->destvar->type), "ptr_cast")); break;
-
-        // various no-ops
-        case CF_VARCPY:
-        case CF_INT32_TO_ENUM:
-        case CF_ENUM_TO_INT32:
-            setdest(getop(0));
-            break;
-
-        case CF_NUM_ADD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildAdd, LLVMBuildAdd, LLVMBuildFAdd)); break;
-        case CF_NUM_SUB: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildSub, LLVMBuildSub, LLVMBuildFSub)); break;
-        case CF_NUM_MUL: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildMul, LLVMBuildMul, LLVMBuildFMul)); break;
-        case CF_NUM_DIV: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_div, LLVMBuildUDiv, LLVMBuildFDiv)); break;
-        case CF_NUM_MOD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_mod, LLVMBuildURem, LLVMBuildFRem)); break;
-
-        case CF_NUM_EQ:
-            if (is_integer_type(ins->operands[0]->type))
-                setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, getop(0), getop(1), "num_eq"));
-            else
-                setdest(LLVMBuildFCmp(st->builder, LLVMRealOEQ, getop(0), getop(1), "num_eq"));
-            break;
-        case CF_NUM_LT:
-            if (is_integer_type(ins->operands[0]->type))
-                // TODO: unsigned less than
-                setdest(LLVMBuildICmp(st->builder, LLVMIntSLT, getop(0), getop(1), "num_lt"));
-            else
-                // TODO: signed less than
-                setdest(LLVMBuildFCmp(st->builder, LLVMRealOLT, getop(0), getop(1), "num_lt"));
-            break;
-    }
-
-#undef setdest
-#undef get
-#undef getop
-}
-#endif
 
 #ifdef _WIN32
 static void build_call_to_the_special_startup_function(const struct State *st)
