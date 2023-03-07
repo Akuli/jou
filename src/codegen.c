@@ -728,8 +728,8 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         position_builder_to_dummy_block(st);
         break;
     case AST_STMT_CONTINUE:
-        assert(st->breakstack.len > 0);
-        LLVMBuildBr(st->builder, End(st->breakstack)[-1]);
+        assert(st->continuestack.len > 0);
+        LLVMBuildBr(st->builder, End(st->continuestack)[-1]);
         position_builder_to_dummy_block(st);
         break;
     case AST_STMT_DECLARE_LOCAL_VAR:
