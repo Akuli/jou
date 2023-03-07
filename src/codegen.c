@@ -329,7 +329,7 @@ static LLVMValueRef build_address_of_expression(const struct State *st, const As
         }
 
         LLVMValueRef idxval = build_expression(st, &expr->data.operands[1]);
-        if (get_type_after_cast(st, &expr->data.operands[1])->kind == TYPE_UNSIGNED_INTEGER) {
+        if (idxtype->kind == TYPE_UNSIGNED_INTEGER) {
             // https://github.com/Akuli/jou/issues/48
             // Apparently the default is to interpret indexes as signed.
             idxval = LLVMBuildZExt(st->builder, idxval, LLVMInt64Type(), "indexcast");
