@@ -390,9 +390,11 @@ static LLVMValueRef build_call(const struct State *st, LLVMValueRef self, const 
     assert(sig);
     LLVMValueRef function = build_function_or_method_decl(st, sig);
 
-    LLVMValueRef *args = malloc(call->nargs * sizeof args[0]);  // NOLINT
+    LLVMValueRef *args = malloc((call->nargs+1) * sizeof args[0]);  // NOLINT
+    if (self)
+        args[0] = self;
     for (int i = 0; i < call->nargs; i++)
-        args[i] = build_expression(st, &call->args[i]);
+        args[i + !!self] = build_expression(st, &call->args[i]);
 
     assert(function);
     assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMPointerTypeKind);
@@ -403,7 +405,7 @@ static LLVMValueRef build_call(const struct State *st, LLVMValueRef self, const 
     if (sig->returntype)
         snprintf(debug_name, sizeof debug_name, "%s_return_value", sig->name);
 
-    LLVMValueRef result = LLVMBuildCall2(st->builder, function_type, function, args, call->nargs, debug_name);
+    LLVMValueRef result = LLVMBuildCall2(st->builder, function_type, function, args, call->nargs + !!self, debug_name);
     free(args);
     return sig->returntype ? result : NULL;
 }
@@ -519,6 +521,10 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
     case AST_EXPR_FUNCTION_CALL:
         result = build_call(st, NULL, NULL, &expr->data.call);
         break;
+    case AST_EXPR_CALL_METHOD:
+        temp = build_address_of_expression(st, expr->data.methodcall.obj);
+        result = build_call(st, temp, get_pointer_type(get_type_after_cast(st, expr->data.methodcall.obj)), &expr->data.methodcall.call);
+        break;
     case AST_EXPR_CONSTANT:
         result = build_constant(st, &expr->data.constant);
         break;
@@ -604,7 +610,6 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
         result = LLVMBuildLoad(st->builder, temp, "deref");
         break;
     case AST_EXPR_ARRAY:
-    case AST_EXPR_CALL_METHOD:
     case AST_EXPR_DEREF_AND_CALL_METHOD:
     case AST_EXPR_GET_ENUM_MEMBER:
     case AST_EXPR_GET_FIELD:
@@ -613,7 +618,11 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
     }
 
     if (!result) {
-        assert(expr->kind == AST_EXPR_FUNCTION_CALL);
+        assert(
+            expr->kind == AST_EXPR_FUNCTION_CALL
+            || expr->kind == AST_EXPR_CALL_METHOD
+            || expr->kind == AST_EXPR_DEREF_AND_CALL_METHOD
+        );
         return NULL;
     }
 
