@@ -370,6 +370,14 @@ static LLVMValueRef build_address_of_expression(const struct State *st, const As
     case AST_EXPR_DEREFERENCE:
         // &*foo
         return build_expression(st, &expr->data.operands[0]);
+    case AST_EXPR_GET_FIELD:
+        {
+            // &obj.field aka &(obj.field), evaluate as &(&obj)->field
+            const Type *classtype = get_type_after_cast(st, expr->data.classfield.obj);
+            assert(classtype->kind == TYPE_CLASS);
+            LLVMValueRef instptr = build_address_of_expression(st, expr->data.classfield.obj);
+            return build_class_field_pointer(st, classtype, instptr, expr->data.classfield.fieldname);
+        }
     default:
         printf("%d\n", expr->kind);
         assert(0);
