@@ -876,8 +876,11 @@ static CfGraph *build_function_or_method(struct State *st, const Type *selfclass
 
     st->cfg = calloc(1, sizeof *st->cfg);
     st->cfg->signature = copy_signature(&st->fomtypes->signature);
-    for (LocalVariable **v = st->fomtypes->locals.ptr; v < End(st->fomtypes->locals); v++)
-        Append(&st->cfg->locals, *v);
+    for (LocalVariable **v = st->fomtypes->locals.ptr; v < End(st->fomtypes->locals); v++) {
+        LocalVariable *copy = malloc(sizeof *copy);
+        *copy = **v;
+        Append(&st->cfg->locals, copy);
+    }
     if (st->fomtypes->signature.returntype)
         strcpy(add_local_var(st, st->fomtypes->signature.returntype)->name, "return");
     Append(&st->cfg->all_blocks, &st->cfg->start_block);

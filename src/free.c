@@ -248,7 +248,9 @@ void free_file_types(const FileTypes *ft)
         for (ExpressionTypes **et = f->expr_types.ptr; et < End(f->expr_types); et++)
             free(*et);
         free(f->expr_types.ptr);
-        free(f->locals.ptr);  // Don't free individual locals because they're owned by CFG now
+        for (LocalVariable **v = f->locals.ptr; v < End(f->locals); v++)
+            free(*v);
+        free(f->locals.ptr);
         free_signature(&f->signature);
     }
     free(ft->globals.ptr);
