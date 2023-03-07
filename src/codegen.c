@@ -907,7 +907,7 @@ static void build_function_or_method_def(struct State *st, const Type *selfclass
     st->fomtypes = NULL;
 }
 
-LLVMModuleRef codegen(AstToplevelNode *ast, FileTypes *ft)
+LLVMModuleRef codegen(const AstToplevelNode *ast, const FileTypes *ft)
 {
     struct State st = {
         .filetypes = ft,

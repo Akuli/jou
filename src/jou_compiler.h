@@ -585,7 +585,7 @@ AstToplevelNode *parse(const Token *tokens, const char *stdlib_path);
 // Type checking happens between parsing and building CFGs.
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *ft);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
-LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft);
+LLVMModuleRef codegen(const AstToplevelNode *ast, const FileTypes *ft);
 char *compile_to_object_file(LLVMModuleRef module);
 char *get_default_exe_path(void);
 void run_linker(const char *const *objpaths, const char *exepath);
