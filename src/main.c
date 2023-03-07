@@ -490,41 +490,41 @@ int main(int argc, char **argv)
 
     check_for_404_imports(&compst);
 
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
+    char **objpaths = calloc(sizeof objpaths[0], compst.files.len + 1);
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         compile_ast_to_llvm(fs);
+        objpaths[fs - compst.files.ptr] = compile_to_object_file(fs->module);
+    }
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
+        LLVMDisposeModule(fs->module);
         free_ast(fs->ast);
         fs->ast = NULL;
-    }
-
-    LLVMModuleRef main_module = LLVMModuleCreateWithName(command_line_args.infile);
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        // This "linking" doesn't mean creating an executable. It only combines LLVM modules together.
-        if (command_line_args.verbosity >= 2)
-            printf("LLVMLinkModules2 %s\n", fs->path);
-        if (LLVMLinkModules2(main_module, fs->module)) {
-            fprintf(stderr, "error: LLVMLinkModules2() failed\n");
-            return 1;
-        }
-        fs->module = NULL;  // consumed in linking
-    }
-
-    LLVMVerifyModule(main_module, LLVMAbortProcessAction, NULL);
-
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         free(fs->path);
         free_file_types(&fs->types);
     }
     free(compst.files.ptr);
     free(stdlib);
 
-    int ret = 0;
+    char *exepath;
     if (command_line_args.outfile)
-        compile_to_exe(main_module, command_line_args.outfile);
+        exepath = strdup(command_line_args.outfile);
     else
-        ret = run_program(main_module);
+        exepath = get_default_exe_path();
 
-    LLVMDisposeModule(main_module);
+    run_linker((const char *const*)objpaths, exepath);
+    for (int i = 0; objpaths[i]; i++)
+        free(objpaths[i]);
+    free(objpaths);
+
+    int ret = 0;
+    if (!command_line_args.outfile) {
+        if(command_line_args.verbosity >= 1)
+            printf("Run: %s\n", exepath);
+        ret = run_exe(exepath);
+    }
+
+    free(exepath);
+
     return ret;
 }
