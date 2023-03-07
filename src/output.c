@@ -89,8 +89,11 @@ void run_linker(const char *const *objpaths, const char *exepath)
     free(jou_exe);
     free(linker_flags);
 
-    if (command_line_args.verbosity >= 1)
-        printf("Running linker command: %s\n", command);
+    if (command_line_args.verbosity >= 2)
+        printf("Running linker: %s\n", command);
+    else if (command_line_args.verbosity >= 1)
+        printf("Running linker\n");
+
     if (system(command))
         exit(1);
     free(command);
