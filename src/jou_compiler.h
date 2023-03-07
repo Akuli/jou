@@ -586,10 +586,8 @@ AstToplevelNode *parse(const Token *tokens, const char *stdlib_path);
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *ft);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft);
-char *compile_to_object_file(LLVMModuleRef module);
-char *get_default_exe_path(void);
-void run_linker(const char *const *objpaths, const char *exepath);
-int run_exe(const char *exepath);
+void compile_to_exe(LLVMModuleRef module, const char *exepath);
+int run_program(LLVMModuleRef module);
 
 /*
 Use these to clean up return values of compiling functions.
