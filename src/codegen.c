@@ -648,7 +648,20 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
             break;
         }
     case AST_EXPR_ARRAY:
-        assert(0);  // TODO
+        {
+            const Type *arrtype = get_expr_types(st, expr)->type;
+            assert(arrtype->kind == TYPE_ARRAY);
+            // TODO: what is LLVMBuildArrayAlloca?
+            LLVMValueRef arrptr = LLVMBuildAlloca(st->builder, build_type(arrtype), "arrptr");
+            LLVMValueRef startptr = LLVMBuildBitCast(st->builder, arrptr, LLVMPointerType(build_type(arrtype->data.array.membertype),0), "startptr");
+            for (int i = 0; i < arrtype->data.array.len; i++) {
+                LLVMValueRef ival = LLVMConstInt(LLVMInt64Type(), i, false);
+                LLVMValueRef elemptr = LLVMBuildGEP(st->builder, startptr, &ival, 1, "elemptr");
+                LLVMValueRef elem = build_expression(st, &expr->data.array.items[i]);
+                LLVMBuildStore(st->builder, elem, elemptr);
+            }
+            return LLVMBuildLoad2(st->builder, build_type(arrtype), arrptr, "arr");
+        }
     }
 
     if (!result) {
