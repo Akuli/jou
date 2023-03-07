@@ -75,12 +75,13 @@ static const ExpressionTypes *get_expr_types(const struct State *st, const AstEx
     for (ExpressionTypes **et = st->fomtypes->expr_types.ptr; et < End(st->fomtypes->expr_types); et++)
         if ((*et)->expr == expr)
             return *et;
-    assert(0);
+    return NULL;
 }
 
 const Type *get_type_after_cast(const struct State *st, const AstExpression *expr)
 {
     const ExpressionTypes *et = get_expr_types(st, expr);
+    assert(et);
     assert(et->type);
     if (et->type_after_cast)
         return et->type_after_cast;
@@ -317,12 +318,12 @@ static LLVMValueRef build_call(const struct State *st, LLVMValueRef self, const 
     assert(LLVMGetTypeKind(function_type) == LLVMFunctionTypeKind);
 
     char debug_name[100] = {0};
-    if (LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMVoidTypeKind)
+    if (sig->returntype)
         snprintf(debug_name, sizeof debug_name, "%s_return_value", sig->name);
 
     LLVMValueRef result = LLVMBuildCall2(st->builder, function_type, function, args, call->nargs, debug_name);
     free(args);
-    return result;
+    return sig->returntype ? result : NULL;
 }
 
 static LLVMValueRef make_a_string_constant(const struct State *st, const char *s)
@@ -428,6 +429,11 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
     default:
         printf("%d\n", expr->kind);
         assert(0);
+    }
+
+    if (!result) {
+        assert(expr->kind == AST_EXPR_FUNCTION_CALL);
+        return NULL;
     }
 
     assert(types);
