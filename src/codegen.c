@@ -243,6 +243,12 @@ static LLVMValueRef build_binop(
 
 static LLVMValueRef build_cast(const struct State *st, LLVMValueRef obj, const Type *from, const Type *to)
 {
+    // handle all enum types as int (32-bit)
+    if (from->kind == TYPE_ENUM)
+        from = intType;
+    if (to->kind == TYPE_ENUM)
+        to = intType;
+
     // bool --> int
     if (from->kind == TYPE_BOOL && is_integer_type(to))
         return LLVMBuildZExt(st->builder, obj, build_type(to), "cast");
@@ -293,6 +299,7 @@ static LLVMValueRef build_cast(const struct State *st, LLVMValueRef obj, const T
 static LLVMValueRef build_class_field_pointer(
     const struct State *st, const Type *classtype, LLVMValueRef instanceptr, const char *fieldname)
 {
+    assert(classtype->kind == TYPE_CLASS);
     int i=0;
     for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++,i++) {
         if (!strcmp(f->name, fieldname)) {
@@ -305,6 +312,7 @@ static LLVMValueRef build_class_field_pointer(
         }
     }
 
+    printf("Fatal Codegen Error 404: field %s not found from class %s\n", fieldname, classtype->name);
     assert(0);
 }
 
@@ -609,10 +617,27 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
         temp = build_expression(st, &expr->data.operands[0]);
         result = LLVMBuildLoad(st->builder, temp, "deref");
         break;
+    case AST_EXPR_GET_ENUM_MEMBER:
+        {
+            const Type *e = get_expr_types(st, expr)->type;
+            assert(e->kind == TYPE_ENUM);
+            int i = 0;
+            while (strcmp(e->data.enummembers.names[i], expr->data.enummember.enumname))
+                i++;
+            result = LLVMConstInt(LLVMInt32Type(), i, false);
+            break;
+        }
+    case AST_EXPR_GET_FIELD:
+        {
+            const Type *classtype = get_expr_types(st, expr->data.classfield.obj)->type;
+            LLVMValueRef instptr = LLVMBuildAlloca(st->builder, build_type(classtype), "instptr");
+            LLVMBuildStore(st->builder, build_expression(st, expr->data.classfield.obj), instptr);
+            LLVMValueRef fieldptr = build_class_field_pointer(st, classtype, instptr, expr->data.classfield.fieldname);
+            result = LLVMBuildLoad(st->builder, fieldptr, "field");
+            break;
+        }
     case AST_EXPR_ARRAY:
     case AST_EXPR_DEREF_AND_CALL_METHOD:
-    case AST_EXPR_GET_ENUM_MEMBER:
-    case AST_EXPR_GET_FIELD:
         printf("%d\n", expr->kind);
         assert(0);
     }
