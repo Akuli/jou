@@ -234,44 +234,68 @@ static LLVMValueRef build_binop(
 
 static LLVMValueRef build_cast(const struct State *st, LLVMValueRef obj, const Type *from, const Type *to)
 {
+    // bool --> int
     if (from->kind == TYPE_BOOL && is_integer_type(to))
         return LLVMBuildZExt(st->builder, obj, build_type(to), "cast");
 
-    if (is_number_type(from) && is_number_type(to)) {
-        if (is_integer_type(from) && is_integer_type(to)) {
-            if (from->data.width_in_bits < to->data.width_in_bits) {
-                if (from->kind == TYPE_SIGNED_INTEGER) {
-                    // example: signed 8-bit 0xFF --> 16-bit 0xFFFF
-                    return LLVMBuildSExt(st->builder, obj, build_type(to), "cast");
-                } else {
-                    // example: unsigned 8-bit 0xFF --> 16-bit 0x00FF
-                    return LLVMBuildZExt(st->builder, obj, build_type(to), "cast");
-                }
-            } else if (from->data.width_in_bits > to->data.width_in_bits) {
-                return LLVMBuildTrunc(st->builder, obj, build_type(to), "cast");
+    // pointer --> pointer
+    if (is_pointer_type(from) && is_pointer_type(to))
+        return LLVMBuildBitCast(st->builder, obj, build_type(to), "cast");
+
+    // integer --> integer
+    if (is_integer_type(from) && is_integer_type(to)) {
+        if (from->data.width_in_bits < to->data.width_in_bits) {
+            if (from->kind == TYPE_SIGNED_INTEGER) {
+                // example: signed 8-bit 0xFF --> 16-bit 0xFFFF
+                return LLVMBuildSExt(st->builder, obj, build_type(to), "cast");
             } else {
-                // same size, LLVM doesn't distinguish signed and unsigned integer types
-                return obj;
+                // example: unsigned 8-bit 0xFF --> 16-bit 0x00FF
+                return LLVMBuildZExt(st->builder, obj, build_type(to), "cast");
             }
-        } else if (is_integer_type(from) && to->kind == TYPE_FLOATING_POINT) {
-            // integer --> double / float
-            if (from->kind == TYPE_SIGNED_INTEGER)
-                return LLVMBuildSIToFP(st->builder, obj, build_type(to), "cast");
-            else
-                return LLVMBuildUIToFP(st->builder, obj, build_type(to), "cast");
-        } else if (from->kind == TYPE_FLOATING_POINT && is_integer_type(to)) {
-            if (to->kind == TYPE_SIGNED_INTEGER)
-                return LLVMBuildFPToSI(st->builder, obj, build_type(to), "cast");
-            else
-                return LLVMBuildFPToUI(st->builder, obj, build_type(to), "cast");
-        } else if (from->kind == TYPE_FLOATING_POINT && to->kind == TYPE_FLOATING_POINT) {
-            return LLVMBuildFPCast(st->builder, obj, build_type(to), "cast");
-        } else {
-            assert(0);
+        }
+        if (from->data.width_in_bits > to->data.width_in_bits)
+            return LLVMBuildTrunc(st->builder, obj, build_type(to), "cast");
+        // same size, LLVM doesn't distinguish signed and unsigned integer types
+        return obj;
+    }
+
+    // integer --> double / float
+    if (is_integer_type(from) && to->kind == TYPE_FLOATING_POINT) {
+        if (from->kind == TYPE_SIGNED_INTEGER)
+            return LLVMBuildSIToFP(st->builder, obj, build_type(to), "cast");
+        else
+            return LLVMBuildUIToFP(st->builder, obj, build_type(to), "cast");
+    }
+
+    // double / float --> integer
+    if (from->kind == TYPE_FLOATING_POINT && to->kind == TYPE_SIGNED_INTEGER)
+        return LLVMBuildFPToSI(st->builder, obj, build_type(to), "cast");
+    if (from->kind == TYPE_FLOATING_POINT && to->kind == TYPE_UNSIGNED_INTEGER)
+        return LLVMBuildFPToUI(st->builder, obj, build_type(to), "cast");
+
+    // floats of different sizes
+    if (from->kind == TYPE_FLOATING_POINT && to->kind == TYPE_FLOATING_POINT)
+        return LLVMBuildFPCast(st->builder, obj, build_type(to), "cast");
+
+    printf("Don't know how cast %s --> %s\n", from->name, to->name);
+    assert(0);
+}
+
+static LLVMValueRef build_class_field_pointer(
+    const struct State *st, const Type *classtype, LLVMValueRef instanceptr, const char *fieldname)
+{
+    int i=0;
+    for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++,i++) {
+        if (!strcmp(f->name, fieldname)) {
+            LLVMValueRef fieldptr = LLVMBuildStructGEP2(st->builder, build_type(classtype), instanceptr, i, f->name);
+            if (f->type->kind == TYPE_POINTER) {
+                // We lied to LLVM that the struct member is i8*, so that we can do self-referencing types
+                fieldptr = LLVMBuildBitCast(st->builder, fieldptr, LLVMPointerType(build_type(f->type),0), "struct_member_i8_hack");
+            }
+            return fieldptr;
         }
     }
 
-    printf("Don't know how cast %s --> %s\n", from->name, to->name);
     assert(0);
 }
 
@@ -290,6 +314,15 @@ static LLVMValueRef build_address_of_expression(const struct State *st, const As
                 idx = LLVMBuildZExt(st->builder, idx, LLVMInt64Type(), "indexcast");
             }
             return LLVMBuildGEP(st->builder, ptr, &idx, 1, "indexed");
+        }
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        // &foo->bar
+        {
+            const Type *t = get_type_after_cast(st, expr->data.classfield.obj);
+            assert(t->kind == TYPE_POINTER);
+            assert(t->data.valuetype->kind == TYPE_CLASS);
+            LLVMValueRef objptr = build_expression(st, expr->data.classfield.obj);
+            return build_class_field_pointer(st, t->data.valuetype, objptr, expr->data.classfield.fieldname);
         }
     default:
         printf("%d\n", expr->kind);
@@ -431,6 +464,20 @@ static LLVMValueRef build_and_or(const struct State *st, const AstExpression *lh
     return phi;
 }
 
+static LLVMValueRef build_instantiation(const struct State *st, const Type *type, const AstCall *call)
+{
+    LLVMValueRef instanceptr = LLVMBuildAlloca(st->builder, build_type(type), "instanceptr");
+    LLVMBuildMemSet(st->builder, instanceptr, LLVMConstInt(LLVMInt8Type(), 0, false), LLVMSizeOf(build_type(type)), 0);
+
+    for (int i = 0; i < call->nargs; i++) {
+        LLVMValueRef arg = build_expression(st, &call->args[i]);
+        LLVMValueRef fieldptr = build_class_field_pointer(st, type, instanceptr, call->argnames[i]);
+        LLVMBuildStore(st->builder, arg, fieldptr);
+    }
+
+    return LLVMBuildLoad2(st->builder, build_type(type), instanceptr, "instance");
+}
+
 static LLVMValueRef build_expression(const struct State *st, const AstExpression *expr)
 {
     LLVMValueRef result, temp;
@@ -484,7 +531,8 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
     case AST_EXPR_POST_INCREMENT: result = build_incr_decr(st, &expr->data.operands[0], POST, +1); break;
     case AST_EXPR_POST_DECREMENT: result = build_incr_decr(st, &expr->data.operands[0], POST, -1); break;
     case AST_EXPR_ADDRESS_OF:
-        return build_address_of_expression(st, &expr->data.operands[0]);
+        result = build_address_of_expression(st, &expr->data.operands[0]);
+        break;
     case AST_EXPR_AND:
         result = build_and_or(st, &expr->data.operands[0], &expr->data.operands[1], AND);
         break;
@@ -512,14 +560,18 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
         temp = build_address_of_expression(st, expr);
         result = LLVMBuildLoad(st->builder, temp, "dereffed");
         break;
-    case AST_EXPR_ARRAY:
     case AST_EXPR_BRACE_INIT:
+        result = build_instantiation(st, get_expr_types(st, expr)->type, &expr->data.call);
+        break;
+    case AST_EXPR_SIZEOF:
+        result = LLVMSizeOf(build_type(get_type_after_cast(st, &expr->data.operands[0])));
+        break;
+    case AST_EXPR_ARRAY:
     case AST_EXPR_CALL_METHOD:
     case AST_EXPR_DEREFERENCE:
     case AST_EXPR_DEREF_AND_CALL_METHOD:
     case AST_EXPR_GET_ENUM_MEMBER:
     case AST_EXPR_GET_FIELD:
-    case AST_EXPR_SIZEOF:
         printf("%d\n", expr->kind);
         assert(0);
     }
