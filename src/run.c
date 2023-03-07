@@ -13,9 +13,9 @@
 #include <sys/stat.h>
 #include <llvm-c/TargetMachine.h>
 
-static void compile_to_object_file(LLVMModuleRef module, const char *path, const CommandLineFlags *flags)
+static void compile_to_object_file(LLVMModuleRef module, const char *path)
 {
-    if (flags->verbose)
+    if (command_line_args.verbosity >= 1)
         printf("Emitting object file \"%s\"\n", path);
 
     char *tmppath = strdup(path);
@@ -49,16 +49,12 @@ static char *malloc_sprintf(const char *fmt, ...)
     return str;
 }
 
-static void run_linker(const char *objpath, const char *exepath, const CommandLineFlags *flags)
+static void run_linker(const char *objpath, const char *exepath)
 {
     char *jou_exe = find_current_executable();
     const char *instdir = dirname(jou_exe);
 
-    char *linker_flags;
-    if (flags->linker_flags)
-        linker_flags = malloc_sprintf("-lm %s", flags->linker_flags);
-    else
-        linker_flags = strdup("-lm");
+    char *linker_flags = malloc_sprintf("-lm %s", command_line_args.linker_flags ? command_line_args.linker_flags : "");
 
     char *command;
 #ifdef _WIN32
@@ -72,8 +68,10 @@ static void run_linker(const char *objpath, const char *exepath, const CommandLi
     command = malloc_sprintf("'%s' '%s' -o '%s' %s", JOU_CLANG_PATH, objpath, exepath, linker_flags);
 #endif
 
-    if (flags->verbose)
-        puts(command);
+    if (command_line_args.verbosity >= 2)
+        printf("Running linker: %s\n", command);
+    else if (command_line_args.verbosity >= 1)
+        printf("Running linker\n");
     if (system(command))
         exit(1);
 
@@ -125,7 +123,7 @@ char *get_path_to_file_in_jou_compiled(LLVMModuleRef module, const char *filenam
     return result;
 }
 
-void compile_to_exe(LLVMModuleRef module, const char *exepath, const CommandLineFlags *flags)
+void compile_to_exe(LLVMModuleRef module, const char *exepath)
 {
     char *objname = get_filename_without_suffix(module);
     objname = realloc(objname, strlen(objname) + 10);
@@ -138,12 +136,12 @@ void compile_to_exe(LLVMModuleRef module, const char *exepath, const CommandLine
     char *objpath = get_path_to_file_in_jou_compiled(module, objname);
     free(objname);
 
-    compile_to_object_file(module, objpath, flags);
-    run_linker(objpath, exepath, flags);
+    compile_to_object_file(module, objpath);
+    run_linker(objpath, exepath);
     free(objpath);
 }
 
-int run_program(LLVMModuleRef module, const CommandLineFlags *flags)
+int run_program(LLVMModuleRef module)
 {
     char *exename = get_filename_without_suffix(module);
 #ifdef _WIN32
@@ -154,7 +152,7 @@ int run_program(LLVMModuleRef module, const CommandLineFlags *flags)
     char *exepath = get_path_to_file_in_jou_compiled(module, exename);
     free(exename);
 
-    compile_to_exe(module, exepath, flags);
+    compile_to_exe(module, exepath);
 
     char *command = malloc(strlen(exepath) + 50);
 #ifdef _WIN32
@@ -167,8 +165,8 @@ int run_program(LLVMModuleRef module, const CommandLineFlags *flags)
 #endif
     free(exepath);
 
-    if (flags->verbose)
-        puts(command);
+    if (command_line_args.verbosity >= 1)
+        printf("Running program: %s\n", command);
 
     // Make sure that everything else shows up before the user's prints.
     fflush(stdout);
