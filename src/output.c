@@ -58,11 +58,7 @@ void run_linker(const char *const *objpaths, const char *exepath)
     char *jou_exe = find_current_executable();
     const char *instdir = dirname(jou_exe);
 
-    char *linker_flags;
-    if (command_line_args.linker_flags)
-        linker_flags = malloc_sprintf("-lm %s", command_line_args.linker_flags);
-    else
-        linker_flags = strdup("-lm");
+    char *linker_flags = malloc_sprintf("-lm %s", command_line_args.linker_flags ? command_line_args.linker_flags : "");
 
     List(char) quoted_object_files = {0};
     for (int i = 0; objpaths[i]; i++) {
