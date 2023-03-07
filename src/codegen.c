@@ -211,7 +211,9 @@ static LLVMValueRef build_binop(
             case AST_EXPR_LE: return LLVMBuildFCmp(st->builder, LLVMRealOLE, lhs, rhs, "le"); break;
             default: assert(0);
         }
-    } else if (is_integer_type(lhstype) && is_integer_type(rhstype)) {
+    }
+
+    if (is_integer_type(lhstype) && is_integer_type(rhstype)) {
         bool is_signed = lhstype->kind == TYPE_SIGNED_INTEGER && rhstype->kind == TYPE_SIGNED_INTEGER;
         switch(op) {
             case AST_EXPR_ADD: return LLVMBuildAdd(st->builder, lhs, rhs, "add"); break;
@@ -227,9 +229,16 @@ static LLVMValueRef build_binop(
             case AST_EXPR_LE: return LLVMBuildICmp(st->builder, is_signed ? LLVMIntSLE : LLVMIntULE, lhs, rhs, "le"); break;
             default: printf("%d\n", op); assert(0);
         }
-    } else {
-        assert(0);
     }
+
+    if (is_pointer_type(lhstype) && is_pointer_type(rhstype)) {
+        LLVMValueRef lhsint = LLVMBuildPtrToInt(st->builder, lhs, LLVMInt64Type(), "ptreq_lhs");
+        LLVMValueRef rhsint = LLVMBuildPtrToInt(st->builder, rhs, LLVMInt64Type(), "ptreq_rhs");
+        return LLVMBuildICmp(st->builder, LLVMIntEQ, lhsint, rhsint, "ptreq");
+    }
+
+    printf("%s %d %s\n", lhstype->name, op, rhstype->name);
+    assert(0);
 }
 
 static LLVMValueRef build_cast(const struct State *st, LLVMValueRef obj, const Type *from, const Type *to)
@@ -345,6 +354,9 @@ static LLVMValueRef build_address_of_expression(const struct State *st, const As
             LLVMValueRef objptr = build_expression(st, expr->data.classfield.obj);
             return build_class_field_pointer(st, t->data.valuetype, objptr, expr->data.classfield.fieldname);
         }
+    case AST_EXPR_DEREFERENCE:
+        // &*foo
+        return build_expression(st, &expr->data.operands[0]);
     default:
         printf("%d\n", expr->kind);
         assert(0);
@@ -587,9 +599,12 @@ static LLVMValueRef build_expression(const struct State *st, const AstExpression
     case AST_EXPR_SIZEOF:
         result = LLVMSizeOf(build_type(get_type_after_cast(st, &expr->data.operands[0])));
         break;
+    case AST_EXPR_DEREFERENCE:
+        temp = build_expression(st, &expr->data.operands[0]);
+        result = LLVMBuildLoad(st->builder, temp, "deref");
+        break;
     case AST_EXPR_ARRAY:
     case AST_EXPR_CALL_METHOD:
-    case AST_EXPR_DEREFERENCE:
     case AST_EXPR_DEREF_AND_CALL_METHOD:
     case AST_EXPR_GET_ENUM_MEMBER:
     case AST_EXPR_GET_FIELD:
