@@ -10,7 +10,7 @@
 void update_jou_compiler(void);
 
 // don't like repeating "struct" outside this header file
-typedef struct CommandLineFlags CommandLineFlags;
+typedef struct CommandLineArgs CommandLineArgs;
 typedef struct Location Location;
 
 typedef struct Token Token;
@@ -48,11 +48,13 @@ typedef struct CfGraphFile CfGraphFile;
 typedef struct CfInstruction CfInstruction;
 
 
-struct CommandLineFlags {
+struct CommandLineArgs {
+    const char *argv0;  // Program name
     bool verbose;  // Whether to print a LOT of debug info
     bool tokenize_only;  // If true, tokenize the file passed on command line and don't actually compile anything
     bool parse_only;  // If true, parse the file passed on command line and don't actually compile anything
     int optlevel;  // Optimization level (0 don't optimize, 3 optimize a lot)
+    const char *infile;  // The "main" Jou file (can import other files)
     const char *outfile;  // If not NULL, where to output executable
     const char *linker_flags;  // String that is appended to linking command
 };
@@ -585,9 +587,9 @@ AstToplevelNode *parse(const Token *tokens, const char *stdlib_path);
 CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *ft);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft);
-char *compile_to_object_file(LLVMModuleRef module, const CommandLineFlags *flags);
-char *get_default_exe_path(LLVMModuleRef mainmodule);
-void run_linker(const char *const *objpaths, const char *exepath, const CommandLineFlags *flags);
+char *compile_to_object_file(LLVMModuleRef module, const CommandLineArgs *args);
+char *get_default_exe_path(const CommandLineArgs *args);
+void run_linker(const char *const *objpaths, const char *exepath, const CommandLineArgs *args);
 int run_exe(const char *exepath);
 
 /*

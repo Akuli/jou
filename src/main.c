@@ -47,10 +47,11 @@ static const char help_fmt[] =
     "  --linker-flags   appended to the linker command, so you can use external libraries\n"
     ;
 
-static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, const char **filename)
+static CommandLineArgs parse_arguments(int argc, char **argv)
 {
-    *flags = (CommandLineFlags){0};
-    flags->optlevel = 1; /* Set default optimize to O1
+    CommandLineArgs result = {0};
+    result.argv0 = argv[0];
+    result.optlevel = 1; /* Set default optimize to O1
                             User sets optimize will overwrite the default flag
                          */
 
@@ -79,24 +80,24 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
             fprintf(stderr, "%s: \"%s\" cannot be used with other arguments", argv[0], argv[i]);
             goto wrong_usage;
         } else if (!strcmp(argv[i], "--verbose")) {
-            flags->verbose = true;
+            result.verbose = true;
             i++;
         } else if (!strcmp(argv[i], "--tokenize-only")) {
             if (argc > 3) {
                 fprintf(stderr, "%s: --tokenize-only cannot be used together with other flags", argv[0]);
                 goto wrong_usage;
             }
-            flags->tokenize_only = true;
+            result.tokenize_only = true;
             i++;
         } else if (!strcmp(argv[i], "--parse-only")) {
             if (argc > 3) {
                 fprintf(stderr, "%s: --parse-only cannot be used together with other flags", argv[0]);
                 goto wrong_usage;
             }
-            flags->parse_only = true;
+            result.parse_only = true;
             i++;
         } else if (!strcmp(argv[i], "--linker-flags")) {
-            if (flags->linker_flags) {
+            if (result.linker_flags) {
                 fprintf(stderr, "%s: --linker-flags cannot be given multiple times", argv[0]);
                 goto wrong_usage;
             }
@@ -104,22 +105,22 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
                 fprintf(stderr, "%s: there must be a string of flags after --linker-flags", argv[0]);
                 goto wrong_usage;
             }
-            flags->linker_flags = argv[i+1];
+            result.linker_flags = argv[i+1];
             i += 2;
         } else if (strlen(argv[i]) == 3
                 && !strncmp(argv[i], "-O", 2)
                 && argv[i][2] >= '0'
                 && argv[i][2] <= '3')
         {
-            flags->optlevel = argv[i][2] - '0';
+            result.optlevel = argv[i][2] - '0';
             i++;
         } else if (!strcmp(argv[i], "-o")) {
             if (argc-i < 2) {
                 fprintf(stderr, "%s: there must be a file name after -o", argv[0]);
                 goto wrong_usage;
             }
-            flags->outfile = argv[i+1];
-            if (strlen(flags->outfile) > 4 && !strcmp(&flags->outfile[strlen(flags->outfile)-4], ".jou")) {
+            result.outfile = argv[i+1];
+            if (strlen(result.outfile) > 4 && !strcmp(&result.outfile[strlen(result.outfile)-4], ".jou")) {
                 fprintf(stderr, "%s: the filename after -o should be an executable, not a Jou file", argv[0]);
                 goto wrong_usage;
             }
@@ -139,8 +140,9 @@ static void parse_arguments(int argc, char **argv, CommandLineFlags *flags, cons
         goto wrong_usage;
     }
     assert(i == argc-1);
-    *filename = argv[i];
-    return;
+
+    result.infile = argv[i];
+    return result;
 
 wrong_usage:
     fprintf(stderr, " (try \"%s --help\")\n", argv[0]);
@@ -162,8 +164,8 @@ struct ParseQueueItem {
 };
 
 struct CompileState {
-    char *stdlib_path;
-    CommandLineFlags flags;
+    const char *stdlib_path;
+    const CommandLineArgs *args;
     List(struct FileState) files;
     List(struct ParseQueueItem) parse_queue;
 };
@@ -199,12 +201,12 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
     Token *tokens = tokenize(f, fs.path);
     fclose(f);
 
-    if(compst->flags.verbose)
+    if(compst->args->verbose)
         print_tokens(tokens);
 
     fs.ast = parse(tokens, compst->stdlib_path);
     free_tokens(tokens);
-    if(compst->flags.verbose)
+    if(compst->args->verbose)
         print_ast(fs.ast);
 
     for (AstToplevelNode *impnode = fs.ast; impnode->kind == AST_TOPLEVEL_IMPORT; impnode++) {
@@ -228,7 +230,7 @@ static void parse_all_pending_files(struct CompileState *compst)
 
 static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *fs)
 {
-    if (compst->flags.verbose)
+    if (compst->args->verbose)
         printf("Build CFG: %s\n", fs->path);
 
     CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->types);
@@ -236,20 +238,20 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
         if (!imp->data.import.used)
             show_warning(imp->location, "'%s' imported but not used", imp->data.import.symbolname);
 
-    if(compst->flags.verbose)
+    if(compst->args->verbose)
         print_control_flow_graphs(&cfgfile);
 
     simplify_control_flow_graphs(&cfgfile);
-    if(compst->flags.verbose)
+    if(compst->args->verbose)
         print_control_flow_graphs(&cfgfile);
 
-    if (compst->flags.verbose)
+    if (compst->args->verbose)
         printf("Build LLVM IR: %s\n", fs->path);
 
     fs->module = codegen(&cfgfile, &fs->types);
     free_control_flow_graphs(&cfgfile);
 
-    if(compst->flags.verbose)
+    if(compst->args->verbose)
         print_llvm_ir(fs->module, false);
 
     /*
@@ -258,11 +260,11 @@ static void compile_ast_to_llvm(struct CompileState *compst, struct FileState *f
     */
     LLVMVerifyModule(fs->module, LLVMAbortProcessAction, NULL);
 
-    if (compst->flags.optlevel) {
-        if (compst->flags.verbose)
-            printf("\n*** Optimizing %s... (level %d)\n\n\n", fs->path, compst->flags.optlevel);
-        optimize(fs->module, compst->flags.optlevel);
-        if(compst->flags.verbose)
+    if (compst->args->optlevel) {
+        if (compst->args->verbose)
+            printf("\n*** Optimizing %s... (level %d)\n\n\n", fs->path, compst->args->optlevel);
+        optimize(fs->module, compst->args->optlevel);
+        if(compst->args->verbose)
             print_llvm_ir(fs->module, true);
     }
 }
@@ -370,7 +372,7 @@ static void add_imported_symbols(struct CompileState *compst)
 
             for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
                 if (exportsymbol_matches_import(es, imp)) {
-                    if (compst->flags.verbose) {
+                    if (compst->args->verbose) {
                         const char *kindstr;
                         switch(es->kind) {
                             case EXPSYM_FUNCTION: kindstr="function"; break;
@@ -419,20 +421,20 @@ int main(int argc, char **argv)
 {
     init_target();
     init_types();
+    char *stdlib = find_stdlib();
+    CommandLineArgs args = parse_arguments(argc, argv);
 
-    struct CompileState compst = { .stdlib_path = find_stdlib() };
-    const char *filename;
-    parse_arguments(argc, argv, &compst.flags, &filename);
-    if (compst.flags.verbose) {
+    struct CompileState compst = { .stdlib_path = stdlib, .args = &args };
+    if (args.verbose) {
         printf("Target triple: %s\n", get_target()->triple);
         printf("Data layout: %s\n", get_target()->data_layout);
     }
 
-    if (compst.flags.tokenize_only || compst.flags.parse_only) {
-        FILE *f = open_the_file(filename, NULL);
-        Token *tokens = tokenize(f, filename);
+    if (args.tokenize_only || args.parse_only) {
+        FILE *f = open_the_file(args.infile, NULL);
+        Token *tokens = tokenize(f, args.infile);
         fclose(f);
-        if (compst.flags.tokenize_only) {
+        if (args.tokenize_only) {
             print_tokens(tokens);
         } else {
             AstToplevelNode *ast = parse(tokens, compst.stdlib_path);
@@ -450,47 +452,37 @@ int main(int argc, char **argv)
     free(startup_path);
 #endif
 
-    parse_file(&compst, filename, NULL);
+    parse_file(&compst, args.infile, NULL);
     parse_all_pending_files(&compst);
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        if (compst.flags.verbose)
+        if (args.verbose)
             printf("Typecheck stage 1: %s\n", fs->path);
         fs->pending_exports = typecheck_stage1_create_types(&fs->types, fs->ast);
     }
     add_imported_symbols(&compst);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        if (compst.flags.verbose)
+        if (args.verbose)
             printf("Typecheck stage 2: %s\n", fs->path);
         fs->pending_exports = typecheck_stage2_signatures_globals_structbodies(&fs->types, fs->ast);
     }
     add_imported_symbols(&compst);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        if (compst.flags.verbose)
+        if (args.verbose)
             printf("Typecheck stage 3: %s\n", fs->path);
         typecheck_stage3_function_and_method_bodies(&fs->types, fs->ast);
     }
 
     check_for_404_imports(&compst);
 
-    if (compst.flags.verbose)
+    if (args.verbose)
         printf("\n");
 
     char **objpaths = calloc(sizeof objpaths[0], compst.files.len + 1);
-    LLVMModuleRef mainmodule = NULL;
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         compile_ast_to_llvm(&compst, fs);
-        objpaths[fs - compst.files.ptr] = compile_to_object_file(fs->module, &compst.flags);
-        if (!strcmp(fs->path, filename))
-            mainmodule = fs->module;
+        objpaths[fs - compst.files.ptr] = compile_to_object_file(fs->module, &args);
     }
-
-    assert(mainmodule);
-    char *exepath;
-    if (compst.flags.outfile)
-        exepath = strdup(compst.flags.outfile);
-    else
-        exepath = get_default_exe_path(mainmodule);
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         LLVMDisposeModule(fs->module);
@@ -500,15 +492,21 @@ int main(int argc, char **argv)
         free_file_types(&fs->types);
     }
     free(compst.files.ptr);
-    free(compst.stdlib_path);
+    free(stdlib);
 
-    run_linker((const char *const*)objpaths, exepath, &compst.flags);
+    char *exepath;
+    if (args.outfile)
+        exepath = strdup(args.outfile);
+    else
+        exepath = get_default_exe_path(&args);
+
+    run_linker((const char *const*)objpaths, exepath, &args);
     for (int i = 0; objpaths[i]; i++)
         free(objpaths[i]);
 
     int ret = 0;
-    if (!compst.flags.outfile) {
-        if(compst.flags.verbose) printf("Run: %s\n", exepath);
+    if (!args.outfile) {
+        if(args.verbose) printf("Run: %s\n", exepath);
         ret = run_exe(exepath);
     }
 

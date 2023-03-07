@@ -33,36 +33,34 @@ static char *malloc_sprintf(const char *fmt, ...)
     return str;
 }
 
-static char *get_filename_without_suffix(const LLVMModuleRef module)
+static char *get_filename_without_suffix(const char *path)
 {
-    const char *filename = LLVMGetSourceFileName(module, (size_t[]){0});
-
-    if (strrchr(filename, '/'))
-        filename = strrchr(filename, '/') + 1;
+    if (strrchr(path, '/'))
+        path = strrchr(path, '/') + 1;
 #ifdef _WIN32
     if (strrchr(filename, '\\'))
-        filename = strrchr(filename, '\\') + 1;
+        filename = strrchr(path, '\\') + 1;
 #endif
 
-    int len = strlen(filename);
-    if (len>4 && !strcmp(&filename[len-4], ".jou"))
+    int len = strlen(path);
+    if (len>4 && !strcmp(&path[len-4], ".jou"))
         len -= 4;
 
     char *result = malloc(len+1);
-    memcpy(result, filename, len);
+    memcpy(result, path, len);
     result[len] = '\0';
 
     return result;
 }
 
-void run_linker(const char *const *objpaths, const char *exepath, const CommandLineFlags *flags)
+void run_linker(const char *const *objpaths, const char *exepath, const CommandLineArgs *args)
 {
     char *jou_exe = find_current_executable();
     const char *instdir = dirname(jou_exe);
 
     char *linker_flags;
-    if (flags->linker_flags)
-        linker_flags = malloc_sprintf("-lm %s", flags->linker_flags);
+    if (args->linker_flags)
+        linker_flags = malloc_sprintf("-lm %s", args->linker_flags);
     else
         linker_flags = strdup("-lm");
 
@@ -91,50 +89,55 @@ void run_linker(const char *const *objpaths, const char *exepath, const CommandL
     free(jou_exe);
     free(linker_flags);
 
-    if (flags->verbose)
+    if (args->verbose)
         puts(command);
     if (system(command))
         exit(1);
     free(command);
 }
 
-static char *get_path_to_file_in_jou_compiled(LLVMModuleRef module, const char *filename)
+static void mkdir_exist_ok(const CommandLineArgs *args, const char *p)
 {
-    char *sourcepath = strdup(LLVMGetSourceFileName(module, (size_t[]){0}));
-
-    char *result = malloc(strlen(sourcepath) + strlen(filename) + 100);
-    char *tmp = strdup(sourcepath);
-    sprintf(result, "%s/jou_compiled", dirname(tmp));
-    free(tmp);
-
-    if (jou_mkdir(result) == -1 && errno != EEXIST) {
-        fail_with_error(
-            (Location){.filename=sourcepath}, "cannot create directory \"%s\": %s",
-            result, strerror(errno));
-    }
-    free(sourcepath);
-
-    strcat(result, "/");
-    strcat(result, filename);
-    return result;
+    if (jou_mkdir(p) == 0 || errno == EEXIST)
+        return;
+    fprintf(stderr, "%s: cannot create directory \"%s\": %s\n", args->argv0, p, strerror(errno));
+    exit(1);
 }
 
-char *get_default_exe_path(LLVMModuleRef mainmodule)
+static char *get_path_to_file_in_jou_compiled(const CommandLineArgs *args, const char *filename)
 {
-    char *name = get_filename_without_suffix(mainmodule);
+    // Place it to current working directory. We need subdirectories based on the
+    // jou file passed as argument, otherwise there's a race condition when running
+    // the tests (they compile and run 2 jou files in parallel)
+    char *foldername = get_filename_without_suffix(args->infile);
+    char *path = malloc(strlen(foldername) + strlen(filename) + 100);
+    strcpy(path, "jou_compiled");
+    sprintf(path, "jou_compiled/%s", foldername);
+    free(foldername);
+
+    mkdir_exist_ok(args, "jou_compiled");
+    mkdir_exist_ok(args, path);
+    strcat(path, "/");
+    strcat(path, filename);
+    return path;
+}
+
+char *get_default_exe_path(const CommandLineArgs *args)
+{
+    char *name = get_filename_without_suffix(args->infile);
 #ifdef _WIN32
     name = realloc(name, strlen(name) + 10);
     strcat(name, ".exe");
 #endif
 
-    char *path = get_path_to_file_in_jou_compiled(mainmodule, name);
+    char *path = get_path_to_file_in_jou_compiled(args, name);
     free(name);
     return path;
 }
 
-char *compile_to_object_file(LLVMModuleRef module, const CommandLineFlags *flags)
+char *compile_to_object_file(LLVMModuleRef module, const CommandLineArgs *args)
 {
-    char *objname = get_filename_without_suffix(module);
+    char *objname = get_filename_without_suffix(LLVMGetSourceFileName(module, (size_t[]){0}));
     objname = realloc(objname, strlen(objname) + 10);
 #ifdef _WIN32
     strcat(objname, ".obj");
@@ -142,10 +145,10 @@ char *compile_to_object_file(LLVMModuleRef module, const CommandLineFlags *flags
     strcat(objname, ".o");
 #endif
 
-    char *path = get_path_to_file_in_jou_compiled(module, objname);
+    char *path = get_path_to_file_in_jou_compiled(args, objname);
     free(objname);
 
-    if (flags->verbose)
+    if (args->verbose)
         printf("Emitting object file \"%s\"\n", path);
 
     char *tmppath = strdup(path);
