@@ -49,7 +49,7 @@ typedef struct CfInstruction CfInstruction;
 // Command-line arguments are a global variable because I like it.
 extern struct CommandLineArgs {
     const char *argv0;  // Program name
-    bool verbose;  // Whether to print a LOT of debug info
+    int verbosity;  // How much debug/progress info to print, how many times -v/--verbose passed
     bool tokenize_only;  // If true, tokenize the file passed on command line and don't actually compile anything
     bool parse_only;  // If true, parse the file passed on command line and don't actually compile anything
     int optlevel;  // Optimization level (0 don't optimize, 3 optimize a lot)

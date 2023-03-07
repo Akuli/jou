@@ -31,7 +31,7 @@ config.jou:
 	echo "    return NULL" >> config.jou
 
 self_hosted_compiler.exe: jou.exe config.jou $(wildcard self_hosted/*.jou)
-	./jou.exe -O1 -o $@ --linker-flags "$(LDFLAGS)" self_hosted/main.jou
+	./jou.exe -v -o $@ --linker-flags "$(LDFLAGS)" self_hosted/main.jou
 
 .PHONY: clean
 clean:

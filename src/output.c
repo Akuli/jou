@@ -89,8 +89,8 @@ void run_linker(const char *const *objpaths, const char *exepath)
     free(jou_exe);
     free(linker_flags);
 
-    if (command_line_args.verbose)
-        puts(command);
+    if (command_line_args.verbosity >= 1)
+        printf("Running linker command: %s\n", command);
     if (system(command))
         exit(1);
     free(command);
@@ -148,8 +148,8 @@ char *compile_to_object_file(LLVMModuleRef module)
     char *path = get_path_to_file_in_jou_compiled(objname);
     free(objname);
 
-    if (command_line_args.verbose)
-        printf("Emitting object file \"%s\"\n", path);
+    if (command_line_args.verbosity >= 1)
+        printf("Emitting object file: %s\n", path);
 
     char *tmppath = strdup(path);
     char *error = NULL;

@@ -41,7 +41,8 @@ static const char help_fmt[] =
     "Options:\n"
     "  -o OUTFILE       output an executable file, don't run the code\n"
     "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
-    "  --verbose        display a lot of information about all compilation steps\n"
+    "  -v / --verbose   display some progress information\n"
+    "  -vv              display a lot of information about all compilation steps\n"
     "  --tokenize-only  display only the output of the tokenizer, don't do anything else\n"
     "  --parse-only     display only the AST (parse tree), don't do anything else\n"
     "  --linker-flags   appended to the linker command, so you can use external libraries\n"
@@ -82,7 +83,10 @@ void parse_arguments(int argc, char **argv)
             fprintf(stderr, "%s: \"%s\" cannot be used with other arguments", argv[0], argv[i]);
             goto wrong_usage;
         } else if (!strcmp(argv[i], "--verbose")) {
-            command_line_args.verbose = true;
+            command_line_args.verbosity++;
+            i++;
+        } else if (strncmp(argv[i], "-v", 2) == 0 && strspn(argv[i] + 1, "v") == strlen(argv[i])-1) {
+            command_line_args.verbosity += strlen(argv[i]) - 1;
             i++;
         } else if (!strcmp(argv[i], "--tokenize-only")) {
             if (argc > 3) {
@@ -196,16 +200,19 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
 
     struct FileState fs = { .path = strdup(filename) };
 
+    if(command_line_args.verbosity >= 2)
+        printf("Tokenizing %s\n", filename);
     FILE *f = open_the_file(fs.path, import_location);
     Token *tokens = tokenize(f, fs.path);
     fclose(f);
-
-    if(command_line_args.verbose)
+    if(command_line_args.verbosity >= 2)
         print_tokens(tokens);
 
+    if(command_line_args.verbosity >= 2)
+        printf("Parsing %s\n", filename);
     fs.ast = parse(tokens, compst->stdlib_path);
     free_tokens(tokens);
-    if(command_line_args.verbose)
+    if(command_line_args.verbosity >= 2)
         print_ast(fs.ast);
 
     for (AstToplevelNode *impnode = fs.ast; impnode->kind == AST_TOPLEVEL_IMPORT; impnode++) {
@@ -229,28 +236,31 @@ static void parse_all_pending_files(struct CompileState *compst)
 
 static void compile_ast_to_llvm(struct FileState *fs)
 {
-    if (command_line_args.verbose)
-        printf("Build CFG: %s\n", fs->path);
+    if (command_line_args.verbosity >= 1)
+        printf("Compile to LLVM IR: %s\n", fs->path);
+
+    if (command_line_args.verbosity >= 2)
+        printf("Building CFG: %s\n", fs->path);
 
     CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->types);
     for (AstToplevelNode *imp = fs->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++)
         if (!imp->data.import.used)
             show_warning(imp->location, "'%s' imported but not used", imp->data.import.symbolname);
 
-    if(command_line_args.verbose)
+    if(command_line_args.verbosity >= 2)
         print_control_flow_graphs(&cfgfile);
 
     simplify_control_flow_graphs(&cfgfile);
-    if(command_line_args.verbose)
+    if(command_line_args.verbosity >= 2)
         print_control_flow_graphs(&cfgfile);
 
-    if (command_line_args.verbose)
+    if (command_line_args.verbosity >= 2)
         printf("Build LLVM IR: %s\n", fs->path);
 
     fs->module = codegen(&cfgfile, &fs->types);
     free_control_flow_graphs(&cfgfile);
 
-    if(command_line_args.verbose)
+    if (command_line_args.verbosity >= 2)
         print_llvm_ir(fs->module, false);
 
     /*
@@ -260,10 +270,10 @@ static void compile_ast_to_llvm(struct FileState *fs)
     LLVMVerifyModule(fs->module, LLVMAbortProcessAction, NULL);
 
     if (command_line_args.optlevel) {
-        if (command_line_args.verbose)
-            printf("\n*** Optimizing %s... (level %d)\n\n\n", fs->path, command_line_args.optlevel);
+        if (command_line_args.verbosity >= 2)
+            printf("Optimizing %s (level %d)\n", fs->path, command_line_args.optlevel);
         optimize(fs->module, command_line_args.optlevel);
-        if(command_line_args.verbose)
+        if(command_line_args.verbosity >= 2)
             print_llvm_ir(fs->module, true);
     }
 }
@@ -371,7 +381,7 @@ static void add_imported_symbols(struct CompileState *compst)
 
             for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
                 if (exportsymbol_matches_import(es, imp)) {
-                    if (command_line_args.verbose) {
+                    if (command_line_args.verbosity >= 2) {
                         const char *kindstr;
                         switch(es->kind) {
                             case EXPSYM_FUNCTION: kindstr="function"; break;
@@ -424,7 +434,7 @@ int main(int argc, char **argv)
     parse_arguments(argc, argv);
 
     struct CompileState compst = { .stdlib_path = stdlib };
-    if (command_line_args.verbose) {
+    if (command_line_args.verbosity >= 2) {
         printf("Target triple: %s\n", get_target()->triple);
         printf("Data layout: %s\n", get_target()->data_layout);
     }
@@ -444,6 +454,9 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    if (command_line_args.verbosity >= 1)
+        printf("Parsing Jou files...\n");
+
 #ifdef _WIN32
     char *startup_path = malloc(strlen(compst.stdlib_path) + 50);
     sprintf(startup_path, "%s/_windows_startup.jou", compst.stdlib_path);
@@ -454,28 +467,28 @@ int main(int argc, char **argv)
     parse_file(&compst, command_line_args.infile, NULL);
     parse_all_pending_files(&compst);
 
+    if (command_line_args.verbosity >= 1)
+        printf("Type-checking all files...\n");
+
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        if (command_line_args.verbose)
+        if (command_line_args.verbosity >= 2)
             printf("Typecheck stage 1: %s\n", fs->path);
         fs->pending_exports = typecheck_stage1_create_types(&fs->types, fs->ast);
     }
     add_imported_symbols(&compst);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        if (command_line_args.verbose)
+        if (command_line_args.verbosity >= 2)
             printf("Typecheck stage 2: %s\n", fs->path);
         fs->pending_exports = typecheck_stage2_signatures_globals_structbodies(&fs->types, fs->ast);
     }
     add_imported_symbols(&compst);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        if (command_line_args.verbose)
+        if (command_line_args.verbosity >= 2)
             printf("Typecheck stage 3: %s\n", fs->path);
         typecheck_stage3_function_and_method_bodies(&fs->types, fs->ast);
     }
 
     check_for_404_imports(&compst);
-
-    if (command_line_args.verbose)
-        printf("\n");
 
     char **objpaths = calloc(sizeof objpaths[0], compst.files.len + 1);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
@@ -505,7 +518,8 @@ int main(int argc, char **argv)
 
     int ret = 0;
     if (!command_line_args.outfile) {
-        if(command_line_args.verbose) printf("Run: %s\n", exepath);
+        if(command_line_args.verbosity >= 1)
+            printf("Run: %s\n", exepath);
         ret = run_exe(exepath);
     }
 
