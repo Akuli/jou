@@ -1,0 +1,30 @@
+from "stdlib/io.jou" import FILE
+from "stdlib/mem.jou" import realloc, free
+from "./token.jou" import Token, TokenKind
+
+class Tokenizer:
+    f: FILE*
+    pushback: byte*
+    pushback_len: int  # TODO: dynamic array
+    # Parens array isn't dynamic, so that you can't segfault
+    # the compiler by feeding it lots of nested parentheses,
+    # which would make it recurse too deep.
+    open_parens: Token[20]
+
+    def read_token(self) -> Token:
+        return Token{kind = TokenKind::EndOfFile}
+
+
+def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
+    tokenizer = Tokenizer{
+        f = file,
+    }
+
+    tokens: Token* = NULL
+    len = 0
+    while len == 0 or tokens[len-1].kind != TokenKind::EndOfFile:
+        tokens = realloc(tokens, sizeof(tokens[0]) * (len+1))
+        tokens[len++] = tokenizer.read_token()
+
+    free(tokenizer.pushback)
+    return tokens
