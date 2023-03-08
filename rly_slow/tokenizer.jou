@@ -1,6 +1,37 @@
 from "stdlib/io.jou" import FILE
 from "stdlib/mem.jou" import realloc, free
-from "./token.jou" import Token, TokenKind
+
+class Location:
+    path: byte*  # Not owned. Points to a string that is held elsewhere.
+    lineno: int
+
+enum TokenKind:
+    Int
+    Long
+    Float
+    Double
+    Byte    # example: 'a' is 97 as a byte
+    String
+    Name
+    Keyword
+    Newline
+    Indent
+    Dedent
+    Operator
+    EndOfFile  # Marks the end of an array of tokens.
+
+class Token:
+    kind: TokenKind
+    location: Location
+
+    # Only one of these is used at a time.
+    # TODO: union
+    int_value: int          # Int
+    long_value: long        # Long
+    byte_value: byte        # Byte
+    indentation_level: int  # Newline (indicates how many spaces there are after the newline)
+    short_string: byte[100] # Name, Keyword, Operator
+    long_string: byte*      # String
 
 class Tokenizer:
     f: FILE*
@@ -28,3 +59,6 @@ def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
 
     free(tokenizer.pushback)
     return tokens
+
+def main() -> int:
+    return 0
