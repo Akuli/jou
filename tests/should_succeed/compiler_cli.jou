@@ -12,7 +12,7 @@ def run_jou(command: byte*) -> void:
     else:
         jou_exe = "./jou"
 
-    full_command = malloc(1000)
+    full_command = malloc(1000 as size_t)
     sprintf(full_command, "%s %s", jou_exe, command)
     system(full_command)
     free(full_command)

@@ -7,7 +7,7 @@ declare sscanf(s: byte*, pattern: byte*, ...) -> int  # Parse a string. See ssca
 #   sprintf() assumes that the result fits in dest (UB happens, if it overflows)
 #   snprintf() truncates the string so that the string and its '\0' fit into a total of n bytes of space
 declare sprintf(dest: byte*, pattern: byte*, ...) -> int
-declare snprintf(dest: byte*, n: long, pattern: byte*, ...) -> int
+declare snprintf(dest: byte*, n: size_t, pattern: byte*, ...) -> int
 
 # Find a substring. Return a pointer to the occurrence in haystack, or NULL if not found.
 declare strstr(haystack: byte*, needle: byte*) -> byte*
@@ -16,14 +16,14 @@ declare strstr(haystack: byte*, needle: byte*) -> byte*
 declare strchr(haystack: byte*, needle: byte) -> byte*
 
 # Calculate the length of a string in bytes. Note that strlen("ö") == 2, for example.
-declare strlen(s: byte*) -> long
+declare strlen(s: byte*) -> size_t
 
 # Compare the strings. Return 0 for equal, or nonzero for not equal.
 declare strcmp(s1: byte*, s2: byte*) -> int
 
 # Similar to strcmp(), but imagines the strings are at most n bytes long.
 # In other words, if s1 or s2 is more than n bytes long, the rest is not compared.
-declare strncmp(s1: byte*, s2: byte*, n: long) -> int
+declare strncmp(s1: byte*, s2: byte*, n: size_t) -> int
 
 # Returns true if the string s starts with the given prefix.
 def starts_with(s: byte*, prefix: byte*) -> bool:
@@ -35,7 +35,7 @@ def ends_with(s: byte*, suffix: byte*) -> bool:
     return offset >= 0 and strcmp(&s[offset], suffix) == 0
 
 # Return how many bytes at start of s appear in the accept string.
-declare strspn(s: byte*, accept: byte*) -> long
+declare strspn(s: byte*, accept: byte*) -> size_t
 
 # Copy a string. Assumes it fits. Returned value is dest.
 declare strcpy(dest: byte*, source: byte*) -> byte*
