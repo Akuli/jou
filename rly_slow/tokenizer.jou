@@ -1,63 +1,38 @@
-from "stdlib/io.jou" import FILE
-from "stdlib/mem.jou" import realloc, free
+from "stdlib/mem.jou" import realloc, free, memset
 
-class Location:
-    path: byte*  # Not owned. Points to a string that is held elsewhere.
-    lineno: int
+class Big:
+    n: int
+    foo: byte*
+    foo_len: int
+    open_parens: byte[100][20]
 
-enum TokenKind:
-    Int
-    Long
-    Float
-    Double
-    Byte    # example: 'a' is 97 as a byte
-    String
-    Name
-    Keyword
-    Newline
-    Indent
-    Dedent
-    Operator
-    EndOfFile  # Marks the end of an array of tokens.
+def make_array(b: Big*) -> byte[100]:
+    return [
+        '\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',
+        '\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',
+        '\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',
+        '\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',
+        '\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',
+        '\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',
+        '\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',
+        '\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',
+        '\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',
+        '\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',
+    ]
 
-class Token:
-    kind: TokenKind
-    location: Location
+def tokenize_without_indent_dedent_tokens(n: int) -> byte[100]*:
+    b: Big
+    memset(&b, 0, sizeof b)
+    b.n = n
 
-    # Only one of these is used at a time.
-    # TODO: union
-    int_value: int          # Int
-    long_value: long        # Long
-    byte_value: byte        # Byte
-    indentation_level: int  # Newline (indicates how many spaces there are after the newline)
-    short_string: byte[100] # Name, Keyword, Operator
-    long_string: byte*      # String
-
-class Tokenizer:
-    f: FILE*
-    pushback: byte*
-    pushback_len: int  # TODO: dynamic array
-    # Parens array isn't dynamic, so that you can't segfault
-    # the compiler by feeding it lots of nested parentheses,
-    # which would make it recurse too deep.
-    open_parens: Token[20]
-
-    def read_token(self) -> Token:
-        return Token{kind = TokenKind::EndOfFile}
-
-
-def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
-    tokenizer = Tokenizer{
-        f = file,
-    }
-
-    tokens: Token* = NULL
+    tokens: byte[100]* = NULL
     len = 0
-    while len == 0 or tokens[len-1].kind != TokenKind::EndOfFile:
-        tokens = realloc(tokens, sizeof(tokens[0]) * (len+1))
-        tokens[len++] = tokenizer.read_token()
+    while len == 0:
+        tokens = realloc(tokens, sizeof(tokens[0]))
+        tokens[0] = make_array(&b)
+        len++
 
-    free(tokenizer.pushback)
+    free(b.foo)
     return tokens
 
 def main() -> int:
