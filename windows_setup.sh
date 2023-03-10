@@ -36,18 +36,17 @@ else
     # All WinLibs versions and download links: https://winlibs.com/
     if [ $small = yes ]; then
         # A special small version of mingw64 that comes with the repo, for people with slow internet.
-        echo "Getting mingw64-small.zip from another branch..."
-        git fetch -q https://github.com/Akuli/jou winlibs-small-zipfile
-        git checkout -q FETCH_HEAD mingw64-small.zip
-        git restore --staged mingw64-small.zip
+        echo "Downloading mingw64-small.zip..."
+        url=https://akuli.github.io/mingw64-small.zip
         filename=mingw64-small.zip
         sha=4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686
     else
         echo "Downloading mingw64 (WinLibs)..."
-        curl -L -o mingw64.zip https://github.com/brechtsanders/winlibs_mingw/releases/download/12.1.0-14.0.6-10.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-12.1.0-llvm-14.0.6-mingw-w64msvcrt-10.0.0-r3.zip
+        url=https://github.com/brechtsanders/winlibs_mingw/releases/download/12.1.0-14.0.6-10.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-12.1.0-llvm-14.0.6-mingw-w64msvcrt-10.0.0-r3.zip
         filename=mingw64.zip
         sha=9ffef7f7a8dab893bd248085fa81a5a37ed6f775ae220ef673bea8806677836d
     fi
+    curl -L -o $filename $url
 
     echo "Verifying mingw64..."
     if [ "$(sha256sum $filename | cut -d' ' -f1)" != "$sha" ]; then
