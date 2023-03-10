@@ -1,10 +1,11 @@
-from "stdlib/io.jou" import (
-    printf,
-    puts,  # Warning: 'puts' imported but not used
-    FILE,  # Warning: 'FILE' imported but not used
-    stdout,  # Warning: 'stdout' imported but not used
-)
+import "stdlib/io.jou"  # Only a global variable used
+import "stdlib/str.jou"  # Only a function used
+import "./imported/bar.jou"  # Only a class used
+import "stdlib/mem.jou"  # Warning: "stdlib/mem.jou" imported but not used
+
 
 def main() -> int:
-    printf("hi\n")  # Output: hi
+    x = stdout
+    y = strcmp("foo", "bar")
+    z = Point{x=1, y=2}
     return 0

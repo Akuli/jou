@@ -245,7 +245,7 @@ static void compile_ast_to_llvm(struct FileState *fs)
     CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->types);
     for (AstToplevelNode *imp = fs->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++)
         if (!imp->data.import.used)
-            show_warning(imp->location, "'%s' imported but not used", imp->data.import.specified_path);
+            show_warning(imp->location, "\"%s\" imported but not used", imp->data.import.specified_path);
 
     if(command_line_args.verbosity >= 2)
         print_control_flow_graphs(&cfgfile);
