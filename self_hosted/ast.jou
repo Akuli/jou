@@ -501,11 +501,12 @@ class AstSignature:
         self->return_type.free()
 
 class AstImport:
-    path: byte*  # is owned
-    symbol: byte[100]
+    specified_path: byte*  # Path in jou code e.g. "stdlib/io.jou"
+    resolved_path: byte*  # Absolute path or relative to current working directory e.g. "/home/akuli/jou/stdlib/io.jou"
 
     def free(self) -> void:
-        free(self->path)
+        free(self->specified_path)
+        free(self->resolved_path)
 
 enum AstToplevelStatementKind:
     Import
@@ -528,7 +529,11 @@ class AstToplevelStatement:
     def print(self) -> void:
         printf("line %d: ", self->location.lineno)
         if self->kind == AstToplevelStatementKind::Import:
-            printf("Import \"%s\" from \"%s\".\n", &self->the_import.symbol[0], self->the_import.path)
+            printf(
+                "Import \"%s\", which resolves to \"%s\".\n",
+                self->the_import.specified_path,
+                self->the_import.resolved_path,
+            )
         elif self->kind == AstToplevelStatementKind::FunctionDeclaration:
             printf("Declare a function: ")
             self->decl_signature.print()

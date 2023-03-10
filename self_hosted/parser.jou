@@ -584,15 +584,10 @@ def parse_classdef(tokens: Token**) -> AstClassDef:
 def parse_toplevel_node(dest: AstFile*, tokens: Token**, stdlib_path: byte*) -> void:
     ts = AstToplevelStatement{location = (*tokens)->location}
 
-    if (*tokens)->is_keyword("from"):
+    if (*tokens)->is_keyword("import"):
         ++*tokens
-        ts.the_import.path = get_actual_import_path((*tokens)++, stdlib_path)
-        if not (*tokens)->is_keyword("import"):
-            (*tokens)->fail_expected_got("the 'import' keyword")
-        ++*tokens
-        if (*tokens)->kind != TokenKind::Name:
-            (*tokens)->fail_expected_got("the name of a symbol to import")
-        ts.the_import.symbol = (*tokens)->short_string
+        ts.the_import.specified_path = strdup((*tokens)->long_string)
+        ts.the_import.resolved_path = get_actual_import_path(*tokens, stdlib_path)
         ++*tokens
         eat_newline(tokens)
 

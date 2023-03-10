@@ -163,7 +163,7 @@ class Compiler:
             imp: AstImport* = NULL
             while ast.next_import(&imp):
                 queue = realloc(queue, sizeof queue[0] * (queue_len + 1))
-                queue[queue_len++] = imp->path
+                queue[queue_len++] = imp->resolved_path
 
         free(queue)
 
@@ -179,13 +179,12 @@ class Compiler:
                 imp: AstImport* = NULL
                 while dest->ast.next_import(&imp):
                     for exp = src->pending_exports; exp->name[0] != '\0'; exp++:
-                        if strcmp(&imp->symbol[0], &exp->name[0]) == 0:
-                            if self->verbosity >= 1:
-                                printf(
-                                    "  %s: imported in %s, exported in %s\n",
-                                    &exp->name[0], src->ast.path, dest->ast.path,
-                                )
-                            dest->typectx.add_imported_symbol(exp)
+                        if self->verbosity >= 1:
+                            printf(
+                                "  %s: imported in %s, exported in %s\n",
+                                &exp->name[0], src->ast.path, dest->ast.path,
+                            )
+                        dest->typectx.add_imported_symbol(exp)
 
         for i = 0; i < self->nfiles; i++:
             free(self->files[i].pending_exports)
