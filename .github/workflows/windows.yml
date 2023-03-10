@@ -70,7 +70,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - run: source activate && ./windows_setup.sh --small
+      # Can't use --small, because it is only for development and doesn't include GNU linker.
+      - run: source activate && ./windows_setup.sh
         shell: bash
       - run: source activate && mingw32-make
         shell: bash
@@ -91,10 +92,10 @@ jobs:
               mingw64/version_info.txt \
               $(find mingw64 -name 'crt*.o') \
               mingw64/bin/gcc.exe \
-              mingw64/bin/ld.exe \
               mingw64/lib/gcc/x86_64-w64-mingw32/12.1.0/libgcc.a \
               mingw64/lib/gcc/x86_64-w64-mingw32/12.1.0/libgcc_eh.a \
               mingw64/libexec/gcc/x86_64-w64-mingw32/12.1.0/liblto_plugin.dll \
+              mingw64/x86_64-w64-mingw32/bin/ld.exe \
               mingw64/x86_64-w64-mingw32/lib/libadvapi32.a \
               mingw64/x86_64-w64-mingw32/lib/libkernel32.a \
               mingw64/x86_64-w64-mingw32/lib/libm.a \
