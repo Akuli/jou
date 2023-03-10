@@ -81,6 +81,7 @@ enum AstExpressionKind:
     Null
     FunctionCall
     GetVariable
+    GetEnumMember
     As
     # unary operators
     SizeOf      # sizeof x
@@ -113,6 +114,7 @@ class AstExpression:
     kind: AstExpressionKind
 
     # TODO: union
+    enum_member: AstEnumMember*  # TODO: a pointer only because compiling the self-hosted compiler takes forever otherwise
     string: byte*
     int_value: int
     long_value: long
@@ -158,6 +160,12 @@ class AstExpression:
             self->as_expression->value.print(tp.print_prefix(True))
         elif self->kind == AstExpressionKind::GetVariable:
             printf("get variable \"%s\"\n", &self->varname[0])
+        elif self->kind == AstExpressionKind::GetEnumMember:
+            printf(
+                "get member \"%s\" from enum \"%s\"\n",
+                &self->enum_member->member_name[0],
+                &self->enum_member->enum_name[0],
+            )
         elif self->kind == AstExpressionKind::Add:
             printf("add\n")
         elif self->kind == AstExpressionKind::Subtract:
@@ -254,6 +262,10 @@ class AstExpression:
             or self->kind == AstExpressionKind::PostIncr
             or self->kind == AstExpressionKind::PostDecr
         )
+
+class AstEnumMember:
+    enum_name: byte[100]
+    member_name: byte[100]
 
 class AstAsExpression:
     value: AstExpression

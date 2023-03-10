@@ -166,9 +166,19 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
     elif (*tokens)->is_keyword("NULL"):
         expr.kind = AstExpressionKind::Null
         ++*tokens
-    elif (*tokens)->kind == TokenKind::Name and (&(*tokens)[1])->is_operator("("):
+    elif (*tokens)->kind == TokenKind::Name and (*tokens)[1].is_operator("("):
         expr.kind = AstExpressionKind::FunctionCall
         expr.call = parse_call(tokens, "(", ")")
+    elif (*tokens)->kind == TokenKind::Name and (*tokens)[1].is_operator("::") and (*tokens)[2].kind == TokenKind::Name:
+        expr.kind = AstExpressionKind::GetEnumMember
+        expr.enum_member = malloc(sizeof *expr.enum_member)
+        *expr.enum_member = AstEnumMember{
+            enum_name = (*tokens)->short_string,
+            member_name = (*tokens)[2].short_string,
+        }
+        ++*tokens
+        ++*tokens
+        ++*tokens
     elif (*tokens)->kind == TokenKind::Name:
         expr.kind = AstExpressionKind::GetVariable
         expr.varname = (*tokens)->short_string
