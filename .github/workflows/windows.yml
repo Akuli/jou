@@ -44,7 +44,9 @@ jobs:
         run: mkdir small && cd small && unzip ../mingw64-small.zip
       - name: Compare files
         run: |
-          diff -r full small > output.txt
+          # diff exits with status 1 because the folders differ.
+          # Put errors to output.txt as well, so that we notice if something goes wrong.
+          (diff -r full small || true) &> output.txt
           cat output.txt
           if [ "$(cut -d/ -f1 output.txt | uniq)" != "Only in full" ]; then
             exit 1
