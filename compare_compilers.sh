@@ -60,7 +60,7 @@ function remove_line()
 
 for error_list_file in self_hosted/*s_wrong.txt; do
     echo "Checking that all files mentioned in $error_list_file exist..."
-    for line in $(grep -v '^#' $error_list_file); do
+    for line in $(cat $error_list_file | tr -d '\r' | grep -v '^#'); do
         if ! [ -f $line ]; then
             if [ $fix = yes ]; then
                 remove_line $error_list_file $line
