@@ -10,26 +10,56 @@ if ! [[ "$OS" =~ Windows ]]; then
     exit 1
 fi
 
+if [ $# = 1 ] && [ $1 = --small ]; then
+    small=yes
+elif [ $# = 0 ]; then
+    small=no
+else
+    echo "Usage: $0 [--small]" >&2
+    exit 2
+fi
+
+echo ""
+echo ""
+echo "This script is meant for developing Jou. If you only want to use Jou, it"
+echo "is easier to download and extract a zip file instead (see README.md)."
+echo "Also, please create an issue on GitHub if something doesn't work."
+echo ""
+echo ""
+
 # Keep the size in the command below up to date if you update WinLibs:
-if [ -d mingw64 ] && [ $(du -s mingw64 | cut -f1) -gt 900000 ]; then
+if [ -d mingw64 ]; then
     echo "mingw64 has already been downloaded and extracted."
+    echo "If you want to download it again, delete the mingw64 folder."
 else
     # The WinLibs version we use ships with LLVM 14, which is latest LLVM that Jou can use.
     # This is due to opaque pointer types. Scroll down to "Version Support" here: https://llvm.org/docs/OpaquePointers.html
     # All WinLibs versions and download links: https://winlibs.com/
-    echo "Downloading mingw64 (WinLibs)..."
-    curl -L -o mingw64.zip https://github.com/brechtsanders/winlibs_mingw/releases/download/12.1.0-14.0.6-10.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-12.1.0-llvm-14.0.6-mingw-w64msvcrt-10.0.0-r3.zip
+    if [ $small = yes ]; then
+        # A special small version of mingw64 that comes with the repo, for people with slow internet.
+        echo "Getting mingw64-small.zip from another branch..."
+        git fetch -q origin winlibs-small-zipfile
+        git checkout -q winlibs-small-zipfile mingw64-small.zip
+        git restore --staged mingw64-small.zip
+        filename=mingw64-small.zip
+        sha=4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686
+    else
+        echo "Downloading mingw64 (WinLibs)..."
+        curl -L -o mingw64.zip https://github.com/brechtsanders/winlibs_mingw/releases/download/12.1.0-14.0.6-10.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-12.1.0-llvm-14.0.6-mingw-w64msvcrt-10.0.0-r3.zip
+        filename=mingw64.zip
+        sha=9ffef7f7a8dab893bd248085fa81a5a37ed6f775ae220ef673bea8806677836d
+    fi
 
     echo "Verifying mingw64..."
-    if [ "$(sha256sum mingw64.zip | cut -d' ' -f1)" != "9ffef7f7a8dab893bd248085fa81a5a37ed6f775ae220ef673bea8806677836d" ]; then
-        echo "Verifying $filename failed." >&2
+    if [ "$(sha256sum $filename | cut -d' ' -f1)" != "$sha" ]; then
+        echo "Verifying $filename failed! Please try again or create an issue on GitHub." >&2
         exit 1
     fi
 
     echo "Extracting mingw64..."
     rm -rf mingw64
-    unzip -q mingw64.zip
-    rm mingw64.zip
+    unzip -q $filename
+    rm $filename
 fi
 
 # Blog post that explains how .a library is generated from dll file on Windows:

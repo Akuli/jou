@@ -12,13 +12,50 @@ on:
   pull_request:
 
 jobs:
+  # The Jou repository includes a zipped copy of mingw64 that doesn't include some
+  # large files needed for developing Jou. People with slow internet need it.
+  #
+  # This check fails if the zip file contains anything else than what's in the original/full zip file.
+  # It serves two purposes:
+  #   * People can trust the random zip file I have created locally on my system and committed.
+  #   * I can be sure that I didn't accidentally include something unnecessary or do something else dumb.
+  check-small-mingw64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the small mingw64 from the winlibs-small-zipfile branch
+        uses: actions/checkout@v3
+        with:
+          ref: winlibs-small-zipfile
+      - name: Download the full mingw64
+        run: curl -L -o mingw64.zip https://github.com/brechtsanders/winlibs_mingw/releases/download/12.1.0-14.0.6-10.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-12.1.0-llvm-14.0.6-mingw-w64msvcrt-10.0.0-r3.zip
+      - name: Make sure that all file paths start with mingw64
+        run: |
+          zipinfo -1 mingw64.zip > output.txt
+          zipinfo -1 mingw64-small.zip >> output.txt
+          cat output.txt
+          if [ "$(cut -d/ -f1 output.txt | uniq)" != "mingw64" ]; then
+            exit 1
+          fi
+      - run: ls -lh mingw64*.zip
+      - name: Extract mingw64.zip
+        run: mkdir full && cd full && unzip ../mingw64.zip
+      - name: Extract mingw64-small.zip
+        run: mkdir small && cd small && unzip ../mingw64-small.zip
+      - name: Compare files
+        run: |
+          diff -r full small > output.txt
+          cat output.txt
+          if [ "$(cut -d/ -f1 output.txt | uniq)" != "Only in full" ]; then
+            exit 1
+          fi
+
   build-zip:
     # Even though jou.exe runs on windows, it is compiled on linux.
     # This is by far the easiest way to compile for Windows that I know of.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - run: source activate && ./windows_setup.sh
+      - run: source activate && ./windows_setup.sh --small
         shell: bash
       - run: source activate && mingw32-make
         shell: bash
@@ -101,7 +138,7 @@ jobs:
         with:
           # Add a space in the folder name to trigger bugs like #165
           path: "test dir"
-      - run: cd "test dir" && ./windows_setup.sh
+      - run: cd "test dir" && ./windows_setup.sh --small
         shell: bash
       - run: cd "test dir" && source activate && ./runtests.sh --verbose
         shell: bash
@@ -128,7 +165,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - run: source activate && ./windows_setup.sh
+      - run: source activate && ./windows_setup.sh --small
         shell: bash
       - run: source activate && ./compare_compilers.sh
         shell: bash
