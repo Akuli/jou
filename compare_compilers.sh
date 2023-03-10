@@ -54,7 +54,7 @@ for action in tokenize parse run; do
     (./jou $flag $file || true) &> tmp/compare_compilers/compiler_written_in_c.txt
     (./self_hosted_compiler $flag $file || true) &> tmp/compare_compilers/self_hosted.txt
 
-    if grep -q '\r' $error_list_file; then
+    if grep -q $'\r' $error_list_file; then
         newline=crlf
     else
         newline=lf
