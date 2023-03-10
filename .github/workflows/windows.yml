@@ -70,7 +70,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      # Can't use --small, because it is only for development and doesn't include GNU linker.
+      # TODO: figure out why --small doesn't work here
       - run: source activate && ./windows_setup.sh
         shell: bash
       - run: source activate && mingw32-make
