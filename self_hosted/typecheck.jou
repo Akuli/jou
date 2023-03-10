@@ -78,13 +78,13 @@ class TypeContext:
 #def typecheck_stage1_create_types(ctx: TypeContext*, file: AstFile*) -> ExportSymbol*:
 #    assert(False)
 
-def type_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
-    result = type_or_void_from_ast(ctx, ast_type)
+def type_fromast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
+    result = type_or_void_fromast(ctx, ast_type)
     if result == NULL:
         fail(ast_type->location, "'void' cannot be used here because it is not a type")
     return result
 
-def type_or_void_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
+def type_or_void_fromast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
     if ast_type->kind == AstTypeKind::Named:
         if strcmp(&ast_type->name[0], "int") == 0:
             return int_type
@@ -103,7 +103,7 @@ def type_or_void_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
         fail(ast_type->location, message)
 
     if ast_type->kind == AstTypeKind::Pointer:
-        return type_from_ast(ctx, ast_type->value_type)->get_pointer_type()
+        return type_fromast(ctx, ast_type->value_type)->get_pointer_type()
 
     ast_type->print(True)
     printf("\n")
@@ -115,7 +115,7 @@ def handle_signature(ctx: TypeContext*, astsig: AstSignature*) -> Signature:
         name = astsig->name,
         nargs = astsig->nargs,
         takes_varargs = astsig->takes_varargs,
-        return_type = type_or_void_from_ast(ctx, &astsig->return_type),
+        return_type = type_or_void_fromast(ctx, &astsig->return_type),
     }
 
     sig.argnames = malloc(sizeof sig.argnames[0] * sig.nargs)
@@ -124,7 +124,7 @@ def handle_signature(ctx: TypeContext*, astsig: AstSignature*) -> Signature:
 
     sig.argtypes = malloc(sizeof sig.argtypes[0] * sig.nargs)
     for i = 0; i < sig.nargs; i++:
-        sig.argtypes[i] = type_from_ast(ctx, &astsig->args[i].type)
+        sig.argtypes[i] = type_fromast(ctx, &astsig->args[i].type)
 
     return sig
 
@@ -166,23 +166,23 @@ def typecheck_stage2_signatures_globals_structbodies(ctx: TypeContext*, ast_file
     exports[nexports] = ExportSymbol{}
     return exports
 
-def can_cast_implicitly(from_: Type*, to: Type*) -> bool:
-    return from_ == to or (
+def can_cast_implicitly(from: Type*, to: Type*) -> bool:
+    return from == to or (
         # Cast to bigger integer types implicitly, unless it is signed-->unsigned.
-        from_->is_integer_type()
+        from->is_integer_type()
         and to->is_integer_type()
-        and from_->size_in_bits < to->size_in_bits
-        and not (from_->kind == TypeKind::SignedInteger and to->kind == TypeKind::SignedInteger)
+        and from->size_in_bits < to->size_in_bits
+        and not (from->kind == TypeKind::SignedInteger and to->kind == TypeKind::SignedInteger)
 #    ) or (
 #        # Cast to bigger floating-point type.
-#        from_ == floatType and to == doubleType
+#        from == floatType and to == doubleType
 #    ) or (
 #        # Cast from any integer type to float/double.
-#        is_integer_type(from_) and to->kind == TYPE_FLOATING_POINT
+#        is_integer_type(from) and to->kind == TYPE_FLOATING_POINT
 #    ) or (
 #        # Cast implicitly between void pointer and any other pointer.
-#        (from_->kind == TYPE_POINTER and to->kind == TYPE_VOID_POINTER)
-#        or (from_->kind == TYPE_VOID_POINTER and to->kind == TYPE_POINTER)
+#        (from->kind == TYPE_POINTER and to->kind == TYPE_VOID_POINTER)
+#        or (from->kind == TYPE_VOID_POINTER and to->kind == TYPE_POINTER)
     )
 
 # Implicit casts are used in many places, e.g. function arguments.
@@ -194,18 +194,18 @@ def can_cast_implicitly(from_: Type*, to: Type*) -> bool:
 # The template can contain "<from>" and "<to>". They will be substituted with names
 # of types. We cannot use printf() style functions because the arguments can be in
 # any order.
-def fail_with_implicit_cast_error(location: Location, template: byte*, from_: Type*, to: Type*) -> void:
+def fail_with_implicit_cast_error(location: Location, template: byte*, from: Type*, to: Type*) -> void:
     n = 0
     for i = 0; template[i] != '\0'; i++:
         if template[i] == '<':
             n++
 
-    message: byte* = malloc(sizeof(from_->name)*n + strlen(template) + 1)
+    message: byte* = malloc(sizeof(from->name)*n + strlen(template) + 1)
     message[0] = '\0'
     while *template != '\0':
         if starts_with(template, "<from>"):
             template = &template[6]
-            strcat(message, &from_->name[0])
+            strcat(message, &from->name[0])
         elif starts_with(template, "<to>"):
             template = &template[4]
             strcat(message, &to->name[0])
@@ -218,13 +218,13 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from_: Ty
 def do_implicit_cast(
     types: ExpressionTypes*, to: Type*, error_location: Location, error_template: byte*
 ) -> void:
-    from_ = types->type
-    if from_ == to:
+    from = types->type
+    if from == to:
         return
 
     # Passing in NULL for error_template can be used to force a cast to happen.
-    if error_template != NULL and not can_cast_implicitly(from_, to):
-        fail_with_implicit_cast_error(error_location, error_template, from_, to)
+    if error_template != NULL and not can_cast_implicitly(from, to):
+        fail_with_implicit_cast_error(error_location, error_template, from, to)
 
     assert(types->type_after_cast == NULL)
     types->type_after_cast = to

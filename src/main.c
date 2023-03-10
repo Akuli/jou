@@ -217,7 +217,7 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
 
     for (AstToplevelNode *impnode = fs.ast; impnode->kind == AST_TOPLEVEL_IMPORT; impnode++) {
         Append(&compst->parse_queue, (struct ParseQueueItem){
-            .filename = impnode->data.import.path,
+            .filename = impnode->data.import.resolved_path,
             .import_location = impnode->location,
         });
     }
@@ -245,7 +245,7 @@ static void compile_ast_to_llvm(struct FileState *fs)
     CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->types);
     for (AstToplevelNode *imp = fs->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++)
         if (!imp->data.import.used)
-            show_warning(imp->location, "'%s' imported but not used", imp->data.import.symbolname);
+            show_warning(imp->location, "'%s' imported but not used", imp->data.import.specified_path);
 
     if(command_line_args.verbosity >= 2)
         print_control_flow_graphs(&cfgfile);
@@ -363,12 +363,6 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
     }
 }
 
-static bool exportsymbol_matches_import(const ExportSymbol *es, const AstImport *imp)
-{
-    // Method bar in struct Foo appears as a function with name "Foo.bar". Match it when importing Foo.
-    return !strcmp(es->name, imp->symbolname) || (strlen(es->name) > strlen(imp->symbolname) && es->name[strlen(imp->symbolname)] == '.');
-}
-
 static void add_imported_symbols(struct CompileState *compst)
 {
     // TODO: should it be possible for a file to import from itself?
@@ -376,24 +370,22 @@ static void add_imported_symbols(struct CompileState *compst)
     for (struct FileState *to = compst->files.ptr; to < End(compst->files); to++) {
         for (AstToplevelNode *ast = to->ast; ast->kind == AST_TOPLEVEL_IMPORT; ast++) {
             AstImport *imp = &ast->data.import;
-            struct FileState *from = find_file(compst, imp->path);
+            struct FileState *from = find_file(compst, imp->resolved_path);
             assert(from);
 
             for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
-                if (exportsymbol_matches_import(es, imp)) {
-                    if (command_line_args.verbosity >= 2) {
-                        const char *kindstr;
-                        switch(es->kind) {
-                            case EXPSYM_FUNCTION: kindstr="function"; break;
-                            case EXPSYM_GLOBAL_VAR: kindstr="global var"; break;
-                            case EXPSYM_TYPE: kindstr="type"; break;
-                        }
-                        printf("Adding imported %s %s: %s --> %s\n",
-                            kindstr, es->name, from->path, to->path);
+                if (command_line_args.verbosity >= 2) {
+                    const char *kindstr;
+                    switch(es->kind) {
+                        case EXPSYM_FUNCTION: kindstr="function"; break;
+                        case EXPSYM_GLOBAL_VAR: kindstr="global var"; break;
+                        case EXPSYM_TYPE: kindstr="type"; break;
                     }
-                    imp->found = true;
-                    add_imported_symbol(to, es, imp);
+                    printf("Adding imported %s %s: %s --> %s\n",
+                        kindstr, es->name, from->path, to->path);
                 }
+                imp->found = true;
+                add_imported_symbol(to, es, imp);
             }
         }
     }
@@ -404,25 +396,6 @@ static void add_imported_symbols(struct CompileState *compst)
             free_export_symbol(es);
         free(fs->pending_exports);
         fs->pending_exports = NULL;
-    }
-}
-
-/*
-Check whether each import statement in AST actually imported something.
-
-This is trickier than you would expect, because multiple passes over
-the AST look at the imports, and any of them could provide the symbol to import.
-*/
-static void check_for_404_imports(const struct CompileState *compst)
-{
-    for (struct FileState *fs = compst->files.ptr; fs < End(compst->files); fs++) {
-        for (const AstToplevelNode *imp = fs->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++) {
-            if (!imp->data.import.found) {
-                fail_with_error(
-                    imp->location, "file \"%s\" does not export a symbol named '%s'",
-                    imp->data.import.path, imp->data.import.symbolname);
-            }
-        }
     }
 }
 
@@ -487,8 +460,6 @@ int main(int argc, char **argv)
             printf("Typecheck stage 3: %s\n", fs->path);
         typecheck_stage3_function_and_method_bodies(&fs->types, fs->ast);
     }
-
-    check_for_404_imports(&compst);
 
     char **objpaths = calloc(sizeof objpaths[0], compst.files.len + 1);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {

@@ -214,7 +214,8 @@ void free_ast(AstToplevelNode *topnodelist)
             free(t->data.enumdef.membernames);
             break;
         case AST_TOPLEVEL_IMPORT:
-            free(t->data.import.path);
+            free(t->data.import.specified_path);
+            free(t->data.import.resolved_path);
             break;
         case AST_TOPLEVEL_END_OF_FILE:
             assert(0);
