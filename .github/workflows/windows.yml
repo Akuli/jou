@@ -22,13 +22,24 @@ jobs:
   check-small-mingw64:
     runs-on: ubuntu-latest
     steps:
-      - name: Get the small mingw64 from the winlibs-small-zipfile branch
-        uses: actions/checkout@v3
-        with:
-          ref: winlibs-small-zipfile
+      # Same URLs as in windows_setup.sh
+      - name: Download the small mingw64
+        run: curl -L -o mingw64-small.zip https://akuli.github.io/mingw64-small.zip
       - name: Download the full mingw64
-        # Same URL as in windows_setup.sh
         run: curl -L -o mingw64.zip https://github.com/brechtsanders/winlibs_mingw/releases/download/12.1.0-14.0.6-10.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-12.1.0-llvm-14.0.6-mingw-w64msvcrt-10.0.0-r3.zip
+      # Same SHA hashes as in windows_setup.sh
+      - name: Veriy the small mingw64
+        run: |
+          if [ "$(sha256sum mingw64-small.zip | cut -d' ' -f1)" != "4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686" ]; then
+            echo "verifying failed"
+            exit 1
+          fi
+      - name: Veriy the full mingw64
+        run: |
+          if [ "$(sha256sum mingw64.zip | cut -d' ' -f1)" != "9ffef7f7a8dab893bd248085fa81a5a37ed6f775ae220ef673bea8806677836d" ]; then
+            echo "verifying failed"
+            exit 1
+          fi
       - name: Make sure that all file paths start with mingw64
         run: |
           zipinfo -1 mingw64.zip > output.txt
