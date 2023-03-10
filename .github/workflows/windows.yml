@@ -58,11 +58,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - run: source activate && ./windows_setup.sh --small
+      # Can't use --small, because it is only for development and doesn't include GNU linker.
+      - run: source activate && ./windows_setup.sh
         shell: bash
       - run: source activate && mingw32-make
         shell: bash
-      # We don't need to copy all of mingw64. We only need the linker.
+      # We don't need to copy all of mingw64. We only need the GNU linker.
       # The less we copy, the smaller the resulting zip becomes.
       #
       # gcc is needed only to run the linker. It would be possible to invoke ld.exe
