@@ -13,10 +13,10 @@
 # previous stages. This means that cyclic imports "just work" if we do
 # each stage on all files before moving on to the next stage.
 
-from "stdlib/io.jou" import printf
-from "stdlib/str.jou" import strcmp, strlen, sprintf, snprintf, starts_with, strcat, strdup
-from "stdlib/mem.jou" import malloc, realloc, free
-from "./ast.jou" import (
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+import "./ast.jou"
     AstType, AstTypeKind, AstSignature,
     AstExpression, AstExpressionKind,
     AstCall,
@@ -25,8 +25,8 @@ from "./ast.jou" import (
     AstToplevelStatementKind,
     AstFile,
 )
-from "./types.jou" import Type, TypeKind, Signature, int_type, bool_type, long_type, byte_type
-from "./errors_and_warnings.jou" import assert, fail, Location
+import "./types.jou"
+import "./errors_and_warnings.jou"
 
 # Suppose file A imports file B.
 #   - Type checking file B produces an ExportSymbol that matches the import in file A.

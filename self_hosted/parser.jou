@@ -1,7 +1,7 @@
-from "stdlib/str.jou" import strlen, sprintf, strdup, starts_with
-from "stdlib/mem.jou" import malloc, realloc, memcpy
-from "./token.jou" import Token, TokenKind
-from "./ast.jou" import (
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+import "./token.jou"
+import "./ast.jou"
     AstAssignment,
     AstType, AstTypeKind, AstNameTypeValue, AstSignature,
     AstCall,
@@ -11,7 +11,7 @@ from "./ast.jou" import (
     AstToplevelStatement, AstToplevelStatementKind,
     AstFile,
 )
-from "./errors_and_warnings.jou" import assert, fail
+import "./errors_and_warnings.jou"
 
 def parse_type(tokens: Token**) -> AstType:
     if not (

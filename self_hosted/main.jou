@@ -1,27 +1,27 @@
-from "../config.jou" import get_jou_clang_path
-from "./errors_and_warnings.jou" import assert
-from "./ast.jou" import AstFile, AstImport
-from "./tokenizer.jou" import tokenize, print_tokens
-from "./parser.jou" import parse
-from "./types.jou" import init_types
-from "./typecheck.jou" import (
+import "../config.jou"
+import "./errors_and_warnings.jou"
+import "./ast.jou"
+import "./tokenizer.jou"
+import "./parser.jou"
+import "./types.jou"
+import "./typecheck.jou"
     TypeContext, ExportSymbol,
     typecheck_stage2_signatures_globals_structbodies,
     typecheck_stage3_function_and_method_bodies,
 )
-from "./paths.jou" import find_stdlib, is_windows, find_installation_directory, get_path_to_file_in_jou_compiled
-from "./target.jou" import init_target, target
-from "./create_llvm_ir.jou" import create_llvm_ir
-from "./llvm.jou" import (
+import "./paths.jou"
+import "./target.jou"
+import "./create_llvm_ir.jou"
+import "./llvm.jou"
     LLVMPrintModuleToString, LLVMDisposeMessage,
     LLVMCodeGenFileType,
     LLVMTargetMachineEmitToFile,
     LLVMVerifyModule, LLVMVerifierFailureAction,
 )
-from "stdlib/mem.jou" import malloc, calloc, realloc, free, memmove
-from "stdlib/process.jou" import exit, system
-from "stdlib/str.jou" import strcmp, strlen, sprintf, starts_with, strspn, snprintf, strcat, strstr, strdup, ends_with
-from "stdlib/io.jou" import fprintf, stderr, printf, puts, fflush, stdout
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
+import "stdlib/str.jou"
+import "stdlib/io.jou"
 
 enum CompilerMode:
     TokenizeOnly    # Tokenize one file, don't recurse to imports
