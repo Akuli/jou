@@ -37,8 +37,8 @@ else
     if [ $small = yes ]; then
         # A special small version of mingw64 that comes with the repo, for people with slow internet.
         echo "Getting mingw64-small.zip from another branch..."
-        git fetch -q origin winlibs-small-zipfile
-        git checkout -q winlibs-small-zipfile mingw64-small.zip
+        git fetch -q https://github.com/Akuli/jou winlibs-small-zipfile
+        git checkout -q FETCH_HEAD mingw64-small.zip
         git restore --staged mingw64-small.zip
         filename=mingw64-small.zip
         sha=4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686
