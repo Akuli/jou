@@ -36,7 +36,12 @@ class Token:
     long_string: byte*      # String
 
     def print(self) -> void:
-        if self->kind == TokenKind::Int:
+        if self->kind == TokenKind::Byte:
+            printf("byte %#02x", self->byte_value)
+            if isprint(self->byte_value) != 0:
+                printf(" '%c'", self->byte_value)
+            printf("\n")
+        elif self->kind == TokenKind::Int:
             printf("integer %d\n", self->int_value)
         elif self->kind == TokenKind::Long:
             printf("long %lld\n", self->long_value)
@@ -44,11 +49,6 @@ class Token:
             printf("float %s\n", &self->short_string[0])
         elif self->kind == TokenKind::Double:
             printf("double %s\n", &self->short_string[0])
-        elif self->kind == TokenKind::Byte:
-            printf("character %#02x", self->byte_value)
-            if isprint(self->byte_value) != 0:
-                printf(" '%c'", self->byte_value)
-            printf("\n")
         elif self->kind == TokenKind::EndOfFile:
             printf("end of file\n")
         elif self->kind == TokenKind::Operator:
@@ -81,6 +81,16 @@ class Token:
 
     def is_operator(self, op: byte*) -> bool:
         return self->kind == TokenKind::Operator and strcmp(&self->short_string[0], op) == 0
+
+    def is_comparison(self) -> bool:
+        return (
+            self->is_operator("==")
+            or self->is_operator("!=")
+            or self->is_operator("<")
+            or self->is_operator(">")
+            or self->is_operator("<=")
+            or self->is_operator(">=")
+        )
 
     def is_open_paren(self) -> bool:
         return self->is_operator("(") or self->is_operator("[") or self->is_operator("{")

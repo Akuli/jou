@@ -71,7 +71,7 @@ void print_token(const Token *token)
         printf("double %s\n", token->data.name);
         break;
     case TOKEN_CHAR:
-        printf("character ");
+        printf("byte ");
         print_byte(token->data.char_value);
         printf("\n");
         break;
@@ -323,13 +323,13 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             }
             if (stmt->data.ifstatement.elsebody.nstatements > 0) {
                 sub = print_tree_prefix(tp, true);
-                printf("elsebody:\n");
+                printf("else body:\n");
                 print_ast_body(&stmt->data.ifstatement.elsebody, sub);
             }
             break;
         case AST_STMT_WHILE:
-            printf("while\n");
-            sub = print_tree_prefix(tp, true);
+            printf("while loop\n");
+            sub = print_tree_prefix(tp, false);
             printf("condition: ");
             print_ast_expression(&stmt->data.whileloop.condition, sub);
             sub = print_tree_prefix(tp, true);
@@ -337,7 +337,7 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             print_ast_body(&stmt->data.whileloop.body, sub);
             break;
         case AST_STMT_FOR:
-            printf("For loop\n");
+            printf("for loop\n");
             sub = print_tree_prefix(tp, false);
             printf("init: ");
             print_ast_statement(stmt->data.forloop.init, sub);
@@ -358,13 +358,13 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             printf("continue\n");
             break;
         case AST_STMT_DECLARE_LOCAL_VAR:
-            printf("declare local var \"%s\", type ", stmt->data.vardecl.name);
+            printf("declare local var %s: ", stmt->data.vardecl.name);
             print_ast_type(&stmt->data.vardecl.type);
             printf("\n");
             if (stmt->data.vardecl.value) {
                 sub = print_tree_prefix(tp, true);
-                printf("initial value:\n");
-                print_ast_expression(stmt->data.vardecl.value, print_tree_prefix(sub, true));
+                printf("initial value: ");
+                print_ast_expression(stmt->data.vardecl.value, sub);
             }
             break;
 #define PrintAssignment \
