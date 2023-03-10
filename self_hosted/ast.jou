@@ -75,8 +75,10 @@ class TreePrinter:
 enum AstExpressionKind:
     String
     Int
+    Long
     Byte
     Bool
+    Null
     FunctionCall
     GetVariable
     As
@@ -113,6 +115,7 @@ class AstExpression:
     # TODO: union
     string: byte*
     int_value: int
+    long_value: long
     byte_value: byte
     bool_value: bool
     call: AstCall
@@ -134,6 +137,8 @@ class AstExpression:
             printf("\"\n")
         elif self->kind == AstExpressionKind::Int:
             printf("%d (32-bit signed)\n", self->int_value)
+        elif self->kind == AstExpressionKind::Long:
+            printf("%d (64-bit signed)\n", self->long_value)
         elif self->kind == AstExpressionKind::Byte:
             printf("%d (8-bit unsigned)\n", self->byte_value)
         elif self->kind == AstExpressionKind::Bool:
@@ -141,6 +146,8 @@ class AstExpression:
                 printf("True\n")
             else:
                 printf("False\n")
+        elif self->kind == AstExpressionKind::Null:
+            printf("NULL\n")
         elif self->kind == AstExpressionKind::FunctionCall:
             printf("call function \"%s\"\n", &self->call.called_name[0])
             self->call.print(tp)

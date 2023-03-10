@@ -274,6 +274,8 @@ def typecheck_expression_maybe_void(ctx: TypeContext*, expression: AstExpression
         result = byte_type->get_pointer_type()
     elif expression->kind == AstExpressionKind::Int:
         result = int_type
+    elif expression->kind == AstExpressionKind::Long:
+        result = long_type
     elif expression->kind == AstExpressionKind::FunctionCall:
         result = typecheck_function_call(ctx, &expression->call)
         if result == NULL:

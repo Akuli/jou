@@ -143,6 +143,10 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
         expr.kind = AstExpressionKind::Int
         expr.int_value = (*tokens)->int_value
         ++*tokens
+    elif (*tokens)->kind == TokenKind::Long:
+        expr.kind = AstExpressionKind::Long
+        expr.long_value = (*tokens)->long_value
+        ++*tokens
     elif (*tokens)->kind == TokenKind::Byte:
         expr.kind = AstExpressionKind::Byte
         expr.byte_value = (*tokens)->byte_value
@@ -158,6 +162,9 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
     elif (*tokens)->is_keyword("False"):
         expr.kind = AstExpressionKind::Bool
         expr.bool_value = False
+        ++*tokens
+    elif (*tokens)->is_keyword("NULL"):
+        expr.kind = AstExpressionKind::Null
         ++*tokens
     elif (*tokens)->kind == TokenKind::Name and (&(*tokens)[1])->is_operator("("):
         expr.kind = AstExpressionKind::FunctionCall
