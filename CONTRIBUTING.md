@@ -3,6 +3,8 @@ This file explains how to develop the Jou compiler.
 
 ## Setup
 
+If you have any trouble with this, please create an issue!
+
 <details> <summary>Linux</summary>
 
 Following the [instructions in the README](README.md#setup-linux) is enough.
@@ -29,6 +31,14 @@ to help `clangd` find the LLVM header files.
     cd jou
     ./windows_setup.sh
     ```
+    If you have a slow internet connection
+    and it takes a long time for `windows_setup.sh` to download mingw64,
+    you can instead run `./windows_setup.sh --small`.
+    This way it uses `mingw64-small.zip`,
+    which is just like the usual mingw64, but with many large files deleted to make it smaller.
+    I created it locally on my computer.
+    If you don't want to trust it, you can run `windows_setup.sh` without `--small`
+    or look at how `.github/workflows/windows.yml` compares `mingw64-small.zip` to the original `mingw64.zip`.
 5. Compile Jou:
     ```
     source activate

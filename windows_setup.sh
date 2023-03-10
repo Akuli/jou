@@ -23,7 +23,6 @@ echo ""
 echo ""
 echo "This script is meant for developing Jou. If you only want to use Jou, it"
 echo "is easier to download and extract a zip file instead (see README.md)."
-echo "Also, please create an issue on GitHub if something doesn't work."
 echo ""
 echo ""
 
