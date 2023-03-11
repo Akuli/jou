@@ -830,15 +830,13 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         break;
     }
 
-    case AST_STMT_RETURN_VALUE:
-    {
-        const LocalVariable *retvalue = build_expression(st, &stmt->data.expression);
-        const LocalVariable *retvariable = find_local_var(st, "return");
-        assert(retvariable);
-        add_unary_op(st, stmt->location, CF_VARCPY, retvalue, retvariable);
-    }
-    __attribute__((fallthrough));
-    case AST_STMT_RETURN_WITHOUT_VALUE:
+    case AST_STMT_RETURN:
+        if (stmt->data.returnvalue) {
+            const LocalVariable *retvalue = build_expression(st, stmt->data.returnvalue);
+            const LocalVariable *retvariable = find_local_var(st, "return");
+            assert(retvariable);
+            add_unary_op(st, stmt->location, CF_VARCPY, retvalue, retvariable);
+        }
         st->current_block->iftrue = &st->cfg->end_block;
         st->current_block->iffalse = &st->cfg->end_block;
         st->current_block = add_block(st);  // an unreachable block
@@ -908,8 +906,8 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *filetypes
     struct State st = { .filetypes = filetypes };
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
-        if(ast->kind == AST_TOPLEVEL_DEFINE_FUNCTION) {
-            CfGraph *g = build_function_or_method(&st, NULL, ast->data.funcdef.signature.name, &ast->data.funcdef.body);
+        if(ast->kind == AST_TOPLEVEL_FUNCTION && ast->data.function.body.nstatements > 0) {
+            CfGraph *g = build_function_or_method(&st, NULL, ast->data.function.signature.name, &ast->data.function.body);
             Append(&result.graphs, g);
         }
 
@@ -923,7 +921,7 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *filetypes
             }
             assert(classtype);
 
-            for (AstFunctionDef *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
+            for (AstFunction *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
                 CfGraph *g = build_function_or_method(&st, classtype, m->signature.name, &m->body);
                 Append(&result.graphs, g);
             }

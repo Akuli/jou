@@ -275,8 +275,7 @@ class AstCall:
 
 enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
-    ReturnWithValue
-    ReturnWithoutValue
+    Return
     If
     WhileLoop
     ForLoop
@@ -299,7 +298,7 @@ class AstStatement:
     if_statement: AstIfStatement
     while_loop: AstConditionAndBody
     for_loop: AstForLoop
-    return_value: AstExpression     # AstStatementKind::ReturnWithValue
+    return_value: AstExpression*     # AstStatementKind::Return (can be NULL)
     assignment: AstAssignment
     var_declaration: AstNameTypeValue  # AstStatementKind::DeclareLocalVar
 
@@ -308,11 +307,10 @@ class AstStatement:
         if self->kind == AstStatementKind::ExpressionStatement:
             printf("expression statement\n")
             self->expression.print(tp.print_prefix(True))
-        elif self->kind == AstStatementKind::ReturnWithValue:
-            printf("return a value\n")
-            self->return_value.print(tp.print_prefix(True))
-        elif self->kind == AstStatementKind::ReturnWithoutValue:
-            printf("return without a value\n")
+        elif self->kind == AstStatementKind::Return:
+            printf("return\n")
+            if self->return_value != NULL:
+                self->return_value->print(tp.print_prefix(True))
         elif self->kind == AstStatementKind::If:
             printf("if\n")
             self->if_statement.print(tp)
@@ -353,8 +351,9 @@ class AstStatement:
     def free(self) -> void:
         if self->kind == AstStatementKind::ExpressionStatement:
             self->expression.free()
-        if self->kind == AstStatementKind::ReturnWithValue:
-            self->return_value.free()
+        if self->kind == AstStatementKind::Return and self->return_value != NULL:
+            self->return_value->free()
+            free(self->return_value)
         if self->kind == AstStatementKind::If:
             self->if_statement.free()
         if self->kind == AstStatementKind::ForLoop:
@@ -516,16 +515,14 @@ class AstImport:
 
 enum AstToplevelStatementKind:
     Import
-    FunctionDeclaration
-    FunctionDefinition
+    Function
     ClassDefinition
     GlobalVariableDeclaration
 
 class AstToplevelStatement:
     # TODO: union
     the_import: AstImport   # must be first
-    decl_signature: AstSignature
-    funcdef: AstFunctionDef
+    function: AstFunction
     classdef: AstClassDef
     global_var: AstNameTypeValue
 
@@ -540,12 +537,12 @@ class AstToplevelStatement:
                 self->the_import.specified_path,
                 self->the_import.resolved_path,
             )
-        elif self->kind == AstToplevelStatementKind::FunctionDeclaration:
-            printf("Declare a function: ")
-            self->decl_signature.print()
-        elif self->kind == AstToplevelStatementKind::FunctionDefinition:
-            printf("Define a function: ")
-            self->funcdef.print()
+        elif self->kind == AstToplevelStatementKind::Function:
+            if self->function.body.nstatements == 0:
+                printf("Declare a function: ")
+            else:
+                printf("Define a function: ")
+            self->function.print()
         elif self->kind == AstToplevelStatementKind::ClassDefinition:
             printf("Define a ")
             self->classdef.print()
@@ -596,9 +593,9 @@ class AstFile:
             self->body[i].free()
         free(self->body)
 
-class AstFunctionDef:
+class AstFunction:
     signature: AstSignature
-    body: AstBody
+    body: AstBody  # empty body means declaration, otherwise it's a definition
 
     def print(self) -> void:
         self->signature.print()
@@ -613,7 +610,7 @@ class AstClassDef:
     name_location: Location
     fields: AstNameTypeValue*
     nfields: int
-    methods: AstFunctionDef*
+    methods: AstFunction*
     nmethods: int
 
     def print(self) -> void:

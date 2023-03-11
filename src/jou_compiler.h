@@ -28,7 +28,7 @@ typedef struct AstNameTypeValue AstNameTypeValue;
 typedef struct AstIfStatement AstIfStatement;
 typedef struct AstStatement AstStatement;
 typedef struct AstToplevelNode AstToplevelNode;
-typedef struct AstFunctionDef AstFunctionDef;
+typedef struct AstFunction AstFunction;
 typedef struct AstClassDef AstClassDef;
 typedef struct AstEnumDef AstEnumDef;
 typedef struct AstImport AstImport;
@@ -269,8 +269,7 @@ struct AstAssignment {
 struct AstStatement {
     Location location;
     enum AstStatementKind {
-        AST_STMT_RETURN_VALUE,
-        AST_STMT_RETURN_WITHOUT_VALUE,
+        AST_STMT_RETURN,
         AST_STMT_IF,
         AST_STMT_WHILE,
         AST_STMT_FOR,
@@ -286,7 +285,8 @@ struct AstStatement {
         AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
     } kind;
     union {
-        AstExpression expression;    // for AST_STMT_EXPRESSION_STATEMENT, AST_STMT_RETURN
+        AstExpression expression;    // AST_STMT_EXPRESSION_STATEMENT
+        AstExpression *returnvalue;    // AST_STMT_RETURN (can be NULL)
         AstConditionAndBody whileloop;
         AstIfStatement ifstatement;
         AstForLoop forloop;
@@ -295,15 +295,15 @@ struct AstStatement {
     } data;
 };
 
-struct AstFunctionDef {
+struct AstFunction {
     AstSignature signature;
-    AstBody body;
+    AstBody body;  // empty body means declaration, otherwise it's definition
 };
 
 struct AstClassDef {
     char name[100];
     List(AstNameTypeValue) fields;
-    List(AstFunctionDef) methods;
+    List(AstFunction) methods;
 };
 
 struct AstEnumDef {
@@ -323,9 +323,8 @@ struct AstToplevelNode {
     Location location;
     enum AstToplevelNodeKind {
         AST_TOPLEVEL_END_OF_FILE,  // indicates end of array of AstToplevelNodeKind
-        AST_TOPLEVEL_DECLARE_FUNCTION,
+        AST_TOPLEVEL_FUNCTION,
         AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE,
-        AST_TOPLEVEL_DEFINE_FUNCTION,
         AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE,
         AST_TOPLEVEL_DEFINE_CLASS,
         AST_TOPLEVEL_DEFINE_ENUM,
@@ -333,7 +332,7 @@ struct AstToplevelNode {
     } kind;
     union {
         AstNameTypeValue globalvar;  // AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE
-        AstFunctionDef funcdef;  // AST_TOPLEVEL_DECLARE_FUNCTION, AST_TOPLEVEL_DEFINE_FUNCTION (body is empty for declaring)
+        AstFunction function;
         AstClassDef classdef;  // AST_TOPLEVEL_DEFINE_CLASS
         AstEnumDef enumdef;     // AST_TOPLEVEL_DEFINE_ENUM
         AstImport import;       // AST_TOPLEVEL_IMPORT

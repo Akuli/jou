@@ -97,7 +97,7 @@ for action in tokenize parse run; do
         # The file is skipped, so the two compilers should behave differently
         if diff tmp/compare_compilers/compiler_written_in_c.txt tmp/compare_compilers/self_hosted.txt >/dev/null; then
             if [ $fix = yes ]; then
-                delete_line $error_list_file $file
+                remove_line $error_list_file $file
             else
                 echo "  Error: Compilers behave the same even though the file is listed in $error_list_file."
                 echo "  To fix this error, delete the \"$file\" line from $error_list_file (or run again with --fix)."

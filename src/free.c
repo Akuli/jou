@@ -156,8 +156,13 @@ static void free_statement(const AstStatement *stmt)
         free_ast_body(&stmt->data.forloop.body);
         break;
     case AST_STMT_EXPRESSION_STATEMENT:
-    case AST_STMT_RETURN_VALUE:
         free_expression(&stmt->data.expression);
+        break;
+    case AST_STMT_RETURN:
+        if (stmt->data.returnvalue) {
+            free_expression(stmt->data.returnvalue);
+            free(stmt->data.returnvalue);
+        }
         break;
     case AST_STMT_DECLARE_LOCAL_VAR:
         free_name_type_value(&stmt->data.vardecl);
@@ -171,7 +176,6 @@ static void free_statement(const AstStatement *stmt)
         free_expression(&stmt->data.assignment.target);
         free_expression(&stmt->data.assignment.value);
         break;
-    case AST_STMT_RETURN_WITHOUT_VALUE:
     case AST_STMT_BREAK:
     case AST_STMT_CONTINUE:
         break;
@@ -189,12 +193,9 @@ void free_ast(AstToplevelNode *topnodelist)
 {
     for (AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
         switch(t->kind) {
-        case AST_TOPLEVEL_DECLARE_FUNCTION:
-            free_ast_signature(&t->data.funcdef.signature);
-            break;
-        case AST_TOPLEVEL_DEFINE_FUNCTION:
-            free_ast_signature(&t->data.funcdef.signature);
-            free_ast_body(&t->data.funcdef.body);
+        case AST_TOPLEVEL_FUNCTION:
+            free_ast_signature(&t->data.function.signature);
+            free_ast_body(&t->data.function.body);
             break;
         case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
         case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
@@ -204,7 +205,7 @@ void free_ast(AstToplevelNode *topnodelist)
             for (const AstNameTypeValue *ntv = t->data.classdef.fields.ptr; ntv < End(t->data.classdef.fields); ntv++)
                 free_name_type_value(ntv);
             free(t->data.classdef.fields.ptr);
-            for (const AstFunctionDef *m = t->data.classdef.methods.ptr; m < End(t->data.classdef.methods); m++) {
+            for (const AstFunction *m = t->data.classdef.methods.ptr; m < End(t->data.classdef.methods); m++) {
                 free_ast_signature(&m->signature);
                 free_ast_body(&m->body);
             }

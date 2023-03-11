@@ -300,12 +300,10 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             printf("expression statement\n");
             print_ast_expression(&stmt->data.expression, print_tree_prefix(tp, true));
             break;
-        case AST_STMT_RETURN_VALUE:
-            printf("return a value\n");
-            print_ast_expression(&stmt->data.expression, print_tree_prefix(tp, true));
-            break;
-        case AST_STMT_RETURN_WITHOUT_VALUE:
-            printf("return without a value\n");
+        case AST_STMT_RETURN:
+            printf("return\n");
+            if (stmt->data.returnvalue)
+                print_ast_expression(stmt->data.returnvalue, print_tree_prefix(tp, true));
             break;
         case AST_STMT_IF:
             printf("if\n");
@@ -410,14 +408,10 @@ void print_ast(const AstToplevelNode *topnodelist)
                 print_ast_type(&t->data.globalvar.type);
                 printf("\n");
                 break;
-            case AST_TOPLEVEL_DECLARE_FUNCTION:
-                printf("Declare a function: ");
-                print_ast_function_signature(&t->data.funcdef.signature);
-                break;
-            case AST_TOPLEVEL_DEFINE_FUNCTION:
-                printf("Define a function: ");
-                print_ast_function_signature(&t->data.funcdef.signature);
-                print_ast_body(&t->data.funcdef.body, (struct TreePrinter){0});
+            case AST_TOPLEVEL_FUNCTION:
+                printf("%s a function: ", t->data.function.body.nstatements == 0 ? "Declare" : "Define");
+                print_ast_function_signature(&t->data.function.signature);
+                print_ast_body(&t->data.function.body, (struct TreePrinter){0});
                 break;
             case AST_TOPLEVEL_DEFINE_CLASS:
                 printf("Define a class \"%s\" with %d fields and %d methods:\n",
@@ -429,7 +423,7 @@ void print_ast(const AstToplevelNode *topnodelist)
                     print_ast_type(&ntv->type);
                     printf("\n");
                 }
-                for (const AstFunctionDef *m = t->data.classdef.methods.ptr; m < End(t->data.classdef.methods); m++) {
+                for (const AstFunction *m = t->data.classdef.methods.ptr; m < End(t->data.classdef.methods); m++) {
                     printf("  method ");
                     print_ast_function_signature(&m->signature);
                     print_ast_body(&m->body, (struct TreePrinter){.prefix="  "});
