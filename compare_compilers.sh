@@ -41,7 +41,7 @@ function append_line()
     echo "  Adding $line to $file"
 
     if [ grep -q $'\r' $error_list_file ]; then
-        # CRLF line endings (Windows, but also depends on git settings)
+        # CRLF line endings (likely Windows, but depends on git settings)
         printf "%s\r\n" "$line" >> "$file"
     else
         printf "%s\n" "$line" >> "$file"
@@ -60,7 +60,7 @@ function remove_line()
 
 for error_list_file in self_hosted/*s_wrong.txt; do
     echo "Checking that all files mentioned in $error_list_file exist..."
-    for line in $(grep -v '^#' $error_list_file); do
+    for line in $(cat $error_list_file | tr -d '\r' | grep -v '^#'); do
         if ! [ -f $line ]; then
             if [ $fix = yes ]; then
                 remove_line $error_list_file $line
@@ -92,12 +92,6 @@ for action in tokenize parse run; do
 
     (./jou $flag $file || true) &> tmp/compare_compilers/compiler_written_in_c.txt
     (./self_hosted_compiler $flag $file || true) &> tmp/compare_compilers/self_hosted.txt
-
-    if grep -q $'\r' $error_list_file; then
-        newline=crlf
-    else
-        newline=lf
-    fi
 
     if grep -qxF $file <(cat $error_list_file | tr -d '\r'); then
         # The file is skipped, so the two compilers should behave differently
