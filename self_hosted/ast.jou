@@ -517,16 +517,14 @@ class AstImport:
 
 enum AstToplevelStatementKind:
     Import
-    FunctionDeclaration
-    FunctionDefinition
+    Function
     ClassDefinition
     GlobalVariableDeclaration
 
 class AstToplevelStatement:
     # TODO: union
     the_import: AstImport   # must be first
-    decl_signature: AstSignature
-    funcdef: AstFunctionDef
+    function: AstFunction
     classdef: AstClassDef
     global_var: AstNameTypeValue
 
@@ -541,12 +539,12 @@ class AstToplevelStatement:
                 self->the_import.specified_path,
                 self->the_import.resolved_path,
             )
-        elif self->kind == AstToplevelStatementKind::FunctionDeclaration:
-            printf("Declare a function: ")
-            self->decl_signature.print()
-        elif self->kind == AstToplevelStatementKind::FunctionDefinition:
-            printf("Define a function: ")
-            self->funcdef.print()
+        elif self->kind == AstToplevelStatementKind::Function:
+            if self->function.body.nstatements == 0:
+                printf("Declare a function: ")
+            else:
+                printf("Define a function: ")
+            self->function.print()
         elif self->kind == AstToplevelStatementKind::ClassDefinition:
             printf("Define a ")
             self->classdef.print()
@@ -597,9 +595,9 @@ class AstFile:
             self->body[i].free()
         free(self->body)
 
-class AstFunctionDef:
+class AstFunction:
     signature: AstSignature
-    body: AstBody
+    body: AstBody  # empty body means declaration, otherwise it's a definition
 
     def print(self) -> void:
         self->signature.print()
@@ -614,7 +612,7 @@ class AstClassDef:
     name_location: Location
     fields: AstNameTypeValue*
     nfields: int
-    methods: AstFunctionDef*
+    methods: AstFunction*
     nmethods: int
 
     def print(self) -> void:

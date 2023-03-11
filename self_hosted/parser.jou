@@ -553,8 +553,8 @@ def parse_body(tokens: Token**) -> AstBody:
 
     return AstBody{ statements = result, nstatements = n }
 
-def parse_funcdef(tokens: Token**) -> AstFunctionDef:
-    return AstFunctionDef{
+def parse_funcdef(tokens: Token**) -> AstFunction:
+    return AstFunction{
         signature = parse_function_signature(tokens),
         body = parse_body(tokens),
     }
@@ -593,8 +593,8 @@ def parse_toplevel_node(dest: AstFile*, tokens: Token**, stdlib_path: byte*) -> 
 
     elif (*tokens)->is_keyword("def"):
         ++*tokens
-        ts.kind = AstToplevelStatementKind::FunctionDefinition
-        ts.funcdef = parse_funcdef(tokens)
+        ts.kind = AstToplevelStatementKind::Function
+        ts.function = parse_funcdef(tokens)
 
     elif (*tokens)->is_keyword("declare"):
         ++*tokens
@@ -608,8 +608,8 @@ def parse_toplevel_node(dest: AstFile*, tokens: Token**, stdlib_path: byte*) -> 
                     "a value cannot be given when declaring a global variable",
                 )
         else:
-            ts.kind = AstToplevelStatementKind::FunctionDeclaration
-            ts.decl_signature = parse_function_signature(tokens)
+            ts.kind = AstToplevelStatementKind::Function
+            ts.function.signature = parse_function_signature(tokens)
         eat_newline(tokens)
 
     elif (*tokens)->is_keyword("class"):

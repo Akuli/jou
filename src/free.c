@@ -193,12 +193,9 @@ void free_ast(AstToplevelNode *topnodelist)
 {
     for (AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
         switch(t->kind) {
-        case AST_TOPLEVEL_DECLARE_FUNCTION:
-            free_ast_signature(&t->data.funcdef.signature);
-            break;
-        case AST_TOPLEVEL_DEFINE_FUNCTION:
-            free_ast_signature(&t->data.funcdef.signature);
-            free_ast_body(&t->data.funcdef.body);
+        case AST_TOPLEVEL_FUNCTION:
+            free_ast_signature(&t->data.function.signature);
+            free_ast_body(&t->data.function.body);
             break;
         case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
         case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
@@ -208,7 +205,7 @@ void free_ast(AstToplevelNode *topnodelist)
             for (const AstNameTypeValue *ntv = t->data.classdef.fields.ptr; ntv < End(t->data.classdef.fields); ntv++)
                 free_name_type_value(ntv);
             free(t->data.classdef.fields.ptr);
-            for (const AstFunctionDef *m = t->data.classdef.methods.ptr; m < End(t->data.classdef.methods); m++) {
+            for (const AstFunction *m = t->data.classdef.methods.ptr; m < End(t->data.classdef.methods); m++) {
                 free_ast_signature(&m->signature);
                 free_ast_body(&m->body);
             }

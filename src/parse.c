@@ -790,12 +790,12 @@ static AstBody parse_body(const Token **tokens)
     return (AstBody){ .statements=result.ptr, .nstatements=result.len };
 }
 
-static AstFunctionDef parse_funcdef(const Token **tokens, bool is_method)
+static AstFunction parse_funcdef(const Token **tokens, bool is_method)
 {
     assert(is_keyword(*tokens, "def"));
     ++*tokens;
 
-    struct AstFunctionDef funcdef = {0};
+    struct AstFunction funcdef = {0};
     funcdef.signature = parse_function_signature(tokens, is_method);
     if (funcdef.signature.takes_varargs) {
         // TODO: support "def foo(x: str, ...)" in some way
@@ -917,13 +917,13 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens, const char *std
         eat_newline(tokens);
     } else if (is_keyword(*tokens, "def")) {
         ++*tokens;  // skip 'def' keyword
-        result.kind = AST_TOPLEVEL_DEFINE_FUNCTION;
-        result.data.funcdef.signature = parse_function_signature(tokens, false);
-        if (result.data.funcdef.signature.takes_varargs) {
+        result.kind = AST_TOPLEVEL_FUNCTION;
+        result.data.function.signature = parse_function_signature(tokens, false);
+        if (result.data.function.signature.takes_varargs) {
             // TODO: support "def foo(x: str, ...)" in some way
             fail_with_error((*tokens)->location, "functions with variadic arguments cannot be defined yet");
         }
-        result.data.funcdef.body = parse_body(tokens);
+        result.data.function.body = parse_body(tokens);
     } else if (is_keyword(*tokens, "declare")) {
         ++*tokens;
         if (is_keyword(*tokens, "global")) {
@@ -936,8 +936,8 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens, const char *std
                     "a value cannot be given when declaring a global variable");
             }
         } else {
-            result.kind = AST_TOPLEVEL_DECLARE_FUNCTION;
-            result.data.funcdef.signature = parse_function_signature(tokens, false);
+            result.kind = AST_TOPLEVEL_FUNCTION;
+            result.data.function.signature = parse_function_signature(tokens, false);
         }
         eat_newline(tokens);
     } else if (is_keyword(*tokens, "global")) {

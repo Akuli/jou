@@ -101,14 +101,17 @@ class AstToIR:
             self->do_statement(&body->statements[i])
 
     # The function must already be declared.
-    def define_function(self, funcdef: AstFunctionDef*) -> void:
+    def define_function(self, funcdef: AstFunction*) -> void:
         llvm_func = LLVMGetNamedFunction(self->module, &funcdef->signature.name[0])
         assert(llvm_func != NULL)
         assert(self->current_function == NULL)
         self->current_function = llvm_func
+
         self->new_block("start")
+        assert(funcdef->body.nstatements > 0)  # it is a definition
         self->do_body(&funcdef->body)
         LLVMBuildUnreachable(self->builder)
+
         self->current_function = NULL
 
 
@@ -127,8 +130,8 @@ def create_llvm_ir(ast: AstFile*, typectx: TypeContext*) -> LLVMModule*:
         a2i.declare_function(&typectx->functions[i])
 
     for i = 0; i < ast->body_len; i++:
-        if ast->body[i].kind == AstToplevelStatementKind::FunctionDefinition:
-            a2i.define_function(&ast->body[i].funcdef)
+        if ast->body[i].kind == AstToplevelStatementKind::Function and ast->body[i].function.body.nstatements > 0:
+            a2i.define_function(&ast->body[i].function)
 
     LLVMDisposeBuilder(a2i.builder)
     return module

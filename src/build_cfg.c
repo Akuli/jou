@@ -906,8 +906,8 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *filetypes
     struct State st = { .filetypes = filetypes };
 
     while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
-        if(ast->kind == AST_TOPLEVEL_DEFINE_FUNCTION) {
-            CfGraph *g = build_function_or_method(&st, NULL, ast->data.funcdef.signature.name, &ast->data.funcdef.body);
+        if(ast->kind == AST_TOPLEVEL_FUNCTION && ast->data.function.body.nstatements > 0) {
+            CfGraph *g = build_function_or_method(&st, NULL, ast->data.function.signature.name, &ast->data.function.body);
             Append(&result.graphs, g);
         }
 
@@ -921,7 +921,7 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *filetypes
             }
             assert(classtype);
 
-            for (AstFunctionDef *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
+            for (AstFunction *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
                 CfGraph *g = build_function_or_method(&st, classtype, m->signature.name, &m->body);
                 Append(&result.graphs, g);
             }
