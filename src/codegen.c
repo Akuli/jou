@@ -53,6 +53,21 @@ static LLVMTypeRef codegen_type(const Type *type)
     assert(0);
 }
 
+/*
+When returning a class (LLVM struct), we actually place it to a pointer argument
+marked with sret: https://discourse.llvm.org/t/c-returning-struct-by-value/40518
+
+This is not only for consistency with C but also makes many things compile
+a lot faster, because LLVM doesn't do dumb things.
+
+Apparently this function should be a lot more complicated to be consistent with
+clang, but hopefully this simple thing is good enough for a while.
+*/
+static bool uses_sret(const Signature *sig)
+{
+    return sig->returntype != NULL && sig->returntype->kind == TYPE_CLASS;
+}
+
 struct State {
     LLVMModuleRef module;
     LLVMBuilderRef builder;
@@ -60,6 +75,10 @@ struct State {
     // All local variables are represented as pointers to stack space, even
     // if they are never reassigned. LLVM will optimize the mess.
     LLVMValueRef *llvm_locals;
+    // When calling a function that returns a class, we need to provide
+    // a pointer. These are allocated at the start of the function.
+    // See uses_sret()
+    List(struct PreAllocatedSretPointer { const CfInstruction *ins; LLVMValueRef ptr; }) sret_pointers;
 };
 
 static LLVMValueRef get_pointer_to_local_var(const struct State *st, const LocalVariable *cfvar)
@@ -115,21 +134,28 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
     if (func)
         return func;
 
-    LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
-    for (int i = 0; i < sig->nargs; i++)
-        argtypes[i] = codegen_type(sig->argtypes[i]);
+    LLVMTypeRef *argtypes = malloc((sig->nargs + 1) * sizeof(argtypes[0]));  // NOLINT
 
+    // TODO: tell llvm if we know a function is noreturn?
     LLVMTypeRef returntype;
-    // TODO: tell llvm, if we know a function is noreturn ?
-    if (sig->returntype == NULL)  // "-> noreturn" or "-> void"
+    if (sig->returntype == NULL || uses_sret(sig))  // "-> noreturn" or "-> void" or "-> SomeStruct"
         returntype = LLVMVoidType();
     else
         returntype = codegen_type(sig->returntype);
 
-    LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
+    if (uses_sret(sig))
+        argtypes[0] = LLVMPointerType(codegen_type(sig->returntype), 0);
+    for (int i = 0; i < sig->nargs; i++)
+        argtypes[i + !!uses_sret(sig)] = codegen_type(sig->argtypes[i]);
+
+    LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs + !!uses_sret(sig), sig->takes_varargs);
     free(argtypes);
 
     func = LLVMAddFunction(st->module, fullname, functype);
+    if (sig->returntype && sig->returntype->kind == TYPE_CLASS) {
+        LLVMAttributeRef attr = LLVMCreateTypeAttribute(LLVMGetGlobalContext(), LLVMGetEnumAttributeKindForName("sret", 4), codegen_type(sig->returntype));
+        LLVMAddAttributeAtIndex(func, 1, attr);
+    }
 
     // Terrible hack: if declaring an OS function that doesn't exist on current platform,
     // make it a definition instead of a declaration so that there are no linker errors.
@@ -255,13 +281,32 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
     switch(ins->kind) {
         case CF_CALL:
             {
-                LLVMValueRef *args = malloc(ins->noperands * sizeof(args[0]));  // NOLINT
+                // TODO: Presumably all this should move to codegen_call().
+                LLVMValueRef sretptr = NULL;
+                if (uses_sret(&ins->data.signature)) {
+                    for (const struct PreAllocatedSretPointer *p = st->sret_pointers.ptr; p < End(st->sret_pointers); p++) {
+                        if (p->ins == ins) {
+                            sretptr = p->ptr;
+                            break;
+                        }
+                    }
+                    assert(sretptr);
+                }
+
+                LLVMValueRef *args = malloc((ins->noperands+1) * sizeof(args[0]));  // NOLINT
+                if (sretptr)
+                    args[0] = sretptr;
                 for (int i = 0; i < ins->noperands; i++)
-                    args[i] = getop(i);
-                LLVMValueRef return_value = codegen_call(st, &ins->data.signature, args, ins->noperands);
+                    args[i + !!sretptr] = getop(i);
+
+                LLVMValueRef return_value = codegen_call(st, &ins->data.signature, args, ins->noperands + !!sretptr);
+                free(args);
+
+                if (sretptr)
+                    return_value = LLVMBuildLoad(st->builder, sretptr, "returned_via_sret");
+
                 if (ins->destvar)
                     setdest(return_value);
-                free(args);
             }
             break;
         case CF_CONSTANT: setdest(codegen_constant(st, &ins->data.constant)); break;
@@ -429,6 +474,22 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
         codegen_call_to_the_special_startup_function(st);
 #endif
 
+    // Look for calls to sret functions. Allocate stack space for the needed temporary values.
+    for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
+        for (const CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++) {
+            if (ins->kind != CF_CALL || !uses_sret(&ins->data.signature))
+                continue;
+
+            char name[100];
+            snprintf(name, sizeof name, "%s_sret", ins->data.signature.name);
+            struct PreAllocatedSretPointer p = {
+                .ins = ins,
+                .ptr = LLVMBuildAlloca(st->builder, codegen_type(ins->data.signature.returntype), name),
+            };
+            Append(&st->sret_pointers, p);
+        }
+    }
+
     // Allocate stack space for local variables at start of function.
     LLVMValueRef return_value = NULL;
     for (int i = 0; i < cfg->locals.len; i++) {
@@ -440,7 +501,7 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
 
     // Place arguments into the first n local variables.
     for (int i = 0; i < cfg->signature.nargs; i++)
-        set_local_var(st, cfg->locals.ptr[i], LLVMGetParam(llvm_func, i));
+        set_local_var(st, cfg->locals.ptr[i], LLVMGetParam(llvm_func, i + !!uses_sret(&cfg->signature)));
 
     for (CfBlock **b = cfg->all_blocks.ptr; b <End(cfg->all_blocks); b++) {
         LLVMPositionBuilderAtEnd(st->builder, blocks[b - cfg->all_blocks.ptr]);
@@ -452,9 +513,15 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
             assert((*b)->instructions.len == 0);
             // The "return" variable may have been deleted as unused.
             // In that case return_value is NULL but signature.returntype isn't.
-            if (return_value)
-                LLVMBuildRet(st->builder, LLVMBuildLoad(st->builder, return_value, "return_value"));
-            else if (cfg->signature.returntype || cfg->signature.is_noreturn)
+            if (return_value) {
+                LLVMValueRef retval = LLVMBuildLoad(st->builder, return_value, "return_value");
+                if (uses_sret(&cfg->signature)) {
+                    LLVMBuildStore(st->builder, retval, LLVMGetParam(llvm_func, 0));
+                    LLVMBuildRetVoid(st->builder);
+                } else {
+                    LLVMBuildRet(st->builder, retval);
+                }
+            } else if (cfg->signature.returntype || cfg->signature.is_noreturn)
                 LLVMBuildUnreachable(st->builder);
             else
                 LLVMBuildRetVoid(st->builder);
