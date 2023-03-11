@@ -7,6 +7,8 @@
 set -e
 
 files=()
+fix=no
+
 for arg in "$@"; do
     if [ "$arg" = --fix ]; then
         fix=yes
