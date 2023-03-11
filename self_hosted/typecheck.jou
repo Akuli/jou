@@ -70,13 +70,13 @@ class TypeContext:
 #def typecheck_stage1_create_types(ctx: TypeContext*, file: AstFile*) -> ExportSymbol*:
 #    assert(False)
 
-def type_fromast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
-    result = type_or_void_fromast(ctx, ast_type)
+def type_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
+    result = type_or_void_from_ast(ctx, ast_type)
     if result == NULL:
         fail(ast_type->location, "'void' cannot be used here because it is not a type")
     return result
 
-def type_or_void_fromast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
+def type_or_void_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
     if ast_type->kind == AstTypeKind::Named:
         if strcmp(&ast_type->name[0], "int") == 0:
             return int_type
@@ -95,7 +95,7 @@ def type_or_void_fromast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
         fail(ast_type->location, message)
 
     if ast_type->kind == AstTypeKind::Pointer:
-        return type_fromast(ctx, ast_type->value_type)->get_pointer_type()
+        return type_from_ast(ctx, ast_type->value_type)->get_pointer_type()
 
     ast_type->print(True)
     printf("\n")
@@ -107,7 +107,7 @@ def handle_signature(ctx: TypeContext*, astsig: AstSignature*) -> Signature:
         name = astsig->name,
         nargs = astsig->nargs,
         takes_varargs = astsig->takes_varargs,
-        return_type = type_or_void_fromast(ctx, &astsig->return_type),
+        return_type = type_or_void_from_ast(ctx, &astsig->return_type),
     }
 
     sig.argnames = malloc(sizeof sig.argnames[0] * sig.nargs)
@@ -116,7 +116,7 @@ def handle_signature(ctx: TypeContext*, astsig: AstSignature*) -> Signature:
 
     sig.argtypes = malloc(sizeof sig.argtypes[0] * sig.nargs)
     for i = 0; i < sig.nargs; i++:
-        sig.argtypes[i] = type_fromast(ctx, &astsig->args[i].type)
+        sig.argtypes[i] = type_from_ast(ctx, &astsig->args[i].type)
 
     return sig
 
