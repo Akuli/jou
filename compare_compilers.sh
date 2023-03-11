@@ -6,22 +6,20 @@
 
 set -e
 
-if [ "$1" = --fix ]; then
-    fix=yes
-    shift
-else
-    fix=no
-fi
+files=()
+for arg in "$@"; do
+    if [ "$arg" = --fix ]; then
+        fix=yes
+    elif [[ "$arg" =~ ^- ]]; then
+        echo "Usage: $0 [--fix] [FILENAME1.jou FILENAME2.jou ...]" >&2
+        exit 2
+    else
+        files+=($arg)
+    fi
+done
 
-if [[ "$1" =~ ^- ]]; then
-    echo "Usage: $0 [--fix] [FILENAME1.jou FILENAME2.jou ...]" >&2
-    exit 2
-fi
-
-if [ $# = 0 ]; then
+if [ ${#files[@]} = 0 ]; then
     files=$(find stdlib examples tests -name '*.jou' | sort)
-else
-    files=$@
 fi
 
 rm -rf tmp/compare_compilers
@@ -78,7 +76,7 @@ else
     make self_hosted_compiler
 fi
 
-for file in $files; do
+for file in ${files[@]}; do
 for action in tokenize parse run; do
     echo "$action $file"
     error_list_file=self_hosted/${action}s_wrong.txt
