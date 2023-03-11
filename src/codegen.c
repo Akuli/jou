@@ -455,8 +455,7 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
                 LLVMBuildUnreachable(st->builder);
             else
                 LLVMBuildRetVoid(st->builder);
-        } else {
-            assert((*b)->iftrue && (*b)->iffalse);
+        } else if ((*b)->iftrue && (*b)->iffalse) {
             if ((*b)->iftrue == (*b)->iffalse) {
                 LLVMBuildBr(st->builder, blocks[find_block(cfg, (*b)->iftrue)]);
             } else {
@@ -467,6 +466,10 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
                     blocks[find_block(cfg, (*b)->iftrue)],
                     blocks[find_block(cfg, (*b)->iffalse)]);
             }
+        } else if (!(*b)->iftrue && !(*b)->iffalse) {
+            LLVMBuildUnreachable(st->builder);
+        } else {
+            assert(0);
         }
     }
 

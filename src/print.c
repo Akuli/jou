@@ -600,6 +600,8 @@ void print_control_flow_graph(const CfGraph *cfg)
         if (*b == &cfg->end_block) {
             assert((*b)->iftrue == NULL);
             assert((*b)->iffalse == NULL);
+        } else if ((*b)->iftrue == NULL && (*b)->iffalse == NULL) {
+            printf("    Execution stops here. We have called a noreturn function.\n");
         } else {
             int trueidx=-1, falseidx=-1;
             for (int i = 0; i < cfg->all_blocks.len; i++) {

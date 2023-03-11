@@ -536,6 +536,9 @@ struct CfInstruction {
 struct CfBlock {
     List(CfInstruction) instructions;
     const LocalVariable *branchvar;  // boolean value used to decide where to jump next
+
+    // iftrue and iffalse are NULL for special end block and after calling a noreturn function.
+    // When iftrue and iffalse are the same, the branchvar is not used and may be NULL.
     CfBlock *iftrue;
     CfBlock *iffalse;
 };
