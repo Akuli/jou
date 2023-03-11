@@ -5,7 +5,7 @@ class Location:
     path: byte*  # Not owned. Points to a string that is held elsewhere.
     lineno: int
 
-def fail(location: Location, message: byte*) -> void:
+def fail(location: Location, message: byte*) -> noreturn:
     # When stdout is redirected to same place as stderr,
     # make sure that normal printf()s show up before our error.
     fflush(stdout)

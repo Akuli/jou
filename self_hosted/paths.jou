@@ -77,7 +77,6 @@ def find_stdlib() -> byte*:
     for i = 0; i < sizeof checked / sizeof checked[0] and checked[i] != NULL; i++:
         fprintf(stderr, "  %s\n", checked[i])
     exit(1)
-    return NULL  # TODO: never runs, but compiler shows warning if I delete this
 
 def my_mkdir(path: byte*) -> void:
     # Ignoring return values, because there's currently no way to check errno.
