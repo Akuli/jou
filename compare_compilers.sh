@@ -50,7 +50,7 @@ function remove_line()
 {
     local file="$1"
     local line="$2"
-    echo -e "  ${GREEN}Deleting $line from $file${RESET}"
+    echo -e "  ${YELLOW}Deleting $line from $file${RESET}"
     # Filter out the line regardless of whether it has CRLF or LF after it
     cat "$file" | grep -vxF "$line" | grep -vxF "$line"$'\r' > tmp/compare_compilers/newlist.txt
     mv tmp/compare_compilers/newlist.txt "$file"
