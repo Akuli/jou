@@ -308,11 +308,9 @@ class AstStatement:
             printf("expression statement\n")
             self->expression.print(tp.print_prefix(True))
         elif self->kind == AstStatementKind::Return:
+            printf("return\n")
             if self->return_value != NULL:
-                printf("return a value\n")
                 self->return_value->print(tp.print_prefix(True))
-            else:
-                printf("return without a value\n")
         elif self->kind == AstStatementKind::If:
             printf("if\n")
             self->if_statement.print(tp)
