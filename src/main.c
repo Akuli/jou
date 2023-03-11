@@ -384,7 +384,6 @@ static void add_imported_symbols(struct CompileState *compst)
                     printf("Adding imported %s %s: %s --> %s\n",
                         kindstr, es->name, from->path, to->path);
                 }
-                imp->found = true;
                 add_imported_symbol(to, es, imp);
             }
         }
