@@ -28,6 +28,12 @@ class AstType:
     value_type: AstType* # AstTypeKind::Pointer
     array: AstArrayType # AstTypeKind::Array
 
+    def is_void(self) -> bool:
+        return self->kind == AstTypeKind::Named and strcmp(&self->name[0], "void") == 0
+
+    def is_noreturn(self) -> bool:
+        return self->kind == AstTypeKind::Named and strcmp(&self->name[0], "noreturn") == 0
+
     def print(self, show_lineno: bool) -> void:
         if self->kind == AstTypeKind::Named:
             printf("%s", &self->name[0])

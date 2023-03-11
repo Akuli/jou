@@ -12,6 +12,7 @@ def parse_type(tokens: Token**) -> AstType:
         or (*tokens)->is_keyword("bool")
         or (*tokens)->is_keyword("byte")
         or (*tokens)->is_keyword("void")
+        or (*tokens)->is_keyword("noreturn")
     ):
         (*tokens)->fail_expected_got("a type")
 
