@@ -38,7 +38,7 @@ function append_line()
     local line="$2"
     echo -e "  ${YELLOW}Adding $line to $file${RESET}"
 
-    if [ grep -q $'\r' $error_list_file ]; then
+    if grep -q $'\r' $error_list_file; then
         # CRLF line endings (likely Windows, but depends on git settings)
         printf "%s\r\n" "$line" >> "$file"
     else
