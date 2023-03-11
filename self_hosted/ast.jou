@@ -85,9 +85,9 @@ enum AstExpressionKind:
     As
     # unary operators
     SizeOf      # sizeof x
-    AddressOf   # -x
+    AddressOf   # &x
     Dereference # *x
-    Negate      # &x
+    Negate      # -x
     Not         # not x
     PreIncr     # ++x
     PostIncr    # x++
@@ -166,6 +166,10 @@ class AstExpression:
                 &self->enum_member->member_name[0],
                 &self->enum_member->enum_name[0],
             )
+        elif self->kind == AstExpressionKind::AddressOf:
+            printf("address of\n")
+        elif self->kind == AstExpressionKind::Dereference:
+            printf("dereference\n")
         elif self->kind == AstExpressionKind::Add:
             printf("add\n")
         elif self->kind == AstExpressionKind::Subtract:
