@@ -22,8 +22,6 @@ done
 
 if [ ${#files[@]} = 0 ]; then
     files=$(find stdlib examples tests -name '*.jou' | sort)
-else
-    files=$*
 fi
 
 rm -rf tmp/compare_compilers
