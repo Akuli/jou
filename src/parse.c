@@ -968,9 +968,9 @@ AstToplevelNode *parse(const Token *tokens, const char *stdlib_path)
     } while (result.ptr[result.len - 1].kind != AST_TOPLEVEL_END_OF_FILE);
 
     // This simplifies the compiler: it's easy to loop through all imports of the file.
-    for (int i = 1; i < result.len; i++)
-        if (result.ptr[i-1].kind != AST_TOPLEVEL_IMPORT && result.ptr[i].kind == AST_TOPLEVEL_IMPORT)
-            fail_with_error(result.ptr[i].location, "imports must be in the beginning of the file");
+    for (const AstToplevelNode *p = &result.ptr[1]; p < End(result); p++)
+        if (p[-1].kind != AST_TOPLEVEL_IMPORT && p->kind == AST_TOPLEVEL_IMPORT)
+            fail_with_error(p->location, "imports must be in the beginning of the file");
 
     return result.ptr;
 }
