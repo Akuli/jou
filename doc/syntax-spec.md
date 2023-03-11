@@ -91,6 +91,7 @@ Jou has a few different kinds of tokens:
     - `as`
     - `sizeof`
     - `void`
+    - `noreturn`
     - `bool`
     - `byte`
     - `int`

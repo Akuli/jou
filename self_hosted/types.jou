@@ -6,6 +6,7 @@ enum TypeKind:
     SignedInteger
     UnsignedInteger
     Pointer
+    VoidPointer
 
 class Type:
     name: byte[100]
@@ -46,6 +47,7 @@ class Type:
 global signed_integers: Type[65]  # indexed by size in bits (8, 16, 32, 64)
 global unsigned_integers: Type[65]  # indexed by size in bits (8, 16, 32, 64)
 global bool_type: Type
+global void_ptr_type: Type
 
 # TODO: it seems weird in other files these are pointers but bool_type isn't
 global byte_type: Type*
@@ -53,6 +55,9 @@ global int_type: Type*
 global long_type: Type*
 
 def init_types() -> void:
+    strcpy(&void_ptr_type.name[0], "void*")
+    void_ptr_type.kind = TypeKind::VoidPointer
+
     strcpy(&bool_type.name[0], "bool")
     bool_type.kind = TypeKind::Bool
 

@@ -50,8 +50,7 @@ static void add_jump(
     CfBlock *iffalse,
     CfBlock *new_current_block)
 {
-    assert(iftrue);
-    assert(iffalse);
+    assert((iftrue && iffalse) || (!iftrue && !iffalse && !branchvar));
     if (iftrue != iffalse) {
         assert(branchvar);
         assert(branchvar->type == boolType);
@@ -413,7 +412,7 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
     assert(0);
 }
 
-static const LocalVariable *build_function_or_method_call(struct State *st, const Location location, const AstCall *call, const LocalVariable *self, const Type *returntype)
+static const LocalVariable *build_function_or_method_call(struct State *st, const Location location, const AstCall *call, const LocalVariable *self)
 {
     if(self) {
         assert(self->type->kind == TYPE_POINTER);
@@ -426,12 +425,6 @@ static const LocalVariable *build_function_or_method_call(struct State *st, cons
         args[k++] = self;
     for (int i = 0; i < call->nargs; i++)
         args[k++] = build_expression(st, &call->args[i]);
-
-    const LocalVariable *return_value;
-    if (returntype)
-        return_value = add_local_var(st, returntype);
-    else
-        return_value = NULL;
 
     const Signature *sig = NULL;
     if(self) {
@@ -455,8 +448,19 @@ static const LocalVariable *build_function_or_method_call(struct State *st, cons
     }
     assert(sig);
 
+    const LocalVariable *return_value;
+    if (sig->returntype)
+        return_value = add_local_var(st, sig->returntype);
+    else
+        return_value = NULL;
+
     union CfInstructionData data = { .signature = copy_signature(sig) };
     add_instruction(st, location, CF_CALL, &data, args, return_value);
+
+    if (sig->is_noreturn) {
+        // Place the remaining code into an unreachable block, so you will get a warning if there is any
+        add_jump(st, NULL, NULL, NULL, NULL);
+    }
 
     free(args);
     return return_value;
@@ -521,19 +525,19 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
     case AST_EXPR_DEREF_AND_CALL_METHOD:
         temp = build_expression(st, expr->data.methodcall.obj);
         assert(temp);
-        result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, temp, types ? types->type : NULL);
+        result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, temp);
         if (!result)
             return NULL;
         break;
     case AST_EXPR_CALL_METHOD:
         temp = build_address_of_expression(st, expr->data.methodcall.obj);
         assert(temp);
-        result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, temp, types ? types->type : NULL);
+        result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, temp);
         if (!result)
             return NULL;
         break;
     case AST_EXPR_FUNCTION_CALL:
-        result = build_function_or_method_call(st, expr->location, &expr->data.call, NULL, types ? types->type : NULL);
+        result = build_function_or_method_call(st, expr->location, &expr->data.call, NULL);
         if (!result)
             return NULL;
         break;

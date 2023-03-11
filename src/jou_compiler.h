@@ -410,6 +410,7 @@ struct Signature {
     char (*argnames)[100];
     bool takes_varargs;  // true for functions like printf()
     const Type *returntype;  // NULL, if does not return a value
+    bool is_noreturn;
     Location returntype_location;  // meaningful even if returntype is NULL
 };
 
@@ -536,6 +537,9 @@ struct CfInstruction {
 struct CfBlock {
     List(CfInstruction) instructions;
     const LocalVariable *branchvar;  // boolean value used to decide where to jump next
+
+    // iftrue and iffalse are NULL for special end block and after calling a noreturn function.
+    // When iftrue and iffalse are the same, the branchvar is not used and may be NULL.
     CfBlock *iftrue;
     CfBlock *iffalse;
 };

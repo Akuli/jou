@@ -25,7 +25,8 @@ def is_keyword(word: byte*) -> bool:
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL", "self",
         "and", "or", "not", "as", "sizeof",
-        "void", "bool", "byte", "int", "long", "float", "double",
+        "void", "noreturn",
+        "bool", "byte", "int", "long", "float", "double",
     ]
 
     for i = 0; i < sizeof keywords / sizeof keywords[0]; i++:
@@ -58,10 +59,6 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
     elif starts_with(string, "0") and strlen(string) >= 2:
         # wrong syntax like 0777
         fail(location, "unnecessary zero at start of number")
-        # silence compiler warnings... this code can never actually run
-        base = 0
-        digits = ""
-        valid_digits = ""
     else:
         # default decimal number
         base = 10
@@ -153,7 +150,6 @@ class Tokenizer:
             elif temp == '\0':
                 # TODO: test this
                 fail(self->location, "source file contains a zero byte")
-                c = 'x'  # TODO: silences compiler warning, but never runs
             else:
                 c = temp as byte
 
@@ -373,7 +369,6 @@ class Tokenizer:
         message: byte[100]
         sprintf(&message[0], "there is no '%s' operator", &operator[0])
         fail(self->location, &message[0])
-        return operator  # TODO: never actually runs, but causes a compiler warning
 
     def handle_parentheses(self, token: Token*) -> void:
         if token->kind == TokenKind::EndOfFile and self->open_parens_len > 0:

@@ -221,7 +221,12 @@ char *signature_to_string(const Signature *sig, bool include_return_type)
     Append(&result, ')');
     if (include_return_type) {
         AppendStr(&result, " -> ");
-        AppendStr(&result, sig->returntype ? sig->returntype->name : "void");
+        if (sig->is_noreturn)
+            AppendStr(&result, "noreturn");
+        else if (sig->returntype == NULL)
+            AppendStr(&result, "void");
+        else
+            AppendStr(&result, sig->returntype->name);
     }
     Append(&result, '\0');
     return result.ptr;

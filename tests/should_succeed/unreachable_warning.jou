@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/process.jou"
 
 def after_return() -> void:
     puts("hey1")  # Output: hey1
@@ -21,6 +22,11 @@ def after_infinite_loop_with_variable_set_after_loop() -> void:
     while flag:
         puts("hi")
     flag = False  # Warning: this code will never run
+
+def noreturn_function_called() -> void:
+    abort()
+    x = 1  # Warning: this code will never run
+    y = 2
 
 # https://github.com/Akuli/jou/issues/18
 def lots_of_unreachable_code() -> void:

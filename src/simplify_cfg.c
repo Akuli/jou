@@ -249,7 +249,7 @@ static enum VarStatus **determine_var_statuses(const CfGraph *cfg)
         print_var_statuses(cfg, result, NULL, "At end");
 #endif
 
-        if (result_affected && visitingblock != &cfg->end_block) {
+        if (result_affected && visitingblock->iftrue && visitingblock->iffalse) {
             // Also need to update blocks where we jump from here.
 #if DebugPrint
             printf("  Will visit %d and %d\n", find_block_index(cfg, visitingblock->iftrue), find_block_index(cfg, visitingblock->iffalse));
@@ -277,8 +277,12 @@ static void clean_jumps_where_condition_always_true_or_always_false(CfGraph *cfg
 
     for (int blockidx = 0; blockidx < cfg->all_blocks.len; blockidx++) {
         CfBlock *block = cfg->all_blocks.ptr[blockidx];
-        if (block == &cfg->end_block || block->iftrue == block->iffalse)
+        if (block->iftrue == block->iffalse)
             continue;
+
+        assert(block != &cfg->end_block);
+        assert(block->iftrue);
+        assert(block->iffalse);
 
         switch(statuses[blockidx][find_var_index(cfg, block->branchvar)]) {
         case VS_TRUE:
@@ -320,7 +324,7 @@ static CfBlock ***group_blocks(CfBlock **blocks, int nblocks)
     for (int block1index = 0; block1index < nblocks; block1index++) {
         CfBlock *block1 = blocks[block1index];
         if (block1->iffalse==NULL && block1->iftrue==NULL)
-            continue;  // the end block
+            continue;  // the end block, or a block that calls a noreturn function
 
         for (int m = 0; m < 2; m++) {
             CfBlock *block2 = m ? block1->iffalse : block1->iftrue;
@@ -411,7 +415,7 @@ static void remove_unreachable_blocks(CfGraph *cfg)
             continue;
         reachable[i] = true;
 
-        if (cfg->all_blocks.ptr[i] != &cfg->end_block) {
+        if (cfg->all_blocks.ptr[i]->iftrue && cfg->all_blocks.ptr[i]->iffalse) {
             Append(&todo, find_block_index(cfg, cfg->all_blocks.ptr[i]->iftrue));
             Append(&todo, find_block_index(cfg, cfg->all_blocks.ptr[i]->iffalse));
         }
