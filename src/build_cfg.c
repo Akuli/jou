@@ -590,7 +590,7 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
         result = build_address_of_expression(st, &expr->data.operands[0]);
         break;
     case AST_EXPR_SIZEOF:
-        result = add_local_var(st, longType);
+        result = add_local_var(st, sizeType);
         union CfInstructionData data = { .type = get_expr_types(st, &expr->data.operands[0])->type };
         add_instruction(st, expr->location, CF_SIZEOF, &data, NULL, result);
         break;

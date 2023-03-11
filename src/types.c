@@ -21,6 +21,7 @@ const Type *boolType = &global_state.boolean.type;
 const Type *intType = &global_state.integers[32][true].type;
 const Type *longType = &global_state.integers[64][true].type;
 const Type *byteType = &global_state.integers[8][false].type;
+const Type *sizeType = &global_state.integers[8*sizeof(size_t)][false].type;
 const Type *floatType = &global_state.floater.type;
 const Type *doubleType = &global_state.doublelele.type;
 const Type *voidPtrType = &global_state.voidptr.type;
@@ -87,6 +88,7 @@ void init_types(void)
     strcpy(global_state.integers[8][false].type.name, "byte");
     strcpy(global_state.integers[32][true].type.name, "int");
     strcpy(global_state.integers[64][true].type.name, "long");
+    strcpy(global_state.integers[sizeof(size_t)*8][false].type.name, "size_t");
 
     global_state.inited = true;
     atexit(free_global_state);  // not really necessary, but makes valgrind happier

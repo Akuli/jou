@@ -386,6 +386,7 @@ not the same type.
 extern const Type *boolType;      // bool
 extern const Type *intType;       // int (32-bit signed)
 extern const Type *longType;      // long (64-bit signed)
+extern const Type *sizeType;      // size_t (unsigned)
 extern const Type *byteType;      // byte (8-bit unsigned)
 extern const Type *floatType;     // float (32-bit)
 extern const Type *doubleType;    // double (64-bit)

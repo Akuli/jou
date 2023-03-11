@@ -137,6 +137,8 @@ static const Type *type_or_void_from_ast(const FileTypes *ft, const AstType *ast
             return intType;
         if (!strcmp(asttype->data.name, "long"))
             return longType;
+        if (!strcmp(asttype->data.name, "size_t"))
+            return sizeType;
         if (!strcmp(asttype->data.name, "byte"))
             return byteType;
         if (!strcmp(asttype->data.name, "bool"))
@@ -890,7 +892,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         break;
     case AST_EXPR_SIZEOF:
         typecheck_expression_not_void(ft, &expr->data.operands[0]);
-        result = longType;
+        result = sizeType;
         break;
     case AST_EXPR_BRACE_INIT:
         result = typecheck_struct_init(ft, &expr->data.call, expr->location);

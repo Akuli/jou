@@ -14,7 +14,7 @@ class Foo:
 def ensure_sizeof_isnt_too_small_in_a_weird_corner_case() -> void:
     value = Foo{a=1, b=2, c='x'}
     # We need the heap allocation, because otherwise the optimizer happens to make things work.
-    ptr = malloc(50) as Foo*
+    ptr = malloc(50 as size_t) as Foo*
     memcpy(ptr, &value, sizeof value)
     # If sizeof is too small, this prints garbage.
     printf("%c\n", ptr->c)  # Output: x
@@ -27,18 +27,18 @@ def main() -> int:
     n: int
     m: long
 
-    printf("%lld %lld %lld\n", sizeof b, sizeof n, sizeof m)  # Output: 1 4 8
+    printf("%zu %zu %zu\n", sizeof b, sizeof n, sizeof m)  # Output: 1 4 8
 
     # test that operator precedence works
-    printf("%lld\n", sizeof b + sizeof n + sizeof m)  # Output: 13
+    printf("%zu\n", sizeof b + sizeof n + sizeof m)  # Output: 13
 
     arr: long[100]
-    printf("%lld\n", sizeof arr)  # Output: 800
+    printf("%zu\n", sizeof arr)  # Output: 800
 
     # The "array length trick"
-    printf("%lld\n", sizeof arr / sizeof arr[0])  # Output: 100
+    printf("%zu\n", sizeof arr / sizeof arr[0])  # Output: 100
 
     # Evaluating a sizeof has no side effects.
-    printf("%lld\n", sizeof side_effect())  # Output: 4
+    printf("%zu\n", sizeof side_effect())  # Output: 4
 
     return 0
