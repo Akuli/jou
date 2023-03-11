@@ -17,7 +17,7 @@ all: jou.exe compile_flags.txt
 
 # point clangd to the right include folder so i don't get red squiggles in my editor
 compile_flags.txt:
-	echo -I$(CURDIR) > compile_flags.txt
+	echo "-I$(CURDIR)" > compile_flags.txt
 
 obj/%.o: src/%.c $(wildcard src/*.h)
 	mkdir -p obj && $(CC) -c $(CFLAGS) $< -o $@
