@@ -153,11 +153,6 @@ class AstExpression:
         elif self->kind == AstExpressionKind::FunctionCall:
             printf("call function \"%s\"\n", &self->call.called_name[0])
             self->call.print(tp)
-        elif self->kind == AstExpressionKind::As:
-            printf("as ")
-            self->as_expression->type.print(True)
-            printf("\n")
-            self->as_expression->value.print(tp.print_prefix(True))
         elif self->kind == AstExpressionKind::GetVariable:
             printf("get variable \"%s\"\n", &self->varname[0])
         elif self->kind == AstExpressionKind::GetEnumMember:
@@ -166,10 +161,29 @@ class AstExpression:
                 &self->enum_member->member_name[0],
                 &self->enum_member->enum_name[0],
             )
+        elif self->kind == AstExpressionKind::As:
+            printf("as ")
+            self->as_expression->type.print(True)
+            printf("\n")
+            self->as_expression->value.print(tp.print_prefix(True))
+        elif self->kind == AstExpressionKind::SizeOf:
+            printf("sizeof\n")
         elif self->kind == AstExpressionKind::AddressOf:
             printf("address of\n")
         elif self->kind == AstExpressionKind::Dereference:
             printf("dereference\n")
+        elif self->kind == AstExpressionKind::Negate:
+            printf("negate\n")
+        elif self->kind == AstExpressionKind::Not:
+            printf("not\n")
+        elif self->kind == AstExpressionKind::PreIncr:
+            printf("pre-increment\n")
+        elif self->kind == AstExpressionKind::PostIncr:
+            printf("post-increment\n")
+        elif self->kind == AstExpressionKind::PreDecr:
+            printf("pre-decrement\n")
+        elif self->kind == AstExpressionKind::PostDecr:
+            printf("post-decrement\n")
         elif self->kind == AstExpressionKind::Add:
             printf("add\n")
         elif self->kind == AstExpressionKind::Subtract:
@@ -196,16 +210,6 @@ class AstExpression:
             printf("and\n")
         elif self->kind == AstExpressionKind::Or:
             printf("or\n")
-        elif self->kind == AstExpressionKind::Not:
-            printf("not\n")
-        elif self->kind == AstExpressionKind::PreIncr:
-            printf("pre-increment\n")
-        elif self->kind == AstExpressionKind::PreDecr:
-            printf("pre-decrement\n")
-        elif self->kind == AstExpressionKind::PostIncr:
-            printf("post-increment\n")
-        elif self->kind == AstExpressionKind::PostDecr:
-            printf("post-decrement\n")
         else:
             printf("?????\n")
 

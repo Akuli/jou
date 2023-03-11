@@ -242,7 +242,7 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
 
     case AST_EXPR_ADDRESS_OF: puts("address of"); n=1; break;
     case AST_EXPR_DEREFERENCE: puts("dereference"); n=1; break;
-    case AST_EXPR_NEG: puts("neg"); n=1; break;
+    case AST_EXPR_NEG: puts("negate"); n=1; break;
     case AST_EXPR_NOT: puts("not"); n=1; break;
     case AST_EXPR_PRE_INCREMENT: puts("pre-increment"); n=1; break;
     case AST_EXPR_PRE_DECREMENT: puts("pre-decrement"); n=1; break;
