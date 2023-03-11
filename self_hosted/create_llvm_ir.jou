@@ -57,9 +57,12 @@ class AstToIR:
     def do_expression(self, ast: AstExpression*) -> LLVMValue*:
         if ast->kind == AstExpressionKind::String:
             return self->make_a_string_constant(ast->string)
-
+        elif ast->kind == AstExpressionKind::Byte:
+            return LLVMConstInt(LLVMInt8Type(), ast->byte_value, False)
         elif ast->kind == AstExpressionKind::Int:
             return LLVMConstInt(LLVMInt32Type(), ast->int_value, False)
+        elif ast->kind == AstExpressionKind::Long:
+            return LLVMConstInt(LLVMInt64Type(), ast->long_value, False)
 
         elif ast->kind == AstExpressionKind::FunctionCall:
             function = LLVMGetNamedFunction(self->module, &ast->call.called_name[0])
@@ -68,8 +71,7 @@ class AstToIR:
             function_type = LLVMGetElementType(LLVMTypeOf(function))
             assert(LLVMGetTypeKind(function_type) == LLVMTypeKind::Function)
 
-            args: LLVMValue**
-            args = malloc(sizeof args[0] * ast->call.nargs)
+            args: LLVMValue** = malloc(sizeof args[0] * ast->call.nargs)
             for i = 0; i < ast->call.nargs; i++:
                 args[i] = self->do_expression(&ast->call.args[i])
             result = LLVMBuildCall2(self->builder, function_type, function, args, ast->call.nargs, "function_call")
