@@ -150,7 +150,7 @@ def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCal
 
     if not (*tokens)->is_operator(open_paren):
         expected = malloc(100)
-        sprintf(expected, "a '%c' to denote the start of arguments", open_paren)
+        sprintf(expected, "a '%s' to denote the start of arguments", open_paren)
         (*tokens)->fail_expected_got(expected)
     ++*tokens
 
@@ -163,7 +163,7 @@ def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCal
 
     if not (*tokens)->is_operator(close_paren):
         expected = malloc(100)
-        sprintf(expected, "a '%c'", close_paren)
+        sprintf(expected, "a '%s'", close_paren)
         (*tokens)->fail_expected_got(expected)
     ++*tokens
 
