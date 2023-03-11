@@ -21,7 +21,7 @@ for arg in "$@"; do
 done
 
 if [ ${#files[@]} = 0 ]; then
-    files=$(find stdlib examples tests -name '*.jou' | sort)
+    files=( $(find stdlib examples tests -name '*.jou' | sort) )
 fi
 
 rm -rf tmp/compare_compilers
