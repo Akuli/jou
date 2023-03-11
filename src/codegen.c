@@ -120,6 +120,7 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
         argtypes[i] = codegen_type(sig->argtypes[i]);
 
     LLVMTypeRef returntype;
+    // TODO: tell llvm, if we know a function is noreturn ?
     if (sig->returntype == NULL)  // "-> noreturn" or "-> void"
         returntype = LLVMVoidType();
     else
