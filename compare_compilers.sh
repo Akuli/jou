@@ -21,7 +21,7 @@ fi
 if [ $# = 0 ]; then
     files=$(find stdlib examples tests -name '*.jou' | sort)
 else
-    files=$@
+    files=$*
 fi
 
 if [[ "$OS" =~ Windows ]]; then
@@ -40,7 +40,7 @@ function append_line()
     local line="$2"
     echo "  Adding $line to $file"
 
-    if [ grep -q $'\r' $error_list_file ]; then
+    if grep -q $'\r' $error_list_file; then
         # CRLF line endings (likely Windows, but depends on git settings)
         printf "%s\r\n" "$line" >> "$file"
     else
