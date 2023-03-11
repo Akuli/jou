@@ -113,9 +113,9 @@ class Token:
         elif self->kind == TokenKind::String:
             strcpy(&got[0], "a string")
         elif self->kind == TokenKind::Name:
-            strcpy(&got[0], "a name")
+            snprintf(&got[0], sizeof got, "a variable name '%s'", &self->short_string[0])
         elif self->kind == TokenKind::Keyword:
-            sprintf(&got[0], "the '%s' keyword", &self->short_string[0])
+            snprintf(&got[0], sizeof got, "the '%s' keyword", &self->short_string[0])
         elif self->kind == TokenKind::Newline:
             strcpy(&got[0], "end of line")
         elif self->kind == TokenKind::Indent:
@@ -123,7 +123,7 @@ class Token:
         elif self->kind == TokenKind::Dedent:
             strcpy(&got[0], "less indentation")
         elif self->kind == TokenKind::Operator:
-            sprintf(&got[0], "'%s'", &self->short_string[0])
+            snprintf(&got[0], sizeof got, "'%s'", &self->short_string[0])
         elif self->kind == TokenKind::EndOfFile:
             strcpy(&got[0], "end of file")
         else:

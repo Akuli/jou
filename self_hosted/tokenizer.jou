@@ -179,7 +179,13 @@ class Tokenizer:
             b = self->read_byte()
             if is_identifier_or_number_byte(b):
                 if destlen == sizeof dest - 1:
-                    fail(self->location, "name or number is too long")
+                    if '0' <= dest[0] and dest[0] <= '9':
+                        template = "number is too long: %.20s..."
+                    else:
+                        template = "name is too long: %.20s..."
+                    message: byte[100]
+                    sprintf(&message[0], template, &dest[0])
+                    fail(self->location, &message[0])
                 dest[destlen++] = b
             else:
                 self->unread_byte(b)

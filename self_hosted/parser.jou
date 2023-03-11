@@ -635,7 +635,7 @@ def parse_classdef(tokens: Token**) -> AstClassDef:
     ++*tokens
     return result
 
-def parse_toplevel_node(dest: AstFile*, tokens: Token**, stdlib_path: byte*) -> void:
+def parse_toplevel_node(tokens: Token**, stdlib_path: byte*) -> AstToplevelStatement:
     ts = AstToplevelStatement{location = (*tokens)->location}
 
     if (*tokens)->is_keyword("import"):
@@ -673,11 +673,17 @@ def parse_toplevel_node(dest: AstFile*, tokens: Token**, stdlib_path: byte*) -> 
     else:
         (*tokens)->fail_expected_got("a definition or declaration")
 
-    dest->body = realloc(dest->body, sizeof dest->body[0] * (dest->body_len + 1))
-    dest->body[dest->body_len++] = ts
+    return ts
 
 def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
     result = AstFile{path = tokens[0].location.path}
     while tokens->kind != TokenKind::EndOfFile:
-        parse_toplevel_node(&result, &tokens, stdlib_path)
+        result.body = realloc(result.body, sizeof result.body[0] * (result.body_len + 1))
+        result.body[result.body_len++] = parse_toplevel_node(&tokens, stdlib_path)
+
+    # This simplifies the compiler: it's easy to loop through all imports of the file.
+    for p = &result.body[1]; p != &result.body[result.body_len]; p++:
+        if p[-1].kind != AstToplevelStatementKind::Import and p->kind == AstToplevelStatementKind::Import:
+            fail(p->location, "imports must be in the beginning of the file")
+
     return result
