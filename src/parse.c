@@ -46,6 +46,7 @@ static AstType parse_type(const Token **tokens)
     AstType result = { .kind = AST_TYPE_NAMED, .location = (*tokens)->location };
 
     if (!is_keyword(*tokens, "void")
+        && !is_keyword(*tokens, "noreturn")
         && !is_keyword(*tokens, "int")
         && !is_keyword(*tokens, "long")
         && !is_keyword(*tokens, "byte")

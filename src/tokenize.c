@@ -223,7 +223,8 @@ static bool is_keyword(const char *s)
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL", "self",
         "and", "or", "not", "as", "sizeof",
-        "void", "bool", "byte", "int", "long", "float", "double",
+        "void", "noreturn",
+        "bool", "byte", "int", "long", "float", "double",
     };
     for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
         if (!strcmp(*kw, s))

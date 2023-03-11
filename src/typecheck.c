@@ -116,19 +116,21 @@ int evaluate_array_length(const AstExpression *expr)
     fail_with_error(expr->location, "cannot evaluate array length at compile time");
 }
 
-// NULL return value means it is void
-static const Type *type_or_void_from_ast(const FileTypes *ft, const AstType *asttype);
+static bool is_void(const AstType *t)
+{
+    return t->kind == AST_TYPE_NAMED && !strcmp(t->data.name, "void");
+}
+
+static bool is_noreturn(const AstType *t)
+{
+    return t->kind == AST_TYPE_NAMED && !strcmp(t->data.name, "noreturn");
+}
 
 static const Type *type_from_ast(const FileTypes *ft, const AstType *asttype)
 {
-    const Type *t = type_or_void_from_ast(ft, asttype);
-    if (!t)
-        fail_with_error(asttype->location, "'void' cannot be used here because it is not a type");
-    return t;
-}
+    if (is_void(asttype) || is_noreturn(asttype))
+        fail_with_error(asttype->location, "'%s' cannot be used here because it is not a type", asttype->data.name);
 
-static const Type *type_or_void_from_ast(const FileTypes *ft, const AstType *asttype)
-{
     const Type *tmp;
 
     switch(asttype->kind) {
@@ -145,18 +147,14 @@ static const Type *type_or_void_from_ast(const FileTypes *ft, const AstType *ast
             return floatType;
         if (!strcmp(asttype->data.name, "double"))
             return doubleType;
-        if (!strcmp(asttype->data.name, "void"))
-            return NULL;
         if ((tmp = find_type(ft, asttype->data.name)))
             return tmp;
         fail_with_error(asttype->location, "there is no type named '%s'", asttype->data.name);
 
     case AST_TYPE_POINTER:
-        tmp = type_or_void_from_ast(ft, asttype->data.valuetype);
-        if (tmp)
-            return get_pointer_type(tmp);
-        else
+        if (is_void(asttype->data.valuetype))
             return voidPtrType;
+        return get_pointer_type(type_from_ast(ft, asttype->data.valuetype));
 
     case AST_TYPE_ARRAY:
         tmp = type_from_ast(ft, asttype->data.valuetype);
@@ -206,7 +204,12 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
             sig.argtypes[i] = type_from_ast(ft, &astsig->args.ptr[i].type);
     }
 
-    sig.returntype = type_or_void_from_ast(ft, &astsig->returntype);
+    sig.is_noreturn = is_noreturn(&astsig->returntype);
+    if (is_void(&astsig->returntype) || is_noreturn(&astsig->returntype))
+        sig.returntype = NULL;
+    else
+        sig.returntype = type_from_ast(ft, &astsig->returntype);
+
     // TODO: validate main() parameters
     // TODO: test main() taking parameters
     if (!self_type && !strcmp(sig.name, "main") && sig.returntype != intType) {
@@ -1134,6 +1137,12 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
 
     case AST_STMT_RETURN_VALUE:
     {
+        if (ft->current_fom_types->signature.is_noreturn)
+            fail_with_error(
+                stmt->location,
+                "function '%s' cannot return because it was defined with '-> noreturn'",
+                ft->current_fom_types->signature.name);
+
         if(!ft->current_fom_types->signature.returntype){
             fail_with_error(
                 stmt->location,
@@ -1151,6 +1160,12 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
     }
 
     case AST_STMT_RETURN_WITHOUT_VALUE:
+        if (ft->current_fom_types->signature.is_noreturn)
+            fail_with_error(
+                stmt->location,
+                "function '%s' cannot return because it was defined with '-> noreturn'",
+                ft->current_fom_types->signature.name);
+
         if (ft->current_fom_types->signature.returntype) {
             fail_with_error(
                 stmt->location,

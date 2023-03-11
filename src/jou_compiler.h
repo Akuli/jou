@@ -410,6 +410,7 @@ struct Signature {
     char (*argnames)[100];
     bool takes_varargs;  // true for functions like printf()
     const Type *returntype;  // NULL, if does not return a value
+    bool is_noreturn;
     Location returntype_location;  // meaningful even if returntype is NULL
 };
 

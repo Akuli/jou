@@ -120,7 +120,7 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
         argtypes[i] = codegen_type(sig->argtypes[i]);
 
     LLVMTypeRef returntype;
-    if (sig->returntype == NULL)
+    if (sig->returntype == NULL)  // "-> noreturn" or "-> void"
         returntype = LLVMVoidType();
     else
         returntype = codegen_type(sig->returntype);
@@ -449,9 +449,11 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
 
         if (*b == &cfg->end_block) {
             assert((*b)->instructions.len == 0);
+            // The "return" variable may have been deleted as unused.
+            // In that case return_value is NULL but signature.returntype isn't.
             if (return_value)
                 LLVMBuildRet(st->builder, LLVMBuildLoad(st->builder, return_value, "return_value"));
-            else if (cfg->signature.returntype)  // "return" variable was deleted as unused
+            else if (cfg->signature.returntype || cfg->signature.is_noreturn)
                 LLVMBuildUnreachable(st->builder);
             else
                 LLVMBuildRetVoid(st->builder);
