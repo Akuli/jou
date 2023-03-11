@@ -300,12 +300,13 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             printf("expression statement\n");
             print_ast_expression(&stmt->data.expression, print_tree_prefix(tp, true));
             break;
-        case AST_STMT_RETURN_VALUE:
-            printf("return a value\n");
-            print_ast_expression(&stmt->data.expression, print_tree_prefix(tp, true));
-            break;
-        case AST_STMT_RETURN_WITHOUT_VALUE:
-            printf("return without a value\n");
+        case AST_STMT_RETURN:
+            if (stmt->data.returnvalue) {
+                printf("return a value\n");
+                print_ast_expression(stmt->data.returnvalue, print_tree_prefix(tp, true));
+            } else {
+                printf("return without a value\n");
+            }
             break;
         case AST_STMT_IF:
             printf("if\n");

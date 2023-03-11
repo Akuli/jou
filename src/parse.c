@@ -698,11 +698,10 @@ static AstStatement parse_oneline_statement(const Token **tokens)
     AstStatement result = { .location = (*tokens)->location };
     if (is_keyword(*tokens, "return")) {
         ++*tokens;
-        if ((*tokens)->type == TOKEN_NEWLINE) {
-            result.kind = AST_STMT_RETURN_WITHOUT_VALUE;
-        } else {
-            result.kind = AST_STMT_RETURN_VALUE;
-            result.data.expression = parse_expression(tokens);
+        result.kind = AST_STMT_RETURN;
+        if ((*tokens)->type != TOKEN_NEWLINE) {
+            result.data.returnvalue = malloc(sizeof *result.data.returnvalue);
+            *result.data.returnvalue = parse_expression(tokens);
         }
     } else if (is_keyword(*tokens, "break")) {
         ++*tokens;

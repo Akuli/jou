@@ -413,11 +413,10 @@ def parse_oneline_statement(tokens: Token**) -> AstStatement:
     result = AstStatement{ location = (*tokens)->location }
     if (*tokens)->is_keyword("return"):
         ++*tokens
-        if (*tokens)->kind == TokenKind::Newline:
-            result.kind = AstStatementKind::ReturnWithoutValue
-        else:
-            result.kind = AstStatementKind::ReturnWithValue
-            result.return_value = parse_expression(tokens)
+        result.kind = AstStatementKind::Return
+        if (*tokens)->kind != TokenKind::Newline:
+            result.return_value = malloc(sizeof *result.return_value)
+            *result.return_value = parse_expression(tokens)
     elif (*tokens)->is_keyword("break"):
         ++*tokens
         result.kind = AstStatementKind::Break

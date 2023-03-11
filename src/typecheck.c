@@ -1135,44 +1135,37 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
         break;
     }
 
-    case AST_STMT_RETURN_VALUE:
-    {
+    case AST_STMT_RETURN:
         if (ft->current_fom_types->signature.is_noreturn)
             fail_with_error(
                 stmt->location,
                 "function '%s' cannot return because it was defined with '-> noreturn'",
                 ft->current_fom_types->signature.name);
 
-        if(!ft->current_fom_types->signature.returntype){
+        const Type *returntype = ft->current_fom_types->signature.returntype;
+        if (stmt->data.returnvalue && !returntype) {
             fail_with_error(
                 stmt->location,
                 "function '%s' cannot return a value because it was defined with '-> void'",
                 ft->current_fom_types->signature.name);
         }
-
-        char msg[200];
-        snprintf(msg, sizeof msg,
-            "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
-            ft->current_fom_types->signature.name);
-        typecheck_expression_with_implicit_cast(
-            ft, &stmt->data.expression, find_local_var(ft, "return")->type, msg);
-        break;
-    }
-
-    case AST_STMT_RETURN_WITHOUT_VALUE:
-        if (ft->current_fom_types->signature.is_noreturn)
-            fail_with_error(
-                stmt->location,
-                "function '%s' cannot return because it was defined with '-> noreturn'",
-                ft->current_fom_types->signature.name);
-
-        if (ft->current_fom_types->signature.returntype) {
+        if (returntype && !stmt->data.returnvalue) {
             fail_with_error(
                 stmt->location,
                 "a return value is needed, because the return type of function '%s' is %s",
                 ft->current_fom_types->signature.name,
                 ft->current_fom_types->signature.returntype->name);
         }
+
+        if (stmt->data.returnvalue) {
+            char msg[200];
+            snprintf(msg, sizeof msg,
+                "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
+                ft->current_fom_types->signature.name);
+            typecheck_expression_with_implicit_cast(
+                ft, stmt->data.returnvalue, find_local_var(ft, "return")->type, msg);
+        }
+
         break;
 
     case AST_STMT_DECLARE_LOCAL_VAR:

@@ -156,8 +156,13 @@ static void free_statement(const AstStatement *stmt)
         free_ast_body(&stmt->data.forloop.body);
         break;
     case AST_STMT_EXPRESSION_STATEMENT:
-    case AST_STMT_RETURN_VALUE:
         free_expression(&stmt->data.expression);
+        break;
+    case AST_STMT_RETURN:
+        if (stmt->data.returnvalue) {
+            free_expression(stmt->data.returnvalue);
+            free(stmt->data.returnvalue);
+        }
         break;
     case AST_STMT_DECLARE_LOCAL_VAR:
         free_name_type_value(&stmt->data.vardecl);
@@ -171,7 +176,6 @@ static void free_statement(const AstStatement *stmt)
         free_expression(&stmt->data.assignment.target);
         free_expression(&stmt->data.assignment.value);
         break;
-    case AST_STMT_RETURN_WITHOUT_VALUE:
     case AST_STMT_BREAK:
     case AST_STMT_CONTINUE:
         break;

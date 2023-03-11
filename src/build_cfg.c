@@ -830,15 +830,13 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         break;
     }
 
-    case AST_STMT_RETURN_VALUE:
-    {
-        const LocalVariable *retvalue = build_expression(st, &stmt->data.expression);
-        const LocalVariable *retvariable = find_local_var(st, "return");
-        assert(retvariable);
-        add_unary_op(st, stmt->location, CF_VARCPY, retvalue, retvariable);
-    }
-    __attribute__((fallthrough));
-    case AST_STMT_RETURN_WITHOUT_VALUE:
+    case AST_STMT_RETURN:
+        if (stmt->data.returnvalue) {
+            const LocalVariable *retvalue = build_expression(st, stmt->data.returnvalue);
+            const LocalVariable *retvariable = find_local_var(st, "return");
+            assert(retvariable);
+            add_unary_op(st, stmt->location, CF_VARCPY, retvalue, retvariable);
+        }
         st->current_block->iftrue = &st->cfg->end_block;
         st->current_block->iffalse = &st->cfg->end_block;
         st->current_block = add_block(st);  // an unreachable block

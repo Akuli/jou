@@ -324,26 +324,37 @@ def typecheck_statement(ctx: TypeContext*, statement: AstStatement*) -> void:
     if statement->kind == AstStatementKind::ExpressionStatement:
         typecheck_expression_maybe_void(ctx, &statement->expression)
 
-    elif statement->kind == AstStatementKind::ReturnWithValue:
+    elif statement->kind == AstStatementKind::Return:
         name = &ctx->current_function_signature->name[0]
 
-        if ctx->current_function_signature->return_type == NULL:
-            msg: byte[500]
+        # TODO: check for noreturn functions
+
+        return_type = ctx->current_function_signature->return_type
+        msg: byte[500]
+
+        if statement->return_value != NULL and return_type == NULL:
             snprintf(&msg[0], sizeof msg, "function '%s' cannot return a value because it was defined with '-> void'", name)
             fail(statement->location, name)
+        if statement->return_value == NULL and return_type != NULL:
+            snprintf(
+                &msg[0], sizeof msg,
+                "function '%s' must return a value because it was defined with '-> %s'",
+                name, &return_type->name[0])
+            fail(statement->location, name)
 
-        cast_error_msg: byte[500]
-        snprintf(
-            &cast_error_msg[0], sizeof cast_error_msg,
-            "attempting to return a value of type <from> from function '%s' defined with '-> <to>'",
-            name,
-        )
-        typecheck_expression_with_implicit_cast(
-            ctx,
-            &statement->return_value,
-            ctx->current_function_signature->return_type,
-            &cast_error_msg[0],
-        )
+        if statement->return_value != NULL:
+            cast_error_msg: byte[500]
+            snprintf(
+                &cast_error_msg[0], sizeof cast_error_msg,
+                "attempting to return a value of type <from> from function '%s' defined with '-> <to>'",
+                name,
+            )
+            typecheck_expression_with_implicit_cast(
+                ctx,
+                statement->return_value,
+                return_type,
+                &cast_error_msg[0],
+            )
 
     else:
         assert(False)
