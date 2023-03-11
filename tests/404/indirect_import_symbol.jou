@@ -1,0 +1,10 @@
+# If point_factory.jou imports Point, it doesn't mean that importing
+# point_factory.jou also gives you Point.
+#
+# To access Point, you would need to import the file that defines Point.
+# This is one of the ways how Jou's import is "better" than C's #include.
+
+import "../should_succeed/imported/point_factory.jou"
+
+def foo() -> void:
+    p = Point{x=1, y=2}  # Error: there is no type named 'Point'

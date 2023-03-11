@@ -67,7 +67,6 @@ Jou has a few different kinds of tokens:
     such as variable names and function names.
 
 - **Keyword tokens** are any of the following:
-    - `from`
     - `import`
     - `def`
     - `declare`

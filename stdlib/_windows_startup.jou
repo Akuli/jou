@@ -1,8 +1,6 @@
 # A call to the _jou_windows_startup() function is inserted to the
 # start of every Jou program when compiling for Windows.
 
-from "stdlib/io.jou" import FILE
-
 # On Windows, the C "global variables" stdin, stdout and stderr are
 # actually macros:
 #
@@ -13,11 +11,14 @@ from "stdlib/io.jou" import FILE
 #
 # For simplicity, Jou redefines them as variables with the same
 # names and assigns the correct values to them.
-global stdin: FILE*
-global stdout: FILE*
-global stderr: FILE*
+#
+# We can't import FILE from io.jou here, because then we would be
+# trying to define a variable that already exists.
+global stdin: void*
+global stdout: void*
+global stderr: void*
 
-declare __acrt_iob_func(index: int) -> FILE*
+declare __acrt_iob_func(index: int) -> void*
 
 def _jou_windows_startup() -> void:
     stdin = __acrt_iob_func(0)

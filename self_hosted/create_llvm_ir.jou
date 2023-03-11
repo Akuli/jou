@@ -1,47 +1,13 @@
 # This file turns type-checked AST into LLVM IR. It produces an LLVMModule for each Jou file.
-from "./llvm.jou" import (
-    LLVMValue,
-    LLVMBuilder,
-    LLVMCreateBuilder,
-    LLVMDisposeBuilder,
-    LLVMAppendBasicBlock,
-    LLVMPositionBuilderAtEnd,
-    LLVMModule,
-    LLVMModuleCreateWithName,
-    LLVMSetTarget,
-    LLVMSetDataLayout,
-    LLVMFunctionType,
-    LLVMAddFunction,
-    LLVMType,
-    LLVMVoidType,
-    LLVMIntType,
-    LLVMInt8Type,
-    LLVMInt32Type,
-    LLVMPointerType,
-    LLVMTypeKind,
-    LLVMGetTypeKind,
-    LLVMGetElementType,
-    LLVMTypeOf,
-    LLVMGetNamedFunction,
-    LLVMSetLinkage,
-    LLVMLinkage,
-    LLVMConstString,
-    LLVMConstInt,
-    LLVMSetInitializer,
-    LLVMBuildBitCast,
-    LLVMBuildRet,
-    LLVMBuildCall2,
-    LLVMBuildUnreachable,
-    LLVMAddGlobal,
-)
-from "./typecheck.jou" import TypeContext
-from "./types.jou" import Type, TypeKind, Signature
-from "./ast.jou" import AstFile, AstFunctionDef, AstBody, AstExpression, AstExpressionKind, AstStatement, AstStatementKind, AstToplevelStatementKind
-from "./target.jou" import target
-from "./errors_and_warnings.jou" import assert
-from "stdlib/io.jou" import printf
-from "stdlib/mem.jou" import malloc, free
-from "stdlib/str.jou" import strlen
+import "./llvm.jou"
+import "./typecheck.jou"
+import "./types.jou"
+import "./ast.jou"
+import "./target.jou"
+import "./errors_and_warnings.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
 
 class AstToIR:
     module: LLVMModule*

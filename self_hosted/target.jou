@@ -7,30 +7,12 @@
 # will make the mess slightly less miserable to you. Just use the global
 # "target" variable, it contains everything you will ever need.
 
-from "./llvm.jou" import (
-    LLVMTarget,
-    LLVMTargetMachine,
-    LLVMTargetData,
-    LLVMInitializeX86TargetInfo,
-    LLVMInitializeX86Target,
-    LLVMInitializeX86TargetMC,
-    LLVMInitializeX86AsmParser,
-    LLVMInitializeX86AsmPrinter,
-    LLVMGetDefaultTargetTriple,
-    LLVMGetTargetFromTriple,
-    LLVMDisposeMessage,
-    LLVMCreateTargetMachine,
-    LLVMCodeModel,
-    LLVMCodeGenOptLevel,
-    LLVMRelocMode,
-    LLVMCreateTargetDataLayout,
-    LLVMCopyStringRepOfTargetData,
-)
-from "./paths.jou" import is_windows
-from "./errors_and_warnings.jou" import assert
-from "stdlib/str.jou" import strcpy, strlen
-from "stdlib/io.jou" import fprintf, stderr
-from "stdlib/process.jou" import exit
+import "./llvm.jou"
+import "./paths.jou"
+import "./errors_and_warnings.jou"
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/process.jou"
 
 class Target:
     triple: byte[100]

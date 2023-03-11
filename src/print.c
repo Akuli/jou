@@ -395,8 +395,8 @@ void print_ast(const AstToplevelNode *topnodelist)
 
         switch(t->kind) {
             case AST_TOPLEVEL_IMPORT:
-                printf("Import \"%s\" from \"%s\".\n",
-                    t->data.import.symbolname, t->data.import.path);
+                printf("Import \"%s\", which resolves to \"%s\".\n",
+                    t->data.import.specified_path, t->data.import.resolved_path);
                 break;
             case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
                 assert(!t->data.globalvar.value);
