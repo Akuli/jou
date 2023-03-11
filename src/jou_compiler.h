@@ -315,7 +315,7 @@ struct AstEnumDef {
 struct AstImport {
     char *specified_path;  // Path in jou code e.g. "stdlib/io.jou"
     char *resolved_path;  // Absolute path or relative to current working directory e.g. "/home/akuli/jou/stdlib/io.jou"
-    bool used;    // For errors/warnings
+    bool used;    // For warning messages
 };
 
 // Toplevel = outermost in the nested structure i.e. what the file consists of
