@@ -24,13 +24,6 @@ else
     files=$@
 fi
 
-if [[ "$OS" =~ Windows ]]; then
-    source activate
-    mingw32-make
-else
-    make
-fi
-
 rm -rf tmp/compare_compilers
 mkdir -vp tmp/compare_compilers
 
