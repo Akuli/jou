@@ -25,8 +25,15 @@ https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/basic-
 My first idea was to use an array of bytes that is big enough to fit anything.
 However, that might not be aligned properly.
 
-Instead, we choose the member type that has the biggest align, and make an array of it.
-Because the align is always a power of two, the memory will be suitably aligned for all member types.
+Then I tried choosing the member type that has the biggest align, and making a large enough array of it.
+Because the align is always a power of two, the memory was be suitably aligned for all member types.
+But it didn't work for some reason I still don't understand.
+
+Then I figured out how clang does it and did it the same way.
+We make a struct that contains:
+- the most aligned type as chosen before
+- array of i8 as padding to make it the right size.
+For some reason this breaks if I make the struct packed. But it seems to work now...
 */
 static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
 {
@@ -49,13 +56,11 @@ static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
     for (int i = 0; i < ntypes; i++)
         sizeneeded = max(sizeneeded, size(types[i]));
 
-    // TODO: Figure out why this doesn't actually work, and causes the self-hosted compiler to crash / valgrind badly.
-#if 0
-    unsigned count = (sizeneeded + size(chosen) - 1)/size(chosen);  // ceil division
-    assert(count > 0);
-    return LLVMArrayType(chosen, count);
-#endif
-    return LLVMArrayType(LLVMInt8Type(), sizeneeded);
+    unsigned long long pad = sizeneeded - size(chosen);
+    assert(pad < UINT_MAX);
+    if (pad == 0)
+        return chosen;
+    return LLVMStructType((LLVMTypeRef[]){chosen, LLVMArrayType(LLVMInt8Type(), (unsigned)pad)}, 2, false);
 }
 
 static LLVMTypeRef codegen_type(const Type *type)
