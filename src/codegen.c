@@ -30,6 +30,10 @@ Because the align is always a power of two, the memory will be suitably aligned 
 */
 static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
 {
+    // Make the IR easier to read when unions aren't actually used
+    if (ntypes == 1)
+        return types[0];
+
     for (int i = 0; i < ntypes; i++) {
         assert(size(types[i]) > 0);
         assert(align(types[i])==1 || align(types[i])==2 || align(types[i])==4 || align(types[i])==8);
@@ -325,7 +329,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             }
             break;
         case CF_CONSTANT: setdest(codegen_constant(st, &ins->data.constant)); break;
-        case CF_SIZEOF: setdest(LLVMConstInt(LLVMInt64Type(), LLVMStoreSizeOfType(get_target()->target_data_ref, codegen_type(ins->data.type)), false)); break;
+        case CF_SIZEOF: setdest(LLVMConstInt(LLVMInt64Type(), size(codegen_type(ins->data.type)), false)); break;
         case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
         case CF_PTR_LOAD: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
@@ -346,8 +350,8 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
 
                 LLVMValueRef val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), f->union_id, ins->data.fieldname);
                 // This cast is needed in two cases:
-                //  * All pointers are codegenned as i8* so we can do self-referencing classes.
-                //  * It is how union types work.
+                //  * All pointers are i8* in structs so we can do self-referencing classes.
+                //  * This is how unions work.
                 val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(f->type),0), "struct_member_cast");
                 setdest(val);
             }

@@ -219,6 +219,7 @@ void free_ast(AstToplevelNode *topnodelist)
                     break;
                 }
             }
+            free(t->data.classdef.members.ptr);
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
             free(t->data.enumdef.membernames);
