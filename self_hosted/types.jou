@@ -86,6 +86,15 @@ class Signature:
     takes_varargs: bool  # True for functions like printf()
     return_type: Type*
 
+    def is_method(self) -> bool:
+        return False
+
+    def function_or_method(self) -> byte*:
+        if self->is_method():
+            return "method"
+        else:
+            return "function"
+
     def to_string(self, include_return_type: bool) -> byte*:
         result: byte* = malloc(500*(self->nargs + 1))
         strcpy(result, &self->name[0])

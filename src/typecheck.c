@@ -394,8 +394,8 @@ static void do_implicit_cast(
     if (errormsg_template != NULL && !can_cast_implicitly(from, to))
         fail_with_implicit_cast_error(location, errormsg_template, from, to);
 
-    assert(!types->type_after_cast);
-    types->type_after_cast = to;
+    assert(!types->implicit_cast_type);
+    types->implicit_cast_type = to;
 }
 
 static void check_explicit_cast(const Type *from, const Type *to, Location location)

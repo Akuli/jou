@@ -453,7 +453,7 @@ struct LocalVariable {
 struct ExpressionTypes {
     const AstExpression *expr;
     const Type *type;
-    const Type *type_after_cast;  // NULL for no implicit cast
+    const Type *implicit_cast_type;  // NULL for no implicit cast
 };
 
 struct ExportSymbol {

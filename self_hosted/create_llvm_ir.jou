@@ -11,7 +11,7 @@ import "stdlib/str.jou"
 class AstToIR:
     module: LLVMModule*
     builder: LLVMBuilder*
-    typectx: TypeContext*  # Results of type-checking, so that we know what type each expression is.
+    typectx: FileTypes*  # Results of type-checking, so that we know what type each expression is.
     current_function: LLVMValue*
 
     def do_type(self, type: Type*) -> LLVMType*:
@@ -140,7 +140,7 @@ class AstToIR:
         self->current_function = NULL
 
 
-def create_llvm_ir(ast: AstFile*, typectx: TypeContext*) -> LLVMModule*:
+def create_llvm_ir(ast: AstFile*, typectx: FileTypes*) -> LLVMModule*:
     module = LLVMModuleCreateWithName(ast->path)
     LLVMSetTarget(module, &target.triple[0])
     LLVMSetDataLayout(module, &target.data_layout[0])
@@ -151,8 +151,8 @@ def create_llvm_ir(ast: AstFile*, typectx: TypeContext*) -> LLVMModule*:
         typectx = typectx
     }
 
-    for i = 0; i < typectx->nfunctions; i++:
-        a2i.declare_function(&typectx->functions[i])
+    for i = 0; i < typectx->n_all_functions; i++:
+        a2i.declare_function(&typectx->all_functions[i])
 
     for i = 0; i < ast->body_len; i++:
         if ast->body[i].kind == AstToplevelStatementKind::Function and ast->body[i].function.body.nstatements > 0:
