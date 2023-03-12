@@ -90,6 +90,7 @@ Jou has a few different kinds of tokens:
     - `not`
     - `as`
     - `sizeof`
+    - `assert`
     - `void`
     - `noreturn`
     - `bool`
