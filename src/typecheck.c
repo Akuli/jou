@@ -773,13 +773,13 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
 }
 
 static const struct ClassField *typecheck_class_field(
-    const Type *type, const char *fieldname, Location location)
+    const Type *classtype, const char *fieldname, Location location)
 {
-    assert(type->kind == TYPE_CLASS);
-    for (struct ClassField *f = type->data.classdata.fields.ptr; f < End(type->data.classdata.fields); f++)
+    assert(classtype->kind == TYPE_CLASS);
+    for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++)
         if (!strcmp(f->name, fieldname))
             return f;
-    fail_with_error(location, "class %s has no field named '%s'", type->name, fieldname);
+    fail_with_error(location, "class %s has no field named '%s'", classtype->name, fieldname);
 }
 
 static const Type *typecheck_struct_init(FileTypes *ft, const AstCall *call, Location location)
