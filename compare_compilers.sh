@@ -6,39 +6,37 @@
 
 set -e
 
-if [ "$1" = --fix ]; then
-    fix=yes
-    shift
-else
-    fix=no
-fi
+files=()
+fix=no
 
-if [[ "$1" =~ ^- ]]; then
-    echo "Usage: $0 [--fix] [FILENAME1.jou FILENAME2.jou ...]" >&2
-    exit 2
-fi
+for arg in "$@"; do
+    if [ "$arg" = --fix ]; then
+        fix=yes
+    elif [[ "$arg" =~ ^- ]]; then
+        echo "Usage: $0 [--fix] [FILENAME1.jou FILENAME2.jou ...]" >&2
+        exit 2
+    else
+        files+=($arg)
+    fi
+done
 
-if [ $# = 0 ]; then
-    files=$(find stdlib examples tests -name '*.jou' | sort)
-else
-    files=$*
-fi
-
-if [[ "$OS" =~ Windows ]]; then
-    source activate
-    mingw32-make
-else
-    make
+if [ ${#files[@]} = 0 ]; then
+    mapfile -t files < <( find stdlib examples tests -name '*.jou' | sort )
 fi
 
 rm -rf tmp/compare_compilers
 mkdir -vp tmp/compare_compilers
 
+YELLOW="\x1b[33m"
+GREEN="\x1b[32m"
+RED="\x1b[31m"
+RESET="\x1b[0m"
+
 function append_line()
 {
     local file="$1"
     local line="$2"
-    echo "  Adding $line to $file"
+    echo -e "  ${YELLOW}Adding $line to $file${RESET}"
 
     if grep -q $'\r' $error_list_file; then
         # CRLF line endings (likely Windows, but depends on git settings)
@@ -52,7 +50,7 @@ function remove_line()
 {
     local file="$1"
     local line="$2"
-    echo "  Deleting $line from $file"
+    echo -e "  ${YELLOW}Deleting $line from $file${RESET}"
     # Filter out the line regardless of whether it has CRLF or LF after it
     cat "$file" | grep -vxF "$line" | grep -vxF "$line"$'\r' > tmp/compare_compilers/newlist.txt
     mv tmp/compare_compilers/newlist.txt "$file"
@@ -65,7 +63,7 @@ for error_list_file in self_hosted/*s_wrong.txt; do
             if [ $fix = yes ]; then
                 remove_line $error_list_file $line
             else
-                echo "  Error: $error_list_file mentions file \"$line\" which does not exist."
+                echo -e "  ${RED}Error: $error_list_file mentions file \"$line\" which does not exist.${RESET}"
                 echo "  To fix this error, delete the \"$line\" line from $error_list_file (or run again with --fix)."
                 exit 1
             fi
@@ -80,7 +78,7 @@ else
     make self_hosted_compiler
 fi
 
-for file in $files; do
+for file in ${files[@]}; do
 for action in tokenize parse run; do
     echo "$action $file"
     error_list_file=self_hosted/${action}s_wrong.txt
@@ -99,7 +97,7 @@ for action in tokenize parse run; do
             if [ $fix = yes ]; then
                 remove_line $error_list_file $file
             else
-                echo "  Error: Compilers behave the same even though the file is listed in $error_list_file."
+                echo -e "  ${RED}Error: Compilers behave the same even though the file is listed in $error_list_file.${RESET}"
                 echo "  To fix this error, delete the \"$file\" line from $error_list_file (or run again with --fix)."
                 exit 1
             fi
@@ -113,7 +111,7 @@ for action in tokenize parse run; do
             if [ $fix = yes ]; then
                 append_line $error_list_file $file
             else
-                echo "  Error: Compilers behave differently when given \"$file\"."
+                echo -e "  ${RED}Error: Compilers behave differently when given \"$file\".${RESET}"
                 echo "  Ideally the compilers would behave in the same way for all files, but we aren't there yet."
                 echo "  To silence this error, add \"$file\" to $error_list_file (or run again with --fix)."
                 exit 1
@@ -125,4 +123,4 @@ done
 
 echo ""
 echo ""
-echo "success :)"
+echo -e "${GREEN}success :)${RESET}"
