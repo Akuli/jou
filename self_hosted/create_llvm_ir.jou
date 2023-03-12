@@ -11,7 +11,7 @@ import "stdlib/str.jou"
 class AstToIR:
     module: LLVMModule*
     builder: LLVMBuilder*
-    typectx: FileTypes*  # Results of type-checking, so that we know what type each expression is.
+    file_types: FileTypes*  # Results of type-checking, so that we know what type each expression is.
     current_function: LLVMValue*
 
     def do_type(self, type: Type*) -> LLVMType*:
@@ -22,21 +22,26 @@ class AstToIR:
         printf("asd-Asd., %s\n", &type->name)
         assert False
 
-    def declare_function(self, signature: Signature*) -> void:
-        argtypes: LLVMType**
-        argtypes = malloc(signature->nargs * sizeof argtypes[0])
-        for i = 0; i < signature->nargs; i++:
-            argtypes[i] = self->do_type(signature->argtypes[i])
+    def declare_function(self, sig: Signature*) -> LLVMValue*:
+        # Make it so that this can be called many times without issue
+        func = LLVMGetNamedFunction(self->module, &sig->name[0])
+        if func != NULL:
+            return func
 
-        if signature->return_type == NULL:
+        argtypes: LLVMType** = malloc(sig->nargs * sizeof argtypes[0])
+        for i = 0; i < sig->nargs; i++:
+            argtypes[i] = self->do_type(sig->argtypes[i])
+
+        # TODO: tell llvm if we know a function is noreturn
+        if sig->return_type == NULL:  # "-> noreturn" or "-> void"
             return_type = LLVMVoidType()
         else:
-            return_type = self->do_type(signature->return_type)
+            return_type = self->do_type(sig->return_type)
 
-        function_type = LLVMFunctionType(return_type, argtypes, signature->nargs, signature->takes_varargs)
+        function_type = LLVMFunctionType(return_type, argtypes, sig->nargs, sig->takes_varargs)
         free(argtypes)
 
-        LLVMAddFunction(self->module, &signature->name[0], function_type)
+        return LLVMAddFunction(self->module, &sig->name[0], function_type)
 
     def new_block(self, name_hint: byte*) -> void:
         assert self->current_function != NULL
@@ -86,8 +91,9 @@ class AstToIR:
             return LLVMConstInt(LLVMInt64Type(), ast->long_value, False)
 
         elif ast->kind == AstExpressionKind::FunctionCall:
-            function = LLVMGetNamedFunction(self->module, &ast->call.called_name[0])
-            assert function != NULL
+            sig = self->file_types->find_function(&ast->call.called_name[0])
+            assert sig != NULL
+            function = self->declare_function(sig)
             assert LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind::Pointer
             function_type = LLVMGetElementType(LLVMTypeOf(function))
             assert LLVMGetTypeKind(function_type) == LLVMTypeKind::Function
@@ -127,8 +133,9 @@ class AstToIR:
 
     # The function must already be declared.
     def define_function(self, funcdef: AstFunction*) -> void:
-        llvm_func = LLVMGetNamedFunction(self->module, &funcdef->signature.name[0])
-        assert llvm_func != NULL
+        sig = self->file_types->find_function(&funcdef->signature.name[0])
+        assert sig != NULL
+        llvm_func = self->declare_function(sig)
         assert self->current_function == NULL
         self->current_function = llvm_func
 
@@ -140,7 +147,7 @@ class AstToIR:
         self->current_function = NULL
 
 
-def create_llvm_ir(ast: AstFile*, typectx: FileTypes*) -> LLVMModule*:
+def create_llvm_ir(ast: AstFile*, ft: FileTypes*) -> LLVMModule*:
     module = LLVMModuleCreateWithName(ast->path)
     LLVMSetTarget(module, &target.triple[0])
     LLVMSetDataLayout(module, &target.data_layout[0])
@@ -148,11 +155,8 @@ def create_llvm_ir(ast: AstFile*, typectx: FileTypes*) -> LLVMModule*:
     a2i = AstToIR{
         module = module,
         builder = LLVMCreateBuilder(),
-        typectx = typectx
+        file_types = ft
     }
-
-    for i = 0; i < typectx->n_all_functions; i++:
-        a2i.declare_function(&typectx->all_functions[i])
 
     for i = 0; i < ast->body_len; i++:
         if ast->body[i].kind == AstToplevelStatementKind::Function and ast->body[i].function.body.nstatements > 0:
