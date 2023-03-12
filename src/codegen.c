@@ -11,51 +11,38 @@
 #include "util.h"
 
 /*
-I still don't fully understand the difference between abi size/align and storage size/align.
-But here the creator of the zig language seems to say that abi alignment works for everything:
-https://lists.llvm.org/pipermail/llvm-dev/2017-August/116897.html
-*/
-static unsigned long long size(LLVMTypeRef t) { return LLVMABISizeOfType(get_target()->target_data_ref, t); }
-static unsigned align(LLVMTypeRef t) { return LLVMABIAlignmentOfType(get_target()->target_data_ref, t); }
-
-/*
 LLVM doesn't have a built-in union type, and you're supposed to abuse other types for that:
 https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/basic-constructs/unions.html
 
 My first idea was to use an array of bytes that is big enough to fit anything.
 However, that might not be aligned properly.
 
-Instead, we choose the member type that has the biggest align, and make an array of it.
+Then I tried choosing the member type that has the biggest align, and making a large enough array of it.
 Because the align is always a power of two, the memory will be suitably aligned for all member types.
+But it didn't work for some reason I still don't understand.
+
+Then I figured out how clang does it and did it the same way.
+We make a struct that contains:
+- the most aligned type as chosen before
+- array of i8 as padding to make it the right size.
+But for some reason that didn't work either.
+
+As a "last resort" I just use an array of i64 large enough and hope it's aligned as needed.
 */
 static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
 {
-    // Make the IR easier to read when unions aren't actually used
-    if (ntypes == 1)
-        return types[0];
-
-    for (int i = 0; i < ntypes; i++) {
-        assert(size(types[i]) > 0);
-        assert(align(types[i])==1 || align(types[i])==2 || align(types[i])==4 || align(types[i])==8);
-    }
-
-    LLVMTypeRef chosen = NULL;
-    for (int i = 0; i < ntypes; i++)
-        if (chosen==NULL || align(types[i]) > align(chosen))
-            chosen = types[i];
-    assert(chosen);
-
     unsigned long long sizeneeded = 0;
-    for (int i = 0; i < ntypes; i++)
-        sizeneeded = max(sizeneeded, size(types[i]));
+    for (int i = 0; i < ntypes; i++) {
+        unsigned long long size1 = LLVMABISizeOfType(get_target()->target_data_ref, types[i]);
+        unsigned long long size2 = LLVMStoreSizeOfType(get_target()->target_data_ref, types[i]);
 
-    // TODO: Figure out why this doesn't actually work, and causes the self-hosted compiler to crash / valgrind badly.
-#if 0
-    unsigned count = (sizeneeded + size(chosen) - 1)/size(chosen);  // ceil division
-    assert(count > 0);
-    return LLVMArrayType(chosen, count);
-#endif
-    return LLVMArrayType(LLVMInt8Type(), sizeneeded);
+        // If this assert fails, you need to figure out which of the size functions should be used.
+        // I don't know what their difference is.
+        // And if you need the alignment, there's 3 different functions for that...
+        assert(size1 == size2);
+        sizeneeded = max(sizeneeded, size1);
+    }
+    return LLVMArrayType(LLVMInt64Type(), (sizeneeded+7)/8);
 }
 
 static LLVMTypeRef codegen_type(const Type *type)
@@ -329,7 +316,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             }
             break;
         case CF_CONSTANT: setdest(codegen_constant(st, &ins->data.constant)); break;
-        case CF_SIZEOF: setdest(LLVMConstInt(LLVMInt64Type(), size(codegen_type(ins->data.type)), false)); break;
+        case CF_SIZEOF: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
         case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
         case CF_PTR_LOAD: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
