@@ -212,7 +212,7 @@ static AstCall parse_call(const Token **tokens, char openparen, char closeparen,
 
     while (!is_operator(*tokens, (char[]){closeparen,'\0'})) {
         if (args_are_named) {
-            // This code is only for classes, because there are no named function arguments.
+            // This code is only for instantiating classes, because there are no named function arguments.
 
             if ((*tokens)->type != TOKEN_NAME)
                 fail_with_parse_error((*tokens),"a field name");
