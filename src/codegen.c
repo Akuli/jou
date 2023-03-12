@@ -4,14 +4,50 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <llvm-c/Core.h>
 #include <llvm-c/Types.h>
 #include "jou_compiler.h"
 #include "util.h"
 
-static unsigned long long sizeof_llvm_type(LLVMTypeRef t)
+/*
+I still don't fully understand the difference between abi size/align and storage size/align.
+But here the creator of the zig language seems to say that abi alignment works for everything:
+https://lists.llvm.org/pipermail/llvm-dev/2017-August/116897.html
+*/
+static unsigned long long size(LLVMTypeRef t) { return LLVMABISizeOfType(get_target()->target_data_ref, t); }
+static unsigned align(LLVMTypeRef t) { return LLVMABIAlignmentOfType(get_target()->target_data_ref, t); }
+
+/*
+LLVM doesn't have a built-in union type, and you're supposed to abuse other types for that:
+https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/basic-constructs/unions.html
+
+My first idea was to use an array of bytes that is big enough to fit anything.
+However, that might not be aligned properly.
+
+Instead, we choose the member type that has the biggest align, and make an array of it.
+Because the align is always a power of two, the memory will be suitably aligned for all member types.
+*/
+static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
 {
-    return LLVMStoreSizeOfType(get_target()->target_data_ref, t);
+    for (int i = 0; i < ntypes; i++) {
+        assert(size(types[i]) > 0);
+        assert(align(types[i])==1 || align(types[i])==2 || align(types[i])==4 || align(types[i])==8);
+    }
+
+    LLVMTypeRef chosen = NULL;
+    for (int i = 0; i < ntypes; i++)
+        if (chosen==NULL || align(types[i]) > align(chosen))
+            chosen = types[i];
+    assert(chosen);
+
+    unsigned long long sizeneeded = 0;
+    for (int i = 0; i < ntypes; i++)
+        sizeneeded = max(sizeneeded, size(types[i]));
+
+    unsigned count = (sizeneeded + size(chosen) - 1)/size(chosen);  // ceil division
+    assert(count > 0);
+    return LLVMArrayType(chosen, count);
 }
 
 static LLVMTypeRef codegen_type(const Type *type)
@@ -55,15 +91,13 @@ static LLVMTypeRef codegen_type(const Type *type)
         }
     case TYPE_UNION:
         {
-            unsigned long long maxsize = 0;
-            for (struct Field *m = type->data.unionmembers.ptr; m < End(type->data.unionmembers); m++) {
-                unsigned long long size = sizeof_llvm_type(codegen_type(m->type));
-                if (size > maxsize)
-                    maxsize = size;
-            }
-
-            assert(maxsize <= UINT_MAX);
-            return LLVMArrayType(LLVMInt8Type(), (unsigned int)maxsize);
+            int n = type->data.unionmembers.len;
+            LLVMTypeRef *elems = malloc(sizeof(elems[0]) * n);  // NOLINT
+            for (int i = 0; i < n; i++)
+                elems[i] = codegen_type(type->data.classdata.fields.ptr[i].type);
+            LLVMTypeRef result = codegen_union_type(elems, n);
+            free(elems);
+            return result;
         }
     case TYPE_ENUM:
         return LLVMInt32Type();
