@@ -28,20 +28,6 @@ static noreturn void fail()
     exit(1);
 }
 
-static void trim_whitespace(char *s)
-{
-    char *start = s;
-    while (*start && isspace(*start))
-        start++;
-
-    char *end = &s[strlen(s)];
-    while (end > start && isspace(end[-1]))
-        end--;
-
-    *end = '\0';
-    memmove(s, start, end-start+1);
-}
-
 static void confirm(const char *prompt)
 {
     printf("%s (y/n) ", prompt);

@@ -5,6 +5,7 @@
 #endif // _WIN32
 
 #include "util.h"
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,20 @@
 static void delete_slice(char *start, char *end)
 {
     memmove(start, end, strlen(end) + 1);
+}
+
+void trim_whitespace(char *s)
+{
+    char *start = s;
+    while (*start && isspace(*start))
+        start++;
+
+    char *end = &s[strlen(s)];
+    while (end > start && isspace(end[-1]))
+        end--;
+
+    *end = '\0';
+    delete_slice(s, start);
 }
 
 void simplify_path(char *path)
