@@ -103,7 +103,7 @@ def get_sane_filename(path: byte*) -> byte[50]:
 
     name: byte[50]
     snprintf(&name[0], sizeof name, "%s", path)
-    assert(name[0] != '\0')
+    assert name[0] != '\0'
 
     if name[0] == '.':
         name[0] = '_'
@@ -203,7 +203,7 @@ class Compiler:
             if self->verbosity >= 1:
                 printf("Type-check stage 2: %s\n", self->files[i].ast.path)
 
-            assert(self->files[i].pending_exports == NULL)
+            assert self->files[i].pending_exports == NULL
             self->files[i].pending_exports = typecheck_stage2_signatures_globals_structbodies(
                 &self->files[i].typectx,
                 &self->files[i].ast,
@@ -288,10 +288,10 @@ class Compiler:
 
             error: byte* = NULL
             if LLVMTargetMachineEmitToFile(target.target_machine, module, path, LLVMCodeGenFileType::ObjectFile, &error):
-                assert(error != NULL)
+                assert error != NULL
                 fprintf(stderr, "error in LLVMTargetMachineEmitToFile(): %s\n", error)
                 exit(1)
-            assert(error == NULL)
+            assert error == NULL
 
         return paths
 
@@ -396,6 +396,6 @@ def main(argc: int, argv: byte**) -> int:
             free(compiler.automagic_files[i])
 
     else:
-        assert(False)
+        assert False
 
     return 0

@@ -55,7 +55,7 @@ class TypeContext:
     current_function_signature: Signature*
 
     def add_imported_symbol(self, symbol: ExportSymbol*) -> void:
-        assert(symbol->kind == ExportSymbolKind::Function)
+        assert symbol->kind == ExportSymbolKind::Function
         self->functions = realloc(self->functions, sizeof self->functions[0] * (self->nfunctions + 1))
         self->functions[self->nfunctions++] = symbol->signature.copy()
 
@@ -68,7 +68,7 @@ class TypeContext:
 
 # TODO: implement
 #def typecheck_stage1_create_types(ctx: TypeContext*, file: AstFile*) -> ExportSymbol*:
-#    assert(False)
+#    assert False
 
 def type_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
     if ast_type->is_void():
@@ -212,7 +212,7 @@ def do_implicit_cast(
     if error_template != NULL and not can_cast_implicitly(from, to):
         fail_with_implicit_cast_error(error_location, error_template, from, to)
 
-    assert(types->type_after_cast == NULL)
+    assert types->type_after_cast == NULL
     types->type_after_cast = to
 
 
@@ -313,7 +313,7 @@ def typecheck_expression_maybe_void(ctx: TypeContext*, expression: AstExpression
 def typecheck_expression(ctx: TypeContext*, expression: AstExpression*) -> ExpressionTypes*:
     types = typecheck_expression_maybe_void(ctx, expression)
     if types == NULL:
-        assert(expression->kind == AstExpressionKind::FunctionCall)
+        assert expression->kind == AstExpressionKind::FunctionCall
         name = &expression->call.called_name[0]
         message = malloc(strlen(name) + 100)
         sprintf(message, "function '%s' does not return a value", name)
@@ -367,7 +367,7 @@ def typecheck_statement(ctx: TypeContext*, statement: AstStatement*) -> void:
             )
 
     else:
-        assert(False)
+        assert False
 
 def typecheck_body(ctx: TypeContext*, body: AstBody*) -> void:
     for i = 0; i < body->nstatements; i++:
@@ -380,9 +380,9 @@ def typecheck_stage3_function_and_method_bodies(ctx: TypeContext*, ast_file: Ast
             continue
 
         sig = ctx->find_function(&ts->function.signature.name[0])
-        assert(sig != NULL)
+        assert sig != NULL
 
-        assert(ctx->current_function_signature == NULL)
+        assert ctx->current_function_signature == NULL
         ctx->current_function_signature = sig
         typecheck_body(ctx, &ts->function.body)
         ctx->current_function_signature = NULL

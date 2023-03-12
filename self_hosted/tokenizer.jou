@@ -87,7 +87,7 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
             break
         result += hexdigit_value(digits[i])
 
-    assert(nbits == 32 or nbits == 64)
+    assert nbits == 32 or nbits == 64
     if nbits == 32 and (result as int) != result:
         overflow = True
 
@@ -160,7 +160,7 @@ class Tokenizer:
         if b == '\0':
             return
 
-        assert(b != '\r')
+        assert b != '\r'
         self->pushback = realloc(self->pushback, self->pushback_len + 1)
         self->pushback[self->pushback_len++] = b
         if b == '\n':
@@ -171,7 +171,7 @@ class Tokenizer:
         memset(&dest, 0, sizeof dest)
         destlen = 0
 
-        assert(is_identifier_or_number_byte(first_byte))
+        assert is_identifier_or_number_byte(first_byte)
         dest[destlen++] = first_byte
 
         while True:
@@ -519,7 +519,7 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
     # If the file has indentations after it, they are now represented by separate
     # indent tokens and parsing will fail. If the file doesn't have any blank/comment
     # lines in the beginning, it has a newline token anyway to avoid special casing.
-    assert(tokens[0].kind == TokenKind::Newline)
+    assert tokens[0].kind == TokenKind::Newline
     memmove(&tokens[0], &tokens[1], sizeof tokens[0] * (ntokens - 1))
 
     return tokens

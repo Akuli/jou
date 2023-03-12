@@ -127,7 +127,7 @@ class Token:
         elif self->kind == TokenKind::EndOfFile:
             strcpy(&got[0], "end of file")
         else:
-            assert(False)
+            assert False
 
         message: byte* = malloc(strlen(what_was_expected_instead) + 500)
         sprintf(message, "expected %s, got %s", what_was_expected_instead, &got[0])

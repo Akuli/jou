@@ -39,7 +39,7 @@ class AstToIR:
         LLVMAddFunction(self->module, &signature->name[0], function_type)
 
     def new_block(self, name_hint: byte*) -> void:
-        assert(self->current_function != NULL)
+        assert self->current_function != NULL
         block = LLVMAppendBasicBlock(self->current_function, name_hint)
         LLVMPositionBuilderAtEnd(self->builder, block)
 
@@ -87,10 +87,10 @@ class AstToIR:
 
         elif ast->kind == AstExpressionKind::FunctionCall:
             function = LLVMGetNamedFunction(self->module, &ast->call.called_name[0])
-            assert(function != NULL)
-            assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind::Pointer)
+            assert function != NULL
+            assert LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind::Pointer
             function_type = LLVMGetElementType(LLVMTypeOf(function))
-            assert(LLVMGetTypeKind(function_type) == LLVMTypeKind::Function)
+            assert LLVMGetTypeKind(function_type) == LLVMTypeKind::Function
 
             args: LLVMValue** = malloc(sizeof args[0] * ast->call.nargs)
             for i = 0; i < ast->call.nargs; i++:
@@ -119,7 +119,7 @@ class AstToIR:
             self->build_assert(condition)
         else:
             printf("Asd-asd. Unknown statement...\n")
-            assert(False)
+            assert False
 
     def do_body(self, body: AstBody*) -> void:
         for i = 0; i < body->nstatements; i++:
@@ -128,12 +128,12 @@ class AstToIR:
     # The function must already be declared.
     def define_function(self, funcdef: AstFunction*) -> void:
         llvm_func = LLVMGetNamedFunction(self->module, &funcdef->signature.name[0])
-        assert(llvm_func != NULL)
-        assert(self->current_function == NULL)
+        assert llvm_func != NULL
+        assert self->current_function == NULL
         self->current_function = llvm_func
 
         self->new_block("start")
-        assert(funcdef->body.nstatements > 0)  # it is a definition
+        assert funcdef->body.nstatements > 0  # it is a definition
         self->do_body(&funcdef->body)
         LLVMBuildUnreachable(self->builder)
 

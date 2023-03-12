@@ -483,7 +483,7 @@ class AstNameTypeValue:
         printf("%s: ", &self->name[0])
         self->type.print(True)
         if tp == NULL:
-            assert(self->value == NULL)
+            assert self->value == NULL
         else:
             printf("\n")
             if self->value != NULL:
@@ -601,7 +601,7 @@ class AstFile:
     def next_import(self, imp: AstImport**) -> bool:
         # Get the corresponding AstToplevelStatement.
         ts = *imp as AstToplevelStatement*
-        assert(&ts->the_import as void* == ts)  # TODO: offsetof() or similar
+        assert &ts->the_import as void* == ts  # TODO: offsetof() or similar
 
         # Assume all imports are in the beginning of the file.
         if ts == NULL:
