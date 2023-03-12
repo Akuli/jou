@@ -18,7 +18,7 @@ My first idea was to use an array of bytes that is big enough to fit anything.
 However, that might not be aligned properly.
 
 Then I tried choosing the member type that has the biggest align, and making a large enough array of it.
-Because the align is always a power of two, the memory was be suitably aligned for all member types.
+Because the align is always a power of two, the memory will be suitably aligned for all member types.
 But it didn't work for some reason I still don't understand.
 
 Then I figured out how clang does it and did it the same way.
@@ -38,6 +38,7 @@ static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
 
         // If this assert fails, you need to figure out which of the size functions should be used.
         // I don't know what their difference is.
+        // And if you need the alignment, there's 3 different functions for that...
         assert(size1 == size2);
         sizeneeded = max(sizeneeded, size1);
     }
