@@ -949,7 +949,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         if (temptype->kind != TYPE_CLASS)
             fail_with_error(
                 expr->location,
-                "left side of the '.' operator must be a class instance, not %s",
+                "left side of the '.' operator must be an instance of a class, not %s",
                 temptype->name);
         result = typecheck_class_field(temptype, expr->data.classfield.fieldname, expr->location)->type;
         break;
