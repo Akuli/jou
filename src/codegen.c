@@ -37,10 +37,6 @@ For some reason this breaks if I make the struct packed. But it seems to work no
 */
 static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
 {
-    // Make the IR easier to read when unions aren't actually used
-    if (ntypes == 1)
-        return types[0];
-
     for (int i = 0; i < ntypes; i++) {
         assert(size(types[i]) > 0);
         assert(align(types[i])==1 || align(types[i])==2 || align(types[i])==4 || align(types[i])==8);
