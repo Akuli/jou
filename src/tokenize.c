@@ -88,7 +88,7 @@ static void read_identifier_or_number(struct State *st, char firstbyte, char (*d
             || ('0'<=firstbyte && firstbyte<='9' && (*dest)[destlen-1]=='e' && c=='-'))
         {
             if (destlen == sizeof *dest - 1)
-                fail_with_error(st->location, "name is too long: %.20s...", *dest);
+                fail_with_error(st->location, "%s is too long: %.20s...", isdigit(firstbyte)?"number":"name", *dest);
             (*dest)[destlen++] = c;
         } else {
             unread_byte(st, c);

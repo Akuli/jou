@@ -95,3 +95,34 @@ def get_path_to_file_in_jou_compiled(filename: byte*) -> byte*:
     result: byte* = malloc(strlen(filename) + 100)
     sprintf(result, "jou_compiled/self_hosted/%s", filename)
     return result
+
+# TODO: put this to stdlib? or does it do too much for a stdlib function?
+def delete_slice(start: byte*, end: byte*) -> void:
+    memmove(start, end, strlen(end) + 1)
+
+def simplify_path(path: byte*) -> void:
+    if is_windows():
+        # Backslash to forward slash.
+        for p = path; *p != '\0'; p++:
+            if *p == '\\':
+                *p = '/'
+
+    # Delete "." components.
+    while starts_with(path, "./"):
+        delete_slice(path, &path[2])
+    while True:
+        p = strstr(path, "/./")
+        if p == NULL:
+            break  # TODO: walrus operator  p := strstr(...)
+        delete_slice(p, &p[2])
+
+    # Delete unnecessary ".." components.
+    while True:
+        p = strstr(path, "/../")
+        if p == NULL:
+            break  # TODO: walrus operator  p := strstr(...)
+
+        start_of_previous_component = p
+        while start_of_previous_component != path and start_of_previous_component[-1] != '/':
+            start_of_previous_component--
+        delete_slice(start_of_previous_component, &p[4])

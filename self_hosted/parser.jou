@@ -3,6 +3,7 @@ import "stdlib/mem.jou"
 import "./token.jou"
 import "./ast.jou"
 import "./errors_and_warnings.jou"
+import "./paths.jou"
 
 def parse_type(tokens: Token**) -> AstType:
     if not (
@@ -81,6 +82,15 @@ def parse_function_signature(tokens: Token**) -> AstSignature:
             if arg.value != NULL:
                 fail(arg.value->location, "arguments cannot have default values")
 
+            for i = 0; i < result.nargs; i++:
+                if strcmp(&result.args[i].name[0], &arg.name[0]) == 0:
+                    message: byte[200]
+                    snprintf(
+                        &message[0], sizeof message,
+                        "there are multiple arguments named '%s'",
+                        &arg.name[0])
+                    fail(arg.name_location, &message[0])
+
             result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
             result.args[result.nargs++] = arg
 
@@ -102,13 +112,36 @@ def parse_function_signature(tokens: Token**) -> AstSignature:
     result.return_type = parse_type(tokens)
     return result
 
-def get_actual_import_path(path_token: Token*, stdlib_path: byte*) -> byte*:
-    assert(path_token->kind == TokenKind::String)
-    assert(starts_with(path_token->long_string, "stdlib/"))
+def parse_import_path(path_token: Token*, stdlib_path: byte*) -> AstImport:
+    if path_token->kind != TokenKind::String:
+        path_token->fail_expected_got("a string to specify the file name")
 
-    path = malloc(strlen(path_token->long_string) + 100)
-    sprintf(path, "%s/%s", stdlib_path, &path_token->long_string[7])
-    return path
+    if starts_with(path_token->long_string, "stdlib/"):
+        # Starts with stdlib --> import from where stdlib actually is
+        tmp = NULL
+        part1 = stdlib_path
+        part2 = &path_token->long_string[7]
+    elif starts_with(path_token->long_string, "."):
+        # Relative to directory where the file is
+        tmp = strdup(path_token->location.path)
+        part1 = dirname(tmp)
+        part2 = path_token->long_string
+    else:
+        fail(
+            path_token->location,
+            "import path must start with 'stdlib/' (standard-library import) or a dot (relative import)"
+        )
+
+    # 1 for slash, 1 for \0, 1 for fun
+    path = malloc(strlen(part1) + strlen(part2) + 3)
+    sprintf(path, "%s/%s", part1, part2)
+    free(tmp)
+
+    simplify_path(path)
+    return AstImport{
+        specified_path = strdup(path_token->long_string),
+        resolved_path = path,
+    }
 
 def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCall:
     assert((*tokens)->kind == TokenKind::Name)  # must be checked when calling this function
@@ -117,7 +150,7 @@ def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCal
 
     if not (*tokens)->is_operator(open_paren):
         expected = malloc(100)
-        sprintf(expected, "a '%c' to denote the start of arguments", open_paren)
+        sprintf(expected, "a '%s' to denote the start of arguments", open_paren)
         (*tokens)->fail_expected_got(expected)
     ++*tokens
 
@@ -130,7 +163,7 @@ def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCal
 
     if not (*tokens)->is_operator(close_paren):
         expected = malloc(100)
-        sprintf(expected, "a '%c'", close_paren)
+        sprintf(expected, "a '%s'", close_paren)
         (*tokens)->fail_expected_got(expected)
     ++*tokens
 
@@ -142,6 +175,10 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
     if (*tokens)->kind == TokenKind::Int:
         expr.kind = AstExpressionKind::Int
         expr.int_value = (*tokens)->int_value
+        ++*tokens
+    elif (*tokens)->kind == TokenKind::Long:
+        expr.kind = AstExpressionKind::Long
+        expr.long_value = (*tokens)->long_value
         ++*tokens
     elif (*tokens)->kind == TokenKind::Byte:
         expr.kind = AstExpressionKind::Byte
@@ -159,13 +196,27 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
         expr.kind = AstExpressionKind::Bool
         expr.bool_value = False
         ++*tokens
-    elif (*tokens)->kind == TokenKind::Name and (&(*tokens)[1])->is_operator("("):
-        expr.kind = AstExpressionKind::FunctionCall
-        expr.call = parse_call(tokens, "(", ")")
-    elif (*tokens)->kind == TokenKind::Name:
-        expr.kind = AstExpressionKind::GetVariable
-        expr.varname = (*tokens)->short_string
+    elif (*tokens)->is_keyword("NULL"):
+        expr.kind = AstExpressionKind::Null
         ++*tokens
+    elif (*tokens)->kind == TokenKind::Name:
+        if (*tokens)[1].is_operator("("):
+            expr.kind = AstExpressionKind::FunctionCall
+            expr.call = parse_call(tokens, "(", ")")
+        elif (*tokens)[1].is_operator("::") and (*tokens)[2].kind == TokenKind::Name:
+            expr.kind = AstExpressionKind::GetEnumMember
+            expr.enum_member = malloc(sizeof *expr.enum_member)
+            *expr.enum_member = AstEnumMember{
+                enum_name = (*tokens)->short_string,
+                member_name = (*tokens)[2].short_string,
+            }
+            ++*tokens
+            ++*tokens
+            ++*tokens
+        else:
+            expr.kind = AstExpressionKind::GetVariable
+            expr.varname = (*tokens)->short_string
+            ++*tokens
     elif (*tokens)->is_operator("("):
         ++*tokens
         expr = parse_expression(tokens)
@@ -554,8 +605,12 @@ def parse_body(tokens: Token**) -> AstBody:
     return AstBody{ statements = result, nstatements = n }
 
 def parse_funcdef(tokens: Token**) -> AstFunction:
+    signature = parse_function_signature(tokens)
+    if signature.takes_varargs:
+        fail((*tokens)->location, "functions with variadic arguments cannot be defined yet")
+
     return AstFunction{
-        signature = parse_function_signature(tokens),
+        signature = signature,
         body = parse_body(tokens),
     }
 
@@ -581,13 +636,12 @@ def parse_classdef(tokens: Token**) -> AstClassDef:
     ++*tokens
     return result
 
-def parse_toplevel_node(dest: AstFile*, tokens: Token**, stdlib_path: byte*) -> void:
+def parse_toplevel_node(tokens: Token**, stdlib_path: byte*) -> AstToplevelStatement:
     ts = AstToplevelStatement{location = (*tokens)->location}
 
     if (*tokens)->is_keyword("import"):
         ++*tokens
-        ts.the_import.specified_path = strdup((*tokens)->long_string)
-        ts.the_import.resolved_path = get_actual_import_path(*tokens, stdlib_path)
+        ts.the_import = parse_import_path(*tokens, stdlib_path)
         ++*tokens
         eat_newline(tokens)
 
@@ -620,11 +674,17 @@ def parse_toplevel_node(dest: AstFile*, tokens: Token**, stdlib_path: byte*) -> 
     else:
         (*tokens)->fail_expected_got("a definition or declaration")
 
-    dest->body = realloc(dest->body, sizeof dest->body[0] * (dest->body_len + 1))
-    dest->body[dest->body_len++] = ts
+    return ts
 
 def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
     result = AstFile{path = tokens[0].location.path}
     while tokens->kind != TokenKind::EndOfFile:
-        parse_toplevel_node(&result, &tokens, stdlib_path)
+        result.body = realloc(result.body, sizeof result.body[0] * (result.body_len + 1))
+        result.body[result.body_len++] = parse_toplevel_node(&tokens, stdlib_path)
+
+    # This simplifies the compiler: it's easy to loop through all imports of the file.
+    for p = &result.body[1]; p != &result.body[result.body_len]; p++:
+        if p[-1].kind != AstToplevelStatementKind::Import and p->kind == AstToplevelStatementKind::Import:
+            fail(p->location, "imports must be in the beginning of the file")
+
     return result

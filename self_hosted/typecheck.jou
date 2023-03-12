@@ -241,7 +241,10 @@ def typecheck_function_call(ctx: TypeContext*, call: AstCall*) -> Type*:
 
     signature_string = signature->to_string(False)
 
-    if call->nargs != signature->nargs:
+    if (
+        call->nargs < signature->nargs
+        or (call->nargs > signature->nargs and not signature->takes_varargs)
+    ):
         snprintf(
             &message[0], sizeof message,
             "function %s takes %d argument%s, but it was called with %d argument%s",
@@ -263,6 +266,21 @@ def typecheck_function_call(ctx: TypeContext*, call: AstCall*) -> Type*:
         free(tmp)
         typecheck_expression_with_implicit_cast(ctx, &call->args[i], signature->argtypes[i], &message[0])
 
+    for i = signature->nargs; i < call->nargs; i++:
+        # This code runs for varargs, e.g. the things to format in printf().
+        types = typecheck_expression(ctx, &call->args[i])
+
+        # TODO: do something to arrays
+
+        if (
+            (types->type->is_integer_type() and types->type->size_in_bits < 32)
+            or types->type == &bool_type
+        ):
+            # Add implicit cast to signed int, just like in C.
+            do_implicit_cast(types, int_type, Location{}, NULL)
+
+        # TODO: cast float to double implicitly
+
     free(signature_string)
     return signature->return_type
 
@@ -274,6 +292,8 @@ def typecheck_expression_maybe_void(ctx: TypeContext*, expression: AstExpression
         result = byte_type->get_pointer_type()
     elif expression->kind == AstExpressionKind::Int:
         result = int_type
+    elif expression->kind == AstExpressionKind::Long:
+        result = long_type
     elif expression->kind == AstExpressionKind::FunctionCall:
         result = typecheck_function_call(ctx, &expression->call)
         if result == NULL:
