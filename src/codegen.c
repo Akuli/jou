@@ -79,7 +79,7 @@ static LLVMTypeRef codegen_type(const Type *type)
         return LLVMIntType(type->data.width_in_bits);
     case TYPE_BOOL:
         return LLVMInt1Type();
-    case TYPE_OPAQUE:
+    case TYPE_OPAQUE_CLASS:
         assert(0);
     case TYPE_CLASS:
         {

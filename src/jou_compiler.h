@@ -373,8 +373,8 @@ struct Type {
         TYPE_POINTER,
         TYPE_VOID_POINTER,
         TYPE_ARRAY,
-        TYPE_OPAQUE,  // unknown for now what exactly it is, will become something else later
         TYPE_CLASS,
+        TYPE_OPAQUE_CLASS,  // class with unknown members
         TYPE_ENUM,
     } kind;
     union {
@@ -412,7 +412,7 @@ const Type *get_integer_type(int size_in_bits, bool is_signed);
 const Type *get_pointer_type(const Type *t);  // result lives as long as t
 const Type *get_array_type(const Type *t, int len);  // result lives as long as t
 const Type *type_of_constant(const Constant *c);
-Type *create_opaque_type(const char *name);
+Type *create_opaque_class(const char *name);
 Type *create_enum(const char *name, int membercount, char (*membernames)[100]);
 void free_type(Type *type);
 

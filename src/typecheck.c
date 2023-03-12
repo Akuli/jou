@@ -78,7 +78,7 @@ ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstToplevelNode
         switch(ast->kind) {
         case AST_TOPLEVEL_DEFINE_CLASS:
             safe_strcpy(name, ast->data.classdef.name);
-            t = create_opaque_type(name);
+            t = create_opaque_class(name);
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
             safe_strcpy(name, ast->data.enumdef.name);
@@ -235,7 +235,7 @@ static const Type *handle_class_members_stage2(FileTypes *ft, const AstClassDef 
         }
     }
     assert(type);
-    assert(type->kind == TYPE_OPAQUE);
+    assert(type->kind == TYPE_OPAQUE_CLASS);
     type->kind = TYPE_CLASS;
 
     memset(&type->data.classdata, 0, sizeof type->data.classdata);
@@ -823,7 +823,7 @@ static const Type *typecheck_struct_init(FileTypes *ft, const AstCall *call, Loc
 static const char *very_short_type_description(const Type *t)
 {
     switch(t->kind) {
-        case TYPE_OPAQUE:
+        case TYPE_OPAQUE_CLASS:
             assert(0);
         case TYPE_CLASS:
             return "a class";
