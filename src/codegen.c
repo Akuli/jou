@@ -45,9 +45,13 @@ static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
     for (int i = 0; i < ntypes; i++)
         sizeneeded = max(sizeneeded, size(types[i]));
 
+    // TODO: Figure out why this doesn't actually work, and causes the self-hosted compiler to crash / valgrind badly.
+#if 0
     unsigned count = (sizeneeded + size(chosen) - 1)/size(chosen);  // ceil division
     assert(count > 0);
     return LLVMArrayType(chosen, count);
+#endif
+    return LLVMArrayType(LLVMInt8Type(), sizeneeded);
 }
 
 static LLVMTypeRef codegen_type(const Type *type)

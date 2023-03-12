@@ -23,10 +23,10 @@ class AstType:
     kind: AstTypeKind
     location: Location
 
-    # TODO: union
-    name: byte[100]     # AstTypeKind::Named
-    value_type: AstType* # AstTypeKind::Pointer
-    array: AstArrayType # AstTypeKind::Array
+    union:
+        name: byte[100]     # AstTypeKind::Named
+        value_type: AstType* # AstTypeKind::Pointer
+        array: AstArrayType # AstTypeKind::Array
 
     def is_void(self) -> bool:
         return self->kind == AstTypeKind::Named and strcmp(&self->name[0], "void") == 0
@@ -113,17 +113,17 @@ class AstExpression:
     location: Location
     kind: AstExpressionKind
 
-    # TODO: union
-    enum_member: AstEnumMember*  # TODO: a pointer only because compiling the self-hosted compiler takes forever otherwise
-    string: byte*
-    int_value: int
-    long_value: long
-    byte_value: byte
-    bool_value: bool
-    call: AstCall
-    as_expression: AstAsExpression*  # Must be pointer, because it contains an AstExpression
-    varname: byte[100]
-    operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
+    union:
+        enum_member: AstEnumMember*  # TODO: a pointer only because compiling the self-hosted compiler takes forever otherwise
+        string: byte*
+        int_value: int
+        long_value: long
+        byte_value: byte
+        bool_value: bool
+        call: AstCall
+        as_expression: AstAsExpression*  # Must be pointer, because it contains an AstExpression
+        varname: byte[100]
+        operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
 
     def print(self, tp: TreePrinter) -> void:
         printf("[line %d] ", self->location.lineno)
@@ -321,14 +321,14 @@ class AstStatement:
     location: Location
     kind: AstStatementKind
 
-    # TODO: union
-    expression: AstExpression       # ExpressionStatement, Assert
-    if_statement: AstIfStatement
-    while_loop: AstConditionAndBody
-    for_loop: AstForLoop
-    return_value: AstExpression*     # can be NULL
-    assignment: AstAssignment
-    var_declaration: AstNameTypeValue  # DeclareLocalVar
+    union:
+        expression: AstExpression       # ExpressionStatement, Assert
+        if_statement: AstIfStatement
+        while_loop: AstConditionAndBody
+        for_loop: AstForLoop
+        return_value: AstExpression*     # can be NULL
+        assignment: AstAssignment
+        var_declaration: AstNameTypeValue  # DeclareLocalVar
 
     def print(self, tp: TreePrinter) -> void:
         printf("[line %d] ", self->location.lineno)
@@ -551,11 +551,11 @@ enum AstToplevelStatementKind:
     GlobalVariableDeclaration
 
 class AstToplevelStatement:
-    # TODO: union
-    the_import: AstImport   # must be first
-    function: AstFunction
-    classdef: AstClassDef
-    global_var: AstNameTypeValue
+    union:
+        the_import: AstImport   # must be placed in the beginning of the class
+        function: AstFunction
+        classdef: AstClassDef
+        global_var: AstNameTypeValue
 
     kind: AstToplevelStatementKind
     location: Location
@@ -645,7 +645,7 @@ class AstClassDef:
     nmethods: int
 
     def print(self) -> void:
-        printf("class \"%s\" with %d fields and %d methods:\n", &self->name[0], self->nfields, self->nmethods)
+        printf("class \"%s\" with %d members:\n", &self->name[0], self->nfields + self->nmethods)
         for i = 0; i < self->nfields; i++:
             printf("  field ")
             self->fields[i].print(NULL)
