@@ -418,28 +418,30 @@ void print_ast(const AstToplevelNode *topnodelist)
                 print_ast_body(&t->data.function.body, (struct TreePrinter){0});
                 break;
             case AST_TOPLEVEL_DEFINE_CLASS:
-                printf("Define a class \"%s\" with %d fields and %d methods:\n",
-                    t->data.classdef.name,
-                    t->data.classdef.fields.len,
-                    t->data.classdef.methods.len);
-                for (const AstNameTypeValue *ntv = t->data.classdef.fields.ptr; ntv < End(t->data.classdef.fields); ntv++) {
-                    printf("  field %s: ", ntv->name);
-                    print_ast_type(&ntv->type);
-                    printf("\n");
-                }
-                for (const AstFunction *m = t->data.classdef.methods.ptr; m < End(t->data.classdef.methods); m++) {
-                    printf("  method ");
-                    print_ast_function_signature(&m->signature);
-                    print_ast_body(&m->body, (struct TreePrinter){.prefix="  "});
-                }
-                break;
-            case AST_TOPLEVEL_DEFINE_UNION:
-                printf("Define a union \"%s\" with %d members:\n",
-                    t->data.uniondef.name, t->data.uniondef.members.len);
-                for (const AstNameTypeValue *ntv = t->data.uniondef.members.ptr; ntv < End(t->data.uniondef.members); ntv++) {
-                    printf("  %s: ", ntv->name);
-                    print_ast_type(&ntv->type);
-                    printf("\n");
+                printf(
+                    "Define a class \"%s\" with %d members:\n",
+                    t->data.classdef.name, t->data.classdef.members.len);
+                for (AstClassMember *m = t->data.classdef.members.ptr; m < End(t->data.classdef.members); m++){
+                    switch(m->kind) {
+                    case AST_CLASSMEMBER_FIELD:
+                        printf("  field %s: ", m->data.field.name);
+                        print_ast_type(&m->data.field.type);
+                        printf("\n");
+                        break;
+                    case AST_CLASSMEMBER_UNION:
+                        printf("  union:\n");
+                        for (AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++) {
+                            printf("    %s: ", ntv->name);
+                            print_ast_type(&ntv->type);
+                            printf("\n");
+                        }
+                        break;
+                    case AST_CLASSMEMBER_METHOD:
+                        printf("  method ");
+                        print_ast_function_signature(&m->data.method.signature);
+                        print_ast_body(&m->data.method.body, (struct TreePrinter){.prefix="  "});
+                        break;
+                    }
                 }
                 break;
             case AST_TOPLEVEL_DEFINE_ENUM:

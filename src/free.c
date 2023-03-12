@@ -203,19 +203,22 @@ void free_ast(AstToplevelNode *topnodelist)
             free_name_type_value(&t->data.globalvar);
             break;
         case AST_TOPLEVEL_DEFINE_CLASS:
-            for (const AstNameTypeValue *ntv = t->data.classdef.fields.ptr; ntv < End(t->data.classdef.fields); ntv++)
-                free_name_type_value(ntv);
-            free(t->data.classdef.fields.ptr);
-            for (const AstFunction *m = t->data.classdef.methods.ptr; m < End(t->data.classdef.methods); m++) {
-                free_ast_signature(&m->signature);
-                free_ast_body(&m->body);
+            for (const AstClassMember *m = t->data.classdef.members.ptr; m < End(t->data.classdef.members); m++) {
+                switch(m->kind) {
+                case AST_CLASSMEMBER_FIELD:
+                    free_name_type_value(&m->data.field);
+                    break;
+                case AST_CLASSMEMBER_UNION:
+                    for (AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++)
+                        free_name_type_value(ntv);
+                    free(m->data.unionfields.ptr);
+                    break;
+                case AST_CLASSMEMBER_METHOD:
+                    free_ast_signature(&m->data.method.signature);
+                    free_ast_body(&m->data.method.body);
+                    break;
+                }
             }
-            free(t->data.classdef.methods.ptr);
-            break;
-        case AST_TOPLEVEL_DEFINE_UNION:
-            for (const AstNameTypeValue *ntv = t->data.uniondef.members.ptr; ntv < End(t->data.uniondef.members); ntv++)
-                free_name_type_value(ntv);
-            free(t->data.uniondef.members.ptr);
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
             free(t->data.enumdef.membernames);

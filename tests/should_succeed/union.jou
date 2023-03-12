@@ -1,24 +1,32 @@
 import "stdlib/io.jou"
 
-union Foo:
-    small: int
-    big: long
+class Foo:
+    union:
+        small: int
+        big: long
 
-def show_small(f: Foo) -> void:
-    printf("%d\n", f.small)
+class TaggedFoo:
+    is_big: bool
+    union:
+        small: int
+        big: long
 
-def show_big(f: Foo) -> void:
-    printf("%lld\n", f.big)
+    def print(self) -> void:
+        if self->is_big:
+            printf("Big %lld\n", self->big)
+        else:
+            printf("Small %d\n", self->small)
 
 def main() -> int:
-    f: Foo
+    tf = TaggedFoo{is_big = False, small = 123}
+    tf.print()  # Output: Small 123
+
+    tf.is_big = True
+    tf.big = 123123123123123L
+    tf.print()  # Output: Big 123123123123123
 
     # Union is typically just large enough to hold its biggest element.
+    f: Foo
     printf("max(%lld, %lld) = %lld\n", sizeof f.small, sizeof f.big, sizeof f)  # Output: max(4, 8) = 8
-
-    f.small = 7
-    show_small(f)  # Output: 7
-    f.big = 123123123123123L
-    show_big(f)  # Output: 123123123123123
 
     return 0

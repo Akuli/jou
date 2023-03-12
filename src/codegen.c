@@ -76,27 +76,31 @@ static LLVMTypeRef codegen_type(const Type *type)
     case TYPE_CLASS:
         {
             int n = type->data.classdata.fields.len;
-            LLVMTypeRef *elems = malloc(sizeof(elems[0]) * n);  // NOLINT
+
+            LLVMTypeRef *flat_elems = malloc(sizeof(flat_elems[0]) * n);  // NOLINT
             for (int i = 0; i < n; i++) {
                 // Treat all pointers inside structs as if they were void*.
                 // This allows structs to contain pointers to themselves.
                 if (type->data.classdata.fields.ptr[i].type->kind == TYPE_POINTER)
-                    elems[i] = codegen_type(voidPtrType);
+                    flat_elems[i] = codegen_type(voidPtrType);
                 else
-                    elems[i] = codegen_type(type->data.classdata.fields.ptr[i].type);
+                    flat_elems[i] = codegen_type(type->data.classdata.fields.ptr[i].type);
             }
-            LLVMTypeRef result = LLVMStructType(elems, n, false);
-            free(elems);
-            return result;
-        }
-    case TYPE_UNION:
-        {
-            int n = type->data.unionmembers.len;
-            LLVMTypeRef *elems = malloc(sizeof(elems[0]) * n);  // NOLINT
-            for (int i = 0; i < n; i++)
-                elems[i] = codegen_type(type->data.classdata.fields.ptr[i].type);
-            LLVMTypeRef result = codegen_union_type(elems, n);
-            free(elems);
+
+            // Combine together fields of the same union.
+            LLVMTypeRef *combined = malloc(sizeof(combined[0]) * n);  // NOLINT
+            int combinedlen = 0;
+            int start, end;
+            for (start=0; start<n; start=end) {
+                end = start+1;
+                while (end < n && type->data.classdata.fields.ptr[start].union_id == type->data.classdata.fields.ptr[end].union_id)
+                    end++;
+                combined[combinedlen++] = codegen_union_type(&flat_elems[start], end-start);
+            }
+
+            LLVMTypeRef result = LLVMStructType(combined, combinedlen, false);
+            free(flat_elems);
+            free(combined);
             return result;
         }
     case TYPE_ENUM:
@@ -332,18 +336,15 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CF_PTR_CLASS_FIELD:
             {
                 const Type *classtype = ins->operands[0]->type->data.valuetype;
-                const struct Field *f = classtype->data.classdata.fields.ptr;
-                int i = 0;
-                while (strcmp(f->name, ins->data.fieldname)) {
+                const struct ClassField *f = classtype->data.classdata.fields.ptr;
+                while (strcmp(f->name, ins->data.fieldname))
                     f++;
-                    i++;
-                }
 
-                LLVMValueRef val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), i, ins->data.fieldname);
-                if (f->type->kind == TYPE_POINTER) {
-                    // We lied to LLVM that the struct member is i8*, so that we can do self-referencing types
-                    val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(f->type),0), "struct_member_i8_hack");
-                }
+                LLVMValueRef val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), f->union_id, ins->data.fieldname);
+                // This cast is needed in two cases:
+                //  * All pointers are codegenned as i8* so we can do self-referencing classes.
+                //  * It is how union types work.
+                val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(f->type),0), "struct_member_cast");
                 setdest(val);
             }
             break;

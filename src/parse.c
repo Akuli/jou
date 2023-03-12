@@ -212,7 +212,7 @@ static AstCall parse_call(const Token **tokens, char openparen, char closeparen,
 
     while (!is_operator(*tokens, (char[]){closeparen,'\0'})) {
         if (args_are_named) {
-            // This code is only for structs, because there are no named function arguments.
+            // This code is only for classes, because there are no named function arguments.
 
             if ((*tokens)->type != TOKEN_NAME)
                 fail_with_parse_error((*tokens),"a field name");
@@ -220,7 +220,7 @@ static AstCall parse_call(const Token **tokens, char openparen, char closeparen,
             for (struct Name *oldname = argnames.ptr; oldname < End(argnames); oldname++) {
                 if (!strcmp(oldname->name, (*tokens)->data.name)) {
                     fail_with_error(
-                        (*tokens)->location, "there are two arguments named '%s'", oldname->name);
+                        (*tokens)->location, "multiple values were given for field '%s'", oldname->name);
                 }
             }
 
@@ -810,6 +810,32 @@ static AstFunction parse_funcdef(const Token **tokens, bool is_method)
     return funcdef;
 }
 
+static void check_class_for_duplicate_names(const AstClassDef *classdef)
+{
+    List(struct MemberInfo { const char *name; const char *kindstr; Location location; }) infos = {0};
+    for (AstClassMember *m = classdef->members.ptr; m < End(classdef->members); m++) {
+        switch(m->kind) {
+        case AST_CLASSMEMBER_FIELD:
+            Append(&infos, (struct MemberInfo){m->data.field.name, "a field", m->data.field.name_location});
+            break;
+        case AST_CLASSMEMBER_UNION:
+            for (AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++)
+                Append(&infos, (struct MemberInfo){ntv->name, "a union member", ntv->name_location});
+            break;
+        case AST_CLASSMEMBER_METHOD:
+            Append(&infos, (struct MemberInfo){m->data.method.signature.name, "a method", m->data.method.signature.name_location});
+            break;
+        }
+    }
+
+    for (struct MemberInfo *p1 = infos.ptr; p1 < End(infos); p1++)
+        for (struct MemberInfo *p2 = p1+1; p2 < End(infos); p2++)
+            if (!strcmp(p1->name, p2->name))
+                fail_with_error(p2->location, "class %s already has %s named '%s'", classdef->name, p1->kindstr, p1->name);
+
+    free(infos.ptr);
+}
+
 static AstClassDef parse_classdef(const Token **tokens)
 {
     AstClassDef result = {0};
@@ -821,47 +847,37 @@ static AstClassDef parse_classdef(const Token **tokens)
     parse_start_of_body(tokens);
     while ((*tokens)->type != TOKEN_DEDENT) {
         if (is_keyword(*tokens, "def")) {
-            Append(&result.methods, parse_funcdef(tokens, true));
+            Append(&result.members, (AstClassMember){
+                .kind = AST_CLASSMEMBER_METHOD,
+                .data.method = parse_funcdef(tokens, true),
+            });
+        } else if (is_keyword(*tokens, "union")) {
+            ++*tokens;
+            parse_start_of_body(tokens);
+            AstClassMember umember = { .kind = AST_CLASSMEMBER_UNION };
+            while ((*tokens)->type != TOKEN_DEDENT) {
+                AstNameTypeValue field = parse_name_type_value(tokens, "a union member");
+                if (field.value)
+                    fail_with_error(field.value->location, "union members cannot have default values");
+                Append(&umember.data.unionfields, field);
+                eat_newline(tokens);
+            }
+            ++*tokens;
+            Append(&result.members, umember);
         } else {
-            AstNameTypeValue field = parse_name_type_value(tokens, "a method or a class field");
-
+            AstNameTypeValue field = parse_name_type_value(tokens, "a method, a field or a union");
             if (field.value)
                 fail_with_error(field.value->location, "class fields cannot have default values");
-
-            for (const AstNameTypeValue *prevfield = result.fields.ptr; prevfield < End(result.fields); prevfield++)
-                if (!strcmp(prevfield->name, field.name))
-                    fail_with_error(field.name_location, "there are multiple fields named '%s'", field.name);
-            Append(&result.fields, field);
+            Append(&result.members, (AstClassMember){
+                .kind = AST_CLASSMEMBER_FIELD,
+                .data.field = field,
+            });
             eat_newline(tokens);
         }
     }
-
-    ++*tokens;
-    return result;
-}
-
-static AstUnionDef parse_uniondef(const Token **tokens)
-{
-    AstUnionDef result = {0};
-    if ((*tokens)->type != TOKEN_NAME)
-        fail_with_parse_error(*tokens, "a name for the union");
-    safe_strcpy(result.name, (*tokens)->data.name);
     ++*tokens;
 
-    parse_start_of_body(tokens);
-    while ((*tokens)->type != TOKEN_DEDENT) {
-        AstNameTypeValue members = parse_name_type_value(tokens, "a union member");
-        if (members.value)
-            fail_with_error(members.value->location, "union members cannot have default values");
-
-        for (const AstNameTypeValue *prevfield = result.members.ptr; prevfield < End(result.members); prevfield++)
-            if (!strcmp(prevfield->name, members.name))
-                fail_with_error(members.name_location, "there are multiple union members named '%s'", members.name);
-        Append(&result.members, members);
-        eat_newline(tokens);
-    }
-
-    ++*tokens;
+    check_class_for_duplicate_names(&result);
     return result;
 }
 
@@ -978,10 +994,6 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens, const char *std
         ++*tokens;
         result.kind = AST_TOPLEVEL_DEFINE_CLASS;
         result.data.classdef = parse_classdef(tokens);
-    } else if (is_keyword(*tokens, "union")) {
-        ++*tokens;
-        result.kind = AST_TOPLEVEL_DEFINE_UNION;
-        result.data.uniondef = parse_uniondef(tokens);
     } else if (is_keyword(*tokens, "enum")) {
         ++*tokens;
         result.kind = AST_TOPLEVEL_DEFINE_ENUM;

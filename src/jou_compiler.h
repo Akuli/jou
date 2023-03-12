@@ -29,8 +29,8 @@ typedef struct AstIfStatement AstIfStatement;
 typedef struct AstStatement AstStatement;
 typedef struct AstToplevelNode AstToplevelNode;
 typedef struct AstFunction AstFunction;
+typedef struct AstClassMember AstClassMember;
 typedef struct AstClassDef AstClassDef;
-typedef struct AstUnionDef AstUnionDef;
 typedef struct AstEnumDef AstEnumDef;
 typedef struct AstImport AstImport;
 
@@ -302,15 +302,18 @@ struct AstFunction {
     AstBody body;  // empty body means declaration, otherwise it's definition
 };
 
-struct AstClassDef {
-    char name[100];
-    List(AstNameTypeValue) fields;
-    List(AstFunction) methods;
+struct AstClassMember {
+    enum AstClassMemberKind { AST_CLASSMEMBER_FIELD, AST_CLASSMEMBER_UNION, AST_CLASSMEMBER_METHOD } kind;
+    union {
+        AstNameTypeValue field;
+        List(AstNameTypeValue) unionfields;
+        AstFunction method;
+    } data;
 };
 
-struct AstUnionDef {
+struct AstClassDef {
     char name[100];
-    List(AstNameTypeValue) members;  // values are unused
+    List(AstClassMember) members;
 };
 
 struct AstEnumDef {
@@ -334,7 +337,6 @@ struct AstToplevelNode {
         AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE,
         AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE,
         AST_TOPLEVEL_DEFINE_CLASS,
-        AST_TOPLEVEL_DEFINE_UNION,
         AST_TOPLEVEL_DEFINE_ENUM,
         AST_TOPLEVEL_IMPORT,
     } kind;
@@ -342,15 +344,22 @@ struct AstToplevelNode {
         AstNameTypeValue globalvar;
         AstFunction function;
         AstClassDef classdef;
-        AstUnionDef uniondef;
         AstEnumDef enumdef;
         AstImport import;
     } data;
 };
 
-
+struct ClassField {
+    char name[100];
+    const Type *type;
+    /*
+    If multiple fields have the same union_id, they belong to the same union.
+    It means that only one of the fields can be used at a time.
+    */
+    int union_id;
+};
 struct ClassData {
-    List(struct Field { char name[100]; const Type *type; }) fields;
+    List(struct ClassField) fields;
     List(Signature) methods;
 };
 
@@ -364,10 +373,9 @@ struct Type {
         TYPE_POINTER,
         TYPE_VOID_POINTER,
         TYPE_ARRAY,
-        TYPE_CLASS,
-        TYPE_UNION,
-        TYPE_ENUM,
         TYPE_OPAQUE,  // unknown for now what exactly it is, will become something else later
+        TYPE_CLASS,
+        TYPE_ENUM,
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_FLOATING_POINT
@@ -375,7 +383,6 @@ struct Type {
         struct ClassData classdata;  // TYPE_CLASS
         struct { const Type *membertype; int len; } array;  // TYPE_ARRAY
         struct { int count; char (*names)[100]; } enummembers;
-        List(struct Field) unionmembers;
     } data;
 };
 

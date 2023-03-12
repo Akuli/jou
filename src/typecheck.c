@@ -80,10 +80,6 @@ ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstToplevelNode
             safe_strcpy(name, ast->data.classdef.name);
             t = create_opaque_type(name);
             break;
-        case AST_TOPLEVEL_DEFINE_UNION:
-            safe_strcpy(name, ast->data.classdef.name);
-            t = create_opaque_type(name);
-            break;
         case AST_TOPLEVEL_DEFINE_ENUM:
             safe_strcpy(name, ast->data.enumdef.name);
             t = create_enum(name, ast->data.enumdef.nmembers, ast->data.enumdef.membernames);
@@ -244,41 +240,40 @@ static const Type *handle_class_members_stage2(FileTypes *ft, const AstClassDef 
 
     memset(&type->data.classdata, 0, sizeof type->data.classdata);
 
-    for (const AstNameTypeValue *classfield = classdef->fields.ptr; classfield < End(classdef->fields); classfield++) {
-        struct Field f = {.type = type_from_ast(ft, &classfield->type)};
-        safe_strcpy(f.name, classfield->name);
-        Append(&type->data.classdata.fields, f);
-    }
-
-    for (const AstFunction *m = classdef->methods.ptr; m < End(classdef->methods); m++) {
-        // Don't handle the method body yet: that is a part of stage 3, not stage 2
-        Signature sig = handle_signature(ft, &m->signature, type);
-        Append(&type->data.classdata.methods, sig);
-    }
-
-    return type;
-}
-
-static const Type *handle_union_members_stage2(FileTypes *ft, const AstUnionDef *uniondef)
-{
-    // Previous type-checking stage created an opaque struct.
-    Type *type = NULL;
-    for (Type **s = ft->owned_types.ptr; s < End(ft->owned_types); s++) {
-        if (!strcmp((*s)->name, uniondef->name)) {
-            type = *s;
-            break;
+    int union_id = 0;
+    for (const AstClassMember *m = classdef->members.ptr; m < End(classdef->members); m++) {
+        switch(m->kind) {
+            case AST_CLASSMEMBER_FIELD:
+            {
+                struct ClassField f = {
+                    .type = type_from_ast(ft, &m->data.field.type),
+                    .union_id = union_id++,
+                };
+                safe_strcpy(f.name, m->data.field.name);
+                Append(&type->data.classdata.fields, f);
+                break;
+            }
+            case AST_CLASSMEMBER_UNION:
+            {
+                int uid = union_id++;
+                for (struct AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++) {
+                    struct ClassField f = {
+                        .type = type_from_ast(ft, &ntv->type),
+                        .union_id = uid,
+                    };
+                    safe_strcpy(f.name, ntv->name);
+                    Append(&type->data.classdata.fields, f);
+                }
+                break;
+            }
+            case AST_CLASSMEMBER_METHOD:
+            {
+                // Don't handle the method body yet: that is a part of stage 3, not stage 2
+                Signature sig = handle_signature(ft, &m->data.method.signature, type);
+                Append(&type->data.classdata.methods, sig);
+                break;
+            }
         }
-    }
-    assert(type);
-    assert(type->kind == TYPE_OPAQUE);
-    type->kind = TYPE_UNION;
-
-    memset(&type->data.classdata, 0, sizeof type->data.classdata);
-
-    for (const AstNameTypeValue *m = uniondef->members.ptr; m < End(uniondef->members); m++) {
-        struct Field f = {.type = type_from_ast(ft, &m->type)};
-        safe_strcpy(f.name, m->name);
-        Append(&type->data.unionmembers, f);
     }
 
     return type;
@@ -306,9 +301,6 @@ ExportSymbol *typecheck_stage2_signatures_globals_structbodies(FileTypes *ft, co
             break;
         case AST_TOPLEVEL_DEFINE_CLASS:
             handle_class_members_stage2(ft, &ast->data.classdef);
-            break;
-        case AST_TOPLEVEL_DEFINE_UNION:
-            handle_union_members_stage2(ft, &ast->data.uniondef);
             break;
         case AST_TOPLEVEL_DEFINE_ENUM:
         case AST_TOPLEVEL_IMPORT:
@@ -780,23 +772,14 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
     return sig->returntype;
 }
 
-static const Type *typecheck_field(
+static const struct ClassField *typecheck_class_field(
     const Type *type, const char *fieldname, Location location)
 {
-    switch(type->kind) {
-    case TYPE_CLASS:
-        for (struct Field *f = type->data.classdata.fields.ptr; f < End(type->data.classdata.fields); f++)
-            if (!strcmp(f->name, fieldname))
-                return f->type;
-        fail_with_error(location, "class %s has no field named '%s'", type->name, fieldname);
-    case TYPE_UNION:
-        for (struct Field *f = type->data.unionmembers.ptr; f < End(type->data.unionmembers); f++)
-            if (!strcmp(f->name, fieldname))
-                return f->type;
-        fail_with_error(location, "union %s has no member named '%s'", type->name, fieldname);
-    default:
-        assert(0);
-    }
+    assert(type->kind == TYPE_CLASS);
+    for (struct ClassField *f = type->data.classdata.fields.ptr; f < End(type->data.classdata.fields); f++)
+        if (!strcmp(f->name, fieldname))
+            return f;
+    fail_with_error(location, "class %s has no field named '%s'", type->name, fieldname);
 }
 
 static const Type *typecheck_struct_init(FileTypes *ft, const AstCall *call, Location location)
@@ -805,21 +788,33 @@ static const Type *typecheck_struct_init(FileTypes *ft, const AstCall *call, Loc
     safe_strcpy(tmp.data.name, call->calledname);
     const Type *t = type_from_ast(ft, &tmp);
 
-    if (t->kind != TYPE_CLASS && t->kind != TYPE_UNION) {
+    if (t->kind != TYPE_CLASS) {
         fail_with_error(location,
-            "the %s{...} syntax is only for classes and unions, not for type %s",
+            "the %s{...} syntax is only for classes, not for type %s",
             t->name, t->name);
     }
-    if (t->kind == TYPE_UNION && call->nargs > 1)
-        fail_with_error(location, "only one member can be given when instantiating a union");
+
+    const struct ClassField ** specified_fields = malloc(sizeof(specified_fields[0]) * call->nargs);  // NOLINT
 
     for (int i = 0; i < call->nargs; i++) {
-        const Type *fieldtype = typecheck_field(t, call->argnames[i], call->args[i].location);
+        const struct ClassField *f = typecheck_class_field(t, call->argnames[i], call->args[i].location);
         char msg[1000];
         snprintf(msg, sizeof msg,
             "value for field '%s' of class %s must be of type TO, not FROM",
             call->argnames[i], call->calledname);
-        typecheck_expression_with_implicit_cast(ft, &call->args[i], fieldtype, msg);
+        typecheck_expression_with_implicit_cast(ft, &call->args[i], f->type, msg);
+        specified_fields[i] = f;
+    }
+
+    for (int i1 = 0; i1 < call->nargs; i1++) {
+        for (int i2 = i1+1; i2 < call->nargs; i2++) {
+            if (specified_fields[i1]->union_id == specified_fields[i2]->union_id) {
+                fail_with_error(
+                    call->args[i2].location,
+                    "fields '%s' and '%s' cannot be set simultaneously because they belong to the same union",
+                    specified_fields[i1]->name, specified_fields[i2]->name);
+            }
+        }
     }
 
     return t;
@@ -832,8 +827,6 @@ static const char *very_short_type_description(const Type *t)
             assert(0);
         case TYPE_CLASS:
             return "a class";
-        case TYPE_UNION:
-            return "a union";
         case TYPE_ENUM:
             return "an enum";
         case TYPE_VOID_POINTER:
@@ -953,21 +946,21 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         break;
     case AST_EXPR_GET_FIELD:
         temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
-        if (temptype->kind != TYPE_CLASS && temptype->kind != TYPE_UNION)
+        if (temptype->kind != TYPE_CLASS)
             fail_with_error(
                 expr->location,
-                "left side of the '.' operator must be a class or union instance, not %s",
+                "left side of the '.' operator must be a class instance, not %s",
                 temptype->name);
-        result = typecheck_field(temptype, expr->data.classfield.fieldname, expr->location);
+        result = typecheck_class_field(temptype, expr->data.classfield.fieldname, expr->location)->type;
         break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
         temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
-        if (temptype->kind != TYPE_POINTER || (temptype->data.valuetype->kind != TYPE_CLASS && temptype->data.valuetype->kind != TYPE_UNION))
+        if (temptype->kind != TYPE_POINTER || temptype->data.valuetype->kind != TYPE_CLASS)
             fail_with_error(
                 expr->location,
-                "left side of the '->' operator must be a pointer to a class or union, not %s",
+                "left side of the '->' operator must be a pointer to a class, not %s",
                 temptype->name);
-        result = typecheck_field(temptype->data.valuetype, expr->data.classfield.fieldname, expr->location);
+        result = typecheck_class_field(temptype->data.valuetype, expr->data.classfield.fieldname, expr->location)->type;
         break;
     case AST_EXPR_DEREF_AND_CALL_METHOD:
         temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
@@ -1275,16 +1268,20 @@ void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstTopleve
             }
             assert(classtype);
 
-            for (AstFunction *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
+            for (AstClassMember *m = ast->data.classdef.members.ptr; m < End(ast->data.classdef.members); m++) {
+                if (m->kind != AST_CLASSMEMBER_METHOD)
+                    continue;
+                const AstFunction *method = &m->data.method;
+
                 Signature *sig = NULL;
                 for (Signature *s = classtype->data.classdata.methods.ptr; s < End(classtype->data.classdata.methods); s++) {
-                    if (!strcmp(s->name, m->signature.name)) {
+                    if (!strcmp(s->name, method->signature.name)) {
                         sig = s;
                         break;
                     }
                 }
                 assert(sig);
-                typecheck_function_or_method_body(ft, sig, &m->body);
+                typecheck_function_or_method_body(ft, sig, &method->body);
             }
         }
     }

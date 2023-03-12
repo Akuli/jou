@@ -197,29 +197,20 @@ static const LocalVariable *build_binop(
     return negated;
 }
 
-static const LocalVariable *build_field_pointer(
+static const LocalVariable *build_class_field_pointer(
     struct State *st, const LocalVariable *instance, const char *fieldname, Location location)
 {
     assert(instance->type->kind == TYPE_POINTER);
-    const Type *t = instance->type->data.valuetype;
-    assert(t->kind == TYPE_CLASS || t->kind == TYPE_UNION);
+    assert(instance->type->data.valuetype->kind == TYPE_CLASS);
+    const Type *classtype = instance->type->data.valuetype;
 
-    for (struct Field *f = t->data.classdata.fields.ptr; f < End(t->data.classdata.fields); f++) {
+    for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++) {
         if (!strcmp(f->name, fieldname)) {
             union CfInstructionData dat;
             safe_strcpy(dat.fieldname, f->name);
 
             LocalVariable* result = add_local_var(st, get_pointer_type(f->type));
-            switch(t->kind) {
-            case TYPE_CLASS:
-                add_instruction(st, location, CF_PTR_CLASS_FIELD, &dat, (const LocalVariable*[]){instance,NULL}, result);
-                break;
-            case TYPE_UNION:
-                add_unary_op(st, location, CF_PTR_CAST, instance, result);
-                break;
-            default:
-                assert(0);
-            }
+            add_instruction(st, location, CF_PTR_CLASS_FIELD, &dat, (const LocalVariable*[]){instance,NULL}, result);
             return result;
         }
     }
@@ -227,14 +218,12 @@ static const LocalVariable *build_field_pointer(
     assert(0);
 }
 
-static const LocalVariable *build_field(
+static const LocalVariable *build_class_field(
     struct State *st, const LocalVariable *instance, const char *fieldname, Location location)
 {
-    assert(instance->type->kind == TYPE_CLASS || instance->type->kind == TYPE_UNION);
-
     const LocalVariable *ptr = add_local_var(st, get_pointer_type(instance->type));
     add_unary_op(st, location, CF_ADDRESS_OF_LOCAL_VAR, instance, ptr);
-    const LocalVariable *field_ptr = build_field_pointer(st, ptr, fieldname, location);
+    const LocalVariable *field_ptr = build_class_field_pointer(st, ptr, fieldname, location);
     const LocalVariable *field = add_local_var(st, field_ptr->type->data.valuetype);
     add_unary_op(st, location, CF_PTR_LOAD, field_ptr, field);
     return field;
@@ -373,14 +362,14 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
         const LocalVariable *obj = build_expression(st, address_of_what->data.classfield.obj);
         assert(obj->type->kind == TYPE_POINTER);
         assert(obj->type->data.valuetype->kind == TYPE_CLASS);
-        return build_field_pointer(st, obj, address_of_what->data.classfield.fieldname, address_of_what->location);
+        return build_class_field_pointer(st, obj, address_of_what->data.classfield.fieldname, address_of_what->location);
     }
     case AST_EXPR_GET_FIELD:
     {
         // &obj.field aka &(obj.field), evaluate as &(&obj)->field
         const LocalVariable *obj = build_address_of_expression(st, address_of_what->data.classfield.obj);
         assert(obj->type->kind == TYPE_POINTER);
-        return build_field_pointer(st, obj, address_of_what->data.classfield.fieldname, address_of_what->location);
+        return build_class_field_pointer(st, obj, address_of_what->data.classfield.fieldname, address_of_what->location);
     }
     case AST_EXPR_INDEXING:
     {
@@ -486,7 +475,7 @@ static const LocalVariable *build_struct_init(struct State *st, const Type *type
     add_unary_op(st, location, CF_PTR_MEMSET_TO_ZERO, instanceptr, NULL);
 
     for (int i = 0; i < call->nargs; i++) {
-        const LocalVariable *fieldptr = build_field_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
+        const LocalVariable *fieldptr = build_class_field_pointer(st, instanceptr, call->argnames[i], call->args[i].location);
         const LocalVariable *fieldval = build_expression(st, &call->args[i]);
         add_binary_op(st, location, CF_PTR_STORE, fieldptr, fieldval, NULL);
     }
@@ -562,7 +551,7 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
         break;
     case AST_EXPR_GET_FIELD:
         temp = build_expression(st, expr->data.classfield.obj);
-        result = build_field(st, temp, expr->data.classfield.fieldname, expr->location);
+        result = build_class_field(st, temp, expr->data.classfield.fieldname, expr->location);
         break;
     case AST_EXPR_GET_ENUM_MEMBER:
         result = add_local_var(st, types->type);
@@ -1011,9 +1000,11 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *filetypes
             }
             assert(classtype);
 
-            for (AstFunction *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
-                CfGraph *g = build_function_or_method(&st, classtype, m->signature.name, &m->body);
-                Append(&result.graphs, g);
+            for (AstClassMember *m = ast->data.classdef.members.ptr; m < End(ast->data.classdef.members); m++) {
+                if (m->kind == AST_CLASSMEMBER_METHOD) {
+                    CfGraph *g = build_function_or_method(&st, classtype, m->data.method.signature.name, &m->data.method.body);
+                    Append(&result.graphs, g);
+                }
             }
         }
         ast++;
