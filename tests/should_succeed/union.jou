@@ -1,0 +1,24 @@
+import "stdlib/io.jou"
+
+union Foo:
+    small: int
+    big: long
+
+def show_small(f: Foo) -> void:
+    printf("%d\n", f.small)
+
+def show_big(f: Foo) -> void:
+    printf("%lld\n", f.big)
+
+def main() -> int:
+    f: Foo
+
+    # Union is typically just large enough to hold its biggest element.
+    printf("max(%lld, %lld) = %lld\n", sizeof f.small, sizeof f.big, sizeof f)  # Output: max(4, 8) = 8
+
+    f.small = 7
+    show_small(f)  # Output: 7
+    f.big = 123123123123123L
+    show_big(f)  # Output: 123123123123123
+
+    return 0

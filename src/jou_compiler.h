@@ -30,6 +30,7 @@ typedef struct AstStatement AstStatement;
 typedef struct AstToplevelNode AstToplevelNode;
 typedef struct AstFunction AstFunction;
 typedef struct AstClassDef AstClassDef;
+typedef struct AstUnionDef AstUnionDef;
 typedef struct AstEnumDef AstEnumDef;
 typedef struct AstImport AstImport;
 
@@ -307,6 +308,11 @@ struct AstClassDef {
     List(AstFunction) methods;
 };
 
+struct AstUnionDef {
+    char name[100];
+    List(AstNameTypeValue) members;  // values are unused
+};
+
 struct AstEnumDef {
     char name[100];
     char (*membernames)[100];
@@ -328,21 +334,23 @@ struct AstToplevelNode {
         AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE,
         AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE,
         AST_TOPLEVEL_DEFINE_CLASS,
+        AST_TOPLEVEL_DEFINE_UNION,
         AST_TOPLEVEL_DEFINE_ENUM,
         AST_TOPLEVEL_IMPORT,
     } kind;
     union {
-        AstNameTypeValue globalvar;  // AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE
+        AstNameTypeValue globalvar;
         AstFunction function;
-        AstClassDef classdef;  // AST_TOPLEVEL_DEFINE_CLASS
-        AstEnumDef enumdef;     // AST_TOPLEVEL_DEFINE_ENUM
-        AstImport import;       // AST_TOPLEVEL_IMPORT
+        AstClassDef classdef;
+        AstUnionDef uniondef;
+        AstEnumDef enumdef;
+        AstImport import;
     } data;
 };
 
 
 struct ClassData {
-    List(struct ClassField { char name[100]; const Type *type; }) fields;
+    List(struct Field { char name[100]; const Type *type; }) fields;
     List(Signature) methods;
 };
 
@@ -357,8 +365,9 @@ struct Type {
         TYPE_VOID_POINTER,
         TYPE_ARRAY,
         TYPE_CLASS,
-        TYPE_OPAQUE_CLASS,  // struct with unknown members
+        TYPE_UNION,
         TYPE_ENUM,
+        TYPE_OPAQUE,  // unknown for now what exactly it is, will become something else later
     } kind;
     union {
         int width_in_bits;  // TYPE_SIGNED_INTEGER, TYPE_UNSIGNED_INTEGER, TYPE_FLOATING_POINT
@@ -366,6 +375,7 @@ struct Type {
         struct ClassData classdata;  // TYPE_CLASS
         struct { const Type *membertype; int len; } array;  // TYPE_ARRAY
         struct { int count; char (*names)[100]; } enummembers;
+        List(struct Field) unionmembers;
     } data;
 };
 
@@ -395,7 +405,7 @@ const Type *get_integer_type(int size_in_bits, bool is_signed);
 const Type *get_pointer_type(const Type *t);  // result lives as long as t
 const Type *get_array_type(const Type *t, int len);  // result lives as long as t
 const Type *type_of_constant(const Constant *c);
-Type *create_opaque_struct(const char *name);
+Type *create_opaque_type(const char *name);
 Type *create_enum(const char *name, int membercount, char (*membernames)[100]);
 void free_type(Type *type);
 

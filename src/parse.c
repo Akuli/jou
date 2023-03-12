@@ -840,6 +840,31 @@ static AstClassDef parse_classdef(const Token **tokens)
     return result;
 }
 
+static AstUnionDef parse_uniondef(const Token **tokens)
+{
+    AstUnionDef result = {0};
+    if ((*tokens)->type != TOKEN_NAME)
+        fail_with_parse_error(*tokens, "a name for the union");
+    safe_strcpy(result.name, (*tokens)->data.name);
+    ++*tokens;
+
+    parse_start_of_body(tokens);
+    while ((*tokens)->type != TOKEN_DEDENT) {
+        AstNameTypeValue members = parse_name_type_value(tokens, "a union member");
+        if (members.value)
+            fail_with_error(members.value->location, "union members cannot have default values");
+
+        for (const AstNameTypeValue *prevfield = result.members.ptr; prevfield < End(result.members); prevfield++)
+            if (!strcmp(prevfield->name, members.name))
+                fail_with_error(members.name_location, "there are multiple union members named '%s'", members.name);
+        Append(&result.members, members);
+        eat_newline(tokens);
+    }
+
+    ++*tokens;
+    return result;
+}
+
 static AstEnumDef parse_enumdef(const Token **tokens)
 {
     AstEnumDef result = {0};
@@ -953,6 +978,10 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens, const char *std
         ++*tokens;
         result.kind = AST_TOPLEVEL_DEFINE_CLASS;
         result.data.classdef = parse_classdef(tokens);
+    } else if (is_keyword(*tokens, "union")) {
+        ++*tokens;
+        result.kind = AST_TOPLEVEL_DEFINE_UNION;
+        result.data.uniondef = parse_uniondef(tokens);
     } else if (is_keyword(*tokens, "enum")) {
         ++*tokens;
         result.kind = AST_TOPLEVEL_DEFINE_ENUM;

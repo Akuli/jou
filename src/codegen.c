@@ -1,12 +1,18 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <llvm-c/Core.h>
 #include <llvm-c/Types.h>
 #include "jou_compiler.h"
 #include "util.h"
+
+static unsigned long long sizeof_llvm_type(LLVMTypeRef t)
+{
+    return LLVMStoreSizeOfType(get_target()->target_data_ref, t);
+}
 
 static LLVMTypeRef codegen_type(const Type *type)
 {
@@ -29,7 +35,7 @@ static LLVMTypeRef codegen_type(const Type *type)
         return LLVMIntType(type->data.width_in_bits);
     case TYPE_BOOL:
         return LLVMInt1Type();
-    case TYPE_OPAQUE_CLASS:
+    case TYPE_OPAQUE:
         assert(0);
     case TYPE_CLASS:
         {
@@ -46,6 +52,18 @@ static LLVMTypeRef codegen_type(const Type *type)
             LLVMTypeRef result = LLVMStructType(elems, n, false);
             free(elems);
             return result;
+        }
+    case TYPE_UNION:
+        {
+            unsigned long long maxsize = 0;
+            for (struct Field *m = type->data.unionmembers.ptr; m < End(type->data.unionmembers); m++) {
+                unsigned long long size = sizeof_llvm_type(codegen_type(m->type));
+                if (size > maxsize)
+                    maxsize = size;
+            }
+
+            assert(maxsize <= UINT_MAX);
+            return LLVMArrayType(LLVMInt8Type(), (unsigned int)maxsize);
         }
     case TYPE_ENUM:
         return LLVMInt32Type();
@@ -265,7 +283,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             }
             break;
         case CF_CONSTANT: setdest(codegen_constant(st, &ins->data.constant)); break;
-        case CF_SIZEOF: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
+        case CF_SIZEOF: setdest(LLVMConstInt(LLVMInt64Type(), LLVMStoreSizeOfType(get_target()->target_data_ref, codegen_type(ins->data.type)), false)); break;
         case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
         case CF_PTR_LOAD: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
@@ -280,7 +298,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CF_PTR_CLASS_FIELD:
             {
                 const Type *classtype = ins->operands[0]->type->data.valuetype;
-                const struct ClassField *f = classtype->data.classdata.fields.ptr;
+                const struct Field *f = classtype->data.classdata.fields.ptr;
                 int i = 0;
                 while (strcmp(f->name, ins->data.fieldname)) {
                     f++;

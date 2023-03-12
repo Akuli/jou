@@ -219,7 +219,7 @@ static bool is_keyword(const char *s)
         //   - the Jou compiler written in C
         //   - self-hosted compiler
         //   - syntax documentation
-        "import", "def", "declare", "class", "enum", "global",
+        "import", "def", "declare", "class", "union", "enum", "global",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL", "self",
         "and", "or", "not", "as", "sizeof", "assert",

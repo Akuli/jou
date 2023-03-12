@@ -212,6 +212,11 @@ void free_ast(AstToplevelNode *topnodelist)
             }
             free(t->data.classdef.methods.ptr);
             break;
+        case AST_TOPLEVEL_DEFINE_UNION:
+            for (const AstNameTypeValue *ntv = t->data.uniondef.members.ptr; ntv < End(t->data.uniondef.members); ntv++)
+                free_name_type_value(ntv);
+            free(t->data.uniondef.members.ptr);
+            break;
         case AST_TOPLEVEL_DEFINE_ENUM:
             free(t->data.enumdef.membernames);
             break;

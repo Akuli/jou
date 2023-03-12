@@ -433,6 +433,15 @@ void print_ast(const AstToplevelNode *topnodelist)
                     print_ast_body(&m->body, (struct TreePrinter){.prefix="  "});
                 }
                 break;
+            case AST_TOPLEVEL_DEFINE_UNION:
+                printf("Define a union \"%s\" with %d members:\n",
+                    t->data.uniondef.name, t->data.uniondef.members.len);
+                for (const AstNameTypeValue *ntv = t->data.uniondef.members.ptr; ntv < End(t->data.uniondef.members); ntv++) {
+                    printf("  %s: ", ntv->name);
+                    print_ast_type(&ntv->type);
+                    printf("\n");
+                }
+                break;
             case AST_TOPLEVEL_DEFINE_ENUM:
                 printf("Define enum \"%s\" with %d members:\n",
                     t->data.enumdef.name, t->data.enumdef.nmembers);

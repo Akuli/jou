@@ -71,6 +71,7 @@ Jou has a few different kinds of tokens:
     - `def`
     - `declare`
     - `class`
+    - `union`
     - `enum`
     - `global`
     - `return`
