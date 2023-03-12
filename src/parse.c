@@ -812,18 +812,18 @@ static AstFunction parse_funcdef(const Token **tokens, bool is_method)
 
 static void check_class_for_duplicate_names(const AstClassDef *classdef)
 {
-    List(struct MemberInfo { const char *name; const char *kindstr; Location location; }) infos = {0};
+    List(struct MemberInfo { const char *kindstr; const char *name; Location location; }) infos = {0};
     for (AstClassMember *m = classdef->members.ptr; m < End(classdef->members); m++) {
         switch(m->kind) {
         case AST_CLASSMEMBER_FIELD:
-            Append(&infos, (struct MemberInfo){m->data.field.name, "a field", m->data.field.name_location});
+            Append(&infos, (struct MemberInfo){"a field", m->data.field.name, m->data.field.name_location});
             break;
         case AST_CLASSMEMBER_UNION:
             for (AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++)
-                Append(&infos, (struct MemberInfo){ntv->name, "a union member", ntv->name_location});
+                Append(&infos, (struct MemberInfo){"a union member", ntv->name, ntv->name_location});
             break;
         case AST_CLASSMEMBER_METHOD:
-            Append(&infos, (struct MemberInfo){m->data.method.signature.name, "a method", m->data.method.signature.name_location});
+            Append(&infos, (struct MemberInfo){"a method", m->data.method.signature.name, m->data.method.signature.name_location});
             break;
         }
     }
