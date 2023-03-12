@@ -1,9 +1,9 @@
 # We could import more stdlib stuff but I prefer to keep this minimal.
 # This simplifies debugging the compiler, because this is always added implicitly when compiling.
-declare global stderr: void*
-declare fprintf(file: void*, pattern: byte*, ...) -> int
+declare printf(pattern: byte*, ...) -> int
 declare exit(status: int) -> noreturn
 
 def _jou_assert_fail(assertion: byte*, path: byte*, lineno: int) -> noreturn:
-    fprintf(stderr, "Assertion '%s' failed in file \"%s\", line %d.\n", assertion, path, lineno)
+    # TODO: print to stderr, when self-hosted compiler supports it
+    printf("Assertion '%s' failed in file \"%s\", line %d.\n", assertion, path, lineno)
     exit(1)
