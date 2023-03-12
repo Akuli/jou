@@ -817,6 +817,7 @@ static const Type *typecheck_struct_init(FileTypes *ft, const AstCall *call, Loc
         }
     }
 
+    free(specified_fields);
     return t;
 }
 
