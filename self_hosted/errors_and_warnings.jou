@@ -17,11 +17,3 @@ def fail(location: Location, message: byte*) -> noreturn:
     fprintf(stderr, ": %s\n", message)
 
     exit(1)
-
-# TODO: doesn't really belong here
-def assert(b: bool) -> void:
-    if not b:
-        fflush(stdout)
-        fflush(stderr)
-        fprintf(stderr, "assertion failed\n")
-        exit(1)

@@ -37,7 +37,7 @@ def parse_type(tokens: Token**) -> AstType:
 
 def parse_name_type_value(tokens: Token**, expected_what_for_name: byte*) -> AstNameTypeValue:
     if (*tokens)->kind != TokenKind::Name:
-        assert(expected_what_for_name != NULL)
+        assert expected_what_for_name != NULL
         (*tokens)->fail_expected_got(expected_what_for_name)
 
     result = AstNameTypeValue{name = (*tokens)->short_string, name_location = (*tokens)->location}
@@ -144,7 +144,7 @@ def parse_import_path(path_token: Token*, stdlib_path: byte*) -> AstImport:
     }
 
 def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCall:
-    assert((*tokens)->kind == TokenKind::Name)  # must be checked when calling this function
+    assert (*tokens)->kind == TokenKind::Name  # must be checked when calling this function
     result = AstCall{location = (*tokens)->location, called_name = (*tokens)->short_string}
     ++*tokens
 
@@ -233,7 +233,7 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
 # This cannot be used for ++ and --, because with them we can't know the kind from
 # just the token (e.g. ++ could mean pre-increment or post-increment).
 def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -> AstExpression:
-    assert(arity == 1 or arity == 2)
+    assert arity == 1 or arity == 2
     nbytes = arity * sizeof operands[0]
     ptr = malloc(nbytes)
     memcpy(ptr, operands, nbytes)
@@ -241,31 +241,31 @@ def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -
     result = AstExpression{location = t->location, operands = ptr}
 
     if t->is_operator("&"):
-        assert(arity == 1)
+        assert arity == 1
         result.kind = AstExpressionKind::AddressOf
     elif t->is_operator("["):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::Indexing
     elif t->is_operator("=="):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::Eq
     elif t->is_operator("!="):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::Ne
     elif t->is_operator(">"):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::Gt
     elif t->is_operator(">="):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::Ge
     elif t->is_operator("<"):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::Lt
     elif t->is_operator("<="):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::Le
     elif t->is_operator("+"):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::Add
     elif t->is_operator("-"):
         if arity == 2:
@@ -278,24 +278,24 @@ def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -
         else:
             result.kind = AstExpressionKind::Dereference
     elif t->is_operator("/"):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::Divide
     elif t->is_operator("%"):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::Modulo
     elif t->is_keyword("and"):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::And
     elif t->is_keyword("or"):
-        assert(arity == 2)
+        assert arity == 2
         result.kind = AstExpressionKind::Or
     elif t->is_keyword("not"):
-        assert(arity == 1)
+        assert arity == 1
         result.kind = AstExpressionKind::Not
     else:
-        assert(False)
+        assert False
 
-    assert(result.get_arity() == arity)
+    assert result.get_arity() == arity
     return result
 
 def parse_expression_with_unary_operators(tokens: Token**) -> AstExpression:
@@ -335,7 +335,7 @@ def parse_expression_with_unary_operators(tokens: Token**) -> AstExpression:
             kind = AstExpressionKind::PostDecr
         else:
             # We don't have ++ or --, so it must be something in the prefix
-            assert(prefix_start != prefix_end and suffix_start == suffix_end)
+            assert prefix_start != prefix_end and suffix_start == suffix_end
             token = --prefix_end
             if token->is_operator("*"):
                 kind = AstExpressionKind::Dereference
@@ -344,8 +344,7 @@ def parse_expression_with_unary_operators(tokens: Token**) -> AstExpression:
             elif token->is_keyword("sizeof"):
                 kind = AstExpressionKind::SizeOf
             else:
-                assert(False)
-                kind = AstExpressionKind::SizeOf  # dummy value to silence compiler warning
+                assert False
 
         p: AstExpression* = malloc(sizeof(*p))
         *p = result
@@ -468,6 +467,10 @@ def parse_oneline_statement(tokens: Token**) -> AstStatement:
         if (*tokens)->kind != TokenKind::Newline:
             result.return_value = malloc(sizeof *result.return_value)
             *result.return_value = parse_expression(tokens)
+    elif (*tokens)->is_keyword("assert"):
+        ++*tokens
+        result.kind = AstStatementKind::Assert
+        result.expression = parse_expression(tokens)
     elif (*tokens)->is_keyword("break"):
         ++*tokens
         result.kind = AstStatementKind::Break
@@ -498,7 +501,7 @@ def parse_if_statement(tokens: Token**) -> AstIfStatement:
     ifs_and_elifs: AstConditionAndBody* = NULL
     n = 0
 
-    assert((*tokens)->is_keyword("if"))
+    assert (*tokens)->is_keyword("if")
     while True:
         ++*tokens
         cond = parse_expression(tokens)
@@ -521,14 +524,14 @@ def parse_if_statement(tokens: Token**) -> AstIfStatement:
     }
 
 def parse_while_loop(tokens: Token**) -> AstConditionAndBody:
-    assert((*tokens)->is_keyword("while"))
+    assert (*tokens)->is_keyword("while")
     ++*tokens
     cond = parse_expression(tokens)
     body = parse_body(tokens)
     return AstConditionAndBody{condition = cond, body = body}
 
 def parse_for_loop(tokens: Token**) -> AstForLoop:
-    assert((*tokens)->is_keyword("for"))
+    assert (*tokens)->is_keyword("for")
     ++*tokens
 
     init: AstStatement* = malloc(sizeof *init)

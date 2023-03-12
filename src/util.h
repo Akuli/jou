@@ -88,6 +88,9 @@ Gotchas to watch out for:
     strcpy((dest),(src)); \
 } while(0)
 
+// Similar to .strip() in Python. Depends on the current locale (ctype.h)
+void trim_whitespace(char *s);
+
 /*
 On windows, change backslash to forward slash.
 Delete unnecessary "." and ".." components.

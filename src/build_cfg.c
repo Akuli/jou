@@ -703,6 +703,81 @@ static void build_if_statement(struct State *st, const AstIfStatement *ifstmt)
     add_jump(st, NULL, done, done, done);
 }
 
+// TODO: this function is just bad...
+static char *read_assertion_from_file(Location location)
+{
+    FILE *f = fopen(location.filename, "rb");
+    if (!f)
+        return strdup("???");
+
+    for (int i = 1; i < location.lineno; i++) {
+        while(1){
+            int c= fgetc(f);
+            if (c==EOF || c=='\n') break;
+        }
+    }
+
+    char line[1024] = {0};
+    fgets(line, sizeof line, f);
+    fclose(f);
+
+    if (strstr(line, "#"))
+        *strstr(line, "#") = '\0';
+    trim_whitespace(line);
+
+    if(!strncmp(line, "assert ",7))
+        return strdup(line+7);
+    else
+        return strdup(line);
+}
+
+static void build_assert(struct State *st, const AstExpression *cond)
+{
+    const LocalVariable *condvar = build_expression(st, cond);
+
+    // If the condition is true, we jump to a block where the rest of the code goes.
+    // If the condition is false, we jump to a block that calls _jou_assert_fail().
+    CfBlock *trueblock = add_block(st);
+    CfBlock *falseblock = add_block(st);
+    add_jump(st, condvar, trueblock, falseblock, falseblock);
+
+    char (*argnames)[100] = malloc(3 * sizeof *argnames);
+    strcpy(argnames[0], "assertion");
+    strcpy(argnames[1], "path");
+    strcpy(argnames[2], "lineno");
+
+    const Type **argtypes = malloc(3 * sizeof(argtypes[0]));  // NOLINT
+    argtypes[0] = get_pointer_type(byteType);
+    argtypes[1] = get_pointer_type(byteType);
+    argtypes[2] = intType;
+
+    const LocalVariable *args[4];
+    for (int i = 0; i < 3; i++)
+        args[i] = add_local_var(st, argtypes[i]);
+    args[3] = NULL;
+
+    char *tmp = read_assertion_from_file(cond->location);
+    add_constant(st, cond->location, ((Constant){CONSTANT_STRING,{.str=tmp}}), args[0]);
+    free(tmp);
+    tmp = strdup(cond->location.filename);
+    add_constant(st, cond->location, ((Constant){CONSTANT_STRING,{.str=tmp}}), args[1]);
+    free(tmp);
+    add_constant(st, cond->location, int_constant(intType, cond->location.lineno), args[2]);
+
+    union CfInstructionData data = { .signature = {
+        .name = "_jou_assert_fail",
+        .nargs = 3,
+        .argtypes = argtypes,
+        .argnames = argnames,
+        .takes_varargs = false,
+        .is_noreturn = true,
+        .returntype_location = cond->location,
+    } };
+    add_instruction(st, cond->location, CF_CALL, &data, args, NULL);
+
+    st->current_block = trueblock;
+}
+
 static void build_statement(struct State *st, const AstStatement *stmt);
 
 // for init; cond; incr:
@@ -752,6 +827,10 @@ static void build_statement(struct State *st, const AstStatement *stmt)
     switch(stmt->kind) {
     case AST_STMT_IF:
         build_if_statement(st, &stmt->data.ifstatement);
+        break;
+
+    case AST_STMT_ASSERT:
+        build_assert(st, &stmt->data.expression);
         break;
 
     case AST_STMT_WHILE:

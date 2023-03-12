@@ -302,6 +302,7 @@ class AstCall:
 
 enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
+    Assert
     Return
     If
     WhileLoop
@@ -321,18 +322,21 @@ class AstStatement:
     kind: AstStatementKind
 
     # TODO: union
-    expression: AstExpression       # AstStatementKind::ExpressionStatement
+    expression: AstExpression       # ExpressionStatement, Assert
     if_statement: AstIfStatement
     while_loop: AstConditionAndBody
     for_loop: AstForLoop
-    return_value: AstExpression*     # AstStatementKind::Return (can be NULL)
+    return_value: AstExpression*     # can be NULL
     assignment: AstAssignment
-    var_declaration: AstNameTypeValue  # AstStatementKind::DeclareLocalVar
+    var_declaration: AstNameTypeValue  # DeclareLocalVar
 
     def print(self, tp: TreePrinter) -> void:
         printf("[line %d] ", self->location.lineno)
         if self->kind == AstStatementKind::ExpressionStatement:
             printf("expression statement\n")
+            self->expression.print(tp.print_prefix(True))
+        elif self->kind == AstStatementKind::Assert:
+            printf("assert\n")
             self->expression.print(tp.print_prefix(True))
         elif self->kind == AstStatementKind::Return:
             printf("return\n")
@@ -479,7 +483,7 @@ class AstNameTypeValue:
         printf("%s: ", &self->name[0])
         self->type.print(True)
         if tp == NULL:
-            assert(self->value == NULL)
+            assert self->value == NULL
         else:
             printf("\n")
             if self->value != NULL:
@@ -597,7 +601,7 @@ class AstFile:
     def next_import(self, imp: AstImport**) -> bool:
         # Get the corresponding AstToplevelStatement.
         ts = *imp as AstToplevelStatement*
-        assert(&ts->the_import as void* == ts)  # TODO: offsetof() or similar
+        assert &ts->the_import as void* == ts  # TODO: offsetof() or similar
 
         # Assume all imports are in the beginning of the file.
         if ts == NULL:

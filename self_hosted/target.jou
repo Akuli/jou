@@ -9,7 +9,6 @@
 
 import "./llvm.jou"
 import "./paths.jou"
-import "./errors_and_warnings.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
@@ -40,17 +39,17 @@ def init_target() -> void:
         strcpy(&target.triple[0], "x86_64-pc-windows-gnu")
     else:
         triple = LLVMGetDefaultTargetTriple()
-        assert(strlen(triple) < sizeof target.triple)
+        assert strlen(triple) < sizeof target.triple
         strcpy(&target.triple[0], triple)
         LLVMDisposeMessage(triple)
 
     error: byte* = NULL
     if LLVMGetTargetFromTriple(&target.triple[0], &target.target, &error):
-        assert(error != NULL)
+        assert error != NULL
         fprintf(stderr, "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", &target.triple[0], error)
         exit(1)
-    assert(error == NULL)
-    assert(target.target != NULL)
+    assert error == NULL
+    assert target.target != NULL
 
     target.target_machine = LLVMCreateTargetMachine(
         target.target,
@@ -61,12 +60,12 @@ def init_target() -> void:
         LLVMRelocMode::Default,
         LLVMCodeModel::Default,
     )
-    assert(target.target_machine != NULL)
+    assert target.target_machine != NULL
 
     target.target_data = LLVMCreateTargetDataLayout(target.target_machine)
-    assert(target.target_data != NULL)
+    assert target.target_data != NULL
 
     tmp = LLVMCopyStringRepOfTargetData(target.target_data)
-    assert(strlen(tmp) < sizeof target.data_layout)
+    assert strlen(tmp) < sizeof target.data_layout
     strcpy(&target.data_layout[0], tmp)
     LLVMDisposeMessage(tmp)

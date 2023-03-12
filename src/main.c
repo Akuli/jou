@@ -397,6 +397,14 @@ static void add_imported_symbols(struct CompileState *compst)
     }
 }
 
+static void include_special_stdlib_file(struct CompileState *compst, const char *filename)
+{
+    char *path = malloc(strlen(compst->stdlib_path) + strlen(filename) + 123);
+    sprintf(path, "%s/%s", compst->stdlib_path, filename);
+    parse_file(compst, path, NULL);
+    free(path);
+}
+
 int main(int argc, char **argv)
 {
     init_target();
@@ -428,11 +436,9 @@ int main(int argc, char **argv)
     if (command_line_args.verbosity >= 1)
         printf("Parsing Jou files...\n");
 
+    include_special_stdlib_file(&compst, "_assert_fail.jou");
 #ifdef _WIN32
-    char *startup_path = malloc(strlen(compst.stdlib_path) + 50);
-    sprintf(startup_path, "%s/_windows_startup.jou", compst.stdlib_path);
-    parse_file(&compst, startup_path, NULL);
-    free(startup_path);
+    include_special_stdlib_file(&compst, "_windows_startup.jou");
 #endif
 
     parse_file(&compst, command_line_args.infile, NULL);

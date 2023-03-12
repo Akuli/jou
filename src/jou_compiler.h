@@ -270,6 +270,7 @@ struct AstStatement {
     Location location;
     enum AstStatementKind {
         AST_STMT_RETURN,
+        AST_STMT_ASSERT,
         AST_STMT_IF,
         AST_STMT_WHILE,
         AST_STMT_FOR,
@@ -285,7 +286,7 @@ struct AstStatement {
         AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
     } kind;
     union {
-        AstExpression expression;    // AST_STMT_EXPRESSION_STATEMENT
+        AstExpression expression;    // AST_STMT_EXPRESSION_STATEMENT, AST_STMT_ASSERT
         AstExpression *returnvalue;    // AST_STMT_RETURN (can be NULL)
         AstConditionAndBody whileloop;
         AstIfStatement ifstatement;

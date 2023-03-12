@@ -156,6 +156,7 @@ static void free_statement(const AstStatement *stmt)
         free_ast_body(&stmt->data.forloop.body);
         break;
     case AST_STMT_EXPRESSION_STATEMENT:
+    case AST_STMT_ASSERT:
         free_expression(&stmt->data.expression);
         break;
     case AST_STMT_RETURN:
