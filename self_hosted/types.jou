@@ -12,9 +12,9 @@ class Type:
     name: byte[100]
     kind: TypeKind
 
-    # TODO: union
-    size_in_bits: int  # Integer
-    value_type: Type*  # Pointer
+    union:
+        size_in_bits: int  # SignedInteger, UnsignedInteger
+        value_type: Type*  # Pointer
 
     # Pointers and arrays of a given type live as long as the type itself.
     # To make it possible, we just store them within the type.

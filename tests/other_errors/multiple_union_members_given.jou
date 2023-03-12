@@ -1,0 +1,16 @@
+class Foo:
+    union:
+        blah: byte*
+        lolwat: bool
+    unrelated_value: long
+    union:
+        x: int
+        y: int
+
+def foo() -> void:
+    f = Foo{
+        x = 1,
+        blah = "hey!",
+        unrelated_value = 12345L,
+        y = 2,  # Error: fields 'x' and 'y' cannot be set simultaneously because they belong to the same union
+    }

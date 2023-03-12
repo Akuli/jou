@@ -1,12 +1,62 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <llvm-c/Core.h>
 #include <llvm-c/Types.h>
 #include "jou_compiler.h"
 #include "util.h"
+
+/*
+I still don't fully understand the difference between abi size/align and storage size/align.
+But here the creator of the zig language seems to say that abi alignment works for everything:
+https://lists.llvm.org/pipermail/llvm-dev/2017-August/116897.html
+*/
+static unsigned long long size(LLVMTypeRef t) { return LLVMABISizeOfType(get_target()->target_data_ref, t); }
+static unsigned align(LLVMTypeRef t) { return LLVMABIAlignmentOfType(get_target()->target_data_ref, t); }
+
+/*
+LLVM doesn't have a built-in union type, and you're supposed to abuse other types for that:
+https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/basic-constructs/unions.html
+
+My first idea was to use an array of bytes that is big enough to fit anything.
+However, that might not be aligned properly.
+
+Instead, we choose the member type that has the biggest align, and make an array of it.
+Because the align is always a power of two, the memory will be suitably aligned for all member types.
+*/
+static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
+{
+    // Make the IR easier to read when unions aren't actually used
+    if (ntypes == 1)
+        return types[0];
+
+    for (int i = 0; i < ntypes; i++) {
+        assert(size(types[i]) > 0);
+        assert(align(types[i])==1 || align(types[i])==2 || align(types[i])==4 || align(types[i])==8);
+    }
+
+    LLVMTypeRef chosen = NULL;
+    for (int i = 0; i < ntypes; i++)
+        if (chosen==NULL || align(types[i]) > align(chosen))
+            chosen = types[i];
+    assert(chosen);
+
+    unsigned long long sizeneeded = 0;
+    for (int i = 0; i < ntypes; i++)
+        sizeneeded = max(sizeneeded, size(types[i]));
+
+    // TODO: Figure out why this doesn't actually work, and causes the self-hosted compiler to crash / valgrind badly.
+#if 0
+    unsigned count = (sizeneeded + size(chosen) - 1)/size(chosen);  // ceil division
+    assert(count > 0);
+    return LLVMArrayType(chosen, count);
+#endif
+    return LLVMArrayType(LLVMInt8Type(), sizeneeded);
+}
 
 static LLVMTypeRef codegen_type(const Type *type)
 {
@@ -34,17 +84,31 @@ static LLVMTypeRef codegen_type(const Type *type)
     case TYPE_CLASS:
         {
             int n = type->data.classdata.fields.len;
-            LLVMTypeRef *elems = malloc(sizeof(elems[0]) * n);  // NOLINT
+
+            LLVMTypeRef *flat_elems = malloc(sizeof(flat_elems[0]) * n);  // NOLINT
             for (int i = 0; i < n; i++) {
                 // Treat all pointers inside structs as if they were void*.
                 // This allows structs to contain pointers to themselves.
                 if (type->data.classdata.fields.ptr[i].type->kind == TYPE_POINTER)
-                    elems[i] = codegen_type(voidPtrType);
+                    flat_elems[i] = codegen_type(voidPtrType);
                 else
-                    elems[i] = codegen_type(type->data.classdata.fields.ptr[i].type);
+                    flat_elems[i] = codegen_type(type->data.classdata.fields.ptr[i].type);
             }
-            LLVMTypeRef result = LLVMStructType(elems, n, false);
-            free(elems);
+
+            // Combine together fields of the same union.
+            LLVMTypeRef *combined = malloc(sizeof(combined[0]) * n);  // NOLINT
+            int combinedlen = 0;
+            int start, end;
+            for (start=0; start<n; start=end) {
+                end = start+1;
+                while (end < n && type->data.classdata.fields.ptr[start].union_id == type->data.classdata.fields.ptr[end].union_id)
+                    end++;
+                combined[combinedlen++] = codegen_union_type(&flat_elems[start], end-start);
+            }
+
+            LLVMTypeRef result = LLVMStructType(combined, combinedlen, false);
+            free(flat_elems);
+            free(combined);
             return result;
         }
     case TYPE_ENUM:
@@ -265,7 +329,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             }
             break;
         case CF_CONSTANT: setdest(codegen_constant(st, &ins->data.constant)); break;
-        case CF_SIZEOF: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
+        case CF_SIZEOF: setdest(LLVMConstInt(LLVMInt64Type(), size(codegen_type(ins->data.type)), false)); break;
         case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
         case CF_PTR_LOAD: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
@@ -281,17 +345,14 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             {
                 const Type *classtype = ins->operands[0]->type->data.valuetype;
                 const struct ClassField *f = classtype->data.classdata.fields.ptr;
-                int i = 0;
-                while (strcmp(f->name, ins->data.fieldname)) {
+                while (strcmp(f->name, ins->data.fieldname))
                     f++;
-                    i++;
-                }
 
-                LLVMValueRef val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), i, ins->data.fieldname);
-                if (f->type->kind == TYPE_POINTER) {
-                    // We lied to LLVM that the struct member is i8*, so that we can do self-referencing types
-                    val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(f->type),0), "struct_member_i8_hack");
-                }
+                LLVMValueRef val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), f->union_id, ins->data.fieldname);
+                // This cast is needed in two cases:
+                //  * All pointers are i8* in structs so we can do self-referencing classes.
+                //  * This is how unions work.
+                val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(f->type),0), "struct_member_cast");
                 setdest(val);
             }
             break;

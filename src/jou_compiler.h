@@ -29,6 +29,7 @@ typedef struct AstIfStatement AstIfStatement;
 typedef struct AstStatement AstStatement;
 typedef struct AstToplevelNode AstToplevelNode;
 typedef struct AstFunction AstFunction;
+typedef struct AstClassMember AstClassMember;
 typedef struct AstClassDef AstClassDef;
 typedef struct AstEnumDef AstEnumDef;
 typedef struct AstImport AstImport;
@@ -301,10 +302,18 @@ struct AstFunction {
     AstBody body;  // empty body means declaration, otherwise it's definition
 };
 
+struct AstClassMember {
+    enum AstClassMemberKind { AST_CLASSMEMBER_FIELD, AST_CLASSMEMBER_UNION, AST_CLASSMEMBER_METHOD } kind;
+    union {
+        AstNameTypeValue field;
+        List(AstNameTypeValue) unionfields;
+        AstFunction method;
+    } data;
+};
+
 struct AstClassDef {
     char name[100];
-    List(AstNameTypeValue) fields;
-    List(AstFunction) methods;
+    List(AstClassMember) members;
 };
 
 struct AstEnumDef {
@@ -332,17 +341,25 @@ struct AstToplevelNode {
         AST_TOPLEVEL_IMPORT,
     } kind;
     union {
-        AstNameTypeValue globalvar;  // AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE
+        AstNameTypeValue globalvar;
         AstFunction function;
-        AstClassDef classdef;  // AST_TOPLEVEL_DEFINE_CLASS
-        AstEnumDef enumdef;     // AST_TOPLEVEL_DEFINE_ENUM
-        AstImport import;       // AST_TOPLEVEL_IMPORT
+        AstClassDef classdef;
+        AstEnumDef enumdef;
+        AstImport import;
     } data;
 };
 
-
+struct ClassField {
+    char name[100];
+    const Type *type;
+    /*
+    If multiple fields have the same union_id, they belong to the same union.
+    It means that only one of the fields can be used at a time.
+    */
+    int union_id;
+};
 struct ClassData {
-    List(struct ClassField { char name[100]; const Type *type; }) fields;
+    List(struct ClassField) fields;
     List(Signature) methods;
 };
 
@@ -357,7 +374,7 @@ struct Type {
         TYPE_VOID_POINTER,
         TYPE_ARRAY,
         TYPE_CLASS,
-        TYPE_OPAQUE_CLASS,  // struct with unknown members
+        TYPE_OPAQUE_CLASS,  // class with unknown members
         TYPE_ENUM,
     } kind;
     union {
@@ -395,7 +412,7 @@ const Type *get_integer_type(int size_in_bits, bool is_signed);
 const Type *get_pointer_type(const Type *t);  // result lives as long as t
 const Type *get_array_type(const Type *t, int len);  // result lives as long as t
 const Type *type_of_constant(const Constant *c);
-Type *create_opaque_struct(const char *name);
+Type *create_opaque_class(const char *name);
 Type *create_enum(const char *name, int membercount, char (*membernames)[100]);
 void free_type(Type *type);
 

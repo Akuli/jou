@@ -26,14 +26,13 @@ class Token:
     kind: TokenKind
     location: Location
 
-    # Only one of these is used at a time.
-    # TODO: union
-    int_value: int          # Int
-    long_value: long        # Long
-    byte_value: byte        # Byte
-    indentation_level: int  # Newline (indicates how many spaces there are after the newline)
-    short_string: byte[100] # Name, Keyword, Operator
-    long_string: byte*      # String
+    union:
+        int_value: int          # Int
+        long_value: long        # Long
+        byte_value: byte        # Byte
+        indentation_level: int  # Newline (indicates how many spaces there are after the newline)
+        short_string: byte[100] # Name, Keyword, Operator
+        long_string: byte*      # String
 
     def print(self) -> void:
         if self->kind == TokenKind::Byte:

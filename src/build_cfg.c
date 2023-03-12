@@ -1000,9 +1000,11 @@ CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *filetypes
             }
             assert(classtype);
 
-            for (AstFunction *m = ast->data.classdef.methods.ptr; m < End(ast->data.classdef.methods); m++) {
-                CfGraph *g = build_function_or_method(&st, classtype, m->signature.name, &m->body);
-                Append(&result.graphs, g);
+            for (AstClassMember *m = ast->data.classdef.members.ptr; m < End(ast->data.classdef.members); m++) {
+                if (m->kind == AST_CLASSMEMBER_METHOD) {
+                    CfGraph *g = build_function_or_method(&st, classtype, m->data.method.signature.name, &m->data.method.body);
+                    Append(&result.graphs, g);
+                }
             }
         }
         ast++;
