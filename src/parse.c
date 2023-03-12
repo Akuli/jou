@@ -852,6 +852,7 @@ static AstClassDef parse_classdef(const Token **tokens)
                 .data.method = parse_funcdef(tokens, true),
             });
         } else if (is_keyword(*tokens, "union")) {
+            Location union_keyword_location = (*tokens)->location;
             ++*tokens;
             parse_start_of_body(tokens);
             AstClassMember umember = { .kind = AST_CLASSMEMBER_UNION };
@@ -863,6 +864,9 @@ static AstClassDef parse_classdef(const Token **tokens)
                 eat_newline(tokens);
             }
             ++*tokens;
+            if (umember.data.unionfields.len < 2) {
+                fail_with_error(union_keyword_location, "unions must have at least 2 members");
+            }
             Append(&result.members, umember);
         } else {
             AstNameTypeValue field = parse_name_type_value(tokens, "a method, a field or a union");
