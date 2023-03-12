@@ -344,8 +344,7 @@ def parse_expression_with_unary_operators(tokens: Token**) -> AstExpression:
             elif token->is_keyword("sizeof"):
                 kind = AstExpressionKind::SizeOf
             else:
-                assert(False)
-                kind = AstExpressionKind::SizeOf  # dummy value to silence compiler warning
+                assert False
 
         p: AstExpression* = malloc(sizeof(*p))
         *p = result

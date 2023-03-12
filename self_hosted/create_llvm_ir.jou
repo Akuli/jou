@@ -4,7 +4,6 @@ import "./typecheck.jou"
 import "./types.jou"
 import "./ast.jou"
 import "./target.jou"
-import "./errors_and_warnings.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
@@ -21,8 +20,7 @@ class AstToIR:
         if type->kind == TypeKind::Pointer:
             return LLVMPointerType(self->do_type(type->value_type), 0)
         printf("asd-Asd., %s\n", &type->name)
-        assert(False)
-        return NULL
+        assert False
 
     def declare_function(self, signature: Signature*) -> void:
         argtypes: LLVMType**
@@ -54,6 +52,29 @@ class AstToIR:
         string_type = LLVMPointerType(LLVMInt8Type(), 0)
         return LLVMBuildBitCast(self->builder, global_var, string_type, "string_ptr")
 
+    def build_assert(self, condition: LLVMValue*) -> void:
+        true_block = LLVMAppendBasicBlock(self->current_function, "assert_true")
+        false_block = LLVMAppendBasicBlock(self->current_function, "assert_false")
+        LLVMBuildCondBr(self->builder, condition, true_block, false_block)
+
+        LLVMPositionBuilderAtEnd(self->builder, false_block)
+
+        argtypes = [LLVMPointerType(LLVMInt8Type(), 0), LLVMPointerType(LLVMInt8Type(), 0), LLVMInt32Type()]
+        assert_fail_func_type = LLVMFunctionType(LLVMVoidType(), &argtypes[0], 3, False)
+        assert_fail_func = LLVMGetNamedFunction(self->module, "_jou_assert_fail")
+        if assert_fail_func == NULL:
+            assert_fail_func = LLVMAddFunction(self->module, "_jou_assert_fail", assert_fail_func_type)
+        assert assert_fail_func != NULL
+
+        args = [
+            self->make_a_string_constant("foo"),
+            self->make_a_string_constant("bar"),
+            LLVMConstInt(LLVMInt32Type(), 123, False),
+        ]
+
+        LLVMBuildCall2(self->builder, assert_fail_func_type, assert_fail_func, &args[0], 3, "")
+        LLVMPositionBuilderAtEnd(self->builder, true_block)
+
     def do_expression(self, ast: AstExpression*) -> LLVMValue*:
         if ast->kind == AstExpressionKind::String:
             return self->make_a_string_constant(ast->string)
@@ -80,8 +101,7 @@ class AstToIR:
 
         else:
             printf("Asd-asd. Unknown expr %d...\n", ast->kind)
-            assert(False)
-            return NULL
+            assert False
 
     def do_statement(self, ast: AstStatement*) -> void:
         if ast->kind == AstStatementKind::ExpressionStatement:
@@ -94,6 +114,9 @@ class AstToIR:
                 LLVMBuildRetVoid(self->builder)
             # If more code follows, place it into a new block that never actually runs
             self->new_block("after_return")
+        elif ast->kind == AstStatementKind::Assert:
+            condition = self->do_expression(&ast->expression)
+            self->build_assert(condition)
         else:
             printf("Asd-asd. Unknown statement...\n")
             assert(False)

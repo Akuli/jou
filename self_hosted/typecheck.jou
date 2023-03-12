@@ -98,8 +98,7 @@ def type_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
 
     ast_type->print(True)
     printf("\n")
-    assert(False)  # TODO
-    return NULL  # never runs, but silences compiler warning
+    assert False  # TODO
 
 def handle_signature(ctx: TypeContext*, astsig: AstSignature*) -> Signature:
     sig = Signature{
@@ -300,8 +299,7 @@ def typecheck_expression_maybe_void(ctx: TypeContext*, expression: AstExpression
             return NULL
     else:
         printf("*** %d\n", expression->kind as int)
-        assert(False)
-        result = NULL  # never runs, but silences compiler warning
+        assert False
 
     p: ExpressionTypes* = malloc(sizeof *p)
     *p = ExpressionTypes{

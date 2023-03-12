@@ -1,5 +1,4 @@
 import "../config.jou"
-import "./errors_and_warnings.jou"
 import "./ast.jou"
 import "./tokenizer.jou"
 import "./parser.jou"
@@ -129,11 +128,18 @@ class Compiler:
     args: CommandLineArgs*
     files: FileState*
     nfiles: int
+    automagic_files: byte*[10]
+
+    def determine_automagic_files(self) -> void:
+        self->automagic_files[0] = malloc(strlen(self->stdlib_path) + 40)
+        sprintf(self->automagic_files[0], "%s/_assert_fail.jou", self->stdlib_path)
 
     def parse_all_files(self) -> void:
-        queue: byte** = malloc(sizeof queue[0])
-        queue[0] = self->args->main_path
-        queue_len = 1
+        queue: byte** = malloc(50 * sizeof queue[0])
+        queue_len = 0
+        queue[queue_len++] = self->args->main_path
+        for i = 0; self->automagic_files[i] != NULL; i++:
+            queue[queue_len++] = self->automagic_files[i]
 
         while queue_len > 0:
             path = queue[--queue_len]
@@ -368,6 +374,7 @@ def main(argc: int, argv: byte**) -> int:
             stdlib_path = find_stdlib(),
             args = &args,
         }
+        compiler.determine_automagic_files()
         compiler.parse_all_files()
         compiler.typecheck_stage2_all_files()
         compiler.process_imports_and_exports()
@@ -383,6 +390,8 @@ def main(argc: int, argv: byte**) -> int:
         if args.mode == CompilerMode::CompileAndRun:
             compiler.run(executable)
         free(executable)
+        for i = 0; compiler.automagic_files[i] != NULL; i++:
+            free(compiler.automagic_files[i])
 
     else:
         assert(False)
