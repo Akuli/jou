@@ -116,6 +116,12 @@ class FunctionOrMethodTypes:
     expression_types: ExpressionTypes*
     local_vars: LocalVariable*
 
+    def find_local_var(self, name: byte*) -> LocalVariable*:
+        for v = self->local_vars; v != NULL; v = v->next:
+            if strcmp(&v->name[0], name) == 0:
+                return v
+        return NULL
+
 # All type information for a Jou file. This is initially empty, and is filled during each stage of type checking.
 class FileTypes:
     # Includes imported and defined functions.
@@ -134,6 +140,12 @@ class FileTypes:
         for i = 0; i < self->n_all_functions; i++:
             if strcmp(&self->all_functions[i].name[0], name) == 0:
                 return &self->all_functions[i]
+        return NULL
+
+    def find_defined_function(self, name: byte*) -> FunctionOrMethodTypes*:
+        for i = 0; i < self->n_defined_functions; i++:
+            if strcmp(&self->defined_functions[i].signature.name[0], name) == 0:
+                return &self->defined_functions[i]
         return NULL
 
 # TODO: implement
@@ -242,6 +254,26 @@ class Stage3TypeChecker:
     file_types: FileTypes*
     current_function_or_method: FunctionOrMethodTypes*
 
+    def add_local_var(self, name: byte*, type: Type*) -> LocalVariable*:
+        v: LocalVariable* = calloc(1, sizeof *v)
+        assert strlen(name) < sizeof v->name
+        strcpy(&v->name[0], name)
+        v->type = type
+
+        dest_pointer = &self->current_function_or_method->local_vars
+        while *dest_pointer != NULL:
+            dest_pointer = &(*dest_pointer)->next
+
+        *dest_pointer = v
+        return v
+
+    def find_var(self, name: byte*) -> Type*:
+        local_var = self->current_function_or_method->find_local_var(name)
+        if local_var != NULL:
+            return local_var->type
+        # TODO: check global vars (they don't exist yet)
+        return NULL
+
     def do_function_call(self, call: AstCall*) -> Type*:
         message: byte[500]
 
@@ -308,6 +340,12 @@ class Stage3TypeChecker:
             result = self->do_function_call(&expression->call)
             if result == NULL:
                 return NULL
+        elif expression->kind == AstExpressionKind::GetVariable:
+            result = self->find_var(&expression->varname[0])
+            if result == NULL:
+                message: byte[200]
+                snprintf(&message[0], sizeof message, "no variable named '%s'", &expression->varname[0])
+                fail(expression->location, &message[0])
         else:
             printf("*** %d\n", expression->kind as int)
             assert False
@@ -377,6 +415,32 @@ class Stage3TypeChecker:
                 self->do_expression_and_implicit_cast(
                     statement->return_value, sig->return_type, &cast_error_msg[0]
                 )
+
+        elif statement->kind == AstStatementKind::Assign:
+            target_expr = &statement->assignment.target
+            value_expr = &statement->assignment.value
+
+            if (
+                target_expr->kind == AstExpressionKind::GetVariable
+                and self->find_var(&target_expr->varname[0]) == NULL
+            ):
+                # Making a new variable. Use the type of the value being assigned.
+                types = self->do_expression(value_expr)
+                self->add_local_var(&target_expr->varname[0], types->original_type)
+            else:
+                # Convert value to the type of an existing variable or other assignment target.
+                #ensure_can_take_address(targetexpr, "cannot assign to %s")
+
+                # This is a common error, so try to produce a helpful error message.
+                if target_expr->kind == AstExpressionKind::Dereference:
+                    error_template = "cannot place a value of type <from> into a pointer of type <to>*"
+                else:
+                    # TODO: improve this error message.
+                    # See short_expression_description() in the other compiler.
+                    error_template = "cannot assign a value of type FROM to target of type TO"
+
+                target_types = self->do_expression(target_expr)
+                self->do_expression_and_implicit_cast(value_expr, target_types->original_type, error_template)
 
         else:
             assert False
