@@ -467,6 +467,10 @@ def parse_oneline_statement(tokens: Token**) -> AstStatement:
         if (*tokens)->kind != TokenKind::Newline:
             result.return_value = malloc(sizeof *result.return_value)
             *result.return_value = parse_expression(tokens)
+    elif (*tokens)->is_keyword("assert"):
+        ++*tokens
+        result.kind = AstStatementKind::Assert
+        result.expression = parse_expression(tokens)
     elif (*tokens)->is_keyword("break"):
         ++*tokens
         result.kind = AstStatementKind::Break
