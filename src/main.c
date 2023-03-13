@@ -200,7 +200,7 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
 
     struct FileState fs = { .path = strdup(filename) };
 
-    if(command_line_args.verbosity >= 2)
+    if(command_line_args.verbosity >= 1)
         printf("Tokenizing %s\n", filename);
     FILE *f = open_the_file(fs.path, import_location);
     Token *tokens = tokenize(f, fs.path);
@@ -208,7 +208,7 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
     if(command_line_args.verbosity >= 2)
         print_tokens(tokens);
 
-    if(command_line_args.verbosity >= 2)
+    if(command_line_args.verbosity >= 1)
         printf("Parsing %s\n", filename);
     fs.ast = parse(tokens, compst->stdlib_path);
     free_tokens(tokens);
@@ -234,13 +234,10 @@ static void parse_all_pending_files(struct CompileState *compst)
     free(compst->parse_queue.ptr);
 }
 
-static void compile_ast_to_llvm(struct FileState *fs)
+static char *compile_ast_to_object_file(struct FileState *fs)
 {
     if (command_line_args.verbosity >= 1)
-        printf("Compile to LLVM IR: %s\n", fs->path);
-
-    if (command_line_args.verbosity >= 2)
-        printf("Building CFG: %s\n", fs->path);
+        printf("Building Control Flow Graphs: %s\n", fs->path);
 
     CfGraphFile cfgfile = build_control_flow_graphs(fs->ast, &fs->types);
     for (AstToplevelNode *imp = fs->ast; imp->kind == AST_TOPLEVEL_IMPORT; imp++)
@@ -250,32 +247,38 @@ static void compile_ast_to_llvm(struct FileState *fs)
     if(command_line_args.verbosity >= 2)
         print_control_flow_graphs(&cfgfile);
 
+    if(command_line_args.verbosity >= 1)
+        printf("Analyzing CFGs: %s\n", fs->path);
     simplify_control_flow_graphs(&cfgfile);
     if(command_line_args.verbosity >= 2)
         print_control_flow_graphs(&cfgfile);
 
-    if (command_line_args.verbosity >= 2)
-        printf("Build LLVM IR: %s\n", fs->path);
+    if (command_line_args.verbosity >= 1)
+        printf("Building LLVM IR: %s\n", fs->path);
 
-    fs->module = codegen(&cfgfile, &fs->types);
+    LLVMModuleRef mod = codegen(&cfgfile, &fs->types);
     free_control_flow_graphs(&cfgfile);
 
     if (command_line_args.verbosity >= 2)
-        print_llvm_ir(fs->module, false);
+        print_llvm_ir(mod, false);
 
     /*
     If this fails, it is not just users writing dumb code, it is a bug in this compiler.
     This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
     */
-    LLVMVerifyModule(fs->module, LLVMAbortProcessAction, NULL);
+    LLVMVerifyModule(mod, LLVMAbortProcessAction, NULL);
 
     if (command_line_args.optlevel) {
-        if (command_line_args.verbosity >= 2)
+        if (command_line_args.verbosity >= 1)
             printf("Optimizing %s (level %d)\n", fs->path, command_line_args.optlevel);
-        optimize(fs->module, command_line_args.optlevel);
+        optimize(mod, command_line_args.optlevel);
         if(command_line_args.verbosity >= 2)
-            print_llvm_ir(fs->module, true);
+            print_llvm_ir(mod, true);
     }
+
+    char *objpath = compile_to_object_file(mod);
+    LLVMDisposeModule(mod);
+    return objpath;
 }
 
 static char *find_stdlib()
@@ -433,9 +436,6 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    if (command_line_args.verbosity >= 1)
-        printf("Parsing Jou files...\n");
-
     include_special_stdlib_file(&compst, "_assert_fail.jou");
 #ifdef _WIN32
     include_special_stdlib_file(&compst, "_windows_startup.jou");
@@ -448,31 +448,28 @@ int main(int argc, char **argv)
         printf("Type-checking...\n");
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        if (command_line_args.verbosity >= 2)
-            printf("Typecheck stage 1: %s\n", fs->path);
+        if (command_line_args.verbosity >= 1)
+            printf("  stage 1: %s\n", fs->path);
         fs->pending_exports = typecheck_stage1_create_types(&fs->types, fs->ast);
     }
     add_imported_symbols(&compst);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        if (command_line_args.verbosity >= 2)
-            printf("Typecheck stage 2: %s\n", fs->path);
+        if (command_line_args.verbosity >= 1)
+            printf("  stage 2: %s\n", fs->path);
         fs->pending_exports = typecheck_stage2_signatures_globals_structbodies(&fs->types, fs->ast);
     }
     add_imported_symbols(&compst);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        if (command_line_args.verbosity >= 2)
-            printf("Typecheck stage 3: %s\n", fs->path);
+        if (command_line_args.verbosity >= 1)
+            printf("  stage 3: %s\n", fs->path);
         typecheck_stage3_function_and_method_bodies(&fs->types, fs->ast);
     }
 
     char **objpaths = calloc(sizeof objpaths[0], compst.files.len + 1);
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        compile_ast_to_llvm(fs);
-        objpaths[fs - compst.files.ptr] = compile_to_object_file(fs->module);
-    }
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
+        objpaths[fs - compst.files.ptr] = compile_ast_to_object_file(fs);
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        LLVMDisposeModule(fs->module);
         free_ast(fs->ast);
         fs->ast = NULL;
         free(fs->path);
