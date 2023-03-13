@@ -120,7 +120,14 @@ class AstToIR:
             args: LLVMValue** = malloc(sizeof args[0] * ast->call.nargs)
             for i = 0; i < ast->call.nargs; i++:
                 args[i] = self->do_expression(&ast->call.args[i])
-            result = LLVMBuildCall2(self->builder, function_type, function, args, ast->call.nargs, "function_call")
+
+            name_hint: byte[100]
+            if sig->return_type == NULL:
+                strcpy(&name_hint[0], "")
+            else:
+                sprintf(&name_hint[0], "%.20s_return_value", &sig->name[0])
+
+            result = LLVMBuildCall2(self->builder, function_type, function, args, ast->call.nargs, &name_hint[0])
             free(args)
             return result
 
@@ -180,9 +187,17 @@ class AstToIR:
                 pointer = LLVMBuildAlloca(self->builder, self->do_type(v->type), &v->name[0]),
             }
 
+        # Place arguments into the first n local variables.
+        for i = 0; i < func_types->signature.nargs; i++:
+            LLVMBuildStore(self->builder, LLVMGetParam(llvm_func, i), self->local_vars[i].pointer)
+
         assert funcdef->body.nstatements > 0  # it is a definition
         self->do_body(&funcdef->body)
-        LLVMBuildUnreachable(self->builder)
+
+        if func_types->signature.return_type == NULL:
+            LLVMBuildRetVoid(self->builder)
+        else:
+            LLVMBuildUnreachable(self->builder)
 
         free(self->local_vars)
         self->local_vars = NULL

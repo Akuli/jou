@@ -465,5 +465,8 @@ def typecheck_stage3_function_and_method_bodies(file_types: FileTypes*, ast_file
         checker.current_function_or_method = &file_types->defined_functions[file_types->n_defined_functions++]
         *checker.current_function_or_method = FunctionOrMethodTypes{signature = sig->copy()}
 
+        for k = 0; k < sig->nargs; k++:
+            checker.add_local_var(&sig->argnames[k][0], sig->argtypes[k])
+
         checker.typecheck_body(&ts->function.body)
         checker.current_function_or_method = NULL
