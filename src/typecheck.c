@@ -279,7 +279,7 @@ static const Type *handle_class_members_stage2(FileTypes *ft, const AstClassDef 
     return type;
 }
 
-ExportSymbol *typecheck_stage2_signatures_globals_structbodies(FileTypes *ft, const AstToplevelNode *ast)
+ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstToplevelNode *ast)
 {
     List(ExportSymbol) exports = {0};
 

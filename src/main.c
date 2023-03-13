@@ -456,7 +456,7 @@ int main(int argc, char **argv)
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         if (command_line_args.verbosity >= 1)
             printf("  stage 2: %s\n", fs->path);
-        fs->pending_exports = typecheck_stage2_signatures_globals_structbodies(&fs->types, fs->ast);
+        fs->pending_exports = typecheck_stage2_populate_types(&fs->types, fs->ast);
     }
     add_imported_symbols(&compst);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {

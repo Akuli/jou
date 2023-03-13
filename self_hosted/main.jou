@@ -204,7 +204,7 @@ class Compiler:
                 printf("Type-check stage 2: %s\n", self->files[i].ast.path)
 
             assert self->files[i].pending_exports == NULL
-            self->files[i].pending_exports = typecheck_stage2_signatures_globals_structbodies(
+            self->files[i].pending_exports = typecheck_stage2_populate_types(
                 &self->files[i].typectx,
                 &self->files[i].ast,
             )

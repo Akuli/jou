@@ -78,14 +78,15 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
 
 enum ExportSymbolKind:
     Function
-    # TODO: exporting types, exporting global variables
+    Type
 
 class ExportSymbol:
     kind: ExportSymbolKind
     name: byte[100]
 
-    # TODO: union
-    signature: Signature    # ExportSymbolKind::Function
+    union:
+        signature: Signature    # ExportSymbolKind::Function
+        type: Type*             # ExportSymbolKind::Type
 
 class ExpressionTypes:
     expression: AstExpression*
@@ -137,6 +138,9 @@ class FileTypes:
     defined_functions: FunctionOrMethodTypes*
     n_defined_functions: int
 
+    types: Type**
+    ntypes: int
+
     def add_imported_symbol(self, symbol: ExportSymbol*) -> void:
         assert symbol->kind == ExportSymbolKind::Function
         self->all_functions = realloc(self->all_functions, sizeof self->all_functions[0] * (self->n_all_functions + 1))
@@ -154,9 +158,26 @@ class FileTypes:
                 return &self->defined_functions[i]
         return NULL
 
-# TODO: implement
-#def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbol*:
-#    assert False
+def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbol*:
+    exports: ExportSymbol* = NULL
+    nexports = 0
+
+    for i = 0; i < file->body_len; i++:
+        if file->body[i].kind == AstToplevelStatementKind::Enum:
+            enumdef = &file->body[i].enumdef
+            t = create_enum(&enumdef->name[0], enumdef->member_count, enumdef->member_names)
+            ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
+            ft->types[ft->ntypes++] = t
+            exports[nexports++] = ExportSymbol{
+                kind = ExportSymbolKind::Type,
+                name = enumdef->name,
+                type = t,
+            }
+
+    exports = realloc(exports, sizeof exports[0] * (nexports + 1))
+    exports[nexports] = ExportSymbol{}
+    return exports
+
 
 def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
     if ast_type->is_void():
@@ -211,7 +232,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*) -> Signature:
     return sig
 
 # Returned array is terminated by ExportSymbol with empty name.
-def typecheck_stage2_signatures_globals_structbodies(ft: FileTypes*, ast_file: AstFile*) -> ExportSymbol*:
+def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
     nexports = 0
 
