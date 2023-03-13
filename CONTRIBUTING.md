@@ -156,14 +156,15 @@ To make using Jou on Windows equally easy, or at least as painless as possible,
 users can download a zip file that contains everything needed to run Jou.
 See the README for instructions to install Jou from a zip file.
 
-A zip file is built and released in GitHub Actions every 3 hours,
+A zip file is built and released in GitHub Actions every morning,
 or when triggered manually from GitHub's UI
 (e.g. to release an important bugfix as quickly as possible).
+No new release is made if there are no new commits.
 
 Some parts of the build are done in `.github/workflows/windows.yml`,
 and the rest is in `.github/workflows/release.yml`.
 The difference is that `windows.yml` runs on every pull request and on every push to `main`,
-but `release.yml` runs every 3 hours and when triggered manually.
+but `release.yml` runs daily and when triggered manually.
 This means that:
 - `windows.yml` should do most of the build.
     It should also run tests on the build results to make sure that everything works.
