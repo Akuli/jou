@@ -116,6 +116,12 @@ class FunctionOrMethodTypes:
     expression_types: ExpressionTypes*
     local_vars: LocalVariable*
 
+    def get_expression_types(self, expr: AstExpression*) -> ExpressionTypes*:
+        for et = self->expression_types; et != NULL; et = et->next:
+            if et->expression == expr:
+                return et
+        return NULL
+
     def find_local_var(self, name: byte*) -> LocalVariable*:
         for v = self->local_vars; v != NULL; v = v->next:
             if strcmp(&v->name[0], name) == 0:
@@ -332,6 +338,8 @@ class Stage3TypeChecker:
 
         if expression->kind == AstExpressionKind::String:
             result = byte_type->get_pointer_type()
+        elif expression->kind == AstExpressionKind::Byte:
+            result = byte_type
         elif expression->kind == AstExpressionKind::Int:
             result = int_type
         elif expression->kind == AstExpressionKind::Long:
