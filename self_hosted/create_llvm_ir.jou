@@ -15,7 +15,9 @@ class LocalVarNameAndPointer:
 class AstToIR:
     module: LLVMModule*
     builder: LLVMBuilder*
-    file_types: FileTypes*  # Results of type-checking, so that we know what type each expression is.
+    file_types: FileTypes*  # Results of type-checking
+
+    # Function/method specific fields
     function_or_method_types: FunctionOrMethodTypes*
     llvm_function: LLVMValue*
     local_vars: LocalVarNameAndPointer*
