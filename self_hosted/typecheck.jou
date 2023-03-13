@@ -158,6 +158,12 @@ class FileTypes:
                 return &self->defined_functions[i]
         return NULL
 
+    def find_type(self, name: byte*) -> Type*:
+        for i = 0; i < self->ntypes; i++:
+            if strcmp(&self->types[i]->name[0], name) == 0:
+                return self->types[i]
+        return NULL
+
 def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
     nexports = 0
@@ -166,6 +172,7 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
         if file->body[i].kind == AstToplevelStatementKind::Enum:
             enumdef = &file->body[i].enumdef
             t = create_enum(&enumdef->name[0], enumdef->member_count, enumdef->member_names)
+            printf("Adding type: %s\n", &t->name[0])
             ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
             ft->types[ft->ntypes++] = t
             exports[nexports++] = ExportSymbol{
@@ -195,6 +202,10 @@ def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
         if strcmp(&ast_type->name[0], "bool") == 0:
             return &bool_type
         # TODO: float, double
+
+        result = ft->find_type(&ast_type->name[0])
+        if result != NULL:
+            return result
 
         message: byte* = malloc(strlen(&ast_type->name[0]) + 100)
         sprintf(message, "there is no type named '%s'", &ast_type->name[0])
@@ -276,6 +287,128 @@ def nth(n: int) -> byte*:
     sprintf(result, "%dth", n)
     return result
 
+def check_explicit_cast(from: Type*, to: Type*, location: Location) -> void:
+    if (
+        from == to  # TODO: should probably be error if it's the same type.
+        or (from->is_pointer_type() and to->is_pointer_type())
+        or (from->is_number_type() and to->is_number_type())
+        or (from->is_integer_type() and to->kind == TypeKind::Enum)
+        or (from->kind == TypeKind::Enum and to->is_integer_type())  # TODO: disallow for too small type
+        or (from == &bool_type and to->is_integer_type())
+    ):
+        return
+
+    message: byte[500]
+    snprintf(
+        &message[0], sizeof message,
+        "cannot cast from type %s to %s", &from->name[0], &to->name[0],
+    )
+    fail(location, &message[0])
+
+def very_short_type_description(t: Type*) -> byte*:
+    if t->kind == TypeKind::OpaqueClass:
+        assert False
+    if t->kind == TypeKind::Class:
+        return "a class"
+    if t->kind == TypeKind::Enum:
+        return "an enum"
+    if t->is_pointer_type():
+        return "a pointer type"
+    if t->is_number_type():
+        return "a number type"
+#    if t->kind == TypeKind::Array:
+#        return "an array type"
+    if t == &bool_type:
+        return "the built-in boolean type"
+
+    assert False
+
+def max(a: int, b: int) -> int:
+    if a > b:
+        return a
+    return b
+
+def check_binop(
+    op: AstExpressionKind,
+    location: Location,
+    lhs_types: ExpressionTypes*,
+    rhs_types: ExpressionTypes*,
+) -> Type*:
+    result_is_bool = False
+    if op == AstExpressionKind::Add:
+        do_what = "add"
+    elif op == AstExpressionKind::Subtract:
+        do_what = "subtract"
+    elif op == AstExpressionKind::Multiply:
+        do_what = "multiply"
+    elif op == AstExpressionKind::Divide:
+        do_what = "divide"
+    elif op == AstExpressionKind::Modulo:
+        do_what = "take remainder with"
+    else:
+        assert (
+            op == AstExpressionKind::Eq
+            or op == AstExpressionKind::Ne
+            or op == AstExpressionKind::Gt
+            or op == AstExpressionKind::Ge
+            or op == AstExpressionKind::Lt
+            or op == AstExpressionKind::Le
+        )
+        do_what = "compare"
+        result_is_bool = True
+
+    got_integers = lhs_types->original_type->is_integer_type() and rhs_types->original_type->is_integer_type()
+    got_numbers = lhs_types->original_type->is_number_type() and rhs_types->original_type->is_number_type()
+    got_enums = lhs_types->original_type->kind == TypeKind::Enum and rhs_types->original_type->kind == TypeKind::Enum
+    got_pointers = (
+        lhs_types->original_type->is_pointer_type()
+        and rhs_types->original_type->is_pointer_type()
+        and (
+            # Ban comparisons like int* == byte*, unless one of the two types is void*
+            lhs_types->original_type == rhs_types->original_type
+            or lhs_types->original_type == &void_ptr_type
+            or rhs_types->original_type == &void_ptr_type
+        )
+    )
+
+    if (
+        (not got_numbers and not got_enums and not got_pointers)
+        or (op != AstExpressionKind::Eq and op != AstExpressionKind::Ne and not got_numbers)
+    ):
+        message: byte[500]
+        snprintf(
+            &message[0], sizeof message,
+            "wrong types: cannot %s %s and %s",
+            do_what, &lhs_types->original_type->name[0], &rhs_types->original_type->name[0],
+        )
+        fail(location, &message[0])
+
+    if got_integers:
+        size = max(lhs_types->original_type->size_in_bits, rhs_types->original_type->size_in_bits)
+        if (
+            lhs_types->original_type->kind == TypeKind::SignedInteger
+            or rhs_types->original_type->kind == TypeKind::SignedInteger
+        ):
+            cast_type = &signed_integers[size]
+        else:
+            cast_type = &unsigned_integers[size]
+    elif got_numbers:
+        assert False   # TODO: use float/double
+    elif got_pointers:
+        cast_type = &void_ptr_type
+    elif got_enums:
+        cast_type = int_type
+    else:
+        assert False
+
+    lhs_types->do_implicit_cast(cast_type, Location{}, NULL)
+    rhs_types->do_implicit_cast(cast_type, Location{}, NULL)
+
+    if result_is_bool:
+        return &bool_type
+    else:
+        return cast_type
+
 
 class Stage3TypeChecker:
     file_types: FileTypes*
@@ -356,6 +489,7 @@ class Stage3TypeChecker:
 
     def do_expression_maybe_void(self, expression: AstExpression*) -> ExpressionTypes*:
         result: Type*
+        message: byte[200]
 
         if expression->kind == AstExpressionKind::String:
             result = byte_type->get_pointer_type()
@@ -372,8 +506,45 @@ class Stage3TypeChecker:
         elif expression->kind == AstExpressionKind::GetVariable:
             result = self->find_var(&expression->varname[0])
             if result == NULL:
-                message: byte[200]
                 snprintf(&message[0], sizeof message, "no variable named '%s'", &expression->varname[0])
+                fail(expression->location, &message[0])
+        elif expression->kind == AstExpressionKind::As:
+            old_type = self->do_expression(&expression->as_expression->value)->original_type
+            result = type_from_ast(self->file_types, &expression->as_expression->type)
+            check_explicit_cast(old_type, result, expression->location)
+        elif expression->kind == AstExpressionKind::GetEnumMember:
+            result = self->file_types->find_type(&expression->enum_member.enum_name[0])
+            if result == NULL:
+                printf("find_type(%s) returned NULL\n", &expression->enum_member.enum_name[0])
+                snprintf(&message[0], sizeof message, "there is no type named '%s'", &expression->enum_member.enum_name[0])
+                fail(expression->location, &message[0])
+            if result->kind != TypeKind::Enum:
+                snprintf(
+                    &message[0], sizeof message,
+                    "the '::' syntax is only for enums, but %s is %s",
+                    &expression->enum_member.enum_name[0], very_short_type_description(result),
+                )
+                fail(expression->location, &message[0])
+            if result->enum_members.find_index(&expression->enum_member.member_name[0]) == -1:
+                snprintf(
+                    &message[0], sizeof message,
+                    "enum %s has no member named '%s'",
+                    &expression->enum_member.enum_name[0], &expression->enum_member.member_name[0],
+                )
+                fail(expression->location, &message[0])
+        elif expression->kind == AstExpressionKind::Eq:
+            lhs_types = self->do_expression(&expression->operands[0])
+            rhs_types = self->do_expression(&expression->operands[1])
+            result = check_binop(expression->kind, expression->location, lhs_types, rhs_types)
+        elif expression->kind == AstExpressionKind::Negate:
+            result = self->do_expression(&expression->operands[0])->original_type
+            # TODO: check for floats/doubles too
+            if result->kind != TypeKind::SignedInteger:
+                snprintf(
+                    &message[0], sizeof message,
+                    "value after '-' must be a float or double or a signed integer, not %s",
+                    &result->name[0],
+                )
                 fail(expression->location, &message[0])
         else:
             printf("*** %d\n", expression->kind as int)
@@ -405,7 +576,6 @@ class Stage3TypeChecker:
         error_message_template: byte*,
     ) -> ExpressionTypes*:
         types = self->do_expression(expression)
-        types->do_implicit_cast(cast_type, expression->location, error_message_template)
         return types
 
     def do_statement(self, statement: AstStatement*) -> void:
@@ -487,6 +657,7 @@ class Stage3TypeChecker:
                 )
 
         else:
+            printf("*** %d\n", statement->kind)
             assert False
 
     def typecheck_body(self, body: AstBody*) -> void:

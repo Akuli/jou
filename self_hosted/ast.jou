@@ -114,7 +114,7 @@ class AstExpression:
     kind: AstExpressionKind
 
     union:
-        enum_member: AstEnumMember*  # TODO: a pointer only because compiling the self-hosted compiler takes forever otherwise
+        enum_member: AstEnumMember  # TODO: a pointer only because compiling the self-hosted compiler takes forever otherwise
         string: byte*
         int_value: int
         long_value: long
@@ -158,8 +158,8 @@ class AstExpression:
         elif self->kind == AstExpressionKind::GetEnumMember:
             printf(
                 "get member \"%s\" from enum \"%s\"\n",
-                &self->enum_member->member_name[0],
-                &self->enum_member->enum_name[0],
+                &self->enum_member.member_name[0],
+                &self->enum_member.enum_name[0],
             )
         elif self->kind == AstExpressionKind::As:
             printf("as ")

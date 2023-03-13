@@ -15,6 +15,13 @@ class EnumMembers:
     count: int
     names: byte[100]*
 
+    # Returns -1 for not found
+    def find_index(self, name: byte*) -> int:
+        for i = 0; i < self->count; i++:
+            if strcmp(&self->names[i][0], name) == 0:
+                return i
+        return -1
+
 class Type:
     name: byte[100]
     kind: TypeKind
@@ -34,6 +41,13 @@ class Type:
 
     def is_integer_type(self) -> bool:
         return self->kind == TypeKind::SignedInteger or self->kind == TypeKind::UnsignedInteger
+
+    def is_number_type(self) -> bool:
+        # TODO: accept floats/doubles as numbers
+        return self->is_integer_type()
+
+    def is_pointer_type(self) -> bool:
+        return self->kind == TypeKind::Pointer or self->kind == TypeKind::VoidPointer
 
     def get_pointer_type(self) -> Type*:
         if self->cached_pointer_type == NULL:

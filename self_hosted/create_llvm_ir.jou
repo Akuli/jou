@@ -34,6 +34,8 @@ class AstToIR:
             return LLVMIntType(type->size_in_bits)
         if type->kind == TypeKind::Pointer:
             return LLVMPointerType(self->do_type(type->value_type), 0)
+        if type->kind == TypeKind::Enum:
+            return LLVMInt32Type()
         printf("asd-Asd., %s\n", &type->name)
         assert False
 
@@ -73,10 +75,32 @@ class AstToIR:
         return LLVMBuildBitCast(self->builder, global_var, string_type, "string_ptr")
 
     def do_cast(self, obj: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
-        # TODO: actually do this
-        assert from == byte_type
-        assert to == int_type
-        return LLVMBuildZExt(self->builder, obj, LLVMInt32Type(), "int_cast")
+        # Treat enums as just integers
+        if from->kind == TypeKind::Enum:
+            from = int_type
+        if to->kind == TypeKind::Enum:
+            to = int_type
+
+        if from == to:
+            return obj
+
+        if from->is_pointer_type() and to->is_pointer_type():
+            return LLVMBuildBitCast(self->builder, obj, self->do_type(to), "cast_ptr")
+
+        if from->is_integer_type() and to->is_integer_type():
+            # Examples:
+            #   signed 8-bit 0xFF (-1) --> 16-bit 0xFFFF (-1 or max value)
+            #   unsigned 8-bit 0xFF (255) --> 16-bit 0x00FF (255)
+            return LLVMBuildIntCast2(self->builder, obj, self->do_type(to), from->kind == TypeKind::SignedInteger, "cast_int")
+
+        # TODO: float/double <--> integer, float <--> double
+
+        if from == &bool_type and to->is_integer_type():
+            # True --> 1, False --> 0
+            return LLVMBuildZExt(self->builder, obj, self->do_type(to), "cast_bool_to_int")
+
+        printf("unimplemented cast: %s --> %s\n", &from->name[0], &to->name[0])
+        assert False
 
     def build_assert(self, condition: LLVMValue*) -> void:
         true_block = LLVMAppendBasicBlock(self->llvm_function, "assert_true")
@@ -144,6 +168,22 @@ class AstToIR:
         elif ast->kind == AstExpressionKind::GetVariable:
             pointer = self->do_address_of_expression(ast)
             result = LLVMBuildLoad(self->builder, pointer, &ast->varname[0])
+        elif ast->kind == AstExpressionKind::GetEnumMember:
+            enum_type = self->file_types->find_type(&ast->enum_member.enum_name[0])
+            assert enum_type != NULL
+            i = enum_type->enum_members.find_index(&ast->enum_member.member_name[0])
+            assert i != -1
+            result = LLVMConstInt(LLVMInt32Type(), i, False)
+        elif ast->kind == AstExpressionKind::As:
+            value = self->do_expression(&ast->as_expression->value)
+            type_before_cast = self->function_or_method_types->get_expression_types(&ast->as_expression->value)->original_type
+            type_after_cast = self->function_or_method_types->get_expression_types(ast)->original_type
+            result = self->do_cast(value, type_before_cast, type_after_cast)
+
+        elif ast->kind == AstExpressionKind::Negate:
+            value = self->do_expression(&ast->operands[0])
+            result = LLVMBuildNeg(self->builder, value, "negate")
+
         else:
             printf("Asd-asd. Unknown expr %d...\n", ast->kind)
             assert False

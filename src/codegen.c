@@ -367,20 +367,10 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 assert(is_number_type(from) && is_number_type(to));
 
                 if (is_integer_type(from) && is_integer_type(to)) {
-                    if (from->data.width_in_bits < to->data.width_in_bits) {
-                        if (from->kind == TYPE_SIGNED_INTEGER) {
-                            // example: signed 8-bit 0xFF --> 16-bit 0xFFFF
-                            setdest(LLVMBuildSExt(st->builder, getop(0), codegen_type(to), "int_cast"));
-                        } else {
-                            // example: unsigned 8-bit 0xFF --> 16-bit 0x00FF
-                            setdest(LLVMBuildZExt(st->builder, getop(0), codegen_type(to), "int_cast"));
-                        }
-                    } else if (from->data.width_in_bits > to->data.width_in_bits) {
-                        setdest(LLVMBuildTrunc(st->builder, getop(0), codegen_type(to), "int_cast"));
-                    } else {
-                        // same size, LLVM doesn't distinguish signed and unsigned integer types
-                        setdest(getop(0));
-                    }
+                    // Examples:
+                    //  signed 8-bit 0xFF (-1) --> 16-bit 0xFFFF (-1 or max value)
+                    //  unsigned 8-bit 0xFF (255) --> 16-bit 0x00FF (255)
+                    setdest(LLVMBuildIntCast2(st->builder, getop(0), codegen_type(to), from->kind == TYPE_SIGNED_INTEGER, "int_cast"));
                 } else if (is_integer_type(from) && to->kind == TYPE_FLOATING_POINT) {
                     // integer --> double / float
                     if (from->kind == TYPE_SIGNED_INTEGER)
