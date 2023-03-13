@@ -169,8 +169,13 @@ class AstToIR:
             target_pointer = self->do_address_of_expression(&ast->assignment.target)
             value = self->do_expression(&ast->assignment.value)
             LLVMBuildStore(self->builder, value, target_pointer)
+        elif ast->kind == AstStatementKind::DeclareLocalVar:
+            if ast->var_declaration.value != NULL:
+                target_pointer = self->get_local_var_pointer(&ast->var_declaration.name[0])
+                value = self->do_expression(ast->var_declaration.value)
+                LLVMBuildStore(self->builder, value, target_pointer)
         else:
-            printf("Asd-asd. Unknown statement...\n")
+            printf("Asd-asd. Unknown statement %d...\n", ast->kind)
             assert False
 
     def do_body(self, body: AstBody*) -> void:

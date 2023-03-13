@@ -450,6 +450,21 @@ class Stage3TypeChecker:
                 target_types = self->do_expression(target_expr)
                 self->do_expression_and_implicit_cast(value_expr, target_types->original_type, error_template)
 
+        elif statement->kind == AstStatementKind::DeclareLocalVar:
+            ntv: AstNameTypeValue* = &statement->var_declaration
+            if self->find_var(&ntv->name[0]) != NULL:
+                message: byte[200]
+                snprintf(&message[0], sizeof message, "a variable named '%s' already exists", &ntv->name[0])
+                fail(statement->location, &message[0])
+
+            type = type_from_ast(self->file_types, &ntv->type)
+            self->add_local_var(&ntv->name[0], type)
+            if ntv->value != NULL:
+                self->do_expression_and_implicit_cast(
+                    ntv->value, type,
+                    "initial value for variable of type TO cannot be of type FROM",
+                )
+
         else:
             assert False
 
