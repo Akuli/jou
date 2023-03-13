@@ -172,7 +172,6 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
         if file->body[i].kind == AstToplevelStatementKind::Enum:
             enumdef = &file->body[i].enumdef
             t = create_enum(&enumdef->name[0], enumdef->member_count, enumdef->member_names)
-            printf("Adding type: %s\n", &t->name[0])
             ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
             ft->types[ft->ntypes++] = t
             exports[nexports++] = ExportSymbol{
@@ -576,6 +575,7 @@ class Stage3TypeChecker:
         error_message_template: byte*,
     ) -> ExpressionTypes*:
         types = self->do_expression(expression)
+        types->do_implicit_cast(cast_type, expression->location, error_message_template)
         return types
 
     def do_statement(self, statement: AstStatement*) -> void:
