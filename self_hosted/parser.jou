@@ -227,6 +227,32 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
 
     return expr
 
+def parse_expression_with_fields_and_methods_and_indexing(tokens: Token**) -> AstExpression:
+    result = parse_elementary_expression(tokens)
+
+    # TODO: lists [foo,bar,baz]
+    while (*tokens)->is_operator(".") or (*tokens)->is_operator("->"):
+        start_op = (*tokens)++
+        if (*tokens)->kind != TokenKind::Name:
+            (*tokens)->fail_expected_got("a field or method name")
+
+        assert not (*tokens)[1].is_operator("(")  # TODO
+
+        instance: AstExpression* = malloc(sizeof *instance)
+        *instance = result
+        result = AstExpression{
+            location = (*tokens)->location,
+            kind = AstExpressionKind::GetClassField,
+            class_field = AstClassField{
+                instance = instance,
+                deref = start_op->is_operator("->"),
+                field_name = (*tokens)->short_string,
+            },
+        }
+        ++*tokens
+
+    return result
+
 # arity = number of operands, e.g. 2 for a binary operator such as "+"
 #
 # This cannot be used for ++ and --, because with them we can't know the kind from
@@ -310,7 +336,7 @@ def parse_expression_with_unary_operators(tokens: Token**) -> AstExpression:
         ++*tokens
     prefix_end = *tokens
 
-    result = parse_elementary_expression(tokens)
+    result = parse_expression_with_fields_and_methods_and_indexing(tokens)
 
     suffix_start = *tokens
     while (*tokens)->is_operator("++") or (*tokens)->is_operator("--"):
