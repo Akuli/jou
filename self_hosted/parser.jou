@@ -143,28 +143,62 @@ def parse_import_path(path_token: Token*, stdlib_path: byte*) -> AstImport:
         resolved_path = path,
     }
 
-def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCall:
+def parse_call(tokens: Token**) -> AstCall:
     assert (*tokens)->kind == TokenKind::Name  # must be checked when calling this function
     result = AstCall{location = (*tokens)->location, called_name = (*tokens)->short_string}
     ++*tokens
-
-    if not (*tokens)->is_operator(open_paren):
-        expected = malloc(100)
-        sprintf(expected, "a '%s' to denote the start of arguments", open_paren)
-        (*tokens)->fail_expected_got(expected)
+    assert (*tokens)->is_operator("(")
     ++*tokens
 
-    while not (*tokens)->is_operator(close_paren):
+    while not (*tokens)->is_operator(")"):
         result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
         result.args[result.nargs++] = parse_expression(tokens)
         if not (*tokens)->is_operator(","):
             break
         ++*tokens
 
-    if not (*tokens)->is_operator(close_paren):
-        expected = malloc(100)
-        sprintf(expected, "a '%s'", close_paren)
-        (*tokens)->fail_expected_got(expected)
+    if not (*tokens)->is_operator(")"):
+        (*tokens)->fail_expected_got("a ')'")
+    ++*tokens
+
+    return result
+
+def parse_instantiation(tokens: Token**) -> AstInstantiation:
+    assert (*tokens)->kind == TokenKind::Name  # must be checked when calling this function
+    result = AstInstantiation{class_name_location = (*tokens)->location, class_name = (*tokens)->short_string}
+    ++*tokens
+    assert (*tokens)->is_operator("{")
+    ++*tokens
+
+    while not (*tokens)->is_operator("}"):
+        if (*tokens)->kind != TokenKind::Name:
+            (*tokens)->fail_expected_got("a field name")
+        field_name = (*tokens)->short_string
+        for i = 0; i < result.nfields; i++:
+            if strcmp(&result.field_names[i][0], &field_name[0]) == 0:
+                error: byte[500]
+                snprintf(&error[0], sizeof error, "multiple values were given for field '%s'", &field_name[0])
+                fail((*tokens)->location, &error[0])
+        result.field_names = realloc(result.field_names, (result.nfields + 1) * sizeof result.field_names[0])
+        result.field_names[result.nfields] = field_name
+        ++*tokens
+
+        if not (*tokens)->is_operator("="):
+            msg: byte[300]
+            snprintf(&msg[0], sizeof msg, "'=' followed by a value for field '%s'", &field_name[0])
+            (*tokens)->fail_expected_got(&msg[0])
+        ++*tokens
+
+        result.field_values = realloc(result.field_values, sizeof result.field_values[0] * (result.nfields+1))
+        result.field_values[result.nfields] = parse_expression(tokens)
+
+        result.nfields++
+        if not (*tokens)->is_operator(","):
+            break
+        ++*tokens
+
+    if not (*tokens)->is_operator("}"):
+        (*tokens)->fail_expected_got("a '}'")
     ++*tokens
 
     return result
@@ -202,7 +236,10 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
     elif (*tokens)->kind == TokenKind::Name:
         if (*tokens)[1].is_operator("("):
             expr.kind = AstExpressionKind::FunctionCall
-            expr.call = parse_call(tokens, "(", ")")
+            expr.call = parse_call(tokens)
+        elif (*tokens)[1].is_operator("{"):
+            expr.kind = AstExpressionKind::Instantiate
+            expr.instantiation = parse_instantiation(tokens)
         elif (*tokens)[1].is_operator("::") and (*tokens)[2].kind == TokenKind::Name:
             expr.kind = AstExpressionKind::GetEnumMember
             expr.enum_member = AstEnumMember{

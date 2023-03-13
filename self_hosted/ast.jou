@@ -80,6 +80,7 @@ enum AstExpressionKind:
     Bool
     Null
     FunctionCall
+    Instantiate   # MyClass{x=1, y=2}
     GetVariable
     GetEnumMember
     GetClassField
@@ -123,6 +124,7 @@ class AstExpression:
         byte_value: byte
         bool_value: bool
         call: AstCall
+        instantiation: AstInstantiation
         as_expression: AstAsExpression*  # Must be pointer, because it contains an AstExpression
         varname: byte[100]
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
@@ -155,6 +157,9 @@ class AstExpression:
         elif self->kind == AstExpressionKind::FunctionCall:
             printf("call function \"%s\"\n", &self->call.called_name[0])
             self->call.print(tp)
+        elif self->kind == AstExpressionKind::Instantiate:
+            printf("instantiate \"%s\"\n", &self->instantiation.class_name[0])
+            self->instantiation.print(tp)
         elif self->kind == AstExpressionKind::GetVariable:
             printf("get variable \"%s\"\n", &self->varname[0])
         elif self->kind == AstExpressionKind::GetEnumMember:
@@ -311,6 +316,25 @@ class AstCall:
         for i = 0; i < self->nargs; i++:
             self->args[i].free()
         free(self->args)
+
+class AstInstantiation:
+    class_name_location: Location
+    class_name: byte[100]
+    nfields: int
+    field_names: byte[100]*
+    field_values: AstExpression*
+
+    def print(self, tp: TreePrinter) -> void:
+        for i = 0; i < self->nfields; i++:
+            sub = tp.print_prefix(i == self->nfields - 1)
+            printf("field \"%s\": ", &self->field_names[i][0])
+            self->field_values[i].print(sub)
+
+    def free(self) -> void:
+        for i = 0; i < self->nfields; i++:
+            self->field_values[i].free()
+        free(self->field_names)
+        free(self->field_values)
 
 enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
