@@ -156,7 +156,7 @@ To make using Jou on Windows equally easy, or at least as painless as possible,
 users can download a zip file that contains everything needed to run Jou.
 See the README for instructions to install Jou from a zip file.
 
-A zip file is built and released in GitHub Actions every morning,
+A zip file is built and released in GitHub Actions every morning at 4AM UTC,
 or when triggered manually from GitHub's UI
 (e.g. to release an important bugfix as quickly as possible).
 No new release is made if there are no new commits.
