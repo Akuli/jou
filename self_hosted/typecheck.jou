@@ -656,11 +656,21 @@ class Stage3TypeChecker:
                     "initial value for variable of type TO cannot be of type FROM",
                 )
 
+        elif statement->kind == AstStatementKind::If:
+            for i = 0; i < statement->if_statement.n_if_and_elifs; i++:
+                self->do_expression_and_implicit_cast(
+                    &statement->if_statement.if_and_elifs[i].condition,
+                    &bool_type,
+                    "'if' condition must be a boolean, not <from>",
+                )
+                self->do_body(&statement->if_statement.if_and_elifs[i].body)
+            self->do_body(&statement->if_statement.else_body)
+
         else:
-            printf("*** %d\n", statement->kind)
+            printf("*** typecheck: unknown statement kind %d\n", statement->kind)
             assert False
 
-    def typecheck_body(self, body: AstBody*) -> void:
+    def do_body(self, body: AstBody*) -> void:
         for i = 0; i < body->nstatements; i++:
             self->do_statement(&body->statements[i])
 
@@ -683,5 +693,5 @@ def typecheck_stage3_function_and_method_bodies(file_types: FileTypes*, ast_file
         for k = 0; k < sig->nargs; k++:
             checker.add_local_var(&sig->argnames[k][0], sig->argtypes[k])
 
-        checker.typecheck_body(&ts->function.body)
+        checker.do_body(&ts->function.body)
         checker.current_function_or_method = NULL
