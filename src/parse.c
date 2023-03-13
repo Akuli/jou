@@ -897,6 +897,9 @@ static AstEnumDef parse_enumdef(const Token **tokens)
     List(const char*) membernames = {0};
 
     while ((*tokens)->type != TOKEN_DEDENT) {
+        if ((*tokens)->type != TOKEN_NAME)
+            fail_with_parse_error(*tokens, "a name for an enum member");
+
         for (const char **old = membernames.ptr; old < End(membernames); old++)
             if (!strcmp(*old, (*tokens)->data.name))
                 fail_with_error((*tokens)->location, "the enum has two members named '%s'", (*tokens)->data.name);

@@ -205,8 +205,7 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
             expr.call = parse_call(tokens, "(", ")")
         elif (*tokens)[1].is_operator("::") and (*tokens)[2].kind == TokenKind::Name:
             expr.kind = AstExpressionKind::GetEnumMember
-            expr.enum_member = malloc(sizeof *expr.enum_member)
-            *expr.enum_member = AstEnumMember{
+            expr.enum_member = AstEnumMember{
                 enum_name = (*tokens)->short_string,
                 member_name = (*tokens)[2].short_string,
             }
@@ -617,7 +616,7 @@ def parse_funcdef(tokens: Token**) -> AstFunction:
         body = parse_body(tokens),
     }
 
-def parse_classdef(tokens: Token**) -> AstClassDef:
+def parse_class(tokens: Token**) -> AstClassDef:
     if (*tokens)->kind != TokenKind::Name:
         (*tokens)->fail_expected_got("a name for the class")
 
@@ -635,6 +634,24 @@ def parse_classdef(tokens: Token**) -> AstClassDef:
             result.fields = realloc(result.fields, sizeof result.fields[0] * (result.nfields + 1))
             result.fields[result.nfields++] = field
             eat_newline(tokens)
+
+    ++*tokens
+    return result
+
+def parse_enum(tokens: Token**) -> AstEnumDef:
+    if (*tokens)->kind != TokenKind::Name:
+        (*tokens)->fail_expected_got("a name for the enum")
+
+    result = AstEnumDef{name = ((*tokens)++)->short_string}
+
+    parse_start_of_body(tokens)
+    while (*tokens)->kind != TokenKind::Dedent:
+        if (*tokens)->kind != TokenKind::Name:
+            (*tokens)->fail_expected_got("a name for an enum member")
+        result.member_names = realloc(result.member_names, sizeof result.member_names[0] * (result.member_count + 1))
+        result.member_names[result.member_count++] = (*tokens)->short_string
+        ++*tokens
+        eat_newline(tokens)
 
     ++*tokens
     return result
@@ -672,7 +689,12 @@ def parse_toplevel_node(tokens: Token**, stdlib_path: byte*) -> AstToplevelState
     elif (*tokens)->is_keyword("class"):
         ++*tokens
         ts.kind = AstToplevelStatementKind::ClassDefinition
-        ts.classdef = parse_classdef(tokens)
+        ts.classdef = parse_class(tokens)
+
+    elif (*tokens)->is_keyword("enum"):
+        ++*tokens
+        ts.kind = AstToplevelStatementKind::Enum
+        ts.enumdef = parse_enum(tokens)
 
     else:
         (*tokens)->fail_expected_got("a definition or declaration")

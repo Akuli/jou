@@ -279,7 +279,7 @@ static const Type *handle_class_members_stage2(FileTypes *ft, const AstClassDef 
     return type;
 }
 
-ExportSymbol *typecheck_stage2_signatures_globals_structbodies(FileTypes *ft, const AstToplevelNode *ast)
+ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstToplevelNode *ast)
 {
     List(ExportSymbol) exports = {0};
 
@@ -488,11 +488,10 @@ static const Type *check_binop(
         )
     );
 
-    if(!(
-        got_integers
-        || got_numbers
-        || ((got_enums || got_pointers) && (op == AST_EXPR_EQ || op == AST_EXPR_NE))
-    ))
+    if (
+        (!got_numbers && !got_enums && !got_pointers)
+        || (op != AST_EXPR_EQ && op != AST_EXPR_NE && !got_numbers)
+    )
         fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name);
 
     const Type *cast_type = NULL;

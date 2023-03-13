@@ -198,13 +198,24 @@ class Compiler:
             free(self->files[i].pending_exports)
             self->files[i].pending_exports = NULL
 
+    def typecheck_stage1_all_files(self) -> void:
+        for i = 0; i < self->nfiles; i++:
+            if self->verbosity >= 1:
+                printf("Type-check stage 1: %s\n", self->files[i].ast.path)
+
+            assert self->files[i].pending_exports == NULL
+            self->files[i].pending_exports = typecheck_stage1_create_types(
+                &self->files[i].typectx,
+                &self->files[i].ast,
+            )
+
     def typecheck_stage2_all_files(self) -> void:
         for i = 0; i < self->nfiles; i++:
             if self->verbosity >= 1:
                 printf("Type-check stage 2: %s\n", self->files[i].ast.path)
 
             assert self->files[i].pending_exports == NULL
-            self->files[i].pending_exports = typecheck_stage2_signatures_globals_structbodies(
+            self->files[i].pending_exports = typecheck_stage2_populate_types(
                 &self->files[i].typectx,
                 &self->files[i].ast,
             )
@@ -378,6 +389,9 @@ def main(argc: int, argv: byte**) -> int:
         }
         compiler.determine_automagic_files()
         compiler.parse_all_files()
+
+        compiler.typecheck_stage1_all_files()
+        compiler.process_imports_and_exports()
         compiler.typecheck_stage2_all_files()
         compiler.process_imports_and_exports()
         compiler.typecheck_stage3_all_files()

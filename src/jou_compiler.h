@@ -458,7 +458,7 @@ struct ExpressionTypes {
 
 struct ExportSymbol {
     enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_TYPE, EXPSYM_GLOBAL_VAR } kind;
-    char name[200];  // For methods this is "StructName.method_name"
+    char name[200];
     union {
         Signature funcsignature;
         const Type *type;  // EXPSYM_TYPE and EXPSYM_GLOBAL_VAR
@@ -503,7 +503,7 @@ The list is terminated with (ExportSymbol){0}, which you can detect by
 checking if the name of the ExportSymbol is empty.
 */
 ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstToplevelNode *ast);
-ExportSymbol *typecheck_stage2_signatures_globals_structbodies(FileTypes *ft, const AstToplevelNode *ast);
+ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstToplevelNode *ast);
 void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstToplevelNode *ast);
 
 

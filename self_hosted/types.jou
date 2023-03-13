@@ -7,6 +7,20 @@ enum TypeKind:
     UnsignedInteger
     Pointer
     VoidPointer
+    Class
+    OpaqueClass
+    Enum
+
+class EnumMembers:
+    count: int
+    names: byte[100]*
+
+    # Returns -1 for not found
+    def find_index(self, name: byte*) -> int:
+        for i = 0; i < self->count; i++:
+            if strcmp(&self->names[i][0], name) == 0:
+                return i
+        return -1
 
 class Type:
     name: byte[100]
@@ -15,6 +29,7 @@ class Type:
     union:
         size_in_bits: int  # SignedInteger, UnsignedInteger
         value_type: Type*  # Pointer
+        enum_members: EnumMembers  # Enum
 
     # Pointers and arrays of a given type live as long as the type itself.
     # To make it possible, we just store them within the type.
@@ -26,6 +41,13 @@ class Type:
 
     def is_integer_type(self) -> bool:
         return self->kind == TypeKind::SignedInteger or self->kind == TypeKind::UnsignedInteger
+
+    def is_number_type(self) -> bool:
+        # TODO: accept floats/doubles as numbers
+        return self->is_integer_type()
+
+    def is_pointer_type(self) -> bool:
+        return self->kind == TypeKind::Pointer or self->kind == TypeKind::VoidPointer
 
     def get_pointer_type(self) -> Type*:
         if self->cached_pointer_type == NULL:
@@ -76,6 +98,26 @@ def init_types() -> void:
     strcpy(&byte_type->name[0], "byte")
     strcpy(&int_type->name[0], "int")
     strcpy(&long_type->name[0], "long")
+
+def create_opaque_class(name: byte*) -> Type*:
+    result: Type* = malloc(sizeof *result)
+    *result = Type{kind = TypeKind::OpaqueClass}
+    assert strlen(name) < sizeof result->name
+    strcpy(&result->name[0], name)
+    return result
+
+def create_enum(name: byte*, member_count: int, member_names: byte[100]*) -> Type*:
+    copied_member_names: byte[100]* = malloc(member_count * sizeof copied_member_names[0])
+    memcpy(copied_member_names, member_names, member_count * sizeof copied_member_names[0])
+
+    result: Type* = malloc(sizeof *result)
+    *result = Type{
+        kind = TypeKind::Enum,
+        enum_members = EnumMembers{count = member_count, names = copied_member_names},
+    }
+    assert strlen(name) < sizeof result->name
+    strcpy(&result->name[0], name)
+    return result
 
 
 class Signature:

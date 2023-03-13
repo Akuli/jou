@@ -114,7 +114,7 @@ class AstExpression:
     kind: AstExpressionKind
 
     union:
-        enum_member: AstEnumMember*  # TODO: a pointer only because compiling the self-hosted compiler takes forever otherwise
+        enum_member: AstEnumMember
         string: byte*
         int_value: int
         long_value: long
@@ -158,8 +158,8 @@ class AstExpression:
         elif self->kind == AstExpressionKind::GetEnumMember:
             printf(
                 "get member \"%s\" from enum \"%s\"\n",
-                &self->enum_member->member_name[0],
-                &self->enum_member->enum_name[0],
+                &self->enum_member.member_name[0],
+                &self->enum_member.enum_name[0],
             )
         elif self->kind == AstExpressionKind::As:
             printf("as ")
@@ -548,6 +548,7 @@ enum AstToplevelStatementKind:
     Import
     Function
     ClassDefinition
+    Enum
     GlobalVariableDeclaration
 
 class AstToplevelStatement:
@@ -555,6 +556,7 @@ class AstToplevelStatement:
         the_import: AstImport   # must be placed in the beginning of the class
         function: AstFunction
         classdef: AstClassDef
+        enumdef: AstEnumDef
         global_var: AstNameTypeValue
 
     kind: AstToplevelStatementKind
@@ -577,6 +579,9 @@ class AstToplevelStatement:
         elif self->kind == AstToplevelStatementKind::ClassDefinition:
             printf("Define a ")
             self->classdef.print()
+        elif self->kind == AstToplevelStatementKind::Enum:
+            printf("Define ")
+            self->enumdef.print()
         elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
             printf("Declare a global variable ")
             self->global_var.print(NULL)
@@ -588,6 +593,8 @@ class AstToplevelStatement:
     def free(self) -> void:
         if self->kind == AstToplevelStatementKind::Import:
             self->the_import.free()
+        if self->kind == AstToplevelStatementKind::Enum:
+            self->enumdef.free()
 
 class AstFile:
     path: byte*  # not owned
@@ -662,3 +669,16 @@ class AstClassDef:
             self->fields[i].free()
         for i = 0; i < self->nmethods; i++:
             self->methods[i].free()
+
+class AstEnumDef:
+    name: byte[100]
+    member_count: int
+    member_names: byte[100]*
+
+    def print(self) -> void:
+        printf("enum \"%s\" with %d members:\n", &self->name[0], self->member_count)
+        for i = 0; i < self->member_count; i++:
+            printf("  %s\n", &self->member_names[i][0])
+
+    def free(self) -> void:
+        free(self->member_names)
