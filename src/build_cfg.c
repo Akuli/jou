@@ -563,7 +563,7 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
         break;
     case AST_EXPR_GET_VARIABLE:
         if ((temp = find_local_var(st, expr->data.varname))) {
-            if (types->type_after_cast == NULL || types->type == types->type_after_cast) {
+            if (types->implicit_cast_type == NULL || types->type == types->implicit_cast_type) {
                 // Must take a "snapshot" of this variable, as it may change soon.
                 result = add_local_var(st, temp->type);
                 add_unary_op(st, expr->location, CF_VARCPY, temp, result);
@@ -675,8 +675,8 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
 
     assert(types);
     assert(result->type == types->type);
-    if (types->type_after_cast)
-        return build_cast(st, result, types->type_after_cast, expr->location);
+    if (types->implicit_cast_type)
+        return build_cast(st, result, types->implicit_cast_type, expr->location);
     else
         return result;
 }

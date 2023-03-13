@@ -8,11 +8,26 @@ import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
+class LocalVarNameAndPointer:
+    name: byte[100]
+    pointer: LLVMValue*
+
 class AstToIR:
     module: LLVMModule*
     builder: LLVMBuilder*
-    typectx: TypeContext*  # Results of type-checking, so that we know what type each expression is.
-    current_function: LLVMValue*
+    file_types: FileTypes*  # Results of type-checking
+
+    # Function/method specific fields
+    function_or_method_types: FunctionOrMethodTypes*
+    llvm_function: LLVMValue*
+    local_vars: LocalVarNameAndPointer*
+    n_local_vars: int
+
+    def get_local_var_pointer(self, name: byte*) -> LLVMValue*:
+        for i = 0; i < self->n_local_vars; i++:
+            if strcmp(&self->local_vars[i].name[0], name) == 0:
+                return self->local_vars[i].pointer
+        assert False
 
     def do_type(self, type: Type*) -> LLVMType*:
         if type->is_integer_type():
@@ -22,25 +37,30 @@ class AstToIR:
         printf("asd-Asd., %s\n", &type->name)
         assert False
 
-    def declare_function(self, signature: Signature*) -> void:
-        argtypes: LLVMType**
-        argtypes = malloc(signature->nargs * sizeof argtypes[0])
-        for i = 0; i < signature->nargs; i++:
-            argtypes[i] = self->do_type(signature->argtypes[i])
+    def declare_function(self, sig: Signature*) -> LLVMValue*:
+        # Make it so that this can be called many times without issue
+        func = LLVMGetNamedFunction(self->module, &sig->name[0])
+        if func != NULL:
+            return func
 
-        if signature->return_type == NULL:
+        argtypes: LLVMType** = malloc(sig->nargs * sizeof argtypes[0])
+        for i = 0; i < sig->nargs; i++:
+            argtypes[i] = self->do_type(sig->argtypes[i])
+
+        # TODO: tell llvm if we know a function is noreturn
+        if sig->return_type == NULL:  # "-> noreturn" or "-> void"
             return_type = LLVMVoidType()
         else:
-            return_type = self->do_type(signature->return_type)
+            return_type = self->do_type(sig->return_type)
 
-        function_type = LLVMFunctionType(return_type, argtypes, signature->nargs, signature->takes_varargs)
+        function_type = LLVMFunctionType(return_type, argtypes, sig->nargs, sig->takes_varargs)
         free(argtypes)
 
-        LLVMAddFunction(self->module, &signature->name[0], function_type)
+        return LLVMAddFunction(self->module, &sig->name[0], function_type)
 
     def new_block(self, name_hint: byte*) -> void:
-        assert self->current_function != NULL
-        block = LLVMAppendBasicBlock(self->current_function, name_hint)
+        assert self->llvm_function != NULL
+        block = LLVMAppendBasicBlock(self->llvm_function, name_hint)
         LLVMPositionBuilderAtEnd(self->builder, block)
 
     def make_a_string_constant(self, s: byte*) -> LLVMValue*:
@@ -52,9 +72,15 @@ class AstToIR:
         string_type = LLVMPointerType(LLVMInt8Type(), 0)
         return LLVMBuildBitCast(self->builder, global_var, string_type, "string_ptr")
 
+    def do_cast(self, obj: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
+        # TODO: actually do this
+        assert from == byte_type
+        assert to == int_type
+        return LLVMBuildZExt(self->builder, obj, LLVMInt32Type(), "int_cast")
+
     def build_assert(self, condition: LLVMValue*) -> void:
-        true_block = LLVMAppendBasicBlock(self->current_function, "assert_true")
-        false_block = LLVMAppendBasicBlock(self->current_function, "assert_false")
+        true_block = LLVMAppendBasicBlock(self->llvm_function, "assert_true")
+        false_block = LLVMAppendBasicBlock(self->llvm_function, "assert_false")
         LLVMBuildCondBr(self->builder, condition, true_block, false_block)
 
         LLVMPositionBuilderAtEnd(self->builder, false_block)
@@ -75,19 +101,27 @@ class AstToIR:
         LLVMBuildCall2(self->builder, assert_fail_func_type, assert_fail_func, &args[0], 3, "")
         LLVMPositionBuilderAtEnd(self->builder, true_block)
 
+    def do_address_of_expression(self, ast: AstExpression*) -> LLVMValue*:
+        if ast->kind == AstExpressionKind::GetVariable:
+            return self->get_local_var_pointer(&ast->varname[0])
+
+        printf("kind: %d\n", ast->kind)
+        assert False
+
     def do_expression(self, ast: AstExpression*) -> LLVMValue*:
         if ast->kind == AstExpressionKind::String:
-            return self->make_a_string_constant(ast->string)
+            result = self->make_a_string_constant(ast->string)
         elif ast->kind == AstExpressionKind::Byte:
-            return LLVMConstInt(LLVMInt8Type(), ast->byte_value, False)
+            result = LLVMConstInt(LLVMInt8Type(), ast->byte_value, False)
         elif ast->kind == AstExpressionKind::Int:
-            return LLVMConstInt(LLVMInt32Type(), ast->int_value, False)
+            result = LLVMConstInt(LLVMInt32Type(), ast->int_value, False)
         elif ast->kind == AstExpressionKind::Long:
-            return LLVMConstInt(LLVMInt64Type(), ast->long_value, False)
+            result = LLVMConstInt(LLVMInt64Type(), ast->long_value, False)
 
         elif ast->kind == AstExpressionKind::FunctionCall:
-            function = LLVMGetNamedFunction(self->module, &ast->call.called_name[0])
-            assert function != NULL
+            sig = self->file_types->find_function(&ast->call.called_name[0])
+            assert sig != NULL
+            function = self->declare_function(sig)
             assert LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind::Pointer
             function_type = LLVMGetElementType(LLVMTypeOf(function))
             assert LLVMGetTypeKind(function_type) == LLVMTypeKind::Function
@@ -95,13 +129,29 @@ class AstToIR:
             args: LLVMValue** = malloc(sizeof args[0] * ast->call.nargs)
             for i = 0; i < ast->call.nargs; i++:
                 args[i] = self->do_expression(&ast->call.args[i])
-            result = LLVMBuildCall2(self->builder, function_type, function, args, ast->call.nargs, "function_call")
-            free(args)
-            return result
 
+            name_hint: byte[100]
+            if sig->return_type == NULL:
+                strcpy(&name_hint[0], "")
+            else:
+                sprintf(&name_hint[0], "%.20s_return_value", &sig->name[0])
+
+            result = LLVMBuildCall2(self->builder, function_type, function, args, ast->call.nargs, &name_hint[0])
+            free(args)
+            if sig->return_type == NULL:
+                return NULL
+
+        elif ast->kind == AstExpressionKind::GetVariable:
+            pointer = self->do_address_of_expression(ast)
+            result = LLVMBuildLoad(self->builder, pointer, &ast->varname[0])
         else:
             printf("Asd-asd. Unknown expr %d...\n", ast->kind)
             assert False
+
+        types = self->function_or_method_types->get_expression_types(ast)
+        if types->implicit_cast_type == NULL:
+            return result
+        return self->do_cast(result, types->original_type, types->implicit_cast_type)
 
     def do_statement(self, ast: AstStatement*) -> void:
         if ast->kind == AstStatementKind::ExpressionStatement:
@@ -117,8 +167,17 @@ class AstToIR:
         elif ast->kind == AstStatementKind::Assert:
             condition = self->do_expression(&ast->expression)
             self->build_assert(condition)
+        elif ast->kind == AstStatementKind::Assign:
+            target_pointer = self->do_address_of_expression(&ast->assignment.target)
+            value = self->do_expression(&ast->assignment.value)
+            LLVMBuildStore(self->builder, value, target_pointer)
+        elif ast->kind == AstStatementKind::DeclareLocalVar:
+            if ast->var_declaration.value != NULL:
+                target_pointer = self->get_local_var_pointer(&ast->var_declaration.name[0])
+                value = self->do_expression(ast->var_declaration.value)
+                LLVMBuildStore(self->builder, value, target_pointer)
         else:
-            printf("Asd-asd. Unknown statement...\n")
+            printf("Asd-asd. Unknown statement %d...\n", ast->kind)
             assert False
 
     def do_body(self, body: AstBody*) -> void:
@@ -127,20 +186,48 @@ class AstToIR:
 
     # The function must already be declared.
     def define_function(self, funcdef: AstFunction*) -> void:
-        llvm_func = LLVMGetNamedFunction(self->module, &funcdef->signature.name[0])
-        assert llvm_func != NULL
-        assert self->current_function == NULL
-        self->current_function = llvm_func
+        assert self->function_or_method_types == NULL
+        self->function_or_method_types = self->file_types->find_defined_function(&funcdef->signature.name[0])
+        assert self->function_or_method_types != NULL
 
+        assert self->llvm_function == NULL
+        sig = &self->function_or_method_types->signature
+        self->llvm_function = self->declare_function(sig)
         self->new_block("start")
+
+        # Allocate all local variables at the start of the function.
+        assert self->n_local_vars == 0
+        assert self->local_vars == NULL
+        for v = self->function_or_method_types->local_vars; v != NULL; v = v->next:
+            self->n_local_vars++
+        self->local_vars = malloc(self->n_local_vars * sizeof self->local_vars[0])
+        i = 0
+        for v = self->function_or_method_types->local_vars; v != NULL; v = v->next:
+            self->local_vars[i++] = LocalVarNameAndPointer{
+                name = v->name,
+                pointer = LLVMBuildAlloca(self->builder, self->do_type(v->type), &v->name[0]),
+            }
+
+        # Place arguments into the first n local variables.
+        for i = 0; i < sig->nargs; i++:
+            LLVMBuildStore(self->builder, LLVMGetParam(self->llvm_function, i), self->local_vars[i].pointer)
+
         assert funcdef->body.nstatements > 0  # it is a definition
         self->do_body(&funcdef->body)
-        LLVMBuildUnreachable(self->builder)
 
-        self->current_function = NULL
+        if sig->return_type == NULL:
+            LLVMBuildRetVoid(self->builder)
+        else:
+            LLVMBuildUnreachable(self->builder)
+
+        free(self->local_vars)
+        self->local_vars = NULL
+        self->n_local_vars = 0
+        self->llvm_function = NULL
+        self->function_or_method_types = NULL
 
 
-def create_llvm_ir(ast: AstFile*, typectx: TypeContext*) -> LLVMModule*:
+def create_llvm_ir(ast: AstFile*, ft: FileTypes*) -> LLVMModule*:
     module = LLVMModuleCreateWithName(ast->path)
     LLVMSetTarget(module, &target.triple[0])
     LLVMSetDataLayout(module, &target.data_layout[0])
@@ -148,11 +235,8 @@ def create_llvm_ir(ast: AstFile*, typectx: TypeContext*) -> LLVMModule*:
     a2i = AstToIR{
         module = module,
         builder = LLVMCreateBuilder(),
-        typectx = typectx
+        file_types = ft
     }
-
-    for i = 0; i < typectx->nfunctions; i++:
-        a2i.declare_function(&typectx->functions[i])
 
     for i = 0; i < ast->body_len; i++:
         if ast->body[i].kind == AstToplevelStatementKind::Function and ast->body[i].function.body.nstatements > 0:

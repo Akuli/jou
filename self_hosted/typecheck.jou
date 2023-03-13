@@ -20,137 +20,6 @@ import "./ast.jou"
 import "./types.jou"
 import "./errors_and_warnings.jou"
 
-# Suppose file A imports file B.
-#   - Type checking file B produces an ExportSymbol that matches the import in file A.
-#   - Before the next type checking stage, the ExportSymbol is added to file A's type context.
-#   - During the next stage, file A can use the imported symbol.
-
-enum ExportSymbolKind:
-    Function
-    # TODO: exporting types, exporting global variables
-
-class ExportSymbol:
-    kind: ExportSymbolKind
-    name: byte[100]
-
-    # TODO: union
-    signature: Signature    # ExportSymbolKind::Function
-
-class ExpressionTypes:
-    expression: AstExpression*
-    type: Type*
-    type_after_cast: Type*  # NULL if no implicit casting is needed
-    next: ExpressionTypes*  # TODO: switch to more efficient structure than linked list
-
-# There's supposed to be one of these for each Jou file.
-class TypeContext:
-    # Types of all expressions in the file except calls to "-> void" functions.
-    # Filled during stage 3.
-    expression_types: ExpressionTypes*
-
-    # Includes imported and defined functions.
-    functions: Signature*
-    nfunctions: int
-
-    current_function_signature: Signature*
-
-    def add_imported_symbol(self, symbol: ExportSymbol*) -> void:
-        assert symbol->kind == ExportSymbolKind::Function
-        self->functions = realloc(self->functions, sizeof self->functions[0] * (self->nfunctions + 1))
-        self->functions[self->nfunctions++] = symbol->signature.copy()
-
-    def find_function(self, name: byte*) -> Signature*:
-        for i = 0; i < self->nfunctions; i++:
-            if strcmp(&self->functions[i].name[0], name) == 0:
-                return &self->functions[i]
-        return NULL
-
-
-# TODO: implement
-#def typecheck_stage1_create_types(ctx: TypeContext*, file: AstFile*) -> ExportSymbol*:
-#    assert False
-
-def type_from_ast(ctx: TypeContext*, ast_type: AstType*) -> Type*:
-    if ast_type->is_void():
-        fail(ast_type->location, "'void' cannot be used here because it is not a type")
-    if ast_type->is_noreturn():
-        fail(ast_type->location, "'noreturn' cannot be used here because it is not a type")
-
-    if ast_type->kind == AstTypeKind::Named:
-        if strcmp(&ast_type->name[0], "int") == 0:
-            return int_type
-        if strcmp(&ast_type->name[0], "long") == 0:
-            return long_type
-        if strcmp(&ast_type->name[0], "byte") == 0:
-            return byte_type
-        if strcmp(&ast_type->name[0], "bool") == 0:
-            return &bool_type
-        # TODO: float, double
-
-        message: byte* = malloc(strlen(&ast_type->name[0]) + 100)
-        sprintf(message, "there is no type named '%s'", &ast_type->name[0])
-        fail(ast_type->location, message)
-
-    if ast_type->kind == AstTypeKind::Pointer:
-        if ast_type->value_type->is_void():
-            return &void_ptr_type
-        return type_from_ast(ctx, ast_type->value_type)->get_pointer_type()
-
-    ast_type->print(True)
-    printf("\n")
-    assert False  # TODO
-
-def handle_signature(ctx: TypeContext*, astsig: AstSignature*) -> Signature:
-    sig = Signature{
-        name = astsig->name,
-        nargs = astsig->nargs,
-        takes_varargs = astsig->takes_varargs,
-    }
-
-    if astsig->return_type.is_void() or astsig->return_type.is_noreturn():
-        sig.return_type = NULL
-    else:
-        sig.return_type = type_from_ast(ctx, &astsig->return_type)
-
-    sig.argnames = malloc(sizeof sig.argnames[0] * sig.nargs)
-    for i = 0; i < sig.nargs; i++:
-        sig.argnames[i] = astsig->args[i].name
-
-    sig.argtypes = malloc(sizeof sig.argtypes[0] * sig.nargs)
-    for i = 0; i < sig.nargs; i++:
-        sig.argtypes[i] = type_from_ast(ctx, &astsig->args[i].type)
-
-    return sig
-
-# Returned array is terminated by ExportSymbol with empty name.
-def typecheck_stage2_signatures_globals_structbodies(ctx: TypeContext*, ast_file: AstFile*) -> ExportSymbol*:
-    exports: ExportSymbol* = NULL
-    nexports = 0
-
-    for i = 0; i < ast_file->body_len; i++:
-        ts = &ast_file->body[i]
-        if ts->kind == AstToplevelStatementKind::Function:
-            # TODO: terrible hack: skip functions that use FILE, such as fopen()
-            # Will be no longer needed once struct FILE works.
-            if ts->function.body.nstatements == 0 and (
-                ts->function.signature.name[0] == 'f'
-                or strcmp(&ts->function.signature.name[0], "rewind") == 0
-            ):
-                continue
-
-            sig = handle_signature(ctx, &ts->function.signature)
-            ctx->functions = realloc(ctx->functions, sizeof ctx->functions[0] * (ctx->nfunctions + 1))
-            ctx->functions[ctx->nfunctions++] = sig.copy()
-            exports = realloc(exports, sizeof exports[0] * (nexports + 1))
-            exports[nexports++] = ExportSymbol{
-                kind = ExportSymbolKind::Function,
-                name = sig.name,
-                signature = sig,
-            }
-
-    exports = realloc(exports, sizeof exports[0] * (nexports + 1))
-    exports[nexports] = ExportSymbol{}
-    return exports
 
 def can_cast_implicitly(from: Type*, to: Type*) -> bool:
     return from == to or (
@@ -201,19 +70,175 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
 
     fail(location, message)
 
-def do_implicit_cast(
-    types: ExpressionTypes*, to: Type*, error_location: Location, error_template: byte*
-) -> void:
-    from = types->type
-    if from == to:
-        return
 
-    # Passing in NULL for error_template can be used to force a cast to happen.
-    if error_template != NULL and not can_cast_implicitly(from, to):
-        fail_with_implicit_cast_error(error_location, error_template, from, to)
+# To understand the purpose of ExportSymbol, suppose file A imports file B.
+#   - Type checking file B produces an ExportSymbol that matches the import in file A.
+#   - Before the next type checking stage, the ExportSymbol is added to file A's types.
+#   - During the next stage, file A can use the imported symbol.
 
-    assert types->type_after_cast == NULL
-    types->type_after_cast = to
+enum ExportSymbolKind:
+    Function
+    # TODO: exporting types, exporting global variables
+
+class ExportSymbol:
+    kind: ExportSymbolKind
+    name: byte[100]
+
+    # TODO: union
+    signature: Signature    # ExportSymbolKind::Function
+
+class ExpressionTypes:
+    expression: AstExpression*
+    original_type: Type*
+    implicit_cast_type: Type*  # NULL if no implicit casting is needed
+    next: ExpressionTypes*  # TODO: switch to more efficient structure than linked list?
+
+    def do_implicit_cast(self, to: Type*, error_location: Location, error_template: byte*) -> void:
+        assert self->implicit_cast_type == NULL  # This cannot be called multiple times
+
+        from = self->original_type
+        if from == to:
+            return
+
+        # Passing in NULL for error_template can be used to force a cast to happen.
+        if error_template != NULL and not can_cast_implicitly(from, to):
+            fail_with_implicit_cast_error(error_location, error_template, from, to)
+
+        self->implicit_cast_type = to
+
+class LocalVariable:
+    name: byte[100]
+    type: Type*
+    next: LocalVariable*  # TODO: switch to more efficient structure than linked list?
+
+class FunctionOrMethodTypes:
+    signature: Signature
+    expression_types: ExpressionTypes*
+    local_vars: LocalVariable*
+
+    def get_expression_types(self, expr: AstExpression*) -> ExpressionTypes*:
+        for et = self->expression_types; et != NULL; et = et->next:
+            if et->expression == expr:
+                return et
+        return NULL
+
+    def find_local_var(self, name: byte*) -> LocalVariable*:
+        for v = self->local_vars; v != NULL; v = v->next:
+            if strcmp(&v->name[0], name) == 0:
+                return v
+        return NULL
+
+# All type information for a Jou file. This is initially empty, and is filled during each stage of type checking.
+class FileTypes:
+    # Includes imported and defined functions.
+    all_functions: Signature*
+    n_all_functions: int
+
+    defined_functions: FunctionOrMethodTypes*
+    n_defined_functions: int
+
+    def add_imported_symbol(self, symbol: ExportSymbol*) -> void:
+        assert symbol->kind == ExportSymbolKind::Function
+        self->all_functions = realloc(self->all_functions, sizeof self->all_functions[0] * (self->n_all_functions + 1))
+        self->all_functions[self->n_all_functions++] = symbol->signature.copy()
+
+    def find_function(self, name: byte*) -> Signature*:
+        for i = 0; i < self->n_all_functions; i++:
+            if strcmp(&self->all_functions[i].name[0], name) == 0:
+                return &self->all_functions[i]
+        return NULL
+
+    def find_defined_function(self, name: byte*) -> FunctionOrMethodTypes*:
+        for i = 0; i < self->n_defined_functions; i++:
+            if strcmp(&self->defined_functions[i].signature.name[0], name) == 0:
+                return &self->defined_functions[i]
+        return NULL
+
+# TODO: implement
+#def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbol*:
+#    assert False
+
+def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
+    if ast_type->is_void():
+        fail(ast_type->location, "'void' cannot be used here because it is not a type")
+    if ast_type->is_noreturn():
+        fail(ast_type->location, "'noreturn' cannot be used here because it is not a type")
+
+    if ast_type->kind == AstTypeKind::Named:
+        if strcmp(&ast_type->name[0], "int") == 0:
+            return int_type
+        if strcmp(&ast_type->name[0], "long") == 0:
+            return long_type
+        if strcmp(&ast_type->name[0], "byte") == 0:
+            return byte_type
+        if strcmp(&ast_type->name[0], "bool") == 0:
+            return &bool_type
+        # TODO: float, double
+
+        message: byte* = malloc(strlen(&ast_type->name[0]) + 100)
+        sprintf(message, "there is no type named '%s'", &ast_type->name[0])
+        fail(ast_type->location, message)
+
+    if ast_type->kind == AstTypeKind::Pointer:
+        if ast_type->value_type->is_void():
+            return &void_ptr_type
+        return type_from_ast(ft, ast_type->value_type)->get_pointer_type()
+
+    ast_type->print(True)
+    printf("\n")
+    assert False  # TODO
+
+def handle_signature(ft: FileTypes*, astsig: AstSignature*) -> Signature:
+    sig = Signature{
+        name = astsig->name,
+        nargs = astsig->nargs,
+        takes_varargs = astsig->takes_varargs,
+    }
+
+    if astsig->return_type.is_void() or astsig->return_type.is_noreturn():
+        sig.return_type = NULL
+    else:
+        sig.return_type = type_from_ast(ft, &astsig->return_type)
+
+    sig.argnames = malloc(sizeof sig.argnames[0] * sig.nargs)
+    for i = 0; i < sig.nargs; i++:
+        sig.argnames[i] = astsig->args[i].name
+
+    sig.argtypes = malloc(sizeof sig.argtypes[0] * sig.nargs)
+    for i = 0; i < sig.nargs; i++:
+        sig.argtypes[i] = type_from_ast(ft, &astsig->args[i].type)
+
+    return sig
+
+# Returned array is terminated by ExportSymbol with empty name.
+def typecheck_stage2_signatures_globals_structbodies(ft: FileTypes*, ast_file: AstFile*) -> ExportSymbol*:
+    exports: ExportSymbol* = NULL
+    nexports = 0
+
+    for i = 0; i < ast_file->body_len; i++:
+        ts = &ast_file->body[i]
+        if ts->kind == AstToplevelStatementKind::Function:
+            # TODO: terrible hack: skip functions that use FILE, such as fopen()
+            # Will be no longer needed once struct FILE works.
+            if ts->function.body.nstatements == 0 and (
+                ts->function.signature.name[0] == 'f'
+                or strcmp(&ts->function.signature.name[0], "rewind") == 0
+            ):
+                continue
+
+            sig = handle_signature(ft, &ts->function.signature)
+            ft->all_functions = realloc(ft->all_functions, sizeof ft->all_functions[0] * (ft->n_all_functions + 1))
+            ft->all_functions[ft->n_all_functions++] = sig.copy()
+            exports = realloc(exports, sizeof exports[0] * (nexports + 1))
+            exports[nexports++] = ExportSymbol{
+                kind = ExportSymbolKind::Function,
+                name = sig.name,
+                signature = sig,
+            }
+
+    exports = realloc(exports, sizeof exports[0] * (nexports + 1))
+    exports[nexports] = ExportSymbol{}
+    return exports
 
 
 def plural_s(n: int) -> byte*:
@@ -230,159 +255,241 @@ def nth(n: int) -> byte*:
     sprintf(result, "%dth", n)
     return result
 
-def typecheck_function_call(ctx: TypeContext*, call: AstCall*) -> Type*:
-    message: byte[500]
 
-    signature = ctx->find_function(&call->called_name[0])
-    if signature == NULL:
-        snprintf(&message[0], sizeof message, "function '%s' not found", &call->called_name[0])
-        fail(call->location, &message[0])
+class Stage3TypeChecker:
+    file_types: FileTypes*
+    current_function_or_method: FunctionOrMethodTypes*
 
-    signature_string = signature->to_string(False)
+    def add_local_var(self, name: byte*, type: Type*) -> LocalVariable*:
+        v: LocalVariable* = calloc(1, sizeof *v)
+        assert strlen(name) < sizeof v->name
+        strcpy(&v->name[0], name)
+        v->type = type
 
-    if (
-        call->nargs < signature->nargs
-        or (call->nargs > signature->nargs and not signature->takes_varargs)
-    ):
-        snprintf(
-            &message[0], sizeof message,
-            "function %s takes %d argument%s, but it was called with %d argument%s",
-            signature_string,
-            signature->nargs,
-            plural_s(signature->nargs),
-            call->nargs,
-            plural_s(call->nargs),
-        )
-        fail(call->location, &message[0])
+        dest_pointer = &self->current_function_or_method->local_vars
+        while *dest_pointer != NULL:
+            dest_pointer = &(*dest_pointer)->next
 
-    for i = 0; i < signature->nargs; i++:
-        # This is a common error, so worth spending some effort to get a good error message.
-        tmp = nth(i+1)
-        snprintf(
-            &message[0], sizeof message,
-            "%s argument of function %s should have type <to>, not <from>",
-            tmp, signature_string)
-        free(tmp)
-        typecheck_expression_with_implicit_cast(ctx, &call->args[i], signature->argtypes[i], &message[0])
+        *dest_pointer = v
+        return v
 
-    for i = signature->nargs; i < call->nargs; i++:
-        # This code runs for varargs, e.g. the things to format in printf().
-        types = typecheck_expression(ctx, &call->args[i])
+    def find_var(self, name: byte*) -> Type*:
+        local_var = self->current_function_or_method->find_local_var(name)
+        if local_var != NULL:
+            return local_var->type
+        # TODO: check global vars (they don't exist yet)
+        return NULL
 
-        # TODO: do something to arrays
+    def do_function_call(self, call: AstCall*) -> Type*:
+        message: byte[500]
+
+        signature = self->file_types->find_function(&call->called_name[0])
+        if signature == NULL:
+            snprintf(&message[0], sizeof message, "function '%s' not found", &call->called_name[0])
+            fail(call->location, &message[0])
+
+        signature_string = signature->to_string(False)
 
         if (
-            (types->type->is_integer_type() and types->type->size_in_bits < 32)
-            or types->type == &bool_type
+            call->nargs < signature->nargs
+            or (call->nargs > signature->nargs and not signature->takes_varargs)
         ):
-            # Add implicit cast to signed int, just like in C.
-            do_implicit_cast(types, int_type, Location{}, NULL)
-
-        # TODO: cast float to double implicitly
-
-    free(signature_string)
-    return signature->return_type
-
-
-def typecheck_expression_maybe_void(ctx: TypeContext*, expression: AstExpression*) -> ExpressionTypes*:
-    result: Type*
-
-    if expression->kind == AstExpressionKind::String:
-        result = byte_type->get_pointer_type()
-    elif expression->kind == AstExpressionKind::Int:
-        result = int_type
-    elif expression->kind == AstExpressionKind::Long:
-        result = long_type
-    elif expression->kind == AstExpressionKind::FunctionCall:
-        result = typecheck_function_call(ctx, &expression->call)
-        if result == NULL:
-            return NULL
-    else:
-        printf("*** %d\n", expression->kind as int)
-        assert False
-
-    p: ExpressionTypes* = malloc(sizeof *p)
-    *p = ExpressionTypes{
-        expression = expression,
-        type = result,
-        next = ctx->expression_types,
-    }
-    ctx->expression_types = p
-    return p
-
-def typecheck_expression(ctx: TypeContext*, expression: AstExpression*) -> ExpressionTypes*:
-    types = typecheck_expression_maybe_void(ctx, expression)
-    if types == NULL:
-        assert expression->kind == AstExpressionKind::FunctionCall
-        name = &expression->call.called_name[0]
-        message = malloc(strlen(name) + 100)
-        sprintf(message, "function '%s' does not return a value", name)
-        fail(expression->location, message)
-    return types
-
-def typecheck_expression_with_implicit_cast(
-    ctx: TypeContext*,
-    expression: AstExpression*,
-    cast_type: Type*,
-    error_message_template: byte*,
-) -> ExpressionTypes*:
-    types = typecheck_expression(ctx, expression)
-    do_implicit_cast(types, cast_type, expression->location, error_message_template)
-    return types
-
-def typecheck_statement(ctx: TypeContext*, statement: AstStatement*) -> void:
-    if statement->kind == AstStatementKind::ExpressionStatement:
-        typecheck_expression_maybe_void(ctx, &statement->expression)
-
-    elif statement->kind == AstStatementKind::Return:
-        name = &ctx->current_function_signature->name[0]
-
-        # TODO: check for noreturn functions
-
-        return_type = ctx->current_function_signature->return_type
-        msg: byte[500]
-
-        if statement->return_value != NULL and return_type == NULL:
-            snprintf(&msg[0], sizeof msg, "function '%s' cannot return a value because it was defined with '-> void'", name)
-            fail(statement->location, name)
-        if statement->return_value == NULL and return_type != NULL:
             snprintf(
-                &msg[0], sizeof msg,
-                "function '%s' must return a value because it was defined with '-> %s'",
-                name, &return_type->name[0])
-            fail(statement->location, name)
+                &message[0], sizeof message,
+                "function %s takes %d argument%s, but it was called with %d argument%s",
+                signature_string,
+                signature->nargs,
+                plural_s(signature->nargs),
+                call->nargs,
+                plural_s(call->nargs),
+            )
+            fail(call->location, &message[0])
 
-        if statement->return_value != NULL:
-            cast_error_msg: byte[500]
+        for i = 0; i < signature->nargs; i++:
+            # This is a common error, so worth spending some effort to get a good error message.
+            tmp = nth(i+1)
             snprintf(
-                &cast_error_msg[0], sizeof cast_error_msg,
-                "attempting to return a value of type <from> from function '%s' defined with '-> <to>'",
-                name,
-            )
-            typecheck_expression_with_implicit_cast(
-                ctx,
-                statement->return_value,
-                return_type,
-                &cast_error_msg[0],
-            )
+                &message[0], sizeof message,
+                "%s argument of function %s should have type <to>, not <from>",
+                tmp, signature_string)
+            free(tmp)
+            self->do_expression_and_implicit_cast(&call->args[i], signature->argtypes[i], &message[0])
 
-    else:
-        assert False
+        for i = signature->nargs; i < call->nargs; i++:
+            # This code runs for varargs, e.g. the things to format in printf().
+            types = self->do_expression(&call->args[i])
 
-def typecheck_body(ctx: TypeContext*, body: AstBody*) -> void:
-    for i = 0; i < body->nstatements; i++:
-        typecheck_statement(ctx, &body->statements[i])
+            # TODO: do something to arrays
 
-def typecheck_stage3_function_and_method_bodies(ctx: TypeContext*, ast_file: AstFile*) -> void:
+            if (
+                (types->original_type->is_integer_type() and types->original_type->size_in_bits < 32)
+                or types->original_type == &bool_type
+            ):
+                # Add implicit cast to signed int, just like in C.
+                types->do_implicit_cast(int_type, Location{}, NULL)
+
+            # TODO: cast float to double implicitly
+
+        free(signature_string)
+        return signature->return_type
+
+    def do_expression_maybe_void(self, expression: AstExpression*) -> ExpressionTypes*:
+        result: Type*
+
+        if expression->kind == AstExpressionKind::String:
+            result = byte_type->get_pointer_type()
+        elif expression->kind == AstExpressionKind::Byte:
+            result = byte_type
+        elif expression->kind == AstExpressionKind::Int:
+            result = int_type
+        elif expression->kind == AstExpressionKind::Long:
+            result = long_type
+        elif expression->kind == AstExpressionKind::FunctionCall:
+            result = self->do_function_call(&expression->call)
+            if result == NULL:
+                return NULL
+        elif expression->kind == AstExpressionKind::GetVariable:
+            result = self->find_var(&expression->varname[0])
+            if result == NULL:
+                message: byte[200]
+                snprintf(&message[0], sizeof message, "no variable named '%s'", &expression->varname[0])
+                fail(expression->location, &message[0])
+        else:
+            printf("*** %d\n", expression->kind as int)
+            assert False
+
+        p: ExpressionTypes* = malloc(sizeof *p)
+        *p = ExpressionTypes{
+            expression = expression,
+            original_type = result,
+            next = self->current_function_or_method->expression_types,
+        }
+        self->current_function_or_method->expression_types = p
+        return p
+
+    def do_expression(self, expression: AstExpression*) -> ExpressionTypes*:
+        types = self->do_expression_maybe_void(expression)
+        if types == NULL:
+            assert expression->kind == AstExpressionKind::FunctionCall
+            name = &expression->call.called_name[0]
+            message = malloc(strlen(name) + 100)
+            sprintf(message, "function '%s' does not return a value", name)
+            fail(expression->location, message)
+        return types
+
+    def do_expression_and_implicit_cast(
+        self,
+        expression: AstExpression*,
+        cast_type: Type*,
+        error_message_template: byte*,
+    ) -> ExpressionTypes*:
+        types = self->do_expression(expression)
+        types->do_implicit_cast(cast_type, expression->location, error_message_template)
+        return types
+
+    def do_statement(self, statement: AstStatement*) -> void:
+        if statement->kind == AstStatementKind::ExpressionStatement:
+            self->do_expression_maybe_void(&statement->expression)
+
+        elif statement->kind == AstStatementKind::Return:
+            sig = &self->current_function_or_method->signature
+
+            # TODO: check for noreturn functions
+
+            msg: byte[500]
+
+            if statement->return_value != NULL and sig->return_type == NULL:
+                snprintf(
+                    &msg[0], sizeof msg,
+                    "%s '%s' cannot return a value because it was defined with '-> void'",
+                    sig->function_or_method(), &sig->name[0],
+                )
+                fail(statement->location, &msg[0])
+            if statement->return_value == NULL and sig->return_type != NULL:
+                snprintf(
+                    &msg[0], sizeof msg,
+                    "%s '%s' must return a value because it was defined with '-> %s'",
+                    sig->function_or_method(), &sig->name[0], &sig->return_type->name[0],
+                )
+                fail(statement->location, &msg[0])
+
+            if statement->return_value != NULL:
+                cast_error_msg: byte[500]
+                snprintf(
+                    &cast_error_msg[0], sizeof cast_error_msg,
+                    "attempting to return a value of type <from> from %s '%s' defined with '-> <to>'",
+                    sig->function_or_method(), &sig->name[0],
+                )
+                self->do_expression_and_implicit_cast(
+                    statement->return_value, sig->return_type, &cast_error_msg[0]
+                )
+
+        elif statement->kind == AstStatementKind::Assign:
+            target_expr = &statement->assignment.target
+            value_expr = &statement->assignment.value
+
+            if (
+                target_expr->kind == AstExpressionKind::GetVariable
+                and self->find_var(&target_expr->varname[0]) == NULL
+            ):
+                # Making a new variable. Use the type of the value being assigned.
+                types = self->do_expression(value_expr)
+                self->add_local_var(&target_expr->varname[0], types->original_type)
+            else:
+                # Convert value to the type of an existing variable or other assignment target.
+                #ensure_can_take_address(targetexpr, "cannot assign to %s")
+
+                # This is a common error, so try to produce a helpful error message.
+                if target_expr->kind == AstExpressionKind::Dereference:
+                    error_template = "cannot place a value of type <from> into a pointer of type <to>*"
+                else:
+                    # TODO: improve this error message.
+                    # See short_expression_description() in the other compiler.
+                    error_template = "cannot assign a value of type FROM to target of type TO"
+
+                target_types = self->do_expression(target_expr)
+                self->do_expression_and_implicit_cast(value_expr, target_types->original_type, error_template)
+
+        elif statement->kind == AstStatementKind::DeclareLocalVar:
+            ntv: AstNameTypeValue* = &statement->var_declaration
+            if self->find_var(&ntv->name[0]) != NULL:
+                message: byte[200]
+                snprintf(&message[0], sizeof message, "a variable named '%s' already exists", &ntv->name[0])
+                fail(statement->location, &message[0])
+
+            type = type_from_ast(self->file_types, &ntv->type)
+            self->add_local_var(&ntv->name[0], type)
+            if ntv->value != NULL:
+                self->do_expression_and_implicit_cast(
+                    ntv->value, type,
+                    "initial value for variable of type TO cannot be of type FROM",
+                )
+
+        else:
+            assert False
+
+    def typecheck_body(self, body: AstBody*) -> void:
+        for i = 0; i < body->nstatements; i++:
+            self->do_statement(&body->statements[i])
+
+
+def typecheck_stage3_function_and_method_bodies(file_types: FileTypes*, ast_file: AstFile*) -> void:
+    checker = Stage3TypeChecker{file_types = file_types}
     for i = 0; i < ast_file->body_len; i++:
         ts = &ast_file->body[i]
         if ts->kind != AstToplevelStatementKind::Function or ts->function.body.nstatements == 0:
             continue
 
-        sig = ctx->find_function(&ts->function.signature.name[0])
+        sig = file_types->find_function(&ts->function.signature.name[0])
         assert sig != NULL
 
-        assert ctx->current_function_signature == NULL
-        ctx->current_function_signature = sig
-        typecheck_body(ctx, &ts->function.body)
-        ctx->current_function_signature = NULL
+        assert checker.current_function_or_method == NULL
+        file_types->defined_functions = realloc(file_types->defined_functions, (file_types->n_defined_functions + 1) * sizeof file_types->defined_functions[0])
+        checker.current_function_or_method = &file_types->defined_functions[file_types->n_defined_functions++]
+        *checker.current_function_or_method = FunctionOrMethodTypes{signature = sig->copy()}
+
+        for k = 0; k < sig->nargs; k++:
+            checker.add_local_var(&sig->argnames[k][0], sig->argtypes[k])
+
+        checker.typecheck_body(&ts->function.body)
+        checker.current_function_or_method = NULL
