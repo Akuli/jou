@@ -171,6 +171,12 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
     nexports = 0
 
     for i = 0; i < file->body_len; i++:
+        if file->body[i].kind == AstToplevelStatementKind::ClassDefinition:
+            classdef = &file->body[i].classdef
+            t = create_opaque_class(&classdef->name[0])
+            ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
+            ft->types[ft->ntypes++] = t
+
         if file->body[i].kind == AstToplevelStatementKind::Enum:
             enumdef = &file->body[i].enumdef
             t = create_enum(&enumdef->name[0], enumdef->member_count, enumdef->member_names)
@@ -252,14 +258,6 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
     for i = 0; i < ast_file->body_len; i++:
         ts = &ast_file->body[i]
         if ts->kind == AstToplevelStatementKind::Function:
-            # TODO: terrible hack: skip functions that use FILE, such as fopen()
-            # Will be no longer needed once struct FILE works.
-            if ts->function.body.nstatements == 0 and (
-                ts->function.signature.name[0] == 'f'
-                or strcmp(&ts->function.signature.name[0], "rewind") == 0
-            ):
-                continue
-
             sig = handle_signature(ft, &ts->function.signature)
             ft->all_functions = realloc(ft->all_functions, sizeof ft->all_functions[0] * (ft->n_all_functions + 1))
             ft->all_functions[ft->n_all_functions++] = sig.copy()
