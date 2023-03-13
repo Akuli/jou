@@ -142,7 +142,9 @@ class FileTypes:
     ntypes: int
 
     def add_imported_symbol(self, symbol: ExportSymbol*) -> void:
-        assert symbol->kind == ExportSymbolKind::Function
+        if symbol->kind != ExportSymbolKind::Function:
+            # TODO
+            return
         self->all_functions = realloc(self->all_functions, sizeof self->all_functions[0] * (self->n_all_functions + 1))
         self->all_functions[self->n_all_functions++] = symbol->signature.copy()
 
@@ -174,6 +176,7 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
             t = create_enum(&enumdef->name[0], enumdef->member_count, enumdef->member_names)
             ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
             ft->types[ft->ntypes++] = t
+            exports = realloc(exports, (nexports + 1) * sizeof exports[0])
             exports[nexports++] = ExportSymbol{
                 kind = ExportSymbolKind::Type,
                 name = enumdef->name,
