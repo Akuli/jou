@@ -610,7 +610,12 @@ static void ensure_can_take_address(const AstExpression *expr, const char *errms
         break;
     case AST_EXPR_GET_FIELD:
         // &foo.bar = &foo + offset
-        ensure_can_take_address(&expr->data.operands[0], errmsg_template);
+        {
+            char *newtemplate = malloc(strlen(errmsg_template) + 100);
+            sprintf(newtemplate, errmsg_template, "a field of %s");
+            ensure_can_take_address(&expr->data.operands[0], newtemplate);
+            free(newtemplate);
+        }
         break;
     default:
         fail_with_error(expr->location, errmsg_template, short_expression_description(expr));
@@ -839,7 +844,7 @@ static const char *very_short_type_description(const Type *t)
         case TYPE_ARRAY:
             return "an array type";
         case TYPE_BOOL:
-            return "the built-in boolean type";
+            return "the built-in bool type";
     }
 }
 
