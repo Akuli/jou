@@ -169,7 +169,7 @@ class AstExpression:
                 &self->enum_member.enum_name[0],
             )
         elif self->kind == AstExpressionKind::GetClassField:
-            if self->class_field.deref:
+            if self->class_field.uses_arrow_operator:
                 printf("dereference and ")
             printf("get class field \"%s\"\n", &self->class_field.field_name[0])
             self->class_field.instance->print(tp.print_prefix(True))
@@ -289,7 +289,7 @@ class AstEnumMember:
 
 class AstClassField:
     instance: AstExpression*
-    deref: bool  # whether '->' operator was used
+    uses_arrow_operator: bool  # distinguishes foo.bar and foo->bar
     field_name: byte[100]
 
 class AstAsExpression:

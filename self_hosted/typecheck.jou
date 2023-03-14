@@ -401,7 +401,7 @@ def ensure_can_take_address(expression: AstExpression*, error_template: byte*) -
     if expression->kind == AstExpressionKind::GetClassField:
         # &foo.bar --> must ensure we can take address of foo.
         # Doesn't apply to &foo->bar because that's foo + some offset, so foo is already a pointer.
-        if not expression->class_field.deref:  # TODO: rename to uses_arrow_operator
+        if not expression->class_field.uses_arrow_operator:
             # Turn "cannot assign to %s" into "cannot assign to a field of %s".
             # This assumes that error_template is relatively simple, i.e. it only contains one %s somewhere.
             new_template = malloc(strlen(error_template) + 50)

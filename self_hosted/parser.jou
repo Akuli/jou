@@ -282,7 +282,7 @@ def parse_expression_with_fields_and_methods_and_indexing(tokens: Token**) -> As
             kind = AstExpressionKind::GetClassField,
             class_field = AstClassField{
                 instance = instance,
-                deref = start_op->is_operator("->"),
+                uses_arrow_operator = start_op->is_operator("->"),
                 field_name = (*tokens)->short_string,
             },
         }
