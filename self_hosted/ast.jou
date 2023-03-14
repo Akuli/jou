@@ -239,10 +239,13 @@ class AstExpression:
             free(self->as_expression)
         elif self->kind == AstExpressionKind::String:
             free(self->string)
+        elif self->kind == AstExpressionKind::GetClassField:
+            self->class_field.free()
 
-        for i = 0; i < self->get_arity(); i++:
-            self->operands[i].free()
-        free(self->operands)
+        if self->get_arity() != 0:
+            for i = 0; i < self->get_arity(); i++:
+                self->operands[i].free()
+            free(self->operands)
 
     # arity = number of operands, e.g. 2 for a binary operator such as "+"
     def get_arity(self) -> int:
@@ -294,6 +297,10 @@ class AstClassField:
     instance: AstExpression*
     uses_arrow_operator: bool  # distinguishes foo.bar and foo->bar
     field_name: byte[100]
+
+    def free(self) -> void:
+        self->instance->free()
+        free(self->instance)
 
 class AstAsExpression:
     value: AstExpression
