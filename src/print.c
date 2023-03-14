@@ -227,7 +227,10 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         print_ast_expression(expr->data.classfield.obj, print_tree_prefix(tp, true));
         break;
     case AST_EXPR_GET_VARIABLE:
-        printf("get variable \"%s\"\n", expr->data.varname);
+        if (!strcmp(expr->data.varname, "self"))
+            printf("self\n");
+        else
+            printf("get variable \"%s\"\n", expr->data.varname);
         break;
     case AST_EXPR_CONSTANT:
         print_constant(&expr->data.constant);

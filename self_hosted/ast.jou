@@ -81,6 +81,7 @@ enum AstExpressionKind:
     Null
     FunctionCall
     Instantiate   # MyClass{x=1, y=2}
+    Self    # not a variable lookup, so you can't use 'self' as variable name outside a class
     GetVariable
     GetEnumMember
     GetClassField
@@ -160,6 +161,8 @@ class AstExpression:
         elif self->kind == AstExpressionKind::Instantiate:
             printf("instantiate \"%s\"\n", &self->instantiation.class_name[0])
             self->instantiation.print(tp)
+        elif self->kind == AstExpressionKind::Self:
+            printf("self\n")
         elif self->kind == AstExpressionKind::GetVariable:
             printf("get variable \"%s\"\n", &self->varname[0])
         elif self->kind == AstExpressionKind::GetEnumMember:
@@ -667,7 +670,7 @@ class AstFile:
             self->body[i].free()
         free(self->body)
 
-class AstFunction:
+class AstFunction:  # TODO: rename to AstFunctionOrMethod
     signature: AstSignature
     body: AstBody  # empty body means declaration, otherwise it's a definition
 
@@ -679,32 +682,74 @@ class AstFunction:
         self->signature.free()
         self->body.free()
 
-class AstClassDef:
-    name: byte[100]
-    name_location: Location
+enum AstClassMemberKind:
+    Field
+    Union
+    Method
+
+class AstUnionFields:
     fields: AstNameTypeValue*
     nfields: int
-    methods: AstFunction*
-    nmethods: int
 
     def print(self) -> void:
-        printf("class \"%s\" with %d members:\n", &self->name[0], self->nfields + self->nmethods)
         for i = 0; i < self->nfields; i++:
-            printf("  field ")
+            printf("    ")
             self->fields[i].print(NULL)
             printf("\n")
-        for i = 0; i < self->nmethods; i++:
-            printf("  method ")
-            self->methods[i].signature.print()
-            tp = TreePrinter{}
-            strcpy(&tp.prefix[0], "  ")
-            self->methods[i].body.print(tp)
 
     def free(self) -> void:
         for i = 0; i < self->nfields; i++:
             self->fields[i].free()
-        for i = 0; i < self->nmethods; i++:
-            self->methods[i].free()
+        free(self->fields)
+
+class AstClassMember:
+    kind: AstClassMemberKind
+    union:
+        field: AstNameTypeValue
+        union_fields: AstUnionFields
+        method: AstFunction
+
+    def print(self) -> void:
+        if self->kind == AstClassMemberKind::Field:
+            printf("  field ")
+            self->field.print(NULL)
+            printf("\n")
+        elif self->kind == AstClassMemberKind::Union:
+            printf("  union:\n")
+            self->union_fields.print()
+        elif self->kind == AstClassMemberKind::Method:
+            printf("  method ")
+            self->method.signature.print()
+            tp = TreePrinter{}
+            strcpy(&tp.prefix[0], "  ")
+            self->method.body.print(tp)
+        else:
+            assert False
+
+    def free(self) -> void:
+        if self->kind == AstClassMemberKind::Field:
+            self->field.free()
+        elif self->kind == AstClassMemberKind::Union:
+            self->union_fields.free()
+        elif self->kind == AstClassMemberKind::Method:
+            self->method.free()
+        else:
+            assert False
+
+class AstClassDef:
+    name: byte[100]
+    name_location: Location
+    members: AstClassMember*
+    nmembers: int
+
+    def print(self) -> void:
+        printf("class \"%s\" with %d members:\n", &self->name[0], self->nmembers)
+        for i = 0; i < self->nmembers; i++:
+            self->members[i].print()
+
+    def free(self) -> void:
+        for i = 0; i < self->nmembers; i++:
+            self->members[i].free()
 
 class AstEnumDef:
     name: byte[100]
