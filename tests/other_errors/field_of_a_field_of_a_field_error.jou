@@ -1,0 +1,9 @@
+class FooX:
+    x: int
+class FooY:
+    y: FooX
+class FooZ:
+    z: FooY
+
+def bar() -> void:
+    FooZ{}.z.y.x++  # Error: cannot increment a field of a field of a field of a newly created instance
