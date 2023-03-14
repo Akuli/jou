@@ -583,7 +583,7 @@ class AstImport:
 enum AstToplevelStatementKind:
     Import
     Function
-    ClassDefinition
+    Class
     Enum
     GlobalVariableDeclaration
 
@@ -612,7 +612,7 @@ class AstToplevelStatement:
             else:
                 printf("Define a function: ")
             self->function.print()
-        elif self->kind == AstToplevelStatementKind::ClassDefinition:
+        elif self->kind == AstToplevelStatementKind::Class:
             printf("Define a ")
             self->classdef.print()
         elif self->kind == AstToplevelStatementKind::Enum:

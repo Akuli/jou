@@ -171,9 +171,9 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
     nexports = 0
 
     for i = 0; i < file->body_len; i++:
-        if file->body[i].kind == AstToplevelStatementKind::ClassDefinition:
+        if file->body[i].kind == AstToplevelStatementKind::Class:
             classdef = &file->body[i].classdef
-            t = create_opaque_class(&classdef->name[0])
+            t = create_opaque_type(&classdef->name[0])
             ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
             ft->types[ft->ntypes++] = t
 
@@ -250,6 +250,23 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*) -> Signature:
 
     return sig
 
+def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> void:
+    # Previous type-checking stage created an opaque type.
+    type: Type* = NULL
+    for i = 0; i < ft->ntypes; i++:
+        if strcmp(&ft->types[i]->name[0], &classdef->name[0]) == 0:
+            type = ft->types[i]
+            break
+    assert type != NULL
+
+    assert type->kind == TypeKind::Opaque
+    type->kind = TypeKind::Class
+
+    memset(&type->class_members, 0, sizeof type->class_members)
+
+    union_id = 0
+    return  # TODO: implement the rest of this function
+
 # Returned array is terminated by ExportSymbol with empty name.
 def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
@@ -257,6 +274,7 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
 
     for i = 0; i < ast_file->body_len; i++:
         ts = &ast_file->body[i]
+
         if ts->kind == AstToplevelStatementKind::Function:
             sig = handle_signature(ft, &ts->function.signature)
             ft->all_functions = realloc(ft->all_functions, sizeof ft->all_functions[0] * (ft->n_all_functions + 1))
@@ -267,6 +285,9 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
                 name = sig.name,
                 signature = sig,
             }
+
+        if ts->kind == AstToplevelStatementKind::Class:
+            handle_class_members_stage2(ft, &ts->classdef)
 
     exports = realloc(exports, sizeof exports[0] * (nexports + 1))
     exports[nexports] = ExportSymbol{}
@@ -306,8 +327,7 @@ def check_explicit_cast(from: Type*, to: Type*, location: Location) -> void:
     fail(location, &message[0])
 
 def short_type_description(t: Type*) -> byte*:
-    if t->kind == TypeKind::OpaqueClass:
-        assert False
+    assert t->kind != TypeKind::Opaque
     if t->kind == TypeKind::Class:
         return "a class"
     if t->kind == TypeKind::Enum:
@@ -509,6 +529,15 @@ def check_binop(
     else:
         return cast_type
 
+def check_class_field(location: Location, class_type: Type*, field_name: byte*) -> Type*:
+    assert class_type->kind == TypeKind::Class
+
+    field = class_type->class_members.find_field(field_name)
+    if field == NULL:
+        message: byte[500]
+        snprintf(&message[0], sizeof message, "class %s has no field named '%s'", &class_type->name[0], field_name)
+        fail(location, &message[0])
+    return field->type
 
 class Stage3TypeChecker:
     file_types: FileTypes*
@@ -587,7 +616,7 @@ class Stage3TypeChecker:
         free(signature_string)
         return signature->return_type
 
-    def check_increment_or_decrement(self, expression: AstExpression*, increment_or_decrement: byte*) -> Type*:
+    def do_increment_or_decrement(self, expression: AstExpression*, increment_or_decrement: byte*) -> Type*:
         assert strcmp(increment_or_decrement, "increment") == 0 or strcmp(increment_or_decrement, "decrement") == 0
 
         bad_expression_error_template: byte[50]
@@ -600,6 +629,28 @@ class Stage3TypeChecker:
             sprintf(error, "cannot %s a value of type %s", increment_or_decrement, &t->name[0])
             fail(expression->location, error)
         return t
+
+    def do_enum_member(self, location: Location, enum_name: byte*, member_name: byte*) -> Type*:
+        message: byte[200]
+
+        enum_type = self->file_types->find_type(enum_name)
+        if enum_type == NULL:
+            snprintf(&message[0], sizeof message, "there is no type named '%s'", enum_name)
+            fail(location, &message[0])
+
+        if enum_type->kind != TypeKind::Enum:
+            snprintf(
+                &message[0], sizeof message,
+                "the '::' syntax is only for enums, but %s is %s",
+                enum_name, short_type_description(enum_type),
+            )
+            fail(location, &message[0])
+
+        if enum_type->enum_members.find_index(member_name) == -1:
+            snprintf(&message[0], sizeof message, "enum %s has no member named '%s'", enum_name, member_name)
+            fail(location, &message[0])
+
+        return enum_type
 
     def do_expression_maybe_void(self, expression: AstExpression*) -> ExpressionTypes*:
         result: Type*
@@ -627,25 +678,11 @@ class Stage3TypeChecker:
             result = type_from_ast(self->file_types, &expression->as_expression->type)
             check_explicit_cast(old_type, result, expression->location)
         elif expression->kind == AstExpressionKind::GetEnumMember:
-            result = self->file_types->find_type(&expression->enum_member.enum_name[0])
-            if result == NULL:
-                printf("find_type(%s) returned NULL\n", &expression->enum_member.enum_name[0])
-                snprintf(&message[0], sizeof message, "there is no type named '%s'", &expression->enum_member.enum_name[0])
-                fail(expression->location, &message[0])
-            if result->kind != TypeKind::Enum:
-                snprintf(
-                    &message[0], sizeof message,
-                    "the '::' syntax is only for enums, but %s is %s",
-                    &expression->enum_member.enum_name[0], short_type_description(result),
-                )
-                fail(expression->location, &message[0])
-            if result->enum_members.find_index(&expression->enum_member.member_name[0]) == -1:
-                snprintf(
-                    &message[0], sizeof message,
-                    "enum %s has no member named '%s'",
-                    &expression->enum_member.enum_name[0], &expression->enum_member.member_name[0],
-                )
-                fail(expression->location, &message[0])
+            result = self->do_enum_member(
+                expression->location,
+                &expression->enum_member.enum_name[0],
+                &expression->enum_member.member_name[0],
+            )
         elif expression->kind == AstExpressionKind::Eq:
             lhs_types = self->do_expression(&expression->operands[0])
             rhs_types = self->do_expression(&expression->operands[1])
@@ -661,9 +698,29 @@ class Stage3TypeChecker:
                 )
                 fail(expression->location, &message[0])
         elif expression->kind == AstExpressionKind::PreIncr or expression->kind == AstExpressionKind::PostIncr:
-            result = self->check_increment_or_decrement(expression, "increment")
+            result = self->do_increment_or_decrement(expression, "increment")
         elif expression->kind == AstExpressionKind::PreDecr or expression->kind == AstExpressionKind::PostDecr:
-            result = self->check_increment_or_decrement(expression, "decrement")
+            result = self->do_increment_or_decrement(expression, "decrement")
+        elif expression->kind == AstExpressionKind::GetClassField:
+            lhs_type = self->do_expression(expression->class_field.instance)->original_type
+            if expression->class_field.uses_arrow_operator:
+                if lhs_type->kind != TypeKind::Pointer or lhs_type->value_type->kind != TypeKind::Class:
+                    snprintf(
+                        &message[0], sizeof message,
+                        "left side of the '->' operator must be a pointer to a class, not %s",
+                        &lhs_type->name[0],
+                    )
+                    fail(expression->location, &message[0])
+                result = check_class_field(expression->location, lhs_type->value_type, &expression->class_field.field_name[0])
+            else:
+                if lhs_type->kind != TypeKind::Class:
+                    snprintf(
+                        &message[0], sizeof message,
+                        "left side of the '.' operator must be an instance of a class, not %s",
+                        &lhs_type->name[0],
+                    )
+                    fail(expression->location, &message[0])
+                result = check_class_field(expression->location, lhs_type, &expression->class_field.field_name[0])
         else:
             printf("*** %d\n", expression->kind as int)
             assert False

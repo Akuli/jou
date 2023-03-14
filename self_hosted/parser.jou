@@ -751,7 +751,7 @@ def parse_toplevel_node(tokens: Token**, stdlib_path: byte*) -> AstToplevelState
 
     elif (*tokens)->is_keyword("class"):
         ++*tokens
-        ts.kind = AstToplevelStatementKind::ClassDefinition
+        ts.kind = AstToplevelStatementKind::Class
         ts.classdef = parse_class(tokens)
 
     elif (*tokens)->is_keyword("enum"):

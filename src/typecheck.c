@@ -224,7 +224,7 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
     return sig;
 }
 
-static const Type *handle_class_members_stage2(FileTypes *ft, const AstClassDef *classdef)
+static void handle_class_members_stage2(FileTypes *ft, const AstClassDef *classdef)
 {
     // Previous type-checking stage created an opaque struct.
     Type *type = NULL;
@@ -275,8 +275,6 @@ static const Type *handle_class_members_stage2(FileTypes *ft, const AstClassDef 
             }
         }
     }
-
-    return type;
 }
 
 ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstToplevelNode *ast)
