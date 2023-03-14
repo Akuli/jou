@@ -32,6 +32,9 @@ declare LLVMInitializeX86Disassembler() -> void
 declare LLVMDisposeTargetData(TD: LLVMTargetData*) -> void
 declare LLVMCopyStringRepOfTargetData(TD: LLVMTargetData*) -> byte*
 
+declare LLVMStoreSizeOfType(TD: LLVMTargetData*, Ty: LLVMType*) -> long
+declare LLVMABISizeOfType(TD: LLVMTargetData*, Ty: LLVMType*) -> long
+
 
 
 # =========== TargetMachine.h ===========
@@ -261,6 +264,8 @@ declare LLVMBuildFPCast(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType
 declare LLVMBuildICmp(Builder: LLVMBuilder*, Op: LLVMIntPredicate, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
 declare LLVMBuildFCmp(Builder: LLVMBuilder*, Op: LLVMRealPredicate, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
 declare LLVMBuildCall2(Builder: LLVMBuilder*, FunctionTy: LLVMType*, Fn: LLVMValue*, Args: LLVMValue**, NumArgs: int, Name: byte*) -> LLVMValue*
+declare LLVMBuildExtractValue(Builder: LLVMBuilder*, AggVal: LLVMValue*, Index: int, Name: byte*) -> LLVMValue*
+declare LLVMBuildInsertValue(Builder: LLVMBuilder*, AggVal: LLVMValue*, EltVal: LLVMValue*, Index: int, Name: byte*) -> LLVMValue*
 declare LLVMCreatePassManager() -> LLVMPassManager*
 declare LLVMRunPassManager(PM: LLVMPassManager*, M: LLVMModule*) -> bool
 declare LLVMDisposePassManager(PM: LLVMPassManager*) -> void

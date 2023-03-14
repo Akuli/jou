@@ -26,6 +26,79 @@ def build_signed_div(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*) ->
     return LLVMBuildExactSDiv(builder, top, rhs, "sdiv")
 
 
+def lmax(a: long, b: long) -> long:
+    if a > b:
+        return a
+    return b
+
+# LLVM doesn't have a built-in union type, and you're supposed to abuse other types for that:
+# https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/basic-constructs/unions.html
+#
+# My first idea was to use an array of bytes that is big enough to fit anything.
+# However, that might not be aligned properly.
+#
+# Then I tried choosing the member type that has the biggest align, and making a large enough array of it.
+# Because the align is always a power of two, the memory will be suitably aligned for all member types.
+# But it didn't work for some reason I still don't understand.
+#
+# Then I figured out how clang does it and did it the same way.
+# We make a struct that contains:
+#   - the most aligned type as chosen before
+#   - array of i8 as padding to make it the right size.
+# But for some reason that didn't work either.
+#
+# As a "last resort" I just use an array of i64 large enough and hope it's aligned as needed.
+def build_union_type(types: LLVMType**, ntypes: int) -> LLVMType*:
+    if ntypes == 1:
+        return types[0]
+
+    size_needed: long = 0
+    for i = 0; i < ntypes; i++:
+        # There are two functions to compute size and I don't know what the difference is.
+        size1 = LLVMABISizeOfType(target.target_data, types[i])
+        size2 = LLVMStoreSizeOfType(target.target_data, types[i])
+        assert size1 == size2
+        size_needed = lmax(size_needed, size1)
+
+    return LLVMArrayType(LLVMInt64Type(), ((size_needed + 7) / 8) as int)  # ceil division
+
+def build_class_type(fields: ClassField*, nfields: int) -> LLVMType*:
+    elem_types: LLVMType** = malloc(nfields * sizeof elem_types[0])
+    for i = 0; i < nfields; i++:
+        # Store all pointers in structs as i8*, so that a struct can contain a pointer to itself for example.
+        if fields[i].type->kind == TypeKind::Pointer:
+            elem_types[i] = LLVMPointerType(LLVMInt8Type(), 0)
+        else:
+            elem_types[i] = do_type(fields[i].type)
+
+    # Combine together fields of the same union.
+    combined_len = 0
+    end: int
+    for start = 0; start < nfields; start = end:
+        end = start + 1
+        while end < nfields and fields[start].union_id == fields[end].union_id:
+            end++
+        elem_types[combined_len++] = build_union_type(&elem_types[start], end-start)
+
+    result = LLVMStructType(elem_types, combined_len, False)
+    free(elem_types)
+    return result
+
+def do_type(type: Type*) -> LLVMType*:
+    if type->is_integer_type():
+        return LLVMIntType(type->size_in_bits)
+    if type->kind == TypeKind::Pointer:
+        return LLVMPointerType(do_type(type->value_type), 0)
+    if type->kind == TypeKind::VoidPointer:
+        return LLVMPointerType(LLVMInt8Type(), 0)
+    if type->kind == TypeKind::Enum:
+        return LLVMInt32Type()
+    if type->kind == TypeKind::Class:
+        return build_class_type(type->class_members.fields, type->class_members.nfields)
+    printf("asd-Asd., %s\n", &type->name)
+    assert False
+
+
 class LocalVarNameAndPointer:
     name: byte[100]
     pointer: LLVMValue*
@@ -47,16 +120,6 @@ class AstToIR:
                 return self->local_vars[i].pointer
         assert False
 
-    def do_type(self, type: Type*) -> LLVMType*:
-        if type->is_integer_type():
-            return LLVMIntType(type->size_in_bits)
-        if type->kind == TypeKind::Pointer:
-            return LLVMPointerType(self->do_type(type->value_type), 0)
-        if type->kind == TypeKind::Enum:
-            return LLVMInt32Type()
-        printf("asd-Asd., %s\n", &type->name)
-        assert False
-
     def declare_function(self, sig: Signature*) -> LLVMValue*:
         # Make it so that this can be called many times without issue
         func = LLVMGetNamedFunction(self->module, &sig->name[0])
@@ -65,13 +128,13 @@ class AstToIR:
 
         argtypes: LLVMType** = malloc(sig->nargs * sizeof argtypes[0])
         for i = 0; i < sig->nargs; i++:
-            argtypes[i] = self->do_type(sig->argtypes[i])
+            argtypes[i] = do_type(sig->argtypes[i])
 
         # TODO: tell llvm if we know a function is noreturn
         if sig->return_type == NULL:  # "-> noreturn" or "-> void"
             return_type = LLVMVoidType()
         else:
-            return_type = self->do_type(sig->return_type)
+            return_type = do_type(sig->return_type)
 
         function_type = LLVMFunctionType(return_type, argtypes, sig->nargs, sig->takes_varargs)
         free(argtypes)
@@ -103,19 +166,19 @@ class AstToIR:
             return obj
 
         if from->is_pointer_type() and to->is_pointer_type():
-            return LLVMBuildBitCast(self->builder, obj, self->do_type(to), "cast_ptr")
+            return LLVMBuildBitCast(self->builder, obj, do_type(to), "cast_ptr")
 
         if from->is_integer_type() and to->is_integer_type():
             # Examples:
             #   signed 8-bit 0xFF (-1) --> 16-bit 0xFFFF (-1 or max value)
             #   unsigned 8-bit 0xFF (255) --> 16-bit 0x00FF (255)
-            return LLVMBuildIntCast2(self->builder, obj, self->do_type(to), from->kind == TypeKind::SignedInteger, "cast_int")
+            return LLVMBuildIntCast2(self->builder, obj, do_type(to), from->kind == TypeKind::SignedInteger, "cast_int")
 
         # TODO: float/double <--> integer, float <--> double
 
         if from == &bool_type and to->is_integer_type():
             # True --> 1, False --> 0
-            return LLVMBuildZExt(self->builder, obj, self->do_type(to), "cast_bool_to_int")
+            return LLVMBuildZExt(self->builder, obj, do_type(to), "cast_bool_to_int")
 
         printf("unimplemented cast: %s --> %s\n", &from->name[0], &to->name[0])
         assert False
@@ -241,14 +304,63 @@ class AstToIR:
         LLVMBuildCall2(self->builder, assert_fail_func_type, assert_fail_func, &args[0], 3, "")
         LLVMPositionBuilderAtEnd(self->builder, true_block)
 
+    def do_incr_decr(self, value_expression: AstExpression*, diff: int) -> LLVMValue*[2]:
+        assert diff == 1 or diff == -1
+        value_type = self->function_or_method_types->get_expression_types(value_expression)->original_type
+        pointer = self->do_address_of_expression(value_expression)
+
+        old_value = LLVMBuildLoad(self->builder, pointer, "old_value")
+        if value_type->is_integer_type():
+            diff_object = LLVMConstInt(do_type(value_type), diff, True)
+            new_value = LLVMBuildAdd(self->builder, old_value, diff_object, "new_value")
+        else:
+            assert value_type->is_pointer_type()
+            diff_object = LLVMConstInt(LLVMInt64Type(), diff, True)
+            new_value = LLVMBuildGEP(self->builder, old_value, &diff_object, 1, "new_value")
+
+        LLVMBuildStore(self->builder, new_value, pointer)
+        return [old_value, new_value]
+
     def do_address_of_expression(self, ast: AstExpression*) -> LLVMValue*:
         if ast->kind == AstExpressionKind::GetVariable:
             return self->get_local_var_pointer(&ast->varname[0])
+        if ast->kind == AstExpressionKind::GetClassField:
+            lhs_type = self->function_or_method_types->get_expression_types(ast->class_field.instance)->original_type
+
+            if ast->class_field.uses_arrow_operator:
+                # &foo->bar = foo + some offset
+                instance_pointer = self->do_expression(ast->class_field.instance)
+                assert lhs_type->kind == TypeKind::Pointer
+                class_type = lhs_type->value_type
+            else:
+                # &foo.bar = &foo + some offset
+                instance_pointer = self->do_address_of_expression(ast->class_field.instance)
+                class_type = lhs_type
+
+            field = class_type->class_members.find_field(&ast->class_field.field_name[0])
+            assert field != NULL
+            field_pointer = LLVMBuildStructGEP2(
+                self->builder,
+                do_type(class_type), instance_pointer,
+                field->union_id,
+                &field->name[0],
+            )
+
+            # This cast is needed for two reasons two cases:
+            #   * All pointers are i8* in structs so we can do self-referencing classes.
+            #   * This is how unions work.
+            return LLVMBuildBitCast(
+                self->builder,
+                field_pointer, LLVMPointerType(do_type(field->type),0),
+                "struct_member_cast",
+            )
 
         printf("kind: %d\n", ast->kind)
         assert False
 
     def do_expression(self, ast: AstExpression*) -> LLVMValue*:
+        type = self->function_or_method_types->get_expression_types(ast)->original_type
+
         if ast->kind == AstExpressionKind::String:
             result = self->make_a_string_constant(ast->string)
         elif ast->kind == AstExpressionKind::Byte:
@@ -257,6 +369,8 @@ class AstToIR:
             result = LLVMConstInt(LLVMInt32Type(), ast->int_value, False)
         elif ast->kind == AstExpressionKind::Long:
             result = LLVMConstInt(LLVMInt64Type(), ast->long_value, False)
+        elif ast->kind == AstExpressionKind::Null:
+            result = LLVMConstNull(do_type(type))
 
         elif ast->kind == AstExpressionKind::FunctionCall:
             sig = self->file_types->find_function(&ast->call.called_name[0])
@@ -281,9 +395,6 @@ class AstToIR:
             if sig->return_type == NULL:
                 return NULL
 
-        elif ast->kind == AstExpressionKind::GetVariable:
-            pointer = self->do_address_of_expression(ast)
-            result = LLVMBuildLoad(self->builder, pointer, &ast->varname[0])
         elif ast->kind == AstExpressionKind::GetEnumMember:
             enum_type = self->file_types->find_type(&ast->enum_member.enum_name[0])
             assert enum_type != NULL
@@ -299,6 +410,46 @@ class AstToIR:
         elif ast->kind == AstExpressionKind::Negate:
             value = self->do_expression(&ast->operands[0])
             result = LLVMBuildNeg(self->builder, value, "negate")
+
+        elif ast->kind == AstExpressionKind::PreIncr:
+            old_and_new = self->do_incr_decr(&ast->operands[0], 1)
+            result = old_and_new[1]
+        elif ast->kind == AstExpressionKind::PostIncr:
+            old_and_new = self->do_incr_decr(&ast->operands[0], 1)
+            result = old_and_new[0]
+        elif ast->kind == AstExpressionKind::PreDecr:
+            old_and_new = self->do_incr_decr(&ast->operands[0], -1)
+            result = old_and_new[1]
+        elif ast->kind == AstExpressionKind::PostDecr:
+            old_and_new = self->do_incr_decr(&ast->operands[0], -1)
+            result = old_and_new[0]
+
+        elif ast->kind == AstExpressionKind::Instantiate:
+            class_type = self->function_or_method_types->get_expression_types(ast)->original_type
+            assert class_type->kind == TypeKind::Class
+
+            result = LLVMConstNull(do_type(class_type))
+            # TODO: fill in the fields
+
+        elif ast->kind == AstExpressionKind::GetClassField:
+            instance = self->do_expression(ast->class_field.instance)
+            instance_type = self->function_or_method_types->get_expression_types(ast->class_field.instance)->original_type
+
+            if ast->class_field.uses_arrow_operator:
+                instance = LLVMBuildLoad(self->builder, instance, "instance")
+                assert instance_type->kind == TypeKind::Class
+                instance_type = instance_type->value_type
+
+            field = instance_type->class_members.find_field(&ast->class_field.field_name[0])
+            assert field != NULL
+            result = LLVMBuildExtractValue(self->builder, instance, field->union_id, &field->name[0])
+
+        elif ast->kind == AstExpressionKind::GetVariable:
+            pointer = self->do_address_of_expression(ast)
+            result = LLVMBuildLoad(self->builder, pointer, "class_field")
+
+        elif ast->kind == AstExpressionKind::AddressOf:
+            result = self->do_address_of_expression(&ast->operands[0])
 
         elif (
             ast->kind == AstExpressionKind::Add
@@ -393,7 +544,7 @@ class AstToIR:
         for v = self->function_or_method_types->local_vars; v != NULL; v = v->next:
             self->local_vars[i++] = LocalVarNameAndPointer{
                 name = v->name,
-                pointer = LLVMBuildAlloca(self->builder, self->do_type(v->type), &v->name[0]),
+                pointer = LLVMBuildAlloca(self->builder, do_type(v->type), &v->name[0]),
             }
 
         # Place arguments into the first n local variables.

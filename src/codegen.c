@@ -31,6 +31,10 @@ As a "last resort" I just use an array of i64 large enough and hope it's aligned
 */
 static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
 {
+    // For some reason uncommenting this makes stuff compile almost 2x slower...
+    //if (ntypes == 1)
+    //    return types[0];
+
     unsigned long long sizeneeded = 0;
     for (int i = 0; i < ntypes; i++) {
         unsigned long long size1 = LLVMABISizeOfType(get_target()->target_data_ref, types[i]);

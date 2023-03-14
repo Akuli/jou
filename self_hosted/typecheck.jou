@@ -265,7 +265,33 @@ def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> void:
     memset(&type->class_members, 0, sizeof type->class_members)
 
     union_id = 0
-    return  # TODO: implement the rest of this function
+    for i = 0; i < classdef->nmembers; i++:
+        member = &classdef->members[i]
+        if member->kind == AstClassMemberKind::Field:
+            type->class_members.fields = realloc(type->class_members.fields, (type->class_members.nfields + 1) * sizeof type->class_members.fields[0])
+            type->class_members.fields[type->class_members.nfields++] = ClassField{
+                name = member->field.name,
+                type = type_from_ast(ft, &member->field.type),
+                union_id = union_id++,
+            }
+        elif member->kind == AstClassMemberKind::Union:
+#                int uid = union_id++;
+#                for (struct AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++) {
+#                    struct ClassField f = {
+#                        .type = type_from_ast(ft, &ntv->type),
+#                        .union_id = uid,
+#                    };
+#                    safe_strcpy(f.name, ntv->name);
+#                    Append(&type->data.classdata.fields, f);
+#                }
+            assert False
+        elif member->kind == AstClassMemberKind::Method:
+#                // Don't handle the method body yet: that is a part of stage 3, not stage 2
+#                Signature sig = handle_signature(ft, &m->data.method.signature, type);
+#                Append(&type->data.classdata.methods, sig);
+            assert False
+        else:
+            assert False
 
 # Returned array is terminated by ExportSymbol with empty name.
 def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> ExportSymbol*:
@@ -529,7 +555,7 @@ def check_binop(
     else:
         return cast_type
 
-def check_class_field(location: Location, class_type: Type*, field_name: byte*) -> Type*:
+def check_class_field(location: Location, class_type: Type*, field_name: byte*) -> ClassField*:
     assert class_type->kind == TypeKind::Class
 
     field = class_type->class_members.find_field(field_name)
@@ -537,7 +563,7 @@ def check_class_field(location: Location, class_type: Type*, field_name: byte*) 
         message: byte[500]
         snprintf(&message[0], sizeof message, "class %s has no field named '%s'", &class_type->name[0], field_name)
         fail(location, &message[0])
-    return field->type
+    return field
 
 class Stage3TypeChecker:
     file_types: FileTypes*
@@ -652,6 +678,48 @@ class Stage3TypeChecker:
 
         return enum_type
 
+    def do_instantiation(self, instantiation: AstInstantiation*) -> Type*:
+        message:byte[500]
+
+        t = self->file_types->find_type(&instantiation->class_name[0])
+        if t == NULL:
+            snprintf(
+                &message[0], sizeof message,
+                "there is no type named '%s'", &instantiation->class_name[0],
+            )
+            fail(instantiation->class_name_location, &message[0])
+
+        if t->kind != TypeKind::Class:
+            description = short_type_description(t)
+            snprintf(
+                &message[0], sizeof message,
+                "the %s{...} syntax is only for classes, but %s is %s",
+                &t->name[0], t->name[0], &description[0],
+            )
+            fail(instantiation->class_name_location, &message[0])
+
+        specified_fields: ClassField** = malloc(sizeof specified_fields[0] * instantiation->nfields)
+        for i = 0; i < instantiation->nfields; i++:
+            snprintf(
+                &message[0], sizeof message,
+                "value for field '%s' of class %s must be of type <to>, not <from>",
+                &instantiation->field_names[i][0], &t->name[0],
+            )
+            specified_fields[i] = check_class_field(
+                instantiation->field_values[i].location,
+                t,
+                &instantiation->field_names[i][0],
+            )
+            self->do_expression_and_implicit_cast(
+                &instantiation->field_values[i],
+                specified_fields[i]->type,
+                &message[0],
+            )
+
+        # TODO: check union_id
+
+        return t
+
     def do_expression_maybe_void(self, expression: AstExpression*) -> ExpressionTypes*:
         result: Type*
         message: byte[200]
@@ -664,6 +732,8 @@ class Stage3TypeChecker:
             result = int_type
         elif expression->kind == AstExpressionKind::Long:
             result = long_type
+        elif expression->kind == AstExpressionKind::Null:
+            result = &void_ptr_type
         elif expression->kind == AstExpressionKind::FunctionCall:
             result = self->do_function_call(&expression->call)
             if result == NULL:
@@ -711,7 +781,7 @@ class Stage3TypeChecker:
                         &lhs_type->name[0],
                     )
                     fail(expression->location, &message[0])
-                result = check_class_field(expression->location, lhs_type->value_type, &expression->class_field.field_name[0])
+                result = check_class_field(expression->location, lhs_type->value_type, &expression->class_field.field_name[0])->type
             else:
                 if lhs_type->kind != TypeKind::Class:
                     snprintf(
@@ -720,7 +790,11 @@ class Stage3TypeChecker:
                         &lhs_type->name[0],
                     )
                     fail(expression->location, &message[0])
-                result = check_class_field(expression->location, lhs_type, &expression->class_field.field_name[0])
+                result = check_class_field(expression->location, lhs_type, &expression->class_field.field_name[0])->type
+        elif expression->kind == AstExpressionKind::AddressOf:
+            result = self->do_expression(&expression->operands[0])->original_type->get_pointer_type()
+        elif expression->kind == AstExpressionKind::Instantiate:
+            result = self->do_instantiation(&expression->instantiation)
         else:
             printf("*** %d\n", expression->kind as int)
             assert False
