@@ -405,8 +405,7 @@ class AstToIR:
         elif ast->kind == AstExpressionKind::As:
             value = self->do_expression(&ast->as_expression->value)
             type_before_cast = self->function_or_method_types->get_expression_types(&ast->as_expression->value)->original_type
-            type_after_cast = self->function_or_method_types->get_expression_types(ast)->original_type
-            result = self->do_cast(value, type_before_cast, type_after_cast)
+            result = self->do_cast(value, type_before_cast, type)
 
         elif ast->kind == AstExpressionKind::Negate:
             value = self->do_expression(&ast->operands[0])
@@ -426,13 +425,11 @@ class AstToIR:
             result = old_and_new[0]
 
         elif ast->kind == AstExpressionKind::Instantiate:
-            instance_type = self->function_or_method_types->get_expression_types(ast)->original_type
-            assert instance_type->kind == TypeKind::Class
-
-            result = LLVMConstNull(type_to_llvm(instance_type))
+            assert type->kind == TypeKind::Class
+            result = LLVMConstNull(type_to_llvm(type))
 
             for i = 0; i < ast->instantiation.nfields; i++:
-                field = instance_type->class_members.find_field(&ast->instantiation.field_names[i][0])
+                field = type->class_members.find_field(&ast->instantiation.field_names[i][0])
                 assert field != NULL
                 value = self->do_expression(&ast->instantiation.field_values[i])
                 result = LLVMBuildInsertValue(self->builder, result, value, field->union_id, "instance")
