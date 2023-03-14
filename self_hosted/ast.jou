@@ -750,6 +750,7 @@ class AstClassDef:
     def free(self) -> void:
         for i = 0; i < self->nmembers; i++:
             self->members[i].free()
+        free(self->members)
 
 class AstEnumDef:
     name: byte[100]

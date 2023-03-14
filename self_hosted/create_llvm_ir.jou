@@ -49,6 +49,7 @@ def lmax(a: long, b: long) -> long:
 #
 # As a "last resort" I just use an array of i64 large enough and hope it's aligned as needed.
 def build_union_type(types: LLVMType**, ntypes: int) -> LLVMType*:
+    # TODO: in the other compiler I found it compiles faster without this. How about here?
     if ntypes == 1:
         return types[0]
 

@@ -57,7 +57,7 @@ def parse_name_type_value(tokens: Token**, expected_what_for_name: byte*) -> Ast
     return result
 
 def parse_function_or_method_signature(tokens: Token**, is_method: bool) -> AstSignature:
-    # TODO: change error messages to say method, when it is a method
+    # TODO: change error messages to say method, when it is a method (#243)
     if (*tokens)->kind != TokenKind::Name:
         (*tokens)->fail_expected_got("a function name")
 
@@ -286,7 +286,7 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
 def parse_expression_with_fields_and_methods_and_indexing(tokens: Token**) -> AstExpression:
     result = parse_elementary_expression(tokens)
 
-    # TODO: lists [foo,bar,baz]
+    # TODO: indexing foo[bar]
     while (*tokens)->is_operator(".") or (*tokens)->is_operator("->"):
         start_op = (*tokens)++
         if (*tokens)->kind != TokenKind::Name:
