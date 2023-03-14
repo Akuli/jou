@@ -425,11 +425,16 @@ class AstToIR:
             result = old_and_new[0]
 
         elif ast->kind == AstExpressionKind::Instantiate:
-            class_type = self->function_or_method_types->get_expression_types(ast)->original_type
-            assert class_type->kind == TypeKind::Class
+            instance_type = self->function_or_method_types->get_expression_types(ast)->original_type
+            assert instance_type->kind == TypeKind::Class
 
-            result = LLVMConstNull(do_type(class_type))
-            # TODO: fill in the fields
+            result = LLVMConstNull(do_type(instance_type))
+
+            for i = 0; i < ast->instantiation.nfields; i++:
+                field = instance_type->class_members.find_field(&ast->instantiation.field_names[i][0])
+                assert field != NULL
+                value = self->do_expression(&ast->instantiation.field_values[i])
+                result = LLVMBuildInsertValue(self->builder, result, value, field->union_id, "instance")
 
         elif ast->kind == AstExpressionKind::GetClassField:
             instance = self->do_expression(ast->class_field.instance)
