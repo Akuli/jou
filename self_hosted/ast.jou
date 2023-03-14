@@ -593,7 +593,7 @@ enum AstToplevelStatementKind:
 class AstToplevelStatement:
     union:
         the_import: AstImport   # must be placed in the beginning of the class
-        function: AstFunction
+        function: AstFunctionOrMethod
         classdef: AstClassDef
         enumdef: AstEnumDef
         global_var: AstNameTypeValue
@@ -670,7 +670,7 @@ class AstFile:
             self->body[i].free()
         free(self->body)
 
-class AstFunction:  # TODO: rename to AstFunctionOrMethod
+class AstFunctionOrMethod:
     signature: AstSignature
     body: AstBody  # empty body means declaration, otherwise it's a definition
 
@@ -707,7 +707,7 @@ class AstClassMember:
     union:
         field: AstNameTypeValue
         union_fields: AstUnionFields
-        method: AstFunction
+        method: AstFunctionOrMethod
 
     def print(self) -> void:
         if self->kind == AstClassMemberKind::Field:

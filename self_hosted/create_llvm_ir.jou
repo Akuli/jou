@@ -530,7 +530,7 @@ class AstToIR:
             self->do_statement(&body->statements[i])
 
     # The function must already be declared.
-    def define_function(self, funcdef: AstFunction*) -> void:
+    def define_function(self, funcdef: AstFunctionOrMethod*) -> void:
         assert self->function_or_method_types == NULL
         self->function_or_method_types = self->file_types->find_defined_function(&funcdef->signature.name[0])
         assert self->function_or_method_types != NULL

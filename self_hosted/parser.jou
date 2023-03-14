@@ -688,7 +688,7 @@ def parse_body(tokens: Token**) -> AstBody:
 
     return AstBody{ statements = result, nstatements = n }
 
-def parse_function_or_method(tokens: Token**, is_method: bool) -> AstFunction:
+def parse_function_or_method(tokens: Token**, is_method: bool) -> AstFunctionOrMethod:
     assert (*tokens)->is_keyword("def")
     ++*tokens
 
@@ -696,7 +696,7 @@ def parse_function_or_method(tokens: Token**, is_method: bool) -> AstFunction:
     if signature.takes_varargs:
         fail((*tokens)->location, "functions with variadic arguments cannot be defined yet")
 
-    return AstFunction{
+    return AstFunctionOrMethod{
         signature = signature,
         body = parse_body(tokens),
     }
