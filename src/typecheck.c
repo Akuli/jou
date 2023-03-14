@@ -809,7 +809,7 @@ static const char *short_type_description(const Type *t)
     }
 }
 
-static const Type *typecheck_struct_init(FileTypes *ft, const AstCall *call, Location location)
+static const Type *typecheck_instantiation(FileTypes *ft, const AstCall *call, Location location)
 {
     struct AstType tmp = { .kind = AST_TYPE_NAMED, .location = location };
     safe_strcpy(tmp.data.name, call->calledname);
@@ -935,7 +935,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         result = longType;
         break;
     case AST_EXPR_BRACE_INIT:
-        result = typecheck_struct_init(ft, &expr->data.call, expr->location);
+        result = typecheck_instantiation(ft, &expr->data.call, expr->location);
         break;
     case AST_EXPR_ARRAY:
         {
