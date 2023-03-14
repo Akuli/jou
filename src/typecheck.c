@@ -611,6 +611,8 @@ static void ensure_can_take_address(const AstExpression *expr, const char *errms
     case AST_EXPR_GET_FIELD:
         // &foo.bar = &foo + offset
         {
+            // Turn "cannot assign to %s" into "cannot assign to a field of %s".
+            // This assumes that errmsg_template is relatively simple, i.e. it only contains one %s somewhere.
             char *newtemplate = malloc(strlen(errmsg_template) + 100);
             sprintf(newtemplate, errmsg_template, "a field of %s");
             ensure_can_take_address(&expr->data.operands[0], newtemplate);
