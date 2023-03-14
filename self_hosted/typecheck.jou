@@ -275,16 +275,14 @@ def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> void:
                 union_id = union_id++,
             }
         elif member->kind == AstClassMemberKind::Union:
-#                int uid = union_id++;
-#                for (struct AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++) {
-#                    struct ClassField f = {
-#                        .type = type_from_ast(ft, &ntv->type),
-#                        .union_id = uid,
-#                    };
-#                    safe_strcpy(f.name, ntv->name);
-#                    Append(&type->data.classdata.fields, f);
-#                }
-            assert False
+            uid = union_id++
+            for k = 0; k < member->union_fields.nfields; k++:
+                type->class_members.fields = realloc(type->class_members.fields, (type->class_members.nfields + 1) * sizeof type->class_members.fields[0])
+                type->class_members.fields[type->class_members.nfields++] = ClassField{
+                    name = member->union_fields.fields[k].name,
+                    type = type_from_ast(ft, &member->union_fields.fields[k].type),
+                    union_id = uid,
+                }
         elif member->kind == AstClassMemberKind::Method:
 #                // Don't handle the method body yet: that is a part of stage 3, not stage 2
 #                Signature sig = handle_signature(ft, &m->data.method.signature, type);
@@ -716,7 +714,16 @@ class Stage3TypeChecker:
                 &message[0],
             )
 
-        # TODO: check union_id
+        for i1 = 0; i1 < instantiation->nfields; i1++:
+            for i2 = i1+1; i2 < instantiation->nfields; i2++:
+                if specified_fields[i1]->union_id == specified_fields[i2]->union_id:
+                    snprintf(
+                        &message[0], sizeof message,
+                        "fields '%s' and '%s' cannot be set simultaneously because they belong to the same union",
+                        &specified_fields[i1]->name[0],
+                        &specified_fields[i2]->name[0],
+                    )
+                    fail(instantiation->field_values[i2].location, &message[0])
 
         return t
 
