@@ -305,7 +305,7 @@ def check_explicit_cast(from: Type*, to: Type*, location: Location) -> void:
     )
     fail(location, &message[0])
 
-def very_short_type_description(t: Type*) -> byte*:
+def short_type_description(t: Type*) -> byte*:
     if t->kind == TypeKind::OpaqueClass:
         assert False
     if t->kind == TypeKind::Class:
@@ -319,9 +319,107 @@ def very_short_type_description(t: Type*) -> byte*:
 #    if t->kind == TypeKind::Array:
 #        return "an array type"
     if t == &bool_type:
-        return "the built-in boolean type"
-
+        return "the built-in bool type"
     assert False
+
+def short_expression_description(expr: AstExpression*) -> byte[200]:
+    result: byte[200]
+
+    # Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
+    if (
+        expr->kind == AstExpressionKind::String
+        or expr->kind == AstExpressionKind::Int
+        or expr->kind == AstExpressionKind::Long
+        or expr->kind == AstExpressionKind::Byte
+        or expr->kind == AstExpressionKind::Bool
+        or expr->kind == AstExpressionKind::Null
+    ):
+        strcpy(&result[0], "a constant")
+    elif (
+        expr->kind == AstExpressionKind::Negate
+        or expr->kind == AstExpressionKind::Add
+        or expr->kind == AstExpressionKind::Subtract
+        or expr->kind == AstExpressionKind::Multiply
+        or expr->kind == AstExpressionKind::Divide
+        or expr->kind == AstExpressionKind::Modulo
+    ):
+        strcpy(&result[0], "the result of a calculation")
+    elif (
+        expr->kind == AstExpressionKind::Eq
+        or expr->kind == AstExpressionKind::Ne
+        or expr->kind == AstExpressionKind::Gt
+        or expr->kind == AstExpressionKind::Ge
+        or expr->kind == AstExpressionKind::Lt
+        or expr->kind == AstExpressionKind::Le
+    ):
+        strcpy(&result[0], "the result of a comparison")
+    elif expr->kind == AstExpressionKind::FunctionCall:
+        strcpy(&result[0], "a function call")
+    elif expr->kind == AstExpressionKind::Instantiate:
+        strcpy(&result[0], "a newly created instance")
+    elif expr->kind == AstExpressionKind::GetVariable:
+        strcpy(&result[0], "a variable")
+    elif expr->kind == AstExpressionKind::GetEnumMember:
+        strcpy(&result[0], "an enum member")
+    elif expr->kind == AstExpressionKind::GetClassField:
+        snprintf(&result[0], sizeof result, "field '%s'", &expr->class_field.field_name[0])
+    elif expr->kind == AstExpressionKind::As:
+        strcpy(&result[0], "the result of a cast")
+    elif expr->kind == AstExpressionKind::SizeOf:
+        strcpy(&result[0], "a sizeof expression")
+    elif expr->kind == AstExpressionKind::AddressOf:
+        subresult = short_expression_description(&expr->operands[0])
+        snprintf(&result[0], sizeof result, "address of %s", &subresult[0])
+    elif expr->kind == AstExpressionKind::Dereference:
+        strcpy(&result[0], "the value of a pointer")
+    elif expr->kind == AstExpressionKind::And:
+        strcpy(&result[0], "the result of 'and'")
+    elif expr->kind == AstExpressionKind::Or:
+        strcpy(&result[0], "the result of 'or'")
+    elif expr->kind == AstExpressionKind::Not:
+        strcpy(&result[0], "the result of 'not'")
+    elif expr->kind == AstExpressionKind::PreIncr or expr->kind == AstExpressionKind::PostIncr:
+        strcpy(&result[0], "the result of incrementing a value")
+    elif expr->kind == AstExpressionKind::PreDecr or expr->kind == AstExpressionKind::PostDecr:
+        strcpy(&result[0], "the result of decrementing a value")
+    elif expr->kind == AstExpressionKind::Indexing:
+        strcpy(&result[0], "an indexed value")
+    else:
+        printf("*** %d\n", expr->kind)
+        assert False
+
+    return result
+
+# The & operator can't go in front of most expressions.
+# You can't do &(1 + 2), for example.
+#
+# The same rules apply to assignments: "foo = bar" is treated as setting the
+# value of the pointer &foo to bar.
+# 
+# error_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
+def ensure_can_take_address(expression: AstExpression*, error_template: byte*) -> void:
+    if expression->kind == AstExpressionKind::GetClassField:
+        # &foo.bar --> must ensure we can take address of foo.
+        # Doesn't apply to &foo->bar because that's foo + some offset, so foo is already a pointer.
+        if not expression->class_field.deref:  # TODO: rename to uses_arrow_operator
+            new_template = malloc(strlen(error_template) + 50)
+            sprintf(new_template, error_template, "a field of %s")
+            ensure_can_take_address(&expression->operands[0], new_template)
+            free(new_template)
+        return
+
+    if (
+        expression->kind == AstExpressionKind::GetVariable  # &foo
+        or expression->kind == AstExpressionKind::Dereference  # &*foo
+        or expression->kind == AstExpressionKind::Indexing  # &foo[bar] = foo + some offset (foo is a pointer)
+    ):
+        return
+
+    # Anything else is an error.
+    desc: byte[200] = short_expression_description(expression)
+    error = malloc(strlen(error_template) + 300)
+    sprintf(error, error_template, &desc[0])
+    fail(expression->location, error)
 
 def max(a: int, b: int) -> int:
     if a > b:
@@ -487,6 +585,20 @@ class Stage3TypeChecker:
         free(signature_string)
         return signature->return_type
 
+    def check_increment_or_decrement(self, expression: AstExpression*, increment_or_decrement: byte*) -> Type*:
+        assert strcmp(increment_or_decrement, "increment") == 0 or strcmp(increment_or_decrement, "decrement") == 0
+
+        bad_expression_error_template: byte[50]
+        sprintf(&bad_expression_error_template[0], "cannot %s %%s", increment_or_decrement)
+        ensure_can_take_address(&expression->operands[0], &bad_expression_error_template[0])
+
+        t = self->do_expression(&expression->operands[0])->original_type
+        if not t->is_integer_type() and not t->is_pointer_type():
+            error: byte* = malloc(strlen(&t->name[0]) + 100)
+            sprintf(error, "cannot %s a value of type %s", increment_or_decrement, &t->name[0])
+            fail(expression->location, error)
+        return t
+
     def do_expression_maybe_void(self, expression: AstExpression*) -> ExpressionTypes*:
         result: Type*
         message: byte[200]
@@ -522,7 +634,7 @@ class Stage3TypeChecker:
                 snprintf(
                     &message[0], sizeof message,
                     "the '::' syntax is only for enums, but %s is %s",
-                    &expression->enum_member.enum_name[0], very_short_type_description(result),
+                    &expression->enum_member.enum_name[0], short_type_description(result),
                 )
                 fail(expression->location, &message[0])
             if result->enum_members.find_index(&expression->enum_member.member_name[0]) == -1:
@@ -546,6 +658,10 @@ class Stage3TypeChecker:
                     &result->name[0],
                 )
                 fail(expression->location, &message[0])
+        elif expression->kind == AstExpressionKind::PreIncr or expression->kind == AstExpressionKind::PostIncr:
+            result = self->check_increment_or_decrement(expression, "increment")
+        elif expression->kind == AstExpressionKind::PreDecr or expression->kind == AstExpressionKind::PostDecr:
+            result = self->check_increment_or_decrement(expression, "decrement")
         else:
             printf("*** %d\n", expression->kind as int)
             assert False

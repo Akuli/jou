@@ -844,7 +844,7 @@ static const char *very_short_type_description(const Type *t)
         case TYPE_ARRAY:
             return "an array type";
         case TYPE_BOOL:
-            return "the built-in boolean type";
+            return "the built-in bool type";
     }
 }
 
