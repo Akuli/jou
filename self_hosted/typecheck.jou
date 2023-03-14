@@ -748,15 +748,22 @@ class Stage3TypeChecker:
                 #ensure_can_take_address(targetexpr, "cannot assign to %s")
 
                 # This is a common error, so try to produce a helpful error message.
+                error_template: byte[500]
                 if target_expr->kind == AstExpressionKind::Dereference:
-                    error_template = "cannot place a value of type <from> into a pointer of type <to>*"
+                    strcpy(
+                        &error_template[0],
+                        "cannot place a value of type <from> into a pointer of type <to>*",
+                    )
                 else:
-                    # TODO: improve this error message.
-                    # See short_expression_description() in the other compiler.
-                    error_template = "cannot assign a value of type FROM to target of type TO"
+                    target_description: byte[200] = short_expression_description(target_expr)
+                    snprintf(
+                        &error_template[0], sizeof error_template,
+                        "cannot assign a value of type <from> to %s of type <to>",
+                        &target_description[0],
+                    )
 
                 target_types = self->do_expression(target_expr)
-                self->do_expression_and_implicit_cast(value_expr, target_types->original_type, error_template)
+                self->do_expression_and_implicit_cast(value_expr, target_types->original_type, &error_template[0])
 
         elif statement->kind == AstStatementKind::DeclareLocalVar:
             ntv: AstNameTypeValue* = &statement->var_declaration
