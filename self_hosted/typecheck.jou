@@ -745,7 +745,7 @@ class Stage3TypeChecker:
                 self->add_local_var(&target_expr->varname[0], types->original_type)
             else:
                 # Convert value to the type of an existing variable or other assignment target.
-                #ensure_can_take_address(targetexpr, "cannot assign to %s")
+                ensure_can_take_address(target_expr, "cannot assign to %s")
 
                 # This is a common error, so try to produce a helpful error message.
                 error_template: byte[500]
