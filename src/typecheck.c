@@ -328,6 +328,99 @@ static LocalVariable *add_variable(FileTypes *ft, const Type *t, const char *nam
     return var;
 }
 
+// Intended for errors. Returned string can be overwritten in next call.
+static const char *short_expression_description(const AstExpression *expr)
+{
+    static char result[200];
+
+    switch(expr->kind) {
+    // Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
+    case AST_EXPR_CONSTANT: return "a constant";
+    case AST_EXPR_GET_ENUM_MEMBER: return "an enum member";
+    case AST_EXPR_SIZEOF: return "a sizeof expression";
+    case AST_EXPR_FUNCTION_CALL: return "a function call";
+    case AST_EXPR_CALL_METHOD: return "a method call";
+    case AST_EXPR_DEREF_AND_CALL_METHOD: return "a method call";
+    case AST_EXPR_BRACE_INIT: return "a newly created instance";
+    case AST_EXPR_ARRAY: return "an array literal";
+    case AST_EXPR_INDEXING: return "an indexed value";
+    case AST_EXPR_AS: return "the result of a cast";
+    case AST_EXPR_GET_VARIABLE: return "a variable";
+    case AST_EXPR_DEREFERENCE: return "the value of a pointer";
+    case AST_EXPR_AND: return "the result of 'and'";
+    case AST_EXPR_OR: return "the result of 'or'";
+    case AST_EXPR_NOT: return "the result of 'not'";
+
+    case AST_EXPR_ADD:
+    case AST_EXPR_SUB:
+    case AST_EXPR_MUL:
+    case AST_EXPR_DIV:
+    case AST_EXPR_MOD:
+    case AST_EXPR_NEG:
+        return "the result of a calculation";
+
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
+        return "the result of a comparison";
+
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_POST_INCREMENT:
+        return "the result of incrementing a value";
+
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_DECREMENT:
+        return "the result of decrementing a value";
+
+    case AST_EXPR_ADDRESS_OF:
+        snprintf(result, sizeof result, "address of %s", short_expression_description(&expr->data.operands[0]));
+        break;
+
+    case AST_EXPR_GET_FIELD:
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        snprintf(result, sizeof result, "field '%s'", expr->data.classfield.fieldname);
+        break;
+    }
+
+    return result;
+}
+
+/*
+The & operator can't go in front of most expressions.
+You can't do &(1 + 2), for example.
+
+The same rules apply to assignments: "foo = bar" is treated as setting the
+value of the pointer &foo to bar.
+
+errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
+*/
+static void ensure_can_take_address(const AstExpression *expr, const char *errmsg_template)
+{
+    switch(expr->kind) {
+    case AST_EXPR_GET_VARIABLE:
+    case AST_EXPR_DEREFERENCE:
+    case AST_EXPR_INDEXING:  // &foo[bar]
+    case AST_EXPR_DEREF_AND_GET_FIELD:  // &foo->bar = foo + offset (it doesn't use &foo)
+        break;
+    case AST_EXPR_GET_FIELD:
+        // &foo.bar = &foo + offset
+        {
+            // Turn "cannot assign to %s" into "cannot assign to a field of %s".
+            // This assumes that errmsg_template is relatively simple, i.e. it only contains one %s somewhere.
+            char *newtemplate = malloc(strlen(errmsg_template) + 100);
+            sprintf(newtemplate, errmsg_template, "a field of %s");
+            ensure_can_take_address(&expr->data.operands[0], newtemplate);
+            free(newtemplate);
+        }
+        break;
+    default:
+        fail_with_error(expr->location, errmsg_template, short_expression_description(expr));
+    }
+}
+
 /*
 Implicit casts are used in many places, e.g. function arguments.
 
@@ -399,6 +492,8 @@ static void do_implicit_cast(
 
     types->implicit_cast_type = to;
     types->implicit_array_to_pointer_cast = (from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER);
+    if (types->implicit_array_to_pointer_cast)
+        ensure_can_take_address(types->expr, "cannot take address of %s, which is needed for converting from array to pointer");
 }
 
 static void cast_array_to_pointer(ExpressionTypes *types)
@@ -407,8 +502,10 @@ static void cast_array_to_pointer(ExpressionTypes *types)
     do_implicit_cast(types, get_pointer_type(types->type->data.array.membertype), (Location){0}, NULL);
 }
 
-static void check_explicit_cast(const Type *from, const Type *to, Location location)
+static void do_explicit_cast(ExpressionTypes *types, const Type *to, Location location)
 {
+    assert(!types->implicit_cast_type);
+    const Type *from = types->type;
     if (
         from != to  // TODO: should probably be error if it's the same type.
         && !(from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER && from->data.array.membertype == to->data.valuetype)
@@ -420,9 +517,11 @@ static void check_explicit_cast(const Type *from, const Type *to, Location locat
         // TODO: pointer-to-int, int-to-pointer
     )
     {
-        // TODO: test this error
         fail_with_error(location, "cannot cast from type %s to %s", from->name, to->name);
     }
+
+    if (from->kind == TYPE_ARRAY && is_pointer_type(to))
+        cast_array_to_pointer(types);
 }
 
 static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression *expr);
@@ -538,99 +637,6 @@ static const Type *check_binop(
             return boolType;
         default:
             assert(0);
-    }
-}
-
-// Intended for errors. Returned string can be overwritten in next call.
-static const char *short_expression_description(const AstExpression *expr)
-{
-    static char result[200];
-
-    switch(expr->kind) {
-    // Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
-    case AST_EXPR_CONSTANT: return "a constant";
-    case AST_EXPR_GET_ENUM_MEMBER: return "an enum member";
-    case AST_EXPR_SIZEOF: return "a sizeof expression";
-    case AST_EXPR_FUNCTION_CALL: return "a function call";
-    case AST_EXPR_CALL_METHOD: return "a method call";
-    case AST_EXPR_DEREF_AND_CALL_METHOD: return "a method call";
-    case AST_EXPR_BRACE_INIT: return "a newly created instance";
-    case AST_EXPR_ARRAY: return "an array";
-    case AST_EXPR_INDEXING: return "an indexed value";
-    case AST_EXPR_AS: return "the result of a cast";
-    case AST_EXPR_GET_VARIABLE: return "a variable";
-    case AST_EXPR_DEREFERENCE: return "the value of a pointer";
-    case AST_EXPR_AND: return "the result of 'and'";
-    case AST_EXPR_OR: return "the result of 'or'";
-    case AST_EXPR_NOT: return "the result of 'not'";
-
-    case AST_EXPR_ADD:
-    case AST_EXPR_SUB:
-    case AST_EXPR_MUL:
-    case AST_EXPR_DIV:
-    case AST_EXPR_MOD:
-    case AST_EXPR_NEG:
-        return "the result of a calculation";
-
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
-        return "the result of a comparison";
-
-    case AST_EXPR_PRE_INCREMENT:
-    case AST_EXPR_POST_INCREMENT:
-        return "the result of incrementing a value";
-
-    case AST_EXPR_PRE_DECREMENT:
-    case AST_EXPR_POST_DECREMENT:
-        return "the result of decrementing a value";
-
-    case AST_EXPR_ADDRESS_OF:
-        snprintf(result, sizeof result, "address of %s", short_expression_description(&expr->data.operands[0]));
-        break;
-
-    case AST_EXPR_GET_FIELD:
-    case AST_EXPR_DEREF_AND_GET_FIELD:
-        snprintf(result, sizeof result, "field '%s'", expr->data.classfield.fieldname);
-        break;
-    }
-
-    return result;
-}
-
-/*
-The & operator can't go in front of most expressions.
-You can't do &(1 + 2), for example.
-
-The same rules apply to assignments: "foo = bar" is treated as setting the
-value of the pointer &foo to bar.
-
-errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
-*/
-static void ensure_can_take_address(const AstExpression *expr, const char *errmsg_template)
-{
-    switch(expr->kind) {
-    case AST_EXPR_GET_VARIABLE:
-    case AST_EXPR_DEREFERENCE:
-    case AST_EXPR_INDEXING:  // &foo[bar]
-    case AST_EXPR_DEREF_AND_GET_FIELD:  // &foo->bar = foo + offset (it doesn't use &foo)
-        break;
-    case AST_EXPR_GET_FIELD:
-        // &foo.bar = &foo + offset
-        {
-            // Turn "cannot assign to %s" into "cannot assign to a field of %s".
-            // This assumes that errmsg_template is relatively simple, i.e. it only contains one %s somewhere.
-            char *newtemplate = malloc(strlen(errmsg_template) + 100);
-            sprintf(newtemplate, errmsg_template, "a field of %s");
-            ensure_can_take_address(&expr->data.operands[0], newtemplate);
-            free(newtemplate);
-        }
-        break;
-    default:
-        fail_with_error(expr->location, errmsg_template, short_expression_description(expr));
     }
 }
 
@@ -1060,9 +1066,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         {
             ExpressionTypes *origtypes = typecheck_expression_not_void(ft, expr->data.as.obj);
             result = type_from_ast(ft, &expr->data.as.type);
-            check_explicit_cast(origtypes->type, result, expr->location);
-            if (origtypes->type->kind == TYPE_ARRAY && is_pointer_type(result))
-                cast_array_to_pointer(origtypes);
+            do_explicit_cast(origtypes, result, expr->location);
         }
         break;
     }
