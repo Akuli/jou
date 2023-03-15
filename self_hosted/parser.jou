@@ -24,14 +24,34 @@ def parse_type(tokens: Token**) -> AstType:
     }
     ++*tokens
 
-    while (*tokens)->is_operator("*"):
+    while (*tokens)->is_operator("*") or (*tokens)->is_operator("["):
         p: AstType* = malloc(sizeof *p)
         *p = result
-        result = AstType{
-            location = ((*tokens)++)->location,  # TODO: shouldn't need all the parentheses
-            kind = AstTypeKind::Pointer,
-            value_type = p,
-        }
+
+        if (*tokens)->is_operator("*"):
+            result = AstType{
+                location = ((*tokens)++)->location,  # TODO: shouldn't need all the parentheses
+                kind = AstTypeKind::Pointer,
+                value_type = p,
+            }
+        else:
+            location = ((*tokens)++)->location
+
+            len_expression: AstExpression* = malloc(sizeof *len_expression)
+            *len_expression = parse_expression(tokens)
+
+            if not (*tokens)->is_operator("]"):
+                (*tokens)->fail_expected_got("a ']' to end the array size")
+            ++*tokens
+
+            result = AstType{
+                location = location,
+                kind = AstTypeKind::Array,
+                array = AstArrayType{
+                    member_type = p,
+                    length = len_expression,
+                }
+            }
 
     return result
 
@@ -218,6 +238,24 @@ def parse_instantiation(tokens: Token**) -> AstInstantiation:
 
     return result
 
+def parse_array_items(tokens: Token**) -> AstArrayItems:
+    assert (*tokens)->is_operator("[")
+    ++*tokens
+
+    result = AstArrayItems{}
+    while not (*tokens)->is_operator("]"):
+        result.items = realloc(result.items, (result.count + 1) * sizeof result.items[0])
+        result.items[result.count++] = parse_expression(tokens)
+        if not (*tokens)->is_operator(","):
+            break
+        ++*tokens
+
+    if not (*tokens)->is_operator("]"):
+        (*tokens)->fail_expected_got("a ']' to end the array")
+    ++*tokens
+
+    return result
+
 def parse_elementary_expression(tokens: Token**) -> AstExpression:
     expr = AstExpression{location = (*tokens)->location}
 
@@ -277,6 +315,9 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
         if not (*tokens)->is_operator(")"):
             (*tokens)->fail_expected_got("a ')'")
         ++*tokens
+    elif (*tokens)->is_operator("["):
+        expr.kind = AstExpressionKind::Array
+        expr.array_items = parse_array_items(tokens)
     else:
         (*tokens)->fail_expected_got("an expression")
 
@@ -285,26 +326,34 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
 def parse_expression_with_fields_and_methods_and_indexing(tokens: Token**) -> AstExpression:
     result = parse_elementary_expression(tokens)
 
-    # TODO: indexing foo[bar]
-    while (*tokens)->is_operator(".") or (*tokens)->is_operator("->"):
-        start_op = (*tokens)++
-        if (*tokens)->kind != TokenKind::Name:
-            (*tokens)->fail_expected_got("a field or method name")
+    while (*tokens)->is_operator(".") or (*tokens)->is_operator("->") or (*tokens)->is_operator("["):
+        if (*tokens)->is_operator("["):
+            open_bracket = (*tokens)++
+            operands = [result, parse_expression(tokens)]
+            if not (*tokens)->is_operator("]"):
+                (*tokens)->fail_expected_got("a ']'")
+            ++*tokens
+            result = build_operator_expression(open_bracket, 2, operands)
 
-        assert not (*tokens)[1].is_operator("(")  # TODO
+        else:
+            start_op = (*tokens)++
+            if (*tokens)->kind != TokenKind::Name:
+                (*tokens)->fail_expected_got("a field or method name")
 
-        instance: AstExpression* = malloc(sizeof *instance)
-        *instance = result
-        result = AstExpression{
-            location = (*tokens)->location,
-            kind = AstExpressionKind::GetClassField,
-            class_field = AstClassField{
-                instance = instance,
-                uses_arrow_operator = start_op->is_operator("->"),
-                field_name = (*tokens)->short_string,
-            },
-        }
-        ++*tokens
+            assert not (*tokens)[1].is_operator("(")  # TODO
+
+            instance: AstExpression* = malloc(sizeof *instance)
+            *instance = result
+            result = AstExpression{
+                location = (*tokens)->location,
+                kind = AstExpressionKind::GetClassField,
+                class_field = AstClassField{
+                    instance = instance,
+                    uses_arrow_operator = start_op->is_operator("->"),
+                    field_name = (*tokens)->short_string,
+                },
+            }
+            ++*tokens
 
     return result
 
