@@ -518,6 +518,12 @@ static int find_enum_member(const Type *enumtype, const char *name)
 static const LocalVariable *build_expression(struct State *st, const AstExpression *expr)
 {
     const ExpressionTypes *types = get_expr_types(st, expr);
+    if (types && types->implicit_array_to_pointer_cast) {
+        const LocalVariable *arrptr = build_address_of_expression(st, expr);
+        const LocalVariable *memberptr = add_local_var(st, types->implicit_cast_type);
+        add_unary_op(st, expr->location, CF_PTR_CAST, arrptr, memberptr);
+        return memberptr;
+    }
 
     const LocalVariable *result, *temp;
 

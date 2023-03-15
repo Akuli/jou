@@ -363,6 +363,9 @@ static bool can_cast_implicitly(const Type *from, const Type *to)
     return
         from == to
         || (
+            // array to pointer implicitly
+            from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER && from->data.array.membertype == to->data.valuetype
+        ) || (
             // Cast to bigger integer types implicitly, unless it is signed-->unsigned.
             is_integer_type(from)
             && is_integer_type(to)
@@ -384,6 +387,8 @@ static bool can_cast_implicitly(const Type *from, const Type *to)
 static void do_implicit_cast(
     ExpressionTypes *types, const Type *to, Location location, const char *errormsg_template)
 {
+    assert(!types->implicit_cast_type);
+    assert(!types->implicit_array_to_pointer_cast);
     const Type *from = types->type;
     if (from == to)
         return;
@@ -392,14 +397,21 @@ static void do_implicit_cast(
     if (errormsg_template != NULL && !can_cast_implicitly(from, to))
         fail_with_implicit_cast_error(location, errormsg_template, from, to);
 
-    assert(!types->implicit_cast_type);
     types->implicit_cast_type = to;
+    types->implicit_array_to_pointer_cast = (from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER);
+}
+
+static void cast_array_to_pointer(ExpressionTypes *types)
+{
+    assert(types->type->kind == TYPE_ARRAY);
+    do_implicit_cast(types, get_pointer_type(types->type->data.array.membertype), (Location){0}, NULL);
 }
 
 static void check_explicit_cast(const Type *from, const Type *to, Location location)
 {
     if (
         from != to  // TODO: should probably be error if it's the same type.
+        && !(from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER && from->data.array.membertype == to->data.valuetype)
         && !(is_pointer_type(from) && is_pointer_type(to))
         && !(is_number_type(from) && is_number_type(to))
         && !(is_integer_type(from) && to->kind == TYPE_ENUM)
@@ -755,20 +767,16 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
         // This code runs for varargs, e.g. the things to format in printf().
         ExpressionTypes *types = typecheck_expression_not_void(ft, &call->args[i]);
 
-        if (types->type->kind == TYPE_ARRAY) {
-            fail_with_error(
-                call->args[i].location,
-                "arrays cannot be passed as varargs (try &array[0] instead of array)");
-        }
-
-        if ((is_integer_type(types->type) && types->type->data.width_in_bits < 32)
+        if (types->type->kind == TYPE_ARRAY)
+            cast_array_to_pointer(types);
+        else if (
+            (is_integer_type(types->type) && types->type->data.width_in_bits < 32)
             || types->type == boolType)
         {
             // Add implicit cast to signed int, just like in C.
             do_implicit_cast(types, intType, (Location){0}, NULL);
         }
-
-        if (types->type == floatType)
+        else if (types->type == floatType)
             do_implicit_cast(types, doubleType, (Location){0}, NULL);
     }
 
