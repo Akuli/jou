@@ -575,6 +575,7 @@ def check_class_field(location: Location, class_type: Type*, field_name: byte*) 
 class Stage3TypeChecker:
     file_types: FileTypes*
     current_function_or_method: FunctionOrMethodTypes*
+    nested_loop_count: int
 
     def add_local_var(self, name: byte*, type: Type*) -> LocalVariable*:
         v: LocalVariable* = calloc(1, sizeof *v)
@@ -958,7 +959,9 @@ class Stage3TypeChecker:
                 &statement->while_loop.condition, &bool_type,
                 "'while' condition must be a boolean, not <from>",
             )
+            self->nested_loop_count++
             self->do_body(&statement->while_loop.body)
+            self->nested_loop_count--
 
         elif statement->kind == AstStatementKind::ForLoop:
             self->do_statement(statement->for_loop.init)
@@ -966,8 +969,18 @@ class Stage3TypeChecker:
                 &statement->for_loop.cond, &bool_type,
                 "'for' condition must be a boolean, not <from>",
             )
+            self->nested_loop_count++
             self->do_body(&statement->for_loop.body)
+            self->nested_loop_count--
             self->do_statement(statement->for_loop.incr)
+
+        elif statement->kind == AstStatementKind::Break:
+            if self->nested_loop_count == 0:
+                fail(statement->location, "'break' can only be used inside a loop")
+
+        elif statement->kind == AstStatementKind::Continue:
+            if self->nested_loop_count == 0:
+                fail(statement->location, "'continue' can only be used inside a loop")
 
         else:
             printf("*** typecheck: unknown statement kind %d\n", statement->kind)

@@ -580,6 +580,12 @@ class AstToIR:
             self->do_loop(NULL, &ast->while_loop.condition, NULL, &ast->while_loop.body)
         elif ast->kind == AstStatementKind::ForLoop:
             self->do_loop(ast->for_loop.init, &ast->for_loop.cond, ast->for_loop.incr, &ast->for_loop.body)
+        elif ast->kind == AstStatementKind::Break:
+            LLVMBuildBr(self->builder, self->break_stack[self->nested_loop_count-1])
+            self->new_block("after_break")  # don't fail to compile, if there is code after break/continue
+        elif ast->kind == AstStatementKind::Continue:
+            LLVMBuildBr(self->builder, self->continue_stack[self->nested_loop_count-1])
+            self->new_block("after_continue")
         else:
             printf("create_llvm_ir: unknown statement kind %d...\n", ast->kind)
             assert False
