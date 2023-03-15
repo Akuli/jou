@@ -1,5 +1,10 @@
 def foo() -> int[3]:
     return [1, 2, 3]
 
-def bar() -> int:
-    return foo()[1]  # Error: cannot create a pointer into an array that comes from a function call
+def bar() -> void:
+    # This works
+    my_var = foo()
+    x = my_var[1]
+
+    # This doesn't work, because foo()[1] is implemented as *((pointer to foo()) + some offset)
+    x = foo()[1]  # Error: cannot create a pointer into an array that comes from a function call (try storing it to a local variable first)

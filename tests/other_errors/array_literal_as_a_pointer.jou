@@ -1,0 +1,9 @@
+import "stdlib/io.jou"
+
+def foo() -> void:
+    # This works
+    message = ['h','i','\0']
+    puts(message)
+
+    # This doesn't work, because you can't do &['h','i','\0']
+    puts(['h','i','\0'])  # Error: cannot create a pointer into an array that comes from an array literal (try storing it to a local variable first)

@@ -373,32 +373,12 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
     }
     case AST_EXPR_INDEXING:
     {
-        const LocalVariable *ptr, *arrptr;
-
-        // &pointer[index] = pointer + offset
-        // &array[index] = cast(&array) + offset
-        const Type *indexed_type = get_expr_types(st, &address_of_what->data.operands[0])->type;
-        switch(indexed_type->kind) {
-        case TYPE_POINTER:
-            ptr = build_expression(st, &address_of_what->data.operands[0]);
-            break;
-
-        case TYPE_ARRAY:
-            {
-                arrptr = build_address_of_expression(st, &address_of_what->data.operands[0]);
-                ptr = add_local_var(st, get_pointer_type(indexed_type->data.array.membertype));
-                add_unary_op(st, address_of_what->location, CF_PTR_CAST, arrptr, ptr);
-            }
-            break;
-
-        default:
-            assert(0);
-        }
+        const LocalVariable *ptr = build_expression(st, &address_of_what->data.operands[0]);
+        assert(ptr->type->kind == TYPE_POINTER);
 
         const LocalVariable *index = build_expression(st, &address_of_what->data.operands[1]);
         assert(is_integer_type(index->type));
 
-        assert(ptr->type->kind == TYPE_POINTER);
         const LocalVariable *result = add_local_var(st, ptr->type);
         add_binary_op(st, address_of_what->location, CF_PTR_ADD_INT, ptr, index, result);
         return result;
@@ -518,6 +498,12 @@ static int find_enum_member(const Type *enumtype, const char *name)
 static const LocalVariable *build_expression(struct State *st, const AstExpression *expr)
 {
     const ExpressionTypes *types = get_expr_types(st, expr);
+    if (types && types->implicit_array_to_pointer_cast) {
+        const LocalVariable *arrptr = build_address_of_expression(st, expr);
+        const LocalVariable *memberptr = add_local_var(st, types->implicit_cast_type);
+        add_unary_op(st, expr->location, CF_PTR_CAST, arrptr, memberptr);
+        return memberptr;
+    }
 
     const LocalVariable *result, *temp;
 

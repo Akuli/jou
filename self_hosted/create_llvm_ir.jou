@@ -122,13 +122,13 @@ class AstToIR:
 
     def get_local_var_pointer(self, name: byte*) -> LLVMValue*:
         for i = 0; i < self->n_local_vars; i++:
-            if strcmp(&self->local_vars[i].name[0], name) == 0:
+            if strcmp(self->local_vars[i].name, name) == 0:
                 return self->local_vars[i].pointer
         assert False
 
     def declare_function(self, sig: Signature*) -> LLVMValue*:
         # Make it so that this can be called many times without issue
-        func = LLVMGetNamedFunction(self->module, &sig->name[0])
+        func = LLVMGetNamedFunction(self->module, sig->name)
         if func != NULL:
             return func
 
@@ -145,7 +145,7 @@ class AstToIR:
         function_type = LLVMFunctionType(return_type, argtypes, sig->nargs, sig->takes_varargs)
         free(argtypes)
 
-        return LLVMAddFunction(self->module, &sig->name[0], function_type)
+        return LLVMAddFunction(self->module, sig->name, function_type)
 
     def new_block(self, name_hint: byte*) -> void:
         assert self->llvm_function != NULL
@@ -186,7 +186,7 @@ class AstToIR:
             # True --> 1, False --> 0
             return LLVMBuildZExt(self->builder, obj, type_to_llvm(to), "cast_bool_to_int")
 
-        printf("unimplemented cast: %s --> %s\n", &from->name[0], &to->name[0])
+        printf("unimplemented cast: %s --> %s\n", from->name, to->name)
         assert False
 
     def do_binop(
@@ -284,7 +284,7 @@ class AstToIR:
                 return LLVMBuildICmp(self->builder, LLVMIntPredicate::NE, lhs_int, rhs_int, "ptreq")
             assert False
 
-        printf("%s %d %s\n", &lhs_type->name[0], op, &rhs_type->name[0])
+        printf("%s %d %s\n", lhs_type->name, op, rhs_type->name)
         assert False
 
     def do_assert(self, condition: LLVMValue*) -> void:
@@ -295,7 +295,7 @@ class AstToIR:
         LLVMPositionBuilderAtEnd(self->builder, false_block)
 
         argtypes = [LLVMPointerType(LLVMInt8Type(), 0), LLVMPointerType(LLVMInt8Type(), 0), LLVMInt32Type()]
-        assert_fail_func_type = LLVMFunctionType(LLVMVoidType(), &argtypes[0], 3, False)
+        assert_fail_func_type = LLVMFunctionType(LLVMVoidType(), argtypes, 3, False)
         assert_fail_func = LLVMGetNamedFunction(self->module, "_jou_assert_fail")
         if assert_fail_func == NULL:
             assert_fail_func = LLVMAddFunction(self->module, "_jou_assert_fail", assert_fail_func_type)
@@ -307,7 +307,7 @@ class AstToIR:
             LLVMConstInt(LLVMInt32Type(), 123, False),
         ]
 
-        LLVMBuildCall2(self->builder, assert_fail_func_type, assert_fail_func, &args[0], 3, "")
+        LLVMBuildCall2(self->builder, assert_fail_func_type, assert_fail_func, args, 3, "")
         LLVMPositionBuilderAtEnd(self->builder, true_block)
 
     def do_incr_decr(self, value_expression: AstExpression*, diff: int) -> LLVMValue*[2]:
@@ -329,7 +329,7 @@ class AstToIR:
 
     def do_address_of_expression(self, ast: AstExpression*) -> LLVMValue*:
         if ast->kind == AstExpressionKind::GetVariable:
-            return self->get_local_var_pointer(&ast->varname[0])
+            return self->get_local_var_pointer(ast->varname)
         if ast->kind == AstExpressionKind::GetClassField:
             lhs_type = self->function_or_method_types->get_expression_types(ast->class_field.instance)->original_type
 
@@ -343,13 +343,13 @@ class AstToIR:
                 instance_pointer = self->do_address_of_expression(ast->class_field.instance)
                 class_type = lhs_type
 
-            field = class_type->class_members.find_field(&ast->class_field.field_name[0])
+            field = class_type->class_members.find_field(ast->class_field.field_name)
             assert field != NULL
             field_pointer = LLVMBuildStructGEP2(
                 self->builder,
                 type_to_llvm(class_type), instance_pointer,
                 field->union_id,
-                &field->name[0],
+                field->name,
             )
 
             # This cast is needed for two reasons two cases:
@@ -381,7 +381,7 @@ class AstToIR:
             result = LLVMConstNull(type_to_llvm(type))
 
         elif ast->kind == AstExpressionKind::FunctionCall:
-            sig = self->file_types->find_function(&ast->call.called_name[0])
+            sig = self->file_types->find_function(ast->call.called_name)
             assert sig != NULL
             function = self->declare_function(sig)
             assert LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind::Pointer
@@ -394,21 +394,22 @@ class AstToIR:
 
             name_hint: byte[100]
             if sig->return_type == NULL:
-                strcpy(&name_hint[0], "")
+                strcpy(name_hint, "")
             else:
-                sprintf(&name_hint[0], "%.20s_return_value", &sig->name[0])
+                sprintf(name_hint, "%.20s_return_value", sig->name)
 
-            result = LLVMBuildCall2(self->builder, function_type, function, args, ast->call.nargs, &name_hint[0])
+            result = LLVMBuildCall2(self->builder, function_type, function, args, ast->call.nargs, name_hint)
             free(args)
             if sig->return_type == NULL:
                 return NULL
 
         elif ast->kind == AstExpressionKind::GetEnumMember:
-            enum_type = self->file_types->find_type(&ast->enum_member.enum_name[0])
+            enum_type = self->file_types->find_type(ast->enum_member.enum_name)
             assert enum_type != NULL
-            i = enum_type->enum_members.find_index(&ast->enum_member.member_name[0])
+            i = enum_type->enum_members.find_index(ast->enum_member.member_name)
             assert i != -1
             result = LLVMConstInt(LLVMInt32Type(), i, False)
+
         elif ast->kind == AstExpressionKind::As:
             value = self->do_expression(&ast->as_expression->value)
             type_before_cast = self->function_or_method_types->get_expression_types(&ast->as_expression->value)->original_type
@@ -439,7 +440,7 @@ class AstToIR:
             result = LLVMConstNull(type_to_llvm(instance_type))
 
             for i = 0; i < ast->instantiation.nfields; i++:
-                field = instance_type->class_members.find_field(&ast->instantiation.field_names[i][0])
+                field = instance_type->class_members.find_field(ast->instantiation.field_names[i])
                 assert field != NULL
                 value = self->do_expression(&ast->instantiation.field_values[i])
                 result = LLVMBuildInsertValue(self->builder, result, value, field->union_id, "instance")
@@ -453,9 +454,9 @@ class AstToIR:
                 assert instance_type->kind == TypeKind::Class
                 instance_type = instance_type->value_type
 
-            field = instance_type->class_members.find_field(&ast->class_field.field_name[0])
+            field = instance_type->class_members.find_field(ast->class_field.field_name)
             assert field != NULL
-            result = LLVMBuildExtractValue(self->builder, instance, field->union_id, &field->name[0])
+            result = LLVMBuildExtractValue(self->builder, instance, field->union_id, field->name)
 
         elif ast->kind == AstExpressionKind::GetVariable:
             pointer = self->do_address_of_expression(ast)
@@ -571,7 +572,7 @@ class AstToIR:
             LLVMBuildStore(self->builder, value, target_pointer)
         elif ast->kind == AstStatementKind::DeclareLocalVar:
             if ast->var_declaration.value != NULL:
-                target_pointer = self->get_local_var_pointer(&ast->var_declaration.name[0])
+                target_pointer = self->get_local_var_pointer(ast->var_declaration.name)
                 value = self->do_expression(ast->var_declaration.value)
                 LLVMBuildStore(self->builder, value, target_pointer)
         elif ast->kind == AstStatementKind::If:
@@ -597,7 +598,7 @@ class AstToIR:
     # The function must already be declared.
     def define_function(self, funcdef: AstFunctionOrMethod*) -> void:
         assert self->function_or_method_types == NULL
-        self->function_or_method_types = self->file_types->find_defined_function(&funcdef->signature.name[0])
+        self->function_or_method_types = self->file_types->find_defined_function(funcdef->signature.name)
         assert self->function_or_method_types != NULL
 
         assert self->llvm_function == NULL
@@ -615,7 +616,7 @@ class AstToIR:
         for v = self->function_or_method_types->local_vars; v != NULL; v = v->next:
             self->local_vars[i++] = LocalVarNameAndPointer{
                 name = v->name,
-                pointer = LLVMBuildAlloca(self->builder, type_to_llvm(v->type), &v->name[0]),
+                pointer = LLVMBuildAlloca(self->builder, type_to_llvm(v->type), v->name),
             }
 
         # Place arguments into the first n local variables.
@@ -639,8 +640,8 @@ class AstToIR:
 
 def create_llvm_ir(ast: AstFile*, ft: FileTypes*) -> LLVMModule*:
     module = LLVMModuleCreateWithName(ast->path)
-    LLVMSetTarget(module, &target.triple[0])
-    LLVMSetDataLayout(module, &target.data_layout[0])
+    LLVMSetTarget(module, target.triple)
+    LLVMSetDataLayout(module, target.data_layout)
 
     a2i = AstToIR{
         module = module,

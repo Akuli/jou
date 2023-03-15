@@ -183,8 +183,8 @@ class Tokenizer:
                     else:
                         template = "name is too long: %.20s..."
                     message: byte[100]
-                    sprintf(&message[0], template, &dest[0])
-                    fail(self->location, &message[0])
+                    sprintf(message, template, dest)
+                    fail(self->location, message)
                 dest[destlen++] = b
             else:
                 self->unread_byte(b)
@@ -352,28 +352,28 @@ class Tokenizer:
         memset(&operator, 0, sizeof operator)
 
         # Read as many operator characters as we may need.
-        while strlen(&operator[0]) < 3:
+        while strlen(operator) < 3:
             c = self->read_byte()
             if not is_operator_byte(c):
                 self->unread_byte(c)
                 break
-            operator[strlen(&operator[0])] = c
+            operator[strlen(operator)] = c
 
         for i = 0; i < sizeof operators / sizeof operators[0]; i++:
-            if starts_with(&operator[0], operators[i]):
+            if starts_with(operator, operators[i]):
                 # Unread the bytes we didn't use.
-                while strlen(&operator[0]) > strlen(operators[i]):
-                    last = &operator[strlen(&operator[0]) - 1]
+                while strlen(operator) > strlen(operators[i]):
+                    last = &operator[strlen(operator) - 1]
                     self->unread_byte(*last)
                     *last = '\0'
 
                 # "===" and "!==" are here only to give a better error message to javascript people.
-                if strcmp(&operator[0], "===") != 0 and strcmp(&operator[0], "!==") != 0:
+                if strcmp(operator, "===") != 0 and strcmp(operator, "!==") != 0:
                     return operator
 
         message: byte[100]
-        sprintf(&message[0], "there is no '%s' operator", &operator[0])
-        fail(self->location, &message[0])
+        sprintf(message, "there is no '%s' operator", operator)
+        fail(self->location, message)
 
     def handle_parentheses(self, token: Token*) -> void:
         if token->kind == TokenKind::EndOfFile and self->open_parens_len > 0:
@@ -422,16 +422,16 @@ class Tokenizer:
                 token.byte_value = self->read_byte_literal()
             elif is_identifier_or_number_byte(b):
                 token.short_string = self->read_identifier_or_number(b)
-                if is_keyword(&token.short_string[0]):
+                if is_keyword(token.short_string):
                     token.kind = TokenKind::Keyword
                 elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
-                    if token.short_string[strlen(&token.short_string[0]) - 1] == 'L':
-                        token.short_string[strlen(&token.short_string[0]) - 1] = '\0'
+                    if token.short_string[strlen(token.short_string) - 1] == 'L':
+                        token.short_string[strlen(token.short_string) - 1] = '\0'
                         token.kind = TokenKind::Long
-                        token.long_value = parse_integer(&token.short_string[0], token.location, 64)
+                        token.long_value = parse_integer(token.short_string, token.location, 64)
                     else:
                         token.kind = TokenKind::Int
-                        token.int_value = parse_integer(&token.short_string[0], token.location, 32) as int
+                        token.int_value = parse_integer(token.short_string, token.location, 32) as int
                 else:
                     token.kind = TokenKind::Name
             elif is_operator_byte(b):
@@ -442,8 +442,8 @@ class Tokenizer:
                 token.kind = TokenKind::EndOfFile
             else:
                 message: byte[100]
-                sprintf(&message[0], "unexpected byte %#02x", b)
-                fail(self->location, &message[0])
+                sprintf(message, "unexpected byte %#02x", b)
+                fail(self->location, message)
 
             self->handle_parentheses(&token)
             return token
