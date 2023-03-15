@@ -364,6 +364,8 @@ class AstToIR:
 
         if ast->kind == AstExpressionKind::String:
             result = self->make_a_string_constant(ast->string)
+        elif ast->kind == AstExpressionKind::Bool:
+            result = LLVMConstInt(LLVMInt1Type(), ast->bool_value as long, False)
         elif ast->kind == AstExpressionKind::Byte:
             result = LLVMConstInt(LLVMInt8Type(), ast->byte_value, False)
         elif ast->kind == AstExpressionKind::Int:
@@ -485,6 +487,25 @@ class AstToIR:
             return result
         return self->do_cast(result, types->original_type, types->implicit_cast_type)
 
+    def do_if_statement(self, ast: AstIfStatement*) -> void:
+        assert ast->n_if_and_elifs >= 1
+        done = LLVMAppendBasicBlock(self->llvm_function, "if_done")
+
+        for i = 0; i < ast->n_if_and_elifs; i++:
+            condition = self->do_expression(&ast->if_and_elifs[i].condition)
+            then = LLVMAppendBasicBlock(self->llvm_function, "then")
+            otherwise = LLVMAppendBasicBlock(self->llvm_function, "otherwise")
+            LLVMBuildCondBr(self->builder, condition, then, otherwise)
+
+            LLVMPositionBuilderAtEnd(self->builder, then)
+            self->do_body(&ast->if_and_elifs[i].body)
+            LLVMBuildBr(self->builder, done)
+            LLVMPositionBuilderAtEnd(self->builder, otherwise)
+
+        self->do_body(&ast->else_body)
+        LLVMBuildBr(self->builder, done)
+        LLVMPositionBuilderAtEnd(self->builder, done)
+
     def do_statement(self, ast: AstStatement*) -> void:
         if ast->kind == AstStatementKind::ExpressionStatement:
             self->do_expression(&ast->expression)
@@ -509,18 +530,7 @@ class AstToIR:
                 value = self->do_expression(ast->var_declaration.value)
                 LLVMBuildStore(self->builder, value, target_pointer)
         elif ast->kind == AstStatementKind::If:
-            # TODO: do this properly...
-            assert ast->if_statement.n_if_and_elifs == 1
-            assert ast->if_statement.else_body.nstatements == 0
-
-            condition = self->do_expression(&ast->if_statement.if_and_elifs[0].condition)
-            true_block = LLVMAppendBasicBlock(self->llvm_function, "then")
-            done_block = LLVMAppendBasicBlock(self->llvm_function, "if_done")
-            LLVMBuildCondBr(self->builder, condition, true_block, done_block)
-            LLVMPositionBuilderAtEnd(self->builder, true_block)
-            self->do_body(&ast->if_statement.if_and_elifs[0].body)
-            LLVMBuildBr(self->builder, done_block)
-            LLVMPositionBuilderAtEnd(self->builder, done_block)
+            self->do_if_statement(&ast->if_statement)
         else:
             printf("create_llvm_ir: unknown statement kind %d...\n", ast->kind)
             assert False

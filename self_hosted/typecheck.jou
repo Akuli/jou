@@ -733,6 +733,8 @@ class Stage3TypeChecker:
 
         if expression->kind == AstExpressionKind::String:
             result = byte_type->get_pointer_type()
+        elif expression->kind == AstExpressionKind::Bool:
+            result = &bool_type
         elif expression->kind == AstExpressionKind::Byte:
             result = byte_type
         elif expression->kind == AstExpressionKind::Int:
@@ -760,7 +762,19 @@ class Stage3TypeChecker:
                 &expression->enum_member.enum_name[0],
                 &expression->enum_member.member_name[0],
             )
-        elif expression->kind == AstExpressionKind::Eq:
+        elif (
+            expression->kind == AstExpressionKind::Add
+            or expression->kind == AstExpressionKind::Subtract
+            or expression->kind == AstExpressionKind::Multiply
+            or expression->kind == AstExpressionKind::Divide
+            or expression->kind == AstExpressionKind::Modulo
+            or expression->kind == AstExpressionKind::Eq
+            or expression->kind == AstExpressionKind::Ne
+            or expression->kind == AstExpressionKind::Gt
+            or expression->kind == AstExpressionKind::Ge
+            or expression->kind == AstExpressionKind::Lt
+            or expression->kind == AstExpressionKind::Le
+        ):
             lhs_types = self->do_expression(&expression->operands[0])
             rhs_types = self->do_expression(&expression->operands[1])
             result = check_binop(expression->kind, expression->location, lhs_types, rhs_types)
