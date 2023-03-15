@@ -29,14 +29,14 @@ class AstType:
         array: AstArrayType # AstTypeKind::Array
 
     def is_void(self) -> bool:
-        return self->kind == AstTypeKind::Named and strcmp(&self->name[0], "void") == 0
+        return self->kind == AstTypeKind::Named and strcmp(self->name, "void") == 0
 
     def is_noreturn(self) -> bool:
-        return self->kind == AstTypeKind::Named and strcmp(&self->name[0], "noreturn") == 0
+        return self->kind == AstTypeKind::Named and strcmp(self->name, "noreturn") == 0
 
     def print(self, show_lineno: bool) -> void:
         if self->kind == AstTypeKind::Named:
-            printf("%s", &self->name[0])
+            printf("%s", self->name)
         elif self->kind == AstTypeKind::Pointer:
             self->value_type->print(False)
             printf("*")
@@ -65,11 +65,11 @@ class TreePrinter:
     def print_prefix(self, is_last_child: bool) -> TreePrinter:
         subprinter = TreePrinter{}
         if is_last_child:
-            printf("%s`--- ", &self->prefix[0])
-            snprintf(&subprinter.prefix[0], sizeof subprinter.prefix, "%s  ", &self->prefix[0])
+            printf("%s`--- ", self->prefix)
+            snprintf(subprinter.prefix, sizeof subprinter.prefix, "%s  ", self->prefix)
         else:
-            printf("%s|--- ", &self->prefix[0])
-            snprintf(&subprinter.prefix[0], sizeof subprinter.prefix, "%s| ", &self->prefix[0])
+            printf("%s|--- ", self->prefix)
+            snprintf(subprinter.prefix, sizeof subprinter.prefix, "%s| ", self->prefix)
         return subprinter
 
 enum AstExpressionKind:
@@ -156,25 +156,25 @@ class AstExpression:
         elif self->kind == AstExpressionKind::Null:
             printf("NULL\n")
         elif self->kind == AstExpressionKind::FunctionCall:
-            printf("call function \"%s\"\n", &self->call.called_name[0])
+            printf("call function \"%s\"\n", self->call.called_name)
             self->call.print(tp)
         elif self->kind == AstExpressionKind::Instantiate:
-            printf("instantiate \"%s\"\n", &self->instantiation.class_name[0])
+            printf("instantiate \"%s\"\n", self->instantiation.class_name)
             self->instantiation.print(tp)
         elif self->kind == AstExpressionKind::Self:
             printf("self\n")
         elif self->kind == AstExpressionKind::GetVariable:
-            printf("get variable \"%s\"\n", &self->varname[0])
+            printf("get variable \"%s\"\n", self->varname)
         elif self->kind == AstExpressionKind::GetEnumMember:
             printf(
                 "get member \"%s\" from enum \"%s\"\n",
-                &self->enum_member.member_name[0],
-                &self->enum_member.enum_name[0],
+                self->enum_member.member_name,
+                self->enum_member.enum_name,
             )
         elif self->kind == AstExpressionKind::GetClassField:
             if self->class_field.uses_arrow_operator:
                 printf("dereference and ")
-            printf("get class field \"%s\"\n", &self->class_field.field_name[0])
+            printf("get class field \"%s\"\n", self->class_field.field_name)
             self->class_field.instance->print(tp.print_prefix(True))
         elif self->kind == AstExpressionKind::As:
             printf("as ")
@@ -337,7 +337,7 @@ class AstInstantiation:
     def print(self, tp: TreePrinter) -> void:
         for i = 0; i < self->nfields; i++:
             sub = tp.print_prefix(i == self->nfields - 1)
-            printf("field \"%s\": ", &self->field_names[i][0])
+            printf("field \"%s\": ", self->field_names[i])
             self->field_values[i].print(sub)
 
     def free(self) -> void:
@@ -526,7 +526,7 @@ class AstNameTypeValue:
 
     # tp can be set to NULL, in that case no trailing newline is printed
     def print(self, tp: TreePrinter*) -> void:
-        printf("%s: ", &self->name[0])
+        printf("%s: ", self->name)
         self->type.print(True)
         if tp == NULL:
             assert self->value == NULL
@@ -564,7 +564,7 @@ class AstSignature:
     return_type: AstType
 
     def print(self) -> void:
-        printf("%s(", &self->name[0])
+        printf("%s(", self->name)
         for i = 0; i < self->nargs; i++:
             if i != 0:
                 printf(", ")
@@ -658,7 +658,7 @@ class AstFile:
 
         # Assume all imports are in the beginning of the file.
         if ts == NULL:
-            ts = &self->body[0]
+            ts = self->body
         else:
             ts++
 
@@ -728,7 +728,7 @@ class AstClassMember:
             printf("  method ")
             self->method.signature.print()
             tp = TreePrinter{}
-            strcpy(&tp.prefix[0], "  ")
+            strcpy(tp.prefix, "  ")
             self->method.body.print(tp)
         else:
             assert False
@@ -750,7 +750,7 @@ class AstClassDef:
     nmembers: int
 
     def print(self) -> void:
-        printf("class \"%s\" with %d members:\n", &self->name[0], self->nmembers)
+        printf("class \"%s\" with %d members:\n", self->name, self->nmembers)
         for i = 0; i < self->nmembers; i++:
             self->members[i].print()
 
@@ -765,9 +765,9 @@ class AstEnumDef:
     member_names: byte[100]*
 
     def print(self) -> void:
-        printf("enum \"%s\" with %d members:\n", &self->name[0], self->member_count)
+        printf("enum \"%s\" with %d members:\n", self->name, self->member_count)
         for i = 0; i < self->member_count; i++:
-            printf("  %s\n", &self->member_names[i][0])
+            printf("  %s\n", self->member_names[i])
 
     def free(self) -> void:
         free(self->member_names)

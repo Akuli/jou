@@ -18,7 +18,7 @@ class EnumMembers:
     # Returns -1 for not found
     def find_index(self, name: byte*) -> int:
         for i = 0; i < self->count; i++:
-            if strcmp(&self->names[i][0], name) == 0:
+            if strcmp(self->names[i], name) == 0:
                 return i
         return -1
 
@@ -37,7 +37,7 @@ class ClassMembers:
 
     def find_field(self, name: byte*) -> ClassField*:
         for i = 0; i < self->nfields; i++:
-            if strcmp(&self->fields[i].name[0], name) == 0:
+            if strcmp(self->fields[i].name, name) == 0:
                 return &self->fields[i]
         return NULL
 
@@ -72,7 +72,7 @@ class Type:
     def get_pointer_type(self) -> Type*:
         if self->cached_pointer_type == NULL:
             pointer_name: byte[100]
-            snprintf(&pointer_name[0], sizeof pointer_name, "%s*", &self->name[0])
+            snprintf(pointer_name, sizeof pointer_name, "%s*", self->name)
 
             self->cached_pointer_type = malloc(sizeof *self->cached_pointer_type)
             *self->cached_pointer_type = Type{
@@ -97,15 +97,15 @@ global int_type: Type*
 global long_type: Type*
 
 def init_types() -> void:
-    strcpy(&void_ptr_type.name[0], "void*")
+    strcpy(void_ptr_type.name, "void*")
     void_ptr_type.kind = TypeKind::VoidPointer
 
-    strcpy(&bool_type.name[0], "bool")
+    strcpy(bool_type.name, "bool")
     bool_type.kind = TypeKind::Bool
 
     for size = 8; size <= 64; size *= 2:
-        sprintf(&signed_integers[size].name[0], "<%d-bit signed integer>", size)
-        sprintf(&unsigned_integers[size].name[0], "<%d-bit unsigned integer>", size)
+        sprintf(signed_integers[size].name, "<%d-bit signed integer>", size)
+        sprintf(unsigned_integers[size].name, "<%d-bit unsigned integer>", size)
         signed_integers[size].kind = TypeKind::SignedInteger
         unsigned_integers[size].kind = TypeKind::UnsignedInteger
         signed_integers[size].size_in_bits = size
@@ -115,15 +115,15 @@ def init_types() -> void:
     int_type = &signed_integers[32]
     long_type = &signed_integers[64]
 
-    strcpy(&byte_type->name[0], "byte")
-    strcpy(&int_type->name[0], "int")
-    strcpy(&long_type->name[0], "long")
+    strcpy(byte_type->name, "byte")
+    strcpy(int_type->name, "int")
+    strcpy(long_type->name, "long")
 
 def create_opaque_type(name: byte*) -> Type*:
     result: Type* = malloc(sizeof *result)
     *result = Type{kind = TypeKind::Opaque}
     assert strlen(name) < sizeof result->name
-    strcpy(&result->name[0], name)
+    strcpy(result->name, name)
     return result
 
 def create_enum(name: byte*, member_count: int, member_names: byte[100]*) -> Type*:
@@ -136,7 +136,7 @@ def create_enum(name: byte*, member_count: int, member_names: byte[100]*) -> Typ
         enum_members = EnumMembers{count = member_count, names = copied_member_names},
     }
     assert strlen(name) < sizeof result->name
-    strcpy(&result->name[0], name)
+    strcpy(result->name, name)
     return result
 
 
@@ -159,15 +159,15 @@ class Signature:
 
     def to_string(self, include_return_type: bool) -> byte*:
         result: byte* = malloc(500*(self->nargs + 1))
-        strcpy(result, &self->name[0])
+        strcpy(result, self->name)
 
         strcat(result, "(")
         for i = 0; i < self->nargs; i++:
             if i != 0:
                 strcat(result, ", ")
-            strcat(result, &self->argnames[i][0])
+            strcat(result, self->argnames[i])
             strcat(result, ": ")
-            strcat(result, &self->argtypes[i]->name[0])
+            strcat(result, self->argtypes[i]->name)
         if self->takes_varargs:
             if self->nargs != 0:
                 strcat(result, ", ")
@@ -179,7 +179,7 @@ class Signature:
                 strcat(result, " -> void")
             else:
                 strcat(result, " -> ")
-                strcat(result, &self->return_type->name[0])
+                strcat(result, self->return_type->name)
 
         return result
 

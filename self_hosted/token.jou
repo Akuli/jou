@@ -45,17 +45,17 @@ class Token:
         elif self->kind == TokenKind::Long:
             printf("long %lld\n", self->long_value)
         elif self->kind == TokenKind::Float:
-            printf("float %s\n", &self->short_string[0])
+            printf("float %s\n", self->short_string)
         elif self->kind == TokenKind::Double:
-            printf("double %s\n", &self->short_string[0])
+            printf("double %s\n", self->short_string)
         elif self->kind == TokenKind::EndOfFile:
             printf("end of file\n")
         elif self->kind == TokenKind::Operator:
-            printf("operator '%s'\n", &self->short_string[0])
+            printf("operator '%s'\n", self->short_string)
         elif self->kind == TokenKind::Name:
-            printf("name \"%s\"\n", &self->short_string[0])
+            printf("name \"%s\"\n", self->short_string)
         elif self->kind == TokenKind::Keyword:
-            printf("keyword \"%s\"\n", &self->short_string[0])
+            printf("keyword \"%s\"\n", self->short_string)
         elif self->kind == TokenKind::Newline:
             printf("newline token (next line has %d spaces of indentation)\n", self->indentation_level)
         elif self->kind == TokenKind::String:
@@ -76,10 +76,10 @@ class Token:
             printf("????\n")
 
     def is_keyword(self, kw: byte*) -> bool:
-        return self->kind == TokenKind::Keyword and strcmp(&self->short_string[0], kw) == 0
+        return self->kind == TokenKind::Keyword and strcmp(self->short_string, kw) == 0
 
     def is_operator(self, op: byte*) -> bool:
-        return self->kind == TokenKind::Operator and strcmp(&self->short_string[0], op) == 0
+        return self->kind == TokenKind::Operator and strcmp(self->short_string, op) == 0
 
     def is_comparison(self) -> bool:
         return (
@@ -100,34 +100,34 @@ class Token:
     def fail_expected_got(self, what_was_expected_instead: byte*) -> void:
         got: byte[100]
         if self->kind == TokenKind::Int:
-            strcpy(&got[0], "an integer")
+            strcpy(got, "an integer")
         elif self->kind == TokenKind::Long:
-            strcpy(&got[0], "a long integer")
+            strcpy(got, "a long integer")
         elif self->kind == TokenKind::Float:
-            strcpy(&got[0], "a float constant")
+            strcpy(got, "a float constant")
         elif self->kind == TokenKind::Double:
-            strcpy(&got[0], "a double constant")
+            strcpy(got, "a double constant")
         elif self->kind == TokenKind::Byte:
-            strcpy(&got[0], "a byte literal")
+            strcpy(got, "a byte literal")
         elif self->kind == TokenKind::String:
-            strcpy(&got[0], "a string")
+            strcpy(got, "a string")
         elif self->kind == TokenKind::Name:
-            snprintf(&got[0], sizeof got, "a variable name '%s'", &self->short_string[0])
+            snprintf(got, sizeof got, "a variable name '%s'", self->short_string)
         elif self->kind == TokenKind::Keyword:
-            snprintf(&got[0], sizeof got, "the '%s' keyword", &self->short_string[0])
+            snprintf(got, sizeof got, "the '%s' keyword", self->short_string)
         elif self->kind == TokenKind::Newline:
-            strcpy(&got[0], "end of line")
+            strcpy(got, "end of line")
         elif self->kind == TokenKind::Indent:
-            strcpy(&got[0], "more indentation")
+            strcpy(got, "more indentation")
         elif self->kind == TokenKind::Dedent:
-            strcpy(&got[0], "less indentation")
+            strcpy(got, "less indentation")
         elif self->kind == TokenKind::Operator:
-            snprintf(&got[0], sizeof got, "'%s'", &self->short_string[0])
+            snprintf(got, sizeof got, "'%s'", self->short_string)
         elif self->kind == TokenKind::EndOfFile:
-            strcpy(&got[0], "end of file")
+            strcpy(got, "end of file")
         else:
             assert False
 
         message: byte* = malloc(strlen(what_was_expected_instead) + 500)
-        sprintf(message, "expected %s, got %s", what_was_expected_instead, &got[0])
+        sprintf(message, "expected %s, got %s", what_was_expected_instead, got)
         fail(self->location, message)
