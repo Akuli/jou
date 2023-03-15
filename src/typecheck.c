@@ -67,6 +67,28 @@ static const Type *find_any_var(const FileTypes *ft, const char *name)
     return NULL;
 }
 
+static const char *short_type_description(const Type *t)
+{
+    switch(t->kind) {
+        case TYPE_OPAQUE_CLASS:
+        case TYPE_CLASS:
+            return "a class";
+        case TYPE_ENUM:
+            return "an enum";
+        case TYPE_VOID_POINTER:
+        case TYPE_POINTER:
+            return "a pointer type";
+        case TYPE_SIGNED_INTEGER:
+        case TYPE_UNSIGNED_INTEGER:
+        case TYPE_FLOATING_POINT:
+            return "a number type";
+        case TYPE_ARRAY:
+            return "an array type";
+        case TYPE_BOOL:
+            return "the built-in bool type";
+    }
+}
+
 ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstToplevelNode *ast)
 {
     List(ExportSymbol) exports = {0};
@@ -88,8 +110,9 @@ ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstToplevelNode
             continue;
         }
 
-        if (find_type(ft, name))
-            fail_with_error(ast->location, "a type named '%s' already exists", name);
+        const Type *existing = find_type(ft, name);
+        if (existing)
+            fail_with_error(ast->location, "%s named '%s' already exists", short_type_description(existing), name);
 
         Append(&ft->types, (struct TypeAndUsedPtr){ .type=t, .usedptr=NULL });
         Append(&ft->owned_types, t);
@@ -784,29 +807,6 @@ static const struct ClassField *typecheck_class_field(
         if (!strcmp(f->name, fieldname))
             return f;
     fail_with_error(location, "class %s has no field named '%s'", classtype->name, fieldname);
-}
-
-static const char *short_type_description(const Type *t)
-{
-    switch(t->kind) {
-        case TYPE_OPAQUE_CLASS:
-            assert(0);
-        case TYPE_CLASS:
-            return "a class";
-        case TYPE_ENUM:
-            return "an enum";
-        case TYPE_VOID_POINTER:
-        case TYPE_POINTER:
-            return "a pointer type";
-        case TYPE_SIGNED_INTEGER:
-        case TYPE_UNSIGNED_INTEGER:
-        case TYPE_FLOATING_POINT:
-            return "a number type";
-        case TYPE_ARRAY:
-            return "an array type";
-        case TYPE_BOOL:
-            return "the built-in bool type";
-    }
 }
 
 static const Type *typecheck_instantiation(FileTypes *ft, const AstCall *call, Location location)

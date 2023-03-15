@@ -763,7 +763,11 @@ def parse_class(tokens: Token**) -> AstClassDef:
     if (*tokens)->kind != TokenKind::Name:
         (*tokens)->fail_expected_got("a name for the class")
 
-    result = AstClassDef{name = ((*tokens)++)->short_string}
+    result = AstClassDef{
+        name = (*tokens)->short_string,
+        name_location = (*tokens)->location,
+    }
+    ++*tokens
 
     parse_start_of_body(tokens)
     while (*tokens)->kind != TokenKind::Dedent:
@@ -821,7 +825,11 @@ def parse_enum(tokens: Token**) -> AstEnumDef:
     if (*tokens)->kind != TokenKind::Name:
         (*tokens)->fail_expected_got("a name for the enum")
 
-    result = AstEnumDef{name = ((*tokens)++)->short_string}
+    result = AstEnumDef{
+        name = (*tokens)->short_string,
+        name_location = (*tokens)->location,
+    }
+    ++*tokens
 
     parse_start_of_body(tokens)
     while (*tokens)->kind != TokenKind::Dedent:

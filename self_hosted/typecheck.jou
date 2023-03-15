@@ -166,6 +166,14 @@ class FileTypes:
                 return self->types[i]
         return NULL
 
+def check_type_doesnt_exist(ft: FileTypes*, name: byte*, location: Location) -> void:
+    existing = ft->find_type(name)
+    if existing != NULL:
+        description = short_type_description(existing)
+        message: byte[500]
+        snprintf(&message[0], sizeof message, "%s named '%s' already exists", &description[0], name)
+        fail(location, &message[0])
+
 def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
     nexports = 0
@@ -173,12 +181,14 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
     for i = 0; i < file->body_len; i++:
         if file->body[i].kind == AstToplevelStatementKind::Class:
             classdef = &file->body[i].classdef
-            t = create_opaque_type(&classdef->name[0])
+            check_type_doesnt_exist(ft, &classdef->name[0], classdef->name_location)
+            t = create_opaque_class(&classdef->name[0])
             ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
             ft->types[ft->ntypes++] = t
 
         if file->body[i].kind == AstToplevelStatementKind::Enum:
             enumdef = &file->body[i].enumdef
+            check_type_doesnt_exist(ft, &enumdef->name[0], enumdef->name_location)
             t = create_enum(&enumdef->name[0], enumdef->member_count, enumdef->member_names)
             ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
             ft->types[ft->ntypes++] = t
@@ -259,7 +269,7 @@ def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> void:
             break
     assert type != NULL
 
-    assert type->kind == TypeKind::Opaque
+    assert type->kind == TypeKind::OpaqueClass
     type->kind = TypeKind::Class
 
     memset(&type->class_members, 0, sizeof type->class_members)
@@ -351,8 +361,7 @@ def check_explicit_cast(from: Type*, to: Type*, location: Location) -> void:
     fail(location, &message[0])
 
 def short_type_description(t: Type*) -> byte*:
-    assert t->kind != TypeKind::Opaque
-    if t->kind == TypeKind::Class:
+    if t->kind == TypeKind::Class or t->kind == TypeKind::OpaqueClass:
         return "a class"
     if t->kind == TypeKind::Enum:
         return "an enum"

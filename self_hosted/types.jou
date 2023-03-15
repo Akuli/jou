@@ -8,7 +8,7 @@ enum TypeKind:
     Pointer
     VoidPointer
     Class
-    Opaque
+    OpaqueClass
     Enum
 
 class EnumMembers:
@@ -119,9 +119,9 @@ def init_types() -> void:
     strcpy(&int_type->name[0], "int")
     strcpy(&long_type->name[0], "long")
 
-def create_opaque_type(name: byte*) -> Type*:
+def create_opaque_class(name: byte*) -> Type*:
     result: Type* = malloc(sizeof *result)
-    *result = Type{kind = TypeKind::Opaque}
+    *result = Type{kind = TypeKind::OpaqueClass}
     assert strlen(name) < sizeof result->name
     strcpy(&result->name[0], name)
     return result
