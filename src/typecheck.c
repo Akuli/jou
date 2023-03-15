@@ -1057,9 +1057,13 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         result = check_increment_or_decrement(ft, expr);
         break;
     case AST_EXPR_AS:
-        temptype = typecheck_expression_not_void(ft, expr->data.as.obj)->type;
-        result = type_from_ast(ft, &expr->data.as.type);
-        check_explicit_cast(temptype, result, expr->location);
+        {
+            ExpressionTypes *origtypes = typecheck_expression_not_void(ft, expr->data.as.obj);
+            result = type_from_ast(ft, &expr->data.as.type);
+            check_explicit_cast(origtypes->type, result, expr->location);
+            if (origtypes->type->kind == TYPE_ARRAY && is_pointer_type(result))
+                cast_array_to_pointer(origtypes);
+        }
         break;
     }
 
