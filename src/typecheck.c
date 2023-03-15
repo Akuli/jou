@@ -493,7 +493,10 @@ static void do_implicit_cast(
     types->implicit_cast_type = to;
     types->implicit_array_to_pointer_cast = (from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER);
     if (types->implicit_array_to_pointer_cast)
-        ensure_can_take_address(types->expr, "cannot create a pointer into an array that comes from %s");
+        ensure_can_take_address(
+            types->expr,
+            "cannot create a pointer into an array that comes from %s (try storing it to a local variable first)"
+        );
 }
 
 static void cast_array_to_pointer(ExpressionTypes *types)
