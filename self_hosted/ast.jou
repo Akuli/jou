@@ -133,7 +133,7 @@ class AstExpression:
         call: AstCall
         instantiation: AstInstantiation
         as_expression: AstAsExpression*  # Must be pointer, because it contains an AstExpression
-        array_items: AstArrayItems
+        array: AstArray
         varname: byte[100]
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
 
@@ -166,8 +166,8 @@ class AstExpression:
             printf("indexing\n")
         elif self->kind == AstExpressionKind::Array:
             printf("array\n")
-            for i = 0; i < self->array_items.count; i++:
-                self->array_items.items[i].print(tp.print_prefix(i == self->array_items.count-1))
+            for i = 0; i < self->array.length; i++:
+                self->array.items[i].print(tp.print_prefix(i == self->array.length-1))
         elif self->kind == AstExpressionKind::FunctionCall:
             printf("call function \"%s\"\n", self->call.called_name)
             self->call.print(tp)
@@ -302,12 +302,12 @@ class AstExpression:
             or self->kind == AstExpressionKind::PostDecr
         )
 
-class AstArrayItems:
-    count: int
+class AstArray:
+    length: int
     items: AstExpression*
 
     def free(self) -> void:
-        for i = 0; i < self->count; i++:
+        for i = 0; i < self->length; i++:
             self->items[i].free()
         free(self->items)
 

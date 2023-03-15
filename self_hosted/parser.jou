@@ -238,17 +238,19 @@ def parse_instantiation(tokens: Token**) -> AstInstantiation:
 
     return result
 
-def parse_array_items(tokens: Token**) -> AstArrayItems:
+def parse_array(tokens: Token**) -> AstArray:
     assert (*tokens)->is_operator("[")
     ++*tokens
 
-    result = AstArrayItems{}
+    result = AstArray{}
     while not (*tokens)->is_operator("]"):
-        result.items = realloc(result.items, (result.count + 1) * sizeof result.items[0])
-        result.items[result.count++] = parse_expression(tokens)
+        result.items = realloc(result.items, (result.length + 1) * sizeof result.items[0])
+        result.items[result.length++] = parse_expression(tokens)
         if not (*tokens)->is_operator(","):
             break
         ++*tokens
+
+    # TODO: error for empty array
 
     if not (*tokens)->is_operator("]"):
         (*tokens)->fail_expected_got("a ']' to end the array")
@@ -317,7 +319,7 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
         ++*tokens
     elif (*tokens)->is_operator("["):
         expr.kind = AstExpressionKind::Array
-        expr.array_items = parse_array_items(tokens)
+        expr.array = parse_array(tokens)
     else:
         (*tokens)->fail_expected_got("an expression")
 

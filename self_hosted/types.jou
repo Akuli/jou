@@ -10,6 +10,7 @@ enum TypeKind:
     Class
     OpaqueClass
     Enum
+    Array
 
 class EnumMembers:
     count: int
@@ -41,6 +42,10 @@ class ClassMembers:
                 return &self->fields[i]
         return NULL
 
+class ArrayInfo:
+    length: int
+    item_type: Type*
+
 class Type:
     name: byte[100]
     kind: TypeKind
@@ -50,6 +55,7 @@ class Type:
         value_type: Type*  # Pointer (not used for VoidPointer)
         enum_members: EnumMembers
         class_members: ClassMembers
+        array: ArrayInfo
 
     # Pointers and arrays of a given type live as long as the type itself.
     # To make it possible, we just store them within the type.
@@ -57,7 +63,8 @@ class Type:
     #
     # Do not access these outside this file.
     cached_pointer_type: Type*
-    # TODO: arrays
+    cached_array_types: Type**
+    n_cached_array_types: int
 
     def is_integer_type(self) -> bool:
         return self->kind == TypeKind::SignedInteger or self->kind == TypeKind::UnsignedInteger
@@ -82,6 +89,27 @@ class Type:
             }
 
         return self->cached_pointer_type
+
+    def get_array_type(self, length: int) -> Type*:
+        assert length > 0
+
+        for i = 0; i < self->n_cached_array_types; i++:
+            if self->cached_array_types[i]->array.length == length:
+                return self->cached_array_types[i]
+
+        array_name: byte[100]
+        snprintf(array_name, sizeof array_name, "%s[%d]", self->name, length)
+
+        t: Type* = malloc(sizeof *t)
+        *t = Type{
+            name = array_name,
+            kind = TypeKind::Array,
+            array = ArrayInfo{length = length, item_type = self},
+        }
+
+        self->cached_array_types = realloc(self->cached_array_types, sizeof self->cached_array_types[0] * (self->n_cached_array_types + 1))
+        self->cached_array_types[self->n_cached_array_types++] = t
+        return t
 
 # Typese are cached into global state, so you can use == between
 # pointers to compare them. Also, you don't usually need to copy a

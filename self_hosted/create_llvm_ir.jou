@@ -97,6 +97,8 @@ def type_to_llvm(type: Type*) -> LLVMType*:
         return LLVMInt32Type()
     if type->kind == TypeKind::Class:
         return class_type_to_llvm(type->class_members.fields, type->class_members.nfields)
+    if type->kind == TypeKind::Array:
+        return LLVMArrayType(type_to_llvm(type->array.item_type), type->array.length)
     printf("asd-Asd., %s\n", &type->name)
     assert False
 

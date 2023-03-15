@@ -22,22 +22,32 @@ import "./errors_and_warnings.jou"
 
 
 def can_cast_implicitly(from: Type*, to: Type*) -> bool:
-    return from == to or (
-        # Cast to bigger integer types implicitly, unless it is signed-->unsigned.
-        from->is_integer_type()
-        and to->is_integer_type()
-        and from->size_in_bits < to->size_in_bits
-        and not (from->kind == TypeKind::SignedInteger and to->kind == TypeKind::SignedInteger)
-#    ) or (
-#        # Cast to bigger floating-point type.
-#        from == floatType and to == doubleType
-#    ) or (
-#        # Cast from any integer type to float/double.
-#        is_integer_type(from) and to->kind == TYPE_FLOATING_POINT
-#    ) or (
-#        # Cast implicitly between void pointer and any other pointer.
-#        (from->kind == TYPE_POINTER and to->kind == TYPE_VOID_POINTER)
-#        or (from->kind == TYPE_VOID_POINTER and to->kind == TYPE_POINTER)
+    # TODO: document these properly. But they are:
+    #   array to pointer, e.g. int[3] --> int* (needs special-casing elsewhere)
+    #   from one integer type to another bigger integer type, unless it is signed-->unsigned
+    #   between two pointer types when one of the two is void*
+    #   from float to double (TODO)
+    return (
+        from == to
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
+        or (
+            from->is_integer_type()
+            and to->is_integer_type()
+            and from->size_in_bits < to->size_in_bits
+            and not (from->kind == TypeKind::SignedInteger and to->kind == TypeKind::SignedInteger)
+        )
+        or (from->is_pointer_type() and to->is_pointer_type() and (from == &void_ptr_type or to == &void_ptr_type))
+    )
+
+def can_cast_explicitly(from: Type*, to: Type*) -> bool:
+    return (
+        from == to
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
+        or (from->is_pointer_type() and to->is_pointer_type())
+        or (from->is_number_type() and to->is_number_type())
+        or (from->is_integer_type() and to->kind == TypeKind::Enum)
+        or (from->kind == TypeKind::Enum and to->is_integer_type())
+        or (from == &bool_type and to->is_integer_type())
     )
 
 # Implicit casts are used in many places, e.g. function arguments.
@@ -75,7 +85,6 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
 #   - Type checking file B produces an ExportSymbol that matches the import in file A.
 #   - Before the next type checking stage, the ExportSymbol is added to file A's types.
 #   - During the next stage, file A can use the imported symbol.
-
 enum ExportSymbolKind:
     Function
     Type
@@ -92,10 +101,13 @@ class ExpressionTypes:
     expression: AstExpression*
     original_type: Type*
     implicit_cast_type: Type*  # NULL if no implicit casting is needed
+    implicit_array_to_pointer_cast: bool  # Whether a special kind of implicit cast happened
     next: ExpressionTypes*  # TODO: switch to more efficient structure than linked list?
 
     def do_implicit_cast(self, to: Type*, error_location: Location, error_template: byte*) -> void:
-        assert self->implicit_cast_type == NULL  # This cannot be called multiple times
+        # This cannot be called multiple times
+        assert self->implicit_cast_type == NULL
+        assert not self->implicit_array_to_pointer_cast
 
         from = self->original_type
         if from == to:
@@ -106,6 +118,30 @@ class ExpressionTypes:
             fail_with_implicit_cast_error(error_location, error_template, from, to)
 
         self->implicit_cast_type = to
+        if from->kind == TypeKind::Array and to->kind == TypeKind::Pointer:
+            self->implicit_array_to_pointer_cast = True
+            ensure_can_take_address(
+                self->expression,
+                "cannot create a pointer into an array that comes from %s (try storing it to a local variable first)",
+            )
+
+    # Does not store the new type to self, because explicit casts have their own AstExpression which has its own expression types.
+    def do_explicit_cast(self, to: Type*, error_location: Location) -> void:
+        assert self->implicit_cast_type == NULL
+        assert not self->implicit_array_to_pointer_cast
+
+        from = self->original_type
+        if not can_cast_explicitly(from, to):
+            message: byte[500]
+            snprintf(&message[0], sizeof message, "cannot cast from type %s to %s", from->name, to->name)
+            fail(error_location, message)
+
+        if from->kind == TypeKind::Array and to->is_pointer_type():
+            self->cast_array_to_pointer()
+
+    def cast_array_to_pointer(self) -> void:
+        assert self->original_type->kind == TypeKind::Array
+        self->do_implicit_cast(self->original_type->array.item_type->get_pointer_type(), Location{}, NULL)
 
 class LocalVariable:
     name: byte[100]
@@ -204,6 +240,12 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
     return exports
 
 
+def evaluate_array_length(expression: AstExpression*) -> int:
+    # TODO: support something more fancy?
+    if expression->kind == AstExpressionKind::Int:
+        return expression->int_value
+    fail(expression->location, "cannot evaluate array length at compile time")
+
 def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
     if ast_type->is_void():
         fail(ast_type->location, "'void' cannot be used here because it is not a type")
@@ -233,6 +275,11 @@ def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
         if ast_type->value_type->is_void():
             return &void_ptr_type
         return type_from_ast(ft, ast_type->value_type)->get_pointer_type()
+
+    if ast_type->kind == AstTypeKind::Array:
+        member_type = type_from_ast(ft, ast_type->array.member_type)
+        length = evaluate_array_length(ast_type->array.length)
+        return member_type->get_array_type(length)
 
     ast_type->print(True)
     printf("\n")
@@ -341,24 +388,6 @@ def nth(n: int) -> byte*:
     result = malloc(100)
     sprintf(result, "%dth", n)
     return result
-
-def check_explicit_cast(from: Type*, to: Type*, location: Location) -> void:
-    if (
-        from == to  # TODO: should probably be error if it's the same type.
-        or (from->is_pointer_type() and to->is_pointer_type())
-        or (from->is_number_type() and to->is_number_type())
-        or (from->is_integer_type() and to->kind == TypeKind::Enum)
-        or (from->kind == TypeKind::Enum and to->is_integer_type())  # TODO: disallow for too small type
-        or (from == &bool_type and to->is_integer_type())
-    ):
-        return
-
-    message: byte[500]
-    snprintf(
-        message, sizeof message,
-        "cannot cast from type %s to %s", from->name, to->name,
-    )
-    fail(location, message)
 
 def short_type_description(t: Type*) -> byte*:
     if t->kind == TypeKind::Class or t->kind == TypeKind::OpaqueClass:
@@ -572,6 +601,52 @@ def check_class_field(location: Location, class_type: Type*, field_name: byte*) 
         fail(location, message)
     return field
 
+def cast_array_items_to_a_common_type(error_location: Location, types: ExpressionTypes**, ntypes: int) -> Type*:
+    # Avoid O(ntypes^2) code in a long array where all or almost all items have the same type.
+    # This is at most O(ntypes*ndistinct).
+    distinct: Type** = malloc(sizeof distinct[0] * ntypes)
+    ndistinct = 0
+    for i = 0; i < ntypes; i++:
+        found = False
+        for k = 0; k < ndistinct; k++:
+            if distinct[k] == types[i]->original_type:
+                found = True
+                break
+        if not found:
+            distinct[ndistinct++] = types[i]->original_type
+
+    compatible_with_all: Type** = malloc(sizeof compatible_with_all[0] * ndistinct)
+    n_compatible_with_all = 0
+    for i = 0; i < ndistinct; i++:
+        compat = True
+        for k = 0; k < ndistinct; k++:
+            if not can_cast_implicitly(distinct[k], distinct[i]):
+                compat = False
+                break
+        if compat:
+            compatible_with_all[n_compatible_with_all++] = distinct[i]
+
+    if n_compatible_with_all != 1:
+        # Can't make an unambiguous choice. Mention all types we considered in the error message.
+        assert sizeof distinct[0]->name == 100
+        message: byte* = calloc(200, ndistinct+1)
+        strcpy(message, "array items have different types (")
+        for i = 0; i < ndistinct; i++:
+            if i != 0:
+                strcat(message, ", ")
+            strcat(message, distinct[i]->name)
+        strcat(message, ")")
+        fail(error_location, message)
+
+    item_type = compatible_with_all[0]
+    free(distinct)
+    free(compatible_with_all)
+
+    for i = 0; i < ntypes; i++:
+        types[i]->do_implicit_cast(item_type, Location{}, NULL)
+    return item_type
+
+
 class Stage3TypeChecker:
     file_types: FileTypes*
     current_function_or_method: FunctionOrMethodTypes*
@@ -737,6 +812,26 @@ class Stage3TypeChecker:
 
         return t
 
+    def do_indexing(self, pointer: AstExpression*, index: AstExpression*) -> Type*:
+        message: byte[500]
+        types = self->do_expression(pointer)
+
+        if types->original_type->kind == TypeKind::Array:
+            types->cast_array_to_pointer()
+            pointer_type = types->implicit_cast_type
+        elif types->original_type->kind == TypeKind::Pointer:
+            pointer_type = types->original_type
+        else:
+            snprintf(message, sizeof message[0], "value of type %s cannot be indexed", types->original_type->name)
+            fail(pointer->location, message)
+
+        index_type = self->do_expression(index)->original_type
+        if not index_type->is_integer_type():
+            snprintf(message, sizeof message[0], "the index inside [...] must be an integer, not %s", index_type->name)
+            fail(index->location, message)
+
+        return pointer_type->value_type
+
     def do_expression_maybe_void(self, expression: AstExpression*) -> ExpressionTypes*:
         result: Type*
         message: byte[200]
@@ -753,6 +848,14 @@ class Stage3TypeChecker:
             result = long_type
         elif expression->kind == AstExpressionKind::Null:
             result = &void_ptr_type
+        elif expression->kind == AstExpressionKind::Array:
+            n = expression->array.length
+            item_types: ExpressionTypes** = malloc(n * sizeof item_types[0])
+            for i = 0; i < n; i++:
+                item_types[i] = self->do_expression(&expression->array.items[i])
+            member_type = cast_array_items_to_a_common_type(expression->location, item_types, n)
+            free(item_types)
+            result = member_type->get_array_type(n)
         elif expression->kind == AstExpressionKind::FunctionCall:
             result = self->do_function_call(&expression->call)
             if result == NULL:
@@ -763,9 +866,9 @@ class Stage3TypeChecker:
                 snprintf(message, sizeof message, "no variable named '%s'", expression->varname)
                 fail(expression->location, message)
         elif expression->kind == AstExpressionKind::As:
-            old_type = self->do_expression(&expression->as_expression->value)->original_type
+            value_types = self->do_expression(&expression->as_expression->value)
             result = type_from_ast(self->file_types, &expression->as_expression->type)
-            check_explicit_cast(old_type, result, expression->location)
+            value_types->do_explicit_cast(result, expression->location)
         elif expression->kind == AstExpressionKind::GetEnumMember:
             result = self->do_enum_member(
                 expression->location,
@@ -826,6 +929,8 @@ class Stage3TypeChecker:
             result = self->do_expression(expression->operands)->original_type->get_pointer_type()
         elif expression->kind == AstExpressionKind::Instantiate:
             result = self->do_instantiation(&expression->instantiation)
+        elif expression->kind == AstExpressionKind::Indexing:
+            result = self->do_indexing(&expression->operands[0], &expression->operands[1])
         else:
             printf("*** %d\n", expression->kind as int)
             assert False
