@@ -460,7 +460,7 @@ class AstToIR:
 
         elif ast->kind == AstExpressionKind::GetVariable:
             pointer = self->do_address_of_expression(ast)
-            result = LLVMBuildLoad(self->builder, pointer, &ast->varname[0])
+            result = LLVMBuildLoad(self->builder, pointer, ast->varname)
 
         elif ast->kind == AstExpressionKind::AddressOf:
             result = self->do_address_of_expression(&ast->operands[0])
