@@ -166,6 +166,14 @@ class FileTypes:
                 return self->types[i]
         return NULL
 
+def check_type_doesnt_exist(ft: FileTypes*, name: byte*, location: Location) -> void:
+    existing = ft->find_type(name)
+    if existing != NULL:
+        description = short_type_description(existing)
+        message: byte[500]
+        snprintf(message, sizeof message, "%s named '%s' already exists", description, name)
+        fail(location, message)
+
 def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
     nexports = 0
@@ -173,12 +181,14 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
     for i = 0; i < file->body_len; i++:
         if file->body[i].kind == AstToplevelStatementKind::Class:
             classdef = &file->body[i].classdef
-            t = create_opaque_type(classdef->name)
+            check_type_doesnt_exist(ft, classdef->name, classdef->name_location)
+            t = create_opaque_class(classdef->name)
             ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
             ft->types[ft->ntypes++] = t
 
         if file->body[i].kind == AstToplevelStatementKind::Enum:
             enumdef = &file->body[i].enumdef
+            check_type_doesnt_exist(ft, enumdef->name, enumdef->name_location)
             t = create_enum(enumdef->name, enumdef->member_count, enumdef->member_names)
             ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
             ft->types[ft->ntypes++] = t
@@ -259,7 +269,7 @@ def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> void:
             break
     assert type != NULL
 
-    assert type->kind == TypeKind::Opaque
+    assert type->kind == TypeKind::OpaqueClass
     type->kind = TypeKind::Class
 
     memset(&type->class_members, 0, sizeof type->class_members)
@@ -351,8 +361,7 @@ def check_explicit_cast(from: Type*, to: Type*, location: Location) -> void:
     fail(location, message)
 
 def short_type_description(t: Type*) -> byte*:
-    assert t->kind != TypeKind::Opaque
-    if t->kind == TypeKind::Class:
+    if t->kind == TypeKind::Class or t->kind == TypeKind::OpaqueClass:
         return "a class"
     if t->kind == TypeKind::Enum:
         return "an enum"
@@ -566,6 +575,7 @@ def check_class_field(location: Location, class_type: Type*, field_name: byte*) 
 class Stage3TypeChecker:
     file_types: FileTypes*
     current_function_or_method: FunctionOrMethodTypes*
+    nested_loop_count: int
 
     def add_local_var(self, name: byte*, type: Type*) -> LocalVariable*:
         v: LocalVariable* = calloc(1, sizeof *v)
@@ -733,6 +743,8 @@ class Stage3TypeChecker:
 
         if expression->kind == AstExpressionKind::String:
             result = byte_type->get_pointer_type()
+        elif expression->kind == AstExpressionKind::Bool:
+            result = &bool_type
         elif expression->kind == AstExpressionKind::Byte:
             result = byte_type
         elif expression->kind == AstExpressionKind::Int:
@@ -760,7 +772,19 @@ class Stage3TypeChecker:
                 expression->enum_member.enum_name,
                 expression->enum_member.member_name,
             )
-        elif expression->kind == AstExpressionKind::Eq:
+        elif (
+            expression->kind == AstExpressionKind::Add
+            or expression->kind == AstExpressionKind::Subtract
+            or expression->kind == AstExpressionKind::Multiply
+            or expression->kind == AstExpressionKind::Divide
+            or expression->kind == AstExpressionKind::Modulo
+            or expression->kind == AstExpressionKind::Eq
+            or expression->kind == AstExpressionKind::Ne
+            or expression->kind == AstExpressionKind::Gt
+            or expression->kind == AstExpressionKind::Ge
+            or expression->kind == AstExpressionKind::Lt
+            or expression->kind == AstExpressionKind::Le
+        ):
             lhs_types = self->do_expression(&expression->operands[0])
             rhs_types = self->do_expression(&expression->operands[1])
             result = check_binop(expression->kind, expression->location, lhs_types, rhs_types)
@@ -929,6 +953,34 @@ class Stage3TypeChecker:
                 )
                 self->do_body(&statement->if_statement.if_and_elifs[i].body)
             self->do_body(&statement->if_statement.else_body)
+
+        elif statement->kind == AstStatementKind::WhileLoop:
+            self->do_expression_and_implicit_cast(
+                &statement->while_loop.condition, &bool_type,
+                "'while' condition must be a boolean, not <from>",
+            )
+            self->nested_loop_count++
+            self->do_body(&statement->while_loop.body)
+            self->nested_loop_count--
+
+        elif statement->kind == AstStatementKind::ForLoop:
+            self->do_statement(statement->for_loop.init)
+            self->do_expression_and_implicit_cast(
+                &statement->for_loop.cond, &bool_type,
+                "'for' condition must be a boolean, not <from>",
+            )
+            self->nested_loop_count++
+            self->do_body(&statement->for_loop.body)
+            self->nested_loop_count--
+            self->do_statement(statement->for_loop.incr)
+
+        elif statement->kind == AstStatementKind::Break:
+            if self->nested_loop_count == 0:
+                fail(statement->location, "'break' can only be used inside a loop")
+
+        elif statement->kind == AstStatementKind::Continue:
+            if self->nested_loop_count == 0:
+                fail(statement->location, "'continue' can only be used inside a loop")
 
         else:
             printf("*** typecheck: unknown statement kind %d\n", statement->kind)

@@ -772,14 +772,11 @@ static void build_statement(struct State *st, const AstStatement *stmt);
 // While loop is basically a special case of for loop, so it uses this too.
 static void build_loop(
     struct State *st,
-    const char *loopname,
     const AstStatement *init,
     const AstExpression *cond,
     const AstStatement *incr,
     const AstBody *body)
 {
-    assert(strlen(loopname) < 10);
-
     CfBlock *condblock = add_block(st);  // evaluate condition and go to bodyblock or doneblock
     CfBlock *bodyblock = add_block(st);  // run loop body and go to incrblock
     CfBlock *incrblock = add_block(st);  // run incr and go to condblock
@@ -821,15 +818,13 @@ static void build_statement(struct State *st, const AstStatement *stmt)
 
     case AST_STMT_WHILE:
         build_loop(
-            st, "while",
-            NULL, &stmt->data.whileloop.condition, NULL,
+            st, NULL, &stmt->data.whileloop.condition, NULL,
             &stmt->data.whileloop.body);
         break;
 
     case AST_STMT_FOR:
         build_loop(
-            st, "for",
-            stmt->data.forloop.init, &stmt->data.forloop.cond, stmt->data.forloop.incr,
+            st, stmt->data.forloop.init, &stmt->data.forloop.cond, stmt->data.forloop.incr,
             &stmt->data.forloop.body);
         break;
 
