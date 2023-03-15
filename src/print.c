@@ -196,7 +196,7 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         print_ast_call(&expr->data.call, tp, NULL);
         break;
     case AST_EXPR_BRACE_INIT:
-        printf("brace init \"%s\"\n", expr->data.call.calledname);
+        printf("instantiate \"%s\"\n", expr->data.call.calledname);
         print_ast_call(&expr->data.call, tp, NULL);
         break;
     case AST_EXPR_ARRAY:
@@ -227,7 +227,10 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
         print_ast_expression(expr->data.classfield.obj, print_tree_prefix(tp, true));
         break;
     case AST_EXPR_GET_VARIABLE:
-        printf("get variable \"%s\"\n", expr->data.varname);
+        if (!strcmp(expr->data.varname, "self"))
+            printf("self\n");
+        else
+            printf("get variable \"%s\"\n", expr->data.varname);
         break;
     case AST_EXPR_CONSTANT:
         print_constant(&expr->data.constant);
@@ -280,7 +283,7 @@ static void print_ast_call(const AstCall *call, struct TreePrinter tp, const Ast
     for (int i = 0; i < call->nargs; i++) {
         struct TreePrinter sub = print_tree_prefix(tp, i == call->nargs - 1);
         if (call->argnames)
-            printf("argument \"%s\": ", call->argnames[i]);
+            printf("field \"%s\": ", call->argnames[i]);
         else
             printf("argument %d: ", i);
         print_ast_expression(&call->args[i], sub);

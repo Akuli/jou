@@ -171,6 +171,12 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
     nexports = 0
 
     for i = 0; i < file->body_len; i++:
+        if file->body[i].kind == AstToplevelStatementKind::Class:
+            classdef = &file->body[i].classdef
+            t = create_opaque_type(&classdef->name[0])
+            ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
+            ft->types[ft->ntypes++] = t
+
         if file->body[i].kind == AstToplevelStatementKind::Enum:
             enumdef = &file->body[i].enumdef
             t = create_enum(&enumdef->name[0], enumdef->member_count, enumdef->member_names)
@@ -244,6 +250,47 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*) -> Signature:
 
     return sig
 
+def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> void:
+    # Previous type-checking stage created an opaque type.
+    type: Type* = NULL
+    for i = 0; i < ft->ntypes; i++:
+        if strcmp(&ft->types[i]->name[0], &classdef->name[0]) == 0:
+            type = ft->types[i]
+            break
+    assert type != NULL
+
+    assert type->kind == TypeKind::Opaque
+    type->kind = TypeKind::Class
+
+    memset(&type->class_members, 0, sizeof type->class_members)
+
+    union_id = 0
+    for i = 0; i < classdef->nmembers; i++:
+        member = &classdef->members[i]
+        if member->kind == AstClassMemberKind::Field:
+            type->class_members.fields = realloc(type->class_members.fields, (type->class_members.nfields + 1) * sizeof type->class_members.fields[0])
+            type->class_members.fields[type->class_members.nfields++] = ClassField{
+                name = member->field.name,
+                type = type_from_ast(ft, &member->field.type),
+                union_id = union_id++,
+            }
+        elif member->kind == AstClassMemberKind::Union:
+            uid = union_id++
+            for k = 0; k < member->union_fields.nfields; k++:
+                type->class_members.fields = realloc(type->class_members.fields, (type->class_members.nfields + 1) * sizeof type->class_members.fields[0])
+                type->class_members.fields[type->class_members.nfields++] = ClassField{
+                    name = member->union_fields.fields[k].name,
+                    type = type_from_ast(ft, &member->union_fields.fields[k].type),
+                    union_id = uid,
+                }
+        elif member->kind == AstClassMemberKind::Method:
+#                // Don't handle the method body yet: that is a part of stage 3, not stage 2
+#                Signature sig = handle_signature(ft, &m->data.method.signature, type);
+#                Append(&type->data.classdata.methods, sig);
+            assert False
+        else:
+            assert False
+
 # Returned array is terminated by ExportSymbol with empty name.
 def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
@@ -251,15 +298,8 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
 
     for i = 0; i < ast_file->body_len; i++:
         ts = &ast_file->body[i]
-        if ts->kind == AstToplevelStatementKind::Function:
-            # TODO: terrible hack: skip functions that use FILE, such as fopen()
-            # Will be no longer needed once struct FILE works.
-            if ts->function.body.nstatements == 0 and (
-                ts->function.signature.name[0] == 'f'
-                or strcmp(&ts->function.signature.name[0], "rewind") == 0
-            ):
-                continue
 
+        if ts->kind == AstToplevelStatementKind::Function:
             sig = handle_signature(ft, &ts->function.signature)
             ft->all_functions = realloc(ft->all_functions, sizeof ft->all_functions[0] * (ft->n_all_functions + 1))
             ft->all_functions[ft->n_all_functions++] = sig.copy()
@@ -269,6 +309,9 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
                 name = sig.name,
                 signature = sig,
             }
+
+        if ts->kind == AstToplevelStatementKind::Class:
+            handle_class_members_stage2(ft, &ts->classdef)
 
     exports = realloc(exports, sizeof exports[0] * (nexports + 1))
     exports[nexports] = ExportSymbol{}
@@ -307,9 +350,8 @@ def check_explicit_cast(from: Type*, to: Type*, location: Location) -> void:
     )
     fail(location, &message[0])
 
-def very_short_type_description(t: Type*) -> byte*:
-    if t->kind == TypeKind::OpaqueClass:
-        assert False
+def short_type_description(t: Type*) -> byte*:
+    assert t->kind != TypeKind::Opaque
     if t->kind == TypeKind::Class:
         return "a class"
     if t->kind == TypeKind::Enum:
@@ -321,9 +363,109 @@ def very_short_type_description(t: Type*) -> byte*:
 #    if t->kind == TypeKind::Array:
 #        return "an array type"
     if t == &bool_type:
-        return "the built-in boolean type"
-
+        return "the built-in bool type"
     assert False
+
+def short_expression_description(expr: AstExpression*) -> byte[200]:
+    result: byte[200]
+
+    # Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
+    if (
+        expr->kind == AstExpressionKind::String
+        or expr->kind == AstExpressionKind::Int
+        or expr->kind == AstExpressionKind::Long
+        or expr->kind == AstExpressionKind::Byte
+        or expr->kind == AstExpressionKind::Bool
+        or expr->kind == AstExpressionKind::Null
+    ):
+        strcpy(&result[0], "a constant")
+    elif (
+        expr->kind == AstExpressionKind::Negate
+        or expr->kind == AstExpressionKind::Add
+        or expr->kind == AstExpressionKind::Subtract
+        or expr->kind == AstExpressionKind::Multiply
+        or expr->kind == AstExpressionKind::Divide
+        or expr->kind == AstExpressionKind::Modulo
+    ):
+        strcpy(&result[0], "the result of a calculation")
+    elif (
+        expr->kind == AstExpressionKind::Eq
+        or expr->kind == AstExpressionKind::Ne
+        or expr->kind == AstExpressionKind::Gt
+        or expr->kind == AstExpressionKind::Ge
+        or expr->kind == AstExpressionKind::Lt
+        or expr->kind == AstExpressionKind::Le
+    ):
+        strcpy(&result[0], "the result of a comparison")
+    elif expr->kind == AstExpressionKind::FunctionCall:
+        strcpy(&result[0], "a function call")
+    elif expr->kind == AstExpressionKind::Instantiate:
+        strcpy(&result[0], "a newly created instance")
+    elif expr->kind == AstExpressionKind::GetVariable:
+        strcpy(&result[0], "a variable")
+    elif expr->kind == AstExpressionKind::GetEnumMember:
+        strcpy(&result[0], "an enum member")
+    elif expr->kind == AstExpressionKind::GetClassField:
+        snprintf(&result[0], sizeof result, "field '%s'", &expr->class_field.field_name[0])
+    elif expr->kind == AstExpressionKind::As:
+        strcpy(&result[0], "the result of a cast")
+    elif expr->kind == AstExpressionKind::SizeOf:
+        strcpy(&result[0], "a sizeof expression")
+    elif expr->kind == AstExpressionKind::AddressOf:
+        subresult = short_expression_description(&expr->operands[0])
+        snprintf(&result[0], sizeof result, "address of %s", &subresult[0])
+    elif expr->kind == AstExpressionKind::Dereference:
+        strcpy(&result[0], "the value of a pointer")
+    elif expr->kind == AstExpressionKind::And:
+        strcpy(&result[0], "the result of 'and'")
+    elif expr->kind == AstExpressionKind::Or:
+        strcpy(&result[0], "the result of 'or'")
+    elif expr->kind == AstExpressionKind::Not:
+        strcpy(&result[0], "the result of 'not'")
+    elif expr->kind == AstExpressionKind::PreIncr or expr->kind == AstExpressionKind::PostIncr:
+        strcpy(&result[0], "the result of incrementing a value")
+    elif expr->kind == AstExpressionKind::PreDecr or expr->kind == AstExpressionKind::PostDecr:
+        strcpy(&result[0], "the result of decrementing a value")
+    elif expr->kind == AstExpressionKind::Indexing:
+        strcpy(&result[0], "an indexed value")
+    else:
+        printf("*** %d\n", expr->kind)
+        assert False
+
+    return result
+
+# The & operator can't go in front of most expressions.
+# You can't do &(1 + 2), for example.
+#
+# The same rules apply to assignments: "foo = bar" is treated as setting the
+# value of the pointer &foo to bar.
+# 
+# error_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
+def ensure_can_take_address(expression: AstExpression*, error_template: byte*) -> void:
+    if expression->kind == AstExpressionKind::GetClassField:
+        # &foo.bar --> must ensure we can take address of foo.
+        # Doesn't apply to &foo->bar because that's foo + some offset, so foo is already a pointer.
+        if not expression->class_field.uses_arrow_operator:
+            # Turn "cannot assign to %s" into "cannot assign to a field of %s".
+            # This assumes that error_template is relatively simple, i.e. it only contains one %s somewhere.
+            new_template = malloc(strlen(error_template) + 50)
+            sprintf(new_template, error_template, "a field of %s")
+            ensure_can_take_address(&expression->operands[0], new_template)
+            free(new_template)
+        return
+
+    if (
+        expression->kind == AstExpressionKind::GetVariable  # &foo
+        or expression->kind == AstExpressionKind::Dereference  # &*foo
+        or expression->kind == AstExpressionKind::Indexing  # &foo[bar] = foo + some offset (foo is a pointer)
+    ):
+        return
+
+    # Anything else is an error.
+    desc: byte[200] = short_expression_description(expression)
+    error = malloc(strlen(error_template) + 300)
+    sprintf(error, error_template, &desc[0])
+    fail(expression->location, error)
 
 def max(a: int, b: int) -> int:
     if a > b:
@@ -411,6 +553,15 @@ def check_binop(
     else:
         return cast_type
 
+def check_class_field(location: Location, class_type: Type*, field_name: byte*) -> ClassField*:
+    assert class_type->kind == TypeKind::Class
+
+    field = class_type->class_members.find_field(field_name)
+    if field == NULL:
+        message: byte[500]
+        snprintf(&message[0], sizeof message, "class %s has no field named '%s'", &class_type->name[0], field_name)
+        fail(location, &message[0])
+    return field
 
 class Stage3TypeChecker:
     file_types: FileTypes*
@@ -489,6 +640,93 @@ class Stage3TypeChecker:
         free(signature_string)
         return signature->return_type
 
+    def do_increment_or_decrement(self, expression: AstExpression*, increment_or_decrement: byte*) -> Type*:
+        assert strcmp(increment_or_decrement, "increment") == 0 or strcmp(increment_or_decrement, "decrement") == 0
+
+        bad_expression_error_template: byte[50]
+        sprintf(&bad_expression_error_template[0], "cannot %s %%s", increment_or_decrement)
+        ensure_can_take_address(&expression->operands[0], &bad_expression_error_template[0])
+
+        t = self->do_expression(&expression->operands[0])->original_type
+        if not t->is_integer_type() and not t->is_pointer_type():
+            error: byte* = malloc(strlen(&t->name[0]) + 100)
+            sprintf(error, "cannot %s a value of type %s", increment_or_decrement, &t->name[0])
+            fail(expression->location, error)
+        return t
+
+    def do_enum_member(self, location: Location, enum_name: byte*, member_name: byte*) -> Type*:
+        message: byte[200]
+
+        enum_type = self->file_types->find_type(enum_name)
+        if enum_type == NULL:
+            snprintf(&message[0], sizeof message, "there is no type named '%s'", enum_name)
+            fail(location, &message[0])
+
+        if enum_type->kind != TypeKind::Enum:
+            snprintf(
+                &message[0], sizeof message,
+                "the '::' syntax is only for enums, but %s is %s",
+                enum_name, short_type_description(enum_type),
+            )
+            fail(location, &message[0])
+
+        if enum_type->enum_members.find_index(member_name) == -1:
+            snprintf(&message[0], sizeof message, "enum %s has no member named '%s'", enum_name, member_name)
+            fail(location, &message[0])
+
+        return enum_type
+
+    def do_instantiation(self, instantiation: AstInstantiation*) -> Type*:
+        message:byte[500]
+
+        t = self->file_types->find_type(&instantiation->class_name[0])
+        if t == NULL:
+            snprintf(
+                &message[0], sizeof message,
+                "there is no type named '%s'", &instantiation->class_name[0],
+            )
+            fail(instantiation->class_name_location, &message[0])
+
+        if t->kind != TypeKind::Class:
+            description = short_type_description(t)
+            snprintf(
+                &message[0], sizeof message,
+                "the %s{...} syntax is only for classes, but %s is %s",
+                &t->name[0], t->name[0], &description[0],
+            )
+            fail(instantiation->class_name_location, &message[0])
+
+        specified_fields: ClassField** = malloc(sizeof specified_fields[0] * instantiation->nfields)
+        for i = 0; i < instantiation->nfields; i++:
+            snprintf(
+                &message[0], sizeof message,
+                "value for field '%s' of class %s must be of type <to>, not <from>",
+                &instantiation->field_names[i][0], &t->name[0],
+            )
+            specified_fields[i] = check_class_field(
+                instantiation->field_values[i].location,
+                t,
+                &instantiation->field_names[i][0],
+            )
+            self->do_expression_and_implicit_cast(
+                &instantiation->field_values[i],
+                specified_fields[i]->type,
+                &message[0],
+            )
+
+        for i1 = 0; i1 < instantiation->nfields; i1++:
+            for i2 = i1+1; i2 < instantiation->nfields; i2++:
+                if specified_fields[i1]->union_id == specified_fields[i2]->union_id:
+                    snprintf(
+                        &message[0], sizeof message,
+                        "fields '%s' and '%s' cannot be set simultaneously because they belong to the same union",
+                        &specified_fields[i1]->name[0],
+                        &specified_fields[i2]->name[0],
+                    )
+                    fail(instantiation->field_values[i2].location, &message[0])
+
+        return t
+
     def do_expression_maybe_void(self, expression: AstExpression*) -> ExpressionTypes*:
         result: Type*
         message: byte[200]
@@ -501,6 +739,8 @@ class Stage3TypeChecker:
             result = int_type
         elif expression->kind == AstExpressionKind::Long:
             result = long_type
+        elif expression->kind == AstExpressionKind::Null:
+            result = &void_ptr_type
         elif expression->kind == AstExpressionKind::FunctionCall:
             result = self->do_function_call(&expression->call)
             if result == NULL:
@@ -515,25 +755,11 @@ class Stage3TypeChecker:
             result = type_from_ast(self->file_types, &expression->as_expression->type)
             check_explicit_cast(old_type, result, expression->location)
         elif expression->kind == AstExpressionKind::GetEnumMember:
-            result = self->file_types->find_type(&expression->enum_member.enum_name[0])
-            if result == NULL:
-                printf("find_type(%s) returned NULL\n", &expression->enum_member.enum_name[0])
-                snprintf(&message[0], sizeof message, "there is no type named '%s'", &expression->enum_member.enum_name[0])
-                fail(expression->location, &message[0])
-            if result->kind != TypeKind::Enum:
-                snprintf(
-                    &message[0], sizeof message,
-                    "the '::' syntax is only for enums, but %s is %s",
-                    &expression->enum_member.enum_name[0], very_short_type_description(result),
-                )
-                fail(expression->location, &message[0])
-            if result->enum_members.find_index(&expression->enum_member.member_name[0]) == -1:
-                snprintf(
-                    &message[0], sizeof message,
-                    "enum %s has no member named '%s'",
-                    &expression->enum_member.enum_name[0], &expression->enum_member.member_name[0],
-                )
-                fail(expression->location, &message[0])
+            result = self->do_enum_member(
+                expression->location,
+                &expression->enum_member.enum_name[0],
+                &expression->enum_member.member_name[0],
+            )
         elif expression->kind == AstExpressionKind::Eq:
             lhs_types = self->do_expression(&expression->operands[0])
             rhs_types = self->do_expression(&expression->operands[1])
@@ -548,6 +774,34 @@ class Stage3TypeChecker:
                     &result->name[0],
                 )
                 fail(expression->location, &message[0])
+        elif expression->kind == AstExpressionKind::PreIncr or expression->kind == AstExpressionKind::PostIncr:
+            result = self->do_increment_or_decrement(expression, "increment")
+        elif expression->kind == AstExpressionKind::PreDecr or expression->kind == AstExpressionKind::PostDecr:
+            result = self->do_increment_or_decrement(expression, "decrement")
+        elif expression->kind == AstExpressionKind::GetClassField:
+            lhs_type = self->do_expression(expression->class_field.instance)->original_type
+            if expression->class_field.uses_arrow_operator:
+                if lhs_type->kind != TypeKind::Pointer or lhs_type->value_type->kind != TypeKind::Class:
+                    snprintf(
+                        &message[0], sizeof message,
+                        "left side of the '->' operator must be a pointer to a class, not %s",
+                        &lhs_type->name[0],
+                    )
+                    fail(expression->location, &message[0])
+                result = check_class_field(expression->location, lhs_type->value_type, &expression->class_field.field_name[0])->type
+            else:
+                if lhs_type->kind != TypeKind::Class:
+                    snprintf(
+                        &message[0], sizeof message,
+                        "left side of the '.' operator must be an instance of a class, not %s",
+                        &lhs_type->name[0],
+                    )
+                    fail(expression->location, &message[0])
+                result = check_class_field(expression->location, lhs_type, &expression->class_field.field_name[0])->type
+        elif expression->kind == AstExpressionKind::AddressOf:
+            result = self->do_expression(&expression->operands[0])->original_type->get_pointer_type()
+        elif expression->kind == AstExpressionKind::Instantiate:
+            result = self->do_instantiation(&expression->instantiation)
         else:
             printf("*** %d\n", expression->kind as int)
             assert False
@@ -631,18 +885,25 @@ class Stage3TypeChecker:
                 self->add_local_var(&target_expr->varname[0], types->original_type)
             else:
                 # Convert value to the type of an existing variable or other assignment target.
-                #ensure_can_take_address(targetexpr, "cannot assign to %s")
+                ensure_can_take_address(target_expr, "cannot assign to %s")
 
                 # This is a common error, so try to produce a helpful error message.
+                error_template: byte[500]
                 if target_expr->kind == AstExpressionKind::Dereference:
-                    error_template = "cannot place a value of type <from> into a pointer of type <to>*"
+                    strcpy(
+                        &error_template[0],
+                        "cannot place a value of type <from> into a pointer of type <to>*",
+                    )
                 else:
-                    # TODO: improve this error message.
-                    # See short_expression_description() in the other compiler.
-                    error_template = "cannot assign a value of type FROM to target of type TO"
+                    target_description: byte[200] = short_expression_description(target_expr)
+                    snprintf(
+                        &error_template[0], sizeof error_template,
+                        "cannot assign a value of type <from> to %s of type <to>",
+                        &target_description[0],
+                    )
 
                 target_types = self->do_expression(target_expr)
-                self->do_expression_and_implicit_cast(value_expr, target_types->original_type, error_template)
+                self->do_expression_and_implicit_cast(value_expr, target_types->original_type, &error_template[0])
 
         elif statement->kind == AstStatementKind::DeclareLocalVar:
             ntv: AstNameTypeValue* = &statement->var_declaration

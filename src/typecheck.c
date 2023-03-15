@@ -224,7 +224,7 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
     return sig;
 }
 
-static const Type *handle_class_members_stage2(FileTypes *ft, const AstClassDef *classdef)
+static void handle_class_members_stage2(FileTypes *ft, const AstClassDef *classdef)
 {
     // Previous type-checking stage created an opaque struct.
     Type *type = NULL;
@@ -275,8 +275,6 @@ static const Type *handle_class_members_stage2(FileTypes *ft, const AstClassDef 
             }
         }
     }
-
-    return type;
 }
 
 ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstToplevelNode *ast)
@@ -788,7 +786,30 @@ static const struct ClassField *typecheck_class_field(
     fail_with_error(location, "class %s has no field named '%s'", classtype->name, fieldname);
 }
 
-static const Type *typecheck_struct_init(FileTypes *ft, const AstCall *call, Location location)
+static const char *short_type_description(const Type *t)
+{
+    switch(t->kind) {
+        case TYPE_OPAQUE_CLASS:
+            assert(0);
+        case TYPE_CLASS:
+            return "a class";
+        case TYPE_ENUM:
+            return "an enum";
+        case TYPE_VOID_POINTER:
+        case TYPE_POINTER:
+            return "a pointer type";
+        case TYPE_SIGNED_INTEGER:
+        case TYPE_UNSIGNED_INTEGER:
+        case TYPE_FLOATING_POINT:
+            return "a number type";
+        case TYPE_ARRAY:
+            return "an array type";
+        case TYPE_BOOL:
+            return "the built-in bool type";
+    }
+}
+
+static const Type *typecheck_instantiation(FileTypes *ft, const AstCall *call, Location location)
 {
     struct AstType tmp = { .kind = AST_TYPE_NAMED, .location = location };
     safe_strcpy(tmp.data.name, call->calledname);
@@ -796,8 +817,8 @@ static const Type *typecheck_struct_init(FileTypes *ft, const AstCall *call, Loc
 
     if (t->kind != TYPE_CLASS) {
         fail_with_error(location,
-            "the %s{...} syntax is only for classes, not for type %s",
-            t->name, t->name);
+            "the %s{...} syntax is only for classes, but %s is %s",
+            t->name, t->name, short_type_description(t));
     }
 
     const struct ClassField ** specified_fields = malloc(sizeof(specified_fields[0]) * call->nargs);  // NOLINT
@@ -825,29 +846,6 @@ static const Type *typecheck_struct_init(FileTypes *ft, const AstCall *call, Loc
 
     free(specified_fields);
     return t;
-}
-
-static const char *very_short_type_description(const Type *t)
-{
-    switch(t->kind) {
-        case TYPE_OPAQUE_CLASS:
-            assert(0);
-        case TYPE_CLASS:
-            return "a class";
-        case TYPE_ENUM:
-            return "an enum";
-        case TYPE_VOID_POINTER:
-        case TYPE_POINTER:
-            return "a pointer type";
-        case TYPE_SIGNED_INTEGER:
-        case TYPE_UNSIGNED_INTEGER:
-        case TYPE_FLOATING_POINT:
-            return "a number type";
-        case TYPE_ARRAY:
-            return "an array type";
-        case TYPE_BOOL:
-            return "the built-in bool type";
-    }
 }
 
 static bool enum_member_exists(const Type *t, const char *name)
@@ -922,7 +920,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         if (result->kind != TYPE_ENUM)
             fail_with_error(
                 expr->location, "the '::' syntax is only for enums, but %s is %s",
-                expr->data.enummember.enumname, very_short_type_description(result));
+                expr->data.enummember.enumname, short_type_description(result));
         if (!enum_member_exists(result, expr->data.enummember.membername))
             fail_with_error(expr->location, "enum %s has no member named '%s'",
                 expr->data.enummember.enumname, expr->data.enummember.membername);
@@ -937,7 +935,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         result = longType;
         break;
     case AST_EXPR_BRACE_INIT:
-        result = typecheck_struct_init(ft, &expr->data.call, expr->location);
+        result = typecheck_instantiation(ft, &expr->data.call, expr->location);
         break;
     case AST_EXPR_ARRAY:
         {

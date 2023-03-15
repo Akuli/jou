@@ -8,7 +8,7 @@ enum TypeKind:
     Pointer
     VoidPointer
     Class
-    OpaqueClass
+    Opaque
     Enum
 
 class EnumMembers:
@@ -22,14 +22,34 @@ class EnumMembers:
                 return i
         return -1
 
+class ClassField:
+    name: byte[100]
+    type: Type*
+    # If multiple fields have the same union_id, they belong to the same union.
+    # It means that only one of the fields can be used at a time.
+    union_id: int
+
+class ClassMembers:
+    fields: ClassField*
+    nfields: int
+    methods: Signature*
+    nmethods: int
+
+    def find_field(self, name: byte*) -> ClassField*:
+        for i = 0; i < self->nfields; i++:
+            if strcmp(&self->fields[i].name[0], name) == 0:
+                return &self->fields[i]
+        return NULL
+
 class Type:
     name: byte[100]
     kind: TypeKind
 
     union:
         size_in_bits: int  # SignedInteger, UnsignedInteger
-        value_type: Type*  # Pointer
-        enum_members: EnumMembers  # Enum
+        value_type: Type*  # Pointer (not used for VoidPointer)
+        enum_members: EnumMembers
+        class_members: ClassMembers
 
     # Pointers and arrays of a given type live as long as the type itself.
     # To make it possible, we just store them within the type.
@@ -99,9 +119,9 @@ def init_types() -> void:
     strcpy(&int_type->name[0], "int")
     strcpy(&long_type->name[0], "long")
 
-def create_opaque_class(name: byte*) -> Type*:
+def create_opaque_type(name: byte*) -> Type*:
     result: Type* = malloc(sizeof *result)
-    *result = Type{kind = TypeKind::OpaqueClass}
+    *result = Type{kind = TypeKind::Opaque}
     assert strlen(name) < sizeof result->name
     strcpy(&result->name[0], name)
     return result

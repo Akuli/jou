@@ -56,7 +56,8 @@ def parse_name_type_value(tokens: Token**, expected_what_for_name: byte*) -> Ast
 
     return result
 
-def parse_function_signature(tokens: Token**) -> AstSignature:
+def parse_function_or_method_signature(tokens: Token**, is_method: bool) -> AstSignature:
+    # TODO: change error messages to say method, when it is a method (#243)
     if (*tokens)->kind != TokenKind::Name:
         (*tokens)->fail_expected_got("a function name")
 
@@ -77,6 +78,17 @@ def parse_function_signature(tokens: Token**) -> AstSignature:
         if (*tokens)->is_operator("..."):
             result.takes_varargs = True
             ++*tokens
+
+        elif (*tokens)->is_keyword("self"):
+            the_self: byte[100]
+            strcpy(&the_self[0], "self")
+            result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
+            result.args[result.nargs++] = AstNameTypeValue{
+                name = the_self,
+                name_location = (*tokens)->location,
+            }
+            ++*tokens
+
         else:
             arg = parse_name_type_value(tokens, "an argument name")
             if arg.value != NULL:
@@ -101,6 +113,10 @@ def parse_function_signature(tokens: Token**) -> AstSignature:
     if not (*tokens)->is_operator(")"):
         (*tokens)->fail_expected_got("a ')'")
     ++*tokens
+
+    # TODO:
+    #   * If is_method, ensure that self parameter exists and is first
+    #   * Else, ensure that self parameter does not exists
 
     # Special case for common typo:   def foo():
     if (*tokens)->is_operator(":"):
@@ -143,28 +159,62 @@ def parse_import_path(path_token: Token*, stdlib_path: byte*) -> AstImport:
         resolved_path = path,
     }
 
-def parse_call(tokens: Token**, open_paren: byte*, close_paren: byte*) -> AstCall:
+def parse_call(tokens: Token**) -> AstCall:
     assert (*tokens)->kind == TokenKind::Name  # must be checked when calling this function
     result = AstCall{location = (*tokens)->location, called_name = (*tokens)->short_string}
     ++*tokens
-
-    if not (*tokens)->is_operator(open_paren):
-        expected = malloc(100)
-        sprintf(expected, "a '%s' to denote the start of arguments", open_paren)
-        (*tokens)->fail_expected_got(expected)
+    assert (*tokens)->is_operator("(")
     ++*tokens
 
-    while not (*tokens)->is_operator(close_paren):
+    while not (*tokens)->is_operator(")"):
         result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
         result.args[result.nargs++] = parse_expression(tokens)
         if not (*tokens)->is_operator(","):
             break
         ++*tokens
 
-    if not (*tokens)->is_operator(close_paren):
-        expected = malloc(100)
-        sprintf(expected, "a '%s'", close_paren)
-        (*tokens)->fail_expected_got(expected)
+    if not (*tokens)->is_operator(")"):
+        (*tokens)->fail_expected_got("a ')'")
+    ++*tokens
+
+    return result
+
+def parse_instantiation(tokens: Token**) -> AstInstantiation:
+    assert (*tokens)->kind == TokenKind::Name  # must be checked when calling this function
+    result = AstInstantiation{class_name_location = (*tokens)->location, class_name = (*tokens)->short_string}
+    ++*tokens
+    assert (*tokens)->is_operator("{")
+    ++*tokens
+
+    while not (*tokens)->is_operator("}"):
+        if (*tokens)->kind != TokenKind::Name:
+            (*tokens)->fail_expected_got("a field name")
+        field_name = (*tokens)->short_string
+        for i = 0; i < result.nfields; i++:
+            if strcmp(&result.field_names[i][0], &field_name[0]) == 0:
+                error: byte[500]
+                snprintf(&error[0], sizeof error, "multiple values were given for field '%s'", &field_name[0])
+                fail((*tokens)->location, &error[0])
+        result.field_names = realloc(result.field_names, (result.nfields + 1) * sizeof result.field_names[0])
+        result.field_names[result.nfields] = field_name
+        ++*tokens
+
+        if not (*tokens)->is_operator("="):
+            msg: byte[300]
+            snprintf(&msg[0], sizeof msg, "'=' followed by a value for field '%s'", &field_name[0])
+            (*tokens)->fail_expected_got(&msg[0])
+        ++*tokens
+
+        result.field_values = realloc(result.field_values, sizeof result.field_values[0] * (result.nfields+1))
+        result.field_values[result.nfields] = parse_expression(tokens)
+
+        result.nfields++
+        if not (*tokens)->is_operator(","):
+            break
+        ++*tokens
+
+    if not (*tokens)->is_operator("}"):
+        (*tokens)->fail_expected_got("a '}'")
     ++*tokens
 
     return result
@@ -199,10 +249,16 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
     elif (*tokens)->is_keyword("NULL"):
         expr.kind = AstExpressionKind::Null
         ++*tokens
+    elif (*tokens)->is_keyword("self"):
+        expr.kind = AstExpressionKind::Self
+        ++*tokens
     elif (*tokens)->kind == TokenKind::Name:
         if (*tokens)[1].is_operator("("):
             expr.kind = AstExpressionKind::FunctionCall
-            expr.call = parse_call(tokens, "(", ")")
+            expr.call = parse_call(tokens)
+        elif (*tokens)[1].is_operator("{"):
+            expr.kind = AstExpressionKind::Instantiate
+            expr.instantiation = parse_instantiation(tokens)
         elif (*tokens)[1].is_operator("::") and (*tokens)[2].kind == TokenKind::Name:
             expr.kind = AstExpressionKind::GetEnumMember
             expr.enum_member = AstEnumMember{
@@ -226,6 +282,32 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
         (*tokens)->fail_expected_got("an expression")
 
     return expr
+
+def parse_expression_with_fields_and_methods_and_indexing(tokens: Token**) -> AstExpression:
+    result = parse_elementary_expression(tokens)
+
+    # TODO: indexing foo[bar]
+    while (*tokens)->is_operator(".") or (*tokens)->is_operator("->"):
+        start_op = (*tokens)++
+        if (*tokens)->kind != TokenKind::Name:
+            (*tokens)->fail_expected_got("a field or method name")
+
+        assert not (*tokens)[1].is_operator("(")  # TODO
+
+        instance: AstExpression* = malloc(sizeof *instance)
+        *instance = result
+        result = AstExpression{
+            location = (*tokens)->location,
+            kind = AstExpressionKind::GetClassField,
+            class_field = AstClassField{
+                instance = instance,
+                uses_arrow_operator = start_op->is_operator("->"),
+                field_name = (*tokens)->short_string,
+            },
+        }
+        ++*tokens
+
+    return result
 
 # arity = number of operands, e.g. 2 for a binary operator such as "+"
 #
@@ -310,7 +392,7 @@ def parse_expression_with_unary_operators(tokens: Token**) -> AstExpression:
         ++*tokens
     prefix_end = *tokens
 
-    result = parse_elementary_expression(tokens)
+    result = parse_expression_with_fields_and_methods_and_indexing(tokens)
 
     suffix_start = *tokens
     while (*tokens)->is_operator("++") or (*tokens)->is_operator("--"):
@@ -606,17 +688,78 @@ def parse_body(tokens: Token**) -> AstBody:
 
     return AstBody{ statements = result, nstatements = n }
 
-def parse_funcdef(tokens: Token**) -> AstFunction:
-    signature = parse_function_signature(tokens)
+def parse_function_or_method(tokens: Token**, is_method: bool) -> AstFunctionOrMethod:
+    assert (*tokens)->is_keyword("def")
+    ++*tokens
+
+    signature = parse_function_or_method_signature(tokens, is_method)
     if signature.takes_varargs:
         fail((*tokens)->location, "functions with variadic arguments cannot be defined yet")
 
-    return AstFunction{
+    return AstFunctionOrMethod{
         signature = signature,
         body = parse_body(tokens),
     }
 
+class MemberInfo:
+    kind: byte*
+    name: byte[100]
+    name_location: Location
+
+def check_class_for_duplicate_names(classdef: AstClassDef*) -> void:
+    n = 0
+    for i = 0; i < classdef->nmembers; i++:
+        member = &classdef->members[i]
+        # We will make a separate MemberInfo for each union field
+        if member->kind == AstClassMemberKind::Union:
+            n += member->union_fields.nfields
+        else:
+            n++
+
+    infos: MemberInfo* = malloc(n * sizeof infos[0] * 1000)
+    destptr: MemberInfo* = infos
+
+    for i = 0; i < classdef->nmembers; i++:
+        member = &classdef->members[i]
+        if member->kind == AstClassMemberKind::Field:
+            *destptr++ = MemberInfo{
+                kind = "a field",
+                name = member->field.name,
+                name_location = member->field.name_location,
+            }
+        elif member->kind == AstClassMemberKind::Union:
+            for k = 0; k < member->union_fields.nfields; k++:
+                *destptr++ = MemberInfo{
+                    kind = "a union member",
+                    name = member->union_fields.fields[k].name,
+                    name_location = member->union_fields.fields[k].name_location,
+                }
+        elif member->kind == AstClassMemberKind::Method:
+            *destptr++ = MemberInfo{
+                kind = "a method",
+                name = member->method.signature.name,
+                name_location = member->method.signature.name_location,
+            }
+        else:
+            assert False
+
+    assert destptr == &infos[n]
+
+    for p1 = infos; p1 != destptr; p1++:
+        for p2 = &p1[1]; p2 != destptr; p2++:
+            if strcmp(&p1->name[0], &p2->name[0]) == 0:
+                message: byte[500]
+                snprintf(
+                    &message[0], sizeof message,
+                    "class %s already has %s named '%s'",
+                    &classdef->name[0], p1->kind, &p1->name[0],
+                )
+                fail(p2->name_location, &message[0])
+
 def parse_class(tokens: Token**) -> AstClassDef:
+    assert (*tokens)->is_keyword("class")
+    ++*tokens
+
     if (*tokens)->kind != TokenKind::Name:
         (*tokens)->fail_expected_got("a name for the class")
 
@@ -625,20 +768,56 @@ def parse_class(tokens: Token**) -> AstClassDef:
     parse_start_of_body(tokens)
     while (*tokens)->kind != TokenKind::Dedent:
         if (*tokens)->is_keyword("def"):
-            result.methods = realloc(result.methods, sizeof result.methods[0] * (result.nmethods + 1))
-            result.methods[result.nmethods++] = parse_funcdef(tokens)
+            new_member = AstClassMember{
+                kind = AstClassMemberKind::Method,
+                method = parse_function_or_method(tokens, True),
+            }
+
+        elif (*tokens)->is_keyword("union"):
+            union_keyword_location = ((*tokens)++)->location
+            parse_start_of_body(tokens)
+
+            union_fields = AstUnionFields{}
+            while (*tokens)->kind != TokenKind::Dedent:
+                field = parse_name_type_value(tokens, "a union member")
+                if field.value != NULL:
+                    fail(field.value->location, "union members cannot have default values")
+
+                union_fields.fields = realloc(union_fields.fields, (union_fields.nfields + 1) * sizeof union_fields.fields[0])
+                union_fields.fields[union_fields.nfields++] = field
+                eat_newline(tokens)
+
+            ++*tokens
+
+            if union_fields.nfields < 2:
+                fail(union_keyword_location, "unions must have at least 2 members")
+
+            new_member = AstClassMember{
+                kind = AstClassMemberKind::Union,
+                union_fields = union_fields,
+            }
+
         else:
-            field = parse_name_type_value(tokens, "a method or a class field")
+            field = parse_name_type_value(tokens, "a method, a field or a union")
             if field.value != NULL:
                 fail(field.value->location, "class fields cannot have default values")
-            result.fields = realloc(result.fields, sizeof result.fields[0] * (result.nfields + 1))
-            result.fields[result.nfields++] = field
+            new_member = AstClassMember{
+                kind = AstClassMemberKind::Field,
+                field = field,
+            }
             eat_newline(tokens)
 
+        result.members = realloc(result.members, (result.nmembers + 1) * sizeof result.members[0])
+        result.members[result.nmembers++] = new_member
+
     ++*tokens
+    check_class_for_duplicate_names(&result)
     return result
 
 def parse_enum(tokens: Token**) -> AstEnumDef:
+    assert (*tokens)->is_keyword("enum")
+    ++*tokens
+
     if (*tokens)->kind != TokenKind::Name:
         (*tokens)->fail_expected_got("a name for the enum")
 
@@ -666,9 +845,8 @@ def parse_toplevel_node(tokens: Token**, stdlib_path: byte*) -> AstToplevelState
         eat_newline(tokens)
 
     elif (*tokens)->is_keyword("def"):
-        ++*tokens
         ts.kind = AstToplevelStatementKind::Function
-        ts.function = parse_funcdef(tokens)
+        ts.function = parse_function_or_method(tokens, False)
 
     elif (*tokens)->is_keyword("declare"):
         ++*tokens
@@ -683,16 +861,14 @@ def parse_toplevel_node(tokens: Token**, stdlib_path: byte*) -> AstToplevelState
                 )
         else:
             ts.kind = AstToplevelStatementKind::Function
-            ts.function.signature = parse_function_signature(tokens)
+            ts.function.signature = parse_function_or_method_signature(tokens, False)
         eat_newline(tokens)
 
     elif (*tokens)->is_keyword("class"):
-        ++*tokens
-        ts.kind = AstToplevelStatementKind::ClassDefinition
+        ts.kind = AstToplevelStatementKind::Class
         ts.classdef = parse_class(tokens)
 
     elif (*tokens)->is_keyword("enum"):
-        ++*tokens
         ts.kind = AstToplevelStatementKind::Enum
         ts.enumdef = parse_enum(tokens)
 
