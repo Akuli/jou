@@ -493,7 +493,7 @@ static void do_implicit_cast(
     types->implicit_cast_type = to;
     types->implicit_array_to_pointer_cast = (from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER);
     if (types->implicit_array_to_pointer_cast)
-        ensure_can_take_address(types->expr, "cannot take address of %s, which is needed for converting from array to pointer");
+        ensure_can_take_address(types->expr, "cannot create a pointer into an array that comes from %s");
 }
 
 static void cast_array_to_pointer(ExpressionTypes *types)
@@ -676,11 +676,18 @@ static void typecheck_dereferenced_pointer(Location location, const Type *t)
 static const Type *typecheck_indexing(
     FileTypes *ft, const AstExpression *ptrexpr, const AstExpression *indexexpr)
 {
-    const Type *ptrtype = typecheck_expression_not_void(ft, ptrexpr)->type;
-    if (ptrtype->kind != TYPE_POINTER && ptrtype->kind != TYPE_ARRAY)
-        fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", ptrtype->name);
-    if (ptrtype->kind == TYPE_ARRAY)
-        ensure_can_take_address(ptrexpr, "cannot create a pointer into an array that comes from %s");
+    ExpressionTypes *types = typecheck_expression_not_void(ft, ptrexpr);
+
+    const Type *ptrtype;
+    if (types->type->kind == TYPE_ARRAY) {
+        cast_array_to_pointer(types);
+        ptrtype = types->implicit_cast_type;
+    } else {
+        ptrtype = types->type;
+        if (ptrtype->kind != TYPE_POINTER)
+            fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", ptrtype->name);
+    }
+    assert(ptrtype->kind == TYPE_POINTER);
 
     const Type *indextype = typecheck_expression_not_void(ft, indexexpr)->type;
     if (!is_integer_type(indextype)) {
@@ -690,10 +697,7 @@ static const Type *typecheck_indexing(
             indextype->name);
     }
 
-    if (ptrtype->kind == TYPE_ARRAY)
-        return ptrtype->data.array.membertype;
-    else
-        return ptrtype->data.valuetype;
+    return ptrtype->data.valuetype;
 }
 
 static void typecheck_and_or(
