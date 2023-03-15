@@ -102,7 +102,7 @@ def get_sane_filename(path: byte*) -> byte[50]:
         path++  # skip slash
 
     name: byte[50]
-    snprintf(&name[0], sizeof name, "%s", path)
+    snprintf(name, sizeof name, "%s", path)
     assert name[0] != '\0'
 
     if name[0] == '.':
@@ -190,7 +190,7 @@ class Compiler:
                         if self->verbosity >= 1:
                             printf(
                                 "  %s: imported in %s, exported in %s\n",
-                                &exp->name[0], src->ast.path, dest->ast.path,
+                                exp->name, src->ast.path, dest->ast.path,
                             )
                         dest->typectx.add_imported_symbol(exp)
 
@@ -243,15 +243,15 @@ class Compiler:
             # If there are 3 files named foo.jou in different directories, their object files will be foo.o, foo-1.o, foo-2.o
             counter = 0
             for k = 0; k < i; k++:
-                if strcmp(&sane_names[k][0], &sane_names[i][0]) == 0:
+                if strcmp(sane_names[k], sane_names[i]) == 0:
                     counter++
 
             name: byte[100]
             if counter == 0:
-                sprintf(&name[0], "%s.o", &sane_names[i][0])
+                sprintf(name, "%s.o", sane_names[i])
             else:
-                sprintf(&name[0], "%s-%d.o", &sane_names[i][0], counter)
-            result[i] = get_path_to_file_in_jou_compiled(&name[0])
+                sprintf(name, "%s-%d.o", sane_names[i], counter)
+            result[i] = get_path_to_file_in_jou_compiled(name)
 
         free(sane_names)
         return result
@@ -259,7 +259,7 @@ class Compiler:
     def get_exe_file_path(self) -> byte*:
         if self->args->output_file == NULL:
             tmp = get_sane_filename(self->args->main_path)
-            exe = get_path_to_file_in_jou_compiled(&tmp[0])
+            exe = get_path_to_file_in_jou_compiled(tmp)
         else:
             exe = strdup(self->args->output_file)
 

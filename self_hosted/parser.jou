@@ -81,7 +81,7 @@ def parse_function_or_method_signature(tokens: Token**, is_method: bool) -> AstS
 
         elif (*tokens)->is_keyword("self"):
             the_self: byte[100]
-            strcpy(&the_self[0], "self")
+            strcpy(the_self, "self")
             result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
             result.args[result.nargs++] = AstNameTypeValue{
                 name = the_self,
@@ -95,13 +95,12 @@ def parse_function_or_method_signature(tokens: Token**, is_method: bool) -> AstS
                 fail(arg.value->location, "arguments cannot have default values")
 
             for i = 0; i < result.nargs; i++:
-                if strcmp(&result.args[i].name[0], &arg.name[0]) == 0:
+                if strcmp(result.args[i].name, arg.name) == 0:
                     message: byte[200]
                     snprintf(
-                        &message[0], sizeof message,
-                        "there are multiple arguments named '%s'",
-                        &arg.name[0])
-                    fail(arg.name_location, &message[0])
+                        message, sizeof message,
+                        "there are multiple arguments named '%s'", arg.name)
+                    fail(arg.name_location, message)
 
             result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
             result.args[result.nargs++] = arg
@@ -191,18 +190,18 @@ def parse_instantiation(tokens: Token**) -> AstInstantiation:
             (*tokens)->fail_expected_got("a field name")
         field_name = (*tokens)->short_string
         for i = 0; i < result.nfields; i++:
-            if strcmp(&result.field_names[i][0], &field_name[0]) == 0:
+            if strcmp(result.field_names[i], field_name) == 0:
                 error: byte[500]
-                snprintf(&error[0], sizeof error, "multiple values were given for field '%s'", &field_name[0])
-                fail((*tokens)->location, &error[0])
+                snprintf(error, sizeof error, "multiple values were given for field '%s'", field_name)
+                fail((*tokens)->location, error)
         result.field_names = realloc(result.field_names, (result.nfields + 1) * sizeof result.field_names[0])
         result.field_names[result.nfields] = field_name
         ++*tokens
 
         if not (*tokens)->is_operator("="):
             msg: byte[300]
-            snprintf(&msg[0], sizeof msg, "'=' followed by a value for field '%s'", &field_name[0])
-            (*tokens)->fail_expected_got(&msg[0])
+            snprintf(msg, sizeof msg, "'=' followed by a value for field '%s'", field_name)
+            (*tokens)->fail_expected_got(msg)
         ++*tokens
 
         result.field_values = realloc(result.field_values, sizeof result.field_values[0] * (result.nfields+1))
@@ -438,7 +437,7 @@ def parse_expression_with_mul_and_div(tokens: Token**) -> AstExpression:
     while (*tokens)->is_operator("*") or (*tokens)->is_operator("/") or (*tokens)->is_operator("%"):
         t = (*tokens)++
         lhs_rhs = [result, parse_expression_with_unary_operators(tokens)]
-        result = build_operator_expression(t, 2, &lhs_rhs[0])
+        result = build_operator_expression(t, 2, lhs_rhs)
     return result
 
 def parse_expression_with_add(tokens: Token**) -> AstExpression:
@@ -454,7 +453,7 @@ def parse_expression_with_add(tokens: Token**) -> AstExpression:
     while (*tokens)->is_operator("+") or (*tokens)->is_operator("-"):
         t = (*tokens)++
         lhs_rhs = [result, parse_expression_with_mul_and_div(tokens)]
-        result = build_operator_expression(t, 2, &lhs_rhs[0])
+        result = build_operator_expression(t, 2, lhs_rhs)
 
     return result
 
@@ -477,7 +476,7 @@ def parse_expression_with_comparisons(tokens: Token**) -> AstExpression:
     if (*tokens)->is_comparison():
         t = (*tokens)++
         lhs_rhs = [result, parse_expression_with_as(tokens)]
-        result = build_operator_expression(t, 2, &lhs_rhs[0])
+        result = build_operator_expression(t, 2, lhs_rhs)
     if (*tokens)->is_comparison():
         fail((*tokens)->location, "comparisons cannot be chained")
     return result
@@ -514,7 +513,7 @@ def parse_expression_with_and_or(tokens: Token**) -> AstExpression:
 
         t = (*tokens)++
         lhs_rhs = [result, parse_expression_with_not(tokens)]
-        result = build_operator_expression(t, 2, &lhs_rhs[0])
+        result = build_operator_expression(t, 2, lhs_rhs)
 
     return result
 
@@ -747,14 +746,14 @@ def check_class_for_duplicate_names(classdef: AstClassDef*) -> void:
 
     for p1 = infos; p1 != destptr; p1++:
         for p2 = &p1[1]; p2 != destptr; p2++:
-            if strcmp(&p1->name[0], &p2->name[0]) == 0:
+            if strcmp(p1->name, p2->name) == 0:
                 message: byte[500]
                 snprintf(
-                    &message[0], sizeof message,
+                    message, sizeof message,
                     "class %s already has %s named '%s'",
-                    &classdef->name[0], p1->kind, &p1->name[0],
+                    classdef->name, p1->kind, p1->name,
                 )
-                fail(p2->name_location, &message[0])
+                fail(p2->name_location, message)
 
 def parse_class(tokens: Token**) -> AstClassDef:
     assert (*tokens)->is_keyword("class")

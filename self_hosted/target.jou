@@ -36,24 +36,24 @@ def init_target() -> void:
 
     if is_windows():
         # LLVM's default is x86_64-pc-windows-msvc
-        strcpy(&target.triple[0], "x86_64-pc-windows-gnu")
+        strcpy(target.triple, "x86_64-pc-windows-gnu")
     else:
         triple = LLVMGetDefaultTargetTriple()
         assert strlen(triple) < sizeof target.triple
-        strcpy(&target.triple[0], triple)
+        strcpy(target.triple, triple)
         LLVMDisposeMessage(triple)
 
     error: byte* = NULL
-    if LLVMGetTargetFromTriple(&target.triple[0], &target.target, &error):
+    if LLVMGetTargetFromTriple(target.triple, &target.target, &error):
         assert error != NULL
-        fprintf(stderr, "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", &target.triple[0], error)
+        fprintf(stderr, "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", target.triple, error)
         exit(1)
     assert error == NULL
     assert target.target != NULL
 
     target.target_machine = LLVMCreateTargetMachine(
         target.target,
-        &target.triple[0],
+        target.triple,
         "x86-64",
         "",
         LLVMCodeGenOptLevel::Default,
@@ -67,5 +67,5 @@ def init_target() -> void:
 
     tmp = LLVMCopyStringRepOfTargetData(target.target_data)
     assert strlen(tmp) < sizeof target.data_layout
-    strcpy(&target.data_layout[0], tmp)
+    strcpy(target.data_layout, tmp)
     LLVMDisposeMessage(tmp)
