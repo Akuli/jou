@@ -683,9 +683,9 @@ static const Type *typecheck_indexing(
         cast_array_to_pointer(types);
         ptrtype = types->implicit_cast_type;
     } else {
+        if (types->type->kind != TYPE_POINTER)
+            fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", types->type->name);
         ptrtype = types->type;
-        if (ptrtype->kind != TYPE_POINTER)
-            fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", ptrtype->name);
     }
     assert(ptrtype->kind == TYPE_POINTER);
 
