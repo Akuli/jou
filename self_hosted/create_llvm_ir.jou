@@ -74,7 +74,6 @@ def class_type_to_llvm(fields: ClassField*, nfields: int) -> LLVMType*:
 
     # Combine together fields of the same union.
     combined_len = 0
-    end: int
     for start = 0; start < nfields; start = end:
         end = start + 1
         while end < nfields and fields[start].union_id == fields[end].union_id:
@@ -86,6 +85,8 @@ def class_type_to_llvm(fields: ClassField*, nfields: int) -> LLVMType*:
     return result
 
 def type_to_llvm(type: Type*) -> LLVMType*:
+    if type == &bool_type:
+        return LLVMInt1Type()
     if type->is_integer_type():
         return LLVMIntType(type->size_in_bits)
     if type->kind == TypeKind::Pointer:
@@ -114,6 +115,10 @@ class AstToIR:
     llvm_function: LLVMValue*
     local_vars: LocalVarNameAndPointer*
     n_local_vars: int
+
+    break_stack: LLVMBasicBlock**
+    continue_stack: LLVMBasicBlock**
+    nested_loop_count: int  # number of items in break/continue stacks
 
     def get_local_var_pointer(self, name: byte*) -> LLVMValue*:
         for i = 0; i < self->n_local_vars; i++:
@@ -454,7 +459,7 @@ class AstToIR:
 
         elif ast->kind == AstExpressionKind::GetVariable:
             pointer = self->do_address_of_expression(ast)
-            result = LLVMBuildLoad(self->builder, pointer, "class_field")
+            result = LLVMBuildLoad(self->builder, pointer, &ast->varname[0])
 
         elif ast->kind == AstExpressionKind::AddressOf:
             result = self->do_address_of_expression(&ast->operands[0])
@@ -506,6 +511,46 @@ class AstToIR:
         LLVMBuildBr(self->builder, done)
         LLVMPositionBuilderAtEnd(self->builder, done)
 
+    # for init; cond; incr:
+    #     ...body...
+    #
+    # While loop is basically a special case of for loop, so it uses this too.
+    def do_loop(self, init: AstStatement*, cond: AstExpression*, incr: AstStatement*, body: AstBody*) -> void:
+        cond_block = LLVMAppendBasicBlock(self->llvm_function, "loop_cond")
+        body_block = LLVMAppendBasicBlock(self->llvm_function, "loop_body")
+        incr_block = LLVMAppendBasicBlock(self->llvm_function, "loop_incr")
+        done_block = LLVMAppendBasicBlock(self->llvm_function, "loop_done")
+
+        if init != NULL:
+            self->do_statement(init)
+        LLVMBuildBr(self->builder, cond_block)
+
+        # cond_block: evaluate condition, jump to body or skip to done
+        LLVMPositionBuilderAtEnd(self->builder, cond_block)
+        condition = self->do_expression(cond)
+        LLVMBuildCondBr(self->builder, condition, body_block, done_block)
+
+        # body_block: 'break' skips to after loop, 'continue' goes to incr (also goes to incr at end)
+        LLVMPositionBuilderAtEnd(self->builder, body_block)
+        self->break_stack = realloc(self->break_stack, (self->nested_loop_count + 1) * sizeof self->break_stack[0])
+        self->break_stack[self->nested_loop_count] = done_block
+        self->continue_stack = realloc(self->continue_stack, (self->nested_loop_count + 1) * sizeof self->continue_stack[0])
+        self->continue_stack[self->nested_loop_count] = incr_block
+
+        self->nested_loop_count++
+        self->do_body(body)
+        self->nested_loop_count--
+        LLVMBuildBr(self->builder, incr_block)
+
+        # incr_block: run incr and go back to start
+        LLVMPositionBuilderAtEnd(self->builder, incr_block)
+        if incr != NULL:
+            self->do_statement(incr)
+        LLVMBuildBr(self->builder, cond_block)
+
+        # rest of the function/method goes to done block
+        LLVMPositionBuilderAtEnd(self->builder, done_block)
+
     def do_statement(self, ast: AstStatement*) -> void:
         if ast->kind == AstStatementKind::ExpressionStatement:
             self->do_expression(&ast->expression)
@@ -531,6 +576,10 @@ class AstToIR:
                 LLVMBuildStore(self->builder, value, target_pointer)
         elif ast->kind == AstStatementKind::If:
             self->do_if_statement(&ast->if_statement)
+        elif ast->kind == AstStatementKind::WhileLoop:
+            self->do_loop(NULL, &ast->while_loop.condition, NULL, &ast->while_loop.body)
+        elif ast->kind == AstStatementKind::ForLoop:
+            self->do_loop(ast->for_loop.init, &ast->for_loop.cond, ast->for_loop.incr, &ast->for_loop.body)
         else:
             printf("create_llvm_ir: unknown statement kind %d...\n", ast->kind)
             assert False

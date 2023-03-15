@@ -944,6 +944,22 @@ class Stage3TypeChecker:
                 self->do_body(&statement->if_statement.if_and_elifs[i].body)
             self->do_body(&statement->if_statement.else_body)
 
+        elif statement->kind == AstStatementKind::WhileLoop:
+            self->do_expression_and_implicit_cast(
+                &statement->while_loop.condition, &bool_type,
+                "'while' condition must be a boolean, not <from>",
+            )
+            self->do_body(&statement->while_loop.body)
+
+        elif statement->kind == AstStatementKind::ForLoop:
+            self->do_statement(statement->for_loop.init)
+            self->do_expression_and_implicit_cast(
+                &statement->for_loop.cond, &bool_type,
+                "'for' condition must be a boolean, not <from>",
+            )
+            self->do_body(&statement->for_loop.body)
+            self->do_statement(statement->for_loop.incr)
+
         else:
             printf("*** typecheck: unknown statement kind %d\n", statement->kind)
             assert False
