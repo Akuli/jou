@@ -689,11 +689,6 @@ class AstFunctionOrMethod:
         self->signature.free()
         self->body.free()
 
-enum AstClassMemberKind:
-    Field
-    Union
-    Method
-
 class AstUnionFields:
     fields: AstNameTypeValue*
     nfields: int
@@ -708,6 +703,11 @@ class AstUnionFields:
         for i = 0; i < self->nfields; i++:
             self->fields[i].free()
         free(self->fields)
+
+enum AstClassMemberKind:
+    Field
+    Union
+    Method
 
 class AstClassMember:
     kind: AstClassMemberKind
