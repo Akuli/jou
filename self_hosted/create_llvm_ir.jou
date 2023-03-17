@@ -287,6 +287,9 @@ class AstToIR:
         printf("%s %d %s\n", lhs_type->name, op, rhs_type->name)
         assert False
 
+    def do_pass(self) -> void:
+        return
+    
     def do_assert(self, condition: LLVMValue*) -> void:
         true_block = LLVMAppendBasicBlock(self->llvm_function, "assert_true")
         false_block = LLVMAppendBasicBlock(self->llvm_function, "assert_false")
@@ -566,6 +569,8 @@ class AstToIR:
         elif ast->kind == AstStatementKind::Assert:
             condition = self->do_expression(&ast->expression)
             self->do_assert(condition)
+        elif ast->kind == AstStatementKind::Pass:
+            self->do_pass()
         elif ast->kind == AstStatementKind::Assign:
             target_pointer = self->do_address_of_expression(&ast->assignment.target)
             value = self->do_expression(&ast->assignment.value)

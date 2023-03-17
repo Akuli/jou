@@ -349,6 +349,7 @@ class AstInstantiation:
 enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
     Assert
+    Pass
     Return
     If
     WhileLoop
@@ -373,6 +374,7 @@ class AstStatement:
         while_loop: AstConditionAndBody
         for_loop: AstForLoop
         return_value: AstExpression*     # can be NULL
+        pass_keyword: AstPass
         assignment: AstAssignment
         var_declaration: AstNameTypeValue  # DeclareLocalVar
 
@@ -383,6 +385,9 @@ class AstStatement:
             self->expression.print(tp.print_prefix(True))
         elif self->kind == AstStatementKind::Assert:
             printf("assert\n")
+            self->expression.print(tp.print_prefix(True))
+        elif self->kind == AstStatementKind::Pass:
+            printf("pass\n")
             self->expression.print(tp.print_prefix(True))
         elif self->kind == AstStatementKind::Return:
             printf("return\n")
@@ -481,6 +486,13 @@ class AstIfStatement:
             self->if_and_elifs[i].free()
         free(self->if_and_elifs)
         self->else_body.free()
+
+class AstPass:
+    # ...:
+    #   pass
+    # Do nothing here
+    def free(self) -> void:
+        return
 
 class AstForLoop:
     # for init; cond; incr:
