@@ -222,7 +222,7 @@ static bool is_keyword(const char *s)
         "import", "def", "declare", "class", "union", "enum", "global",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL", "self",
-        "and", "or", "not", "as", "sizeof", "assert",
+        "and", "or", "not", "as", "sizeof", "assert", "pass",
         "void", "noreturn",
         "bool", "byte", "int", "long", "float", "double",
     };
