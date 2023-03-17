@@ -710,7 +710,6 @@ static AstStatement parse_oneline_statement(const Token **tokens)
     } else if (is_keyword(*tokens, "pass")) {
         ++*tokens;
         result.kind = AST_STMT_PASS;
-        result.data.expression = parse_expression(tokens);
     } else if (is_keyword(*tokens, "break")) {
         ++*tokens;
         result.kind = AST_STMT_BREAK;
