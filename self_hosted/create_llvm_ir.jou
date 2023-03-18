@@ -570,7 +570,7 @@ class AstToIR:
             condition = self->do_expression(&ast->expression)
             self->do_assert(condition)
         elif ast->kind == AstStatementKind::Pass:
-            self->do_pass()
+            pass
         elif ast->kind == AstStatementKind::Assign:
             target_pointer = self->do_address_of_expression(&ast->assignment.target)
             value = self->do_expression(&ast->assignment.value)
