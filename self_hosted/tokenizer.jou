@@ -319,7 +319,7 @@ class Tokenizer:
                     result[len++] = b
                 elif after_backslash == '\n':
                     # \ at end of line, string continues on next line
-                    len = len  # TODO: pass statement
+                    pass
                 else:
                     if after_backslash < 0x80 and isprint(after_backslash) != 0:
                         message: byte* = malloc(100)
