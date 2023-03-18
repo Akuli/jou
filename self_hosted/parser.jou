@@ -553,7 +553,7 @@ def parse_oneline_statement(tokens: Token**) -> AstStatement:
         result.expression = parse_expression(tokens)
     elif (*tokens)->is_keyword("pass"):
         ++*tokens
-        result.kind = AstStatementKind::Break
+        result.kind = AstStatementKind::Pass
     elif (*tokens)->is_keyword("break"):
         ++*tokens
         result.kind = AstStatementKind::Break
