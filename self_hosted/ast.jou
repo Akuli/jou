@@ -374,7 +374,6 @@ class AstStatement:
         while_loop: AstConditionAndBody
         for_loop: AstForLoop
         return_value: AstExpression*     # can be NULL
-        pass_keyword: AstPass
         assignment: AstAssignment
         var_declaration: AstNameTypeValue  # DeclareLocalVar
 
@@ -485,14 +484,6 @@ class AstIfStatement:
             self->if_and_elifs[i].free()
         free(self->if_and_elifs)
         self->else_body.free()
-
-class AstPass:
-    # ... cond:
-    #   pass
-    # We should do nothing here...    
-    
-    def free(self) -> void:
-        return
 
 class AstForLoop:
     # for init; cond; incr:
