@@ -349,6 +349,7 @@ class AstInstantiation:
 enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
     Assert
+    Pass
     Return
     If
     WhileLoop
@@ -384,6 +385,8 @@ class AstStatement:
         elif self->kind == AstStatementKind::Assert:
             printf("assert\n")
             self->expression.print(tp.print_prefix(True))
+        elif self->kind == AstStatementKind::Pass:
+            printf("pass\n")
         elif self->kind == AstStatementKind::Return:
             printf("return\n")
             if self->return_value != NULL:

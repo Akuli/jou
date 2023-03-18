@@ -272,6 +272,7 @@ struct AstStatement {
     enum AstStatementKind {
         AST_STMT_RETURN,
         AST_STMT_ASSERT,
+        AST_STMT_PASS,
         AST_STMT_IF,
         AST_STMT_WHILE,
         AST_STMT_FOR,

@@ -1250,6 +1250,9 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
     case AST_STMT_ASSERT:
         typecheck_expression_with_implicit_cast(ft, &stmt->data.expression, boolType, "assertion must be a boolean, not FROM");
         break;
+
+    case AST_STMT_PASS:
+        break;
     }
 }
 

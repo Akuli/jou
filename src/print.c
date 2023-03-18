@@ -362,6 +362,9 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
         case AST_STMT_CONTINUE:
             printf("continue\n");
             break;
+        case AST_STMT_PASS:
+            printf("pass\n");
+            break;
         case AST_STMT_DECLARE_LOCAL_VAR:
             printf("declare local var %s: ", stmt->data.vardecl.name);
             print_ast_type(&stmt->data.vardecl.type);

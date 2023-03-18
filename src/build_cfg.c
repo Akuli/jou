@@ -816,6 +816,9 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         build_assert(st, &stmt->data.expression);
         break;
 
+    case AST_STMT_PASS: // Do nothing here
+        break;
+
     case AST_STMT_WHILE:
         build_loop(
             st, NULL, &stmt->data.whileloop.condition, NULL,

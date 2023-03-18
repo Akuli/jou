@@ -551,6 +551,9 @@ def parse_oneline_statement(tokens: Token**) -> AstStatement:
         ++*tokens
         result.kind = AstStatementKind::Assert
         result.expression = parse_expression(tokens)
+    elif (*tokens)->is_keyword("pass"):
+        ++*tokens
+        result.kind = AstStatementKind::Pass
     elif (*tokens)->is_keyword("break"):
         ++*tokens
         result.kind = AstStatementKind::Break
