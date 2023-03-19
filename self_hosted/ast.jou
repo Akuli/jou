@@ -75,6 +75,7 @@ class TreePrinter:
 enum AstExpressionKind:
     String
     Int
+    Short
     Long
     Byte
     Bool
@@ -121,6 +122,7 @@ class AstExpression:
         class_field: AstClassField
         string: byte*
         int_value: int
+        short_value: short
         long_value: long
         byte_value: byte
         bool_value: bool
@@ -142,6 +144,8 @@ class AstExpression:
                 else:
                     printf("\\x%02x", *s)
             printf("\"\n")
+        elif self->kind == AstExpressionKind::Short:
+            printf("%hd (16-bit signed)\n", self->short_value)
         elif self->kind == AstExpressionKind::Int:
             printf("%d (32-bit signed)\n", self->int_value)
         elif self->kind == AstExpressionKind::Long:

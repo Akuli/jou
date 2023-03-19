@@ -8,6 +8,7 @@ declare isprint(b: int) -> int
 
 
 enum TokenKind:
+    Short
     Int
     Long
     Float
@@ -27,6 +28,7 @@ class Token:
     location: Location
 
     union:
+        short_value: short      # Short
         int_value: int          # Int
         long_value: long        # Long
         byte_value: byte        # Byte
@@ -40,6 +42,8 @@ class Token:
             if isprint(self->byte_value) != 0:
                 printf(" '%c'", self->byte_value)
             printf("\n")
+        elif self->kind == TokenKind::Short:
+            printf("shorter %hd\n", self->short_value)
         elif self->kind == TokenKind::Int:
             printf("integer %d\n", self->int_value)
         elif self->kind == TokenKind::Long:
@@ -99,7 +103,9 @@ class Token:
 
     def fail_expected_got(self, what_was_expected_instead: byte*) -> void:
         got: byte[100]
-        if self->kind == TokenKind::Int:
+        if self->kind == TokenKind::Short:
+            strcpy(got, "a shorter")
+        elif self->kind == TokenKind::Int:
             strcpy(got, "an integer")
         elif self->kind == TokenKind::Long:
             strcpy(got, "a long integer")

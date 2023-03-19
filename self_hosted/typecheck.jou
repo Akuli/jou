@@ -211,6 +211,8 @@ def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
         fail(ast_type->location, "'noreturn' cannot be used here because it is not a type")
 
     if ast_type->kind == AstTypeKind::Named:
+        if strcmp(ast_type->name, "short") == 0:
+            return short_type
         if strcmp(ast_type->name, "int") == 0:
             return int_type
         if strcmp(ast_type->name, "long") == 0:
@@ -381,6 +383,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
     # Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
     if (
         expr->kind == AstExpressionKind::String
+        or expr->kind == AstExpressionKind::Short
         or expr->kind == AstExpressionKind::Int
         or expr->kind == AstExpressionKind::Long
         or expr->kind == AstExpressionKind::Byte
@@ -747,6 +750,8 @@ class Stage3TypeChecker:
             result = &bool_type
         elif expression->kind == AstExpressionKind::Byte:
             result = byte_type
+        elif expression->kind == AstExpressionKind::Short:
+            result = short_type
         elif expression->kind == AstExpressionKind::Int:
             result = int_type
         elif expression->kind == AstExpressionKind::Long:

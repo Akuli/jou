@@ -93,6 +93,7 @@ global void_ptr_type: Type
 
 # TODO: it seems weird in other files these are pointers but bool_type isn't
 global byte_type: Type*
+global short_type: Type*
 global int_type: Type*
 global long_type: Type*
 
@@ -112,10 +113,12 @@ def init_types() -> void:
         unsigned_integers[size].size_in_bits = size
 
     byte_type = &unsigned_integers[8]
+    short_type = &signed_intergers[16]
     int_type = &signed_integers[32]
     long_type = &signed_integers[64]
 
     strcpy(byte_type->name, "byte")
+    strcpy(short_type->name, "short")
     strcpy(int_type->name, "int")
     strcpy(long_type->name, "long")
 

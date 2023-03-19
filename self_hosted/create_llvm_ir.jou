@@ -373,6 +373,8 @@ class AstToIR:
             result = LLVMConstInt(LLVMInt1Type(), ast->bool_value as long, False)
         elif ast->kind == AstExpressionKind::Byte:
             result = LLVMConstInt(LLVMInt8Type(), ast->byte_value, False)
+        elif ast->kind == AstExpressionKind::Short:
+            result = LLVMConstInt(LLVMInt16Type(), ast->short_value, False)
         elif ast->kind == AstExpressionKind::Int:
             result = LLVMConstInt(LLVMInt32Type(), ast->int_value, False)
         elif ast->kind == AstExpressionKind::Long:
