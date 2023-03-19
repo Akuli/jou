@@ -221,7 +221,11 @@ def parse_instantiation(tokens: Token**) -> AstInstantiation:
 def parse_elementary_expression(tokens: Token**) -> AstExpression:
     expr = AstExpression{location = (*tokens)->location}
 
-    if (*tokens)->kind == TokenKind::Int:
+    if (*tokens)->kind == TokenKind::Short:
+        expr.kind = AstExpressionKind::Short
+        expr.short_value = (*tokens)->short_value
+        ++*tokens
+    elif (*tokens)->kind == TokenKind::Int:
         expr.kind = AstExpressionKind::Int
         expr.int_value = (*tokens)->int_value
         ++*tokens

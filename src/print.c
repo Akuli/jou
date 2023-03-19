@@ -58,6 +58,9 @@ static void print_constant(const Constant *c)
 void print_token(const Token *token)
 {
     switch(token->type) {
+    case TOKEN_SHORT:
+        printf("short %hd\n", (short)token->data.short_value);
+        break;
     case TOKEN_INT:
         printf("integer %d\n", (int)token->data.int_value);
         break;

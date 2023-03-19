@@ -26,7 +26,7 @@ def is_keyword(word: byte*) -> bool:
         "True", "False", "NULL", "self",
         "and", "or", "not", "as", "sizeof", "assert",
         "void", "noreturn",
-        "bool", "byte", "int", "long", "float", "double",
+        "bool", "byte", "short", "int", "long", "float", "double",
     ]
 
     for i = 0; i < sizeof keywords / sizeof keywords[0]; i++:
@@ -87,8 +87,11 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
             break
         result += hexdigit_value(digits[i])
 
-    assert nbits == 32 or nbits == 64
+    assert nbits == 16 or nbits == 32 or nbits == 64
     if nbits == 32 and (result as int) != result:
+        overflow = True
+        
+    if nbits == 16 and (result as short) != result:
         overflow = True
 
     if overflow:
@@ -429,6 +432,10 @@ class Tokenizer:
                         token.short_string[strlen(token.short_string) - 1] = '\0'
                         token.kind = TokenKind::Long
                         token.long_value = parse_integer(token.short_string, token.location, 64)
+                    elif token.short_string[strlen(token.short_string) - 1] == 'S':
+                        token.short_string[strlen(token.short_string) - 1] = '\0'
+                        token.kind = TokenKind::Short
+                        token.short_value = parse_integer(token.short_string, token.location, 16) as short
                     else:
                         token.kind = TokenKind::Int
                         token.int_value = parse_integer(token.short_string, token.location, 32) as int
