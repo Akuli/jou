@@ -104,7 +104,7 @@ class Token:
     def fail_expected_got(self, what_was_expected_instead: byte*) -> void:
         got: byte[100]
         if self->kind == TokenKind::Short:
-            strcpy(got, "a shorter")
+            strcpy(got, "a short")
         elif self->kind == TokenKind::Int:
             strcpy(got, "an integer")
         elif self->kind == TokenKind::Long:
