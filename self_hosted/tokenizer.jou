@@ -87,7 +87,7 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
             break
         result += hexdigit_value(digits[i])
 
-    assert nbits == 32 or nbits == 64
+    assert nbits == 16 or nbits == 32 or nbits == 64
     if nbits == 32 and (result as int) != result:
         overflow = True
 
