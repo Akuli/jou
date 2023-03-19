@@ -60,6 +60,7 @@ void print_token(const Token *token)
     switch(token->type) {
     case TOKEN_SHORT:
         printf("shorter %hd \n", (short)token->data.short_value);
+        break;
     case TOKEN_INT:
         printf("integer %d\n", (int)token->data.int_value);
         break;

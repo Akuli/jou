@@ -764,13 +764,6 @@ static void build_assert(struct State *st, const AstExpression *cond)
     st->current_block = trueblock;
 }
 
-/*
-static void build_pass(struct State *st, const AstExpression *cond)
-{
-
-}
-*/
-
 static void build_statement(struct State *st, const AstStatement *stmt);
 
 // for init; cond; incr:
