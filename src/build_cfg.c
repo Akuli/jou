@@ -712,25 +712,19 @@ static char *read_assertion_from_file(Location start, Location end)
         if (strstr(line, "#"))
             *strstr(line, "#") = '\0';
         trim_whitespace(line);
-        if (str.len != 0)
-            Append(&str, ' ');
+        // Add spaces between the lines, but not after '(' or before ')'
+        if (line[0] != ')' && str.len >= 1 && str.ptr[str.len-1] != '(')
+            AppendStr(&str, " ");
         AppendStr(&str, line);
     }
 
     fclose(f);
     Append(&str, '\0');
-    char *p = str.ptr;
 
-    if(!strncmp(p, "assert",6))
-        memmove(p, &p[6], strlen(&p[6]) + 1);
-
-    trim_whitespace(p);
-    while (p[0]=='(' && p[strlen(p)-1]==')') {
-        p[strlen(p)-1] = '\0';
-        memmove(p, &p[1], strlen(&p[1]) + 1);
-        trim_whitespace(p);
-    }
-    return p;
+    if(!strncmp(str.ptr, "assert",6))
+        memmove(str.ptr, &str.ptr[6], strlen(&str.ptr[6]) + 1);
+    trim_whitespace(str.ptr);
+    return str.ptr;
 }
 
 static void build_assert(struct State *st, Location assert_location, const AstAssert *assertion)
