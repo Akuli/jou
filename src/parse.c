@@ -375,6 +375,8 @@ static AstExpression parse_elementary_expression(const Token **tokens)
     case TOKEN_SHORT:
         expr.kind = AST_EXPR_CONSTANT;
         expr.data.constant = int_constant(shortType, (*tokens)->data.short_value);
+        ++*tokens;
+        break;
     case TOKEN_INT:
         expr.kind = AST_EXPR_CONSTANT;
         expr.data.constant = int_constant(intType, (*tokens)->data.int_value);
