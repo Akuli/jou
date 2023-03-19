@@ -816,7 +816,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         build_assert(st, &stmt->data.expression);
         break;
 
-    case AST_STMT_PASS: // It doesn't require any expression, but if you don't give it a expression, it will raise error.
+    case AST_STMT_PASS:
         break;
 
     case AST_STMT_WHILE:
