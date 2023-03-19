@@ -42,6 +42,9 @@ Jou has a few different kinds of tokens:
     This is because in C, `0123` is somewhat surprisingly same as `83`, because the extra `0` makes it an octal number.
     Jou uses an explicit `0o` prefix for octal numbers, similarly to Python.
 
+- **Short literals** are just like in literals, except that they have an extra `S` at the end (e.g. `114S`),
+    The `S` must be uppercase.
+
 - **Long literals** are just like int literals, except that they have an extra `L` at the end (e.g. `123L`),
     and they only need to fit in a signed 64-bit integer (Jou `long`).
     The `L` must be uppercase.
@@ -92,11 +95,11 @@ Jou has a few different kinds of tokens:
     - `as`
     - `sizeof`
     - `assert`
-    - `pass`
     - `void`
     - `noreturn`
     - `bool`
     - `byte`
+    - `short`
     - `int`
     - `long`
     - `float`

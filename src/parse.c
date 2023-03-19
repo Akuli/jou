@@ -14,6 +14,7 @@ static noreturn void fail_with_parse_error(const Token *token, const char *what_
 {
     char got[200];
     switch(token->type) {
+        case TOKEN_SHORT: strcpy(got, "a shorter"); break;
         case TOKEN_INT: strcpy(got, "an integer"); break;
         case TOKEN_LONG: strcpy(got, "a long integer"); break;
         case TOKEN_FLOAT: strcpy(got, "a float constant"); break;
@@ -47,6 +48,7 @@ static AstType parse_type(const Token **tokens)
 
     if (!is_keyword(*tokens, "void")
         && !is_keyword(*tokens, "noreturn")
+        && !is_keyword(*tokens, "short")
         && !is_keyword(*tokens, "int")
         && !is_keyword(*tokens, "long")
         && !is_keyword(*tokens, "byte")
@@ -370,6 +372,9 @@ static AstExpression parse_elementary_expression(const Token **tokens)
             goto not_an_expression;
         }
         break;
+    case TOKEN_SHORT:
+        expr.kind = AST_EXPR_CONSTANT;
+        expr.data.constant = int_constant(shortType, (*tokens)->data.short_value);
     case TOKEN_INT:
         expr.kind = AST_EXPR_CONSTANT;
         expr.data.constant = int_constant(intType, (*tokens)->data.int_value);

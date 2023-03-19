@@ -764,6 +764,13 @@ static void build_assert(struct State *st, const AstExpression *cond)
     st->current_block = trueblock;
 }
 
+/*
+static void build_pass(struct State *st, const AstExpression *cond)
+{
+
+}
+*/
+
 static void build_statement(struct State *st, const AstStatement *stmt);
 
 // for init; cond; incr:
@@ -816,7 +823,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         build_assert(st, &stmt->data.expression);
         break;
 
-    case AST_STMT_PASS: // Do nothing here
+    case AST_STMT_PASS: // It doesn't require any expression, but if you don't give it a expression, it will raise error.
         break;
 
     case AST_STMT_WHILE:

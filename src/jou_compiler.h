@@ -74,6 +74,7 @@ struct Location {
 
 struct Token {
     enum TokenType {
+        TOKEN_SHORT,
         TOKEN_INT,
         TOKEN_LONG,
         TOKEN_FLOAT,
@@ -90,6 +91,7 @@ struct Token {
     } type;
     Location location;
     union {
+        int16_t short_value; // TOKEN_SHORT
         int32_t int_value;  // TOKEN_INT
         int64_t long_value;  // TOKEN_LONG
         char char_value;  // TOKEN_CHAR
@@ -402,6 +404,7 @@ compare types, because two different classes with the same members are
 not the same type.
 */
 extern const Type *boolType;      // bool
+extern const Type *shortType;     // short (16-bit signed)
 extern const Type *intType;       // int (32-bit signed)
 extern const Type *longType;      // long (64-bit signed)
 extern const Type *byteType;      // byte (8-bit unsigned)
