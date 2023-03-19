@@ -432,7 +432,7 @@ class Tokenizer:
                     elif token.short_string[strlen(token.short_string) - 1] == 'S':
                         token.short_string[strlen(token.short_string) - 1] = '\0'
                         token.kind = TokenKind::Short
-                        token.short_value = parse_integer(token.short_string, token.location, 16)
+                        token.short_value = parse_integer(token.short_string, token.location, 16) as short
                     else:
                         token.kind = TokenKind::Int
                         token.int_value = parse_integer(token.short_string, token.location, 32) as int
