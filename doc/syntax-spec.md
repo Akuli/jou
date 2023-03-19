@@ -83,6 +83,7 @@ Jou has a few different kinds of tokens:
     - `else`
     - `while`
     - `for`
+    - `pass`
     - `break`
     - `continue`
     - `True`
