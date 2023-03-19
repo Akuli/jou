@@ -90,6 +90,9 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
     assert nbits == 16 or nbits == 32 or nbits == 64
     if nbits == 32 and (result as int) != result:
         overflow = True
+        
+    if nbits == 16 and (result as short) != result:
+        overflow = True
 
     if overflow:
         message = malloc(100)
