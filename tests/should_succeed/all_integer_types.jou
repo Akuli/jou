@@ -1,0 +1,37 @@
+def main() -> int:
+    signed8 = -123 as signed byte
+    unsigned8 = 123 as byte
+    signed16 = -12345s
+    unsigned16 = 12345us
+    signed32 = -1234567890
+    unsigned32 = 1234567890u
+    signed64 = 1234567890123456789l
+    unsigned64 = 1234567890123456789ul
+
+    # Output: 11224488
+    printf(
+        "%lld%lld%lld%lld%lld%lld%lld%lld\n",
+        sizeof signed8, sizeof unsigned8,
+        sizeof signed16, sizeof unsigned16,
+        sizeof signed32, sizeof unsigned32,
+        sizeof signed64, sizeof unsigned64,
+    )
+
+    # Ensure that signed types are actually signed. Prefix minus fails for unsigned types.
+    a = -signed8
+    b = -signed16
+    c = -signed32
+    d = -signed64
+    printf("%d%d%d%d\n", a > 0, b > 0, c > 0, d > 0)  # Output: 1111
+
+    # Ensure that unsigned types are actually unsigned.
+    # Output: 1111
+    printf(
+        "%d%d%d%d\n",
+        -1 as byte > 0,
+        -1 as unsigned short > 0,
+        -1 as unsigned int > 0,
+        -1 as unsigned long > 0,
+    )
+
+    return 0
