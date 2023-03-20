@@ -281,6 +281,14 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
         expr.kind = AstExpressionKind::String
         expr.string = strdup((*tokens)->long_string)
         ++*tokens
+    elif (*tokens)->kind == TokenKind::Float:
+        expr.kind = AstExpressionKind::Float
+        expr.float_or_double_text = (*tokens)->short_string
+        ++*tokens
+    elif (*tokens)->kind == TokenKind::Double:
+        expr.kind = AstExpressionKind::Double
+        expr.float_or_double_text = (*tokens)->short_string
+        ++*tokens
     elif (*tokens)->is_keyword("True"):
         expr.kind = AstExpressionKind::Bool
         expr.bool_value = True

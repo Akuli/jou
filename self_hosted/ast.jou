@@ -83,6 +83,8 @@ enum AstExpressionKind:
     Short
     Long
     Byte
+    Float
+    Double
     Bool
     Null
     Array
@@ -137,6 +139,7 @@ class AstExpression:
         as_expression: AstAsExpression*  # Must be pointer, because it contains an AstExpression
         array: AstArray
         varname: byte[100]
+        float_or_double_text: byte[100]
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
 
     def print(self, tp: TreePrinter) -> void:
@@ -159,6 +162,10 @@ class AstExpression:
             printf("%lld (64-bit signed)\n", self->long_value)
         elif self->kind == AstExpressionKind::Byte:
             printf("%d (8-bit unsigned)\n", self->byte_value)
+        elif self->kind == AstExpressionKind::Float:
+            printf("float %s\n", self->float_or_double_text)
+        elif self->kind == AstExpressionKind::Double:
+            printf("double %s\n", self->float_or_double_text)
         elif self->kind == AstExpressionKind::Bool:
             if self->bool_value:
                 printf("True\n")
