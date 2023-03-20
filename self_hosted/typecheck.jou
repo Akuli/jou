@@ -34,7 +34,7 @@ def can_cast_implicitly(from: Type*, to: Type*) -> bool:
             from->is_integer_type()
             and to->is_integer_type()
             and from->size_in_bits < to->size_in_bits
-            and not (from->kind == TypeKind::SignedInteger and to->kind == TypeKind::SignedInteger)
+            and not (from->kind == TypeKind::SignedInteger and to->kind == TypeKind::UnsignedInteger)
         )
         or (from->is_pointer_type() and to->is_pointer_type() and (from == &void_ptr_type or to == &void_ptr_type))
     )
@@ -584,7 +584,10 @@ def check_binop(
         else:
             cast_type = &unsigned_integers[size]
     elif got_numbers:
-        assert False   # TODO: use float/double
+        if lhs_types->original_type == &double_type or rhs_types->original_type == &double_type:
+            cast_type = &double_type
+        else:
+            cast_type = &float_type
     elif got_pointers:
         cast_type = &void_ptr_type
     elif got_enums:
@@ -890,6 +893,14 @@ class Stage3TypeChecker:
                 expression->enum_member.enum_name,
                 expression->enum_member.member_name,
             )
+        elif expression->kind == AstExpressionKind::And:
+            self->do_expression_and_implicit_cast(&expression->operands[0], &bool_type, "'and' only works with booleans, not <from>")
+            self->do_expression_and_implicit_cast(&expression->operands[1], &bool_type, "'and' only works with booleans, not <from>")
+            result = &bool_type
+        elif expression->kind == AstExpressionKind::Or:
+            self->do_expression_and_implicit_cast(&expression->operands[0], &bool_type, "'or' only works with booleans, not <from>")
+            self->do_expression_and_implicit_cast(&expression->operands[1], &bool_type, "'or' only works with booleans, not <from>")
+            result = &bool_type
         elif (
             expression->kind == AstExpressionKind::Add
             or expression->kind == AstExpressionKind::Subtract
@@ -909,7 +920,7 @@ class Stage3TypeChecker:
         elif expression->kind == AstExpressionKind::Negate:
             result = self->do_expression(&expression->operands[0])->original_type
             # TODO: check for floats/doubles too
-            if result->kind != TypeKind::SignedInteger:
+            if result->kind != TypeKind::SignedInteger and result->kind != TypeKind::FloatingPoint:
                 snprintf(
                     message, sizeof message,
                     "value after '-' must be a float or double or a signed integer, not %s",
@@ -1061,7 +1072,7 @@ class Stage3TypeChecker:
             if ntv->value != NULL:
                 self->do_expression_and_implicit_cast(
                     ntv->value, type,
-                    "initial value for variable of type TO cannot be of type FROM",
+                    "initial value for variable of type <to> cannot be of type <from>",
                 )
 
         elif statement->kind == AstStatementKind::If:

@@ -71,8 +71,7 @@ class Type:
         return self->kind == TypeKind::SignedInteger or self->kind == TypeKind::UnsignedInteger
 
     def is_number_type(self) -> bool:
-        # TODO: accept floats/doubles as numbers
-        return self->is_integer_type()
+        return self->is_integer_type() or self->kind == TypeKind::FloatingPoint
 
     def is_pointer_type(self) -> bool:
         return self->kind == TypeKind::Pointer or self->kind == TypeKind::VoidPointer
