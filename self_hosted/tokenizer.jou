@@ -495,11 +495,16 @@ class Tokenizer:
                 self->unread_byte(b)
                 token.kind = TokenKind::Operator
                 token.short_string = self->read_operator()
+            elif b == '\t':
+                fail(self->location, "Jou files cannot contain tab characters (use 4 spaces for indentation)")
             elif b == '\0':
                 token.kind = TokenKind::EndOfFile
             else:
                 message: byte[100]
-                sprintf(message, "unexpected byte %#02x", b)
+                if b < 0x80 and isprint(b) != 0:
+                    sprintf(message, "unexpected byte '%c' (%#02x)", b, b)
+                else:
+                    sprintf(message, "unexpected byte %#02x", b)
                 fail(self->location, message)
 
             self->handle_parentheses(&token)
