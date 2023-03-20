@@ -530,7 +530,7 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft)
         LLVMTypeRef t = codegen_type((*v)->type);
         LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
         if ((*v)->defined_in_current_file)
-            LLVMSetInitializer(globalptr, LLVMGetUndef(t));
+            LLVMSetInitializer(globalptr, LLVMConstNull(t));
     }
 
     for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
