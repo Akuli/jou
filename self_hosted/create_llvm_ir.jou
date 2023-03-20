@@ -365,7 +365,7 @@ class AstToIR:
             )
 
         if ast->kind == AstExpressionKind::Indexing:
-            # &pointer[index] = pointer + some offset = a weird GEP operation
+            # &pointer[index] = pointer + some offset
             pointer = self->do_expression(&ast->operands[0])
             index = self->do_expression(&ast->operands[1])
             return LLVMBuildGEP(self->builder, pointer, &index, 1, "indexing_ptr")
