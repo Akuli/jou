@@ -250,10 +250,10 @@ def parse_array(tokens: Token**) -> AstArray:
             break
         ++*tokens
 
-    # TODO: error for empty array
-
     if not (*tokens)->is_operator("]"):
         (*tokens)->fail_expected_got("a ']' to end the array")
+    if result.length == 0:
+        fail((*tokens)->location, "arrays cannot be empty")
     ++*tokens
 
     return result
