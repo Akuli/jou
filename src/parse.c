@@ -338,6 +338,9 @@ static AstExpression parse_array(const Token **tokens)
     assert(is_operator(openbracket, "["));
     ++*tokens;
 
+    if (is_operator(*tokens, "]"))
+        fail_with_error((*tokens)->location, "arrays cannot be empty");
+
     List(AstExpression) items = {0};
     do {
         Append(&items, parse_expression(tokens));
