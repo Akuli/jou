@@ -332,6 +332,7 @@ class AstToIR:
     def do_address_of_expression(self, ast: AstExpression*) -> LLVMValue*:
         if ast->kind == AstExpressionKind::GetVariable:
             return self->get_local_var_pointer(ast->varname)
+
         if ast->kind == AstExpressionKind::GetClassField:
             lhs_type = self->function_or_method_types->get_expression_types(ast->class_field.instance)->original_type
 
@@ -363,11 +364,29 @@ class AstToIR:
                 "struct_member_cast",
             )
 
-        printf("kind: %d\n", ast->kind)
+        if ast->kind == AstExpressionKind::Indexing:
+            # &pointer[index] = pointer + some offset = a weird GEP operation
+            pointer = self->do_expression(&ast->operands[0])
+            index = self->do_expression(&ast->operands[1])
+            return LLVMBuildGEP(self->builder, pointer, &index, 1, "indexing_ptr")
+
+        printf("expression kind (taking address): %d\n", ast->kind)
         assert False
 
     def do_expression(self, ast: AstExpression*) -> LLVMValue*:
-        type = self->function_or_method_types->get_expression_types(ast)->original_type
+        printf("Do expression\n")
+        ast->print(TreePrinter{})
+        types = self->function_or_method_types->get_expression_types(ast)
+        if types != NULL and types->implicit_array_to_pointer_cast:
+            printf("  asd\n")
+            pointer_to_array = self->do_address_of_expression(ast)
+            printf("  asd2\n")
+            return LLVMBuildBitCast(
+                self->builder,
+                pointer_to_array,
+                type_to_llvm(types->implicit_cast_type),
+                "array_to_ptr_cast",
+            )
 
         if ast->kind == AstExpressionKind::String:
             result = self->make_a_string_constant(ast->string)
@@ -382,7 +401,7 @@ class AstToIR:
         elif ast->kind == AstExpressionKind::Long:
             result = LLVMConstInt(LLVMInt64Type(), ast->long_value, False)
         elif ast->kind == AstExpressionKind::Null:
-            result = LLVMConstNull(type_to_llvm(type))
+            result = LLVMConstNull(type_to_llvm(types->original_type))
 
         elif ast->kind == AstExpressionKind::FunctionCall:
             sig = self->file_types->find_function(ast->call.called_name)
@@ -416,8 +435,9 @@ class AstToIR:
 
         elif ast->kind == AstExpressionKind::As:
             value = self->do_expression(&ast->as_expression->value)
-            type_before_cast = self->function_or_method_types->get_expression_types(&ast->as_expression->value)->original_type
+            type_before_cast = self->function_or_method_types->get_expression_types(&ast->as_expression->value)->get_type_after_implicit_cast()
             type_after_cast = self->function_or_method_types->get_expression_types(ast)->original_type
+            printf("As Cast\n")
             result = self->do_cast(value, type_before_cast, type_after_cast)
 
         elif ast->kind == AstExpressionKind::Negate:
@@ -462,7 +482,7 @@ class AstToIR:
             assert field != NULL
             result = LLVMBuildExtractValue(self->builder, instance, field->union_id, field->name)
 
-        elif ast->kind == AstExpressionKind::GetVariable:
+        elif ast->kind == AstExpressionKind::GetVariable or ast->kind == AstExpressionKind::Indexing:
             pointer = self->do_address_of_expression(ast)
             result = LLVMBuildLoad(self->builder, pointer, ast->varname)
 
@@ -488,6 +508,9 @@ class AstToIR:
             rhs_type = self->function_or_method_types->get_expression_types(&ast->operands[1])->original_type
             result = self->do_binop(ast->kind, lhs, lhs_type, rhs, rhs_type)
 
+        elif ast->kind == AstExpressionKind::Array:
+            return LLVMConstNull(type_to_llvm(types->original_type))  # TODO: set individual elements
+
         else:
             printf("create_llvm_ir: unknown expression kind %d...\n", ast->kind)
             assert False
@@ -495,7 +518,11 @@ class AstToIR:
         types = self->function_or_method_types->get_expression_types(ast)
         if types->implicit_cast_type == NULL:
             return result
-        return self->do_cast(result, types->original_type, types->implicit_cast_type)
+        printf("  ...Time for final cast... ")
+        fflush(stdout)
+        result = self->do_cast(result, types->original_type, types->implicit_cast_type)
+        printf("  ...Final Cast OK!!!!\n")
+        return result
 
     def do_if_statement(self, ast: AstIfStatement*) -> void:
         assert ast->n_if_and_elifs >= 1
