@@ -87,6 +87,10 @@ def class_type_to_llvm(fields: ClassField*, nfields: int) -> LLVMType*:
 def type_to_llvm(type: Type*) -> LLVMType*:
     if type == &bool_type:
         return LLVMInt1Type()
+    if type == &float_type:
+        return LLVMFloatType()
+    if type == &double_type:
+        return LLVMDoubleType()
     if type->is_integer_type():
         return LLVMIntType(type->size_in_bits)
     if type->kind == TypeKind::Pointer:
@@ -188,6 +192,9 @@ class AstToIR:
             # True --> 1, False --> 0
             return LLVMBuildZExt(self->builder, obj, type_to_llvm(to), "cast_bool_to_int")
 
+        if from->kind == TypeKind::FloatingPoint and to->kind == TypeKind::FloatingPoint:
+            return LLVMBuildFPCast(self->builder, obj, type_to_llvm(to), "cast_float_double")
+
         printf("unimplemented cast: %s --> %s\n", from->name, to->name)
         assert False
 
@@ -208,30 +215,30 @@ class AstToIR:
         got_pointers = lhs_type->is_pointer_type() and rhs_type->is_pointer_type()
         assert got_numbers or got_pointers
 
-#        if lhs_type->kind == TYPE_FLOATING_POINT and rhstype->kind == TYPE_FLOATING_POINT:
-#            if op == AstExpressionKind::Add:
-#                return LLVMBuildFAdd(self->builder, lhs, rhs, "add")
-#            if op == AstExpressionKind::Subtract:
-#                return LLVMBuildFSub(self->builder, lhs, rhs, "sub")
-#            if op == AstExpressionKind::Multiply:
-#                return LLVMBuildFMul(self->builder, lhs, rhs, "mul")
-#            if op == AstExpressionKind::Divide:
-#                return LLVMBuildFDiv(self->builder, lhs, rhs, "div")
-#            if op == AstExpressionKind::MOD:
-#                return LLVMBuildFRem(self->builder, lhs, rhs, "mod")
-#            if op == AstExpressionKind::Eq:
-#                return LLVMBuildFCmp(self->builder, LLVMRealOEQ, lhs, rhs, "eq")
-#            if op == AstExpressionKind::Ne:
-#                return LLVMBuildFCmp(self->builder, LLVMRealONE, lhs, rhs, "ne")
-#            if op == AstExpressionKind::Gt:
-#                return LLVMBuildFCmp(self->builder, LLVMRealOGT, lhs, rhs, "gt")
-#            if op == AstExpressionKind::Ge:
-#                return LLVMBuildFCmp(self->builder, LLVMRealOGE, lhs, rhs, "ge")
-#            if op == AstExpressionKind::Lt:
-#                return LLVMBuildFCmp(self->builder, LLVMRealOLT, lhs, rhs, "lt")
-#            if op == AstExpressionKind::Le:
-#                return LLVMBuildFCmp(self->builder, LLVMRealOLE, lhs, rhs, "le")
-#            assert False
+        if lhs_type->kind == TypeKind::FloatingPoint and rhs_type->kind == TypeKind::FloatingPoint:
+            if op == AstExpressionKind::Add:
+                return LLVMBuildFAdd(self->builder, lhs, rhs, "add")
+            if op == AstExpressionKind::Subtract:
+                return LLVMBuildFSub(self->builder, lhs, rhs, "sub")
+            if op == AstExpressionKind::Multiply:
+                return LLVMBuildFMul(self->builder, lhs, rhs, "mul")
+            if op == AstExpressionKind::Divide:
+                return LLVMBuildFDiv(self->builder, lhs, rhs, "div")
+            if op == AstExpressionKind::Modulo:
+                return LLVMBuildFRem(self->builder, lhs, rhs, "mod")
+            if op == AstExpressionKind::Eq:
+                return LLVMBuildFCmp(self->builder, LLVMRealPredicate::OEQ, lhs, rhs, "eq")
+            if op == AstExpressionKind::Ne:
+                return LLVMBuildFCmp(self->builder, LLVMRealPredicate::ONE, lhs, rhs, "ne")
+            if op == AstExpressionKind::Gt:
+                return LLVMBuildFCmp(self->builder, LLVMRealPredicate::OGT, lhs, rhs, "gt")
+            if op == AstExpressionKind::Ge:
+                return LLVMBuildFCmp(self->builder, LLVMRealPredicate::OGE, lhs, rhs, "ge")
+            if op == AstExpressionKind::Lt:
+                return LLVMBuildFCmp(self->builder, LLVMRealPredicate::OLT, lhs, rhs, "lt")
+            if op == AstExpressionKind::Le:
+                return LLVMBuildFCmp(self->builder, LLVMRealPredicate::OLE, lhs, rhs, "le")
+            assert False
 
         if lhs_type->is_integer_type() and rhs_type->is_integer_type():
             is_signed = lhs_type->kind == TypeKind::SignedInteger and rhs_type->kind == TypeKind::SignedInteger
@@ -509,6 +516,9 @@ class AstToIR:
             for i = 0; i < types->original_type->array.length; i++:
                 item = self->do_expression(&ast->array.items[i])
                 result = LLVMBuildInsertValue(self->builder, result, item, i, "array")
+
+        elif ast->kind == AstExpressionKind::Float or ast->kind == AstExpressionKind::Double:
+            result = LLVMConstRealOfString(type_to_llvm(types->original_type), ast->float_or_double_text)
 
         else:
             printf("create_llvm_ir: unknown expression kind %d...\n", ast->kind)
