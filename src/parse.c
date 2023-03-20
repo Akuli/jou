@@ -14,7 +14,7 @@ static noreturn void fail_with_parse_error(const Token *token, const char *what_
 {
     char got[200];
     switch(token->type) {
-        case TOKEN_SHORT: strcpy(got, "a shorter"); break;
+        case TOKEN_SHORT: strcpy(got, "a short"); break;
         case TOKEN_INT: strcpy(got, "an integer"); break;
         case TOKEN_LONG: strcpy(got, "a long integer"); break;
         case TOKEN_FLOAT: strcpy(got, "a float constant"); break;
@@ -713,7 +713,9 @@ static AstStatement parse_oneline_statement(const Token **tokens)
     } else if (is_keyword(*tokens, "assert")) {
         ++*tokens;
         result.kind = AST_STMT_ASSERT;
-        result.data.expression = parse_expression(tokens);
+        result.data.assertion.expression_start = (*tokens)->location;
+        result.data.assertion.expression = parse_expression(tokens);
+        result.data.assertion.expression_end = (*tokens)->location;
     } else if (is_keyword(*tokens, "pass")) {
         ++*tokens;
         result.kind = AST_STMT_PASS;

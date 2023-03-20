@@ -86,7 +86,7 @@ void init_types(void)
     }
 
     strcpy(global_state.integers[8][false].type.name, "byte");
-    strcpy(global_state.integers[16][false].type.name, "short");
+    strcpy(global_state.integers[16][true].type.name, "short");
     strcpy(global_state.integers[32][true].type.name, "int");
     strcpy(global_state.integers[64][true].type.name, "long");
 
