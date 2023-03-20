@@ -802,8 +802,8 @@ def check_class_for_duplicate_names(classdef: AstClassDef*) -> void:
 
     assert destptr == &infos[n]
 
-    for p1 = infos; p1 != destptr; p1++:
-        for p2 = &p1[1]; p2 != destptr; p2++:
+    for p1 = infos; p1 < destptr; p1++:
+        for p2 = &p1[1]; p2 < destptr; p2++:
             if strcmp(p1->name, p2->name) == 0:
                 message: byte[500]
                 snprintf(
@@ -949,7 +949,7 @@ def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
         result.body[result.body_len++] = parse_toplevel_node(&tokens, stdlib_path)
 
     # This simplifies the compiler: it's easy to loop through all imports of the file.
-    for p = &result.body[1]; p != &result.body[result.body_len]; p++:
+    for p = &result.body[1]; p < &result.body[result.body_len]; p++:
         if p[-1].kind != AstToplevelStatementKind::Import and p->kind == AstToplevelStatementKind::Import:
             fail(p->location, "imports must be in the beginning of the file")
 
