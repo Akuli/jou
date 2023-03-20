@@ -642,7 +642,7 @@ static const Type *check_binop(
     if (got_numbers && !got_integers)
         cast_type = (lhstypes->type == doubleType || rhstypes->type == doubleType) ? doubleType : floatType;
     if (got_pointers)
-        cast_type = longType;
+        cast_type = get_integer_type(64, false);  // unsigned long
     if (got_enums)
         cast_type = intType;
     assert(cast_type);
