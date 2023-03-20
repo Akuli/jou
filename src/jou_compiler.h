@@ -18,6 +18,7 @@ typedef struct Constant Constant;
 
 typedef struct AstType AstType;
 typedef struct AstSignature AstSignature;
+typedef struct AstAssert AstAssert;
 typedef struct AstBody AstBody;
 typedef struct AstCall AstCall;
 typedef struct AstConditionAndBody AstConditionAndBody;
@@ -268,6 +269,10 @@ struct AstAssignment {
     AstExpression target;
     AstExpression value;
 };
+struct AstAssert {
+    AstExpression expression;
+    Location expression_start, expression_end;
+};
 
 struct AstStatement {
     Location location;
@@ -290,8 +295,9 @@ struct AstStatement {
         AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
     } kind;
     union {
-        AstExpression expression;    // AST_STMT_EXPRESSION_STATEMENT, AST_STMT_ASSERT
+        AstExpression expression;    // AST_STMT_EXPRESSION_STATEMENT
         AstExpression *returnvalue;    // AST_STMT_RETURN (can be NULL)
+        AstAssert assertion;
         AstConditionAndBody whileloop;
         AstIfStatement ifstatement;
         AstForLoop forloop;

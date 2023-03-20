@@ -308,7 +308,7 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             break;
         case AST_STMT_ASSERT:
             printf("assert\n");
-            print_ast_expression(&stmt->data.expression, print_tree_prefix(tp, true));
+            print_ast_expression(&stmt->data.assertion.expression, print_tree_prefix(tp, true));
             break;
         case AST_STMT_RETURN:
             printf("return\n");
