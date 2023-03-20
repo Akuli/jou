@@ -179,6 +179,7 @@ static void free_statement(const AstStatement *stmt)
         break;
     case AST_STMT_BREAK:
     case AST_STMT_CONTINUE:
+    case AST_STMT_PASS:
         break;
     }
 }

@@ -222,9 +222,9 @@ static bool is_keyword(const char *s)
         "import", "def", "declare", "class", "union", "enum", "global",
         "return", "if", "elif", "else", "while", "for", "break", "continue",
         "True", "False", "NULL", "self",
-        "and", "or", "not", "as", "sizeof", "assert",
+        "and", "or", "not", "as", "sizeof", "assert", "pass",
         "void", "noreturn",
-        "bool", "byte", "int", "long", "float", "double",
+        "bool", "byte", "short", "int", "long", "float", "double",
     };
     for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
         if (!strcmp(*kw, s))
@@ -446,6 +446,10 @@ static Token read_token(struct State *st)
                     } else if (is_valid_float(t.data.name)) {
                         t.data.name[strlen(t.data.name)-1] = '\0';  // remove 'F' or 'f' suffix
                         t.type = TOKEN_FLOAT;
+                    } else if (t.data.name[strlen(t.data.name)-1] == 'S') {
+                        t.data.name[strlen(t.data.name)-1] = '\0';
+                        t.type = TOKEN_SHORT;
+                        t.data.short_value = (int16_t)parse_integer(t.data.name, t.location, 16);
                     } else if (t.data.name[strlen(t.data.name)-1] == 'L') {
                         t.data.name[strlen(t.data.name)-1] = '\0';
                         t.type = TOKEN_LONG;

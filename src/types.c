@@ -18,6 +18,7 @@ static struct {
 } global_state = {0};
 
 const Type *boolType = &global_state.boolean.type;
+const Type *shortType = &global_state.integers[16][true].type;
 const Type *intType = &global_state.integers[32][true].type;
 const Type *longType = &global_state.integers[64][true].type;
 const Type *byteType = &global_state.integers[8][false].type;
@@ -85,6 +86,7 @@ void init_types(void)
     }
 
     strcpy(global_state.integers[8][false].type.name, "byte");
+    strcpy(global_state.integers[16][true].type.name, "short");
     strcpy(global_state.integers[32][true].type.name, "int");
     strcpy(global_state.integers[64][true].type.name, "long");
 

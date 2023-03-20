@@ -80,6 +80,7 @@ class TreePrinter:
 enum AstExpressionKind:
     String
     Int
+    Short
     Long
     Byte
     Bool
@@ -127,6 +128,7 @@ class AstExpression:
         class_field: AstClassField
         string: byte*
         int_value: int
+        short_value: short
         long_value: long
         byte_value: byte
         bool_value: bool
@@ -149,6 +151,8 @@ class AstExpression:
                 else:
                     printf("\\x%02x", *s)
             printf("\"\n")
+        elif self->kind == AstExpressionKind::Short:
+            printf("%hd (16-bit signed)\n", self->short_value)
         elif self->kind == AstExpressionKind::Int:
             printf("%d (32-bit signed)\n", self->int_value)
         elif self->kind == AstExpressionKind::Long:
@@ -371,6 +375,7 @@ class AstInstantiation:
 enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
     Assert
+    Pass
     Return
     If
     WhileLoop
@@ -406,6 +411,8 @@ class AstStatement:
         elif self->kind == AstStatementKind::Assert:
             printf("assert\n")
             self->expression.print(tp.print_prefix(True))
+        elif self->kind == AstStatementKind::Pass:
+            printf("pass\n")
         elif self->kind == AstStatementKind::Return:
             printf("return\n")
             if self->return_value != NULL:

@@ -158,6 +158,8 @@ static const Type *type_from_ast(const FileTypes *ft, const AstType *asttype)
 
     switch(asttype->kind) {
     case AST_TYPE_NAMED:
+        if (!strcmp(asttype->data.name, "short"))
+            return shortType;
         if (!strcmp(asttype->data.name, "int"))
             return intType;
         if (!strcmp(asttype->data.name, "long"))
@@ -1249,6 +1251,9 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
 
     case AST_STMT_ASSERT:
         typecheck_expression_with_implicit_cast(ft, &stmt->data.expression, boolType, "assertion must be a boolean, not FROM");
+        break;
+
+    case AST_STMT_PASS:
         break;
     }
 }

@@ -690,36 +690,46 @@ static void build_if_statement(struct State *st, const AstIfStatement *ifstmt)
 }
 
 // TODO: this function is just bad...
-static char *read_assertion_from_file(Location location)
+static char *read_assertion_from_file(Location start, Location end)
 {
-    FILE *f = fopen(location.filename, "rb");
-    if (!f)
-        return strdup("???");
+    assert(start.filename == end.filename);
+    FILE *f = fopen(start.filename, "rb");
+    assert(f);
 
-    for (int i = 1; i < location.lineno; i++) {
-        while(1){
-            int c= fgetc(f);
-            if (c==EOF || c=='\n') break;
-        }
+    char line[1024];
+    int lineno = 1;
+    while (lineno < start.lineno) {
+        fgets(line, sizeof line, f);
+        lineno++;
     }
 
-    char line[1024] = {0};
-    fgets(line, sizeof line, f);
+    List(char) str = {0};
+    while (lineno <= end.lineno) {
+        memset(line, 0, sizeof line);
+        fgets(line, sizeof line, f);
+        lineno++;
+
+        if (strstr(line, "#"))
+            *strstr(line, "#") = '\0';
+        trim_whitespace(line);
+        // Add spaces between the lines, but not after '(' or before ')'
+        if (line[0] != ')' && str.len >= 1 && str.ptr[str.len-1] != '(')
+            AppendStr(&str, " ");
+        AppendStr(&str, line);
+    }
+
     fclose(f);
+    Append(&str, '\0');
 
-    if (strstr(line, "#"))
-        *strstr(line, "#") = '\0';
-    trim_whitespace(line);
-
-    if(!strncmp(line, "assert ",7))
-        return strdup(line+7);
-    else
-        return strdup(line);
+    if(!strncmp(str.ptr, "assert",6))
+        memmove(str.ptr, &str.ptr[6], strlen(&str.ptr[6]) + 1);
+    trim_whitespace(str.ptr);
+    return str.ptr;
 }
 
-static void build_assert(struct State *st, const AstExpression *cond)
+static void build_assert(struct State *st, Location assert_location, const AstAssert *assertion)
 {
-    const LocalVariable *condvar = build_expression(st, cond);
+    const LocalVariable *condvar = build_expression(st, &assertion->expression);
 
     // If the condition is true, we jump to a block where the rest of the code goes.
     // If the condition is false, we jump to a block that calls _jou_assert_fail().
@@ -742,13 +752,13 @@ static void build_assert(struct State *st, const AstExpression *cond)
         args[i] = add_local_var(st, argtypes[i]);
     args[3] = NULL;
 
-    char *tmp = read_assertion_from_file(cond->location);
-    add_constant(st, cond->location, ((Constant){CONSTANT_STRING,{.str=tmp}}), args[0]);
+    char *tmp = read_assertion_from_file(assertion->expression_start, assertion->expression_end);
+    add_constant(st, assert_location, ((Constant){CONSTANT_STRING,{.str=tmp}}), args[0]);
     free(tmp);
-    tmp = strdup(cond->location.filename);
-    add_constant(st, cond->location, ((Constant){CONSTANT_STRING,{.str=tmp}}), args[1]);
+    tmp = strdup(assertion->expression_start.filename);
+    add_constant(st, assert_location, ((Constant){CONSTANT_STRING,{.str=tmp}}), args[1]);
     free(tmp);
-    add_constant(st, cond->location, int_constant(intType, cond->location.lineno), args[2]);
+    add_constant(st, assert_location, int_constant(intType, assert_location.lineno), args[2]);
 
     union CfInstructionData data = { .signature = {
         .name = "_jou_assert_fail",
@@ -757,9 +767,9 @@ static void build_assert(struct State *st, const AstExpression *cond)
         .argnames = argnames,
         .takes_varargs = false,
         .is_noreturn = true,
-        .returntype_location = cond->location,
+        .returntype_location = assert_location,
     } };
-    add_instruction(st, cond->location, CF_CALL, &data, args, NULL);
+    add_instruction(st, assert_location, CF_CALL, &data, args, NULL);
 
     st->current_block = trueblock;
 }
@@ -813,7 +823,10 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         break;
 
     case AST_STMT_ASSERT:
-        build_assert(st, &stmt->data.expression);
+        build_assert(st, stmt->location, &stmt->data.assertion);
+        break;
+
+    case AST_STMT_PASS:
         break;
 
     case AST_STMT_WHILE:

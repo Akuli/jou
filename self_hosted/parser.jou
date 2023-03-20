@@ -261,7 +261,11 @@ def parse_array(tokens: Token**) -> AstArray:
 def parse_elementary_expression(tokens: Token**) -> AstExpression:
     expr = AstExpression{location = (*tokens)->location}
 
-    if (*tokens)->kind == TokenKind::Int:
+    if (*tokens)->kind == TokenKind::Short:
+        expr.kind = AstExpressionKind::Short
+        expr.short_value = (*tokens)->short_value
+        ++*tokens
+    elif (*tokens)->kind == TokenKind::Int:
         expr.kind = AstExpressionKind::Int
         expr.int_value = (*tokens)->int_value
         ++*tokens
@@ -602,6 +606,9 @@ def parse_oneline_statement(tokens: Token**) -> AstStatement:
         ++*tokens
         result.kind = AstStatementKind::Assert
         result.expression = parse_expression(tokens)
+    elif (*tokens)->is_keyword("pass"):
+        ++*tokens
+        result.kind = AstStatementKind::Pass
     elif (*tokens)->is_keyword("break"):
         ++*tokens
         result.kind = AstStatementKind::Break

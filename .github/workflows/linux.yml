@@ -5,17 +5,6 @@ on:
   pull_request:
 
 jobs:
-  fix-line-endings:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - run: sudo apt install -y dos2unix
-      - run: dos2unix $(git ls-files | grep -vx tests/should_succeed/crlf.jou)
-      - run: unix2dos tests/should_succeed/crlf.jou
-      - uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "Change files to use LF line endings"
-
   shellcheck:
     runs-on: ubuntu-latest
     steps:
