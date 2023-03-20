@@ -101,6 +101,36 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
 
     return result
 
+# Does a string contain multiple occurrences of the given byte?
+def has_multiple(s: byte*, b: byte) -> bool:
+    return strchr(s, b) != strrchr(s, b)
+
+def is_valid_double(str: byte*) -> bool:
+    if strspn(str, "0123456789.-e") < strlen(str):
+        return False
+    if has_multiple(str, '.') or has_multiple(str, '-') or has_multiple(str, 'e'):
+        return False
+
+    dot = strchr(str, '.')
+    minus = strchr(str, '-')
+    e = strchr(str, 'e')
+
+    return (
+        # 123.456
+        e == NULL and minus == NULL and dot != NULL
+    ) or (
+        # 1e-4
+        e != NULL and e[1] != '\0' and (dot == NULL or dot < e) and  (minus == NULL or (&e[1] == minus and e[2] != '\0'))
+    )
+
+def is_valid_float(str: byte[100]) -> bool:
+    n = strlen(str)
+    if n == 0 or (str[n-1] != 'F' and str[n-1] != 'f'):
+        return False
+    str[n-1] = '\0'
+    return is_valid_double(str) or strspn(str, "0123456789") == strlen(str)
+
+
 def flip_paren(c: byte) -> byte:
     if c == '(':
         return ')'
@@ -176,12 +206,16 @@ class Tokenizer:
 
         assert is_identifier_or_number_byte(first_byte)
         dest[destlen++] = first_byte
+        is_number = '0' <= first_byte and first_byte <= '9'
 
         while True:
             b = self->read_byte()
-            if is_identifier_or_number_byte(b):
+            if (
+                is_identifier_or_number_byte(b)
+                or (is_number and (b == '.' or (b == '-' and dest[destlen-1] == 'e')))
+            ):
                 if destlen == sizeof dest - 1:
-                    if '0' <= dest[0] and dest[0] <= '9':
+                    if is_number:
                         template = "number is too long: %.20s..."
                     else:
                         template = "name is too long: %.20s..."
@@ -428,7 +462,12 @@ class Tokenizer:
                 if is_keyword(token.short_string):
                     token.kind = TokenKind::Keyword
                 elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
-                    if token.short_string[strlen(token.short_string) - 1] == 'L':
+                    if is_valid_double(token.short_string):
+                        token.kind = TokenKind::Double
+                    elif is_valid_float(token.short_string):
+                        token.short_string[strlen(token.short_string) - 1] = '\0'  # delete trailing 'f' or 'F'
+                        token.kind = TokenKind::Float
+                    elif token.short_string[strlen(token.short_string) - 1] == 'L':
                         token.short_string[strlen(token.short_string) - 1] = '\0'
                         token.kind = TokenKind::Long
                         token.long_value = parse_integer(token.short_string, token.location, 64)
