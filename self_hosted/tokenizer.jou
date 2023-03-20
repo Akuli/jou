@@ -13,7 +13,7 @@ def is_identifier_or_number_byte(b: byte) -> bool:
     )
 
 def is_operator_byte(c: byte) -> bool:
-    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%", c) != NULL
+    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|", c) != NULL
 
 def is_keyword(word: byte*) -> bool:
     # This keyword list is in 3 places. Please keep them in sync:
@@ -381,8 +381,8 @@ class Tokenizer:
             #
             # Longer operators are first, so that '==' does not tokenize as '=' '='
             "...", "===", "!==",
-            "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "::",
-            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">",
+            "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "::", "&&", "||",
+            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">", "!",
         ]
 
         operator: byte[100]
@@ -404,9 +404,20 @@ class Tokenizer:
                     self->unread_byte(*last)
                     *last = '\0'
 
-                # "===" and "!==" are here only to give a better error message to javascript people.
-                if strcmp(operator, "===") != 0 and strcmp(operator, "!==") != 0:
-                    return operator
+                # These operators are here only to give a better error message when you
+                # accidentally use syntax of another programming language.
+                if strcmp(operator, "===") == 0:
+                    fail(self->location, "use '==' instead of '==='")
+                if strcmp(operator, "!==") == 0:
+                    fail(self->location, "use '!=' instead of '!=='")
+                if strcmp(operator, "&&") == 0:
+                    fail(self->location, "use 'and' instead of '&&'")
+                if strcmp(operator, "||") == 0:
+                    fail(self->location, "use 'or' instead of '||'")
+                if strcmp(operator, "!") == 0:
+                    fail(self->location, "use 'not' instead of '!'")
+
+                return operator
 
         message: byte[100]
         sprintf(message, "there is no '%s' operator", operator)

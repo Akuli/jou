@@ -342,7 +342,7 @@ static char read_char_literal(struct State *st)
     return result;
 }
 
-static const char operatorChars[] = "=<>!.,()[]{};:+-*/&%";
+static const char operatorChars[] = "=<>!.,()[]{};:+-*/&%|";
 
 static const char *read_operator(struct State *st)
 {
@@ -354,8 +354,8 @@ static const char *read_operator(struct State *st)
         //
         // Longer operators are first, so that '==' does not tokenize as '=' '='
         "...", "===", "!==",
-        "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "::",
-        ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">",
+        "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "::", "&&", "||",
+        ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">", "!",
         NULL,
     };
 
@@ -376,9 +376,19 @@ static const char *read_operator(struct State *st)
             // Unread the bytes we didn't use.
             for (int i = strlen(operator) - 1; i >= (int)strlen(*op); i--)
                 unread_byte(st, operator[i]);
-            // "===" and "!==" are here only to give a better error message to javascript people.
-            if (!strcmp(*op, "===") || !strcmp(*op, "!=="))
-                break;
+
+            // These operators are here only to give better error messages
+            if (strcmp(operator, "===") == 0)
+                fail_with_error(st->location, "use '==' instead of '==='");
+            if (strcmp(operator, "!==") == 0)
+                fail_with_error(st->location, "use '!=' instead of '!=='");
+            if (strcmp(operator, "&&") == 0)
+                fail_with_error(st->location, "use 'and' instead of '&&'");
+            if (strcmp(operator, "||") == 0)
+                fail_with_error(st->location, "use 'or' instead of '||'");
+            if (strcmp(operator, "!") == 0)
+                fail_with_error(st->location, "use 'not' instead of '!'");
+
             return *op;
         }
     }
