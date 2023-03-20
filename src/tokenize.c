@@ -80,15 +80,15 @@ static void read_identifier_or_number(struct State *st, char firstbyte, char (*d
 
     assert(is_identifier_or_number_byte(firstbyte));
     (*dest)[destlen++] = firstbyte;
-    bool is_number = '0'<=firstbyte && firstbyte<='9';
 
     while(1) {
         char c = read_byte(st);
         if (is_identifier_or_number_byte(c)
-            || (is_number && (c=='.' || (c=='-' && (*dest)[destlen-1]=='e'))))
+            || ('0'<=firstbyte && firstbyte<='9' && c=='.')
+            || ('0'<=firstbyte && firstbyte<='9' && (*dest)[destlen-1]=='e' && c=='-'))
         {
             if (destlen == sizeof *dest - 1)
-                fail_with_error(st->location, "%s is too long: %.20s...", is_number?"number":"name", *dest);
+                fail_with_error(st->location, "%s is too long: %.20s...", isdigit(firstbyte)?"number":"name", *dest);
             (*dest)[destlen++] = c;
         } else {
             unread_byte(st, c);
