@@ -325,13 +325,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
         case CF_PTR_LOAD: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
         case CF_PTR_STORE: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
-        case CF_PTR_EQ:
-            {
-                LLVMValueRef lhsint = LLVMBuildPtrToInt(st->builder, getop(0), LLVMInt64Type(), "ptreq_lhs");
-                LLVMValueRef rhsint = LLVMBuildPtrToInt(st->builder, getop(1), LLVMInt64Type(), "ptreq_rhs");
-                setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, lhsint, rhsint, "ptr_eq"));
-            }
-            break;
+        case CF_PTR_TO_INT64: setdest(LLVMBuildPtrToInt(st->builder, getop(0), LLVMInt64Type(), "ptr_as_int")); break;
         case CF_PTR_CLASS_FIELD:
             {
                 const Type *classtype = ins->operands[0]->type->data.valuetype;

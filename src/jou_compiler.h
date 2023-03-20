@@ -531,7 +531,7 @@ struct CfInstruction {
         CF_PTR_MEMSET_TO_ZERO,  // takes one operand, a pointer: memset(ptr, 0, sizeof(*ptr))
         CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
         CF_PTR_LOAD,  // aka dereference
-        CF_PTR_EQ,
+        CF_PTR_TO_INT64,
         CF_PTR_CLASS_FIELD,  // takes 1 operand (pointer), sets destvar to &op->fieldname
         CF_PTR_CAST,
         CF_PTR_ADD_INT,

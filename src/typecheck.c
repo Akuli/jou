@@ -627,7 +627,8 @@ static const Type *check_binop(
 
     if (
         (!got_numbers && !got_enums && !got_pointers)
-        || (op != AST_EXPR_EQ && op != AST_EXPR_NE && !got_numbers)
+        || (got_enums && op != AST_EXPR_EQ && op != AST_EXPR_NE)
+        || (got_pointers && op != AST_EXPR_EQ && op != AST_EXPR_NE && op != AST_EXPR_GT && op != AST_EXPR_GE && op != AST_EXPR_LT && op != AST_EXPR_LE)
     )
         fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name);
 
@@ -641,7 +642,7 @@ static const Type *check_binop(
     if (got_numbers && !got_integers)
         cast_type = (lhstypes->type == doubleType || rhstypes->type == doubleType) ? doubleType : floatType;
     if (got_pointers)
-        cast_type = voidPtrType;
+        cast_type = longType;
     if (got_enums)
         cast_type = intType;
     assert(cast_type);

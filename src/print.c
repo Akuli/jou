@@ -540,6 +540,9 @@ static void print_cf_instruction(const CfInstruction *ins)
     case CF_INT32_TO_ENUM:
         printf("cast %s from 32-bit signed int to enum", varname(ins->operands[0]));
         break;
+    case CF_PTR_TO_INT64:
+        printf("cast %s to 64-bit integer", varname(ins->operands[0]));
+        break;
     case CF_CONSTANT:
         print_constant(&ins->data.constant);
         break;
@@ -551,7 +554,6 @@ static void print_cf_instruction(const CfInstruction *ins)
     case CF_NUM_MOD:
     case CF_NUM_EQ:
     case CF_NUM_LT:
-    case CF_PTR_EQ:
         switch(ins->kind){
             case CF_NUM_ADD: printf("num add "); break;
             case CF_NUM_SUB: printf("num sub "); break;
@@ -560,7 +562,6 @@ static void print_cf_instruction(const CfInstruction *ins)
             case CF_NUM_MOD: printf("num mod "); break;
             case CF_NUM_EQ: printf("num eq "); break;
             case CF_NUM_LT: printf("num lt "); break;
-            case CF_PTR_EQ: printf("ptr eq "); break;
             default: assert(0);
         }
         printf("%s, %s", varname(ins->operands[0]), varname(ins->operands[1]));
