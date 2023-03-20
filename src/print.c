@@ -59,7 +59,7 @@ void print_token(const Token *token)
 {
     switch(token->type) {
     case TOKEN_SHORT:
-        printf("short %hd\n", (short)token->data.short_value);
+        printf("shorter %hd \n", (short)token->data.short_value);
         break;
     case TOKEN_INT:
         printf("integer %d\n", (int)token->data.int_value);
@@ -308,7 +308,7 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             break;
         case AST_STMT_ASSERT:
             printf("assert\n");
-            print_ast_expression(&stmt->data.assertion.expression, print_tree_prefix(tp, true));
+            print_ast_expression(&stmt->data.expression, print_tree_prefix(tp, true));
             break;
         case AST_STMT_RETURN:
             printf("return\n");
