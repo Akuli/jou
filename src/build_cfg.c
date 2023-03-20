@@ -152,6 +152,12 @@ static const LocalVariable *build_cast(
     if (obj->type == boolType && is_integer_type(to))
         return build_bool_to_int_conversion(st, obj, location, to);
 
+    if (is_pointer_type(obj->type) && is_integer_type(to) && to->data.width_in_bits == 64) {
+        const LocalVariable *result = add_local_var(st, to);
+        add_unary_op(st, location, CF_PTR_TO_INT64, obj, result);
+        return result;
+    }
+
     assert(0);
 }
 
@@ -177,8 +183,8 @@ static const LocalVariable *build_binop(
         case AST_EXPR_MUL: k = CF_NUM_MUL; break;
         case AST_EXPR_DIV: k = CF_NUM_DIV; break;
         case AST_EXPR_MOD: k = CF_NUM_MOD; break;
-        case AST_EXPR_EQ: k = got_pointers?CF_PTR_EQ:CF_NUM_EQ; break;
-        case AST_EXPR_NE: k = got_pointers?CF_PTR_EQ:CF_NUM_EQ; negate=true; break;
+        case AST_EXPR_EQ: k = CF_NUM_EQ; break;
+        case AST_EXPR_NE: k = CF_NUM_EQ; negate=true; break;
         case AST_EXPR_LT: k = CF_NUM_LT; break;
         case AST_EXPR_GT: k = CF_NUM_LT; swap=true; break;
         case AST_EXPR_LE: k = CF_NUM_LT; negate=true; swap=true; break;
