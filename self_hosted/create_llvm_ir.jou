@@ -87,6 +87,10 @@ def class_type_to_llvm(fields: ClassField*, nfields: int) -> LLVMType*:
 def type_to_llvm(type: Type*) -> LLVMType*:
     if type == &bool_type:
         return LLVMInt1Type()
+    if type == &float_type:
+        return LLVMFloatType()
+    if type == &double_type:
+        return LLVMDoubleType()
     if type->is_integer_type():
         return LLVMIntType(type->size_in_bits)
     if type->kind == TypeKind::Pointer:
@@ -187,6 +191,9 @@ class AstToIR:
         if from == &bool_type and to->is_integer_type():
             # True --> 1, False --> 0
             return LLVMBuildZExt(self->builder, obj, type_to_llvm(to), "cast_bool_to_int")
+
+        if from->kind == TypeKind::FloatingPoint and to->kind == TypeKind::FloatingPoint:
+            return LLVMBuildFPCast(self->builder, obj, type_to_llvm(to), "cast_float_double")
 
         printf("unimplemented cast: %s --> %s\n", from->name, to->name)
         assert False
@@ -509,6 +516,9 @@ class AstToIR:
             for i = 0; i < types->original_type->array.length; i++:
                 item = self->do_expression(&ast->array.items[i])
                 result = LLVMBuildInsertValue(self->builder, result, item, i, "array")
+
+        elif ast->kind == AstExpressionKind::Float or ast->kind == AstExpressionKind::Double:
+            result = LLVMConstRealOfString(type_to_llvm(types->original_type), ast->float_or_double_text)
 
         else:
             printf("create_llvm_ir: unknown expression kind %d...\n", ast->kind)
