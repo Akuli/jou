@@ -97,6 +97,8 @@ def type_to_llvm(type: Type*) -> LLVMType*:
         return LLVMInt32Type()
     if type->kind == TypeKind::Class:
         return class_type_to_llvm(type->class_members.fields, type->class_members.nfields)
+    if type->kind == TypeKind::Array:
+        return LLVMArrayType(type_to_llvm(type->array.item_type), type->array.length)
     printf("asd-Asd., %s\n", &type->name)
     assert False
 
@@ -330,6 +332,7 @@ class AstToIR:
     def do_address_of_expression(self, ast: AstExpression*) -> LLVMValue*:
         if ast->kind == AstExpressionKind::GetVariable:
             return self->get_local_var_pointer(ast->varname)
+
         if ast->kind == AstExpressionKind::GetClassField:
             lhs_type = self->function_or_method_types->get_expression_types(ast->class_field.instance)->original_type
 
@@ -361,11 +364,25 @@ class AstToIR:
                 "struct_member_cast",
             )
 
-        printf("kind: %d\n", ast->kind)
+        if ast->kind == AstExpressionKind::Indexing:
+            # &pointer[index] = pointer + some offset
+            pointer = self->do_expression(&ast->operands[0])
+            index = self->do_expression(&ast->operands[1])
+            return LLVMBuildGEP(self->builder, pointer, &index, 1, "indexing_ptr")
+
+        printf("expression kind (taking address): %d\n", ast->kind)
         assert False
 
     def do_expression(self, ast: AstExpression*) -> LLVMValue*:
-        type = self->function_or_method_types->get_expression_types(ast)->original_type
+        types = self->function_or_method_types->get_expression_types(ast)
+        if types != NULL and types->implicit_array_to_pointer_cast:
+            pointer_to_array = self->do_address_of_expression(ast)
+            return LLVMBuildBitCast(
+                self->builder,
+                pointer_to_array,
+                type_to_llvm(types->implicit_cast_type),
+                "array_to_ptr_cast",
+            )
 
         if ast->kind == AstExpressionKind::String:
             result = self->make_a_string_constant(ast->string)
@@ -380,7 +397,7 @@ class AstToIR:
         elif ast->kind == AstExpressionKind::Long:
             result = LLVMConstInt(LLVMInt64Type(), ast->long_value, False)
         elif ast->kind == AstExpressionKind::Null:
-            result = LLVMConstNull(type_to_llvm(type))
+            result = LLVMConstNull(type_to_llvm(types->original_type))
 
         elif ast->kind == AstExpressionKind::FunctionCall:
             sig = self->file_types->find_function(ast->call.called_name)
@@ -414,7 +431,7 @@ class AstToIR:
 
         elif ast->kind == AstExpressionKind::As:
             value = self->do_expression(&ast->as_expression->value)
-            type_before_cast = self->function_or_method_types->get_expression_types(&ast->as_expression->value)->original_type
+            type_before_cast = self->function_or_method_types->get_expression_types(&ast->as_expression->value)->get_type_after_implicit_cast()
             type_after_cast = self->function_or_method_types->get_expression_types(ast)->original_type
             result = self->do_cast(value, type_before_cast, type_after_cast)
 
@@ -460,7 +477,7 @@ class AstToIR:
             assert field != NULL
             result = LLVMBuildExtractValue(self->builder, instance, field->union_id, field->name)
 
-        elif ast->kind == AstExpressionKind::GetVariable:
+        elif ast->kind == AstExpressionKind::GetVariable or ast->kind == AstExpressionKind::Indexing:
             pointer = self->do_address_of_expression(ast)
             result = LLVMBuildLoad(self->builder, pointer, ast->varname)
 
@@ -485,6 +502,13 @@ class AstToIR:
             lhs_type = self->function_or_method_types->get_expression_types(&ast->operands[0])->original_type
             rhs_type = self->function_or_method_types->get_expression_types(&ast->operands[1])->original_type
             result = self->do_binop(ast->kind, lhs, lhs_type, rhs, rhs_type)
+
+        elif ast->kind == AstExpressionKind::Array:
+            assert types->original_type->kind == TypeKind::Array
+            result = LLVMConstNull(type_to_llvm(types->original_type))
+            for i = 0; i < types->original_type->array.length; i++:
+                item = self->do_expression(&ast->array.items[i])
+                result = LLVMBuildInsertValue(self->builder, result, item, i, "array")
 
         else:
             printf("create_llvm_ir: unknown expression kind %d...\n", ast->kind)

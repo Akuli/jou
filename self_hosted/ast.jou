@@ -13,11 +13,13 @@ enum AstTypeKind:
 
 class AstArrayType:
     member_type: AstType*
-    len: int
+    length: AstExpression*
 
     def free(self) -> void:
         self->member_type->free()
+        self->length->free()
         free(self->member_type)
+        free(self->length)
 
 class AstType:
     kind: AstTypeKind
@@ -40,8 +42,11 @@ class AstType:
         elif self->kind == AstTypeKind::Pointer:
             self->value_type->print(False)
             printf("*")
+        elif self->kind == AstTypeKind::Array:
+            self->array.member_type->print(False)
+            printf("[<size>]")  # TODO: show the size expression better?
         else:
-            printf("???")
+            assert False
 
         if show_lineno:
             printf(" [line %d]", self->location.lineno)
@@ -80,6 +85,7 @@ enum AstExpressionKind:
     Byte
     Bool
     Null
+    Array
     FunctionCall
     Instantiate   # MyClass{x=1, y=2}
     Self    # not a variable lookup, so you can't use 'self' as variable name outside a class
@@ -129,6 +135,7 @@ class AstExpression:
         call: AstCall
         instantiation: AstInstantiation
         as_expression: AstAsExpression*  # Must be pointer, because it contains an AstExpression
+        array: AstArray
         varname: byte[100]
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
 
@@ -159,6 +166,12 @@ class AstExpression:
                 printf("False\n")
         elif self->kind == AstExpressionKind::Null:
             printf("NULL\n")
+        elif self->kind == AstExpressionKind::Indexing:
+            printf("indexing\n")
+        elif self->kind == AstExpressionKind::Array:
+            printf("array\n")
+            for i = 0; i < self->array.length; i++:
+                self->array.items[i].print(tp.print_prefix(i == self->array.length-1))
         elif self->kind == AstExpressionKind::FunctionCall:
             printf("call function \"%s\"\n", self->call.called_name)
             self->call.print(tp)
@@ -292,6 +305,15 @@ class AstExpression:
             or self->kind == AstExpressionKind::PostIncr
             or self->kind == AstExpressionKind::PostDecr
         )
+
+class AstArray:
+    length: int
+    items: AstExpression*
+
+    def free(self) -> void:
+        for i = 0; i < self->length; i++:
+            self->items[i].free()
+        free(self->items)
 
 class AstEnumMember:
     enum_name: byte[100]
