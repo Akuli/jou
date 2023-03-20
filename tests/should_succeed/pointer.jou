@@ -54,4 +54,11 @@ def main() -> int:
     foo(&x)  # Output: Got 123
     foo(NULL)  # Output: Got NULL
 
+    # comparing pointers
+    my_string = "hello"
+    printf("%d\n", my_string == my_string)      # Output: 1
+    printf("%d\n", my_string == &my_string[1])  # Output: 0
+    printf("%d\n", my_string < my_string)       # Output: 0
+    printf("%d\n", my_string < &my_string[1])   # Output: 1
+
     return 0
