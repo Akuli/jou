@@ -779,26 +779,17 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
     char *sigstr = signature_to_string(sig, false);
 
     int n = call->nargs + !!self_type;
-    if (n < sig->nargs || (n > sig->nargs && !sig->takes_varargs)) { // Check if it is a function in the class
-        if (self_type->kind != TYPE_CLASS) {
-            fail_with_error(
-                location,
-                "%s %s takes %d argument%s, but it was called with %d argument%s",
-                self_type ? "method" : "function",
-                sigstr,
-                sig->nargs,
-                sig->nargs==1?"":"s",
-                call->nargs,
-                call->nargs==1?"":"s"
-            );
-        } else {
-            fail_with_error(
-                location,
-                "error when defining %s %s bacause it has no self",
-                self_type ? "method" : "function",
-                sigstr
-            );
-        }
+    if (n < sig->nargs || (n > sig->nargs && !sig->takes_varargs)) {
+        fail_with_error(
+            location,
+            "%s %s takes %d argument%s, but it was called with %d argument%s",
+            self_type ? "method" : "function",
+            sigstr,
+            sig->nargs,
+            sig->nargs==1?"":"s",
+            call->nargs,
+            call->nargs==1?"":"s"
+        );
     }
 
     int k = 0;
