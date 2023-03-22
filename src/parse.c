@@ -188,7 +188,7 @@ static AstSignature parse_function_signature(const Token **tokens, bool accept_s
 	if (!selfusedflag && accept_self) {
         fail_with_error(
             (*tokens)->location,
-            "error when defining %s bacause it has no self",
+            "missing self, should be 'def %s(self, ...)'",
            result.name
         );
 	}
