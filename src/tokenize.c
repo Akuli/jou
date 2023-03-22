@@ -445,6 +445,8 @@ static Token read_token(struct State *st)
             break;
         case '\'': t.type = TOKEN_CHAR; t.data.char_value = read_char_literal(st); break;
         case '"': t.type = TOKEN_STRING; t.data.string_value = read_string(st, '"', NULL); break;
+        case '\t':
+            fail_with_error(st->location, "Jou files cannot contain tab characters (use 4 spaces for indentation)");
         default:
             if(is_identifier_or_number_byte(c)) {
                 read_identifier_or_number(st, c, &t.data.name);

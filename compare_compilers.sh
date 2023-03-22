@@ -38,7 +38,7 @@ function append_line()
     local line="$2"
     echo -e "  ${YELLOW}Adding $line to $file${RESET}"
 
-    if grep -q $'\r' $error_list_file; then
+    if [ -f $file ] && grep -q $'\r' $file; then
         # CRLF line endings (likely Windows, but depends on git settings)
         printf "%s\r\n" "$line" >> "$file"
     else
@@ -91,7 +91,7 @@ for action in tokenize parse run; do
     (./jou $flag $file || true) &> tmp/compare_compilers/compiler_written_in_c.txt
     (./self_hosted_compiler $flag $file || true) &> tmp/compare_compilers/self_hosted.txt
 
-    if grep -qxF $file <(cat $error_list_file | tr -d '\r'); then
+    if [ -f $error_list_file ] && grep -qxF $file <(cat $error_list_file | tr -d '\r'); then
         # The file is skipped, so the two compilers should behave differently
         if diff tmp/compare_compilers/compiler_written_in_c.txt tmp/compare_compilers/self_hosted.txt >/dev/null; then
             if [ $fix = yes ]; then
