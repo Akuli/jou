@@ -189,7 +189,7 @@ static AstSignature parse_function_signature(const Token **tokens, bool accept_s
         fail_with_error(
             (*tokens)->location,
             "error when defining %s bacause it has no self",
-           	c
+           result.name
         );
 	}
 	
