@@ -58,7 +58,7 @@ def parse_name_type_value(tokens: Token**, expected_what_for_name: byte*) -> Ast
 
 def parse_function_or_method_signature(tokens: Token**, is_method: bool) -> AstSignature:
     # TODO: change error messages to say method, when it is a method (#243)
-    used_self: bool = false
+    used_self: bool = False
     if (*tokens)->kind != TokenKind::Name:
         (*tokens)->fail_expected_got("a function name")
 
@@ -89,7 +89,7 @@ def parse_function_or_method_signature(tokens: Token**, is_method: bool) -> AstS
                 name_location = (*tokens)->location,
             }
             ++*tokens
-            used_self = true
+            used_self = True
 
         else:
             arg = parse_name_type_value(tokens, "an argument name")
