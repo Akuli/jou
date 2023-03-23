@@ -127,7 +127,7 @@ def parse_function_or_method_signature(tokens: Token**, is_method: bool) -> AstS
     ++*tokens
 
     if not used_self and is_method:
-        fail((*tokens)->location, "missing self, should be 'def %s(self, ...)" % result.name)
+        fail((*tokens)->location, (byte*)("missing self, should be 'def %s(self, ...)" % result.name))
 
     result.return_type = parse_type(tokens)
     return result
