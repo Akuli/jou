@@ -129,7 +129,7 @@ def parse_function_or_method_signature(tokens: Token**, is_method: bool) -> AstS
     if not used_self and is_method:
         throwerror: byte[300]
         snprintf(throwerror, sizeof throwerror, "missing self, should be 'def %s(self, ...)", result.name)
-        fail((*tokens)->location, message)
+        fail((*tokens)->location, throwerror)
 
     result.return_type = parse_type(tokens)
     return result
