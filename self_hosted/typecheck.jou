@@ -293,17 +293,14 @@ def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
     printf("\n")
     assert False  # TODO
 
-def handle_signature(ft: FileTypes*, astsig: AstSignature*) -> Signature:
+def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_type: Type*) -> Signature:
+    assert self_type == NULL or self_type->kind == TypeKind::Class
+
     sig = Signature{
         name = astsig->name,
         nargs = astsig->nargs,
         takes_varargs = astsig->takes_varargs,
     }
-
-    if astsig->return_type.is_void() or astsig->return_type.is_noreturn():
-        sig.return_type = NULL
-    else:
-        sig.return_type = type_from_ast(ft, &astsig->return_type)
 
     sig.argnames = malloc(sizeof sig.argnames[0] * sig.nargs)
     for i = 0; i < sig.nargs; i++:
@@ -312,6 +309,16 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*) -> Signature:
     sig.argtypes = malloc(sizeof sig.argtypes[0] * sig.nargs)
     for i = 0; i < sig.nargs; i++:
         sig.argtypes[i] = type_from_ast(ft, &astsig->args[i].type)
+
+    if astsig->return_type.is_void() or astsig->return_type.is_noreturn():
+        sig.return_type = NULL
+    else:
+        sig.return_type = type_from_ast(ft, &astsig->return_type)
+
+    # TODO: validate main() parameters
+    # TODO: test main() taking parameters
+    if self_type == NULL and strcmp(sig.name, "main") == 0 and sig.return_type != int_type:
+        fail(astsig->return_type.location, "the main() function must return int")
 
     return sig
 
@@ -365,7 +372,7 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
         ts = &ast_file->body[i]
 
         if ts->kind == AstToplevelStatementKind::Function:
-            sig = handle_signature(ft, &ts->function.signature)
+            sig = handle_signature(ft, &ts->function.signature, NULL)
             ft->all_functions = realloc(ft->all_functions, sizeof ft->all_functions[0] * (ft->n_all_functions + 1))
             ft->all_functions[ft->n_all_functions++] = sig.copy()
             exports = realloc(exports, sizeof exports[0] * (nexports + 1))

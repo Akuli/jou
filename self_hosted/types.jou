@@ -189,7 +189,7 @@ class Signature:
     return_type: Type*
 
     def is_method(self) -> bool:
-        return False
+        return self->nargs >= 1 and strcmp(self->argnames[0], "self") == 0
 
     def function_or_method(self) -> byte*:
         if self->is_method():
