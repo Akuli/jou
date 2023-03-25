@@ -968,6 +968,12 @@ class Stage3TypeChecker:
             result = self->do_instantiation(&expression->instantiation)
         elif expression->kind == AstExpressionKind::Indexing:
             result = self->do_indexing(&expression->operands[0], &expression->operands[1])
+        elif expression->kind == AstExpressionKind::Not:
+            self->do_expression_and_implicit_cast(
+                &expression->operands[0], &bool_type,
+                "value after 'not' must be a boolean, not <from>",
+            )
+            result = &bool_type
         else:
             printf("*** %d\n", expression->kind as int)
             assert False
