@@ -104,6 +104,9 @@ def parse_function_or_method_signature(tokens: Token**, is_method: bool) -> AstS
             ++*tokens
 
         elif (*tokens)->is_keyword("self"):
+            if not is_method:
+                fail((*tokens)->location, "'self' cannot be used here")
+
             the_self: byte[100]
             strcpy(the_self, "self")
             result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
