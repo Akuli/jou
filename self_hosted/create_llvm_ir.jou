@@ -133,6 +133,8 @@ class AstToIR:
         assert False
 
     def declare_function(self, sig: Signature*) -> LLVMValue*:
+        # FIXME: naming of methods
+
         # Make it so that this can be called many times without issue
         func = LLVMGetNamedFunction(self->module, sig->name)
         if func != NULL:
@@ -380,6 +382,54 @@ class AstToIR:
         printf("expression kind (taking address): %d\n", ast->kind)
         assert False
 
+    def do_call(self, call: AstCall*) -> LLVMValue*:
+        if call->method_call_self != NULL:
+            self_type = (
+                self
+                ->function_or_method_types
+                ->get_expression_types(call->method_call_self)
+                ->get_type_after_implicit_cast()
+            )
+            if call->uses_arrow_operator:
+                assert self_type->kind == TypeKind::Pointer
+                self_type = self_type->value_type
+            assert self_type->kind == TypeKind::Class
+            signature = self_type->class_members.find_method(call->name)
+
+            if call->uses_arrow_operator:
+                self_pointer = self->do_expression(call->method_call_self)
+            else:
+                self_pointer = self->do_address_of_expression(call->method_call_self)
+        else:
+            signature = self->file_types->find_function(call->name)
+            self_pointer = NULL
+
+        assert signature != NULL
+
+        function = self->declare_function(signature)
+        assert LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind::Pointer
+        function_type = LLVMGetElementType(LLVMTypeOf(function))
+        assert LLVMGetTypeKind(function_type) == LLVMTypeKind::Function
+
+        args: LLVMValue** = malloc(sizeof args[0] * (call->nargs + 1))
+        k = 0
+        if self_pointer != NULL:
+            args[k++] = self_pointer
+        for i = 0; i < call->nargs; i++:
+            args[k++] = self->do_expression(&call->args[i])
+
+        name_hint: byte[100]
+        if signature->return_type == NULL:
+            strcpy(name_hint, "")
+        else:
+            sprintf(name_hint, "%.20s_return_value", signature->name)
+
+        result = LLVMBuildCall2(self->builder, function_type, function, args, k, name_hint)
+        free(args)
+        if signature->return_type == NULL:
+            return NULL
+        return result
+
     def do_expression(self, ast: AstExpression*) -> LLVMValue*:
         types = self->function_or_method_types->get_expression_types(ast)
         if types != NULL and types->implicit_array_to_pointer_cast:
@@ -407,27 +457,8 @@ class AstToIR:
             result = LLVMConstNull(type_to_llvm(types->original_type))
 
         elif ast->kind == AstExpressionKind::Call:
-            assert ast->call.method_call_self == NULL  # TODO
-            sig = self->file_types->find_function(ast->call.name)
-            assert sig != NULL
-            function = self->declare_function(sig)
-            assert LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind::Pointer
-            function_type = LLVMGetElementType(LLVMTypeOf(function))
-            assert LLVMGetTypeKind(function_type) == LLVMTypeKind::Function
-
-            args: LLVMValue** = malloc(sizeof args[0] * ast->call.nargs)
-            for i = 0; i < ast->call.nargs; i++:
-                args[i] = self->do_expression(&ast->call.args[i])
-
-            name_hint: byte[100]
-            if sig->return_type == NULL:
-                strcpy(name_hint, "")
-            else:
-                sprintf(name_hint, "%.20s_return_value", sig->name)
-
-            result = LLVMBuildCall2(self->builder, function_type, function, args, ast->call.nargs, name_hint)
-            free(args)
-            if sig->return_type == NULL:
+            result = self->do_call(&ast->call)
+            if result == NULL:
                 return NULL
 
         elif ast->kind == AstExpressionKind::GetEnumMember:
@@ -478,9 +509,10 @@ class AstToIR:
 
             if ast->class_field.uses_arrow_operator:
                 instance = LLVMBuildLoad(self->builder, instance, "instance")
-                assert instance_type->kind == TypeKind::Class
+                assert instance_type->kind == TypeKind::Pointer
                 instance_type = instance_type->value_type
 
+            assert instance_type->kind == TypeKind::Class
             field = instance_type->class_members.find_field(ast->class_field.field_name)
             assert field != NULL
             result = LLVMBuildExtractValue(self->builder, instance, field->union_id, field->name)
@@ -520,6 +552,10 @@ class AstToIR:
 
         elif ast->kind == AstExpressionKind::Float or ast->kind == AstExpressionKind::Double:
             result = LLVMConstRealOfString(type_to_llvm(types->original_type), ast->float_or_double_text)
+
+        elif ast->kind == AstExpressionKind::Self:
+            self_ptr = self->get_local_var_pointer("self")
+            result = LLVMBuildLoad(self->builder, self_ptr, "self")
 
         else:
             printf("create_llvm_ir: unknown expression kind %d...\n", ast->kind)
@@ -634,10 +670,9 @@ class AstToIR:
         for i = 0; i < body->nstatements; i++:
             self->do_statement(&body->statements[i])
 
-    # The function must already be declared.
-    def define_function(self, funcdef: AstFunctionOrMethod*) -> void:
+    def define_function_or_method(self, funcdef: AstFunctionOrMethod*, self_type: Type*) -> void:
         assert self->function_or_method_types == NULL
-        self->function_or_method_types = self->file_types->find_defined_function(funcdef->signature.name)
+        self->function_or_method_types = self->file_types->find_defined_function_or_method(funcdef->signature.name, self_type)
         assert self->function_or_method_types != NULL
 
         assert self->llvm_function == NULL
@@ -690,7 +725,14 @@ def create_llvm_ir(ast: AstFile*, ft: FileTypes*) -> LLVMModule*:
 
     for i = 0; i < ast->body_len; i++:
         if ast->body[i].kind == AstToplevelStatementKind::Function and ast->body[i].function.body.nstatements > 0:
-            a2i.define_function(&ast->body[i].function)
+            a2i.define_function_or_method(&ast->body[i].function, NULL)
+        elif ast->body[i].kind == AstToplevelStatementKind::Class:
+            classdef = &ast->body[i].classdef
+            class_type = ft->find_type(classdef->name)
+            assert class_type != NULL
+            for k = 0; k < classdef->nmembers; k++:
+                if classdef->members[k].kind == AstClassMemberKind::Method:
+                    a2i.define_function_or_method(&classdef->members[k].method, class_type)
 
     LLVMDisposeBuilder(a2i.builder)
     return module
