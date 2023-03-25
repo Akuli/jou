@@ -196,7 +196,7 @@ class FileTypes:
                 return &self->all_functions[i]
         return NULL
 
-    # If class_type is NULL, this finds a method
+    # If class_type is NULL, this finds a function
     def find_defined_function_or_method(self, name: byte*, class_type: Type*) -> FunctionOrMethodTypes*:
         assert class_type == NULL or class_type->kind == TypeKind::Class
         for i = 0; i < self->n_defined_functions; i++:
