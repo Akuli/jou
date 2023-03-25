@@ -445,10 +445,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
     ):
         strcpy(result, "the result of a comparison")
     elif expr->kind == AstExpressionKind::Call:
-        if expr->call.method_call_self == NULL:
-            strcpy(result, "a function call")
-        else:
-            strcpy(result, "a method call")
+        sprintf(result, "a %s call", expr->call.function_or_method())
     elif expr->kind == AstExpressionKind::Instantiate:
         strcpy(result, "a newly created instance")
     elif expr->kind == AstExpressionKind::GetVariable:
@@ -691,9 +688,9 @@ class Stage3TypeChecker:
         assert call->method_call_self == NULL  # TODO
         message: byte[500]
 
-        signature = self->file_types->find_function(call->called_name)
+        signature = self->file_types->find_function(call->name)
         if signature == NULL:
-            snprintf(message, sizeof message, "function '%s' not found", call->called_name)
+            snprintf(message, sizeof message, "function '%s' not found", call->name)
             fail(call->location, message)
 
         signature_string = signature->to_string(False)
@@ -978,7 +975,7 @@ class Stage3TypeChecker:
         types = self->do_expression_maybe_void(expression)
         if types == NULL:
             assert expression->kind == AstExpressionKind::Call
-            name = expression->call.called_name
+            name = expression->call.name
             message = malloc(strlen(name) + 100)
             sprintf(message, "%s '%s' does not return a value", expression->call.function_or_method(), name)
             fail(expression->location, message)

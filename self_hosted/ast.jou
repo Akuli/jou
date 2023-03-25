@@ -180,12 +180,8 @@ class AstExpression:
             for i = 0; i < self->array.length; i++:
                 self->array.items[i].print(tp.print_prefix(i == self->array.length-1))
         elif self->kind == AstExpressionKind::Call:
-            if self->call.method_call_self == NULL:
-                printf("call function \"%s\"\n", self->call.called_name)
-                self->call.print(tp)
-            else:
-                printf("call method \"%s\"\n", self->call.called_name)
-                self->call.print(tp)
+            printf("call %s \"%s\"\n", self->call.function_or_method(), self->call.name)
+            self->call.print(tp)
         elif self->kind == AstExpressionKind::Instantiate:
             printf("instantiate \"%s\"\n", self->instantiation.class_name)
             self->instantiation.print(tp)
@@ -349,7 +345,7 @@ class AstAsExpression:
 
 class AstCall:
     location: Location
-    called_name: byte[100]  # name of function or method
+    name: byte[100]  # name of function or method
     method_call_self: AstExpression*  # NULL for function calls, the foo of foo.bar() for method calls
     uses_arrow_operator: bool  # distinguishes foo->bar() and foo.bar()
     nargs: int
