@@ -7,13 +7,20 @@
 set -e
 
 files=()
+actions=()
 fix=no
 
 for arg in "$@"; do
     if [ "$arg" = --fix ]; then
         fix=yes
+    elif [ "$arg" = --tokenize ]; then
+        actions+=(tokenize)
+    elif [ "$arg" = --parse ]; then
+        actions+=(parse)
+    elif [ "$arg" = --run ]; then
+        actions+=(run)
     elif [[ "$arg" =~ ^- ]]; then
-        echo "Usage: $0 [--fix] [FILENAME1.jou FILENAME2.jou ...]" >&2
+        echo "Usage: $0 [--tokenize] [--parse] [--run] [--fix] [FILENAME1.jou FILENAME2.jou ...]" >&2
         exit 2
     else
         files+=($arg)
@@ -22,6 +29,9 @@ done
 
 if [ ${#files[@]} = 0 ]; then
     mapfile -t files < <( find stdlib examples tests -name '*.jou' | sort )
+fi
+if [ ${#actions[@]} = 0 ]; then
+    actions=(tokenize parse run)
 fi
 
 rm -rf tmp/compare_compilers
@@ -79,7 +89,7 @@ else
 fi
 
 for file in ${files[@]}; do
-for action in tokenize parse run; do
+for action in ${actions[@]}; do
     echo "$action $file"
     error_list_file=self_hosted/${action}s_wrong.txt
     if [ $action == run ]; then
