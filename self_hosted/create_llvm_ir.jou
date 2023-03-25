@@ -133,10 +133,16 @@ class AstToIR:
         assert False
 
     def declare_function(self, sig: Signature*) -> LLVMValue*:
-        # FIXME: naming of methods
+        full_name: byte[200]
+        if sig->is_method():
+            class_type = sig->get_containing_class()
+            assert sizeof class_type->name + sizeof sig->name == sizeof full_name
+            sprintf(full_name, "%s.%s", class_type->name, sig->name)
+        else:
+            strcpy(full_name, sig->name)
 
         # Make it so that this can be called many times without issue
-        func = LLVMGetNamedFunction(self->module, sig->name)
+        func = LLVMGetNamedFunction(self->module, full_name)
         if func != NULL:
             return func
 
@@ -153,7 +159,7 @@ class AstToIR:
         function_type = LLVMFunctionType(return_type, argtypes, sig->nargs, sig->takes_varargs)
         free(argtypes)
 
-        return LLVMAddFunction(self->module, sig->name, function_type)
+        return LLVMAddFunction(self->module, full_name, function_type)
 
     def new_block(self, name_hint: byte*) -> void:
         assert self->llvm_function != NULL
