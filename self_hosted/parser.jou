@@ -919,6 +919,14 @@ def parse_enum(tokens: Token**) -> AstEnumDef:
     while (*tokens)->kind != TokenKind::Dedent:
         if (*tokens)->kind != TokenKind::Name:
             (*tokens)->fail_expected_got("a name for an enum member")
+
+        for i = 0; i < result.member_count; i++:
+            if strcmp(result.member_names[i], (*tokens)->short_string) == 0:
+                assert sizeof (*tokens)->short_string == 100
+                error: byte[200]
+                sprintf(error, "the enum has two members named '%s'", (*tokens)->short_string)
+                fail((*tokens)->location, error)
+
         result.member_names = realloc(result.member_names, sizeof result.member_names[0] * (result.member_count + 1))
         result.member_names[result.member_count++] = (*tokens)->short_string
         ++*tokens
