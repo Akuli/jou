@@ -406,8 +406,9 @@ class AstToIR:
         elif ast->kind == AstExpressionKind::Null:
             result = LLVMConstNull(type_to_llvm(types->original_type))
 
-        elif ast->kind == AstExpressionKind::FunctionCall:
-            sig = self->file_types->find_function(ast->call.called_name)
+        elif ast->kind == AstExpressionKind::Call:
+            assert ast->call.method_call_self == NULL  # TODO
+            sig = self->file_types->find_function(ast->call.name)
             assert sig != NULL
             function = self->declare_function(sig)
             assert LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind::Pointer

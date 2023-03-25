@@ -46,7 +46,8 @@ static AstType parse_type(const Token **tokens)
 {
     AstType result = { .kind = AST_TYPE_NAMED, .location = (*tokens)->location };
 
-    if (!is_keyword(*tokens, "void")
+    if ((*tokens)->type != TOKEN_NAME
+        && !is_keyword(*tokens, "void")
         && !is_keyword(*tokens, "noreturn")
         && !is_keyword(*tokens, "short")
         && !is_keyword(*tokens, "int")
@@ -54,8 +55,7 @@ static AstType parse_type(const Token **tokens)
         && !is_keyword(*tokens, "byte")
         && !is_keyword(*tokens, "float")
         && !is_keyword(*tokens, "double")
-        && !is_keyword(*tokens, "bool")
-        && (*tokens)->type != TOKEN_NAME)
+        && !is_keyword(*tokens, "bool"))
     {
         fail_with_parse_error(*tokens, "a type");
     }
@@ -1019,6 +1019,12 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens, const char *std
         ++*tokens;
         result.kind = AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE;
         result.data.globalvar = parse_name_type_value(tokens, "a variable name");
+        if (result.data.globalvar.value) {
+            // TODO: make this work
+            fail_with_error(
+                result.data.globalvar.value->location,
+                "specifying a value for a global variable is not supported yet");
+        }
         eat_newline(tokens);
     } else if (is_keyword(*tokens, "class")) {
         ++*tokens;

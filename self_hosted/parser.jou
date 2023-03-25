@@ -8,12 +8,15 @@ import "./paths.jou"
 def parse_type(tokens: Token**) -> AstType:
     if not (
         (*tokens)->kind == TokenKind::Name
-        or (*tokens)->is_keyword("int")
-        or (*tokens)->is_keyword("long")
-        or (*tokens)->is_keyword("bool")
-        or (*tokens)->is_keyword("byte")
         or (*tokens)->is_keyword("void")
         or (*tokens)->is_keyword("noreturn")
+        or (*tokens)->is_keyword("short")
+        or (*tokens)->is_keyword("int")
+        or (*tokens)->is_keyword("long")
+        or (*tokens)->is_keyword("byte")
+        or (*tokens)->is_keyword("float")
+        or (*tokens)->is_keyword("double")
+        or (*tokens)->is_keyword("bool")
     ):
         (*tokens)->fail_expected_got("a type")
 
@@ -101,6 +104,9 @@ def parse_function_or_method_signature(tokens: Token**, is_method: bool) -> AstS
             ++*tokens
 
         elif (*tokens)->is_keyword("self"):
+            if not is_method:
+                fail((*tokens)->location, "'self' cannot be used here")
+
             the_self: byte[100]
             strcpy(the_self, "self")
             result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
@@ -187,7 +193,7 @@ def parse_import_path(path_token: Token*, stdlib_path: byte*) -> AstImport:
 
 def parse_call(tokens: Token**) -> AstCall:
     assert (*tokens)->kind == TokenKind::Name  # must be checked when calling this function
-    result = AstCall{location = (*tokens)->location, called_name = (*tokens)->short_string}
+    result = AstCall{location = (*tokens)->location, name = (*tokens)->short_string}
     ++*tokens
     assert (*tokens)->is_operator("(")
     ++*tokens
@@ -312,7 +318,7 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
         ++*tokens
     elif (*tokens)->kind == TokenKind::Name:
         if (*tokens)[1].is_operator("("):
-            expr.kind = AstExpressionKind::FunctionCall
+            expr.kind = AstExpressionKind::Call
             expr.call = parse_call(tokens)
         elif (*tokens)[1].is_operator("{"):
             expr.kind = AstExpressionKind::Instantiate
@@ -361,20 +367,29 @@ def parse_expression_with_fields_and_methods_and_indexing(tokens: Token**) -> As
             if (*tokens)->kind != TokenKind::Name:
                 (*tokens)->fail_expected_got("a field or method name")
 
-            assert not (*tokens)[1].is_operator("(")  # TODO
-
             instance: AstExpression* = malloc(sizeof *instance)
             *instance = result
-            result = AstExpression{
-                location = (*tokens)->location,
-                kind = AstExpressionKind::GetClassField,
-                class_field = AstClassField{
-                    instance = instance,
-                    uses_arrow_operator = start_op->is_operator("->"),
-                    field_name = (*tokens)->short_string,
-                },
-            }
-            ++*tokens
+
+            if (*tokens)[1].is_operator("("):
+                call = parse_call(tokens)
+                call.method_call_self = instance
+                call.uses_arrow_operator = start_op->is_operator("->")
+                result = AstExpression{
+                    location = call.location,
+                    kind = AstExpressionKind::Call,
+                    call = call,
+                }
+            else:
+                result = AstExpression{
+                    location = (*tokens)->location,
+                    kind = AstExpressionKind::GetClassField,
+                    class_field = AstClassField{
+                        instance = instance,
+                        uses_arrow_operator = start_op->is_operator("->"),
+                        field_name = (*tokens)->short_string,
+                    },
+                }
+                ++*tokens
 
     return result
 
@@ -907,6 +922,14 @@ def parse_enum(tokens: Token**) -> AstEnumDef:
     while (*tokens)->kind != TokenKind::Dedent:
         if (*tokens)->kind != TokenKind::Name:
             (*tokens)->fail_expected_got("a name for an enum member")
+
+        for i = 0; i < result.member_count; i++:
+            if strcmp(result.member_names[i], (*tokens)->short_string) == 0:
+                assert sizeof (*tokens)->short_string == 100
+                error: byte[200]
+                sprintf(error, "the enum has two members named '%s'", (*tokens)->short_string)
+                fail((*tokens)->location, error)
+
         result.member_names = realloc(result.member_names, sizeof result.member_names[0] * (result.member_count + 1))
         result.member_names[result.member_count++] = (*tokens)->short_string
         ++*tokens
@@ -942,6 +965,17 @@ def parse_toplevel_node(tokens: Token**, stdlib_path: byte*) -> AstToplevelState
         else:
             ts.kind = AstToplevelStatementKind::Function
             ts.function.signature = parse_function_or_method_signature(tokens, False)
+        eat_newline(tokens)
+
+    elif (*tokens)->is_keyword("global"):
+        ++*tokens
+        ts.kind = AstToplevelStatementKind::GlobalVariableDefinition
+        ts.global_var = parse_name_type_value(tokens, "a variable name")
+        if ts.global_var.value != NULL:
+            fail(
+                ts.global_var.value->location,
+                "specifying a value for a global variable is not supported yet",
+            )
         eat_newline(tokens)
 
     elif (*tokens)->is_keyword("class"):

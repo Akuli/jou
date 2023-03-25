@@ -88,7 +88,7 @@ enum AstExpressionKind:
     Bool
     Null
     Array
-    FunctionCall
+    Call  # function call or method call
     Instantiate   # MyClass{x=1, y=2}
     Self    # not a variable lookup, so you can't use 'self' as variable name outside a class
     GetVariable
@@ -179,8 +179,10 @@ class AstExpression:
             printf("array\n")
             for i = 0; i < self->array.length; i++:
                 self->array.items[i].print(tp.print_prefix(i == self->array.length-1))
-        elif self->kind == AstExpressionKind::FunctionCall:
-            printf("call function \"%s\"\n", self->call.called_name)
+        elif self->kind == AstExpressionKind::Call:
+            if self->call.uses_arrow_operator:
+                printf("dereference and ")
+            printf("call %s \"%s\"\n", self->call.function_or_method(), self->call.name)
             self->call.print(tp)
         elif self->kind == AstExpressionKind::Instantiate:
             printf("instantiate \"%s\"\n", self->instantiation.class_name)
@@ -256,7 +258,7 @@ class AstExpression:
             self->operands[i].print(tp.print_prefix(i == self->get_arity()-1))
 
     def free(self) -> void:
-        if self->kind == AstExpressionKind::FunctionCall:
+        if self->kind == AstExpressionKind::Call:
             self->call.free()
         elif self->kind == AstExpressionKind::As:
             self->as_expression->free()
@@ -306,7 +308,7 @@ class AstExpression:
 
     def can_have_side_effects(self) -> bool:
         return (
-            self->kind == AstExpressionKind::FunctionCall
+            self->kind == AstExpressionKind::Call
             or self->kind == AstExpressionKind::PreIncr
             or self->kind == AstExpressionKind::PreDecr
             or self->kind == AstExpressionKind::PostIncr
@@ -345,11 +347,25 @@ class AstAsExpression:
 
 class AstCall:
     location: Location
-    called_name: byte[100]  # e.g. name of function, name of class to instantiate
+    name: byte[100]  # name of function or method
+    method_call_self: AstExpression*  # NULL for function calls, the foo of foo.bar() for method calls
+    uses_arrow_operator: bool  # distinguishes foo->bar() and foo.bar()
     nargs: int
     args: AstExpression*
 
+    # Useful for formatting error messages, but not much else.
+    def function_or_method(self) -> byte*:
+        if self->method_call_self == NULL:
+            return "function"
+        else:
+            return "method"
+
     def print(self, tp: TreePrinter) -> void:
+        if self->method_call_self != NULL:
+            sub = tp.print_prefix(self->nargs == 0)
+            printf("self: ")
+            self->method_call_self->print(sub)
+
         for i = 0; i < self->nargs; i++:
             sub = tp.print_prefix(i == self->nargs - 1)
             printf("argument %d: ", i)
@@ -632,6 +648,7 @@ enum AstToplevelStatementKind:
     Class
     Enum
     GlobalVariableDeclaration
+    GlobalVariableDefinition
 
 class AstToplevelStatement:
     union:
@@ -666,6 +683,10 @@ class AstToplevelStatement:
             self->enumdef.print()
         elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
             printf("Declare a global variable ")
+            self->global_var.print(NULL)
+            printf("\n")
+        elif self->kind == AstToplevelStatementKind::GlobalVariableDefinition:
+            printf("Define a global variable ")
             self->global_var.print(NULL)
             printf("\n")
         else:

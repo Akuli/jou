@@ -226,7 +226,7 @@ static void print_ast_expression(const AstExpression *expr, struct TreePrinter t
             expr->data.enummember.membername, expr->data.enummember.enumname);
         break;
     case AST_EXPR_SIZEOF:
-        printf("sizeof expression\n");
+        printf("sizeof\n");
         print_ast_expression(expr->data.classfield.obj, print_tree_prefix(tp, true));
         break;
     case AST_EXPR_GET_VARIABLE:
