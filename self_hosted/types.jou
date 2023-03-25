@@ -43,6 +43,12 @@ class ClassMembers:
                 return &self->fields[i]
         return NULL
 
+    def find_method(self, name: byte*) -> Signature*:
+        for i = 0; i < self->nmethods; i++:
+            if strcmp(self->methods[i].name, name) == 0:
+                return &self->methods[i]
+        return NULL
+
 class ArrayInfo:
     length: int
     item_type: Type*
@@ -188,8 +194,16 @@ class Signature:
     takes_varargs: bool  # True for functions like printf()
     return_type: Type*
 
+    def get_containing_class(self) -> Type*:
+        for i = 0; i < self->nargs; i++:
+            if strcmp(self->argnames[i], "self") == 0:
+                assert self->argtypes[i]->kind == TypeKind::Pointer
+                assert self->argtypes[i]->value_type->kind == TypeKind::Class
+                return self->argtypes[i]->value_type
+        return NULL
+
     def is_method(self) -> bool:
-        return self->nargs >= 1 and strcmp(self->argnames[0], "self") == 0
+        return self->get_containing_class() != NULL
 
     def function_or_method(self) -> byte*:
         if self->is_method():
@@ -197,21 +211,25 @@ class Signature:
         else:
             return "function"
 
-    def to_string(self, include_return_type: bool) -> byte*:
+    def to_string(self, include_self: bool, include_return_type: bool) -> byte*:
         result: byte* = malloc(500*(self->nargs + 1))
         strcpy(result, self->name)
 
         strcat(result, "(")
+
         for i = 0; i < self->nargs; i++:
-            if i != 0:
-                strcat(result, ", ")
+            if strcmp(self->argnames[i], "self") == 0 and not include_self:
+                continue
             strcat(result, self->argnames[i])
             strcat(result, ": ")
             strcat(result, self->argtypes[i]->name)
+            strcat(result, ", ")
+
         if self->takes_varargs:
-            if self->nargs != 0:
-                strcat(result, ", ")
             strcat(result, "...")
+        elif ends_with(result, ", "):
+            result[strlen(result)-2] = '\0'
+
         strcat(result, ")")
 
         if include_return_type:

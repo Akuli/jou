@@ -8,11 +8,22 @@ class Foo:
         return self->x + self->y
 
     def increment_x(self) -> void:
-        self->x += 1
+        self->x++
+
+class Foo3:
+    # Different classes can have methods with the same name.
+    x: int
+    y: int
+    z: int
+    def get_sum(self) -> int:
+        return self->x + self->y + self->z
 
 def main() -> int:
     f = Foo{x = 1, y = 2}
     printf("%d\n", f.get_sum())  # Output: 3
     f.increment_x()
     printf("%d\n", f.get_sum())  # Output: 4
+
+    f3 = Foo3{x=1, y=2, z=3}
+    printf("%d\n", f3.get_sum())  # Output: 6
     return 0

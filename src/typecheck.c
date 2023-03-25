@@ -771,7 +771,10 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
         }
         // If it is not a class, explain to the user that there are no methods
         if (self_type->kind != TYPE_CLASS) {
-            fail_with_error(location, "type %s does not have any methods because it is not a class", self_type->name);
+            fail_with_error(
+                location,
+                "type %s does not have any methods because it is %s, not a class",
+                self_type->name, short_type_description(self_type));
         }
         fail_with_error(location, "class %s does not have a method named '%s'",
             self_type->name, call->calledname);
@@ -795,11 +798,12 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
 
     int k = 0;
     for (int i = 0; i < sig->nargs; i++) {
+        if (!strcmp(sig->argnames[i], "self"))
+            continue;
         // This is a common error, so worth spending some effort to get a good error message.
         char msg[500];
         snprintf(msg, sizeof msg, "%s argument of %s %s should have type TO, not FROM", nth(i+1), self_type ? "method" : "function", sigstr);
-        if (strcmp(sig->argnames[i], "self"))
-            typecheck_expression_with_implicit_cast(ft, &call->args[k++], sig->argtypes[i], msg);
+        typecheck_expression_with_implicit_cast(ft, &call->args[k++], sig->argtypes[i], msg);
     }
 
     for (int i = k; i < call->nargs; i++) {
