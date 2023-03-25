@@ -46,7 +46,8 @@ static AstType parse_type(const Token **tokens)
 {
     AstType result = { .kind = AST_TYPE_NAMED, .location = (*tokens)->location };
 
-    if (!is_keyword(*tokens, "void")
+    if ((*tokens)->type != TOKEN_NAME
+        && !is_keyword(*tokens, "void")
         && !is_keyword(*tokens, "noreturn")
         && !is_keyword(*tokens, "short")
         && !is_keyword(*tokens, "int")
@@ -54,8 +55,7 @@ static AstType parse_type(const Token **tokens)
         && !is_keyword(*tokens, "byte")
         && !is_keyword(*tokens, "float")
         && !is_keyword(*tokens, "double")
-        && !is_keyword(*tokens, "bool")
-        && (*tokens)->type != TOKEN_NAME)
+        && !is_keyword(*tokens, "bool"))
     {
         fail_with_parse_error(*tokens, "a type");
     }
