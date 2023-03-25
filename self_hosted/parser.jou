@@ -315,7 +315,7 @@ def parse_elementary_expression(tokens: Token**) -> AstExpression:
         ++*tokens
     elif (*tokens)->kind == TokenKind::Name:
         if (*tokens)[1].is_operator("("):
-            expr.kind = AstExpressionKind::FunctionCall
+            expr.kind = AstExpressionKind::Call
             expr.call = parse_call(tokens)
         elif (*tokens)[1].is_operator("{"):
             expr.kind = AstExpressionKind::Instantiate
@@ -364,20 +364,29 @@ def parse_expression_with_fields_and_methods_and_indexing(tokens: Token**) -> As
             if (*tokens)->kind != TokenKind::Name:
                 (*tokens)->fail_expected_got("a field or method name")
 
-            assert not (*tokens)[1].is_operator("(")  # TODO
-
             instance: AstExpression* = malloc(sizeof *instance)
             *instance = result
-            result = AstExpression{
-                location = (*tokens)->location,
-                kind = AstExpressionKind::GetClassField,
-                class_field = AstClassField{
-                    instance = instance,
-                    uses_arrow_operator = start_op->is_operator("->"),
-                    field_name = (*tokens)->short_string,
-                },
-            }
-            ++*tokens
+
+            if (*tokens)[1].is_operator("("):
+                call = parse_call(tokens)
+                call.method_call_self = instance
+                call.uses_arrow_operator = start_op->is_operator("->")
+                result = AstExpression{
+                    location = call.location,
+                    kind = AstExpressionKind::Call,
+                    call = call,
+                }
+            else:
+                result = AstExpression{
+                    location = (*tokens)->location,
+                    kind = AstExpressionKind::GetClassField,
+                    class_field = AstClassField{
+                        instance = instance,
+                        uses_arrow_operator = start_op->is_operator("->"),
+                        field_name = (*tokens)->short_string,
+                    },
+                }
+                ++*tokens
 
     return result
 

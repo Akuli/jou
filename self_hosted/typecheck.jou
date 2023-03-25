@@ -444,8 +444,11 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
         or expr->kind == AstExpressionKind::Le
     ):
         strcpy(result, "the result of a comparison")
-    elif expr->kind == AstExpressionKind::FunctionCall:
-        strcpy(result, "a function call")
+    elif expr->kind == AstExpressionKind::Call:
+        if expr->call.method_call_self == NULL:
+            strcpy(result, "a function call")
+        else:
+            strcpy(result, "a method call")
     elif expr->kind == AstExpressionKind::Instantiate:
         strcpy(result, "a newly created instance")
     elif expr->kind == AstExpressionKind::GetVariable:
@@ -684,7 +687,8 @@ class Stage3TypeChecker:
         # TODO: check global vars (they don't exist yet)
         return NULL
 
-    def do_function_call(self, call: AstCall*) -> Type*:
+    def do_call(self, call: AstCall*) -> Type*:
+        assert call->method_call_self == NULL  # TODO
         message: byte[500]
 
         signature = self->file_types->find_function(call->called_name)
@@ -874,8 +878,8 @@ class Stage3TypeChecker:
             member_type = cast_array_items_to_a_common_type(expression->location, item_types, n)
             free(item_types)
             result = member_type->get_array_type(n)
-        elif expression->kind == AstExpressionKind::FunctionCall:
-            result = self->do_function_call(&expression->call)
+        elif expression->kind == AstExpressionKind::Call:
+            result = self->do_call(&expression->call)
             if result == NULL:
                 return NULL
         elif expression->kind == AstExpressionKind::GetVariable:
@@ -973,10 +977,10 @@ class Stage3TypeChecker:
     def do_expression(self, expression: AstExpression*) -> ExpressionTypes*:
         types = self->do_expression_maybe_void(expression)
         if types == NULL:
-            assert expression->kind == AstExpressionKind::FunctionCall
+            assert expression->kind == AstExpressionKind::Call
             name = expression->call.called_name
             message = malloc(strlen(name) + 100)
-            sprintf(message, "function '%s' does not return a value", name)
+            sprintf(message, "%s '%s' does not return a value", expression->call.function_or_method(), name)
             fail(expression->location, message)
         return types
 
