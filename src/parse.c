@@ -1019,6 +1019,12 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens, const char *std
         ++*tokens;
         result.kind = AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE;
         result.data.globalvar = parse_name_type_value(tokens, "a variable name");
+        if (result.data.globalvar.value) {
+            // TODO: make this work
+            fail_with_error(
+                result.data.globalvar.value->location,
+                "specifying a value for a global variable is not supported yet");
+        }
         eat_newline(tokens);
     } else if (is_keyword(*tokens, "class")) {
         ++*tokens;

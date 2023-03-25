@@ -632,6 +632,7 @@ enum AstToplevelStatementKind:
     Class
     Enum
     GlobalVariableDeclaration
+    GlobalVariableDefinition
 
 class AstToplevelStatement:
     union:
@@ -666,6 +667,10 @@ class AstToplevelStatement:
             self->enumdef.print()
         elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
             printf("Declare a global variable ")
+            self->global_var.print(NULL)
+            printf("\n")
+        elif self->kind == AstToplevelStatementKind::GlobalVariableDefinition:
+            printf("Define a global variable ")
             self->global_var.print(NULL)
             printf("\n")
         else:
