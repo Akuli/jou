@@ -180,6 +180,8 @@ class AstExpression:
             for i = 0; i < self->array.length; i++:
                 self->array.items[i].print(tp.print_prefix(i == self->array.length-1))
         elif self->kind == AstExpressionKind::Call:
+            if self->call.uses_arrow_operator:
+                printf("dereference and ")
             printf("call %s \"%s\"\n", self->call.function_or_method(), self->call.name)
             self->call.print(tp)
         elif self->kind == AstExpressionKind::Instantiate:
