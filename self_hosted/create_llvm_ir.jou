@@ -25,7 +25,6 @@ def build_signed_div(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*) ->
     top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp")
     return LLVMBuildExactSDiv(builder, top, rhs, "sdiv")
 
-
 def lmax(a: long, b: long) -> long:
     if a > b:
         return a
