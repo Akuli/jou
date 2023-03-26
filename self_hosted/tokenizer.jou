@@ -22,7 +22,7 @@ def is_keyword(word: byte*) -> bool:
     #   - syntax documentation
     keywords = [
         "import", "def", "declare", "class", "union", "enum", "global",
-        "return", "if", "elif", "else", "while", "for", "break", "continue", "pass", 
+        "return", "if", "elif", "else", "while", "for", "break", "continue", "pass",
         "True", "False", "NULL", "self",
         "and", "or", "not", "as", "sizeof", "assert",
         "void", "noreturn",
@@ -90,7 +90,7 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
     assert nbits == 16 or nbits == 32 or nbits == 64
     if nbits == 32 and (result as int) != result:
         overflow = True
-        
+
     if nbits == 16 and (result as short) != result:
         overflow = True
 
