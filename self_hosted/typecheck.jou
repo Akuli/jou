@@ -411,6 +411,15 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
         ts = &ast_file->body[i]
 
         if ts->kind == AstToplevelStatementKind::Function:
+            if ft->find_function(ts->function.signature.name) != NULL:
+                message: byte[200]
+                snprintf(
+                    message, sizeof message,
+                    "a function named '%s' already exists",
+                    ts->function.signature.name,
+                )
+                fail(ts->location, message)
+
             sig = handle_signature(ft, &ts->function.signature, NULL)
             ft->all_functions = realloc(ft->all_functions, sizeof ft->all_functions[0] * (ft->n_all_functions + 1))
             ft->all_functions[ft->n_all_functions++] = sig.copy()
