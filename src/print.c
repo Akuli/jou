@@ -547,7 +547,7 @@ static void print_cf_instruction(const CfInstruction *ins)
         print_constant(&ins->data.constant);
         break;
     case CF_STRING_ARRAY:
-        printf("string array");
+        printf("string array ");
         print_string(ins->data.strarray.str, ins->data.strarray.len);
         break;
 
