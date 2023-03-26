@@ -553,6 +553,24 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
         return memberptr;
     }
 
+    if (types && types->implicit_string_to_array_cast) {
+        assert(types->implicit_cast_type);
+        assert(types->implicit_cast_type->kind == TYPE_ARRAY);
+        assert(expr->kind == AST_EXPR_CONSTANT);
+        assert(expr->data.constant.kind == CONSTANT_STRING);
+
+        char *padded = calloc(1, types->implicit_cast_type->data.array.len);
+        strcpy(padded, expr->data.constant.data.str);
+
+        const LocalVariable *result = add_local_var(st, types->implicit_cast_type);
+        union CfInstructionData data = { .strarray = {
+            .len = types->implicit_cast_type->data.array.len,
+            .str = padded,
+        }};
+        add_instruction(st, expr->location, CF_STRING_ARRAY, &data, NULL, result);
+        return result;
+    }
+
     const LocalVariable *result, *temp;
 
     switch(expr->kind) {
@@ -628,9 +646,11 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
         result = build_address_of_expression(st, &expr->data.operands[0]);
         break;
     case AST_EXPR_SIZEOF:
-        result = add_local_var(st, longType);
-        union CfInstructionData data = { .type = get_expr_types(st, &expr->data.operands[0])->type };
-        add_instruction(st, expr->location, CF_SIZEOF, &data, NULL, result);
+        {
+            result = add_local_var(st, longType);
+            union CfInstructionData data = { .type = get_expr_types(st, &expr->data.operands[0])->type };
+            add_instruction(st, expr->location, CF_SIZEOF, &data, NULL, result);
+        }
         break;
     case AST_EXPR_DEREFERENCE:
         temp = build_expression(st, &expr->data.operands[0]);

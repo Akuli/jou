@@ -527,6 +527,7 @@ struct CfInstruction {
     Location location;
     enum CfInstructionKind {
         CF_CONSTANT,
+        CF_STRING_ARRAY,
         CF_CALL,  // function or method call, depending on whether self_type is NULL (see below)
         CF_ADDRESS_OF_LOCAL_VAR,
         CF_ADDRESS_OF_GLOBAL_VAR,
@@ -554,6 +555,7 @@ struct CfInstruction {
     } kind;
     union CfInstructionData {
         Constant constant;      // CF_CONSTANT
+        struct { char *str; int len; } strarray;  // CF_STRING_ARRAY
         Signature signature;    // CF_CALL
         char fieldname[100];    // CF_PTR_CLASS_FIELD
         char globalname[100];   // CF_ADDRESS_OF_GLOBAL_VAR
