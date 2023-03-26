@@ -34,11 +34,11 @@ List(T) is a dynamically growing array, similar to Python's list data type. Exam
 Gotchas to watch out for:
 
 - Every occurrence of List(T) is a new, incompatible type, so you can't
-  use List in function arguments. If you really need to, make a typedef of
-  List(SomeType) or wrap it in a struct.
+    use List in function arguments. If you really need to, make a typedef of
+    List(SomeType) or wrap it in a struct.
 
 - The elements can get reallocated in Append(). This messes up all pointers
-  to the list, including any loops that don't use indexes.
+    to the list, including any loops that don't use indexes.
 
 - Do NOT do this:
 
@@ -46,16 +46,16 @@ Gotchas to watch out for:
             ...use thing...
         }
 
-  It can fail if the list is empty, because End(list) can be NULL. Use indexes
-  if you need to loop backwards:
+It can fail if the list is empty, because End(list) can be NULL. Use indexes
+if you need to loop backwards:
 
         for (int i = list.len - 1; i >= 0; i--) {
             ...use list.ptr[i] ...
         }
 
 - Side effects of foo() in Append(list, foo()) must not modify the list that is
-  being appended into. It creates confusing bugs. You may want to store the
-  result of foo() into a variable before calling Append().
+    being appended into. It creates confusing bugs. You may want to store the
+    result of foo() into a variable before calling Append().
 */
 #define List(T) struct { T *ptr; int len,alloc; }
 #define Append(list, ...) do { \

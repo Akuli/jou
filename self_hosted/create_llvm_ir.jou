@@ -303,7 +303,7 @@ class AstToIR:
 
         printf("%s %d %s\n", lhs_type->name, op, rhs_type->name)
         assert False
-    
+
     def do_assert(self, condition: LLVMValue*) -> void:
         true_block = LLVMAppendBasicBlock(self->llvm_function, "assert_true")
         false_block = LLVMAppendBasicBlock(self->llvm_function, "assert_false")

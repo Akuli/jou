@@ -14,7 +14,7 @@ The `make` command creates a file `compile_flags.txt`
 to help `clangd` find the LLVM header files.
 
 </details>
-    
+
 <details> <summary>64-bit Windows</summary>
 
 1. Download and install Git from [Git's website](https://git-scm.com/download/win) if you don't have it already.
