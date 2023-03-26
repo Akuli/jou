@@ -172,8 +172,12 @@ static void print_ast_function_signature(const AstSignature *sig)
     printf("%s(", sig->name);
     for (const AstNameTypeValue *ntv = sig->args.ptr; ntv < End(sig->args); ntv++) {
         if (ntv > sig->args.ptr) printf(", ");
-        printf("%s: ", ntv->name);
-        print_ast_type(&ntv->type);
+        if (!strcmp(ntv->name, "self"))
+            printf("self");
+        else{
+            printf("%s: ", ntv->name);
+            print_ast_type(&ntv->type);
+        }
         assert(!ntv->value);
     }
     if (sig->takes_varargs) {
