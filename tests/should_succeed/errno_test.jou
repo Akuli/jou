@@ -1,0 +1,18 @@
+import "stdlib/io.jou"
+import "stdlib/errno.jou"
+
+declare write(fd: int, buf: byte*, count: long) -> long
+
+def main() -> int:
+    printf("%d %s\n", get_errno(), strerror(get_errno()))  # Output: 0 Success
+
+    fopen("this does not exist.txt", "r")
+    printf("%d %s\n", get_errno(), strerror(get_errno()))  # Output: 2 No such file or directory
+
+    set_errno(0)
+    printf("%d %s\n", get_errno(), strerror(get_errno()))  # Output: 0 Success
+
+    set_errno(2)
+    printf("%d %s\n", get_errno(), strerror(get_errno()))  # Output: 2 No such file or directory
+
+    return 0
