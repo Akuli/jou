@@ -242,6 +242,12 @@ class FileTypes:
                 return self->types[i]
         return NULL
 
+    def find_global_var(self, name: byte*) -> Type*:
+        for i = 0; i < self->nglobals; i++:
+            if strcmp(self->globals[i].name, name) == 0:
+                return self->globals[i].type
+        return NULL
+
 def check_type_doesnt_exist(ft: FileTypes*, name: byte*, location: Location) -> void:
     existing = ft->find_type(name)
     if existing != NULL:
@@ -411,6 +417,8 @@ def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> void:
 
 # Returned array is terminated by ExportSymbol with empty name.
 def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> ExportSymbol*:
+    message: byte[200]
+
     exports: ExportSymbol* = NULL
     nexports = 0
 
@@ -419,7 +427,6 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
 
         if ts->kind == AstToplevelStatementKind::Function:
             if ft->find_function(ts->function.signature.name) != NULL:
-                message: byte[200]
                 snprintf(
                     message, sizeof message,
                     "a function named '%s' already exists",
@@ -444,6 +451,14 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
             ts->kind == AstToplevelStatementKind::GlobalVariableDeclaration
             or ts->kind == AstToplevelStatementKind::GlobalVariableDefinition
         ):
+            if ft->find_global_var(ts->global_var.name) != NULL:
+                snprintf(
+                    message, sizeof message,
+                    "a global variable named '%s' already exists",
+                    ts->global_var.name,
+                )
+                fail(ts->location, message)
+
             assert ts->global_var.value == NULL
             type = type_from_ast(ft, &ts->global_var.type)
             ft->globals = realloc(ft->globals, (ft->nglobals + 1) * sizeof ft->globals[0])
