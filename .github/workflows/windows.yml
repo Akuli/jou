@@ -185,3 +185,10 @@ jobs:
         shell: bash
       - run: source activate && ./compare_compilers.sh
         shell: bash
+
+  editorconfig:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: editorconfig-checker/action-editorconfig-checker@main
+      - run: editorconfig-checker
