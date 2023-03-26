@@ -116,36 +116,38 @@ def get_sane_filename(path: byte*) -> byte[50]:
             name[i] = '_'
     return name
 
-def check_ast_and_import_conflicts(ast: AstFile*, imported: ExportSymbol*) -> void:
+def check_ast_and_import_conflicts(ast: AstFile*, symbol: ExportSymbol*) -> void:
     for i = 0; i < ast->body_len; i++:
         ts = &ast->body[i]
         if ts->kind == AstToplevelStatementKind::Function:
-            conflict = imported->kind == ExportSymbolKind::Function and strcmp(ts->function.signature.name, imported->name) == 0
+            conflict = symbol->kind == ExportSymbolKind::Function and strcmp(ts->function.signature.name, symbol->name) == 0
         elif (
             ts->kind == AstToplevelStatementKind::GlobalVariableDeclaration
             or ts->kind == AstToplevelStatementKind::GlobalVariableDefinition
         ):
-            conflict = imported->kind == ExportSymbolKind::GlobalVariable and strcmp(ts->global_var.name, imported->name) == 0
+            conflict = symbol->kind == ExportSymbolKind::GlobalVariable and strcmp(ts->global_var.name, symbol->name) == 0
         elif ts->kind == AstToplevelStatementKind::Class:
-            conflict = imported->kind == ExportSymbolKind::Type and strcmp(ts->classdef.name, imported->name) == 0
+            conflict = symbol->kind == ExportSymbolKind::Type and strcmp(ts->classdef.name, symbol->name) == 0
         elif ts->kind == AstToplevelStatementKind::Enum:
-            conflict = imported->kind == ExportSymbolKind::Type and strcmp(ts->enumdef.name, imported->name) == 0
+            conflict = symbol->kind == ExportSymbolKind::Type and strcmp(ts->enumdef.name, symbol->name) == 0
         elif ts->kind == AstToplevelStatementKind::Import:
             conflict = False
         else:
             assert False
 
         if conflict:
-            if imported->kind == ExportSymbolKind::Function:
+            if symbol->kind == ExportSymbolKind::Function:
                 kind_name = "function"
-            elif imported->kind == ExportSymbolKind::GlobalVariable:
+            elif symbol->kind == ExportSymbolKind::GlobalVariable:
                 kind_name = "global_variable"
-            elif imported->kind == ExportSymbolKind::Type:
+            elif symbol->kind == ExportSymbolKind::Type:
                 kind_name = "type"
             else:
                 assert False
+
             message: byte[500]
-            snprintf(message, sizeof message, "a %s named '%s' already exists", kind_name, imported->name)
+            # TODO: might be nice to show where it was imported from
+            snprintf(message, sizeof message, "a %s named '%s' already exists", kind_name, symbol->name)
             fail(ts->location, message)
 
 

@@ -176,6 +176,10 @@ class LocalVariable:
     type: Type*
     next: LocalVariable*  # TODO: switch to more efficient structure than linked list?
 
+class GlobalVariable:
+    name: byte[100]
+    type: Type*
+
 class FunctionOrMethodTypes:
     signature: Signature
     expression_types: ExpressionTypes*
@@ -204,6 +208,9 @@ class FileTypes:
 
     types: Type**
     ntypes: int
+
+    globals: GlobalVariable*
+    nglobals: int
 
     def add_imported_symbol(self, symbol: ExportSymbol*) -> void:
         if symbol->kind != ExportSymbolKind::Function:
@@ -432,6 +439,22 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
 
         if ts->kind == AstToplevelStatementKind::Class:
             handle_class_members_stage2(ft, &ts->classdef)
+
+        if (
+            ts->kind == AstToplevelStatementKind::GlobalVariableDeclaration
+            or ts->kind == AstToplevelStatementKind::GlobalVariableDefinition
+        ):
+            assert ts->global_var.value == NULL
+            type = type_from_ast(ft, &ts->global_var.type)
+            ft->globals = realloc(ft->globals, (ft->nglobals + 1) * sizeof ft->globals[0])
+            ft->globals[ft->nglobals++] = GlobalVariable{name = ts->global_var.name, type = type}
+
+            exports = realloc(exports, sizeof exports[0] * (nexports + 1))
+            exports[nexports++] = ExportSymbol{
+                kind = ExportSymbolKind::GlobalVariable,
+                name = ts->global_var.name,
+                type = type,
+            }
 
     exports = realloc(exports, sizeof exports[0] * (nexports + 1))
     exports[nexports] = ExportSymbol{}
