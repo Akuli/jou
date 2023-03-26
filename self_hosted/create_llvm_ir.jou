@@ -25,6 +25,7 @@ def build_signed_div(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*) ->
     top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp")
     return LLVMBuildExactSDiv(builder, top, rhs, "sdiv")
 
+
 def lmax(a: long, b: long) -> long:
     if a > b:
         return a
@@ -299,7 +300,9 @@ class AstToIR:
         true_block = LLVMAppendBasicBlock(self->llvm_function, "assert_true")
         false_block = LLVMAppendBasicBlock(self->llvm_function, "assert_false")
         LLVMBuildCondBr(self->builder, condition, true_block, false_block)
+
         LLVMPositionBuilderAtEnd(self->builder, false_block)
+
         argtypes = [LLVMPointerType(LLVMInt8Type(), 0), LLVMPointerType(LLVMInt8Type(), 0), LLVMInt32Type()]
         assert_fail_func_type = LLVMFunctionType(LLVMVoidType(), argtypes, 3, False)
         assert_fail_func = LLVMGetNamedFunction(self->module, "_jou_assert_fail")
