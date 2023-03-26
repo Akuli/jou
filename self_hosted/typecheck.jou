@@ -464,7 +464,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
         or expr->kind == AstExpressionKind::Bool
         or expr->kind == AstExpressionKind::Null
     ):
-        strcpy(result, "a constant")
+        return "a constant"
     elif (
         expr->kind == AstExpressionKind::Negate
         or expr->kind == AstExpressionKind::Add
@@ -473,7 +473,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
         or expr->kind == AstExpressionKind::Divide
         or expr->kind == AstExpressionKind::Modulo
     ):
-        strcpy(result, "the result of a calculation")
+        return "the result of a calculation"
     elif (
         expr->kind == AstExpressionKind::Eq
         or expr->kind == AstExpressionKind::Ne
@@ -482,43 +482,44 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
         or expr->kind == AstExpressionKind::Lt
         or expr->kind == AstExpressionKind::Le
     ):
-        strcpy(result, "the result of a comparison")
+        return "the result of a comparison"
     elif expr->kind == AstExpressionKind::Call:
         sprintf(result, "a %s call", expr->call.function_or_method())
+        return result
     elif expr->kind == AstExpressionKind::Instantiate:
-        strcpy(result, "a newly created instance")
+        return "a newly created instance"
     elif expr->kind == AstExpressionKind::GetVariable:
-        strcpy(result, "a variable")
+        return "a variable"
     elif expr->kind == AstExpressionKind::GetEnumMember:
-        strcpy(result, "an enum member")
+        return "an enum member"
     elif expr->kind == AstExpressionKind::GetClassField:
         snprintf(result, sizeof result, "field '%s'", expr->class_field.field_name)
+        return result
     elif expr->kind == AstExpressionKind::As:
-        strcpy(result, "the result of a cast")
+        return "the result of a cast"
     elif expr->kind == AstExpressionKind::SizeOf:
-        strcpy(result, "a sizeof expression")
+        return "a sizeof expression"
     elif expr->kind == AstExpressionKind::AddressOf:
         subresult = short_expression_description(expr->operands)
         snprintf(result, sizeof result, "address of %s", subresult)
+        return result
     elif expr->kind == AstExpressionKind::Dereference:
-        strcpy(result, "the value of a pointer")
+        return "the value of a pointer"
     elif expr->kind == AstExpressionKind::And:
-        strcpy(result, "the result of 'and'")
+        return "the result of 'and'"
     elif expr->kind == AstExpressionKind::Or:
-        strcpy(result, "the result of 'or'")
+        return "the result of 'or'"
     elif expr->kind == AstExpressionKind::Not:
-        strcpy(result, "the result of 'not'")
+        return "the result of 'not'"
     elif expr->kind == AstExpressionKind::PreIncr or expr->kind == AstExpressionKind::PostIncr:
-        strcpy(result, "the result of incrementing a value")
+        return "the result of incrementing a value"
     elif expr->kind == AstExpressionKind::PreDecr or expr->kind == AstExpressionKind::PostDecr:
-        strcpy(result, "the result of decrementing a value")
+        return "the result of decrementing a value"
     elif expr->kind == AstExpressionKind::Indexing:
-        strcpy(result, "an indexed value")
+        return "an indexed value"
     else:
         printf("*** %d\n", expr->kind)
         assert False
-
-    return result
 
 # The & operator can't go in front of most expressions.
 # You can't do &(1 + 2), for example.
@@ -1138,10 +1139,7 @@ class Stage3TypeChecker:
                 # This is a common error, so try to produce a helpful error message.
                 error_template: byte[500]
                 if target_expr->kind == AstExpressionKind::Dereference:
-                    strcpy(
-                        error_template,
-                        "cannot place a value of type <from> into a pointer of type <to>*",
-                    )
+                    error_template = "cannot place a value of type <from> into a pointer of type <to>*"
                 else:
                     target_description: byte[200] = short_expression_description(target_expr)
                     snprintf(

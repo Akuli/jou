@@ -784,9 +784,7 @@ class AstClassMember:
         elif self->kind == AstClassMemberKind::Method:
             printf("  method ")
             self->method.signature.print()
-            tp = TreePrinter{}
-            strcpy(tp.prefix, "  ")
-            self->method.body.print(tp)
+            self->method.body.print(TreePrinter{prefix = "  "})
         else:
             assert False
 
