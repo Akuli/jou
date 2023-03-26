@@ -301,7 +301,7 @@ class AstToIR:
         LLVMBuildCondBr(self->builder, condition, true_block, false_block)
 
         LLVMPositionBuilderAtEnd(self->builder, false_block)
-        
+
         argtypes = [LLVMPointerType(LLVMInt8Type(), 0), LLVMPointerType(LLVMInt8Type(), 0), LLVMInt32Type()]
         assert_fail_func_type = LLVMFunctionType(LLVMVoidType(), argtypes, 3, False)
         assert_fail_func = LLVMGetNamedFunction(self->module, "_jou_assert_fail")
