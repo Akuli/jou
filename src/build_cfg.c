@@ -144,6 +144,7 @@ static const LocalVariable *convert_string_to_array(
         .nargs = 2,
         .argtypes = argtypes,
         .argnames = argnames,
+        .returntype = get_pointer_type(byteType),
         .returntype_location = location,
     } };
 
