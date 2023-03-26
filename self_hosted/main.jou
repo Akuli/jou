@@ -116,6 +116,38 @@ def get_sane_filename(path: byte*) -> byte[50]:
             name[i] = '_'
     return name
 
+def check_ast_and_import_conflicts(ast: AstFile*, imported: ExportSymbol*) -> void:
+    for i = 0; i < ast->body_len; i++:
+        ts = &ast->body[i]
+        if ts->kind == AstToplevelStatementKind::Function:
+            conflict = imported->kind == ExportSymbolKind::Function and strcmp(ts->function.signature.name, imported->name) == 0
+        elif (
+            ts->kind == AstToplevelStatementKind::GlobalVariableDeclaration
+            or ts->kind == AstToplevelStatementKind::GlobalVariableDefinition
+        ):
+            conflict = imported->kind == ExportSymbolKind::GlobalVariable and strcmp(ts->global_var.name, imported->name) == 0
+        elif ts->kind == AstToplevelStatementKind::Class:
+            conflict = imported->kind == ExportSymbolKind::Type and strcmp(ts->classdef.name, imported->name) == 0
+        elif ts->kind == AstToplevelStatementKind::Enum:
+            conflict = imported->kind == ExportSymbolKind::Type and strcmp(ts->enumdef.name, imported->name) == 0
+        elif ts->kind == AstToplevelStatementKind::Import:
+            conflict = False
+        else:
+            assert False
+
+        if conflict:
+            if imported->kind == ExportSymbolKind::Function:
+                kind_name = "function"
+            elif imported->kind == ExportSymbolKind::GlobalVariable:
+                kind_name = "global_variable"
+            elif imported->kind == ExportSymbolKind::Type:
+                kind_name = "type"
+            else:
+                assert False
+            message: byte[500]
+            snprintf(message, sizeof message, "a %s named '%s' already exists", kind_name, imported->name)
+            fail(ts->location, message)
+
 
 class FileState:
     ast: AstFile
@@ -195,20 +227,25 @@ class Compiler:
         if self->verbosity >= 1:
             printf("Processing imports/exports\n")
 
-        for isrc = 0; isrc < self->nfiles; isrc++:
-            for idest = 0; idest < self->nfiles; idest++:
-                src = &self->files[isrc]
-                dest = &self->files[idest]
+        for idest = 0; idest < self->nfiles; idest++:
+            dest = &self->files[idest]
+            imp: AstImport* = NULL
+            while dest->ast.next_import(&imp, NULL):
+                src: FileState* = NULL
+                for isrc = 0; isrc < self->nfiles; isrc++:
+                    if strcmp(self->files[isrc].ast.path, imp->resolved_path) == 0:
+                        src = &self->files[isrc]
+                        break
+                assert src != NULL
 
-                imp: AstImport* = NULL
-                while dest->ast.next_import(&imp, NULL):
-                    for exp = src->pending_exports; exp->name[0] != '\0'; exp++:
-                        if self->verbosity >= 1:
-                            printf(
-                                "  %s: imported in %s, exported in %s\n",
-                                exp->name, src->ast.path, dest->ast.path,
-                            )
-                        dest->typectx.add_imported_symbol(exp)
+                for exp = src->pending_exports; exp->name[0] != '\0'; exp++:
+                    if self->verbosity >= 1:
+                        printf(
+                            "  %s: imported in %s, exported in %s\n",
+                            exp->name, src->ast.path, dest->ast.path,
+                        )
+                    check_ast_and_import_conflicts(&dest->ast, exp)
+                    dest->typectx.add_imported_symbol(exp)
 
         for i = 0; i < self->nfiles; i++:
             free(self->files[i].pending_exports)

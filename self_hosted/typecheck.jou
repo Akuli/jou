@@ -3,9 +3,9 @@
 #       they are opaque and contain no members. Enums exist and contain
 #       their members (although it doesn't really matter whether enum
 #       members are handled in stage 1 or 2).
-#    2. Check signatures, global variables and class bodies, without
-#       checking bodies of methods. This stage assumes that all types
-#       exist, but doesn't need to know what fields each class has.
+#    2. Check signatures, global variables and class bodies, but ignore
+#       bodies of functions and methods. This stage assumes that all
+#       types exist, but doesn't need to know what fields each class has.
 #    3. Check function and method bodies.
 #
 # The goal of this design is to make cyclic imports possible. At each
@@ -88,6 +88,7 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
 enum ExportSymbolKind:
     Function
     Type
+    GlobalVariable
 
 class ExportSymbol:
     kind: ExportSymbolKind
@@ -95,7 +96,7 @@ class ExportSymbol:
 
     union:
         signature: Signature    # ExportSymbolKind::Function
-        type: Type*             # ExportSymbolKind::Type
+        type: Type*             # ExportSymbolKind::Type, ExportSymbolKind::GlobalVariable
 
 class ExpressionTypes:
     expression: AstExpression*
@@ -251,21 +252,21 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
             classdef = &file->body[i].classdef
             check_type_doesnt_exist(ft, classdef->name, classdef->name_location)
             t = create_opaque_class(classdef->name)
-            ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
-            ft->types[ft->ntypes++] = t
-
-        if file->body[i].kind == AstToplevelStatementKind::Enum:
+        elif file->body[i].kind == AstToplevelStatementKind::Enum:
             enumdef = &file->body[i].enumdef
             check_type_doesnt_exist(ft, enumdef->name, enumdef->name_location)
             t = create_enum(enumdef->name, enumdef->member_count, enumdef->member_names)
-            ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
-            ft->types[ft->ntypes++] = t
-            exports = realloc(exports, (nexports + 1) * sizeof exports[0])
-            exports[nexports++] = ExportSymbol{
-                kind = ExportSymbolKind::Type,
-                name = enumdef->name,
-                type = t,
-            }
+        else:
+            continue
+
+        ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
+        ft->types[ft->ntypes++] = t
+        exports = realloc(exports, (nexports + 1) * sizeof exports[0])
+        exports[nexports++] = ExportSymbol{
+            kind = ExportSymbolKind::Type,
+            name = t->name,
+            type = t,
+        }
 
     exports = realloc(exports, sizeof exports[0] * (nexports + 1))
     exports[nexports] = ExportSymbol{}
