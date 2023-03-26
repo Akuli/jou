@@ -36,7 +36,7 @@ def init_target() -> void:
 
     if is_windows():
         # LLVM's default is x86_64-pc-windows-msvc
-        strcpy(target.triple, "x86_64-pc-windows-gnu")
+        target.triple = "x86_64-pc-windows-gnu"
     else:
         triple = LLVMGetDefaultTargetTriple()
         assert strlen(triple) < sizeof target.triple

@@ -464,7 +464,10 @@ struct ExpressionTypes {
     const AstExpression *expr;
     const Type *type;
     const Type *implicit_cast_type;  // NULL for no implicit cast
-    bool implicit_array_to_pointer_cast;  // if true, the implicit cast is Foo[N] to Foo*
+
+    // Flags to indicate whether special kinds of implicit casts happened
+    bool implicit_array_to_pointer_cast;    // Foo[N] to Foo*
+    bool implicit_string_to_array_cast;     // "..." to byte[N]
 };
 
 struct ExportSymbol {
@@ -524,6 +527,7 @@ struct CfInstruction {
     Location location;
     enum CfInstructionKind {
         CF_CONSTANT,
+        CF_STRING_ARRAY,
         CF_CALL,  // function or method call, depending on whether self_type is NULL (see below)
         CF_ADDRESS_OF_LOCAL_VAR,
         CF_ADDRESS_OF_GLOBAL_VAR,
@@ -551,6 +555,7 @@ struct CfInstruction {
     } kind;
     union CfInstructionData {
         Constant constant;      // CF_CONSTANT
+        struct { char *str; int len; } strarray;  // CF_STRING_ARRAY
         Signature signature;    // CF_CALL
         char fieldname[100];    // CF_PTR_CLASS_FIELD
         char globalname[100];   // CF_ADDRESS_OF_GLOBAL_VAR

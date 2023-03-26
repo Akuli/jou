@@ -1,0 +1,12 @@
+import "stdlib/io.jou"
+
+def main() -> int:
+    foo: byte[50] = "hi"
+    # Output: hi000000000000000000000000000000000000000000000000
+    for i = 0; i < 50; i++:
+        if foo[i] == '\0':
+            putchar('0')
+        else:
+            putchar(foo[i])
+    putchar('\n')
+    return 0

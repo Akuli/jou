@@ -10,10 +10,10 @@ static void print_byte(char b)
         printf(" '%c'", b);
 }
 
-static void print_string(const char *s)
+static void print_string(const char *s, int len)
 {
     putchar('"');
-    for (int i = 0; s[i]; i++) {
+    for (int i = 0; i<len || (len==-1 && s[i]); i++) {
         if (isprint(s[i]))
             putchar(s[i]);
         else if (s[i] == '\n')
@@ -50,7 +50,7 @@ static void print_constant(const Constant *c)
         printf("NULL");
         break;
     case CONSTANT_STRING:
-        print_string(c->data.str);
+        print_string(c->data.str, -1);
         break;
     }
 }
@@ -80,7 +80,7 @@ void print_token(const Token *token)
         break;
     case TOKEN_STRING:
         printf("string ");
-        print_string(token->data.string_value);
+        print_string(token->data.string_value, -1);
         printf("\n");
         break;
     case TOKEN_NAME:
@@ -549,6 +549,10 @@ static void print_cf_instruction(const CfInstruction *ins)
         break;
     case CF_CONSTANT:
         print_constant(&ins->data.constant);
+        break;
+    case CF_STRING_ARRAY:
+        printf("string array ");
+        print_string(ins->data.strarray.str, ins->data.strarray.len);
         break;
 
     case CF_NUM_ADD:
