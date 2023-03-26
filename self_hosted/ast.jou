@@ -620,7 +620,10 @@ class AstSignature:
         for i = 0; i < self->nargs; i++:
             if i != 0:
                 printf(", ")
-            self->args[i].print(NULL)
+            if strcmp(self->args[i].name, "self") == 0:
+                printf("self")
+            else:
+                self->args[i].print(NULL)
 
         if self->takes_varargs:
             if self->nargs != 0:
