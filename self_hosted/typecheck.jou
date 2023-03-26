@@ -128,8 +128,16 @@ class ExpressionTypes:
             and from == byte_type->get_pointer_type()
             and to->kind == TypeKind::Array
             and to->array.item_type == byte_type
-            and to->array.length > strlen(self->expression->string)
         ):
+            string_size = strlen(self->expression->string) + 1
+            if to->array.length < string_size:
+                message: byte[100]
+                snprintf(
+                    message, sizeof message,
+                    "a string of %d bytes (including '\\0') does not fit into %s",
+                    string_size, to->name,
+                )
+                fail(error_location, message)
             self->implicit_string_to_array_cast = True
         # Passing in NULL for error_template can be used to force a cast to happen.
         elif error_template != NULL and not can_cast_implicitly(from, to):
