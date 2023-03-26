@@ -137,10 +137,11 @@ class Compiler:
     automagic_files: byte*[10]
 
     def determine_automagic_files(self) -> void:
-        # TODO: this breaks too much stuff
-        return
-#        self->automagic_files[0] = malloc(strlen(self->stdlib_path) + 40)
-#        sprintf(self->automagic_files[0], "%s/_assert_fail.jou", self->stdlib_path)
+        self->automagic_files[0] = malloc(strlen(self->stdlib_path) + 40)
+        sprintf(self->automagic_files[0], "%s/_assert_fail.jou", self->stdlib_path)
+        if is_windows():
+            self->automagic_files[1] = malloc(strlen(self->stdlib_path) + 40)
+            sprintf(self->automagic_files[1], "%s/_windows_startup.jou", self->stdlib_path)
 
     def parse_all_files(self) -> void:
         queue: ParseQueueItem* = malloc(50 * sizeof queue[0])
