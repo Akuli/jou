@@ -464,7 +464,10 @@ struct ExpressionTypes {
     const AstExpression *expr;
     const Type *type;
     const Type *implicit_cast_type;  // NULL for no implicit cast
-    bool implicit_array_to_pointer_cast;  // if true, the implicit cast is Foo[N] to Foo*
+
+    // Flags to indicate whether special kinds of implicit casts happened
+    bool implicit_array_to_pointer_cast;    // Foo[N] to Foo*
+    bool implicit_string_to_array_cast;     // "..." to byte[N]
 };
 
 struct ExportSymbol {

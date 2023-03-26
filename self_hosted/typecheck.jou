@@ -104,8 +104,8 @@ class ExpressionTypes:
     next: ExpressionTypes*  # TODO: switch to more efficient structure than linked list?
 
     # Flags to indicate whether special kinds of implicit casts happened
-    implicit_array_to_pointer_cast: bool
-    implicit_string_to_array_cast: bool
+    implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
+    implicit_string_to_array_cast: bool     # "..." to byte[N]
 
     def get_type_after_implicit_cast(self) -> Type*:
         assert self->original_type != NULL
@@ -113,6 +113,7 @@ class ExpressionTypes:
             return self->original_type
         return self->implicit_cast_type
 
+    # TODO: error_location is probably unnecessary, can get location from self->expression
     def do_implicit_cast(self, to: Type*, error_location: Location, error_template: byte*) -> void:
         # This cannot be called multiple times
         assert self->implicit_cast_type == NULL

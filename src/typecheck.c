@@ -511,8 +511,22 @@ static void do_implicit_cast(
     if (from == to)
         return;
 
+    if (
+        types->expr->kind == AST_EXPR_CONSTANT
+        && types->expr->data.constant.kind == CONSTANT_STRING
+        && from == get_pointer_type(byteType)
+        && to->kind == TYPE_ARRAY
+        && to->data.array.membertype == byteType
+    )
+    {
+        int string_size = strlen(types->expr->data.constant.data.str) + 1;
+        if (to->data.array.len < string_size) {
+            fail_with_error(location, "a string of %d bytes (including '\\0') does not fit into %s", string_size, to->name);
+        }
+        types->implicit_string_to_array_cast = true;
+    }
     // Passing in NULL for errormsg_template can be used to "force" a cast to happen.
-    if (errormsg_template != NULL && !can_cast_implicitly(from, to))
+    else if (errormsg_template != NULL && !can_cast_implicitly(from, to))
         fail_with_implicit_cast_error(location, errormsg_template, from, to);
 
     types->implicit_cast_type = to;
