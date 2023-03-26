@@ -496,12 +496,12 @@ struct FileTypes {
 /*
 Type checking is split into several stages:
     1. Create types. After this, structs defined in Jou exist, but
-       they are opaque and contain no members. Enums exist and contain
-       their members (although it doesn't really matter whether enum
-       members are handled in step 1 or 2).
+        they are opaque and contain no members. Enums exist and contain
+        their members (although it doesn't really matter whether enum
+        members are handled in step 1 or 2).
     2. Check signatures, global variables and struct bodies. This step
-       assumes that all types exist, but doesn't need to know what
-       fields each struct has.
+        assumes that all types exist, but doesn't need to know what
+        fields each struct has.
     3. Check function bodies.
 
 Each stage is ran on all files before we move on to the next stage. This
