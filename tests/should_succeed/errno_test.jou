@@ -1,0 +1,17 @@
+import "stdlib/io.jou"
+import "stdlib/errno.jou"
+
+def main() -> int:
+    # Avoid printing strerror(0) because it is platform-specific
+    printf("%d\n", get_errno())  # Output: 0
+
+    fopen("this does not exist.txt", "r")
+    printf("%d %s\n", get_errno(), strerror(get_errno()))  # Output: 2 No such file or directory
+
+    set_errno(0)
+    printf("%d\n", get_errno())  # Output: 0
+
+    set_errno(2)
+    printf("%d %s\n", get_errno(), strerror(get_errno()))  # Output: 2 No such file or directory
+
+    return 0

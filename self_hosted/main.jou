@@ -1,5 +1,6 @@
 import "../config.jou"
 import "./ast.jou"
+import "./errors_and_warnings.jou"
 import "./tokenizer.jou"
 import "./parser.jou"
 import "./types.jou"
@@ -121,6 +122,11 @@ class FileState:
     typectx: FileTypes
     pending_exports: ExportSymbol*
 
+class ParseQueueItem:
+    path: byte*
+    is_imported: bool
+    import_location: Location
+
 class Compiler:
     argv0: byte*
     verbosity: int
@@ -131,33 +137,37 @@ class Compiler:
     automagic_files: byte*[10]
 
     def determine_automagic_files(self) -> void:
-        # TODO: this breaks too much stuff
-        return
-#        self->automagic_files[0] = malloc(strlen(self->stdlib_path) + 40)
-#        sprintf(self->automagic_files[0], "%s/_assert_fail.jou", self->stdlib_path)
+        self->automagic_files[0] = malloc(strlen(self->stdlib_path) + 40)
+        sprintf(self->automagic_files[0], "%s/_assert_fail.jou", self->stdlib_path)
+        if is_windows():
+            self->automagic_files[1] = malloc(strlen(self->stdlib_path) + 40)
+            sprintf(self->automagic_files[1], "%s/_windows_startup.jou", self->stdlib_path)
 
     def parse_all_files(self) -> void:
-        queue: byte** = malloc(50 * sizeof queue[0])
+        queue: ParseQueueItem* = malloc(50 * sizeof queue[0])
         queue_len = 0
-        queue[queue_len++] = self->args->main_path
+        queue[queue_len++] = ParseQueueItem{path = self->args->main_path}
         for i = 0; self->automagic_files[i] != NULL; i++:
-            queue[queue_len++] = self->automagic_files[i]
+            queue[queue_len++] = ParseQueueItem{path = self->automagic_files[i]}
 
         while queue_len > 0:
-            path = queue[--queue_len]
+            item = queue[--queue_len]
 
             found = False
             for i = 0; i < self->nfiles; i++:
-                if strcmp(self->files[i].ast.path, path) == 0:
+                if strcmp(self->files[i].ast.path, item.path) == 0:
                     found = True
                     break
             if found:
                 continue
 
             if self->verbosity >= 1:
-                printf("Parsing %s\n", path)
+                printf("Parsing %s\n", item.path)
 
-            tokens = tokenize(path)
+            if item.is_imported:
+                tokens = tokenize(item.path, &item.import_location)
+            else:
+                tokens = tokenize(item.path, NULL)
             if self->verbosity >= 2:
                 print_tokens(tokens)
             ast = parse(tokens, self->stdlib_path)
@@ -169,9 +179,15 @@ class Compiler:
             self->files[self->nfiles++] = FileState{ast = ast}
 
             imp: AstImport* = NULL
-            while ast.next_import(&imp):
+            imp_location: Location
+            while ast.next_import(&imp, &imp_location):
+                # TODO: offsetof()
                 queue = realloc(queue, sizeof queue[0] * (queue_len + 1))
-                queue[queue_len++] = imp->resolved_path
+                queue[queue_len++] = ParseQueueItem{
+                    path = imp->resolved_path,
+                    is_imported = True,
+                    import_location = imp_location,
+                }
 
         free(queue)
 
@@ -185,7 +201,7 @@ class Compiler:
                 dest = &self->files[idest]
 
                 imp: AstImport* = NULL
-                while dest->ast.next_import(&imp):
+                while dest->ast.next_import(&imp, NULL):
                     for exp = src->pending_exports; exp->name[0] != '\0'; exp++:
                         if self->verbosity >= 1:
                             printf(
@@ -369,11 +385,11 @@ def main(argc: int, argv: byte**) -> int:
     args = parse_args(argc, argv)
 
     if args.mode == CompilerMode::TokenizeOnly:
-        tokens = tokenize(args.main_path)
+        tokens = tokenize(args.main_path, NULL)
         print_tokens(tokens)
         free(tokens)
     elif args.mode == CompilerMode::ParseOnly:
-        tokens = tokenize(args.main_path)
+        tokens = tokenize(args.main_path, NULL)
         stdlib_path = find_stdlib()
         ast = parse(tokens, stdlib_path)
         ast.print()
