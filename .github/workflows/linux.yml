@@ -52,3 +52,10 @@ jobs:
       - run: sudo apt install -y llvm-13-dev clang-13 make valgrind
       - run: LLVM_CONFIG=llvm-config-13 make
       - run: ./compare_compilers.sh
+
+  editorconfig:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: editorconfig-checker/action-editorconfig-checker@main
+      - run: editorconfig-checker
