@@ -102,7 +102,7 @@ for action in ${actions[@]}; do
     # Run compilers in parallel to speed up.
     (
         set +e
-        ./jou $flag $file 2>&1 | grep -vE 'undefined reference to|[/\\]ld: '
+        ./jou $flag $file 2>&1 | grep -vE 'undefined reference to|\bld: '
     ) > tmp/compare_compilers/compiler_written_in_c.txt &
     (
         set +e
