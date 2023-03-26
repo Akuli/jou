@@ -170,12 +170,6 @@ class ExpressionTypes:
         assert self->original_type->kind == TypeKind::Array
         self->do_implicit_cast(self->original_type->array.item_type->get_pointer_type(), Location{}, NULL)
 
-    def cast_string_to_array(self, array_size: int) -> void:
-        assert self->expression->kind == AstExpressionKind::String
-        assert strlen(self->expression->string) < array_size
-        assert self->original_type == byte_type->get_pointer_type()
-        self->do_implicit_cast(byte_type->get_array_type(array_size), Location{}, NULL)
-
 class LocalVariable:
     name: byte[100]
     type: Type*

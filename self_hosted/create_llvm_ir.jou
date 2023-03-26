@@ -433,10 +433,8 @@ class AstToIR:
         for i = 0; i < call->nargs; i++:
             args[k++] = self->do_expression(&call->args[i])
 
-        name_hint: byte[100]
-        if signature->return_type == NULL:
-            name_hint = ""
-        else:
+        name_hint: byte[100] = ""
+        if signature->return_type != NULL:
             sprintf(name_hint, "%.20s_return_value", signature->name)
 
         result = LLVMBuildCall2(self->builder, function_type, function, args, k, name_hint)
