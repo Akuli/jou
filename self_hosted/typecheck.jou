@@ -101,8 +101,11 @@ class ExpressionTypes:
     expression: AstExpression*
     original_type: Type*
     implicit_cast_type: Type*  # NULL if no implicit casting is needed
-    implicit_array_to_pointer_cast: bool  # Whether a special kind of implicit cast happened
     next: ExpressionTypes*  # TODO: switch to more efficient structure than linked list?
+
+    # Flags to indicate whether special kinds of implicit casts happened
+    implicit_array_to_pointer_cast: bool
+    implicit_string_to_array_cast: bool
 
     def get_type_after_implicit_cast(self) -> Type*:
         assert self->original_type != NULL
@@ -114,13 +117,23 @@ class ExpressionTypes:
         # This cannot be called multiple times
         assert self->implicit_cast_type == NULL
         assert not self->implicit_array_to_pointer_cast
+        assert not self->implicit_string_to_array_cast
 
         from = self->original_type
         if from == to:
             return
 
+        printf("Trying... %s %s\n", from->name, to->name)
+        if (
+            self->expression->kind == AstExpressionKind::String
+            and from == byte_type->get_pointer_type()
+            and to->kind == TypeKind::Array
+            and to->array.item_type == byte_type
+            and to->array.length > strlen(self->expression->string)
+        ):
+            self->implicit_string_to_array_cast = True
         # Passing in NULL for error_template can be used to force a cast to happen.
-        if error_template != NULL and not can_cast_implicitly(from, to):
+        elif error_template != NULL and not can_cast_implicitly(from, to):
             fail_with_implicit_cast_error(error_location, error_template, from, to)
 
         self->implicit_cast_type = to
@@ -148,6 +161,12 @@ class ExpressionTypes:
     def cast_array_to_pointer(self) -> void:
         assert self->original_type->kind == TypeKind::Array
         self->do_implicit_cast(self->original_type->array.item_type->get_pointer_type(), Location{}, NULL)
+
+    def cast_string_to_array(self, array_size: int) -> void:
+        assert self->expression->kind == AstExpressionKind::String
+        assert strlen(self->expression->string) < array_size
+        assert self->original_type == byte_type->get_pointer_type()
+        self->do_implicit_cast(byte_type->get_array_type(array_size), Location{}, NULL)
 
 class LocalVariable:
     name: byte[100]

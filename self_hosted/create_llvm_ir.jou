@@ -166,14 +166,23 @@ class AstToIR:
         block = LLVMAppendBasicBlock(self->llvm_function, name_hint)
         LLVMPositionBuilderAtEnd(self->builder, block)
 
-    def make_a_string_constant(self, s: byte*) -> LLVMValue*:
-        array = LLVMConstString(s, strlen(s) as int, False)
-        global_var = LLVMAddGlobal(self->module, LLVMTypeOf(array), "string_literal")
-        LLVMSetLinkage(global_var, LLVMLinkage::Private)  # This makes it a static global variable
-        LLVMSetInitializer(global_var, array)
-
-        string_type = LLVMPointerType(LLVMInt8Type(), 0)
-        return LLVMBuildBitCast(self->builder, global_var, string_type, "string_ptr")
+    # If array_len is -1, returns a pointer to the start of a static global string.
+    # Otherwise returns an array value.
+    def make_a_string_constant(self, s: byte*, array_len: int) -> LLVMValue*:
+        if array_len == -1:
+            array = LLVMConstString(s, strlen(s) as int, False)
+            global_var = LLVMAddGlobal(self->module, LLVMTypeOf(array), "string_literal")
+            LLVMSetLinkage(global_var, LLVMLinkage::Private)  # This makes it a static global variable
+            LLVMSetInitializer(global_var, array)
+            string_type = LLVMPointerType(LLVMInt8Type(), 0)
+            return LLVMBuildBitCast(self->builder, global_var, string_type, "string_ptr")
+        else:
+            assert strlen(s) < array_len
+            padded = calloc(1, array_len)
+            strcpy(padded, s)
+            array = LLVMConstString(padded, array_len, True)
+            free(padded)
+            return array
 
     def do_cast(self, obj: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
         # Treat enums as just integers
@@ -319,8 +328,8 @@ class AstToIR:
         assert assert_fail_func != NULL
 
         args = [
-            self->make_a_string_constant("foo"),
-            self->make_a_string_constant("bar"),
+            self->make_a_string_constant("foo", -1),
+            self->make_a_string_constant("bar", -1),
             LLVMConstInt(LLVMInt32Type(), 123, False),
         ]
 
@@ -448,7 +457,11 @@ class AstToIR:
             )
 
         if ast->kind == AstExpressionKind::String:
-            result = self->make_a_string_constant(ast->string)
+            if types->implicit_string_to_array_cast:
+                array_len = types->implicit_cast_type->array.length
+            else:
+                array_len = -1
+            result = self->make_a_string_constant(ast->string, array_len)
         elif ast->kind == AstExpressionKind::Bool:
             result = LLVMConstInt(LLVMInt1Type(), ast->bool_value as long, False)
         elif ast->kind == AstExpressionKind::Byte:
@@ -568,7 +581,7 @@ class AstToIR:
             assert False
 
         types = self->function_or_method_types->get_expression_types(ast)
-        if types->implicit_cast_type == NULL:
+        if types->implicit_cast_type == NULL or types->implicit_string_to_array_cast:
             return result
         return self->do_cast(result, types->original_type, types->implicit_cast_type)
 
