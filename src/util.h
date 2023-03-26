@@ -46,8 +46,8 @@ Gotchas to watch out for:
             ...use thing...
         }
 
- It can fail if the list is empty, because End(list) can be NULL. Use indexes
- if you need to loop backwards:
+It can fail if the list is empty, because End(list) can be NULL. Use indexes
+if you need to loop backwards:
 
         for (int i = list.len - 1; i >= 0; i--) {
             ...use list.ptr[i] ...
