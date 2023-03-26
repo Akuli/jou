@@ -127,7 +127,7 @@ static AstNameTypeValue parse_name_type_value(const Token **tokens, const char *
 static AstSignature parse_function_signature(const Token **tokens, bool accept_self)
 {
     AstSignature result = {0};
-	bool used_self = false;
+    bool used_self = false;
     if ((*tokens)->type != TOKEN_NAME)
         fail_with_parse_error(*tokens, "a function name");
     result.name_location = (*tokens)->location;
@@ -184,15 +184,15 @@ static AstSignature parse_function_signature(const Token **tokens, bool accept_s
         fail_with_parse_error(*tokens, "a '->'");
     }
     ++*tokens;
-	
-	if (!used_self && accept_self) {
+
+   if (!used_self && accept_self) {
         fail_with_error(
             (*tokens)->location,
             "missing self, should be 'def %s(self, ...)'",
             result.name
         );
-	}
-	
+    }
+
     result.returntype = parse_type(tokens);
     return result;
 }
