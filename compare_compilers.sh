@@ -99,8 +99,16 @@ for action in ${actions[@]}; do
     fi
 
     # Run both compilers, and filter out lines that are known to differ but it doesn't matter (mostly linker errors)
-    (./jou $flag $file || true) 2>&1 | grep -vE 'undefined reference to|[/\\]ld: ' > tmp/compare_compilers/compiler_written_in_c.txt
-    (./self_hosted_compiler $flag $file || true) 2>&1 | grep -vE 'undefined reference to|linking failed|[/\\]ld: ' > tmp/compare_compilers/self_hosted.txt
+    # Run compilers in parallel to speed up.
+    (
+        set +e
+        ./jou $flag $file 2>&1 | grep -vE 'undefined reference to|[/\\]ld: '
+    ) > tmp/compare_compilers/compiler_written_in_c.txt &
+    (
+        set +e
+        ./self_hosted_compiler $flag $file 2>&1 | grep -vE 'undefined reference to|linking failed|[/\\]ld: '
+    ) > tmp/compare_compilers/self_hosted.txt &
+    wait
 
     if [ -f $error_list_file ] && grep -qxF $file <(cat $error_list_file | tr -d '\r'); then
         # The file is skipped, so the two compilers should behave differently
