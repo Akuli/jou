@@ -779,7 +779,7 @@ class Stage3TypeChecker:
                 snprintf(
                     message, sizeof message,
                     "type %s does not have any methods because it is %s, not a class",
-                    call->name, short_type_description(self_type),
+                    self_type->name, short_type_description(self_type),
                 )
             fail(call->location, message)
 
