@@ -486,7 +486,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
 #
 # The same rules apply to assignments: "foo = bar" is treated as setting the
 # value of the pointer &foo to bar.
-# 
+#
 # error_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
 def ensure_can_take_address(expression: AstExpression*, error_template: byte*) -> void:
     if expression->kind == AstExpressionKind::GetClassField:
@@ -1107,7 +1107,7 @@ class Stage3TypeChecker:
 
         elif statement->kind == AstStatementKind::Pass:
             pass
-        
+
         elif statement->kind == AstStatementKind::Break:
             if self->nested_loop_count == 0:
                 fail(statement->location, "'break' can only be used inside a loop")
