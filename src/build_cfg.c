@@ -115,45 +115,6 @@ static const LocalVariable *build_bool_to_int_conversion(
     return result;
 }
 
-static const LocalVariable *convert_string_to_array(
-    struct State *st, const LocalVariable *str, const Type *arraytype, Location location)
-{
-    assert(str->type == get_pointer_type(byteType));
-    assert(arraytype->kind == TYPE_ARRAY);
-    assert(arraytype->data.array.membertype == byteType);
-
-    // Implicit string to array cast. Let's do it with a strcpy().
-    const LocalVariable *array = add_local_var(st, arraytype);
-    const LocalVariable *arrayptr = add_local_var(st, get_pointer_type(arraytype));
-    add_unary_op(st, location, CF_ADDRESS_OF_LOCAL_VAR, array, arrayptr);
-    add_unary_op(st, location, CF_PTR_MEMSET_TO_ZERO, arrayptr, NULL);
-
-    const LocalVariable *startptr = add_local_var(st, get_pointer_type(byteType));
-    add_unary_op(st, location, CF_PTR_CAST, arrayptr, startptr);
-
-    char (*argnames)[100] = malloc(2 * sizeof *argnames);
-    strcpy(argnames[0], "dest");
-    strcpy(argnames[1], "src");
-
-    const Type **argtypes = malloc(2 * sizeof(argtypes[0]));  // NOLINT
-    argtypes[0] = get_pointer_type(byteType);
-    argtypes[1] = get_pointer_type(byteType);
-
-    union CfInstructionData data = { .signature = {
-        .name = "strcpy",
-        .nargs = 2,
-        .argtypes = argtypes,
-        .argnames = argnames,
-        .returntype = get_pointer_type(byteType),
-        .returntype_location = location,
-    } };
-
-    const LocalVariable *args[] = { startptr, str, NULL };
-    add_instruction(st, location, CF_CALL, &data, args, NULL);
-
-    return array;
-}
-
 static const LocalVariable *build_cast(
     struct State *st, const LocalVariable *obj, const Type *to, Location location)
 {
@@ -196,9 +157,6 @@ static const LocalVariable *build_cast(
         add_unary_op(st, location, CF_PTR_TO_INT64, obj, result);
         return result;
     }
-
-    if (obj->type == get_pointer_type(byteType) && to->kind == TYPE_ARRAY && to->data.array.membertype == byteType)
-        return convert_string_to_array(st, obj, to, location);
 
     assert(0);
 }
