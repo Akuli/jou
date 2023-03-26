@@ -1,6 +1,7 @@
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/errno.jou"
 import "./errors_and_warnings.jou"
 import "./token.jou"
 
@@ -587,12 +588,17 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
     return tokens
 
 
-def tokenize(path: byte*) -> Token*:
+def tokenize(path: byte*, import_location: Location*) -> Token*:
     file = fopen(path, "rb")
     if file == NULL:
-        # TODO: test this
-        # TODO: include errno in the message
-        fail(Location{path=path}, "cannot open file")
+        message: byte[200]
+        if import_location == NULL:
+            # File is not imported
+            snprintf(message, sizeof message, "cannot open file: %s", strerror(get_errno()))
+            fail(Location{path=path}, message)
+        else:
+            snprintf(message, sizeof message, "cannot import from \"%s\": %s", path, strerror(get_errno()))
+            fail(*import_location, message)
 
     raw_tokens = tokenize_without_indent_dedent_tokens(file, path)
     better_tokens = handle_indentations(raw_tokens)

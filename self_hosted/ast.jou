@@ -709,9 +709,11 @@ class AstFile:
 
     # Iterating over imports:
     #   imp: AstImport* = NULL
-    #   while file->next_import(&imp):
+    #   while file->next_import(&imp, NULL):
     #       ...
-    def next_import(self, imp: AstImport**) -> bool:
+    #
+    # If imp_location is given, it is used to store the location of each import statement.
+    def next_import(self, imp: AstImport**, imp_location: Location*) -> bool:
         # Get the corresponding AstToplevelStatement.
         ts = *imp as AstToplevelStatement*
         assert &ts->the_import as void* == ts  # TODO: offsetof() or similar
@@ -725,6 +727,8 @@ class AstFile:
         if ts == &self->body[self->body_len] or ts->kind != AstToplevelStatementKind::Import:
             return False
         *imp = &ts->the_import
+        if imp_location != NULL:
+            *imp_location = ts->location
         return True
 
     def print(self) -> void:
