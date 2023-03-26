@@ -104,33 +104,33 @@ class Token:
     def fail_expected_got(self, what_was_expected_instead: byte*) -> void:
         got: byte[100]
         if self->kind == TokenKind::Short:
-            strcpy(got, "a short")
+            got = "a short"
         elif self->kind == TokenKind::Int:
-            strcpy(got, "an integer")
+            got = "an integer"
         elif self->kind == TokenKind::Long:
-            strcpy(got, "a long integer")
+            got = "a long integer"
         elif self->kind == TokenKind::Float:
-            strcpy(got, "a float constant")
+            got = "a float constant"
         elif self->kind == TokenKind::Double:
-            strcpy(got, "a double constant")
+            got = "a double constant"
         elif self->kind == TokenKind::Byte:
-            strcpy(got, "a byte literal")
+            got = "a byte literal"
         elif self->kind == TokenKind::String:
-            strcpy(got, "a string")
+            got = "a string"
         elif self->kind == TokenKind::Name:
             snprintf(got, sizeof got, "a variable name '%s'", self->short_string)
         elif self->kind == TokenKind::Keyword:
             snprintf(got, sizeof got, "the '%s' keyword", self->short_string)
         elif self->kind == TokenKind::Newline:
-            strcpy(got, "end of line")
+            got = "end of line"
         elif self->kind == TokenKind::Indent:
-            strcpy(got, "more indentation")
+            got = "more indentation"
         elif self->kind == TokenKind::Dedent:
-            strcpy(got, "less indentation")
+            got = "less indentation"
         elif self->kind == TokenKind::Operator:
             snprintf(got, sizeof got, "'%s'", self->short_string)
         elif self->kind == TokenKind::EndOfFile:
-            strcpy(got, "end of file")
+            got = "end of file"
         else:
             assert False
 

@@ -134,18 +134,10 @@ global int_type: Type*
 global long_type: Type*
 
 def init_types() -> void:
-    strcpy(void_ptr_type.name, "void*")
-    void_ptr_type.kind = TypeKind::VoidPointer
-
-    strcpy(bool_type.name, "bool")
-    bool_type.kind = TypeKind::Bool
-
-    strcpy(float_type.name, "float")
-    strcpy(double_type.name, "double")
-    float_type.size_in_bits = 32
-    double_type.size_in_bits = 64
-    float_type.kind = TypeKind::FloatingPoint
-    double_type.kind = TypeKind::FloatingPoint
+    void_ptr_type = Type{name = "void*", kind = TypeKind::VoidPointer}
+    bool_type = Type{name = "bool", kind = TypeKind::Bool}
+    float_type = Type{name = "float", size_in_bits = 32, kind = TypeKind::FloatingPoint}
+    double_type = Type{name = "double", size_in_bits = 64, kind = TypeKind::FloatingPoint}
 
     for size = 8; size <= 64; size *= 2:
         sprintf(signed_integers[size].name, "<%d-bit signed integer>", size)
@@ -160,10 +152,10 @@ def init_types() -> void:
     int_type = &signed_integers[32]
     long_type = &signed_integers[64]
 
-    strcpy(byte_type->name, "byte")
-    strcpy(short_type->name, "short")
-    strcpy(int_type->name, "int")
-    strcpy(long_type->name, "long")
+    byte_type->name = "byte"
+    short_type->name = "short"
+    int_type->name = "int"
+    long_type->name = "long"
 
 def create_opaque_class(name: byte*) -> Type*:
     result: Type* = malloc(sizeof *result)

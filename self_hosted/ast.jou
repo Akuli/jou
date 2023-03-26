@@ -620,7 +620,10 @@ class AstSignature:
         for i = 0; i < self->nargs; i++:
             if i != 0:
                 printf(", ")
-            self->args[i].print(NULL)
+            if strcmp(self->args[i].name, "self") == 0:
+                printf("self")
+            else:
+                self->args[i].print(NULL)
 
         if self->takes_varargs:
             if self->nargs != 0:
@@ -784,9 +787,7 @@ class AstClassMember:
         elif self->kind == AstClassMemberKind::Method:
             printf("  method ")
             self->method.signature.print()
-            tp = TreePrinter{}
-            strcpy(tp.prefix, "  ")
-            self->method.body.print(tp)
+            self->method.body.print(TreePrinter{prefix = "  "})
         else:
             assert False
 

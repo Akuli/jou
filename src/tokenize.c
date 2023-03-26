@@ -497,11 +497,11 @@ static Token *tokenize_without_indent_dedent_tokens(FILE *f, const char *filenam
 
     /*
     Add a fake newline to the beginning. It does a few things:
-      * Less special-casing: blank lines in the beginning of the file can
+    * Less special-casing: blank lines in the beginning of the file can
         cause there to be a newline token anyway.
-      * It is easier to detect an unexpected indentation in the beginning
+    * It is easier to detect an unexpected indentation in the beginning
         of the file, as it becomes just like any other indentation.
-      * Line numbers start at 1.
+    * Line numbers start at 1.
     */
     Append(&st.pushback, '\n');
 

@@ -138,7 +138,7 @@ bool is_integer_type(const Type *t)
 
 bool is_number_type(const Type *t)
 {
-      return is_integer_type(t) || t->kind == TYPE_FLOATING_POINT;
+    return is_integer_type(t) || t->kind == TYPE_FLOATING_POINT;
 }
 
 bool is_pointer_type(const Type *t)

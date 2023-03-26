@@ -324,7 +324,7 @@ class Compiler:
         sprintf(command, "\"%s\" -o \"%s\"", c_compiler, exe)
         for i = 0; object_files[i] != NULL; i++:
             sprintf(&command[strlen(command)], " \"%s\"", object_files[i])
- 
+
         if is_windows():
             # windows strips outermost quotes for some reason, so let's quote it all one more time...
             memmove(&command[1], &command[0], strlen(command) + 1)
