@@ -711,6 +711,15 @@ class AstToIR:
         elif ast->kind == AstStatementKind::Continue:
             LLVMBuildBr(self->builder, self->continue_stack[self->nested_loop_count-1])
             self->new_block("after_continue")
+        elif ast->kind == AstStatementKind::InPlaceAdd:
+            target_pointer = self->do_address_of_expression(&ast->assignment.target)
+            target_type = self->function_or_method_types->get_expression_types(&ast->assignment.target)->original_type
+            rhs = self->do_expression(&ast->assignment.value)
+            rhs_type = self->function_or_method_types->get_expression_types(&ast->assignment.value)->get_type_after_implicit_cast()
+
+            old_value = LLVMBuildLoad(self->builder, target_pointer, "old_value")
+            new_value = self->do_binop(AstExpressionKind::Add, old_value, target_type, rhs, rhs_type)
+            LLVMBuildStore(self->builder, new_value, target_pointer)
         else:
             printf("create_llvm_ir: unknown statement kind %d...\n", ast->kind)
             assert False
