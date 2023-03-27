@@ -1165,13 +1165,13 @@ class Stage3TypeChecker:
     ) -> void:
         ensure_can_take_address(target, "cannot assign to %s")
         target_types = self->do_expression(target)
-        value_types = self->do_expression(value)
-        result_type = check_binop(op_expr_kind, target->location, target_types, value_types)
 
         error_template: byte[200]
         strcpy(error_template, op_description)
         strcat(error_template, " produced a value of type <from> which cannot be assigned back to <to>")
-        value_types->do_implicit_cast(result_type, location, error_template)
+
+        # TODO: this logic doesn't make much sense
+        self->do_expression_and_implicit_cast(value, target_types->original_type, error_template)
 
     def do_statement(self, statement: AstStatement*) -> void:
         if statement->kind == AstStatementKind::ExpressionStatement:
