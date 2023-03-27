@@ -795,13 +795,13 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
     }
 
     char *sigstr = signature_to_string(sig, false);
-    
+
     int n = call->nargs + !!self_type;
     int nargs = sig->nargs;
     if (self_type)
         nargs--;
     if (n < sig->nargs || (n > sig->nargs && !sig->takes_varargs)) {
-		fail_with_error(
+        fail_with_error(
             location,
             "%s %s takes %d argument%s, but it was called with %d argument%s",
             self_type ? "method" : "function",
