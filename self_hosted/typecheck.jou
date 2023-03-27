@@ -770,7 +770,7 @@ class Stage3TypeChecker:
                 )
             fail(call->location, message)
 
-        signature_string = signature->to_string(False, False)
+        signature_string = signature->to_string(True, False) # Throught we should still show self
 
         expected = signature->nargs
         if self_type != NULL:
