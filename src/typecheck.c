@@ -794,7 +794,7 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
             self_type->name, call->calledname);
     }
 
-    char *sigstr = signature_to_string(sig, false);
+    char *sigstr = signature_to_string(sig, false, false);
 
     int n = call->nargs + !!self_type;
     int nargs = sig->nargs;
