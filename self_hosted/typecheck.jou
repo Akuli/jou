@@ -3,9 +3,9 @@
 #       they are opaque and contain no members. Enums exist and contain
 #       their members (although it doesn't really matter whether enum
 #       members are handled in stage 1 or 2).
-#    2. Check signatures, global variables and class bodies, without
-#       checking bodies of methods. This stage assumes that all types
-#       exist, but doesn't need to know what fields each class has.
+#    2. Check signatures, global variables and class bodies, but ignore
+#       bodies of functions and methods. This stage assumes that all
+#       types exist, but doesn't need to know what fields each class has.
 #    3. Check function and method bodies.
 #
 # The goal of this design is to make cyclic imports possible. At each
@@ -88,6 +88,7 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
 enum ExportSymbolKind:
     Function
     Type
+    GlobalVariable
 
 class ExportSymbol:
     kind: ExportSymbolKind
@@ -95,7 +96,7 @@ class ExportSymbol:
 
     union:
         signature: Signature    # ExportSymbolKind::Function
-        type: Type*             # ExportSymbolKind::Type
+        type: Type*             # ExportSymbolKind::Type, ExportSymbolKind::GlobalVariable
 
 class ExpressionTypes:
     expression: AstExpression*
@@ -175,6 +176,10 @@ class LocalVariable:
     type: Type*
     next: LocalVariable*  # TODO: switch to more efficient structure than linked list?
 
+class GlobalVariable:
+    name: byte[100]
+    type: Type*
+
 class FunctionOrMethodTypes:
     signature: Signature
     expression_types: ExpressionTypes*
@@ -203,6 +208,9 @@ class FileTypes:
 
     types: Type**
     ntypes: int
+
+    globals: GlobalVariable*
+    nglobals: int
 
     def add_imported_symbol(self, symbol: ExportSymbol*) -> void:
         if symbol->kind != ExportSymbolKind::Function:
@@ -234,6 +242,12 @@ class FileTypes:
                 return self->types[i]
         return NULL
 
+    def find_global_var(self, name: byte*) -> Type*:
+        for i = 0; i < self->nglobals; i++:
+            if strcmp(self->globals[i].name, name) == 0:
+                return self->globals[i].type
+        return NULL
+
 def check_type_doesnt_exist(ft: FileTypes*, name: byte*, location: Location) -> void:
     existing = ft->find_type(name)
     if existing != NULL:
@@ -251,21 +265,21 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
             classdef = &file->body[i].classdef
             check_type_doesnt_exist(ft, classdef->name, classdef->name_location)
             t = create_opaque_class(classdef->name)
-            ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
-            ft->types[ft->ntypes++] = t
-
-        if file->body[i].kind == AstToplevelStatementKind::Enum:
+        elif file->body[i].kind == AstToplevelStatementKind::Enum:
             enumdef = &file->body[i].enumdef
             check_type_doesnt_exist(ft, enumdef->name, enumdef->name_location)
             t = create_enum(enumdef->name, enumdef->member_count, enumdef->member_names)
-            ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
-            ft->types[ft->ntypes++] = t
-            exports = realloc(exports, (nexports + 1) * sizeof exports[0])
-            exports[nexports++] = ExportSymbol{
-                kind = ExportSymbolKind::Type,
-                name = enumdef->name,
-                type = t,
-            }
+        else:
+            continue
+
+        ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
+        ft->types[ft->ntypes++] = t
+        exports = realloc(exports, (nexports + 1) * sizeof exports[0])
+        exports[nexports++] = ExportSymbol{
+            kind = ExportSymbolKind::Type,
+            name = t->name,
+            type = t,
+        }
 
     exports = realloc(exports, sizeof exports[0] * (nexports + 1))
     exports[nexports] = ExportSymbol{}
@@ -295,7 +309,10 @@ def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
             return byte_type
         if strcmp(ast_type->name, "bool") == 0:
             return &bool_type
-        # TODO: float, double
+        if strcmp(ast_type->name, "float") == 0:
+            return &float_type
+        if strcmp(ast_type->name, "double") == 0:
+            return &double_type
 
         result = ft->find_type(ast_type->name)
         if result != NULL:
@@ -345,6 +362,16 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_type: Type*) ->
     else:
         sig.return_type = type_from_ast(ft, &astsig->return_type)
 
+    if astsig->return_type.is_void() or astsig->return_type.is_noreturn():
+        sig.return_type = NULL
+    else:
+        sig.return_type = type_from_ast(ft, &astsig->return_type)
+
+    # TODO: validate main() parameters
+    # TODO: test main() taking parameters
+    if self_type == NULL and strcmp(sig.name, "main") == 0 and sig.return_type != int_type:
+        fail(astsig->return_type.location, "the main() function must return int")
+
     return sig
 
 def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> void:
@@ -390,6 +417,8 @@ def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> void:
 
 # Returned array is terminated by ExportSymbol with empty name.
 def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> ExportSymbol*:
+    message: byte[200]
+
     exports: ExportSymbol* = NULL
     nexports = 0
 
@@ -397,6 +426,14 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
         ts = &ast_file->body[i]
 
         if ts->kind == AstToplevelStatementKind::Function:
+            if ft->find_function(ts->function.signature.name) != NULL:
+                snprintf(
+                    message, sizeof message,
+                    "a function named '%s' already exists",
+                    ts->function.signature.name,
+                )
+                fail(ts->location, message)
+
             sig = handle_signature(ft, &ts->function.signature, NULL)
             ft->all_functions = realloc(ft->all_functions, sizeof ft->all_functions[0] * (ft->n_all_functions + 1))
             ft->all_functions[ft->n_all_functions++] = sig.copy()
@@ -409,6 +446,30 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
 
         if ts->kind == AstToplevelStatementKind::Class:
             handle_class_members_stage2(ft, &ts->classdef)
+
+        if (
+            ts->kind == AstToplevelStatementKind::GlobalVariableDeclaration
+            or ts->kind == AstToplevelStatementKind::GlobalVariableDefinition
+        ):
+            if ft->find_global_var(ts->global_var.name) != NULL:
+                snprintf(
+                    message, sizeof message,
+                    "a global variable named '%s' already exists",
+                    ts->global_var.name,
+                )
+                fail(ts->location, message)
+
+            assert ts->global_var.value == NULL
+            type = type_from_ast(ft, &ts->global_var.type)
+            ft->globals = realloc(ft->globals, (ft->nglobals + 1) * sizeof ft->globals[0])
+            ft->globals[ft->nglobals++] = GlobalVariable{name = ts->global_var.name, type = type}
+
+            exports = realloc(exports, sizeof exports[0] * (nexports + 1))
+            exports[nexports++] = ExportSymbol{
+                kind = ExportSymbolKind::GlobalVariable,
+                name = ts->global_var.name,
+                type = type,
+            }
 
     exports = realloc(exports, sizeof exports[0] * (nexports + 1))
     exports[nexports] = ExportSymbol{}
@@ -766,7 +827,7 @@ class Stage3TypeChecker:
                 snprintf(
                     message, sizeof message,
                     "type %s does not have any methods because it is %s, not a class",
-                    call->name, short_type_description(self_type),
+                    self_type->name, short_type_description(self_type),
                 )
             fail(call->location, message)
 
@@ -1037,10 +1098,26 @@ class Stage3TypeChecker:
                 result = check_class_field(expression->location, lhs_type, expression->class_field.field_name)->type
         elif expression->kind == AstExpressionKind::AddressOf:
             result = self->do_expression(expression->operands)->original_type->get_pointer_type()
+        elif expression->kind == AstExpressionKind::Dereference:
+            pointer_type = self->do_expression(expression->operands)->original_type
+            if pointer_type->kind != TypeKind::Pointer:
+                snprintf(
+                    message, sizeof message,
+                    "the dereference operator '*' is only for pointers, not for %s",
+                    pointer_type->name,
+                )
+                fail(expression->location, message)
+            result = pointer_type->value_type
         elif expression->kind == AstExpressionKind::Instantiate:
             result = self->do_instantiation(&expression->instantiation)
         elif expression->kind == AstExpressionKind::Indexing:
             result = self->do_indexing(&expression->operands[0], &expression->operands[1])
+        elif expression->kind == AstExpressionKind::Not:
+            self->do_expression_and_implicit_cast(
+                &expression->operands[0], &bool_type,
+                "value after 'not' must be a boolean, not <from>",
+            )
+            result = &bool_type
         elif expression->kind == AstExpressionKind::Self:
             class_type = self->current_function_or_method->signature.get_containing_class()
             assert class_type != NULL
@@ -1162,10 +1239,12 @@ class Stage3TypeChecker:
 
         elif statement->kind == AstStatementKind::If:
             for i = 0; i < statement->if_statement.n_if_and_elifs; i++:
+                if i == 0:
+                    template = "'if' condition must be a boolean, not <from>"
+                else:
+                    template = "'elif' condition must be a boolean, not <from>"
                 self->do_expression_and_implicit_cast(
-                    &statement->if_statement.if_and_elifs[i].condition,
-                    &bool_type,
-                    "'if' condition must be a boolean, not <from>",
+                    &statement->if_statement.if_and_elifs[i].condition, &bool_type, template
                 )
                 self->do_body(&statement->if_statement.if_and_elifs[i].body)
             self->do_body(&statement->if_statement.else_body)
