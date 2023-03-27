@@ -443,7 +443,7 @@ struct Signature {
 
 void free_signature(const Signature *sig);
 const Type *get_self_class(const Signature *sig);  // NULL for functions, a class for methods
-char *signature_to_string(const Signature *sig, bool include_return_type);
+char *signature_to_string(const Signature *sig, bool include_return_type, bool include_self);
 Signature copy_signature(const Signature *sig);
 
 

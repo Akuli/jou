@@ -202,18 +202,20 @@ const Type *get_self_class(const Signature *sig)
     return NULL;
 }
 
-char *signature_to_string(const Signature *sig, bool include_return_type)
+char *signature_to_string(const Signature *sig, bool include_return_type, bool include_self)
 {
     List(char) result = {0};
     AppendStr(&result, sig->name);
     Append(&result, '(');
 
     for (int i = 0; i < sig->nargs; i++) {
-        if(i)
-            AppendStr(&result, ", ");
+        if (!strcmp(sig->argnames[i], "self") && !include_self)
+            continue;
         AppendStr(&result, sig->argnames[i]);
         AppendStr(&result, ": ");
         AppendStr(&result, sig->argtypes[i]->name);
+        if (i < sig->nargs - 1)
+            AppendStr(&result, ", ");
     }
     if (sig->takes_varargs) {
         if (sig->nargs)
