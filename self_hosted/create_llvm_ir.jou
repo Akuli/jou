@@ -527,7 +527,10 @@ class AstToIR:
 
         elif ast->kind == AstExpressionKind::Negate:
             value = self->do_expression(&ast->operands[0])
-            result = LLVMBuildNeg(self->builder, value, "negate")
+            if self->function_or_method_types->get_expression_types(&ast->operands[0])->original_type->kind == TypeKind::FloatingPoint:
+                result = LLVMBuildFNeg(self->builder, value, "negate")
+            else:
+                result = LLVMBuildNeg(self->builder, value, "negate")
 
         elif ast->kind == AstExpressionKind::PreIncr:
             old_and_new = self->do_incr_decr(&ast->operands[0], 1)
