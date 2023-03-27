@@ -798,8 +798,8 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
     int n = call->nargs + !!self_type;
     int nargs = sig->nargs;
     if (self_type) {
-		nargs--;
-	}
+        nargs--;
+    }
     if (n < sig->nargs || (n > sig->nargs && !sig->takes_varargs)) {
 		fail_with_error(
             location,
