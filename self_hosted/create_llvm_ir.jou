@@ -203,7 +203,14 @@ class AstToIR:
             #   unsigned 8-bit 0xFF (255) --> 16-bit 0x00FF (255)
             return LLVMBuildIntCast2(self->builder, obj, type_to_llvm(to), from->kind == TypeKind::SignedInteger, "cast_int")
 
-        # TODO: float/double <--> integer, float <--> double
+        if from->kind == TypeKind::SignedInteger and to->kind == TypeKind::FloatingPoint:
+            return LLVMBuildSIToFP(self->builder, obj, type_to_llvm(to), "cast_signed_to_float")
+        if from->kind == TypeKind::UnsignedInteger and to->kind == TypeKind::FloatingPoint:
+            return LLVMBuildUIToFP(self->builder, obj, type_to_llvm(to), "cast_unsigned_to_float")
+        if from->kind == TypeKind::FloatingPoint and to->kind == TypeKind::SignedInteger:
+            return LLVMBuildFPToSI(self->builder, obj, type_to_llvm(to), "cast_float_to_signed")
+        if from->kind == TypeKind::FloatingPoint and to->kind == TypeKind::UnsignedInteger:
+            return LLVMBuildFPToUI(self->builder, obj, type_to_llvm(to), "cast_float_to_unsigned")
 
         if from == &bool_type and to->is_integer_type():
             # True --> 1, False --> 0
