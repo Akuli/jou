@@ -102,11 +102,11 @@ for action in ${actions[@]}; do
     # Run compilers in parallel to speed up.
     (
         set +e
-        ./jou $flag $file 2>&1 | grep -vE 'undefined reference to|[/\\]ld: '
+        ./jou $flag $file 2>&1 | grep -vE 'undefined reference to|multiple definition of|\bld: '
     ) > tmp/compare_compilers/compiler_written_in_c.txt &
     (
         set +e
-        ./self_hosted_compiler $flag $file 2>&1 | grep -vE 'undefined reference to|linking failed|[/\\]ld: '
+        ./self_hosted_compiler $flag $file 2>&1 | grep -vE 'undefined reference to|multiple definition of|\bld: |linking failed'
     ) > tmp/compare_compilers/self_hosted.txt &
     wait
 
