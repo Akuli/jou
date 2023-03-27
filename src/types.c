@@ -207,16 +207,16 @@ char *signature_to_string(const Signature *sig, bool include_return_type, bool i
     List(char) result = {0};
     AppendStr(&result, sig->name);
     Append(&result, '(');
-	
+
     for (int i = 0; i < sig->nargs; i++) {
         if (!strcmp(sig->argnames[i], "self") && !include_self)
-        	continue;
+            continue;
         AppendStr(&result, sig->argnames[i]);
         AppendStr(&result, ": ");
         AppendStr(&result, sig->argtypes[i]->name);
         if (i < sig->nargs - 1)
-    		AppendStr(&result, ", ");
-	}
+            AppendStr(&result, ", ");
+    }
     if (sig->takes_varargs) {
         if (sig->nargs)
             AppendStr(&result, ", ");
