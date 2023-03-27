@@ -593,8 +593,8 @@ class AstToIR:
         ):
             lhs = self->do_expression(&ast->operands[0])
             rhs = self->do_expression(&ast->operands[1])
-            lhs_type = self->function_or_method_types->get_expression_types(&ast->operands[0])->original_type
-            rhs_type = self->function_or_method_types->get_expression_types(&ast->operands[1])->original_type
+            lhs_type = self->function_or_method_types->get_expression_types(&ast->operands[0])->get_type_after_implicit_cast()
+            rhs_type = self->function_or_method_types->get_expression_types(&ast->operands[1])->get_type_after_implicit_cast()
             result = self->do_binop(ast->kind, lhs, lhs_type, rhs, rhs_type)
 
         elif ast->kind == AstExpressionKind::Array:
