@@ -800,7 +800,7 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
     int nargs = sig->nargs;
     if (self_type)
         nargs--;
-    if (n < sig->nargs || (n > sig->nargs && !sig->takes_varargs)) {
+    if (call->nargs < nargs || (call->nargs > nargs && !sig->takes_varargs)) {
         fail_with_error(
             location,
             "%s %s takes %d argument%s, but it was called with %d argument%s",
