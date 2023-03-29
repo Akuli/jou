@@ -817,6 +817,28 @@ static AstBody parse_body(const Token **tokens)
     return (AstBody){ .statements=result.ptr, .nstatements=result.len };
 }
 
+static noreturn void fail_with_self_outside_method(Location location)
+{
+    fail_with_error(location, "'self' can only be used in methods");
+}
+
+static void check_no_self_expr(const AstExpression *expr);
+static void check_no_self_statement(const AstStatement *stmt)
+{
+    switch(stmt->kind) {
+        case AST_STMT_ASSERT: check_no_self_expr(&stmt->data.assertion.expression); break;
+        case AST_STMT_ASSIGN: check_no_self_expr(&stmt->data.assignment.target); check_no_self_expr(&stmt->data.assignment.value); break;
+        case AST_STMT_BREAK: break;
+        case AST_STMT_CONTINUE: break;
+        case AST_STMT_DECLARE_LOCAL_VAR:
+            if (!strcmp(stmt->data.vardecl.name, "self"))
+                fail_with_self_outside_method(stmt->location);
+            break;
+        case AST_STMT_EXPRESSION_STATEMENT: check_no_self_expr(&stmt->data.expression); break;
+        case AST_STMT_FOR: check_no_self_expr(&stmt->data.forloop.cond); check_no_self_statement(check_no_self_expr(&stmt->data.forloop.cond);
+    }
+}
+
 static AstFunction parse_funcdef(const Token **tokens, bool is_method)
 {
     assert(is_keyword(*tokens, "def"));
