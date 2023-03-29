@@ -572,6 +572,8 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
         return "the result of decrementing a value"
     elif expr->kind == AstExpressionKind::Indexing:
         return "an indexed value"
+    elif expr->kind == AstExpressionKind::Self:
+        return "self"
     else:
         printf("*** %d\n", expr->kind)
         assert False
