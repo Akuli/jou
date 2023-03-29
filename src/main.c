@@ -314,6 +314,8 @@ static bool astnode_conflicts_with_an_import(const AstToplevelNode *astnode, con
     case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
     case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
         return import->kind == EXPSYM_GLOBAL_VAR && !strcmp(import->name, astnode->data.globalvar.name);
+    case AST_TOPLEVEL_DEFINE_GLOBAL_CONSTANT:
+        return import->kind == EXPSYM_GLOBAL_CONST && !strcmp(import->name, astnode->data.globalconst.name);
     case AST_TOPLEVEL_DEFINE_CLASS:
         return import->kind == EXPSYM_TYPE && !strcmp(import->name, astnode->data.classdef.name);
     case AST_TOPLEVEL_DEFINE_ENUM:
@@ -333,6 +335,7 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
             switch(es->kind) {
                 case EXPSYM_FUNCTION: wat = "function"; break;
                 case EXPSYM_GLOBAL_VAR: wat = "global variable"; break;
+                case EXPSYM_GLOBAL_CONST: wat = "global constant"; break;
                 case EXPSYM_TYPE: wat = "type"; break;
             }
             fail_with_error(ast->location, "a %s named '%s' already exists", wat, es->name);
@@ -355,6 +358,7 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
         });
         break;
     case EXPSYM_GLOBAL_VAR:
+    case EXPSYM_GLOBAL_CONST:
         g = calloc(1, sizeof(*g));
         g->type = es->data.type;
         g->usedptr = &imp->used;
@@ -381,6 +385,7 @@ static void add_imported_symbols(struct CompileState *compst)
                     switch(es->kind) {
                         case EXPSYM_FUNCTION: kindstr="function"; break;
                         case EXPSYM_GLOBAL_VAR: kindstr="global var"; break;
+                        case EXPSYM_GLOBAL_CONST: kindstr="global constant"; break;
                         case EXPSYM_TYPE: kindstr="type"; break;
                     }
                     printf("Adding imported %s %s: %s --> %s\n",

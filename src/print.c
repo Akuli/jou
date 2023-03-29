@@ -425,6 +425,11 @@ void print_ast(const AstToplevelNode *topnodelist)
                 print_ast_type(&t->data.globalvar.type);
                 printf("\n");
                 break;
+            case AST_TOPLEVEL_DEFINE_GLOBAL_CONSTANT:
+                printf("Define a global constant %s.", t->data.globalconst.name);
+                print_ast_expression(&t->data.globalconst.value, (struct TreePrinter){0});
+                printf("\n");
+                break;
             case AST_TOPLEVEL_FUNCTION:
                 printf("%s a function: ", t->data.function.body.nstatements == 0 ? "Declare" : "Define");
                 print_ast_function_signature(&t->data.function.signature);

@@ -1026,6 +1026,13 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens, const char *std
                 "specifying a value for a global variable is not supported yet");
         }
         eat_newline(tokens);
+    } else if (is_keyword(*tokens, "const")) {
+        ++*tokens;
+        result.kind = AST_TOPLEVEL_DEFINE_GLOBAL_CONSTANT;
+        result.data.globalvar = parse_name_type_value(tokens, "a name for the constant");
+        if (!result.data.globalvar.value)
+            fail_with_error(result.location, "you must specify a value for %s", result.data.globalvar.name);
+        eat_newline(tokens);
     } else if (is_keyword(*tokens, "class")) {
         ++*tokens;
         result.kind = AST_TOPLEVEL_DEFINE_CLASS;

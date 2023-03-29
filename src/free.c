@@ -201,6 +201,7 @@ void free_ast(AstToplevelNode *topnodelist)
             break;
         case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
         case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
+        case AST_TOPLEVEL_DEFINE_GLOBAL_CONSTANT:
             free_name_type_value(&t->data.globalvar);
             break;
         case AST_TOPLEVEL_DEFINE_CLASS:

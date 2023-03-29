@@ -52,18 +52,31 @@ static const LocalVariable *find_local_var(const FileTypes *ft, const char *name
     return NULL;
 }
 
-static const Type *find_any_var(const FileTypes *ft, const char *name)
+static const GlobalVariable *find_global_var(const FileTypes *ft, const char *name)
 {
-    if (ft->current_fom_types)
-        for (LocalVariable **var = ft->current_fom_types->locals.ptr; var < End(ft->current_fom_types->locals); var++)
-            if (!strcmp((*var)->name, name))
-                return (*var)->type;
     for (GlobalVariable **var = ft->globals.ptr; var < End(ft->globals); var++)
         if (!strcmp((*var)->name, name)) {
             if ((*var)->usedptr)
                 *(*var)->usedptr = true;
-            return (*var)->type;
+            return *var;
         }
+    return NULL;
+}
+
+static const Type *find_any_var(const FileTypes *ft, const char *name, bool *is_constant)
+{
+    *is_constant = false;
+
+    const LocalVariable *local = find_local_var(ft, name);
+    if (local)
+        return local->type;
+
+    const GlobalVariable *global = find_global_var(ft, name);
+    if (global) {
+        *is_constant = global->is_constant;
+        return global->type;
+    }
+
     return NULL;
 }
 
@@ -192,13 +205,36 @@ static const Type *type_from_ast(const FileTypes *ft, const AstType *asttype)
 
 static ExportSymbol handle_global_var(FileTypes *ft, const AstNameTypeValue *vardecl, bool defined_here)
 {
-    assert(ft->current_fom_types == NULL);  // find_any_var() only finds global vars
-    if (find_any_var(ft, vardecl->name))
-        fail_with_error(vardecl->name_location, "a global variable named '%s' already exists", vardecl->name);
+    const GlobalVariable *exists = find_global_var(ft, vardecl->name);
+    if(exists)
+        fail_with_error(vardecl->name_location, "a global %s named '%s' already exists", exists->is_constant?"constant":"variable", vardecl->name);
 
     assert(!vardecl->value);
     GlobalVariable *g = calloc(1, sizeof *g);
     safe_strcpy(g->name, vardecl->name);
+    g->type = type_from_ast(ft, &vardecl->type);
+    g->defined_in_current_file = defined_here;
+    Append(&ft->globals, g);
+
+    ExportSymbol es = { .kind = EXPSYM_GLOBAL_VAR, .data.type = g->type };
+    safe_strcpy(es.name, g->name);
+    return es;
+}
+
+static const Type *typecheck_constant_expression(const AstExpression *expr)
+{
+    assert(0);
+}
+
+static ExportSymbol handle_global_const(FileTypes *ft, const AstNameValue *namevalue, bool defined_here)
+{
+    const GlobalVariable *exists = find_global_var(ft, namevalue->name);
+    if(exists)
+        fail_with_error(namevalue->name_location, "a global %s named '%s' already exists", exists->is_constant?"constant":"variable", namevalue->name);
+
+    GlobalVariable *g = calloc(1, sizeof *g);
+    safe_strcpy(g->name, namevalue->name);
+    g->value = &namevalue->value;
     g->type = type_from_ast(ft, &vardecl->type);
     g->defined_in_current_file = defined_here;
     Append(&ft->globals, g);
@@ -1254,8 +1290,11 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
         break;
 
     case AST_STMT_DECLARE_LOCAL_VAR:
-        if (find_any_var(ft, stmt->data.vardecl.name))
-            fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
+        {
+            bool is_constant;
+            if (find_any_var(ft, stmt->data.vardecl.name, &is_constant))
+                fail_with_error(stmt->location, "a %s named '%s' already exists", is_constant?"constant":"variable", stmt->data.vardecl.name);
+        }
 
         const Type *type = type_from_ast(ft, &stmt->data.vardecl.type);
         add_variable(ft, type, stmt->data.vardecl.name);

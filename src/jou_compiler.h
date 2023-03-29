@@ -25,6 +25,7 @@ typedef struct AstConditionAndBody AstConditionAndBody;
 typedef struct AstExpression AstExpression;
 typedef struct AstAssignment AstAssignment;
 typedef struct AstForLoop AstForLoop;
+typedef struct AstNameValue AstNameValue;
 typedef struct AstNameTypeValue AstNameTypeValue;
 typedef struct AstIfStatement AstIfStatement;
 typedef struct AstStatement AstStatement;
@@ -264,6 +265,11 @@ struct AstNameTypeValue {
     AstType type;
     AstExpression *value; // can be NULL if value is missing
 };
+struct AstNameValue {
+    char name[100];
+    Location name_location;
+    AstExpression value;
+};
 struct AstAssignment {
     // target = value
     AstExpression target;
@@ -345,12 +351,14 @@ struct AstToplevelNode {
         AST_TOPLEVEL_FUNCTION,
         AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE,
         AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE,
+        AST_TOPLEVEL_DEFINE_GLOBAL_CONSTANT,
         AST_TOPLEVEL_DEFINE_CLASS,
         AST_TOPLEVEL_DEFINE_ENUM,
         AST_TOPLEVEL_IMPORT,
     } kind;
     union {
         AstNameTypeValue globalvar;
+        AstNameValue globalconst;
         AstFunction function;
         AstClassDef classdef;
         AstEnumDef enumdef;
@@ -450,6 +458,8 @@ Signature copy_signature(const Signature *sig);
 struct GlobalVariable {
     char name[100];  // Same as in user's code, never empty
     const Type *type;
+    const AstExpression *value;
+    bool is_constant;
     bool defined_in_current_file;  // not declare-only (e.g. stdout) or imported
     bool *usedptr;  // If non-NULL, set to true when the variable is used. This is how we detect unused imports.
 };
@@ -471,7 +481,7 @@ struct ExpressionTypes {
 };
 
 struct ExportSymbol {
-    enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_TYPE, EXPSYM_GLOBAL_VAR } kind;
+    enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_TYPE, EXPSYM_GLOBAL_VAR, EXPSYM_GLOBAL_CONST } kind;
     char name[200];
     union {
         Signature funcsignature;
