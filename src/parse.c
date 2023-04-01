@@ -11,6 +11,7 @@
 typedef struct {
     const Token *tokens;
     const char *stdlib_path;
+    bool is_parsing_method_body;
 } ParserState;
 
 static AstExpression parse_expression(ParserState *ps);
@@ -453,6 +454,8 @@ static AstExpression parse_elementary_expression(ParserState *ps)
             expr.data.constant = (Constant){ CONSTANT_NULL, {{0}} };
             ps->tokens++;
         } else if (is_keyword(ps->tokens, "self")) {
+            if (!ps->is_parsing_method_body)
+                fail_with_error(ps->tokens->location, "'self' cannot be used here");
             expr.kind = AST_EXPR_GET_VARIABLE;
             strcpy(expr.data.varname, "self");
             ps->tokens++;
@@ -833,7 +836,11 @@ static AstFunction parse_funcdef(ParserState *ps, bool is_method)
         // TODO: support "def foo(x: str, ...)" in some way
         fail_with_error(ps->tokens->location, "functions with variadic arguments cannot be defined yet");
     }
+
+    assert(!ps->is_parsing_method_body);
+    ps->is_parsing_method_body = is_method;
     funcdef.body = parse_body(ps);
+    ps->is_parsing_method_body = false;
 
     return funcdef;
 }

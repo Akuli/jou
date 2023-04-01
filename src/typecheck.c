@@ -370,7 +370,7 @@ static const char *short_expression_description(const AstExpression *expr)
     case AST_EXPR_ARRAY: return "an array literal";
     case AST_EXPR_INDEXING: return "an indexed value";
     case AST_EXPR_AS: return "the result of a cast";
-    case AST_EXPR_GET_VARIABLE: return "a variable";
+    case AST_EXPR_GET_VARIABLE: return strcmp(expr->data.varname,"self")==0 ? "self" : "a variable";
     case AST_EXPR_DEREFERENCE: return "the value of a pointer";
     case AST_EXPR_AND: return "the result of 'and'";
     case AST_EXPR_OR: return "the result of 'or'";
@@ -425,7 +425,6 @@ errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
 static void ensure_can_take_address(const AstExpression *expr, const char *errmsg_template)
 {
     switch(expr->kind) {
-    case AST_EXPR_GET_VARIABLE:
     case AST_EXPR_DEREFERENCE:
     case AST_EXPR_INDEXING:  // &foo[bar]
     case AST_EXPR_DEREF_AND_GET_FIELD:  // &foo->bar = foo + offset (it doesn't use &foo)
@@ -441,6 +440,10 @@ static void ensure_can_take_address(const AstExpression *expr, const char *errms
             free(newtemplate);
         }
         break;
+    case AST_EXPR_GET_VARIABLE:
+        if (strcmp(expr->data.varname, "self"))
+            break;
+        __attribute__((fallthrough));
     default:
         fail_with_error(expr->location, errmsg_template, short_expression_description(expr));
     }

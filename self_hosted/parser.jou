@@ -184,6 +184,7 @@ def check_class_for_duplicate_names(classdef: AstClassDef*) -> void:
 class Parser:
     tokens: Token*
     stdlib_path: byte*
+    is_parsing_method_body: bool
 
     def parse_type(self) -> AstType:
         if not (
@@ -461,6 +462,8 @@ class Parser:
             expr.kind = AstExpressionKind::Null
             self->tokens++
         elif self->tokens->is_keyword("self"):
+            if not self->is_parsing_method_body:
+                fail(self->tokens->location, "'self' cannot be used here")
             expr.kind = AstExpressionKind::Self
             self->tokens++
         elif self->tokens->kind == TokenKind::Name:
@@ -842,10 +845,12 @@ class Parser:
         if signature.takes_varargs:
             fail(self->tokens->location, "functions with variadic arguments cannot be defined yet")
 
-        return AstFunctionOrMethod{
-            signature = signature,
-            body = self->parse_body(),
-        }
+        assert not self->is_parsing_method_body
+        self->is_parsing_method_body = is_method
+        body = self->parse_body()
+        self->is_parsing_method_body = False
+
+        return AstFunctionOrMethod{signature = signature, body = body}
 
     def parse_class(self) -> AstClassDef:
         assert self->tokens->is_keyword("class")
