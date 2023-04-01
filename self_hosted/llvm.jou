@@ -227,8 +227,10 @@ declare LLVMAddGlobal(M: LLVMModule*, Ty: LLVMType*, Name: byte*) -> LLVMValue*
 declare LLVMGetNamedGlobal(M: LLVMModule*, Name: byte*) -> LLVMValue*
 declare LLVMSetInitializer(GlobalVar: LLVMValue*, ConstantVal: LLVMValue*) -> void
 declare LLVMAppendBasicBlock(Fn: LLVMValue*, Name: byte*) -> LLVMBasicBlock*
+declare LLVMAddIncoming(PhiNode: LLVMValue*, IncomingValues: LLVMValue**, IncomingBlocks: LLVMBasicBlock**, Count: int) -> void
 declare LLVMCreateBuilder() -> LLVMBuilder*
 declare LLVMPositionBuilderAtEnd(Builder: LLVMBuilder*, Block: LLVMBasicBlock*) -> void
+declare LLVMGetInsertBlock(Builder: LLVMBuilder*) -> LLVMBasicBlock*
 declare LLVMDisposeBuilder(Builder: LLVMBuilder*) -> void
 declare LLVMBuildRet(Builder: LLVMBuilder*, V: LLVMValue*) -> LLVMValue*
 declare LLVMBuildRetVoid(Builder: LLVMBuilder*) -> LLVMValue*
@@ -268,6 +270,7 @@ declare LLVMBuildIntCast2(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMTy
 declare LLVMBuildFPCast(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType*, Name: byte*) -> LLVMValue*
 declare LLVMBuildICmp(Builder: LLVMBuilder*, Op: LLVMIntPredicate, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
 declare LLVMBuildFCmp(Builder: LLVMBuilder*, Op: LLVMRealPredicate, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
+declare LLVMBuildPhi(Builder: LLVMBuilder*, Ty: LLVMType*, Name: byte*) -> LLVMValue*
 declare LLVMBuildCall2(Builder: LLVMBuilder*, FunctionTy: LLVMType*, Fn: LLVMValue*, Args: LLVMValue**, NumArgs: int, Name: byte*) -> LLVMValue*
 declare LLVMBuildExtractValue(Builder: LLVMBuilder*, AggVal: LLVMValue*, Index: int, Name: byte*) -> LLVMValue*
 declare LLVMBuildInsertValue(Builder: LLVMBuilder*, AggVal: LLVMValue*, EltVal: LLVMValue*, Index: int, Name: byte*) -> LLVMValue*

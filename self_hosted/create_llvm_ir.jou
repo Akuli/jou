@@ -397,6 +397,33 @@ class AstToIR:
         printf("expression kind (taking address): %d\n", ast->kind)
         assert False
 
+    def do_and_or(self, lhs: AstExpression*, rhs: AstExpression*, is_and: bool) -> LLVMValue*:
+        # Must be careful with side effects. For example, "lhs and rhs" doesn't evaluate rhs if the lhs is False.
+        # TODO: do we need lhs_start_block?
+        lhs_start_block = LLVMAppendBasicBlock(self->llvm_function, "andor_lhs")
+        rhs_start_block = LLVMAppendBasicBlock(self->llvm_function, "andor_rhs")
+        done_block = LLVMAppendBasicBlock(self->llvm_function, "andor_done")
+        LLVMBuildBr(self->builder, lhs_start_block)
+
+        LLVMPositionBuilderAtEnd(self->builder, lhs_start_block)
+        lhs_value = self->do_expression(lhs)
+        lhs_end_block = LLVMGetInsertBlock(self->builder)
+        if is_and:
+            LLVMBuildCondBr(self->builder, lhs_value, rhs_start_block, done_block)
+        else:
+            LLVMBuildCondBr(self->builder, lhs_value, done_block, rhs_start_block)
+
+        LLVMPositionBuilderAtEnd(self->builder, rhs_start_block)
+        rhs_value = self->do_expression(rhs)
+        rhs_end_block = LLVMGetInsertBlock(self->builder)
+        LLVMBuildBr(self->builder, done_block)
+
+        LLVMPositionBuilderAtEnd(self->builder, done_block)
+        phi = LLVMBuildPhi(self->builder, LLVMInt1Type(), "and")
+        LLVMAddIncoming(phi, &lhs_value, &lhs_end_block, 1)
+        LLVMAddIncoming(phi, &rhs_value, &rhs_end_block, 1)
+        return phi
+
     def do_call(self, call: AstCall*) -> LLVMValue*:
         if call->method_call_self != NULL:
             self_type = (
@@ -573,6 +600,11 @@ class AstToIR:
         elif ast->kind == AstExpressionKind::Self:
             self_ptr = self->get_local_var_pointer("self")
             result = LLVMBuildLoad(self->builder, self_ptr, "self")
+
+        elif ast->kind == AstExpressionKind::And:
+            result = self->do_and_or(&ast->operands[0], &ast->operands[1], True)
+        elif ast->kind == AstExpressionKind::Or:
+            result = self->do_and_or(&ast->operands[0], &ast->operands[1], False)
 
         else:
             printf("create_llvm_ir: unknown expression kind %d...\n", ast->kind)
