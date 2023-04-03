@@ -13,8 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: brew install llvm@${{ matrix.llvm-version }}
-      - run: ls /usr/local/opt/llvm*
-      - run: ls /usr/local/opt/llvm*/bin
       - run: LLVM_CONFIG=/usr/local/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config make
       - run: ./runtests.sh --verbose
       - run: make clean
@@ -26,9 +24,9 @@ jobs:
             exit 1
           fi
 
-#  compare-compilers:
-#    runs-on: macos-latest
-#    steps:
-#      - uses: actions/checkout@v3
-#      - run: make
-#      - run: ./compare_compilers.sh
+  compare-compilers:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: brew install llvm@${{ matrix.llvm-version }}
+      - run: LLVM_CONFIG=/usr/local/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config ./compare_compilers.sh
