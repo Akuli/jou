@@ -15,8 +15,7 @@ jobs:
       - run: brew install llvm@${{ matrix.llvm-version }}
       - run: ls /usr/local/opt/llvm*
       - run: ls /usr/local/opt/llvm*/bin
-      - run: echo /usr/local/opt/llvm@${{ matrix.llvm-version }}/bin >> $GITHUB_PATH
-      - run: make
+      - run: LLVM_CONFIG=/usr/local/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config make
       - run: ./runtests.sh --verbose
       - run: make clean
       - name: Check that "make clean" deleted all files not committed to Git
