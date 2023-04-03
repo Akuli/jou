@@ -28,7 +28,7 @@ for arg in "$@"; do
 done
 
 if [ ${#files[@]} = 0 ]; then
-    mapfile -t files < <( find stdlib examples tests -name '*.jou' | sort )
+    files=( $(find stdlib examples tests -name '*.jou' | sort) )
 fi
 if [ ${#actions[@]} = 0 ]; then
     actions=(tokenize parse run)
