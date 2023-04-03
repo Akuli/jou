@@ -1,0 +1,27 @@
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: make
+      - run: ./runtests.sh --verbose
+      - run: make clean
+      - name: Check that "make clean" deleted all files not committed to Git
+        run: |
+          if [ "$(git status --porcelain --ignored)" != "" ]; then
+            git status --ignored
+            exit 1
+          fi
+
+#  compare-compilers:
+#    runs-on: macos-latest
+#    steps:
+#      - uses: actions/checkout@v3
+#      - run: make
+#      - run: ./compare_compilers.sh
