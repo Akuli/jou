@@ -8,7 +8,13 @@
 #include <stdio.h>
 #include <string.h>
 
-static AstExpression parse_expression(const Token **tokens);
+typedef struct {
+    const Token *tokens;
+    const char *stdlib_path;
+    bool is_parsing_method_body;
+} ParserState;
+
+static AstExpression parse_expression(ParserState *ps);
 
 static noreturn void fail_with_parse_error(const Token *token, const char *what_was_expected_instead)
 {
@@ -42,45 +48,45 @@ static bool is_operator(const Token *t, const char *op)
     return t->type == TOKEN_OPERATOR && !strcmp(t->data.operator, op);
 }
 
-static AstType parse_type(const Token **tokens)
+static AstType parse_type(ParserState *ps)
 {
-    AstType result = { .kind = AST_TYPE_NAMED, .location = (*tokens)->location };
+    AstType result = { .kind = AST_TYPE_NAMED, .location = ps->tokens->location };
 
-    if ((*tokens)->type != TOKEN_NAME
-        && !is_keyword(*tokens, "void")
-        && !is_keyword(*tokens, "noreturn")
-        && !is_keyword(*tokens, "short")
-        && !is_keyword(*tokens, "int")
-        && !is_keyword(*tokens, "long")
-        && !is_keyword(*tokens, "byte")
-        && !is_keyword(*tokens, "float")
-        && !is_keyword(*tokens, "double")
-        && !is_keyword(*tokens, "bool"))
+    if (ps->tokens->type != TOKEN_NAME
+        && !is_keyword(ps->tokens, "void")
+        && !is_keyword(ps->tokens, "noreturn")
+        && !is_keyword(ps->tokens, "short")
+        && !is_keyword(ps->tokens, "int")
+        && !is_keyword(ps->tokens, "long")
+        && !is_keyword(ps->tokens, "byte")
+        && !is_keyword(ps->tokens, "float")
+        && !is_keyword(ps->tokens, "double")
+        && !is_keyword(ps->tokens, "bool"))
     {
-        fail_with_parse_error(*tokens, "a type");
+        fail_with_parse_error(ps->tokens, "a type");
     }
-    safe_strcpy(result.data.name, (*tokens)->data.name);
-    ++*tokens;
+    safe_strcpy(result.data.name, ps->tokens->data.name);
+    ps->tokens++;
 
-    while(is_operator(*tokens, "*") || is_operator(*tokens, "[")) {
+    while(is_operator(ps->tokens, "*") || is_operator(ps->tokens, "[")) {
         AstType *p = malloc(sizeof(*p));
         *p = result;
 
-        if (is_operator(*tokens, "*")) {
+        if (is_operator(ps->tokens, "*")) {
             result = (AstType){
-                .location = (*tokens)++->location,
+                .location = ps->tokens++->location,
                 .kind = AST_TYPE_POINTER,
                 .data.valuetype = p,
             };
         } else {
-            Location location = (*tokens)++->location;
+            Location location = ps->tokens++->location;
 
             AstExpression *len = malloc(sizeof(*len));
-            *len = parse_expression(tokens);
+            *len = parse_expression(ps);
 
-            if (!is_operator(*tokens, "]"))
-                fail_with_parse_error(*tokens, "a ']' to end the array size");
-            ++*tokens;
+            if (!is_operator(ps->tokens, "]"))
+                fail_with_parse_error(ps->tokens, "a ']' to end the array size");
+            ps->tokens++;
 
             result = (AstType){
                 .location = location,
@@ -95,27 +101,27 @@ static AstType parse_type(const Token **tokens)
 
 // name: type = value
 // The value is optional, and will be NULL if missing.
-static AstNameTypeValue parse_name_type_value(const Token **tokens, const char *expected_what_for_name)
+static AstNameTypeValue parse_name_type_value(ParserState *ps, const char *expected_what_for_name)
 {
     AstNameTypeValue result;
 
-    if ((*tokens)->type != TOKEN_NAME) {
+    if (ps->tokens->type != TOKEN_NAME) {
         assert(expected_what_for_name);
-        fail_with_parse_error(*tokens, expected_what_for_name);
+        fail_with_parse_error(ps->tokens, expected_what_for_name);
     }
-    safe_strcpy(result.name, (*tokens)->data.name);
-    result.name_location = (*tokens)->location;
-    ++*tokens;
+    safe_strcpy(result.name, ps->tokens->data.name);
+    result.name_location = ps->tokens->location;
+    ps->tokens++;
 
-    if (!is_operator(*tokens, ":"))
-        fail_with_parse_error(*tokens, "':' and a type after it (example: \"foo: int\")");
-    ++*tokens;
-    result.type = parse_type(tokens);
+    if (!is_operator(ps->tokens, ":"))
+        fail_with_parse_error(ps->tokens, "':' and a type after it (example: \"foo: int\")");
+    ps->tokens++;
+    result.type = parse_type(ps);
 
-    if (is_operator(*tokens, "=")) {
-        ++*tokens;
+    if (is_operator(ps->tokens, "=")) {
+        ps->tokens++;
         AstExpression *p = malloc(sizeof *p);
-        *p = parse_expression(tokens);
+        *p = parse_expression(ps);
         result.value = p;
     } else {
         result.value = NULL;
@@ -124,35 +130,35 @@ static AstNameTypeValue parse_name_type_value(const Token **tokens, const char *
     return result;
 }
 
-static AstSignature parse_function_signature(const Token **tokens, bool accept_self)
+static AstSignature parse_function_signature(ParserState *ps, bool accept_self)
 {
     AstSignature result = {0};
     bool used_self = false;
-    if ((*tokens)->type != TOKEN_NAME)
-        fail_with_parse_error(*tokens, "a function name");
-    result.name_location = (*tokens)->location;
-    safe_strcpy(result.name, (*tokens)->data.name);
-    ++*tokens;
+    if (ps->tokens->type != TOKEN_NAME)
+        fail_with_parse_error(ps->tokens, "a function name");
+    result.name_location = ps->tokens->location;
+    safe_strcpy(result.name, ps->tokens->data.name);
+    ps->tokens++;
 
-    if (!is_operator(*tokens, "("))
-        fail_with_parse_error(*tokens, "a '(' to denote the start of function arguments");
-    ++*tokens;
+    if (!is_operator(ps->tokens, "("))
+        fail_with_parse_error(ps->tokens, "a '(' to denote the start of function arguments");
+    ps->tokens++;
 
-    while (!is_operator(*tokens, ")")) {
+    while (!is_operator(ps->tokens, ")")) {
         if (result.takes_varargs)
-            fail_with_error((*tokens)->location, "if '...' is used, it must be the last parameter");
+            fail_with_error(ps->tokens->location, "if '...' is used, it must be the last parameter");
 
-        if (is_operator(*tokens, "...")) {
+        if (is_operator(ps->tokens, "...")) {
             result.takes_varargs = true;
-            ++*tokens;
-        } else if (is_keyword(*tokens, "self")) {
+            ps->tokens++;
+        } else if (is_keyword(ps->tokens, "self")) {
             if (!accept_self)
-                fail_with_error((*tokens)->location, "'self' cannot be used here");
-            AstNameTypeValue self_arg = { .name="self", .name_location=(*tokens)++->location };
+                fail_with_error(ps->tokens->location, "'self' cannot be used here");
+            AstNameTypeValue self_arg = { .name="self", .name_location=ps->tokens++->location };
             Append(&result.args, self_arg);
             used_self = true;
         } else {
-            AstNameTypeValue arg = parse_name_type_value(tokens, "an argument name");
+            AstNameTypeValue arg = parse_name_type_value(ps, "an argument name");
 
             if (arg.value)
                 fail_with_error(arg.value->location, "arguments cannot have default values");
@@ -163,54 +169,54 @@ static AstSignature parse_function_signature(const Token **tokens, bool accept_s
             Append(&result.args, arg);
         }
 
-        if (is_operator(*tokens, ","))
-            ++*tokens;
+        if (is_operator(ps->tokens, ","))
+            ps->tokens++;
         else
             break;
     }
-    if (!is_operator(*tokens, ")"))
-        fail_with_parse_error(*tokens, "a ')'");
-    ++*tokens;
+    if (!is_operator(ps->tokens, ")"))
+        fail_with_parse_error(ps->tokens, "a ')'");
+    ps->tokens++;
 
-    if (!is_operator(*tokens, "->")) {
+    if (!is_operator(ps->tokens, "->")) {
         // Special case for common typo:   def foo():
-        if (is_operator(*tokens, ":")) {
+        if (is_operator(ps->tokens, ":")) {
             fail_with_error(
-                (*tokens)->location,
+                ps->tokens->location,
                 "return type must be specified with '->',"
                 " or with '-> void' if the function doesn't return anything"
             );
         }
-        fail_with_parse_error(*tokens, "a '->'");
+        fail_with_parse_error(ps->tokens, "a '->'");
     }
-    ++*tokens;
+    ps->tokens++;
 
     if (!used_self && accept_self) {
         fail_with_error(
-            (*tokens)->location,
+            ps->tokens->location,
             "missing self, should be 'def %s(self, ...)'",
             result.name
         );
     }
 
-    result.returntype = parse_type(tokens);
+    result.returntype = parse_type(ps);
     return result;
 }
 
-static AstCall parse_call(const Token **tokens, char openparen, char closeparen, bool args_are_named)
+static AstCall parse_call(ParserState *ps, char openparen, char closeparen, bool args_are_named)
 {
     AstCall result = {0};
 
-    assert((*tokens)->type == TOKEN_NAME);  // must be checked when calling this function
-    safe_strcpy(result.calledname, (*tokens)->data.name);
-    ++*tokens;
+    assert(ps->tokens->type == TOKEN_NAME);  // must be checked when calling this function
+    safe_strcpy(result.calledname, ps->tokens->data.name);
+    ps->tokens++;
 
-    if (!is_operator(*tokens, (char[]){openparen,'\0'})) {
+    if (!is_operator(ps->tokens, (char[]){openparen,'\0'})) {
         char msg[100];
         sprintf(msg, "a '%c' to denote the start of arguments", openparen);
-        fail_with_parse_error(*tokens, msg);
+        fail_with_parse_error(ps->tokens, msg);
     }
-    ++*tokens;
+    ps->tokens++;
 
     List(AstExpression) args = {0};
 
@@ -220,36 +226,36 @@ static AstCall parse_call(const Token **tokens, char openparen, char closeparen,
     static_assert(sizeof(struct Name) == 100, "u have weird c compiler...");
     List(struct Name) argnames = {0};
 
-    while (!is_operator(*tokens, (char[]){closeparen,'\0'})) {
+    while (!is_operator(ps->tokens, (char[]){closeparen,'\0'})) {
         if (args_are_named) {
             // This code is only for instantiating classes, because there are no named function arguments.
 
-            if ((*tokens)->type != TOKEN_NAME)
-                fail_with_parse_error((*tokens),"a field name");
+            if (ps->tokens->type != TOKEN_NAME)
+                fail_with_parse_error(ps->tokens,"a field name");
 
             for (struct Name *oldname = argnames.ptr; oldname < End(argnames); oldname++) {
-                if (!strcmp(oldname->name, (*tokens)->data.name)) {
+                if (!strcmp(oldname->name, ps->tokens->data.name)) {
                     fail_with_error(
-                        (*tokens)->location, "multiple values were given for field '%s'", oldname->name);
+                        ps->tokens->location, "multiple values were given for field '%s'", oldname->name);
                 }
             }
 
             struct Name n;
-            safe_strcpy(n.name,(*tokens)->data.name);
+            safe_strcpy(n.name,ps->tokens->data.name);
             Append(&argnames,n);
-            ++*tokens;
+            ps->tokens++;
 
-            if (!is_operator(*tokens, "=")) {
+            if (!is_operator(ps->tokens, "=")) {
                 char msg[300];
                 snprintf(msg, sizeof msg, "'=' followed by a value for field '%s'", n.name);
-                fail_with_parse_error(*tokens, msg);
+                fail_with_parse_error(ps->tokens, msg);
             }
-            ++*tokens;
+            ps->tokens++;
         }
 
-        Append(&args, parse_expression(tokens));
-        if (is_operator(*tokens, ","))
-            ++*tokens;
+        Append(&args, parse_expression(ps));
+        if (is_operator(ps->tokens, ","))
+            ps->tokens++;
         else
             break;
     }
@@ -258,12 +264,12 @@ static AstCall parse_call(const Token **tokens, char openparen, char closeparen,
     result.argnames = (char(*)[100])argnames.ptr;  // can be NULL
     result.nargs = args.len;
 
-    if (!is_operator(*tokens, (char[]){closeparen,'\0'})) {
+    if (!is_operator(ps->tokens, (char[]){closeparen,'\0'})) {
         char msg[100];
         sprintf(msg, "a '%c'", closeparen);
-        fail_with_parse_error(*tokens, "a ')'");
+        fail_with_parse_error(ps->tokens, "a ')'");
     }
-    ++*tokens;
+    ps->tokens++;
 
     return result;
 }
@@ -333,30 +339,30 @@ static AstExpression build_operator_expression(const Token *t, int arity, const 
 
 // If tokens is e.g. [1, '+', 2], this will be used to parse the ['+', 2] part.
 // Callback function cb defines how to parse the expression following the operator token.
-static void add_to_binop(const Token **tokens, AstExpression *result, AstExpression (*cb)(const Token**))
+static void add_to_binop(ParserState *ps, AstExpression *result, AstExpression (*cb)(ParserState*))
 {
-    const Token *t = (*tokens)++;
-    AstExpression rhs = cb(tokens);
+    const Token *t = ps->tokens++;
+    AstExpression rhs = cb(ps);
     *result = build_operator_expression(t, 2, (AstExpression[]){*result, rhs});
 }
 
-static AstExpression parse_array(const Token **tokens)
+static AstExpression parse_array(ParserState *ps)
 {
-    const Token *openbracket = *tokens;
+    const Token *openbracket = ps->tokens;
     assert(is_operator(openbracket, "["));
-    ++*tokens;
+    ps->tokens++;
 
-    if (is_operator(*tokens, "]"))
-        fail_with_error((*tokens)->location, "arrays cannot be empty");
+    if (is_operator(ps->tokens, "]"))
+        fail_with_error(ps->tokens->location, "arrays cannot be empty");
 
     List(AstExpression) items = {0};
     do {
-        Append(&items, parse_expression(tokens));
-    } while (is_operator(*tokens, ",") && !is_operator(++*tokens, "]"));
+        Append(&items, parse_expression(ps));
+    } while (is_operator(ps->tokens, ",") && !is_operator(++ps->tokens, "]"));
 
-    if (!is_operator(*tokens, "]"))
-        fail_with_parse_error(*tokens, "a ']' to end the array");
-    ++*tokens;
+    if (!is_operator(ps->tokens, "]"))
+        fail_with_parse_error(ps->tokens, "a ']' to end the array");
+    ps->tokens++;
 
     return (AstExpression){
         .kind=AST_EXPR_ARRAY,
@@ -365,92 +371,94 @@ static AstExpression parse_array(const Token **tokens)
     };
 }
 
-static AstExpression parse_elementary_expression(const Token **tokens)
+static AstExpression parse_elementary_expression(ParserState *ps)
 {
-    AstExpression expr = { .location = (*tokens)->location };
+    AstExpression expr = { .location = ps->tokens->location };
 
-    switch((*tokens)->type) {
+    switch(ps->tokens->type) {
     case TOKEN_OPERATOR:
-        if (is_operator(*tokens, "[")) {
-            expr = parse_array(tokens);
-        } else if (is_operator(*tokens, "(")) {
-            ++*tokens;
-            expr = parse_expression(tokens);
-            if (!is_operator(*tokens, ")"))
-                fail_with_parse_error(*tokens, "a ')'");
-            ++*tokens;
+        if (is_operator(ps->tokens, "[")) {
+            expr = parse_array(ps);
+        } else if (is_operator(ps->tokens, "(")) {
+            ps->tokens++;
+            expr = parse_expression(ps);
+            if (!is_operator(ps->tokens, ")"))
+                fail_with_parse_error(ps->tokens, "a ')'");
+            ps->tokens++;
         } else {
             goto not_an_expression;
         }
         break;
     case TOKEN_SHORT:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant = int_constant(shortType, (*tokens)->data.short_value);
-        ++*tokens;
+        expr.data.constant = int_constant(shortType, ps->tokens->data.short_value);
+        ps->tokens++;
         break;
     case TOKEN_INT:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant = int_constant(intType, (*tokens)->data.int_value);
-        ++*tokens;
+        expr.data.constant = int_constant(intType, ps->tokens->data.int_value);
+        ps->tokens++;
         break;
     case TOKEN_LONG:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant = int_constant(longType, (*tokens)->data.long_value);
-        ++*tokens;
+        expr.data.constant = int_constant(longType, ps->tokens->data.long_value);
+        ps->tokens++;
         break;
     case TOKEN_CHAR:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant = int_constant(byteType, (*tokens)->data.char_value);
-        ++*tokens;
+        expr.data.constant = int_constant(byteType, ps->tokens->data.char_value);
+        ps->tokens++;
         break;
     case TOKEN_FLOAT:
         expr.kind = AST_EXPR_CONSTANT;
         expr.data.constant = (Constant){ .kind=CONSTANT_FLOAT };
-        safe_strcpy(expr.data.constant.data.double_or_float_text, (*tokens)->data.name);
-        ++*tokens;
+        safe_strcpy(expr.data.constant.data.double_or_float_text, ps->tokens->data.name);
+        ps->tokens++;
         break;
     case TOKEN_DOUBLE:
         expr.kind = AST_EXPR_CONSTANT;
         expr.data.constant = (Constant){ .kind=CONSTANT_DOUBLE };
-        safe_strcpy(expr.data.constant.data.double_or_float_text, (*tokens)->data.name);
-        ++*tokens;
+        safe_strcpy(expr.data.constant.data.double_or_float_text, ps->tokens->data.name);
+        ps->tokens++;
         break;
     case TOKEN_STRING:
         expr.kind = AST_EXPR_CONSTANT;
-        expr.data.constant = (Constant){ CONSTANT_STRING, {.str=strdup((*tokens)->data.string_value)} };
-        ++*tokens;
+        expr.data.constant = (Constant){ CONSTANT_STRING, {.str=strdup(ps->tokens->data.string_value)} };
+        ps->tokens++;
         break;
     case TOKEN_NAME:
-        if (is_operator(&(*tokens)[1], "(")) {
+        if (is_operator(&ps->tokens[1], "(")) {
             expr.kind = AST_EXPR_FUNCTION_CALL;
-            expr.data.call = parse_call(tokens, '(', ')', false);
-        } else if (is_operator(&(*tokens)[1], "{")) {
+            expr.data.call = parse_call(ps, '(', ')', false);
+        } else if (is_operator(&ps->tokens[1], "{")) {
             expr.kind = AST_EXPR_BRACE_INIT;
-            expr.data.call = parse_call(tokens, '{', '}', true);
-        } else if (is_operator(&(*tokens)[1], "::") && (*tokens)[2].type == TOKEN_NAME) {
+            expr.data.call = parse_call(ps, '{', '}', true);
+        } else if (is_operator(&ps->tokens[1], "::") && ps->tokens[2].type == TOKEN_NAME) {
             expr.kind = AST_EXPR_GET_ENUM_MEMBER;
-            safe_strcpy(expr.data.enummember.enumname, (*tokens)[0].data.name);
-            safe_strcpy(expr.data.enummember.membername, (*tokens)[2].data.name);
-            *tokens += 3;
+            safe_strcpy(expr.data.enummember.enumname, ps->tokens[0].data.name);
+            safe_strcpy(expr.data.enummember.membername, ps->tokens[2].data.name);
+            ps->tokens += 3;
         } else {
             expr.kind = AST_EXPR_GET_VARIABLE;
-            safe_strcpy(expr.data.varname, (*tokens)->data.name);
-            ++*tokens;
+            safe_strcpy(expr.data.varname, ps->tokens->data.name);
+            ps->tokens++;
         }
         break;
     case TOKEN_KEYWORD:
-        if (is_keyword(*tokens, "True") || is_keyword(*tokens, "False")) {
+        if (is_keyword(ps->tokens, "True") || is_keyword(ps->tokens, "False")) {
             expr.kind = AST_EXPR_CONSTANT;
-            expr.data.constant = (Constant){ CONSTANT_BOOL, {.boolean=is_keyword(*tokens, "True")} };
-            ++*tokens;
-        } else if (is_keyword(*tokens, "NULL")) {
+            expr.data.constant = (Constant){ CONSTANT_BOOL, {.boolean=is_keyword(ps->tokens, "True")} };
+            ps->tokens++;
+        } else if (is_keyword(ps->tokens, "NULL")) {
             expr.kind = AST_EXPR_CONSTANT;
             expr.data.constant = (Constant){ CONSTANT_NULL, {{0}} };
-            ++*tokens;
-        } else if (is_keyword(*tokens, "self")) {
+            ps->tokens++;
+        } else if (is_keyword(ps->tokens, "self")) {
+            if (!ps->is_parsing_method_body)
+                fail_with_error(ps->tokens->location, "'self' cannot be used here");
             expr.kind = AST_EXPR_GET_VARIABLE;
             strcpy(expr.data.varname, "self");
-            ++*tokens;
+            ps->tokens++;
         } else {
             goto not_an_expression;
         }
@@ -461,31 +469,31 @@ static AstExpression parse_elementary_expression(const Token **tokens)
     return expr;
 
 not_an_expression:
-    fail_with_parse_error(*tokens, "an expression");
+    fail_with_parse_error(ps->tokens, "an expression");
 }
 
-static AstExpression parse_expression_with_fields_and_methods_and_indexing(const Token **tokens)
+static AstExpression parse_expression_with_fields_and_methods_and_indexing(ParserState *ps)
 {
-    AstExpression result = parse_elementary_expression(tokens);
-    while (is_operator(*tokens, ".") || is_operator(*tokens, "->") || is_operator(*tokens, "["))
+    AstExpression result = parse_elementary_expression(ps);
+    while (is_operator(ps->tokens, ".") || is_operator(ps->tokens, "->") || is_operator(ps->tokens, "["))
     {
-        if (is_operator(*tokens, "[")) {
-            add_to_binop(tokens, &result, parse_expression);  // eats [ token
-            if (!is_operator(*tokens, "]"))
-                fail_with_parse_error(*tokens, "a ']'");
-            ++*tokens;
+        if (is_operator(ps->tokens, "[")) {
+            add_to_binop(ps, &result, parse_expression);  // eats [ token
+            if (!is_operator(ps->tokens, "]"))
+                fail_with_parse_error(ps->tokens, "a ']'");
+            ps->tokens++;
         } else {
             AstExpression *obj = malloc(sizeof *obj);
             *obj = result;
             memset(&result, 0, sizeof result);
 
-            const Token *startop = (*tokens)++;
-            if ((*tokens)->type != TOKEN_NAME)
-                fail_with_parse_error(*tokens, "a field or method name");
-            result.location = (*tokens)->location;
+            const Token *startop = ps->tokens++;
+            if (ps->tokens->type != TOKEN_NAME)
+                fail_with_parse_error(ps->tokens, "a field or method name");
+            result.location = ps->tokens->location;
 
             bool is_deref = is_operator(startop, "->");
-            bool is_call = is_operator(&(*tokens)[1], "(");
+            bool is_call = is_operator(&ps->tokens[1], "(");
             if (is_deref && is_call) result.kind = AST_EXPR_DEREF_AND_CALL_METHOD;
             if (is_deref && !is_call) result.kind = AST_EXPR_DEREF_AND_GET_FIELD;
             if (!is_deref && is_call) result.kind = AST_EXPR_CALL_METHOD;
@@ -493,11 +501,11 @@ static AstExpression parse_expression_with_fields_and_methods_and_indexing(const
 
             if (is_call) {
                 result.data.methodcall.obj = obj;
-                result.data.methodcall.call = parse_call(tokens, '(', ')', false);
+                result.data.methodcall.call = parse_call(ps, '(', ')', false);
             } else {
                 result.data.classfield.obj = obj;
-                safe_strcpy(result.data.classfield.fieldname, (*tokens)->data.name);
-                ++*tokens;
+                safe_strcpy(result.data.classfield.fieldname, ps->tokens->data.name);
+                ps->tokens++;
             }
         }
     }
@@ -505,18 +513,18 @@ static AstExpression parse_expression_with_fields_and_methods_and_indexing(const
 }
 
 // Unary operators: foo++, foo--, ++foo, --foo, &foo, *foo, sizeof foo
-static AstExpression parse_expression_with_unary_operators(const Token **tokens)
+static AstExpression parse_expression_with_unary_operators(ParserState *ps)
 {
     // sequneces of 0 or more unary operator tokens: start,start+1,...,end-1
-    const Token *prefixstart = *tokens;
-    while(is_operator(*tokens,"++")||is_operator(*tokens,"--")||is_operator(*tokens,"&")||is_operator(*tokens,"*")||is_keyword(*tokens,"sizeof")) ++*tokens;
-    const Token *prefixend = *tokens;
+    const Token *prefixstart = ps->tokens;
+    while(is_operator(ps->tokens,"++")||is_operator(ps->tokens,"--")||is_operator(ps->tokens,"&")||is_operator(ps->tokens,"*")||is_keyword(ps->tokens,"sizeof")) ps->tokens++;
+    const Token *prefixend = ps->tokens;
 
-    AstExpression result = parse_expression_with_fields_and_methods_and_indexing(tokens);
+    AstExpression result = parse_expression_with_fields_and_methods_and_indexing(ps);
 
-    const Token *suffixstart = *tokens;
-    while(is_operator(*tokens,"++")||is_operator(*tokens,"--")) ++*tokens;
-    const Token *suffixend = *tokens;
+    const Token *suffixstart = ps->tokens;
+    while(is_operator(ps->tokens,"++")||is_operator(ps->tokens,"--")) ps->tokens++;
+    const Token *suffixend = ps->tokens;
 
     while (prefixstart<prefixend || suffixstart<suffixend) {
         // ++ and -- "bind tighter", so *foo++ is equivalent to *(foo++)
@@ -556,95 +564,95 @@ static AstExpression parse_expression_with_unary_operators(const Token **tokens)
     return result;
 }
 
-static AstExpression parse_expression_with_mul_and_div(const Token **tokens)
+static AstExpression parse_expression_with_mul_and_div(ParserState *ps)
 {
-    AstExpression result = parse_expression_with_unary_operators(tokens);
-    while (is_operator(*tokens, "*") || is_operator(*tokens, "/") || is_operator(*tokens, "%"))
-        add_to_binop(tokens, &result, parse_expression_with_unary_operators);
+    AstExpression result = parse_expression_with_unary_operators(ps);
+    while (is_operator(ps->tokens, "*") || is_operator(ps->tokens, "/") || is_operator(ps->tokens, "%"))
+        add_to_binop(ps, &result, parse_expression_with_unary_operators);
     return result;
 }
 
-static AstExpression parse_expression_with_add(const Token **tokens)
+static AstExpression parse_expression_with_add(ParserState *ps)
 {
-    const Token *minus = is_operator(*tokens, "-") ? (*tokens)++ : NULL;
-    AstExpression result = parse_expression_with_mul_and_div(tokens);
+    const Token *minus = is_operator(ps->tokens, "-") ? ps->tokens++ : NULL;
+    AstExpression result = parse_expression_with_mul_and_div(ps);
     if (minus)
         result = build_operator_expression(minus, 1, &result);
 
-    while (is_operator(*tokens, "+") || is_operator(*tokens, "-"))
-        add_to_binop(tokens, &result, parse_expression_with_mul_and_div);
+    while (is_operator(ps->tokens, "+") || is_operator(ps->tokens, "-"))
+        add_to_binop(ps, &result, parse_expression_with_mul_and_div);
     return result;
 }
 
 // "as" operator has somewhat low precedence, so that "1+2 as float" works as expected
-static AstExpression parse_expression_with_as(const Token **tokens)
+static AstExpression parse_expression_with_as(ParserState *ps)
 {
-    AstExpression result = parse_expression_with_add(tokens);
-    while (is_keyword(*tokens, "as")) {
+    AstExpression result = parse_expression_with_add(ps);
+    while (is_keyword(ps->tokens, "as")) {
         AstExpression *p = malloc(sizeof(*p));
         *p = result;
-        Location as_location = (*tokens)++->location;
-        AstType t = parse_type(tokens);
+        Location as_location = ps->tokens++->location;
+        AstType t = parse_type(ps);
         result = (AstExpression){ .location=as_location, .kind=AST_EXPR_AS, .data.as = { .obj=p, .type=t } };
     }
     return result;
 }
 
-static AstExpression parse_expression_with_comparisons(const Token **tokens)
+static AstExpression parse_expression_with_comparisons(ParserState *ps)
 {
-    AstExpression result = parse_expression_with_as(tokens);
+    AstExpression result = parse_expression_with_as(ps);
 #define IsComparator(x) (is_operator((x),"<") || is_operator((x),">") || is_operator((x),"<=") || is_operator((x),">=") || is_operator((x),"==") || is_operator((x),"!="))
-    if (IsComparator(*tokens))
-        add_to_binop(tokens, &result, parse_expression_with_as);
-    if (IsComparator(*tokens))
-        fail_with_error((*tokens)->location, "comparisons cannot be chained");
+    if (IsComparator(ps->tokens))
+        add_to_binop(ps, &result, parse_expression_with_as);
+    if (IsComparator(ps->tokens))
+        fail_with_error(ps->tokens->location, "comparisons cannot be chained");
 #undef IsComparator
     return result;
 }
 
-static AstExpression parse_expression_with_not(const Token **tokens)
+static AstExpression parse_expression_with_not(ParserState *ps)
 {
     const Token *nottoken = NULL;
-    if (is_keyword(*tokens, "not")) {
-        nottoken = *tokens;
-        ++*tokens;
+    if (is_keyword(ps->tokens, "not")) {
+        nottoken = ps->tokens;
+        ps->tokens++;
     }
-    if (is_keyword(*tokens, "not"))
-        fail_with_error((*tokens)->location, "'not' cannot be repeated");
+    if (is_keyword(ps->tokens, "not"))
+        fail_with_error(ps->tokens->location, "'not' cannot be repeated");
 
-    AstExpression result = parse_expression_with_comparisons(tokens);
+    AstExpression result = parse_expression_with_comparisons(ps);
     if (nottoken)
         result = build_operator_expression(nottoken, 1, &result);
     return result;
 }
 
-static AstExpression parse_expression_with_and_or(const Token **tokens)
+static AstExpression parse_expression_with_and_or(ParserState *ps)
 {
-    AstExpression result = parse_expression_with_not(tokens);
+    AstExpression result = parse_expression_with_not(ps);
     bool got_and = false, got_or = false;
 
-    while (is_keyword(*tokens, "and") || is_keyword(*tokens, "or")) {
-        got_and = got_and || is_keyword(*tokens, "and");
-        got_or = got_or || is_keyword(*tokens, "or");
+    while (is_keyword(ps->tokens, "and") || is_keyword(ps->tokens, "or")) {
+        got_and = got_and || is_keyword(ps->tokens, "and");
+        got_or = got_or || is_keyword(ps->tokens, "or");
         if (got_and && got_or)
-            fail_with_error((*tokens)->location, "'and' cannot be chained with 'or', you need more parentheses");
+            fail_with_error(ps->tokens->location, "'and' cannot be chained with 'or', you need more parentheses");
 
-        add_to_binop(tokens, &result, parse_expression_with_not);
+        add_to_binop(ps, &result, parse_expression_with_not);
     }
 
     return result;
 }
 
-static AstExpression parse_expression(const Token **tokens)
+static AstExpression parse_expression(ParserState *ps)
 {
-    return parse_expression_with_and_or(tokens);
+    return parse_expression_with_and_or(ps);
 }
 
-static void eat_newline(const Token **tokens)
+static void eat_newline(ParserState *ps)
 {
-    if ((*tokens)->type != TOKEN_NEWLINE)
-        fail_with_parse_error(*tokens, "end of line");
-    ++*tokens;
+    if (ps->tokens->type != TOKEN_NEWLINE)
+        fail_with_parse_error(ps->tokens, "end of line");
+    ps->tokens++;
 }
 
 static void validate_expression_statement(const AstExpression *expr)
@@ -664,24 +672,24 @@ static void validate_expression_statement(const AstExpression *expr)
     }
 }
 
-static AstBody parse_body(const Token **tokens);
+static AstBody parse_body(ParserState *ps);
 
-static AstIfStatement parse_if_statement(const Token **tokens)
+static AstIfStatement parse_if_statement(ParserState *ps)
 {
     List(AstConditionAndBody) if_elifs = {0};
 
-    assert(is_keyword(*tokens, "if"));
+    assert(is_keyword(ps->tokens, "if"));
     do {
-        ++*tokens;
-        AstExpression cond = parse_expression(tokens);
-        AstBody body = parse_body(tokens);
+        ps->tokens++;
+        AstExpression cond = parse_expression(ps);
+        AstBody body = parse_body(ps);
         Append(&if_elifs, (AstConditionAndBody){cond,body});
-    } while (is_keyword(*tokens, "elif"));
+    } while (is_keyword(ps->tokens, "elif"));
 
     AstBody elsebody = {0};
-    if (is_keyword(*tokens, "else")) {
-        ++*tokens;
-        elsebody = parse_body(tokens);
+    if (is_keyword(ps->tokens, "else")) {
+        ps->tokens++;
+        elsebody = parse_body(ps);
     }
 
     return (AstIfStatement){
@@ -711,124 +719,128 @@ static enum AstStatementKind determine_the_kind_of_a_statement_that_starts_with_
 }
 
 // does not eat a trailing newline
-static AstStatement parse_oneline_statement(const Token **tokens)
+static AstStatement parse_oneline_statement(ParserState *ps)
 {
-    AstStatement result = { .location = (*tokens)->location };
-    if (is_keyword(*tokens, "return")) {
-        ++*tokens;
+    AstStatement result = { .location = ps->tokens->location };
+    if (is_keyword(ps->tokens, "return")) {
+        ps->tokens++;
         result.kind = AST_STMT_RETURN;
-        if ((*tokens)->type != TOKEN_NEWLINE) {
+        if (ps->tokens->type != TOKEN_NEWLINE) {
             result.data.returnvalue = malloc(sizeof *result.data.returnvalue);
-            *result.data.returnvalue = parse_expression(tokens);
+            *result.data.returnvalue = parse_expression(ps);
         }
-    } else if (is_keyword(*tokens, "assert")) {
-        ++*tokens;
+    } else if (is_keyword(ps->tokens, "assert")) {
+        ps->tokens++;
         result.kind = AST_STMT_ASSERT;
-        result.data.assertion.expression_start = (*tokens)->location;
-        result.data.assertion.expression = parse_expression(tokens);
-        result.data.assertion.expression_end = (*tokens)->location;
-    } else if (is_keyword(*tokens, "pass")) {
-        ++*tokens;
+        result.data.assertion.expression_start = ps->tokens->location;
+        result.data.assertion.expression = parse_expression(ps);
+        result.data.assertion.expression_end = ps->tokens->location;
+    } else if (is_keyword(ps->tokens, "pass")) {
+        ps->tokens++;
         result.kind = AST_STMT_PASS;
-    } else if (is_keyword(*tokens, "break")) {
-        ++*tokens;
+    } else if (is_keyword(ps->tokens, "break")) {
+        ps->tokens++;
         result.kind = AST_STMT_BREAK;
-    } else if (is_keyword(*tokens, "continue")) {
-        ++*tokens;
+    } else if (is_keyword(ps->tokens, "continue")) {
+        ps->tokens++;
         result.kind = AST_STMT_CONTINUE;
-    } else if ((*tokens)->type == TOKEN_NAME && is_operator(&(*tokens)[1], ":")) {
+    } else if (ps->tokens->type == TOKEN_NAME && is_operator(&ps->tokens[1], ":")) {
         // "foo: int" creates a variable "foo" of type "int"
         result.kind = AST_STMT_DECLARE_LOCAL_VAR;
-        result.data.vardecl = parse_name_type_value(tokens, NULL);
+        result.data.vardecl = parse_name_type_value(ps, NULL);
     } else {
-        AstExpression expr = parse_expression(tokens);
-        result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(*tokens);
+        AstExpression expr = parse_expression(ps);
+        result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(ps->tokens);
         if (result.kind == AST_STMT_EXPRESSION_STATEMENT) {
             validate_expression_statement(&expr);
             result.data.expression = expr;
         } else {
-            ++*tokens;
-            result.data.assignment = (AstAssignment){.target=expr, .value=parse_expression(tokens)};
-            if (is_operator(*tokens, "="))
-                fail_with_error((*tokens)->location, "only one variable can be assigned at a time");
+            ps->tokens++;
+            result.data.assignment = (AstAssignment){.target=expr, .value=parse_expression(ps)};
+            if (is_operator(ps->tokens, "="))
+                fail_with_error(ps->tokens->location, "only one variable can be assigned at a time");
         }
     }
     return result;
 }
 
-static AstStatement parse_statement(const Token **tokens)
+static AstStatement parse_statement(ParserState *ps)
 {
-    AstStatement result = { .location = (*tokens)->location };
-    if (is_keyword(*tokens, "if")) {
+    AstStatement result = { .location = ps->tokens->location };
+    if (is_keyword(ps->tokens, "if")) {
         result.kind = AST_STMT_IF;
-        result.data.ifstatement = parse_if_statement(tokens);
-    } else if (is_keyword(*tokens, "while")) {
-        ++*tokens;
+        result.data.ifstatement = parse_if_statement(ps);
+    } else if (is_keyword(ps->tokens, "while")) {
+        ps->tokens++;
         result.kind = AST_STMT_WHILE;
-        result.data.whileloop.condition = parse_expression(tokens);
-        result.data.whileloop.body = parse_body(tokens);
-    } else if (is_keyword(*tokens, "for")) {
-        ++*tokens;
+        result.data.whileloop.condition = parse_expression(ps);
+        result.data.whileloop.body = parse_body(ps);
+    } else if (is_keyword(ps->tokens, "for")) {
+        ps->tokens++;
         result.kind = AST_STMT_FOR;
         result.data.forloop.init = malloc(sizeof *result.data.forloop.init);
         result.data.forloop.incr = malloc(sizeof *result.data.forloop.incr);
         // TODO: improve error messages
-        *result.data.forloop.init = parse_oneline_statement(tokens);
-        if (!is_operator(*tokens, ";"))
-            fail_with_parse_error(*tokens, "a ';'");
-        ++*tokens;
-        result.data.forloop.cond = parse_expression(tokens);
-        if (!is_operator(*tokens, ";"))
-            fail_with_parse_error(*tokens, "a ';'");
-        ++*tokens;
-        *result.data.forloop.incr = parse_oneline_statement(tokens);
-        result.data.forloop.body = parse_body(tokens);
+        *result.data.forloop.init = parse_oneline_statement(ps);
+        if (!is_operator(ps->tokens, ";"))
+            fail_with_parse_error(ps->tokens, "a ';'");
+        ps->tokens++;
+        result.data.forloop.cond = parse_expression(ps);
+        if (!is_operator(ps->tokens, ";"))
+            fail_with_parse_error(ps->tokens, "a ';'");
+        ps->tokens++;
+        *result.data.forloop.incr = parse_oneline_statement(ps);
+        result.data.forloop.body = parse_body(ps);
     } else {
-        result = parse_oneline_statement(tokens);
-        eat_newline(tokens);
+        result = parse_oneline_statement(ps);
+        eat_newline(ps);
     }
     return result;
 }
 
-static void parse_start_of_body(const Token **tokens)
+static void parse_start_of_body(ParserState *ps)
 {
-    if (!is_operator(*tokens, ":"))
-        fail_with_parse_error(*tokens, "':' followed by a new line with more indentation");
-    ++*tokens;
+    if (!is_operator(ps->tokens, ":"))
+        fail_with_parse_error(ps->tokens, "':' followed by a new line with more indentation");
+    ps->tokens++;
 
-    if ((*tokens)->type != TOKEN_NEWLINE)
-        fail_with_parse_error(*tokens, "a new line with more indentation after ':'");
-    ++*tokens;
+    if (ps->tokens->type != TOKEN_NEWLINE)
+        fail_with_parse_error(ps->tokens, "a new line with more indentation after ':'");
+    ps->tokens++;
 
-    if ((*tokens)->type != TOKEN_INDENT)
-        fail_with_parse_error(*tokens, "more indentation after ':'");
-    ++*tokens;
+    if (ps->tokens->type != TOKEN_INDENT)
+        fail_with_parse_error(ps->tokens, "more indentation after ':'");
+    ps->tokens++;
 }
 
-static AstBody parse_body(const Token **tokens)
+static AstBody parse_body(ParserState *ps)
 {
-    parse_start_of_body(tokens);
+    parse_start_of_body(ps);
 
     List(AstStatement) result = {0};
-    while ((*tokens)->type != TOKEN_DEDENT)
-        Append(&result, parse_statement(tokens));
-    ++*tokens;
+    while (ps->tokens->type != TOKEN_DEDENT)
+        Append(&result, parse_statement(ps));
+    ps->tokens++;
 
     return (AstBody){ .statements=result.ptr, .nstatements=result.len };
 }
 
-static AstFunction parse_funcdef(const Token **tokens, bool is_method)
+static AstFunction parse_funcdef(ParserState *ps, bool is_method)
 {
-    assert(is_keyword(*tokens, "def"));
-    ++*tokens;
+    assert(is_keyword(ps->tokens, "def"));
+    ps->tokens++;
 
     struct AstFunction funcdef = {0};
-    funcdef.signature = parse_function_signature(tokens, is_method);
+    funcdef.signature = parse_function_signature(ps, is_method);
     if (funcdef.signature.takes_varargs) {
         // TODO: support "def foo(x: str, ...)" in some way
-        fail_with_error((*tokens)->location, "functions with variadic arguments cannot be defined yet");
+        fail_with_error(ps->tokens->location, "functions with variadic arguments cannot be defined yet");
     }
-    funcdef.body = parse_body(tokens);
+
+    assert(!ps->is_parsing_method_body);
+    ps->is_parsing_method_body = is_method;
+    funcdef.body = parse_body(ps);
+    ps->is_parsing_method_body = false;
 
     return funcdef;
 }
@@ -859,77 +871,77 @@ static void check_class_for_duplicate_names(const AstClassDef *classdef)
     free(infos.ptr);
 }
 
-static AstClassDef parse_classdef(const Token **tokens)
+static AstClassDef parse_classdef(ParserState *ps)
 {
     AstClassDef result = {0};
-    if ((*tokens)->type != TOKEN_NAME)
-        fail_with_parse_error(*tokens, "a name for the class");
-    safe_strcpy(result.name, (*tokens)->data.name);
-    ++*tokens;
+    if (ps->tokens->type != TOKEN_NAME)
+        fail_with_parse_error(ps->tokens, "a name for the class");
+    safe_strcpy(result.name, ps->tokens->data.name);
+    ps->tokens++;
 
-    parse_start_of_body(tokens);
-    while ((*tokens)->type != TOKEN_DEDENT) {
-        if (is_keyword(*tokens, "def")) {
+    parse_start_of_body(ps);
+    while (ps->tokens->type != TOKEN_DEDENT) {
+        if (is_keyword(ps->tokens, "def")) {
             Append(&result.members, (AstClassMember){
                 .kind = AST_CLASSMEMBER_METHOD,
-                .data.method = parse_funcdef(tokens, true),
+                .data.method = parse_funcdef(ps, true),
             });
-        } else if (is_keyword(*tokens, "union")) {
-            Location union_keyword_location = (*tokens)->location;
-            ++*tokens;
-            parse_start_of_body(tokens);
+        } else if (is_keyword(ps->tokens, "union")) {
+            Location union_keyword_location = ps->tokens->location;
+            ps->tokens++;
+            parse_start_of_body(ps);
             AstClassMember umember = { .kind = AST_CLASSMEMBER_UNION };
-            while ((*tokens)->type != TOKEN_DEDENT) {
-                AstNameTypeValue field = parse_name_type_value(tokens, "a union member");
+            while (ps->tokens->type != TOKEN_DEDENT) {
+                AstNameTypeValue field = parse_name_type_value(ps, "a union member");
                 if (field.value)
                     fail_with_error(field.value->location, "union members cannot have default values");
                 Append(&umember.data.unionfields, field);
-                eat_newline(tokens);
+                eat_newline(ps);
             }
-            ++*tokens;
+            ps->tokens++;
             if (umember.data.unionfields.len < 2) {
                 fail_with_error(union_keyword_location, "unions must have at least 2 members");
             }
             Append(&result.members, umember);
         } else {
-            AstNameTypeValue field = parse_name_type_value(tokens, "a method, a field or a union");
+            AstNameTypeValue field = parse_name_type_value(ps, "a method, a field or a union");
             if (field.value)
                 fail_with_error(field.value->location, "class fields cannot have default values");
             Append(&result.members, (AstClassMember){
                 .kind = AST_CLASSMEMBER_FIELD,
                 .data.field = field,
             });
-            eat_newline(tokens);
+            eat_newline(ps);
         }
     }
-    ++*tokens;
+    ps->tokens++;
 
     check_class_for_duplicate_names(&result);
     return result;
 }
 
-static AstEnumDef parse_enumdef(const Token **tokens)
+static AstEnumDef parse_enumdef(ParserState *ps)
 {
     AstEnumDef result = {0};
-    if ((*tokens)->type != TOKEN_NAME)
-        fail_with_parse_error(*tokens, "a name for the enum");
-    safe_strcpy(result.name, (*tokens)->data.name);
-    ++*tokens;
+    if (ps->tokens->type != TOKEN_NAME)
+        fail_with_parse_error(ps->tokens, "a name for the enum");
+    safe_strcpy(result.name, ps->tokens->data.name);
+    ps->tokens++;
 
-    parse_start_of_body(tokens);
+    parse_start_of_body(ps);
     List(const char*) membernames = {0};
 
-    while ((*tokens)->type != TOKEN_DEDENT) {
-        if ((*tokens)->type != TOKEN_NAME)
-            fail_with_parse_error(*tokens, "a name for an enum member");
+    while (ps->tokens->type != TOKEN_DEDENT) {
+        if (ps->tokens->type != TOKEN_NAME)
+            fail_with_parse_error(ps->tokens, "a name for an enum member");
 
         for (const char **old = membernames.ptr; old < End(membernames); old++)
-            if (!strcmp(*old, (*tokens)->data.name))
-                fail_with_error((*tokens)->location, "the enum has two members named '%s'", (*tokens)->data.name);
+            if (!strcmp(*old, ps->tokens->data.name))
+                fail_with_error(ps->tokens->location, "the enum has two members named '%s'", ps->tokens->data.name);
 
-        Append(&membernames, (*tokens)->data.name);
-        ++*tokens;
-        eat_newline(tokens);
+        Append(&membernames, ps->tokens->data.name);
+        ps->tokens++;
+        eat_newline(ps);
     }
 
     result.nmembers = membernames.len;
@@ -938,7 +950,7 @@ static AstEnumDef parse_enumdef(const Token **tokens)
         strcpy(result.membernames[i], membernames.ptr[i]);
 
     free(membernames.ptr);
-    ++*tokens;
+    ps->tokens++;
     return result;
 }
 
@@ -978,33 +990,33 @@ static AstImport parse_import_path(const Token *pathtoken, const char *stdlib_pa
 
 typedef List(AstToplevelNode) ToplevelNodeList;
 
-static AstToplevelNode parse_toplevel_node(const Token **tokens, const char *stdlib_path)
+static AstToplevelNode parse_toplevel_node(ParserState *ps)
 {
-    AstToplevelNode result = { .location = (*tokens)->location };
+    AstToplevelNode result = { .location = ps->tokens->location };
 
-    if ((*tokens)->type == TOKEN_END_OF_FILE) {
+    if (ps->tokens->type == TOKEN_END_OF_FILE) {
         result.kind = AST_TOPLEVEL_END_OF_FILE;
-    } else if (is_keyword(*tokens, "import")) {
-        ++*tokens;  // skip 'import' keyword
+    } else if (is_keyword(ps->tokens, "import")) {
+        ps->tokens++;  // skip 'import' keyword
         result.kind = AST_TOPLEVEL_IMPORT;
-        result.data.import = parse_import_path(*tokens, stdlib_path);
-        ++*tokens;
-        eat_newline(tokens);
-    } else if (is_keyword(*tokens, "def")) {
-        ++*tokens;  // skip 'def' keyword
+        result.data.import = parse_import_path(ps->tokens, ps->stdlib_path);
+        ps->tokens++;
+        eat_newline(ps);
+    } else if (is_keyword(ps->tokens, "def")) {
+        ps->tokens++;  // skip 'def' keyword
         result.kind = AST_TOPLEVEL_FUNCTION;
-        result.data.function.signature = parse_function_signature(tokens, false);
+        result.data.function.signature = parse_function_signature(ps, false);
         if (result.data.function.signature.takes_varargs) {
             // TODO: support "def foo(x: str, ...)" in some way
-            fail_with_error((*tokens)->location, "functions with variadic arguments cannot be defined yet");
+            fail_with_error(ps->tokens->location, "functions with variadic arguments cannot be defined yet");
         }
-        result.data.function.body = parse_body(tokens);
-    } else if (is_keyword(*tokens, "declare")) {
-        ++*tokens;
-        if (is_keyword(*tokens, "global")) {
-            ++*tokens;
+        result.data.function.body = parse_body(ps);
+    } else if (is_keyword(ps->tokens, "declare")) {
+        ps->tokens++;
+        if (is_keyword(ps->tokens, "global")) {
+            ps->tokens++;
             result.kind = AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE;
-            result.data.globalvar = parse_name_type_value(tokens, "a variable name");
+            result.data.globalvar = parse_name_type_value(ps, "a variable name");
             if (result.data.globalvar.value) {
                 fail_with_error(
                     result.data.globalvar.value->location,
@@ -1012,30 +1024,30 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens, const char *std
             }
         } else {
             result.kind = AST_TOPLEVEL_FUNCTION;
-            result.data.function.signature = parse_function_signature(tokens, false);
+            result.data.function.signature = parse_function_signature(ps, false);
         }
-        eat_newline(tokens);
-    } else if (is_keyword(*tokens, "global")) {
-        ++*tokens;
+        eat_newline(ps);
+    } else if (is_keyword(ps->tokens, "global")) {
+        ps->tokens++;
         result.kind = AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE;
-        result.data.globalvar = parse_name_type_value(tokens, "a variable name");
+        result.data.globalvar = parse_name_type_value(ps, "a variable name");
         if (result.data.globalvar.value) {
             // TODO: make this work
             fail_with_error(
                 result.data.globalvar.value->location,
                 "specifying a value for a global variable is not supported yet");
         }
-        eat_newline(tokens);
-    } else if (is_keyword(*tokens, "class")) {
-        ++*tokens;
+        eat_newline(ps);
+    } else if (is_keyword(ps->tokens, "class")) {
+        ps->tokens++;
         result.kind = AST_TOPLEVEL_DEFINE_CLASS;
-        result.data.classdef = parse_classdef(tokens);
-    } else if (is_keyword(*tokens, "enum")) {
-        ++*tokens;
+        result.data.classdef = parse_classdef(ps);
+    } else if (is_keyword(ps->tokens, "enum")) {
+        ps->tokens++;
         result.kind = AST_TOPLEVEL_DEFINE_ENUM;
-        result.data.enumdef = parse_enumdef(tokens);
+        result.data.enumdef = parse_enumdef(ps);
     } else {
-        fail_with_parse_error(*tokens, "a definition or declaration");
+        fail_with_parse_error(ps->tokens, "a definition or declaration");
     }
 
     return result;
@@ -1043,9 +1055,11 @@ static AstToplevelNode parse_toplevel_node(const Token **tokens, const char *std
 
 AstToplevelNode *parse(const Token *tokens, const char *stdlib_path)
 {
+    ParserState ps = { .tokens = tokens, .stdlib_path = stdlib_path };
+
     ToplevelNodeList result = {0};
     do {
-        Append(&result, parse_toplevel_node(&tokens, stdlib_path));
+        Append(&result, parse_toplevel_node(&ps));
     } while (result.ptr[result.len - 1].kind != AST_TOPLEVEL_END_OF_FILE);
 
     // This simplifies the compiler: it's easy to loop through all imports of the file.
