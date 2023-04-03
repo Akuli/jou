@@ -1157,6 +1157,24 @@ class Stage3TypeChecker:
         types->do_implicit_cast(cast_type, expression->location, error_message_template)
         return types
 
+    def do_in_place_operation(
+        self,
+        location: Location,
+        target: AstExpression*, # the foo of "foo += 1"
+        value: AstExpression*,  # the 1 of "foo += 1"
+        op_expr_kind: AstExpressionKind,  # e.g. AstExpressionKind::Add
+        op_description: byte[20],  # e.g. "addition"
+    ) -> void:
+        ensure_can_take_address(target, "cannot assign to %s")
+        target_types = self->do_expression(target)
+
+        error_template: byte[200]
+        strcpy(error_template, op_description)
+        strcat(error_template, " produced a value of type <from> which cannot be assigned back to <to>")
+
+        # TODO: this logic doesn't make much sense
+        self->do_expression_and_implicit_cast(value, target_types->original_type, error_template)
+
     def do_statement(self, statement: AstStatement*) -> void:
         if statement->kind == AstStatementKind::ExpressionStatement:
             self->do_expression_maybe_void(&statement->expression)
@@ -1281,6 +1299,17 @@ class Stage3TypeChecker:
         elif statement->kind == AstStatementKind::Continue:
             if self->nested_loop_count == 0:
                 fail(statement->location, "'continue' can only be used inside a loop")
+
+        elif statement->kind == AstStatementKind::InPlaceAdd:
+            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Add, "addition")
+        elif statement->kind == AstStatementKind::InPlaceSubtract:
+            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Subtract, "subtraction")
+        elif statement->kind == AstStatementKind::InPlaceMultiply:
+            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Multiply, "multiplication")
+        elif statement->kind == AstStatementKind::InPlaceDivide:
+            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Divide, "division")
+        elif statement->kind == AstStatementKind::InPlaceModulo:
+            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Modulo, "modulo")
 
         else:
             printf("*** typecheck: unknown statement kind %d\n", statement->kind)

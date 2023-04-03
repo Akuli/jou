@@ -1201,7 +1201,6 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
         const AstExpression *targetexpr = &stmt->data.assignment.target;
         const AstExpression *valueexpr = &stmt->data.assignment.value;
 
-        // TODO: test this
         ensure_can_take_address(targetexpr, "cannot assign to %s");
 
         const char *opname;
@@ -1214,7 +1213,6 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
             default: assert(0);
         }
 
-        // TODO: test this
         char errmsg[500];
         sprintf(errmsg, "%s produced a value of type FROM which cannot be assigned back to TO", opname);
 

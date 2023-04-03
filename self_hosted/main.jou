@@ -353,7 +353,7 @@ class Compiler:
                 printf("Emit LLVM IR: %s --> %s\n", self->files[i].ast.path, path)
 
             error: byte* = NULL
-            if LLVMTargetMachineEmitToFile(target.target_machine, module, path, LLVMCodeGenFileType::ObjectFile, &error):
+            if LLVMTargetMachineEmitToFile(target.target_machine, module, path, LLVMCodeGenFileType::ObjectFile, &error) != 0:
                 assert error != NULL
                 fprintf(stderr, "error in LLVMTargetMachineEmitToFile(): %s\n", error)
                 exit(1)

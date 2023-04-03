@@ -80,7 +80,7 @@ def class_type_to_llvm(fields: ClassField*, nfields: int) -> LLVMType*:
             end++
         elem_types[combined_len++] = create_llvm_union_type(&elem_types[start], end-start)
 
-    result = LLVMStructType(elem_types, combined_len, False)
+    result = LLVMStructType(elem_types, combined_len, False as int)
     free(elem_types)
     return result
 
@@ -156,7 +156,7 @@ class AstToIR:
         else:
             return_type = type_to_llvm(sig->return_type)
 
-        function_type = LLVMFunctionType(return_type, argtypes, sig->nargs, sig->takes_varargs)
+        function_type = LLVMFunctionType(return_type, argtypes, sig->nargs, sig->takes_varargs as int)
         free(argtypes)
 
         return LLVMAddFunction(self->module, full_name, function_type)
@@ -170,7 +170,7 @@ class AstToIR:
     # Otherwise returns an array value.
     def make_a_string_constant(self, s: byte*, array_len: int) -> LLVMValue*:
         if array_len == -1:
-            array = LLVMConstString(s, strlen(s) as int, False)
+            array = LLVMConstString(s, strlen(s) as int, False as int)
             global_var = LLVMAddGlobal(self->module, LLVMTypeOf(array), "string_literal")
             LLVMSetLinkage(global_var, LLVMLinkage::Private)  # This makes it a static global variable
             LLVMSetInitializer(global_var, array)
@@ -180,7 +180,7 @@ class AstToIR:
             assert strlen(s) < array_len
             padded = calloc(1, array_len)
             strcpy(padded, s)
-            array = LLVMConstString(padded, array_len, True)
+            array = LLVMConstString(padded, array_len, True as int)
             free(padded)
             return array
 
@@ -201,9 +201,16 @@ class AstToIR:
             # Examples:
             #   signed 8-bit 0xFF (-1) --> 16-bit 0xFFFF (-1 or max value)
             #   unsigned 8-bit 0xFF (255) --> 16-bit 0x00FF (255)
-            return LLVMBuildIntCast2(self->builder, obj, type_to_llvm(to), from->kind == TypeKind::SignedInteger, "cast_int")
+            return LLVMBuildIntCast2(self->builder, obj, type_to_llvm(to), (from->kind == TypeKind::SignedInteger) as int, "cast_int")
 
-        # TODO: float/double <--> integer, float <--> double
+        if from->kind == TypeKind::SignedInteger and to->kind == TypeKind::FloatingPoint:
+            return LLVMBuildSIToFP(self->builder, obj, type_to_llvm(to), "cast_signed_to_float")
+        if from->kind == TypeKind::UnsignedInteger and to->kind == TypeKind::FloatingPoint:
+            return LLVMBuildUIToFP(self->builder, obj, type_to_llvm(to), "cast_unsigned_to_float")
+        if from->kind == TypeKind::FloatingPoint and to->kind == TypeKind::SignedInteger:
+            return LLVMBuildFPToSI(self->builder, obj, type_to_llvm(to), "cast_float_to_signed")
+        if from->kind == TypeKind::FloatingPoint and to->kind == TypeKind::UnsignedInteger:
+            return LLVMBuildFPToUI(self->builder, obj, type_to_llvm(to), "cast_float_to_unsigned")
 
         if from == &bool_type and to->is_integer_type():
             # True --> 1, False --> 0
@@ -321,7 +328,7 @@ class AstToIR:
         LLVMPositionBuilderAtEnd(self->builder, false_block)
 
         argtypes = [LLVMPointerType(LLVMInt8Type(), 0), LLVMPointerType(LLVMInt8Type(), 0), LLVMInt32Type()]
-        assert_fail_func_type = LLVMFunctionType(LLVMVoidType(), argtypes, 3, False)
+        assert_fail_func_type = LLVMFunctionType(LLVMVoidType(), argtypes, 3, False as int)
         assert_fail_func = LLVMGetNamedFunction(self->module, "_jou_assert_fail")
         if assert_fail_func == NULL:
             assert_fail_func = LLVMAddFunction(self->module, "_jou_assert_fail", assert_fail_func_type)
@@ -330,7 +337,7 @@ class AstToIR:
         args = [
             self->make_a_string_constant("foo", -1),
             self->make_a_string_constant("bar", -1),
-            LLVMConstInt(LLVMInt32Type(), 123, False),
+            LLVMConstInt(LLVMInt32Type(), 123, False as int),
         ]
 
         LLVMBuildCall2(self->builder, assert_fail_func_type, assert_fail_func, args, 3, "")
@@ -343,11 +350,11 @@ class AstToIR:
 
         old_value = LLVMBuildLoad(self->builder, pointer, "old_value")
         if value_type->is_integer_type():
-            diff_object = LLVMConstInt(type_to_llvm(value_type), diff, True)
+            diff_object = LLVMConstInt(type_to_llvm(value_type), diff, True as int)
             new_value = LLVMBuildAdd(self->builder, old_value, diff_object, "new_value")
         else:
             assert value_type->is_pointer_type()
-            diff_object = LLVMConstInt(LLVMInt64Type(), diff, True)
+            diff_object = LLVMConstInt(LLVMInt64Type(), diff, True as int)
             new_value = LLVMBuildGEP(self->builder, old_value, &diff_object, 1, "new_value")
 
         LLVMBuildStore(self->builder, new_value, pointer)
@@ -488,15 +495,15 @@ class AstToIR:
                 array_len = -1
             result = self->make_a_string_constant(ast->string, array_len)
         elif ast->kind == AstExpressionKind::Bool:
-            result = LLVMConstInt(LLVMInt1Type(), ast->bool_value as long, False)
+            result = LLVMConstInt(LLVMInt1Type(), ast->bool_value as long, False as int)
         elif ast->kind == AstExpressionKind::Byte:
-            result = LLVMConstInt(LLVMInt8Type(), ast->byte_value, False)
+            result = LLVMConstInt(LLVMInt8Type(), ast->byte_value, False as int)
         elif ast->kind == AstExpressionKind::Short:
-            result = LLVMConstInt(LLVMInt16Type(), ast->short_value, False)
+            result = LLVMConstInt(LLVMInt16Type(), ast->short_value, False as int)
         elif ast->kind == AstExpressionKind::Int:
-            result = LLVMConstInt(LLVMInt32Type(), ast->int_value, False)
+            result = LLVMConstInt(LLVMInt32Type(), ast->int_value, False as int)
         elif ast->kind == AstExpressionKind::Long:
-            result = LLVMConstInt(LLVMInt64Type(), ast->long_value, False)
+            result = LLVMConstInt(LLVMInt64Type(), ast->long_value, False as int)
         elif ast->kind == AstExpressionKind::Null:
             result = LLVMConstNull(type_to_llvm(types->original_type))
 
@@ -510,7 +517,7 @@ class AstToIR:
             assert enum_type != NULL
             i = enum_type->enum_members.find_index(ast->enum_member.member_name)
             assert i != -1
-            result = LLVMConstInt(LLVMInt32Type(), i, False)
+            result = LLVMConstInt(LLVMInt32Type(), i, False as int)
 
         elif ast->kind == AstExpressionKind::As:
             value = self->do_expression(&ast->as_expression->value)
@@ -520,7 +527,10 @@ class AstToIR:
 
         elif ast->kind == AstExpressionKind::Negate:
             value = self->do_expression(&ast->operands[0])
-            result = LLVMBuildNeg(self->builder, value, "negate")
+            if self->function_or_method_types->get_expression_types(&ast->operands[0])->original_type->kind == TypeKind::FloatingPoint:
+                result = LLVMBuildFNeg(self->builder, value, "negate")
+            else:
+                result = LLVMBuildNeg(self->builder, value, "negate")
 
         elif ast->kind == AstExpressionKind::PreIncr:
             old_and_new = self->do_incr_decr(&ast->operands[0], 1)
@@ -583,8 +593,8 @@ class AstToIR:
         ):
             lhs = self->do_expression(&ast->operands[0])
             rhs = self->do_expression(&ast->operands[1])
-            lhs_type = self->function_or_method_types->get_expression_types(&ast->operands[0])->original_type
-            rhs_type = self->function_or_method_types->get_expression_types(&ast->operands[1])->original_type
+            lhs_type = self->function_or_method_types->get_expression_types(&ast->operands[0])->get_type_after_implicit_cast()
+            rhs_type = self->function_or_method_types->get_expression_types(&ast->operands[1])->get_type_after_implicit_cast()
             result = self->do_binop(ast->kind, lhs, lhs_type, rhs, rhs_type)
 
         elif ast->kind == AstExpressionKind::Array:
@@ -674,6 +684,16 @@ class AstToIR:
         # rest of the function/method goes to done block
         LLVMPositionBuilderAtEnd(self->builder, done_block)
 
+    def do_in_place_operation(self, op: AstExpressionKind, assignment: AstAssignment*) -> void:
+        target_pointer = self->do_address_of_expression(&assignment->target)
+        target_type = self->function_or_method_types->get_expression_types(&assignment->target)->original_type
+        rhs = self->do_expression(&assignment->value)
+        rhs_type = self->function_or_method_types->get_expression_types(&assignment->value)->get_type_after_implicit_cast()
+
+        old_value = LLVMBuildLoad(self->builder, target_pointer, "old_value")
+        new_value = self->do_binop(op, old_value, target_type, rhs, rhs_type)
+        LLVMBuildStore(self->builder, new_value, target_pointer)
+
     def do_statement(self, ast: AstStatement*) -> void:
         if ast->kind == AstStatementKind::ExpressionStatement:
             self->do_expression(&ast->expression)
@@ -711,6 +731,16 @@ class AstToIR:
         elif ast->kind == AstStatementKind::Continue:
             LLVMBuildBr(self->builder, self->continue_stack[self->nested_loop_count-1])
             self->new_block("after_continue")
+        elif ast->kind == AstStatementKind::InPlaceAdd:
+            self->do_in_place_operation(AstExpressionKind::Add, &ast->assignment)
+        elif ast->kind == AstStatementKind::InPlaceSubtract:
+            self->do_in_place_operation(AstExpressionKind::Subtract, &ast->assignment)
+        elif ast->kind == AstStatementKind::InPlaceMultiply:
+            self->do_in_place_operation(AstExpressionKind::Multiply, &ast->assignment)
+        elif ast->kind == AstStatementKind::InPlaceDivide:
+            self->do_in_place_operation(AstExpressionKind::Divide, &ast->assignment)
+        elif ast->kind == AstStatementKind::InPlaceModulo:
+            self->do_in_place_operation(AstExpressionKind::Modulo, &ast->assignment)
         else:
             printf("create_llvm_ir: unknown statement kind %d...\n", ast->kind)
             assert False
