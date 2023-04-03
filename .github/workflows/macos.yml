@@ -13,6 +13,7 @@ jobs:
       - run: LLVM_CONFIG=/usr/local/opt/llvm@13/bin/llvm-config make
       - run: ./runtests.sh --verbose
       - run: make clean
+      - run: /bin/bash --version
       - name: Check that "make clean" deleted all files not committed to Git
         shell: bash
         run: |
