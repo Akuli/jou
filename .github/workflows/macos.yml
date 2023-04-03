@@ -6,14 +6,11 @@ on:
 
 jobs:
   test:
-    strategy:
-      matrix:
-        llvm-version: [11, 13]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
-      - run: brew install llvm@${{ matrix.llvm-version }}
-      - run: LLVM_CONFIG=/usr/local/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config make
+      - run: brew install llvm@13
+      - run: LLVM_CONFIG=/usr/local/opt/llvm@13/bin/llvm-config make
       - run: ./runtests.sh --verbose
       - run: make clean
       - name: Check that "make clean" deleted all files not committed to Git
@@ -28,5 +25,5 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
-      - run: brew install llvm@${{ matrix.llvm-version }}
-      - run: LLVM_CONFIG=/usr/local/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config ./compare_compilers.sh
+      - run: brew install llvm@13
+      - run: LLVM_CONFIG=/usr/local/opt/llvm@13/bin/llvm-config ./compare_compilers.sh
