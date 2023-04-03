@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: brew install llvm@${{ matrix.llvm-version }}
+      - run: ls /usr/local/opt/llvm*
+      - run: ls /usr/local/opt/llvm*/bin
+      - run: echo /usr/local/opt/llvm@${{ matrix.llvm-version }}/bin >> $GITHUB_PATH
       - run: make
       - run: ./runtests.sh --verbose
       - run: make clean
