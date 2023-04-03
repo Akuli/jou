@@ -1,6 +1,3 @@
-# TODO: This file uses Jou bool even though the C code uses a typedef for int.
-#       This might create problems on other platforms.
-
 class LLVMModule:
     _dummy: int
 class LLVMType:
@@ -69,12 +66,12 @@ enum LLVMCodeGenFileType:
 declare LLVMCreateTargetMachine(T: LLVMTarget*, Triple: byte*, CPU: byte*, Features: byte*, Level: LLVMCodeGenOptLevel, Reloc: LLVMRelocMode, CodeModel: LLVMCodeModel) -> LLVMTargetMachine*
 declare LLVMDisposeTargetMachine(T: LLVMTargetMachine*) -> void
 declare LLVMCreateTargetDataLayout(T: LLVMTargetMachine*) -> LLVMTargetData*
-declare LLVMTargetMachineEmitToFile(T: LLVMTargetMachine*, M: LLVMModule*, Filename: byte*, codegen: LLVMCodeGenFileType, ErrorMessage: byte**) -> bool
-declare LLVMGetTargetFromTriple(Triple: byte*, T: LLVMTarget**, ErrorMessage: byte**) -> bool
+declare LLVMTargetMachineEmitToFile(T: LLVMTargetMachine*, M: LLVMModule*, Filename: byte*, codegen: LLVMCodeGenFileType, ErrorMessage: byte**) -> int
+declare LLVMGetTargetFromTriple(Triple: byte*, T: LLVMTarget**, ErrorMessage: byte**) -> int
 declare LLVMGetDefaultTargetTriple() -> byte*
 
 # =========== Linker.h ===========
-declare LLVMLinkModules2(Dest: LLVMModule*, Src: LLVMModule*) -> bool
+declare LLVMLinkModules2(Dest: LLVMModule*, Src: LLVMModule*) -> int
 
 # =========== Analysis.h ===========
 enum LLVMVerifierFailureAction:
@@ -82,7 +79,7 @@ enum LLVMVerifierFailureAction:
     PrintMessage
     ReturnStatus
 
-declare LLVMVerifyModule(M: LLVMModule*, Action: LLVMVerifierFailureAction, OutMessage: byte**) -> bool
+declare LLVMVerifyModule(M: LLVMModule*, Action: LLVMVerifierFailureAction, OutMessage: byte**) -> int
 
 # =========== Core.h ===========
 enum LLVMTypeKind:
@@ -191,8 +188,8 @@ enum LLVMRealPredicate:
 declare LLVMVoidType() -> LLVMType*
 declare LLVMFloatType() -> LLVMType*
 declare LLVMDoubleType() -> LLVMType*
-declare LLVMFunctionType(ReturnType: LLVMType*, ParamTypes: LLVMType**, ParamCount: int, IsVarArg: bool) -> LLVMType*
-declare LLVMStructType(ElementTypes: LLVMType**, ElementCount: int, Packed: bool) -> LLVMType*
+declare LLVMFunctionType(ReturnType: LLVMType*, ParamTypes: LLVMType**, ParamCount: int, IsVarArg: int) -> LLVMType*
+declare LLVMStructType(ElementTypes: LLVMType**, ElementCount: int, Packed: int) -> LLVMType*
 declare LLVMArrayType(ElementType: LLVMType*, ElementCount: int) -> LLVMType*
 declare LLVMPointerType(ElementType: LLVMType*, AddressSpace: int) -> LLVMType*
 declare LLVMDisposeMessage(Message: byte*) -> void
@@ -218,9 +215,9 @@ declare LLVMGetElementType(Ty: LLVMType*) -> LLVMType*
 declare LLVMTypeOf(Val: LLVMValue*) -> LLVMType*
 declare LLVMConstNull(Ty: LLVMType*) -> LLVMValue*
 declare LLVMGetUndef(Ty: LLVMType*) -> LLVMValue*
-declare LLVMConstInt(IntTy: LLVMType*, N: long, SignExtend: bool) -> LLVMValue*
+declare LLVMConstInt(IntTy: LLVMType*, N: long, SignExtend: int) -> LLVMValue*
 declare LLVMConstRealOfString(RealTy: LLVMType*, Text: byte*) -> LLVMValue*
-declare LLVMConstString(Str: byte*, Length: int, DontNullTerminate: bool) -> LLVMValue*
+declare LLVMConstString(Str: byte*, Length: int, DontNullTerminate: int) -> LLVMValue*
 declare LLVMSizeOf(Ty: LLVMType*) -> LLVMValue*
 declare LLVMSetLinkage(Global: LLVMValue*, Linkage: LLVMLinkage) -> void
 declare LLVMAddGlobal(M: LLVMModule*, Ty: LLVMType*, Name: byte*) -> LLVMValue*
@@ -267,7 +264,7 @@ declare LLVMBuildUIToFP(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType
 declare LLVMBuildSIToFP(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType*, Name: byte*) -> LLVMValue*
 declare LLVMBuildPtrToInt(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType*, Name: byte*) -> LLVMValue*
 declare LLVMBuildBitCast(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType*, Name: byte*) -> LLVMValue*
-declare LLVMBuildIntCast2(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType*, IsSigned: bool, Name: byte*) -> LLVMValue*
+declare LLVMBuildIntCast2(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType*, IsSigned: int, Name: byte*) -> LLVMValue*
 declare LLVMBuildFPCast(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType*, Name: byte*) -> LLVMValue*
 declare LLVMBuildICmp(Builder: LLVMBuilder*, Op: LLVMIntPredicate, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
 declare LLVMBuildFCmp(Builder: LLVMBuilder*, Op: LLVMRealPredicate, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
@@ -276,5 +273,5 @@ declare LLVMBuildCall2(Builder: LLVMBuilder*, FunctionTy: LLVMType*, Fn: LLVMVal
 declare LLVMBuildExtractValue(Builder: LLVMBuilder*, AggVal: LLVMValue*, Index: int, Name: byte*) -> LLVMValue*
 declare LLVMBuildInsertValue(Builder: LLVMBuilder*, AggVal: LLVMValue*, EltVal: LLVMValue*, Index: int, Name: byte*) -> LLVMValue*
 declare LLVMCreatePassManager() -> LLVMPassManager*
-declare LLVMRunPassManager(PM: LLVMPassManager*, M: LLVMModule*) -> bool
+declare LLVMRunPassManager(PM: LLVMPassManager*, M: LLVMModule*) -> int
 declare LLVMDisposePassManager(PM: LLVMPassManager*) -> void
