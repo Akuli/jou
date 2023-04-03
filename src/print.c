@@ -602,7 +602,7 @@ static void print_cf_instruction(const CfInstruction *ins)
 
 void print_control_flow_graph(const CfGraph *cfg)
 {
-    char *sigstr = signature_to_string(&cfg->signature, true);
+    char *sigstr = signature_to_string(&cfg->signature, true, true);
     printf("Function %s\n", sigstr);
     free(sigstr);
 
