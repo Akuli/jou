@@ -6,6 +6,9 @@ import "stdlib/io.jou"
 def is_windows() -> bool:
     return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
 
+def is_macos() -> bool:
+    return getenv("OSTYPE") != NULL && starts_with(getenv("OSTYPE"), "darwin")
+
 def run_jou(command: byte*) -> void:
     if is_windows():
         jou_exe = "jou.exe"
@@ -88,7 +91,7 @@ def main() -> int:
         system("tmp/tests/jou_executable")
 
     # Compile a GUI program
-    if not is_windows():
+    if not is_windows() and not is_macos():
         ret = system("./jou -o /dev/null --linker-flags \"-lX11\" examples/x11_window.jou")
         if ret != 0:
             printf("Compiling failed???\n")
