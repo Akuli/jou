@@ -73,11 +73,11 @@ char *find_current_executable(void)
 #elif defined(__APPLE__)
     uint32_t n = 1;
     result = malloc(n);
-    if (_NSGetExecutablePath(result, &size) < 0) {  // didn't fit
-        result = realloc(result, n);
-        int ret = _NSGetExecutablePath(result, &n);
-        assert(ret == 0);
-    }
+    int ret = _NSGetExecutablePath(result, &n);  // sets n to desired size
+    assert(ret < 0);  // didn't fit
+    result = realloc(result, n);
+    ret = _NSGetExecutablePath(result, &n);
+    assert(ret == 0);
 #else
     ssize_t ret;
     int n = 1;
