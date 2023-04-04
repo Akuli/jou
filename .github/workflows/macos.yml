@@ -9,6 +9,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
+      - run: brew install diffutils
+      - run: which -a diff
       - run: brew install bash llvm@13
       - run: LLVM_CONFIG=/usr/local/opt/llvm@13/bin/llvm-config make
       - run: ./runtests.sh --verbose
