@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # There are two Jou compilers: one written in C and another written in Jou.
 # They should be able to tokenize and parse each Jou file in exactly the same way.

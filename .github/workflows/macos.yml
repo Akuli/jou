@@ -9,13 +9,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
-      - run: brew search bash
-      - run: brew install bash
-      - run: /bin/bash --version
-      - run: bash --version
-      - run: which -a bash
-      - run: ls /usr/local/opt/*bash*/
-      - run: brew install llvm@13
+      - run: brew install bash llvm@13
       - run: LLVM_CONFIG=/usr/local/opt/llvm@13/bin/llvm-config make
       - run: ./runtests.sh --verbose
       - run: make clean
