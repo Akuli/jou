@@ -7,7 +7,7 @@ def is_windows() -> bool:
     return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
 
 def is_macos() -> bool:
-    return getenv("OSTYPE") != NULL && starts_with(getenv("OSTYPE"), "darwin")
+    return getenv("OSTYPE") != NULL and starts_with(getenv("OSTYPE"), "darwin")
 
 def run_jou(command: byte*) -> void:
     if is_windows():
