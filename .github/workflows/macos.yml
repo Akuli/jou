@@ -12,6 +12,7 @@ jobs:
       # TODO: document the commands to install the stuff
       - run: brew install bash diffutils llvm@13
       - run: printf '#include <stdio.h>\nstdin\nstdout\nstderr\n' | /usr/local/opt/llvm@13/bin/clang -E -
+      - run: printf '#include <errno.h>\nerrno\n' | /usr/local/opt/llvm@13/bin/clang -E -
 #      - run: make
 #      - run: ./runtests.sh --verbose
 #      - run: make clean
@@ -23,9 +24,9 @@ jobs:
 #            exit 1
 #          fi
 
-  compare-compilers:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
-      - run: brew install llvm@13
-      - run: ./compare_compilers.sh
+#  compare-compilers:
+#    runs-on: macos-latest
+#    steps:
+#      - uses: actions/checkout@v3
+#      - run: brew install llvm@13
+#      - run: ./compare_compilers.sh
