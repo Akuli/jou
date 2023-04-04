@@ -9,10 +9,9 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
-      - run: brew install diffutils
-      - run: which -a diff
-      - run: brew install bash llvm@13
-      - run: LLVM_CONFIG=/usr/local/opt/llvm@13/bin/llvm-config make
+      # TODO: document the commands to install the stuff
+      - run: brew install bash diffutils llvm@13
+      - run: make
       - run: ./runtests.sh --verbose
       - run: make clean
       - name: Check that "make clean" deleted all files not committed to Git
@@ -28,4 +27,4 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: brew install llvm@13
-      - run: LLVM_CONFIG=/usr/local/opt/llvm@13/bin/llvm-config ./compare_compilers.sh
+      - run: ./compare_compilers.sh
