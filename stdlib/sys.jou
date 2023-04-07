@@ -1,0 +1,12 @@
+# System functions
+import "stdlib/str.jou"
+declare getenv(varname: byte*) -> byte*
+
+def is_windows() -> bool:
+    return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
+
+def is_macos() -> bool:
+    return getenv("OSTYPE") != NULL and starts_with(getenv("OSTYPE"), "darwin")
+
+def platform() -> byte*:
+    return getenv("OS")
