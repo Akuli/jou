@@ -1,13 +1,49 @@
 # Memory management
 
+# TODO: repalce the long with size_t
+# Beacause of many function prototype use size_t:
+# For example:
+#     void * memmove (void * destination, const void * source, size_t num)
+
 # Heap allocations
+
 # TODO: write a tutorial about using these and add a link
+
+# Allocates a block of bytes of memory, returning a pointer to the beginning of the block.
+# The content of the newly allocated block of memory is not initialized, remaining with indeterminate values.
+# If is zero, the return value depends on the particular library implementation (it may or may not be a null pointer),
+# but the returned pointer shall not be dereferenced.sizesize
 declare malloc(size: long) -> void*
+
+# Allocates a block of memory for an array of num elements, each of them size bytes long, and initializes all its bits to zero.
+# The effective result is the allocation of a zero-initialized memory block of (num*size) bytes.
+# If size is zero, the return value depends on the particular library implementation (it may or may not be a null pointer),
+# but the returned pointer shall not be dereferenced.
 declare calloc(a: long, b: long) -> void*
+
+# Changes the size of the memory block pointed to by ptr.
+# The function may move the memory block to a new location (whose address is returned by the function).
+# The content of the memory block is preserved up to the lesser of the new and old sizes,
+# even if the block is moved to a new location. If the new size is larger,
+# the value of the newly allocated portion is indeterminate.
+# In case that ptr is a null pointer, the function behaves like malloc,
+# assigning a new block of size bytes and returning a pointer to its beginning.
 declare realloc(ptr: void*, size: long) -> void*
+
+# A block of memory previously allocated by a call to malloc, calloc or realloc is deallocated,
+# making it available again for further allocations.
+# If ptr does not point to a block of memory allocated with the above functions, it causes undefined behavior.
+# If ptr is a null pointer, the function does nothing.
+# Notice that this function does not change the value of ptr itself,
+# hence it still points to the same (now invalid) location.
 declare free(ptr: void*) -> void
 
-# TODO: explain what each of these does
+# Sets the first num bytes of the block of memory pointed by ptr to the specified value (interpreted as an unsigned char).
 declare memset(dest: void*, fill_byte: int, count: long) -> void*
+
+# Copies the values of num bytes from the location pointed to by source directly to the memory block pointed to by destination.
 declare memcpy(dest: void*, source: void*, count: long) -> void*
+
+# Copies the values of num bytes from the location pointed by source to the memory block pointed by destination.
+# Copying takes place as if an intermediate buffer were used, allowing the destination and source to overlap.
 declare memmove(dest: void*, source: void*, count: long) -> void*
