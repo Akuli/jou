@@ -17,16 +17,9 @@ declare floor(x: double) -> double
 # Returns the floating-point remainder of numer/denom (rounded towards zero):
 # fmod = numer - tquot * denom
 declare fmod(numer: double, denom: double) -> double
-# Rounds x toward zero, returning the nearest integral value that is not larger in magnitude than x.
-declare trunc(x: double) -> double
 # Returns the integral value that is nearest to x, with halfway cases rounded away from zero.
 declare round(x: double) -> double
 declare lround(x: double) -> long
-# Rounds x to an integral value,
-declare rint(x: int) -> double
-declare lrint(x: long) -> double
-# Rounds x to an integral value
-declare nearbyint(x: double) -> double
 # Returns the floating-point remainder of numer/denom (rounded to nearest):
 # remainder = numer - rquot * denom
 declare remainder(numer: double, denom: double) -> double
@@ -43,11 +36,15 @@ declare tan(x: double) -> double
 declare acos(x: double) -> double
 declare asin(x: double) -> double
 declare atan(x: double) -> double
-# Returns the principal value of the arc tangent of, expressed in radians.
-declare atan2(x: double, y: double) -> double
+# Returns the angle of a point(x, y). Note the reversed order of the arguments.
+declare atan2(y: double, x: double) -> double
 
 # Floating-point manipulation functions
 # Returns a value with the magnitude of x and the sign of y
+# Example:
+#   printf("%d", copysign(4, -1))
+# Output:
+#   -4.0
 declare copysign(x: double, y: double) -> double
 # Returns a quiet NaN (Not-A-Number) value of type .
 # The NaN values are used to identify undefined or non-representable values for floating-point elements, such as the square root of negative numbers or the result of 0/0.
