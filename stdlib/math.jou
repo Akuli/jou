@@ -1,13 +1,43 @@
 # Math lib
+#TODO: add test
 
+# Other functions
+# Returns the absolute value of x.
 declare abs(x: int) -> int
 declare llabs(x: long) -> long
 declare fabs(x: double) -> double
+# Returns x*y+z.
+declare fma(x: double, y: double, z: double) -> double
 
+# Rounding and remainder functions
+# Rounds x upward, returning the smallest integral value that is not less than x.
 declare ceil(x: double) -> double
+# Rounds x downward, returning the largest integral value that is not greater than x.
 declare floor(x: double) -> double
+# Returns the floating-point remainder of numer/denom (rounded towards zero):
+# fmod = numer - tquot * denom
+declare fmod(numer: double, denom: double) -> double
+# Rounds x toward zero, returning the nearest integral value that is not larger in magnitude than x.
+declare trunc(x: double) -> double
+# Returns the integral value that is nearest to x, with halfway cases rounded away from zero.
 declare round(x: double) -> double
+declare lround(x: double) -> long
+# Rounds x to an integral value,
+declare rint(x: int) -> double
+declare lrint(x: long) -> double
+# Rounds x to an integral value
+declare nearbyint(x: double) -> double
+# Returns the floating-point remainder of numer/denom (rounded to nearest):
+# remainder = numer - rquot * denom
+declare remainder(numer: double, denom: double) -> double
 
+# Trigonometric functions
+# Returns the cosine of an angle of x radians.
+declare cos(x: double) -> double
+# Returns the sine of an angle of x radians.
+declare sin(x: double) -> double
+# Returns the tangent of an angle of x radians.
+declare tan(x: double) -> double
 # Returns the principal value of the arc cosine of x, expressed in radians.
 declare acos(x: double) -> double
 # Returns the principal value of the arc sine of x, expressed in radians.
@@ -15,43 +45,68 @@ declare asin(x: double) -> double
 # Returns the principal value of the arc tangent of, expressed in radians.
 declare atan(x: double) -> double
 # Returns the principal value of the arc tangent of, expressed in radians.
-# To compute the value, the function takes into account the sign of both arguments in order to determine the quadrant.
-declare atan2(y: double, x: double) -> double
+declare atan2(x: double, y: double) -> double
 
-# Returns the cosine of an angle of x radians.
-declare cos(x: double) -> double
-# Returns the sine of an angle of x radians.
-declare sin(x: double) -> double
-# Returns the tangent of an angle of x radians.
-declare tan(x: double) -> double
+# Floating-point manipulation functions
+# Returns a value with the magnitude of x and the sign of y
+declare copysign(x: double, y: double) -> double
+# Returns a quiet NaN (Not-A-Number) value of type .
+# The NaN values are used to identify undefined or non-representable values for floating-point elements, such as the square root of negative numbers or the result of 0/0.
+# The argument can be used by library implementations to distinguish different NaN values in a implementation-specific manner.
+declare nan(tagp: byte*) -> double
+# Returns the next representable value after x in the direction of y.
+declare nextafter(x: double, y: double) -> double
 
-# TODO: add test
+# Hyperbolic functions
 # Returns the hyperbolic cosine of x.
 declare cosh(x: double) -> double
 # Returns the hyperbolic sine of x.
 declare sinh(x: double) -> double
+# Returns the hyperbolic tangent of x.
+declare tanh(x: double) -> double
+# Returns the nonnegative area hyperbolic cosine of x.
+declare acosh(x: double) -> double
+# Returns the area hyperbolic sine of x.
+declare asinh(x: double) -> double
+# Returns the area hyperbolic tangent of x.
+declare atanh(x: double) -> double
 
-declare fmod(x: double, y: double) -> double
-declare sqrt(x: double) -> double
-declare cbrt(x: double) -> double
-
+# Exponential and logarithmic functions
+# Returns the base-e exponential function of x
+declare exp(x: double) -> double
+declare exp2(x: double) -> double
+# Returns the result of multiplying x (the significand) by 2 raised to the power of exp (the exponent).
+declare ldexp(x: double, exp: int) -> double
+# Returns the natural logarithm of x.
 declare log(x: double) -> double
 declare log10(x: double) -> double
 declare log2(x: double) -> double
-
-declare exp(x: double) -> double
-declare exp2(x: double) -> double
-declare pow(x: double, y: double) -> double
-declare ldexp(x: double, exp: int) -> double
-
+# Returns e raised to the power x minus one
 declare fmax(x: double, y: double) -> double
 declare fmin(x: double, y: double) -> double
+# Returns the positive difference between x and y.
+declare fdim(x: double, y: double) -> double
+# Returns e raised to the power x minus one
+declare expm1(x: double) -> double
+# Returns the natural logarithm of one plus x.
+declare log1p(x: double) -> double
 
+# Power functions
+# Raise to power.
+declare pow(x: double, y: double) -> double
+# Returns the square root of x.
+declare sqrt(x: double) -> double
+# Returns the cubic root of x.
+declare cbrt(x: double) -> double
+# Returns the hypotenuse of a right-angled triangle whose legs are x and y.
 declare hypot(x: double, y: double) -> double
 
-# These function are not support yet...
-# syntax error
-# declare modf(value: double, *iptr: double)  -> double
-# declare frexp(value: double, *exp: int) -> double
-# declare poly(x: double, degree: int, coeffs[]: double) -> double
-# declare matherr(struct exception *e)
+# Error and gamma functions
+# Returns the error function value for x
+declare erf(x: double) -> double
+# Returns the complementary error function value for x.
+declare erfc(x: double) -> double
+# Returns the gamma function of x.
+declare tgamma(x: double) -> double
+# Returns the natural logarithm of the absolute value of the gamma.
+declare lgamma(x: double) -> double
