@@ -5,7 +5,6 @@ import "./ast.jou"
 import "./errors_and_warnings.jou"
 import "./paths.jou"
 
-
 def parse_import_path(path_token: Token*, stdlib_path: byte*) -> AstImport:
     if path_token->kind != TokenKind::String:
         path_token->fail_expected_got("a string to specify the file name")

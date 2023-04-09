@@ -8,7 +8,6 @@ import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
-
 def build_signed_mod(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*) -> LLVMValue*:
     # Jou's % operator ensures that a%b has same sign as b:
     # jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
