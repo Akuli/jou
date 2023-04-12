@@ -1,0 +1,17 @@
+import "stdlib/io.jou"
+
+if WINDOWS:
+    declare CreateDirectoryA(lpPathName: byte*, lpSecurityAttributes: void*) -> int
+else:
+    declare mkdir(pathname: byte*, mode: int) -> int
+
+def main() -> int:
+    if WINDOWS:
+        CreateDirectoryA("tmp\\tests\\foo")
+    else:
+        mkdir("tmp\\tests\\foo")
+
+    if fopen("tmp/tests/foo/bar", "w") == NULL:
+        puts("directory not found?")
+    else:
+        puts("ok")  # Output: ok
