@@ -1,10 +1,11 @@
 # Color IO
 import "stdlib/io.jou"
-import "stdlib/str.jou"
 
-def set_color(color: byte*) -> void:
-    if starts_with(color, "\x1b["):
-        printf("%s", color)
+def str_set_color(str: bytes*) -> void:
+    printf("%s", str)
+
+def set_color(value: int) -> void:
+    printf("\x1b[%dm", value)
 
 def reset_color() -> void:
     printf("\x1b[0m")
@@ -14,9 +15,3 @@ def clear_line() -> void:
 
 def clear_screen() -> void:
     printf("\x1b[2J")
-
-def main() -> int:
-    printf("test")
-    clear_line()
-    printf("test")
-    return 0
