@@ -429,7 +429,7 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             }
             break;
         case AST_STMT_DEFINE_ENUM:
-            printf("Define enum \"%s\" with %d members\n",
+            printf("define enum \"%s\" with %d members\n",
                 stmt->data.enumdef.name, stmt->data.enumdef.nmembers);
             for (int i = 0; i < stmt->data.enumdef.nmembers; i++) {
                 print_tree_prefix(tp, i==stmt->data.enumdef.nmembers-1);
