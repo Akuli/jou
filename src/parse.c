@@ -912,7 +912,9 @@ static AstStatement parse_statement(ParserState *ps)
 {
     AstStatement result = { .location = ps->tokens->location };
 
-    if (is_keyword(ps->tokens, "def")) {
+    if (is_keyword(ps->tokens, "import")) {
+        fail_with_error(ps->tokens->location, "imports must be in the beginning of the file");
+    } else if (is_keyword(ps->tokens, "def")) {
         ps->tokens++;  // skip 'def' keyword
         result.kind = AST_STMT_FUNCTION;
         result.data.function.signature = parse_function_signature(ps, false);
