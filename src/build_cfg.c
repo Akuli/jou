@@ -953,6 +953,13 @@ static void build_statement(struct State *st, const AstStatement *stmt)
     case AST_STMT_EXPRESSION_STATEMENT:
         build_expression(st, &stmt->data.expression);
         break;
+
+    case AST_STMT_FUNCTION:
+    case AST_STMT_DECLARE_GLOBAL_VAR:
+    case AST_STMT_DEFINE_GLOBAL_VAR:
+    case AST_STMT_DEFINE_CLASS:
+    case AST_STMT_DEFINE_ENUM:
+        assert(0);
     }
 }
 
@@ -999,35 +1006,35 @@ static CfGraph *build_function_or_method(struct State *st, const Type *selfclass
 
 // TODO: passing a type context here doesn't really make sense.
 // It would be better to pass only the public symbols that have been imported.
-CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *filetypes)
+CfGraphFile build_control_flow_graphs(const AstFile *ast, FileTypes *filetypes)
 {
-    CfGraphFile result = { .filename = ast->location.filename };
+    CfGraphFile result = { .filename = ast->path };
     struct State st = { .filetypes = filetypes };
 
-    while (ast->kind != AST_TOPLEVEL_END_OF_FILE) {
-        if(ast->kind == AST_TOPLEVEL_FUNCTION && ast->data.function.body.nstatements > 0) {
-            CfGraph *g = build_function_or_method(&st, NULL, ast->data.function.signature.name, &ast->data.function.body);
+    for (int i = 0; i < ast->body.nstatements; i++) {
+        const AstStatement *stmt = &ast->body.statements[i];
+        if(stmt->kind == AST_STMT_FUNCTION && stmt->data.function.body.nstatements > 0) {
+            CfGraph *g = build_function_or_method(&st, NULL, stmt->data.function.signature.name, &stmt->data.function.body);
             Append(&result.graphs, g);
         }
 
-        if (ast->kind == AST_TOPLEVEL_DEFINE_CLASS) {
+        if (stmt->kind == AST_STMT_DEFINE_CLASS) {
             Type *classtype = NULL;
             for (Type **t = filetypes->owned_types.ptr; t < End(filetypes->owned_types); t++) {
-                if (!strcmp((*t)->name, ast->data.classdef.name)) {
+                if (!strcmp((*t)->name, stmt->data.classdef.name)) {
                     classtype = *t;
                     break;
                 }
             }
             assert(classtype);
 
-            for (AstClassMember *m = ast->data.classdef.members.ptr; m < End(ast->data.classdef.members); m++) {
+            for (AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++) {
                 if (m->kind == AST_CLASSMEMBER_METHOD) {
                     CfGraph *g = build_function_or_method(&st, classtype, m->data.method.signature.name, &m->data.method.body);
                     Append(&result.graphs, g);
                 }
             }
         }
-        ast++;
     }
 
     free(st.breakstack.ptr);

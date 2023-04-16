@@ -382,6 +382,58 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
                 print_ast_expression(stmt->data.vardecl.value, sub);
             }
             break;
+        case AST_STMT_DECLARE_GLOBAL_VAR:
+            assert(!stmt->data.vardecl.value);
+            printf("declare global var %s: ", stmt->data.vardecl.name);
+            print_ast_type(&stmt->data.vardecl.type);
+            printf("\n");
+            break;
+        case AST_STMT_DEFINE_GLOBAL_VAR:
+            assert(!stmt->data.vardecl.value);
+            printf("define global var %s: ", stmt->data.vardecl.name);
+            print_ast_type(&stmt->data.vardecl.type);
+            printf("\n");
+            break;
+        case AST_STMT_FUNCTION:
+            printf("%s a function: ", stmt->data.function.body.nstatements == 0 ? "declare" : "define");
+            print_ast_function_signature(&stmt->data.function.signature);
+            print_ast_body(&stmt->data.function.body, tp);
+            break;
+        case AST_STMT_DEFINE_CLASS:
+            printf(
+                "define a class \"%s\" with %d members\n",
+                stmt->data.classdef.name, stmt->data.classdef.members.len);
+            for (AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++){
+                sub = print_tree_prefix(tp, m == End(stmt->data.classdef.members)-1);
+                switch(m->kind) {
+                case AST_CLASSMEMBER_FIELD:
+                    printf("field %s: ", m->data.field.name);
+                    print_ast_type(&m->data.field.type);
+                    printf("\n");
+                    break;
+                case AST_CLASSMEMBER_UNION:
+                    printf("union:\n");
+                    for (AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++) {
+                        print_tree_prefix(sub, ntv == End(m->data.unionfields)-1);
+                        printf("%s: ", ntv->name);
+                        print_ast_type(&ntv->type);
+                        printf("\n");
+                    }
+                    break;
+                case AST_CLASSMEMBER_METHOD:
+                    printf("method ");
+                    print_ast_function_signature(&m->data.method.signature);
+                    print_ast_body(&m->data.method.body, sub);
+                    break;
+                }
+            }
+            break;
+        case AST_STMT_DEFINE_ENUM:
+            printf("Define enum \"%s\" with %d members:\n",
+                stmt->data.enumdef.name, stmt->data.enumdef.nmembers);
+            for (int i = 0; i < stmt->data.enumdef.nmembers; i++)
+                printf("  %s\n", stmt->data.enumdef.membernames[i]);
+            break;
 #define PrintAssignment \
     print_ast_expression(&stmt->data.assignment.target, print_tree_prefix(tp, false)); \
     print_ast_expression(&stmt->data.assignment.value, print_tree_prefix(tp, true));
@@ -401,73 +453,20 @@ static void print_ast_body(const AstBody *body, struct TreePrinter tp)
         print_ast_statement(&body->statements[i], print_tree_prefix(tp, i == body->nstatements - 1));
 }
 
-void print_ast(const AstToplevelNode *topnodelist)
+void print_ast(const AstFile *ast)
 {
-    printf("===== AST for file \"%s\" =====\n", topnodelist->location.filename);
+    printf("===== AST for file \"%s\" =====\n", ast->path);
 
-    for (const AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
-        printf("line %d: ", t->location.lineno);
-
-        switch(t->kind) {
-            case AST_TOPLEVEL_IMPORT:
-                printf("Import \"%s\", which resolves to \"%s\".\n",
-                    t->data.import.specified_path, t->data.import.resolved_path);
-                break;
-            case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-                assert(!t->data.globalvar.value);
-                printf("Declare a global variable %s: ", t->data.globalvar.name);
-                print_ast_type(&t->data.globalvar.type);
-                printf("\n");
-                break;
-            case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-                assert(!t->data.globalvar.value);
-                printf("Define a global variable %s: ", t->data.globalvar.name);
-                print_ast_type(&t->data.globalvar.type);
-                printf("\n");
-                break;
-            case AST_TOPLEVEL_FUNCTION:
-                printf("%s a function: ", t->data.function.body.nstatements == 0 ? "Declare" : "Define");
-                print_ast_function_signature(&t->data.function.signature);
-                print_ast_body(&t->data.function.body, (struct TreePrinter){0});
-                break;
-            case AST_TOPLEVEL_DEFINE_CLASS:
-                printf(
-                    "Define a class \"%s\" with %d members:\n",
-                    t->data.classdef.name, t->data.classdef.members.len);
-                for (AstClassMember *m = t->data.classdef.members.ptr; m < End(t->data.classdef.members); m++){
-                    switch(m->kind) {
-                    case AST_CLASSMEMBER_FIELD:
-                        printf("  field %s: ", m->data.field.name);
-                        print_ast_type(&m->data.field.type);
-                        printf("\n");
-                        break;
-                    case AST_CLASSMEMBER_UNION:
-                        printf("  union:\n");
-                        for (AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++) {
-                            printf("    %s: ", ntv->name);
-                            print_ast_type(&ntv->type);
-                            printf("\n");
-                        }
-                        break;
-                    case AST_CLASSMEMBER_METHOD:
-                        printf("  method ");
-                        print_ast_function_signature(&m->data.method.signature);
-                        print_ast_body(&m->data.method.body, (struct TreePrinter){.prefix="  "});
-                        break;
-                    }
-                }
-                break;
-            case AST_TOPLEVEL_DEFINE_ENUM:
-                printf("Define enum \"%s\" with %d members:\n",
-                    t->data.enumdef.name, t->data.enumdef.nmembers);
-                for (int i = 0; i < t->data.enumdef.nmembers; i++)
-                    printf("  %s\n", t->data.enumdef.membernames[i]);
-                break;
-            case AST_TOPLEVEL_END_OF_FILE:
-                assert(0);
-        }
-        printf("\n");
+    for (const AstImport *imp = ast->imports.ptr; imp < End(ast->imports); imp++) {
+        printf(
+            "line %d: Import \"%s\", which resolves to \"%s\".\n",
+            imp->location.lineno,
+            imp->specified_path,
+            imp->resolved_path
+        );
     }
+
+    print_ast_body(&ast->body, (struct TreePrinter){0});
 }
 
 
