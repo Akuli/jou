@@ -764,40 +764,6 @@ static AstStatement parse_oneline_statement(ParserState *ps)
     return result;
 }
 
-static AstStatement parse_statement(ParserState *ps)
-{
-    AstStatement result = { .location = ps->tokens->location };
-    if (is_keyword(ps->tokens, "if")) {
-        result.kind = AST_STMT_IF;
-        result.data.ifstatement = parse_if_statement(ps);
-    } else if (is_keyword(ps->tokens, "while")) {
-        ps->tokens++;
-        result.kind = AST_STMT_WHILE;
-        result.data.whileloop.condition = parse_expression(ps);
-        result.data.whileloop.body = parse_body(ps);
-    } else if (is_keyword(ps->tokens, "for")) {
-        ps->tokens++;
-        result.kind = AST_STMT_FOR;
-        result.data.forloop.init = malloc(sizeof *result.data.forloop.init);
-        result.data.forloop.incr = malloc(sizeof *result.data.forloop.incr);
-        // TODO: improve error messages
-        *result.data.forloop.init = parse_oneline_statement(ps);
-        if (!is_operator(ps->tokens, ";"))
-            fail_with_parse_error(ps->tokens, "a ';'");
-        ps->tokens++;
-        result.data.forloop.cond = parse_expression(ps);
-        if (!is_operator(ps->tokens, ";"))
-            fail_with_parse_error(ps->tokens, "a ';'");
-        ps->tokens++;
-        *result.data.forloop.incr = parse_oneline_statement(ps);
-        result.data.forloop.body = parse_body(ps);
-    } else {
-        result = parse_oneline_statement(ps);
-        eat_newline(ps);
-    }
-    return result;
-}
-
 static void parse_start_of_body(ParserState *ps)
 {
     if (!is_operator(ps->tokens, ":"))
@@ -811,18 +777,6 @@ static void parse_start_of_body(ParserState *ps)
     if (ps->tokens->type != TOKEN_INDENT)
         fail_with_parse_error(ps->tokens, "more indentation after ':'");
     ps->tokens++;
-}
-
-static AstBody parse_body(ParserState *ps)
-{
-    parse_start_of_body(ps);
-
-    List(AstStatement) result = {0};
-    while (ps->tokens->type != TOKEN_DEDENT)
-        Append(&result, parse_statement(ps));
-    ps->tokens++;
-
-    return (AstBody){ .statements=result.ptr, .nstatements=result.len };
 }
 
 static AstFunction parse_funcdef(ParserState *ps, bool is_method)
@@ -954,8 +908,105 @@ static AstEnumDef parse_enumdef(ParserState *ps)
     return result;
 }
 
-static AstImport parse_import_path(const Token *pathtoken, const char *stdlib_path)
+static AstStatement parse_statement(ParserState *ps)
 {
+    AstStatement result = { .location = ps->tokens->location };
+
+    if (is_keyword(ps->tokens, "import")) {
+        fail_with_error(ps->tokens->location, "imports must be in the beginning of the file");
+    } else if (is_keyword(ps->tokens, "def")) {
+        ps->tokens++;  // skip 'def' keyword
+        result.kind = AST_STMT_FUNCTION;
+        result.data.function.signature = parse_function_signature(ps, false);
+        if (result.data.function.signature.takes_varargs) {
+            // TODO: support "def foo(x: str, ...)" in some way
+            fail_with_error(ps->tokens->location, "functions with variadic arguments cannot be defined yet");
+        }
+        result.data.function.body = parse_body(ps);
+    } else if (is_keyword(ps->tokens, "declare")) {
+        ps->tokens++;
+        if (is_keyword(ps->tokens, "global")) {
+            ps->tokens++;
+            result.kind = AST_STMT_DECLARE_GLOBAL_VAR;
+            result.data.vardecl = parse_name_type_value(ps, "a variable name");
+            if (result.data.vardecl.value) {
+                fail_with_error(
+                    result.data.vardecl.value->location,
+                    "a value cannot be given when declaring a global variable");
+            }
+        } else {
+            result.kind = AST_STMT_FUNCTION;
+            result.data.function.signature = parse_function_signature(ps, false);
+        }
+        eat_newline(ps);
+    } else if (is_keyword(ps->tokens, "global")) {
+        ps->tokens++;
+        result.kind = AST_STMT_DEFINE_GLOBAL_VAR;
+        result.data.vardecl = parse_name_type_value(ps, "a variable name");
+        if (result.data.vardecl.value) {
+            // TODO: make this work
+            fail_with_error(
+                result.data.vardecl.value->location,
+                "specifying a value for a global variable is not supported yet");
+        }
+        eat_newline(ps);
+    } else if (is_keyword(ps->tokens, "class")) {
+        ps->tokens++;
+        result.kind = AST_STMT_DEFINE_CLASS;
+        result.data.classdef = parse_classdef(ps);
+    } else if (is_keyword(ps->tokens, "enum")) {
+        ps->tokens++;
+        result.kind = AST_STMT_DEFINE_ENUM;
+        result.data.enumdef = parse_enumdef(ps);
+    } else if (is_keyword(ps->tokens, "if")) {
+        result.kind = AST_STMT_IF;
+        result.data.ifstatement = parse_if_statement(ps);
+    } else if (is_keyword(ps->tokens, "while")) {
+        ps->tokens++;
+        result.kind = AST_STMT_WHILE;
+        result.data.whileloop.condition = parse_expression(ps);
+        result.data.whileloop.body = parse_body(ps);
+    } else if (is_keyword(ps->tokens, "for")) {
+        ps->tokens++;
+        result.kind = AST_STMT_FOR;
+        result.data.forloop.init = malloc(sizeof *result.data.forloop.init);
+        result.data.forloop.incr = malloc(sizeof *result.data.forloop.incr);
+        // TODO: improve error messages
+        *result.data.forloop.init = parse_oneline_statement(ps);
+        if (!is_operator(ps->tokens, ";"))
+            fail_with_parse_error(ps->tokens, "a ';'");
+        ps->tokens++;
+        result.data.forloop.cond = parse_expression(ps);
+        if (!is_operator(ps->tokens, ";"))
+            fail_with_parse_error(ps->tokens, "a ';'");
+        ps->tokens++;
+        *result.data.forloop.incr = parse_oneline_statement(ps);
+        result.data.forloop.body = parse_body(ps);
+    } else {
+        result = parse_oneline_statement(ps);
+        eat_newline(ps);
+    }
+    return result;
+}
+
+static AstBody parse_body(ParserState *ps)
+{
+    parse_start_of_body(ps);
+
+    List(AstStatement) result = {0};
+    while (ps->tokens->type != TOKEN_DEDENT)
+        Append(&result, parse_statement(ps));
+    ps->tokens++;
+
+    return (AstBody){ .statements=result.ptr, .nstatements=result.len };
+}
+
+static AstImport parse_import(ParserState *ps)
+{
+    const Token *import_keyword = ps->tokens++;
+    assert(is_keyword(import_keyword, "import"));
+
+    const Token *pathtoken = ps->tokens++;
     if (pathtoken->type != TOKEN_STRING)
         fail_with_parse_error(pathtoken, "a string to specify the file name");
 
@@ -963,7 +1014,7 @@ static AstImport parse_import_path(const Token *pathtoken, const char *stdlib_pa
     char *tmp = NULL;
     if (!strncmp(pathtoken->data.string_value, "stdlib/", 7)) {
         // Starts with stdlib --> import from where stdlib actually is
-        part1 = stdlib_path;
+        part1 = ps->stdlib_path;
         part2 = pathtoken->data.string_value + 7;
     } else if (pathtoken->data.string_value[0] == '.') {
         // Relative to directory where the file is
@@ -983,89 +1034,27 @@ static AstImport parse_import_path(const Token *pathtoken, const char *stdlib_pa
 
     simplify_path(path);
     return (struct AstImport){
+        .location = import_keyword->location,
         .specified_path = strdup(pathtoken->data.string_value),
         .resolved_path = path,
     };
 }
 
-typedef List(AstToplevelNode) ToplevelNodeList;
-
-static AstToplevelNode parse_toplevel_node(ParserState *ps)
+AstFile parse(const Token *tokens, const char *stdlib_path)
 {
-    AstToplevelNode result = { .location = ps->tokens->location };
-
-    if (ps->tokens->type == TOKEN_END_OF_FILE) {
-        result.kind = AST_TOPLEVEL_END_OF_FILE;
-    } else if (is_keyword(ps->tokens, "import")) {
-        ps->tokens++;  // skip 'import' keyword
-        result.kind = AST_TOPLEVEL_IMPORT;
-        result.data.import = parse_import_path(ps->tokens, ps->stdlib_path);
-        ps->tokens++;
-        eat_newline(ps);
-    } else if (is_keyword(ps->tokens, "def")) {
-        ps->tokens++;  // skip 'def' keyword
-        result.kind = AST_TOPLEVEL_FUNCTION;
-        result.data.function.signature = parse_function_signature(ps, false);
-        if (result.data.function.signature.takes_varargs) {
-            // TODO: support "def foo(x: str, ...)" in some way
-            fail_with_error(ps->tokens->location, "functions with variadic arguments cannot be defined yet");
-        }
-        result.data.function.body = parse_body(ps);
-    } else if (is_keyword(ps->tokens, "declare")) {
-        ps->tokens++;
-        if (is_keyword(ps->tokens, "global")) {
-            ps->tokens++;
-            result.kind = AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE;
-            result.data.globalvar = parse_name_type_value(ps, "a variable name");
-            if (result.data.globalvar.value) {
-                fail_with_error(
-                    result.data.globalvar.value->location,
-                    "a value cannot be given when declaring a global variable");
-            }
-        } else {
-            result.kind = AST_TOPLEVEL_FUNCTION;
-            result.data.function.signature = parse_function_signature(ps, false);
-        }
-        eat_newline(ps);
-    } else if (is_keyword(ps->tokens, "global")) {
-        ps->tokens++;
-        result.kind = AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE;
-        result.data.globalvar = parse_name_type_value(ps, "a variable name");
-        if (result.data.globalvar.value) {
-            // TODO: make this work
-            fail_with_error(
-                result.data.globalvar.value->location,
-                "specifying a value for a global variable is not supported yet");
-        }
-        eat_newline(ps);
-    } else if (is_keyword(ps->tokens, "class")) {
-        ps->tokens++;
-        result.kind = AST_TOPLEVEL_DEFINE_CLASS;
-        result.data.classdef = parse_classdef(ps);
-    } else if (is_keyword(ps->tokens, "enum")) {
-        ps->tokens++;
-        result.kind = AST_TOPLEVEL_DEFINE_ENUM;
-        result.data.enumdef = parse_enumdef(ps);
-    } else {
-        fail_with_parse_error(ps->tokens, "a definition or declaration");
-    }
-
-    return result;
-}
-
-AstToplevelNode *parse(const Token *tokens, const char *stdlib_path)
-{
+    AstFile result = { .path = tokens[0].location.filename };
     ParserState ps = { .tokens = tokens, .stdlib_path = stdlib_path };
 
-    ToplevelNodeList result = {0};
-    do {
-        Append(&result, parse_toplevel_node(&ps));
-    } while (result.ptr[result.len - 1].kind != AST_TOPLEVEL_END_OF_FILE);
+    while (is_keyword(&ps.tokens[0], "import")) {
+        Append(&result.imports, parse_import(&ps));
+        eat_newline(&ps);
+    }
 
-    // This simplifies the compiler: it's easy to loop through all imports of the file.
-    for (const AstToplevelNode *p = &result.ptr[1]; p < End(result); p++)
-        if (p[-1].kind != AST_TOPLEVEL_IMPORT && p->kind == AST_TOPLEVEL_IMPORT)
-            fail_with_error(p->location, "imports must be in the beginning of the file");
+    List(AstStatement) body = {0};
+    while (ps.tokens->type != TOKEN_END_OF_FILE)
+        Append(&body, parse_statement(&ps));
+    result.body.statements = body.ptr;
+    result.body.nstatements = body.len;
 
-    return result.ptr;
+    return result;
 }

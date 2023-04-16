@@ -166,6 +166,8 @@ static void free_statement(const AstStatement *stmt)
         }
         break;
     case AST_STMT_DECLARE_LOCAL_VAR:
+    case AST_STMT_DECLARE_GLOBAL_VAR:
+    case AST_STMT_DEFINE_GLOBAL_VAR:
         free_name_type_value(&stmt->data.vardecl);
         break;
     case AST_STMT_ASSIGN:
@@ -181,6 +183,32 @@ static void free_statement(const AstStatement *stmt)
     case AST_STMT_CONTINUE:
     case AST_STMT_PASS:
         break;
+    case AST_STMT_FUNCTION:
+        free_ast_signature(&stmt->data.function.signature);
+        free_ast_body(&stmt->data.function.body);
+        break;
+    case AST_STMT_DEFINE_CLASS:
+        for (const AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++) {
+            switch(m->kind) {
+            case AST_CLASSMEMBER_FIELD:
+                free_name_type_value(&m->data.field);
+                break;
+            case AST_CLASSMEMBER_UNION:
+                for (AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++)
+                    free_name_type_value(ntv);
+                free(m->data.unionfields.ptr);
+                break;
+            case AST_CLASSMEMBER_METHOD:
+                free_ast_signature(&m->data.method.signature);
+                free_ast_body(&m->data.method.body);
+                break;
+            }
+        }
+        free(stmt->data.classdef.members.ptr);
+        break;
+    case AST_STMT_DEFINE_ENUM:
+        free(stmt->data.enumdef.membernames);
+        break;
     }
 }
 
@@ -191,49 +219,14 @@ static void free_ast_body(const AstBody *body)
     free(body->statements);
 }
 
-void free_ast(AstToplevelNode *topnodelist)
+void free_ast(const AstFile *ast)
 {
-    for (AstToplevelNode *t = topnodelist; t->kind != AST_TOPLEVEL_END_OF_FILE; t++) {
-        switch(t->kind) {
-        case AST_TOPLEVEL_FUNCTION:
-            free_ast_signature(&t->data.function.signature);
-            free_ast_body(&t->data.function.body);
-            break;
-        case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-        case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-            free_name_type_value(&t->data.globalvar);
-            break;
-        case AST_TOPLEVEL_DEFINE_CLASS:
-            for (const AstClassMember *m = t->data.classdef.members.ptr; m < End(t->data.classdef.members); m++) {
-                switch(m->kind) {
-                case AST_CLASSMEMBER_FIELD:
-                    free_name_type_value(&m->data.field);
-                    break;
-                case AST_CLASSMEMBER_UNION:
-                    for (AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++)
-                        free_name_type_value(ntv);
-                    free(m->data.unionfields.ptr);
-                    break;
-                case AST_CLASSMEMBER_METHOD:
-                    free_ast_signature(&m->data.method.signature);
-                    free_ast_body(&m->data.method.body);
-                    break;
-                }
-            }
-            free(t->data.classdef.members.ptr);
-            break;
-        case AST_TOPLEVEL_DEFINE_ENUM:
-            free(t->data.enumdef.membernames);
-            break;
-        case AST_TOPLEVEL_IMPORT:
-            free(t->data.import.specified_path);
-            free(t->data.import.resolved_path);
-            break;
-        case AST_TOPLEVEL_END_OF_FILE:
-            assert(0);
-        }
+    for (const AstImport *imp = ast->imports.ptr; imp < End(ast->imports); imp++) {
+        free(imp->specified_path);
+        free(imp->resolved_path);
     }
-    free(topnodelist);
+    free(ast->imports.ptr);
+    free_ast_body(&ast->body);
 }
 
 

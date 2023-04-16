@@ -85,26 +85,28 @@ static const char *short_type_description(const Type *t)
         case TYPE_ARRAY:
             return "an array type";
         case TYPE_BOOL:
+            // TODO: Is it possible to get this in an error message?
             return "the built-in bool type";
     }
 }
 
-ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstToplevelNode *ast)
+ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstFile *ast)
 {
     List(ExportSymbol) exports = {0};
 
-    for (; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
+    for (int i = 0; i < ast->body.nstatements; i++) {
+        const AstStatement *stmt = &ast->body.statements[i];
         Type *t;
         char name[100];
 
-        switch(ast->kind) {
-        case AST_TOPLEVEL_DEFINE_CLASS:
-            safe_strcpy(name, ast->data.classdef.name);
+        switch(stmt->kind) {
+        case AST_STMT_DEFINE_CLASS:
+            safe_strcpy(name, stmt->data.classdef.name);
             t = create_opaque_class(name);
             break;
-        case AST_TOPLEVEL_DEFINE_ENUM:
-            safe_strcpy(name, ast->data.enumdef.name);
-            t = create_enum(name, ast->data.enumdef.nmembers, ast->data.enumdef.membernames);
+        case AST_STMT_DEFINE_ENUM:
+            safe_strcpy(name, stmt->data.enumdef.name);
+            t = create_enum(name, stmt->data.enumdef.nmembers, stmt->data.enumdef.membernames);
             break;
         default:
             continue;
@@ -112,7 +114,7 @@ ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstToplevelNode
 
         const Type *existing = find_type(ft, name);
         if (existing)
-            fail_with_error(ast->location, "%s named '%s' already exists", short_type_description(existing), name);
+            fail_with_error(stmt->location, "%s named '%s' already exists", short_type_description(existing), name);
 
         Append(&ft->types, (struct TypeAndUsedPtr){ .type=t, .usedptr=NULL });
         Append(&ft->owned_types, t);
@@ -302,34 +304,34 @@ static void handle_class_members_stage2(FileTypes *ft, const AstClassDef *classd
     }
 }
 
-ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstToplevelNode *ast)
+ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstFile *ast)
 {
     List(ExportSymbol) exports = {0};
 
-    for (; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
-        switch(ast->kind) {
-        case AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE:
-            Append(&exports, handle_global_var(ft, &ast->data.globalvar, false));
+    for (int i = 0; i < ast->body.nstatements; i++) {
+        const AstStatement *stmt = &ast->body.statements[i];
+        switch(stmt->kind) {
+        case AST_STMT_DECLARE_GLOBAL_VAR:
+            Append(&exports, handle_global_var(ft, &stmt->data.vardecl, false));
             break;
-        case AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE:
-            Append(&exports, handle_global_var(ft, &ast->data.globalvar, true));
+        case AST_STMT_DEFINE_GLOBAL_VAR:
+            Append(&exports, handle_global_var(ft, &stmt->data.vardecl, true));
             break;
-        case AST_TOPLEVEL_FUNCTION:
+        case AST_STMT_FUNCTION:
             {
-                Signature sig = handle_signature(ft, &ast->data.function.signature, NULL);
+                Signature sig = handle_signature(ft, &stmt->data.function.signature, NULL);
                 ExportSymbol es = { .kind = EXPSYM_FUNCTION, .data.funcsignature = sig };
                 safe_strcpy(es.name, sig.name);
                 Append(&exports, es);
             }
             break;
-        case AST_TOPLEVEL_DEFINE_CLASS:
-            handle_class_members_stage2(ft, &ast->data.classdef);
+        case AST_STMT_DEFINE_CLASS:
+            handle_class_members_stage2(ft, &stmt->data.classdef);
             break;
-        case AST_TOPLEVEL_DEFINE_ENUM:
-        case AST_TOPLEVEL_IMPORT:
+        case AST_STMT_DEFINE_ENUM:
             // Everything done in previous type-checking steps.
             break;
-        case AST_TOPLEVEL_END_OF_FILE:
+        default:
             assert(0);
         }
     }
@@ -1277,6 +1279,13 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
 
     case AST_STMT_PASS:
         break;
+
+    case AST_STMT_DECLARE_GLOBAL_VAR:
+    case AST_STMT_DEFINE_CLASS:
+    case AST_STMT_DEFINE_ENUM:
+    case AST_STMT_DEFINE_GLOBAL_VAR:
+    case AST_STMT_FUNCTION:
+        assert(0);
     }
 }
 
@@ -1298,32 +1307,33 @@ static void typecheck_function_or_method_body(FileTypes *ft, const Signature *si
     ft->current_fom_types = NULL;
 }
 
-void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstToplevelNode *ast)
+void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstFile *ast)
 {
-    for (; ast->kind != AST_TOPLEVEL_END_OF_FILE; ast++) {
-        if (ast->kind == AST_TOPLEVEL_FUNCTION && ast->data.function.body.nstatements > 0) {
+    for (int i = 0; i < ast->body.nstatements; i++) {
+        const AstStatement *stmt = &ast->body.statements[i];
+        if (stmt->kind == AST_STMT_FUNCTION && stmt->data.function.body.nstatements > 0) {
             const Signature *sig = NULL;
             for (struct SignatureAndUsedPtr *f = ft->functions.ptr; f < End(ft->functions); f++) {
-                if (!strcmp(f->signature.name, ast->data.function.signature.name)) {
+                if (!strcmp(f->signature.name, stmt->data.function.signature.name)) {
                     sig = &f->signature;
                     break;
                 }
             }
             assert(sig);
-            typecheck_function_or_method_body(ft, sig, &ast->data.function.body);
+            typecheck_function_or_method_body(ft, sig, &stmt->data.function.body);
         }
 
-        if (ast->kind == AST_TOPLEVEL_DEFINE_CLASS) {
+        if (stmt->kind == AST_STMT_DEFINE_CLASS) {
             Type *classtype = NULL;
             for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++) {
-                if (!strcmp((*t)->name, ast->data.classdef.name)) {
+                if (!strcmp((*t)->name, stmt->data.classdef.name)) {
                     classtype = *t;
                     break;
                 }
             }
             assert(classtype);
 
-            for (AstClassMember *m = ast->data.classdef.members.ptr; m < End(ast->data.classdef.members); m++) {
+            for (AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++) {
                 if (m->kind != AST_CLASSMEMBER_METHOD)
                     continue;
                 const AstFunction *method = &m->data.method;
