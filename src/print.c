@@ -429,10 +429,12 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             }
             break;
         case AST_STMT_DEFINE_ENUM:
-            printf("Define enum \"%s\" with %d members:\n",
+            printf("Define enum \"%s\" with %d members\n",
                 stmt->data.enumdef.name, stmt->data.enumdef.nmembers);
-            for (int i = 0; i < stmt->data.enumdef.nmembers; i++)
-                printf("  %s\n", stmt->data.enumdef.membernames[i]);
+            for (int i = 0; i < stmt->data.enumdef.nmembers; i++) {
+                print_tree_prefix(tp, i==stmt->data.enumdef.nmembers-1);
+                puts(stmt->data.enumdef.membernames[i]);
+            }
             break;
 #define PrintAssignment \
     print_ast_expression(&stmt->data.assignment.target, print_tree_prefix(tp, false)); \
@@ -466,7 +468,8 @@ void print_ast(const AstFile *ast)
         );
     }
 
-    print_ast_body(&ast->body, (struct TreePrinter){0});
+    for (int i = 0; i < ast->body.nstatements; i++)
+        print_ast_statement(&ast->body.statements[i], (struct TreePrinter){0});
 }
 
 

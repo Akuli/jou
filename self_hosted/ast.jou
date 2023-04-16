@@ -482,39 +482,28 @@ class AstStatement:
         elif self->kind == AstStatementKind::InPlaceModulo:
             printf("in-place mod\n")
             self->assignment.print(tp)
+        elif self->kind == AstStatementKind::Function:
+            if self->function.body.nstatements == 0:
+                printf("declare a function: ")
+            else:
+                printf("define a function: ")
+            self->function.print(tp)
+        elif self->kind == AstStatementKind::Class:
+            printf("define a ")
+            self->classdef.print(tp)
+        elif self->kind == AstStatementKind::Enum:
+            printf("Define ")
+            self->enumdef.print(tp)
+        elif self->kind == AstStatementKind::GlobalVariableDeclaration:
+            printf("declare global var ")
+            self->var_declaration.print(NULL)
+            printf("\n")
+        elif self->kind == AstStatementKind::GlobalVariableDefinition:
+            printf("define global var ")
+            self->var_declaration.print(NULL)
+            printf("\n")
         else:
             printf("??????\n")
-
-#        printf("line %d: ", self->location.lineno)
-#        if self->kind == AstToplevelStatementKind::Import:
-#            printf(
-#                "Import \"%s\", which resolves to \"%s\".\n",
-#                self->the_import.specified_path,
-#                self->the_import.resolved_path,
-#            )
-#        elif self->kind == AstToplevelStatementKind::Function:
-#            if self->function.body.nstatements == 0:
-#                printf("Declare a function: ")
-#            else:
-#                printf("Define a function: ")
-#            self->function.print()
-#        elif self->kind == AstToplevelStatementKind::Class:
-#            printf("Define a ")
-#            self->classdef.print()
-#        elif self->kind == AstToplevelStatementKind::Enum:
-#            printf("Define ")
-#            self->enumdef.print()
-#        elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
-#            printf("Declare a global variable ")
-#            self->global_var.print(NULL)
-#            printf("\n")
-#        elif self->kind == AstToplevelStatementKind::GlobalVariableDefinition:
-#            printf("Define a global variable ")
-#            self->global_var.print(NULL)
-#            printf("\n")
-#        else:
-#            printf("????????\n")
-#        printf("\n")
 
     def free(self) -> void:
         if self->kind == AstStatementKind::Enum:
@@ -683,6 +672,11 @@ class AstImport:
     specified_path: byte*  # Path in jou code e.g. "stdlib/io.jou"
     resolved_path: byte*  # Absolute path or relative to current working directory e.g. "/home/akuli/jou/stdlib/io.jou"
 
+    def print(self) -> void:
+        printf(
+            "line %d: Import \"%s\", which resolves to \"%s\".\n",
+            self->location.lineno, self->specified_path, self->resolved_path)
+
     def free(self) -> void:
         free(self->specified_path)
         free(self->resolved_path)
@@ -695,7 +689,10 @@ class AstFile:
 
     def print(self) -> void:
         printf("===== AST for file \"%s\" =====\n", self->path)
-        self->body.print(TreePrinter{})
+        for i = 0; i < self->nimports; i++:
+            self->imports[i].print()
+        for i = 0; i < self->body.nstatements; i++:
+            self->body.statements[i].print(TreePrinter{})
 
     def free(self) -> void:
         for i = 0; i < self->nimports; i++:
@@ -707,9 +704,9 @@ class AstFunctionOrMethod:
     signature: AstSignature
     body: AstBody  # empty body means declaration, otherwise it's a definition
 
-    def print(self) -> void:
+    def print(self, tp: TreePrinter) -> void:
         self->signature.print()
-        self->body.print(TreePrinter{})
+        self->body.print(tp)
 
     def free(self) -> void:
         self->signature.free()
@@ -719,11 +716,10 @@ class AstUnionFields:
     fields: AstNameTypeValue*
     nfields: int
 
-    def print(self) -> void:
+    def print(self, tp: TreePrinter) -> void:
         for i = 0; i < self->nfields; i++:
-            printf("    ")
-            self->fields[i].print(NULL)
-            printf("\n")
+            subprinter = tp.print_prefix(i == self->nfields-1)
+            self->fields[i].print(&subprinter)  # TODO: does this need to be optional/pointer?
 
     def free(self) -> void:
         for i = 0; i < self->nfields; i++:
@@ -742,18 +738,18 @@ class AstClassMember:
         union_fields: AstUnionFields
         method: AstFunctionOrMethod
 
-    def print(self) -> void:
+    def print(self, tp: TreePrinter) -> void:
         if self->kind == AstClassMemberKind::Field:
-            printf("  field ")
+            printf("field ")
             self->field.print(NULL)
             printf("\n")
         elif self->kind == AstClassMemberKind::Union:
-            printf("  union:\n")
-            self->union_fields.print()
+            printf("union:\n")
+            self->union_fields.print(tp)
         elif self->kind == AstClassMemberKind::Method:
-            printf("  method ")
+            printf("method ")
             self->method.signature.print()
-            self->method.body.print(TreePrinter{prefix = "  "})
+            self->method.body.print(tp)
         else:
             assert False
 
@@ -773,10 +769,10 @@ class AstClassDef:
     members: AstClassMember*
     nmembers: int
 
-    def print(self) -> void:
-        printf("class \"%s\" with %d members:\n", self->name, self->nmembers)
+    def print(self, tp: TreePrinter) -> void:
+        printf("class \"%s\" with %d members\n", self->name, self->nmembers)
         for i = 0; i < self->nmembers; i++:
-            self->members[i].print()
+            self->members[i].print(tp.print_prefix(i == self->nmembers-1))
 
     def free(self) -> void:
         for i = 0; i < self->nmembers; i++:
@@ -789,10 +785,11 @@ class AstEnumDef:
     member_count: int
     member_names: byte[100]*
 
-    def print(self) -> void:
-        printf("enum \"%s\" with %d members:\n", self->name, self->member_count)
+    def print(self, tp: TreePrinter) -> void:
+        printf("enum \"%s\" with %d members\n", self->name, self->member_count)
         for i = 0; i < self->member_count; i++:
-            printf("  %s\n", self->member_names[i])
+            tp.print_prefix(i == self->member_count-1)
+            puts(self->member_names[i])
 
     def free(self) -> void:
         free(self->member_names)

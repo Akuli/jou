@@ -169,6 +169,8 @@ class Parser:
         if path_token->kind != TokenKind::String:
             path_token->fail_expected_got("a string to specify the file name")
 
+        self->eat_newline()
+
         if starts_with(path_token->long_string, "stdlib/"):
             # Starts with stdlib --> import from where stdlib actually is
             tmp = NULL
@@ -796,6 +798,8 @@ class Parser:
         }
 
     def parse_statement(self) -> AstStatement:
+        if self->tokens->is_keyword("import"):
+            fail(self->tokens->location, "imports must be in the beginning of the file")
         if self->tokens->is_keyword("def"):
             return AstStatement{
                 location = self->tokens->location,
@@ -1023,9 +1027,7 @@ def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
         result.imports[result.nimports++] = parser.parse_import()
 
     while parser.tokens->kind != TokenKind::EndOfFile:
-        printf("Parse Top Statement\n")
         result.body.statements = realloc(result.body.statements, sizeof result.body.statements[0] * (result.body.nstatements + 1))
         result.body.statements[result.body.nstatements++] = parser.parse_statement()
-        result.body.statements[result.body.nstatements-1].print(TreePrinter{})
 
     return result
