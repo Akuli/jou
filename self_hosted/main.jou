@@ -379,6 +379,7 @@ class Compiler:
         sprintf(command, "\"%s\" -o \"%s\"", c_compiler, exe)
         for i = 0; object_files[i] != NULL; i++:
             sprintf(&command[strlen(command)], " \"%s\"", object_files[i])
+        strcat(command, " -lm")
 
         if is_windows():
             # windows strips outermost quotes for some reason, so let's quote it all one more time...
