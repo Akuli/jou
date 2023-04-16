@@ -117,21 +117,19 @@ def get_sane_filename(path: byte*) -> byte[50]:
     return name
 
 def check_ast_and_import_conflicts(ast: AstFile*, symbol: ExportSymbol*) -> void:
-    for i = 0; i < ast->body_len; i++:
-        ts = &ast->body[i]
-        if ts->kind == AstToplevelStatementKind::Function:
+    for i = 0; i < ast->body.nstatements; i++:
+        ts = &ast->body.statements[i]
+        if ts->kind == AstStatementKind::Function:
             conflict = symbol->kind == ExportSymbolKind::Function and strcmp(ts->function.signature.name, symbol->name) == 0
         elif (
-            ts->kind == AstToplevelStatementKind::GlobalVariableDeclaration
-            or ts->kind == AstToplevelStatementKind::GlobalVariableDefinition
+            ts->kind == AstStatementKind::GlobalVariableDeclaration
+            or ts->kind == AstStatementKind::GlobalVariableDefinition
         ):
-            conflict = symbol->kind == ExportSymbolKind::GlobalVariable and strcmp(ts->global_var.name, symbol->name) == 0
-        elif ts->kind == AstToplevelStatementKind::Class:
+            conflict = symbol->kind == ExportSymbolKind::GlobalVariable and strcmp(ts->var_declaration.name, symbol->name) == 0
+        elif ts->kind == AstStatementKind::Class:
             conflict = symbol->kind == ExportSymbolKind::Type and strcmp(ts->classdef.name, symbol->name) == 0
-        elif ts->kind == AstToplevelStatementKind::Enum:
+        elif ts->kind == AstStatementKind::Enum:
             conflict = symbol->kind == ExportSymbolKind::Type and strcmp(ts->enumdef.name, symbol->name) == 0
-        elif ts->kind == AstToplevelStatementKind::Import:
-            conflict = False
         else:
             assert False
 
@@ -212,15 +210,13 @@ class Compiler:
             self->files = realloc(self->files, sizeof self->files[0] * (self->nfiles + 1))
             self->files[self->nfiles++] = FileState{ast = ast}
 
-            imp: AstImport* = NULL
-            imp_location: Location
-            while ast.next_import(&imp, &imp_location):
+            for i = 0; i < ast.nimports; i++:
                 # TODO: offsetof()
                 queue = realloc(queue, sizeof queue[0] * (queue_len + 1))
                 queue[queue_len++] = ParseQueueItem{
-                    path = imp->resolved_path,
+                    path = ast.imports[i].resolved_path,
                     is_imported = True,
-                    import_location = imp_location,
+                    import_location = ast.imports[i].location,
                 }
 
         free(queue)
@@ -231,8 +227,9 @@ class Compiler:
 
         for idest = 0; idest < self->nfiles; idest++:
             dest = &self->files[idest]
-            imp: AstImport* = NULL
-            while dest->ast.next_import(&imp, NULL):
+            for i = 0; i < dest->ast.nimports; i++:
+                imp = &dest->ast.imports[i]
+
                 src: FileState* = NULL
                 for isrc = 0; isrc < self->nfiles; isrc++:
                     if strcmp(self->files[isrc].ast.path, imp->resolved_path) == 0:

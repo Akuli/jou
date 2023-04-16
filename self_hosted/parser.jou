@@ -1,3 +1,4 @@
+import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "./token.jou"
@@ -5,37 +6,6 @@ import "./ast.jou"
 import "./errors_and_warnings.jou"
 import "./paths.jou"
 
-
-def parse_import_path(path_token: Token*, stdlib_path: byte*) -> AstImport:
-    if path_token->kind != TokenKind::String:
-        path_token->fail_expected_got("a string to specify the file name")
-
-    if starts_with(path_token->long_string, "stdlib/"):
-        # Starts with stdlib --> import from where stdlib actually is
-        tmp = NULL
-        part1 = stdlib_path
-        part2 = &path_token->long_string[7]
-    elif starts_with(path_token->long_string, "."):
-        # Relative to directory where the file is
-        tmp = strdup(path_token->location.path)
-        part1 = dirname(tmp)
-        part2 = path_token->long_string
-    else:
-        fail(
-            path_token->location,
-            "import path must start with 'stdlib/' (standard-library import) or a dot (relative import)"
-        )
-
-    # 1 for slash, 1 for \0, 1 for fun
-    path = malloc(strlen(part1) + strlen(part2) + 3)
-    sprintf(path, "%s/%s", part1, part2)
-    free(tmp)
-
-    simplify_path(path)
-    return AstImport{
-        specified_path = strdup(path_token->long_string),
-        resolved_path = path,
-    }
 
 # arity = number of operands, e.g. 2 for a binary operator such as "+"
 #
@@ -185,6 +155,47 @@ class Parser:
     tokens: Token*
     stdlib_path: byte*
     is_parsing_method_body: bool
+
+    def eat_newline(self) -> void:
+        if self->tokens->kind != TokenKind::Newline:
+            self->tokens->fail_expected_got("end of line")
+        self->tokens++
+
+    def parse_import(self) -> AstImport:
+        assert self->tokens->is_keyword("import")
+        import_keyword = self->tokens++
+
+        path_token = self->tokens++
+        if path_token->kind != TokenKind::String:
+            path_token->fail_expected_got("a string to specify the file name")
+
+        if starts_with(path_token->long_string, "stdlib/"):
+            # Starts with stdlib --> import from where stdlib actually is
+            tmp = NULL
+            part1 = self->stdlib_path
+            part2 = &path_token->long_string[7]
+        elif starts_with(path_token->long_string, "."):
+            # Relative to directory where the file is
+            tmp = strdup(path_token->location.path)
+            part1 = dirname(tmp)
+            part2 = path_token->long_string
+        else:
+            fail(
+                path_token->location,
+                "import path must start with 'stdlib/' (standard-library import) or a dot (relative import)"
+            )
+
+        # 1 for slash, 1 for \0, 1 for fun
+        path = malloc(strlen(part1) + strlen(part2) + 3)
+        sprintf(path, "%s/%s", part1, part2)
+        free(tmp)
+
+        simplify_path(path)
+        return AstImport{
+            location = import_keyword->location,
+            specified_path = strdup(path_token->long_string),
+            resolved_path = path,
+        }
 
     def parse_type(self) -> AstType:
         if not (
@@ -784,30 +795,86 @@ class Parser:
             body = self->parse_body(),
         }
 
-    def eat_newline(self) -> void:
-        if self->tokens->kind != TokenKind::Newline:
-            self->tokens->fail_expected_got("end of line")
-        self->tokens++
-
     def parse_statement(self) -> AstStatement:
+        if self->tokens->is_keyword("def"):
+            return AstStatement{
+                location = self->tokens->location,
+                kind = AstStatementKind::Function,
+                function = self->parse_function_or_method(False),
+            }
+
+        if self->tokens->is_keyword("declare"):
+            location = (self->tokens++)->location
+            if self->tokens->is_keyword("global"):
+                self->tokens++
+                result = AstStatement{
+                    location = location,
+                    kind = AstStatementKind::GlobalVariableDeclaration,
+                    var_declaration = self->parse_name_type_value("a variable name"),
+                }
+                if result.var_declaration.value != NULL:
+                    fail(
+                        result.var_declaration.value->location,
+                        "a value cannot be given when declaring a global variable",
+                    )
+            else:
+                result = AstStatement{
+                    location = location,
+                    kind = AstStatementKind::Function,
+                    function = AstFunctionOrMethod{signature = self->parse_function_or_method_signature(False)},
+                }
+            self->eat_newline()
+            return result
+
+        if self->tokens->is_keyword("global"):
+            result = AstStatement{
+                location = (self->tokens++)->location,
+                kind = AstStatementKind::GlobalVariableDefinition,
+                var_declaration = self->parse_name_type_value("a variable name"),
+            }
+            if result.var_declaration.value != NULL:
+                fail(
+                    result.var_declaration.value->location,
+                    "specifying a value for a global variable is not supported yet",
+                )
+            self->eat_newline()
+            return result
+
+        if self->tokens->is_keyword("class"):
+            return AstStatement{
+                location = self->tokens->location,
+                kind = AstStatementKind::Class,
+                classdef = self->parse_class(),
+            }
+
+        if self->tokens->is_keyword("enum"):
+            return AstStatement{
+                location = self->tokens->location,
+                kind = AstStatementKind::Enum,
+                enumdef = self->parse_enum(),
+            }
+
         if self->tokens->is_keyword("if"):
             return AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind::If,
                 if_statement = self->parse_if_statement(),
             }
+
         if self->tokens->is_keyword("for"):
             return AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind::ForLoop,
                 for_loop = self->parse_for_loop(),
             }
+
         if self->tokens->is_keyword("while"):
             return AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind::WhileLoop,
                 while_loop = self->parse_while_loop(),
             }
+
         result = self->parse_oneline_statement()
         self->eat_newline()
         return result
@@ -947,70 +1014,18 @@ class Parser:
         self->tokens++
         return result
 
-    def parse_toplevel_node(self) -> AstToplevelStatement:
-        ts = AstToplevelStatement{location = self->tokens->location}
-
-        if self->tokens->is_keyword("import"):
-            self->tokens++
-            ts.the_import = parse_import_path(self->tokens, self->stdlib_path)
-            self->tokens++
-            self->eat_newline()
-
-        elif self->tokens->is_keyword("def"):
-            ts.kind = AstToplevelStatementKind::Function
-            ts.function = self->parse_function_or_method(False)
-
-        elif self->tokens->is_keyword("declare"):
-            self->tokens++
-            if self->tokens->is_keyword("global"):
-                self->tokens++
-                ts.kind = AstToplevelStatementKind::GlobalVariableDeclaration
-                ts.global_var = self->parse_name_type_value("a variable name")
-                if ts.global_var.value != NULL:
-                    fail(
-                        ts.global_var.value->location,
-                        "a value cannot be given when declaring a global variable",
-                    )
-            else:
-                ts.kind = AstToplevelStatementKind::Function
-                ts.function.signature = self->parse_function_or_method_signature(False)
-            self->eat_newline()
-
-        elif self->tokens->is_keyword("global"):
-            self->tokens++
-            ts.kind = AstToplevelStatementKind::GlobalVariableDefinition
-            ts.global_var = self->parse_name_type_value("a variable name")
-            if ts.global_var.value != NULL:
-                fail(
-                    ts.global_var.value->location,
-                    "specifying a value for a global variable is not supported yet",
-                )
-            self->eat_newline()
-
-        elif self->tokens->is_keyword("class"):
-            ts.kind = AstToplevelStatementKind::Class
-            ts.classdef = self->parse_class()
-
-        elif self->tokens->is_keyword("enum"):
-            ts.kind = AstToplevelStatementKind::Enum
-            ts.enumdef = self->parse_enum()
-
-        else:
-            self->tokens->fail_expected_got("a definition or declaration")
-
-        return ts
-
 def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
     parser = Parser{tokens = tokens, stdlib_path = stdlib_path}
-
     result = AstFile{path = tokens[0].location.path}
-    while parser.tokens->kind != TokenKind::EndOfFile:
-        result.body = realloc(result.body, sizeof result.body[0] * (result.body_len + 1))
-        result.body[result.body_len++] = parser.parse_toplevel_node()
 
-    # This simplifies the compiler: it's easy to loop through all imports of the file.
-    for p = &result.body[1]; p < &result.body[result.body_len]; p++:
-        if p[-1].kind != AstToplevelStatementKind::Import and p->kind == AstToplevelStatementKind::Import:
-            fail(p->location, "imports must be in the beginning of the file")
+    while parser.tokens->is_keyword("import"):
+        result.imports = realloc(result.imports, sizeof result.imports[0] * (result.nimports+1))
+        result.imports[result.nimports++] = parser.parse_import()
+
+    while parser.tokens->kind != TokenKind::EndOfFile:
+        printf("Parse Top Statement\n")
+        result.body.statements = realloc(result.body.statements, sizeof result.body.statements[0] * (result.body.nstatements + 1))
+        result.body.statements[result.body.nstatements++] = parser.parse_statement()
+        result.body.statements[result.body.nstatements-1].print(TreePrinter{})
 
     return result

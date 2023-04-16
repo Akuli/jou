@@ -412,6 +412,11 @@ enum AstStatementKind:
     InPlaceMultiply # x *= y
     InPlaceDivide   # x /= y
     InPlaceModulo   # x %= y
+    Function
+    Class
+    Enum
+    GlobalVariableDeclaration
+    GlobalVariableDefinition
 
 class AstStatement:
     location: Location
@@ -425,6 +430,9 @@ class AstStatement:
         return_value: AstExpression*     # can be NULL
         assignment: AstAssignment
         var_declaration: AstNameTypeValue  # DeclareLocalVar
+        function: AstFunctionOrMethod
+        classdef: AstClassDef
+        enumdef: AstEnumDef
 
     def print(self, tp: TreePrinter) -> void:
         printf("[line %d] ", self->location.lineno)
@@ -477,7 +485,40 @@ class AstStatement:
         else:
             printf("??????\n")
 
+#        printf("line %d: ", self->location.lineno)
+#        if self->kind == AstToplevelStatementKind::Import:
+#            printf(
+#                "Import \"%s\", which resolves to \"%s\".\n",
+#                self->the_import.specified_path,
+#                self->the_import.resolved_path,
+#            )
+#        elif self->kind == AstToplevelStatementKind::Function:
+#            if self->function.body.nstatements == 0:
+#                printf("Declare a function: ")
+#            else:
+#                printf("Define a function: ")
+#            self->function.print()
+#        elif self->kind == AstToplevelStatementKind::Class:
+#            printf("Define a ")
+#            self->classdef.print()
+#        elif self->kind == AstToplevelStatementKind::Enum:
+#            printf("Define ")
+#            self->enumdef.print()
+#        elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
+#            printf("Declare a global variable ")
+#            self->global_var.print(NULL)
+#            printf("\n")
+#        elif self->kind == AstToplevelStatementKind::GlobalVariableDefinition:
+#            printf("Define a global variable ")
+#            self->global_var.print(NULL)
+#            printf("\n")
+#        else:
+#            printf("????????\n")
+#        printf("\n")
+
     def free(self) -> void:
+        if self->kind == AstStatementKind::Enum:
+            self->enumdef.free()
         if self->kind == AstStatementKind::ExpressionStatement:
             self->expression.free()
         if self->kind == AstStatementKind::Return and self->return_value != NULL:
@@ -638,6 +679,7 @@ class AstSignature:
         self->return_type.free()
 
 class AstImport:
+    location: Location
     specified_path: byte*  # Path in jou code e.g. "stdlib/io.jou"
     resolved_path: byte*  # Absolute path or relative to current working directory e.g. "/home/akuli/jou/stdlib/io.jou"
 
@@ -645,101 +687,21 @@ class AstImport:
         free(self->specified_path)
         free(self->resolved_path)
 
-enum AstToplevelStatementKind:
-    Import
-    Function
-    Class
-    Enum
-    GlobalVariableDeclaration
-    GlobalVariableDefinition
-
-class AstToplevelStatement:
-    union:
-        the_import: AstImport   # must be placed in the beginning of the class
-        function: AstFunctionOrMethod
-        classdef: AstClassDef
-        enumdef: AstEnumDef
-        global_var: AstNameTypeValue
-
-    kind: AstToplevelStatementKind
-    location: Location
-
-    def print(self) -> void:
-        printf("line %d: ", self->location.lineno)
-        if self->kind == AstToplevelStatementKind::Import:
-            printf(
-                "Import \"%s\", which resolves to \"%s\".\n",
-                self->the_import.specified_path,
-                self->the_import.resolved_path,
-            )
-        elif self->kind == AstToplevelStatementKind::Function:
-            if self->function.body.nstatements == 0:
-                printf("Declare a function: ")
-            else:
-                printf("Define a function: ")
-            self->function.print()
-        elif self->kind == AstToplevelStatementKind::Class:
-            printf("Define a ")
-            self->classdef.print()
-        elif self->kind == AstToplevelStatementKind::Enum:
-            printf("Define ")
-            self->enumdef.print()
-        elif self->kind == AstToplevelStatementKind::GlobalVariableDeclaration:
-            printf("Declare a global variable ")
-            self->global_var.print(NULL)
-            printf("\n")
-        elif self->kind == AstToplevelStatementKind::GlobalVariableDefinition:
-            printf("Define a global variable ")
-            self->global_var.print(NULL)
-            printf("\n")
-        else:
-            printf("????????\n")
-        printf("\n")
-
-    def free(self) -> void:
-        if self->kind == AstToplevelStatementKind::Import:
-            self->the_import.free()
-        if self->kind == AstToplevelStatementKind::Enum:
-            self->enumdef.free()
-
 class AstFile:
     path: byte*  # not owned
-    body: AstToplevelStatement*
-    body_len: int
-
-    # Iterating over imports:
-    #   imp: AstImport* = NULL
-    #   while file->next_import(&imp, NULL):
-    #       ...
-    #
-    # If imp_location is given, it is used to store the location of each import statement.
-    def next_import(self, imp: AstImport**, imp_location: Location*) -> bool:
-        # Get the corresponding AstToplevelStatement.
-        ts = *imp as AstToplevelStatement*
-        assert &ts->the_import as void* == ts  # TODO: offsetof() or similar
-
-        # Assume all imports are in the beginning of the file.
-        if ts == NULL:
-            ts = self->body
-        else:
-            ts++
-
-        if ts == &self->body[self->body_len] or ts->kind != AstToplevelStatementKind::Import:
-            return False
-        *imp = &ts->the_import
-        if imp_location != NULL:
-            *imp_location = ts->location
-        return True
+    imports: AstImport*
+    nimports: int
+    body: AstBody
 
     def print(self) -> void:
         printf("===== AST for file \"%s\" =====\n", self->path)
-        for i = 0; i < self->body_len; i++:
-            self->body[i].print()
+        self->body.print(TreePrinter{})
 
     def free(self) -> void:
-        for i = 0; i < self->body_len; i++:
-            self->body[i].free()
-        free(self->body)
+        for i = 0; i < self->nimports; i++:
+            self->imports[i].free()
+        free(self->imports)
+        self->body.free()
 
 class AstFunctionOrMethod:
     signature: AstSignature

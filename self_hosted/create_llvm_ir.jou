@@ -802,11 +802,11 @@ def create_llvm_ir(ast: AstFile*, ft: FileTypes*) -> LLVMModule*:
         file_types = ft
     }
 
-    for i = 0; i < ast->body_len; i++:
-        if ast->body[i].kind == AstToplevelStatementKind::Function and ast->body[i].function.body.nstatements > 0:
-            a2i.define_function_or_method(&ast->body[i].function, NULL)
-        elif ast->body[i].kind == AstToplevelStatementKind::Class:
-            classdef = &ast->body[i].classdef
+    for i = 0; i < ast->body.nstatements; i++:
+        if ast->body.statements[i].kind == AstStatementKind::Function and ast->body.statements[i].function.body.nstatements > 0:
+            a2i.define_function_or_method(&ast->body.statements[i].function, NULL)
+        elif ast->body.statements[i].kind == AstStatementKind::Class:
+            classdef = &ast->body.statements[i].classdef
             class_type = ft->find_type(classdef->name)
             assert class_type != NULL
             for k = 0; k < classdef->nmembers; k++:
