@@ -441,6 +441,12 @@ int main(int argc, char **argv)
     parse_file(&compst, command_line_args.infile, NULL);
     parse_all_pending_files(&compst);
 
+    if (command_line_args.verbosity >= 1) {
+        printf("Evaluating compile-time if statements...\n");
+        for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
+            evaluate_compile_time_if_statements(&fs->ast);
+    }
+
     if (command_line_args.verbosity >= 1)
         printf("Type-checking...\n");
 

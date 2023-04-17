@@ -130,8 +130,6 @@ static void free_expression(const AstExpression *expr)
     }
 }
 
-static void free_ast_body(const AstBody *body);
-
 static void free_statement(const AstStatement *stmt)
 {
     switch(stmt->kind) {
@@ -212,7 +210,7 @@ static void free_statement(const AstStatement *stmt)
     }
 }
 
-static void free_ast_body(const AstBody *body)
+void free_ast_body(const AstBody *body)
 {
     for (int i = 0; i < body->nstatements; i++)
         free_statement(&body->statements[i]);
