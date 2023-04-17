@@ -259,7 +259,7 @@ struct AstForLoop {
 };
 struct AstIfStatement {
     AstConditionAndBody *if_and_elifs;
-    int n_if_and_elifs;  // Always >= 1 for the initial "if"
+    int n_if_and_elifs;  // Usually >= 1 for the initial "if", unless compile-time evaluation erases it
     AstBody elsebody;  // Empty (0 statements) means no else
 };
 struct AstNameTypeValue {
@@ -642,6 +642,7 @@ but not any of the data contained within individual nodes.
 */
 void free_constant(const Constant *c);
 void free_tokens(Token *tokenlist);
+void free_ast_expression(const AstExpression *expr);
 void free_ast_body(const AstBody *body);
 void free_ast(const AstFile *ast);
 void free_file_types(const FileTypes *ft);
