@@ -112,11 +112,67 @@ static void handle_toplevel_statement(AstStatement *stmt, StatementList *result)
     }
 }
 
+static void simplify_if_statements_in_body(const AstBody *body);
+
+static void simplify_if_statements_in_statement(AstStatement *stmt)
+{
+    switch(stmt->kind) {
+    case AST_STMT_DEFINE_CLASS:
+        for (AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++)
+            if (m->kind == AST_CLASSMEMBER_METHOD)
+                simplify_if_statements_in_body(&m->data.method.body);
+        break;
+    case AST_STMT_FUNCTION:
+        simplify_if_statements_in_body(&stmt->data.function.body);
+        break;
+    case AST_STMT_FOR:
+        simplify_if_statements_in_body(&stmt->data.forloop.body);
+        break;
+    case AST_STMT_WHILE:
+        simplify_if_statements_in_body(&stmt->data.whileloop.body);
+        break;
+    case AST_STMT_IF:
+        simplify_if_statement(&stmt->data.ifstatement);
+        for (int i = 0; i < stmt->data.ifstatement.n_if_and_elifs; i++)
+            simplify_if_statements_in_body(&stmt->data.ifstatement.if_and_elifs[i].body);
+        simplify_if_statements_in_body(&stmt->data.ifstatement.elsebody);
+        break;
+    case AST_STMT_BREAK:
+    case AST_STMT_ASSERT:
+    case AST_STMT_ASSIGN:
+    case AST_STMT_CONTINUE:
+    case AST_STMT_DECLARE_GLOBAL_VAR:
+    case AST_STMT_DECLARE_LOCAL_VAR:
+    case AST_STMT_DEFINE_ENUM:
+    case AST_STMT_DEFINE_GLOBAL_VAR:
+    case AST_STMT_EXPRESSION_STATEMENT:
+    case AST_STMT_INPLACE_ADD:
+    case AST_STMT_INPLACE_DIV:
+    case AST_STMT_INPLACE_MOD:
+    case AST_STMT_INPLACE_MUL:
+    case AST_STMT_INPLACE_SUB:
+    case AST_STMT_PASS:
+    case AST_STMT_RETURN:
+        // these cannot contain if statements, no need to recurse here
+        break;
+    }
+}
+
+static void simplify_if_statements_in_body(const AstBody *body)
+{
+    for (int i = 0; i < body->nstatements; i++)
+        simplify_if_statements_in_statement(&body->statements[i]);
+}
+
 void evaluate_compile_time_if_statements(AstFile *file)
 {
+    // If statements at top level
     StatementList result = {0};
     for (int i = 0; i < file->body.nstatements; i++)
         handle_toplevel_statement(&file->body.statements[i], &result);
     file->body.statements = result.ptr;
     file->body.nstatements = result.len;
+
+    // If statements inside functions and methods
+    simplify_if_statements_in_body(&file->body);
 }

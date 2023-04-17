@@ -7,11 +7,14 @@ else:
 
 def main() -> int:
     if WINDOWS:
-        CreateDirectoryA("tmp\\tests\\foo")
+        CreateDirectoryA("tmp\\tests\\foo", NULL)
     else:
-        mkdir("tmp\\tests\\foo")
+        # python uses 777 as default perms, see help(os.mkdir)
+        mkdir("tmp/tests/foo", 0o777)
 
     if fopen("tmp/tests/foo/bar", "w") == NULL:
         puts("directory not found?")
     else:
         puts("ok")  # Output: ok
+
+    return 0
