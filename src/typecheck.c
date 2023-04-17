@@ -64,6 +64,9 @@ static const Type *find_any_var(const FileTypes *ft, const char *name)
                 *(*var)->usedptr = true;
             return (*var)->type;
         }
+    // TODO: this is a weird place for these
+    if (!strcmp(name, "WINDOWS") || !strcmp(name, "MACOS"))
+        return boolType;
     return NULL;
 }
 
