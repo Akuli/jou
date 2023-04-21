@@ -32,14 +32,10 @@ bool evaluate_constant(const AstExpression *expr, Constant *dest)
 static int evaluate_condition(const AstExpression *condast)
 {
     Constant cond;
-    if (!evaluate_constant(condast, &cond)) {
+    if (!evaluate_constant(condast, &cond))
         return -1;
-    }
-    if (cond.kind != CONSTANT_BOOL) {
-        // TODO: test this error
-        // TODO: mention the actual type
-        fail(condast->location, "if condition must be a boolean");
-    }
+    if (cond.kind != CONSTANT_BOOL)
+        fail(condast->location, "if condition must be a boolean, not %s", type_of_constant(&cond)->name);
     return (int)cond.data.boolean;
 }
 
@@ -67,7 +63,7 @@ static void simplify_if_statement(AstIfStatement *ifstmt)
             // Condition known to be false. Let's delete the if+then pair.
             free_ast_expression(&pair->condition);
             free_ast_body(&pair->body);
-            memmove(pair+1, pair, (sizeof *pair)*(end-(pair+1)));
+            memmove(pair, pair+1, (sizeof *pair)*(end-(pair+1)));
             ifstmt->n_if_and_elifs--;
             end--;
             break;

@@ -17,8 +17,10 @@ def foo(x: int) -> void:
 def main() -> int:
     if True:
         printf("a\n")  # Output: a
+
+    # No compiler warning for this: you might want to use it to "comment out" code
     if False:
-        printf("b\n")  # Warning: this code will never run
+        printf("b\n")
 
     foo(12)     # Output: <Big>
     foo(15)     # Output: <Big>
