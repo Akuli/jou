@@ -235,9 +235,8 @@ class Compiler:
                     if strcmp(self->files[isrc].ast.path, imp->resolved_path) == 0:
                         src = &self->files[isrc]
                         break
-                if (src->ast.path == dest->ast.path) {
+                if (src->ast.path == dest->ast.path):
                     fail(imp->location, "the file itself cannot be imported")
-                }
 
                 assert src != NULL
 
