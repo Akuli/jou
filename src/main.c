@@ -365,12 +365,13 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
 
 static void add_imported_symbols(struct CompileState *compst)
 {
-    // TODO: should it be possible for a file to import from itself?
-    // Should fail with error?
     for (struct FileState *to = compst->files.ptr; to < End(compst->files); to++) {
         for (AstImport *imp = to->ast.imports.ptr; imp < End(to->ast.imports); imp++) {
             struct FileState *from = find_file(compst, imp->resolved_path);
             assert(from);
+            if (from->path == to->path) {
+                fail_with_error(imp->location, "the file itself cannot be imported");
+            }
 
             for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
                 if (command_line_args.verbosity >= 2) {
