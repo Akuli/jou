@@ -369,7 +369,7 @@ static void add_imported_symbols(struct CompileState *compst)
         for (AstImport *imp = to->ast.imports.ptr; imp < End(to->ast.imports); imp++) {
             struct FileState *from = find_file(compst, imp->resolved_path);
             assert(from);
-            if (from->path == to->path) {
+            if (from == to) {
                 fail_with_error(imp->location, "the file itself cannot be imported");
             }
 
