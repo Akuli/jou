@@ -247,7 +247,7 @@ class Compiler:
                         message: byte[500]
                         snprintf(message, sizeof(message), "file \"%s\" is imported twice", imp->specified_path)
                         fail(imp->location, message)
-                seen_before[k] = src
+                seen_before[i] = src
 
                 for exp = src->pending_exports; exp->name[0] != '\0'; exp++:
                     if self->verbosity >= 1:
