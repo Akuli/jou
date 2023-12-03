@@ -1,0 +1,19 @@
+import "stdlib/str.jou"
+
+# Test if a string is ASCII only.
+# TODO: test
+def is_ascii(s: byte*) -> bool:
+    for p = s; *p != '\0'; p++:
+        if *p >= 128:
+            return False
+    return True
+
+# Check for '0', '1', ..., '9'.
+# TODO: test
+def is_ascii_digit(b: byte) -> bool:
+    return '0' <= b and b <= '9'
+
+# Checks if the given byte is an ASCII punctuation character.
+# TODO: test
+def is_ascii_punctuation(b: byte) -> bool:
+    return strchr("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", b) != NULL
