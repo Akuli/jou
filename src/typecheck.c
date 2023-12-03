@@ -463,10 +463,7 @@ of types. We cannot use printf() style functions because the arguments can be in
 any order.
 */
 static noreturn void fail_with_implicit_cast_error(
-    const Type *from,
-    const Type *to,
-    Location location,
-    const char *template)
+    Location location, const char *template, const Type *from, const Type *to)
 {
     assert(template);
 
@@ -513,7 +510,7 @@ static bool can_cast_implicitly(const Type *from, const Type *to)
 }
 
 static void do_implicit_cast(
-    ExpressionTypes *types, const Type *to, Location location, const char *errmsg_template)
+    ExpressionTypes *types, const Type *to, Location location, const char *errormsg_template)
 {
     assert(!types->implicit_cast_type);
     assert(!types->implicit_array_to_pointer_cast);
@@ -535,9 +532,9 @@ static void do_implicit_cast(
         }
         types->implicit_string_to_array_cast = true;
     }
-    // Passing in NULL for errh can be used to force a cast to happen.
-    else if (errmsg_template != NULL && !can_cast_implicitly(from, to))
-        fail_with_implicit_cast_error(from, to, location, errmsg_template);
+    // Passing in NULL for errormsg_template can be used to "force" a cast to happen.
+    else if (errormsg_template != NULL && !can_cast_implicitly(from, to))
+        fail_with_implicit_cast_error(location, errormsg_template, from, to);
 
     types->implicit_cast_type = to;
     types->implicit_array_to_pointer_cast = (from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER);
