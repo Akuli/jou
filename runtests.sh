@@ -45,7 +45,7 @@ else
 fi
 
 if [ $valgrind = yes ]; then
-    command_template="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup $command_template"
+    command_template="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions='$(pwd)/valgrind-suppressions.sup' $command_template"
 fi
 
 if [ $run_make = yes ]; then
