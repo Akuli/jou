@@ -1028,6 +1028,14 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
     case AST_EXPR_CALL_METHOD:
         temptype = typecheck_expression_not_void(ft, expr->data.methodcall.obj)->type;
         result = typecheck_function_or_method_call(ft, &expr->data.methodcall.call, temptype, expr->location);
+
+        char tmp[500];
+        snprintf(
+            tmp, sizeof tmp,
+            "cannot take address of %%s, needed for calling the %s() method",
+            expr->data.methodcall.call.calledname);
+        ensure_can_take_address(expr->data.methodcall.obj, tmp);
+
         if (!result)
             return NULL;
         break;
