@@ -186,13 +186,16 @@ function run_test()
         command="jou"
     fi
 
+    # jou flags start with space when non-empty
+    command="$command$jou_flags"
+
     if [[ "$joufile" =~ ^examples/aoc ]]; then
         # AoC files use fopen("sampleinput.txt", "r").
         # We don't do this for all files, because I like relative paths in error messages.
         # jou_flags starts with a space whenever it isn't empty.
-        command="cd $(dirname $joufile) && $command$jou_flags $(basename $joufile)"
+        command="cd $(dirname $joufile) && $command $(basename $joufile)"
     else
-        command="$command$jou_flags $joufile"
+        command="$command $joufile"
     fi
 
     show_run "$command"
