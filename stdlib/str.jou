@@ -36,7 +36,7 @@ def ends_with(s: byte*, suffix: byte*) -> bool:
     return offset >= 0 and strcmp(&s[offset], suffix) == 0
 
 # Return how many bytes at start of s appear in the accept string.
-# For example, you can use strspn(s, " ") to get the amount of indentation.
+# For example, you can use strspn(s, " \t") to get the amount of indentation.
 declare strspn(s: byte*, accept: byte*) -> long
 
 # Return how many bytes at start of s do not appear in the reject string.
