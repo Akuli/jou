@@ -4,14 +4,14 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 
-def read_input() -> byte*:
+def read_file(filename: byte*) -> byte*:
     huge = 1000*1000
 
     result: byte* = malloc(huge)
     assert result != NULL
     memset(result, 0, huge)
 
-    f = fopen("input.txt", "r")
+    f = fopen(filename, "r")
     assert f != NULL
     fread(result, 1, huge, f)
     fclose(f)
@@ -52,7 +52,7 @@ def is_part_number(input: byte*, start: byte*, end: byte*) -> bool:
 
 
 def main() -> int:
-    input = read_input()
+    input = read_file("sampleinput.txt")
     sum = 0
 
     for start = input; *start != '\0'; start++:
@@ -65,5 +65,5 @@ def main() -> int:
             start = end  # skip rest of number
 
     free(input)
-    printf("%d\n", sum)  # Output: 556057
+    printf("%d\n", sum)  # Output: 4361
     return 0

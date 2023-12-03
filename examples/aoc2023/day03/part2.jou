@@ -4,14 +4,14 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 
-def read_input() -> byte*:
+def read_file(filename: byte*) -> byte*:
     huge = 1000*1000
 
     result: byte* = malloc(huge)
     assert result != NULL
     memset(result, 0, huge)
 
-    f = fopen("input.txt", "r")
+    f = fopen(filename, "r")
     assert f != NULL
     fread(result, 1, huge, f)
     fclose(f)
@@ -67,7 +67,7 @@ def find_adjacent_numbers(input: byte*, p: byte*) -> int[10]:
 
 
 def main() -> int:
-    input = read_input()
+    input = read_file("sampleinput.txt")
     sum = 0
 
     for p = input; *p != '\0'; p++:
@@ -80,5 +80,5 @@ def main() -> int:
             sum += adjacent[0] * adjacent[1]
 
     free(input)
-    printf("%d\n", sum)  # Output: 82824352
+    printf("%d\n", sum)  # Output: 467835
     return 0
