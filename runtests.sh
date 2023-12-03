@@ -58,11 +58,9 @@ while [ $# != 0 ]; do
     esac
 done
 
-if [ $valgrind = yes ]; then
-    if [[ "$OS" =~ Windows ]]; then
-        echo "valgrind doesn't work on Windows." >&2
-        exit 2
-    fi
+if [ $valgrind = yes ] && [[ "$OS" =~ Windows ]]; then
+    echo "valgrind doesn't work on Windows." >&2
+    exit 2
 fi
 
 if [ $run_make = yes ]; then
