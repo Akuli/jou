@@ -15,12 +15,16 @@ def main() -> int:
 
     assert is_ascii_punctuation('!')
     assert is_ascii_punctuation('_')
+    assert not is_ascii_punctuation('a')
+    assert not is_ascii_punctuation('2')
     assert not is_ascii_punctuation('\0')
 
     assert is_ascii_whitespace(' ')
     assert is_ascii_whitespace('\t')
     assert is_ascii_whitespace('\r')
     assert is_ascii_whitespace('\n')
+    assert not is_ascii_whitespace('a')
+    assert not is_ascii_whitespace('.')
     assert not is_ascii_whitespace('\0')
 
     s: byte[100]
