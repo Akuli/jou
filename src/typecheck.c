@@ -1258,12 +1258,32 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
         const AstExpression *targetexpr = &stmt->data.assignment.target;
         const AstExpression *valueexpr = &stmt->data.assignment.value;
 
+        enum AstExpressionKind op;
+        const char *opname;
+
+        switch(stmt->kind) {
+            case AST_STMT_INPLACE_ADD: op = AST_EXPR_ADD; opname = "addition"; break;
+            case AST_STMT_INPLACE_SUB: op = AST_EXPR_SUB; opname = "subtraction"; break;
+            case AST_STMT_INPLACE_MUL: op = AST_EXPR_MUL; opname = "multiplication"; break;
+            case AST_STMT_INPLACE_DIV: op = AST_EXPR_DIV; opname = "division"; break;
+            case AST_STMT_INPLACE_MOD: op = AST_EXPR_MOD; opname = "modulo"; break;
+            default: assert(0);
+        }
+
         ensure_can_take_address(targetexpr, "cannot assign to %s");
-        const ExpressionTypes *targettypes = typecheck_expression_not_void(ft, targetexpr);
+        ExpressionTypes *targettypes = typecheck_expression_not_void(ft, targetexpr);
         ExpressionTypes *valuetypes = typecheck_expression_not_void(ft, valueexpr);
 
-        const void *params[3] = { stmt, targettypes, valuetypes };
-        do_implicit_cast(valuetypes, targettypes->type, stmt->location, icehCallback(handle_in_place_operation_error, params));
+        const Type *t = check_binop(op, stmt->location, targettypes, valuetypes);
+        ExpressionTypes tempvalue_types = { .expr = targetexpr, .type = t };
+
+        char msg[500];
+        snprintf(msg, sizeof msg, "%s produced a value of type FROM which cannot be assigned back to TO", opname);
+        do_implicit_cast(&tempvalue_types, targettypes->type, stmt->location, icehTemplate(msg));
+
+        // I think it is currently impossible to cast target.
+        // If this assert fails, we probably need to add another error message for it.
+        assert(!targettypes->implicit_cast_type);
         break;
     }
 
