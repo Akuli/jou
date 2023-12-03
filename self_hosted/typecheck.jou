@@ -60,6 +60,8 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
 # of types. We cannot use printf() style functions because the arguments can be in
 # any order.
 def fail_with_implicit_cast_error(location: Location, template: byte*, from: Type*, to: Type*) -> void:
+    assert template != NULL
+
     n = 0
     for i = 0; template[i] != '\0'; i++:
         if template[i] == '<':
@@ -1173,13 +1175,19 @@ class Stage3TypeChecker:
     ) -> void:
         ensure_can_take_address(target, "cannot assign to %s")
         target_types = self->do_expression(target)
+        value_types = self->do_expression(value)
+
+        t = check_binop(op_expr_kind, location, target_types, value_types)
+        temp_value_types = ExpressionTypes{ expression = target, original_type = t }
 
         error_template: byte[200]
         strcpy(error_template, op_description)
         strcat(error_template, " produced a value of type <from> which cannot be assigned back to <to>")
+        temp_value_types.do_implicit_cast(target_types->original_type, location, error_template)
 
-        # TODO: this logic doesn't make much sense
-        self->do_expression_and_implicit_cast(value, target_types->original_type, error_template)
+        # I think it is currently impossible to cast target.
+        # If this assert fails, we probably need a new error message.
+        assert target_types->implicit_cast_type == NULL
 
     def do_statement(self, statement: AstStatement*) -> void:
         if statement->kind == AstStatementKind::ExpressionStatement:

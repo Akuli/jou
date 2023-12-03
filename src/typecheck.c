@@ -465,6 +465,8 @@ any order.
 static noreturn void fail_with_implicit_cast_error(
     Location location, const char *template, const Type *from, const Type *to)
 {
+    assert(template);
+
     List(char) msg = {0};
     while(*template){
         if (!strncmp(template, "FROM", 4)) {
@@ -1211,23 +1213,32 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
         const AstExpression *targetexpr = &stmt->data.assignment.target;
         const AstExpression *valueexpr = &stmt->data.assignment.value;
 
-        ensure_can_take_address(targetexpr, "cannot assign to %s");
-
+        enum AstExpressionKind op;
         const char *opname;
+
         switch(stmt->kind) {
-            case AST_STMT_INPLACE_ADD: opname = "addition"; break;
-            case AST_STMT_INPLACE_SUB: opname = "subtraction"; break;
-            case AST_STMT_INPLACE_MUL: opname = "multiplication"; break;
-            case AST_STMT_INPLACE_DIV: opname = "division"; break;
-            case AST_STMT_INPLACE_MOD: opname = "modulo"; break;
+            case AST_STMT_INPLACE_ADD: op = AST_EXPR_ADD; opname = "addition"; break;
+            case AST_STMT_INPLACE_SUB: op = AST_EXPR_SUB; opname = "subtraction"; break;
+            case AST_STMT_INPLACE_MUL: op = AST_EXPR_MUL; opname = "multiplication"; break;
+            case AST_STMT_INPLACE_DIV: op = AST_EXPR_DIV; opname = "division"; break;
+            case AST_STMT_INPLACE_MOD: op = AST_EXPR_MOD; opname = "modulo"; break;
             default: assert(0);
         }
 
-        char errmsg[500];
-        sprintf(errmsg, "%s produced a value of type FROM which cannot be assigned back to TO", opname);
+        ensure_can_take_address(targetexpr, "cannot assign to %s");
+        ExpressionTypes *targettypes = typecheck_expression_not_void(ft, targetexpr);
+        ExpressionTypes *valuetypes = typecheck_expression_not_void(ft, valueexpr);
 
-        const ExpressionTypes *targettypes = typecheck_expression_not_void(ft, targetexpr);
-        typecheck_expression_with_implicit_cast(ft, valueexpr, targettypes->type, errmsg);
+        const Type *t = check_binop(op, stmt->location, targettypes, valuetypes);
+        ExpressionTypes tempvalue_types = { .expr = targetexpr, .type = t };
+
+        char msg[500];
+        snprintf(msg, sizeof msg, "%s produced a value of type FROM which cannot be assigned back to TO", opname);
+        do_implicit_cast(&tempvalue_types, targettypes->type, stmt->location, msg);
+
+        // I think it is currently impossible to cast target.
+        // If this assert fails, we probably need to add another error message for it.
+        assert(!targettypes->implicit_cast_type);
         break;
     }
 
