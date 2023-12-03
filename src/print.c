@@ -19,7 +19,7 @@ static void print_string(const char *s, int len)
         else if (s[i] == '\n')
             printf("\\n");
         else
-            printf("\\x%02x", s[i]);     // TODO: \x is not yet recognized by the tokenizer
+            printf("\\x%02x", (unsigned char)s[i]);     // TODO: \x is not yet recognized by the tokenizer
     }
     putchar('"');
 }
