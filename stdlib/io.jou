@@ -60,6 +60,10 @@ declare fprintf(file: FILE *, pattern: byte*, ...) -> int
 declare fgetc(file: FILE*) -> int  # see getchar()
 declare fscanf(file: FILE*, pattern: byte*, ...) -> int
 
+# Reads at most n items of data, each of size "itemsize". Returns number of items read.
+# Usually this is used with itemsize 1, so return value is number of bytes.
+declare fread(destination: byte*, itemsize: long, n: long, file: FILE*) -> long
+
 # Ensure that output is actually written. It may remain buffered
 # if this function isn't called.
 declare fflush(file: FILE*) -> int
