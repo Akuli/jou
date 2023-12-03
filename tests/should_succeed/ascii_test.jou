@@ -1,0 +1,31 @@
+import "stdlib/ascii.jou"
+import "stdlib/str.jou"
+
+def main() -> int:
+    assert is_ascii("hello")
+    assert is_ascii("hello world test!!! @$!")
+    assert is_ascii("")
+    assert not is_ascii("örkkimörkki")
+
+    assert is_ascii_digit('0')
+    assert is_ascii_digit('7')
+    assert is_ascii_digit('9')
+    assert not is_ascii_digit('x')
+    assert not is_ascii_digit('\0')
+
+    assert is_ascii_punctuation('!')
+    assert is_ascii_punctuation('_')
+    assert not is_ascii_punctuation('\0')
+
+    assert is_ascii_whitespace(' ')
+    assert is_ascii_whitespace('\t')
+    assert is_ascii_whitespace('\r')
+    assert is_ascii_whitespace('\n')
+    assert not is_ascii_whitespace('\0')
+
+    s: byte[100]
+    strcpy(s, "  hello world \r\n  \t ")
+    trim_ascii_whitespace(s)
+    assert strcmp(s, "hello world") == 0
+
+    return 0
