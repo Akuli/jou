@@ -146,7 +146,13 @@ function run_test()
         # We don't do this for all files, because I like relative paths in error messages.
         command="cd $(dirname $joufile) && $(printf "$command_template" $(basename $joufile))"
     else
-        command="$(printf "$command_template" $joufile)"
+        # For non-aoc files we can valgrind the compiled Jou executables.
+        # Aoc solutions can be really slow --> valgrind only the compilation.
+        if [ $valgrind = yes ]; then
+            command="$(printf "$command_template" "--valgrind $joufile")"
+        else
+            command="$(printf "$command_template" $joufile)"
+        fi
     fi
 
     local diffpath
