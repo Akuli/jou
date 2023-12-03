@@ -140,21 +140,17 @@ function run_test()
     local correct_exit_code="$2"
     local counter="$3"
 
-    local dir=.
+    local command
     if [[ "$joufile" =~ ^examples/aoc ]]; then
-        dir=$(dirname $joufile)
-        joufile=$(basename $joufile)
+        # AoC files use fopen("sampleinput.txt", "r")
+        command="cd $(dirname $joufile) && $(printf "$command_template" $(basename $joufile))"
+    else
+        command="$(printf "$command_template" $joufile)"
     fi
 
-    local command diffpath
-    command="$(printf "$command_template" $joufile)"
-    diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
+    local diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
 
-    local command_msg="Command: $command"
-    if [ $dir != . ]; then
-        command_msg="$command_msg [in $dir]"
-    fi
-    printf "\n\n\x1b[33m*** %s ***\x1b[0m\n\n" "$command_msg" > $diffpath
+    printf "\n\n\x1b[33m*** %s ***\x1b[0m\n\n" "$command" > $diffpath
 
     # Skip tests when:
     #   * the test is supposed to crash, but optimizations are enabled (unpredictable by design)
@@ -171,11 +167,9 @@ function run_test()
 
     show_run $joufile
     if diff --text -u --color=always <(
-        cd $dir
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
         export PATH="$PWD:$PATH"
-        cd $dir
         ulimit -v 500000 2>/dev/null
         bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r'
     ) &>> $diffpath; then
