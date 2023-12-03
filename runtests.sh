@@ -170,16 +170,15 @@ function run_test()
     fi
 
     show_run $joufile
-    if diff --text -u --color=always \
-        <(cd $dir; generate_expected_output $joufile $correct_exit_code | tr -d '\r') \
-        <(
-            export PATH="$PWD:$PATH"
-            cd $dir
-            ulimit -v 500000 2>/dev/null
-            bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r'
-        ) \
-        &>> $diffpath
-    then
+    if diff --text -u --color=always <(
+        cd $dir
+        generate_expected_output $joufile $correct_exit_code | tr -d '\r'
+    ) <(
+        export PATH="$PWD:$PATH"
+        cd $dir
+        ulimit -v 500000 2>/dev/null
+        bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r'
+    ) &>> $diffpath; then
         show_ok $joufile
         rm -f $diffpath
     else
