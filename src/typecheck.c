@@ -470,11 +470,14 @@ struct ImplicitCastErrorHandler {
     bool is_callback;
     union {
         const char *template;
-        noreturn void (*callback)(Location, const Type *from, const Type *to);
+        struct {
+            void *dataptr;
+            noreturn void (*func)(void *dataptr);
+        } callback;
     } data;
 };
 #define icehTemplate(Str) (&(struct ImplicitCastErrorHandler){ .is_callback=false, .data.template=(Str) })
-#define icehCallback(Cb)  (&(struct ImplicitCastErrorHandler){ .is_callback=true, .data.callback=(Cb) })
+#define icehCallback(Cb,Data) (&(struct ImplicitCastErrorHandler){ .is_callback=true, .data.callback.func=(Cb), .data.callback.dataptr=(Data) })
 
 static void fail_with_implicit_cast_error(
     const Type *from,
@@ -484,7 +487,7 @@ static void fail_with_implicit_cast_error(
 {
     assert(errh);
     if (errh->is_callback) {
-        errh->data.callback(location, from, to);
+        errh->data.callback.func(errh->data.callback.dataptr);
     } else {
         List(char) msg = {0};
         const char *t = errh->data.template;
@@ -1161,12 +1164,17 @@ static void typecheck_if_statement(FileTypes *ft, const AstIfStatement *ifstmt)
 }
 
 // Produces error messages when types are wrong in += and similar operators.
-static void handle_in_place_operation_error(enum AstStatementKind kind, Location location, const Type *from, const Type *to)
+static void handle_in_place_operation_error(void *paramsptr)
 {
+    void **params = paramsptr;
+    const AstStatement *stmt = params[0];
+    const ExpressionTypes *targettypes = params[1];
+    const ExpressionTypes *valuetypes = params[2];
+
     // For better error messages, do a not-in-place operation (e.g. a += b --> a+b).
     enum AstExpressionKind op;  // to consider "a + b" when handling "a += b"
     const char *opname;
-    switch(kind) {
+    switch(stmt->kind) {
         case AST_STMT_INPLACE_ADD: op = AST_EXPR_ADD; opname = "addition"; break;
         case AST_STMT_INPLACE_SUB: op = AST_EXPR_SUB; opname = "subtraction"; break;
         case AST_STMT_INPLACE_MUL: op = AST_EXPR_MUL; opname = "multiplication"; break;
@@ -1175,20 +1183,14 @@ static void handle_in_place_operation_error(enum AstStatementKind kind, Location
         default: assert(0);
     }
 
-    const Type *restype = check_binop(op, location, &(ExpressionTypes){ .type=from }, &(ExpressionTypes){ .type=to });
+    ExpressionTypes targettypes2 = { .expr = &stmt->data.assignment.target, .type = targettypes->type };
+    ExpressionTypes valuetypes2 = { .expr = &stmt->data.assignment.value, .type = valuetypes->type };
+    const Type *restype = check_binop(op, stmt->location, &targettypes2, &valuetypes2);
     fail_with_error(
-        location,
+        stmt->location,
         "%s produced a value of type %s which cannot be assigned back to %s",
-        opname, restype->name, to->name);
+        opname, restype->name, targettypes2.type->name);
 }
-
-#define f(X) static void handle_error_##X(Location location, const Type *from, const Type *to) { handle_in_place_operation_error(X, location, from, to); }
-f(AST_STMT_INPLACE_ADD)
-f(AST_STMT_INPLACE_SUB)
-f(AST_STMT_INPLACE_MUL)
-f(AST_STMT_INPLACE_DIV)
-f(AST_STMT_INPLACE_MOD)
-#undef f
 
 static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
 {
@@ -1260,17 +1262,8 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
         const ExpressionTypes *targettypes = typecheck_expression_not_void(ft, targetexpr);
         ExpressionTypes *valuetypes = typecheck_expression_not_void(ft, valueexpr);
 
-        void (*cb)(Location, const Type *, const Type *);
-        switch(stmt->kind) {
-            case AST_STMT_INPLACE_ADD: cb = handle_error_AST_STMT_INPLACE_ADD; break;
-            case AST_STMT_INPLACE_SUB: cb = handle_error_AST_STMT_INPLACE_SUB; break;
-            case AST_STMT_INPLACE_MUL: cb = handle_error_AST_STMT_INPLACE_MUL; break;
-            case AST_STMT_INPLACE_DIV: cb = handle_error_AST_STMT_INPLACE_DIV; break;
-            case AST_STMT_INPLACE_MOD: cb = handle_error_AST_STMT_INPLACE_MOD; break;
-            default: assert(0);
-        }
-
-        do_implicit_cast(valuetypes, targettypes->type, stmt->location, icehCallback(cb));
+        const void *params[3] = { stmt, targettypes, valuetypes };
+        do_implicit_cast(valuetypes, targettypes->type, stmt->location, icehCallback(handle_in_place_operation_error, params));
         break;
     }
 
