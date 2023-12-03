@@ -833,6 +833,12 @@ class Stage3TypeChecker:
                 )
             fail(call->location, message)
 
+        if call->method_call_self != NULL and not call->uses_arrow_operator:
+            snprintf(
+                message, sizeof message,
+                "cannot take address of %%s, needed for calling the %s() method", call->name)
+            ensure_can_take_address(call->method_call_self, message)
+
         signature_string = signature->to_string(False, False)
 
         expected = signature->nargs
