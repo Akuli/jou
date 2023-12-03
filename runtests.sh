@@ -142,7 +142,8 @@ function run_test()
 
     local command
     if [[ "$joufile" =~ ^examples/aoc ]]; then
-        # AoC files use fopen("sampleinput.txt", "r")
+        # AoC files use fopen("sampleinput.txt", "r").
+        # We don't do this for all files, because I like relative paths in error messages.
         command="cd $(dirname $joufile) && $(printf "$command_template" $(basename $joufile))"
     else
         command="$(printf "$command_template" $joufile)"
