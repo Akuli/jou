@@ -482,9 +482,8 @@ static void fail_with_implicit_cast_error(
     Location location,
     const struct ImplicitCastErrorHandler *errh)
 {
-    if (!errh) {
-        return;
-    } else if (errh->is_callback) {
+    assert(errh);
+    if (errh->is_callback) {
         errh->data.callback(location, from, to);
     } else {
         List(char) msg = {0};
@@ -553,9 +552,10 @@ static void do_implicit_cast(
             fail_with_error(location, "a string of %d bytes (including '\\0') does not fit into %s", string_size, to->name);
         }
         types->implicit_string_to_array_cast = true;
-    } else {
-        fail_with_implicit_cast_error(from, to, location, errh);
     }
+    // Passing in NULL for errh can be used to force a cast to happen.
+    else if (errh != NULL && !can_cast_implicitly(from, to))
+        fail_with_implicit_cast_error(from, to, location, errh);
 
     types->implicit_cast_type = to;
     types->implicit_array_to_pointer_cast = (from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER);
