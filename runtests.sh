@@ -148,7 +148,8 @@ function run_test()
         command="$(printf "$command_template" $joufile)"
     fi
 
-    local diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
+    local diffpath
+    diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
 
     printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
 
