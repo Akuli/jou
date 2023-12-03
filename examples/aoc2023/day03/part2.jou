@@ -75,11 +75,10 @@ def main() -> int:
             continue
 
         adjacent = find_adjacent_numbers(input, p)
-        printf("adjacent = [%d,%d,%d,%d,...]\n", adjacent[0], adjacent[1], adjacent[2], adjacent[3])
         if adjacent[0] != -1 and adjacent[1] != -1 and adjacent[2] == -1:
             # it is a gear
             sum += adjacent[0] * adjacent[1]
 
     free(input)
-    printf("%d\n", sum)
+    printf("%d\n", sum)  # Output: 82824352
     return 0
