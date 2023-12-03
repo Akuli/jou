@@ -1,0 +1,85 @@
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+def read_input() -> byte*:
+    huge = 1000*1000
+
+    result: byte* = malloc(huge)
+    assert result != NULL
+    memset(result, 0, huge)
+
+    f = fopen("input.txt", "r")
+    assert f != NULL
+    fread(result, 1, huge, f)
+    fclose(f)
+
+    assert result[huge-1] == '\0'  # check if full
+    return result
+
+
+def find_whole_number(input: byte*, a_digit: byte*, start: byte**, end: byte**) -> void:
+    *start = a_digit
+    while *start > input and is_ascii_digit((*start)[-1]):
+        --*start
+
+    *end = a_digit
+    while **end != '\0' and is_ascii_digit(**end):
+        ++*end
+
+
+def find_adjacent_numbers(input: byte*, p: byte*) -> int[10]:
+    # p should point somewhere in the input
+    assert input <= p and p < &input[strlen(input)]
+    line_size = strcspn(input, "\n") + 1
+
+    # -1 marks end of array
+    result = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
+    result_len = 0
+
+    # Avoid duplicates, e.g. this will see the top 123 three times:
+    #
+    #   .......
+    #   ..123..
+    #   ...*...
+    #   ..123..
+    #   .......
+    #
+    # We can't do the duplicate check with the int 123, because this counts as a gear.
+    last_start = NULL
+    last_end = NULL
+
+    for dy = -1; dy <= 1; dy++:
+        for dx = -1; dx <= 1; dx++:
+            neighbor = &p[dx + line_size*dy]
+            if input <= neighbor and neighbor < &input[strlen(input)] and is_ascii_digit(*neighbor):
+                start: byte*
+                end: byte*
+                find_whole_number(input, neighbor, &start, &end)
+                if start != last_start or end != last_end:
+                    last_start = start
+                    last_end = end
+                    result[result_len++] = atoi(start)
+
+    return result
+
+
+def main() -> int:
+    input = read_input()
+    sum = 0
+
+    for p = input; *p != '\0'; p++:
+        if *p != '*':
+            continue
+
+        adjacent = find_adjacent_numbers(input, p)
+        printf("adjacent = [%d,%d,%d,%d,...]\n", adjacent[0], adjacent[1], adjacent[2], adjacent[3])
+        if adjacent[0] != -1 and adjacent[1] != -1 and adjacent[2] == -1:
+            # it is a gear
+            sum += adjacent[0] * adjacent[1]
+
+    free(input)
+    printf("%d\n", sum)
+    return 0

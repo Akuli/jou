@@ -1,0 +1,38 @@
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/ascii.jou"
+
+
+def parse_prefix_digit(s: byte*) -> int:
+    if is_ascii_digit(s[0]):
+        return s[0] - '0'
+
+    strings = [NULL as byte*, "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+    for i = 1; i <= 9; i++:
+        if starts_with(s, strings[i]):
+            return i
+
+    return -1
+
+
+def main() -> int:
+    f = fopen("input.txt", "r")
+    assert f != NULL
+
+    result = 0
+    line: byte[1000]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        first: byte* = line
+        while *first != '\0' and parse_prefix_digit(first) == -1:
+            first++
+
+        last = &line[strlen(line) - 1]
+        while last > &line[0] and parse_prefix_digit(last) == -1:
+            last--
+
+        result += 10*parse_prefix_digit(first)
+        result += parse_prefix_digit(last)
+
+    printf("%d\n", result)
+    return 0
+

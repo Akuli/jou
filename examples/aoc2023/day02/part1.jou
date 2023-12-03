@@ -1,0 +1,51 @@
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/ascii.jou"
+
+
+def game_is_possible(game_data: byte*) -> bool:
+    # loop in ; or , separated chunks
+    while *game_data != '\0':
+        chunk_len = strcspn(game_data, ";,")
+        chunk = game_data
+
+        # \0 terminate the chunk and skip it
+        game_data = &game_data[chunk_len]
+        if *game_data != '\0':  # check needed to avoid overflow at end of string
+            *game_data = '\0'
+            game_data++
+
+        trim_ascii_whitespace(chunk)
+
+        n: int
+        color: byte[10]
+        assert sscanf(chunk, "%d %10s", &n, color) == 2
+
+        if strcmp(color, "red") == 0 and n > 12:
+            return False
+        if strcmp(color, "green") == 0 and n > 13:
+            return False
+        if strcmp(color, "blue") == 0 and n > 14:
+            return False
+
+    return True
+
+
+def main() -> int:
+    f = fopen("input.txt", "r")
+    assert f != NULL
+
+    result = 0
+    line: byte[1000]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        assert starts_with(line, "Game ")
+        game_id = atoi(&line[5])
+
+        id_end = strchr(line, ':')
+        assert id_end != NULL
+
+        if game_is_possible(&id_end[1]):
+            result += game_id
+
+    printf("%d\n", result)
+    return 0
