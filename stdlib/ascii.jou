@@ -1,4 +1,5 @@
 import "stdlib/str.jou"
+import "stdlib/mem.jou"
 
 # Test if a string is ASCII only.
 # TODO: test
@@ -13,7 +14,27 @@ def is_ascii(s: byte*) -> bool:
 def is_ascii_digit(b: byte) -> bool:
     return '0' <= b and b <= '9'
 
-# Checks if the given byte is an ASCII punctuation character.
+# Checks if the given byte is an ASCII punctuation character, such as '*' or '_' or '"'.
 # TODO: test
 def is_ascii_punctuation(b: byte) -> bool:
     return strchr("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", b) != NULL
+
+# Checks if the given byte is an ASCII whitespace character, such as ' ' or '\n'.
+# TODO: test
+def is_ascii_whitespace(b: byte) -> bool:
+    return strchr("\t\n\x0b\x0c\r\x1c\x1d\x1e\x1f ", b) != NULL
+
+# Removes ASCII whitespace from both ends of a string in-place.
+# Similar to .strip() in Python or .trim() in JavaScript.
+def trim_ascii_whitespace(s: byte*) -> void:
+    start = s
+    while *start != '\0' and is_ascii_whitespace(*start):
+        start++
+
+    len = strlen(start)
+    while len > 0 and is_ascii_whitespace(start[len-1]):
+        len--
+
+    if start != s:
+        memcpy(s, start, len)
+    s[len] = '\0'
