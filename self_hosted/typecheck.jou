@@ -60,6 +60,8 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
 # of types. We cannot use printf() style functions because the arguments can be in
 # any order.
 def fail_with_implicit_cast_error(location: Location, template: byte*, from: Type*, to: Type*) -> void:
+    assert template != NULL
+
     n = 0
     for i = 0; template[i] != '\0'; i++:
         if template[i] == '<':
@@ -260,13 +262,13 @@ def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbo
     exports: ExportSymbol* = NULL
     nexports = 0
 
-    for i = 0; i < file->body_len; i++:
-        if file->body[i].kind == AstToplevelStatementKind::Class:
-            classdef = &file->body[i].classdef
+    for i = 0; i < file->body.nstatements; i++:
+        if file->body.statements[i].kind == AstStatementKind::Class:
+            classdef = &file->body.statements[i].classdef
             check_type_doesnt_exist(ft, classdef->name, classdef->name_location)
             t = create_opaque_class(classdef->name)
-        elif file->body[i].kind == AstToplevelStatementKind::Enum:
-            enumdef = &file->body[i].enumdef
+        elif file->body.statements[i].kind == AstStatementKind::Enum:
+            enumdef = &file->body.statements[i].enumdef
             check_type_doesnt_exist(ft, enumdef->name, enumdef->name_location)
             t = create_enum(enumdef->name, enumdef->member_count, enumdef->member_names)
         else:
@@ -422,10 +424,10 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
     exports: ExportSymbol* = NULL
     nexports = 0
 
-    for i = 0; i < ast_file->body_len; i++:
-        ts = &ast_file->body[i]
+    for i = 0; i < ast_file->body.nstatements; i++:
+        ts = &ast_file->body.statements[i]
 
-        if ts->kind == AstToplevelStatementKind::Function:
+        if ts->kind == AstStatementKind::Function:
             if ft->find_function(ts->function.signature.name) != NULL:
                 snprintf(
                     message, sizeof message,
@@ -444,30 +446,30 @@ def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> Expor
                 signature = sig,
             }
 
-        if ts->kind == AstToplevelStatementKind::Class:
+        if ts->kind == AstStatementKind::Class:
             handle_class_members_stage2(ft, &ts->classdef)
 
         if (
-            ts->kind == AstToplevelStatementKind::GlobalVariableDeclaration
-            or ts->kind == AstToplevelStatementKind::GlobalVariableDefinition
+            ts->kind == AstStatementKind::GlobalVariableDeclaration
+            or ts->kind == AstStatementKind::GlobalVariableDefinition
         ):
-            if ft->find_global_var(ts->global_var.name) != NULL:
+            if ft->find_global_var(ts->var_declaration.name) != NULL:
                 snprintf(
                     message, sizeof message,
                     "a global variable named '%s' already exists",
-                    ts->global_var.name,
+                    ts->var_declaration.name,
                 )
                 fail(ts->location, message)
 
-            assert ts->global_var.value == NULL
-            type = type_from_ast(ft, &ts->global_var.type)
+            assert ts->var_declaration.value == NULL
+            type = type_from_ast(ft, &ts->var_declaration.type)
             ft->globals = realloc(ft->globals, (ft->nglobals + 1) * sizeof ft->globals[0])
-            ft->globals[ft->nglobals++] = GlobalVariable{name = ts->global_var.name, type = type}
+            ft->globals[ft->nglobals++] = GlobalVariable{name = ts->var_declaration.name, type = type}
 
             exports = realloc(exports, sizeof exports[0] * (nexports + 1))
             exports[nexports++] = ExportSymbol{
                 kind = ExportSymbolKind::GlobalVariable,
-                name = ts->global_var.name,
+                name = ts->var_declaration.name,
                 type = type,
             }
 
@@ -833,6 +835,12 @@ class Stage3TypeChecker:
                 )
             fail(call->location, message)
 
+        if call->method_call_self != NULL and not call->uses_arrow_operator:
+            snprintf(
+                message, sizeof message,
+                "cannot take address of %%s, needed for calling the %s() method", call->name)
+            ensure_can_take_address(call->method_call_self, message)
+
         signature_string = signature->to_string(False, False)
 
         expected = signature->nargs
@@ -1157,6 +1165,30 @@ class Stage3TypeChecker:
         types->do_implicit_cast(cast_type, expression->location, error_message_template)
         return types
 
+    def do_in_place_operation(
+        self,
+        location: Location,
+        target: AstExpression*, # the foo of "foo += 1"
+        value: AstExpression*,  # the 1 of "foo += 1"
+        op_expr_kind: AstExpressionKind,  # e.g. AstExpressionKind::Add
+        op_description: byte[20],  # e.g. "addition"
+    ) -> void:
+        ensure_can_take_address(target, "cannot assign to %s")
+        target_types = self->do_expression(target)
+        value_types = self->do_expression(value)
+
+        t = check_binop(op_expr_kind, location, target_types, value_types)
+        temp_value_types = ExpressionTypes{ expression = target, original_type = t }
+
+        error_template: byte[200]
+        strcpy(error_template, op_description)
+        strcat(error_template, " produced a value of type <from> which cannot be assigned back to <to>")
+        temp_value_types.do_implicit_cast(target_types->original_type, location, error_template)
+
+        # I think it is currently impossible to cast target.
+        # If this assert fails, we probably need a new error message.
+        assert target_types->implicit_cast_type == NULL
+
     def do_statement(self, statement: AstStatement*) -> void:
         if statement->kind == AstStatementKind::ExpressionStatement:
             self->do_expression_maybe_void(&statement->expression)
@@ -1282,6 +1314,17 @@ class Stage3TypeChecker:
             if self->nested_loop_count == 0:
                 fail(statement->location, "'continue' can only be used inside a loop")
 
+        elif statement->kind == AstStatementKind::InPlaceAdd:
+            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Add, "addition")
+        elif statement->kind == AstStatementKind::InPlaceSubtract:
+            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Subtract, "subtraction")
+        elif statement->kind == AstStatementKind::InPlaceMultiply:
+            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Multiply, "multiplication")
+        elif statement->kind == AstStatementKind::InPlaceDivide:
+            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Divide, "division")
+        elif statement->kind == AstStatementKind::InPlaceModulo:
+            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Modulo, "modulo")
+
         else:
             printf("*** typecheck: unknown statement kind %d\n", statement->kind)
             assert False
@@ -1308,13 +1351,13 @@ class Stage3TypeChecker:
 
 def typecheck_stage3_function_and_method_bodies(file_types: FileTypes*, ast_file: AstFile*) -> void:
     checker = Stage3TypeChecker{file_types = file_types}
-    for i = 0; i < ast_file->body_len; i++:
-        ts = &ast_file->body[i]
-        if ts->kind == AstToplevelStatementKind::Function and ts->function.body.nstatements > 0:
+    for i = 0; i < ast_file->body.nstatements; i++:
+        ts = &ast_file->body.statements[i]
+        if ts->kind == AstStatementKind::Function and ts->function.body.nstatements > 0:
             signature = file_types->find_function(ts->function.signature.name)
             assert signature != NULL
             checker.define_function_or_method(signature, &ts->function.body)
-        elif ts->kind == AstToplevelStatementKind::Class:
+        elif ts->kind == AstStatementKind::Class:
             class_type = file_types->find_type(ts->classdef.name)
             assert class_type != NULL  # created in previous typecheck stage
             assert class_type->kind == TypeKind::Class

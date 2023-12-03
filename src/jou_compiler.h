@@ -28,7 +28,7 @@ typedef struct AstForLoop AstForLoop;
 typedef struct AstNameTypeValue AstNameTypeValue;
 typedef struct AstIfStatement AstIfStatement;
 typedef struct AstStatement AstStatement;
-typedef struct AstToplevelNode AstToplevelNode;
+typedef struct AstFile AstFile;
 typedef struct AstFunction AstFunction;
 typedef struct AstClassMember AstClassMember;
 typedef struct AstClassDef AstClassDef;
@@ -52,6 +52,7 @@ typedef struct CfInstruction CfInstruction;
 extern struct CommandLineArgs {
     const char *argv0;  // Program name
     int verbosity;  // How much debug/progress info to print, how many times -v/--verbose passed
+    bool valgrind;  // true --> Use valgrind when runnning user's jou program
     bool tokenize_only;  // If true, tokenize the file passed on command line and don't actually compile anything
     bool parse_only;  // If true, parse the file passed on command line and don't actually compile anything
     int optlevel;  // Optimization level (0 don't optimize, 3 optimize a lot)
@@ -274,38 +275,6 @@ struct AstAssert {
     Location expression_start, expression_end;
 };
 
-struct AstStatement {
-    Location location;
-    enum AstStatementKind {
-        AST_STMT_RETURN,
-        AST_STMT_ASSERT,
-        AST_STMT_PASS,
-        AST_STMT_IF,
-        AST_STMT_WHILE,
-        AST_STMT_FOR,
-        AST_STMT_BREAK,
-        AST_STMT_CONTINUE,
-        AST_STMT_DECLARE_LOCAL_VAR,
-        AST_STMT_ASSIGN,
-        AST_STMT_INPLACE_ADD, // x += y
-        AST_STMT_INPLACE_SUB,
-        AST_STMT_INPLACE_MUL,
-        AST_STMT_INPLACE_DIV,
-        AST_STMT_INPLACE_MOD,
-        AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
-    } kind;
-    union {
-        AstExpression expression;    // AST_STMT_EXPRESSION_STATEMENT
-        AstExpression *returnvalue;    // AST_STMT_RETURN (can be NULL)
-        AstAssert assertion;
-        AstConditionAndBody whileloop;
-        AstIfStatement ifstatement;
-        AstForLoop forloop;
-        AstNameTypeValue vardecl;
-        AstAssignment assignment;  // also used for inplace operations
-    } data;
-};
-
 struct AstFunction {
     AstSignature signature;
     AstBody body;  // empty body means declaration, otherwise it's definition
@@ -332,30 +301,56 @@ struct AstEnumDef {
 };
 
 struct AstImport {
+    Location location;
     char *specified_path;  // Path in jou code e.g. "stdlib/io.jou"
     char *resolved_path;  // Absolute path or relative to current working directory e.g. "/home/akuli/jou/stdlib/io.jou"
     bool used;    // For warning messages
 };
 
-// Toplevel = outermost in the nested structure i.e. what the file consists of
-struct AstToplevelNode {
+struct AstStatement {
     Location location;
-    enum AstToplevelNodeKind {
-        AST_TOPLEVEL_END_OF_FILE,  // indicates end of array of AstToplevelNodeKind
-        AST_TOPLEVEL_FUNCTION,
-        AST_TOPLEVEL_DECLARE_GLOBAL_VARIABLE,
-        AST_TOPLEVEL_DEFINE_GLOBAL_VARIABLE,
-        AST_TOPLEVEL_DEFINE_CLASS,
-        AST_TOPLEVEL_DEFINE_ENUM,
-        AST_TOPLEVEL_IMPORT,
+    enum AstStatementKind {
+        AST_STMT_RETURN,
+        AST_STMT_ASSERT,
+        AST_STMT_PASS,
+        AST_STMT_IF,
+        AST_STMT_WHILE,
+        AST_STMT_FOR,
+        AST_STMT_BREAK,
+        AST_STMT_CONTINUE,
+        AST_STMT_DECLARE_LOCAL_VAR,
+        AST_STMT_ASSIGN,
+        AST_STMT_INPLACE_ADD, // x += y
+        AST_STMT_INPLACE_SUB,
+        AST_STMT_INPLACE_MUL,
+        AST_STMT_INPLACE_DIV,
+        AST_STMT_INPLACE_MOD,
+        AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
+        AST_STMT_FUNCTION,
+        AST_STMT_DECLARE_GLOBAL_VAR,
+        AST_STMT_DEFINE_GLOBAL_VAR,
+        AST_STMT_DEFINE_CLASS,
+        AST_STMT_DEFINE_ENUM,
     } kind;
     union {
-        AstNameTypeValue globalvar;
+        AstExpression expression;    // AST_STMT_EXPRESSION_STATEMENT
+        AstExpression *returnvalue;    // AST_STMT_RETURN (can be NULL)
+        AstAssert assertion;
+        AstConditionAndBody whileloop;
+        AstIfStatement ifstatement;
+        AstForLoop forloop;
+        AstNameTypeValue vardecl;
+        AstAssignment assignment;  // also used for inplace operations
         AstFunction function;
         AstClassDef classdef;
         AstEnumDef enumdef;
-        AstImport import;
     } data;
+};
+
+struct AstFile {
+    const char *path;
+    List(AstImport) imports;
+    AstBody body;
 };
 
 struct ClassField {
@@ -516,9 +511,9 @@ Steps 1 and 2 return a list of ExportSymbols for other files to use.
 The list is terminated with (ExportSymbol){0}, which you can detect by
 checking if the name of the ExportSymbol is empty.
 */
-ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstToplevelNode *ast);
-ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstToplevelNode *ast);
-void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstToplevelNode *ast);
+ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstFile *ast);
+ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstFile *ast);
+void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstFile *ast);
 
 
 // Control Flow Graph.
@@ -618,15 +613,15 @@ Make sure that the filename passed to tokenize() stays alive throughout the
 entire compilation. It is used in error messages.
 */
 Token *tokenize(FILE *f, const char *filename);
-AstToplevelNode *parse(const Token *tokens, const char *stdlib_path);
+AstFile parse(const Token *tokens, const char *stdlib_path);
 // Type checking happens between parsing and building CFGs.
-CfGraphFile build_control_flow_graphs(AstToplevelNode *ast, FileTypes *ft);
+CfGraphFile build_control_flow_graphs(const AstFile *ast, FileTypes *ft);
 void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft);
 char *compile_to_object_file(LLVMModuleRef module);
 char *get_default_exe_path(void);
 void run_linker(const char *const *objpaths, const char *exepath);
-int run_exe(const char *exepath);
+int run_exe(const char *exepath, bool valgrind);
 
 /*
 Use these to clean up return values of compiling functions.
@@ -637,7 +632,7 @@ but not any of the data contained within individual nodes.
 */
 void free_constant(const Constant *c);
 void free_tokens(Token *tokenlist);
-void free_ast(AstToplevelNode *topnodelist);
+void free_ast(const AstFile *ast);
 void free_file_types(const FileTypes *ft);
 void free_export_symbol(const ExportSymbol *es);
 void free_control_flow_graphs(const CfGraphFile *cfgfile);
@@ -649,7 +644,7 @@ Most of these take the data for an entire program.
 */
 void print_token(const Token *token);
 void print_tokens(const Token *tokenlist);
-void print_ast(const AstToplevelNode *topnodelist);
+void print_ast(const AstFile *ast);
 void print_control_flow_graph(const CfGraph *cfg);
 void print_control_flow_graphs(const CfGraphFile *cfgfile);
 void print_llvm_ir(LLVMModuleRef module, bool is_optimized);

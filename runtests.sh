@@ -12,39 +12,55 @@ export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
 function usage() {
-    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [TEMPLATE]" >&2
-    echo "TEMPLATE can be e.g. './jou %s', where %s will be replaced by a jou file." >&2
+    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
+    echo "If a FILE_FILTER is given, runs only test files whose path contains it."
+    echo "For example, you can use \"$0 class\" to run class-related tests."
     exit 2
 }
 
 valgrind=no
 verbose=no
 run_make=yes
+jou_flags=""
+file_filter=""
 
-while [[ "$1" =~ ^- ]]; do
+while [ $# != 0 ]; do
     case "$1" in
-        --valgrind) valgrind=yes; shift ;;
-        --verbose) verbose=yes; shift ;;
-        --dont-run-make) run_make=no; shift ;;
-        *) usage ;;
+        --valgrind)
+            valgrind=yes
+            shift
+            ;;
+        --verbose)
+            verbose=yes
+            shift
+            ;;
+        --dont-run-make)
+            run_make=no
+            shift
+            ;;
+        --jou-flags)
+            if [ $# == 1 ]; then
+                usage
+            fi
+            jou_flags="$jou_flags $2"
+            shift 2
+            ;;
+        -*)
+            usage
+            ;;
+        *)
+            if [ -n "$file_filter" ]; then
+                usage
+            fi
+            file_filter="$1"
+            shift
+            ;;
     esac
 done
 
-if [ $# == 0 ]; then
-    # No arguments --> run tests in the basic/simple way
-    if [[ "$OS" =~ Windows ]]; then
-        command_template='./jou.exe %s'
-    else
-        command_template='./jou %s'
-    fi
-elif [ $# == 1 ]; then
-    command_template="$1"
-else
-    usage
-fi
-
-if [ $valgrind = yes ]; then
-    command_template="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions=valgrind-suppressions.sup $command_template"
+if [ $valgrind = yes ] && [[ "$OS" =~ Windows ]]; then
+    echo "valgrind doesn't work on Windows." >&2
+    exit 2
 fi
 
 if [ $run_make = yes ]; then
@@ -81,7 +97,7 @@ function generate_expected_output()
 
     # In verbose mode, the output is silenced, see below. The point of
     # testing with --verbose is that the compiler shouldn't crash (#65).
-    if [[ "$command_template" =~ --verbose ]]; then
+    if [[ "$jou_flags" =~ --verbose ]]; then
         echo "A lot of output hidden..."
     else
         (
@@ -96,7 +112,7 @@ function generate_expected_output()
 function post_process_output()
 {
     local joufile="$1"
-    if [[ "$command_template" =~ --verbose ]]; then
+    if [[ "$jou_flags" =~ --verbose ]]; then
         # There is a LOT of output. We don't want to write the expected
         # output precisely somewhere, that would be a lot of work.
         # Instead, ignore the output and check only the exit code.
@@ -133,52 +149,98 @@ else
     function show_fail() { echo -ne ${RED}F${RESET}; }
 fi
 
+function should_skip()
+{
+    local joufile="$1"
+    local correct_exit_code="$2"
+
+    # Skip tests when:
+    #   * the test is supposed to crash, but optimizations are enabled (unpredictable by design)
+    #   * the test is supposed to fail (crash or otherwise) and we use valgrind (see README)
+    #   * the "test" is actually a GUI program in examples/
+    if ( [[ $joufile =~ ^tests/crash/ ]] && ! [[ "$jou_flags" =~ -O0 ]] ) \
+        || ( [ $valgrind = yes ] && [ $correct_exit_code != 0 ] ) \
+        || [ $joufile = examples/x11_window.jou ] \
+        || [ $joufile = examples/memory_leak.jou ]
+    then
+        return 0  # true
+    else
+        return 1  # false
+    fi
+}
+
 function run_test()
 {
     local joufile="$1"
     local correct_exit_code="$2"
     local counter="$3"
 
-    local command diffpath
-    command="$(printf "$command_template" $joufile)"
+    local command=""
+
+    if [ $valgrind = yes ] && [ $correct_exit_code == 0 ]; then
+        # Valgrind the compiler process and the compiled executable
+        command="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions='$(pwd)/valgrind-suppressions.sup' jou --valgrind"
+    elif [[ "$OS" =~ Windows ]]; then
+        command="jou.exe"
+    else
+        command="jou"
+    fi
+
+    # jou flags start with space when non-empty
+    command="$command$jou_flags"
+
+    if [[ "$joufile" =~ ^examples/aoc ]]; then
+        # AoC files use fopen("sampleinput.txt", "r").
+        # We don't do this for all files, because I like relative paths in error messages.
+        # jou_flags starts with a space whenever it isn't empty.
+        command="cd $(dirname $joufile) && $command $(basename $joufile)"
+    else
+        command="$command $joufile"
+    fi
+
+    show_run "$command"
+
+    local diffpath
     diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
 
     printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
 
-    # Skip tests when:
-    #   * the test is supposed to crash, but optimizations are enabled (unpredictable by design)
-    #   * the test is supposed to fail (crash or otherwise) and we use valgrind (see README)
-    #   * the "test" is actually a GUI program in examples/
-    if ( ! [[ "$command_template" =~ -O0 ]] && [[ $joufile =~ ^tests/crash/ ]] ) \
-        || ( [[ "$command_template" =~ valgrind ]] && [ $correct_exit_code != 0 ] ) \
-        || [ $joufile = examples/x11_window.jou ]
-    then
-        show_skip $joufile
-        mv $diffpath $diffpath.skip
-        return
-    fi
-
-    show_run $joufile
-    if diff --text -u --color=always \
-        <(generate_expected_output $joufile $correct_exit_code | tr -d '\r') \
-        <(ulimit -v 500000 2>/dev/null; bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r') \
-        &>> $diffpath
-    then
-        show_ok $joufile
+    if diff --text -u --color=always <(
+        generate_expected_output $joufile $correct_exit_code | tr -d '\r'
+    ) <(
+        export PATH="$PWD:$PATH"
+        ulimit -v 500000 2>/dev/null
+        bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r'
+    ) &>> $diffpath; then
+        show_ok "$command"
         rm -f $diffpath
     else
-        show_fail $joufile
+        show_fail "$command"
         # Do not delete diff file. It will be displayed at end of test run.
     fi
 }
 
 counter=0
-for joufile in examples/*.jou tests/*/*.jou; do
+skipped=0
+
+for joufile in examples/*.jou examples/aoc2023/day*/*.jou tests/*/*.jou; do
+    if ! [[ $joufile == *"$file_filter"* ]]; then
+        # Skip silently, without showing that this is skipped.
+        # This produces less noisy output when you select only a few tests.
+        continue
+    fi
+
     case $joufile in
         examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
         *) correct_exit_code=1; ;;  # compiler or runtime error
     esac
     counter=$((counter + 1))
+
+    if should_skip $joufile $correct_exit_code; then
+        show_skip $joufile
+        skipped=$((skipped + 1))
+        continue
+    fi
 
     # Run 2 tests in parallel.
     while [ $(jobs -p | wc -l) -ge 2 ]; do wait -n; done
@@ -186,11 +248,15 @@ for joufile in examples/*.jou tests/*/*.jou; do
 done
 wait
 
+if [ $counter = 0 ]; then
+    echo -e "${RED}found no tests whose filename contains \"$file_filter\"${RESET}" >&2
+    exit 1
+fi
+
 echo ""
 echo ""
 
 failed=$( (ls -1 tmp/tests/diff*.txt 2>/dev/null || true) | wc -l)
-skipped=$( (ls -1 tmp/tests/diff*.txt.skip 2>/dev/null || true) | wc -l)
 succeeded=$((counter - failed - skipped))
 
 if [ $failed != 0 ]; then

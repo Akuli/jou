@@ -1,9 +1,9 @@
 # Performance and optimizations
 
 Because Jou uses [LLVM](https://llvm.org/),
-it is about as fast as languages like C, C++ or Rust,
-and much faster than interpreted languages like Python.
-You can also enable optimizations to make your Jou code run faster.
+it is faster than interpreted languages like Python,
+and you can enable optimizations to make your Jou code run faster.
+Jou is about as fast as C, C++ or Rust.
 
 To see this, let's write a simple but slow program in Python, C and Jou.
 

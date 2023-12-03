@@ -127,6 +127,24 @@ The command that was ran (e.g. `./jou examples/hello.jou`) is shown just above t
 and you can run it again manually to debug a test failure.
 You can also put e.g. `valgrind` or `gdb --args` in front of the command.
 
+Because running tests is slow, you often want to run only one test, or only a few tests.
+For example, maybe you want to run all Advent of Code solutions.
+To do things like this, the test script takes a substring of the file path as an argument,
+and runs only tests whose path contains that substring.
+For example, `./runtests.sh aoc` finds files like `examples/aoc2023/day03/part2.jou`.
+
+```
+$ ./runtests.sh aoc         # run Advent of Code solutions
+$ ./runtests.sh class       # run tests related to defining classes
+$ ./runtests.sh ascii_test  # run tests for the "stdlib/ascii.jou" module
+```
+
+You can use `--verbose` to see what test files get selected:
+
+```
+$ ./runtests.sh ascii_test --verbose
+```
+
 To find missing `free()`s and various other memory bugs,
 you can also run the tests under valgrind
 (but this doesn't work on Windows, because valgrind doesn't support Windows):

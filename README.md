@@ -12,6 +12,10 @@ def main() -> int:
 
 See the [examples](./examples/) and [tests](./tests/) directories for more example programs.
 
+So far, Jou is usable enough to do [Advent of Code 2023](https://adventofcode.com/).
+We'll see whether I get 50 stars with Jou this year.
+See [examples/aoc2023](./examples/aoc2023/) for the code.
+
 Goals:
 - Minimalistic feel of C + simple Python-style syntax
 - Possible target audiences:

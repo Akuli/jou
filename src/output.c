@@ -168,16 +168,19 @@ char *compile_to_object_file(LLVMModuleRef module)
     return path;
 }
 
-int run_exe(const char *exepath)
+int run_exe(const char *exepath, bool valgrind)
 {
-    char *command = malloc(strlen(exepath) + 50);
+    char *command = malloc(strlen(exepath) + 1000);
 #ifdef _WIN32
     sprintf(command, "\"%s\"", exepath);
     char *p;
     while ((p = strchr(command, '/')))
         *p = '\\';
 #else
-    sprintf(command, "'%s'", exepath);
+    if (valgrind)
+        sprintf(command, "valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 '%s'", exepath);
+    else
+        sprintf(command, "'%s'", exepath);
 #endif
 
     // Make sure that everything else shows up before the user's prints.
