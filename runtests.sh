@@ -148,7 +148,7 @@ function run_test()
     else
         # For non-aoc files we can valgrind the compiled Jou executables.
         # Aoc solutions can be really slow --> valgrind only the compilation.
-        if [ $valgrind = yes ]; then
+        if [ $valgrind = yes ] && [ $correct_exit_code == 0 ]; then
             command="$(printf "$command_template" "--valgrind $joufile")"
         else
             command="$(printf "$command_template" $joufile)"
@@ -166,7 +166,7 @@ function run_test()
     #   * the "test" is actually a GUI program in examples/
     if ( ! [[ "$command_template" =~ -O0 ]] && [[ $joufile =~ ^tests/crash/ ]] ) \
         || ( [[ "$command_template" =~ valgrind ]] && [ $correct_exit_code != 0 ] ) \
-        || [ $joufile = examples/x11_window.jou ]
+        || [ $joufile = examples/x11_window.jou ] || [ $joufile = examples/memory_leak.jou ]
     then
         show_skip $joufile
         mv $diffpath $diffpath.skip

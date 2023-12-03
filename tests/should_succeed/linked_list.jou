@@ -17,6 +17,12 @@ def prepend(list: Node**, value: byte) -> void:
     *new_first = Node{value = value, next = *list}
     *list = new_first
 
+def free_list(list: Node*) -> void:
+    while list != NULL:
+        next = list->next
+        free(list)
+        list = next
+
 def main() -> int:
     list: Node* = NULL
     prepend(&list, 'o')
@@ -25,4 +31,6 @@ def main() -> int:
     prepend(&list, 'e')
     prepend(&list, 'h')
     list->print()  # Output: hello
+
+    free_list(list)
     return 0
