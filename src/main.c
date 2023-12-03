@@ -370,12 +370,21 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
 static void add_imported_symbols(struct CompileState *compst)
 {
     for (struct FileState *to = compst->files.ptr; to < End(compst->files); to++) {
+        List(struct FileState *) seen_before = {0};
+
         for (AstImport *imp = to->ast.imports.ptr; imp < End(to->ast.imports); imp++) {
             struct FileState *from = find_file(compst, imp->resolved_path);
             assert(from);
             if (from == to) {
                 fail_with_error(imp->location, "the file itself cannot be imported");
             }
+
+            for (int i = 0; i < seen_before.len; i++) {
+                if (seen_before.ptr[i] == from) {
+                    fail_with_error(imp->location, "file \"%s\" is imported twice", imp->specified_path);
+                }
+            }
+            Append(&seen_before, from);
 
             for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
                 if (command_line_args.verbosity >= 2) {
@@ -391,6 +400,8 @@ static void add_imported_symbols(struct CompileState *compst)
                 add_imported_symbol(to, es, imp);
             }
         }
+
+        free(seen_before.ptr);
     }
 
     // Mark all exports as no longer pending.
