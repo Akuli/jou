@@ -1,0 +1,69 @@
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+def read_file(filename: byte*) -> byte*:
+    huge = 1000*1000
+
+    result: byte* = malloc(huge)
+    assert result != NULL
+    memset(result, 0, huge)
+
+    f = fopen(filename, "r")
+    assert f != NULL
+    fread(result, 1, huge, f)
+    fclose(f)
+
+    assert result[huge-1] == '\0'  # check if full
+    return result
+
+
+# Check if there is a part number between start and end.
+# Start and end should be pointers into input.
+def is_part_number(input: byte*, start: byte*, end: byte*) -> bool:
+    if start >= end:
+        # empty range
+        return False
+
+    for p = start; p < end; p++:
+        if not is_ascii_digit(*p):
+            return False
+
+    line_size = strcspn(input, "\n") + 1
+
+    for dy = -1; dy <= 1; dy++:
+        y_offset = line_size * dy
+        check_start = &start[y_offset - 1]
+        check_end = &end[y_offset + 1]
+
+        # stay within input
+        if check_start < input:
+            check_start = input
+        if check_end > &input[strlen(input)]:
+            check_end = &input[strlen(input)]
+
+        for p = check_start; p < check_end; p++:
+            if *p != '.' and is_ascii_punctuation(*p):
+                return True
+
+    return False
+
+
+def main() -> int:
+    input = read_file("sampleinput.txt")
+    sum = 0
+
+    for start = input; *start != '\0'; start++:
+        end = start
+        while *end != '\0' and is_ascii_digit(*end):
+            end++
+
+        if is_part_number(input, start, end):
+            sum += atoi(start)
+            start = end  # skip rest of number
+
+    free(input)
+    printf("%d\n", sum)  # Output: 4361
+    return 0

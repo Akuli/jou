@@ -13,7 +13,8 @@ set -e -o pipefail
 
 function usage() {
     echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [TEMPLATE]" >&2
-    echo "TEMPLATE can be e.g. './jou %s', where %s will be replaced by a jou file." >&2
+    echo "TEMPLATE can be e.g. 'jou %s', where %s will be replaced by a jou file." >&2
+    echo "When the command runs, 'jou' points at the executable in repository root."
     exit 2
 }
 
@@ -33,9 +34,9 @@ done
 if [ $# == 0 ]; then
     # No arguments --> run tests in the basic/simple way
     if [[ "$OS" =~ Windows ]]; then
-        command_template='./jou.exe %s'
+        command_template='jou.exe %s'
     else
-        command_template='./jou %s'
+        command_template='jou %s'
     fi
 elif [ $# == 1 ]; then
     command_template="$1"
@@ -139,8 +140,16 @@ function run_test()
     local correct_exit_code="$2"
     local counter="$3"
 
-    local command diffpath
-    command="$(printf "$command_template" $joufile)"
+    local command
+    if [[ "$joufile" =~ ^examples/aoc ]]; then
+        # AoC files use fopen("sampleinput.txt", "r").
+        # We don't do this for all files, because I like relative paths in error messages.
+        command="cd $(dirname $joufile) && $(printf "$command_template" $(basename $joufile))"
+    else
+        command="$(printf "$command_template" $joufile)"
+    fi
+
+    local diffpath
     diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
 
     printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
@@ -159,11 +168,13 @@ function run_test()
     fi
 
     show_run $joufile
-    if diff --text -u --color=always \
-        <(generate_expected_output $joufile $correct_exit_code | tr -d '\r') \
-        <(ulimit -v 500000 2>/dev/null; bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r') \
-        &>> $diffpath
-    then
+    if diff --text -u --color=always <(
+        generate_expected_output $joufile $correct_exit_code | tr -d '\r'
+    ) <(
+        export PATH="$PWD:$PATH"
+        ulimit -v 500000 2>/dev/null
+        bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r'
+    ) &>> $diffpath; then
         show_ok $joufile
         rm -f $diffpath
     else
@@ -173,7 +184,7 @@ function run_test()
 }
 
 counter=0
-for joufile in examples/*.jou tests/*/*.jou; do
+for joufile in examples/*.jou examples/aoc2023/day*/*.jou tests/*/*.jou; do
     case $joufile in
         examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
         *) correct_exit_code=1; ;;  # compiler or runtime error
