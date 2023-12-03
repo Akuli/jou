@@ -5,7 +5,7 @@ CFLAGS += -g
 
 SRC := $(wildcard src/*.c)
 OBJ := $(SRC:src/%.c=obj/%.o)
-
+ 
 ifneq (,$(findstring Windows,$(OS)))
 	include Makefile.windows
 else
