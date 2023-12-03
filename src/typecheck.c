@@ -461,50 +461,29 @@ kind of message.
 The template can contain "FROM" and "TO". They will be substituted with names
 of types. We cannot use printf() style functions because the arguments can be in
 any order.
-
-Instead of templates, you can also:
-- pass NULL for error handler to force the cast to happen
-- specify a callback function that will be called to handle the error
 */
-struct ImplicitCastErrorHandler {
-    bool is_callback;
-    union {
-        const char *template;
-        struct {
-            void *dataptr;
-            noreturn void (*func)(void *dataptr);
-        } callback;
-    } data;
-};
-#define icehTemplate(Str) (&(struct ImplicitCastErrorHandler){ .is_callback=false, .data.template=(Str) })
-#define icehCallback(Cb,Data) (&(struct ImplicitCastErrorHandler){ .is_callback=true, .data.callback.func=(Cb), .data.callback.dataptr=(Data) })
-
-static void fail_with_implicit_cast_error(
+static noreturn void fail_with_implicit_cast_error(
     const Type *from,
     const Type *to,
     Location location,
-    const struct ImplicitCastErrorHandler *errh)
+    const char *template)
 {
-    assert(errh);
-    if (errh->is_callback) {
-        errh->data.callback.func(errh->data.callback.dataptr);
-    } else {
-        List(char) msg = {0};
-        const char *t = errh->data.template;
-        while(*t){
-            if (!strncmp(t, "FROM", 4)) {
-                AppendStr(&msg, from->name);
-                t += 4;
-            } else if (!strncmp(t, "TO", 2)) {
-                AppendStr(&msg, to->name);
-                t += 2;
-            } else {
-                Append(&msg, t[0]);
-                t++;
-            }
+    assert(template);
+
+    List(char) msg = {0};
+    while(*template){
+        if (!strncmp(template, "FROM", 4)) {
+            AppendStr(&msg, from->name);
+            template += 4;
+        } else if (!strncmp(template, "TO", 2)) {
+            AppendStr(&msg, to->name);
+            template += 2;
+        } else {
+            Append(&msg, template[0]);
+            template++;
         }
-        fail_with_error(location, "%.*s", msg.len, msg.ptr);
     }
+    fail_with_error(location, "%.*s", msg.len, msg.ptr);
 }
 
 static bool can_cast_implicitly(const Type *from, const Type *to)
@@ -534,7 +513,7 @@ static bool can_cast_implicitly(const Type *from, const Type *to)
 }
 
 static void do_implicit_cast(
-    ExpressionTypes *types, const Type *to, Location location, const struct ImplicitCastErrorHandler *errh)
+    ExpressionTypes *types, const Type *to, Location location, const char *errmsg_template)
 {
     assert(!types->implicit_cast_type);
     assert(!types->implicit_array_to_pointer_cast);
@@ -557,8 +536,8 @@ static void do_implicit_cast(
         types->implicit_string_to_array_cast = true;
     }
     // Passing in NULL for errh can be used to force a cast to happen.
-    else if (errh != NULL && !can_cast_implicitly(from, to))
-        fail_with_implicit_cast_error(from, to, location, errh);
+    else if (errmsg_template != NULL && !can_cast_implicitly(from, to))
+        fail_with_implicit_cast_error(from, to, location, errmsg_template);
 
     types->implicit_cast_type = to;
     types->implicit_array_to_pointer_cast = (from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER);
@@ -626,7 +605,7 @@ static void typecheck_expression_with_implicit_cast(
     const char *errormsg_template)
 {
     ExpressionTypes *types = typecheck_expression_not_void(ft, expr);
-    do_implicit_cast(types, casttype, expr->location, icehTemplate(errormsg_template));
+    do_implicit_cast(types, casttype, expr->location, errormsg_template);
 }
 
 static const Type *check_binop(
@@ -1163,35 +1142,6 @@ static void typecheck_if_statement(FileTypes *ft, const AstIfStatement *ifstmt)
     typecheck_body(ft, &ifstmt->elsebody);
 }
 
-// Produces error messages when types are wrong in += and similar operators.
-static void handle_in_place_operation_error(void *paramsptr)
-{
-    void **params = paramsptr;
-    const AstStatement *stmt = params[0];
-    const ExpressionTypes *targettypes = params[1];
-    const ExpressionTypes *valuetypes = params[2];
-
-    // For better error messages, do a not-in-place operation (e.g. a += b --> a+b).
-    enum AstExpressionKind op;  // to consider "a + b" when handling "a += b"
-    const char *opname;
-    switch(stmt->kind) {
-        case AST_STMT_INPLACE_ADD: op = AST_EXPR_ADD; opname = "addition"; break;
-        case AST_STMT_INPLACE_SUB: op = AST_EXPR_SUB; opname = "subtraction"; break;
-        case AST_STMT_INPLACE_MUL: op = AST_EXPR_MUL; opname = "multiplication"; break;
-        case AST_STMT_INPLACE_DIV: op = AST_EXPR_DIV; opname = "division"; break;
-        case AST_STMT_INPLACE_MOD: op = AST_EXPR_MOD; opname = "modulo"; break;
-        default: assert(0);
-    }
-
-    ExpressionTypes targettypes2 = { .expr = &stmt->data.assignment.target, .type = targettypes->type };
-    ExpressionTypes valuetypes2 = { .expr = &stmt->data.assignment.value, .type = valuetypes->type };
-    const Type *restype = check_binop(op, stmt->location, &targettypes2, &valuetypes2);
-    fail_with_error(
-        stmt->location,
-        "%s produced a value of type %s which cannot be assigned back to %s",
-        opname, restype->name, targettypes2.type->name);
-}
-
 static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
 {
     switch(stmt->kind) {
@@ -1279,7 +1229,7 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
 
         char msg[500];
         snprintf(msg, sizeof msg, "%s produced a value of type FROM which cannot be assigned back to TO", opname);
-        do_implicit_cast(&tempvalue_types, targettypes->type, stmt->location, icehTemplate(msg));
+        do_implicit_cast(&tempvalue_types, targettypes->type, stmt->location, msg);
 
         // I think it is currently impossible to cast target.
         // If this assert fails, we probably need to add another error message for it.
