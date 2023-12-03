@@ -24,12 +24,14 @@ jobs:
       - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
       - run: ./runtests.sh --verbose 'jou ${{ matrix.opt-level }} %s'
       - run: ./runtests.sh --verbose 'jou ${{ matrix.opt-level }} --verbose %s'
-      # Valgrinding is slow. Do it only when this file or something in the compiler has been modified.
+      # Valgrinding is slow, but many files affect valgrind resuls.
+      # We skip it when all changes are to .md files (docs, README etc)
       - name: Figure out if we need to run tests with valgrind
         id: check-need-valgrind
         run: |
           git fetch https://github.com/Akuli/jou main
-          if git diff --name-only FETCH_HEAD HEAD | grep -E '(\.c|\.h)$|^tests/'; then
+          # Find modified non-markdown files. If there are any, set doit=yes.
+          if git diff --name-only FETCH_HEAD HEAD | grep -vE '\.md$'; then
             echo doit=yes >> $GITHUB_OUTPUT
           else
             echo doit=no >> $GITHUB_OUTPUT
