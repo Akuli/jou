@@ -10,11 +10,16 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       # TODO: document the commands to install the stuff
+      # TODO: automagically search for llvm in these weird places
       - run: brew install bash diffutils llvm@13
+      - run: echo /usr/local/opt/llvm@13/bin >> $GITHUB_PATH
+      # TODO: do we need the next two lines?
+      - run: LDFLAGS=-L/usr/local/opt/llvm@13/lib >> $GITHUB_ENV
+      - run: CPPFLAGS=-I/usr/local/opt/llvm@13/include >> $GITHUB_ENV
       - run: |
           ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | /usr/local/opt/llvm/bin/clang-cpp-13) || true
       - run: |
-          ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | /opt/homebrew/Cellar/llvm/13/bin/clang-cpp-13) || true
+          ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | /opt/homebrew/Cellar/llvm/llvm@13/bin/clang-cpp-13) || true
       - run: |
           ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | /opt/homebrew/Cellar/llvm/13.0.1/bin/clang-cpp-13) || true
       - run: |
