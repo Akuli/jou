@@ -1,53 +1,10 @@
 import "stdlib/io.jou"
-import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/ascii.jou"
 
 
-# Finds all non-whitespace parts of a string.
-# For example:  " foo bar  baz \n" --> ["foo", "bar", "baz", NULL]
-#
-# Modifies s in-place to put '\0' bytes where words end.
-# Returns an array of byte*, using NULL to mark last word.
-#
-# Return value (and perhaps s) must be free()d, but individual strings don't.
-def split_by_ascii_whitespace(s: byte*) -> byte**:
-    # Count how many non-whitespace sections we have.
-    count = 0
-    flag = False
-    for p = s; *p != '\0'; p++:
-        if not flag and not is_ascii_whitespace(*p):
-            count++
-            flag = True
-        elif flag and is_ascii_whitespace(*p):
-            flag = False
-
-    result: byte** = malloc(sizeof(result[0]) * (count + 1))
-    result_ptr = result
-
-    while True:
-        while is_ascii_whitespace(*s):
-            s++
-        if *s == '\0':
-            break
-        *result_ptr++ = s
-
-        while not is_ascii_whitespace(*s):
-            s++
-
-        if *s == '\0':
-            break  # do not go past end of string
-
-        # mark end of word and move on
-        *s++ = '\0'
-
-    assert result_ptr == &result[count]
-    *result_ptr = NULL
-    return result
-
-
 def main() -> int:
-    f = fopen("sampleinput.txt", "r")
+    f = fopen("input.txt", "r")
     assert f != NULL
 
     total_score = 0
