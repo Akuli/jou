@@ -12,12 +12,18 @@ declare pclose(stream: FILE*) -> int
 
 def is_macos() -> bool:
     # https://stackoverflow.com/a/3466183
+    if is_windows():
+        return False
+
     uname = popen("uname", "r")
+    if uname == NULL:
+        return False
+
     output: byte[100]
     memset(&output, 0, sizeof(output))
     fgets(output, sizeof(output) as int, uname)
-    pclose(uname)
 
+    pclose(uname)
     return starts_with(output, "Darwin")
 
 def run_jou(command: byte*) -> void:

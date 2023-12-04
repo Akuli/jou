@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       # TODO: document the commands to install the stuff
-      - run: brew install bash diffutils llvm@13 clang@13
+      - run: brew install bash diffutils llvm@13
       - run: |
           ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | /usr/local/opt/llvm/bin/clang-cpp-13) || true
       - run: |
