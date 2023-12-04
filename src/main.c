@@ -43,6 +43,7 @@ static const char help_fmt[] =
     "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
     "  -v / --verbose   display some progress information\n"
     "  -vv              display a lot of information about all compilation steps\n"
+    "  --valgrind       use valgrind when running the code\n"
     "  --tokenize-only  display only the output of the tokenizer, don't do anything else\n"
     "  --parse-only     display only the AST (parse tree), don't do anything else\n"
     "  --linker-flags   appended to the linker command, so you can use external libraries\n"
@@ -87,6 +88,9 @@ void parse_arguments(int argc, char **argv)
             i++;
         } else if (strncmp(argv[i], "-v", 2) == 0 && strspn(argv[i] + 1, "v") == strlen(argv[i])-1) {
             command_line_args.verbosity += strlen(argv[i]) - 1;
+            i++;
+        } else if (!strcmp(argv[i], "--valgrind")) {
+            command_line_args.valgrind = true;
             i++;
         } else if (!strcmp(argv[i], "--tokenize-only")) {
             if (argc > 3) {
@@ -365,12 +369,22 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
 
 static void add_imported_symbols(struct CompileState *compst)
 {
-    // TODO: should it be possible for a file to import from itself?
-    // Should fail with error?
     for (struct FileState *to = compst->files.ptr; to < End(compst->files); to++) {
+        List(struct FileState *) seen_before = {0};
+
         for (AstImport *imp = to->ast.imports.ptr; imp < End(to->ast.imports); imp++) {
             struct FileState *from = find_file(compst, imp->resolved_path);
             assert(from);
+            if (from == to) {
+                fail_with_error(imp->location, "the file itself cannot be imported");
+            }
+
+            for (int i = 0; i < seen_before.len; i++) {
+                if (seen_before.ptr[i] == from) {
+                    fail_with_error(imp->location, "file \"%s\" is imported twice", imp->specified_path);
+                }
+            }
+            Append(&seen_before, from);
 
             for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
                 if (command_line_args.verbosity >= 2) {
@@ -386,6 +400,8 @@ static void add_imported_symbols(struct CompileState *compst)
                 add_imported_symbol(to, es, imp);
             }
         }
+
+        free(seen_before.ptr);
     }
 
     // Mark all exports as no longer pending.
@@ -436,6 +452,9 @@ int main(int argc, char **argv)
     include_special_stdlib_file(&compst, "_assert_fail.jou");
 #ifdef _WIN32
     include_special_stdlib_file(&compst, "_windows_startup.jou");
+#endif
+#ifdef __APPLE__
+    include_special_stdlib_file(&compst, "_macos_startup.jou");
 #endif
 
     parse_file(&compst, command_line_args.infile, NULL);
@@ -494,7 +513,7 @@ int main(int argc, char **argv)
     if (!command_line_args.outfile) {
         if(command_line_args.verbosity >= 1)
             printf("Run: %s\n", exepath);
-        ret = run_exe(exepath);
+        ret = run_exe(exepath, command_line_args.valgrind);
     }
 
     free(exepath);

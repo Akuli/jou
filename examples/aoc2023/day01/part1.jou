@@ -1,0 +1,27 @@
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/ascii.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    result = 0
+    line: byte[1000]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        first: byte* = line
+        while *first != '\0' and not is_ascii_digit(*first):
+            first++
+
+        last = &line[strlen(line) - 1]
+        while last > &line[0] and not is_ascii_digit(*last):
+            last--
+
+        result += 10*(*first - '0')
+        result += *last - '0'
+
+    fclose(f)
+
+    printf("%d\n", result)  # Output: 142
+    return 0

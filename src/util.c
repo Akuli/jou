@@ -2,11 +2,17 @@
     // readlink() stuff
     #define _POSIX_C_SOURCE 200112L
     #include <unistd.h>
-#endif // _WIN32
+#endif
+
+#ifdef __APPLE__
+    #include <mach-o/dyld.h>  // _NSGetExecutablePath
+#endif
 
 #include "util.h"
 #include <ctype.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <stdnoreturn.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -58,28 +64,31 @@ void simplify_path(char *path)
 // argv[0] doesn't work as expected when Jou is ran through PATH.
 char *find_current_executable(void)
 {
-    char *result;
-    const char *err;
+    char *result = NULL;
+    const char *err = NULL;
 
 #ifdef _WIN32
     extern char *_pgmptr;  // A documented global variable in Windows. Full path to executable.
     result = strdup(_pgmptr);
-    err = NULL;
+#elif defined(__APPLE__)
+    uint32_t n = 1;
+    result = malloc(n);
+    int ret = _NSGetExecutablePath(result, &n);  // sets n to desired size
+    assert(ret < 0);  // didn't fit
+    result = realloc(result, n);
+    ret = _NSGetExecutablePath(result, &n);
+    assert(ret == 0);
 #else
-    int n = 10000;
-    result = calloc(1, n);
-    ssize_t ret = readlink("/proc/self/exe", result, n);
-
-    if (ret < 0)
+    ssize_t ret;
+    int n = 1;
+    do {
+        n *= 2;
+        result = realloc(result, n);
+        memset(result, 0, n);  // readlink() doesn't nul terminate
+        ret = readlink("/proc/self/exe", result, n);
+    } while (ret == n);
+    if (ret<0)
         err = strerror(errno);
-    else if (ret == n) {
-        static char s[100];
-        sprintf(s, "path is more than %d bytes long", n);
-        err=s;
-    } else {
-        assert(0<ret && ret<n);
-        err = NULL;
-    }
 #endif
 
     if(err) {

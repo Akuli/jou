@@ -1,0 +1,88 @@
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+# Test if a string is ASCII only.
+def is_ascii(s: byte*) -> bool:
+    for p = s; *p != '\0'; p++:
+        if *p >= 128:
+            return False
+    return True
+
+# Check for '0', '1', ..., '9'.
+def is_ascii_digit(b: byte) -> bool:
+    return '0' <= b and b <= '9'
+
+# Checks if the given byte is an ASCII punctuation character, such as '*' or '_' or '"'.
+def is_ascii_punctuation(b: byte) -> bool:
+    return b != '\0' and strchr("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", b) != NULL
+
+# Checks if the given byte is an ASCII whitespace character, such as ' ' or '\n'.
+def is_ascii_whitespace(b: byte) -> bool:
+    return b != '\0' and strchr("\t\n\x0b\x0c\r\x1c\x1d\x1e\x1f ", b) != NULL
+
+# Removes ASCII whitespace from both ends of a string in-place.
+# Similar to .strip() in Python or .trim() in JavaScript.
+def trim_ascii_whitespace(s: byte*) -> void:
+    start = s
+    while *start != '\0' and is_ascii_whitespace(*start):
+        start++
+
+    len = strlen(start)
+    while len > 0 and is_ascii_whitespace(start[len-1]):
+        len--
+
+    if start != s:
+        memmove(s, start, len)
+    s[len] = '\0'
+
+
+# Finds all non-whitespace parts of a string.
+# For example:  " foo bar  baz \n" --> ["foo", "bar", "baz", NULL]
+#
+# Example usage:
+#
+#    s = strdup(" foo bar  baz\n")
+#    words = split_by_ascii_whitespace(s)
+#
+#    for i = 0; words[i] != NULL; i++:
+#        printf("%s\n", words[i])
+#
+#    free(words)
+#    free(s)
+#
+# Modifies s in-place to put '\0' bytes where words end.
+# Returns an array of byte*, using NULL to mark last word.
+# Return value (and perhaps s) must be free()d, but individual strings don't.
+def split_by_ascii_whitespace(s: byte*) -> byte**:
+    # Count how many non-whitespace sections we have.
+    count = 0
+    flag = False
+    for p = s; *p != '\0'; p++:
+        if not flag and not is_ascii_whitespace(*p):
+            count++
+            flag = True
+        elif flag and is_ascii_whitespace(*p):
+            flag = False
+
+    result: byte** = malloc(sizeof(result[0]) * (count + 1))
+    result_ptr = result
+
+    while True:
+        while is_ascii_whitespace(*s):
+            s++
+        if *s == '\0':
+            break
+        *result_ptr++ = s
+
+        while not is_ascii_whitespace(*s):
+            s++
+
+        if *s == '\0':
+            break  # do not go past end of string
+
+        # mark end of word and move on
+        *s++ = '\0'
+
+    assert result_ptr == &result[count]
+    *result_ptr = NULL
+    return result

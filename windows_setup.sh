@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Run this script in Git Bash to get started with developing Jou on Windows.
 # It downloads everything you need (except a text editor).

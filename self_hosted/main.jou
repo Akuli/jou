@@ -227,6 +227,8 @@ class Compiler:
 
         for idest = 0; idest < self->nfiles; idest++:
             dest = &self->files[idest]
+            seen_before: FileState** = malloc(sizeof(seen_before[0]) * dest->ast.nimports)
+
             for i = 0; i < dest->ast.nimports; i++:
                 imp = &dest->ast.imports[i]
 
@@ -237,6 +239,16 @@ class Compiler:
                         break
                 assert src != NULL
 
+                if src == dest:
+                    fail(imp->location, "the file itself cannot be imported")
+
+                for k = 0; k < i; k++:
+                    if seen_before[k] == src:
+                        message: byte[500]
+                        snprintf(message, sizeof(message), "file \"%s\" is imported twice", imp->specified_path)
+                        fail(imp->location, message)
+                seen_before[i] = src
+
                 for exp = src->pending_exports; exp->name[0] != '\0'; exp++:
                     if self->verbosity >= 1:
                         printf(
@@ -245,6 +257,8 @@ class Compiler:
                         )
                     check_ast_and_import_conflicts(&dest->ast, exp)
                     dest->typectx.add_imported_symbol(exp)
+
+            free(seen_before)
 
         for i = 0; i < self->nfiles; i++:
             free(self->files[i].pending_exports)
@@ -376,6 +390,7 @@ class Compiler:
         sprintf(command, "\"%s\" -o \"%s\"", c_compiler, exe)
         for i = 0; object_files[i] != NULL; i++:
             sprintf(&command[strlen(command)], " \"%s\"", object_files[i])
+        strcat(command, " -lm")
 
         if is_windows():
             # windows strips outermost quotes for some reason, so let's quote it all one more time...

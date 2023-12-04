@@ -52,6 +52,7 @@ typedef struct CfInstruction CfInstruction;
 extern struct CommandLineArgs {
     const char *argv0;  // Program name
     int verbosity;  // How much debug/progress info to print, how many times -v/--verbose passed
+    bool valgrind;  // true --> Use valgrind when runnning user's jou program
     bool tokenize_only;  // If true, tokenize the file passed on command line and don't actually compile anything
     bool parse_only;  // If true, parse the file passed on command line and don't actually compile anything
     int optlevel;  // Optimization level (0 don't optimize, 3 optimize a lot)
@@ -631,7 +632,7 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft);
 char *compile_to_object_file(LLVMModuleRef module);
 char *get_default_exe_path(void);
 void run_linker(const char *const *objpaths, const char *exepath);
-int run_exe(const char *exepath);
+int run_exe(const char *exepath, bool valgrind);
 
 /*
 Use these to clean up return values of compiling functions.

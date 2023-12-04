@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: shellcheck --color=always --shell=bash --exclude=SC2086,SC2059,SC2046,SC2235,SC2002,SC2206,SC2068 *.sh activate
+      - run: shellcheck --color=always --shell=bash --exclude=SC2086,SC2059,SC2046,SC2235,SC2002,SC2206,SC2068,SC2207 *.sh activate
 
   test:
     runs-on: ubuntu-latest
@@ -22,20 +22,22 @@ jobs:
       - uses: actions/checkout@v3
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
       - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
-      - run: ./runtests.sh --verbose './jou ${{ matrix.opt-level }} %s'
-      - run: ./runtests.sh --verbose './jou ${{ matrix.opt-level }} --verbose %s'
-      # Valgrinding is slow. Do it only when this file or something in the compiler has been modified.
+      - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
+      - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }} --verbose"
+      # Valgrinding is slow, but many files affect valgrind resuls.
+      # We skip it when all changes are to .md files (docs, README etc)
       - name: Figure out if we need to run tests with valgrind
         id: check-need-valgrind
         run: |
           git fetch https://github.com/Akuli/jou main
-          if git diff --name-only FETCH_HEAD HEAD | grep -E '(\.c|\.h)$|^tests/'; then
+          # Find modified non-markdown files. If there are any, set doit=yes.
+          if git diff --name-only FETCH_HEAD HEAD | grep -vE '\.md$'; then
             echo doit=yes >> $GITHUB_OUTPUT
           else
             echo doit=no >> $GITHUB_OUTPUT
           fi
       - if: ${{ steps.check-need-valgrind.outputs.doit == 'yes' }}
-        run: ./runtests.sh --verbose --valgrind './jou ${{ matrix.opt-level }} %s'
+        run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.opt-level }}"
       # valgrind+verbose isn't meaningful: test script would ignore valgrind output
       - run: make clean
       - name: Check that "make clean" deleted all files not committed to Git
