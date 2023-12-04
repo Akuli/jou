@@ -1,10 +1,11 @@
 import "stdlib/io.jou"
+import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/ascii.jou"
 
 
 def main() -> int:
-    f = fopen("input.txt", "r")
+    f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
     total_score = 0
@@ -41,7 +42,9 @@ def main() -> int:
                 k *= 2
             total_score += k
 
+        free(words)
+
     fclose(f)
 
-    printf("%d\n", total_score)
+    printf("%d\n", total_score)  # Output: 13
     return 0
