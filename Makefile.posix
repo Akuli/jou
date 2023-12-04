@@ -1,10 +1,10 @@
 # Linux has llvm-config-13, on macos brew installs LLVM to a weird place in /usr/local/
 LLVM_CONFIG ?= $(shell \
-    which llvm-config-13 \
-    || which /usr/local/opt/llvm@13/bin/llvm-config \
-    || which llvm-config-11 \
-    || which /usr/local/opt/llvm@11/bin/llvm-config \
-    )
+	which llvm-config-13 \
+	|| which /usr/local/opt/llvm@13/bin/llvm-config \
+	|| which llvm-config-11 \
+	|| which /usr/local/opt/llvm@11/bin/llvm-config \
+	)
 CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
 LDFLAGS ?= $(shell $(LLVM_CONFIG) --ldflags --libs)
 
