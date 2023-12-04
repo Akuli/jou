@@ -116,7 +116,7 @@ MacOS support is new. Please create an issue if something doesn't work.
     because they come with Xcode Command Line Tools.
     You can use [brew](https://brew.sh/) to install LLVM 13:
     ```
-    brew install llvm@13
+    $ brew install llvm@13
     ```
 2. Download and compile Jou.
     ```
