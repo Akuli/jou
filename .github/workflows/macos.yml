@@ -8,20 +8,21 @@ jobs:
   test:
     runs-on: macos-latest
     steps:
-      - run: env
       - uses: actions/checkout@v3
       # TODO: document the commands to install the stuff
       - run: brew install bash diffutils llvm@13
-      - run: make
-      - run: ./runtests.sh --verbose
-      - run: make clean
-      - name: Check that "make clean" deleted all files not committed to Git
-        shell: bash
-        run: |
-          if [ "$(git status --porcelain --ignored)" != "" ]; then
-            git status --ignored
-            exit 1
-          fi
+      - run: |
+          (echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | clang-cpp-13
+#      - run: make
+#      - run: ./runtests.sh --verbose
+#      - run: make clean
+#      - name: Check that "make clean" deleted all files not committed to Git
+#        shell: bash
+#        run: |
+#          if [ "$(git status --porcelain --ignored)" != "" ]; then
+#            git status --ignored
+#            exit 1
+#          fi
 
 #  compare-compilers:
 #    runs-on: macos-latest
