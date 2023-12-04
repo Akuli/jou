@@ -119,8 +119,9 @@ function post_process_output()
         echo "A lot of output hidden..."
         grep "^Exit code:"
     elif [[ $joufile =~ ^tests/crash/ ]]; then
-        if [[ "$OS" =~ Windows ]]; then
-            # Windows doesn't say "Segmentation fault" when a program crashes
+        if [ "$(uname -s)" != Linux ]; then
+            # Windows and macos don't seem to say "Segmentation fault" when
+            # a program crashes
             echo "Segmentation fault"
         fi
         # Hide most of the output. We really only care about whether it
