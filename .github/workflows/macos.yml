@@ -7,17 +7,17 @@ on:
 jobs:
   test:
     runs-on: macos-latest
+    strategy:
+      matrix:
+        # Testing all levels because there was a bug that only happened with -O1. (#224)
+        opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
       - uses: actions/checkout@v3
       # TODO: document the commands to install the stuff
-      # TODO: automagically search for llvm in these weird places
       - run: brew install bash diffutils llvm@13
-      - run: echo /usr/local/opt/llvm@13/bin >> $GITHUB_PATH
-      # TODO: do we need the next two lines?
-      - run: LDFLAGS=-L/usr/local/opt/llvm@13/lib >> $GITHUB_ENV
-      - run: CPPFLAGS=-I/usr/local/opt/llvm@13/include >> $GITHUB_ENV
       - run: make
-      - run: ./runtests.sh --verbose
+      - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
+      - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }} --verbose"
       - run: make clean
       - name: Check that "make clean" deleted all files not committed to Git
         shell: bash
@@ -27,9 +27,9 @@ jobs:
             exit 1
           fi
 
-#  compare-compilers:
-#    runs-on: macos-latest
-#    steps:
-#      - uses: actions/checkout@v3
-#      - run: brew install llvm@13
-#      - run: ./compare_compilers.sh
+  compare-compilers:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: brew install bash diffutils llvm@13
+      - run: ./compare_compilers.sh
