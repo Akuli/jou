@@ -190,9 +190,11 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
     // make it a definition instead of a declaration so that there are no linker errors.
     // Ideally it would be possible to compile some parts of Jou code only for a specific platform.
 #ifdef _WIN32
-    const char *doesnt_exist[] = { "readlink", "mkdir" };
-#else
+    const char *doesnt_exist[] = { "readlink", "mkdir", "popen", "pclose", "_NSGetExecutablePath" };
+#elif defined(__APPLE__)
     const char *doesnt_exist[] = { "GetModuleFileNameA", "_mkdir" };
+#else
+    const char *doesnt_exist[] = { "GetModuleFileNameA", "_mkdir", "_NSGetExecutablePath" };
 #endif
     for (unsigned i = 0; i < sizeof doesnt_exist / sizeof doesnt_exist[0]; i++) {
         if (!strcmp(fullname, doesnt_exist[i])) {
@@ -434,11 +436,18 @@ static int find_block(const CfGraph *cfg, const CfBlock *b)
     assert(0);
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 static void codegen_call_to_the_special_startup_function(const struct State *st)
 {
+    const char *name;
+#ifdef _WIN32
+    name = "_jou_windows_startup";
+#else
+    name = "_jou_macos_startup";
+#endif
+
     LLVMTypeRef functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
-    LLVMValueRef func = LLVMAddFunction(st->module, "_jou_windows_startup", functype);
+    LLVMValueRef func = LLVMAddFunction(st->module, name, functype);
     LLVMBuildCall2(st->builder, functype, func, NULL, 0, "");
 }
 #endif
@@ -461,7 +470,7 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
     assert(cfg->all_blocks.ptr[0] == &cfg->start_block);
     LLVMPositionBuilderAtEnd(st->builder, blocks[0]);
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
     if (!get_self_class(&cfg->signature) && !strcmp(cfg->signature.name, "main"))
         codegen_call_to_the_special_startup_function(st);
 #endif

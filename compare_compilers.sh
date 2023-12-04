@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # There are two Jou compilers: one written in C and another written in Jou.
 # They should be able to tokenize and parse each Jou file in exactly the same way.
@@ -29,7 +29,7 @@ done
 
 if [ ${#files[@]} = 0 ]; then
     # TODO: do not skip Advent Of Code files
-    mapfile -t files < <( find stdlib examples tests -name '*.jou' | grep -v aoc2023 | sort )
+    files=( $(find stdlib examples tests -name '*.jou' | grep -v aoc2023 | sort) )
 fi
 if [ ${#actions[@]} = 0 ]; then
     actions=(tokenize parse run)

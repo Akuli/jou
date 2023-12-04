@@ -453,6 +453,9 @@ int main(int argc, char **argv)
 #ifdef _WIN32
     include_special_stdlib_file(&compst, "_windows_startup.jou");
 #endif
+#ifdef __APPLE__
+    include_special_stdlib_file(&compst, "_macos_startup.jou");
+#endif
 
     parse_file(&compst, command_line_args.infile, NULL);
     parse_all_pending_files(&compst);

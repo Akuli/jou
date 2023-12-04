@@ -6,6 +6,26 @@ import "stdlib/io.jou"
 def is_windows() -> bool:
     return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
 
+# TODO: belongs in stdlib/process.jou
+declare popen(command: byte*, type: byte*) -> FILE*
+declare pclose(stream: FILE*) -> int
+
+def is_macos() -> bool:
+    # https://stackoverflow.com/a/3466183
+    if is_windows():
+        return False
+
+    uname = popen("uname", "r")
+    if uname == NULL:
+        return False
+
+    output: byte[100]
+    memset(&output, 0, sizeof(output))
+    fgets(output, sizeof(output) as int, uname)
+
+    pclose(uname)
+    return starts_with(output, "Darwin")
+
 def run_jou(command: byte*) -> void:
     if is_windows():
         jou_exe = "jou.exe"
@@ -89,7 +109,7 @@ def main() -> int:
         system("tmp/tests/jou_executable")
 
     # Compile a GUI program
-    if not is_windows():
+    if not is_windows() and not is_macos():
         ret = system("./jou -o /dev/null --linker-flags \"-lX11\" examples/x11_window.jou")
         assert ret == 0
 

@@ -107,6 +107,46 @@ $ LLVM_CONFIG=llvm-config-11 make
 
 </details>
 
+<details> <summary>MacOS</summary>
+
+MacOS support is new. Please create an issue if something doesn't work.
+
+1. Install Git, make and LLVM 13.
+    If you do software development on MacOS, you probably already have Git and make,
+    because they come with Xcode Command Line Tools.
+    You can use [brew](https://brew.sh/) to install LLVM 13:
+    ```
+    $ brew install llvm@13
+    ```
+2. Download and compile Jou.
+    ```
+    $ git clone https://github.com/Akuli/jou
+    $ cd jou
+    $ make
+    ```
+3. Run the hello world program to make sure that Jou works:
+    ```
+    $ ./jou examples/hello.jou
+    Hello World
+    ```
+    You can now run other Jou programs in the same way.
+4. (Optional) If you want to run Jou programs with simply `jou filename`
+    instead of something like `./jou filename` or `/full/path/to/jou filename`,
+    you can add the `jou` directory to your PATH.
+    To do so, edit `~/.bashrc` (or whatever other file you have instead, e.g. `~/.zshrc`):
+    ```
+    $ nano ~/.bashrc
+    ```
+    Add the following line to the end:
+    ```
+    export PATH="$PATH:/Users/yourname/jou/"
+    ```
+    Replace `/Users/yourname/jou/` with the path to the folder (not the executable file) where you downloaded Jou.
+    Note that the `~` character does not work here,
+    so you need to use a full path (or `$HOME`) instead.
+
+</details>
+
 <details> <summary>64-bit Windows</summary>
 
 1. Go to releases on GitHub. It's in the sidebar at right.
