@@ -9,30 +9,82 @@ declare _mkdir(path: byte*) -> int  # windows
 declare mkdir(path: byte*, mode: int) -> int  # posix
 declare dirname(path: byte*) -> byte*
 declare stat(path: byte*, buf: byte[1000]*) -> int  # lol
+declare popen(command: byte*, type: byte*) -> FILE*
+declare pclose(stream: FILE*) -> int
+declare _NSGetExecutablePath(buf: byte*, bufsize: int*) -> int
+
 
 def is_windows() -> bool:
     # TODO: this is just weird...
     return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
 
-# Return a path to the currently running program. Return value must be free()d.
-def find_current_executable() -> byte*:
+# https://stackoverflow.com/a/3466183
+def is_macos() -> bool:
+    if is_windows():
+        return False
+
+    uname = popen("uname", "r")
+    if uname == NULL:
+        return False
+
+    output: byte[100]
+    memset(&output, 0, sizeof(output))
+    fgets(output, sizeof(output) as int, uname)
+
+    pclose(uname)
+    return starts_with(output, "Darwin")
+
+
+def _find_current_executable_windows() -> byte*:
     buf = NULL
     for size = 2L; True; size *= 2:
         buf = realloc(buf, size)
         memset(buf, 0, size)
-
-        if is_windows():
-            ret: long = GetModuleFileNameA(NULL, buf, size as int)
-        else:
-            ret = readlink("/proc/self/exe", buf, size)
-
+        ret = GetModuleFileNameA(NULL, buf, size as int)
         if ret <= 0:
-            # TODO: include os error message (GetLastError / errno)
-            fprintf(stderr, "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
-            exit(1)
+            return NULL  # error --> give up
         if ret < size:
             # buffer is big enough, it fits
             return buf
+
+def _find_current_executable_macos() -> byte*:
+    n = 1
+    result: byte* = malloc(n)
+    ret = _NSGetExecutablePath(result, &n)  # sets n to desired size
+    assert ret < 0  # didn't fit
+    result = realloc(result, n)
+    ret = _NSGetExecutablePath(result, &n)
+    assert ret == 0
+    return result
+
+def _find_current_executable_linux() -> byte*:
+    buf = NULL
+    for size = 2L; True; size *= 2:
+        buf = realloc(buf, size)
+        memset(buf, 0, size)
+        ret = readlink("/proc/self/exe", buf, size)
+        if ret <= 0:
+            return NULL
+        if ret < size:
+            # buffer is big enough, it fits
+            return buf
+
+
+def find_current_executable() -> byte*:
+    if is_windows():
+        result = _find_current_executable_windows()
+    elif is_macos():
+        result = _find_current_executable_macos()
+    else:
+        result = _find_current_executable_linux()
+
+    if result == NULL:
+        # TODO: include os error message (GetLastError / errno)
+        fprintf(stderr, "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
+        exit(1)
+
+    return result
+
 
 def find_installation_directory() -> byte*:
     exe = find_current_executable()

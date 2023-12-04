@@ -190,9 +190,11 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
     // make it a definition instead of a declaration so that there are no linker errors.
     // Ideally it would be possible to compile some parts of Jou code only for a specific platform.
 #ifdef _WIN32
-    const char *doesnt_exist[] = { "readlink", "mkdir", "popen", "pclose" };
-#else
+    const char *doesnt_exist[] = { "readlink", "mkdir", "popen", "pclose", "_NSGetExecutablePath" };
+#elif defined(__APPLE__)
     const char *doesnt_exist[] = { "GetModuleFileNameA", "_mkdir" };
+#else
+    const char *doesnt_exist[] = { "GetModuleFileNameA", "_mkdir", "_NSGetExecutablePath" };
 #endif
     for (unsigned i = 0; i < sizeof doesnt_exist / sizeof doesnt_exist[0]; i++) {
         if (!strcmp(fullname, doesnt_exist[i])) {
