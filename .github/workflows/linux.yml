@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm-version: [11, 13]
+        llvm-version: [11, 13, 15]
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
@@ -24,7 +24,7 @@ jobs:
       - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
       - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
       - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }} --verbose"
-      # Valgrinding is slow, but many files affect valgrind resuls.
+      # Valgrinding is slow, but many files affect valgrind results.
       # We skip it when all changes are to .md files (docs, README etc)
       - name: Figure out if we need to run tests with valgrind
         id: check-need-valgrind
