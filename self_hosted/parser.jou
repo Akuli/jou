@@ -912,6 +912,8 @@ class Parser:
         self->tokens++
 
         signature = self->parse_function_or_method_signature(is_method)
+        if strcmp(signature.name, "__init__") == 0 and is_method:
+            fail(self->tokens->location, "Jou does not have a special __init__ method like Python")
         if signature.takes_varargs:
             fail(self->tokens->location, "functions with variadic arguments cannot be defined yet")
 
