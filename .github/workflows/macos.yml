@@ -10,9 +10,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       # TODO: document the commands to install the stuff
-      - run: brew install bash diffutils llvm@13
+      - run: brew install bash diffutils llvm@13 clang@13
       - run: |
-          (echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | clang-cpp-13
+          ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | /usr/local/opt/llvm/bin/clang-cpp-13) || true
+      - run: |
+          ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | /opt/homebrew/Cellar/llvm/13/bin/clang-cpp-13) || true
+      - run: |
+          ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | /opt/homebrew/Cellar/llvm/13.0.1/bin/clang-cpp-13) || true
+      - run: |
+          ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | /opt/homebrew/opt/llvm/bin) || true
+      - run: which llvm-config || which llvm-config-13
+      - run: llvm-config --bindir || llvm-config-13 --bindir
 #      - run: make
 #      - run: ./runtests.sh --verbose
 #      - run: make clean
