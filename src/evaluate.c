@@ -39,8 +39,6 @@ static int evaluate_condition(const AstExpression *condast)
     return (int)cond.data.boolean;
 }
 
-typedef List(AstStatement) StatementList;
-
 static void simplify_if_statement(AstIfStatement *ifstmt)
 {
     AstConditionAndBody *pair = &ifstmt->if_and_elifs[0];
@@ -78,6 +76,8 @@ static void simplify_if_statement(AstIfStatement *ifstmt)
 
     assert(end - ifstmt->if_and_elifs == ifstmt->n_if_and_elifs);
 }
+
+typedef List(AstStatement) StatementList;
 
 static void handle_toplevel_statement(AstStatement *stmt, StatementList *result)
 {
@@ -166,6 +166,7 @@ void evaluate_compile_time_if_statements(AstFile *file)
     StatementList result = {0};
     for (int i = 0; i < file->body.nstatements; i++)
         handle_toplevel_statement(&file->body.statements[i], &result);
+    // TODO: should free 
     file->body.statements = result.ptr;
     file->body.nstatements = result.len;
 

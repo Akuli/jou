@@ -9,6 +9,7 @@ import "./paths.jou"
 import "./target.jou"
 import "./create_llvm_ir.jou"
 import "./llvm.jou"
+import "./evaluate.jou"
 import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/str.jou"
@@ -131,6 +132,7 @@ def check_ast_and_import_conflicts(ast: AstFile*, symbol: ExportSymbol*) -> void
         elif ts->kind == AstStatementKind::Enum:
             conflict = symbol->kind == ExportSymbolKind::Type and strcmp(ts->enumdef.name, symbol->name) == 0
         else:
+            printf("%d\n", ts->kind)
             assert False
 
         if conflict:
@@ -206,6 +208,8 @@ class Compiler:
             if self->verbosity >= 2:
                 ast.print()
             free(tokens)  # TODO: do this properly
+
+            evaluate_compile_time_if_statements_in_body(&ast.body)
 
             self->files = realloc(self->files, sizeof self->files[0] * (self->nfiles + 1))
             self->files[self->nfiles++] = FileState{ast = ast}
