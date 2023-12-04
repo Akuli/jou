@@ -17,6 +17,8 @@ jobs:
       - run: LDFLAGS=-L/usr/local/opt/llvm@13/lib >> $GITHUB_ENV
       - run: CPPFLAGS=-I/usr/local/opt/llvm@13/include >> $GITHUB_ENV
       - run: |
+          ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | clang-cpp-13) || true
+      - run: |
           ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | /usr/local/opt/llvm/bin/clang-cpp-13) || true
       - run: |
           ((echo '#include <stdio.h>' && echo stdin && echo stdout && echo stderr) | /opt/homebrew/Cellar/llvm/llvm@13/bin/clang-cpp-13) || true
