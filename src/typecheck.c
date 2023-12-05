@@ -133,13 +133,12 @@ ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstFile *ast)
 
 int evaluate_array_length(const AstExpression *expr)
 {
-    Constant c;
-    if (evaluate_constant(expr, &c)
-        && c.kind == CONSTANT_INTEGER
-        && c.data.integer.is_signed  // TODO: allow unsigned
-        && c.data.integer.width_in_bits == 32)  // TODO: allow other sizes than exactly 32
+    if (expr->kind == AST_EXPR_CONSTANT
+        && expr->data.constant.kind == CONSTANT_INTEGER
+        && expr->data.constant.data.integer.is_signed
+        && expr->data.constant.data.integer.width_in_bits == 32)
     {
-        return (int)c.data.integer.value;
+        return (int)expr->data.constant.data.integer.value;
     }
 
     fail_with_error(expr->location, "cannot evaluate array length at compile time");

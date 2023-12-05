@@ -697,6 +697,8 @@ static void build_body(struct State *st, const AstBody *body);
 
 static void build_if_statement(struct State *st, const AstIfStatement *ifstmt)
 {
+    assert(ifstmt->n_if_and_elifs >= 1);
+
     CfBlock *done = add_block(st);
     for (int i = 0; i < ifstmt->n_if_and_elifs; i++) {
         const LocalVariable *cond = build_expression(

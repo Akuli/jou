@@ -132,7 +132,6 @@ def check_ast_and_import_conflicts(ast: AstFile*, symbol: ExportSymbol*) -> void
         elif ts->kind == AstStatementKind::Enum:
             conflict = symbol->kind == ExportSymbolKind::Type and strcmp(ts->enumdef.name, symbol->name) == 0
         else:
-            printf("%d\n", ts->kind)
             assert False
 
         if conflict:

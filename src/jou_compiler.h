@@ -108,7 +108,6 @@ struct Token {
 };
 
 // Constants can appear in AST and also compilation steps after AST.
-// TODO: rename Constant to CompileTimeValue
 struct Constant {
     enum ConstantKind {
         CONSTANT_ENUM_MEMBER,
@@ -128,7 +127,6 @@ struct Constant {
     } data;
 };
 #define copy_constant(c) ( (c)->kind==CONSTANT_STRING ? (Constant){ CONSTANT_STRING, {.str=strdup((c)->data.str)} } : *(c) )
-#define bool_constant(b) ((Constant){ CONSTANT_BOOL, {.boolean=(b)} })
 #define int_constant(Type, Val) (\
     assert(is_integer_type((Type))), \
     (Constant){ \
@@ -260,7 +258,7 @@ struct AstForLoop {
 };
 struct AstIfStatement {
     AstConditionAndBody *if_and_elifs;
-    int n_if_and_elifs;  // Usually >= 1 for the initial "if", unless compile-time evaluation erases it
+    int n_if_and_elifs;  // Always >= 1 for the initial "if"
     AstBody elsebody;  // Empty (0 statements) means no else
 };
 struct AstNameTypeValue {
@@ -358,8 +356,6 @@ struct AstFile {
     AstBody body;
 };
 
-// If the expression is simple enough, evaluate it at compile time and return true.
-bool evaluate_constant(const AstExpression *expr, Constant *dest);
 // Gets rid of all compile-time if statements in the AST, e.g. "if WINDOWS: ..." is
 // deleted when compiling for linux. Does not do anything inside functions or methods.
 void evaluate_compile_time_if_statements(AstFile *file);
@@ -643,8 +639,6 @@ but not any of the data contained within individual nodes.
 */
 void free_constant(const Constant *c);
 void free_tokens(Token *tokenlist);
-void free_ast_expression(const AstExpression *expr);
-void free_ast_body(const AstBody *body);
 void free_ast(const AstFile *ast);
 void free_file_types(const FileTypes *ft);
 void free_export_symbol(const ExportSymbol *es);

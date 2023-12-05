@@ -18,11 +18,13 @@ void free_constant(const Constant *c)
         free(c->data.str);
 }
 
+static void free_expression(const AstExpression *expr);
+
 static void free_ast_type(const AstType *t)
 {
     switch(t->kind) {
     case AST_TYPE_ARRAY:
-        free_ast_expression(t->data.array.len);
+        free_expression(t->data.array.len);
         free(t->data.array.len);
         free_ast_type(t->data.array.membertype);
         free(t->data.array.membertype);
@@ -40,7 +42,7 @@ static void free_name_type_value(const AstNameTypeValue *ntv)
 {
     free_ast_type(&ntv->type);
     if(ntv->value) {
-        free_ast_expression(ntv->value);
+        free_expression(ntv->value);
         free(ntv->value);
     }
 }
@@ -56,12 +58,12 @@ static void free_ast_signature(const AstSignature *sig)
 static void free_call(const AstCall *call)
 {
     for (int i = 0; i < call->nargs; i++)
-        free_ast_expression(&call->args[i]);
+        free_expression(&call->args[i]);
     free(call->argnames);
     free(call->args);
 }
 
-void free_ast_expression(const AstExpression *expr)
+static void free_expression(const AstExpression *expr)
 {
     switch(expr->kind) {
     case AST_EXPR_FUNCTION_CALL:
@@ -70,18 +72,18 @@ void free_ast_expression(const AstExpression *expr)
         break;
     case AST_EXPR_GET_FIELD:
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        free_ast_expression(expr->data.classfield.obj);
+        free_expression(expr->data.classfield.obj);
         free(expr->data.classfield.obj);
         break;
     case AST_EXPR_CALL_METHOD:
     case AST_EXPR_DEREF_AND_CALL_METHOD:
-        free_ast_expression(expr->data.methodcall.obj);
+        free_expression(expr->data.methodcall.obj);
         free(expr->data.methodcall.obj);
         free_call(&expr->data.methodcall.call);
         break;
     case AST_EXPR_ARRAY:
         for (int i = 0; i < expr->data.array.count; i++)
-            free_ast_expression(&expr->data.array.items[i]);
+            free_expression(&expr->data.array.items[i]);
         free(expr->data.array.items);
         break;
     case AST_EXPR_INDEXING:
@@ -98,8 +100,8 @@ void free_ast_expression(const AstExpression *expr)
     case AST_EXPR_LE:
     case AST_EXPR_AND:
     case AST_EXPR_OR:
-        free_ast_expression(&expr->data.operands[0]);
-        free_ast_expression(&expr->data.operands[1]);
+        free_expression(&expr->data.operands[0]);
+        free_expression(&expr->data.operands[1]);
         free(expr->data.operands);
         break;
     case AST_EXPR_NEG:
@@ -111,11 +113,11 @@ void free_ast_expression(const AstExpression *expr)
     case AST_EXPR_POST_INCREMENT:
     case AST_EXPR_POST_DECREMENT:
     case AST_EXPR_SIZEOF:
-        free_ast_expression(&expr->data.operands[0]);
+        free_expression(&expr->data.operands[0]);
         free(expr->data.operands);
         break;
     case AST_EXPR_AS:
-        free_ast_expression(expr->data.as.obj);
+        free_expression(expr->data.as.obj);
         free(expr->data.as.obj);
         free_ast_type(&expr->data.as.type);
         break;
@@ -128,24 +130,26 @@ void free_ast_expression(const AstExpression *expr)
     }
 }
 
+static void free_ast_body(const AstBody *body);
+
 static void free_statement(const AstStatement *stmt)
 {
     switch(stmt->kind) {
     case AST_STMT_IF:
         for (int i = 0; i < stmt->data.ifstatement.n_if_and_elifs; i++) {
-            free_ast_expression(&stmt->data.ifstatement.if_and_elifs[i].condition);
+            free_expression(&stmt->data.ifstatement.if_and_elifs[i].condition);
             free_ast_body(&stmt->data.ifstatement.if_and_elifs[i].body);
         }
         free(stmt->data.ifstatement.if_and_elifs);
         free_ast_body(&stmt->data.ifstatement.elsebody);
         break;
     case AST_STMT_WHILE:
-        free_ast_expression(&stmt->data.whileloop.condition);
+        free_expression(&stmt->data.whileloop.condition);
         free_ast_body(&stmt->data.whileloop.body);
         break;
     case AST_STMT_FOR:
         free_statement(stmt->data.forloop.init);
-        free_ast_expression(&stmt->data.forloop.cond);
+        free_expression(&stmt->data.forloop.cond);
         free_statement(stmt->data.forloop.incr);
         free(stmt->data.forloop.init);
         free(stmt->data.forloop.incr);
@@ -153,11 +157,11 @@ static void free_statement(const AstStatement *stmt)
         break;
     case AST_STMT_EXPRESSION_STATEMENT:
     case AST_STMT_ASSERT:
-        free_ast_expression(&stmt->data.expression);
+        free_expression(&stmt->data.expression);
         break;
     case AST_STMT_RETURN:
         if (stmt->data.returnvalue) {
-            free_ast_expression(stmt->data.returnvalue);
+            free_expression(stmt->data.returnvalue);
             free(stmt->data.returnvalue);
         }
         break;
@@ -172,8 +176,8 @@ static void free_statement(const AstStatement *stmt)
     case AST_STMT_INPLACE_MUL:
     case AST_STMT_INPLACE_DIV:
     case AST_STMT_INPLACE_MOD:
-        free_ast_expression(&stmt->data.assignment.target);
-        free_ast_expression(&stmt->data.assignment.value);
+        free_expression(&stmt->data.assignment.target);
+        free_expression(&stmt->data.assignment.value);
         break;
     case AST_STMT_BREAK:
     case AST_STMT_CONTINUE:
@@ -208,7 +212,7 @@ static void free_statement(const AstStatement *stmt)
     }
 }
 
-void free_ast_body(const AstBody *body)
+static void free_ast_body(const AstBody *body)
 {
     for (int i = 0; i < body->nstatements; i++)
         free_statement(&body->statements[i]);
