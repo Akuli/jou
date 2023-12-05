@@ -134,7 +134,7 @@ class Input:
 def main() -> int:
     input: Input* = calloc(1, sizeof(*input))
 
-    f = fopen("input.txt", "r")
+    f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
     line: byte[1000]
@@ -152,6 +152,8 @@ def main() -> int:
             # add numbers to existing map
             assert input->nmaps > 0
             input->maps[input->nmaps - 1].add_triple(line)
+
+    fclose(f)
 
     interesting_inputs = List{}
     for i = 0; i < input->nmaps; i++:
@@ -179,6 +181,9 @@ def main() -> int:
                 n = input->maps[i].map_number(n)
             if smallest == -1 or n < smallest:
                 smallest = n
+
+    free(interesting_inputs.ptr)
+    free(input)
 
     printf("%lld\n", smallest)  # Output: 46
     return 0

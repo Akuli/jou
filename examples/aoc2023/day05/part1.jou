@@ -68,6 +68,8 @@ def main() -> int:
             assert input->nmaps > 0
             input->maps[input->nmaps - 1].add_triple(line)
 
+    fclose(f)
+
     smallest = -1 as long
     for i = 0; i < input->n_seed_numbers; i++:
         n = input->seed_numbers[i]
@@ -77,5 +79,6 @@ def main() -> int:
         if smallest == -1 or n < smallest:
             smallest = n
 
+    free(input)
     printf("%lld\n", smallest)  # Output: 35
     return 0
