@@ -786,6 +786,9 @@ static AstFunction parse_funcdef(ParserState *ps, bool is_method)
 
     struct AstFunction funcdef = {0};
     funcdef.signature = parse_function_signature(ps, is_method);
+    if (!strcmp(funcdef.signature.name, "__init__") && is_method) {
+        fail_with_error(ps->tokens->location, "Jou does not have a special __init__ method like Python");
+    }
     if (funcdef.signature.takes_varargs) {
         // TODO: support "def foo(x: str, ...)" in some way
         fail_with_error(ps->tokens->location, "functions with variadic arguments cannot be defined yet");
