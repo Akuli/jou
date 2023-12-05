@@ -1,0 +1,50 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "stdlib/ascii.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    total_score = 0
+
+    line: byte[1000]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        words = split_by_ascii_whitespace(line)
+        assert words[0] != NULL and strcmp(words[0], "Card") == 0
+        assert words[1] != NULL  # id number
+
+        winning: int[100]
+        nwinning = 0
+        score = 0
+
+        no_separator_yet = True
+        for i = 2; words[i] != NULL; i++:
+            if strcmp(words[i], "|") == 0:
+                no_separator_yet = False
+            else:
+                n = atoi(words[i])
+                if no_separator_yet:
+                    assert nwinning < sizeof(winning)/sizeof(winning[0])
+                    winning[nwinning++] = n
+                else:
+                    # check if this is a winning number
+                    for k = 0; k < nwinning; k++:
+                        if winning[k] == n:
+                            score++
+                            break
+
+        if score != 0:
+            k = 1
+            for i = 1; i < score; i++:
+                k *= 2
+            total_score += k
+
+        free(words)
+
+    fclose(f)
+
+    printf("%d\n", total_score)  # Output: 13
+    return 0
