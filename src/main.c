@@ -462,8 +462,12 @@ int main(int argc, char **argv)
 
     if (command_line_args.verbosity >= 1)
         printf("Evaluating compile-time if statements...\n");
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
-        evaluate_compile_time_if_statements(&fs->ast);
+    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
+        evaluate_compile_time_if_statements(&fs->ast.body);
+        if (command_line_args.verbosity >= 2) {
+            print_ast(&fs->ast);
+        }
+    }
 
     if (command_line_args.verbosity >= 1)
         printf("Type-checking...\n");

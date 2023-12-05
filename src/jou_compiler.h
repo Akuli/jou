@@ -356,9 +356,12 @@ struct AstFile {
     AstBody body;
 };
 
+// Terminated with {NULL,false}
+extern const struct SpecialVar { const char *name; bool value; } specialVars[];
+
 // Gets rid of all compile-time if statements in the AST, e.g. "if WINDOWS: ..." is
 // deleted when compiling for linux. Does not do anything inside functions or methods.
-void evaluate_compile_time_if_statements(AstFile *file);
+void evaluate_compile_time_if_statements(AstBody *body);
 
 struct ClassField {
     char name[100];
@@ -640,6 +643,7 @@ but not any of the data contained within individual nodes.
 void free_constant(const Constant *c);
 void free_tokens(Token *tokenlist);
 void free_ast(const AstFile *ast);
+void free_ast_statement(const AstStatement *stmt);
 void free_file_types(const FileTypes *ft);
 void free_export_symbol(const ExportSymbol *es);
 void free_control_flow_graphs(const CfGraphFile *cfgfile);

@@ -1,17 +1,18 @@
 import "stdlib/io.jou"
 
+# TODO: "if WINDOWS" doesn't work very well inside functions yet
 if WINDOWS:
     declare CreateDirectoryA(lpPathName: byte*, lpSecurityAttributes: void*) -> int
+    def make_foo() -> void:
+        CreateDirectoryA("tmp\\tests\\foo", NULL)
 else:
     declare mkdir(pathname: byte*, mode: int) -> int
-
-def main() -> int:
-    if WINDOWS:
-        CreateDirectoryA("tmp\\tests\\foo", NULL)
-    else:
+    def make_foo() -> void:
         # python uses 777 as default perms, see help(os.mkdir)
         mkdir("tmp/tests/foo", 0o777)
 
+def main() -> int:
+    make_foo()
     if fopen("tmp/tests/foo/bar", "w") == NULL:
         puts("directory not found?")
     else:

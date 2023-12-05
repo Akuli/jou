@@ -7,41 +7,47 @@ import "stdlib/mem.jou"
 
 
 # Return valus: 1=true, 0=false, -1=unknown
-def evaluate_condition(expr: AstExpression*) -> int:
+def evaluate_condition(expr: AstExpression*) -> bool:
     if expr->kind == AstExpressionKind::GetVariable:
         if strcmp(expr->varname, "WINDOWS") == 0:
-            return WINDOWS as int
+            return WINDOWS
         if strcmp(expr->varname, "MACOS") == 0:
-            return MACOS as int
-    return -1
+            return MACOS
+    fail(expr->location, "cannot evaluate condition at compile time")
 
 
-# returns statements to replace if statement with
+# returns the statements to replace if statement with
 # TODO: don't leak memory
 def evaluate_compile_time_if_statement(if_stmt: AstIfStatement*) -> AstBody:
-    for i = 0; i < if_stmt->n_if_and_elifs; i++:
-        ret = evaluate_condition(&if_stmt->if_and_elifs[i].condition)
-        if ret == 1:
-            return if_stmt->if_and_elifs[i].body
-        if ret == -1:
-            fail(if_stmt->if_and_elifs[i].condition.location, "cannot evaluate condition at compile time")
+    result = &if_stmt->else_body
+    for p = if_stmt->if_and_elifs; p < &if_stmt->if_and_elifs[if_stmt->n_if_and_elifs]; p++:
+        if evaluate_condition(&p->condition):
+            result = &if_stmt->if_and_elifs[i].body
+            break
 
-    return if_stmt->else_body
+    ret = *result
+    *result = AstBody{}  # avoid double-free
+    return ret
 
 
+# Replace body->statements[i] with zero or more statements from another body.
+def replace(body: AstBody*, i: int, new: AstBody) -> void:
+    body->statements[i].free()
+
+    item_size = sizeof(body->statements[0])
+    body->statements = realloc(body->statements, (body->nstatements + new.nstatements) * item_size)
+    memmove(&body->statements[i + new.nstatements], &body->statements[i+1], (body->nstatements - (i+1)) * item_size)
+    memcpy(&body->statements[i], new.statements, new.nstatements * item_size)
+
+    body->nstatements--
+    body->nstatements += new.nstatements
+
+
+# This handles nested if statements.
 def evaluate_compile_time_if_statements_in_body(body: AstBody*) -> void:
     i = 0
     while i < body->nstatements:
-        if body->statements[i].kind != AstStatementKind::If:
+        if body->statements[i].kind == AstStatementKind::If:
+            replace(body, i, evaluate_compile_time_if_statement(&body->statements[i].if_statement))
+        else:
             i++
-            continue
-
-        # TODO: don't leak memory
-        to_add = evaluate_compile_time_if_statement(&body->statements[i].if_statement)
-        if to_add.nstatements > 1:
-            body->statements = realloc(body->statements, (body->nstatements + to_add.nstatements) * sizeof(body->statements[0]))
-        memmove(&body->statements[i+to_add.nstatements], &body->statements[i+1], (body->nstatements - (i+1)) * sizeof(body->statements[0]))
-        memcpy(&body->statements[i], to_add.statements, to_add.nstatements * sizeof(body->statements[0]))
-
-        body->nstatements--   # if statement deleted
-        body->nstatements += to_add.nstatements
