@@ -3,28 +3,20 @@ import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/io.jou"
 
-def is_windows() -> bool:
-    return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
-
-# TODO: belongs in stdlib/process.jou
-declare popen(command: byte*, type: byte*) -> FILE*
-declare pclose(stream: FILE*) -> int
-
-def is_macos() -> bool:
-    # https://stackoverflow.com/a/3466183
-    if is_windows():
+# TODO: these shouldn't be needed
+if WINDOWS:
+    def is_windows() -> bool:
+        return True
+else:
+    def is_windows() -> bool:
+        return False
+if MACOS:
+    def is_macos() -> bool:
+        return True
+else:
+    def is_macos() -> bool:
         return False
 
-    uname = popen("uname", "r")
-    if uname == NULL:
-        return False
-
-    output: byte[100]
-    memset(&output, 0, sizeof(output))
-    fgets(output, sizeof(output) as int, uname)
-
-    pclose(uname)
-    return starts_with(output, "Darwin")
 
 def run_jou(command: byte*) -> void:
     if is_windows():
