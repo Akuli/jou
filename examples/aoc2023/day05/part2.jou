@@ -84,6 +84,15 @@ class Map:
 
         return result
 
+    # Find all numbers n for which map_number(n) is in a list of outputs.
+    def inverse_image_of_list(self, outputs: List) -> List:
+        result = List{}
+        for p = outputs.ptr; p < outputs.end(); p++:
+            to_add = self->inverse_image(*p)
+            result.extend(to_add)
+            free(to_add.ptr)
+        return result
+
 
 class Range:
     start: long
@@ -115,6 +124,12 @@ class Input:
             self->n_seed_ranges++
         free(words)
 
+    def is_valid_seed(self, n: long) -> bool:
+        for i = 0; i < self->n_seed_ranges; i++:
+            if self->seed_ranges[i].contains(n):
+                return True
+        return False
+
 
 def main() -> int:
     input: Input* = calloc(1, sizeof(*input))
@@ -143,13 +158,9 @@ def main() -> int:
         # We get small values whenever the i'th map sees a start of its range.
         values = input->maps[i].get_input_range_starts()
 
-        # Back through all previous maps.
+        # Back the list of numbers through all previous maps.
         for k = i-1; k >= 0; k--:
-            values2 = List{}
-            for v = values.ptr; v < values.end(); v++:
-                values3 = input->maps[k].inverse_image(*v)
-                values2.extend(values3)
-                free(values3.ptr)
+            values2 = input->maps[k].inverse_image_of_list(values)
             free(values.ptr)
             values = values2
 
@@ -162,17 +173,10 @@ def main() -> int:
 
     smallest = -1 as long
     for p = interesting_inputs.ptr; p < interesting_inputs.end(); p++:
-        # Check if this is in any seed range
-        found = False
-        for i = 0; i < input->n_seed_ranges; i++:
-            if input->seed_ranges[i].contains(*p):
-                found = True
-                break
-        if found:
-            # We have a valid seed. Let's check if we get smaller value than before.
+        if input->is_valid_seed(*p):
             n = *p
-            for k = 0; k < input->nmaps; k++:
-                n = input->maps[k].map_number(n)
+            for i = 0; i < input->nmaps; i++:
+                n = input->maps[i].map_number(n)
             if smallest == -1 or n < smallest:
                 smallest = n
 
