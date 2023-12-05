@@ -209,6 +209,7 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
     FILE *f = open_the_file(fs.path, import_location);
     Token *tokens = tokenize(f, fs.path);
     fclose(f);
+
     if(command_line_args.verbosity >= 2)
         print_tokens(tokens);
 
@@ -216,6 +217,11 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
         printf("Parsing %s\n", filename);
     fs.ast = parse(tokens, compst->stdlib_path);
     free_tokens(tokens);
+
+    if (command_line_args.verbosity >= 1)
+        printf("Evaluating compile-time if statements in %s\n", filename);
+    evaluate_compile_time_if_statements(&fs.ast.body);
+
     if(command_line_args.verbosity >= 2)
         print_ast(&fs.ast);
 
@@ -459,15 +465,6 @@ int main(int argc, char **argv)
 
     parse_file(&compst, command_line_args.infile, NULL);
     parse_all_pending_files(&compst);
-
-    if (command_line_args.verbosity >= 1)
-        printf("Evaluating compile-time if statements...\n");
-    for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
-        evaluate_compile_time_if_statements(&fs->ast.body);
-        if (command_line_args.verbosity >= 2) {
-            print_ast(&fs->ast);
-        }
-    }
 
     if (command_line_args.verbosity >= 1)
         printf("Type-checking...\n");
