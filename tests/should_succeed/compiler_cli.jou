@@ -3,23 +3,9 @@ import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/io.jou"
 
-# TODO: these shouldn't be needed
-if WINDOWS:
-    def is_windows() -> bool:
-        return True
-else:
-    def is_windows() -> bool:
-        return False
-if MACOS:
-    def is_macos() -> bool:
-        return True
-else:
-    def is_macos() -> bool:
-        return False
-
 
 def run_jou(command: byte*) -> void:
-    if is_windows():
+    if WINDOWS:
         jou_exe = "jou.exe"
     else:
         jou_exe = "./jou"
@@ -78,7 +64,7 @@ def main() -> int:
 
     # Different working directory.
     # Output: Hello World
-    if is_windows():
+    if WINDOWS:
         system("cd tests & ..\\jou.exe ../examples/hello.jou")
     else:
         system("cd tests && ../jou ../examples/hello.jou")
@@ -86,14 +72,14 @@ def main() -> int:
     # Compile to an executable.
     # Output: Hello World
     run_jou("-o tmp/tests/hello.exe examples/hello.jou")
-    if is_windows():
+    if WINDOWS:
         system("tmp\\tests\\hello.exe")
     else:
         system("tmp/tests/hello.exe")
 
     # Compiler in weird place
     # Output: error: cannot find the Jou standard library in <joudir>/tmp/tests/stdlib
-    if is_windows():
+    if WINDOWS:
         system("copy jou.exe tmp\\tests\\jou_executable.exe >nul")
         system("tmp\\tests\\jou_executable.exe")
     else:
@@ -101,13 +87,13 @@ def main() -> int:
         system("tmp/tests/jou_executable")
 
     # Compile a GUI program
-    if not is_windows() and not is_macos():
+    if not (WINDOWS or MACOS):
         ret = system("./jou -o /dev/null --linker-flags \"-lX11\" examples/x11_window.jou")
         assert ret == 0
 
     # Compile a program with a memory leak.
     # Output: 100 bytes in 1 blocks are definitely lost in loss record 1 of 1
-    if is_windows() or system("which valgrind >/dev/null 2>/dev/null") != 0:
+    if WINDOWS or system("which valgrind >/dev/null 2>/dev/null") != 0:
         # valgrind not available --> produce some fake output to pass the test
         puts("100 bytes in 1 blocks are definitely lost in loss record 1 of 1")
     else:

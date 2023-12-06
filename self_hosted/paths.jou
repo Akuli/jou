@@ -2,7 +2,6 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
-import "./bug_workaround.jou"
 
 if WINDOWS:
     declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
@@ -79,7 +78,7 @@ def find_stdlib() -> byte*:
     memset(&checked, 0, sizeof checked)
 
     exedir = find_current_executable()
-    while is_windows() and strstr(exedir, "\\") != NULL:
+    while WINDOWS and strstr(exedir, "\\") != NULL:
         *strstr(exedir, "\\") = '/'
 
     for i = 0; i < sizeof checked / sizeof checked[0]; i++:
@@ -136,7 +135,7 @@ def delete_slice(start: byte*, end: byte*) -> void:
     memmove(start, end, strlen(end) + 1)
 
 def simplify_path(path: byte*) -> void:
-    if is_windows():
+    if WINDOWS:
         # Backslash to forward slash.
         for p = path; *p != '\0'; p++:
             if *p == '\\':

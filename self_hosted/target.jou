@@ -7,7 +7,6 @@
 # will make the mess slightly less miserable to you. Just use the global
 # "target" variable, it contains everything you will ever need.
 
-import "./bug_workaround.jou"
 import "./llvm.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
@@ -34,7 +33,7 @@ def init_target() -> void:
     LLVMInitializeX86AsmParser()
     LLVMInitializeX86AsmPrinter()
 
-    if is_windows():
+    if WINDOWS:
         # LLVM's default is x86_64-pc-windows-msvc
         target.triple = "x86_64-pc-windows-gnu"
     else:
