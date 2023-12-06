@@ -64,7 +64,8 @@ static const Type *find_any_var(const FileTypes *ft, const char *name)
                 *(*var)->usedptr = true;
             return (*var)->type;
         }
-    // TODO: check for global constants
+    if (get_special_constant(name) != -1)
+        return boolType;
     return NULL;
 }
 
@@ -373,11 +374,17 @@ static const char *short_expression_description(const AstExpression *expr)
     case AST_EXPR_ARRAY: return "an array literal";
     case AST_EXPR_INDEXING: return "an indexed value";
     case AST_EXPR_AS: return "the result of a cast";
-    case AST_EXPR_GET_VARIABLE: return strcmp(expr->data.varname,"self")==0 ? "self" : "a variable";
     case AST_EXPR_DEREFERENCE: return "the value of a pointer";
     case AST_EXPR_AND: return "the result of 'and'";
     case AST_EXPR_OR: return "the result of 'or'";
     case AST_EXPR_NOT: return "the result of 'not'";
+
+    case AST_EXPR_GET_VARIABLE:
+        if (!strcmp(expr->data.varname,"self"))
+            return "self";
+        if (get_special_constant(expr->data.varname) != -1)
+            return "a special constant";
+        return "a variable";
 
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
@@ -444,8 +451,10 @@ static void ensure_can_take_address(const AstExpression *expr, const char *errms
         }
         break;
     case AST_EXPR_GET_VARIABLE:
-        if (strcmp(expr->data.varname, "self"))
+        if (strcmp(expr->data.varname, "self") && get_special_constant(expr->data.varname) == -1) {
+            // not self or a special constant --> ok to take address
             break;
+        }
         __attribute__((fallthrough));
     default:
         fail_with_error(expr->location, errmsg_template, short_expression_description(expr));

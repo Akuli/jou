@@ -1,31 +1,32 @@
 #include "jou_compiler.h"
 
 
-const struct SpecialVar specialVars[] = {
+int get_special_constant(const char *name)
+{
+    if (!strcmp(name, "WINDOWS")) {
+        #ifdef _WIN32
+            return 1;
+        #else
+            return 0;
+        #endif
+    }
+    if (!strcmp(name, "MACOS")) {
+        #ifdef __APPLE__
+            return 1;
+        #else
+            return 0;
+        #endif
+    }
+    return -1;
+}
 
-    #ifdef _WIN32
-        { "WINDOWS", true },
-    #else
-        { "WINDOWS", false },
-    #endif
-
-    #ifdef __APPLE__
-        { "MACOS", true },
-    #else
-        { "MACOS", false },
-    #endif
-
-    { NULL, false },
-};
 
 static bool evaluate_condition(const AstExpression *expr)
 {
     if (expr->kind == AST_EXPR_GET_VARIABLE) {
-        for (const struct SpecialVar *sv = specialVars; sv->name; sv++) {
-            if (!strcmp(sv->name, expr->data.varname)) {
-                return sv->value;
-            }
-        }
+        int v = get_special_constant(expr->data.varname);
+        if (v != -1)
+            return (bool)v;
     }
 
     fail(expr->location, "cannot evaluate condition at compile time");

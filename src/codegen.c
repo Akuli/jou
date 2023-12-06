@@ -233,6 +233,13 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
     assert(0);
 }
 
+static LLVMValueRef codegen_special_constant(const char *name)
+{
+    int v = get_special_constant(name);
+    assert(v != -1);
+    return LLVMConstInt(LLVMInt1Type(), v, false);
+}
+
 static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, const char *ignored)
 {
     (void)ignored;  // for compatibility with llvm functions
@@ -299,6 +306,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             }
             break;
         case CF_CONSTANT: setdest(codegen_constant(st, &ins->data.constant)); break;
+        case CF_SPECIAL_CONSTANT: setdest(codegen_special_constant(ins->data.scname)); break;
         case CF_STRING_ARRAY: setdest(LLVMConstString(ins->data.strarray.str, ins->data.strarray.len, true)); break;
         case CF_SIZEOF: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
         case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;

@@ -356,8 +356,9 @@ struct AstFile {
     AstBody body;
 };
 
-// Terminated with {NULL,false}
-extern const struct SpecialVar { const char *name; bool value; } specialVars[];
+// Return values: 1 = true, 0 = false, -1 = not found
+// e.g. get_special_constant("WINDOWS") returns 1 on Windows
+int get_special_constant(const char *name);
 
 // Gets rid of all compile-time if statements in the AST, e.g. "if WINDOWS: ..." is
 // deleted when compiling for linux. Does not do anything inside functions or methods.
@@ -532,6 +533,7 @@ struct CfInstruction {
     Location location;
     enum CfInstructionKind {
         CF_CONSTANT,
+        CF_SPECIAL_CONSTANT,  // e.g. "WINDOWS", unlike CF_CONSTANT this doesn't trigger "this code will never run" warnings
         CF_STRING_ARRAY,
         CF_CALL,  // function or method call, depending on whether self_type is NULL (see below)
         CF_ADDRESS_OF_LOCAL_VAR,
@@ -564,6 +566,7 @@ struct CfInstruction {
         Signature signature;    // CF_CALL
         char fieldname[100];    // CF_PTR_CLASS_FIELD
         char globalname[100];   // CF_ADDRESS_OF_GLOBAL_VAR
+        char scname[100];       // CF_SPECIAL_CONSTANT
         const Type *type;       // CF_SIZEOF
     } data;
     const LocalVariable **operands;  // e.g. numbers to add, function arguments
