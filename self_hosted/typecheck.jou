@@ -364,11 +364,6 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_type: Type*) ->
     else:
         sig.return_type = type_from_ast(ft, &astsig->return_type)
 
-    if astsig->return_type.is_void() or astsig->return_type.is_noreturn():
-        sig.return_type = NULL
-    else:
-        sig.return_type = type_from_ast(ft, &astsig->return_type)
-
     # TODO: validate main() parameters
     # TODO: test main() taking parameters
     if self_type == NULL and strcmp(sig.name, "main") == 0 and sig.return_type != int_type:
