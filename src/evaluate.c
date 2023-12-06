@@ -71,10 +71,9 @@ void evaluate_compile_time_if_statements(AstBody *body)
 {
     int i = 0;
     while (i < body->nstatements) {
-        if (body->statements[i].kind != AST_STMT_IF) {
-            i++;
-        } else {
+        if (body->statements[i].kind == AST_STMT_IF)
             replace(body, i, evaluate_compile_time_if_statement(&body->statements[i].data.ifstatement));
-        }
+        else
+            i++;
     }
 }
