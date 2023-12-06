@@ -46,7 +46,7 @@ elif MACOS:
         assert ret < 0  # didn't fit
         result = realloc(result, n)
         ret = _NSGetExecutablePath(result, &n)
-        if ret == 0:
+        if ret != 0:
             fail_finding_exe()
         return result
 
