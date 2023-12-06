@@ -785,6 +785,8 @@ class Stage3TypeChecker:
         return v
 
     def find_var(self, name: byte*) -> Type*:
+        if get_special_constant(name) != -1:
+            return &bool_type
         local_var = self->current_function_or_method->find_local_var(name)
         if local_var != NULL:
             return local_var->type

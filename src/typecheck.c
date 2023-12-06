@@ -54,6 +54,8 @@ static const LocalVariable *find_local_var(const FileTypes *ft, const char *name
 
 static const Type *find_any_var(const FileTypes *ft, const char *name)
 {
+    if (get_special_constant(name) != -1)
+        return boolType;
     if (ft->current_fom_types)
         for (LocalVariable **var = ft->current_fom_types->locals.ptr; var < End(ft->current_fom_types->locals); var++)
             if (!strcmp((*var)->name, name))
@@ -64,8 +66,6 @@ static const Type *find_any_var(const FileTypes *ft, const char *name)
                 *(*var)->usedptr = true;
             return (*var)->type;
         }
-    if (get_special_constant(name) != -1)
-        return boolType;
     return NULL;
 }
 
