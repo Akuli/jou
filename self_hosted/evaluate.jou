@@ -47,6 +47,7 @@ def replace(body: AstBody*, i: int, new: AstBody) -> void:
     memmove(&body->statements[i + new.nstatements], &body->statements[i+1], (body->nstatements - (i+1)) * item_size)
     memcpy(&body->statements[i], new.statements, new.nstatements * item_size)
 
+    free(new.statements)
     body->nstatements--
     body->nstatements += new.nstatements
 

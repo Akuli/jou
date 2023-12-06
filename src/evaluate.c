@@ -60,6 +60,7 @@ void replace(AstBody *body, int i, AstBody new)
     memmove(&body->statements[i + new.nstatements], &body->statements[i+1], (body->nstatements - (i+1)) * item_size);
     memcpy(&body->statements[i], new.statements, new.nstatements * item_size);
 
+    free(new.statements);
     body->nstatements--;
     body->nstatements += new.nstatements;
 }
