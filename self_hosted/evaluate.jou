@@ -1,19 +1,27 @@
 # Compile-time evaluating if statements.
 
 import "./ast.jou"
-import "./bug_workaround.jou"
 import "./errors_and_warnings.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 
-# Return valus: 1=true, 0=false, -1=unknown
+# Return values: 1=true, 0=false, -1=unknown
+def get_special_constant(name: byte*) -> int:
+    if strcmp(name, "WINDOWS") == 0:
+        return WINDOWS as int
+    if strcmp(name, "MACOS") == 0:
+        return MACOS as int
+    return -1
+
+
 def evaluate_condition(expr: AstExpression*) -> bool:
     if expr->kind == AstExpressionKind::GetVariable:
-        if strcmp(expr->varname, "WINDOWS") == 0:
-            return is_windows()
-        if strcmp(expr->varname, "MACOS") == 0:
-            return is_macos()
+        v = get_special_constant(expr->varname)
+        if v == 1:
+            return True
+        if v == 0:
+            return False
     fail(expr->location, "cannot evaluate condition at compile time")
 
 

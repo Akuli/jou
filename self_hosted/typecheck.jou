@@ -19,6 +19,7 @@ import "stdlib/mem.jou"
 import "./ast.jou"
 import "./types.jou"
 import "./errors_and_warnings.jou"
+import "./evaluate.jou"
 
 
 def can_cast_implicitly(from: Type*, to: Type*) -> bool:
@@ -508,6 +509,7 @@ def short_type_description(t: Type*) -> byte*:
         return "the built-in bool type"
     assert False
 
+# TODO: make this a method in class AstExpression?
 def short_expression_description(expr: AstExpression*) -> byte[200]:
     result: byte[200]
 
@@ -546,7 +548,9 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
     elif expr->kind == AstExpressionKind::Instantiate:
         return "a newly created instance"
     elif expr->kind == AstExpressionKind::GetVariable:
-        return "a variable"
+        if get_special_constant(expr->varname) == -1:
+            return "a variable"
+        return "a special constant"
     elif expr->kind == AstExpressionKind::GetEnumMember:
         return "an enum member"
     elif expr->kind == AstExpressionKind::GetClassField:
@@ -600,9 +604,13 @@ def ensure_can_take_address(expression: AstExpression*, error_template: byte*) -
             free(new_template)
         return
 
+    if expression->kind == AstExpressionKind::GetVariable:
+        # &foo is usually fine, but &WINDOWS is not
+        if get_special_constant(expression->varname) == -1:
+            return
+
     if (
-        expression->kind == AstExpressionKind::GetVariable  # &foo
-        or expression->kind == AstExpressionKind::Dereference  # &*foo
+        expression->kind == AstExpressionKind::Dereference  # &*foo
         or expression->kind == AstExpressionKind::Indexing  # &foo[bar] = foo + some offset (foo is a pointer)
     ):
         return
@@ -1229,6 +1237,7 @@ class Stage3TypeChecker:
         elif statement->kind == AstStatementKind::Assign:
             target_expr = &statement->assignment.target
             value_expr = &statement->assignment.value
+            ensure_can_take_address(target_expr, "cannot assign to %s")
 
             if (
                 target_expr->kind == AstExpressionKind::GetVariable
@@ -1239,9 +1248,7 @@ class Stage3TypeChecker:
                 self->add_local_var(target_expr->varname, types->original_type)
             else:
                 # Convert value to the type of an existing variable or other assignment target.
-                ensure_can_take_address(target_expr, "cannot assign to %s")
-
-                # This is a common error, so try to produce a helpful error message.
+                # This tends to fail often, so try to produce a helpful error message.
                 error_template: byte[500]
                 if target_expr->kind == AstExpressionKind::Dereference:
                     error_template = "cannot place a value of type <from> into a pointer of type <to>*"
