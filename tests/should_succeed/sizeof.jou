@@ -11,7 +11,7 @@ class Foo:
     c: byte
 
 # See issue #224.
-def ensure_sizeof_isnt_too_small_in_a_weird_corner_case() -> void:
+def ensure_sizeof_isnt_too_small_in_a_weird_corner_case() -> None:
     value = Foo{a=1, b=2, c='x'}
     # We need the heap allocation, because otherwise the optimizer happens to make things work.
     ptr = malloc(50) as Foo*

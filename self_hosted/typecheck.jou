@@ -1198,7 +1198,7 @@ class Stage3TypeChecker:
             if statement->return_value != NULL and sig->return_type == NULL:
                 snprintf(
                     msg, sizeof msg,
-                    "%s '%s' cannot return a value because it was defined with '-> void'",
+                    "%s '%s' cannot return a value because it was defined with '-> None'",
                     sig->function_or_method(), sig->name,
                 )
                 fail(statement->location, msg)

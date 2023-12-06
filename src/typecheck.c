@@ -1260,7 +1260,7 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
         if (stmt->data.returnvalue && !returntype) {
             fail_with_error(
                 stmt->location,
-                "function '%s' cannot return a value because it was defined with '-> void'",
+                "function '%s' cannot return a value because it was defined with '-> None'",
                 ft->current_fom_types->signature.name);
         }
         if (returntype && !stmt->data.returnvalue) {

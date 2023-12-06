@@ -1,35 +1,35 @@
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
-def after_return() -> void:
+def after_return() -> None:
     puts("hey1")  # Output: hey1
     return
     puts("hey2")  # Warning: this code will never run
 
-def after_infinite_loop() -> void:
+def after_infinite_loop() -> None:
     while True:
         puts("hi")
     puts("yooooo wat")  # Warning: this code will never run
 
-def after_infinite_loop_with_variable() -> void:
+def after_infinite_loop_with_variable() -> None:
     flag = True
     while flag:
         puts("hi")
     puts("yooooo wat")  # Warning: this code will never run
 
-def after_infinite_loop_with_variable_set_after_loop() -> void:
+def after_infinite_loop_with_variable_set_after_loop() -> None:
     flag = True
     while flag:
         puts("hi")
     flag = False  # Warning: this code will never run
 
-def noreturn_function_called() -> void:
+def noreturn_function_called() -> None:
     abort()
     x = 1  # Warning: this code will never run
     y = 2
 
 # https://github.com/Akuli/jou/issues/18
-def lots_of_unreachable_code() -> void:
+def lots_of_unreachable_code() -> None:
     return
     i = 0  # Warning: this code will never run
     while True:

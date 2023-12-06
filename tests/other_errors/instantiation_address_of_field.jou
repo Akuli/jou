@@ -6,6 +6,6 @@ class Foo:
 def make_foo_pointer() -> Foo*:
     return malloc(123)
 
-def asdf() -> void:
+def asdf() -> None:
     magic_pointer = &make_foo_pointer()->x  # This succeeds
     magic_pointer = &Foo{}.x  # Error: the '&' operator cannot be used with a field of a newly created instance

@@ -1,16 +1,16 @@
 import "stdlib/io.jou"
 
-def maybe_undefined(n: int) -> void:
+def maybe_undefined(n: int) -> None:
     for i = 0; i < n; i++:
         message = "Hi"
     puts(message)  # Warning: the value of 'message' may be undefined
 
-def surely_undefined_loop() -> void:
+def surely_undefined_loop() -> None:
     while False:
         message = "Hi"  # Warning: this code will never run
     puts(message)  # Warning: the value of 'message' is undefined
 
-def surely_undefined_annotation() -> void:
+def surely_undefined_annotation() -> None:
     x: byte*
     puts(x)  # Warning: the value of 'x' is undefined
 
