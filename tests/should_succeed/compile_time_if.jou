@@ -1,6 +1,7 @@
 import "stdlib/io.jou"
 
-# TODO: "if WINDOWS" doesn't work very well inside functions yet
+# TODO: "if WINDOWS" doesn't work very well inside functions yet.
+#       Ideally only the declares would need compile-time if statements.
 if WINDOWS:
     declare CreateDirectoryA(lpPathName: byte*, lpSecurityAttributes: void*) -> int
     def make_foo() -> void:
@@ -13,9 +14,9 @@ else:
 
 def main() -> int:
     make_foo()
-    if fopen("tmp/tests/foo/bar", "w") == NULL:
-        puts("directory not found?")
-    else:
+    f = fopen("tmp/tests/foo/bar", "w")
+    if f != NULL:
         puts("ok")  # Output: ok
+        fclose(f)
 
     return 0
