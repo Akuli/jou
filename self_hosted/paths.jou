@@ -3,87 +3,65 @@ import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
-declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
-declare readlink(linkpath: byte*, result: byte*, result_size: long) -> long
-declare _mkdir(path: byte*) -> int  # windows
-declare mkdir(path: byte*, mode: int) -> int  # posix
+if WINDOWS:
+    declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
+elif MACOS:
+    declare _NSGetExecutablePath(buf: byte*, bufsize: int*) -> int
+else:
+    declare readlink(linkpath: byte*, result: byte*, result_size: long) -> long
+
+if WINDOWS:
+    declare _mkdir(path: byte*) -> int
+else:
+    declare mkdir(path: byte*, mode: int) -> int  # posix
+
 declare dirname(path: byte*) -> byte*
 declare stat(path: byte*, buf: byte[1000]*) -> int  # lol
-declare popen(command: byte*, type: byte*) -> FILE*
-declare pclose(stream: FILE*) -> int
-declare _NSGetExecutablePath(buf: byte*, bufsize: int*) -> int
 
 
-def is_windows() -> bool:
-    # TODO: this is just weird...
-    return getenv("OS") != NULL and strstr(getenv("OS"), "Windows") != NULL
-
-# https://stackoverflow.com/a/3466183
-def is_macos() -> bool:
-    if is_windows():
-        return False
-
-    uname = popen("uname", "r")
-    if uname == NULL:
-        return False
-
-    output: byte[100]
-    memset(&output, 0, sizeof(output))
-    fgets(output, sizeof(output) as int, uname)
-
-    pclose(uname)
-    return starts_with(output, "Darwin")
+def fail_finding_exe() -> noreturn:
+    # TODO: include os error message (GetLastError / errno)
+    fprintf(stderr, "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
+    exit(1)
 
 
-def _find_current_executable_windows() -> byte*:
-    buf = NULL
-    for size = 2L; True; size *= 2:
-        buf = realloc(buf, size)
-        memset(buf, 0, size)
-        ret = GetModuleFileNameA(NULL, buf, size as int)
-        if ret <= 0:
-            return NULL  # error --> give up
-        if ret < size:
-            # buffer is big enough, it fits
-            return buf
+if WINDOWS:
+    def find_current_executable() -> byte*:
+        buf = NULL
+        for size = 2L; True; size *= 2:
+            buf = realloc(buf, size)
+            memset(buf, 0, size)
+            ret = GetModuleFileNameA(NULL, buf, size as int)
+            if ret <= 0:
+                fail_finding_exe()
+            if ret < size:
+                # buffer is big enough, it fits
+                return buf
 
-def _find_current_executable_macos() -> byte*:
-    n = 1
-    result: byte* = malloc(n)
-    ret = _NSGetExecutablePath(result, &n)  # sets n to desired size
-    assert ret < 0  # didn't fit
-    result = realloc(result, n)
-    ret = _NSGetExecutablePath(result, &n)
-    assert ret == 0
-    return result
+elif MACOS:
+    def find_current_executable() -> byte*:
+        n = 1
+        result: byte* = malloc(n)
+        ret = _NSGetExecutablePath(result, &n)  # sets n to desired size
+        assert ret < 0  # didn't fit
+        result = realloc(result, n)
+        ret = _NSGetExecutablePath(result, &n)
+        if ret != 0:
+            fail_finding_exe()
+        return result
 
-def _find_current_executable_linux() -> byte*:
-    buf = NULL
-    for size = 2L; True; size *= 2:
-        buf = realloc(buf, size)
-        memset(buf, 0, size)
-        ret = readlink("/proc/self/exe", buf, size)
-        if ret <= 0:
-            return NULL
-        if ret < size:
-            # buffer is big enough, it fits
-            return buf
-
-
-def find_current_executable() -> byte*:
-    if is_windows():
-        result = _find_current_executable_windows()
-    elif is_macos():
-        result = _find_current_executable_macos()
-    else:
-        result = _find_current_executable_linux()
-
-    if result == NULL:
-        # TODO: include os error message (GetLastError / errno)
-        fprintf(stderr, "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
-        exit(1)
-
-    return result
+else:
+    def find_current_executable() -> byte*:
+        buf = NULL
+        for size = 2L; True; size *= 2:
+            buf = realloc(buf, size)
+            memset(buf, 0, size)
+            ret = readlink("/proc/self/exe", buf, size)
+            if ret <= 0:
+                fail_finding_exe()
+            if ret < size:
+                # buffer is big enough, it fits
+                return buf
 
 
 def find_installation_directory() -> byte*:
@@ -92,12 +70,13 @@ def find_installation_directory() -> byte*:
     free(exe)
     return result
 
+
 def find_stdlib() -> byte*:
     checked: byte*[3]
     memset(&checked, 0, sizeof checked)
 
     exedir = find_current_executable()
-    while is_windows() and strstr(exedir, "\\") != NULL:
+    while WINDOWS and strstr(exedir, "\\") != NULL:
         *strstr(exedir, "\\") = '/'
 
     for i = 0; i < sizeof checked / sizeof checked[0]; i++:
@@ -130,13 +109,14 @@ def find_stdlib() -> byte*:
         fprintf(stderr, "  %s\n", checked[i])
     exit(1)
 
-def my_mkdir(path: byte*) -> void:
-    # Ignoring return values, because there's currently no way to check errno.
-    # We need to ignore the error when directory exists already (EEXIST).
-    # Ideally we wouldn't ignore any other errors.
-    if is_windows():
+# Ignoring return values, because there's currently no way to check errno.
+# We need to ignore the error when directory exists already (EEXIST).
+# Ideally we wouldn't ignore any other errors.
+if WINDOWS:
+    def my_mkdir(path: byte*) -> void:
         _mkdir(path)
-    else:
+else:
+    def my_mkdir(path: byte*) -> void:
         mkdir(path, 0o777)  # this is what mkdir in bash does according to strace
 
 def get_path_to_file_in_jou_compiled(filename: byte*) -> byte*:
@@ -153,7 +133,7 @@ def delete_slice(start: byte*, end: byte*) -> void:
     memmove(start, end, strlen(end) + 1)
 
 def simplify_path(path: byte*) -> void:
-    if is_windows():
+    if WINDOWS:
         # Backslash to forward slash.
         for p = path; *p != '\0'; p++:
             if *p == '\\':

@@ -1,0 +1,16 @@
+import "stdlib/io.jou"
+import "stdlib/process.jou"
+
+def main() -> int:
+    f = fopen("tmp/tests/asdasd.txt", "w")
+    assert f != NULL
+    fprintf(f, "asd asd\n")
+    fclose(f)
+
+    # Output: asd asd
+    if WINDOWS:
+        system("type tmp\\tests\\asdasd.txt")
+    else:
+        system("cat tmp/tests/asdasd.txt")
+
+    return 0

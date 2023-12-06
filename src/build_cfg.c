@@ -572,6 +572,13 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
         add_constant(st, expr->location, c, result);
         break;
     case AST_EXPR_GET_VARIABLE:
+        if (get_special_constant(expr->data.varname) != -1) {
+            result = add_local_var(st, boolType);
+            union CfInstructionData data;
+            safe_strcpy(data.scname, expr->data.varname);
+            add_instruction(st, expr->location, CF_SPECIAL_CONSTANT, &data, NULL, result);
+            break;
+        }
         if ((temp = find_local_var(st, expr->data.varname))) {
             if (types->implicit_cast_type == NULL || types->type == types->implicit_cast_type) {
                 // Must take a "snapshot" of this variable, as it may change soon.

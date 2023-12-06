@@ -184,30 +184,7 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
     LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
     free(argtypes);
 
-    func = LLVMAddFunction(st->module, fullname, functype);
-
-    // Terrible hack: if declaring an OS function that doesn't exist on current platform,
-    // make it a definition instead of a declaration so that there are no linker errors.
-    // Ideally it would be possible to compile some parts of Jou code only for a specific platform.
-#ifdef _WIN32
-    const char *doesnt_exist[] = { "readlink", "mkdir", "popen", "pclose", "_NSGetExecutablePath" };
-#elif defined(__APPLE__)
-    const char *doesnt_exist[] = { "GetModuleFileNameA", "_mkdir" };
-#else
-    const char *doesnt_exist[] = { "GetModuleFileNameA", "_mkdir", "_NSGetExecutablePath" };
-#endif
-    for (unsigned i = 0; i < sizeof doesnt_exist / sizeof doesnt_exist[0]; i++) {
-        if (!strcmp(fullname, doesnt_exist[i])) {
-            LLVMBasicBlockRef block = LLVMAppendBasicBlock(func, "my_block");
-            LLVMBuilderRef b = LLVMCreateBuilder();
-            LLVMPositionBuilderAtEnd(b, block);
-            LLVMBuildUnreachable(b);
-            LLVMDisposeBuilder(b);
-            break;
-        }
-    }
-
-    return func;
+    return LLVMAddFunction(st->module, fullname, functype);
 }
 
 static LLVMValueRef codegen_call(const struct State *st, const Signature *sig, LLVMValueRef *args, int nargs)
@@ -254,6 +231,13 @@ static LLVMValueRef codegen_constant(const struct State *st, const Constant *c)
         return LLVMConstInt(LLVMInt32Type(), c->data.enum_member.memberidx, false);
     }
     assert(0);
+}
+
+static LLVMValueRef codegen_special_constant(const char *name)
+{
+    int v = get_special_constant(name);
+    assert(v != -1);
+    return LLVMConstInt(LLVMInt1Type(), v, false);
 }
 
 static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, const char *ignored)
@@ -322,6 +306,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             }
             break;
         case CF_CONSTANT: setdest(codegen_constant(st, &ins->data.constant)); break;
+        case CF_SPECIAL_CONSTANT: setdest(codegen_special_constant(ins->data.scname)); break;
         case CF_STRING_ARRAY: setdest(LLVMConstString(ins->data.strarray.str, ins->data.strarray.len, true)); break;
         case CF_SIZEOF: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
         case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
