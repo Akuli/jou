@@ -1,0 +1,40 @@
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/math.jou"
+
+
+def remove_all_whitespace(s: byte*) -> void:
+    while *s != '\0':
+        if is_ascii_whitespace(*s):
+            memmove(s, &s[1], strlen(s))
+        else:
+            s++
+
+
+def main() -> int:
+    T = -1 as long
+    R = -1 as long
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    line: byte[100]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        remove_all_whitespace(line)
+        if starts_with(line, "Time:"):
+            T = atoll(&line[5])
+        elif starts_with(line, "Distance:"):
+            R = atoll(&line[9])
+        else:
+            assert False
+
+    fclose(f)
+
+    tmin = (T - sqrt(T*T - 4*R))/2
+    tmax = (T + sqrt(T*T - 4*R))/2
+    ints_between = (ceil(tmax) as int) - (floor(tmin) as int) - 1
+
+    printf("%d\n", ints_between)  # Output: 71503
+    return 0

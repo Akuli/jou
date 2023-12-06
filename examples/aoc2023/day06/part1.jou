@@ -1,0 +1,68 @@
+import "stdlib/str.jou"
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+
+
+# Unlike most other AoC problems, this one is mostly math.
+#
+# Let T = given amount of time (button + move)
+#     R = record distance
+#     t = time button was held down = speed of boat
+#
+# Then getting a record means that
+#
+#     t*(T-t) > R
+#
+# where t*(T-t) calculates our distance as speed*time.
+# This can be rearranged to
+#
+#     t^2 - Tt + R < 0
+#
+# and then solved with the quadratic equation:
+#
+#                  -b +- sqrt(b^2-4ac)     T +- sqrt(T^2-4R)
+#     tmin,tmax = --------------------- = -------------------
+#                          2a                      2
+#
+# Then we calculate how many integers are strictly between tmin and tmax.
+
+def main() -> int:
+    times = [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1]
+    distances = [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1]
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    line: byte[100]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        words = split_by_ascii_whitespace(line)
+
+        assert words[0] != NULL
+        if strcmp(words[0], "Time:") == 0:
+            dest = &times
+        else:
+            dest = &distances
+
+        for i = 0; words[i+1] != NULL; i++:
+            assert i < sizeof(*dest)/sizeof((*dest)[0]) - 1
+            (*dest)[i] = atoi(words[i+1])
+
+        free(words)
+    fclose(f)
+
+    result = 1
+    for i = 0; times[i] != -1 and distances[i] != -1; i++:
+        T = times[i]
+        R = distances[i]
+
+        tmin = (T - sqrt(T*T - 4*R))/2
+        tmax = (T + sqrt(T*T - 4*R))/2
+        ints_between = (ceil(tmax) as int) - (floor(tmin) as int) - 1
+
+        assert ints_between >= 1  # must be possible to win somehow
+        result *= ints_between
+
+    printf("%d\n", result)  # Output: 288
+    return 0
