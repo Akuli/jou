@@ -151,7 +151,7 @@ class AstToIR:
             argtypes[i] = type_to_llvm(sig->argtypes[i])
 
         # TODO: tell llvm if we know a function is noreturn
-        if sig->return_type == NULL:  # "-> noreturn" or "-> void"
+        if sig->return_type == NULL:  # "-> noreturn" or "-> None"
             return_type = LLVMVoidType()
         else:
             return_type = type_to_llvm(sig->return_type)
@@ -161,7 +161,7 @@ class AstToIR:
 
         return LLVMAddFunction(self->module, full_name, function_type)
 
-    def new_block(self, name_hint: byte*) -> void:
+    def new_block(self, name_hint: byte*) -> None:
         assert self->llvm_function != NULL
         block = LLVMAppendBasicBlock(self->llvm_function, name_hint)
         LLVMPositionBuilderAtEnd(self->builder, block)
@@ -320,7 +320,7 @@ class AstToIR:
         printf("%s %d %s\n", lhs_type->name, op, rhs_type->name)
         assert False
 
-    def do_assert(self, condition: LLVMValue*) -> void:
+    def do_assert(self, condition: LLVMValue*) -> None:
         true_block = LLVMAppendBasicBlock(self->llvm_function, "assert_true")
         false_block = LLVMAppendBasicBlock(self->llvm_function, "assert_false")
         LLVMBuildCondBr(self->builder, condition, true_block, false_block)
@@ -625,7 +625,7 @@ class AstToIR:
             return result
         return self->do_cast(result, types->original_type, types->implicit_cast_type)
 
-    def do_if_statement(self, ast: AstIfStatement*) -> void:
+    def do_if_statement(self, ast: AstIfStatement*) -> None:
         assert ast->n_if_and_elifs >= 1
         done = LLVMAppendBasicBlock(self->llvm_function, "if_done")
 
@@ -648,7 +648,7 @@ class AstToIR:
     #     ...body...
     #
     # While loop is basically a special case of for loop, so it uses this too.
-    def do_loop(self, init: AstStatement*, cond: AstExpression*, incr: AstStatement*, body: AstBody*) -> void:
+    def do_loop(self, init: AstStatement*, cond: AstExpression*, incr: AstStatement*, body: AstBody*) -> None:
         cond_block = LLVMAppendBasicBlock(self->llvm_function, "loop_cond")
         body_block = LLVMAppendBasicBlock(self->llvm_function, "loop_body")
         incr_block = LLVMAppendBasicBlock(self->llvm_function, "loop_incr")
@@ -684,7 +684,7 @@ class AstToIR:
         # rest of the function/method goes to done block
         LLVMPositionBuilderAtEnd(self->builder, done_block)
 
-    def do_in_place_operation(self, op: AstExpressionKind, assignment: AstAssignment*) -> void:
+    def do_in_place_operation(self, op: AstExpressionKind, assignment: AstAssignment*) -> None:
         target_pointer = self->do_address_of_expression(&assignment->target)
         target_type = self->function_or_method_types->get_expression_types(&assignment->target)->original_type
         rhs = self->do_expression(&assignment->value)
@@ -694,7 +694,7 @@ class AstToIR:
         new_value = self->do_binop(op, old_value, target_type, rhs, rhs_type)
         LLVMBuildStore(self->builder, new_value, target_pointer)
 
-    def do_statement(self, ast: AstStatement*) -> void:
+    def do_statement(self, ast: AstStatement*) -> None:
         if ast->kind == AstStatementKind::ExpressionStatement:
             self->do_expression(&ast->expression)
         elif ast->kind == AstStatementKind::Return:
@@ -745,11 +745,11 @@ class AstToIR:
             printf("create_llvm_ir: unknown statement kind %d...\n", ast->kind)
             assert False
 
-    def do_body(self, body: AstBody*) -> void:
+    def do_body(self, body: AstBody*) -> None:
         for i = 0; i < body->nstatements; i++:
             self->do_statement(&body->statements[i])
 
-    def define_function_or_method(self, funcdef: AstFunctionOrMethod*, self_type: Type*) -> void:
+    def define_function_or_method(self, funcdef: AstFunctionOrMethod*, self_type: Type*) -> None:
         assert self->function_or_method_types == NULL
         self->function_or_method_types = self->file_types->find_defined_function_or_method(funcdef->signature.name, self_type)
         assert self->function_or_method_types != NULL

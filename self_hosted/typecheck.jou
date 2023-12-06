@@ -59,7 +59,7 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
 # The template can contain "<from>" and "<to>". They will be substituted with names
 # of types. We cannot use printf() style functions because the arguments can be in
 # any order.
-def fail_with_implicit_cast_error(location: Location, template: byte*, from: Type*, to: Type*) -> void:
+def fail_with_implicit_cast_error(location: Location, template: byte*, from: Type*, to: Type*) -> None:
     assert template != NULL
 
     n = 0
@@ -117,7 +117,7 @@ class ExpressionTypes:
         return self->implicit_cast_type
 
     # TODO: error_location is probably unnecessary, can get location from self->expression
-    def do_implicit_cast(self, to: Type*, error_location: Location, error_template: byte*) -> void:
+    def do_implicit_cast(self, to: Type*, error_location: Location, error_template: byte*) -> None:
         # This cannot be called multiple times
         assert self->implicit_cast_type == NULL
         assert not self->implicit_array_to_pointer_cast
@@ -156,7 +156,7 @@ class ExpressionTypes:
             )
 
     # Does not store the new type to self, because explicit casts have their own AstExpression which has its own expression types.
-    def do_explicit_cast(self, to: Type*, error_location: Location) -> void:
+    def do_explicit_cast(self, to: Type*, error_location: Location) -> None:
         assert self->implicit_cast_type == NULL
         assert not self->implicit_array_to_pointer_cast
 
@@ -169,7 +169,7 @@ class ExpressionTypes:
         if from->kind == TypeKind::Array and to->is_pointer_type():
             self->cast_array_to_pointer()
 
-    def cast_array_to_pointer(self) -> void:
+    def cast_array_to_pointer(self) -> None:
         assert self->original_type->kind == TypeKind::Array
         self->do_implicit_cast(self->original_type->array.item_type->get_pointer_type(), Location{}, NULL)
 
@@ -214,7 +214,7 @@ class FileTypes:
     globals: GlobalVariable*
     nglobals: int
 
-    def add_imported_symbol(self, symbol: ExportSymbol*) -> void:
+    def add_imported_symbol(self, symbol: ExportSymbol*) -> None:
         if symbol->kind != ExportSymbolKind::Function:
             # TODO
             return
@@ -250,7 +250,7 @@ class FileTypes:
                 return self->globals[i].type
         return NULL
 
-def check_type_doesnt_exist(ft: FileTypes*, name: byte*, location: Location) -> void:
+def check_type_doesnt_exist(ft: FileTypes*, name: byte*, location: Location) -> None:
     existing = ft->find_type(name)
     if existing != NULL:
         description = short_type_description(existing)
@@ -371,7 +371,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_type: Type*) ->
 
     return sig
 
-def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> void:
+def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> None:
     # Previous type-checking stage created an opaque type.
     type: Type* = NULL
     for i = 0; i < ft->ntypes; i++:
@@ -582,7 +582,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
 # value of the pointer &foo to bar.
 #
 # error_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
-def ensure_can_take_address(expression: AstExpression*, error_template: byte*) -> void:
+def ensure_can_take_address(expression: AstExpression*, error_template: byte*) -> None:
     if expression->kind == AstExpressionKind::GetClassField:
         # &foo.bar --> must ensure we can take address of foo.
         # Doesn't apply to &foo->bar because that's foo + some offset, so foo is already a pointer.
@@ -1167,7 +1167,7 @@ class Stage3TypeChecker:
         value: AstExpression*,  # the 1 of "foo += 1"
         op_expr_kind: AstExpressionKind,  # e.g. AstExpressionKind::Add
         op_description: byte[20],  # e.g. "addition"
-    ) -> void:
+    ) -> None:
         ensure_can_take_address(target, "cannot assign to %s")
         target_types = self->do_expression(target)
         value_types = self->do_expression(value)
@@ -1184,7 +1184,7 @@ class Stage3TypeChecker:
         # If this assert fails, we probably need a new error message.
         assert target_types->implicit_cast_type == NULL
 
-    def do_statement(self, statement: AstStatement*) -> void:
+    def do_statement(self, statement: AstStatement*) -> None:
         if statement->kind == AstStatementKind::ExpressionStatement:
             self->do_expression_maybe_void(&statement->expression)
 
@@ -1324,11 +1324,11 @@ class Stage3TypeChecker:
             printf("*** typecheck: unknown statement kind %d\n", statement->kind)
             assert False
 
-    def do_body(self, body: AstBody*) -> void:
+    def do_body(self, body: AstBody*) -> None:
         for i = 0; i < body->nstatements; i++:
             self->do_statement(&body->statements[i])
 
-    def define_function_or_method(self, signature: Signature*, body: AstBody*) -> void:
+    def define_function_or_method(self, signature: Signature*, body: AstBody*) -> None:
         assert self->current_function_or_method == NULL
         self->file_types->defined_functions = realloc(
             self->file_types->defined_functions,
@@ -1344,7 +1344,7 @@ class Stage3TypeChecker:
         self->current_function_or_method = NULL
 
 
-def typecheck_stage3_function_and_method_bodies(file_types: FileTypes*, ast_file: AstFile*) -> void:
+def typecheck_stage3_function_and_method_bodies(file_types: FileTypes*, ast_file: AstFile*) -> None:
     checker = Stage3TypeChecker{file_types = file_types}
     for i = 0; i < ast_file->body.nstatements; i++:
         ts = &ast_file->body.statements[i]

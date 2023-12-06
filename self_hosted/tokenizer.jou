@@ -190,7 +190,7 @@ class Tokenizer:
             self->location.lineno++
         return c
 
-    def unread_byte(self, b: byte) -> void:
+    def unread_byte(self, b: byte) -> None:
         if b == '\0':
             return
 
@@ -228,7 +228,7 @@ class Tokenizer:
                 self->unread_byte(b)
                 return dest
 
-    def consume_rest_of_line(self) -> void:
+    def consume_rest_of_line(self) -> None:
         while True:
             c = self->read_byte()
             if c == '\0' or c == '\n':
@@ -424,7 +424,7 @@ class Tokenizer:
         sprintf(message, "there is no '%s' operator", operator)
         fail(self->location, message)
 
-    def handle_parentheses(self, token: Token*) -> void:
+    def handle_parentheses(self, token: Token*) -> None:
         if token->kind == TokenKind::EndOfFile and self->open_parens_len > 0:
             open_token = self->open_parens[0]
             actual_open = open_token.short_string[0]
@@ -605,7 +605,7 @@ def tokenize(path: byte*, import_location: Location*) -> Token*:
     free(raw_tokens)
     return better_tokens
 
-def print_tokens(tokens: Token*) -> void:
+def print_tokens(tokens: Token*) -> None:
     printf("===== Tokens for file \"%s\" =====\n", tokens->location.path)
     t = tokens
     current_lineno = -1

@@ -28,11 +28,11 @@ class CommandLineArgs:
 
 
 # An error message should have already been printed to stderr, without a trailing \n
-def fail_parsing_args(argv0: byte*, message: byte*) -> void:
+def fail_parsing_args(argv0: byte*, message: byte*) -> None:
     fprintf(stderr, "%s: %s (try \"%s --help\")\n", argv0, message, argv0)
     exit(2)
 
-def print_help(argv0: byte*) -> void:
+def print_help(argv0: byte*) -> None:
     printf("Usage:\n")
     printf("  %s [options] FILENAME.jou\n", argv0)
     printf("  %s --help         # This message\n", argv0)
@@ -116,7 +116,7 @@ def get_sane_filename(path: byte*) -> byte[50]:
             name[i] = '_'
     return name
 
-def check_ast_and_import_conflicts(ast: AstFile*, symbol: ExportSymbol*) -> void:
+def check_ast_and_import_conflicts(ast: AstFile*, symbol: ExportSymbol*) -> None:
     for i = 0; i < ast->body.nstatements; i++:
         ts = &ast->body.statements[i]
         if ts->kind == AstStatementKind::Function:
@@ -168,14 +168,14 @@ class Compiler:
     nfiles: int
     automagic_files: byte*[10]
 
-    def determine_automagic_files(self) -> void:
+    def determine_automagic_files(self) -> None:
         self->automagic_files[0] = malloc(strlen(self->stdlib_path) + 40)
         sprintf(self->automagic_files[0], "%s/_assert_fail.jou", self->stdlib_path)
         if is_windows():
             self->automagic_files[1] = malloc(strlen(self->stdlib_path) + 40)
             sprintf(self->automagic_files[1], "%s/_windows_startup.jou", self->stdlib_path)
 
-    def parse_all_files(self) -> void:
+    def parse_all_files(self) -> None:
         queue: ParseQueueItem* = malloc(50 * sizeof queue[0])
         queue_len = 0
         queue[queue_len++] = ParseQueueItem{path = self->args->main_path}
@@ -221,7 +221,7 @@ class Compiler:
 
         free(queue)
 
-    def process_imports_and_exports(self) -> void:
+    def process_imports_and_exports(self) -> None:
         if self->verbosity >= 1:
             printf("Processing imports/exports\n")
 
@@ -264,7 +264,7 @@ class Compiler:
             free(self->files[i].pending_exports)
             self->files[i].pending_exports = NULL
 
-    def typecheck_stage1_all_files(self) -> void:
+    def typecheck_stage1_all_files(self) -> None:
         for i = 0; i < self->nfiles; i++:
             if self->verbosity >= 1:
                 printf("Type-check stage 1: %s\n", self->files[i].ast.path)
@@ -275,7 +275,7 @@ class Compiler:
                 &self->files[i].ast,
             )
 
-    def typecheck_stage2_all_files(self) -> void:
+    def typecheck_stage2_all_files(self) -> None:
         for i = 0; i < self->nfiles; i++:
             if self->verbosity >= 1:
                 printf("Type-check stage 2: %s\n", self->files[i].ast.path)
@@ -286,7 +286,7 @@ class Compiler:
                 &self->files[i].ast,
             )
 
-    def typecheck_stage3_all_files(self) -> void:
+    def typecheck_stage3_all_files(self) -> None:
         for i = 0; i < self->nfiles; i++:
             if self->verbosity >= 1:
                 printf("Type-check stage 3: %s\n", self->files[i].ast.path)
@@ -413,7 +413,7 @@ class Compiler:
 
         return exe
 
-    def run(self, exe: byte*) -> void:
+    def run(self, exe: byte*) -> None:
         command = malloc(strlen(exe) + 10)
         sprintf(command, "\"%s\"", exe)
         if self->verbosity >= 1:

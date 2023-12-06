@@ -130,7 +130,7 @@ def find_stdlib() -> byte*:
         fprintf(stderr, "  %s\n", checked[i])
     exit(1)
 
-def my_mkdir(path: byte*) -> void:
+def my_mkdir(path: byte*) -> None:
     # Ignoring return values, because there's currently no way to check errno.
     # We need to ignore the error when directory exists already (EEXIST).
     # Ideally we wouldn't ignore any other errors.
@@ -149,10 +149,10 @@ def get_path_to_file_in_jou_compiled(filename: byte*) -> byte*:
     return result
 
 # TODO: put this to stdlib? or does it do too much for a stdlib function?
-def delete_slice(start: byte*, end: byte*) -> void:
+def delete_slice(start: byte*, end: byte*) -> None:
     memmove(start, end, strlen(end) + 1)
 
-def simplify_path(path: byte*) -> void:
+def simplify_path(path: byte*) -> None:
     if is_windows():
         # Backslash to forward slash.
         for p = path; *p != '\0'; p++:
