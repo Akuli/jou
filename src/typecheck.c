@@ -146,6 +146,11 @@ static bool is_void(const AstType *t)
     return t->kind == AST_TYPE_NAMED && !strcmp(t->data.name, "void");
 }
 
+static bool is_none(const AstType *t)
+{
+    return t->kind == AST_TYPE_NAMED && !strcmp(t->data.name, "None");
+}
+
 static bool is_noreturn(const AstType *t)
 {
     return t->kind == AST_TYPE_NAMED && !strcmp(t->data.name, "noreturn");
@@ -153,7 +158,7 @@ static bool is_noreturn(const AstType *t)
 
 static const Type *type_from_ast(const FileTypes *ft, const AstType *asttype)
 {
-    if (is_void(asttype) || is_noreturn(asttype))
+    if (is_void(asttype) || is_none(asttype) || is_noreturn(asttype))
         fail_with_error(asttype->location, "'%s' cannot be used here because it is not a type", asttype->data.name);
 
     const Type *tmp;
@@ -232,8 +237,10 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
     }
 
     sig.is_noreturn = is_noreturn(&astsig->returntype);
-    if (is_void(&astsig->returntype) || is_noreturn(&astsig->returntype))
+    if (is_none(&astsig->returntype) || is_noreturn(&astsig->returntype))
         sig.returntype = NULL;
+    else if (is_void(&astsig->returntype))
+        fail_with_error(astsig->returntype.location, "void is not a valid return type, use '-> None' if the function does not return a value");
     else
         sig.returntype = type_from_ast(ft, &astsig->returntype);
 
