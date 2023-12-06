@@ -1,0 +1,46 @@
+# stdin, stdout and stderr are special files for terminal input and output.
+# For example, printf() writes to stdout.
+#
+# For some random technical reason Windows and MacOS don't have these
+# variables. For example, on Windows, when a C program mentions "stdin", the C
+# compiler replaces it with "(__acrt_iob_func(0))":
+#
+#    $ sudo apt install gcc-mingw-w64-x86-64
+#    $ echo -e "#include <stdio.h>\nstdin\nstdout\nstderr" | x86_64-w64-mingw32-cpp | tail -3
+#    (__acrt_iob_func(0))
+#    (__acrt_iob_func(1))
+#    (__acrt_iob_func(2))
+#
+# On MacOS, there is a similar but slightly different situation: these special
+# files are stored in variables, but the variables have different names.
+#
+# To keep things simple, Jou always provides stdin, stdout and stderr variables.
+# When compiling for Windows or MacOS, the compiler magically adds a call to
+# _jou_io_init() to the beginning of main() on Windows and MacOS. You may need
+# to call it manually if your project doesn't have a main() function written
+# in Jou.
+
+
+# Use void pointers to avoid dependency on io.jou.
+global stdin: void*
+global stdout: void*
+global stderr: void*
+
+# TODO: assertions at compile time
+#assert WINDOWS or MACOS
+
+if WINDOWS:
+    declare __acrt_iob_func(index: int) -> void*
+    def _jou_io_init() -> void:
+        stdin = __acrt_iob_func(0)
+        stdout = __acrt_iob_func(1)
+        stderr = __acrt_iob_func(2)
+
+if MACOS:
+    declare global __stdinp: void*
+    declare global __stdoutp: void*
+    declare global __stderrp: void*
+    def _jou_io_init() -> void:
+        stdin = __stdinp
+        stdout = __stdoutp
+        stderr = __stderrp

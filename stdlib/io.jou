@@ -37,7 +37,11 @@ class FILE:
     # to accessing the members directly.
     _dummy: int
 
-# Special files for terminal input and output.
+# stdin, stdout and stderr are special files for terminal input and output.
+# For example, printf() writes to stdout.
+#
+# We use "declare global" because the variables are not defined here. We only
+# tell the Jou compiler that they exist. See also _io_init.jou.
 declare global stdin: FILE*
 declare global stdout: FILE*
 declare global stderr: FILE*

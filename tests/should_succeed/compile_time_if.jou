@@ -12,11 +12,31 @@ else:
         # python uses 777 as default perms, see help(os.mkdir)
         mkdir("tmp/tests/foo", 0o777)
 
+# This complicated way to print "foobar" is supposed to test 'and', 'or', 'not'
+if WINDOWS or MACOS:
+    def foo() -> void:
+        printf("fo")
+if not WINDOWS and not MACOS:
+    def foo() -> void:
+        printf("foo")
+
+if not (not WINDOWS and not MACOS):
+    def bar() -> void:
+        printf("obar\n")
+if not (WINDOWS or MACOS):
+    def bar() -> void:
+        printf("bar")
+
 def main() -> int:
     make_foo()
     f = fopen("tmp/tests/foo/bar", "w")
     if f != NULL:
         puts("ok")  # Output: ok
         fclose(f)
+
+    # Output: foobar
+    foo()
+    bar()
+    printf("\n")
 
     return 0
