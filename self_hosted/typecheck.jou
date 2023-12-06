@@ -297,6 +297,8 @@ def evaluate_array_length(expression: AstExpression*) -> int:
 def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
     if ast_type->is_void():
         fail(ast_type->location, "'void' cannot be used here because it is not a type")
+    if ast_type->is_none():
+        fail(ast_type->location, "'None' cannot be used here because it is not a type")
     if ast_type->is_noreturn():
         fail(ast_type->location, "'noreturn' cannot be used here because it is not a type")
 
@@ -359,7 +361,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_type: Type*) ->
         else:
             sig.argtypes[i] = type_from_ast(ft, &astsig->args[i].type)
 
-    if astsig->return_type.is_void() or astsig->return_type.is_noreturn():
+    if astsig->return_type.is_none() or astsig->return_type.is_noreturn():
         sig.return_type = NULL
     else:
         sig.return_type = type_from_ast(ft, &astsig->return_type)

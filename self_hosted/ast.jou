@@ -33,6 +33,9 @@ class AstType:
     def is_void(self) -> bool:
         return self->kind == AstTypeKind::Named and strcmp(self->name, "void") == 0
 
+    def is_none(self) -> bool:
+        return self->kind == AstTypeKind::Named and strcmp(self->name, "None") == 0
+
     def is_noreturn(self) -> bool:
         return self->kind == AstTypeKind::Named and strcmp(self->name, "noreturn") == 0
 
