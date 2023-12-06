@@ -18,9 +18,3 @@ def _jou_macos_startup() -> void:
     stdin = __stdinp
     stdout = __stdoutp
     stderr = __stderrp
-
-# On linux, C's errno is a macro that expands to (*__errno_location()).
-# On macos it expands to (*__error()) instead. Let's make it consistent.
-declare __error() -> int*
-def __errno_location() -> int*:
-    return __error()

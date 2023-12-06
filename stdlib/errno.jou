@@ -1,12 +1,34 @@
-# C's errno is actually a macro that expands to a function call.
-# See also _windows_startup.jou
-declare __errno_location() -> int*
+# In C, you use errno as if it was a normal variable. It is actually a
+# macro, meaning every "errno" in your code gets replaced with something
+# else when compiling:
+#
+#   - Windows: errno expands to (*_errno())
+#   - MacOS: errno expands to (*__error())
+#   - Linux: errno expands to (*__errno_location())
+#
+# Because Jou in general does not hide magic, we instead provide
+# set_errno() and get_errno() functions.
 
-def set_errno(value: int) -> void:
-    *__errno_location() = value
+if WINDOWS:
+    declare _errno() -> int*
+    def set_errno(value: int) -> void:
+        *_errno() = value
+    def get_errno() -> int:
+        return *_errno()
 
-def get_errno() -> int:
-    return *__errno_location()
+elif MACOS:
+    declare __error() -> int*
+    def set_errno(value: int) -> void:
+        *__error() = value
+    def get_errno() -> int:
+        return *__error()
+
+else:
+    declare __errno_location() -> int*
+    def set_errno(value: int) -> void:
+        *__errno_location() = value
+    def get_errno() -> int:
+        return *__errno_location()
 
 # Convert an error code into a string. Do not modify or free() the returned string.
 declare strerror(errno_value: int) -> byte*

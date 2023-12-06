@@ -24,9 +24,3 @@ def _jou_windows_startup() -> void:
     stdin = __acrt_iob_func(0)
     stdout = __acrt_iob_func(1)
     stderr = __acrt_iob_func(2)
-
-# On linux, C's errno is a macro that expands to (*__errno_location()).
-# On Windows it expands to (*_errno()) instead. Let's make it consistent.
-declare _errno() -> int*
-def __errno_location() -> int*:
-    return _errno()
