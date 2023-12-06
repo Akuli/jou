@@ -184,7 +184,7 @@ static AstSignature parse_function_signature(ParserState *ps, bool accept_self)
             fail_with_error(
                 ps->tokens->location,
                 "return type must be specified with '->',"
-                " or with '-> void' if the function doesn't return anything"
+                " or with '-> None' if the function doesn't return anything"
             );
         }
         fail_with_parse_error(ps->tokens, "a '->'");
