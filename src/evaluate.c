@@ -34,7 +34,6 @@ static bool evaluate_condition(const AstExpression *expr)
 
 
 // returns the statements to replace if statement with
-// TODO: don't leak memory
 static AstBody evaluate_compile_time_if_statement(AstIfStatement *if_stmt)
 {
     AstBody *result = &if_stmt->elsebody;
