@@ -2,6 +2,7 @@ import "stdlib/str.jou"
 import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 import "stdlib/math.jou"
+import "stdlib/mem.jou"
 
 
 # Unlike most other AoC problems, this one is mostly math.
@@ -47,6 +48,8 @@ def main() -> int:
         for i = 0; words[i+1] != NULL; i++:
             assert i < sizeof(*dest)/sizeof((*dest)[0]) - 1
             (*dest)[i] = atoi(words[i+1])
+
+        free(words)
     fclose(f)
 
     result = 1
