@@ -26,6 +26,14 @@ jobs:
             exit 1
           fi
 
+  doctest:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: brew install bash diffutils llvm@13
+      - run: make
+      - run: ./doctest.sh
+
   compare-compilers:
     runs-on: macos-latest
     steps:

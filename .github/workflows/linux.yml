@@ -47,6 +47,17 @@ jobs:
             exit 1
           fi
 
+  doctest:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        llvm-version: [11, 13]
+    steps:
+      - uses: actions/checkout@v3
+      - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make
+      - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
+      - run: ./doctest.sh
+
   compare-compilers:
     runs-on: ubuntu-latest
     steps:
