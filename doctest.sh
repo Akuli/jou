@@ -44,7 +44,7 @@ function generate_expected_output()
 }
 
 rm -rf tmp/doctest
-mkdir tmp/doctest
+mkdir -p tmp/doctest
 
 for file in "${files[@]}"; do
     echo "Extracting doctests from $file..."
