@@ -68,7 +68,7 @@ cd tmp/doctest
 for file in */*.jou; do
     echo "${file%.*}" | tr '/' ':'  # foo.md/123.jou --> foo.md:123
     cp "$file" test.jou
-    if diff --text -u --color=always <(generate_expected_output test.jou | tr -d '\r') <( "$jou" test.jou 2>&1 || true | tr -d '\r'); then
+    if diff --text -u --color=always <(generate_expected_output test.jou | tr -d '\r') <( ("$jou" test.jou 2>&1 || true) | tr -d '\r'); then
         echo "  ok"
     else
         ((nfail++)) || true
