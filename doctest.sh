@@ -71,9 +71,9 @@ for file in */*.jou; do
     if diff --text -u --color=always <(generate_expected_output test.jou | tr -d '\r') <( "$jou" test.jou 2>&1 || true | tr -d '\r'); then
         echo "  ok"
     else
-        ((nfail++))
+        ((nfail++)) || true
     fi
-    ((ntotal++))
+    ((ntotal++)) || true
 done
 
 if [ $ntotal == 0 ]; then
