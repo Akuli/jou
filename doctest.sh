@@ -61,12 +61,7 @@ for file in "${files[@]}"; do
     done
 done
 
-ntotal=$(ls -1 tmp/doctest/*/*.jou | wc -l)
-if [ $ntotal == 0 ]; then
-    echo "*** Error: no doctests found ***" >&2
-    exit 1
-fi
-echo "Running $ntotal doctests..."
+ntotal=0
 nfail=0
 
 cd tmp/doctest
@@ -76,9 +71,15 @@ for file in */*.jou; do
     if diff --text -u --color=always <(generate_expected_output test.jou | tr -d '\r') <( "$jou" test.jou 2>&1 || true | tr -d '\r'); then
         echo "  ok"
     else
-        ((nfail++)) || true
+        ((nfail++))
     fi
+    ((ntotal++))
 done
+
+if [ $ntotal == 0 ]; then
+    echo "*** Error: no doctests found ***" >&2
+    exit 1
+fi
 
 echo ""
 echo ""
