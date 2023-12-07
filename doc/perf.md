@@ -1,4 +1,4 @@
-# Performance and optimizations
+# Performance and Optimizations
 
 Because Jou uses [LLVM](https://llvm.org/),
 it is faster than interpreted languages like Python,
