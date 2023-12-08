@@ -166,8 +166,6 @@ def swap(h1: Hand*, h2: Hand*) -> void:
 def sort(hands: Hand*, nhands: int) -> void:
     # bubble sort go brrr
     for sorted_part_len = 1; sorted_part_len < nhands; sorted_part_len++:
-        printf("sort: %d/%d\n", sorted_part_len, nhands)
-        fflush(stdout)
         i = sorted_part_len
         while i > 0 and hands[i-1].compare(&hands[i]) == 1:
             swap(&hands[i-1], &hands[i])
@@ -178,7 +176,7 @@ def main() -> int:
     hands: Hand[2000]
     nhands = 0
 
-    f = fopen("input.txt", "r")
+    f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
     while fscanf(f, "%5s %d\n", &hands[nhands].letters, &hands[nhands].bid) == 2:
@@ -193,6 +191,6 @@ def main() -> int:
     sum = 0
     for i = 0; i < nhands; i++:
         sum += (i+1) * hands[i].bid
-    printf("%d\n", sum)
+    printf("%d\n", sum)  # Output: 5905
 
     return 0
