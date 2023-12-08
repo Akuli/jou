@@ -88,16 +88,17 @@ Jou has a few different kinds of tokens:
     - `continue`
     - `True`
     - `False`
+    - `None`
     - `NULL`
-    - `self`
+    - `void`
+    - `noreturn`
     - `and`
     - `or`
     - `not`
+    - `self`
     - `as`
     - `sizeof`
     - `assert`
-    - `void`
-    - `noreturn`
     - `bool`
     - `byte`
     - `short`

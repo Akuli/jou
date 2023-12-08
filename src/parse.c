@@ -53,6 +53,7 @@ static AstType parse_type(ParserState *ps)
     AstType result = { .kind = AST_TYPE_NAMED, .location = ps->tokens->location };
 
     if (ps->tokens->type != TOKEN_NAME
+        && !is_keyword(ps->tokens, "None")
         && !is_keyword(ps->tokens, "void")
         && !is_keyword(ps->tokens, "noreturn")
         && !is_keyword(ps->tokens, "short")
@@ -459,6 +460,8 @@ static AstExpression parse_elementary_expression(ParserState *ps)
             expr.kind = AST_EXPR_GET_VARIABLE;
             strcpy(expr.data.varname, "self");
             ps->tokens++;
+        } else if (is_keyword(ps->tokens, "None")) {
+            fail(ps->tokens[0].location, "None is not a value in Jou, use e.g. -1 for numbers or NULL for pointers");
         } else {
             goto not_an_expression;
         }
