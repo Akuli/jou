@@ -8,7 +8,6 @@
 # "target" variable, it contains everything you will ever need.
 
 import "./llvm.jou"
-import "./paths.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
@@ -34,7 +33,7 @@ def init_target() -> None:
     LLVMInitializeX86AsmParser()
     LLVMInitializeX86AsmPrinter()
 
-    if is_windows():
+    if WINDOWS:
         # LLVM's default is x86_64-pc-windows-msvc
         target.triple = "x86_64-pc-windows-gnu"
     else:

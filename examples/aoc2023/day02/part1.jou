@@ -19,7 +19,7 @@ def game_is_possible(game_data: byte*) -> bool:
 
         n: int
         color: byte[10]
-        assert sscanf(chunk, "%d %10s", &n, color) == 2
+        assert sscanf(chunk, "%d %9s", &n, color) == 2
 
         if strcmp(color, "red") == 0 and n > 12:
             return False

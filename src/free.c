@@ -132,7 +132,7 @@ static void free_expression(const AstExpression *expr)
 
 static void free_ast_body(const AstBody *body);
 
-static void free_statement(const AstStatement *stmt)
+void free_ast_statement(const AstStatement *stmt)
 {
     switch(stmt->kind) {
     case AST_STMT_IF:
@@ -148,9 +148,9 @@ static void free_statement(const AstStatement *stmt)
         free_ast_body(&stmt->data.whileloop.body);
         break;
     case AST_STMT_FOR:
-        free_statement(stmt->data.forloop.init);
+        free_ast_statement(stmt->data.forloop.init);
         free_expression(&stmt->data.forloop.cond);
-        free_statement(stmt->data.forloop.incr);
+        free_ast_statement(stmt->data.forloop.incr);
         free(stmt->data.forloop.init);
         free(stmt->data.forloop.incr);
         free_ast_body(&stmt->data.forloop.body);
@@ -215,7 +215,7 @@ static void free_statement(const AstStatement *stmt)
 static void free_ast_body(const AstBody *body)
 {
     for (int i = 0; i < body->nstatements; i++)
-        free_statement(&body->statements[i]);
+        free_ast_statement(&body->statements[i]);
     free(body->statements);
 }
 

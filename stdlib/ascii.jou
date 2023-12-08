@@ -12,6 +12,10 @@ def is_ascii(s: byte*) -> bool:
 def is_ascii_digit(b: byte) -> bool:
     return '0' <= b and b <= '9'
 
+# Check for 'a-z' 'A-Z'
+def is_ascii_letter(b: byte) -> bool:
+    return ('A' <= b and b <= 'Z') or ('a' <= b and b <= 'z')
+
 # Checks if the given byte is an ASCII punctuation character, such as '*' or '_' or '"'.
 def is_ascii_punctuation(b: byte) -> bool:
     return b != '\0' and strchr("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", b) != NULL
@@ -34,7 +38,6 @@ def trim_ascii_whitespace(s: byte*) -> None:
     if start != s:
         memmove(s, start, len)
     s[len] = '\0'
-
 
 # Finds all non-whitespace parts of a string.
 # For example:  " foo bar  baz \n" --> ["foo", "bar", "baz", NULL]

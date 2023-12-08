@@ -552,6 +552,9 @@ static void print_cf_instruction(const CfInstruction *ins)
     case CF_CONSTANT:
         print_constant(&ins->data.constant);
         break;
+    case CF_SPECIAL_CONSTANT:
+        printf("special constant \"%s\"", ins->data.scname);
+        break;
     case CF_STRING_ARRAY:
         printf("string array ");
         print_string(ins->data.strarray.str, ins->data.strarray.len);

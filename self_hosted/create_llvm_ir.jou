@@ -4,6 +4,7 @@ import "./typecheck.jou"
 import "./types.jou"
 import "./ast.jou"
 import "./target.jou"
+import "./evaluate.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
@@ -571,7 +572,16 @@ class AstToIR:
             assert field != NULL
             result = LLVMBuildExtractValue(self->builder, instance, field->union_id, field->name)
 
-        elif ast->kind == AstExpressionKind::GetVariable or ast->kind == AstExpressionKind::Indexing:
+        elif ast->kind == AstExpressionKind::GetVariable:
+            v = get_special_constant(ast->varname)
+            if v == -1:
+                # normal variable
+                pointer = self->do_address_of_expression(ast)
+                result = LLVMBuildLoad(self->builder, pointer, ast->varname)
+            else:
+                result = LLVMConstInt(LLVMInt1Type(), v, False as int)
+
+        elif ast->kind == AstExpressionKind::Indexing:
             pointer = self->do_address_of_expression(ast)
             result = LLVMBuildLoad(self->builder, pointer, ast->varname)
 

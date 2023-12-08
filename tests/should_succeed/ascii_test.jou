@@ -1,4 +1,6 @@
 import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 def main() -> int:
@@ -12,6 +14,14 @@ def main() -> int:
     assert is_ascii_digit('9')
     assert not is_ascii_digit('x')
     assert not is_ascii_digit('\0')
+
+    assert is_ascii_letter('A')
+    assert is_ascii_letter('Z')
+    assert is_ascii_letter('a')
+    assert is_ascii_letter('z')
+    assert not is_ascii_letter('\0')
+    assert not is_ascii_letter('\\')
+    assert not is_ascii_letter('\n')
 
     assert is_ascii_punctuation('!')
     assert is_ascii_punctuation('_')
@@ -27,9 +37,20 @@ def main() -> int:
     assert not is_ascii_whitespace('.')
     assert not is_ascii_whitespace('\0')
 
-    s: byte[100]
-    strcpy(s, "  hello world \r\n  \t ")
+    s: byte[100] = "  hello world \r\n  \t "
     trim_ascii_whitespace(s)
     assert strcmp(s, "hello world") == 0
+
+    s = "  hello world \r\n  \t "
+    words = split_by_ascii_whitespace(s)
+    # Output: hello
+    # Output: world
+    for w = words; *w != NULL; w++:
+        puts(*w)
+    # Output: hello
+    # Output: world
+    for i = 0; words[i] != NULL; i++:
+        puts(words[i])
+    free(words)
 
     return 0

@@ -9,6 +9,7 @@ import "./paths.jou"
 import "./target.jou"
 import "./create_llvm_ir.jou"
 import "./llvm.jou"
+import "./evaluate.jou"
 import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/str.jou"
@@ -171,7 +172,7 @@ class Compiler:
     def determine_automagic_files(self) -> None:
         self->automagic_files[0] = malloc(strlen(self->stdlib_path) + 40)
         sprintf(self->automagic_files[0], "%s/_assert_fail.jou", self->stdlib_path)
-        if is_windows():
+        if WINDOWS:
             self->automagic_files[1] = malloc(strlen(self->stdlib_path) + 40)
             sprintf(self->automagic_files[1], "%s/_windows_startup.jou", self->stdlib_path)
 
@@ -206,6 +207,8 @@ class Compiler:
             if self->verbosity >= 2:
                 ast.print()
             free(tokens)  # TODO: do this properly
+
+            evaluate_compile_time_if_statements_in_body(&ast.body)
 
             self->files = realloc(self->files, sizeof self->files[0] * (self->nfiles + 1))
             self->files[self->nfiles++] = FileState{ast = ast}
@@ -329,11 +332,11 @@ class Compiler:
         else:
             exe = strdup(self->args->output_file)
 
-        if is_windows() and not ends_with(exe, ".exe") and not ends_with(exe, ".EXE"):
+        if WINDOWS and not ends_with(exe, ".exe") and not ends_with(exe, ".EXE"):
             exe = realloc(exe, strlen(exe) + 10)
             strcat(exe, ".exe")
 
-        if is_windows():
+        if WINDOWS:
             for i = 0; exe[i] != '\0'; i++:
                 if exe[i] == '/':
                     exe[i] = '\\'
@@ -374,7 +377,7 @@ class Compiler:
 
     def link(self, object_files: byte**) -> byte*:
         exe = self->get_exe_file_path()
-        if is_windows():
+        if WINDOWS:
             c_compiler = find_installation_directory()
             c_compiler = realloc(c_compiler, strlen(c_compiler) + 100)
             strcat(c_compiler, "\\mingw64\\bin\\gcc.exe")
@@ -392,7 +395,7 @@ class Compiler:
             sprintf(&command[strlen(command)], " \"%s\"", object_files[i])
         strcat(command, " -lm")
 
-        if is_windows():
+        if WINDOWS:
             # windows strips outermost quotes for some reason, so let's quote it all one more time...
             memmove(&command[1], &command[0], strlen(command) + 1)
             command[0] = '"'

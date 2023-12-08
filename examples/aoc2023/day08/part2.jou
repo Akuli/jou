@@ -1,0 +1,252 @@
+import "stdlib/ascii.jou"
+import "stdlib/mem.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+class Node:
+    name: byte[4]
+    left: byte[4]
+    right: byte[4]
+    left_node: Node*
+    right_node: Node*
+
+
+class Input:
+    left_right_string: byte[1000]
+    nodes: Node[1000]
+    nnodes: int
+
+    def add_node(self, node: Node) -> void:
+        assert self->nnodes < sizeof(self->nodes)/sizeof(self->nodes[0])
+        self->nodes[self->nnodes++] = node
+
+    def find_node(self, name: byte*) -> Node*:
+        for i = 0; i < self->nnodes; i++:
+            if strcmp(self->nodes[i].name, name) == 0:
+                return &self->nodes[i]
+        assert False
+
+    def find_node_pointers(self) -> void:
+        for i = 0; i < self->nnodes; i++:
+            self->nodes[i].left_node = self->find_node(self->nodes[i].left)
+            self->nodes[i].right_node = self->find_node(self->nodes[i].right)
+
+
+class List:
+    ptr: long*
+    len: int
+    alloc: int
+
+    def end(self) -> long*:
+        return &self->ptr[self->len]
+
+    def last(self) -> long:
+        assert self->len != 0
+        return self->end()[-1]
+
+    def append(self, n: long) -> void:
+        if self->alloc == self->len:
+            if self->alloc == 0:
+                self->alloc = 4
+            else:
+                self->alloc *= 2
+
+            self->ptr = realloc(self->ptr, self->alloc * sizeof(self->ptr[0]))
+            assert self->ptr != NULL
+
+        self->ptr[self->len++] = n
+
+    def extend(self, other: List) -> void:
+        for v = other.ptr; v < other.end(); v++:
+            self->append(*v)
+
+
+def swap(a: long*, b: long*) -> void:
+    temp = *a
+    *a = *b
+    *b = temp
+
+def gcd(a: long, b: long) -> long:
+    assert a > 0 and b > 0
+    while True:
+        a %= b
+        if a == 0:
+            return b
+        swap(&a, &b)
+
+def lcm(a: long, b: long) -> long:
+    return (a/gcd(a,b)) * b
+
+
+# We say that a number is a Z-count for a node, if doing that many steps
+# with the given node as starting node gets you into a node ending with
+# letter Z.
+#
+# Each node ending with 'A' seems to have infinitely many Z-counts. After
+# a while they will start to repeat periodically. For example, it could
+# be something like:
+#
+#   all_z_counts = [1, 2, 3, 10, 12, 15, 20, 22, 25, 30, 32, 35, ...]
+#                   ^^^^^^^  ^^^^^^^^^^  ^^^^^^^^^^  ^^^^^^^^^^
+#              non-repeating  1st cycle   2nd cycle   3rd cycle
+#                   part
+#
+# Repeating starts where we reach the same state twice. By same state, I
+# mean same current node and same index into the left_right_string.
+class ZCounts:
+    non_repeating: List
+    first_cycle: List
+    cycle_offset: long  # 10 in the example, each cycle starts 10 bigger than previous
+
+    def free(self) -> void:
+        free(self->non_repeating.ptr)
+        free(self->first_cycle.ptr)
+
+    def print(self) -> void:
+        printf("  ")
+        for p = self->non_repeating.ptr; p < self->non_repeating.end(); p++:
+            printf("%d ", *p)
+        for k=0; k<2; k++:
+            # Print "|" character between cycles to distinguish them.
+            # Numbers before the first "|" do not belong to any cycle.
+            printf("| ")
+            for p = self->first_cycle.ptr; p < self->first_cycle.end(); p++:
+                printf("%d ", *p + k*self->cycle_offset)
+        printf("| ...\n")
+
+    def simplify_cycles(self) -> void:
+        # If the first cycle repeats the same thing twice, reduce it to half of its length.
+        # If the first cycle repeats the same thing 3 times, reduce it to 1/3 length.
+        # And so on.
+        #
+        # Example:
+        #   before:  | 3 6 | 9 12 | ...
+        #   after:   | 3 | 6 | 9 | 12 | ...
+        #
+        # We try more parts first: "| 1 2 3 4 | 5 6 7 8 | ..." should be split into 4
+        # parts, not into 2 parts.
+        for num_parts = self->first_cycle.len; num_parts >= 2; num_parts--:
+            if self->first_cycle.len % num_parts != 0 or self->cycle_offset % num_parts != 0:
+                continue
+
+            small_cycle_len = self->first_cycle.len / num_parts
+            small_offset = self->cycle_offset / num_parts
+
+            can_split = True
+            for i = 0; i < self->first_cycle.len - small_cycle_len; i++:
+                if self->first_cycle.ptr[i] + small_offset != self->first_cycle.ptr[i + small_cycle_len]:
+                    can_split = False
+                    break
+
+            if can_split:
+                self->first_cycle.len = small_cycle_len
+                self->cycle_offset = small_offset
+                return
+
+
+def get_z_counts(input: Input*, start: Node*) -> ZCounts:
+    left_right_strlen = strlen(input->left_right_string)
+
+    # Number of (index, node) combinations. Guaranteed to cycle after this.
+    max_num_states = left_right_strlen * input->nnodes
+
+    states: Node** = malloc(max_num_states * sizeof(states[0]))
+    assert states != NULL
+    nstates = 0
+
+    node = start
+
+    while True:
+        # Check if we got the same state before
+        for i = 0; i < nstates; i++:
+            if i % left_right_strlen == nstates % left_right_strlen and states[i] == node:
+                # from here it cycles
+                non_repeating = List{}
+                first_cycle = List{}
+                for k = 0; k < nstates; k++:
+                    if states[k]->name[2] == 'Z':
+                        if k < i:
+                            non_repeating.append(k)
+                        else:
+                            first_cycle.append(k)
+                free(states)
+
+                assert first_cycle.len != 0
+                return ZCounts{non_repeating=non_repeating, first_cycle=first_cycle, cycle_offset=nstates-i}
+
+        assert nstates < max_num_states
+        states[nstates] = node
+        c = input->left_right_string[nstates % left_right_strlen]
+        nstates++
+
+        if c == 'L':
+            node = node->left_node
+        elif c == 'R':
+            node = node->right_node
+        else:
+            assert False
+
+
+def parse_input() -> Input*:
+    input: Input* = calloc(1, sizeof(*input))
+
+    f = fopen("sampleinput3.txt", "r")
+    assert f != NULL
+
+    assert fgets(input->left_right_string, sizeof(input->left_right_string) as int, f) != NULL
+    trim_ascii_whitespace(input->left_right_string)
+
+    assert fgetc(f) == '\n'
+
+    n: Node
+    while fscanf(f, "%3s = (%3s, %3s)\n", &n.name, &n.left, &n.right) == 3:
+        input->add_node(n)
+
+    input->find_node_pointers()
+
+    fclose(f)
+    return input
+
+
+def main() -> int:
+    input = parse_input()
+
+    zcounts: ZCounts[1000]
+    nzcounts = 0
+
+    for i = 0; i < input->nnodes; i++:
+        if input->nodes[i].name[2] == 'A':
+            assert nzcounts < sizeof(zcounts)/sizeof(zcounts[0])
+            if input->nnodes > 500:
+                # progress print for the real input
+                printf("get z counts: %s\n", input->nodes[i].name)
+            zcounts[nzcounts++] = get_z_counts(input, &input->nodes[i])
+
+    # Rest of the solution only deals with zcounts
+    free(input)
+
+    for i = 0; i < nzcounts; i++:
+        zcounts[i].simplify_cycles()
+        #zcounts[i].print()
+
+    # For some reason, each z count is actually just multiples of one number:
+    #
+    #   [n, 2n, 3n, ...]
+    #
+    # Input is probably chosen so that this happens, to make things nice.
+    for i = 0; i < nzcounts; i++:
+        assert zcounts[i].non_repeating.len == 0
+        assert zcounts[i].first_cycle.len == 1
+        assert zcounts[i].cycle_offset == zcounts[i].first_cycle.ptr[0]
+
+    # Compute the Least Common Multiple of what above comment calls "n".
+    # We basically do lcm(a,b,c,d) = lcm(lcm(lcm(a,b),c),d).
+    result = zcounts[0].cycle_offset
+    for i = 1; i < nzcounts; i++:
+        result = lcm(result, zcounts[i].cycle_offset)
+    printf("%lld\n", result)  # Output: 6
+
+    for i = 0; i < nzcounts; i++:
+        zcounts[i].free()
+    return 0

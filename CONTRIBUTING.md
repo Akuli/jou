@@ -106,8 +106,8 @@ Running tests (if on Windows, use Git Bash):
 $ ./runtests.sh
 ```
 
-This command does a few things:
-- I compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled.
+The `runtests.sh` script does a few things:
+- It compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled.
 - It runs all Jou files in `examples/` and `tests/`. To speed things up, it runs two files in parallel.
 - It ensures that the Jou files output what is expected.
 
@@ -164,6 +164,17 @@ This doesn't do anything with tests that are supposed to fail with an error, for
 
 There are also a few other ways to run the tests.
 You can look at `.github/workflows/` to see how the CI runs tests.
+
+To ensure that documentation stays up to date,
+it is also possible to run code examples in the documentation as tests:
+
+```
+$ ./doctest.sh
+```
+
+The `doctest.sh` script finds code examples from markdown files in `doc/`.
+It only looks at code examples that contain `# Output:`, `# Warning:` or `# Error:` comments.
+It then attempts to run each example and compares the output similarly to `runtests.sh`.
 
 
 ## Windows Release Builds

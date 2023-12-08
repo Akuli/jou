@@ -11,7 +11,7 @@ class Game:
     def update(self, text: byte*) -> None:
         n: int
         color: byte[10]
-        assert sscanf(text, "%d %10s", &n, color) == 2
+        assert sscanf(text, "%d %9s", &n, color) == 2
 
         if strcmp(color, "red") == 0 and n > self->red:
             self->red = n
