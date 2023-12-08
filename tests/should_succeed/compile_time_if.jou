@@ -4,11 +4,11 @@ import "stdlib/io.jou"
 #       Ideally only the declares would need compile-time if statements.
 if WINDOWS:
     declare CreateDirectoryA(lpPathName: byte*, lpSecurityAttributes: void*) -> int
-    def make_foo() -> void:
+    def make_foo() -> None:
         CreateDirectoryA("tmp\\tests\\foo", NULL)
 else:
     declare mkdir(pathname: byte*, mode: int) -> int
-    def make_foo() -> void:
+    def make_foo() -> None:
         # python uses 777 as default perms, see help(os.mkdir)
         mkdir("tmp/tests/foo", 0o777)
 
