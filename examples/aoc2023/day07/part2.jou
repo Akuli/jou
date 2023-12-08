@@ -1,9 +1,13 @@
 import "stdlib/io.jou"
 import "stdlib/str.jou"
+import "stdlib/mem.jou"
 
 class Hand:
     letters: byte[6]
     bid: int
+
+    # optimization to speed up sorting
+    cached_hand_type_strength: int
 
     def count(self, letter: byte) -> int:
         n = 0
@@ -77,7 +81,7 @@ class Hand:
                 return False
         return True
 
-    def hand_type_strength(self) -> int:
+    def hand_type_strength_without_J_special_casing(self) -> int:
         # check that i did this right, exactly one should be true
         # return index of true in list
         bools = [
@@ -99,6 +103,37 @@ class Hand:
         assert result != -1
         return result
 
+    def hand_type_strength(self) -> int:
+        if self->cached_hand_type_strength != -1:
+            return self->cached_hand_type_strength
+
+        variations: Hand* = malloc(sizeof(variations[0]))
+        variations[0] = *self
+        nvariations = 1
+
+        for i = 0; i < 5; i++:
+            if self->letters[i] == 'J':
+                # Duplicate each existing variation 13 times
+                nvariations *= 13
+                variations = realloc(variations, sizeof(variations)[0] * nvariations)
+                for isrc = nvariations/13 - 1; isrc >= 0; isrc--:
+                    for idest = 13*isrc; idest < 13*(isrc+1); idest++:
+                        variations[idest] = variations[isrc]
+
+                # Replace i'th letter in every possible way
+                for k = 0; k < nvariations; k++:
+                    variations[k].letters[i] = "J23456789TQKA"[k % 13]
+
+        best = -1
+        for i = 0; i < nvariations; i++:
+            value = variations[i].hand_type_strength_without_J_special_casing()
+            if value > best:
+                best = value
+
+        free(variations)
+        self->cached_hand_type_strength = best
+        return best
+
     # Return value:
     #   +1  if self > other
     #   0   if self == other
@@ -110,7 +145,7 @@ class Hand:
             return -1
 
         for i = 0; i < 5; i++:
-            s = "23456789TJQKA"
+            s = "J23456789TQKA"
             self_idx_ptr = strchr(s, self->letters[i])
             other_idx_ptr = strchr(s, other->letters[i])
             assert self_idx_ptr != NULL and other_idx_ptr != NULL
@@ -131,6 +166,8 @@ def swap(h1: Hand*, h2: Hand*) -> void:
 def sort(hands: Hand*, nhands: int) -> void:
     # bubble sort go brrr
     for sorted_part_len = 1; sorted_part_len < nhands; sorted_part_len++:
+        printf("sort: %d/%d\n", sorted_part_len, nhands)
+        fflush(stdout)
         i = sorted_part_len
         while i > 0 and hands[i-1].compare(&hands[i]) == 1:
             swap(&hands[i-1], &hands[i])
@@ -141,10 +178,11 @@ def main() -> int:
     hands: Hand[2000]
     nhands = 0
 
-    f = fopen("sampleinput.txt", "r")
+    f = fopen("input.txt", "r")
     assert f != NULL
 
     while fscanf(f, "%5s %d\n", &hands[nhands].letters, &hands[nhands].bid) == 2:
+        hands[nhands].cached_hand_type_strength = -1
         nhands++
         assert nhands < sizeof(hands)/sizeof(hands[0])
 
