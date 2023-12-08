@@ -62,16 +62,6 @@ class List:
             self->append(*v)
 
 
-def min(a: long, b: long) -> long:
-    if a > b:
-        return a
-    return b
-
-def max(a: long, b: long) -> long:
-    if a > b:
-        return a
-    return b
-
 def swap(a: long*, b: long*) -> void:
     temp = *a
     *a = *b
@@ -122,70 +112,6 @@ class ZCounts:
             for p = self->first_cycle.ptr; p < self->first_cycle.end(); p++:
                 printf("%d ", *p + k*self->cycle_offset)
         printf("| ...\n")
-
-    # Returns the smallest z-count that is >n.
-    def get_next_value(self, n: long) -> long:
-        if self->non_repeating.len != 0 and self->non_repeating.last() > n:
-            for p = self->non_repeating.ptr; p < self->non_repeating.end(); p++:
-                if *p > n:
-                    return *p
-
-        # The number we're looking for is a part of a cycle.
-        # The last number of the cycle is >n.
-        # Also, the last number of the previous cycle cannot be >n, so it is <=n.
-        # This is enough info to find the cycle we want:
-        #
-        #   self->first_cycle.last() + k*self->cycle_offset > n
-        #   self->first_cycle.last() + (k-1)*self->cycle_offset <= n
-        #
-        # From here we can solve:
-        #
-        #   x < k <= x+1, where x = (n - self->first_cycle.last())/self->cycle_offset
-        #
-        # i.e. k = floor(x) + 1. Jou's division automatically does the floor() for us.
-        k = (n - self->first_cycle.last())/self->cycle_offset + 1
-        if k < 0:  # happens if we have large gap between non_repeating and first_cycle
-            k = 0
-
-        for p = self->first_cycle.ptr; p < self->first_cycle.end(); p++:
-            if *p + k*self->cycle_offset > n:
-                return *p + k*self->cycle_offset
-
-        assert False
-
-    def contains(self, n: long) -> bool:
-        return self->get_next_value(n-1) == n
-
-    # Finds numbers that appear to both ZCounts instances
-    def intersect(self, other: ZCounts*) -> ZCounts:
-        if self->non_repeating.len == 0 or other->non_repeating.len == 0:
-            last_non_cyclic = 1L
-        else:
-            last_non_cyclic = max(self->non_repeating.last(), other->non_repeating.last())
-
-        n = 0L
-
-        # Handle non-repeating part
-        non_repeating = List{}
-        while True:
-            n = self->get_next_value(n)
-            while not other->contains(n):
-                n = self->get_next_value(n)
-            if n > last_non_cyclic:
-                break
-            non_repeating.append(n)
-
-        offset = lcm(self->cycle_offset, other->cycle_offset)
-
-        cycle = List{}
-        cycle.append(n)
-        while True:
-            n = self->get_next_value(n)
-            if n >= cycle.ptr[0] + offset:
-                break
-            cycle.append(n)
-
-        return ZCounts{non_repeating = non_repeating, first_cycle = cycle, cycle_offset = offset}
 
 
 def get_z_counts(input: Input*, start: Node*) -> ZCounts:
@@ -288,9 +214,7 @@ def main() -> int:
     # We basically do lcm(a,b,c,d) = lcm(lcm(lcm(a,b),c),d).
     result = zcounts[0].cycle_offset
     for i = 1; i < nzcounts; i++:
-        printf("lcm(%lld, %lld) = ", result, zcounts[i].cycle_offset)
         result = lcm(result, zcounts[i].cycle_offset)
-        printf("%lld\n", result)
     printf("%lld\n", result)  # Output: 6
 
     for i = 0; i < nzcounts; i++:
