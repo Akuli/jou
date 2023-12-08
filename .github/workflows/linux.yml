@@ -20,6 +20,7 @@ jobs:
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
       - uses: actions/checkout@v3
+      - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
       - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
       - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
@@ -54,6 +55,7 @@ jobs:
         llvm-version: [11, 13]
     steps:
       - uses: actions/checkout@v3
+      - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make
       - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
       - run: ./doctest.sh
@@ -62,6 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - run: sudo apt update
       - run: sudo apt install -y llvm-13-dev clang-13 make valgrind
       - run: LLVM_CONFIG=llvm-config-13 make
       - run: ./compare_compilers.sh
