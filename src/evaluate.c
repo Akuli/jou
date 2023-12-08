@@ -23,10 +23,22 @@ int get_special_constant(const char *name)
 
 static bool evaluate_condition(const AstExpression *expr)
 {
-    if (expr->kind == AST_EXPR_GET_VARIABLE) {
-        int v = get_special_constant(expr->data.varname);
-        if (v != -1)
-            return (bool)v;
+    switch(expr->kind) {
+        case AST_EXPR_AND:
+            return evaluate_condition(&expr->data.operands[0]) && evaluate_condition(&expr->data.operands[1]);
+        case AST_EXPR_OR:
+            return evaluate_condition(&expr->data.operands[0]) || evaluate_condition(&expr->data.operands[1]);
+        case AST_EXPR_NOT:
+            return !evaluate_condition(&expr->data.operands[0]);
+        case AST_EXPR_GET_VARIABLE:
+        {
+            int v = get_special_constant(expr->data.varname);
+            if (v != -1)
+                return (bool)v;
+            break;
+        }
+        default:
+            break;
     }
 
     fail(expr->location, "cannot evaluate condition at compile time");

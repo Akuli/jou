@@ -456,11 +456,8 @@ int main(int argc, char **argv)
     }
 
     include_special_stdlib_file(&compst, "_assert_fail.jou");
-#ifdef _WIN32
-    include_special_stdlib_file(&compst, "_windows_startup.jou");
-#endif
-#ifdef __APPLE__
-    include_special_stdlib_file(&compst, "_macos_startup.jou");
+#if defined(_WIN32) || defined(__APPLE__)
+    include_special_stdlib_file(&compst, "_io_init.jou");
 #endif
 
     parse_file(&compst, command_line_args.infile, NULL);
