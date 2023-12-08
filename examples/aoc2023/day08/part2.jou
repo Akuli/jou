@@ -108,10 +108,41 @@ class ZCounts:
         for p = self->non_repeating.ptr; p < self->non_repeating.end(); p++:
             printf("%d ", *p)
         for k=0; k<2; k++:
+            # Print "|" character between cycles to distinguish them.
+            # Numbers before the first "|" do not belong to any cycle.
             printf("| ")
             for p = self->first_cycle.ptr; p < self->first_cycle.end(); p++:
                 printf("%d ", *p + k*self->cycle_offset)
         printf("| ...\n")
+
+    def simplify_cycles(self) -> void:
+        # If the first cycle repeats the same thing twice, reduce it to half of its length.
+        # If the first cycle repeats the same thing 3 times, reduce it to 1/3 length.
+        # And so on.
+        #
+        # Example:
+        #   before:  | 3 6 | 9 12 | ...
+        #   after:   | 3 | 6 | 9 | 12 | ...
+        #
+        # We try more parts first: "| 1 2 3 4 | 5 6 7 8 | ..." should be split into 4
+        # parts, not into 2 parts.
+        for num_parts = self->first_cycle.len; num_parts >= 2; num_parts--:
+            if self->first_cycle.len % num_parts != 0 or self->cycle_offset % num_parts != 0:
+                continue
+
+            small_cycle_len = self->first_cycle.len / num_parts
+            small_offset = self->cycle_offset / num_parts
+
+            can_split = True
+            for i = 0; i < self->first_cycle.len - small_cycle_len; i++:
+                if self->first_cycle.ptr[i] + small_offset != self->first_cycle.ptr[i + small_cycle_len]:
+                    can_split = False
+                    break
+
+            if can_split:
+                self->first_cycle.len = small_cycle_len
+                self->cycle_offset = small_offset
+                return
 
 
 def get_z_counts(input: Input*, start: Node*) -> ZCounts:
@@ -160,7 +191,7 @@ def get_z_counts(input: Input*, start: Node*) -> ZCounts:
 def parse_input() -> Input*:
     input: Input* = calloc(1, sizeof(*input))
 
-    f = fopen("input.txt", "r")
+    f = fopen("sampleinput3.txt", "r")
     assert f != NULL
 
     assert fgets(input->left_right_string, sizeof(input->left_right_string) as int, f) != NULL
@@ -178,27 +209,26 @@ def parse_input() -> Input*:
     return input
 
 
-def all_end_with_z(nodes: Node**, n: int) -> bool:
-    for i = 0; i < n; i++:
-        if nodes[i]->name[2] != 'Z':
-            return False
-    return True
-
-
 def main() -> int:
     input = parse_input()
 
     zcounts: ZCounts[1000]
     nzcounts = 0
+
     for i = 0; i < input->nnodes; i++:
         if input->nodes[i].name[2] == 'A':
             assert nzcounts < sizeof(zcounts)/sizeof(zcounts[0])
-            printf("get z counts %s\n", input->nodes[i].name)
+            if input->nnodes > 500:
+                # progress print for the real input
+                printf("get z counts: %s\n", input->nodes[i].name)
             zcounts[nzcounts++] = get_z_counts(input, &input->nodes[i])
+
+    # Rest of the solution only deals with zcounts
     free(input)
 
     for i = 0; i < nzcounts; i++:
-        zcounts[i].print()
+        zcounts[i].simplify_cycles()
+        #zcounts[i].print()
 
     # For some reason, each z count is actually just multiples of one number:
     #
