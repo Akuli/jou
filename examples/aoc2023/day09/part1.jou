@@ -1,0 +1,48 @@
+import "stdlib/io.jou"
+import "stdlib/ascii.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+
+def predict_next(nums: long*, len: int) -> long:
+    all_zero = True
+    for i = 0; i < len; i++:
+        if nums[i] != 0:
+            all_zero = False
+            break
+
+    if all_zero:
+        return 0
+
+    diffs: long* = malloc(sizeof(diffs[0]) * len)
+    for i = 1; i < len; i++:
+        diffs[i-1] = nums[i]-nums[i-1]
+
+    result = nums[len-1] + predict_next(diffs, len-1)
+    free(diffs)
+    return result
+
+
+# return value is an array terminated by nums_len=-1
+def main() -> int:
+    f = fopen("input.txt", "r")
+    assert f != NULL
+
+    line: byte[1000]
+    result: long = 0
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        nums: long[100]
+        nnums = 0
+        parts = split_by_ascii_whitespace(line)
+        for p = parts; *p != NULL; p++:
+            assert nnums < sizeof(nums)/sizeof(nums[0])
+            nums[nnums++] = atoll(*p)
+        free(parts)
+
+        result += predict_next(nums, nnums)
+
+    fclose(f)
+
+    printf("%lld\n", result)
+    return 0
