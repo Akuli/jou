@@ -1,11 +1,11 @@
 import "stdlib/io.jou"
 
 class Foo:
-    def do_stuff(self) -> void:
+    def do_stuff(self) -> None:
         printf("Doing stuff!\n")
 
 def make_foo() -> Foo:
     return Foo{}
 
-def bar() -> void:
+def bar() -> None:
     make_foo().do_stuff()  # Error: cannot take address of a function call, needed for calling the do_stuff() method

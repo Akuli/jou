@@ -1,7 +1,7 @@
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
-def write_hello_123() -> void:
+def write_hello_123() -> None:
     f = fopen("tmp/tests/hello.txt", "w")
     if f == NULL:
         printf("can't write tmp/tests/hello.txt\n")
@@ -12,7 +12,7 @@ def write_hello_123() -> void:
     fprintf(f, "o %d\n", 123)
     fclose(f)
 
-def read_hello_123() -> void:
+def read_hello_123() -> None:
     f = fopen("tmp/tests/hello.txt", "r")
     if f == NULL:
         printf("can't read tmp/tests/hello.txt\n")

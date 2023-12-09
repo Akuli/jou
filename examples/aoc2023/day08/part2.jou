@@ -17,7 +17,7 @@ class Input:
     nodes: Node[1000]
     nnodes: int
 
-    def add_node(self, node: Node) -> void:
+    def add_node(self, node: Node) -> None:
         assert self->nnodes < sizeof(self->nodes)/sizeof(self->nodes[0])
         self->nodes[self->nnodes++] = node
 
@@ -27,7 +27,7 @@ class Input:
                 return &self->nodes[i]
         assert False
 
-    def find_node_pointers(self) -> void:
+    def find_node_pointers(self) -> None:
         for i = 0; i < self->nnodes; i++:
             self->nodes[i].left_node = self->find_node(self->nodes[i].left)
             self->nodes[i].right_node = self->find_node(self->nodes[i].right)
@@ -45,7 +45,7 @@ class List:
         assert self->len != 0
         return self->end()[-1]
 
-    def append(self, n: long) -> void:
+    def append(self, n: long) -> None:
         if self->alloc == self->len:
             if self->alloc == 0:
                 self->alloc = 4
@@ -57,12 +57,12 @@ class List:
 
         self->ptr[self->len++] = n
 
-    def extend(self, other: List) -> void:
+    def extend(self, other: List) -> None:
         for v = other.ptr; v < other.end(); v++:
             self->append(*v)
 
 
-def swap(a: long*, b: long*) -> void:
+def swap(a: long*, b: long*) -> None:
     temp = *a
     *a = *b
     *b = temp
@@ -99,11 +99,11 @@ class ZCounts:
     first_cycle: List
     cycle_offset: long  # 10 in the example, each cycle starts 10 bigger than previous
 
-    def free(self) -> void:
+    def free(self) -> None:
         free(self->non_repeating.ptr)
         free(self->first_cycle.ptr)
 
-    def print(self) -> void:
+    def print(self) -> None:
         printf("  ")
         for p = self->non_repeating.ptr; p < self->non_repeating.end(); p++:
             printf("%d ", *p)
@@ -115,7 +115,7 @@ class ZCounts:
                 printf("%d ", *p + k*self->cycle_offset)
         printf("| ...\n")
 
-    def simplify_cycles(self) -> void:
+    def simplify_cycles(self) -> None:
         # If the first cycle repeats the same thing twice, reduce it to half of its length.
         # If the first cycle repeats the same thing 3 times, reduce it to 1/3 length.
         # And so on.

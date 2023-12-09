@@ -5,19 +5,19 @@ class Node:
     value: byte
     next: Node*
 
-    def print(self) -> void:
+    def print(self) -> None:
         putchar(self->value)
         if self->next != NULL:
             self->next->print()
         else:
             putchar('\n')
 
-def prepend(list: Node**, value: byte) -> void:
+def prepend(list: Node**, value: byte) -> None:
     new_first: Node* = malloc(sizeof *new_first)
     *new_first = Node{value = value, next = *list}
     *list = new_first
 
-def free_list(list: Node*) -> void:
+def free_list(list: Node*) -> None:
     while list != NULL:
         next = list->next
         free(list)

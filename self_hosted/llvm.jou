@@ -19,14 +19,14 @@ class LLVMTargetMachine:
     _dummy: int
 
 # =========== Target.h ===========
-declare LLVMInitializeX86TargetInfo() -> void
-declare LLVMInitializeX86Target() -> void
-declare LLVMInitializeX86TargetMC() -> void
-declare LLVMInitializeX86AsmPrinter() -> void
-declare LLVMInitializeX86AsmParser() -> void
-declare LLVMInitializeX86Disassembler() -> void
+declare LLVMInitializeX86TargetInfo() -> None
+declare LLVMInitializeX86Target() -> None
+declare LLVMInitializeX86TargetMC() -> None
+declare LLVMInitializeX86AsmPrinter() -> None
+declare LLVMInitializeX86AsmParser() -> None
+declare LLVMInitializeX86Disassembler() -> None
 
-declare LLVMDisposeTargetData(TD: LLVMTargetData*) -> void
+declare LLVMDisposeTargetData(TD: LLVMTargetData*) -> None
 declare LLVMCopyStringRepOfTargetData(TD: LLVMTargetData*) -> byte*
 
 declare LLVMStoreSizeOfType(TD: LLVMTargetData*, Ty: LLVMType*) -> long
@@ -64,7 +64,7 @@ enum LLVMCodeGenFileType:
     ObjectFile
 
 declare LLVMCreateTargetMachine(T: LLVMTarget*, Triple: byte*, CPU: byte*, Features: byte*, Level: LLVMCodeGenOptLevel, Reloc: LLVMRelocMode, CodeModel: LLVMCodeModel) -> LLVMTargetMachine*
-declare LLVMDisposeTargetMachine(T: LLVMTargetMachine*) -> void
+declare LLVMDisposeTargetMachine(T: LLVMTargetMachine*) -> None
 declare LLVMCreateTargetDataLayout(T: LLVMTargetMachine*) -> LLVMTargetData*
 declare LLVMTargetMachineEmitToFile(T: LLVMTargetMachine*, M: LLVMModule*, Filename: byte*, codegen: LLVMCodeGenFileType, ErrorMessage: byte**) -> int
 declare LLVMGetTargetFromTriple(Triple: byte*, T: LLVMTarget**, ErrorMessage: byte**) -> int
@@ -192,13 +192,13 @@ declare LLVMFunctionType(ReturnType: LLVMType*, ParamTypes: LLVMType**, ParamCou
 declare LLVMStructType(ElementTypes: LLVMType**, ElementCount: int, Packed: int) -> LLVMType*
 declare LLVMArrayType(ElementType: LLVMType*, ElementCount: int) -> LLVMType*
 declare LLVMPointerType(ElementType: LLVMType*, AddressSpace: int) -> LLVMType*
-declare LLVMDisposeMessage(Message: byte*) -> void
+declare LLVMDisposeMessage(Message: byte*) -> None
 declare LLVMModuleCreateWithName(ModuleID: byte*) -> LLVMModule*
-declare LLVMDisposeModule(M: LLVMModule*) -> void
+declare LLVMDisposeModule(M: LLVMModule*) -> None
 declare LLVMGetSourceFileName(M: LLVMModule*, Len: long*) -> byte*  # Return value not owned
-declare LLVMSetDataLayout(M: LLVMModule*, DataLayoutStr: byte*) -> void
-declare LLVMSetTarget(M: LLVMModule*, Triple: byte*) -> void
-declare LLVMDumpModule(M: LLVMModule*) -> void
+declare LLVMSetDataLayout(M: LLVMModule*, DataLayoutStr: byte*) -> None
+declare LLVMSetTarget(M: LLVMModule*, Triple: byte*) -> None
+declare LLVMDumpModule(M: LLVMModule*) -> None
 declare LLVMPrintModuleToString(M: LLVMModule*) -> byte*
 declare LLVMAddFunction(M: LLVMModule*, Name: byte*, FunctionTy: LLVMType*) -> LLVMValue*
 declare LLVMGetNamedFunction(M: LLVMModule*, Name: byte*) -> LLVMValue*
@@ -219,16 +219,16 @@ declare LLVMConstInt(IntTy: LLVMType*, N: long, SignExtend: int) -> LLVMValue*
 declare LLVMConstRealOfString(RealTy: LLVMType*, Text: byte*) -> LLVMValue*
 declare LLVMConstString(Str: byte*, Length: int, DontNullTerminate: int) -> LLVMValue*
 declare LLVMSizeOf(Ty: LLVMType*) -> LLVMValue*
-declare LLVMSetLinkage(Global: LLVMValue*, Linkage: LLVMLinkage) -> void
+declare LLVMSetLinkage(Global: LLVMValue*, Linkage: LLVMLinkage) -> None
 declare LLVMAddGlobal(M: LLVMModule*, Ty: LLVMType*, Name: byte*) -> LLVMValue*
 declare LLVMGetNamedGlobal(M: LLVMModule*, Name: byte*) -> LLVMValue*
-declare LLVMSetInitializer(GlobalVar: LLVMValue*, ConstantVal: LLVMValue*) -> void
+declare LLVMSetInitializer(GlobalVar: LLVMValue*, ConstantVal: LLVMValue*) -> None
 declare LLVMAppendBasicBlock(Fn: LLVMValue*, Name: byte*) -> LLVMBasicBlock*
-declare LLVMAddIncoming(PhiNode: LLVMValue*, IncomingValues: LLVMValue**, IncomingBlocks: LLVMBasicBlock**, Count: int) -> void
+declare LLVMAddIncoming(PhiNode: LLVMValue*, IncomingValues: LLVMValue**, IncomingBlocks: LLVMBasicBlock**, Count: int) -> None
 declare LLVMCreateBuilder() -> LLVMBuilder*
-declare LLVMPositionBuilderAtEnd(Builder: LLVMBuilder*, Block: LLVMBasicBlock*) -> void
+declare LLVMPositionBuilderAtEnd(Builder: LLVMBuilder*, Block: LLVMBasicBlock*) -> None
 declare LLVMGetInsertBlock(Builder: LLVMBuilder*) -> LLVMBasicBlock*
-declare LLVMDisposeBuilder(Builder: LLVMBuilder*) -> void
+declare LLVMDisposeBuilder(Builder: LLVMBuilder*) -> None
 declare LLVMBuildRet(Builder: LLVMBuilder*, V: LLVMValue*) -> LLVMValue*
 declare LLVMBuildRetVoid(Builder: LLVMBuilder*) -> LLVMValue*
 declare LLVMBuildBr(Builder: LLVMBuilder*, Dest: LLVMBasicBlock*) -> LLVMValue*
@@ -274,4 +274,4 @@ declare LLVMBuildExtractValue(Builder: LLVMBuilder*, AggVal: LLVMValue*, Index: 
 declare LLVMBuildInsertValue(Builder: LLVMBuilder*, AggVal: LLVMValue*, EltVal: LLVMValue*, Index: int, Name: byte*) -> LLVMValue*
 declare LLVMCreatePassManager() -> LLVMPassManager*
 declare LLVMRunPassManager(PM: LLVMPassManager*, M: LLVMModule*) -> int
-declare LLVMDisposePassManager(PM: LLVMPassManager*) -> void
+declare LLVMDisposePassManager(PM: LLVMPassManager*) -> None

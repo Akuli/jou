@@ -113,10 +113,10 @@ def find_stdlib() -> byte*:
 # We need to ignore the error when directory exists already (EEXIST).
 # Ideally we wouldn't ignore any other errors.
 if WINDOWS:
-    def my_mkdir(path: byte*) -> void:
+    def my_mkdir(path: byte*) -> None:
         _mkdir(path)
 else:
-    def my_mkdir(path: byte*) -> void:
+    def my_mkdir(path: byte*) -> None:
         mkdir(path, 0o777)  # this is what mkdir in bash does according to strace
 
 def get_path_to_file_in_jou_compiled(filename: byte*) -> byte*:
@@ -129,10 +129,10 @@ def get_path_to_file_in_jou_compiled(filename: byte*) -> byte*:
     return result
 
 # TODO: put this to stdlib? or does it do too much for a stdlib function?
-def delete_slice(start: byte*, end: byte*) -> void:
+def delete_slice(start: byte*, end: byte*) -> None:
     memmove(start, end, strlen(end) + 1)
 
-def simplify_path(path: byte*) -> void:
+def simplify_path(path: byte*) -> None:
     if WINDOWS:
         # Backslash to forward slash.
         for p = path; *p != '\0'; p++:

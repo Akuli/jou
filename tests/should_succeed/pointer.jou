@@ -1,22 +1,22 @@
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
-def putchar_pointer(ch: int*) -> void:
+def putchar_pointer(ch: int*) -> None:
     putchar(*ch)
     putchar(*&*ch)
 
-def putchar2(ch: int) -> void:
+def putchar2(ch: int) -> None:
     putchar_pointer(&ch)
 
-def myputs1(s: byte*) -> void:
+def myputs1(s: byte*) -> None:
     for i = 0; s[i] != '\0'; i++:
         putchar(s[i])
 
-def myputs2(s: byte*) -> void:
+def myputs2(s: byte*) -> None:
     while *s != '\0':
         putchar(*s++)
 
-def foo(ptr: int*) -> void:
+def foo(ptr: int*) -> None:
     if ptr == NULL:
         printf("Got NULL\n")
     else:

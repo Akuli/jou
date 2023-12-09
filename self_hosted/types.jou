@@ -133,7 +133,7 @@ global short_type: Type*
 global int_type: Type*
 global long_type: Type*
 
-def init_types() -> void:
+def init_types() -> None:
     void_ptr_type = Type{name = "void*", kind = TypeKind::VoidPointer}
     bool_type = Type{name = "bool", kind = TypeKind::Bool}
     float_type = Type{name = "float", size_in_bits = 32, kind = TypeKind::FloatingPoint}
@@ -226,7 +226,7 @@ class Signature:
 
         if include_return_type:
             if self->return_type == NULL:
-                strcat(result, " -> void")
+                strcat(result, " -> None")
             else:
                 strcat(result, " -> ")
                 strcat(result, self->return_type->name)
@@ -241,6 +241,6 @@ class Signature:
         memcpy(result.argtypes, self->argtypes, result.nargs * sizeof(result.argtypes[0]))
         return result
 
-    def free(self) -> void:
+    def free(self) -> None:
         free(self->argnames)
         free(self->argtypes)

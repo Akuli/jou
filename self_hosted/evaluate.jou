@@ -39,7 +39,7 @@ def evaluate_compile_time_if_statement(if_stmt: AstIfStatement*) -> AstBody:
 
 
 # Replace body->statements[i] with zero or more statements from another body.
-def replace(body: AstBody*, i: int, new: AstBody) -> void:
+def replace(body: AstBody*, i: int, new: AstBody) -> None:
     body->statements[i].free()
 
     item_size = sizeof(body->statements[0])
@@ -53,7 +53,7 @@ def replace(body: AstBody*, i: int, new: AstBody) -> void:
 
 
 # This handles nested if statements.
-def evaluate_compile_time_if_statements_in_body(body: AstBody*) -> void:
+def evaluate_compile_time_if_statements_in_body(body: AstBody*) -> None:
     i = 0
     while i < body->nstatements:
         if body->statements[i].kind == AstStatementKind::If:

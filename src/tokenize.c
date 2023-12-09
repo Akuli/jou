@@ -220,10 +220,9 @@ static bool is_keyword(const char *s)
         //   - self-hosted compiler
         //   - syntax documentation
         "import", "def", "declare", "class", "union", "enum", "global",
-        "return", "if", "elif", "else", "while", "for", "break", "continue",
-        "True", "False", "NULL", "self",
-        "and", "or", "not", "as", "sizeof", "assert", "pass",
-        "void", "noreturn",
+        "return", "if", "elif", "else", "while", "for", "pass", "break", "continue",
+        "True", "False", "None", "NULL", "void", "noreturn",
+        "and", "or", "not", "self", "as", "sizeof", "assert",
         "bool", "byte", "short", "int", "long", "float", "double",
     };
     for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)

@@ -99,7 +99,7 @@ class MemberInfo:
     name: byte[100]
     name_location: Location
 
-def check_class_for_duplicate_names(classdef: AstClassDef*) -> void:
+def check_class_for_duplicate_names(classdef: AstClassDef*) -> None:
     n = 0
     for i = 0; i < classdef->nmembers; i++:
         member = &classdef->members[i]
@@ -155,7 +155,7 @@ class Parser:
     stdlib_path: byte*
     is_parsing_method_body: bool
 
-    def eat_newline(self) -> void:
+    def eat_newline(self) -> None:
         if self->tokens->kind != TokenKind::Newline:
             self->tokens->fail_expected_got("end of line")
         self->tokens++
@@ -201,6 +201,7 @@ class Parser:
     def parse_type(self) -> AstType:
         if not (
             self->tokens->kind == TokenKind::Name
+            or self->tokens->is_keyword("None")
             or self->tokens->is_keyword("void")
             or self->tokens->is_keyword("noreturn")
             or self->tokens->is_keyword("short")
@@ -338,7 +339,7 @@ class Parser:
 
         # Special case for common typo:   def foo():
         if self->tokens->is_operator(":"):
-            fail(self->tokens->location, "return type must be specified with '->', or with '-> void' if the function doesn't return anything")
+            fail(self->tokens->location, "return type must be specified with '->', or with '-> None' if the function doesn't return anything")
         if not self->tokens->is_operator("->"):
             self->tokens->fail_expected_got("a '->'")
         self->tokens++
@@ -882,7 +883,7 @@ class Parser:
         self->eat_newline()
         return result
 
-    def parse_start_of_body(self) -> void:
+    def parse_start_of_body(self) -> None:
         if not self->tokens->is_operator(":"):
             self->tokens->fail_expected_got("':' followed by a new line with more indentation")
         self->tokens++

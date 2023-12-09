@@ -22,11 +22,11 @@ class Target:
 global target: Target
 
 # TODO: run this with atexit() once we have function pointers
-#def cleanup() -> void:
+#def cleanup() -> None:
 #    LLVMDisposeTargetMachine(target.target_machine)
 #    LLVMDisposeTargetData(target.target_data)
 
-def init_target() -> void:
+def init_target() -> None:
     LLVMInitializeX86TargetInfo()
     LLVMInitializeX86Target()
     LLVMInitializeX86TargetMC()
