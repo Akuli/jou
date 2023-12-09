@@ -107,8 +107,10 @@ static void mkdir_exist_ok(const char *p)
 static void write_gitinore(const char *p)
 {
     char *filename = malloc_sprintf("%s/.gitinore", p);
-    if (access(filename, F_OK))
+    if (access(filename, F_OK)) {
+        free(filename);
         return;
+    }
     FILE *gitinore = fopen(filename, "w");
     fprintf(gitinore, "*");
 
