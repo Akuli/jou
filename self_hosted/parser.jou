@@ -201,6 +201,7 @@ class Parser:
     def parse_type(self) -> AstType:
         if not (
             self->tokens->kind == TokenKind::Name
+            or self->tokens->is_keyword("None")
             or self->tokens->is_keyword("void")
             or self->tokens->is_keyword("noreturn")
             or self->tokens->is_keyword("short")
