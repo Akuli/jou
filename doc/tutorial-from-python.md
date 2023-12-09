@@ -64,9 +64,9 @@ import "stdlib/io.jou"
 def main() -> int:
     printf("Hello\n")  # Output: Hello
     printf("strings %s %s\n", "foo", "bar")  # Output: strings foo bar
-    printf("ints %d %d\n", 1, 2, 3)  # Output: ints 1 2 3
+    printf("ints %d %d %d\n", 1, 2, 3)  # Output: ints 1 2 3
     printf("doubles %f %.2f\n", 3.1415, 3.1415)  # Output: doubles 3.141500 3.14
-    printf("doubles %f %.2f\n", 3.1415 as float, 3.1415 as float)  # Output: floats 3.141500 3.14
+    printf("floats %f %.2f\n", 3.1415 as float, 3.1415 as float)  # Output: floats 3.141500 3.14
     printf("%d is %s and %d is %s\n", 4, "even", 7, "odd")  # Output: 4 is even and 7 is odd
     return 0
 ```
@@ -87,11 +87,15 @@ The `printf()` function doesn't add it automatically.
 This seems annoying, but on the other hand, it means that you can do things like this:
 
 ```python
+import "stdlib/io.jou"
+
 # Output: the numbers are 1 2 3
-printf("the numbers are")
-for i = 1; i <= 3; i++:
-    printf(" %d", i)
-printf("\n")
+def main() -> int:
+    printf("the numbers are")
+    for i = 1; i <= 3; i++:
+        printf(" %d", i)
+    printf("\n")
+    return 0
 ```
 
 
@@ -133,10 +137,10 @@ If you try to convert a number larger than 255 into a `byte`, it will wrap back 
 import "stdlib/io.jou"
 
 def main() -> int:
-    printf("%d %d %d %d\n", 254 as byte)  # Output: 254
-    printf("%d %d %d %d\n", 255 as byte)  # Output: 255
-    printf("%d %d %d %d\n", 256 as byte)  # Output: 0
-    printf("%d %d %d %d\n", 257 as byte)  # Output: 1
+    printf("%d\n", 254 as byte)  # Output: 254
+    printf("%d\n", 255 as byte)  # Output: 255
+    printf("%d\n", 256 as byte)  # Output: 0
+    printf("%d\n", 257 as byte)  # Output: 1
     return 0
 ```
 
@@ -253,8 +257,8 @@ We could, for example, make a function that sets the value of a given `byte*`:
 ```python
 import "stdlib/io.jou"
 
-def set_to_50(pointer: byte*) -> void:
-    *pointer = 50
+def set_to_50(pointer: byte*) -> None:
+    *pointer = 50 as byte
 
 def main() -> int:
     b = 123 as byte
@@ -276,7 +280,7 @@ A common way to use this is to return multiple values from the same function:
 ```python
 import "stdlib/io.jou"
 
-def get_point(x: int*, y: int*) -> void:
+def get_point(x: int*, y: int*) -> None:
     *x = 123
     *y = 456
 
@@ -360,7 +364,7 @@ import "stdlib/io.jou"
 def main() -> int:
     s = "hello"
     for i = 0; i < 6; i++:
-        printf("byte %d = %d\n", s[i])
+        printf("byte %d = %d\n", i, s[i])
     return 0
 
 # Output: byte 0 = 104
