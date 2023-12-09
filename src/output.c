@@ -111,7 +111,9 @@ static void write_gitinore(const char *p)
         return;
     FILE *gitinore = fopen(filename, "w");
     fprintf(gitinore, "*");
+
     fclose(gitinore);
+    free(filename);
 }
 
 static char *get_path_to_file_in_jou_compiled(const char *filename)
