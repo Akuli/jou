@@ -106,7 +106,7 @@ static void mkdir_exist_ok(const char *p)
 
 static void write_gitinore(const char *p)
 {
-    char *filename = malloc_sprintf("%s/.gitinore", p);
+    char *filename = malloc_sprintf("%s/.gitignore", p);
     if (access(filename, F_OK)) {
         free(filename);
         return;
