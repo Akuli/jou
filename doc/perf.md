@@ -274,32 +274,3 @@ For example, the optimizer might realize that a large part of the code cannot po
 and hence just delete it, like it deleted our crashing code in the above example.
 This would be much more confusing to debug than a crash,
 especially with `--valgrind` as explained in [the UB docs](ub.md).
-
-
-
-
-
-
-In some other languages, it is easier to get UB than in Jou.
-For example, in C it is UB to add two `int`s so large
-that the result doesn't fit into an `int`,
-but in Jou, math operations are instead guaranteed to wrap around:
-
-```python
-import "stdlib/io.jou"
-
-def main() -> int:
-    printf("%d\n", (254 as byte) + (0 as byte))   # Output: 254
-    printf("%d\n", (254 as byte) + (1 as byte))   # Output: 255
-    printf("%d\n", (254 as byte) + (2 as byte))   # Output: 0
-    printf("%d\n", (254 as byte) + (3 as byte))   # Output: 1
-    printf("%d\n", (254 as byte) + (4 as byte))   # Output: 2
-
-    printf("%d\n", 2147483646 + 0)   # Output: 2147483646
-    printf("%d\n", 2147483646 + 1)   # Output: 2147483647
-    printf("%d\n", 2147483646 + 2)   # Output: -2147483648
-    printf("%d\n", 2147483646 + 3)   # Output: -2147483647
-    printf("%d\n", 2147483646 + 4)   # Output: -2147483646
-
-    return 0
-```
