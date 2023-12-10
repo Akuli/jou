@@ -220,9 +220,10 @@ static bool is_keyword(const char *s)
         //   - self-hosted compiler
         //   - syntax documentation
         "import", "def", "declare", "class", "union", "enum", "global",
-        "return", "if", "elif", "else", "while", "for", "pass", "break", "continue",
-        "True", "False", "None", "NULL", "void", "noreturn",
-        "and", "or", "not", "self", "as", "sizeof", "assert",
+        "return", "if", "elif", "else", "while", "for", "break", "continue",
+        "True", "False", "NULL", "self",
+        "and", "or", "not", "as", "sizeof", "assert", "pass",
+        "void", "noreturn",
         "bool", "byte", "short", "int", "long", "float", "double",
     };
     for (const char **kw = &keywords[0]; kw < &keywords[sizeof(keywords)/sizeof(keywords[0])]; kw++)
@@ -295,7 +296,6 @@ static char *read_string(struct State *st, char quote, int *len)
             case '\n':
                 // \ at end of line, string continues on next line
                 if (quote == '\'') {
-                    // TODO: tests
                     st->location.lineno--;  // to get error at the correct line number
                     goto missing_end_quote;
                 }
@@ -321,7 +321,6 @@ static char *read_string(struct State *st, char quote, int *len)
     return result.ptr;
 
 missing_end_quote:
-    // TODO: tests
     if (quote == '"')
         fail_with_error(st->location, "missing \" to end the string");
     else
