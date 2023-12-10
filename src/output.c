@@ -112,9 +112,10 @@ static void write_gitinore(const char *p)
         return;
     }
     FILE *gitinore = fopen(filename, "w");
-    fprintf(gitinore, "*");
-
-    fclose(gitinore);
+    if (gitinore != NULL) {
+        fprintf(gitinore, "*");
+        fclose(gitinore);
+    }
     free(filename);
 }
 
