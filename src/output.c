@@ -7,6 +7,7 @@
 #endif
 
 #include "jou_compiler.h"
+#include <unistd.h>
 #include <libgen.h>
 #include <stdarg.h>
 #include <errno.h>
@@ -103,6 +104,21 @@ static void mkdir_exist_ok(const char *p)
     exit(1);
 }
 
+static void write_gitinore(const char *p)
+{
+    char *filename = malloc_sprintf("%s/.gitignore", p);
+    if (access(filename, F_OK)) {
+        free(filename);
+        return;
+    }
+    FILE *gitinore = fopen(filename, "w");
+    if (gitinore != NULL) {
+        fprintf(gitinore, "*");
+        fclose(gitinore);
+    }
+    free(filename);
+}
+
 static char *get_path_to_file_in_jou_compiled(const char *filename)
 {
     /*
@@ -120,6 +136,7 @@ static char *get_path_to_file_in_jou_compiled(const char *filename)
 
     // path1 is known to exist
     mkdir_exist_ok(path2);
+    write_gitinore(path2);
     mkdir_exist_ok(path3);
     free(path1);
     free(path2);
