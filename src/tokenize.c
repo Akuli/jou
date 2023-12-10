@@ -45,7 +45,7 @@ static char read_byte(struct State *st) {
 
     // Use the zero byte to represent end of file.
     if (c == '\0')
-        fail_with_error(st->location, "source file contains a zero byte");  // TODO: test this
+        fail_with_error(st->location, "source file contains a zero byte");
     if (c == EOF) {
         assert(!ferror(st->f));
         return '\0';
@@ -95,7 +95,7 @@ static void read_identifier_or_number(struct State *st, char firstbyte, char (*d
             return;
         }
     }
-}
+} 
 
 static void consume_rest_of_line(struct State *st)
 {
