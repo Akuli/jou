@@ -193,7 +193,7 @@ def main() -> int:
 Here's what running this code looks like on my Linux system:
 
 ```
-akuli@akuli-desktop:~/jou$ ./jou a.jou 
+akuli@akuli-desktop:~/jou$ ./jou a.jou
 Segmentation fault
 ```
 
@@ -214,8 +214,8 @@ akuli@akuli-desktop:~/jou$ ./jou --valgrind a.jou
 ==12317== Invalid read of size 4
 ==12317==    at 0x401180: main (in /home/akuli/jou/jou_compiled/a/a)
 ==12317==  Address 0x1fff001000 is not stack'd, malloc'd or (recently) free'd
-==12317== 
-==12317== 
+==12317==
+==12317==
 ==12317== Process terminating with default action of signal 11 (SIGSEGV)
 ==12317==  Access not within mapped region at address 0x1FFF001000
 ==12317==    at 0x401180: main (in /home/akuli/jou/jou_compiled/a/a)
@@ -268,8 +268,8 @@ Now I get:
 ==12715==    by 0x4011AF: ??? (in /home/akuli/jou/jou_compiled/a/a)
 ==12715==    by 0x4011B5: main (in /home/akuli/jou/jou_compiled/a/a)
 ==12715==  Address 0x1fff001000 is not stack'd, malloc'd or (recently) free'd
-==12715== 
-==12715== 
+==12715==
+==12715==
 ==12715== Process terminating with default action of signal 11 (SIGSEGV)
 ==12715==  Access not within mapped region at address 0x1FFF001000
 ==12715==    at 0x401180: foo (in /home/akuli/jou/jou_compiled/a/a)
@@ -327,8 +327,8 @@ akuli@akuli-desktop:~/jou$ ./jou --valgrind a.jou
 ==17004== Invalid read of size 4
 ==17004==    at 0x401161: main (in /home/akuli/jou/jou_compiled/a/a)
 ==17004==  Address 0x8 is not stack'd, malloc'd or (recently) free'd
-==17004== 
-==17004== 
+==17004==
+==17004==
 ==17004== Process terminating with default action of signal 11 (SIGSEGV)
 ==17004==  Access not within mapped region at address 0x8
 ==17004==    at 0x401161: main (in /home/akuli/jou/jou_compiled/a/a)
