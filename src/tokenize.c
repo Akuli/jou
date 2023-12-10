@@ -95,7 +95,7 @@ static void read_identifier_or_number(struct State *st, char firstbyte, char (*d
             return;
         }
     }
-} 
+}
 
 static void consume_rest_of_line(struct State *st)
 {
