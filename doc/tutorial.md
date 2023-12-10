@@ -647,7 +647,7 @@ def main() -> int:
 
 ## What next?
 
-To learn More about Jou, I recommend:
+To learn more about Jou, I recommend:
 - reading other documentation files in the [doc](../doc/) folder
 - reading files in [stdlib/](../stdlib/)
 - writing small Jou programs (e.g. [Advent of Code](https://adventofcode.com/))
