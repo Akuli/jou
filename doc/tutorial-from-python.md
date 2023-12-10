@@ -17,7 +17,8 @@ The main differences are:
 - Jou uses manual memory management, not garbage-collection.
 
 If none of this makes any sense to you, that's fine.
-I will explain it all shortly using lots of example code.
+The rest of this page explains it all using lots of example code,
+so that you will learn Jou as you continue reading.
 
 Basically, all of this means that Jou is more difficult to use, but as a result,
 Jou code tends to run faster than e.g. Python (see [the performance docs](./perf.md) for more details).
@@ -29,7 +30,7 @@ Also, knowing Jou makes learning other low-level languages (Rust, C, C++, ...) m
 When you run a Jou program, Jou first produces an executable file and then runs it.
 On Windows, executable file names must end with `.exe` (e.g. `jou.exe` or `hello.exe`).
 On most other systems, executable files typically don't have a file extension at all (e.g. `jou` or `hello`).
-The executable is placed into a folder named `jou_compiled/` to keep things nice and organized.
+By default, Jou places executables into a folder named `jou_compiled/`.
 
 For example, if you run `hello.jou`, you get a file named
 `jou_compiled\hello\hello.exe` (Windows) or `jou_compiled/hello/hello` (other platforms).
@@ -54,8 +55,18 @@ You can use different values to represent different errors, but `1` is the most 
 
 ## Printing
 
-Jou does not have a `print()` function that can magically print a value of any type.
-The closest equivalent is `printf()` from [stdlib/io.jou](../stdlib/io.jou).
+To print a string, you can use `puts()` from [stdlib/io.jou](../stdlib/io.jou):
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    puts("Hello")  # Output: Hello
+    return 0
+```
+
+However, `puts()` only prints strings.
+You can use `printf()` to print values of other types.
 Here's how it works:
 
 ```python
@@ -98,6 +109,18 @@ def main() -> int:
     return 0
 ```
 
+You can also use `puts()`.
+It takes only one argument, which must be a string, and it adds a newline automatically.
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    puts("foo")  # Output: foo
+    puts("bar")  # Output: bar
+    return 0
+```
+
 
 ## C's standard library (libc)
 
@@ -120,14 +143,19 @@ C is an old, small, simple and low-level programming language,
 and most newer languages use many things that first appeared in C
 (`if` statements, `while` loops, `for` loops, `break`, `continue` to name a few).
 
-Jou is compatible with C, which basically means that you can use C libraries in Jou code.
-This means that any large Jou project will depend on a libc anyway,
-so we might as well use things that the libc provides instead of reinventing the wheel.
+Jou is very heavily inspired by C, and in many ways similar to C and compatible with C.
+For example, Jou programs can use libraries written in C,
+so in practice, any large Jou project needs libc anyway.
+With `declare`, we basically use things that the libc provides instead of reinventing the wheel.
 
 
 ## `byte`, `int`, `long`
 
-From a programmer's point of view, a byte is a number from 0 to 255 (inclusive).
+From a programmer's point of view, a byte is an integer between 0 to 255 (inclusive).
+Alternatively, you can think of a `byte` as consisting of 8 bits, where a bit means 0 or 1.
+Two bits can be set to 4 different states (00, 01, 10, 11), so you could use 2 bits to represent numbers 0 to 3.
+Similarly, 8 bits can be set to 256 different states.
+
 In Jou, the `byte` data type represents a single byte.
 To construct a byte, you can do e.g. `123 as byte`,
 where the type cast with `as` converts from `int` to `byte`.
@@ -141,6 +169,7 @@ def main() -> int:
     printf("%d\n", 255 as byte)  # Output: 255
     printf("%d\n", 256 as byte)  # Output: 0
     printf("%d\n", 257 as byte)  # Output: 1
+    printf("%d\n", 258 as byte)  # Output: 2
     return 0
 ```
 
@@ -150,19 +179,29 @@ so it's fine to specify `%d` and pass in a `byte`.
 Each byte has 256 different possible values (0 - 255),
 so with 2 bytes, you get `256 * 256` different values:
 for each first byte, you have 256 possible second bytes.
-Similarly, with 4 bytes (Jou `int`) you have `256 * 256 * 256 * 256 = 4294967296` different combinations.
-Half of these combinations are used for negative numbers, and one of them is used for zero,
-so the biggest possible `int` value is `2147483647`.
-You will get a compiler error if your code contains an `int` larger than that:
+If we used 4 bytes instead of one byte, we would get `256 * 256 * 256 * 256 = 4294967296` different combinations,
+and we would be able to handle much bigger numbers.
+In fact, this is exactly what Jou's `int` does:
+**Jou's `int` is 4 bytes (32 bits)**.
+For example, `1000` and `1000000` are valid `int`s:
 
 ```python
-printf("%d\n", 2147483648)  # Error: value does not fit in a signed 32-bit integer
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 1000 * 1000)         # Output: 1000000
+    printf("%d\n", 1000 * 1000 * 1000)  # Output: 1000000000
+    return 0
 ```
 
-However, math operations will wrap around if the result does not fit into an `int`.
-Typically this results in something being negative when you expect it to be positive.
-If this becomes a problem, you can use `long` instead of `int`.
-To create a `long`, you need to put `L` to the end of the number.
+Specifically, the range of an `int` is from `-2147483648` to `2147483647`.
+Note that `int`s can be negative, but bytes cannot.
+
+Sometimes `int` isn't big enough.
+If `int` wraps around unexpected, you usually get negative numbers when you expect things to be positive,
+and you should probably use `long` instead of `int`.
+**Jou's `long` is 8 bytes (64 bits)**, so twice the size of an `int` and hence much less likely to wrap around.
+To create a `long`, add `L` to the end of the number, as in `123L` or `-2000000000000L`.
 To print a `long`, use `%lld` instead of `%d`.
 
 ```python
@@ -174,8 +213,8 @@ def main() -> int:
     return 0
 ```
 
-A Jou `long` uses 8 bytes, so the biggest value is `9223372036854775807`.
-If that isn't big enough for your use case, please create an issue on GitHub.
+The range of `long` is from `-9223372036854775808` to `9223372036854775807`.
+Please create an issue on GitHub if you need an even larger range.
 
 
 ## Pointers
@@ -199,9 +238,13 @@ def main() -> int:
     return 0
 ```
 
+Here the `p` of `%p` is short for "pointer".
+
 This prints something like `0x7ffd85fd3db7`.
 This is a number written in hexadecimal,
 and it means `140726851419575`.
+Hexadecimal basically means that instead of representing numbers with 10 digits (`0`-`9`),
+we use 16 "digits" (`0`-`9` and `a`-`f`).
 How exactly hexadecimal works is not really relevant here,
 but what matters is that we got some number.
 So:
@@ -214,22 +257,6 @@ Numbers that represent indexes into the computer's memory like this
 are called **memory addresses**.
 The `&` operator is called the **address-of operator**,
 because `&b` computes the address of the `b` variable.
-
-If you run the code above,
-you will almost certainly get a different memory address than I got.
-Even on the same computer I get a different memory address every time,
-because the program essentially loads into whatever memory location is available:
-
-```
-$ ./jou asd.jou
-0x7ffe7e1ded17
-$ ./jou asd.jou
-0x7ffff24bec87
-$ ./jou asd.jou
-0x7fff356b6dd7
-$ ./jou asd.jou
-0x7ffeabcfe7f7
-```
 
 <p><details>
 <summary>An unimportant side note that you can skip</summary>
@@ -249,30 +276,49 @@ and on the rest of this page I continue doing so.
 
 </details>
 
+If you run the code above,
+you will almost certainly get a different memory address than I got.
+Even on the same computer I get a different memory address every time,
+because the program essentially loads into whatever memory location is available:
+
+```
+$ ./jou asd.jou
+0x7ffe7e1ded17
+$ ./jou asd.jou
+0x7ffff24bec87
+$ ./jou asd.jou
+0x7fff356b6dd7
+$ ./jou asd.jou
+0x7ffeabcfe7f7
+```
+
 In Jou, memory addresses are represented as **pointers**.
 A pointer is a memory address together with a type.
 For example, `&b` is a pointer of type `byte*`, meaning a pointer to a value of type `byte`.
-We could, for example, make a function that sets the value of a given `byte*`:
+Similarly, `int*` would be a pointer to a value of type `int`.
+We could, for example, make a function that sets the value of a given `int*`:
 
 ```python
 import "stdlib/io.jou"
 
-def set_to_50(pointer: byte*) -> None:
-    *pointer = 50 as byte
+def set_to_500(pointer: int*) -> None:
+    *pointer = 500
 
 def main() -> int:
-    b = 123 as byte
-    set_to_50(&b)
-    printf("%d\n", b)  # Output: 50
+    n = 123
+    set_to_500(&n)
+    printf("%d\n", n)  # Output: 500
     return 0
 ```
 
-Because the `set_to_50()` function knows the memory address of the `b` variable,
+Because the `set_to_500()` function knows the memory address of the `n` variable,
 it can just set the value at that memory address.
 The `*` operator is sometimes called the **value-of operator**,
 and `*foo` means the value of a pointer `foo`.
+Note that the value-of operator is the opposite of the address-of operator:
+`&*foo` and `*&foo` are useless, because you might as well use `foo` directly.
 
-This means that a function call can change the values of variables outside that function.
+As you can see, a function call can change the values of variables outside that function.
 However, the variables are clearly marked with `&`, so after getting used to this,
 it isn't as confusing as it seems.
 A common way to use this is to return multiple values from the same function:
@@ -308,12 +354,10 @@ When you do `x: int`, you tell Jou: "give me 4 bytes of memory and interpret it 
 That memory has probably been used for something else before your function gets it,
 so it will contain whatever the previous thing had there previously.
 Once it is interpreted as an integer, you tend to get something nonsensical.
-Also, the Jou compiler **does not always warn you** when this happens,
-because it is difficult to detect this in more complicated cases.
 
-**Jou is not a memory safe language.**
-It basically means that you can do dumb things like this with the computer's memory,
-and Jou will let you do it (though it will often warn you).
+This is one example of **UB (Undefined Behavior)** in Jou.
+In general, UB is a Bad Thing, because code that contains UB can behave unpredictably.
+See [UB documentation](ub.md) for more info.
 
 As a side note, you could also use an `int[2]` array to return the two values.
 This is simpler, but doesn't work if the return values are of different types.
@@ -334,7 +378,7 @@ def main() -> int:
 ## Memory safety, speed, ease of use: pick two
 
 Ideally, a programming language would be:
-- memory safe
+- memory safe (basically means that you cannot get UB by accident)
 - fast
 - simple/easy to use.
 
