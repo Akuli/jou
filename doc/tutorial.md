@@ -7,22 +7,21 @@ The main differences are:
 - Jou uses C's standard library.
 - Jou integer types are fixed-size and can wrap around.
 - All data in a computer consists of bytes. High-level languages hide this fact, Jou exposes it.
-- Jou is not memory safe.
 - Jou doesn't hide various other details about how your computer works.
+- Jou has Undefined Behavior.
 - Jou uses manual memory management, not garbage-collection.
 
 If none of this makes any sense to you, that's fine.
-The rest of this page explains it all using lots of example code,
-so that you will learn Jou as you continue reading.
+The rest of this page explains it all using lots of example code.
 
 Basically, all of this means that Jou is more difficult to use, but as a result,
 Jou code tends to run faster than e.g. Python (see [the performance docs](./perf.md) for more details).
-Also, knowing Jou makes learning other low-level languages (Rust, C, C++, ...) much easier.
+Also, knowing Jou makes learning other low-level languages (C, C++, Rust, ...) much easier.
 
 
 ## Main function and binaries
 
-When you run a Jou program, Jou first produces an executable file and then runs it.
+When you run a Jou program, Jou first produces an executable file, and then runs it.
 On Windows, executable file names must end with `.exe` (e.g. `jou.exe` or `hello.exe`).
 On most other systems, executable files typically don't have a file extension at all (e.g. `jou` or `hello`).
 By default, Jou places executables into a folder named `jou_compiled/`.
@@ -50,7 +49,7 @@ You can use different values to represent different errors, but `1` is the most 
 
 ## Printing
 
-To print a string, you can use `puts()` from [stdlib/io.jou](../stdlib/io.jou):
+To print a string, you can use the `puts()` function from [stdlib/io.jou](../stdlib/io.jou):
 
 ```python
 import "stdlib/io.jou"
@@ -134,10 +133,7 @@ This line of code tells the Jou compiler
 The `printf()` function is actually defined in the **libc**,
 which is the standard library of the C programming language.
 
-C is an old, small, simple and low-level programming language,
-and most newer languages use many things that first appeared in C
-(`if` statements, `while` loops, `for` loops, `break`, `continue` to name a few).
-
+C is an old, small, simple and low-level programming language.
 Jou is very heavily inspired by C, and in many ways similar to C and compatible with C.
 For example, Jou programs can use libraries written in C,
 so in practice, any large Jou project needs libc anyway.
@@ -146,7 +142,7 @@ With `declare`, we basically use things that the libc provides instead of reinve
 
 ## `byte`, `int`, `long`
 
-From a programmer's point of view, a byte is an integer between 0 to 255 (inclusive).
+From a programmer's point of view, a byte is an integer between 0 and 255 (inclusive).
 Alternatively, you can think of a `byte` as consisting of 8 bits, where a bit means 0 or 1.
 Two bits can be set to 4 different states (00, 01, 10, 11), so you could use 2 bits to represent numbers 0 to 3.
 Similarly, 8 bits can be set to 256 different states.
@@ -389,11 +385,69 @@ The purpose of Jou is to be a lot like C,
 but with various annoyances fixed, and of course, with Python's simple syntax.
 
 
-## Strings and zero bytes
+## Characters
+
+You can place a character in single quotes to specify a byte.
+This byte is the number that represents the character in the computer's memory.
+For example, almost all `a` characters on your computer are represented with the byte 97.
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 'a')  # Output: 97
+    printf("%d\n", ':')  # Output: 58
+    printf("%d\n", '0')  # Output: 48
+    return 0
+```
+
+Note that single quotes are used produce a byte and double quotes produce a string.
+
+This clearly cannot work for all characters,
+because there are more than 256 different charaters,
+but only 256 different possible bytes.
+For example, `'ö'` doesn't work:
+
+```python
+printf("%d\n", 'ö')  # Error: single quotes are for specifying a byte, maybe use double quotes to instead make a string?
+```
+
+In fact, this only works for ASCII characters, such as letters `A-Z a-z` and numbers `0-9`.
+There are a total of 128 ASCII characters (bytes 0 to 127).
+Other characters are made up by combining multiple bytes per character (bytes 128 to 255).
+This is how UTF-8 works.
+It is used in Jou, because it is by far the most common way to represent text in computers,
+and using anything else would be weird and impractical.
+
+To see how many bytes a character consists of,
+you can use the `strlen()` function from [stdlib/str.jou](../stdlib/str.jou).
+It calculates the length of a string in bytes.
+
+```python
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+def main() -> int:
+    printf("%lld\n", strlen("o"))  # Output: 1
+    printf("%lld\n", strlen("ö"))  # Output: 2
+    printf("%lld\n", strlen("foo"))  # Output: 3
+    printf("%lld\n", strlen("föö"))  # Output: 5
+    return 0
+```
+
+We are using `%lld`, because `strlen()` returns a `long`.
+You can see it by looking at how `str.jou` declares `strlen()`:
+
+```python
+declare strlen(s: byte*) -> long
+```
+
+
+## More about strings
 
 A Jou string is just a chunk of memory,
 represented as a `byte*` pointer to the start of the memory.
-There is a `0` byte to mark the end of the string.
+There is a zero byte to mark the end of the string.
 
 For example, the string `"hello"` is 6 bytes. Let's print the bytes.
 
@@ -424,6 +478,19 @@ memory_of_the_computer = [ ...,  104,  101,  108,  108,  111,  0,  ... ]
                                   s
 ```
 
+You can use `'\0'` to denote the actual end-of-string marker byte.
+In other words, `'\0'` is same as `0 as byte`.
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", '0')  # Output: 48
+    printf("%d\n", '\0')  # Output: 0
+    printf("%d\n", 0 as byte)  # Output: 0
+    return 0
+```
+
 The syntax `s[i]` gets the value `i` items forward from the pointer.
 Because we have a `byte*` pointer, each item is 1 byte,
 so `s[3]` moves 3 bytes forward, for example.
@@ -446,7 +513,8 @@ def main() -> int:
     return 0
 ```
 
-You can also use the `++` operator to move a pointer forward by one item:
+You can also use the `++` operator to move a pointer forward by one item.
+It moves one byte at a time, because we have a `byte*` pointer.
 
 ```python
 import "stdlib/io.jou"
@@ -557,17 +625,4 @@ def main() -> int:
 ```
 
 
-
 TODO: note about 100
-TODO: note about going out of bounds + segfaults
-TODO: strlen and other functions
-
-
-
-## Motivation
-
-Before we dive into details, why should you even care about Jou if you already know Python?
-
-I believe every good programming language has **two** of the following:
-- Good performance (programs run fast)
-- Memory safety (

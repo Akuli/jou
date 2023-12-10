@@ -309,7 +309,7 @@ class Tokenizer:
                 if c == '\0' or c == '\n':
                     break
                 if c == '\'':
-                    fail(location, "single quotes are for a single character, maybe use double quotes to instead make a string?")
+                    fail(location, "single quotes are for specifying a byte, maybe use double quotes to instead make a string?")
             fail(location, "missing ' to end the byte literal")
 
         return c

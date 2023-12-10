@@ -2,9 +2,12 @@
 
 Undefined behavior (UB) basically means that your code does something dumb.
 For example, these things are UB:
-- Accessing the value of a `NULL` pointer.
+- Reading the value of a `NULL` pointer.
 - Setting the value of a `NULL` pointer.
-- Reading the 11th member from an array of length 10.
+- Reading or setting the 11th member from an array of length 10.
+- Reading or setting the value of a pointer into a local variable that no longer exists.
+    Local variables no longer exists after a function `return`s
+    or completes by running to the end without a `return`.
 - Using the value of a variable before it has been set.
     For example, `x: int` followed by `printf("%d\n", x)`
     without doing something like `x = 0` before printing.
@@ -15,6 +18,7 @@ Every experienced Jou (or C or C++) programmer has caused UB by accident and fix
 
 If your program has UB, you might get:
 - a garbage value that just happened to be in the computer's memory
+- random results, e.g. sometimes what you expect and sometimes a garbage value
 - a perfectly working program
 - a crash
 - something else.
@@ -57,10 +61,90 @@ so whatever garbage happens to be in the computer's memory at that location
 gets converted to an integer and added to `sum`.
 
 
+## Randomly working and not working
+
+Here's another common way to get garbage values:
+
+```python
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+def make_string(n: int) -> byte*:
+    result: byte[50]
+    sprintf(result, "foo%d", n)
+    return result
+
+def main() -> int:
+    printf("%s\n", make_string(3))
+    return 0
+```
+
+When I run this repeatedly on my computer, I sometimes get `foo3` and sometimes a blank line:
+
+```
+akuli@akuli-desktop:~/jou$ ./jou a.jou
+
+akuli@akuli-desktop:~/jou$ ./jou a.jou
+
+akuli@akuli-desktop:~/jou$ ./jou a.jou
+
+akuli@akuli-desktop:~/jou$ ./jou a.jou
+foo3
+akuli@akuli-desktop:~/jou$ ./jou a.jou
+foo3
+akuli@akuli-desktop:~/jou$ ./jou a.jou
+
+akuli@akuli-desktop:~/jou$ ./jou a.jou
+
+```
+
+The `make_string()` function uses `sprintf()` from [stdlib/str.jou](../stdlib/str.jou)
+to create a string that looks like `"foo3"`.
+It then returns it as a `byte*`.
+For convenience, Jou converts `byte[50]` strings to `byte*` strings implicitly
+(works with any size of byte array),
+so the function actually returns a pointer to the first character of the string.
+
+This program contains UB, because it reads from a pointer into a local variable that no longer exists.
+More specifically, it tells `printf()` to read from a local variable inside `make_string()`,
+but because the return value of `make_string()` is used as an argument to `printf()`,
+the call to `make_string()` is evaluated first.
+Once `make_string()` has returned, its local variables no longer exist,
+and as you would expect, it is UB to access pointers that point into them.
+
+A simple fix is to return the entire array from `make_string()`, not just the first character.
+In other words, we change `-> byte*` to `-> byte[50]`.
+This gives us a compiler error:
+
+```
+compiler error in file "a.jou", line 10: cannot create a pointer into an array that comes from a function call (try storing it to a local variable first)
+```
+
+If we just do like the error message suggests,
+we end up storing the array in `main()`, and it no longer vanishes unexpectedly:
+
+```python
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+def make_string(n: int) -> byte*:
+    result: byte[50]
+    sprintf(result, "foo%d", n)
+    return result
+
+def main() -> int:
+    s = make_string(3)
+    printf("%s\n", s)  # Output: foo3
+    return 0
+```
+
+This code does not contain UB, and works as expected.
+
+
 ## Perfectly working program with UB
 
-If we make an array of `byte`s instead of `int`s, the program seems to print 6 every time as expected,
-even though it has UB:
+Let's modify the example from earlier by making an array of `byte`s instead of `int`s.
+Then the program prints 6 every time as expected:
 
 ```python
 import "stdlib/io.jou"
@@ -76,8 +160,9 @@ def main() -> int:
     return 0
 ```
 
-It still has UB, and should be fixed.
-I make no guarantees of anything working as expected when UB is involved.
+This program still contains UB, and it should be fixed.
+I make no guarantees of anything working as expected when your program contains UB.
+For example, your code might suddenly stop working when you [enable optimizations](perf.md).
 
 
 ## Crashing and valgrind
