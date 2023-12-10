@@ -267,10 +267,9 @@ Crash this program? (y/n) y
 Aborted
 ```
 
-For more about UB, see [the UB docs](ub.md).
-
 UB is easiest to find and understand when optimizations are turned off.
 For example, the optimizer might realize that a large part of the code cannot possibly run without invoking UB,
 and hence just delete it, like it deleted our crashing code in the above example.
-This would be much more confusing to debug than a crash,
-especially with `--valgrind` as explained in [the UB docs](ub.md).
+This would be much more confusing to debug than a crash.
+
+For more about UB, see [the UB docs](ub.md).
