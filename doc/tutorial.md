@@ -1,10 +1,5 @@
 # Jou tutorial for Python programmers
 
-**TODO:** write another tutorial for people coming from C
-
-This is a tutorial for people who have mostly used high-level programming languages,
-such as Python or JavaScript.
-
 On surface level, Jou looks a lot like Python, but **it doesn't behave like Python**,
 so you will probably be disappointed if you expect all of your existing Python knowledge to work as is.
 The main differences are:
