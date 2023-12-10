@@ -457,7 +457,7 @@ def main() -> int:
 ```
 
 We are using `%lld`, because `strlen()` returns a `long`.
-You can see it by looking at how `str.jou` declares `strlen()`:
+You can see it by looking at how [stdlib/str.jou](../stdlib/str.jou) declares `strlen()`:
 
 ```python
 declare strlen(s: byte*) -> long
@@ -489,7 +489,7 @@ def main() -> int:
 # Output: byte 5 = 0
 ```
 
-Each number corresponds with a letter. For example, 108 is the letter `l`.
+Each byte corresponds with a letter. For example, 108 is the letter `l`.
 You can see that it is repeated: there are two `l`'s in `hello`.
 
 ```
@@ -551,7 +551,7 @@ def main() -> int:
     return 0
 ```
 
-However, this introduces a subtle bug.
+However, this code contains a subtle bug.
 To see it, let's put this code into a loop and add some prints:
 
 ```python
@@ -578,7 +578,8 @@ After truncation: he
 ```
 
 It seems that the string `"hello"` became permanently truncated.
-When the loop does `s = "hello"` for a second time, it gets the truncated version `"he"`.
+When the loop does `s = "hello"` for a second time,
+it actually gets the truncated version `"he"`.
 
 **Do not modify strings in this way.**
 They are not meant to be modified.
@@ -617,10 +618,12 @@ takes the pointer to the first element of the array,
 and so the `byte[100]` can act as a `byte*` when needed.
 
 If you don't want to hard-code a maximum size for the string (100 in this example),
-you can use heap memory.
+you can instead use heap memory.
 The `strdup()` function from [stdlib/str.jou](../stdlib/str.jou)
 allocates the right amount of heap memory to hold a string (including the `'\0'`) and copies it there.
-As explained in [heap memory docs](heap.md), you will need to free your memory allocation.
+You should `free()` the memory once you no longer need the string.
+
+TODO: document heap allocations better
 
 ```python
 import "stdlib/io.jou"

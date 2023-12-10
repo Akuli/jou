@@ -316,6 +316,7 @@ def main() -> int:
     return 0
 ```
 
+This crashes with a `Segmentation fault` error.
 With `jou --valgrind filename.jou` I get:
 
 ```
@@ -345,12 +346,13 @@ This is because `NULL` means address 0, so
 In general, reading or writing a NULL pointer crashes the program.
 You can distinguish these crashes by looking at the address in valgrind output:
 a small address like `0x8` means a `NULL` problem.
-Previously we got a much address `0x1fff001000`
+Previously we got a much bigger address `0x1fff001000`
 when accessing memory beyond the end of an array.
 
 Note that because of optimizations,
 the program might not actually access the NULL pointer as you would expect.
-See [the optimization docs](perf.md).
+To work around that, you can use `jou --valgrind -O0 filename.jou`.
+See also [the optimization docs](perf.md).
 
 
 ## Rust's approach to UB
