@@ -344,7 +344,24 @@ def main() -> int:
 
 ## Undefined Behavior (UB)
 
-In the above program, `x: int` creates a variable of type `int` without assigning a value to it.
+Consider again the pointer example above:
+
+```python
+import "stdlib/io.jou"
+
+def get_point(x: int*, y: int*) -> None:
+    *x = 123
+    *y = 456
+
+def main() -> int:
+    x: int
+    y: int
+    get_point(&x, &y)
+    printf("The point is (%d,%d)\n", x, y)  # Output: The point is (123,456)
+    return 0
+```
+
+Here `x: int` creates a variable of type `int` without assigning a value to it.
 If you try to use the value of `x` before it is set,
 you will most likely get a compiler warning together with a random garbage value when the program runs.
 For example, if I delete the `get_point(&x, &y)` line, I get:
@@ -366,6 +383,8 @@ you tend to get something nonsensical.
 
 This is one example of **UB (Undefined Behavior)** in Jou.
 In general, UB is a Bad Thing, because code that contains UB can behave unpredictably.
+You need to know about UB,
+because **the Jou compiler does not always warn you when you're about to do UB.**
 See [UB documentation](ub.md) for more info.
 
 

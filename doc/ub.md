@@ -4,10 +4,10 @@ Undefined behavior (UB) basically means that your code does something dumb.
 For example, these things are UB:
 - Reading the value of a `NULL` pointer.
 - Setting the value of a `NULL` pointer.
-- Reading or setting the 11th member from an array of length 10.
+- Reading or setting the 11th member in an array of length 10.
 - Reading or setting the value of a pointer into a local variable that no longer exists.
-    Local variables no longer exists after a function `return`s
-    or completes by running to the end without a `return`.
+    Local variables no longer exists after the function has finished running,
+    either with a `return` statement or by reaching the end of the code in the function.
 - Using the value of a variable before it has been set.
     For example, `x: int` followed by `printf("%d\n", x)`
     without doing something like `x = 0` before printing.
@@ -29,9 +29,10 @@ you will need to eventually learn about UB anyway.
 Rust handles UB differently from any other language I have seen.
 See the end of this page.
 
-Also, UB can be useful:
-it lets the optimizer make more assumptions about your code, and hence optimize better.
-See [performance docs](perf.md) for details.
+Also, UB can be useful if your code doesn't invoke it.
+For example, because accessing elements beyond the end of an array is UB,
+the Jou compiler doesn't add slow bounds-checking to array indexing in your programs.
+See also [performance docs](perf.md).
 
 
 ## Garbage values
@@ -53,8 +54,8 @@ def main() -> int:
 ```
 
 This is supposed to calculate `1 + 2 + 3`, so it should print 6.
-On my system it prints **-115019848**.
-If I run the program again, it instead prints **1308074024**.
+On my system it prints `-115019848`.
+If I run the program again, it instead prints `1308074024`.
 In fact, it seems like I get a different value every time.
 The problem is that the loop reads one element beyond the end of the array,
 so whatever garbage happens to be in the computer's memory at that location
@@ -63,7 +64,7 @@ gets converted to an integer and added to `sum`.
 
 ## Randomly working and not working
 
-Here's another common way to get garbage values:
+Here's another common mistake that results in garbage values:
 
 ```python
 import "stdlib/io.jou"
@@ -141,7 +142,7 @@ def main() -> int:
     return 0
 ```
 
-This code does not contain UB, and works as expected.
+This code does not contain UB, and it prints `foo3` as expected every time.
 
 
 ## Perfectly working program with UB
@@ -170,7 +171,7 @@ For example, your code might suddenly stop working when you [enable optimization
 
 ## Crashing and valgrind
 
-A different thing happens if we read array elements way beyond the end of the array, rather than just one index beyond.
+Let's try reading array elements way beyond the end of the array, rather than just one index beyond.
 
 ```python
 import "stdlib/io.jou"
@@ -198,7 +199,7 @@ the program tried to access memory that doesn't belong to it.
 Only a small part of the computer's memory belongs to our program,
 and when it accesses memory beyond that area, the operating system notices it and kills the program.
 
-The `Segmentation fault` error message doesn't mention the file name and line number (`a.jou` 8) where the crash happened.
+The `Segmentation fault` error message doesn't mention the file name and line number (`a.jou`, `8`) where the crash happened.
 It doesn't even mention the function name (`main()`).
 If you are on Linux, you can install valgrind (e.g. `sudo apt install valgrind`) and invoke Jou with `--valgrind`.
 If you need to debug a crash and you are not on Linux, please create an issue on GitHub.
@@ -206,7 +207,7 @@ If you need to debug a crash and you are not on Linux, please create an issue on
 Running Jou with `--valgrind` looks like this:
 
 ```
-akuli@akuli-desktop:~/jou$ ./jou a.jou 
+akuli@akuli-desktop:~/jou$ ./jou --valgrind a.jou
 ==12317== Invalid read of size 4
 ==12317==    at 0x401180: main (in /home/akuli/jou/jou_compiled/a/a)
 ==12317==  Address 0x1fff001000 is not stack'd, malloc'd or (recently) free'd
@@ -223,16 +224,18 @@ akuli@akuli-desktop:~/jou$ ./jou a.jou
 Segmentation fault
 ```
 
-The relevant parts of the error message are:
+The relevant part of the error message is:
 
 ```
 ==12317== Invalid read of size 4
 ==12317==    at 0x401180: main (in /home/akuli/jou/jou_compiled/a/a)
+==12317==  Address 0x1fff001000 is not stack'd, malloc'd or (recently) free'd
 ```
 
 Here `Invalid read` means that we tried to read memory that doesn't belong to the program,
 and `size 4` means we tried to read 4 bytes at a time.
 Because `int` is 4 bytes, seeing 4 bytes usually means that the code is trying to access an `int` value.
+The first of the four bytes is at address `0x1fff001000`.
 
 It means that the crash happened in the `main()` function.
 To see this better, let's modify the code so that multiple functions are involved in the crash:
@@ -298,6 +301,56 @@ Unfortunately valgrind doesn't show see the name of the `.jou` file or any line 
 This could be fixed in the Jou compiler.
 If you run into this and it annoys you, please create an issue on GitHub,
 or if someone has already created the issue, add a comment to it.
+
+
+## NULL pointers
+
+Consider this program:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    p: int* = NULL
+    printf("%d\n", p[2])
+    return 0
+```
+
+With `jou --valgrind filename.jou` I get:
+
+```
+akuli@akuli-desktop:~/jou$ ./jou --valgrind a.jou
+==17004== Invalid read of size 4
+==17004==    at 0x401161: main (in /home/akuli/jou/jou_compiled/a/a)
+==17004==  Address 0x8 is not stack'd, malloc'd or (recently) free'd
+==17004== 
+==17004== 
+==17004== Process terminating with default action of signal 11 (SIGSEGV)
+==17004==  Access not within mapped region at address 0x8
+==17004==    at 0x401161: main (in /home/akuli/jou/jou_compiled/a/a)
+==17004==  If you believe this happened as a result of a stack
+==17004==  overflow in your program's main thread (unlikely but
+==17004==  possible), you can try to increase the size of the
+==17004==  main thread stack using the --main-stacksize= flag.
+==17004==  The main thread stack size used in this run was 8388608.
+Segmentation fault
+```
+
+Here `Address 0x8` means that the memory we were reading is at address `0x8` in hexadecimal, which is 8.
+This is because `NULL` means address 0, so
+- `*p` or `p[0]` would access memory addresses 0, 1, 2 and 3
+- `p[1]` would access memory addresses 4, 5, 6, 7
+- `p[2]` would access memory addresses 8 (failed here), 9, 10 and 11.
+
+In general, reading or writing a NULL pointer crashes the program.
+You can distinguish these crashes by looking at the address in valgrind output:
+a small address like `0x8` means a `NULL` problem.
+Previously we got a much address `0x1fff001000`
+when accessing memory beyond the end of an array.
+
+Note that because of optimizations,
+the program might not actually access the NULL pointer as you would expect.
+See [the optimization docs](perf.md).
 
 
 ## Rust's approach to UB
