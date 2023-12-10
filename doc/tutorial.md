@@ -1,13 +1,13 @@
-# Jou tutorial for Python programmers
+# Jou Tutorial
 
 On surface level, Jou looks a lot like Python, but **it doesn't behave like Python**,
-so you will probably be disappointed if you expect all of your existing Python knowledge to work as is.
+so you will probably be disappointed if you know Python well and you expect all of your knowledge to work as is.
 The main differences are:
 - Jou is compiled into native binaries, not interpreted.
 - Jou uses C's standard library.
 - Jou integer types are fixed-size and can wrap around.
 - All data in a computer consists of bytes. High-level languages hide this fact, Jou exposes it.
-- Jou doesn't hide various other details about how your computer works.
+- Jou doesn't hide various other details about how computers work.
 - Jou has Undefined Behavior.
 - Jou uses manual memory management, not garbage-collection.
 
@@ -609,20 +609,26 @@ regardless of whether `s` is a `byte*` or a `byte[100]`.
 Specifically, Jou does an **implicit cast** that
 takes the pointer to the first element of the array,
 and so the `byte[100]` can act as a `byte*` when needed.
-If we write all implicit casts with **explicit casts** (that is, with the `as` syntax),
-the above example becomes:
 
-```python
+If you don't want to hard-code a maximum size for the string (100 in this example),
+you can use heap memory.
+The `strdup()` function from [stdlib/str.jou](../stdlib/str.jou)
+allocates the right amount of heap memory to hold a string (including the `'\0'`) and copies it there.
+As explained in [heap memory docs](heap.md), you will need to free your memory allocation. you allocate.
+
+```
 import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
 
 def main() -> int:
-    for i = 0; i < 3; i++:
-        s: byte[100] = "hello"
-        printf("Before truncation: %s\n", s as byte*)
-        (s as byte*)[2] = '\0'
-        printf("After truncation: %s\n", s as byte*)
+    s = strdup("hello")
+
+    printf("Before truncation: %s\n", s)  # Output: Before truncation: hello
+    s[2] = '\0'
+    printf("After truncation: %s\n", s)   # Output: After truncation: hello
+
+    free(s)
     return 0
 ```
 
-
-TODO: note about 100

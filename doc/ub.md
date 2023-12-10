@@ -114,20 +114,23 @@ and as you would expect, it is UB to access pointers that point into them.
 
 A simple fix is to return the entire array from `make_string()`, not just the first character.
 In other words, we change `-> byte*` to `-> byte[50]`.
-This gives us a compiler error:
+This gives us a new compiler error on a different line:
 
 ```
 compiler error in file "a.jou", line 10: cannot create a pointer into an array that comes from a function call (try storing it to a local variable first)
 ```
 
+Line 10 is `printf("%s\n", make_string(3))`.
+The compiler is trying to convert the array into a pointer here,
+because `printf()` wants a pointer.
 If we just do like the error message suggests,
-we end up storing the array in `main()`, and it no longer vanishes unexpectedly:
+we end up storing the array in `main()`, which is great because it no longer vanishes unexpectedly:
 
 ```python
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 
-def make_string(n: int) -> byte*:
+def make_string(n: int) -> byte[50]:
     result: byte[50]
     sprintf(result, "foo%d", n)
     return result
