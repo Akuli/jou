@@ -10,7 +10,8 @@ def main() -> int:
     return 0
 ```
 
-See the [examples](./examples/) and [tests](./tests/) directories for more example programs.
+See the [examples](./examples/) and [tests](./tests/) directories for more example programs
+or read [the Jou tutorial](./doc/tutorial.md).
 
 So far, Jou is usable enough to do [Advent of Code 2023](https://adventofcode.com/).
 We'll see whether I get 50 stars with Jou this year.

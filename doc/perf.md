@@ -1,4 +1,4 @@
-# Performance and optimizations
+# Performance and Optimizations
 
 Because Jou uses [LLVM](https://llvm.org/),
 it is faster than interpreted languages like Python,
@@ -198,7 +198,7 @@ Let's explore these with more examples.
 TODO: write this section once a large Jou program exists and name it Example #1
 
 
-### Example #2: Optimizer's assumptions
+### Example #2: Optimizer's assumptions and undefined behavior
 
 Let's write a program that crashes if the user selects yes.
 
@@ -240,9 +240,13 @@ $
 ```
 
 The optimizations make the program ignore the code to access the value of a `NULL` pointer.
-Essentially it thinks that the `x = *foo` code will never run, because you aren't supposed to access the value of a NULL pointer. This code will thus get ignored.
+Essentially it thinks that the `x = *foo` code will never run,
+because you aren't supposed to access the value of a NULL pointer.
+This code will thus get ignored.
 
-Sidenote: if you want the program to crash with optimizations on, then you should do so using `abort()` function for example:
+Accessing a `NULL` pointer is an example of **undefined behavior**, or **UB** for short.
+Undefined behavior is generally a Bad Thing: if your code has UB, you should fix it.
+For example, a much better way to crash the program would be using `abort()` function:
 
 ```python
 import "stdlib/io.jou"
@@ -255,7 +259,7 @@ def main() -> int:
     return 0
 ```
 
-Now the program crashes when `y` is typed, even if optimizations are enabled:
+Now the program contains no UB. It crashes when `y` is typed, even if optimizations are enabled:
 
 ```
 $ ./jou -O3 asd.jou
@@ -263,41 +267,9 @@ Crash this program? (y/n) y
 Aborted
 ```
 
-Accessing the value of a NULL pointer is an example of **undefined behavior** (UB).
-The optimizer naturally assumes that your program does not have anything that causes UB,
-and as such if it does, it could in principle do anything when it is ran with optimizations enabled. Use at your own risk.
+UB is easiest to find and understand when optimizations are turned off.
+For example, the optimizer might realize that a large part of the code cannot possibly run without invoking UB,
+and hence just delete it, like it deleted our crashing code in the above example.
+This would be much more confusing to debug than a crash.
 
-Here are a few examples of things that are UB in Jou:
-- Accessing the value of a `NULL` pointer.
-- Setting the value of a `NULL` pointer.
-- Reading the 11th member from an array of length 10.
-- Using the value of a variable before it has been set.
-    For example, `x: int` followed by `printf("%d\n", x)`
-    without doing something like `x = 0` before printing.
-
-The takeaway from this is that these are all things that one would never do intentionally.
-The rest of Jou's documentation aims to mention other things that are UB.
-
-In some other languages, it is easier to get UB than in Jou.
-For example, in C it is UB to add two `int`s so large
-that the result doesn't fit into an `int`,
-but in Jou, math operations are instead guaranteed to wrap around:
-
-```python
-import "stdlib/io.jou"
-
-def main() -> int:
-    printf("%d\n", (254 as byte) + (0 as byte))   # Output: 254
-    printf("%d\n", (254 as byte) + (1 as byte))   # Output: 255
-    printf("%d\n", (254 as byte) + (2 as byte))   # Output: 0
-    printf("%d\n", (254 as byte) + (3 as byte))   # Output: 1
-    printf("%d\n", (254 as byte) + (4 as byte))   # Output: 2
-
-    printf("%d\n", 2147483646 + 0)   # Output: 2147483646
-    printf("%d\n", 2147483646 + 1)   # Output: 2147483647
-    printf("%d\n", 2147483646 + 2)   # Output: -2147483648
-    printf("%d\n", 2147483646 + 3)   # Output: -2147483647
-    printf("%d\n", 2147483646 + 4)   # Output: -2147483646
-
-    return 0
-```
+For more about UB, see [the UB docs](ub.md).
