@@ -5,7 +5,7 @@ so you will probably be disappointed if you know Python well and you expect all 
 The main differences are:
 - Jou is compiled into native binaries, not interpreted.
 - Jou uses C's standard library.
-- Jou integer types are fixed-size and can wrap around.
+- Jou's integer types are fixed-size and can wrap around.
 - All data in a computer consists of bytes. High-level languages hide this fact, Jou exposes it.
 - Jou doesn't hide various other details about how computers work.
 - Jou has Undefined Behavior.
@@ -35,7 +35,7 @@ it finds a function named `main()` in it and calls it.
 The return value of the `main()` function is an integer,
 and the operating system gives it to the program that ran the executable.
 This means that every executable must have a `main()` function that returns an integer.
-Jou doesn't hide this, and therefore most Jou programs contain something like this:
+Jou doesn't hide this, and therefore all Jou programs contain something like this:
 
 ```python
 def main() -> int:
@@ -43,8 +43,9 @@ def main() -> int:
     return 0
 ```
 
-By convention, the return value `0` means "success". Anything else means "error".
-You can use different values to represent different errors, but `1` is the most common.
+This integer is called the **exit code** of the process.
+By convention, exit code `0` means "success". Anything else means "error".
+You can use different exit codes to represent different errors, but `1` is the most common.
 
 
 ## Printing
@@ -83,7 +84,7 @@ Here:
 - `%.2f` means a `float` or `double` rounded to two decimal places
 - `as float` is a type cast, needed to construct a `float`.
 
-There are various other format specifiers you can pass to `printf()`.
+There are various other `%` things you can pass to `printf()`.
 Just search something like "printf format specifiers" online:
 `printf()` is actually not a Jou-specific thing (see below).
 
@@ -107,7 +108,8 @@ def main() -> int:
 ## C's standard library (libc)
 
 We did `import "stdlib/io.jou"` to use the `printf()` function.
-If you look at [stdlib/io.jou](../stdlib/io.jou), the definition of `printf()` is only one line:
+If you look at [stdlib/io.jou](../stdlib/io.jou),
+there is only one line of code related to `printf()`:
 
 ```python
 declare printf(pattern: byte*, ...) -> int  # Example: printf("%s %d\n", "hi", 123)
@@ -133,7 +135,8 @@ With `declare`, we basically use things that the libc provides instead of reinve
 From a programmer's point of view, a byte is an integer between 0 and 255 (inclusive).
 Alternatively, you can think of a `byte` as consisting of 8 bits, where a bit means 0 or 1.
 Two bits can be set to 4 different states (00, 01, 10, 11), so you could use 2 bits to represent numbers 0 to 3.
-Similarly, 8 bits can be set to 256 different states.
+Similarly, 8 bits can be set to 256 different states
+that correspond with numbers 0 to 255.
 
 In Jou, the `byte` data type represents a single byte.
 To construct a byte, you can do e.g. `123 as byte`,
@@ -175,6 +178,9 @@ def main() -> int:
 
 Specifically, the range of an `int` is from `-2147483648` to `2147483647`.
 Note that `int`s can be negative, but bytes cannot.
+This works by basically using the first bit as the sign bit:
+the first bit is 1 for negative numbers and 0 for nonnegative numbers,
+and the remaining 31 bits work more or less like you would expect.
 
 Sometimes `int` isn't big enough.
 When `int` wraps around, you usually get negative numbers when you expect things to be positive,
@@ -204,7 +210,7 @@ All data in any modern computer consists of bytes.
 A computer's memory is basically a big list of bytes,
 and an `int` is just 4 consecutive bytes somewhere inside that list.
 Jou does not hide that, and in fact, as a Jou programmer
-**you will need to think about this a lot**.
+**you will need to often treat the computer's memory as a big array of bytes**.
 
 To get started, let's make a variable and ask Jou to print its index in the big list of bytes:
 
@@ -223,7 +229,8 @@ This prints something like `0x7ffd85fd3db7`.
 This is a number written in hexadecimal,
 and it means `140726851419575`.
 Hexadecimal basically means that instead of representing numbers with 10 digits (`0`-`9`),
-we use 16 "digits" (`0`-`9` and `a`-`f`).
+we use 16 "digits" (`0`-`9` and then `a`-`f`).
+The prefix `0x` is a convention to indicate that the number is in heXadecimal.
 How exactly hexadecimal works is not really relevant here,
 but what matters is that we got some number.
 So:
@@ -238,20 +245,20 @@ The `&` operator is called the **address-of operator**,
 because `&b` computes the address of the `b` variable.
 
 <p><details>
-<summary>An unimportant side note that you can skip</summary>
+<summary>An unimportant "ahchthually" that you can skip</summary>
 
-The memory addresses visible to the program are not necessary just indexes into RAM.
+The memory addresses are not necessary just indexes into RAM.
 For example, the Linux kernel moves infrequently accessed things to disk
 when RAM is about to get full (this is called **swapping**).
-This doesn't change memory addresses within the program whose memory is moved to disk,
+This doesn't change memory addresses within the program,
 so you don't need to think about swapping when you write Jou programs.
 The OS will take care of mapping your memory addresses to the right place.
 
-I believe the locations in RAM are called **physical addresses**,
+I think the locations in RAM are called **physical addresses**,
 and the memory addresses that Jou programs see are called **virtual addresses**.
 I'm not sure about the names though.
 I don't think of this much: I just imagine that everything goes in RAM,
-and on the rest of this page I continue doing so.
+and on the rest of this page I continue to do so.
 
 </details>
 
@@ -296,11 +303,11 @@ it can just set the value at that memory address.
 The `*` operator is sometimes called the **value-of operator**,
 and `*foo` means the value of a pointer `foo`.
 Note that the value-of operator is the opposite of the address-of operator:
-`&*foo` and `*&foo` are useless, because you might as well use `foo` directly.
+`&*foo` and `*&foo` are unnecessary, because you might as well use `foo` directly.
 
 As you can see, a function call can change the values of variables outside that function.
-However, the variables are clearly marked with `&`, so after getting used to this,
-it isn't as confusing as it seems.
+However, the variables passed as pointers are clearly marked with `&`,
+so it isn't as confusing as it seems to be at first.
 A common way to use this is to return multiple values from the same function:
 
 ```python
@@ -318,30 +325,9 @@ def main() -> int:
     return 0
 ```
 
-Here `x: int` creates a variable of type `int` without assigning a value to it.
-If you try to use the value of `x` before it is set,
-you will most likely get a compiler warning together with a random garbage value when the program runs.
-For example, if I delete the `get_point(&x, &y)` line, I get:
-
-```
-compiler warning for file "asd.jou", line 10: the value of 'x' is undefined
-compiler warning for file "asd.jou", line 10: the value of 'y' is undefined
-The point is (-126484104,-126484088)
-```
-
-Again, Jou doesn't attempt to hide the way the computer's memory works.
-When you do `x: int`, you tell Jou: "give me 4 bytes of memory and interpret it as an integer".
-That memory has probably been used for something else before your function gets it,
-so it will contain whatever the previous thing stored there.
-Those 4 bytes were probably not used as an integer,
-so once you interpret them as an integer anyway, you tend to get something nonsensical.
-
-This is one example of **UB (Undefined Behavior)** in Jou.
-In general, UB is a Bad Thing, because code that contains UB can behave unpredictably.
-See [UB documentation](ub.md) for more info.
-
-As a side note, you could also use an `int[2]` array to return the two values.
-This is simpler, but doesn't work if the return values are of different types.
+Instead of pointers, you could also use an `int[2]` array to return the two values.
+However, **this doesn't mean that you don't need to understand pointers**,
+as they have many other uses in Jou.
 
 ```python
 import "stdlib/io.jou"
@@ -354,6 +340,33 @@ def main() -> int:
     printf("The point is (%d,%d)\n", point[0], point[1])  # Output: The point is (123,456)
     return 0
 ```
+
+
+## Undefined Behavior (UB)
+
+In the above program, `x: int` creates a variable of type `int` without assigning a value to it.
+If you try to use the value of `x` before it is set,
+you will most likely get a compiler warning together with a random garbage value when the program runs.
+For example, if I delete the `get_point(&x, &y)` line, I get:
+
+```
+compiler warning for file "asd.jou", line 10: the value of 'x' is undefined
+compiler warning for file "asd.jou", line 10: the value of 'y' is undefined
+The point is (-126484104,-126484088)
+```
+
+Again, Jou doesn't attempt to hide the way the computer's memory works.
+When you do `x: int`, you tell Jou:
+"give me 4 bytes of memory, and from now on, interpret those 4 bytes as an integer".
+That memory has probably been used for something else before your function gets it,
+so it will contain whatever the previous thing stored there.
+Those 4 bytes were probably not used as an integer,
+and once you interpret them as an integer anyway,
+you tend to get something nonsensical.
+
+This is one example of **UB (Undefined Behavior)** in Jou.
+In general, UB is a Bad Thing, because code that contains UB can behave unpredictably.
+See [UB documentation](ub.md) for more info.
 
 
 ## Memory safety, speed, ease of use: pick two
