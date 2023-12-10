@@ -103,18 +103,6 @@ def main() -> int:
     return 0
 ```
 
-You can also use `puts()`.
-It takes only one argument, which must be a string, and it adds a newline automatically.
-
-```python
-import "stdlib/io.jou"
-
-def main() -> int:
-    puts("foo")  # Output: foo
-    puts("bar")  # Output: bar
-    return 0
-```
-
 
 ## C's standard library (libc)
 
@@ -189,7 +177,7 @@ Specifically, the range of an `int` is from `-2147483648` to `2147483647`.
 Note that `int`s can be negative, but bytes cannot.
 
 Sometimes `int` isn't big enough.
-If `int` wraps around unexpected, you usually get negative numbers when you expect things to be positive,
+When `int` wraps around, you usually get negative numbers when you expect things to be positive,
 and you should probably use `long` instead of `int`.
 **Jou's `long` is 8 bytes (64 bits)**, so twice the size of an `int` and hence much less likely to wrap around.
 To create a `long`, add `L` to the end of the number, as in `123L` or `-2000000000000L`.
@@ -286,7 +274,8 @@ $ ./jou asd.jou
 In Jou, memory addresses are represented as **pointers**.
 A pointer is a memory address together with a type.
 For example, `&b` is a pointer of type `byte*`, meaning a pointer to a value of type `byte`.
-Similarly, `int*` would be a pointer to a value of type `int`.
+Similarly, `int*` would be a pointer to a value of type `int`,
+pointing to the first of the 4 consecutive bytes that an `int` uses.
 We could, for example, make a function that sets the value of a given `int*`:
 
 ```python
@@ -330,7 +319,7 @@ def main() -> int:
 ```
 
 Here `x: int` creates a variable of type `int` without assigning a value to it.
-If you try to use the value of `x` before it is set (by calling `get_point(&x, &y)` for example),
+If you try to use the value of `x` before it is set,
 you will most likely get a compiler warning together with a random garbage value when the program runs.
 For example, if I delete the `get_point(&x, &y)` line, I get:
 
@@ -343,8 +332,9 @@ The point is (-126484104,-126484088)
 Again, Jou doesn't attempt to hide the way the computer's memory works.
 When you do `x: int`, you tell Jou: "give me 4 bytes of memory and interpret it as an integer".
 That memory has probably been used for something else before your function gets it,
-so it will contain whatever the previous thing had there previously.
-Once it is interpreted as an integer, you tend to get something nonsensical.
+so it will contain whatever the previous thing stored there.
+Those 4 bytes were probably not used as an integer,
+so once you interpret them as an integer anyway, you tend to get something nonsensical.
 
 This is one example of **UB (Undefined Behavior)** in Jou.
 In general, UB is a Bad Thing, because code that contains UB can behave unpredictably.
@@ -389,7 +379,7 @@ but with various annoyances fixed, and of course, with Python's simple syntax.
 
 You can place a character in single quotes to specify a byte.
 This byte is the number that represents the character in the computer's memory.
-For example, almost all `a` characters on your computer are represented with the byte 97.
+For example, almost all `a` characters in your computer are represented with the byte 97.
 
 ```python
 import "stdlib/io.jou"
@@ -401,15 +391,14 @@ def main() -> int:
     return 0
 ```
 
-Note that single quotes are used produce a byte and double quotes produce a string.
+Note that single quotes specify a byte and double quotes specify a string.
 
 This clearly cannot work for all characters,
-because there are more than 256 different charaters,
-but only 256 different possible bytes.
-For example, `'ö'` doesn't work:
+because there are thousands of different charaters, but only 256 different bytes.
+For example, `'Ω'` doesn't work:
 
 ```python
-printf("%d\n", 'ö')  # Error: single quotes are for specifying a byte, maybe use double quotes to instead make a string?
+printf("%d\n", 'Ω')  # Error: single quotes are for specifying a byte, maybe use double quotes to instead make a string?
 ```
 
 In fact, this only works for ASCII characters, such as letters `A-Z a-z` and numbers `0-9`.
@@ -429,9 +418,9 @@ import "stdlib/str.jou"
 
 def main() -> int:
     printf("%lld\n", strlen("o"))  # Output: 1
-    printf("%lld\n", strlen("ö"))  # Output: 2
+    printf("%lld\n", strlen("Ω"))  # Output: 2
     printf("%lld\n", strlen("foo"))  # Output: 3
-    printf("%lld\n", strlen("föö"))  # Output: 5
+    printf("%lld\n", strlen("fΩΩ"))  # Output: 5
     return 0
 ```
 
@@ -478,19 +467,6 @@ memory_of_the_computer = [ ...,  104,  101,  108,  108,  111,  0,  ... ]
                                   s
 ```
 
-You can use `'\0'` to denote the actual end-of-string marker byte.
-In other words, `'\0'` is same as `0 as byte`.
-
-```python
-import "stdlib/io.jou"
-
-def main() -> int:
-    printf("%d\n", '0')  # Output: 48
-    printf("%d\n", '\0')  # Output: 0
-    printf("%d\n", 0 as byte)  # Output: 0
-    return 0
-```
-
 The syntax `s[i]` gets the value `i` items forward from the pointer.
 Because we have a `byte*` pointer, each item is 1 byte,
 so `s[3]` moves 3 bytes forward, for example.
@@ -530,10 +506,8 @@ def main() -> int:
 
 To instead remove characters from the end of the string,
 you can simply place a zero byte to the middle of the string.
-Usually the zero byte is written as `'\0'`,
-because after getting used to it, that is more readable than `0 as byte`.
-Note that single quotes are used for individual bytes
-and double quotes are used for strings.
+Usually the zero byte is written as `'\0'`, which means same as `0 as byte`
+but is slightly more readable after getting used to it.
 
 ```python
 import "stdlib/io.jou"
@@ -614,9 +588,9 @@ If you don't want to hard-code a maximum size for the string (100 in this exampl
 you can use heap memory.
 The `strdup()` function from [stdlib/str.jou](../stdlib/str.jou)
 allocates the right amount of heap memory to hold a string (including the `'\0'`) and copies it there.
-As explained in [heap memory docs](heap.md), you will need to free your memory allocation. you allocate.
+As explained in [heap memory docs](heap.md), you will need to free your memory allocation.
 
-```
+```python
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
@@ -626,9 +600,8 @@ def main() -> int:
 
     printf("Before truncation: %s\n", s)  # Output: Before truncation: hello
     s[2] = '\0'
-    printf("After truncation: %s\n", s)   # Output: After truncation: hello
+    printf("After truncation: %s\n", s)   # Output: After truncation: he
 
     free(s)
     return 0
 ```
-
