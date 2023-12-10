@@ -521,8 +521,8 @@ def main() -> int:
     return 0
 ```
 
-You can also use the `++` operator to move a pointer forward by one item.
-It moves one byte at a time, because we have a `byte*` pointer.
+You can also use the `++` and `--` operator to move pointers by one item at a time.
+They move strings one byte at a time, because strings are `byte*` pointers.
 
 ```python
 import "stdlib/io.jou"
@@ -533,6 +533,9 @@ def main() -> int:
     printf("%s\n", s)  # Output: ello
     s++
     printf("%s\n", s)  # Output: llo
+    s--
+    s--
+    printf("%s\n", s)  # Output: hello
     return 0
 ```
 
