@@ -148,7 +148,6 @@ This code does not contain UB, and it prints `foo3` as expected every time.
 ## Perfectly working program with UB
 
 Let's modify the example from earlier by making an array of `byte`s instead of `int`s.
-Then the program prints 6 every time as expected:
 
 ```python
 import "stdlib/io.jou"
@@ -159,14 +158,18 @@ def main() -> int:
     sum = 0
     for i = 0; i < 4; i++:
         sum += arr[i]
-    printf("%d\n", sum)  # Output: 6
+    printf("%d\n", sum)
 
     return 0
 ```
 
+On my Linux system, this program prints 6 every time as expected.
+
 This program still contains UB, and it should be fixed.
 I make no guarantees of anything working as expected when your program contains UB.
-For example, your code might suddenly stop working when you [enable optimizations](perf.md).
+For example, your code might suddenly stop working when you [enable optimizations](perf.md),
+or when you run the program on a different operating system.
+In fact, the above program printed `2` when I tried it on Windows.
 
 
 ## Crashing and valgrind

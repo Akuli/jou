@@ -643,3 +643,12 @@ def main() -> int:
     free(s)
     return 0
 ```
+
+
+## What next?
+
+To learn More about Jou, I recommend:
+- reading other documentation files in the [doc](../doc/) folder
+- reading files in [stdlib/](../stdlib/)
+- writing small Jou programs (e.g. Advent of Code)
+- browsing Jou's issues on GitHub and fixing some of them :)
