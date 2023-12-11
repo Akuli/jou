@@ -627,6 +627,7 @@ class AstToIR:
             result = self->do_and_or(&ast->operands[0], &ast->operands[1], False)
 
         else:
+            ast->print()
             printf("create_llvm_ir: unknown expression kind %d...\n", ast->kind)
             assert False
 
