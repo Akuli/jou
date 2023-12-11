@@ -8,4 +8,10 @@ def main() -> int:
     x = stdout
     y = strcmp("foo", "bar")
     z = Point{x=1, y=2}
+
+    # prevent unused variable warnings
+    assert x != NULL
+    assert y != 0
+    assert z.x != 0
+
     return 0
