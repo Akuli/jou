@@ -55,7 +55,6 @@ def find_initial_direction(input: Input*, S: int[2]) -> int[2]:
     directions = [[0,1], [0,-1], [1,0], [-1,0]]
     for d = &directions[0]; d < &directions[4]; d++:
         S_to_neighbor = *d
-        neighbor_to_S = [-S_to_neighbor[0], -S_to_neighbor[1]]
         neighbor = [S[0] + S_to_neighbor[0], S[1] + S_to_neighbor[1]]
 
         if input->is_in_bounds(neighbor) and input->get(neighbor) != '.':
