@@ -335,7 +335,7 @@ static char read_char_literal(struct State *st)
     if (len == 0)
         fail_with_error(st->location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?");
     if (len >= 2)
-        fail_with_error(st->location, "single quotes are for a single character, maybe use double quotes to instead make a string?");
+        fail_with_error(st->location, "single quotes are for specifying a byte, maybe use double quotes to instead make a string?");
     char result = s[0];
     free(s);
     return result;

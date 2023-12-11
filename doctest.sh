@@ -48,10 +48,11 @@ mkdir -p tmp/doctest
 
 for file in "${files[@]}"; do
     echo "Extracting doctests from $file..."
-    mkdir tmp/doctest/"$(basename "$file")"
+    temp_dir="tmp/doctest/$(echo -n "$file" | base64)"  # make it possible to display file path later
+    mkdir "$temp_dir"
 
     for start_marker_lineno in $(grep -n '^```python$' "$file" | cut -d: -f1); do
-        outfile="tmp/doctest/$(basename "$file")/$((start_marker_lineno + 1)).jou"
+        outfile="$temp_dir/$((start_marker_lineno + 1)).jou"
         awk -v n=$start_marker_lineno '(/^```$/ && line > n) { stop=1 } (++line > n && !stop) { print }' "$file" > "$outfile"
 
         # Do not test if there is no expected output/errors
@@ -66,10 +67,12 @@ nfail=0
 
 cd tmp/doctest
 for file in */*.jou; do
-    echo "${file%.*}" | tr '/' ':'  # foo.md/123.jou --> foo.md:123
+    # print file and line number, as in "doc/foo.md:123: "
+    echo -n "$(basename "$(dirname "$file")" | base64 -d):$(basename "$file" | cut -d'.' -f1): "
+
     cp "$file" test.jou
     if diff --text -u --color=always <(generate_expected_output test.jou | tr -d '\r') <( ("$jou" test.jou 2>&1 || true) | tr -d '\r'); then
-        echo "  ok"
+        echo "ok"
     else
         ((nfail++)) || true
     fi
