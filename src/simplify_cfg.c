@@ -435,25 +435,40 @@ static void remove_unreachable_blocks(CfGraph *cfg)
 
 static void remove_unused_variables(CfGraph *cfg)
 {
+    enum { READ=1, WRITE=2 };
     char *used = calloc(1, cfg->locals.len);
+    Location *write_locations = malloc(sizeof(write_locations[0]) * cfg->locals.len);
 
     for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
         for (CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++) {
-            if (ins->destvar)
-                used[find_var_index(cfg, ins->destvar)] = true;
+            if (ins->destvar) {
+                used[find_var_index(cfg, ins->destvar)] |= WRITE;
+                write_locations[find_var_index(cfg, ins->destvar)] = ins->location;
+            }
             for (int i = 0; i < ins->noperands; i++)
-                used[find_var_index(cfg, ins->operands[i])] = true;
+                used[find_var_index(cfg, ins->operands[i])] |= READ;
+        }
+    }
+
+    for (int i = 0; i < cfg->locals.len; i++) {
+        if (
+            used[i] == WRITE
+            && cfg->locals.ptr[i]->name[0] != '\0'
+            && strcmp(cfg->locals.ptr[i]->name, "return") != 0
+        ) {
+            show_warning(write_locations[i], "variable '%s' is never used", cfg->locals.ptr[i]->name);
         }
     }
 
     for (int i = cfg->locals.len - 1; i>=0; i--) {
-        if (!used[i] && !cfg->locals.ptr[i]->is_argument) {
+        if (used[i] == 0 && !cfg->locals.ptr[i]->is_argument) {
             free(cfg->locals.ptr[i]);
             cfg->locals.ptr[i] = Pop(&cfg->locals);
         }
     }
 
     free(used);
+    free(write_locations);
 }
 
 static void warn_about_undefined_variables(CfGraph *cfg)
