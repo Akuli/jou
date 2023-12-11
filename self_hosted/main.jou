@@ -428,7 +428,8 @@ class Compiler:
 
         ret = system(command)
         if ret != 0:
-            fprintf(stderr, "%s: running the program failed\n", self->argv0)
+            # TODO: print something? The shell doesn't print stuff
+            #       like "Segmentation fault" on Windows afaik
             exit(1)
 
 
