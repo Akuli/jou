@@ -402,6 +402,10 @@ class AstToIR:
             index = self->do_expression(&ast->operands[1])
             return LLVMBuildGEP(self->builder, pointer, &index, 1, "indexing_ptr")
 
+        if ast->kind == AstExpressionKind::Dereference:
+            return self->do_expression(&ast->operands[0])
+
+        ast->print()
         printf("expression kind (taking address): %d\n", ast->kind)
         assert False
 
@@ -625,6 +629,9 @@ class AstToIR:
             result = self->do_and_or(&ast->operands[0], &ast->operands[1], True)
         elif ast->kind == AstExpressionKind::Or:
             result = self->do_and_or(&ast->operands[0], &ast->operands[1], False)
+
+        elif ast->kind == AstExpressionKind::Dereference:
+            result = LLVMBuildLoad(self->builder, self->do_expression(&ast->operands[0]), "ptr_deref")
 
         else:
             ast->print()
