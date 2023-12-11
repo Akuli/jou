@@ -300,13 +300,13 @@ This means that:
 
 The `???` is something irrelevant that I don't fully understand. It can be ignored.
 
-Unfortunately valgrind doesn't show see the name of the `.jou` file or any line numbers.
+Unfortunately valgrind doesn't show the name of the `.jou` file or any line numbers.
 This could be fixed in the Jou compiler.
 If you run into this and it annoys you, please create an issue on GitHub,
 or if someone has already created the issue, add a comment to it.
 
 
-## NULL pointers
+## NULL pointer errors
 
 Consider this program:
 
@@ -319,7 +319,7 @@ def main() -> int:
     return 0
 ```
 
-This crashes with a `Segmentation fault` error.
+This crashes with a segmentation fault.
 With `jou --valgrind filename.jou` I get:
 
 ```
@@ -341,7 +341,7 @@ Segmentation fault
 ```
 
 Here `Address 0x8` means that the memory we were reading is at address `0x8` in hexadecimal, which is 8.
-This is because `NULL` means address 0, so
+This is because `NULL` means address 0 and `int` is 4 bytes, so
 - `*p` or `p[0]` would access memory addresses 0, 1, 2 and 3
 - `p[1]` would access memory addresses 4, 5, 6, 7
 - `p[2]` would access memory addresses 8 (failed here), 9, 10 and 11.
