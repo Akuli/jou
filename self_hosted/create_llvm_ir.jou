@@ -342,6 +342,7 @@ class AstToIR:
         ]
 
         LLVMBuildCall2(self->builder, assert_fail_func_type, assert_fail_func, args, 3, "")
+        LLVMBuildUnreachable(self->builder)
         LLVMPositionBuilderAtEnd(self->builder, true_block)
 
     def do_incr_decr(self, value_expression: AstExpression*, diff: int) -> LLVMValue*[2]:
@@ -629,6 +630,11 @@ class AstToIR:
             result = self->do_and_or(&ast->operands[0], &ast->operands[1], True)
         elif ast->kind == AstExpressionKind::Or:
             result = self->do_and_or(&ast->operands[0], &ast->operands[1], False)
+        elif ast->kind == AstExpressionKind::Not:
+            # compile "not x" as "x == False"
+            value = self->do_expression(&ast->operands[0])
+            false = LLVMConstInt(LLVMInt1Type(), 0, False as int)
+            result = LLVMBuildICmp(self->builder, LLVMIntPredicate::EQ, value, false, "not")
 
         elif ast->kind == AstExpressionKind::Dereference:
             result = LLVMBuildLoad(self->builder, self->do_expression(&ast->operands[0]), "ptr_deref")
