@@ -1132,7 +1132,8 @@ class Stage3TypeChecker:
                     fail(expression->location, message)
                 result = check_class_field(expression->location, lhs_type, expression->class_field.field_name)->type
         elif expression->kind == AstExpressionKind::AddressOf:
-            result = self->do_expression(expression->operands)->original_type->get_pointer_type()
+            ensure_can_take_address(&expression->operands[0], "the '&' operator cannot be used with %s")
+            result = self->do_expression(&expression->operands[0])->original_type->get_pointer_type()
         elif expression->kind == AstExpressionKind::Dereference:
             pointer_type = self->do_expression(expression->operands)->original_type
             if pointer_type->kind != TypeKind::Pointer:
