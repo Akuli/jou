@@ -595,7 +595,10 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
         return "an indexed value"
     elif expr->kind == AstExpressionKind::Self:
         return "self"
+    elif expr->kind == AstExpressionKind::Array:
+        return "an array literal"
     else:
+        expr->print()
         printf("*** %d\n", expr->kind)
         assert False
 
