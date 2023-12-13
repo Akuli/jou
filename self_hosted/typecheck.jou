@@ -1216,7 +1216,12 @@ class Stage3TypeChecker:
         assert target_types->implicit_cast_type == NULL
 
     def do_statement(self, statement: AstStatement*) -> None:
-        if statement->kind == AstStatementKind::ExpressionStatement:
+        if statement->kind == AstStatementKind::Assert:
+            self->do_expression_and_implicit_cast(
+                &statement->expression, &bool_type, "assertion must be a boolean, not <from>"
+            )
+
+        elif statement->kind == AstStatementKind::ExpressionStatement:
             self->do_expression_maybe_void(&statement->expression)
 
         elif statement->kind == AstStatementKind::Return:
@@ -1351,6 +1356,7 @@ class Stage3TypeChecker:
             self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Modulo, "modulo")
 
         else:
+            statement->print()
             printf("*** typecheck: unknown statement kind %d\n", statement->kind)
             assert False
 
