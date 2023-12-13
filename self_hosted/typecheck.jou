@@ -353,6 +353,8 @@ def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
     if ast_type->kind == AstTypeKind::Array:
         member_type = type_from_ast(ft, ast_type->array.member_type)
         length = evaluate_array_length(ast_type->array.length)
+        if length <= 0:
+            fail(ast_type->array.length->location, "array length must be positive")
         return member_type->get_array_type(length)
 
     ast_type->print(True)
