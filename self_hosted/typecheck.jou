@@ -101,6 +101,18 @@ class ExportSymbol:
         signature: Signature    # ExportSymbolKind::Function
         type: Type*             # ExportSymbolKind::Type, ExportSymbolKind::GlobalVariable
 
+    def print(self) -> None:
+        if self->kind == ExportSymbolKind::Function:
+            s = self->signature.to_string(True, True)
+            printf("ExportSymbol: function %s\n", s)
+            free(s)
+        elif self->kind == ExportSymbolKind::Type:
+            printf("ExportSymbol: type %s as \"%s\"\n", self->type->name, self->name)
+        elif self->kind == ExportSymbolKind::GlobalVariable:
+            printf("ExportSymbol: variable %s: %s\n", self->name, self->type->name)
+        else:
+            assert False
+
 class ExpressionTypes:
     expression: AstExpression*
     original_type: Type*
@@ -216,11 +228,17 @@ class FileTypes:
     nglobals: int
 
     def add_imported_symbol(self, symbol: ExportSymbol*) -> None:
-        if symbol->kind != ExportSymbolKind::Function:
-            # TODO
-            return
-        self->all_functions = realloc(self->all_functions, sizeof self->all_functions[0] * (self->n_all_functions + 1))
-        self->all_functions[self->n_all_functions++] = symbol->signature.copy()
+        if symbol->kind == ExportSymbolKind::Type:
+            self->types = realloc(self->types, (self->ntypes + 1) * sizeof(self->types[0]))
+            self->types[self->ntypes++] = symbol->type
+        elif symbol->kind == ExportSymbolKind::Function:
+            self->all_functions = realloc(self->all_functions, sizeof self->all_functions[0] * (self->n_all_functions + 1))
+            self->all_functions[self->n_all_functions++] = symbol->signature.copy()
+        elif symbol->kind == ExportSymbolKind::GlobalVariable:
+            pass  # TODO
+        else:
+            symbol->print()
+            assert False
 
     def find_function(self, name: byte*) -> Signature*:
         for i = 0; i < self->n_all_functions; i++:
