@@ -30,7 +30,7 @@ def main() -> int:
         grid = read_grid_from_file(f)
         h = find_h_reflection(&grid)
         grid.transpose()
-        v = find_v_reflection(&grid)
+        v = find_h_reflection(&grid)
         free(grid.data)
 
         assert h == -1 or v == -1  # does not have both
