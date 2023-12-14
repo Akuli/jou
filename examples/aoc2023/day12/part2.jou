@@ -1,0 +1,166 @@
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+class State:
+    questional_string: byte[200]
+    numbers: int*  # -1 terminated, not owned
+    repeat_count: long  # how many equal states does this object represent, not enough mem without this
+
+    def print(self) -> None:
+        printf("State{qs=\"%s\", nums=[", self->questional_string)
+        for i = 0; self->numbers[i] != -1; i++:
+            if i > 0:
+                printf(",")
+            printf("%d", self->numbers[i])
+        printf("], repeat=%lld}\n", self->repeat_count)
+        fflush(stdout)
+
+    def simplify(self) -> None:
+        s = &self->questional_string[0]
+        nums = self->numbers
+
+        while s[0] == '.':
+            s++
+
+        while True:
+            n1 = strspn(s, "#")
+            n2 = strspn(s, "#?")
+            if n1 == n2 and n1 == nums[0]:
+                # Skip number and hashtag
+                nums++
+                s = &s[n1]
+                while s[0] == '.':
+                    s++
+            else:
+                break
+
+        memcpy(&self->questional_string, s, strlen(s) + 1)
+        self->numbers = nums
+
+    def equals(self, other: State*) -> bool:
+        return (
+            self->numbers == other->numbers
+            and strcmp(self->questional_string, other->questional_string) == 0
+        )
+
+    # Returns whether a string can be filled according to consecutive_counts
+    # "##.#?.#", [3, 2, 1]  -->  True
+    #
+    # Does not detect some impossible cases until remaining question marks are substituted.
+    def is_possible(self) -> bool:
+        if self->questional_string[0] == '\0':
+            # ran out of string
+            # return false, if we still have numbers
+            return self->numbers[0] == -1
+
+        if self->numbers[0] == -1:
+            # ran out of numbers
+            # return false, if we still must put '#' in string
+            return strstr(self->questional_string, "#") == NULL
+
+        # This state is impossible if:
+        #   * it starts with a section of hashtags
+        #   * there is wrong number of hashtags
+        #   * there are no question marks after hashtags
+        #
+        # There are other cases we could say this state is impossible, but we don't have to.
+        n1 = strspn(self->questional_string, "#")
+        n2 = strspn(self->questional_string, "#?")
+        if n1 == n2 and n1 > 0 and self->numbers[0] != n1:
+            return False
+        return True
+
+    # Substitutes first question mark with '#' and '.'
+    def substitute_both_ways(self) -> State[2]:
+        assert strchr(self->questional_string, '?') != NULL
+        result = [*self, *self]
+        *strchr(result[0].questional_string, '?') = '#'
+        *strchr(result[1].questional_string, '?') = '.'
+        return result
+
+
+def split_ints_by_commas(s: byte*) -> int[200]:
+    assert strlen(s) < 200
+    result: int[200]
+    p = &result[0]
+
+    while True:
+        *p++ = atoi(s)
+        s = strchr(s, ',')
+        if s == NULL:
+            *p = -1
+            return result
+        s++
+
+
+def repeat_5x(s: byte*, sep: byte) -> None:
+    n = strlen(s)
+    strcpy(&s[n+1], s)
+    strcpy(&s[2*(n+1)], s)
+    strcpy(&s[3*(n+1)], s)
+    strcpy(&s[4*(n+1)], s)
+    s[n] = sep
+    s[2*n+1] = sep
+    s[3*n+2] = sep
+    s[4*n+3] = sep
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    questional_string: byte[200]
+    number_string: byte[200]
+
+    result = 0L
+
+    while fscanf(f, "%39s %39s\n", questional_string, number_string) == 2:
+        repeat_5x(questional_string, '?')
+        repeat_5x(number_string, ',')
+
+        numbers = split_ints_by_commas(number_string)
+
+        n_question_marks = 0
+        for i = 0; questional_string[i] != '\0'; i++:
+            if questional_string[i] == '?':
+                n_question_marks++
+
+        states: State* = malloc(sizeof(states[0]))
+        states[0] = State{questional_string=questional_string, numbers=numbers, repeat_count=1}
+        nstates = 1
+
+        while n_question_marks --> 0:
+            states = realloc(states, sizeof(states[0]) * (2*nstates))
+            assert states != NULL
+
+            for i = nstates-1; i >= 0; i--:
+                both_ways = states[i].substitute_both_ways()
+                states[2*i] = both_ways[0]
+                states[2*i+1] = both_ways[1]
+            nstates *= 2
+
+            # Simplify states to merge as much as possible
+            for i = 0; i < nstates; i++:
+                states[i].simplify()
+
+            # Merge duplicate states
+            for i = 0; i < nstates; i++:
+                for k = nstates-1; k > i; k--:
+                    if states[i].equals(&states[k]):
+                        states[i].repeat_count += states[k].repeat_count
+                        states[k] = states[--nstates]
+
+            # Delete impossible states
+            for i = nstates-1; i >= 0; i--:
+                if not states[i].is_possible():
+                    states[i] = states[--nstates]
+
+        for i = 0; i < nstates; i++:
+            result += states[i].repeat_count
+        free(states)
+
+    fclose(f)
+    printf("%lld\n", result)  # Output: 525152
+    return 0

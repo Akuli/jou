@@ -1,0 +1,46 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "../grid.jou"
+
+
+def find_h_reflection(g: Grid*) -> int:
+    for reflect = 1; reflect < g->width; reflect++:
+        left = reflect-1
+        right = reflect
+        matches = True
+        while left >= 0 and right < g->width and matches:
+            for y = 0; y < g->height; y++:
+                if g->get([left, y]) != g->get([right, y]):
+                    matches = False
+                    break
+            left--
+            right++
+        if matches:
+            return reflect
+    return -1
+
+
+def main() -> int:
+    result = 0
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    while feof(f) == 0:
+        grid = read_grid_from_file(f)
+        h = find_h_reflection(&grid)
+        grid.transpose()
+        v = find_h_reflection(&grid)
+        free(grid.data)
+
+        assert h == -1 or v == -1  # does not have both
+        if h != -1:
+            result += h
+        elif v != -1:
+            result += 100*v
+        else:
+            assert False
+
+    fclose(f)
+    printf("%d\n", result)  # Output: 405
+    return 0
