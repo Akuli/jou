@@ -132,7 +132,7 @@ class AstToIR:
         for i = 0; i < self->n_local_vars; i++:
             if strcmp(self->local_vars[i].name, name) == 0:
                 return self->local_vars[i].pointer
-        assert False
+        return NULL
 
     def declare_function(self, sig: Signature*) -> LLVMValue*:
         full_name: byte[200]
@@ -365,7 +365,13 @@ class AstToIR:
 
     def do_address_of_expression(self, ast: AstExpression*) -> LLVMValue*:
         if ast->kind == AstExpressionKind::GetVariable:
-            return self->get_local_var_pointer(ast->varname)
+            local_var = self->get_local_var_pointer(ast->varname)
+            if local_var != NULL:
+                return local_var
+
+            global_var = LLVMGetNamedGlobal(self->module, ast->varname)
+            assert global_var != NULL
+            return global_var
 
         if ast->kind == AstExpressionKind::GetClassField:
             lhs_type = self->function_or_method_types->get_expression_types(ast->class_field.instance)->original_type
@@ -625,6 +631,7 @@ class AstToIR:
 
         elif ast->kind == AstExpressionKind::Self:
             self_ptr = self->get_local_var_pointer("self")
+            assert self_ptr != NULL
             result = LLVMBuildLoad(self->builder, self_ptr, "self")
 
         elif ast->kind == AstExpressionKind::And:
@@ -746,6 +753,7 @@ class AstToIR:
         elif ast->kind == AstStatementKind::DeclareLocalVar:
             if ast->var_declaration.value != NULL:
                 target_pointer = self->get_local_var_pointer(ast->var_declaration.name)
+                assert target_pointer != NULL
                 value = self->do_expression(ast->var_declaration.value)
                 LLVMBuildStore(self->builder, value, target_pointer)
         elif ast->kind == AstStatementKind::If:
@@ -820,10 +828,26 @@ class AstToIR:
         self->function_or_method_types = NULL
 
 
+# This distinguishes defined global variables from:
+#   - imported global variables
+#   - declared global variables
+def file_defines_global_var(ast: AstFile*, name: byte*) -> bool:
+    for s = ast->body.statements; s < &ast->body.statements[ast->body.nstatements]; s++:
+        if s->kind == AstStatementKind::GlobalVariableDefinition and strcmp(s->var_declaration.name, name) == 0:
+            return True
+    return False
+
+
 def create_llvm_ir(ast: AstFile*, ft: FileTypes*) -> LLVMModule*:
     module = LLVMModuleCreateWithName(ast->path)
     LLVMSetTarget(module, target.triple)
     LLVMSetDataLayout(module, target.data_layout)
+
+    for v = ft->globals; v < &ft->globals[ft->nglobals]; v++:
+        t = type_to_llvm(v->type)
+        globalptr = LLVMAddGlobal(module, t, v->name)
+        if file_defines_global_var(ast, v->name):
+            LLVMSetInitializer(globalptr, LLVMConstNull(t))
 
     a2i = AstToIR{
         module = module,
@@ -831,16 +855,19 @@ def create_llvm_ir(ast: AstFile*, ft: FileTypes*) -> LLVMModule*:
         file_types = ft
     }
 
-    for i = 0; i < ast->body.nstatements; i++:
-        if ast->body.statements[i].kind == AstStatementKind::Function and ast->body.statements[i].function.body.nstatements > 0:
-            a2i.define_function_or_method(&ast->body.statements[i].function, NULL)
-        elif ast->body.statements[i].kind == AstStatementKind::Class:
-            classdef = &ast->body.statements[i].classdef
+    for s = ast->body.statements; s < &ast->body.statements[ast->body.nstatements]; s++:
+        if s->kind == AstStatementKind::Function and s->function.body.nstatements > 0:
+            a2i.define_function_or_method(&s->function, NULL)
+        elif s->kind == AstStatementKind::Class:
+            classdef = &s->classdef
             class_type = ft->find_type(classdef->name)
             assert class_type != NULL
             for k = 0; k < classdef->nmembers; k++:
                 if classdef->members[k].kind == AstClassMemberKind::Method:
                     a2i.define_function_or_method(&classdef->members[k].method, class_type)
+        else:
+            # TODO: need to handle some others?
+            pass
 
     LLVMDisposeBuilder(a2i.builder)
     return module

@@ -810,7 +810,9 @@ class Stage3TypeChecker:
         local_var = self->current_function_or_method->find_local_var(name)
         if local_var != NULL:
             return local_var->type
-        # TODO: check global vars (they don't exist yet)
+        for i = 0; i < self->file_types->nglobals; i++:
+            if strcmp(self->file_types->globals[i].name, name) == 0:
+                return self->file_types->globals[i].type
         return NULL
 
     def find_function_or_method(self, self_type: Type*, name: byte*) -> Signature*:
