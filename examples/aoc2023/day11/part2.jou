@@ -16,31 +16,14 @@ def find_blank_lines(grid: Grid*) -> int*:
     return result
 
 
-# returned array is terminated by -1
-def get_hashtag_y_coords(grid: Grid*) -> int*:
-    points = grid->find_all('#')
-
-    n = 0
-    while points[n][0] != -1 and points[n][1] != -1:
-        n++
-
-    result: int* = malloc(sizeof(result[0]) * (n+1))
-    for i = 0; i < n; i++:
-        result[i] = points[i][1]
-
-    free(points)
-    result[n] = -1
-    return result
-
-
 def sum_vertical_distances(grid: Grid*) -> long:
-    hashtag_y_coords = get_hashtag_y_coords(grid)
+    hashtags = grid->find_all('#')
     blank_lines = find_blank_lines(grid)
 
     result = 0L
-    for end = hashtag_y_coords; *end != -1; end++:
-        for start = hashtag_y_coords; start < end; start++:
-            for y = *start; y < *end; y++:
+    for end = hashtags; (*end)[0] != -1 and (*end)[1] != -1; end++:
+        for start = hashtags; start < end; start++:
+            for y = (*start)[1]; y < (*end)[1]; y++:
                 y_is_blank = False
                 for p = blank_lines; *p != -1; p++:
                     if *p == y:
@@ -53,7 +36,7 @@ def sum_vertical_distances(grid: Grid*) -> long:
                 else:
                     result += 1
 
-    free(hashtag_y_coords)
+    free(hashtags)
     free(blank_lines)
     return result
 
