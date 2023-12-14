@@ -756,13 +756,17 @@ static const Type *typecheck_indexing(
     }
     assert(ptrtype->kind == TYPE_POINTER);
 
-    const Type *indextype = typecheck_expression_not_void(ft, indexexpr)->type;
-    if (!is_integer_type(indextype)) {
+    ExpressionTypes *indextypes = typecheck_expression_not_void(ft, indexexpr);
+    if (!is_integer_type(indextypes->type)) {
         fail_with_error(
             indexexpr->location,
             "the index inside [...] must be an integer, not %s",
-            indextype->name);
+            indextypes->type->name);
     }
+
+    // LLVM assumes that indexes smaller than 64 bits are signed.
+    // https://github.com/Akuli/jou/issues/48
+    do_implicit_cast(indextypes, longType, (Location){0}, NULL);
 
     return ptrtype->data.valuetype;
 }
