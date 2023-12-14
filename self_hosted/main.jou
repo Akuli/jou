@@ -175,6 +175,9 @@ class Compiler:
         if WINDOWS:
             self->automagic_files[1] = malloc(strlen(self->stdlib_path) + 40)
             sprintf(self->automagic_files[1], "%s/_windows_startup.jou", self->stdlib_path)
+        if MACOS:
+            self->automagic_files[1] = malloc(strlen(self->stdlib_path) + 40)
+            sprintf(self->automagic_files[1], "%s/_macos_startup.jou", self->stdlib_path)
 
     def parse_all_files(self) -> None:
         queue: ParseQueueItem* = malloc(50 * sizeof queue[0])
