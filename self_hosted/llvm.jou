@@ -198,6 +198,7 @@ declare LLVMDisposeModule(M: LLVMModule*) -> None
 declare LLVMGetSourceFileName(M: LLVMModule*, Len: long*) -> byte*  # Return value not owned
 declare LLVMSetDataLayout(M: LLVMModule*, DataLayoutStr: byte*) -> None
 declare LLVMSetTarget(M: LLVMModule*, Triple: byte*) -> None
+declare LLVMDumpType(Val: LLVMType*) -> None
 declare LLVMDumpModule(M: LLVMModule*) -> None
 declare LLVMPrintModuleToString(M: LLVMModule*) -> byte*
 declare LLVMAddFunction(M: LLVMModule*, Name: byte*, FunctionTy: LLVMType*) -> LLVMValue*
@@ -212,6 +213,7 @@ declare LLVMIntType(NumBits: int) -> LLVMType*
 declare LLVMGetReturnType(FunctionTy: LLVMType*) -> LLVMType*
 declare LLVMGetParam(Fn: LLVMValue*, Index: int) -> LLVMValue*
 declare LLVMGetElementType(Ty: LLVMType*) -> LLVMType*
+declare LLVMStructGetTypeAtIndex(StructTy: LLVMType*, i: int) -> LLVMType*
 declare LLVMTypeOf(Val: LLVMValue*) -> LLVMType*
 declare LLVMConstNull(Ty: LLVMType*) -> LLVMValue*
 declare LLVMGetUndef(Ty: LLVMType*) -> LLVMValue*
