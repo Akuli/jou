@@ -69,7 +69,8 @@ def read_grid_from_file(f: FILE*) -> Grid:
     line: byte[5000]
     max_size = 10000000  # 10 MB
 
-    result = Grid{data = malloc(sizeof(line) * sizeof(line))}
+    result = Grid{data = malloc(max_size)}
+    result.data[0] = '\0'
 
     while fgets(line, sizeof(line) as int, f) != NULL:
         trim_ascii_whitespace(line)
