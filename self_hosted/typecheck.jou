@@ -1163,8 +1163,12 @@ class Stage3TypeChecker:
             class_type = self->current_function_or_method->signature.get_containing_class()
             assert class_type != NULL
             result = class_type->get_pointer_type()
+        elif expression->kind == AstExpressionKind::SizeOf:
+            self->do_expression(&expression->operands[0])
+            result = long_type
         else:
             printf("*** expr %d\n", expression->kind as int)
+            expression->print()
             assert False
 
         p: ExpressionTypes* = malloc(sizeof *p)

@@ -640,6 +640,11 @@ class AstToIR:
         elif ast->kind == AstExpressionKind::Dereference:
             result = LLVMBuildLoad(self->builder, self->do_expression(&ast->operands[0]), "ptr_deref")
 
+        elif ast->kind == AstExpressionKind::SizeOf:
+            types = self->function_or_method_types->get_expression_types(&ast->operands[0])
+            assert types != NULL
+            result = LLVMSizeOf(type_to_llvm(types->get_type_after_implicit_cast()))
+
         else:
             ast->print()
             printf("create_llvm_ir: unknown expression kind %d...\n", ast->kind)
