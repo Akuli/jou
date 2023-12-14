@@ -1026,10 +1026,16 @@ class Stage3TypeChecker:
             snprintf(message, sizeof message[0], "value of type %s cannot be indexed", types->original_type->name)
             fail(pointer->location, message)
 
-        index_type = self->do_expression(index)->original_type
-        if not index_type->is_integer_type():
-            snprintf(message, sizeof message[0], "the index inside [...] must be an integer, not %s", index_type->name)
+        index_types = self->do_expression(index)
+        assert index_types != NULL
+
+        if not index_types->original_type->is_integer_type():
+            snprintf(message, sizeof message[0], "the index inside [...] must be an integer, not %s", index_types->original_type->name)
             fail(index->location, message)
+
+        # LLVM assumes that indexes smaller than 64 bits are signed.
+        # https://github.com/Akuli/jou/issues/48
+        index_types->do_implicit_cast(long_type, Location{}, NULL)
 
         return pointer_type->value_type
 
