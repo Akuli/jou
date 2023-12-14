@@ -39,4 +39,5 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: brew install bash diffutils llvm@13
-      - run: ./compare_compilers.sh
+      - run: ./compare_compilers.sh --fix
+      - run: git diff --exit-code
