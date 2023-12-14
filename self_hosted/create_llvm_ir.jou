@@ -786,6 +786,18 @@ class AstToIR:
         for i = 0; i < body->nstatements; i++:
             self->do_statement(&body->statements[i])
 
+    def call_the_special_startup_function(self) -> None:
+        if WINDOWS:
+            name = "_jou_windows_startup"
+        elif MACOS:
+            name = "_jou_macos_startup"
+        else:
+            return
+
+        functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, False as int)
+        func = LLVMAddFunction(self->module, name, functype)
+        LLVMBuildCall2(self->builder, functype, func, NULL, 0, "")
+
     def define_function_or_method(self, funcdef: AstFunctionOrMethod*, self_type: Type*) -> None:
         assert self->function_or_method_types == NULL
         self->function_or_method_types = self->file_types->find_defined_function_or_method(funcdef->signature.name, self_type)
@@ -795,6 +807,9 @@ class AstToIR:
         sig = &self->function_or_method_types->signature
         self->llvm_function = self->declare_function(sig)
         self->new_block("start")
+
+        if (WINDOWS or MACOS) and strcmp(sig->name, "main") == 0 and not sig->is_method():
+            self->call_the_special_startup_function()
 
         # Allocate all local variables at the start of the function.
         assert self->n_local_vars == 0
