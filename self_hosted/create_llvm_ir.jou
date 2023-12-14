@@ -328,7 +328,15 @@ class AstToIR:
             if op == AstExpressionKind::Eq:
                 return LLVMBuildICmp(self->builder, LLVMIntPredicate::EQ, lhs_int, rhs_int, "ptreq")
             if op == AstExpressionKind::Ne:
-                return LLVMBuildICmp(self->builder, LLVMIntPredicate::NE, lhs_int, rhs_int, "ptreq")
+                return LLVMBuildICmp(self->builder, LLVMIntPredicate::NE, lhs_int, rhs_int, "ptrne")
+            if op == AstExpressionKind::Gt:
+                return LLVMBuildICmp(self->builder, LLVMIntPredicate::UGT, lhs_int, rhs_int, "ptrgt")
+            if op == AstExpressionKind::Ge:
+                return LLVMBuildICmp(self->builder, LLVMIntPredicate::UGE, lhs_int, rhs_int, "ptrge")
+            if op == AstExpressionKind::Lt:
+                return LLVMBuildICmp(self->builder, LLVMIntPredicate::ULT, lhs_int, rhs_int, "ptrlt")
+            if op == AstExpressionKind::Le:
+                return LLVMBuildICmp(self->builder, LLVMIntPredicate::ULE, lhs_int, rhs_int, "ptrle")
             assert False
 
         printf("%s %d %s\n", lhs_type->name, op, rhs_type->name)
@@ -374,6 +382,21 @@ class AstToIR:
 
         LLVMBuildStore(self->builder, new_value, pointer)
         return [old_value, new_value]
+
+    # LLVM always interprets indexes as signed numbers.
+    # For example, "200 as byte" would get interpreted as -56.
+    # This function fixes that.
+    # https://github.com/Akuli/jou/issues/48
+    def index_to_llvm(self, ast: AstExpression*) -> LLVMValue*:
+        types = self->function_or_method_types->get_expression_types(ast)
+        assert types != NULL
+        type = types->get_type_after_implicit_cast()
+
+        result = self->do_expression(ast)
+        if type->kind == TypeKind::UnsignedInteger:
+            return LLVMBuildZExt(self->builder, result, LLVMInt64Type(), "ptr_indexing_implicit_cast")
+        else:
+            return result
 
     def do_address_of_expression(self, ast: AstExpression*) -> LLVMValue*:
         if ast->kind == AstExpressionKind::GetVariable:
@@ -421,7 +444,7 @@ class AstToIR:
         if ast->kind == AstExpressionKind::Indexing:
             # &pointer[index] = pointer + some offset
             pointer = self->do_expression(&ast->operands[0])
-            index = self->do_expression(&ast->operands[1])
+            index = self->index_to_llvm(&ast->operands[1])
             return LLVMBuildGEP(self->builder, pointer, &index, 1, "indexing_ptr")
 
         if ast->kind == AstExpressionKind::Dereference:

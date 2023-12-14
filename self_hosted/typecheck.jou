@@ -699,7 +699,16 @@ def check_binop(
 
     if (
         (not got_numbers and not got_enums and not got_pointers)
-        or (op != AstExpressionKind::Eq and op != AstExpressionKind::Ne and not got_numbers)
+        or (got_enums and op != AstExpressionKind::Eq and op != AstExpressionKind::Ne)
+        or (
+            got_pointers
+            and op != AstExpressionKind::Eq
+            and op != AstExpressionKind::Ne
+            and op != AstExpressionKind::Gt
+            and op != AstExpressionKind::Ge
+            and op != AstExpressionKind::Lt
+            and op != AstExpressionKind::Le
+        )
     ):
         message: byte[500]
         snprintf(
