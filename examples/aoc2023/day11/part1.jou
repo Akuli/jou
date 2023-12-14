@@ -27,16 +27,10 @@ def manhattan_distance(a: int[2], b: int[2]) -> int:
 
 
 def main() -> int:
-    max_len = 100000
-    grid = Grid{data = calloc(1, max_len+1)}
-
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
-    fread(grid.data, 1, max_len, f)
+    grid = read_grid_from_file(f)
     fclose(f)
-
-    grid.width = strcspn(grid.data, "\n") as int
-    grid.height = (strlen(grid.data) as int) / (grid.width + 1)
 
     duplicate_blank_lines(&grid)
     grid.transpose()
