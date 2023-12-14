@@ -28,7 +28,8 @@ for arg in "$@"; do
 done
 
 if [ ${#files[@]} = 0 ]; then
-    files=( $(find stdlib examples tests -name '*.jou' | grep -v tests/crash | sort) )
+    # skip compiler_cli, because it has a race condition when two compilers simultaneously run it
+    files=( $(find stdlib examples tests -name '*.jou' | grep -v tests/should_succeed/compiler_cli | grep -v tests/crash | sort) )
 fi
 if [ ${#actions[@]} = 0 ]; then
     actions=(tokenize parse run)
