@@ -42,6 +42,7 @@ def can_cast_implicitly(from: Type*, to: Type*) -> bool:
         or (from->is_pointer_type() and to->is_pointer_type() and (from == &void_ptr_type or to == &void_ptr_type))
     )
 
+
 def can_cast_explicitly(from: Type*, to: Type*) -> bool:
     return (
         from == to
@@ -52,6 +53,7 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
         or (from->kind == TypeKind::Enum and to->is_integer_type())
         or (from == &bool_type and to->is_integer_type())
     )
+
 
 # Implicit casts are used in many places, e.g. function arguments.
 #
@@ -114,6 +116,7 @@ class ExportSymbol:
             printf("ExportSymbol: variable %s: %s\n", self->name, self->type->name)
         else:
             assert False
+
 
 class ExpressionTypes:
     expression: AstExpression*
@@ -237,7 +240,8 @@ class FileTypes:
             self->all_functions = realloc(self->all_functions, sizeof self->all_functions[0] * (self->n_all_functions + 1))
             self->all_functions[self->n_all_functions++] = symbol->signature.copy()
         elif symbol->kind == ExportSymbolKind::GlobalVariable:
-            pass  # TODO
+            self->globals = realloc(self->globals, sizeof(self->globals[0]) * (self->nglobals + 1))
+            self->globals[self->nglobals++] = GlobalVariable{name = symbol->name, type = symbol->type}
         else:
             symbol->print()
             assert False
