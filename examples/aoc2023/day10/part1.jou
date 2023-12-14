@@ -44,10 +44,7 @@ def main() -> int:
     grid = read_grid_from_file(f)
     fclose(f)
 
-    S_list = grid.find_all('S')
-    point = S_list[0]
-    free(S_list)
-    assert point[0] != -1 and point[1] != -1
+    point = grid.find_first('S')
 
     # take first step away from S
     dir = find_initial_direction(&grid, point)

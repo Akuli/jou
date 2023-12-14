@@ -62,6 +62,13 @@ class Grid:
         result[result_len] = [-1, -1]
         return result
 
+    def find_first(self, b: byte) -> int[2]:
+        for y = 0; y < self->height; y++:
+            for x = 0; x < self->width; x++:
+                if self->get([x, y]) == b:
+                    return [x, y]
+        assert False
+
 
 # Reading stops on end of file or newline, so you can call this repeatedly
 # to read multiple blank-line separated grids.
