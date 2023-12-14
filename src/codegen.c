@@ -78,8 +78,8 @@ static LLVMTypeRef codegen_type(const Type *type)
 
             LLVMTypeRef *flat_elems = malloc(sizeof(flat_elems[0]) * n);  // NOLINT
             for (int i = 0; i < n; i++) {
-                // Treat all pointers inside structs as if they were void*.
-                // This allows structs to contain pointers to themselves.
+                // Treat all pointers inside classes as if they were void*.
+                // This allows classes to contain pointers to themselves.
                 if (type->data.classdata.fields.ptr[i].type->kind == TYPE_POINTER)
                     flat_elems[i] = codegen_type(voidPtrType);
                 else
@@ -323,7 +323,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
 
                 LLVMValueRef val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), f->union_id, ins->data.fieldname);
                 // This cast is needed in two cases:
-                //  * All pointers are i8* in structs so we can do self-referencing classes.
+                //  * All pointers are i8* in classes so we can do self-referencing classes.
                 //  * This is how unions work.
                 val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(f->type),0), "struct_member_cast");
                 setdest(val);

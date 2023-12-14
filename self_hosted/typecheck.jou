@@ -419,6 +419,7 @@ def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> None:
                 name = member->field.name,
                 type = type_from_ast(ft, &member->field.type),
                 union_id = union_id++,
+                belongs_to_union = False,
             }
         elif member->kind == AstClassMemberKind::Union:
             uid = union_id++
@@ -428,6 +429,7 @@ def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> None:
                     name = member->union_fields.fields[k].name,
                     type = type_from_ast(ft, &member->union_fields.fields[k].type),
                     union_id = uid,
+                    belongs_to_union = True,
                 }
         elif member->kind == AstClassMemberKind::Method:
             # Don't handle the method body yet: that is a part of stage 3, not stage 2
