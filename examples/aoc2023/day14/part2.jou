@@ -1,0 +1,147 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "stdlib/ascii.jou"
+import "stdlib/math.jou"
+
+
+class Grid:
+    width: int
+    height: int
+    data: byte*
+
+    def is_in_bounds(self, point: int[2]) -> bool:
+        x = point[0]
+        y = point[1]
+        return 0 <= x and x < self->width and 0 <= y and y < self->height
+
+    def get(self, point: int[2]) -> byte:
+        assert self->is_in_bounds(point)
+        x = point[0]
+        y = point[1]
+        return self->data[(self->width + 1)*y + x]
+
+    def set(self, point: int[2], value: byte) -> None:
+        assert self->is_in_bounds(point)
+        x = point[0]
+        y = point[1]
+        self->data[(self->width + 1)*y + x] = value
+
+    def swap(self, a: int[2], b: int[2]) -> None:
+        old_a = self->get(a)
+        self->set(a, self->get(b))
+        self->set(b, old_a)
+
+    def copy(self) -> Grid:
+        return Grid{width = self->width, height = self->height, data = strdup(self->data)}
+
+
+def can_roll(grid: Grid*, rock: int[2], dir: int[2], n: int) -> bool:
+    new_rock_pos = [rock[0] + n*dir[0], rock[1] + n*dir[1]]
+    return (
+        grid->get(rock) == 'O'
+        and grid->is_in_bounds(new_rock_pos)
+        and grid->get(new_rock_pos) == '.'
+    )
+
+
+def roll_one_round_rock(grid: Grid*, rock: int[2], dir: int[2]) -> None:
+    if can_roll(grid, rock, dir, 1):
+        n = 1
+        while can_roll(grid, rock, dir, n+1):
+            n++
+        grid->swap(rock, [rock[0] + n*dir[0], rock[1] + n*dir[1]])
+
+
+def roll(grid: Grid*, dir: int[2]) -> None:
+    assert (dir[0] == 0 and abs(dir[1]) == 1) or (dir[1] == 0 and abs(dir[0]) == 1)
+
+    # Traverse grid opposite to the given direction, so that rocks won't block each other's rolling.
+    x_backwards = (dir[0] == 1)
+    y_backwards = (dir[1] == 1)
+
+    if x_backwards:
+        x0 = grid->width - 1
+        dx = -1
+    else:
+        x0 = 0
+        dx = 1
+
+    if y_backwards:
+        y0 = grid->height - 1
+        dy = -1
+    else:
+        y0 = 0
+        dy = 1
+
+    for y = y0; 0 <= y and y < grid->height; y += dy:
+        for x = x0; 0 <= x and x < grid->width; x += dx:
+            roll_one_round_rock(grid, [x, y], dir)
+
+
+def calculate_load(g: Grid*) -> int:
+    result = 0
+    for y = 0; y < g->height; y++:
+        load_per_O = g->height - y
+        for x = 0; x < g->width; x++:
+            if g->get([x, y]) == 'O':
+                result += load_per_O
+    return result
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    line: byte[200]
+    max_size = 100000
+
+    grid = Grid{data = malloc(max_size)}
+    grid.data[0] = '\0'
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        if grid.height == 0:  # set width on first round
+            grid.width = strlen(line) as int
+        assert grid.width == strlen(line)
+        grid.height++
+
+        assert grid.width * grid.height < max_size
+        strcat(grid.data, line)
+        strcat(grid.data, "\n")
+
+    fclose(f)
+
+    previous_states: Grid* = NULL
+    n = 0
+
+    # Eventually the states will repeat in a cyclic way.
+    cycle_start = -1
+    cycle_length = -1
+    while cycle_start == -1 and cycle_length == -1:
+        previous_states = realloc(previous_states, sizeof(previous_states[0]) * (n+1))
+        previous_states[n++] = grid
+
+        grid = grid.copy()
+        roll(&grid, [0, -1])
+        roll(&grid, [-1, 0])
+        roll(&grid, [0, 1])
+        roll(&grid, [1, 0])
+
+        for i = 0; i < n; i++:
+            if strcmp(previous_states[i].data, grid.data) == 0:
+                # State i and state n are the same.
+                # We haven't added state n to the list, but we don't have to.
+                cycle_start = i
+                cycle_length = n-i
+                break
+
+    i = cycle_start + ((1000000000 - cycle_start) % cycle_length)
+    printf("%d\n", calculate_load(&previous_states[i]))  # Output: 64
+
+    free(grid.data)
+    for i = 0; i < n; i++:
+        free(previous_states[i].data)
+    free(previous_states)
+
+    return 0
