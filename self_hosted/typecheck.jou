@@ -37,6 +37,8 @@ def can_cast_implicitly(from: Type*, to: Type*) -> bool:
             and from->size_in_bits < to->size_in_bits
             and not (from->kind == TypeKind::SignedInteger and to->kind == TypeKind::UnsignedInteger)
         )
+        or (from == &float_type and to == &double_type)
+        or (from->is_integer_type() and to->kind == TypeKind::FloatingPoint)
         or (from->is_pointer_type() and to->is_pointer_type() and (from == &void_ptr_type or to == &void_ptr_type))
     )
 
