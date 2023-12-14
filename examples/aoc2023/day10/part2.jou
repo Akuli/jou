@@ -2,32 +2,7 @@ import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/math.jou"
-
-
-class Input:
-    width: int
-    height: int
-    data: byte*
-
-    def is_in_bounds(self, point: int[2]) -> bool:
-        x = point[0]
-        y = point[1]
-        return 0 <= x and x < self->width and 0 <= y and y < self->height
-
-    def get(self, point: int[2]) -> byte:
-        assert self->is_in_bounds(point)
-        x = point[0]
-        y = point[1]
-        return self->data[(self->width + 1)*y + x]
-
-
-def find_S(input: Input*) -> int[2]:
-    for x = 0; x < input->width; x++:
-        for y = 0; y < input->height; y++:
-            if input->get([x, y]) == 'S':
-                return [x, y]
-
-    assert False
+import "../grid.jou"
 
 
 def get_dirs(c: byte) -> int[2][2]:
@@ -51,14 +26,14 @@ def eq(a: int[2], b: int[2]) -> bool:
     return a[0] == b[0] and a[1] == b[1]
 
 
-def find_initial_direction(input: Input*, S: int[2]) -> int[2]:
+def find_initial_direction(grid: Grid*, S: int[2]) -> int[2]:
     directions = [[0,1], [0,-1], [1,0], [-1,0]]
     for d = &directions[0]; d < &directions[4]; d++:
         S_to_neighbor = *d
         neighbor = [S[0] + S_to_neighbor[0], S[1] + S_to_neighbor[1]]
 
-        if input->is_in_bounds(neighbor) and input->get(neighbor) != '.':
-            dirs = get_dirs(input->get(neighbor))
+        if grid->is_in_bounds(neighbor) and grid->get(neighbor) != '.':
+            dirs = get_dirs(grid->get(neighbor))
             if eq(dirs[0], S_to_neighbor) or eq(dirs[1], S_to_neighbor):
                 return S_to_neighbor
 
@@ -108,30 +83,33 @@ def polygon_area(corners: int[2]*, ncorners: int) -> int:
 
 def main() -> int:
     max_len = 100000
-    input = Input{data = calloc(1, max_len+1)}
+    grid = Grid{data = calloc(1, max_len+1)}
 
     f = fopen("sampleinput2.txt", "r")
     assert f != NULL
-    fread(input.data, 1, max_len, f)
+    fread(grid.data, 1, max_len, f)
     fclose(f)
 
-    input.width = strcspn(input.data, "\n") as int
-    input.height = (strlen(input.data) as int) / (input.width + 1)
+    grid.width = strcspn(grid.data, "\n") as int
+    grid.height = (strlen(grid.data) as int) / (grid.width + 1)
 
-    point = find_S(&input)
+    S_list = grid.find_all('S')
+    point = S_list[0]
+    free(S_list)
+    assert point[0] != -1 and point[1] != -1
 
-    loop: int[2]* = malloc(input.width * input.height * sizeof(loop[0]))
+    loop: int[2]* = malloc(grid.width * grid.height * sizeof(loop[0]))
     loop[0] = point
 
     # take first step away from S
-    dir = find_initial_direction(&input, point)
+    dir = find_initial_direction(&grid, point)
     point[0] += dir[0]
     point[1] += dir[1]
     loop_length = 1
 
-    while input.get(point) != 'S':
+    while grid.get(point) != 'S':
         came_from = [-dir[0], -dir[1]]
-        dirs = get_dirs(input.get(point))
+        dirs = get_dirs(grid.get(point))
         assert eq(came_from, dirs[0]) or eq(came_from, dirs[1])
         if eq(came_from, dirs[0]):
             dir = dirs[1]
@@ -161,6 +139,6 @@ def main() -> int:
     # towards the inside.
     printf("%d\n", area_along_middle_of_path + 1 - loop_length/2)  # Output: 4
 
-    free(input.data)
+    free(grid.data)
     free(loop)
     return 0

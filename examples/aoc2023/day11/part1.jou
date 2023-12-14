@@ -2,54 +2,24 @@ import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/math.jou"
+import "../grid.jou"
 
 
-class Input:
-    width: int
-    height: int
-    data: byte*
+def duplicate_blank_lines(grid: Grid*) -> None:
+    grid->data = realloc(grid->data, 2*strlen(grid->data) + 1)
+    assert grid->data != NULL
 
-    def duplicate_blank_lines(self) -> None:
-        self->data = realloc(self->data, 2*strlen(self->data) + 1)
-        assert self->data != NULL
-
-        y = 0
-        while y < self->height:
-            if strspn(&self->data[(self->width + 1)*y], ".") == self->width:
-                # duplicate row
-                blank_start = &self->data[(self->width + 1)*y]
-                next_start = &self->data[(self->width + 1)*(y+1)]
-                memmove(next_start, blank_start, strlen(blank_start) + 1)
-                y += 2
-                self->height++
-            else:
-                y++
-
-    def transpose(self) -> None:
-        old_content = strdup(self->data)
-        old_width = self->width
-        old_height = self->height
-        self->width = old_height
-        self->height = old_width
-
-        memset(self->data, '\n', strlen(self->data))
-        for x = 0; x < self->width; x++:
-            for y = 0; y < self->height; y++:
-                self->data[(self->width + 1)*y + x] = old_content[(old_width + 1)*x + y]
-
-        free(old_content)
-
-    # array is terminated by [-1, -1]
-    def get_hashtag_coords(self) -> int[2]*:
-        result: int[2]* = malloc(sizeof(result[0]) * (self->width * self->height + 1))
-        result_len = 0
-        for y = 0; y < self->height; y++:
-            for x = 0; x < self->width; x++:
-                if self->data[(self->width + 1)*y + x] == '#':
-                    result[result_len++] = [x, y]
-
-        result[result_len] = [-1, -1]
-        return result
+    y = 0
+    while y < grid->height:
+        if strspn(&grid->data[(grid->width + 1)*y], ".") == grid->width:
+            # duplicate row
+            blank_start = &grid->data[(grid->width + 1)*y]
+            next_start = &grid->data[(grid->width + 1)*(y+1)]
+            memmove(next_start, blank_start, strlen(blank_start) + 1)
+            y += 2
+            grid->height++
+        else:
+            y++
 
 
 def manhattan_distance(a: int[2], b: int[2]) -> int:
@@ -58,22 +28,22 @@ def manhattan_distance(a: int[2], b: int[2]) -> int:
 
 def main() -> int:
     max_len = 100000
-    input = Input{data = calloc(1, max_len+1)}
+    grid = Grid{data = calloc(1, max_len+1)}
 
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
-    fread(input.data, 1, max_len, f)
+    fread(grid.data, 1, max_len, f)
     fclose(f)
 
-    input.width = strcspn(input.data, "\n") as int
-    input.height = (strlen(input.data) as int) / (input.width + 1)
+    grid.width = strcspn(grid.data, "\n") as int
+    grid.height = (strlen(grid.data) as int) / (grid.width + 1)
 
-    input.duplicate_blank_lines()
-    input.transpose()
-    input.duplicate_blank_lines()
-    input.transpose()
+    duplicate_blank_lines(&grid)
+    grid.transpose()
+    duplicate_blank_lines(&grid)
+    grid.transpose()
 
-    coords = input.get_hashtag_coords()
+    coords = grid.find_all('#')
 
     sum = 0
     for i = 0; coords[i][0] != -1; i++:
@@ -81,6 +51,6 @@ def main() -> int:
             sum += manhattan_distance(coords[i], coords[k])
     printf("%d\n", sum)  # Output: 374
 
-    free(input.data)
+    free(grid.data)
     free(coords)
     return 0

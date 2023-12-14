@@ -2,23 +2,7 @@ import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/ascii.jou"
-
-
-class Grid:
-    width: int
-    height: int
-    data: byte*
-
-    def is_in_bounds(self, point: int[2]) -> bool:
-        x = point[0]
-        y = point[1]
-        return 0 <= x and x < self->width and 0 <= y and y < self->height
-
-    def get(self, point: int[2]) -> byte:
-        assert self->is_in_bounds(point)
-        x = point[0]
-        y = point[1]
-        return self->data[(self->width + 1)*y + x]
+import "../grid.jou"
 
 
 def find_h_reflection(g: Grid*, mismatch_count: int) -> int:
