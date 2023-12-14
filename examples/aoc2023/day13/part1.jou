@@ -20,23 +20,6 @@ def find_h_reflection(g: Grid*) -> int:
     return -1
 
 
-def find_v_reflection(g: Grid*) -> int:
-    for reflect = 1; reflect < g->height; reflect++:
-        top = reflect-1
-        bottom = reflect
-        matches = True
-        while top >= 0 and bottom < g->height and matches:
-            for x = 0; x < g->width; x++:
-                if g->get([x, top]) != g->get([x, bottom]):
-                    matches = False
-                    break
-            top--
-            bottom++
-        if matches:
-            return reflect
-    return -1
-
-
 def main() -> int:
     result = 0
 
@@ -46,7 +29,10 @@ def main() -> int:
     while feof(f) == 0:
         grid = read_grid_from_file(f)
         h = find_h_reflection(&grid)
+        grid.transpose()
         v = find_v_reflection(&grid)
+        free(grid.data)
+
         assert h == -1 or v == -1  # does not have both
         if h != -1:
             result += h
@@ -54,7 +40,6 @@ def main() -> int:
             result += 100*v
         else:
             assert False
-        free(grid.data)
 
     fclose(f)
     printf("%d\n", result)  # Output: 405
