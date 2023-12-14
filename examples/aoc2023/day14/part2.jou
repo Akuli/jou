@@ -1,7 +1,6 @@
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
-import "stdlib/ascii.jou"
 import "stdlib/math.jou"
 import "../grid.jou"
 
@@ -62,24 +61,7 @@ def calculate_load(g: Grid*) -> int:
 def main() -> int:
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
-
-    line: byte[200]
-    max_size = 100000
-
-    grid = Grid{data = malloc(max_size)}
-    grid.data[0] = '\0'
-
-    while fgets(line, sizeof(line) as int, f) != NULL:
-        trim_ascii_whitespace(line)
-        if grid.height == 0:  # set width on first round
-            grid.width = strlen(line) as int
-        assert grid.width == strlen(line)
-        grid.height++
-
-        assert grid.width * grid.height < max_size
-        strcat(grid.data, line)
-        strcat(grid.data, "\n")
-
+    grid = read_grid_from_file(f)
     fclose(f)
 
     previous_states: Grid* = NULL

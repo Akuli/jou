@@ -1,8 +1,10 @@
 # This file contains a utility class for AoC solutions.
 # It is not in the standard library because it is too AOC-specific IMO.
 
+import "stdlib/ascii.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/io.jou"
 
 
 class Grid:
@@ -59,3 +61,31 @@ class Grid:
         result = realloc(result, sizeof(result[0]) * (result_len + 1))
         result[result_len] = [-1, -1]
         return result
+
+
+# Reading stops on end of file or newline, so you can call this repeatedly
+# to read multiple blank-line separated grids.
+def read_grid_from_file(f: FILE*) -> Grid:
+    line: byte[5000]
+    max_size = 10000000  # 10 MB
+
+    result = Grid{data = malloc(sizeof(line) * sizeof(line))}
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        if line[0] == '\0':
+            break
+
+        if result.height == 0:  # set width on first round
+            result.width = strlen(line) as int
+        assert result.width == strlen(line)
+        result.height++
+
+        assert result.width * result.height < max_size
+        strcat(result.data, line)
+        strcat(result.data, "\n")
+
+    assert result.width != 0 and result.height != 0
+    assert strlen(result.data) == (result.width + 1)*result.height
+    result.data = realloc(result.data, strlen(result.data) + 1)
+    return result

@@ -1,6 +1,5 @@
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
-import "stdlib/str.jou"
 import "../grid.jou"
 
 
@@ -40,16 +39,10 @@ def find_initial_direction(grid: Grid*, S: int[2]) -> int[2]:
 
 
 def main() -> int:
-    max_len = 100000
-    grid = Grid{data = calloc(1, max_len+1)}
-
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
-    fread(grid.data, 1, max_len, f)
+    grid = read_grid_from_file(f)
     fclose(f)
-
-    grid.width = strcspn(grid.data, "\n") as int
-    grid.height = (strlen(grid.data) as int) / (grid.width + 1)
 
     S_list = grid.find_all('S')
     point = S_list[0]
