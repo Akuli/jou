@@ -1,59 +1,29 @@
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
+import "../grid.jou"
 
 
-class Input:
-    width: int
-    height: int
-    data: byte*
+# returned array is terminated by -1
+def find_blank_lines(grid: Grid*) -> int*:
+    result: int* = malloc(sizeof(result[0]) * (grid->height + 1))
+    result_len = 0
 
-    # returned array is terminated by -1
-    def find_blank_lines(self) -> int*:
-        result: int* = malloc(sizeof(result[0]) * (self->height + 1))
-        result_len = 0
-
-        for y = 0; y < self->height; y++:
-            if strspn(&self->data[(self->width + 1)*y], ".") == self->width:
-                result[result_len++] = y
-        result[result_len] = -1
-        return result
-
-    def transpose(self) -> None:
-        old_content = strdup(self->data)
-        old_width = self->width
-        old_height = self->height
-        self->width = old_height
-        self->height = old_width
-
-        memset(self->data, '\n', strlen(self->data))
-        for x = 0; x < self->width; x++:
-            for y = 0; y < self->height; y++:
-                self->data[(self->width + 1)*y + x] = old_content[(old_width + 1)*x + y]
-
-        free(old_content)
-
-    # returned array is terminated by -1
-    def get_hashtag_y_coords(self) -> int*:
-        result: int* = malloc(sizeof(result[0]) * (self->width * self->height + 1))
-        result_len = 0
-        for y = 0; y < self->height; y++:
-            for x = 0; x < self->width; x++:
-                if self->data[(self->width + 1)*y + x] == '#':
-                    result[result_len++] = y
-
-        result[result_len] = -1
-        return result
+    for y = 0; y < grid->height; y++:
+        if strspn(&grid->data[(grid->width + 1)*y], ".") == grid->width:
+            result[result_len++] = y
+    result[result_len] = -1
+    return result
 
 
-def sum_vertical_distances(input: Input*) -> long:
-    hashtag_y_coords = input->get_hashtag_y_coords()
-    blank_lines = input->find_blank_lines()
+def sum_vertical_distances(grid: Grid*) -> long:
+    hashtags = grid->find_all('#')
+    blank_lines = find_blank_lines(grid)
 
     result = 0L
-    for end = hashtag_y_coords; *end != -1; end++:
-        for start = hashtag_y_coords; start < end; start++:
-            for y = *start; y < *end; y++:
+    for end = hashtags; (*end)[0] != -1 and (*end)[1] != -1; end++:
+        for start = hashtags; start < end; start++:
+            for y = (*start)[1]; y < (*end)[1]; y++:
                 y_is_blank = False
                 for p = blank_lines; *p != -1; p++:
                     if *p == y:
@@ -66,27 +36,21 @@ def sum_vertical_distances(input: Input*) -> long:
                 else:
                     result += 1
 
-    free(hashtag_y_coords)
+    free(hashtags)
     free(blank_lines)
     return result
 
 
 def main() -> int:
-    max_len = 100000
-    input = Input{data = calloc(1, max_len+1)}
-
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
-    fread(input.data, 1, max_len, f)
+    grid = read_grid_from_file(f)
     fclose(f)
 
-    input.width = strcspn(input.data, "\n") as int
-    input.height = (strlen(input.data) as int) / (input.width + 1)
-
-    result = sum_vertical_distances(&input)
-    input.transpose()
-    result += sum_vertical_distances(&input)
+    result = sum_vertical_distances(&grid)
+    grid.transpose()
+    result += sum_vertical_distances(&grid)
     printf("%lld\n", result)  # Output: 8410
 
-    free(input.data)
+    free(grid.data)
     return 0

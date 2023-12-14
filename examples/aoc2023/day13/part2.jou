@@ -1,24 +1,6 @@
 import "stdlib/io.jou"
-import "stdlib/str.jou"
 import "stdlib/mem.jou"
-import "stdlib/ascii.jou"
-
-
-class Grid:
-    width: int
-    height: int
-    data: byte*
-
-    def is_in_bounds(self, point: int[2]) -> bool:
-        x = point[0]
-        y = point[1]
-        return 0 <= x and x < self->width and 0 <= y and y < self->height
-
-    def get(self, point: int[2]) -> byte:
-        assert self->is_in_bounds(point)
-        x = point[0]
-        y = point[1]
-        return self->data[(self->width + 1)*y + x]
+import "../grid.jou"
 
 
 def find_h_reflection(g: Grid*, mismatch_count: int) -> int:
@@ -40,60 +22,19 @@ def find_h_reflection(g: Grid*, mismatch_count: int) -> int:
     return -1
 
 
-def find_v_reflection(g: Grid*, mismatch_count: int) -> int:
-    for reflect = 1; reflect < g->height; reflect++:
-        top = reflect-1
-        bottom = reflect
-        n = 0
-
-        while top >= 0 and bottom < g->height:
-            for x = 0; x < g->width; x++:
-                if g->get([x, top]) != g->get([x, bottom]):
-                    n++
-            top--
-            bottom++
-
-        if n == mismatch_count:
-            return reflect
-
-    return -1
-
-
 def main() -> int:
+    result = 0
+
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
-    line: byte[200]
-    max_size = 10000
-
-    grid = Grid{data = malloc(max_size)}
-    result = 0
-
-    while True:
-        grid.width = 0
-        grid.height = 0
-        grid.data[0] = '\0'
-
-        while fgets(line, sizeof(line) as int, f) != NULL:
-            trim_ascii_whitespace(line)
-            if line[0] == '\0':
-                break
-
-            if grid.height == 0:  # set width on first round
-                grid.width = strlen(line) as int
-            assert grid.width == strlen(line)
-            grid.height++
-
-            assert grid.width * grid.height < max_size
-            strcat(grid.data, line)
-            strcat(grid.data, "\n")
-
-        if grid.height == 0:
-            # end of input
-            break
-
+    while feof(f) == 0:
+        grid = read_grid_from_file(f)
         h = find_h_reflection(&grid, 1)
-        v = find_v_reflection(&grid, 1)
+        grid.transpose()
+        v = find_h_reflection(&grid, 1)
+        free(grid.data)
+
         assert h == -1 or v == -1  # does not have both
         if h != -1:
             result += h
@@ -102,7 +43,6 @@ def main() -> int:
         else:
             assert False
 
-    free(grid.data)
     fclose(f)
     printf("%d\n", result)  # Output: 400
     return 0
