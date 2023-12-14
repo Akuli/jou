@@ -722,47 +722,9 @@ static void build_if_statement(struct State *st, const AstIfStatement *ifstmt)
     add_jump(st, NULL, done, done, done);
 }
 
-// TODO: this function is just bad...
-static char *read_assertion_from_file(Location start, Location end)
-{
-    assert(start.filename == end.filename);
-    FILE *f = fopen(start.filename, "rb");
-    assert(f);
-
-    char line[1024];
-    int lineno = 1;
-    while (lineno < start.lineno) {
-        fgets(line, sizeof line, f);
-        lineno++;
-    }
-
-    List(char) str = {0};
-    while (lineno <= end.lineno) {
-        memset(line, 0, sizeof line);
-        fgets(line, sizeof line, f);
-        lineno++;
-
-        if (strstr(line, "#"))
-            *strstr(line, "#") = '\0';
-        trim_whitespace(line);
-        // Add spaces between the lines, but not after '(' or before ')'
-        if (line[0] != ')' && str.len >= 1 && str.ptr[str.len-1] != '(')
-            AppendStr(&str, " ");
-        AppendStr(&str, line);
-    }
-
-    fclose(f);
-    Append(&str, '\0');
-
-    if(!strncmp(str.ptr, "assert",6))
-        memmove(str.ptr, &str.ptr[6], strlen(&str.ptr[6]) + 1);
-    trim_whitespace(str.ptr);
-    return str.ptr;
-}
-
 static void build_assert(struct State *st, Location assert_location, const AstAssert *assertion)
 {
-    const LocalVariable *condvar = build_expression(st, &assertion->expression);
+    const LocalVariable *condvar = build_expression(st, &assertion->condition);
 
     // If the condition is true, we jump to a block where the rest of the code goes.
     // If the condition is false, we jump to a block that calls _jou_assert_fail().
@@ -785,10 +747,8 @@ static void build_assert(struct State *st, Location assert_location, const AstAs
         args[i] = add_local_var(st, argtypes[i]);
     args[3] = NULL;
 
-    char *tmp = read_assertion_from_file(assertion->expression_start, assertion->expression_end);
-    add_constant(st, assert_location, ((Constant){CONSTANT_STRING,{.str=tmp}}), args[0]);
-    free(tmp);
-    tmp = strdup(assertion->expression_start.filename);
+    add_constant(st, assert_location, ((Constant){CONSTANT_STRING,{.str=assertion->condition_str}}), args[0]);
+    char *tmp = strdup(assertion->condition.location.filename);
     add_constant(st, assert_location, ((Constant){CONSTANT_STRING,{.str=tmp}}), args[1]);
     free(tmp);
     add_constant(st, assert_location, int_constant(intType, assert_location.lineno), args[2]);

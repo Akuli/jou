@@ -401,6 +401,10 @@ class AstInstantiation:
         free(self->field_names)
         free(self->field_values)
 
+class AstAssertion:
+    condition: AstExpression
+    condition_str: byte*
+
 enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
     Assert
@@ -439,6 +443,7 @@ class AstStatement:
         function: AstFunctionOrMethod
         classdef: AstClassDef
         enumdef: AstEnumDef
+        assertion: AstAssertion
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -449,8 +454,8 @@ class AstStatement:
             printf("expression statement\n")
             self->expression.print_with_tree_printer(tp.print_prefix(True))
         elif self->kind == AstStatementKind::Assert:
-            printf("assert\n")
-            self->expression.print_with_tree_printer(tp.print_prefix(True))
+            printf("assert \"%s\"\n", self->assertion.condition_str)
+            self->assertion.condition.print_with_tree_printer(tp.print_prefix(True))
         elif self->kind == AstStatementKind::Pass:
             printf("pass\n")
         elif self->kind == AstStatementKind::Return:
