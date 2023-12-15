@@ -417,6 +417,8 @@ class AstToIR:
             )
 
             if field_uses_i8_ptr_hack(field) or field->belongs_to_union:
+                puts("Bitcast!!!!!!")
+                fflush(stdout)
                 field_pointer = LLVMBuildBitCast(
                     self->builder,
                     field_pointer,
