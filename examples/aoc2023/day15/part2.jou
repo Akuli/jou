@@ -1,0 +1,88 @@
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+class Lens:
+    label: byte[50]
+    value: int
+
+
+class Box:
+    lenses: Lens[100]
+    nlenses: int
+
+    def set(self, label: byte*, value: int) -> None:
+        for i = 0; i < self->nlenses; i++:
+            if strcmp(self->lenses[i].label, label) == 0:
+                self->lenses[i].value = value
+                return
+
+        lens = Lens{value=value}
+        assert strlen(label) < sizeof(lens.label)
+        strcpy(lens.label, label)
+
+        assert self->nlenses < sizeof(self->lenses)/sizeof(self->lenses[0])
+        self->lenses[self->nlenses++] = lens
+
+    def remove_by_label(self, label: byte*) -> None:
+        for i = 0; i < self->nlenses; i++:
+            if strcmp(self->lenses[i].label, label) == 0:
+                memmove(&self->lenses[i], &self->lenses[i+1], (--self->nlenses - i) * sizeof(self->lenses[0]))
+                break
+
+
+def hash(s: byte*) -> byte:
+    result = 0 as byte
+    for p = s; *p != '\0'; p++:
+        result += *p
+        result *= 17 as byte
+    return result
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    huge = 100000
+    s: byte* = malloc(huge)
+    assert s != NULL
+    assert fgets(s, huge, f) != NULL
+    fclose(f)
+
+    for p = s; *p != '\0'; p++:
+        if *p == ',':
+            *p = ' '
+    commands = split_by_ascii_whitespace(s)
+
+    boxes: Box[256]* = malloc(sizeof(*boxes))
+    assert boxes != NULL
+    memset(boxes, 0, sizeof(*boxes))
+
+    for commandptr = commands; *commandptr != NULL; commandptr++:
+        command = *commandptr
+
+        if ends_with(command, "-"):
+            command[strlen(command)-1] = '\0'
+            box = &(*boxes)[hash(command)]
+            box->remove_by_label(command)
+        else:
+            eq = strchr(command, '=')
+            assert eq != NULL
+            *eq = '\0'
+            box = &(*boxes)[hash(command)]
+            box->set(command, atoi(&eq[1]))
+
+    free(commands)
+    free(s)
+
+    result = 0
+    for box_num = 0; box_num < 256; box_num++:
+        box = &(*boxes)[box_num]
+        for slot_num = 0; slot_num < box->nlenses; slot_num++:
+            result += (box_num + 1) * (slot_num + 1) * box->lenses[slot_num].value
+
+    printf("%d\n", result)  # Output: 145
+    free(boxes)
+    return 0
