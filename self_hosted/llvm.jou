@@ -215,6 +215,7 @@ declare LLVMGetParam(Fn: LLVMValue*, Index: int) -> LLVMValue*
 declare LLVMGetElementType(Ty: LLVMType*) -> LLVMType*
 declare LLVMStructGetTypeAtIndex(StructTy: LLVMType*, i: int) -> LLVMType*
 declare LLVMTypeOf(Val: LLVMValue*) -> LLVMType*
+declare LLVMAlignOf(Ty: LLVMType*) -> LLVMValue*
 declare LLVMConstNull(Ty: LLVMType*) -> LLVMValue*
 declare LLVMGetUndef(Ty: LLVMType*) -> LLVMValue*
 declare LLVMConstInt(IntTy: LLVMType*, N: long, SignExtend: int) -> LLVMValue*
@@ -252,8 +253,10 @@ declare LLVMBuildXor(Builder: LLVMBuilder*, LHS: LLVMValue*, RHS: LLVMValue*, Na
 declare LLVMBuildNeg(Builder: LLVMBuilder*, V: LLVMValue*, Name: byte*) -> LLVMValue*
 declare LLVMBuildFNeg(Builder: LLVMBuilder*, V: LLVMValue*, Name: byte*) -> LLVMValue*
 declare LLVMBuildMemSet(Builder: LLVMBuilder*, Ptr: LLVMValue*, Val: LLVMValue*, Len: LLVMValue*, Align: int) -> LLVMValue*
+declare LLVMBuildMemCpy(Builder: LLVMBuilder*, Dst: LLVMValue*, DstAlign: int, Src: LLVMValue*, SrcAlign: int, Size: LLVMValue*) -> LLVMValue*
 declare LLVMBuildAlloca(Builder: LLVMBuilder*, Ty: LLVMType*, Name: byte*) -> LLVMValue*
 declare LLVMBuildLoad(Builder: LLVMBuilder*, PointerVal: LLVMValue*, Name: byte*) -> LLVMValue*
+declare LLVMBuildLoad2(Builder: LLVMBuilder*, Ty: LLVMType*, PointerVal: LLVMValue*, Name: byte*) -> LLVMValue*
 declare LLVMBuildStore(Builder: LLVMBuilder*, Val: LLVMValue*, Ptr: LLVMValue*) -> LLVMValue*
 declare LLVMBuildGEP(Builder: LLVMBuilder*, Pointer: LLVMValue*, Indices: LLVMValue**, NumIndices: int, Name: byte*) -> LLVMValue*
 declare LLVMBuildStructGEP2(Builder: LLVMBuilder*, Ty: LLVMType*, Pointer: LLVMValue*, Idx: int, Name: byte*) -> LLVMValue*
