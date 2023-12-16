@@ -243,8 +243,6 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
     else
         sig.returntype = type_from_ast(ft, &astsig->returntype);
 
-    // TODO: validate main() parameters
-    // TODO: test main() taking parameters
     if (!self_type && !strcmp(sig.name, "main") && sig.returntype != intType) {
         fail_with_error(astsig->returntype.location, "the main() function must return int");
     }
