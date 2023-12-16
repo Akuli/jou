@@ -1,0 +1,129 @@
+import "stdlib/math.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "../grid.jou"
+
+
+# Returns same direction twice, if there is only one direction where to go
+def get_new_directions(old_dir: int[2], character: byte) -> int[2][2]:
+    dx = old_dir[0]
+    dy = old_dir[1]
+
+    assert (abs(dx) == 1 and dy == 0) or (abs(dy) == 1 and dx == 0)
+
+    if character == '.' or (character == '|' and dx == 0) or (character == '-' and dy == 0):
+        return [old_dir, old_dir]
+
+    # Reflect across line y=x: from high school math, we know this swaps x and y coordinates
+    if character == '\\':
+        return [[dy, dx], [dy, dx]]
+
+    # Reflect across line y=-x: can swap x and y, and then rotate 180deg.
+    # This is because rotating the mirror 90deg rotates light 180deg.
+    if character == '/':
+        return [[-dy, -dx], [-dy, -dx]]
+
+    # split
+    if character == '|' and dy == 0:
+        return [[0, -1], [0, 1]]
+    if character == '-' and dx == 0:
+        return [[-1, 0], [1, 0]]
+
+    assert False
+
+
+class LightBeam:
+    location: int[2]
+    direction: int[2]
+
+
+def direction_to_int(d: int[2]) -> int:
+    if d[0] == 0 and d[1] == -1:
+        return 0
+    if d[0] == 0 and d[1] == 1:
+        return 1
+    if d[0] == -1 and d[1] == 0:
+        return 2
+    if d[0] == 1 and d[1] == 0:
+        return 3
+    assert False
+
+
+def run_beam(grid: Grid*, start_beam: LightBeam) -> int:
+    assert grid->width < 200
+    assert grid->height < 200
+
+    # How visited array works:
+    # (*visited)[x][y][direction_to_int(dir)] = True, if there was beam at (x,y) going in direction.
+    visited: bool[4][200][200]* = calloc(1, sizeof(*visited))
+    assert visited != NULL
+
+    todo: LightBeam* = malloc(sizeof(todo[0]))
+    todo[0] = start_beam
+    todo_len = 1
+    todo_alloc = 1
+
+    while todo_len > 0:
+        # Make sure there is room for another beam
+        if todo_alloc == todo_len:
+            todo_alloc *= 2
+            todo = realloc(todo, sizeof(todo[0]) * todo_alloc)
+            assert todo != NULL
+
+        beam = todo[--todo_len]
+        x = beam.location[0]
+        y = beam.location[1]
+        ptr = &(*visited)[x][y][direction_to_int(beam.direction)]
+        if *ptr:
+            # we have already handled this beam --> prevent getting stuck in loop
+            continue
+        *ptr = True
+
+        next_dirs = get_new_directions(beam.direction, grid->get([x, y]))
+        for i = 0; i < 2; i++:
+            dir = next_dirs[i]
+            location = [beam.location[0] + dir[0], beam.location[1] + dir[1]]
+            if grid->is_in_bounds(location):
+                todo[todo_len++] = LightBeam{location = location, direction = dir}
+
+    free(todo)
+
+    n = 0
+    for x = 0; x < 200; x++:
+        for y = 0; y < 200; y++:
+            for i = 0; i < 4; i++:
+                if (*visited)[x][y][i]:
+                    n++
+                    break
+
+    free(visited)
+    return n
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    best = 0
+
+    for x = 0; x < grid.width; x++:
+        n = run_beam(&grid, LightBeam{location = [x, 0], direction = [0, 1]})
+        if n > best:
+            best = n
+        n = run_beam(&grid, LightBeam{location = [x, grid.height - 1], direction = [0, -1]})
+        if n > best:
+            best = n
+
+    for y = 0; y < grid.height; y++:
+        n = run_beam(&grid, LightBeam{location = [0, y], direction = [1, 0]})
+        if n > best:
+            best = n
+        n = run_beam(&grid, LightBeam{location = [grid.width - 1, y], direction = [-1, 0]})
+        if n > best:
+            best = n
+
+    printf("%d\n", best)  # Output: 51
+    free(grid.data)
+    return 0
