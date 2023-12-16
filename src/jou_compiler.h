@@ -274,8 +274,8 @@ struct AstAssignment {
     AstExpression value;
 };
 struct AstAssert {
-    AstExpression expression;
-    Location expression_start, expression_end;
+    AstExpression condition;
+    char *condition_str;
 };
 
 struct AstFunction {

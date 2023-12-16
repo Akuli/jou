@@ -1,4 +1,6 @@
+import "stdlib/ascii.jou"
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "./token.jou"
 import "./ast.jou"
@@ -148,6 +150,46 @@ def check_class_for_duplicate_names(classdef: AstClassDef*) -> None:
                     classdef->name, p1->kind, p1->name,
                 )
                 fail(p2->name_location, message)
+
+
+# TODO: this function is just bad...
+def read_assertion_from_file(start: Location, end: Location) -> byte*:
+    assert start.path == end.path
+
+    f = fopen(start.path, "rb")
+    assert f != NULL
+
+    line: byte[1024]
+    lineno = 1
+    while lineno < start.lineno:
+        assert fgets(line, sizeof(line) as int, f) != NULL
+        lineno++
+
+    result: byte* = malloc(2000 * (end.lineno - start.lineno + 1))
+    result[0] = '\0'
+
+    while lineno <= end.lineno:
+        assert fgets(line, sizeof(line) as int, f) != NULL
+        lineno++
+
+        # TODO: strings containing '#' ... so much wrong with dis
+        if strstr(line, "#") != NULL:
+            *strstr(line, "#") = '\0'
+        trim_ascii_whitespace(line)
+
+        # Add spaces between lines, but not after '(' or before ')'
+        if not starts_with(line, ")") and not ends_with(result, "("):
+            strcat(result, " ")
+        strcat(result, line)
+
+    fclose(f)
+
+    trim_ascii_whitespace(result)
+    if starts_with(result, "assert"):
+        memmove(result, &result[6], strlen(&result[6]) + 1)
+        trim_ascii_whitespace(result)
+
+    return result
 
 
 class Parser:
@@ -710,7 +752,10 @@ class Parser:
         elif self->tokens->is_keyword("assert"):
             self->tokens++
             result.kind = AstStatementKind::Assert
-            result.expression = self->parse_expression()
+            start = self->tokens->location
+            result.assertion.condition = self->parse_expression()
+            end = self->tokens->location
+            result.assertion.condition_str = read_assertion_from_file(start, end)
         elif self->tokens->is_keyword("pass"):
             self->tokens++
             result.kind = AstStatementKind::Pass

@@ -37,6 +37,8 @@ def can_cast_implicitly(from: Type*, to: Type*) -> bool:
             and from->size_in_bits < to->size_in_bits
             and not (from->kind == TypeKind::SignedInteger and to->kind == TypeKind::UnsignedInteger)
         )
+        or (from == &float_type and to == &double_type)
+        or (from->is_integer_type() and to->kind == TypeKind::FloatingPoint)
         or (from->is_pointer_type() and to->is_pointer_type() and (from == &void_ptr_type or to == &void_ptr_type))
     )
 
@@ -100,6 +102,18 @@ class ExportSymbol:
     union:
         signature: Signature    # ExportSymbolKind::Function
         type: Type*             # ExportSymbolKind::Type, ExportSymbolKind::GlobalVariable
+
+    def print(self) -> None:
+        if self->kind == ExportSymbolKind::Function:
+            s = self->signature.to_string(True, True)
+            printf("ExportSymbol: function %s\n", s)
+            free(s)
+        elif self->kind == ExportSymbolKind::Type:
+            printf("ExportSymbol: type %s as \"%s\"\n", self->type->name, self->name)
+        elif self->kind == ExportSymbolKind::GlobalVariable:
+            printf("ExportSymbol: variable %s: %s\n", self->name, self->type->name)
+        else:
+            assert False
 
 class ExpressionTypes:
     expression: AstExpression*
@@ -216,11 +230,17 @@ class FileTypes:
     nglobals: int
 
     def add_imported_symbol(self, symbol: ExportSymbol*) -> None:
-        if symbol->kind != ExportSymbolKind::Function:
-            # TODO
-            return
-        self->all_functions = realloc(self->all_functions, sizeof self->all_functions[0] * (self->n_all_functions + 1))
-        self->all_functions[self->n_all_functions++] = symbol->signature.copy()
+        if symbol->kind == ExportSymbolKind::Type:
+            self->types = realloc(self->types, (self->ntypes + 1) * sizeof(self->types[0]))
+            self->types[self->ntypes++] = symbol->type
+        elif symbol->kind == ExportSymbolKind::Function:
+            self->all_functions = realloc(self->all_functions, sizeof self->all_functions[0] * (self->n_all_functions + 1))
+            self->all_functions[self->n_all_functions++] = symbol->signature.copy()
+        elif symbol->kind == ExportSymbolKind::GlobalVariable:
+            pass  # TODO
+        else:
+            symbol->print()
+            assert False
 
     def find_function(self, name: byte*) -> Signature*:
         for i = 0; i < self->n_all_functions; i++:
@@ -335,6 +355,8 @@ def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
     if ast_type->kind == AstTypeKind::Array:
         member_type = type_from_ast(ft, ast_type->array.member_type)
         length = evaluate_array_length(ast_type->array.length)
+        if length <= 0:
+            fail(ast_type->array.length->location, "array length must be positive")
         return member_type->get_array_type(length)
 
     ast_type->print(True)
@@ -577,7 +599,10 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
         return "an indexed value"
     elif expr->kind == AstExpressionKind::Self:
         return "self"
+    elif expr->kind == AstExpressionKind::Array:
+        return "an array literal"
     else:
+        expr->print()
         printf("*** %d\n", expr->kind)
         assert False
 
@@ -787,7 +812,9 @@ class Stage3TypeChecker:
         local_var = self->current_function_or_method->find_local_var(name)
         if local_var != NULL:
             return local_var->type
-        # TODO: check global vars (they don't exist yet)
+        for i = 0; i < self->file_types->nglobals; i++:
+            if strcmp(self->file_types->globals[i].name, name) == 0:
+                return self->file_types->globals[i].type
         return NULL
 
     def find_function_or_method(self, self_type: Type*, name: byte*) -> Signature*:
@@ -1114,7 +1141,8 @@ class Stage3TypeChecker:
                     fail(expression->location, message)
                 result = check_class_field(expression->location, lhs_type, expression->class_field.field_name)->type
         elif expression->kind == AstExpressionKind::AddressOf:
-            result = self->do_expression(expression->operands)->original_type->get_pointer_type()
+            ensure_can_take_address(&expression->operands[0], "the '&' operator cannot be used with %s")
+            result = self->do_expression(&expression->operands[0])->original_type->get_pointer_type()
         elif expression->kind == AstExpressionKind::Dereference:
             pointer_type = self->do_expression(expression->operands)->original_type
             if pointer_type->kind != TypeKind::Pointer:
@@ -1139,8 +1167,12 @@ class Stage3TypeChecker:
             class_type = self->current_function_or_method->signature.get_containing_class()
             assert class_type != NULL
             result = class_type->get_pointer_type()
+        elif expression->kind == AstExpressionKind::SizeOf:
+            self->do_expression(&expression->operands[0])
+            result = long_type
         else:
             printf("*** expr %d\n", expression->kind as int)
+            expression->print()
             assert False
 
         p: ExpressionTypes* = malloc(sizeof *p)
@@ -1197,7 +1229,12 @@ class Stage3TypeChecker:
         assert target_types->implicit_cast_type == NULL
 
     def do_statement(self, statement: AstStatement*) -> None:
-        if statement->kind == AstStatementKind::ExpressionStatement:
+        if statement->kind == AstStatementKind::Assert:
+            self->do_expression_and_implicit_cast(
+                &statement->expression, &bool_type, "assertion must be a boolean, not <from>"
+            )
+
+        elif statement->kind == AstStatementKind::ExpressionStatement:
             self->do_expression_maybe_void(&statement->expression)
 
         elif statement->kind == AstStatementKind::Return:
@@ -1332,6 +1369,7 @@ class Stage3TypeChecker:
             self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Modulo, "modulo")
 
         else:
+            statement->print()
             printf("*** typecheck: unknown statement kind %d\n", statement->kind)
             assert False
 
