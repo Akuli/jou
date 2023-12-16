@@ -1,0 +1,48 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "../grid.jou"
+
+
+def find_h_reflection(g: Grid*, mismatch_count: int) -> int:
+    for reflect = 1; reflect < g->width; reflect++:
+        left = reflect-1
+        right = reflect
+        n = 0
+
+        while left >= 0 and right < g->width:
+            for y = 0; y < g->height; y++:
+                if g->get([left, y]) != g->get([right, y]):
+                    n++
+            left--
+            right++
+
+        if n == mismatch_count:
+            return reflect
+
+    return -1
+
+
+def main() -> int:
+    result = 0
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    while feof(f) == 0:
+        grid = read_grid_from_file(f)
+        h = find_h_reflection(&grid, 1)
+        grid.transpose()
+        v = find_h_reflection(&grid, 1)
+        free(grid.data)
+
+        assert h == -1 or v == -1  # does not have both
+        if h != -1:
+            result += h
+        elif v != -1:
+            result += 100*v
+        else:
+            assert False
+
+    fclose(f)
+    printf("%d\n", result)  # Output: 400
+    return 0
