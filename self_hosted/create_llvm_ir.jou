@@ -234,6 +234,9 @@ class AstToIR:
 
     # Makes a temporary pointer, places the value there, then casts and reads the pointer.
     def do_cast_through_pointers(self, value: LLVMValue*, to: LLVMType*) -> LLVMValue*:
+        printf("Cast through pointers!!!!!\n")
+        fflush(stdout)
+
         p1 = LLVMBuildAlloca(self->builder, LLVMTypeOf(value), "cast_through_ptr_temp")
         LLVMBuildStore(self->builder, value, p1)
         p2 = LLVMBuildBitCast(self->builder, p1, LLVMPointerType(to, 0), "cast_through_ptr_temp")
