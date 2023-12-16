@@ -126,7 +126,6 @@ static int read_indentation_level_for_newline_token(struct State *st)
             consume_rest_of_line(st);
         else if (c == '\0') {
             // Ignore newline+spaces at end of file. Do not validate 4 spaces.
-            // TODO: test case
             return 0;
         } else {
             unread_byte(st, c);

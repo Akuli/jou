@@ -86,7 +86,9 @@ static const char *short_type_description(const Type *t)
             return "a number type";
         case TYPE_ARRAY:
             return "an array type";
-    }
+        case TYPE_BOOL:
+            assert(0);
+        }
 }
 
 ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstFile *ast)
