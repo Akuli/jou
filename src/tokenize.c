@@ -295,7 +295,6 @@ static char *read_string(struct State *st, char quote, int *len)
             case '\n':
                 // \ at end of line, string continues on next line
                 if (quote == '\'') {
-                    // TODO: tests
                     st->location.lineno--;  // to get error at the correct line number
                     goto missing_end_quote;
                 }
@@ -321,7 +320,6 @@ static char *read_string(struct State *st, char quote, int *len)
     return result.ptr;
 
 missing_end_quote:
-    // TODO: tests
     if (quote == '"')
         fail_with_error(st->location, "missing \" to end the string");
     else
