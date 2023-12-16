@@ -588,6 +588,13 @@ class AstToIR:
                 field = instance_type->class_members.find_field(ast->instantiation.field_names[i])
                 assert field != NULL
                 value = self->do_expression(&ast->instantiation.field_values[i])
+                printf("create_llvm_ir: (type=%s) get belongs_to_union = ", instance_type->name)
+                if field->belongs_to_union:
+                    printf("True")
+                else:
+                    printf("False")
+                printf(" for field '%s'\n", field->name)
+                fflush(stdout)
                 if field_uses_i8_ptr_hack(field) or field->belongs_to_union:
                     value = self->do_cast_through_pointers(value, LLVMStructGetTypeAtIndex(type_to_llvm(instance_type), field->union_id))
                     assert LLVMTypeOf(value) == LLVMStructGetTypeAtIndex(type_to_llvm(instance_type), field->union_id)
