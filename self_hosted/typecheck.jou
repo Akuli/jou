@@ -424,6 +424,8 @@ def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> None:
         elif member->kind == AstClassMemberKind::Union:
             uid = union_id++
             for k = 0; k < member->union_fields.nfields; k++:
+                printf("typecheck: set belongs_to_union = True\n")
+                fflush(stdout)
                 type->class_members.fields = realloc(type->class_members.fields, (type->class_members.nfields + 1) * sizeof type->class_members.fields[0])
                 type->class_members.fields[type->class_members.nfields++] = ClassField{
                     name = member->union_fields.fields[k].name,
