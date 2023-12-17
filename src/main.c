@@ -57,7 +57,7 @@ void parse_arguments(int argc, char **argv)
     memset(&command_line_args, 0, sizeof command_line_args);
     command_line_args.argv0 = argv[0];
     /* Set default optimize to O1, user sets optimize will overwrite the default flag*/
-    command_line_args.optlevel = 1; 
+    command_line_args.optlevel = 1;
 
     if (argc == 2 && !strcmp(argv[1], "--help")) {
         // Print help.
