@@ -87,8 +87,8 @@ static const char *short_type_description(const Type *t)
         case TYPE_ARRAY:
             return "an array type";
         case TYPE_BOOL:
-            return "a bool type";
-        }
+            return "the built-in bool type";
+    }
 }
 
 ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstFile *ast)
