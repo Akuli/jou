@@ -87,7 +87,7 @@ static const char *short_type_description(const Type *t)
         case TYPE_ARRAY:
             return "an array type";
         case TYPE_BOOL:
-            assert(0);
+            return "a bool type";
         }
 }
 
