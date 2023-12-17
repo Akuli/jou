@@ -40,7 +40,7 @@ static const char help_fmt[] =
     "\n"
     "Options:\n"
     "  -o OUTFILE       output an executable file, don't run the code\n"
-    "  -O0/-O1/-O2/-O3  set optimization level (0 = default, 3 = runs fastest)\n"
+    "  -O0/-O1/-O2/-O3  set optimization level (0 = no optimization, 1 = default, 3 = runs fastest)\n"
     "  -v / --verbose   display some progress information\n"
     "  -vv              display a lot of information about all compilation steps\n"
     "  --valgrind       use valgrind when running the code\n"
@@ -55,9 +55,8 @@ void parse_arguments(int argc, char **argv)
 {
     memset(&command_line_args, 0, sizeof command_line_args);
     command_line_args.argv0 = argv[0];
-    command_line_args.optlevel = 1; /* Set default optimize to O1
-                            User sets optimize will overwrite the default flag
-                         */
+    /* Set default optimize to O1, user sets optimize will overwrite the default flag*/
+    command_line_args.optlevel = 1;
 
     if (argc == 2 && !strcmp(argv[1], "--help")) {
         // Print help.
