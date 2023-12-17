@@ -596,6 +596,8 @@ class AstToIR:
                 printf(" for field '%s'\n", field->name)
                 fflush(stdout)
                 if field_uses_i8_ptr_hack(field) or field->belongs_to_union:
+                    printf("IF STATEMENT\n")
+                    fflush(stdout)
                     value = self->do_cast_through_pointers(value, LLVMStructGetTypeAtIndex(type_to_llvm(instance_type), field->union_id))
                     assert LLVMTypeOf(value) == LLVMStructGetTypeAtIndex(type_to_llvm(instance_type), field->union_id)
                 result = LLVMBuildInsertValue(self->builder, result, value, field->union_id, "instance")
