@@ -32,6 +32,7 @@ static void optimize(LLVMModuleRef module, int level)
     LLVMDisposePassManager(pm);
 }
 
+/* Sync with tests/should_succeed/compiler_cli.jou */
 static const char help_fmt[] =
     "Usage:\n"
     "  <argv0> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags \"...\"] FILENAME\n"
