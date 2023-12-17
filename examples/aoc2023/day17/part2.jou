@@ -35,7 +35,7 @@ class Node:
     def to_int(self) -> int:
         return 4*point_to_int(self->location) + direction_to_int(self->last_direction)
 
-    def get_neighbors_in_graph(self, grid: Grid*, nneighbors: int*, neighbors: Node[6]*, weights: int[6]*) -> None:
+    def get_neighbors_in_graph(self, grid: Grid*, nneighbors: int*, neighbors: Node[14]*, weights: int[14]*) -> None:
         *nneighbors = 0
 
         for sign = -1; sign <= 1; sign += 2:
@@ -47,17 +47,18 @@ class Node:
             y = self->location[1]
             weight = 0
 
-            for nsteps = 1; nsteps <= 3; nsteps++:
+            for nsteps = 1; nsteps <= 10; nsteps++:
                 x += dx
                 y += dy
                 if not grid->is_in_bounds([x, y]):
                     break
                 weight += grid->get([x, y]) - '0'
 
-                assert *nneighbors < 6
-                (*neighbors)[*nneighbors] = Node{location = [x,y], last_direction = [dx,dy]}
-                (*weights)[*nneighbors] = weight
-                ++*nneighbors
+                if nsteps >= 4:
+                    assert *nneighbors < 14
+                    (*neighbors)[*nneighbors] = Node{location = [x,y], last_direction = [dx,dy]}
+                    (*weights)[*nneighbors] = weight
+                    ++*nneighbors
 
 
 def min(x: int, y: int) -> int:
@@ -96,9 +97,9 @@ def dijkstra_algorithm(grid: Grid*, start1: Node, start2: Node, goal1: Node, goa
         known_shortest[current->to_int()] = True
 
         # update neighbor distances, if visiting through current makes them shorter
-        neighbors: Node[6]
+        neighbors: Node[14]
         nneighbors: int
-        edge_weights: int[6]
+        edge_weights: int[14]
         current->get_neighbors_in_graph(grid, &nneighbors, &neighbors, &edge_weights)
         for i = 0; i < nneighbors; i++:
             neighbor = neighbors[i]
@@ -117,7 +118,7 @@ def dijkstra_algorithm(grid: Grid*, start1: Node, start2: Node, goal1: Node, goa
 
 
 def main() -> int:
-    f = fopen("sampleinput.txt", "r")
+    f = fopen("input", "r")
     assert f != NULL
     grid = read_grid_from_file(f)
     fclose(f)
@@ -126,7 +127,7 @@ def main() -> int:
     start2 = Node{location = [0,0], last_direction = [0,-1]}
     goal1 = Node{location = [grid.width - 1, grid.height - 1], last_direction = [1,0]}
     goal2 = Node{location = [grid.width - 1, grid.height - 1], last_direction = [0,1]}
-    printf("%d\n", dijkstra_algorithm(&grid, start1, start2, goal1, goal2))  # Output: 102
+    printf("%d\n", dijkstra_algorithm(&grid, start1, start2, goal1, goal2))  # Output: 94
 
     free(grid.data)
     return 0
