@@ -155,8 +155,11 @@ void free_ast_statement(const AstStatement *stmt)
         free(stmt->data.forloop.incr);
         free_ast_body(&stmt->data.forloop.body);
         break;
-    case AST_STMT_EXPRESSION_STATEMENT:
     case AST_STMT_ASSERT:
+        free_expression(&stmt->data.assertion.condition);
+        free(stmt->data.assertion.condition_str);
+        break;
+    case AST_STMT_EXPRESSION_STATEMENT:
         free_expression(&stmt->data.expression);
         break;
     case AST_STMT_RETURN:

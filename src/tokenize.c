@@ -126,7 +126,6 @@ static int read_indentation_level_for_newline_token(struct State *st)
             consume_rest_of_line(st);
         else if (c == '\0') {
             // Ignore newline+spaces at end of file. Do not validate 4 spaces.
-            // TODO: test case
             return 0;
         } else {
             unread_byte(st, c);
@@ -295,7 +294,6 @@ static char *read_string(struct State *st, char quote, int *len)
             case '\n':
                 // \ at end of line, string continues on next line
                 if (quote == '\'') {
-                    // TODO: tests
                     st->location.lineno--;  // to get error at the correct line number
                     goto missing_end_quote;
                 }
@@ -321,7 +319,6 @@ static char *read_string(struct State *st, char quote, int *len)
     return result.ptr;
 
 missing_end_quote:
-    // TODO: tests
     if (quote == '"')
         fail_with_error(st->location, "missing \" to end the string");
     else

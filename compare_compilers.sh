@@ -28,8 +28,9 @@ for arg in "$@"; do
 done
 
 if [ ${#files[@]} = 0 ]; then
+    # skip compiler_cli, because it has a race condition when two compilers simultaneously run it
     # TODO: do not skip Advent Of Code files
-    files=( $(find stdlib examples tests -name '*.jou' | grep -v aoc2023 | sort) )
+    files=( $(find stdlib examples tests -name '*.jou' | grep -v aoc2023 | grep -v tests/should_succeed/compiler_cli | grep -v tests/crash | sort) )
 fi
 if [ ${#actions[@]} = 0 ]; then
     actions=(tokenize parse run)
@@ -103,11 +104,11 @@ for action in ${actions[@]}; do
     # Run compilers in parallel to speed up.
     (
         set +e
-        ./jou $flag $file 2>&1 | grep -vE 'undefined reference to|multiple definition of|\bld: '
+        ./jou $flag $file 2>&1 | grep -vE 'undefined reference to|multiple definition of|\bld: |compiler warning for file'
     ) > tmp/compare_compilers/compiler_written_in_c.txt &
     (
         set +e
-        ./self_hosted_compiler $flag $file 2>&1 | grep -vE 'undefined reference to|multiple definition of|\bld: |linking failed'
+        ./self_hosted_compiler $flag $file 2>&1 | grep -vE 'undefined reference to|multiple definition of|\bld: |linking failed|compiler warning for file'
     ) > tmp/compare_compilers/self_hosted.txt &
     wait
 

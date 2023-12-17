@@ -276,6 +276,7 @@ class Tokenizer:
         if c == '\\':
             after_backslash = self->read_byte()
             if after_backslash == '\0' or after_backslash == '\n':
+                self->location.lineno--
                 fail(self->location, "missing ' to end the byte literal")
             elif after_backslash == 'n':
                 c = '\n'

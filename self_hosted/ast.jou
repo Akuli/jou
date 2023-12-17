@@ -145,7 +145,10 @@ class AstExpression:
         float_or_double_text: byte[100]
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
 
-    def print(self, tp: TreePrinter) -> None:
+    def print(self) -> None:
+        self->print_with_tree_printer(TreePrinter{})
+
+    def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("[line %d] ", self->location.lineno)
         if self->kind == AstExpressionKind::String:
             printf("\"")
@@ -181,7 +184,7 @@ class AstExpression:
         elif self->kind == AstExpressionKind::Array:
             printf("array\n")
             for i = 0; i < self->array.length; i++:
-                self->array.items[i].print(tp.print_prefix(i == self->array.length-1))
+                self->array.items[i].print_with_tree_printer(tp.print_prefix(i == self->array.length-1))
         elif self->kind == AstExpressionKind::Call:
             if self->call.uses_arrow_operator:
                 printf("dereference and ")
@@ -204,12 +207,12 @@ class AstExpression:
             if self->class_field.uses_arrow_operator:
                 printf("dereference and ")
             printf("get class field \"%s\"\n", self->class_field.field_name)
-            self->class_field.instance->print(tp.print_prefix(True))
+            self->class_field.instance->print_with_tree_printer(tp.print_prefix(True))
         elif self->kind == AstExpressionKind::As:
             printf("as ")
             self->as_expression->type.print(True)
             printf("\n")
-            self->as_expression->value.print(tp.print_prefix(True))
+            self->as_expression->value.print_with_tree_printer(tp.print_prefix(True))
         elif self->kind == AstExpressionKind::SizeOf:
             printf("sizeof\n")
         elif self->kind == AstExpressionKind::AddressOf:
@@ -258,7 +261,7 @@ class AstExpression:
             printf("?????\n")
 
         for i = 0; i < self->get_arity(); i++:
-            self->operands[i].print(tp.print_prefix(i == self->get_arity()-1))
+            self->operands[i].print_with_tree_printer(tp.print_prefix(i == self->get_arity()-1))
 
     def free(self) -> None:
         if self->kind == AstExpressionKind::Call:
@@ -367,12 +370,12 @@ class AstCall:
         if self->method_call_self != NULL:
             sub = tp.print_prefix(self->nargs == 0)
             printf("self: ")
-            self->method_call_self->print(sub)
+            self->method_call_self->print_with_tree_printer(sub)
 
         for i = 0; i < self->nargs; i++:
             sub = tp.print_prefix(i == self->nargs - 1)
             printf("argument %d: ", i)
-            self->args[i].print(sub)
+            self->args[i].print_with_tree_printer(sub)
 
     def free(self) -> None:
         for i = 0; i < self->nargs; i++:
@@ -390,13 +393,17 @@ class AstInstantiation:
         for i = 0; i < self->nfields; i++:
             sub = tp.print_prefix(i == self->nfields - 1)
             printf("field \"%s\": ", self->field_names[i])
-            self->field_values[i].print(sub)
+            self->field_values[i].print_with_tree_printer(sub)
 
     def free(self) -> None:
         for i = 0; i < self->nfields; i++:
             self->field_values[i].free()
         free(self->field_names)
         free(self->field_values)
+
+class AstAssertion:
+    condition: AstExpression
+    condition_str: byte*
 
 enum AstStatementKind:
     ExpressionStatement  # Evaluate an expression. Discard the result.
@@ -436,21 +443,25 @@ class AstStatement:
         function: AstFunctionOrMethod
         classdef: AstClassDef
         enumdef: AstEnumDef
+        assertion: AstAssertion
 
-    def print(self, tp: TreePrinter) -> None:
+    def print(self) -> None:
+        self->print_with_tree_printer(TreePrinter{})
+
+    def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("[line %d] ", self->location.lineno)
         if self->kind == AstStatementKind::ExpressionStatement:
             printf("expression statement\n")
-            self->expression.print(tp.print_prefix(True))
+            self->expression.print_with_tree_printer(tp.print_prefix(True))
         elif self->kind == AstStatementKind::Assert:
-            printf("assert\n")
-            self->expression.print(tp.print_prefix(True))
+            printf("assert \"%s\"\n", self->assertion.condition_str)
+            self->assertion.condition.print_with_tree_printer(tp.print_prefix(True))
         elif self->kind == AstStatementKind::Pass:
             printf("pass\n")
         elif self->kind == AstStatementKind::Return:
             printf("return\n")
             if self->return_value != NULL:
-                self->return_value->print(tp.print_prefix(True))
+                self->return_value->print_with_tree_printer(tp.print_prefix(True))
         elif self->kind == AstStatementKind::If:
             printf("if\n")
             self->if_statement.print(tp)
@@ -459,51 +470,51 @@ class AstStatement:
             self->for_loop.print(tp)
         elif self->kind == AstStatementKind::WhileLoop:
             printf("while loop\n")
-            self->while_loop.print(tp, True)
+            self->while_loop.print_with_tree_printer(tp, True)
         elif self->kind == AstStatementKind::Break:
             printf("break\n")
         elif self->kind == AstStatementKind::Continue:
             printf("continue\n")
         elif self->kind == AstStatementKind::DeclareLocalVar:
             printf("declare local var ")
-            self->var_declaration.print(&tp)
+            self->var_declaration.print_with_tree_printer(&tp)
         elif self->kind == AstStatementKind::Assign:
             printf("assign\n")
-            self->assignment.print(tp)
+            self->assignment.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind::InPlaceAdd:
             printf("in-place add\n")
-            self->assignment.print(tp)
+            self->assignment.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind::InPlaceSubtract:
             printf("in-place sub\n")
-            self->assignment.print(tp)
+            self->assignment.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind::InPlaceMultiply:
             printf("in-place mul\n")
-            self->assignment.print(tp)
+            self->assignment.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind::InPlaceDivide:
             printf("in-place div\n")
-            self->assignment.print(tp)
+            self->assignment.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind::InPlaceModulo:
             printf("in-place mod\n")
-            self->assignment.print(tp)
+            self->assignment.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind::Function:
             if self->function.body.nstatements == 0:
                 printf("declare a function: ")
             else:
                 printf("define a function: ")
-            self->function.print(tp)
+            self->function.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind::Class:
             printf("define a ")
-            self->classdef.print(tp)
+            self->classdef.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind::Enum:
             printf("define ")
-            self->enumdef.print(tp)
+            self->enumdef.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind::GlobalVariableDeclaration:
             printf("declare global var ")
-            self->var_declaration.print(NULL)
+            self->var_declaration.print_with_tree_printer(NULL)
             printf("\n")
         elif self->kind == AstStatementKind::GlobalVariableDefinition:
             printf("define global var ")
-            self->var_declaration.print(NULL)
+            self->var_declaration.print_with_tree_printer(NULL)
             printf("\n")
         else:
             printf("??????\n")
@@ -526,14 +537,17 @@ class AstConditionAndBody:
     condition: AstExpression
     body: AstBody
 
-    def print(self, tp: TreePrinter, body_is_last_sub_item: bool) -> None:
+    def print(self) -> None:
+        self->print_with_tree_printer(TreePrinter{}, True)
+
+    def print_with_tree_printer(self, tp: TreePrinter, body_is_last_sub_item: bool) -> None:
         sub = tp.print_prefix(False)
         printf("condition: ")
-        self->condition.print(sub)
+        self->condition.print_with_tree_printer(sub)
 
         sub = tp.print_prefix(body_is_last_sub_item)
         printf("body:\n")
-        self->body.print(sub)
+        self->body.print_with_tree_printer(sub)
 
     def free(self) -> None:
         self->condition.free()
@@ -543,9 +557,12 @@ class AstAssignment:
     target: AstExpression
     value: AstExpression
 
-    def print(self, tp: TreePrinter) -> None:
-        self->target.print(tp.print_prefix(False))
-        self->value.print(tp.print_prefix(True))
+    def print(self) -> None:
+        self->print_with_tree_printer(TreePrinter{})
+
+    def print_with_tree_printer(self, tp: TreePrinter) -> None:
+        self->target.print_with_tree_printer(tp.print_prefix(False))
+        self->value.print_with_tree_printer(tp.print_prefix(True))
 
 class AstIfStatement:
     if_and_elifs: AstConditionAndBody*
@@ -554,12 +571,12 @@ class AstIfStatement:
 
     def print(self, tp: TreePrinter) -> None:
         for i = 0; i < self->n_if_and_elifs; i++:
-            self->if_and_elifs[i].print(tp, i == self->n_if_and_elifs - 1 and self->else_body.nstatements == 0)
+            self->if_and_elifs[i].print_with_tree_printer(tp, i == self->n_if_and_elifs - 1 and self->else_body.nstatements == 0)
 
         if self->else_body.nstatements > 0:
             sub = tp.print_prefix(True)
             printf("else body:\n")
-            self->else_body.print(sub)
+            self->else_body.print_with_tree_printer(sub)
 
     def free(self) -> None:
         for i = 0; i < self->n_if_and_elifs; i++:
@@ -580,19 +597,19 @@ class AstForLoop:
     def print(self, tp: TreePrinter) -> None:
         sub = tp.print_prefix(False)
         printf("init: ")
-        self->init->print(sub)
+        self->init->print_with_tree_printer(sub)
 
         sub = tp.print_prefix(False)
         printf("cond: ")
-        self->cond.print(sub)
+        self->cond.print_with_tree_printer(sub)
 
         sub = tp.print_prefix(False)
         printf("incr: ")
-        self->incr->print(sub)
+        self->incr->print_with_tree_printer(sub)
 
         sub = tp.print_prefix(True)
         printf("body:\n")
-        self->body.print(sub)
+        self->body.print_with_tree_printer(sub)
 
     def free(self) -> None:
         self->init->free()
@@ -609,8 +626,12 @@ class AstNameTypeValue:
     type: AstType
     value: AstExpression*  # can be NULL
 
+    def print(self) -> None:
+        tp = TreePrinter{}
+        self->print_with_tree_printer(&tp)
+
     # tp can be set to NULL, in that case no trailing newline is printed
-    def print(self, tp: TreePrinter*) -> None:
+    def print_with_tree_printer(self, tp: TreePrinter*) -> None:
         printf("%s: ", self->name)
         self->type.print(True)
         if tp == NULL:
@@ -620,7 +641,7 @@ class AstNameTypeValue:
             if self->value != NULL:
                 sub = tp->print_prefix(True)
                 printf("initial value: ")
-                self->value->print(sub)
+                self->value->print_with_tree_printer(sub)
 
     def free(self) -> None:
         if self->value != NULL:
@@ -631,9 +652,12 @@ class AstBody:
     statements: AstStatement*
     nstatements: int
 
-    def print(self, tp: TreePrinter) -> None:
+    def print(self) -> None:
+        self->print_with_tree_printer(TreePrinter{})
+
+    def print_with_tree_printer(self, tp: TreePrinter) -> None:
         for i = 0; i < self->nstatements; i++:
-            self->statements[i].print(tp.print_prefix(i == self->nstatements - 1))
+            self->statements[i].print_with_tree_printer(tp.print_prefix(i == self->nstatements - 1))
 
     def free(self) -> None:
         for i = 0; i < self->nstatements; i++:
@@ -656,7 +680,7 @@ class AstSignature:
             if strcmp(self->args[i].name, "self") == 0:
                 printf("self")
             else:
-                self->args[i].print(NULL)
+                self->args[i].print_with_tree_printer(NULL)
 
         if self->takes_varargs:
             if self->nargs != 0:
@@ -695,7 +719,7 @@ class AstFile:
         for i = 0; i < self->nimports; i++:
             self->imports[i].print()
         for i = 0; i < self->body.nstatements; i++:
-            self->body.statements[i].print(TreePrinter{})
+            self->body.statements[i].print()
 
     def free(self) -> None:
         for i = 0; i < self->nimports; i++:
@@ -707,9 +731,12 @@ class AstFunctionOrMethod:
     signature: AstSignature
     body: AstBody  # empty body means declaration, otherwise it's a definition
 
-    def print(self, tp: TreePrinter) -> None:
+    def print(self) -> None:
+        self->print_with_tree_printer(TreePrinter{})
+
+    def print_with_tree_printer(self, tp: TreePrinter) -> None:
         self->signature.print()
-        self->body.print(tp)
+        self->body.print_with_tree_printer(tp)
 
     def free(self) -> None:
         self->signature.free()
@@ -722,7 +749,7 @@ class AstUnionFields:
     def print(self, tp: TreePrinter) -> None:
         for i = 0; i < self->nfields; i++:
             subprinter = tp.print_prefix(i == self->nfields-1)
-            self->fields[i].print(&subprinter)  # TODO: does this need to be optional/pointer?
+            self->fields[i].print_with_tree_printer(&subprinter)  # TODO: does this need to be optional/pointer?
 
     def free(self) -> None:
         for i = 0; i < self->nfields; i++:
@@ -744,7 +771,7 @@ class AstClassMember:
     def print(self, tp: TreePrinter) -> None:
         if self->kind == AstClassMemberKind::Field:
             printf("field ")
-            self->field.print(NULL)
+            self->field.print_with_tree_printer(NULL)
             printf("\n")
         elif self->kind == AstClassMemberKind::Union:
             printf("union:\n")
@@ -752,7 +779,7 @@ class AstClassMember:
         elif self->kind == AstClassMemberKind::Method:
             printf("method ")
             self->method.signature.print()
-            self->method.body.print(tp)
+            self->method.body.print_with_tree_printer(tp)
         else:
             assert False
 
@@ -772,7 +799,10 @@ class AstClassDef:
     members: AstClassMember*
     nmembers: int
 
-    def print(self, tp: TreePrinter) -> None:
+    def print(self) -> None:
+        self->print_with_tree_printer(TreePrinter{})
+
+    def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("class \"%s\" with %d members\n", self->name, self->nmembers)
         for i = 0; i < self->nmembers; i++:
             self->members[i].print(tp.print_prefix(i == self->nmembers-1))
@@ -788,7 +818,10 @@ class AstEnumDef:
     member_count: int
     member_names: byte[100]*
 
-    def print(self, tp: TreePrinter) -> None:
+    def print(self) -> None:
+        self->print_with_tree_printer(TreePrinter{})
+
+    def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("enum \"%s\" with %d members\n", self->name, self->member_count)
         for i = 0; i < self->member_count; i++:
             tp.print_prefix(i == self->member_count-1)
