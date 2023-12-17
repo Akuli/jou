@@ -600,6 +600,9 @@ class AstToIR:
                     fflush(stdout)
                     value = self->do_cast_through_pointers(value, LLVMStructGetTypeAtIndex(type_to_llvm(instance_type), field->union_id))
                     assert LLVMTypeOf(value) == LLVMStructGetTypeAtIndex(type_to_llvm(instance_type), field->union_id)
+                else:
+                    printf("ELSE STATEMENT\n")
+                    fflush(stdout)
                 result = LLVMBuildInsertValue(self->builder, result, value, field->union_id, "instance")
 
         elif ast->kind == AstExpressionKind::GetClassField:
