@@ -41,7 +41,7 @@ static const char help_fmt[] =
     "\n"
     "Options:\n"
     "  -o OUTFILE       output an executable file, don't run the code\n"
-    "  -O0/-O1/-O2/-O3  set optimization level (1 = default, 3 = runs fastest)\n"
+    "  -O0/-O1/-O2/-O3  set optimization level (0 = no optimization, 1 = default, 3 = runs fastest)\n"
     "  -v / --verbose   display some progress information\n"
     "  -vv              display a lot of information about all compilation steps\n"
     "  --valgrind       use valgrind when running the code\n"
