@@ -87,7 +87,6 @@ static const char *short_type_description(const Type *t)
         case TYPE_ARRAY:
             return "an array type";
         case TYPE_BOOL:
-            // TODO: Is it possible to get this in an error message?
             return "the built-in bool type";
     }
 }
