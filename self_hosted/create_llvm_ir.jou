@@ -595,7 +595,12 @@ class AstToIR:
                     printf("False")
                 printf(" for field '%s'\n", field->name)
                 fflush(stdout)
-                if field_uses_i8_ptr_hack(field) or field->belongs_to_union:
+                a = field_uses_i8_ptr_hack(field)
+                b = field->belongs_to_union
+                c = a or b
+                printf("abc = %d%d%d\n", a as int, b as int, c as int)
+                fflush(stdout)
+                if c:
                     printf("IF STATEMENT\n")
                     fflush(stdout)
                     value = self->do_cast_through_pointers(value, LLVMStructGetTypeAtIndex(type_to_llvm(instance_type), field->union_id))
