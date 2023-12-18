@@ -1,0 +1,133 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "../grid.jou"
+
+
+def direction_to_int(d: int[2]) -> int:
+    if d[0] == 0 and d[1] == -1:
+        return 0
+    if d[0] == 0 and d[1] == 1:
+        return 1
+    if d[0] == -1 and d[1] == 0:
+        return 2
+    if d[0] == 1 and d[1] == 0:
+        return 3
+    assert False
+
+
+def point_to_int(p: int[2]) -> int:
+    x = p[0]
+    y = p[1]
+    assert 0 <= x and x < 150 and 0 <= y and y < 150
+    return 150*x + y
+
+
+# Node.to_int() return values are smaller than this
+# TODO: global constants so this doesn't need to be a function
+def max_num_nodes() -> int:
+    return 4*150*150
+
+
+class Node:
+    location: int[2]
+    last_direction: int[2]
+
+    def to_int(self) -> int:
+        return 4*point_to_int(self->location) + direction_to_int(self->last_direction)
+
+    def get_neighbors_in_graph(self, grid: Grid*, nneighbors: int*, neighbors: Node[14]*, weights: int[14]*) -> None:
+        *nneighbors = 0
+
+        for sign = -1; sign <= 1; sign += 2:
+            # Rotate direction +-90deg
+            dx = sign*self->last_direction[1]
+            dy = -sign*self->last_direction[0]
+
+            x = self->location[0]
+            y = self->location[1]
+            weight = 0
+
+            for nsteps = 1; nsteps <= 10; nsteps++:
+                x += dx
+                y += dy
+                if not grid->is_in_bounds([x, y]):
+                    break
+                weight += grid->get([x, y]) - '0'
+
+                if nsteps >= 4:
+                    assert *nneighbors < 14
+                    (*neighbors)[*nneighbors] = Node{location = [x,y], last_direction = [dx,dy]}
+                    (*weights)[*nneighbors] = weight
+                    ++*nneighbors
+
+
+def min(x: int, y: int) -> int:
+    if x < y:
+        return x
+    return y
+
+
+def dijkstra_algorithm(grid: Grid*, start1: Node, start2: Node, goal1: Node, goal2: Node) -> int:
+    assert grid->is_in_bounds(goal1.location)
+    assert grid->is_in_bounds(goal2.location)
+
+    distances: int* = calloc(sizeof(distances[0]), max_num_nodes())
+    nodes_with_distance_set: Node* = calloc(sizeof(nodes_with_distance_set[0]), max_num_nodes())
+    known_shortest: bool* = calloc(sizeof(known_shortest[0]), max_num_nodes())
+
+    for i = 0; i < max_num_nodes(); i++:
+        distances[i] = -1
+    distances[start1.to_int()] = 0
+    distances[start2.to_int()] = 0
+
+    nodes_with_distance_set[0] = start1
+    nodes_with_distance_set[1] = start2
+    n_nodes_with_distance_set = 2
+
+    while not (known_shortest[goal1.to_int()] and known_shortest[goal2.to_int()]):
+        # pick the node with unknown-yet-to-be-smallest distance, whose distance is smallest
+        current: Node* = NULL
+        for i = 0; i < n_nodes_with_distance_set; i++:
+            n = &nodes_with_distance_set[i]
+            if (not known_shortest[n->to_int()]) and (current == NULL or distances[n->to_int()] < distances[current->to_int()]):
+                current = n
+        assert current != NULL
+
+        # for some reason that i don't understand, the distance of the node we picked is known to be smallest
+        known_shortest[current->to_int()] = True
+
+        # update neighbor distances, if visiting through current makes them shorter
+        neighbors: Node[14]
+        nneighbors: int
+        edge_weights: int[14]
+        current->get_neighbors_in_graph(grid, &nneighbors, &neighbors, &edge_weights)
+        for i = 0; i < nneighbors; i++:
+            neighbor = neighbors[i]
+            d = distances[current->to_int()] + edge_weights[i]
+            if distances[neighbor.to_int()] == -1:
+                distances[neighbor.to_int()] = d
+                nodes_with_distance_set[n_nodes_with_distance_set++] = neighbor
+            elif distances[neighbor.to_int()] > d:
+                distances[neighbor.to_int()] = d
+
+    result = min(distances[goal1.to_int()], distances[goal2.to_int()])
+    free(distances)
+    free(nodes_with_distance_set)
+    free(known_shortest)
+    return result
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    start1 = Node{location = [0,0], last_direction = [-1,0]}
+    start2 = Node{location = [0,0], last_direction = [0,-1]}
+    goal1 = Node{location = [grid.width - 1, grid.height - 1], last_direction = [1,0]}
+    goal2 = Node{location = [grid.width - 1, grid.height - 1], last_direction = [0,1]}
+    printf("%d\n", dijkstra_algorithm(&grid, start1, start2, goal1, goal2))  # Output: 94
+
+    free(grid.data)
+    return 0

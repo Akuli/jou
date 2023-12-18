@@ -1,0 +1,31 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    huge = 100000
+    s: byte* = malloc(huge)
+    assert s != NULL
+    assert fgets(s, huge, f) != NULL
+    fclose(f)
+
+    h = 0 as byte
+    result = 0
+
+    for p = s; *p != '\0' and *p != '\n'; p++:
+        if *p == ',':
+            result += h
+            h = 0 as byte
+        else:
+            h += *p
+            h *= 17 as byte
+
+    result += h
+    printf("%d\n", result)  # Output: 1320
+
+    free(s)
+
+    return 0
