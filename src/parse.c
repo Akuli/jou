@@ -35,7 +35,7 @@ static noreturn void fail_with_parse_error(const Token *token, const char *what_
         case TOKEN_DEDENT: strcpy(got, "less indentation"); break;
         case TOKEN_KEYWORD: snprintf(got, sizeof got, "the '%s' keyword", token->data.name); break;
     }
-    fail_with_error(token->location, "expected %s, got %s", what_was_expected_instead, got);
+    fail(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
 
 static bool is_keyword(const Token *t, const char *kw)
@@ -147,14 +147,14 @@ static AstSignature parse_function_signature(ParserState *ps, bool accept_self)
 
     while (!is_operator(ps->tokens, ")")) {
         if (result.takes_varargs)
-            fail_with_error(ps->tokens->location, "if '...' is used, it must be the last parameter");
+            fail(ps->tokens->location, "if '...' is used, it must be the last parameter");
 
         if (is_operator(ps->tokens, "...")) {
             result.takes_varargs = true;
             ps->tokens++;
         } else if (is_keyword(ps->tokens, "self")) {
             if (!accept_self)
-                fail_with_error(ps->tokens->location, "'self' cannot be used here");
+                fail(ps->tokens->location, "'self' cannot be used here");
             AstNameTypeValue self_arg = { .name="self", .name_location=ps->tokens++->location };
             Append(&result.args, self_arg);
             used_self = true;
@@ -162,11 +162,11 @@ static AstSignature parse_function_signature(ParserState *ps, bool accept_self)
             AstNameTypeValue arg = parse_name_type_value(ps, "an argument name");
 
             if (arg.value)
-                fail_with_error(arg.value->location, "arguments cannot have default values");
+                fail(arg.value->location, "arguments cannot have default values");
 
             for (const AstNameTypeValue *prevarg = result.args.ptr; prevarg < End(result.args); prevarg++)
                 if (!strcmp(prevarg->name, arg.name))
-                    fail_with_error(arg.name_location, "there are multiple arguments named '%s'", prevarg->name);
+                    fail(arg.name_location, "there are multiple arguments named '%s'", prevarg->name);
             Append(&result.args, arg);
         }
 
@@ -182,7 +182,7 @@ static AstSignature parse_function_signature(ParserState *ps, bool accept_self)
     if (!is_operator(ps->tokens, "->")) {
         // Special case for common typo:   def foo():
         if (is_operator(ps->tokens, ":")) {
-            fail_with_error(
+            fail(
                 ps->tokens->location,
                 "return type must be specified with '->',"
                 " or with '-> None' if the function doesn't return anything"
@@ -193,7 +193,7 @@ static AstSignature parse_function_signature(ParserState *ps, bool accept_self)
     ps->tokens++;
 
     if (!used_self && accept_self) {
-        fail_with_error(
+        fail(
             ps->tokens->location,
             "missing self, should be 'def %s(self, ...)'",
             result.name
@@ -236,7 +236,7 @@ static AstCall parse_call(ParserState *ps, char openparen, char closeparen, bool
 
             for (struct Name *oldname = argnames.ptr; oldname < End(argnames); oldname++) {
                 if (!strcmp(oldname->name, ps->tokens->data.name)) {
-                    fail_with_error(
+                    fail(
                         ps->tokens->location, "multiple values were given for field '%s'", oldname->name);
                 }
             }
@@ -354,7 +354,7 @@ static AstExpression parse_array(ParserState *ps)
     ps->tokens++;
 
     if (is_operator(ps->tokens, "]"))
-        fail_with_error(ps->tokens->location, "arrays cannot be empty");
+        fail(ps->tokens->location, "arrays cannot be empty");
 
     List(AstExpression) items = {0};
     do {
@@ -456,7 +456,7 @@ static AstExpression parse_elementary_expression(ParserState *ps)
             ps->tokens++;
         } else if (is_keyword(ps->tokens, "self")) {
             if (!ps->is_parsing_method_body)
-                fail_with_error(ps->tokens->location, "'self' cannot be used here");
+                fail(ps->tokens->location, "'self' cannot be used here");
             expr.kind = AST_EXPR_GET_VARIABLE;
             strcpy(expr.data.varname, "self");
             ps->tokens++;
@@ -608,7 +608,7 @@ static AstExpression parse_expression_with_comparisons(ParserState *ps)
     if (IsComparator(ps->tokens))
         add_to_binop(ps, &result, parse_expression_with_as);
     if (IsComparator(ps->tokens))
-        fail_with_error(ps->tokens->location, "comparisons cannot be chained");
+        fail(ps->tokens->location, "comparisons cannot be chained");
 #undef IsComparator
     return result;
 }
@@ -621,7 +621,7 @@ static AstExpression parse_expression_with_not(ParserState *ps)
         ps->tokens++;
     }
     if (is_keyword(ps->tokens, "not"))
-        fail_with_error(ps->tokens->location, "'not' cannot be repeated");
+        fail(ps->tokens->location, "'not' cannot be repeated");
 
     AstExpression result = parse_expression_with_comparisons(ps);
     if (nottoken)
@@ -638,7 +638,7 @@ static AstExpression parse_expression_with_and_or(ParserState *ps)
         got_and = got_and || is_keyword(ps->tokens, "and");
         got_or = got_or || is_keyword(ps->tokens, "or");
         if (got_and && got_or)
-            fail_with_error(ps->tokens->location, "'and' cannot be chained with 'or', you need more parentheses");
+            fail(ps->tokens->location, "'and' cannot be chained with 'or', you need more parentheses");
 
         add_to_binop(ps, &result, parse_expression_with_not);
     }
@@ -670,7 +670,7 @@ static void validate_expression_statement(const AstExpression *expr)
     case AST_EXPR_POST_DECREMENT:
         break;
     default:
-        fail_with_error(expr->location, "not a valid statement");
+        fail(expr->location, "not a valid statement");
         break;
     }
 }
@@ -800,7 +800,7 @@ static AstStatement parse_oneline_statement(ParserState *ps)
             ps->tokens++;
             result.data.assignment = (AstAssignment){.target=expr, .value=parse_expression(ps)};
             if (is_operator(ps->tokens, "="))
-                fail_with_error(ps->tokens->location, "only one variable can be assigned at a time");
+                fail(ps->tokens->location, "only one variable can be assigned at a time");
         }
     }
     return result;
@@ -829,11 +829,11 @@ static AstFunction parse_funcdef(ParserState *ps, bool is_method)
     struct AstFunction funcdef = {0};
     funcdef.signature = parse_function_signature(ps, is_method);
     if (!strcmp(funcdef.signature.name, "__init__") && is_method) {
-        fail_with_error(ps->tokens->location, "Jou does not have a special __init__ method like Python");
+        fail(ps->tokens->location, "Jou does not have a special __init__ method like Python");
     }
     if (funcdef.signature.takes_varargs) {
         // TODO: support "def foo(x: str, ...)" in some way
-        fail_with_error(ps->tokens->location, "functions with variadic arguments cannot be defined yet");
+        fail(ps->tokens->location, "functions with variadic arguments cannot be defined yet");
     }
 
     assert(!ps->is_parsing_method_body);
@@ -865,7 +865,7 @@ static void check_class_for_duplicate_names(const AstClassDef *classdef)
     for (struct MemberInfo *p1 = infos.ptr; p1 < End(infos); p1++)
         for (struct MemberInfo *p2 = p1+1; p2 < End(infos); p2++)
             if (!strcmp(p1->name, p2->name))
-                fail_with_error(p2->location, "class %s already has %s named '%s'", classdef->name, p1->kindstr, p1->name);
+                fail(p2->location, "class %s already has %s named '%s'", classdef->name, p1->kindstr, p1->name);
 
     free(infos.ptr);
 }
@@ -893,19 +893,19 @@ static AstClassDef parse_classdef(ParserState *ps)
             while (ps->tokens->type != TOKEN_DEDENT) {
                 AstNameTypeValue field = parse_name_type_value(ps, "a union member");
                 if (field.value)
-                    fail_with_error(field.value->location, "union members cannot have default values");
+                    fail(field.value->location, "union members cannot have default values");
                 Append(&umember.data.unionfields, field);
                 eat_newline(ps);
             }
             ps->tokens++;
             if (umember.data.unionfields.len < 2) {
-                fail_with_error(union_keyword_location, "unions must have at least 2 members");
+                fail(union_keyword_location, "unions must have at least 2 members");
             }
             Append(&result.members, umember);
         } else {
             AstNameTypeValue field = parse_name_type_value(ps, "a method, a field or a union");
             if (field.value)
-                fail_with_error(field.value->location, "class fields cannot have default values");
+                fail(field.value->location, "class fields cannot have default values");
             Append(&result.members, (AstClassMember){
                 .kind = AST_CLASSMEMBER_FIELD,
                 .data.field = field,
@@ -936,7 +936,7 @@ static AstEnumDef parse_enumdef(ParserState *ps)
 
         for (const char **old = membernames.ptr; old < End(membernames); old++)
             if (!strcmp(*old, ps->tokens->data.name))
-                fail_with_error(ps->tokens->location, "the enum has two members named '%s'", ps->tokens->data.name);
+                fail(ps->tokens->location, "the enum has two members named '%s'", ps->tokens->data.name);
 
         Append(&membernames, ps->tokens->data.name);
         ps->tokens++;
@@ -958,14 +958,14 @@ static AstStatement parse_statement(ParserState *ps)
     AstStatement result = { .location = ps->tokens->location };
 
     if (is_keyword(ps->tokens, "import")) {
-        fail_with_error(ps->tokens->location, "imports must be in the beginning of the file");
+        fail(ps->tokens->location, "imports must be in the beginning of the file");
     } else if (is_keyword(ps->tokens, "def")) {
         ps->tokens++;  // skip 'def' keyword
         result.kind = AST_STMT_FUNCTION;
         result.data.function.signature = parse_function_signature(ps, false);
         if (result.data.function.signature.takes_varargs) {
             // TODO: support "def foo(x: str, ...)" in some way
-            fail_with_error(ps->tokens->location, "functions with variadic arguments cannot be defined yet");
+            fail(ps->tokens->location, "functions with variadic arguments cannot be defined yet");
         }
         result.data.function.body = parse_body(ps);
     } else if (is_keyword(ps->tokens, "declare")) {
@@ -975,7 +975,7 @@ static AstStatement parse_statement(ParserState *ps)
             result.kind = AST_STMT_DECLARE_GLOBAL_VAR;
             result.data.vardecl = parse_name_type_value(ps, "a variable name");
             if (result.data.vardecl.value) {
-                fail_with_error(
+                fail(
                     result.data.vardecl.value->location,
                     "a value cannot be given when declaring a global variable");
             }
@@ -990,7 +990,7 @@ static AstStatement parse_statement(ParserState *ps)
         result.data.vardecl = parse_name_type_value(ps, "a variable name");
         if (result.data.vardecl.value) {
             // TODO: make this work
-            fail_with_error(
+            fail(
                 result.data.vardecl.value->location,
                 "specifying a value for a global variable is not supported yet");
         }
@@ -1067,7 +1067,7 @@ static AstImport parse_import(ParserState *ps)
         part1 = dirname(tmp);
         part2 = pathtoken->data.string_value;
     } else {
-        fail_with_error(
+        fail(
             pathtoken->location,
             "import path must start with 'stdlib/' (standard-library import) or a dot (relative import)");
     }

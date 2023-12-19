@@ -535,7 +535,7 @@ static void error_about_missing_return(CfGraph *cfg)
             "function '%s' doesn't seem to return a value in all cases", cfg->signature.name);
     }
     if (s == VS_UNDEFINED) {
-        fail_with_error(
+        fail(
             cfg->signature.returntype_location,
             "function '%s' must return a value, because it is defined with '-> %s'",
             cfg->signature.name, cfg->signature.returntype->name);

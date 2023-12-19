@@ -253,7 +253,7 @@ static const LocalVariable *build_increment_or_decrement(
     assert(addr->type->kind == TYPE_POINTER);
     const Type *t = addr->type->data.valuetype;
     if (!is_integer_type(t) && !is_pointer_type(t))
-        fail_with_error(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
+        fail(location, "cannot %s a value of type %s", diff==1?"increment":"decrement", t->name);
 
     const LocalVariable *old_value = add_local_var(st, t);
     const LocalVariable *new_value = add_local_var(st, t);
@@ -836,13 +836,13 @@ static void build_statement(struct State *st, const AstStatement *stmt)
 
     case AST_STMT_BREAK:
         if (!st->breakstack.len)
-            fail_with_error(stmt->location, "'break' can only be used inside a loop");
+            fail(stmt->location, "'break' can only be used inside a loop");
         add_jump(st, NULL, End(st->breakstack)[-1], End(st->breakstack)[-1], NULL);
         break;
 
     case AST_STMT_CONTINUE:
         if (!st->continuestack.len)
-            fail_with_error(stmt->location, "'continue' can only be used inside a loop");
+            fail(stmt->location, "'continue' can only be used inside a loop");
         add_jump(st, NULL, End(st->continuestack)[-1], End(st->continuestack)[-1], NULL);
         break;
 
