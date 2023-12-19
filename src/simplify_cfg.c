@@ -454,6 +454,7 @@ static void remove_unused_variables(CfGraph *cfg)
         if (
             used[i] == WRITE
             && cfg->locals.ptr[i]->name[0] != '\0'
+            && cfg->locals.ptr[i]->name[0] != '_'
             && strcmp(cfg->locals.ptr[i]->name, "return") != 0
         ) {
             show_warning(write_locations[i], "variable '%s' is never used", cfg->locals.ptr[i]->name);
