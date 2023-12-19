@@ -20,26 +20,12 @@ class Box:
     mins: int[4]
     maxs: int[4]
 
-    def print(self) -> None:
-        printf(
-            "Box{mins=[%d,%d,%d,%d], maxs=[%d,%d,%d,%d]}\n",
-            self->mins[0], self->mins[1], self->mins[2], self->mins[3],
-            self->maxs[0], self->maxs[1], self->maxs[2], self->maxs[3],
-        )
-
-    def contains(self, point: int[4]) -> bool:
-        for i = 0; i < 4; i++:
-            if point[i] < self->mins[i] or point[i] > self->maxs[i]:
-                return False
-        return True
-
     def contains_box(self, box: Box) -> bool:
         if box.is_empty():
             return True
 
-        corners = box.corners()
-        for i = 0; i < sizeof(corners)/sizeof(corners[0]); i++:
-            if not self->contains(corners[i]):
+        for i = 0; i < 4; i++:
+            if box.mins[i] < self->mins[i] or box.maxs[i] > self->maxs[i]:
                 return False
         return True
 
@@ -69,21 +55,6 @@ class Box:
             result *= self->maxs[i] - self->mins[i] + 1
         return result
 
-    def corners(self) -> int[4][16]:
-        assert not self->is_empty()
-
-        result: int[4][16]
-        memset(&result, 0, sizeof(result))  # unnecessary, but compiler is sad if i don't do this
-
-        for i = 0; i < 16; i++:
-            bits = [(i / 8) % 2, (i / 4) % 2, (i / 2) % 2, i % 2]
-            for k = 0; k < 4; k++:
-                if bits[k] == 1:
-                    result[i][k] = self->maxs[k]
-                else:
-                    result[i][k] = self->mins[k]
-        return result
-
     def can_split(self, split_at: int, coord_idx: int) -> bool:
         assert 0 <= coord_idx and coord_idx < 4
         # Split must happen within the box.
@@ -102,20 +73,6 @@ class UnionOfBoxes:
     boxes: Box*  # non-empty and non-overlapping
     nboxes: int
 
-    def print(self) -> None:
-        if self->nboxes == 0:
-            printf("(empty UnionOfBoxes)\n")
-            return
-
-        printf("UnionOfBoxes {\n")
-        for i = 0; i < self->nboxes; i++:
-            printf("  ")
-            self->boxes[i].print()
-        printf("}\n")
-
-    def is_empty(self) -> bool:
-        return self->nboxes == 0
-
     def copy(self) -> UnionOfBoxes:
         result = UnionOfBoxes{nboxes = self->nboxes}
         result.boxes = malloc(result.nboxes * sizeof(result.boxes[0]))
@@ -133,9 +90,6 @@ class UnionOfBoxes:
 
             if not box.overlaps(existing):
                 continue
-            if box.contains_box(existing):
-                self->boxes[k] = self->boxes[--self->nboxes]
-                continue
 
             # We need to remove a part of an existing box.
             # Split the existing box at boundaries of what we're removing.
@@ -146,23 +100,14 @@ class UnionOfBoxes:
             for coord_idx = 0; coord_idx < 4; coord_idx++:
                 splits = [box.mins[coord_idx], box.maxs[coord_idx] + 1]
                 for s = &splits[0]; s < &splits[2]; s++:
-                    check = 0L
-                    for i = 0; i < nhave; i++:
-                        check += have[i].size()
-
                     # Split
                     have = realloc(have, 2*nhave*sizeof(have[0]))
-                    assert have != NULL
+                    assert have != NULL or nhave == 0
                     for i = nhave - 1; i >= 0; i--:
                         if have[i].can_split(*s, coord_idx):
                             split = have[i].split(*s, coord_idx)
                             have[i] = split[0]
                             have[nhave++] = split[1]
-
-                    check2 = 0L
-                    for i = 0; i < nhave; i++:
-                        check2 += have[i].size()
-                    assert check == check2
 
                     # Delete unwanted small boxes
                     for i = nhave - 1; i >= 0; i--:
@@ -176,13 +121,6 @@ class UnionOfBoxes:
             for i = 0; i < nhave; i++:
                 self->boxes[self->nboxes++] = have[i]
             free(have)
-
-        # sanity check
-        for i = 0; i < self->nboxes; i++:
-            assert not self->boxes[i].is_empty()
-            assert not self->boxes[i].overlaps(box)
-            for k = 0; k < i; k++:
-                assert not self->boxes[i].overlaps(self->boxes[k])
 
     def add_box(self, box: Box) -> None:
         if not box.is_empty():
@@ -215,9 +153,6 @@ class Workflow:
     n_ifs_and_thens: int
     the_else: byte[10]
     how_to_get_here: UnionOfBoxes
-
-    def print(self) -> None:
-        printf("Workflow \"%s\": %d ifs and thens, else=%s, %lld ways to get here\n", self->name, self->n_ifs_and_thens, self->the_else, self->how_to_get_here.size())
 
 
 def take_word(p: byte**) -> byte[10]:
@@ -289,7 +224,6 @@ def find_workflow(workflows: Workflow*, nworkflows: int, name: byte*) -> Workflo
     for i = 0; i < nworkflows; i++:
         if strcmp(workflows[i].name, name) == 0:
             return &workflows[i]
-    printf("404 '%s'\n", name)
     assert False
 
 
