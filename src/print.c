@@ -549,6 +549,9 @@ static void print_cf_instruction(const CfInstruction *ins)
     case CF_PTR_TO_INT64:
         printf("cast %s to 64-bit integer", varname(ins->operands[0]));
         break;
+    case CF_INT64_TO_PTR:
+        printf("cast %s from 64-bit integer to pointer", varname(ins->operands[0]));
+        break;
     case CF_CONSTANT:
         print_constant(&ins->data.constant);
         break;
