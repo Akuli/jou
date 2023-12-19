@@ -68,14 +68,11 @@ struct Location {
 
 #ifdef __GNUC__
     void show_warning(Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
-    noreturn void fail_with_error(Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
+    noreturn void fail(Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
 #else
     void show_warning(Location location, const char *fmt, ...);
-    noreturn void fail_with_error(Location location, const char *fmt, ...);
+    noreturn void fail(Location location, const char *fmt, ...);
 #endif
-
-// TODO: rename the damn function
-#define fail(...) fail_with_error(__VA_ARGS__)
 
 struct Token {
     enum TokenType {
