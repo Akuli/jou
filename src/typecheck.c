@@ -245,10 +245,20 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
     else
         sig.returntype = type_from_ast(ft, &astsig->returntype);
 
-    // TODO: validate main() parameters
-    // TODO: test main() taking parameters
-    if (!self_type && !strcmp(sig.name, "main") && sig.returntype != intType) {
-        fail_with_error(astsig->returntype.location, "the main() function must return int");
+    if (!self_type && !strcmp(sig.name, "main")) {
+        // special main() function checks
+        if (sig.returntype != intType)
+            fail(astsig->returntype.location, "the main() function must return int");
+        if (sig.nargs != 0 && !(
+                sig.nargs == 2
+                && sig.argtypes[0] == intType
+                && sig.argtypes[1] == get_pointer_type(get_pointer_type(byteType))))
+        {
+            fail(
+                astsig->returntype.location,
+                "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
+            );
+        }
     }
 
     sig.returntype_location = astsig->returntype.location;
