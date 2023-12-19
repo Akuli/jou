@@ -1,0 +1,4 @@
+def foo() -> None:
+    # Pointers (64-bit) do not fit in int (32-bit), so compiler errors
+    x = 1
+    y = &x as int  # Error: cannot cast from type int* to int

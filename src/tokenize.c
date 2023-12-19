@@ -32,20 +32,20 @@ static char read_byte(struct State *st) {
 
     c = fgetc(st->f);
     if (c == EOF && ferror(st->f))
-        fail_with_error(st->location, "cannot read file: %s", strerror(errno));
+        fail(st->location, "cannot read file: %s", strerror(errno));
 
     // For Windows: \r\n in source file is treated same as \n
     if (c == '\r') {
         c = fgetc(st->f);
         if (c == EOF && ferror(st->f))
-            fail_with_error(st->location, "cannot read file: %s", strerror(errno));
+            fail(st->location, "cannot read file: %s", strerror(errno));
         if (c != '\n')
-            fail_with_error(st->location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending");
+            fail(st->location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending");
     }
 
     // Use the zero byte to represent end of file.
     if (c == '\0')
-        fail_with_error(st->location, "source file contains a zero byte");  // TODO: test this
+        fail(st->location, "source file contains a zero byte");  // TODO: test this
     if (c == EOF) {
         assert(!ferror(st->f));
         return '\0';
@@ -88,7 +88,7 @@ static void read_identifier_or_number(struct State *st, char firstbyte, char (*d
             || (is_number && (c=='.' || (c=='-' && (*dest)[destlen-1]=='e'))))
         {
             if (destlen == sizeof *dest - 1)
-                fail_with_error(st->location, "%s is too long: %.20s...", is_number?"number":"name", *dest);
+                fail(st->location, "%s is too long: %.20s...", is_number?"number":"name", *dest);
             (*dest)[destlen++] = c;
         } else {
             unread_byte(st, c);
@@ -155,7 +155,7 @@ static long long parse_integer(const char *str, Location location, int nbits)
         valid_digits = "01234567";
     } else if (str[0] == '0' && str[1] != '\0') {
         // wrong syntax like 0777
-        fail_with_error(location, "unnecessary zero at start of number");
+        fail(location, "unnecessary zero at start of number");
     } else {
         // default decimal umber
         base = 10;
@@ -164,12 +164,12 @@ static long long parse_integer(const char *str, Location location, int nbits)
     }
 
     if (!*digits || strspn(digits, valid_digits) != strlen(digits))
-        fail_with_error(location, "invalid number or variable name \"%s\"", str);
+        fail(location, "invalid number or variable name \"%s\"", str);
 
     errno = 0;
     long long result = strtoll(digits, NULL, base);
     if (errno == ERANGE || result >> (nbits-1) != 0)
-        fail_with_error(location, "value does not fit in a signed %d-bit integer", nbits);
+        fail(location, "value does not fit in a signed %d-bit integer", nbits);
     return result;
 }
 
@@ -235,7 +235,7 @@ static char read_hex_escape_byte(struct State *st)
     char c1 = read_byte(st);
     char c2 = read_byte(st);
     if (!isxdigit(c1) || !isxdigit(c2))
-        fail_with_error(st->location, "\\x must be followed by two hexadecimal digits (0-9, A-F) to specify a byte");
+        fail(st->location, "\\x must be followed by two hexadecimal digits (0-9, A-F) to specify a byte");
 
     char s[] = {c1, c2, '\0'};
     return strtol(s, NULL, 16);
@@ -273,21 +273,21 @@ static char *read_string(struct State *st, char quote, int *len)
             case '\'':
             case '"':
                 if (after_backslash == '"' && quote == '\'')
-                    fail_with_error(st->location, "double quotes shouldn't be escaped in byte literals");
+                    fail(st->location, "double quotes shouldn't be escaped in byte literals");
                 if (after_backslash == '\'' && quote == '"')
-                    fail_with_error(st->location, "single quotes shouldn't be escaped in strings");
+                    fail(st->location, "single quotes shouldn't be escaped in strings");
                 Append(&result, after_backslash);
                 break;
             case '0':
                 if (quote == '"')
-                    fail_with_error(st->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte");
+                    fail(st->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte");
                 Append(&result, '\0');
                 break;
             case 'x':
                 {
                     char b = read_hex_escape_byte(st);
                     if (quote == '"' && b == 0)
-                        fail_with_error(st->location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte");
+                        fail(st->location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte");
                     Append(&result, b);
                 }
                 break;
@@ -302,9 +302,9 @@ static char *read_string(struct State *st, char quote, int *len)
                 goto missing_end_quote;
             default:
                 if ((unsigned char)after_backslash < 0x80 && isprint(after_backslash))
-                    fail_with_error(st->location, "unknown escape: '\\%c'", after_backslash);
+                    fail(st->location, "unknown escape: '\\%c'", after_backslash);
                 else
-                    fail_with_error(st->location, "unknown '\\' escape");
+                    fail(st->location, "unknown '\\' escape");
             }
             break;
         default:
@@ -320,9 +320,9 @@ static char *read_string(struct State *st, char quote, int *len)
 
 missing_end_quote:
     if (quote == '"')
-        fail_with_error(st->location, "missing \" to end the string");
+        fail(st->location, "missing \" to end the string");
     else
-        fail_with_error(st->location, "missing ' to end the byte literal");
+        fail(st->location, "missing ' to end the byte literal");
 }
 
 static char read_char_literal(struct State *st)
@@ -330,9 +330,9 @@ static char read_char_literal(struct State *st)
     int len;
     char *s = read_string(st, '\'', &len);
     if (len == 0)
-        fail_with_error(st->location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?");
+        fail(st->location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?");
     if (len >= 2)
-        fail_with_error(st->location, "single quotes are for specifying a byte, maybe use double quotes to instead make a string?");
+        fail(st->location, "single quotes are for specifying a byte, maybe use double quotes to instead make a string?");
     char result = s[0];
     free(s);
     return result;
@@ -375,21 +375,21 @@ static const char *read_operator(struct State *st)
 
             // These operators are here only to give better error messages
             if (strcmp(operator, "===") == 0)
-                fail_with_error(st->location, "use '==' instead of '==='");
+                fail(st->location, "use '==' instead of '==='");
             if (strcmp(operator, "!==") == 0)
-                fail_with_error(st->location, "use '!=' instead of '!=='");
+                fail(st->location, "use '!=' instead of '!=='");
             if (strcmp(operator, "&&") == 0)
-                fail_with_error(st->location, "use 'and' instead of '&&'");
+                fail(st->location, "use 'and' instead of '&&'");
             if (strcmp(operator, "||") == 0)
-                fail_with_error(st->location, "use 'or' instead of '||'");
+                fail(st->location, "use 'or' instead of '||'");
             if (strcmp(operator, "!") == 0)
-                fail_with_error(st->location, "use 'not' instead of '!'");
+                fail(st->location, "use 'not' instead of '!'");
 
             return *op;
         }
     }
 
-    fail_with_error(st->location, "there is no '%s' operator", operator);
+    fail(st->location, "there is no '%s' operator", operator);
 }
 
 
@@ -402,12 +402,12 @@ static void handle_parentheses(struct State *st, const struct Token *t)
         Token opentoken = st->parens[0];
         char open = opentoken.data.operator[0];
         char close = open2close[(int)open];
-        fail_with_error(opentoken.location, "'%c' without a matching '%c'", open, close);
+        fail(opentoken.location, "'%c' without a matching '%c'", open, close);
     }
 
     if (t->type == TOKEN_OPERATOR && strstr("[{(", t->data.operator)) {
         if (st->nparens == sizeof(st->parens)/sizeof(st->parens[0]))
-            fail_with_error(t->location, "too many nested parentheses");
+            fail(t->location, "too many nested parentheses");
         st->parens[st->nparens++] = *t;
     }
 
@@ -416,7 +416,7 @@ static void handle_parentheses(struct State *st, const struct Token *t)
         char open = close2open[(int)close];
 
         if (st->nparens == 0 || st->parens[--st->nparens].data.operator[0] != open)
-            fail_with_error(t->location, "'%c' without a matching '%c'", close, open);
+            fail(t->location, "'%c' without a matching '%c'", close, open);
     }
 }
 
@@ -442,7 +442,7 @@ static Token read_token(struct State *st)
         case '\'': t.type = TOKEN_CHAR; t.data.char_value = read_char_literal(st); break;
         case '"': t.type = TOKEN_STRING; t.data.string_value = read_string(st, '"', NULL); break;
         case '\t':
-            fail_with_error(st->location, "Jou files cannot contain tab characters (use 4 spaces for indentation)");
+            fail(st->location, "Jou files cannot contain tab characters (use 4 spaces for indentation)");
         default:
             if(is_identifier_or_number_byte(c)) {
                 read_identifier_or_number(st, c, &t.data.name);
@@ -476,9 +476,9 @@ static Token read_token(struct State *st)
                 handle_parentheses(st, &t);
             } else {
                 if ((unsigned char)c < 0x80 && isprint(c))
-                    fail_with_error(st->location, "unexpected byte '%c' (%#02x)", c, (unsigned char)c);
+                    fail(st->location, "unexpected byte '%c' (%#02x)", c, (unsigned char)c);
                 else
-                    fail_with_error(st->location, "unexpected byte %#02x", (unsigned char)c);
+                    fail(st->location, "unexpected byte %#02x", (unsigned char)c);
             }
             break;
         }
@@ -531,7 +531,7 @@ static Token *handle_indentations(const Token *temp_tokens)
             after_newline.lineno++;
 
             if (t->data.indentation_level % 4 != 0)
-                fail_with_error(after_newline, "indentation must be a multiple of 4 spaces");
+                fail(after_newline, "indentation must be a multiple of 4 spaces");
 
             while (level < t->data.indentation_level) {
                 Append(&tokens, (Token){ .location=after_newline, .type=TOKEN_INDENT });

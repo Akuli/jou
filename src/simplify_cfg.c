@@ -454,6 +454,7 @@ static void remove_unused_variables(CfGraph *cfg)
         if (
             used[i] == WRITE
             && cfg->locals.ptr[i]->name[0] != '\0'
+            && cfg->locals.ptr[i]->name[0] != '_'
             && strcmp(cfg->locals.ptr[i]->name, "return") != 0
         ) {
             show_warning(write_locations[i], "variable '%s' is never used", cfg->locals.ptr[i]->name);
@@ -534,7 +535,7 @@ static void error_about_missing_return(CfGraph *cfg)
             "function '%s' doesn't seem to return a value in all cases", cfg->signature.name);
     }
     if (s == VS_UNDEFINED) {
-        fail_with_error(
+        fail(
             cfg->signature.returntype_location,
             "function '%s' must return a value, because it is defined with '-> %s'",
             cfg->signature.name, cfg->signature.returntype->name);

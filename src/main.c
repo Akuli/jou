@@ -189,9 +189,9 @@ static FILE *open_the_file(const char *path, const Location *import_location)
     FILE *f = fopen(path, "rb");
     if (!f) {
         if (import_location)
-            fail_with_error(*import_location, "cannot import from \"%s\": %s", path, strerror(errno));
+            fail(*import_location, "cannot import from \"%s\": %s", path, strerror(errno));
         else
-            fail_with_error((Location){.filename=path}, "cannot open file: %s", strerror(errno));
+            fail((Location){.filename=path}, "cannot open file: %s", strerror(errno));
     }
     return f;
 }
@@ -342,7 +342,7 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
                 case EXPSYM_GLOBAL_VAR: wat = "global variable"; break;
                 case EXPSYM_TYPE: wat = "type"; break;
             }
-            fail_with_error(fs->ast.body.statements[i].location, "a %s named '%s' already exists", wat, es->name);
+            fail(fs->ast.body.statements[i].location, "a %s named '%s' already exists", wat, es->name);
         }
     }
 
@@ -381,12 +381,12 @@ static void add_imported_symbols(struct CompileState *compst)
             struct FileState *from = find_file(compst, imp->resolved_path);
             assert(from);
             if (from == to) {
-                fail_with_error(imp->location, "the file itself cannot be imported");
+                fail(imp->location, "the file itself cannot be imported");
             }
 
             for (int i = 0; i < seen_before.len; i++) {
                 if (seen_before.ptr[i] == from) {
-                    fail_with_error(imp->location, "file \"%s\" is imported twice", imp->specified_path);
+                    fail(imp->location, "file \"%s\" is imported twice", imp->specified_path);
                 }
             }
             Append(&seen_before, from);

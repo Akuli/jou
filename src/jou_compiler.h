@@ -68,14 +68,11 @@ struct Location {
 
 #ifdef __GNUC__
     void show_warning(Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
-    noreturn void fail_with_error(Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
+    noreturn void fail(Location location, const char *fmt, ...) __attribute__((format(printf,2,3)));
 #else
     void show_warning(Location location, const char *fmt, ...);
-    noreturn void fail_with_error(Location location, const char *fmt, ...);
+    noreturn void fail(Location location, const char *fmt, ...);
 #endif
-
-// TODO: rename the damn function
-#define fail(...) fail_with_error(__VA_ARGS__)
 
 struct Token {
     enum TokenType {
@@ -543,6 +540,7 @@ struct CfInstruction {
         CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
         CF_PTR_LOAD,  // aka dereference
         CF_PTR_TO_INT64,
+        CF_INT64_TO_PTR,
         CF_PTR_CLASS_FIELD,  // takes 1 operand (pointer), sets destvar to &op->fieldname
         CF_PTR_CAST,
         CF_PTR_ADD_INT,

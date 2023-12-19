@@ -30,7 +30,7 @@ void show_warning(Location location, const char *fmt, ...)
     va_end(ap);
 }
 
-noreturn void fail_with_error(Location location, const char *fmt, ...)
+noreturn void fail(Location location, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
