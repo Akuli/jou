@@ -1,5 +1,6 @@
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
+import "stdlib/math.jou"
 import "../grid.jou"
 
 
@@ -58,12 +59,6 @@ class Node:
                 (*neighbors)[*nneighbors] = Node{location = [x,y], last_direction = [dx,dy]}
                 (*weights)[*nneighbors] = weight
                 ++*nneighbors
-
-
-def min(x: int, y: int) -> int:
-    if x < y:
-        return x
-    return y
 
 
 def dijkstra_algorithm(grid: Grid*, start1: Node, start2: Node, goal1: Node, goal2: Node) -> int:

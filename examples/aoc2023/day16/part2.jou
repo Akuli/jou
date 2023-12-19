@@ -109,20 +109,12 @@ def main() -> int:
     best = 0
 
     for x = 0; x < grid.width; x++:
-        n = run_beam(&grid, LightBeam{location = [x, 0], direction = [0, 1]})
-        if n > best:
-            best = n
-        n = run_beam(&grid, LightBeam{location = [x, grid.height - 1], direction = [0, -1]})
-        if n > best:
-            best = n
+        best = max(best, run_beam(&grid, LightBeam{location = [x, 0], direction = [0, 1]}))
+        best = max(best, run_beam(&grid, LightBeam{location = [x, grid.height - 1], direction = [0, -1]}))
 
     for y = 0; y < grid.height; y++:
-        n = run_beam(&grid, LightBeam{location = [0, y], direction = [1, 0]})
-        if n > best:
-            best = n
-        n = run_beam(&grid, LightBeam{location = [grid.width - 1, y], direction = [-1, 0]})
-        if n > best:
-            best = n
+        best = max(best, run_beam(&grid, LightBeam{location = [0, y], direction = [1, 0]}))
+        best = max(best, run_beam(&grid, LightBeam{location = [grid.width - 1, y], direction = [-1, 0]}))
 
     printf("%d\n", best)  # Output: 51
     free(grid.data)
