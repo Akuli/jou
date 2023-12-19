@@ -1,6 +1,7 @@
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/ascii.jou"
+import "stdlib/math.jou"
 
 
 class Game:
@@ -13,12 +14,12 @@ class Game:
         color: byte[10]
         assert sscanf(text, "%d %9s", &n, color) == 2
 
-        if strcmp(color, "red") == 0 and n > self->red:
-            self->red = n
-        if strcmp(color, "green") == 0 and n > self->green:
-            self->green = n
-        if strcmp(color, "blue") == 0 and n > self->blue:
-            self->blue = n
+        if strcmp(color, "red") == 0:
+            self->red = max(self->red, n)
+        if strcmp(color, "green") == 0:
+            self->green = max(self->green, n)
+        if strcmp(color, "blue") == 0:
+            self->blue = max(self->blue, n)
 
     def get_power(self) -> int:
         return self->red * self->green * self->blue
