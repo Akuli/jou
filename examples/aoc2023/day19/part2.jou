@@ -184,24 +184,17 @@ def parse_workflow(s: byte*) -> Workflow:
         wf.ifs = realloc(wf.ifs, sizeof(wf.ifs[0]) * (wf.n_ifs_and_thens + 1))
         wf.thens = realloc(wf.thens, sizeof(wf.thens[0]) * (wf.n_ifs_and_thens + 1))
 
-        assert strlen(var) == 1
-        if var[0] == 'x':
-            i = 0
-        elif var[0] == 'm':
-            i = 1
-        elif var[0] == 'a':
-            i = 2
-        elif var[0] == 's':
-            i = 3
-        else:
-            assert False
+        xmas = "xmas"
+        ptr = strstr(xmas, var)
+        assert ptr != NULL
+        var_index = (ptr as long) - (&xmas[0] as long)
 
         mins = [1, 1, 1, 1]
         maxs = [4000, 4000, 4000, 4000]
         if op == '<':
-            maxs[i] = num-1
+            maxs[var_index] = num-1
         elif op == '>':
-            mins[i] = num+1
+            mins[var_index] = num+1
         else:
             assert False
 
