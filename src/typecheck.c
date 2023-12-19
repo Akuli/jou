@@ -573,10 +573,11 @@ static void do_explicit_cast(ExpressionTypes *types, const Type *to, Location lo
     const Type *from = types->type;
 
     if (from == to)
-        fail(location, "unnecessary cast from %s to %s", from->name, to->name);
+        show_warning(location, "unnecessary cast from %s to %s", from->name, to->name);
 
     if (
-        !(from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER && from->data.array.membertype == to->data.valuetype)
+        from != to
+        && !(from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER && from->data.array.membertype == to->data.valuetype)
         && !(is_pointer_type(from) && is_pointer_type(to))
         && !(is_number_type(from) && is_number_type(to))
         && !(is_integer_type(from) && to->kind == TYPE_ENUM)
