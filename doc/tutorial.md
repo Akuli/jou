@@ -219,21 +219,11 @@ import "stdlib/io.jou"
 
 def main() -> int:
     b = 123 as byte
-    printf("%p\n", &b)
+    printf("%lld\n", &b as long)
     return 0
 ```
 
-Here the `p` of `%p` is short for "pointer".
-
-This prints something like `0x7ffd85fd3db7`.
-This is a number written in hexadecimal,
-and it means `140726851419575`.
-Hexadecimal basically means that instead of representing numbers with 10 digits (`0`-`9`),
-we use 16 "digits" (`0`-`9` and then `a`-`f`).
-The prefix `0x` is a convention to indicate that the number is in heXadecimal.
-How exactly hexadecimal works is not really relevant here,
-but what matters is that we got some number.
-So:
+This prints something like `140726851419575`, so:
 
 ```
 memory_of_the_computer[140726851419575] == 123
@@ -269,13 +259,13 @@ because the program essentially loads into whatever memory location is available
 
 ```
 $ ./jou asd.jou
-0x7ffe7e1ded17
+140731014311191
 $ ./jou asd.jou
-0x7ffff24bec87
+140737258450055
 $ ./jou asd.jou
-0x7fff356b6dd7
+140734089620951
 $ ./jou asd.jou
-0x7ffeabcfe7f7
+140731780950007
 ```
 
 In Jou, memory addresses are represented as **pointers**.
