@@ -255,7 +255,7 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
                 && sig.argtypes[1] == get_pointer_type(get_pointer_type(byteType))))
         {
             fail(
-                astsig->returntype.location,
+                astsig->args.ptr[0].type.location,
                 "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
             );
         }

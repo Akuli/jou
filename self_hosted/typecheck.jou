@@ -399,7 +399,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_type: Type*) ->
             and sig.argtypes[1] == byte_type->get_pointer_type()->get_pointer_type()
         ):
             fail(
-                astsig->return_type.location,
+                astsig->args[0].type.location,
                 "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
             )
 
