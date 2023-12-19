@@ -115,7 +115,7 @@ ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstFile *ast)
 
         const Type *existing = find_type(ft, name);
         if (existing)
-            fail_with_error(stmt->location, "%s named '%s' already exists", short_type_description(existing), name);
+            fail(stmt->location, "%s named '%s' already exists", short_type_description(existing), name);
 
         Append(&ft->types, (struct TypeAndUsedPtr){ .type=t, .usedptr=NULL });
         Append(&ft->owned_types, t);
@@ -139,7 +139,7 @@ int evaluate_array_length(const AstExpression *expr)
         return (int)expr->data.constant.data.integer.value;
     }
 
-    fail_with_error(expr->location, "cannot evaluate array length at compile time");
+    fail(expr->location, "cannot evaluate array length at compile time");
 }
 
 static bool is_void(const AstType *t)
@@ -160,7 +160,7 @@ static bool is_noreturn(const AstType *t)
 static const Type *type_from_ast(const FileTypes *ft, const AstType *asttype)
 {
     if (is_void(asttype) || is_none(asttype) || is_noreturn(asttype))
-        fail_with_error(asttype->location, "'%s' cannot be used here because it is not a type", asttype->data.name);
+        fail(asttype->location, "'%s' cannot be used here because it is not a type", asttype->data.name);
 
     const Type *tmp;
 
@@ -182,7 +182,7 @@ static const Type *type_from_ast(const FileTypes *ft, const AstType *asttype)
             return doubleType;
         if ((tmp = find_type(ft, asttype->data.name)))
             return tmp;
-        fail_with_error(asttype->location, "there is no type named '%s'", asttype->data.name);
+        fail(asttype->location, "there is no type named '%s'", asttype->data.name);
 
     case AST_TYPE_POINTER:
         if (is_void(asttype->data.valuetype))
@@ -193,7 +193,7 @@ static const Type *type_from_ast(const FileTypes *ft, const AstType *asttype)
         tmp = type_from_ast(ft, asttype->data.valuetype);
         int len = evaluate_array_length(asttype->data.array.len);
         if (len <= 0)
-            fail_with_error(asttype->data.array.len->location, "array length must be positive");
+            fail(asttype->data.array.len->location, "array length must be positive");
         return get_array_type(tmp, len);
     }
 }
@@ -202,7 +202,7 @@ static ExportSymbol handle_global_var(FileTypes *ft, const AstNameTypeValue *var
 {
     assert(ft->current_fom_types == NULL);  // find_any_var() only finds global vars
     if (find_any_var(ft, vardecl->name))
-        fail_with_error(vardecl->name_location, "a global variable named '%s' already exists", vardecl->name);
+        fail(vardecl->name_location, "a global variable named '%s' already exists", vardecl->name);
 
     assert(!vardecl->value);
     GlobalVariable *g = calloc(1, sizeof *g);
@@ -219,7 +219,7 @@ static ExportSymbol handle_global_var(FileTypes *ft, const AstNameTypeValue *var
 static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, const Type *self_type)
 {
     if (find_function_or_method(ft, self_type, astsig->name))
-        fail_with_error(astsig->name_location, "a %s named '%s' already exists", self_type ? "method" : "function", astsig->name);
+        fail(astsig->name_location, "a %s named '%s' already exists", self_type ? "method" : "function", astsig->name);
 
     Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
     safe_strcpy(sig.name, astsig->name);
@@ -241,7 +241,7 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
     if (is_none(&astsig->returntype) || is_noreturn(&astsig->returntype))
         sig.returntype = NULL;
     else if (is_void(&astsig->returntype))
-        fail_with_error(astsig->returntype.location, "void is not a valid return type, use '-> None' if the function does not return a value");
+        fail(astsig->returntype.location, "void is not a valid return type, use '-> None' if the function does not return a value");
     else
         sig.returntype = type_from_ast(ft, &astsig->returntype);
 
@@ -473,7 +473,7 @@ static void ensure_can_take_address(const AstExpression *expr, const char *errms
         }
         __attribute__((fallthrough));
     default:
-        fail_with_error(expr->location, errmsg_template, short_expression_description(expr));
+        fail(expr->location, errmsg_template, short_expression_description(expr));
     }
 }
 
@@ -506,7 +506,7 @@ static noreturn void fail_with_implicit_cast_error(
             template++;
         }
     }
-    fail_with_error(location, "%.*s", msg.len, msg.ptr);
+    fail(location, "%.*s", msg.len, msg.ptr);
 }
 
 static bool can_cast_implicitly(const Type *from, const Type *to)
@@ -554,7 +554,7 @@ static void do_implicit_cast(
     {
         int string_size = strlen(types->expr->data.constant.data.str) + 1;
         if (to->data.array.len < string_size) {
-            fail_with_error(location, "a string of %d bytes (including '\\0') does not fit into %s", string_size, to->name);
+            fail(location, "a string of %d bytes (including '\\0') does not fit into %s", string_size, to->name);
         }
         types->implicit_string_to_array_cast = true;
     }
@@ -581,8 +581,12 @@ static void do_explicit_cast(ExpressionTypes *types, const Type *to, Location lo
 {
     assert(!types->implicit_cast_type);
     const Type *from = types->type;
+
+    if (from == to)
+        show_warning(location, "unnecessary cast from %s to %s", from->name, to->name);
+
     if (
-        from != to  // TODO: should probably be error if it's the same type.
+        from != to
         && !(from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER && from->data.array.membertype == to->data.valuetype)
         && !(is_pointer_type(from) && is_pointer_type(to))
         && !(is_number_type(from) && is_number_type(to))
@@ -592,7 +596,7 @@ static void do_explicit_cast(ExpressionTypes *types, const Type *to, Location lo
         // TODO: pointer-to-int, int-to-pointer
     )
     {
-        fail_with_error(location, "cannot cast from type %s to %s", from->name, to->name);
+        fail(location, "cannot cast from type %s to %s", from->name, to->name);
     }
 
     if (from->kind == TYPE_ARRAY && is_pointer_type(to))
@@ -607,11 +611,11 @@ static ExpressionTypes *typecheck_expression_not_void(FileTypes *ft, const AstEx
     if (!types) {
         switch(expr->kind) {
         case AST_EXPR_FUNCTION_CALL:
-            fail_with_error(
+            fail(
                 expr->location, "function '%s' does not return a value", expr->data.call.calledname);
             break;
         case AST_EXPR_CALL_METHOD:
-            fail_with_error(
+            fail(
                 expr->location, "method '%s' does not return a value", expr->data.methodcall.call.calledname);
             break;
         default:
@@ -677,7 +681,7 @@ static const Type *check_binop(
         || (got_enums && op != AST_EXPR_EQ && op != AST_EXPR_NE)
         || (got_pointers && op != AST_EXPR_EQ && op != AST_EXPR_NE && op != AST_EXPR_GT && op != AST_EXPR_GE && op != AST_EXPR_LT && op != AST_EXPR_LE)
     )
-        fail_with_error(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name);
+        fail(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name);
 
     const Type *cast_type = NULL;
     if (got_integers) {
@@ -737,7 +741,7 @@ static const Type *check_increment_or_decrement(FileTypes *ft, const AstExpressi
     ensure_can_take_address(&expr->data.operands[0], bad_expr_fmt);
     const Type *t = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
     if (!is_integer_type(t) && !is_pointer_type(t))
-        fail_with_error(expr->location, bad_type_fmt, t->name);
+        fail(expr->location, bad_type_fmt, t->name);
     return t;
 }
 
@@ -745,7 +749,7 @@ static void typecheck_dereferenced_pointer(Location location, const Type *t)
 {
     // TODO: improved error message for dereferencing void*
     if (t->kind != TYPE_POINTER)
-        fail_with_error(location, "the dereference operator '*' is only for pointers, not for %s", t->name);
+        fail(location, "the dereference operator '*' is only for pointers, not for %s", t->name);
 }
 
 // ptr[index]
@@ -760,14 +764,14 @@ static const Type *typecheck_indexing(
         ptrtype = types->implicit_cast_type;
     } else {
         if (types->type->kind != TYPE_POINTER)
-            fail_with_error(ptrexpr->location, "value of type %s cannot be indexed", types->type->name);
+            fail(ptrexpr->location, "value of type %s cannot be indexed", types->type->name);
         ptrtype = types->type;
     }
     assert(ptrtype->kind == TYPE_POINTER);
 
     ExpressionTypes *indextypes = typecheck_expression_not_void(ft, indexexpr);
     if (!is_integer_type(indextypes->type)) {
-        fail_with_error(
+        fail(
             indexexpr->location,
             "the index inside [...] must be an integer, not %s",
             indextypes->type->name);
@@ -810,11 +814,11 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
     const Signature *sig = find_function_or_method(ft, self_type, call->calledname);
     if (!sig) {
         if (!self_type)
-            fail_with_error(location, "function '%s' not found", call->calledname);
+            fail(location, "function '%s' not found", call->calledname);
 
         // If self type is a pointer to a struct that has the method, mention it in the error message
         if (self_type->kind == TYPE_POINTER && find_method(self_type->data.valuetype, call->calledname)) {
-            fail_with_error(
+            fail(
                 location,
                 "the method '%s' is defined on class %s, not on the pointer type %s,"
                 " so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
@@ -822,12 +826,12 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
         }
         // If it is not a class, explain to the user that there are no methods
         if (self_type->kind != TYPE_CLASS) {
-            fail_with_error(
+            fail(
                 location,
                 "type %s does not have any methods because it is %s, not a class",
                 self_type->name, short_type_description(self_type));
         }
-        fail_with_error(location, "class %s does not have a method named '%s'",
+        fail(location, "class %s does not have a method named '%s'",
             self_type->name, call->calledname);
     }
 
@@ -837,7 +841,7 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
     if (self_type)
         nargs--;
     if (call->nargs < nargs || (call->nargs > nargs && !sig->takes_varargs)) {
-        fail_with_error(
+        fail(
             location,
             "%s %s takes %d argument%s, but it was called with %d argument%s",
             self_type ? "method" : "function",
@@ -887,7 +891,7 @@ static const struct ClassField *typecheck_class_field(
     for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++)
         if (!strcmp(f->name, fieldname))
             return f;
-    fail_with_error(location, "class %s has no field named '%s'", classtype->name, fieldname);
+    fail(location, "class %s has no field named '%s'", classtype->name, fieldname);
 }
 
 static const Type *typecheck_instantiation(FileTypes *ft, const AstCall *call, Location location)
@@ -897,7 +901,7 @@ static const Type *typecheck_instantiation(FileTypes *ft, const AstCall *call, L
     const Type *t = type_from_ast(ft, &tmp);
 
     if (t->kind != TYPE_CLASS) {
-        fail_with_error(location,
+        fail(location,
             "the %s{...} syntax is only for classes, but %s is %s",
             t->name, t->name, short_type_description(t));
     }
@@ -917,7 +921,7 @@ static const Type *typecheck_instantiation(FileTypes *ft, const AstCall *call, L
     for (int i1 = 0; i1 < call->nargs; i1++) {
         for (int i2 = i1+1; i2 < call->nargs; i2++) {
             if (specified_fields[i1]->union_id == specified_fields[i2]->union_id) {
-                fail_with_error(
+                fail(
                     call->args[i2].location,
                     "fields '%s' and '%s' cannot be set simultaneously because they belong to the same union",
                     specified_fields[i1]->name, specified_fields[i2]->name);
@@ -974,7 +978,7 @@ static const Type *cast_array_members_to_a_common_type(Location error_location, 
             AppendStr(&namestr, (*t)->name);
             AppendStr(&namestr, ", ");
         }
-        fail_with_error(
+        fail(
             error_location, "array items have different types (%.*s)",
             namestr.len - 2, namestr.ptr);
     }
@@ -996,14 +1000,14 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
     case AST_EXPR_GET_ENUM_MEMBER:
         result = find_type(ft, expr->data.enummember.enumname);
         if (!result)
-            fail_with_error(
+            fail(
                 expr->location, "there is no type named '%s'", expr->data.enummember.enumname);
         if (result->kind != TYPE_ENUM)
-            fail_with_error(
+            fail(
                 expr->location, "the '::' syntax is only for enums, but %s is %s",
                 expr->data.enummember.enumname, short_type_description(result));
         if (!enum_member_exists(result, expr->data.enummember.membername))
-            fail_with_error(expr->location, "enum %s has no member named '%s'",
+            fail(expr->location, "enum %s has no member named '%s'",
                 expr->data.enummember.enumname, expr->data.enummember.membername);
         break;
     case AST_EXPR_FUNCTION_CALL:
@@ -1033,7 +1037,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
     case AST_EXPR_GET_FIELD:
         temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
         if (temptype->kind != TYPE_CLASS)
-            fail_with_error(
+            fail(
                 expr->location,
                 "left side of the '.' operator must be an instance of a class, not %s",
                 temptype->name);
@@ -1042,7 +1046,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
     case AST_EXPR_DEREF_AND_GET_FIELD:
         temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
         if (temptype->kind != TYPE_POINTER || temptype->data.valuetype->kind != TYPE_CLASS)
-            fail_with_error(
+            fail(
                 expr->location,
                 "left side of the '->' operator must be a pointer to a class, not %s",
                 temptype->name);
@@ -1051,7 +1055,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
     case AST_EXPR_DEREF_AND_CALL_METHOD:
         temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
         if (temptype->kind != TYPE_POINTER)
-            fail_with_error(
+            fail(
                 expr->location,
                 "left side of the '->' operator must be a pointer, not %s",
                 temptype->name);
@@ -1082,7 +1086,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
     case AST_EXPR_GET_VARIABLE:
         result = find_any_var(ft, expr->data.varname);
         if (!result)
-            fail_with_error(expr->location, "no variable named '%s'", expr->data.varname);
+            fail(expr->location, "no variable named '%s'", expr->data.varname);
         break;
     case AST_EXPR_DEREFERENCE:
         temptype = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
@@ -1109,7 +1113,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
     case AST_EXPR_NEG:
         result = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
         if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_FLOATING_POINT)
-            fail_with_error(
+            fail(
                 expr->location,
                 "value after '-' must be a float or double or a signed integer, not %s",
                 result->name);
@@ -1274,20 +1278,20 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
 
     case AST_STMT_RETURN:
         if (ft->current_fom_types->signature.is_noreturn)
-            fail_with_error(
+            fail(
                 stmt->location,
                 "function '%s' cannot return because it was defined with '-> noreturn'",
                 ft->current_fom_types->signature.name);
 
         const Type *returntype = ft->current_fom_types->signature.returntype;
         if (stmt->data.returnvalue && !returntype) {
-            fail_with_error(
+            fail(
                 stmt->location,
                 "function '%s' cannot return a value because it was defined with '-> None'",
                 ft->current_fom_types->signature.name);
         }
         if (returntype && !stmt->data.returnvalue) {
-            fail_with_error(
+            fail(
                 stmt->location,
                 "a return value is needed, because the return type of function '%s' is %s",
                 ft->current_fom_types->signature.name,
@@ -1307,7 +1311,7 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
 
     case AST_STMT_DECLARE_LOCAL_VAR:
         if (find_any_var(ft, stmt->data.vardecl.name))
-            fail_with_error(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
+            fail(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
 
         const Type *type = type_from_ast(ft, &stmt->data.vardecl.type);
         add_variable(ft, type, stmt->data.vardecl.name);
