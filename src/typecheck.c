@@ -571,8 +571,12 @@ static void do_explicit_cast(ExpressionTypes *types, const Type *to, Location lo
 {
     assert(!types->implicit_cast_type);
     const Type *from = types->type;
+
+    if (from == to)
+        show_warning(location, "unnecessary cast from %s to %s", from->name, to->name);
+
     if (
-        from != to  // TODO: should probably be error if it's the same type.
+        from != to
         && !(from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER && from->data.array.membertype == to->data.valuetype)
         && !(is_pointer_type(from) && is_pointer_type(to))
         && !(is_number_type(from) && is_number_type(to))
