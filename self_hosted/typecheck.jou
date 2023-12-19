@@ -43,9 +43,8 @@ def can_cast_implicitly(from: Type*, to: Type*) -> bool:
     )
 
 def can_cast_explicitly(from: Type*, to: Type*) -> bool:
-    return (
-        from == to
-        or (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
+    return from != to and (
+        (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
         or (from->is_pointer_type() and to->is_pointer_type())
         or (from->is_number_type() and to->is_number_type())
         or (from->is_integer_type() and to->kind == TypeKind::Enum)
@@ -178,7 +177,10 @@ class ExpressionTypes:
         from = self->original_type
         if not can_cast_explicitly(from, to):
             message: byte[500]
-            snprintf(&message[0], sizeof message, "cannot cast from type %s to %s", from->name, to->name)
+            if from == to:
+                snprintf(message, sizeof message, "unnecessary cast from %s to %s", from->name, to->name)
+            else:
+                snprintf(message, sizeof message, "cannot cast from type %s to %s", from->name, to->name)
             fail(error_location, message)
 
         if from->kind == TypeKind::Array and to->is_pointer_type():
