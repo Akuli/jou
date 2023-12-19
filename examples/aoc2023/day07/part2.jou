@@ -1,6 +1,8 @@
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/math.jou"
+
 
 class Hand:
     letters: byte[6]
@@ -114,9 +116,7 @@ class Hand:
 
         best = -1
         for i = 0; i < nvariations; i++:
-            value = variations[i].hand_type_strength_without_J_special_casing()
-            if value > best:
-                best = value
+            best = max(best, variations[i].hand_type_strength_without_J_special_casing())
 
         free(variations)
         self->cached_hand_type_strength = best
