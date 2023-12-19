@@ -1,0 +1,148 @@
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+
+class XMAS:
+    x: int
+    m: int
+    a: int
+    s: int
+
+    def sum(self) -> int:
+        return self->x + self->m + self->a + self->s
+
+
+class Expression:
+    var: byte
+    greater_than: bool  # if False, this is a less than
+    value: int
+
+    def applies_to(self, xmas: XMAS) -> bool:
+        if self->var == 'x':
+            actual_value = xmas.x
+        elif self->var == 'm':
+            actual_value = xmas.m
+        elif self->var == 'a':
+            actual_value = xmas.a
+        elif self->var == 's':
+            actual_value = xmas.s
+        else:
+            assert False
+
+        if self->greater_than:
+            return actual_value > self->value
+        else:
+            return actual_value < self->value
+
+
+class Workflow:
+    name: byte[10]
+    ifs: Expression*
+    thens: byte[10]*
+    n_ifs_and_thens: int
+    the_else: byte[10]
+
+    def run(self, xmas: XMAS) -> byte*:
+        for i = 0; i < self->n_ifs_and_thens; i++:
+            if self->ifs[i].applies_to(xmas):
+                return self->thens[i]
+        return self->the_else
+
+
+def take_word(p: byte**) -> byte[10]:
+    result: byte[10]
+
+    i = 0
+    while is_ascii_letter(**p):
+        assert i < sizeof(result)
+        result[i++] = *(*p)++
+
+    assert i < sizeof(result)
+    result[i] = '\0'
+    return result
+
+
+def parse_workflow(s: byte*) -> Workflow:
+    wf = Workflow{name = take_word(&s)}
+    assert *s++ == '{'
+
+    while True:
+        # Check for the special else word
+        p = s
+        possibly_the_else = take_word(&p)
+        if *p == '}':
+            assert p[1] == '\0'
+            wf.the_else = possibly_the_else
+            return wf
+
+        # "s>1188:ktb," --> var="s", op='>', num=1188, then="ktb"
+        var = take_word(&s)
+        op = *s++
+        num = atoi(s)
+        while is_ascii_digit(*s):
+            s++
+        assert *s++ == ':'
+        then = take_word(&s)
+        assert *s++ == ','
+
+        wf.ifs = realloc(wf.ifs, sizeof(wf.ifs[0]) * (wf.n_ifs_and_thens + 1))
+        wf.thens = realloc(wf.thens, sizeof(wf.thens[0]) * (wf.n_ifs_and_thens + 1))
+
+        assert strlen(var) == 1
+        assert op == '>' or op == '<'
+        wf.ifs[wf.n_ifs_and_thens] = Expression{var = var[0], greater_than = (op == '>'), value = num}
+        wf.thens[wf.n_ifs_and_thens] = then
+        wf.n_ifs_and_thens++
+
+
+def find_workflow(workflows: Workflow*, nworkflows: int, name: byte*) -> Workflow*:
+    for i = 0; i < nworkflows; i++:
+        if strcmp(workflows[i].name, name) == 0:
+            return &workflows[i]
+    assert False
+
+
+def run(workflows: Workflow*, nworkflows: int, xmas: XMAS) -> bool:
+    result = "in"
+
+    while True:
+        result = find_workflow(workflows, nworkflows, result)->run(xmas)
+        if strcmp(result, "A") == 0:
+            return True
+        if strcmp(result, "R") == 0:
+            return False
+
+
+def main() -> int:
+    f = fopen("input", "r")
+    assert f != NULL
+
+    workflows: Workflow* = NULL
+    nworkflows = 0
+
+    line: byte[200]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        if line[0] == '\0':
+            # end of workflows
+            break
+
+        workflows = realloc(workflows, sizeof(workflows[0]) * (nworkflows + 1))
+        workflows[nworkflows++] = parse_workflow(line)
+
+    xmas: XMAS
+    result = 0
+    while fscanf(f, "{x=%d,m=%d,a=%d,s=%d}\n", &xmas.x, &xmas.m, &xmas.a, &xmas.s) == 4:
+        if run(workflows, nworkflows, xmas):
+            result += xmas.sum()
+
+    printf("%d\n", result)  # Output: 19114
+
+    for i = 0; i < nworkflows; i++:
+        free(workflows[i].ifs)
+        free(workflows[i].thens)
+    free(workflows)
+    fclose(f)
+    return 0

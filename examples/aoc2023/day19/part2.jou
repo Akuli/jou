@@ -1,0 +1,356 @@
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+
+# TODO: put these into the fucking standard library, I am sooo tired of writing them!. :(
+def min(a: int, b: int) -> int:
+    if a < b:
+        return a
+    return b
+def max(a: int, b: int) -> int:
+    if a > b:
+        return a
+    return b
+
+
+# 4 dimensional box
+class Box:
+    mins: int[4]
+    maxs: int[4]
+
+    def print(self) -> None:
+        printf(
+            "Box{mins=[%d,%d,%d,%d], maxs=[%d,%d,%d,%d]}\n",
+            self->mins[0], self->mins[1], self->mins[2], self->mins[3],
+            self->maxs[0], self->maxs[1], self->maxs[2], self->maxs[3],
+        )
+
+    def contains(self, point: int[4]) -> bool:
+        for i = 0; i < 4; i++:
+            if point[i] < self->mins[i] or point[i] > self->maxs[i]:
+                return False
+        return True
+
+    def contains_box(self, box: Box) -> bool:
+        if box.is_empty():
+            return True
+
+        corners = box.corners()
+        for i = 0; i < sizeof(corners)/sizeof(corners[0]); i++:
+            if not self->contains(corners[i]):
+                return False
+        return True
+
+    def intersect(self, other: Box) -> Box:
+        result = Box{}
+        for i = 0; i < 4; i++:
+            result.mins[i] = max(self->mins[i], other.mins[i])
+            result.maxs[i] = min(self->maxs[i], other.maxs[i])
+        return result
+
+    def overlaps(self, other: Box) -> bool:
+        intersection = self->intersect(other)
+        return not intersection.is_empty()
+
+    def is_empty(self) -> bool:
+        for i = 0; i < 4; i++:
+            if self->mins[i] > self->maxs[i]:
+                return True
+        return False
+
+    def size(self) -> long:
+        if self->is_empty():
+            return 0
+
+        result = 1L
+        for i = 0; i < 4; i++:
+            result *= self->maxs[i] - self->mins[i] + 1
+        return result
+
+    def corners(self) -> int[4][16]:
+        assert not self->is_empty()
+
+        result: int[4][16]
+        memset(&result, 0, sizeof(result))  # unnecessary, but compiler is sad if i don't do this
+
+        for i = 0; i < 16; i++:
+            bits = [(i / 8) % 2, (i / 4) % 2, (i / 2) % 2, i % 2]
+            for k = 0; k < 4; k++:
+                if bits[k] == 1:
+                    result[i][k] = self->maxs[k]
+                else:
+                    result[i][k] = self->mins[k]
+        return result
+
+    def can_split(self, split_at: int, coord_idx: int) -> bool:
+        assert 0 <= coord_idx and coord_idx < 4
+        # Split must happen within the box.
+        # For example if min=5 and max=10 (length = 6), then split can happen at 6,7,8,9,10.
+        return self->mins[coord_idx] < split_at and split_at <= self->maxs[coord_idx]
+
+    def split(self, split_at: int, coord_idx: int) -> Box[2]:
+        assert self->can_split(split_at, coord_idx)
+        result = [*self, *self]
+        result[0].maxs[coord_idx] = split_at - 1
+        result[1].mins[coord_idx] = split_at
+        return result
+
+
+class UnionOfBoxes:
+    boxes: Box*  # non-empty and non-overlapping
+    nboxes: int
+
+    def print(self) -> None:
+        if self->nboxes == 0:
+            printf("(empty UnionOfBoxes)\n")
+            return
+
+        printf("UnionOfBoxes {\n")
+        for i = 0; i < self->nboxes; i++:
+            printf("  ")
+            self->boxes[i].print()
+        printf("}\n")
+
+    def is_empty(self) -> bool:
+        return self->nboxes == 0
+
+    def copy(self) -> UnionOfBoxes:
+        result = UnionOfBoxes{nboxes = self->nboxes}
+        result.boxes = malloc(result.nboxes * sizeof(result.boxes[0]))
+        assert result.boxes != NULL
+        memcpy(result.boxes, self->boxes, result.nboxes * sizeof(result.boxes[0]))
+        return result
+
+    def remove_box(self, box: Box) -> None:
+        if box.is_empty():
+            return
+
+        for k = self->nboxes - 1; k >= 0; k--:
+            existing = self->boxes[k]
+            assert not existing.is_empty()
+
+            if not box.overlaps(existing):
+                continue
+            if box.contains_box(existing):
+                self->boxes[k] = self->boxes[--self->nboxes]
+                continue
+
+            # We need to remove a part of an existing box.
+            # Split the existing box at boundaries of what we're removing.
+            # Delete the parts we don't like.
+            have: Box* = malloc(sizeof(have[0]))
+            nhave = 1
+            have[0] = existing
+            for coord_idx = 0; coord_idx < 4; coord_idx++:
+                splits = [box.mins[coord_idx], box.maxs[coord_idx] + 1]
+                for s = &splits[0]; s < &splits[2]; s++:
+                    check = 0L
+                    for i = 0; i < nhave; i++:
+                        check += have[i].size()
+
+                    # Split
+                    have = realloc(have, 2*nhave*sizeof(have[0]))
+                    assert have != NULL
+                    for i = nhave - 1; i >= 0; i--:
+                        if have[i].can_split(*s, coord_idx):
+                            split = have[i].split(*s, coord_idx)
+                            have[i] = split[0]
+                            have[nhave++] = split[1]
+
+                    check2 = 0L
+                    for i = 0; i < nhave; i++:
+                        check2 += have[i].size()
+                    assert check == check2
+
+                    # Delete unwanted small boxes
+                    for i = nhave - 1; i >= 0; i--:
+                        assert not have[i].is_empty()
+                        if box.contains_box(have[i]):
+                            have[i] = have[--nhave]
+
+            # Replace self->boxes[k] with "have"
+            self->boxes[k] = self->boxes[--self->nboxes]
+            self->boxes = realloc(self->boxes, (self->nboxes + nhave) * sizeof(self->boxes[0]))
+            for i = 0; i < nhave; i++:
+                self->boxes[self->nboxes++] = have[i]
+            free(have)
+
+        # sanity check
+        for i = 0; i < self->nboxes; i++:
+            assert not self->boxes[i].is_empty()
+            assert not self->boxes[i].overlaps(box)
+            for k = 0; k < i; k++:
+                assert not self->boxes[i].overlaps(self->boxes[k])
+
+    def add_box(self, box: Box) -> None:
+        if not box.is_empty():
+            self->remove_box(box)
+            self->boxes = realloc(self->boxes, (self->nboxes + 1) * sizeof(self->boxes[0]))
+            assert self->boxes != NULL
+            self->boxes[self->nboxes++] = box
+
+    def add_union_of_boxes(self, u: UnionOfBoxes) -> None:
+        for i = 0; i < u.nboxes; i++:
+            self->add_box(u.boxes[i])
+
+    def intersect_with_box(self, box: Box) -> None:
+        for i = self->nboxes - 1; i >= 0; i--:
+            self->boxes[i] = self->boxes[i].intersect(box)
+            if self->boxes[i].is_empty():
+                self->boxes[i] = self->boxes[--self->nboxes]
+
+    def size(self) -> long:
+        result = 0L
+        for i = 0; i < self->nboxes; i++:
+            result += self->boxes[i].size()
+        return result
+
+
+class Workflow:
+    name: byte[10]
+    ifs: Box*
+    thens: byte[10]*
+    n_ifs_and_thens: int
+    the_else: byte[10]
+    how_to_get_here: UnionOfBoxes
+
+    def print(self) -> None:
+        printf("Workflow \"%s\": %d ifs and thens, else=%s, %lld ways to get here\n", self->name, self->n_ifs_and_thens, self->the_else, self->how_to_get_here.size())
+
+
+def take_word(p: byte**) -> byte[10]:
+    result: byte[10]
+
+    i = 0
+    while is_ascii_letter(**p):
+        assert i < sizeof(result)
+        result[i++] = *(*p)++
+
+    assert i < sizeof(result)
+    result[i] = '\0'
+    return result
+
+
+def parse_workflow(s: byte*) -> Workflow:
+    wf = Workflow{name = take_word(&s)}
+    assert *s++ == '{'
+
+    while True:
+        # Check for the special else word
+        p = s
+        possibly_the_else = take_word(&p)
+        if *p == '}':
+            assert p[1] == '\0'
+            wf.the_else = possibly_the_else
+            return wf
+
+        # "s>1188:ktb," --> var="s", op='>', num=1188, then="ktb"
+        var = take_word(&s)
+        op = *s++
+        num = atoi(s)
+        while is_ascii_digit(*s):
+            s++
+        assert *s++ == ':'
+        then = take_word(&s)
+        assert *s++ == ','
+
+        wf.ifs = realloc(wf.ifs, sizeof(wf.ifs[0]) * (wf.n_ifs_and_thens + 1))
+        wf.thens = realloc(wf.thens, sizeof(wf.thens[0]) * (wf.n_ifs_and_thens + 1))
+
+        assert strlen(var) == 1
+        if var[0] == 'x':
+            i = 0
+        elif var[0] == 'm':
+            i = 1
+        elif var[0] == 'a':
+            i = 2
+        elif var[0] == 's':
+            i = 3
+        else:
+            assert False
+
+        mins = [1, 1, 1, 1]
+        maxs = [4000, 4000, 4000, 4000]
+        if op == '<':
+            maxs[i] = num-1
+        elif op == '>':
+            mins[i] = num+1
+        else:
+            assert False
+
+        wf.ifs[wf.n_ifs_and_thens] = Box{mins=mins, maxs=maxs}
+        wf.thens[wf.n_ifs_and_thens] = then
+        wf.n_ifs_and_thens++
+
+
+def find_workflow(workflows: Workflow*, nworkflows: int, name: byte*) -> Workflow*:
+    for i = 0; i < nworkflows; i++:
+        if strcmp(workflows[i].name, name) == 0:
+            return &workflows[i]
+    printf("404 '%s'\n", name)
+    assert False
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    workflows: Workflow* = NULL
+    nworkflows = 0
+
+    line: byte[200]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        if line[0] == '\0':
+            # end of workflows
+            break
+
+        workflows = realloc(workflows, sizeof(workflows[0]) * (nworkflows + 1))
+        workflows[nworkflows++] = parse_workflow(line)
+
+    fclose(f)
+
+    # add dummy "A" and "R" workflows
+    workflows = realloc(workflows, sizeof(workflows[0]) * (nworkflows + 2))
+    workflows[nworkflows++] = parse_workflow("A{A}")
+    workflows[nworkflows++] = parse_workflow("R{R}")
+
+    start_bounds = UnionOfBoxes{}
+    start_bounds.add_box(Box{mins=[1,1,1,1], maxs=[4000,4000,4000,4000]})
+    find_workflow(workflows, nworkflows, "in")->how_to_get_here = start_bounds
+
+    did_something = True
+    while did_something:
+        did_something = False
+
+        for wf = &workflows[0]; wf < &workflows[nworkflows]; wf++:
+            bounds = wf->how_to_get_here.copy()
+
+            for i = 0; i < wf->n_ifs_and_thens; i++:
+                true_bounds = bounds.copy()
+                true_bounds.intersect_with_box(wf->ifs[i])
+
+                wf2 = find_workflow(workflows, nworkflows, wf->thens[i])
+                old = wf2->how_to_get_here.size()
+                wf2->how_to_get_here.add_union_of_boxes(true_bounds)
+                new = wf2->how_to_get_here.size()
+                assert old <= new
+                if old < new:
+                    did_something = True
+
+                free(true_bounds.boxes)
+                bounds.remove_box(wf->ifs[i])
+
+            find_workflow(workflows, nworkflows, wf->the_else)->how_to_get_here.add_union_of_boxes(bounds)
+            free(bounds.boxes)
+
+    printf("%lld\n", find_workflow(workflows, nworkflows, "A")->how_to_get_here.size())  # Output: 167409079868000
+
+    for i = 0; i < nworkflows; i++:
+        free(workflows[i].ifs)
+        free(workflows[i].thens)
+        free(workflows[i].how_to_get_here.boxes)
+    free(workflows)
+    return 0
