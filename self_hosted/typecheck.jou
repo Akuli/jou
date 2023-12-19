@@ -389,10 +389,19 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_type: Type*) ->
     else:
         sig.return_type = type_from_ast(ft, &astsig->return_type)
 
-    # TODO: validate main() parameters
-    # TODO: test main() taking parameters
-    if self_type == NULL and strcmp(sig.name, "main") == 0 and sig.return_type != int_type:
-        fail(astsig->return_type.location, "the main() function must return int")
+    if self_type == NULL and strcmp(sig.name, "main") == 0:
+        # special main() function checks
+        if sig.return_type != int_type:
+            fail(astsig->return_type.location, "the main() function must return int")
+        if sig.nargs != 0 and not (
+            sig.nargs == 2
+            and sig.argtypes[0] == int_type
+            and sig.argtypes[1] == byte_type->get_pointer_type()->get_pointer_type()
+        ):
+            fail(
+                astsig->return_type.location,
+                "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
+            )
 
     return sig
 
