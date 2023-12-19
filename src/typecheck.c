@@ -583,7 +583,8 @@ static void do_explicit_cast(ExpressionTypes *types, const Type *to, Location lo
         && !(is_integer_type(from) && to->kind == TYPE_ENUM)
         && !(from->kind == TYPE_ENUM && is_integer_type(to))
         && !(from->kind == TYPE_BOOL && is_integer_type(to))
-        // TODO: pointer-to-int, int-to-pointer
+        && !(is_pointer_type(from) && to == longType)
+        && !(from == longType && is_pointer_type(to))
     )
     {
         fail(location, "cannot cast from type %s to %s", from->name, to->name);

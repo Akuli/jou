@@ -133,6 +133,12 @@ static const LocalVariable *build_cast(
         return result;
     }
 
+    if (is_number_type(obj->type) && obj->type->data.width_in_bits == 64 && is_pointer_type(to)) {
+        const LocalVariable *result = add_local_var(st, to);
+        add_unary_op(st, location, CF_INT64_TO_PTR, obj, result);
+        return result;
+    }
+
     if (is_integer_type(obj->type) || to->kind == TYPE_ENUM) {
         const LocalVariable *i32var = add_local_var(st, intType);
         const LocalVariable *result = add_local_var(st, to);

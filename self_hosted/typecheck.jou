@@ -51,6 +51,8 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
         or (from->is_integer_type() and to->kind == TypeKind::Enum)
         or (from->kind == TypeKind::Enum and to->is_integer_type())
         or (from == &bool_type and to->is_integer_type())
+        or (from->is_pointer_type() and to == long_type)
+        or (from == long_type and to->is_pointer_type())
     )
 
 # Implicit casts are used in many places, e.g. function arguments.

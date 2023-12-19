@@ -205,6 +205,11 @@ class AstToIR:
             #   unsigned 8-bit 0xFF (255) --> 16-bit 0x00FF (255)
             return LLVMBuildIntCast2(self->builder, obj, type_to_llvm(to), (from->kind == TypeKind::SignedInteger) as int, "cast_int")
 
+        if from->is_integer_type() and to->is_pointer_type():
+            return LLVMBuildIntToPtr(self->builder, obj, type_to_llvm(to), "long_as_ptr")
+        if from->is_pointer_type() and to->is_integer_type():
+            return LLVMBuildPtrToInt(self->builder, obj, type_to_llvm(to), "ptr_as_long")
+
         if from->kind == TypeKind::SignedInteger and to->kind == TypeKind::FloatingPoint:
             return LLVMBuildSIToFP(self->builder, obj, type_to_llvm(to), "cast_signed_to_float")
         if from->kind == TypeKind::UnsignedInteger and to->kind == TypeKind::FloatingPoint:
