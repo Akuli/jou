@@ -1,0 +1,23 @@
+flip flop %
+
+    state = low
+    on recv:
+        if received == low:
+            toggle state high/low
+            send state
+
+conjunction &
+
+    state = [low] * n
+    on recv from i:
+        state[i] = received
+        if state == [high]*n:
+            send low
+        else:
+            send high
+
+button and broadcaster:
+
+    when button pressed:
+        send low to all
+

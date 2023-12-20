@@ -77,7 +77,7 @@ def split_by_ascii_whitespace(s: byte*) -> byte**:
             break
         *result_ptr++ = s
 
-        while not is_ascii_whitespace(*s):
+        while *s != '\0' and not is_ascii_whitespace(*s):
             s++
 
         if *s == '\0':
