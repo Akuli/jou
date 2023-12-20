@@ -12,7 +12,6 @@ enum ModuleKind:
 
 class Module:
     name: byte[15]
-    receives_broadcasts: bool
 
     # TODO: use Module* instead of void*
     # https://github.com/Akuli/jou/issues/473
@@ -27,19 +26,28 @@ class Module:
         conjunction_state: bool[10]  # length = nsources
 
 
-def find_module_if_exists(modules: Module*, nmodules: int, name: byte*) -> Module*:
-    for i = 0; i < nmodules; i++:
-        if strcmp(modules[i].name, name) == 0:
-            return &modules[i]
-    return NULL
+class ModuleList:
+    modules: Module[100]
+    nmodules: int
 
+    def create_if_doesnt_exist(self, name: byte*) -> None:
+        for i = 0; i < self->nmodules; i++:
+            if strcmp(self->modules[i].name, name) == 0:
+                return
 
-def find_module(modules: Module*, nmodules: int, name: byte*) -> Module*:
-    result = find_module_if_exists(modules, nmodules, name)
-    if result == NULL:
+        m = Module{kind = ModuleKind::FlipFlop}  # will be changed later
+        assert strlen(name) < sizeof(m.name)
+        strcpy(m.name, name)
+
+        assert self->nmodules < sizeof(self->modules)/sizeof(self->modules[0])
+        self->modules[self->nmodules++] = m
+
+    def find_module(self, name: byte*) -> Module*:
+        for i = 0; i < self->nmodules; i++:
+            if strcmp(self->modules[i].name, name) == 0:
+                return &self->modules[i]
         printf("404 '%s'\n", name)
-    assert result != NULL
-    return result
+        assert False
 
 
 class GonnaSend:
@@ -54,8 +62,6 @@ class TodoList:
     alloc: int
 
     def send_later(self, from: Module*, to: Module*, value: bool) -> None:
-#        printf("  later: %s -%d-> %s\n", from->name, value as int, to->name)
-
         if self->len == self->alloc:
             if self->alloc == 0:
                 self->alloc = 1
@@ -68,15 +74,14 @@ class TodoList:
         self->ptr[self->len++] = GonnaSend{from=from, to=to, value=value}
 
     def pop_left(self) -> GonnaSend:
-        # TODO: memmove too slow?
         result = self->ptr[0]
         memmove(&self->ptr[0], &self->ptr[1], --self->len * sizeof(self->ptr[0]))
         return result
 
 
-def press_button(modules: Module*, nmodules: int, high_counter: int*, low_counter: int*) -> None:
+def press_button(modules: ModuleList*, high_counter: int*, low_counter: int*) -> None:
     todo = TodoList{}
-    todo.send_later(NULL, find_module(modules, nmodules, "broadcaster"), False)
+    todo.send_later(NULL, modules->find_module("broadcaster"), False)
 
     while todo.len > 0:
         fflush(stdout)
@@ -87,16 +92,18 @@ def press_button(modules: Module*, nmodules: int, high_counter: int*, low_counte
         else:
             ++*low_counter
 
-        printf("%s -%d-> %s\n", item.from->name, item.value as int, item.to->name)
+        #printf("%s -%d-> %s\n", item.from->name, item.value as int, item.to->name)
 
         if item.to->kind == ModuleKind::Broadcaster:
             for i = 0; i < item.to->ndestinations; i++:
                 todo.send_later(item.to, item.to->destinations[i], item.value)
+
         elif item.to->kind == ModuleKind::FlipFlop:
             if not item.value:
                 item.to->flip_flop_state = not item.to->flip_flop_state
                 for i = 0; i < item.to->ndestinations; i++:
                     todo.send_later(item.to, item.to->destinations[i], item.to->flip_flop_state)
+
         elif item.to->kind == ModuleKind::Conjunction:
             i = 0
             while item.to->sources[i] != item.from:
@@ -108,8 +115,11 @@ def press_button(modules: Module*, nmodules: int, high_counter: int*, low_counte
             for i = 0; i < item.to->nsources; i++:
                 if not item.to->conjunction_state[i]:
                     all_high = False
+                    break
+
             for i = 0; i < item.to->ndestinations; i++:
                 todo.send_later(item.to, item.to->destinations[i], not all_high)
+
         else:
             assert False
 
@@ -118,62 +128,12 @@ def press_button(modules: Module*, nmodules: int, high_counter: int*, low_counte
 
 def main() -> int:
     f = fopen("sampleinput2_modified.txt", "r")
-    f = fopen("input", "r")
     assert f != NULL
 
-    modules: Module* = NULL
-    nmodules = 0
+    modules: ModuleList* = malloc(sizeof(*modules))
+    memset(modules, 0, sizeof(*modules))
 
-    # Pass 1: Create modules that send
     line: byte[200]
-    while fgets(line, sizeof(line) as int, f) != NULL:
-        m = Module{}
-        if line[0] == '%':
-            m.kind = ModuleKind::FlipFlop
-        elif line[0] == '&':
-            m.kind = ModuleKind::Conjunction
-        else:
-            assert starts_with(line, "broadcaster")
-            m.kind = ModuleKind::Broadcaster
-
-        if m.kind == ModuleKind::Broadcaster:
-            m.name = "broadcaster"
-        else:
-            p = &line[1]
-            while *p != '\0' and *p != ' ':
-                p++
-            *p = '\0'
-            assert strlen(&line[1]) < sizeof(m.name)
-            strcpy(m.name, &line[1])
-
-        modules = realloc(modules, sizeof(modules[0]) * (nmodules+1))
-        assert modules != NULL
-        modules[nmodules++] = m
-
-    # Pass 2: Create modules that receive
-    rewind(f)
-    while fgets(line, sizeof(line) as int, f) != NULL:
-        for i = 0; line[i] != '\0'; i++:
-            if line[i] == ',':
-                line[i] = ' '
-
-        words = split_by_ascii_whitespace(line)
-        assert words[0] != NULL and words[1] != NULL
-        assert strcmp(words[1], "->") == 0
-
-        for i = 2; words[i] != NULL; i++:
-            if find_module_if_exists(modules, nmodules, words[i]) == NULL:
-                m = Module{}
-                assert strlen(words[i]) < sizeof(m.name)
-                strcpy(m.name, words[i])
-                m.kind = ModuleKind::FlipFlop
-
-                modules = realloc(modules, sizeof(modules[0]) * (nmodules+1))
-                assert modules != NULL
-                modules[nmodules++] = m
-
-    # Pass 3: Fill in sources and destinations
-    rewind(f)
     while fgets(line, sizeof(line) as int, f) != NULL:
         for i = 0; line[i] != '\0'; i++:
             if line[i] == ',':
@@ -183,14 +143,26 @@ def main() -> int:
         assert words[0] != NULL and words[1] != NULL
 
         name = words[0]
-        if name[0] == '%' or name[0] == '&':
+        if name[0] == '%':
             name++
-        source = find_module(modules, nmodules, name)
+            kind = ModuleKind::FlipFlop
+        elif name[0] == '&':
+            name++
+            kind = ModuleKind::Conjunction
+        else:
+            assert strcmp(name, "broadcaster") == 0
+            kind = ModuleKind::Broadcaster
+
+        modules->create_if_doesnt_exist(name)
+        source = modules->find_module(name)
+        source->kind = kind
 
         assert strcmp(words[1], "->") == 0
 
         for i = 2; words[i] != NULL; i++:
-            dest = find_module(modules, nmodules, words[i])
+            modules->create_if_doesnt_exist(words[i])
+            dest = modules->find_module(words[i])
+
             assert dest->nsources < sizeof(dest->sources)/sizeof(dest->sources[0])
             dest->sources[dest->nsources++] = source
             assert source->ndestinations < sizeof(source->destinations)/sizeof(source->destinations[0])
@@ -203,7 +175,7 @@ def main() -> int:
     h = 0
     l = 0
     for i = 0; i < 1000; i++:
-        press_button(modules, nmodules, &h, &l)
+        press_button(modules, &h, &l)
     printf("%d\n", h*l)  # Output: 11687500
 
     free(modules)
