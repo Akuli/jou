@@ -1,0 +1,30 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "../grid.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    # change to 64 for real input
+    for i = 0; i < 6; i++:
+        current_places = grid.find_all('S')
+        for k = 0; current_places[k][0] != -1; k++:
+            grid.set(current_places[k], '.')
+        for k = 0; current_places[k][0] != -1; k++:
+            x = current_places[k][0]
+            y = current_places[k][1]
+            neighbors = [[x-1,y], [x+1,y], [x,y-1], [x,y+1]]
+            for n = &neighbors[0]; n < &neighbors[4]; n++:
+                if grid.is_in_bounds(*n) and grid.get(*n) == '.':
+                    grid.set(*n, 'S')
+        free(current_places)
+
+    printf("%d\n", grid.count('S'))  # Output: 16
+
+    free(grid.data)
+
+    return 0
