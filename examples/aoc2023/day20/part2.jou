@@ -28,49 +28,6 @@ class Module:
     def reset_to_initial_state(self) -> None:
         memset(&self->conjunction_state, 0, sizeof(self->conjunction_state))
 
-    def print(self) -> None:
-        if self->kind == ModuleKind::Broadcaster:
-            printf("Broadcaster")
-        elif self->kind == ModuleKind::FlipFlop:
-            printf("FlipFlop", self->flip_flop_state as int)
-        elif self->kind == ModuleKind::Conjunction:
-            printf("Conjunction")
-        else:
-            assert False
-
-        printf(" \"%s\":", self->name)
-
-        if self->kind == ModuleKind::FlipFlop:
-            printf(" state=%d", self->flip_flop_state as int)
-
-        printf(" sources=[")
-        for i = 0; i < self->nsources; i++:
-            if i > 0:
-                printf(",")
-            printf("%s", (self->sources[i] as Module*)->name)
-            if self->kind == ModuleKind::Conjunction:
-                printf("=%d", self->conjunction_state[i] as int)
-        printf("] dests=[")
-        for i = 0; i < self->ndestinations; i++:
-            if i > 0:
-                printf(",")
-            printf("%s", (self->destinations[i] as Module*)->name)
-        printf("]\n")
-        fflush(stdout)
-
-    def is_in_zero_state(self) -> bool:
-        if self->kind == ModuleKind::Broadcaster:
-            return True
-        elif self->kind == ModuleKind::FlipFlop:
-            return not self->flip_flop_state
-        elif self->kind == ModuleKind::Conjunction:
-            for i = 0; i < self->nsources; i++:
-                if self->conjunction_state[i]:
-                    return False
-            return True
-        else:
-            assert False
-
 
 class ModuleList:
     modules: Module[100]
@@ -94,12 +51,6 @@ class ModuleList:
                 return &self->modules[i]
         printf("404 '%s'\n", name)
         assert False
-
-    def all_modules_are_in_zero_state(self) -> bool:
-        for i = 0; i < self->nmodules; i++:
-            if not self->modules[i].is_in_zero_state():
-                return False
-        return True
 
 
 # Follows the destinations to find all modules where the start module sends stuff.
@@ -142,30 +93,26 @@ class GonnaSend:
     value: bool
 
 
-class Queue:
-    items: GonnaSend[1000]
-    start_idx: int
-    end_idx: int
-    start: GonnaSend*
-    end: GonnaSend*
-
-    def wrap(self, idx: int*) -> None:
-        if *idx == sizeof(self->items) / sizeof(self->items[0]):
-            *idx = 0
-
-    def is_empty(self) -> bool:
-        return self->start_idx == self->end_idx
+class TodoList:
+    ptr: GonnaSend*
+    len: int
+    alloc: int
 
     def send_later(self, from: Module*, to: Module*, value: bool) -> None:
+        if self->len == self->alloc:
+            if self->alloc == 0:
+                self->alloc = 1
+            else:
+                self->alloc *= 2
+            self->ptr = realloc(self->ptr, sizeof(self->ptr[0]) * self->alloc)
+            assert self->ptr != NULL
+
         assert to != NULL
-        self->items[self->end_idx++] = GonnaSend{from=from, to=to, value=value}
-        self->wrap(&self->end_idx)
-        assert not self->is_empty()  # full queue would appear similar to empty
+        self->ptr[self->len++] = GonnaSend{from=from, to=to, value=value}
 
     def pop_left(self) -> GonnaSend:
-        assert not self->is_empty()
-        result = self->items[self->start_idx++]
-        self->wrap(&self->start_idx)
+        result = self->ptr[0]
+        memmove(&self->ptr[0], &self->ptr[1], --self->len * sizeof(self->ptr[0]))
         return result
 
 
@@ -179,10 +126,10 @@ def run_part_of_input(start_flip_flop: Module*, end: Module*) -> int[5]:
     result: int[5]
     result_len = 0
 
-    todo = Queue{}
+    todo = TodoList{}
     for iter = 1; True; iter++:
         todo.send_later(NULL, start_flip_flop, False)
-        while not todo.is_empty():
+        while todo.len > 0:
             item = todo.pop_left()
 
             if item.from == end and item.value:
@@ -191,6 +138,7 @@ def run_part_of_input(start_flip_flop: Module*, end: Module*) -> int[5]:
                 if result_len == sizeof(result)/sizeof(result[0]):
                     for i = 0; relevant_modules[i] != NULL; i++:
                         relevant_modules[i]->reset_to_initial_state()
+                    free(todo.ptr)
                     return result
 
             if item.to->kind == ModuleKind::Broadcaster:
