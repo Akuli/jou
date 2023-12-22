@@ -133,7 +133,7 @@ def count_reachables_in_square(state: State*, entry_point_of_grid: int[2], steps
 #
 # To get to the top left corner of any A, the number of steps from S needed is
 #
-#   side*radius
+#   side*radius - 1
 #
 # where "side" is the size of the input square. One side is enough to get to a corner of
 # the middle square and just step out of it. In above/below directions, this is
@@ -154,7 +154,7 @@ def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> lon
 
     assert radius >= 1
 
-    steps_remaining_diagonally = step_count - side*radius
+    steps_remaining_diagonally = step_count - side*radius - 1
     steps_remaining_above_or_below = step_count - side/2 - side*(radius - 1)
 
     # Above with radius=4, there's three A's.
