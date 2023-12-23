@@ -74,9 +74,7 @@ def read_input_to_grid(filename: byte*) -> Grid:
                 append_blank_row(&grid)
                 grid.transpose()
 
-            assert strlen(grid.data) == (grid.width + 1)*grid.height
             grid.set([x, y], '#')
-            assert strlen(grid.data) == (grid.width + 1)*grid.height
 
     fclose(f)
     return grid
