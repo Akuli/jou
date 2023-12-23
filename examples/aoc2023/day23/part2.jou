@@ -1,0 +1,211 @@
+import "stdlib/mem.jou"
+import "stdlib/math.jou"
+import "stdlib/str.jou"
+import "stdlib/process.jou"
+import "stdlib/io.jou"
+import "../grid.jou"
+
+
+def is_intersection(grid: Grid*, point: int[2]) -> bool:
+    # Treat start and goal as intersections
+    if point[1] == 0 or point[1] == grid->height - 1:
+        return True
+
+    if not grid->is_in_bounds(point) or grid->get(point) != '.':
+        return False
+
+    directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+    n = 0
+    for i = 0; i < 4; i++:
+        new_point = [point[0] + directions[i][0], point[1] + directions[i][1]]
+        if grid->is_in_bounds(new_point) and grid->get(new_point) == '.':
+            n++
+    return n > 2
+
+
+# Return value: list of [x, y, how_many_steps_away] or [-1,-1,-1] to return less than 4 results
+def find_connected_intersections(grid: Grid*, intersection: int[2]) -> int[3][4]:
+    assert is_intersection(grid, intersection)
+
+    directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+    result = [[-1, -1, -1], [-1, -1, -1], [-1, -1, -1], [-1, -1, -1]]
+
+    for i = 0; i < 4; i++:
+        x = intersection[0]
+        y = intersection[1]
+        n = 0
+
+        while True:
+            if n == 0:
+                dir = directions[i]
+                nx = x + dir[0]
+                ny = y + dir[1]
+                if not grid->is_in_bounds([nx, ny]) or grid->get([nx, ny]) != '.':
+                    break
+            else:
+                # Pick new direction. Do not go back to where we came from.
+                # There cannot be multiple possible new directions, because that's an intersection.
+                new_dir: int[2]* = NULL
+                for k = 0; k < 4; k++:
+                    d = &directions[k]
+                    if (*d)[0] == -dir[0] and (*d)[1] == -dir[1]:
+                        continue
+
+                    nx = x + (*d)[0]
+                    ny = y + (*d)[1]
+                    if grid->is_in_bounds([nx, ny]) and grid->get([nx, ny]) == '.':
+                        assert new_dir == NULL
+                        new_dir = d
+
+                if new_dir == NULL:
+                    break
+                dir = *new_dir
+
+            x += dir[0]
+            y += dir[1]
+            n++
+
+            if is_intersection(grid, [x, y]):
+                result[i] = [x, y, n]
+                break
+
+    return result
+
+
+class Graph:
+    num_nodes: int
+    matrix: int[50][50]
+    start: int
+    end: int
+
+    def add_edge(self, a: int, b: int, weight: int) -> None:
+        assert self->num_nodes <= 50
+        assert 0 <= a and a < self->num_nodes
+        assert 0 <= b and b < self->num_nodes
+        self->matrix[a][b] = weight
+        self->matrix[b][a] = weight
+
+    def visualize_with_graphviz(self) -> None:
+        assert not WINDOWS
+
+        f = fopen("/tmp/aoc23-graph.txt", "w")
+        assert f != NULL
+
+        fprintf(f, "digraph G {\n")
+        for i = 0; i < self->num_nodes; i++:
+            if i == self->start:
+                fprintf(f, "node%d [label=\"%d START\"]\n", i, i)
+            elif i == self->end:
+                fprintf(f, "node%d [label=\"%d END\"]\n", i, i)
+            else:
+                fprintf(f, "node%d [label=\"%d\"]\n", i, i)
+
+        for i = 0; i < self->num_nodes; i++:
+            for k = 0; k < i; k++:
+                if self->matrix[i][k] > 0:
+                    fprintf(f, "    node%d -> node%d [label=\"%d\", dir=none]\n", i, k, self->matrix[i][k])
+
+        fprintf(f, "}\n")
+        fclose(f)
+        system("dot -T png /tmp/aoc23-graph.txt -o /tmp/aoc23-graph.png && open /tmp/aoc23-graph.png")
+
+
+def create_graph_of_intersections(grid: Grid*) -> Graph*:
+    intersections: int[2]* = NULL
+    nintersections = 0
+
+    todo: int[2]* = malloc(sizeof(todo[0]))
+    todo_len = 1
+    todo[0] = [1, 0]
+
+    while todo_len > 0:
+        p = todo[--todo_len]
+
+        already_found = False
+        for i = 0; i < nintersections; i++:
+            if intersections[i][0] == p[0] and intersections[i][1] == p[1]:
+                already_found = True
+                break
+        if already_found:
+            continue
+
+        intersections = realloc(intersections, sizeof(intersections[0]) * (nintersections + 1))
+        intersections[nintersections++] = p
+
+        todo = realloc(todo, sizeof(todo[0]) * (todo_len + 4))
+        neighbors = find_connected_intersections(grid, p)
+        for i = 0; i < 4; i++:
+            if neighbors[i][0] != -1:
+                todo[todo_len++] = [neighbors[i][0], neighbors[i][1]]
+
+    free(todo)
+
+    graph: Graph* = calloc(1, sizeof(*graph))
+    graph->num_nodes = nintersections
+
+    for i = 0; i < nintersections; i++:
+        for k = 0; k < i; k++:
+            neighbors = find_connected_intersections(grid, intersections[i])
+            for m = 0; m < 4; m++:
+                if neighbors[m][0] == intersections[k][0] and neighbors[m][1] == intersections[k][1]:
+                    graph->add_edge(i, k, neighbors[m][2])
+                    break
+
+    graph->start = -1
+    graph->end = -1
+    for i = 0; i < nintersections; i++:
+        if intersections[i][1] == 0:
+            graph->start = i
+        if intersections[i][1] == grid->height - 1:
+            graph->end = i
+
+    assert graph->start != -1
+    assert graph->end != -1
+
+    free(intersections)
+    return graph
+
+
+def longest_path_dfs(graph: Graph*, avoid: bool*, current: int, depth: int) -> int:
+    assert depth < 100
+
+    if current == graph->end:
+        return 0
+
+    assert not avoid[current]
+    avoid[current] = True  # must reset before returning
+
+    best = 0
+    for next = 0; next < graph->num_nodes; next++:
+        if graph->matrix[current][next] > 0 and not avoid[next]:
+            best = max(best, graph->matrix[current][next] + longest_path_dfs(graph, avoid, next, depth+1))
+
+    avoid[current] = False
+    return best
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    for ch = "<>^v"; *ch != '\0'; ch++:
+        while grid.count(*ch) > 0:
+            grid.set(grid.find_first(*ch), '.')
+
+    assert starts_with(grid.data, "#.#####")
+    assert ends_with(grid.data, "#####.#\n")
+
+    graph = create_graph_of_intersections(&grid)
+    free(grid.data)
+
+    #graph->visualize_with_graphviz()
+
+    assert graph->num_nodes < 50
+    avoid: bool[50]
+    memset(&avoid, 0, sizeof(avoid))
+    printf("%d\n", longest_path_dfs(graph, &avoid[0], graph->start, 0))  # Output: 154
+
+    free(graph)
+    return 0
