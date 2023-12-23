@@ -53,4 +53,16 @@ def main() -> int:
         puts(words[i])
     free(words)
 
+    s = ""
+    words = split_by_ascii_whitespace(s)
+    assert words[0] == NULL
+    free(words)
+
+    s = "test1 test2"
+    words = split_by_ascii_whitespace(s)
+    puts(words[0])  # Output: test1
+    puts(words[1])  # Output: test2
+    assert words[2] == NULL
+    free(words)
+
     return 0
