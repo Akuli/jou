@@ -133,10 +133,11 @@ def count_reachables_in_square(state: State*, entry_point_of_grid: int[2], steps
 #
 # To get to the top left corner of any A, the number of steps from S needed is
 #
-#   side*(radius - 1) + 1
+#   side + 1 + side*(radius-2)
 #
 # where "side" is the size of the input square. One side is enough to get to a corner of
-# the middle square and just step out of it. You then do one step to enter radius 1.
+# the middle square and just step out of it. You then do one step to enter radius 2.
+# (2 is the smallest radius where A's, C's, E's and G's exist.)
 #
 # In above/below/left/right directions, this is
 #
@@ -156,7 +157,7 @@ def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> lon
 
     assert radius >= 1
 
-    steps_remaining_diagonally = step_count - (side*(radius - 1) + 1)
+    steps_remaining_diagonally = step_count - (side + 1 + side*(radius-2))
     steps_remaining_above_or_below = step_count - (side*radius - side/2)
 
     # Above with radius=4, there's three A's.
@@ -199,6 +200,7 @@ def replace_unreachable_points_with_walls(grid: Grid*) -> None:
 def main() -> int:
     state = State{}
 
+    # I created my own sample input with Python
     f = fopen("sampleinput-for-part2-created-by-me.txt", "r")
     assert f != NULL
     state.grid = read_grid_from_file(f)
@@ -236,8 +238,8 @@ def main() -> int:
             break
         result += add
 
-    # Expected output was calculated with brute-force using part 1 code
-    # on a file that contained many copies of the sampleinput grid.
+    # Correct answer for sample input and 1000 steps was calculated with part 1
+    # code after copying the sample input with bash, awk and python.
     printf("%lld\n", result)  # Output: 821324
 
     free(state.grid.data)
