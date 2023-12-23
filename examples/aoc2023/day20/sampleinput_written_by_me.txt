@@ -1,0 +1,25 @@
+# I wrote this input by hand, because AoC creator doesn't want people to commit
+# inputs to Git, and doesn't provide a sample input I could use for testing.
+
+broadcaster -> A1, B1
+
+# Sends high to Ainverter on iterations 2,4,6,8,10,...
+# Uses a two-bit binary counter xy, where x and y are bits (low=0, high=1).
+# It counts as you would expect: 00, 01, 10. (We never get to 11.)
+%A1 -> A2                   # bit y, increments x when it resets to zero overflows
+%A2 -> Amerger              # bit x, triggers merger on 10
+&Amerger -> A2, Ainverter   # flip x when triggered: 10 --> 00
+
+# Sends high to Binverter on iterations 3,6,9,12,15,...
+%B1 -> B2, Bmerger          # bit y, triggers merger on 1y
+%B2 -> Bmerger              # bit x, triggers merger on x1
+&Bmerger -> B1, Binverter   # when counter is 11, increment again so it wraps to 00
+
+# Inverters send 1 to the output conjunction when mergers send 0 to inverters.
+&Ainverter -> outputconj
+&Binverter -> outputconj
+
+&outputconj -> rx
+
+# It took me a while to tweak this so it doesn't produce things like 3,5,7,9,11,...
+# AoC inputs are tweaked so that the lcm trick works.

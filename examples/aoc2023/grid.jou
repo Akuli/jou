@@ -39,14 +39,19 @@ class Grid:
 
     def transpose(self) -> None:
         old = self->copy()
-        memset(self->data, '\n', strlen(self->data))
         self->width = old.height
         self->height = old.width
 
-        for x = 0; x < self->width; x++:
-            for y = 0; y < self->height; y++:
+        self->data = realloc(self->data, (self->width + 1)*self->height + 1)
+        assert self->data != NULL
+
+        for y = 0; y < self->height; y++:
+            for x = 0; x < self->width; x++:
                 self->set([x, y], old.get([y, x]))
+            self->data[(self->width + 1)*y + self->width] = '\n'
+
         free(old.data)
+        self->data[(self->width + 1)*self->height] = '\0'
 
     # returned array is terminated by [-1, -1]
     def find_all(self, b: byte) -> int[2]*:
@@ -68,6 +73,14 @@ class Grid:
                 if self->get([x, y]) == b:
                     return [x, y]
         assert False
+
+    def count(self, b: byte) -> int:
+        n = 0
+        for y = 0; y < self->height; y++:
+            for x = 0; x < self->width; x++:
+                if self->get([x, y]) == b:
+                    n++
+        return n
 
 
 # Reading stops on end of file or newline, so you can call this repeatedly

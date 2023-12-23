@@ -1,0 +1,119 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+import "../grid.jou"
+
+
+def prepend_blank_row(grid: Grid*) -> None:
+    assert strlen(grid->data) == (grid->width + 1)*grid->height
+    grid->data = realloc(grid->data, grid->width + 1 + strlen(grid->data) + 1)
+    memmove(&grid->data[grid->width + 1], grid->data, strlen(grid->data) + 1)
+    memset(grid->data, '.', grid->width)
+    grid->data[grid->width] = '\n'
+    grid->height++
+    assert strlen(grid->data) == (grid->width + 1)*grid->height
+
+
+def append_blank_row(grid: Grid*) -> None:
+    assert strlen(grid->data) == (grid->width + 1)*grid->height
+    grid->data = realloc(grid->data, grid->width + 1 + strlen(grid->data) + 1)
+    p = &grid->data[strlen(grid->data)]
+    memset(p, '.', grid->width)
+    p[grid->width] = '\n'
+    p[grid->width + 1] = '\0'
+    grid->height++
+    assert strlen(grid->data) == (grid->width + 1)*grid->height
+
+
+def surround_with_blanks(grid: Grid*) -> None:
+    prepend_blank_row(grid)
+    append_blank_row(grid)
+    grid->transpose()
+    prepend_blank_row(grid)
+    append_blank_row(grid)
+    grid->transpose()
+
+
+def read_input_to_grid(filename: byte*) -> Grid:
+    f = fopen(filename, "r")
+    assert f != NULL
+
+    direction_letter: byte
+    step_count: int
+    color: byte[7]
+
+    grid = Grid{width = 1, height = 1, data = strdup("#\n")}
+    x = 0
+    y = 0
+
+    while fscanf(f, "%c %d (#%6s)\n", &direction_letter, &step_count, color) == 3:
+        while step_count --> 0:
+            if direction_letter == 'U':
+                y--
+            elif direction_letter == 'D':
+                y++
+            elif direction_letter == 'L':
+                x--
+            elif direction_letter == 'R':
+                x++
+            else:
+                assert False
+
+            if y == -1:
+                prepend_blank_row(&grid)
+                y++
+            if y == grid.height:
+                append_blank_row(&grid)
+            if x == -1:
+                grid.transpose()
+                prepend_blank_row(&grid)
+                grid.transpose()
+                x++
+            if x == grid.width:
+                grid.transpose()
+                append_blank_row(&grid)
+                grid.transpose()
+
+            grid.set([x, y], '#')
+
+    fclose(f)
+    return grid
+
+
+def fill_with_f(grid: Grid*) -> None:
+    todo: int[2]* = malloc(sizeof(todo[0]))
+    todo_len = 1
+    todo_alloc = 1
+    todo[0] = [0, 0]
+
+    while todo_len > 0:
+        point = todo[--todo_len]
+        if not grid->is_in_bounds(point) or grid->get(point) != '.':
+            continue
+
+        grid->set(point, 'f')
+
+        # Append neighbors to todo list
+        neighbors: int[2][4] = [
+            [point[0], point[1]-1],
+            [point[0], point[1]+1],
+            [point[0]-1, point[1]],
+            [point[0]+1, point[1]],
+        ]
+        while todo_alloc < todo_len + 4:
+            todo_alloc *= 2
+            todo = realloc(todo, sizeof(todo[0]) * todo_alloc)
+            assert todo != NULL
+        memcpy(&todo[todo_len], &neighbors, sizeof(neighbors))
+        todo_len += 4
+
+    free(todo)
+
+
+def main() -> int:
+    grid = read_input_to_grid("sampleinput.txt")
+    surround_with_blanks(&grid)
+    fill_with_f(&grid)
+    printf("%d\n", grid.width*grid.height - grid.count('f'))  # Output: 62
+    free(grid.data)
+    return 0

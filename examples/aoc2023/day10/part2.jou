@@ -86,6 +86,7 @@ def main() -> int:
     grid = read_grid_from_file(f)
     fclose(f)
 
+    assert grid.count('S') == 1
     point = grid.find_first('S')
 
     loop: int[2]* = malloc(grid.width * grid.height * sizeof(loop[0]))
