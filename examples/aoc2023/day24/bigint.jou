@@ -1,5 +1,4 @@
 import "stdlib/mem.jou"
-import "stdlib/io.jou"
 
 
 class BigInt:
@@ -31,8 +30,6 @@ def bigint_to_long(x: BigInt) -> long:
 
 # x+y
 def bigadd(x: BigInt, y: BigInt) -> BigInt:
-    x_print = x
-    y_print = y
     result = bigint(0)
     carry_bit = 0
 
@@ -44,7 +41,6 @@ def bigadd(x: BigInt, y: BigInt) -> BigInt:
             carry_bit = 0
         result.data[i] = result_byte as byte
 
-#    printf("%lld + %lld == %lld\n", bigint_to_long(x_print), bigint_to_long(y_print), bigint_to_long(result))
     return result
 
 
@@ -52,12 +48,9 @@ def bigadd(x: BigInt, y: BigInt) -> BigInt:
 def bigneg(x: BigInt) -> BigInt:
     # Flipping all bits (~x) is almost same as negating the value.
     # For example, -7 is f9ffffff... and ~7 is f8ffffff...
-    x_print = x
     for i = 0; i < sizeof(x.data); i++:
         x.data[i] = (0xff as byte) - x.data[i]
-    x = bigadd(x, bigint(1))
-#    printf("-(%lld) == %lld\n", bigint_to_long(x_print), bigint_to_long(x))
-    return x
+    return bigadd(x, bigint(1))
 
 
 # x-y
@@ -74,23 +67,14 @@ def bigcmp(x: BigInt, y: BigInt) -> int:
     y_sign_bit = y.data[sizeof(y.data) - 1] / 128
 
     if x_sign_bit != y_sign_bit:
-#        if y_sign_bit - x_sign_bit == 1:
-#            printf("%lld > %lld\n", bigint_to_long(x), bigint_to_long(y))
-#        else:
-#            printf("%lld < %lld\n", bigint_to_long(x), bigint_to_long(y))
         return y_sign_bit - x_sign_bit
 
     for i = sizeof(x.data) - 1; i >= 0; i--:
         if (x.data[i] as int) < (y.data[i] as int):
-#            printf("%lld < %lld\n", bigint_to_long(x), bigint_to_long(y))
             return -1
         if (x.data[i] as int) > (y.data[i] as int):
-            # neither is negative, x is bigger
-#            printf("%lld > %lld\n", bigint_to_long(x), bigint_to_long(y))
             return 1
 
-    # equal
-#    printf("%lld == %lld\n", bigint_to_long(x), bigint_to_long(y))
     return 0
 
 
@@ -110,18 +94,14 @@ def bigsign(x: BigInt) -> int:
 # |x|
 def bigabs(x: BigInt) -> BigInt:
     if bigsign(x) < 0:
-        result = bigneg(x)
+        return bigneg(x)
     else:
-        result = x
-#    printf("abs(%lld) == %lld\n", bigint_to_long(x), bigint_to_long(result))
-    return result
+        return x
 
 
 # x*y
 def bigmul(x: BigInt, y: BigInt) -> BigInt:
-    x_print = x
-    y_print = y
-    result_is_negative = (bigcmp(x, bigint(0)) * bigcmp(y, bigint(0)) < 0)
+    result_sign = bigsign(x) * bigsign(y)
     x = bigabs(x)
     y = bigabs(y)
 
@@ -132,13 +112,11 @@ def bigmul(x: BigInt, y: BigInt) -> BigInt:
 
             gonna_add = bigint(0)
             gonna_add.data[i+k] = temp as byte
-            if i+k+1 < sizeof(result.data):
-                second_byte = (temp / 256) as byte
+            if i+k+1 < sizeof(gonna_add.data):
                 gonna_add.data[i+k+1] = (temp / 256) as byte
             result = bigadd(result, gonna_add)
 
-    if (result_is_negative and bigsign(result) > 0) or ((not result_is_negative) and bigsign(result) < 0):
-        result = bigneg(result)
-
-#    printf("%lld * %lld == %lld\n", bigint_to_long(x_print), bigint_to_long(y_print), bigint_to_long(result))
-    return result
+    if bigsign(result) == result_sign:
+        return result
+    else:
+        return bigneg(result)
