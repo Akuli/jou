@@ -1,0 +1,191 @@
+import "stdlib/io.jou"
+
+
+def det(matrix: long[2][2]) -> long:
+    a = matrix[0][0]
+    b = matrix[0][1]
+    c = matrix[1][0]
+    d = matrix[1][1]
+    return a*d - b*c
+
+
+def dot(v1: long[2], v2: long[2]) -> long:
+    return v1[0]*v2[0] + v1[1]*v2[1]
+
+
+def matrix_times_vector(matrix: long[2][2], vector: long[2]) -> long[2]:
+    a = matrix[0][0]
+    b = matrix[0][1]
+    c = matrix[1][0]
+    d = matrix[1][1]
+    return [a*vector[0] + b*vector[1], c*vector[0] + d*vector[1]]
+
+
+# Returns the x and y of matrix*[x,y] = coeff_vector as fractions:
+#
+#   [top of x, top of y, bottom]
+def solve_linear_system_of_2_equations(matrix: long[2][2], coeff_vector: long[2]) -> long[3]:
+    a = matrix[0][0]
+    b = matrix[0][1]
+    c = matrix[1][0]
+    d = matrix[1][1]
+
+    #printf("Solve:\n  %lld x + %lld y = %lld\n  %lld x + %lld y = %lld\n", a, b, coeff_vector[0], c, d, coeff_vector[1])
+
+    determinant = det(matrix)
+    assert determinant != 0  # assume inverse matrix exists
+
+    inverse_matrix_times_determinant = [
+        [d, -b],
+        [-c, a],
+    ]
+#    printf("Inverse matrix * det =\n")
+#    printf("  %lld %lld\n", d, -b)
+#    printf("  %lld %lld\n", -c, a)
+
+    xy_times_determinant = matrix_times_vector(inverse_matrix_times_determinant, coeff_vector)
+    #printf("--> x = %lld/%lld,  y = %lld/%lld\n", xy_times_determinant[0], determinant, xy_times_determinant[1], determinant)
+    return [xy_times_determinant[0], xy_times_determinant[1], determinant]
+
+
+class Rectangle:
+    x_min: long
+    x_max: long
+    y_min: long
+    y_max: long
+
+    def contains(self, point: long[2]) -> bool:
+        x = point[0]
+        y = point[1]
+        return self->x_min <= x and x <= self->x_max and self->y_min <= y and y <= self->y_max
+
+    def contains_fraction(self, qx: long, qy: long, q: long) -> bool:
+        assert q > 0
+        return q*self->x_min <= qx and qx <= q*self->x_max and q*self->y_min <= qy and qy <= q*self->y_max
+
+
+class Ray:
+    start: long[2]
+    dir: long[2]
+
+    def intersects(self, other: Ray*, test_area: Rectangle) -> bool:
+        if det([self->dir, other->dir]) == 0:
+            # Rays go in parallel directions.
+            start_diff = [self->start[0] - other->start[0], self->start[1] - other->start[1]]
+            if det([start_diff, self->dir]) != 0:
+                printf("Test A\n")
+                # Rays are not aligned to go along the same line.
+                return False
+
+            # Vectors go along the same line. Let's project everything to the line so this becomes 1 dimensional.
+            self_start = dot(self->dir, self->start)
+            self_dir = dot(self->dir, self->dir)
+            other_start = dot(self->dir, other->start)
+            other_dir = dot(self->dir, other->dir)
+
+            assert self_dir > 0
+            assert other_dir != 0
+            assert self_start != other_start
+
+            if other_dir > 0:
+                # Rays go in the same direction. Eventually one ray will reach the start of the other.
+                if self_start > other_start:
+                    printf("Test B\n")
+                    return test_area.contains(self->start)
+                else:
+                    printf("Test C\n")
+                    return test_area.contains(other->start)
+
+            if self_start > other_start:
+                # Rays point away from each other
+                printf("Test D\n")
+                return False
+
+            # Rays point towards each other, so they meet somewhere in the middle.
+            #
+            #   meet = self_start + t*self_dir      (t is time)
+            #        = other_start + t*other_dir
+            #
+            # Math gives a solution:
+            #
+            #   t = p/q,  p = other_start - self_start,  q = self_dir - other_dir
+            q = self_dir - other_dir
+            assert q > 0
+            qt = other_start - self_start
+            qx = q*self->start[0] + qt*self->dir[0]
+            qy = q*self->start[1] + qt*self->dir[1]
+            printf("Test E\n")
+            return test_area.contains_fraction(qx, qy, q)
+
+        # Vectors are not parallel. They will intersect somewhere, but where?
+        #
+        #   self->start + a*self->dir = other->start + b*other->dir
+        #
+        #   a*self->dir[0] + b*(-other->dir[0]) = other->start[0] - self->start[0]
+        #   a*self->dir[1] + b*(-other->dir[1]) = other->start[1] - self->start[1]
+        coeff_matrix = [
+            [self->dir[0], -other->dir[0]],
+            [self->dir[1], -other->dir[1]],
+        ]
+        constant_vector = [
+            other->start[0] - self->start[0],
+            other->start[1] - self->start[1],
+        ]
+        solve_result = solve_linear_system_of_2_equations(coeff_matrix, constant_vector)
+        qa = solve_result[0]
+        qb = solve_result[1]
+        q = solve_result[2]
+
+        assert q*self->start[0] + qa*self->dir[0] == q*other->start[0] + qb*other->dir[0]
+        assert q*self->start[1] + qa*self->dir[1] == q*other->start[1] + qb*other->dir[1]
+
+        if q < 0:
+            qa *= -1
+            qb *= -1
+            q *= -1
+
+        # rays do not extend backwards
+        if qa < 0 or qb < 0:
+            printf("Test F\n")
+            return False
+
+        qx = q*self->start[0] + qa*self->dir[0]
+        qy = q*self->start[1] + qa*self->dir[1]
+        printf("Test G\n")
+        return test_area.contains_fraction(qx, qy, q)
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    rays: Ray[500]
+    nrays = 0
+
+    r: Ray
+    dummy1: long
+    dummy2: long
+    while fscanf(
+            f, "%lld, %lld, %lld @ %lld, %lld, %lld\n",
+            &r.start[0], &r.start[1], &dummy1,
+            &r.dir[0], &r.dir[1], &dummy2) == 6:
+        assert nrays < sizeof(rays)/sizeof(rays[0])
+        rays[nrays++] = r
+
+    fclose(f)
+
+    printf("Got %d rays\n", nrays)
+
+    test_area = Rectangle{x_min=7, x_max=27, y_min=7, y_max=27}
+    #test_area = Rectangle{x_min=200000000000000L, x_max=400000000000000L, y_min=200000000000000L, y_max=400000000000000L}
+
+    #printf("0 and 4 --> %d\n", rays[0].intersects(&rays[4], test_area))
+
+    result = 0
+    for i = 0; i < nrays; i++:
+        for k = i+1; k < nrays; k++:
+            if rays[i].intersects(&rays[k], test_area):
+                result++
+    printf("%d\n", result)  # Output: 2
+
+    return 0
