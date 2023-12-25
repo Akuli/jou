@@ -2,18 +2,18 @@ import "stdlib/mem.jou"
 
 
 class BigInt:
-    data: byte[24]  # little endian, data[23] includes sign bit
+    data: byte[100]  # little endian, last byte includes sign bit
 
 
 def bigint(value: long) -> BigInt:
     # assumes little-endian CPU
-    data: byte[24]
+    result = BigInt{}
+    assert sizeof(value) < sizeof(result.data)
+
     if value < 0:
-        memset(&data, 0xff, sizeof(data))
-    else:
-        memset(&data, 0, sizeof(data))
-    memcpy(&data, &value, sizeof(value))
-    return BigInt{data = data}
+        memset(&result.data, 0xff, sizeof(result.data))
+    memcpy(&result.data, &value, sizeof(value))
+    return result
 
 
 def bigint_to_long(x: BigInt) -> long:
@@ -42,6 +42,16 @@ def bigadd(x: BigInt, y: BigInt) -> BigInt:
         result.data[i] = result_byte as byte
 
     return result
+
+
+def bigadd3(x: BigInt, y: BigInt, z: BigInt) -> BigInt:
+    return bigadd(bigadd(x, y), z)
+def bigadd4(x: BigInt, y: BigInt, z: BigInt, zz: BigInt) -> BigInt:
+    return bigadd(bigadd(bigadd(x, y), z), zz)
+def bigadd5(x: BigInt, y: BigInt, z: BigInt, zz: BigInt, zzz: BigInt) -> BigInt:
+    return bigadd(bigadd(bigadd(bigadd(x, y), z), zz), zzz)
+def bigadd6(x: BigInt, y: BigInt, z: BigInt, zz: BigInt, zzz: BigInt, zzzz: BigInt) -> BigInt:
+    return bigadd(bigadd(bigadd(bigadd(bigadd(x, y), z), zz), zzz), zzzz)
 
 
 # -x
@@ -120,3 +130,123 @@ def bigmul(x: BigInt, y: BigInt) -> BigInt:
         return result
     else:
         return bigneg(result)
+
+
+# x / 256^n for x >= 0
+def shift_smaller(x: BigInt, n: int) -> BigInt:
+    assert bigsign(x) >= 0
+    assert n >= 0
+
+    if n >= sizeof(x.data):
+        return bigint(0)
+
+    memmove(&x.data, &x.data[n], sizeof(x.data) - n)
+    memset(&x.data[sizeof(x.data) - n], 0, n)
+    return x
+
+
+# x * 256^n for x >= 0
+def shift_bigger(x: BigInt, n: int) -> BigInt:
+    assert bigsign(x) >= 0
+    assert n >= 0
+
+    if n >= sizeof(x.data):
+        return bigint(0)
+
+    memmove(&x.data[n], &x.data[0], sizeof(x.data) - n)
+    memset(&x.data, 0, n)
+    return x
+
+
+# [x/y, x%y]
+def bigdivmod(x: BigInt, y: BigInt) -> BigInt[2]:
+    assert not bigeq(y, bigint(0))
+
+    quotient = bigint(0)
+    remainder = bigabs(x)
+    yabs = bigabs(y)
+
+    n = 0
+    while bigcmp(shift_smaller(remainder, n), yabs) >= 0:
+        n++
+
+    assert n < sizeof(quotient.data)
+    while n --> 0:
+        # Find nth base-256 digit of result with trial and error.
+        d = 0
+        bigger_y = shift_bigger(yabs, n)
+        while bigcmp(bigmul(bigger_y, bigint(d+1)), remainder) <= 0:
+            if d == 0:
+                d++
+            else:
+                d *= 2
+        d /= 2
+        while bigcmp(bigmul(bigger_y, bigint(d+1)), remainder) <= 0:
+            d++
+
+        assert d < 256
+        quotient.data[n] = d as byte
+        remainder = bigsub(remainder, bigmul(bigint(d), bigger_y))
+
+    if bigsign(x)*bigsign(y) < 0:
+        quotient = bigneg(quotient)
+    if bigsign(x) < 0:
+        remainder = bigneg(remainder)
+
+    # When nonzero remainder, force its sign to be same as sign of y, similar to jou %
+    if bigsign(remainder) != 0 and bigsign(remainder) != bigsign(y):
+        remainder = bigadd(remainder, y)
+        quotient = bigsub(quotient, bigint(1))
+
+    return [quotient, remainder]
+
+    # Tests:
+    #
+    #    for x = -100; x <= 100; x++:
+    #        for y = -100; y <= 100; y++:
+    #            if y != 0:
+    #                result = bigdivmod(bigint(x), bigint(y))
+    #                assert x == (x/y)*y + (x%y)
+    #                assert x == bigint_to_long(result[0])*y + bigint_to_long(result[1])
+    #                assert bigint_to_long(result[0]) == x / y
+    #                assert bigint_to_long(result[1]) == x % y
+
+
+# x / y
+def bigdiv(x: BigInt, y: BigInt) -> BigInt:
+    pair = bigdivmod(x, y)
+    return pair[0]
+
+
+# assert x % y == 0
+# x / y
+def bigdiv_exact(x: BigInt, y: BigInt) -> BigInt:
+    pair = bigdivmod(x, y)
+    assert bigeq(pair[1], bigint(0))
+    return pair[0]
+
+
+# x % y
+def bigmod(x: BigInt, y: BigInt) -> BigInt:
+    pair = bigdivmod(x, y)
+    return pair[1]
+
+
+# Greatest Common Divisor = biggest number so that x % gcd == 0 and y % gcd == 0
+def biggcd(x: BigInt, y: BigInt) -> BigInt:
+    assert bigsign(x) > 0
+    assert bigsign(y) > 0
+
+    while True:
+        x = bigmod(x, y)
+        if bigeq(x, bigint(0)):
+            return y
+
+        tmp = x
+        x = y
+        y = tmp
+
+
+# Least Common Multiple = smallest positive number so that lcm % x == 0 and lcm % y == 0
+def biglcm(x: BigInt, y: BigInt) -> BigInt:
+    return bigdiv_exact(bigmul(x, y), biggcd(x, y))
