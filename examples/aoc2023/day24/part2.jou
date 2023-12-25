@@ -4,23 +4,6 @@ import "stdlib/io.jou"
 import "./bigint.jou"
 
 
-class Substitution:
-    # var_coeff*var = sum(other_coeffs[i] * other variable) + constant
-    #
-    # other_coeffs[var] should be zero
-    var_coeff: BigInt
-    var: int
-    other_coeffs: BigInt*
-    constant: BigInt
-
-    def print(self, nvariables: int) -> None:
-        printf("%lld x%d --> ", bigint_to_long(self->var_coeff), self->var)
-        for v = 0; v < nvariables; v++:
-            if not bigeq(self->other_coeffs[v], bigint(0)):
-                printf("%lld x%d + ", bigint_to_long(self->other_coeffs[v]), v)
-        printf("%lld\n", bigint_to_long(self->constant))
-
-
 declare memcmp(a: void*, b: void*, size: long) -> int
 
 
@@ -29,6 +12,14 @@ class Equation:
     nvariables: int
     coeffs: BigInt*
     rhs: BigInt
+
+    def sub(self, var: int, value: BigInt) -> None:
+        self->rhs = bigsub(self->rhs, bigmul(self->coeffs[var], value))
+        self->coeffs[var] = bigint(0)
+
+    def has(self, var: int) -> bool:
+        assert 0 <= var and var < self->nvariables
+        return not bigeq(self->coeffs[var], bigint(0))
 
     def equals(self, other: Equation*) -> bool:
         if self->nvariables != other->nvariables:
@@ -54,8 +45,8 @@ class Equation:
         for v = 0; v < self->nvariables; v++:
             if v > 0:
                 printf(" + ")
-            printf("%lld x%d", self->coeffs[v], v)
-        printf(" = %lld\n", self->rhs)
+            printf("%lld x%d", bigint_to_long(self->coeffs[v]), v)
+        printf(" = %lld\n", bigint_to_long(self->rhs))
 
     def reduce(self) -> None:
         g = bigabs(self->rhs)
@@ -78,150 +69,55 @@ class Equation:
             self->coeffs[v] = bigdiv(self->coeffs[v], g)
 
 
-# For each variable, we find an equation that uses the variable.
-# We then solve the variable and substitute into other equations.
-# To avoid fractions, we multiply other equations as needed.
-# When all variables are removed in this way, we look at what we did to find solution.
-#
-# For example, consider this system (solution is x=12 y=34)
-#
-#   4x + 2y = 116
-#   10x - y = 86
-#   -100x + 10y = -860
-#
-# Starting with variable x:
-#   - pick 4x + 2y = 116, because it has smallest x coefficient (less messy later)
-#   - delete it from list of equations
-#   - rewrite as 4x = 116 - 2y
-#   - substitute it into the remaining equations:
-#
-#       10x - y = 86
-#       5(4x) - 2y = 172
-#       5(116-2y) - 2y = 172
-#       580 - 10y - 2y = 172
-#       -12y = -408
-#
-#     and similarly from the other remaining equation:
-#
-#       -100x + 10y = -860
-#       -25(4x) + 10y = -860
-#       -25(116-2y) + 10y = -860
-#       -2900 + 50y + 10y = -860
-#       60y = 2040
-#
-# Now list of equations is:
-#
-#   -12y = -408
-#   60y = 2040
-#
-# Then variable y:
-#   - pick -12y = -408
-#   - delete it from list of equations
-#   - no rewriting to do, already desired form
-#   - substitute into the remaining equation:
-#
-#       60y = 2040
-#       -5(-12y) = 2040
-#       2040 = 2040
-#       0 = 0
-#
-# At this point all equations should say "0 = 0".
-#
-# Now we backtrack to find the solutions. The equations substituted were:
-#
-#   4x = 116 - 2y
-#   -12y = -408
-#
-# From second equation, we get:
-#
-#   y = -408 / -12 = 34
-#
-# From first equation, we get:
-#
-#   x = (116 - 2y)/4 = (116 - 2*34)/4 = 12
-#
-# You notice that numbers got pretty large. We also avoid that by reducing
-# the equations, i.e. dividing by gcd of all their nonzero numbers.
+def add_with_coeff(dest: Equation*, src: Equation*, coeff: BigInt) -> None:
+    assert src->nvariables == dest->nvariables
+    for v = 0; v < src->nvariables; v++:
+        dest->coeffs[v] = bigadd(dest->coeffs[v], bigmul(coeff, src->coeffs[v]))
+    dest->rhs = bigadd(dest->rhs, bigmul(src->rhs, coeff))
+
 
 class EquationSolver:
     eqs: Equation*
     neqs: int
-    substitution_history: Substitution*
-    substitution_history_len: int
 
     def print(self) -> None:
-        printf("%d substitutions done, equations are:\n", self->substitution_history_len)
+        printf("equations:\n")
         for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
             printf("  ")
             eq->print()
         printf("\n")
 
+    def count_equations_having_var(self, var: int) -> int:
+        n = 0
+        for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
+            if eq->has(var):
+                n++
+        return n
+
+    def eliminate_from_all_but_one_equation(self, var: int) -> None:
+        # Repeated Gaussian reduction in Euclidean algorithm style (sorry about word salad)
+        while self->count_equations_having_var(var) >= 2:
+            src = self->find_equation_with_smallest_nonzero_coeff_for_var(var)
+            assert src != NULL
+            assert not bigeq(src->coeffs[var], bigint(0))
+
+            for dest = self->eqs; dest < &self->eqs[self->neqs]; dest++:
+                if dest != src and dest->has(var):
+                    # Pick c so that dest->coeffs[var] + c*src->coeffs[var] = 0.
+                    # The perfect c isn't necessarly integer, so we pick a close value.
+                    c = bigneg(bigdiv(dest->coeffs[var], src->coeffs[var]))
+                    assert not bigeq(c, bigint(0))
+                    add_with_coeff(dest, src, c)
+
     def find_equation_with_smallest_nonzero_coeff_for_var(self, var: int) -> Equation*:
         result: Equation* = NULL
         for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
-            if not bigeq(eq->coeffs[var], bigint(0)) and (
+            if eq->has(var) and (
                 result == NULL
                 or bigcmp(bigabs(result->coeffs[var]), bigabs(eq->coeffs[var])) > 0
             ):
                 result = eq
         return result
-
-    # Do the substitution to all equations.
-    # Equations are multiplied by c on both sides to make this work.
-    # Getting this part right was hard.
-    def substitute(self, sub: Substitution) -> None:
-        assert bigeq(sub.other_coeffs[sub.var], bigint(0))
-
-        printf("Substitute")
-        fflush(stdout)
-        for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
-            assert 0 <= sub.var and sub.var < eq->nvariables
-
-            if bigeq(eq->coeffs[sub.var], bigint(0)):
-                continue
-
-            # If we're substituting 4x = ..., then ensure the equation contains one of
-            # +-4x, +-8x, +-12x, +-16x, ... by replacing coeff of x with lcm(old coeff, 4).
-            #
-            # Note that lcm(a,b) = a*b/gcd(a,b).
-            #multiply_both_sides = bigdiv(sub.var_coeff, biggcd(bigabs(sub.var_coeff), bigabs(eq->coeffs[sub.var])))
-            multiply_both_sides = sub.var_coeff
-            eq->rhs = bigmul(eq->rhs, multiply_both_sides)
-            for v = 0; v < eq->nvariables; v++:
-                eq->coeffs[v] = bigmul(eq->coeffs[v], multiply_both_sides)
-
-            coeff_of_x = bigdiv_exact(eq->coeffs[sub.var], sub.var_coeff)
-
-            eq->rhs = bigsub(eq->rhs, bigmul(coeff_of_x, sub.constant))
-            for v = 0; v < eq->nvariables; v++:
-                eq->coeffs[v] = bigadd(eq->coeffs[v], bigmul(coeff_of_x, sub.other_coeffs[v]))
-
-            eq->coeffs[sub.var] = bigint(0)
-            printf(".")
-            fflush(stdout)
-
-        self->substitution_history[self->substitution_history_len++] = sub
-        self->cleanup()
-
-    def cleanup(self) -> None:
-        printf("reduce")
-        fflush(stdout)
-        for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
-            eq->reduce()
-            printf(".")
-            fflush(stdout)
-
-        printf(" dedup")
-        fflush(stdout)
-        for i = self->neqs - 1; i >= 0; i--:
-            for k = i+1; k < self->neqs; k++:
-                if self->eqs[i].equals(&self->eqs[k]):
-                    self->eqs[i] = self->eqs[--self->neqs]
-                    printf(".")
-                    fflush(stdout)
-                    break
-        printf("\n")
-        fflush(stdout)
 
     def all_equations_are_zero_equals_zero(self) -> bool:
         for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
@@ -231,6 +127,16 @@ class EquationSolver:
                 if not bigeq(eq->coeffs[v], bigint(0)):
                     return False
         return True
+
+    def reduce_all_equations(self) -> None:
+        printf("  reduce")
+        fflush(stdout)
+        for i = 0; i < self->neqs; i++:
+            self->eqs[i].reduce()
+            printf(".")
+            fflush(stdout)
+        printf("\n")
+        fflush(stdout)
 
 
 # Equations list should be terminated by an equation with 0 variables.
@@ -249,39 +155,28 @@ def solve_linear_system_of_equations(eqs: Equation*, neqs: int) -> BigInt*:
         eq->coeffs = calloc(sizeof(eq->coeffs[0]), nvariables)
         memcpy(eq->coeffs, eqs[i].coeffs, sizeof(eqs[i].coeffs[0]) * eqs[i].nvariables)
         eq->rhs = eqs[i].rhs
-    solver.substitution_history = malloc(sizeof(solver.substitution_history[0]) * nvariables)
 
-    #solver.print()
-    solver.cleanup()
+    # Each equation only has one unknown variable + variables from equations after it
+    final_equations: Equation* = malloc(sizeof(final_equations[0]) * nvariables)
 
     for var = 0; var < nvariables; var++:
         printf("Solver: variable %d/%d\n", var, nvariables)
-        eq = solver.find_equation_with_smallest_nonzero_coeff_for_var(var)
-        if eq == NULL:
-            # unnecessary variable, set it to zero lol
+        fflush(stdout)
+
+        if solver.count_equations_having_var(var) == 0:
+            # This variable could be anything. We will set it to zero.
             # I really only want to solve the first two variables, so this is fine.
-            sub = Substitution{var = var, var_coeff = bigint(1), constant = bigint(0)}
-            sub.other_coeffs = calloc(nvariables, sizeof(sub.other_coeffs[0]))
-            solver.substitute(sub)
-            continue
+            coeffs: BigInt* = calloc(sizeof(coeffs[0]), nvariables)
+            coeffs[var] = bigint(1)
+            final_equations[var] = Equation{nvariables = nvariables, coeffs = coeffs, rhs = bigint(0)}
+        else:
+            solver.eliminate_from_all_but_one_equation(var)
+            eq = solver.find_equation_with_smallest_nonzero_coeff_for_var(var)
+            assert eq != NULL
+            final_equations[var] = *eq
+            *eq = solver.eqs[--solver.neqs]
 
-        sub = Substitution{
-            var = var,
-            var_coeff = eq->coeffs[var],
-            other_coeffs = eq->coeffs,
-            constant = eq->rhs,
-        }
-        sub.other_coeffs[var] = bigint(0)
-
-        # delete equation
-        *eq = solver.eqs[--solver.neqs]
-
-        # move stuff to other side so we solve the variable
-        for v = 0; v < nvariables; v++:
-            sub.other_coeffs[v] = bigneg(sub.other_coeffs[v])
-
-        sub.print(nvariables)
-        solver.substitute(sub)
+        #solver.reduce_all_equations()
 
     assert solver.all_equations_are_zero_equals_zero()
 
@@ -290,17 +185,20 @@ def solve_linear_system_of_equations(eqs: Equation*, neqs: int) -> BigInt*:
     free(solver.eqs)
 
     values: BigInt* = calloc(sizeof(values[0]), nvariables)
-    for i = solver.substitution_history_len - 1; i >= 0; i--:
-        sub = solver.substitution_history[i]
-        values[sub.var] = sub.constant
+    for var = nvariables - 1; var >= 0; var--:
+        # Substitute known values into final equations
+        final = final_equations[var]
+        for known = var+1; known < nvariables; known++:
+            final.sub(known, values[known])
+
         for v = 0; v < nvariables; v++:
-            values[sub.var] = bigadd(values[sub.var], bigmul(sub.other_coeffs[v], values[v]))
+            if v != var:
+                assert bigeq(final.coeffs[v], bigint(0))
 
-        values[sub.var] = bigdiv_exact(values[sub.var], sub.var_coeff)
+        values[var] = bigdiv_exact(final.rhs, final.coeffs[var])
+        free(final.coeffs)
 
-        free(sub.other_coeffs)
-
-    free(solver.substitution_history)
+    free(final_equations)
     return values
 
 
@@ -438,11 +336,11 @@ def lerp(src_min: long, src_max: long, dest_min: long, dest_max: long, value: lo
     weight1 = value - src_min
     weight2 = src_max - value
 
-    # weighted average: (value1*weight1 + value2*weight2)/(weight1 + weight2)
-    top = weight1*dest_max + weight2*dest_min
+    # weighted average: (dest_max*weight1 + dest_min*weight2)/(weight1 + weight2)
+    # multiplications are too big for longs, but values themselves seem to fit longs
+    top = bigadd(bigmul(bigint(weight1), bigint(dest_max)), bigmul(bigint(weight2), bigint(dest_min)))
     bottom = weight1 + weight2
-    assert top % bottom == 0
-    return top / bottom
+    return bigint_to_long(bigdiv_exact(top, bigint(bottom)))
 
 
 def test_lerp() -> None:
