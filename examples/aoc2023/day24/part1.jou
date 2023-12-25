@@ -192,6 +192,10 @@ def main() -> int:
 
     result = 0
     for i = 0; i < nrays; i++:
+        # progress print for actual input
+        if nrays > 100:
+            printf("%d/%d\n", i, nrays)
+
         for k = i+1; k < nrays; k++:
             if rays[i].intersects(&rays[k], test_area):
                 result++

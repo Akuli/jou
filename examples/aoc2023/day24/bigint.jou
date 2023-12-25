@@ -224,29 +224,3 @@ def bigdiv_exact(x: BigInt, y: BigInt) -> BigInt:
     pair = bigdivmod(x, y)
     assert bigeq(pair[1], bigint(0))
     return pair[0]
-
-
-# x % y
-def bigmod(x: BigInt, y: BigInt) -> BigInt:
-    pair = bigdivmod(x, y)
-    return pair[1]
-
-
-# Greatest Common Divisor = biggest number so that x % gcd == 0 and y % gcd == 0
-def biggcd(x: BigInt, y: BigInt) -> BigInt:
-    assert bigsign(x) > 0
-    assert bigsign(y) > 0
-
-    while True:
-        x = bigmod(x, y)
-        if bigeq(x, bigint(0)):
-            return y
-
-        tmp = x
-        x = y
-        y = tmp
-
-
-# Least Common Multiple = smallest positive number so that lcm % x == 0 and lcm % y == 0
-def biglcm(x: BigInt, y: BigInt) -> BigInt:
-    return bigdiv_exact(bigmul(x, y), biggcd(x, y))
