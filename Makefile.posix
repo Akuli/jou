@@ -9,6 +9,7 @@ LLVM_CONFIG ?= $(shell \
 	|| which /usr/local/opt/llvm@11/bin/llvm-config \
 	)
 CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
+CFLAGS += -gdwarf-4  # https://github.com/llvm/llvm-project/issues/56550
 LDFLAGS ?= $(shell $(LLVM_CONFIG) --ldflags --libs)
 
 ifeq ($(CC),cc)
