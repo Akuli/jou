@@ -464,8 +464,6 @@ errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
 */
 static void ensure_can_take_address(const FunctionOrMethodTypes *fom, const AstExpression *expr, const char *errmsg_template)
 {
-    assert(fom != NULL);
-
     switch(expr->kind) {
     case AST_EXPR_DEREFERENCE:
     case AST_EXPR_INDEXING:  // &foo[bar]
@@ -489,8 +487,11 @@ static void ensure_can_take_address(const FunctionOrMethodTypes *fom, const AstE
             goto error;
 
         // In methods that take self as a pointer, you cannot take address of self
-        if (!strcmp(expr->data.varname, "self") && fom->signature.argtypes[0]->kind == TYPE_POINTER)
-            goto error;
+        if (!strcmp(expr->data.varname, "self")) {
+            assert(fom != NULL);
+            if (fom->signature.argtypes[0]->kind == TYPE_POINTER)
+                goto error;
+        }
 
         return;
 
