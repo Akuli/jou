@@ -445,7 +445,13 @@ static const LocalVariable *build_function_or_method_call(
         if (is_pointer_type(sig->argtypes[0]) && !self_is_a_pointer) {
             args[k++] = build_address_of_expression(st, self);
         } else if (!is_pointer_type(sig->argtypes[0]) && self_is_a_pointer) {
-            assert(0);  // TODO: dereference the object
+            const LocalVariable *self_ptr = build_expression(st, self);
+            assert(self_ptr->type->kind == TYPE_POINTER);
+
+            // dereference the pointer
+            const LocalVariable *val = add_local_var(st, self_ptr->type->data.valuetype);
+            add_unary_op(st, self->location, CF_PTR_LOAD, self_ptr, val);
+            args[k++] = val;
         } else {
             args[k++] = build_expression(st, self);
         }
