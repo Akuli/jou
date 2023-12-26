@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm-version: [11, 13]
+        llvm-version: [11, 13, 14]
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
@@ -50,24 +50,29 @@ jobs:
 
   doctest:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        llvm-version: [11, 13]
     steps:
       - uses: actions/checkout@v3
       - run: sudo apt update
-      - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make
-      - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
-      - run: ./doctest.sh
+      - run: sudo apt install -y llvm-{11,13,14}-dev clang-{11,13,14} make
+
+      - run: LLVM_CONFIG=llvm-config-11 ./doctest.sh
+      - run: make clean
+      - run: LLVM_CONFIG=llvm-config-13 ./doctest.sh
+      - run: make clean
+      - run: LLVM_CONFIG=llvm-config-14 ./doctest.sh
 
   compare-compilers:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - run: sudo apt update
-      - run: sudo apt install -y llvm-13-dev clang-13 make valgrind
-      - run: LLVM_CONFIG=llvm-config-13 make
-      - run: ./compare_compilers.sh
+      - run: sudo apt install -y llvm-{11,13,14}-dev clang-{11,13,14} make
+
+      - run: LLVM_CONFIG=llvm-config-11 ./compare_compilers.sh
+      - run: make clean
+      - run: LLVM_CONFIG=llvm-config-13 ./compare_compilers.sh
+      - run: make clean
+      - run: LLVM_CONFIG=llvm-config-14 ./compare_compilers.sh
 
   editorconfig-checker:
     runs-on: ubuntu-latest

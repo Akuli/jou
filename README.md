@@ -63,7 +63,7 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 1. Install the dependencies:
     ```
-    $ sudo apt install git llvm-13-dev clang-13 make
+    $ sudo apt install git llvm-14-dev clang-14 make
     ```
     Let me know if you use a distro that doesn't have `apt`,
     and you need help with this step.
@@ -94,10 +94,12 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
     Note that the `~` character does not work here,
     so you need to use a full path (or `$HOME`) instead.
 
-It is also possible to use llvm and clang version 11 instead of 13.
-By default, the `make` command decides automatically
-whether to use LLVM and clang version 11 or 13,
-preferring version 13 if it is installed.
+These LLVM/clang versions are supported:
+- LLVM 11 with clang 11
+- LLVM 13 with clang 13
+- LLVM 14 with clang 14
+
+By default, the `make` command picks the latest available version.
 You can also specify the version manually by setting the `LLVM_CONFIG` variable:
 
 ```
