@@ -1074,7 +1074,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         assert(temptype->kind == TYPE_CLASS);
         bool found = false;
         for (const Signature *m = temptype->data.classdata.methods.ptr; m < End(temptype->data.classdata.methods); m++) {
-            if (strcmp(m->name, expr->data.methodcall.call.calledname)) {
+            if (!strcmp(m->name, expr->data.methodcall.call.calledname)) {
                 if (is_pointer_type(m->argtypes[0])) {
                     char tmp[500];
                     snprintf(
