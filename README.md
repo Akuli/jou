@@ -13,8 +13,8 @@ def main() -> int:
 See the [examples](./examples/) and [tests](./tests/) directories for more example programs
 or read [the Jou tutorial](./doc/tutorial.md).
 
-So far, Jou is usable enough to do [Advent of Code 2023](https://adventofcode.com/).
-We'll see whether I get 50 stars with Jou this year.
+So far, Jou is usable enough for writing small programs.
+For example, I solved all problems of [Advent of Code 2023](https://adventofcode.com/2023/) in Jou.
 See [examples/aoc2023](./examples/aoc2023/) for the code.
 
 Goals:
