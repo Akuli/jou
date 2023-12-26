@@ -216,10 +216,10 @@ static ExportSymbol handle_global_var(FileTypes *ft, const AstNameTypeValue *var
     return es;
 }
 
-static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, const Type *self_type)
+static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, const Type *self_class)
 {
-    if (find_function_or_method(ft, self_type, astsig->name))
-        fail(astsig->name_location, "a %s named '%s' already exists", self_type ? "method" : "function", astsig->name);
+    if (find_function_or_method(ft, self_class, astsig->name))
+        fail(astsig->name_location, "a %s named '%s' already exists", self_class ? "method" : "function", astsig->name);
 
     Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
     safe_strcpy(sig.name, astsig->name);
@@ -231,14 +231,24 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
 
     sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs);  // NOLINT
     for (int i = 0; i < sig.nargs; i++) {
+        const Type *argtype;
         if (
             !strcmp(sig.argnames[i], "self")
             && astsig->args.ptr[i].type.kind == AST_TYPE_NAMED
             && astsig->args.ptr[i].type.data.name[0] == '\0'
-        )
-            sig.argtypes[i] = get_pointer_type(self_type);
-        else
-            sig.argtypes[i] = type_from_ast(ft, &astsig->args.ptr[i].type);
+        ) {
+            // just "self" without a type after it --> default to "self: Foo*" in class Foo
+            argtype = get_pointer_type(self_class);
+        } else {
+            argtype = type_from_ast(ft, &astsig->args.ptr[i].type);
+        }
+
+        if (!strcmp(sig.argnames[i], "self") && argtype != self_class && argtype != get_pointer_type(self_class))
+        {
+            fail(astsig->args.ptr[i].type.location, "type of self must be %s* (default) or %s", self_class->name, self_class->name);
+        }
+
+        sig.argtypes[i] = argtype;
     }
 
     sig.is_noreturn = is_noreturn(&astsig->returntype);
@@ -249,7 +259,7 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
     else
         sig.returntype = type_from_ast(ft, &astsig->returntype);
 
-    if (!self_type && !strcmp(sig.name, "main")) {
+    if (!self_class && !strcmp(sig.name, "main")) {
         // special main() function checks
         if (sig.returntype != intType)
             fail(astsig->returntype.location, "the main() function must return int");
@@ -267,7 +277,7 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
 
     sig.returntype_location = astsig->returntype.location;
 
-    if (!self_type)
+    if (!self_class)
         Append(&ft->functions, (struct SignatureAndUsedPtr){ .signature=copy_signature(&sig), .usedptr=NULL });
 
     return sig;
