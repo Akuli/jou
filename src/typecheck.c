@@ -231,7 +231,11 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
 
     sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs);  // NOLINT
     for (int i = 0; i < sig.nargs; i++) {
-        if (!strcmp(sig.argnames[i], "self"))
+        if (
+            !strcmp(sig.argnames[i], "self")
+            && astsig->args.ptr[i].type.kind == AST_TYPE_NAMED
+            && astsig->args.ptr[i].type.data.name[0] == '\0'
+        )
             sig.argtypes[i] = get_pointer_type(self_type);
         else
             sig.argtypes[i] = type_from_ast(ft, &astsig->args.ptr[i].type);
@@ -1066,12 +1070,24 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         temptype = typecheck_expression_not_void(ft, expr->data.methodcall.obj)->type;
         result = typecheck_function_or_method_call(ft, &expr->data.methodcall.call, temptype, expr->location);
 
-        char tmp[500];
-        snprintf(
-            tmp, sizeof tmp,
-            "cannot take address of %%s, needed for calling the %s() method",
-            expr->data.methodcall.call.calledname);
-        ensure_can_take_address(expr->data.methodcall.obj, tmp);
+        // If self argument is passed by pointer, make sure we can create that pointer
+        assert(temptype->kind == TYPE_CLASS);
+        bool found = false;
+        for (const Signature *m = temptype->data.classdata.methods.ptr; m < End(temptype->data.classdata.methods); m++) {
+            if (strcmp(m->name, expr->data.methodcall.call.calledname)) {
+                if (is_pointer_type(m->argtypes[0])) {
+                    char tmp[500];
+                    snprintf(
+                        tmp, sizeof tmp,
+                        "cannot take address of %%s, needed for calling the %s() method",
+                        expr->data.methodcall.call.calledname);
+                    ensure_can_take_address(expr->data.methodcall.obj, tmp);
+                }
+                found = true;
+                break;
+            }
+        }
+        assert(found);
 
         if (!result)
             return NULL;

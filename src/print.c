@@ -192,7 +192,7 @@ static void print_ast_function_signature(const AstSignature *sig)
 
 static void print_ast_call(const AstCall *call, struct TreePrinter tp, const AstExpression *self);
 
-static void print_ast_expression(const AstExpression *expr, struct TreePrinter tp)
+void print_ast_expression(const AstExpression *expr, struct TreePrinter tp)
 {
     printf("[line %d] ", expr->location.lineno);
     int n = 0;  // number of operands

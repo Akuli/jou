@@ -404,25 +404,23 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
     assert(0);
 }
 
-static const LocalVariable *build_function_or_method_call(struct State *st, const Location location, const AstCall *call, const LocalVariable *self)
+static const LocalVariable *build_function_or_method_call(
+    struct State *st,
+    const Location location,
+    const AstCall *call,
+    const AstExpression *self,
+    bool self_is_a_pointer)
 {
-    if(self) {
-        assert(self->type->kind == TYPE_POINTER);
-        assert(self->type->data.valuetype->kind == TYPE_CLASS);
-    }
-
-    const LocalVariable **args = calloc(call->nargs + 2, sizeof(args[0]));  // NOLINT
-    int k = 0;
-    if (self)
-        args[k++] = self;
-    for (int i = 0; i < call->nargs; i++)
-        args[k++] = build_expression(st, &call->args[i]);
-
     const Signature *sig = NULL;
+
     if(self) {
-        assert(self->type->kind == TYPE_POINTER);
-        const Type *selfclass = self->type->data.valuetype;
+        const Type *selfclass = get_expr_types(st, self)->type;
+        if (self_is_a_pointer) {
+            assert(selfclass->kind == TYPE_POINTER);
+            selfclass = selfclass->data.valuetype;
+        }
         assert(selfclass->kind == TYPE_CLASS);
+
         for (const Signature *s = selfclass->data.classdata.methods.ptr; s < End(selfclass->data.classdata.methods); s++) {
             assert(get_self_class(s) == selfclass);
             if (!strcmp(s->name, call->calledname)) {
@@ -439,6 +437,22 @@ static const LocalVariable *build_function_or_method_call(struct State *st, cons
         }
     }
     assert(sig);
+
+    const LocalVariable **args = calloc(call->nargs + 2, sizeof(args[0]));  // NOLINT
+    int k = 0;
+
+    if (self) {
+        if (is_pointer_type(sig->argtypes[0]) && !self_is_a_pointer) {
+            args[k++] = build_address_of_expression(st, self);
+        } else if (!is_pointer_type(sig->argtypes[0]) && self_is_a_pointer) {
+            assert(0);  // TODO: dereference the object
+        } else {
+            args[k++] = build_expression(st, self);
+        }
+    }
+
+    for (int i = 0; i < call->nargs; i++)
+        args[k++] = build_expression(st, &call->args[i]);
 
     const LocalVariable *return_value;
     if (sig->returntype)
@@ -539,21 +553,17 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
 
     switch(expr->kind) {
     case AST_EXPR_DEREF_AND_CALL_METHOD:
-        temp = build_expression(st, expr->data.methodcall.obj);
-        assert(temp);
-        result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, temp);
+        result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, expr->data.methodcall.obj, true);
         if (!result)
             return NULL;
         break;
     case AST_EXPR_CALL_METHOD:
-        temp = build_address_of_expression(st, expr->data.methodcall.obj);
-        assert(temp);
-        result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, temp);
+        result = build_function_or_method_call(st, expr->location, &expr->data.methodcall.call, expr->data.methodcall.obj, false);
         if (!result)
             return NULL;
         break;
     case AST_EXPR_FUNCTION_CALL:
-        result = build_function_or_method_call(st, expr->location, &expr->data.call, NULL);
+        result = build_function_or_method_call(st, expr->location, &expr->data.call, NULL, false);
         if (!result)
             return NULL;
         break;

@@ -1,0 +1,18 @@
+import "stdlib/io.jou"
+
+class Foo:
+    x: int
+
+    def add(self: Foo, n: int) -> Foo:
+        return Foo{x = self.x + n}
+
+    def add_one(self: Foo) -> Foo:
+        return Foo{x = self.x + 1}
+
+    def print(self: Foo) -> None:
+        printf("%d\n", self.x)
+
+
+def main() -> int:
+    Foo{x=5}.add(10).add_one().print()  # Output: 16
+    return 0
