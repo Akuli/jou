@@ -65,11 +65,16 @@ def create_llvm_union_type(types: LLVMType**, ntypes: int) -> LLVMType*:
 
     return LLVMArrayType(LLVMInt64Type(), ((size_needed + 7) / 8) as int)  # ceil division
 
+
+# Pointers in classes are stored as i8*, so that a struct can contain a pointer to itself.
+def field_uses_i8_ptr_hack(field: ClassField*) -> bool:
+    return field->type->kind == TypeKind::Pointer
+
+
 def class_type_to_llvm(fields: ClassField*, nfields: int) -> LLVMType*:
     elem_types: LLVMType** = malloc(nfields * sizeof elem_types[0])
     for i = 0; i < nfields; i++:
-        # Store all pointers in structs as i8*, so that a struct can contain a pointer to itself for example.
-        if fields[i].type->kind == TypeKind::Pointer:
+        if field_uses_i8_ptr_hack(&fields[i]):
             elem_types[i] = LLVMPointerType(LLVMInt8Type(), 0)
         else:
             elem_types[i] = type_to_llvm(fields[i].type)
@@ -80,9 +85,12 @@ def class_type_to_llvm(fields: ClassField*, nfields: int) -> LLVMType*:
         end = start + 1
         while end < nfields and fields[start].union_id == fields[end].union_id:
             end++
+        assert fields[start].union_id == combined_len
         elem_types[combined_len++] = create_llvm_union_type(&elem_types[start], end-start)
 
     result = LLVMStructType(elem_types, combined_len, False as int)
+    for i = 0; i < combined_len; i++:
+        assert LLVMStructGetTypeAtIndex(result, i) == elem_types[i]
     free(elem_types)
     return result
 
@@ -228,6 +236,16 @@ class AstToIR:
 
         printf("unimplemented cast: %s --> %s\n", from->name, to->name)
         assert False
+
+    # Makes a temporary pointer, places the value there, then casts and reads the pointer.
+    def do_cast_through_pointers(self, value: LLVMValue*, to: LLVMType*) -> LLVMValue*:
+        printf("Cast through pointers!!!!!\n")
+        fflush(stdout)
+
+        p1 = LLVMBuildAlloca(self->builder, LLVMTypeOf(value), "cast_through_ptr_temp")
+        LLVMBuildStore(self->builder, value, p1)
+        p2 = LLVMBuildBitCast(self->builder, p1, LLVMPointerType(to, 0), "cast_through_ptr_temp")
+        return LLVMBuildLoad2(self->builder, to, p2, "cast_through_ptr_result")
 
     def do_binop(
         self,
@@ -395,19 +413,21 @@ class AstToIR:
             assert field != NULL
             field_pointer = LLVMBuildStructGEP2(
                 self->builder,
-                type_to_llvm(class_type), instance_pointer,
+                type_to_llvm(class_type),
+                instance_pointer,
                 field->union_id,
                 field->name,
             )
 
-            # This cast is needed for two reasons two cases:
-            #   * All pointers are i8* in structs so we can do self-referencing classes.
-            #   * This is how unions work.
-            return LLVMBuildBitCast(
-                self->builder,
-                field_pointer, LLVMPointerType(type_to_llvm(field->type),0),
-                "struct_member_cast",
-            )
+            if field_uses_i8_ptr_hack(field) or field->belongs_to_union:
+                field_pointer = LLVMBuildBitCast(
+                    self->builder,
+                    field_pointer,
+                    LLVMPointerType(type_to_llvm(field->type), 0),
+                    "class_field_ptr_cast",
+                )
+
+            return field_pointer
 
         if ast->kind == AstExpressionKind::Indexing:
             # &pointer[index] = pointer + some offset
@@ -573,6 +593,26 @@ class AstToIR:
                 field = instance_type->class_members.find_field(ast->instantiation.field_names[i])
                 assert field != NULL
                 value = self->do_expression(&ast->instantiation.field_values[i])
+                printf("create_llvm_ir: (type=%s) get belongs_to_union = ", instance_type->name)
+                if field->belongs_to_union:
+                    printf("True")
+                else:
+                    printf("False")
+                printf(" for field '%s'\n", field->name)
+                fflush(stdout)
+                a = field_uses_i8_ptr_hack(field)
+                b = field->belongs_to_union
+                c = a or b
+                printf("abc = %d%d%d\n", a as int, b as int, c as int)
+                fflush(stdout)
+                if c:
+                    printf("IF STATEMENT\n")
+                    fflush(stdout)
+                    value = self->do_cast_through_pointers(value, LLVMStructGetTypeAtIndex(type_to_llvm(instance_type), field->union_id))
+                    assert LLVMTypeOf(value) == LLVMStructGetTypeAtIndex(type_to_llvm(instance_type), field->union_id)
+                else:
+                    printf("ELSE STATEMENT\n")
+                    fflush(stdout)
                 result = LLVMBuildInsertValue(self->builder, result, value, field->union_id, "instance")
 
         elif ast->kind == AstExpressionKind::GetClassField:
@@ -588,6 +628,9 @@ class AstToIR:
             field = instance_type->class_members.find_field(ast->class_field.field_name)
             assert field != NULL
             result = LLVMBuildExtractValue(self->builder, instance, field->union_id, field->name)
+
+            if field_uses_i8_ptr_hack(field) or field->belongs_to_union:
+                result = self->do_cast_through_pointers(result, type_to_llvm(field->type))
 
         elif ast->kind == AstExpressionKind::GetVariable:
             v = get_special_constant(ast->varname)
