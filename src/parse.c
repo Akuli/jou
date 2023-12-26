@@ -155,7 +155,11 @@ static AstSignature parse_function_signature(ParserState *ps, bool accept_self)
         } else if (is_keyword(ps->tokens, "self")) {
             if (!accept_self)
                 fail(ps->tokens->location, "'self' cannot be used here");
-            AstNameTypeValue self_arg = { .name="self", .name_location=ps->tokens++->location };
+            AstNameTypeValue self_arg = { .name="self", .type.kind = AST_TYPE_NAMED, .type.data.name = "", .name_location=ps->tokens++->location };
+            if (is_operator(ps->tokens, ":")) {
+                ps->tokens++;
+                self_arg.type = parse_type(ps);
+            }
             Append(&result.args, self_arg);
             used_self = true;
         } else {
