@@ -272,7 +272,7 @@ class AstToIR:
             assert False
 
         if lhs_type->is_integer_type() and rhs_type->is_integer_type():
-            is_signed = lhs_type->kind == TypeKind::SignedInteger and rhs_type->kind == TypeKind::SignedInteger
+            is_signed = lhs_type->kind == TypeKind::SignedInteger or rhs_type->kind == TypeKind::SignedInteger
             if op == AstExpressionKind::Add:
                 return LLVMBuildAdd(self->builder, lhs, rhs, "add")
             if op == AstExpressionKind::Subtract:
