@@ -208,21 +208,6 @@ const Type *get_self_class(const Signature *sig)
     return NULL;
 }
 
-const Type *self_is_passed_as_pointer(const Signature *sig)
-{
-    if (sig->nargs > 0 && !strcmp(sig->argnames[0], "self")) {
-        switch (sig->argtypes[0]->kind) {
-            case TYPE_POINTER:
-                return sig->argtypes[0]->data.valuetype;
-            case TYPE_CLASS:
-                return sig->argtypes[0];
-            default:
-                assert(0);
-        }
-    }
-    return NULL;
-}
-
 char *signature_to_string(const Signature *sig, bool include_return_type, bool include_self)
 {
     List(char) result = {0};
