@@ -86,7 +86,6 @@ class EquationSolver:
         return True
 
 
-# Equations list should be terminated by an equation with 0 variables.
 def solve_linear_system_of_equations(eqs: Equation*, neqs: int) -> BigInt*:
     nvariables = 0
     for i = 0; i < neqs; i++:
@@ -102,7 +101,7 @@ def solve_linear_system_of_equations(eqs: Equation*, neqs: int) -> BigInt*:
         memcpy(eq->coeffs, eqs[i].coeffs, sizeof(eqs[i].coeffs[0]) * eqs[i].nvariables)
         eq->rhs = eqs[i].rhs
 
-    # Each equation only has one unknown variable + variables from equations after it
+    # Each final equation only has one unknown variable + variables from equations after it
     final_equations: Equation* = malloc(sizeof(final_equations[0]) * nvariables)
 
     for var = 0; var < nvariables; var++:
@@ -206,13 +205,13 @@ def get_paired_index(N: int, small: int, big: int) -> int:
 #           p1 = project location of point i at time t_i to the plane
 #           p2 = project location of point j at time t_j to the plane
 #           p3 = project location of point k at time t_k to the plane
-#           the equation says that p1,p2,p3 go along the same line.
+#           there is an equation which says that p1,p2,p3 go along the same line.
 #
 # To test if 2D points go along the same line, we check if their 2x2 determinant is zero.
 # Unfortunately the 2x2 determinant creates products like t_i*t_j into the equations.
 # We just replace each of these products with a new dummy variable:
 # t_1*t_2 becomes t_(N+1), t_1*t_3 becomes t_(N+2) and so on.
-# Even with that, the resulting equations contain enough info to solve this.
+# Even with that, the resulting equations contain enough info to be solved.
 def create_equations(moving_points: MovingPoint*, N: int, neqs: int*) -> Equation*:
     nvariables = N + N*(N-1)/2  # N normal variables, (n choose 2) paired variables
 
@@ -261,7 +260,7 @@ def create_equations(moving_points: MovingPoint*, N: int, neqs: int*) -> Equatio
                     #
                     # With sympy (Python library), I expanded this to:
                     #
-                    # -six*sjy + six*sky - six*tj*vjy + six*tk*vky + siy*sjx - siy*skx + siy*tj*vjx - siy*tk*vkx - sjx*sky + sjx*ti*viy - sjx*tk*vky + sjy*skx - sjy*ti*vix + sjy*tk*vkx - skx*ti*viy + skx*tj*vjy + sky*ti*vix - sky*tj*vjx - ti*tj*vix*vjy + ti*tj*viy*vjx + ti*tk*vix*vky - ti*tk*viy*vkx - tj*tk*vjx*vky + tj*tk*vjy*vkx
+                    # -six*sjy + six*sky - six*t_j*vjy + six*t_k*vky + siy*sjx - siy*skx + siy*t_j*vjx - siy*t_k*vkx - sjx*sky + sjx*t_i*viy - sjx*t_k*vky + sjy*skx - sjy*t_i*vix + sjy*t_k*vkx - skx*t_i*viy + skx*t_j*vjy + sky*t_i*vix - sky*t_j*vjx - t_i*t_j*vix*vjy + t_i*t_j*viy*vjx + t_i*t_k*vix*vky - t_i*t_k*viy*vkx - t_j*t_k*vjx*vky + t_j*t_k*vjy*vkx
                     eq->coeffs[i] = bigadd4(bigmul(sjx, viy), bigneg(bigmul(sjy, vix)), bigneg(bigmul(skx, viy)), bigmul(sky, vix))
                     eq->coeffs[j] = bigadd4(bigmul(siy, vjx), bigneg(bigmul(six, vjy)), bigmul(skx, vjy), bigneg(bigmul(sky, vjx)))
                     eq->coeffs[k] = bigadd4(bigmul(six, vky), bigneg(bigmul(siy, vkx)), bigneg(bigmul(sjx, vky)), bigmul(sjy, vkx))

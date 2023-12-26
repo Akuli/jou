@@ -193,7 +193,7 @@ def bigdivmod(x: BigInt, y: BigInt) -> BigInt[2]:
     if bigsign(x) < 0:
         remainder = bigneg(remainder)
 
-    # When nonzero remainder, force its sign to be same as sign of y, similar to jou %
+    # When nonzero remainder, force its sign to be same sign as y, similar to jou %
     if bigsign(remainder) != 0 and bigsign(remainder) != bigsign(y):
         remainder = bigadd(remainder, y)
         quotient = bigsub(quotient, bigint(1))

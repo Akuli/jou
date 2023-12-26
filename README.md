@@ -13,7 +13,7 @@ def main() -> int:
 See the [examples](./examples/) and [tests](./tests/) directories for more example programs
 or read [the Jou tutorial](./doc/tutorial.md).
 
-So far, Jou is usable enough for writing small programs.
+So far, Jou is usable for writing small programs that don't have a lot of dependencies.
 For example, I solved all problems of [Advent of Code 2023](https://adventofcode.com/2023/) in Jou.
 See [examples/aoc2023](./examples/aoc2023/) for the code.
 

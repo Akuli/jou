@@ -40,8 +40,7 @@ class Graph:
 
         fprintf(f, "}\n")
         fclose(f)
-#        system("dot -T png /tmp/aoc25-graph.txt -o /tmp/aoc25-graph.png && open /tmp/aoc25-graph.png")
-        system("dot -T png /tmp/aoc25-graph.txt -o /tmp/aoc25-graph.png && eom /tmp/aoc25-graph.png")
+        system("dot -T png /tmp/aoc25-graph.txt -o /tmp/aoc25-graph.png && open /tmp/aoc25-graph.png")
 
     def connect(self, a: int, b: int) -> None:
         assert 0 <= a and a < self->num_nodes
@@ -100,7 +99,8 @@ class Graph:
 
         return result
 
-    # Returns shortest path. Result always starts with a and ends with b. No other termination.
+    # Returns shortest path, or NULL if there is no path.
+    # Returned path always starts with a and ends with b. There is no -1 termination or similar.
     def dijkstra_algorithm(self, a: int, b: int) -> int*:
         assert a != b
 
@@ -160,7 +160,7 @@ class Graph:
         free(nodes_with_distance_set)
         free(known_shortest)
 
-        return realloc(result, (p as long) - (result as long))
+        return result
 
     # If this returns True, the nodes will always be in the same region after breaking 3 connections.
     def nodes_are_strongly_connected(self, a: int, b: int) -> bool:
@@ -273,7 +273,6 @@ def main() -> int:
 
         graph.merge_nodes(nodes[0], nodes[1])
 #        printf("Merged %d and %d, now there are %d nodes\n", nodes[0], nodes[1], graph.num_nodes)
-#        fflush(stdout)
 
     #graph.visualize_with_graphviz()
 
