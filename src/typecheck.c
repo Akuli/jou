@@ -462,13 +462,16 @@ value of the pointer &foo to bar.
 
 errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
 */
-static void ensure_can_take_address(const AstExpression *expr, const char *errmsg_template)
+static void ensure_can_take_address(const FunctionOrMethodTypes *fom, const AstExpression *expr, const char *errmsg_template)
 {
+    assert(fom != NULL);
+
     switch(expr->kind) {
     case AST_EXPR_DEREFERENCE:
     case AST_EXPR_INDEXING:  // &foo[bar]
     case AST_EXPR_DEREF_AND_GET_FIELD:  // &foo->bar = foo + offset (it doesn't use &foo)
-        break;
+        return;
+
     case AST_EXPR_GET_FIELD:
         // &foo.bar = &foo + offset
         {
@@ -476,19 +479,27 @@ static void ensure_can_take_address(const AstExpression *expr, const char *errms
             // This assumes that errmsg_template is relatively simple, i.e. it only contains one %s somewhere.
             char *newtemplate = malloc(strlen(errmsg_template) + 100);
             sprintf(newtemplate, errmsg_template, "a field of %s");
-            ensure_can_take_address(&expr->data.operands[0], newtemplate);
+            ensure_can_take_address(fom, &expr->data.operands[0], newtemplate);
             free(newtemplate);
         }
-        break;
+        return;
+
     case AST_EXPR_GET_VARIABLE:
-        if (strcmp(expr->data.varname, "self") && get_special_constant(expr->data.varname) == -1) {
-            // not self or a special constant --> ok to take address
-            break;
-        }
-        __attribute__((fallthrough));
+        if (get_special_constant(expr->data.varname) != -1)
+            goto error;
+
+        // In methods that take self as a pointer, you cannot take address of self
+        if (!strcmp(expr->data.varname, "self") && fom->signature.argtypes[0]->kind == TYPE_POINTER)
+            goto error;
+
+        return;
+
     default:
-        fail(expr->location, errmsg_template, short_expression_description(expr));
+        goto error;
     }
+
+error:
+    fail(expr->location, errmsg_template, short_expression_description(expr));
 }
 
 /*
@@ -550,7 +561,10 @@ static bool can_cast_implicitly(const Type *from, const Type *to)
 }
 
 static void do_implicit_cast(
-    ExpressionTypes *types, const Type *to, Location location, const char *errormsg_template)
+    ExpressionTypes *types,
+    const Type *to,
+    Location location,
+    const char *errormsg_template)
 {
     assert(!types->implicit_cast_type);
     assert(!types->implicit_array_to_pointer_cast);
@@ -580,6 +594,7 @@ static void do_implicit_cast(
     types->implicit_array_to_pointer_cast = (from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER);
     if (types->implicit_array_to_pointer_cast)
         ensure_can_take_address(
+            NULL,
             types->expr,
             "cannot create a pointer into an array that comes from %s (try storing it to a local variable first)"
         );
@@ -753,7 +768,7 @@ static const Type *check_increment_or_decrement(FileTypes *ft, const AstExpressi
         assert(0);
     }
 
-    ensure_can_take_address(&expr->data.operands[0], bad_expr_fmt);
+    ensure_can_take_address(ft->current_fom_types, &expr->data.operands[0], bad_expr_fmt);
     const Type *t = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
     if (!is_integer_type(t) && !is_pointer_type(t))
         fail(expr->location, bad_type_fmt, t->name);
@@ -1091,7 +1106,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
                         tmp, sizeof tmp,
                         "cannot take address of %%s, needed for calling the %s() method",
                         expr->data.methodcall.call.calledname);
-                    ensure_can_take_address(expr->data.methodcall.obj, tmp);
+                    ensure_can_take_address(ft->current_fom_types, expr->data.methodcall.obj, tmp);
                 }
                 found = true;
                 break;
@@ -1106,7 +1121,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         result = typecheck_indexing(ft, &expr->data.operands[0], &expr->data.operands[1]);
         break;
     case AST_EXPR_ADDRESS_OF:
-        ensure_can_take_address(&expr->data.operands[0], "the '&' operator cannot be used with %s");
+        ensure_can_take_address(ft->current_fom_types, &expr->data.operands[0], "the '&' operator cannot be used with %s");
         temptype = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
         result = get_pointer_type(temptype);
         break;
@@ -1249,7 +1264,7 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
                 add_variable(ft, types->type, targetexpr->data.varname);
             } else {
                 // Convert value to the type of an existing variable or other assignment target.
-                ensure_can_take_address(targetexpr, "cannot assign to %s");
+                ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s");
 
                 char errmsg[500];
                 if (targetexpr->kind == AST_EXPR_DEREFERENCE) {
@@ -1286,7 +1301,7 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
             default: assert(0);
         }
 
-        ensure_can_take_address(targetexpr, "cannot assign to %s");
+        ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s");
         ExpressionTypes *targettypes = typecheck_expression_not_void(ft, targetexpr);
         ExpressionTypes *valuetypes = typecheck_expression_not_void(ft, valueexpr);
 

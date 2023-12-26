@@ -7,7 +7,8 @@ class Foo:
         return Foo{x = self.x + n}
 
     def add_one(self: Foo) -> Foo:
-        return Foo{x = self.x + 1}
+        self = Foo{x = self.x + 1}
+        return self
 
     def print(self: Foo) -> None:
         printf("%d\n", self.x)
@@ -16,8 +17,13 @@ class Foo:
 def main() -> int:
     Foo{x=5}.add(10).add_one().print()  # Output: 16
 
-    # test the '->' operator
+    # The methods get a local copy
     f = Foo{x=100}
+    f.add(123)
+    f.add_one()
+    f.print()  # Output: 100
+
+    # test the '->' operator
     (&f)->print()  # Output: 100
 
     return 0
