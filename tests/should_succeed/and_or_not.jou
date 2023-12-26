@@ -59,12 +59,10 @@ def main() -> int:
     printf("%d", False or False or False)
     printf("\n")
 
-    # TODO: presumably these should emit warnings too
-
     # Output: Precedence and 0001
     printf("Precedence and ")
-    printf("%d", not True and not True)
-    printf("%d", not True and not False)
+    printf("%d", not True and not True)  # Warning: this code will never run
+    printf("%d", not True and not False)  # Warning: this code will never run
     printf("%d", not False and not True)
     printf("%d", not False and not False)
     printf("\n")
@@ -73,8 +71,8 @@ def main() -> int:
     printf("Precedence or ")
     printf("%d", not True or not True)
     printf("%d", not True or not False)
-    printf("%d", not False or not True)
-    printf("%d", not False or not False)
+    printf("%d", not False or not True)  # Warning: this code will never run
+    printf("%d", not False or not False)  # Warning: this code will never run
     printf("\n")
 
     # Output: Side effects and aAbBcd

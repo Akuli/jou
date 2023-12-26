@@ -39,7 +39,12 @@ def lots_of_unreachable_code() -> None:
         puts("blah")
         i = i+1
 
+def with_not() -> None:
+    if not True:
+        puts("Hello")  # Warning: this code will never run
+
 def main() -> int:
     after_return()
+    with_not()
     # Can't run infinite loops (test script redirects output to file)
     return 0
