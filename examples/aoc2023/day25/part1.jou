@@ -1,0 +1,283 @@
+import "stdlib/ascii.jou"
+import "stdlib/math.jou"
+import "stdlib/process.jou"
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def print_path(path: int*, end: int) -> None:
+    for i = 0; path[i] != end; i++:
+        printf("%d -> ", path[i])
+    printf("%d\n", end)
+
+
+class Graph:
+    num_nodes: int
+    matrix: int**
+    weights: int*  # Initially every node has weight 1, the weights are added when merging
+
+    def free(self) -> None:
+        for i = 0; i < self->num_nodes; i++:
+            free(self->matrix[i])
+        free(self->matrix)
+        free(self->weights)
+
+    def visualize_with_graphviz(self) -> None:
+        assert not WINDOWS
+
+        f = fopen("/tmp/aoc25-graph.txt", "w")
+        assert f != NULL
+
+        fprintf(f, "digraph G {\n")
+        for i = 0; i < self->num_nodes; i++:
+            fprintf(f, "node%d [label=\"%d (weight=%d)\"]\n", i, i, self->weights[i])
+
+        for i = 0; i < self->num_nodes; i++:
+            for k = 0; k < i; k++:
+                if self->matrix[i][k] != 0:
+                    fprintf(f, "    node%d -> node%d [label=\"%d\", dir=none]\n", i, k, self->matrix[i][k])
+
+        fprintf(f, "}\n")
+        fclose(f)
+#        system("dot -T png /tmp/aoc25-graph.txt -o /tmp/aoc25-graph.png && open /tmp/aoc25-graph.png")
+        system("dot -T png /tmp/aoc25-graph.txt -o /tmp/aoc25-graph.png && eom /tmp/aoc25-graph.png")
+
+    def connect(self, a: int, b: int) -> None:
+        assert 0 <= a and a < self->num_nodes
+        assert 0 <= b and b < self->num_nodes
+        self->matrix[a][b]++
+        self->matrix[b][a]++
+
+    def disconnect(self, a: int, b: int) -> None:
+        assert 0 <= a and a < self->num_nodes
+        assert 0 <= b and b < self->num_nodes
+        assert self->matrix[a][b] > 0
+        assert self->matrix[b][a] > 0
+        self->matrix[a][b]--
+        self->matrix[b][a]--
+
+    def merge_nodes(self, a: int, b: int) -> None:
+        assert 0 <= a and a < self->num_nodes
+        assert 0 <= b and b < self->num_nodes
+
+        # Add weights
+        self->weights[a] += self->weights[b]
+
+        # Add all b's connections to a, except the possible a <--> b connection
+        for n = 0; n < self->num_nodes; n++:
+            if n != a:
+                self->matrix[a][n] += self->matrix[b][n]
+                self->matrix[n][a] += self->matrix[n][b]
+
+        # Disconnect b from everything
+        for n = 0; n < self->num_nodes; n++:
+            self->matrix[n][b] = 0
+            self->matrix[b][n] = 0
+
+        self->num_nodes--
+
+        # Now the matrix has zeros in b's row and column. Delete that row and column.
+        # This changes names of other, unrelated nodes. That can't be avoided.
+        free(self->matrix[b])
+        self->matrix[b] = self->matrix[self->num_nodes]
+        for i = 0; i < self->num_nodes; i++:
+            self->matrix[i][b] = self->matrix[i][self->num_nodes]
+        self->weights[b] = self->weights[self->num_nodes]
+
+    def copy(self) -> Graph:
+        result = *self
+        n = self->num_nodes
+
+        result.matrix = malloc(sizeof(result.matrix[0]) * n)
+        for i = 0; i < n; i++:
+            row: int* = malloc(sizeof(row[0]) * n)
+            memcpy(row, self->matrix[i], sizeof(row[0]) * n)
+            result.matrix[i] = row
+
+        result.weights = malloc(sizeof(result.weights[0]) * n)
+        memcpy(result.weights, self->weights, sizeof(self->weights[0]) * n)
+
+        return result
+
+    # Returns shortest path. Result always starts with a and ends with b. No other termination.
+    def dijkstra_algorithm(self, a: int, b: int) -> int*:
+        assert a != b
+
+        where_we_came_from: int* = malloc(sizeof(where_we_came_from[0]) * self->num_nodes)
+        distances: int* = calloc(sizeof(distances[0]), self->num_nodes)
+        nodes_with_distance_set: int* = calloc(sizeof(nodes_with_distance_set[0]), self->num_nodes)
+        known_shortest: bool* = calloc(sizeof(known_shortest[0]), self->num_nodes)
+
+        for i = 0; i < self->num_nodes; i++:
+            distances[i] = -1
+
+        # Make dijkstra go from b to a, so that we don't need to reverse when we're done
+        nodes_with_distance_set[0] = b
+        distances[b] = 0
+        n_nodes_with_distance_set = 1
+
+        while not known_shortest[a]:
+            # pick the node with unknown-yet-to-be-smallest distance, whose distance is smallest
+            current = -1
+            for i = 0; i < n_nodes_with_distance_set; i++:
+                n = nodes_with_distance_set[i]
+                if (not known_shortest[n]) and (current == -1 or distances[n] < distances[current]):
+                    current = n
+            if current == -1:
+                # no path
+                free(where_we_came_from)
+                free(distances)
+                free(nodes_with_distance_set)
+                free(known_shortest)
+                return NULL
+
+            # for some reason that i don't understand, the distance of the node we picked is known to be smallest
+            known_shortest[current] = True
+
+            # update neighbor distances, if visiting through current makes them shorter
+            for neighbor = 0; neighbor < self->num_nodes; neighbor++:
+                if self->matrix[current][neighbor] > 0:
+                    d = distances[current] + 1  # 1 = weight of edge
+                    if distances[neighbor] == -1:
+                        distances[neighbor] = d
+                        nodes_with_distance_set[n_nodes_with_distance_set++] = neighbor
+                        where_we_came_from[neighbor] = current
+                    elif distances[neighbor] > d:
+                        distances[neighbor] = d
+                        where_we_came_from[neighbor] = current
+
+        result: int* = malloc(sizeof(result[0]) * self->num_nodes)
+        p = result
+        current = a
+        while current != b:
+            *p++ = current
+            current = where_we_came_from[current]
+        *p++ = b
+
+        free(where_we_came_from)
+        free(distances)
+        free(nodes_with_distance_set)
+        free(known_shortest)
+
+        return realloc(result, (p as long) - (result as long))
+
+    # If this returns True, the nodes will always be in the same region after breaking 3 connections.
+    def nodes_are_strongly_connected(self, a: int, b: int) -> bool:
+        assert a != b
+
+        copy = self->copy()
+
+        for i = 0; i < 3; i++:
+            path = copy.dijkstra_algorithm(a, b)
+            if path == NULL:
+                copy.free()
+                return False
+
+            for k = 0; path[k] != b; k++:
+                copy.disconnect(path[k], path[k+1])
+            free(path)
+
+        # We disconnected 3 distinct paths, is it still connected?
+        path = copy.dijkstra_algorithm(a, b)
+        if path != NULL:
+            # Yes, it is --> strongly connected
+            free(path)
+            copy.free()
+            return True
+        copy.free()
+        return False
+
+    def find_a_strong_connection(self, hint: int*) -> int[2]:
+        for i = *hint; i < *hint + self->num_nodes; i++:
+            a = i % self->num_nodes
+            for b = a+1; b < self->num_nodes; b++:
+                if self->nodes_are_strongly_connected(a, b):
+                    *hint = max(a, b)
+                    return [a, b]
+        return [-1, -1]
+
+
+def main() -> int:
+    max_nodes = 10000
+    node_names: byte[10]* = malloc(sizeof(node_names[0]) * max_nodes)
+    num_nodes = 0
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    line: byte[1000]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        colon = strchr(line, ':')
+        assert colon != NULL
+        *colon = ' '
+
+        words = split_by_ascii_whitespace(line)
+        for w = words; *w != NULL; w++:
+            found = False
+            for i = 0; i < num_nodes; i++:
+                if strcmp(node_names[i], *w) == 0:
+                    found = True
+                    break
+            if not found:
+                assert strlen(*w) < 10
+                s: byte[10]
+                strcpy(s, *w)
+                node_names[num_nodes++] = s
+
+        free(words)
+
+    graph = Graph{num_nodes = num_nodes}
+    graph.matrix = calloc(num_nodes, sizeof(graph.matrix[0]))
+    for i = 0; i < num_nodes; i++:
+        row: int* = calloc(num_nodes, sizeof(row[0]))
+        graph.matrix[i] = row
+
+    graph.weights = malloc(num_nodes * sizeof(graph.weights[0]))
+    for i = 0; i < num_nodes; i++:
+        graph.weights[i] = 1
+
+    rewind(f)
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        colon = strchr(line, ':')
+        assert colon != NULL
+        *colon = ' '
+
+        words = split_by_ascii_whitespace(line)
+        assert words[0] != NULL
+
+        start_node = -1
+        for i = 0; i < num_nodes; i++:
+            if strcmp(node_names[i], words[0]) == 0:
+                start_node = i
+                break
+
+        for w = words; *w != NULL; w++:
+            for i = 0; i < num_nodes; i++:
+                if strcmp(node_names[i], *w) == 0:
+                    graph.connect(start_node, i)
+                    break
+
+        free(words)
+
+    fclose(f)
+    free(node_names)
+
+    i = 0
+    hint = 0
+
+    while True:
+        nodes = graph.find_a_strong_connection(&hint)
+        if nodes[0] == -1:
+            break
+
+        graph.merge_nodes(nodes[0], nodes[1])
+#        printf("Merged %d and %d, now there are %d nodes\n", nodes[0], nodes[1], graph.num_nodes)
+#        fflush(stdout)
+
+    #graph.visualize_with_graphviz()
+
+    assert graph.num_nodes == 2
+    printf("%d\n", graph.weights[0] * graph.weights[1])
+    graph.free()
+    return 0
