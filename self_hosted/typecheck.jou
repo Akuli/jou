@@ -688,6 +688,7 @@ def check_binop(
         do_what = "compare"
         result_is_bool = True
 
+    got_bools = lhs_types->original_type == &bool_type and rhs_types->original_type == &bool_type
     got_integers = lhs_types->original_type->is_integer_type() and rhs_types->original_type->is_integer_type()
     got_numbers = lhs_types->original_type->is_number_type() and rhs_types->original_type->is_number_type()
     got_enums = lhs_types->original_type->kind == TypeKind::Enum and rhs_types->original_type->kind == TypeKind::Enum
@@ -703,7 +704,7 @@ def check_binop(
     )
 
     if (
-        (not got_numbers and not got_enums and not got_pointers)
+        (not got_bools and not got_numbers and not got_enums and not got_pointers)
         or (op != AstExpressionKind::Eq and op != AstExpressionKind::Ne and not got_numbers)
     ):
         message: byte[500]
@@ -714,7 +715,9 @@ def check_binop(
         )
         fail(location, message)
 
-    if got_integers:
+    if got_bools:
+        cast_type = &bool_type
+    elif got_integers:
         size = max(lhs_types->original_type->size_in_bits, rhs_types->original_type->size_in_bits)
         if (
             lhs_types->original_type->kind == TypeKind::SignedInteger
