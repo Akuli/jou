@@ -167,6 +167,41 @@ static const LocalVariable *build_cast(
     assert(0);
 }
 
+static const LocalVariable *build_bool_eq(struct State *st, Location location, const LocalVariable *a, const LocalVariable *b)
+{
+    assert(a->type == boolType);
+    assert(b->type == boolType);
+
+    /*
+    Pseudo code:
+
+        if a:
+            result = b
+        else:
+            result = not b
+    */
+    const LocalVariable *result = add_local_var(st, boolType);
+
+    CfBlock *atrue = add_block(st);
+    CfBlock *afalse = add_block(st);
+    CfBlock *done = add_block(st);
+
+    // if a:
+    add_jump(st, a, atrue, afalse, atrue);
+
+    // result = b
+    add_unary_op(st, location, CF_VARCPY, b, result);
+
+    // else:
+    add_jump(st, NULL, done, done, afalse);
+
+    // result = not b
+    add_unary_op(st, location, CF_BOOL_NEGATE, b, result);
+
+    add_jump(st, NULL, done, done, done);
+    return result;
+}
+
 static const LocalVariable *build_binop(
     struct State *st,
     enum AstExpressionKind op,
@@ -175,31 +210,42 @@ static const LocalVariable *build_binop(
     const LocalVariable *rhs,
     const Type *result_type)
 {
+    bool got_bools = lhs->type == boolType && rhs->type == boolType;
     bool got_numbers = is_number_type(lhs->type) && is_number_type(rhs->type);
     bool got_pointers = is_pointer_type(lhs->type) && is_pointer_type(rhs->type);
-    assert(got_numbers || got_pointers);
+    assert(got_bools || got_numbers || got_pointers);
 
-    enum CfInstructionKind k;
     bool negate = false;
     bool swap = false;
 
-    switch(op) {
-        case AST_EXPR_ADD: k = CF_NUM_ADD; break;
-        case AST_EXPR_SUB: k = CF_NUM_SUB; break;
-        case AST_EXPR_MUL: k = CF_NUM_MUL; break;
-        case AST_EXPR_DIV: k = CF_NUM_DIV; break;
-        case AST_EXPR_MOD: k = CF_NUM_MOD; break;
-        case AST_EXPR_EQ: k = CF_NUM_EQ; break;
-        case AST_EXPR_NE: k = CF_NUM_EQ; negate=true; break;
-        case AST_EXPR_LT: k = CF_NUM_LT; break;
-        case AST_EXPR_GT: k = CF_NUM_LT; swap=true; break;
-        case AST_EXPR_LE: k = CF_NUM_LT; negate=true; swap=true; break;
-        case AST_EXPR_GE: k = CF_NUM_LT; negate=true; break;
-        default: assert(0);
+    const LocalVariable *destvar;
+    if (got_bools) {
+        assert(result_type == boolType);
+        destvar = build_bool_eq(st, location, lhs, rhs);
+        switch(op) {
+            case AST_EXPR_EQ: break;
+            case AST_EXPR_NE: negate=true; break;
+            default: assert(0); break;
+        }
+    } else {
+        destvar = add_local_var(st, result_type);
+        enum CfInstructionKind k;
+        switch(op) {
+            case AST_EXPR_ADD: k = CF_NUM_ADD; break;
+            case AST_EXPR_SUB: k = CF_NUM_SUB; break;
+            case AST_EXPR_MUL: k = CF_NUM_MUL; break;
+            case AST_EXPR_DIV: k = CF_NUM_DIV; break;
+            case AST_EXPR_MOD: k = CF_NUM_MOD; break;
+            case AST_EXPR_EQ: k = CF_NUM_EQ; break;
+            case AST_EXPR_NE: k = CF_NUM_EQ; negate=true; break;
+            case AST_EXPR_LT: k = CF_NUM_LT; break;
+            case AST_EXPR_GT: k = CF_NUM_LT; swap=true; break;
+            case AST_EXPR_LE: k = CF_NUM_LT; negate=true; swap=true; break;
+            case AST_EXPR_GE: k = CF_NUM_LT; negate=true; break;
+            default: assert(0);
+        }
+        add_binary_op(st, location, k, swap?rhs:lhs, swap?lhs:rhs, destvar);
     }
-
-    const LocalVariable *destvar = add_local_var(st, result_type);
-    add_binary_op(st, location, k, swap?rhs:lhs, swap?lhs:rhs, destvar);
 
     if (!negate)
         return destvar;

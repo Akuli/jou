@@ -696,6 +696,7 @@ static const Type *check_binop(
         assert(0);
     }
 
+    bool got_bools = lhstypes->type == boolType && rhstypes->type == boolType;
     bool got_integers = is_integer_type(lhstypes->type) && is_integer_type(rhstypes->type);
     bool got_numbers = is_number_type(lhstypes->type) && is_number_type(rhstypes->type);
     bool got_enums = lhstypes->type->kind == TYPE_ENUM && rhstypes->type->kind == TYPE_ENUM;
@@ -711,13 +712,15 @@ static const Type *check_binop(
     );
 
     if (
-        (!got_numbers && !got_enums && !got_pointers)
-        || (got_enums && op != AST_EXPR_EQ && op != AST_EXPR_NE)
+        (!got_bools && !got_numbers && !got_enums && !got_pointers)
+        || ((got_bools || got_enums) && op != AST_EXPR_EQ && op != AST_EXPR_NE)
         || (got_pointers && op != AST_EXPR_EQ && op != AST_EXPR_NE && op != AST_EXPR_GT && op != AST_EXPR_GE && op != AST_EXPR_LT && op != AST_EXPR_LE)
     )
         fail(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name);
 
     const Type *cast_type = NULL;
+    if (got_bools)
+        cast_type = boolType;
     if (got_integers) {
         cast_type = get_integer_type(
             max(lhstypes->type->data.width_in_bits, rhstypes->type->data.width_in_bits),

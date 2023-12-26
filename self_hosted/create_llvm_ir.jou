@@ -242,9 +242,13 @@ class AstToIR:
         if rhs_type->kind == TypeKind::Enum:
             rhs_type = int_type
 
-        got_numbers = lhs_type->is_number_type() and rhs_type->is_number_type()
-        got_pointers = lhs_type->is_pointer_type() and rhs_type->is_pointer_type()
-        assert got_numbers or got_pointers
+        if lhs_type == &bool_type and rhs_type == &bool_type:
+            # bools are 1-bit integers in llvm
+            if op == AstExpressionKind::Eq:
+                return LLVMBuildICmp(self->builder, LLVMIntPredicate::EQ, lhs, rhs, "eq")
+            if op == AstExpressionKind::Ne:
+                return LLVMBuildICmp(self->builder, LLVMIntPredicate::NE, lhs, rhs, "ne")
+            assert False
 
         if lhs_type->kind == TypeKind::FloatingPoint and rhs_type->kind == TypeKind::FloatingPoint:
             if op == AstExpressionKind::Add:
