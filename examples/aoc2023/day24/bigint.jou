@@ -19,8 +19,7 @@ class BigInt:
         # assume that value fits into 64-bit long
         # also assume little-endian
         result: long
-        x = self  # TODO: https://github.com/Akuli/jou/issues/485
-        memcpy(&result, &x.data, sizeof(result))
+        memcpy(&result, &self.data, sizeof(result))
         return result
 
     def add(self: BigInt, other: BigInt) -> BigInt:
@@ -28,8 +27,7 @@ class BigInt:
         carry_bit = 0
 
         for i = 0; i < sizeof(self.data); i++:
-            x = self  # TODO: https://github.com/Akuli/jou/issues/485
-            result_byte = (x.data[i] as int) + (other.data[i] as int) + carry_bit
+            result_byte = (self.data[i] as int) + (other.data[i] as int) + carry_bit
             if result_byte >= 256:
                 carry_bit = 1
             else:
@@ -42,10 +40,9 @@ class BigInt:
     def neg(self: BigInt) -> BigInt:
         # Flipping all bits (~x) is almost same as negating the value.
         # For example, -7 is f9ffffff... and ~7 is f8ffffff...
-        x = self  # TODO: https://github.com/Akuli/jou/issues/485
         for i = 0; i < sizeof(self.data); i++:
-            x.data[i] = (0xff as byte) - x.data[i]
-        return x.add(bigint(1))
+            self.data[i] = (0xff as byte) - self.data[i]
+        return self.add(bigint(1))
 
     # x-y
     def sub(self: BigInt, other: BigInt) -> BigInt:
@@ -56,17 +53,16 @@ class BigInt:
     #   self == other -->  0
     #   self > other  -->  1
     def compare(self: BigInt, other: BigInt) -> int:
-        x = self  # TODO: https://github.com/Akuli/jou/issues/485
-        self_sign_bit = x.data[sizeof(self.data) - 1] / 128
+        self_sign_bit = self.data[sizeof(self.data) - 1] / 128
         other_sign_bit = other.data[sizeof(other.data) - 1] / 128
 
         if self_sign_bit != other_sign_bit:
             return other_sign_bit - self_sign_bit
 
         for i = sizeof(self.data) - 1; i >= 0; i--:
-            if (x.data[i] as int) < (other.data[i] as int):
+            if (self.data[i] as int) < (other.data[i] as int):
                 return -1
-            if (x.data[i] as int) > (other.data[i] as int):
+            if (self.data[i] as int) > (other.data[i] as int):
                 return 1
 
         return 0
@@ -96,13 +92,13 @@ class BigInt:
     # x*y
     def mul(self: BigInt, other: BigInt) -> BigInt:
         result_sign = self.sign() * other.sign()
-        self2 = self.abs()  # TODO: https://github.com/Akuli/jou/issues/485
+        self = self.abs()
         other = other.abs()
 
         result = bigint(0)
-        for i = 0; i < sizeof(self2.data); i++:
+        for i = 0; i < sizeof(self.data); i++:
             for k = 0; i+k < sizeof(result.data); k++:
-                temp = (self2.data[i] as int)*(other.data[k] as int)
+                temp = (self.data[i] as int)*(other.data[k] as int)
 
                 gonna_add = bigint(0)
                 gonna_add.data[i+k] = temp as byte
@@ -122,10 +118,9 @@ class BigInt:
         if n >= sizeof(self.data):
             return bigint(0)
 
-        self2 = self  # TODO: https://github.com/Akuli/jou/issues/485
-        memmove(&self2.data, &self2.data[n], sizeof(self2.data) - n)
-        memset(&self2.data[sizeof(self2.data) - n], 0, n)
-        return self2
+        memmove(&self.data, &self.data[n], sizeof(self.data) - n)
+        memset(&self.data[sizeof(self.data) - n], 0, n)
+        return self
 
     # x * 256^n for x >= 0
     def shift_bigger(self: BigInt, n: int) -> BigInt:
@@ -135,10 +130,9 @@ class BigInt:
         if n >= sizeof(self.data):
             return bigint(0)
 
-        self2 = self  # TODO: https://github.com/Akuli/jou/issues/485
-        memmove(&self2.data[n], &self2.data[0], sizeof(self2.data) - n)
-        memset(&self2.data, 0, n)
-        return self2
+        memmove(&self.data[n], &self.data[0], sizeof(self.data) - n)
+        memset(&self.data, 0, n)
+        return self
 
     # [x/y, x%y]
     def divmod(self: BigInt, bottom: BigInt) -> BigInt[2]:
