@@ -7,11 +7,11 @@ def det(matrix: long[2][2]) -> BigInt:
     b = matrix[0][1]
     c = matrix[1][0]
     d = matrix[1][1]
-    return bigsub(bigmul(bigint(a), bigint(d)), bigmul(bigint(b), bigint(c)))
+    return bigint(a).mul(bigint(d)).sub(bigint(b).mul(bigint(c)))
 
 
 def dot(v1: long[2], v2: long[2]) -> BigInt:
-    return bigadd(bigmul(bigint(v1[0]), bigint(v2[0])), bigmul(bigint(v1[1]), bigint(v2[1])))
+    return bigint(v1[0]).mul(bigint(v2[0])).add(bigint(v1[1]).mul(bigint(v2[1])))
 
 
 def matrix_times_vector(matrix: long[2][2], vector: long[2]) -> BigInt[2]:
@@ -21,10 +21,7 @@ def matrix_times_vector(matrix: long[2][2], vector: long[2]) -> BigInt[2]:
     d = bigint(matrix[1][1])
     x = bigint(vector[0])
     y = bigint(vector[1])
-    return [
-        bigadd(bigmul(a, x), bigmul(b, y)),
-        bigadd(bigmul(c, x), bigmul(d, y)),
-    ]
+    return [a.mul(x).add(b.mul(y)), c.mul(x).add(d.mul(y))]
 
 
 # Returns the x and y of matrix*[x,y] = coeff_vector as fractions:
@@ -37,7 +34,7 @@ def solve_linear_system_of_2_equations(matrix: long[2][2], coeff_vector: long[2]
     d = matrix[1][1]
 
     determinant = det(matrix)
-    assert not bigeq(determinant, bigint(0))  # assume inverse matrix exists
+    assert not determinant.is_zero()  # assume inverse matrix exists
 
     inverse_matrix_times_determinant = [
         [d, -b],
@@ -62,15 +59,15 @@ class Rectangle:
         )
 
     def contains_fraction(self, qx: BigInt, qy: BigInt, q: BigInt) -> bool:
-        qxmin = bigmul(q, bigint(self->x_min))
-        qxmax = bigmul(q, bigint(self->x_max))
-        qymin = bigmul(q, bigint(self->y_min))
-        qymax = bigmul(q, bigint(self->y_max))
+        assert q.sign() > 0
 
-        assert bigsign(q) > 0
+        qxmin = bigint(self->x_min).mul(q)
+        qxmax = bigint(self->x_max).mul(q)
+        qymin = bigint(self->y_min).mul(q)
+        qymax = bigint(self->y_max).mul(q)
         return (
-            bigcmp(qxmin, qx) <= 0 and bigcmp(qx, qxmax) <= 0
-            and bigcmp(qymin, qy) <= 0 and bigcmp(qy, qymax) <= 0
+            qxmin.compare(qx) <= 0 and qx.compare(qxmax) <= 0
+            and qymin.compare(qy) <= 0 and qy.compare(qymax) <= 0
         )
 
 
@@ -79,13 +76,13 @@ class Ray:
     dir: long[2]
 
     def intersects(self, other: Ray*, test_area: Rectangle) -> bool:
-        if bigeq(det([self->dir, other->dir]), bigint(0)):
+        if det([self->dir, other->dir]).is_zero():
             # Rays go in parallel directions.
             start_diff = [
                 self->start[0] - other->start[0],
                 self->start[1] - other->start[1],
             ]
-            if not bigeq(det([start_diff, self->dir]), bigint(0)):
+            if not det([start_diff, self->dir]).is_zero():
                 # Rays are not aligned to go along the same line.
                 return False
 
@@ -95,18 +92,18 @@ class Ray:
             other_start = dot(self->dir, other->start)
             other_dir = dot(self->dir, other->dir)
 
-            assert bigsign(self_dir) > 0
-            assert not bigeq(other_dir, bigint(0))
-            assert not bigeq(self_start, other_start)
+            assert self_dir.sign() > 0
+            assert not other_dir.is_zero()
+            assert not self_start.equals(other_start)
 
-            if bigsign(other_dir) > 0:
+            if other_dir.sign() > 0:
                 # Rays go in the same direction. Eventually one ray will reach the start of the other.
-                if bigcmp(self_start, other_start) > 0:
+                if self_start.compare(other_start) > 0:
                     return test_area.contains(self->start)
                 else:
                     return test_area.contains(other->start)
 
-            if bigcmp(self_start, other_start) > 0:
+            if self_start.compare(other_start) > 0:
                 # Rays point away from each other
                 return False
 
@@ -118,11 +115,11 @@ class Ray:
             # Math gives a solution:
             #
             #   t = p/q,  p = other_start - self_start,  q = self_dir - other_dir
-            q = bigsub(self_dir, other_dir)
-            assert bigsign(q) > 0
-            qt = bigsub(other_start, self_start)
-            qx = bigadd(bigmul(q, bigint(self->start[0])), bigmul(qt, bigint(self->dir[0])))
-            qy = bigadd(bigmul(q, bigint(self->start[1])), bigmul(qt, bigint(self->dir[1])))
+            q = self_dir.sub(other_dir)
+            assert q.sign() > 0
+            qt = other_start.sub(self_start)
+            qx = bigint(self->start[0]).mul(q).add(bigint(self->dir[0]).mul(qt))
+            qy = bigint(self->start[1]).mul(q).add(bigint(self->dir[1]).mul(qt))
             return test_area.contains_fraction(qx, qy, q)
 
         # Vectors are not parallel. They will intersect somewhere, but where?
@@ -144,17 +141,17 @@ class Ray:
         qb = solve_result[1]
         q = solve_result[2]
 
-        if bigsign(q) < 0:
-            qa = bigneg(qa)
-            qb = bigneg(qb)
-            q = bigneg(q)
+        if q.sign() < 0:
+            qa = qa.neg()
+            qb = qb.neg()
+            q = q.neg()
 
         # rays do not extend backwards
-        if bigsign(qa) < 0 or bigsign(qb) < 0:
+        if qa.sign() < 0 or qb.sign() < 0:
             return False
 
-        qx = bigadd(bigmul(q, bigint(self->start[0])), bigmul(qa, bigint(self->dir[0])))
-        qy = bigadd(bigmul(q, bigint(self->start[1])), bigmul(qa, bigint(self->dir[1])))
+        qx = bigint(self->start[0]).mul(q).add(bigint(self->dir[0]).mul(qa))
+        qy = bigint(self->start[1]).mul(q).add(bigint(self->dir[1]).mul(qa))
         return test_area.contains_fraction(qx, qy, q)
 
 

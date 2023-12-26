@@ -11,26 +11,26 @@ class Equation:
     rhs: BigInt
 
     def sub(self, var: int, value: BigInt) -> None:
-        self->rhs = bigsub(self->rhs, bigmul(self->coeffs[var], value))
+        self->rhs = self->rhs.sub(self->coeffs[var].mul(value))
         self->coeffs[var] = bigint(0)
 
     def has(self, var: int) -> bool:
         assert 0 <= var and var < self->nvariables
-        return not bigeq(self->coeffs[var], bigint(0))
+        return not self->coeffs[var].is_zero()
 
     def print(self) -> None:
         for v = 0; v < self->nvariables; v++:
             if v > 0:
                 printf(" + ")
-            printf("%lld x%d", bigint_to_long(self->coeffs[v]), v)
-        printf(" = %lld\n", bigint_to_long(self->rhs))
+            printf("%lld x%d", self->coeffs[v].to_long(), v)
+        printf(" = %lld\n", self->rhs.to_long())
 
 
 def add_with_coeff(dest: Equation*, src: Equation*, coeff: BigInt) -> None:
     assert src->nvariables == dest->nvariables
     for v = 0; v < src->nvariables; v++:
-        dest->coeffs[v] = bigadd(dest->coeffs[v], bigmul(coeff, src->coeffs[v]))
-    dest->rhs = bigadd(dest->rhs, bigmul(src->rhs, coeff))
+        dest->coeffs[v] = dest->coeffs[v].add(src->coeffs[v].mul(coeff))
+    dest->rhs = dest->rhs.add(src->rhs.mul(coeff))
 
 
 class EquationSolver:
@@ -56,14 +56,14 @@ class EquationSolver:
         while self->count_equations_having_var(var) >= 2:
             src = self->find_equation_with_smallest_nonzero_coeff_for_var(var)
             assert src != NULL
-            assert not bigeq(src->coeffs[var], bigint(0))
+            assert not src->coeffs[var].is_zero()
 
             for dest = self->eqs; dest < &self->eqs[self->neqs]; dest++:
                 if dest != src and dest->has(var):
                     # Pick c so that dest->coeffs[var] + c*src->coeffs[var] = 0.
                     # The perfect c isn't necessarly integer, so we pick a close value.
-                    c = bigneg(bigdiv(dest->coeffs[var], src->coeffs[var]))
-                    assert not bigeq(c, bigint(0))
+                    c = dest->coeffs[var].div(src->coeffs[var]).neg()
+                    assert not c.is_zero()
                     add_with_coeff(dest, src, c)
 
     def find_equation_with_smallest_nonzero_coeff_for_var(self, var: int) -> Equation*:
@@ -71,17 +71,17 @@ class EquationSolver:
         for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
             if eq->has(var) and (
                 result == NULL
-                or bigcmp(bigabs(result->coeffs[var]), bigabs(eq->coeffs[var])) > 0
+                or result->coeffs[var].abs().compare(eq->coeffs[var].abs()) > 0
             ):
                 result = eq
         return result
 
     def all_equations_are_zero_equals_zero(self) -> bool:
         for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
-            if not bigeq(eq->rhs, bigint(0)):
+            if not eq->rhs.is_zero():
                 return False
             for v = 0; v < eq->nvariables; v++:
-                if not bigeq(eq->coeffs[v], bigint(0)):
+                if not eq->coeffs[v].is_zero():
                     return False
         return True
 
@@ -135,9 +135,9 @@ def solve_linear_system_of_equations(eqs: Equation*, neqs: int) -> BigInt*:
 
         for v = 0; v < nvariables; v++:
             if v != var:
-                assert bigeq(final.coeffs[v], bigint(0))
+                assert final.coeffs[v].is_zero()
 
-        values[var] = bigdiv_exact(final.rhs, final.coeffs[var])
+        values[var] = final.rhs.div_exact(final.coeffs[var])
         free(final.coeffs)
 
     free(final_equations)
@@ -158,7 +158,7 @@ def test_equation_solver() -> None:
     ]
 
     result = solve_linear_system_of_equations(eqs, 3)
-    printf("x=%lld y=%lld\n", bigint_to_long(result[0]), bigint_to_long(result[1]))  # Output: x=12 y=34
+    printf("x=%lld y=%lld\n", result[0].to_long(), result[1].to_long())  # Output: x=12 y=34
     free(result)
 
 
@@ -261,13 +261,13 @@ def create_equations(moving_points: MovingPoint*, N: int, neqs: int*) -> Equatio
                     # With sympy (Python library), I expanded this to:
                     #
                     # -six*sjy + six*sky - six*t_j*vjy + six*t_k*vky + siy*sjx - siy*skx + siy*t_j*vjx - siy*t_k*vkx - sjx*sky + sjx*t_i*viy - sjx*t_k*vky + sjy*skx - sjy*t_i*vix + sjy*t_k*vkx - skx*t_i*viy + skx*t_j*vjy + sky*t_i*vix - sky*t_j*vjx - t_i*t_j*vix*vjy + t_i*t_j*viy*vjx + t_i*t_k*vix*vky - t_i*t_k*viy*vkx - t_j*t_k*vjx*vky + t_j*t_k*vjy*vkx
-                    eq->coeffs[i] = bigadd4(bigmul(sjx, viy), bigneg(bigmul(sjy, vix)), bigneg(bigmul(skx, viy)), bigmul(sky, vix))
-                    eq->coeffs[j] = bigadd4(bigmul(siy, vjx), bigneg(bigmul(six, vjy)), bigmul(skx, vjy), bigneg(bigmul(sky, vjx)))
-                    eq->coeffs[k] = bigadd4(bigmul(six, vky), bigneg(bigmul(siy, vkx)), bigneg(bigmul(sjx, vky)), bigmul(sjy, vkx))
-                    eq->coeffs[titj_var] = bigsub(bigmul(viy, vjx), bigmul(vix, vjy))
-                    eq->coeffs[titk_var] = bigsub(bigmul(vix, vky), bigmul(viy, vkx))
-                    eq->coeffs[tjtk_var] = bigsub(bigmul(vjy, vkx), bigmul(vjx, vky))
-                    eq->rhs = bigadd6(bigmul(six, sjy), bigneg(bigmul(six, sky)), bigneg(bigmul(siy, sjx)), bigmul(siy, skx), bigmul(sjx, sky), bigneg(bigmul(sjy, skx)))
+                    eq->coeffs[i] = sjx.mul(viy).sub(sjy.mul(vix)).sub(skx.mul(viy)).add(sky.mul(vix))
+                    eq->coeffs[j] = siy.mul(vjx).sub(six.mul(vjy)).add(skx.mul(vjy)).sub(sky.mul(vjx))
+                    eq->coeffs[k] = six.mul(vky).sub(siy.mul(vkx)).sub(sjx.mul(vky)).add(sjy.mul(vkx))
+                    eq->coeffs[titj_var] = viy.mul(vjx).sub(vix.mul(vjy))
+                    eq->coeffs[titk_var] = vix.mul(vky).sub(viy.mul(vkx))
+                    eq->coeffs[tjtk_var] = vjy.mul(vkx).sub(vjx.mul(vky))
+                    eq->rhs = six.mul(sjy).sub(six.mul(sky)).sub(siy.mul(sjx)).add(siy.mul(skx)).add(sjx.mul(sky)).sub(sjy.mul(skx))
 
     return eqs
 
@@ -278,9 +278,9 @@ def lerp(src_min: long, src_max: long, dest_min: long, dest_max: long, value: lo
 
     # weighted average: (dest_max*weight1 + dest_min*weight2)/(weight1 + weight2)
     # multiplications are too big for longs, but values themselves seem to fit
-    top = bigadd(bigmul(bigint(weight1), bigint(dest_max)), bigmul(bigint(weight2), bigint(dest_min)))
+    top = bigint(weight1).mul(bigint(dest_max)).add(bigint(weight2).mul(bigint(dest_min)))
     bottom = weight1 + weight2
-    return bigint_to_long(bigdiv_exact(top, bigint(bottom)))
+    return top.div_exact(bigint(bottom)).to_long()
 
 
 def test_lerp() -> None:
@@ -323,15 +323,15 @@ def main() -> int:
     # Output: 5 3 4 6 1
     printf(
         "%lld %lld %lld %lld %lld\n",
-        bigint_to_long(solution[0]),
-        bigint_to_long(solution[1]),
-        bigint_to_long(solution[2]),
-        bigint_to_long(solution[3]),
-        bigint_to_long(solution[4]),
+        solution[0].to_long(),
+        solution[1].to_long(),
+        solution[2].to_long(),
+        solution[3].to_long(),
+        solution[4].to_long(),
     )
 
-    t1 = bigint_to_long(solution[0])
-    t2 = bigint_to_long(solution[1])
+    t1 = solution[0].to_long()
+    t2 = solution[1].to_long()
 
     point_at_t1 = [
         moving_points[0].start[0] + t1*moving_points[0].speed[0],
