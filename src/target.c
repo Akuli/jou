@@ -37,7 +37,7 @@ void init_target(void)
     assert(target.target_ref);
 
     target.target_machine_ref = LLVMCreateTargetMachine(
-        target.target_ref, target.triple, "x86-64", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault);
+        target.target_ref, target.triple, "x86-64", "", LLVMCodeGenLevelDefault, LLVMRelocPIC, LLVMCodeModelDefault);
     assert(target.target_machine_ref);
 
     target.target_data_ref = LLVMCreateTargetDataLayout(target.target_machine_ref);

@@ -13,11 +13,20 @@ jobs:
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
       - uses: actions/checkout@v3
-      - run: brew install bash diffutils llvm@13
-      - run: make
+      - run: brew install bash diffutils llvm@{13,14}
+
+      - name: Compile with LLVM 13
+        run: LLVM_CONFIG=/usr/local/opt/llvm@13/bin/llvm-config make
       - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
       - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }} --verbose"
       - run: make clean
+
+      - name: Compile with LLVM 14
+      - run: LLVM_CONFIG=/usr/local/opt/llvm@14/bin/llvm-config make
+      - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
+      - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }} --verbose"
+      - run: make clean
+
       - name: Check that "make clean" deleted all files not committed to Git
         shell: bash
         run: |
@@ -30,13 +39,18 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
-      - run: brew install bash diffutils llvm@13
-      - run: make
-      - run: ./doctest.sh
+      - run: brew install bash diffutils llvm@{13,14}
+
+      - run: LLVM_CONFIG=/usr/local/opt/llvm@13/bin/llvm-config ./doctest.sh
+      - run: make clean
+      - run: LLVM_CONFIG=/usr/local/opt/llvm@14/bin/llvm-config ./doctest.sh
 
   compare-compilers:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
-      - run: brew install bash diffutils llvm@13
-      - run: ./compare_compilers.sh
+      - run: brew install bash diffutils llvm@{13,14}
+
+      - run: LLVM_CONFIG=/usr/local/opt/llvm@13/bin/llvm-config ./compare_compilers.sh
+      - run: make clean
+      - run: LLVM_CONFIG=/usr/local/opt/llvm@14/bin/llvm-config ./compare_compilers.sh
