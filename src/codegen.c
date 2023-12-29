@@ -392,11 +392,11 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                 setdest(LLVMBuildFCmp(st->builder, LLVMRealOEQ, getop(0), getop(1), "num_eq"));
             break;
         case CF_NUM_LT:
-            if (is_integer_type(ins->operands[0]->type))
-                // TODO: unsigned less than
+            if (ins->operands[0]->type->kind == TYPE_UNSIGNED_INTEGER && ins->operands[1]->type->kind == TYPE_UNSIGNED_INTEGER)
+                setdest(LLVMBuildICmp(st->builder, LLVMIntULT, getop(0), getop(1), "num_lt"));
+            else if (is_integer_type(ins->operands[0]->type) && is_integer_type(ins->operands[1]->type))
                 setdest(LLVMBuildICmp(st->builder, LLVMIntSLT, getop(0), getop(1), "num_lt"));
             else
-                // TODO: signed less than
                 setdest(LLVMBuildFCmp(st->builder, LLVMRealOLT, getop(0), getop(1), "num_lt"));
             break;
     }
