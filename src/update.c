@@ -17,6 +17,12 @@
 #include <stdnoreturn.h>
 #include "util.h"
 
+#ifdef __NetBSD__
+    #define MAKE "gmake"
+#else
+    #define MAKE "make"
+#endif
+
 static noreturn void fail()
 {
     char *s =
@@ -60,8 +66,8 @@ void update_jou_compiler()
     if (system("powershell -ExecutionPolicy bypass -File update.ps1") != 0)
         fail();
 #else
-    confirm("Run \"git pull && make\"?");
-    if (system("git pull && make"))
+    confirm("Run \"git pull && "MAKE"\"?");
+    if (system("git pull && " MAKE))
         fail();
 #endif
 

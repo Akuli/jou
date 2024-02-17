@@ -17,13 +17,22 @@ else
     files=("$@")
 fi
 
-if [[ "$OS" =~ Windows ]]; then
+if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate
     mingw32-make
     jou="$PWD/jou.exe"
+elif [[ "$OS" =~ NetBSD ]]; then
+    gmake
+    jou="$PWD/jou"
 else
     make
     jou="$PWD/jou"
+fi
+
+
+DIFF=$(which gdiff || which diff)
+if $DIFF --help | grep -q -- --color; then
+    diff_color="--color=always"
 fi
 
 function slice()
@@ -71,7 +80,7 @@ for file in */*.jou; do
     echo -n "$(basename "$(dirname "$file")" | base64 -d):$(basename "$file" | cut -d'.' -f1): "
 
     cp "$file" test.jou
-    if diff --text -u --color=always <(generate_expected_output test.jou | tr -d '\r') <( ("$jou" test.jou 2>&1 || true) | tr -d '\r'); then
+    if $DIFF --text -u $diff_color <(generate_expected_output test.jou | tr -d '\r') <( ("$jou" test.jou 2>&1 || true) | tr -d '\r'); then
         echo "ok"
     else
         ((nfail++)) || true

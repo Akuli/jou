@@ -17,6 +17,13 @@ int get_special_constant(const char *name)
             return 0;
         #endif
     }
+    if (!strcmp(name, "NETBSD")) {
+        #ifdef __NetBSD__
+            return 1;
+        #else
+            return 0;
+        #endif
+    }
     return -1;
 }
 

@@ -414,14 +414,16 @@ static int find_block(const CfGraph *cfg, const CfBlock *b)
     assert(0);
 }
 
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
 static void codegen_call_to_the_special_startup_function(const struct State *st)
 {
     const char *name;
-#ifdef _WIN32
+#if defined _WIN32
     name = "_jou_windows_startup";
-#else
+#elif defined __APPLE__
     name = "_jou_macos_startup";
+#else
+    name = "_jou_netbsd_startup";
 #endif
 
     LLVMTypeRef functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
@@ -448,7 +450,7 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
     assert(cfg->all_blocks.ptr[0] == &cfg->start_block);
     LLVMPositionBuilderAtEnd(st->builder, blocks[0]);
 
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
     if (!get_self_class(&cfg->signature) && !strcmp(cfg->signature.name, "main"))
         codegen_call_to_the_special_startup_function(st);
 #endif
