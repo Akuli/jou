@@ -14,9 +14,15 @@ else:
 
 
 # Test and,or,not operators
-if WINDOWS or MACOS:
+if WINDOWS:
     def bar1() -> None:
         printf("One")
+
+if MACOS:
+    def bar1() -> None:
+        printf("One")
+
+if WINDOWS or MACOS:
     def bar2() -> None:
         printf("Two\n")
 
