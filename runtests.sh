@@ -79,6 +79,11 @@ if [ $run_make = yes ]; then
 
 fi
 
+DIFF=$(which gdiff || which diff)
+if $DIFF --help | grep -q -- --color; then
+    diff_color="--color=always"
+fi
+
 rm -rf tmp/tests
 mkdir -p tmp/tests
 
@@ -212,11 +217,6 @@ function run_test()
     diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
 
     printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
-
-    DIFF=$(which gdiff || which diff)
-    if $DIFF --help | grep -q -- --color; then
-        diff_color="--color=always"
-    fi
 
     if $DIFF --text -u $diff_color <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
