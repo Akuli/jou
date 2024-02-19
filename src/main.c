@@ -462,7 +462,7 @@ int main(int argc, char **argv)
     include_special_stdlib_file(&compst, "_macos_startup.jou");
 #endif
 #ifdef __NetBSD__
-    assert(sizeof(FILE) == 152);
+    assert(sizeof(FILE) == 152);  // magic number in the startup file
     include_special_stdlib_file(&compst, "_netbsd_startup.jou");
 #endif
 
