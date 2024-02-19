@@ -58,18 +58,30 @@ while [ $# != 0 ]; do
     esac
 done
 
-if [ $valgrind = yes ] && [[ "$OS" =~ Windows ]]; then
-    echo "valgrind doesn't work on Windows." >&2
-    exit 2
+if [ $valgrind = yes ]; then
+    case "${OS:=$(uname)}" in
+        Windows*|NetBSD*)
+            echo "valgrind doesn't work on $OS." >&2
+            exit 2
+            ;;
+    esac
 fi
 
 if [ $run_make = yes ]; then
-    if [[ "$OS" =~ Windows ]]; then
+    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
         source activate
         mingw32-make
+    elif [[ "$OS" =~ NetBSD ]]; then
+        gmake
     else
         make
     fi
+
+fi
+
+DIFF=$(which gdiff || which diff)
+if $DIFF --help | grep -q -- --color; then
+    diff_color="--color=always"
 fi
 
 rm -rf tmp/tests
@@ -206,7 +218,7 @@ function run_test()
 
     printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
 
-    if diff --text -u --color=always <(
+    if $DIFF --text -u $diff_color <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
         export PATH="$PWD:$PATH"

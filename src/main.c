@@ -461,6 +461,10 @@ int main(int argc, char **argv)
 #ifdef __APPLE__
     include_special_stdlib_file(&compst, "_macos_startup.jou");
 #endif
+#ifdef __NetBSD__
+    assert(sizeof(FILE) == 152);  // magic number in the startup file
+    include_special_stdlib_file(&compst, "_netbsd_startup.jou");
+#endif
 
     parse_file(&compst, command_line_args.infile, NULL);
     parse_all_pending_files(&compst);

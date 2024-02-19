@@ -800,6 +800,8 @@ class AstToIR:
             name = "_jou_windows_startup"
         elif MACOS:
             name = "_jou_macos_startup"
+        elif NETBSD:
+            name = "_jou_netbsd_startup"
         else:
             return
 
@@ -817,7 +819,7 @@ class AstToIR:
         self->llvm_function = self->declare_function(sig)
         self->new_block("start")
 
-        if (WINDOWS or MACOS) and strcmp(sig->name, "main") == 0 and not sig->is_method():
+        if (WINDOWS or MACOS or NETBSD) and strcmp(sig->name, "main") == 0 and not sig->is_method():
             self->call_the_special_startup_function()
 
         # Allocate all local variables at the start of the function.

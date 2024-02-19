@@ -5,6 +5,7 @@
 # If tokenizing/parsing a Jou file fails, both compilers should fail with the same error message.
 
 set -e
+ulimit -c 0  # disable core dumps
 
 files=()
 actions=()
@@ -37,12 +38,17 @@ if [ ${#actions[@]} = 0 ]; then
 fi
 
 rm -rf tmp/compare_compilers
-mkdir -vp tmp/compare_compilers
+mkdir -p tmp/compare_compilers
 
 YELLOW="\x1b[33m"
 GREEN="\x1b[32m"
 RED="\x1b[31m"
 RESET="\x1b[0m"
+
+DIFF=$(which gdiff || which diff)
+if $DIFF --help | grep -q -- --color; then
+    diff_color="--color=always"
+fi
 
 function append_line()
 {
@@ -84,8 +90,10 @@ for error_list_file in self_hosted/*s_wrong.txt; do
 done
 
 echo "Compiling the self-hosted compiler..."
-if [[ "$OS" =~ Windows ]]; then
+if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     mingw32-make self_hosted_compiler.exe
+elif [[ "$OS" =~ NetBSD ]]; then
+    gmake self_hosted_compiler
 else
     make self_hosted_compiler
 fi
@@ -126,7 +134,7 @@ for action in ${actions[@]}; do
             echo "  Compilers behave differently as expected (listed in $error_list_file)"
         fi
     else
-        if diff -u --color=always tmp/compare_compilers/compiler_written_in_c.txt tmp/compare_compilers/self_hosted.txt; then
+        if $DIFF -u $diff_color tmp/compare_compilers/compiler_written_in_c.txt tmp/compare_compilers/self_hosted.txt; then
             echo "  Compilers behave the same as expected"
         else
             if [ $fix = yes ]; then

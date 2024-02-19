@@ -150,6 +150,38 @@ MacOS support is new. Please create an issue if something doesn't work.
 
 </details>
 
+<details> <summary>NetBSD</summary>
+Support for NetBSD is still experimental. Please report bugs and
+shortcomings.
+
+1. Install the dependencies:
+    ```
+    # pkgin install bash clang git gmake libLLVM
+    ```
+    Optionally `diffutils` can be installed for coloured diff outputs.
+2. Download and compile Jou.
+    ```
+    $ git clone https://github.com/Akuli/jou
+    $ cd jou
+    $ gmake
+    ```
+3. Run the hello world program to make sure that Jou works:
+    ```
+    $ ./jou examples/hello.jou
+    Hello World
+    ```
+    You can now run other Jou programs in the same way.
+4. (Optional) If you want to run Jou programs with simply `jou
+    filename` instead of something like `./jou filename` or
+    `/full/path/to/jou filename`, you can add the `jou` directory to
+    your PATH.  Refer to the manual page of your login shell for exact
+    syntax.
+
+NB: Using Clang and LLVM libraries built as a part of the base system
+is not currently supported.
+
+</details>
+
 <details> <summary>64-bit Windows</summary>
 
 1. Go to releases on GitHub. It's in the sidebar at right.
