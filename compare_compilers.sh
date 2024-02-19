@@ -5,7 +5,7 @@
 # If tokenizing/parsing a Jou file fails, both compilers should fail with the same error message.
 
 set -e
-ulimit -c unlimited
+ulimit -c 0  # disable core dumps
 
 files=()
 actions=()
@@ -39,13 +39,6 @@ fi
 
 rm -rf tmp/compare_compilers
 mkdir -p tmp/compare_compilers
-
-# shellcheck disable=SC2010
-if ls | grep -q core$; then
-    for core in *core; do
-        mv -v -- "$core" "$core"~
-    done
-fi
 
 YELLOW="\x1b[33m"
 GREEN="\x1b[32m"
@@ -139,19 +132,10 @@ for action in ${actions[@]}; do
             fi
         else
             echo "  Compilers behave differently as expected (listed in $error_list_file)"
-            echo -en ${YELLOW}
-            rm -vf -- *core | xargs -r echo Core dumped and ignored:
-            echo -en ${RESET}
         fi
     else
         if $DIFF -u $diff_color tmp/compare_compilers/compiler_written_in_c.txt tmp/compare_compilers/self_hosted.txt; then
-            # shellcheck disable=SC2010
-            if ls | grep -q core$; then
-                echo -e "  ${RED}Error: Core dumped.${RESET}"
-                exit 1
-            else
-                echo "  Compilers behave the same as expected"
-            fi
+            echo "  Compilers behave the same as expected"
         else
             if [ $fix = yes ]; then
                 append_line $error_list_file $file

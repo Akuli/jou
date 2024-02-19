@@ -5,7 +5,7 @@ def write_hello_123() -> None:
     f = fopen("tmp/tests/hello.txt", "w")
     if f == NULL:
         printf("can't write tmp/tests/hello.txt\n")
-        exit(1) # abort() would make a core dump when comparing compilers
+        abort()
 
     fputc('h', f)
     fputs("ell", f)
