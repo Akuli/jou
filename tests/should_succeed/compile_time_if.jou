@@ -12,11 +12,36 @@ else:
         # python uses 777 as default perms, see help(os.mkdir)
         mkdir("tmp/tests/foo", 0o777)
 
+
+# Test and,or,not operators
+if WINDOWS:
+    def bar1() -> None:
+        printf("One")
+
+if MACOS:
+    def bar1() -> None:
+        printf("One")
+
+if WINDOWS or MACOS:
+    def bar2() -> None:
+        printf("Two\n")
+
+if not WINDOWS and not MACOS:
+    def bar1() -> None:
+        printf("OneTwo\n")
+    def bar2() -> None:
+        pass
+
+
 def main() -> int:
     make_foo()
     f = fopen("tmp/tests/foo/bar", "w")
     if f != NULL:
         puts("ok")  # Output: ok
         fclose(f)
+
+    # Output: OneTwo
+    bar1()
+    bar2()
 
     return 0

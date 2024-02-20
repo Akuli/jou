@@ -36,6 +36,13 @@ static bool evaluate_condition(const AstExpression *expr)
             return (bool)v;
     }
 
+    if (expr->kind == AST_EXPR_AND)
+        return evaluate_condition(&expr->data.operands[0]) && evaluate_condition(&expr->data.operands[1]);
+    if (expr->kind == AST_EXPR_OR)
+        return evaluate_condition(&expr->data.operands[0]) || evaluate_condition(&expr->data.operands[1]);
+    if (expr->kind == AST_EXPR_NOT)
+        return !evaluate_condition(&expr->data.operands[0]);
+
     fail(expr->location, "cannot evaluate condition at compile time");
 }
 
