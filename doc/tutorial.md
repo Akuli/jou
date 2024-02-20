@@ -315,9 +315,7 @@ def main() -> int:
     return 0
 ```
 
-Instead of pointers, you could also use an `int[2]` array to return the two values.
-However, **this doesn't mean that you don't need to understand pointers**,
-as they have many other uses in Jou.
+Instead of pointers, you could also use an `int[2]` array to return the two values:
 
 ```python
 import "stdlib/io.jou"
@@ -330,6 +328,25 @@ def main() -> int:
     printf("The point is (%d,%d)\n", point[0], point[1])  # Output: The point is (123,456)
     return 0
 ```
+
+However, **this doesn't mean that you don't need to understand pointers**,
+as they have many other uses in Jou.
+Pointers are used for strings, arrays that are not fixed-size,
+instances of most classes, and so on.
+
+Basically, you need pointers whenever you want to use a large object in multiple places
+without making several copies of it.
+Instead, you just make one object and point to it from many places.
+This is probably what you expect if you have mostly used high-level languages,
+like Python or JavaScript.
+In fact, in Python, **all** objects are passed around as pointers.
+
+You usually don't need pointers for small objects.
+For example, if you want to make a function takes two `int`s and prints them,
+just make a function that takes two `int`s.
+On the other hand, if your function takes an array of 100000 `int`s,
+you should use a pointer.
+Passing around hundreds or thousands of bytes without pointers is usually a bad idea.
 
 
 ## Undefined Behavior (UB)
