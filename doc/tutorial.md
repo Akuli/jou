@@ -341,11 +341,12 @@ This is probably what you expect if you have mostly used high-level languages,
 like Python or JavaScript.
 In fact, in Python, **all** objects are passed around as pointers.
 
-You don't need a pointer when the value is small enough to be passed around as is.
+You usually don't need pointers for small objects.
 For example, if you want to make a function takes two `int`s and prints them,
 just make a function that takes two `int`s.
-On the other hand, if your function takes an array of 1000000 `int`s and prints them,
+On the other hand, if your function takes an array of 100000 `int`s,
 you should use a pointer.
+Passing around hundreds or thousands of bytes without pointers is usually a bad idea.
 
 
 ## Undefined Behavior (UB)
