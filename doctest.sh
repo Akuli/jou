@@ -76,8 +76,9 @@ nfail=0
 
 cd tmp/doctest
 for file in */*.jou; do
-    # print file and line number, as in "doc/foo.md:123: "
-    echo -n "$(basename "$(dirname "$file")" | base64 -d):$(basename "$file" | cut -d'.' -f1): "
+    # Print file and line number, as in "doc/foo.md:123: "
+    # Newline is deleted to avoid warning on NetBSD 9.3, see issue #500
+    echo -n "$(basename "$(dirname "$file")" | tr -d '\n' | base64 -d):$(basename "$file" | cut -d'.' -f1): "
 
     cp "$file" test.jou
     if $DIFF --text -u $diff_color <(generate_expected_output test.jou | tr -d '\r') <( ("$jou" test.jou 2>&1 || true) | tr -d '\r'); then
