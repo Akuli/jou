@@ -1,12 +1,35 @@
 # C's errno is actually a macro that expands to a function call.
-# See also _windows_startup.jou
-declare __errno_location() -> int*
+# The function name varies by platform.
+if WINDOWS:
+    declare _errno() -> int*
+elif MACOS:
+    declare __error() -> int*
+elif NETBSD:
+    declare __errno() -> int*
+else:
+    declare __errno_location() -> int*
 
-def set_errno(value: int) -> None:
-    *__errno_location() = value
-
-def get_errno() -> int:
-    return *__errno_location()
+# TODO: Ideally we would be able to place the if statements inside the functions.
+if WINDOWS:
+    def set_errno(value: int) -> None:
+        *_errno() = value
+    def get_errno() -> int:
+        return *_errno()
+elif MACOS:
+    def set_errno(value: int) -> None:
+        *__error() = value
+    def get_errno() -> int:
+        return *__error()
+elif NETBSD:
+    def set_errno(value: int) -> None:
+        *__errno() = value
+    def get_errno() -> int:
+        return *__errno()
+else:
+    def set_errno(value: int) -> None:
+        *__errno_location() = value
+    def get_errno() -> int:
+        return *__errno_location()
 
 # Convert an error code into a string. Do not modify or free() the returned string.
 declare strerror(errno_value: int) -> byte*

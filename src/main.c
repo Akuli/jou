@@ -455,15 +455,13 @@ int main(int argc, char **argv)
     }
 
     include_special_stdlib_file(&compst, "_assert_fail.jou");
-#ifdef _WIN32
-    include_special_stdlib_file(&compst, "_windows_startup.jou");
-#endif
-#ifdef __APPLE__
-    include_special_stdlib_file(&compst, "_macos_startup.jou");
-#endif
-#ifdef __NetBSD__
+
+#if defined(__NetBSD__)
     assert(sizeof(FILE) == 152);  // magic number in the startup file
-    include_special_stdlib_file(&compst, "_netbsd_startup.jou");
+#endif
+
+#if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
+    include_special_stdlib_file(&compst, "_jou_startup.jou");
 #endif
 
     parse_file(&compst, command_line_args.infile, NULL);

@@ -417,17 +417,8 @@ static int find_block(const CfGraph *cfg, const CfBlock *b)
 #if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
 static void codegen_call_to_the_special_startup_function(const struct State *st)
 {
-    const char *name;
-#if defined _WIN32
-    name = "_jou_windows_startup";
-#elif defined __APPLE__
-    name = "_jou_macos_startup";
-#else
-    name = "_jou_netbsd_startup";
-#endif
-
     LLVMTypeRef functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
-    LLVMValueRef func = LLVMAddFunction(st->module, name, functype);
+    LLVMValueRef func = LLVMAddFunction(st->module, "_jou_startup", functype);
     LLVMBuildCall2(st->builder, functype, func, NULL, 0, "");
 }
 #endif

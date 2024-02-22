@@ -796,17 +796,11 @@ class AstToIR:
             self->do_statement(&body->statements[i])
 
     def call_the_special_startup_function(self) -> None:
-        if WINDOWS:
-            name = "_jou_windows_startup"
-        elif MACOS:
-            name = "_jou_macos_startup"
-        elif NETBSD:
-            name = "_jou_netbsd_startup"
-        else:
+        if not (WINDOWS or MACOS or NETBSD):
             return
 
         functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, False as int)
-        func = LLVMAddFunction(self->module, name, functype)
+        func = LLVMAddFunction(self->module, "_jou_startup", functype)
         LLVMBuildCall2(self->builder, functype, func, NULL, 0, "")
 
     def define_function_or_method(self, funcdef: AstFunctionOrMethod*, self_type: Type*) -> None:
