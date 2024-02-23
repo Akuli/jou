@@ -11,16 +11,22 @@ static void cleanup(void)
 
 void init_target(void)
 {
+#ifdef _WIN32
     LLVMInitializeX86TargetInfo();
     LLVMInitializeX86Target();
     LLVMInitializeX86TargetMC();
     LLVMInitializeX86AsmParser();
     LLVMInitializeX86AsmPrinter();
 
-#ifdef _WIN32
     // Default is x86_64-pc-windows-msvc
     strcpy(target.triple, "x86_64-pc-windows-gnu");
 #else
+    LLVMInitializeAllTargetInfos();
+    LLVMInitializeAllTargets();
+    LLVMInitializeAllTargetMCs();
+    LLVMInitializeAllAsmParsers();
+    LLVMInitializeAllAsmPrinters();
+
     char *triple = LLVMGetDefaultTargetTriple();
     assert(strlen(triple) < sizeof target.triple);
     strcpy(target.triple, triple);
@@ -37,7 +43,7 @@ void init_target(void)
     assert(target.target_ref);
 
     target.target_machine_ref = LLVMCreateTargetMachine(
-        target.target_ref, target.triple, "x86-64", "", LLVMCodeGenLevelDefault, LLVMRelocPIC, LLVMCodeModelDefault);
+        target.target_ref, target.triple, "", "", LLVMCodeGenLevelDefault, LLVMRelocPIC, LLVMCodeModelDefault);
     assert(target.target_machine_ref);
 
     target.target_data_ref = LLVMCreateTargetDataLayout(target.target_machine_ref);
