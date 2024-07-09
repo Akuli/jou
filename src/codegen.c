@@ -521,7 +521,7 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft, bool chec
             mainflag = true;
         codegen_function_or_method_def(&st, *g);
     }
-    
+
     if (checkmain && mainflag == false) {
         struct Location l = {
             .filename = cfgfile->filename,
