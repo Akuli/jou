@@ -243,7 +243,7 @@ static void parse_all_pending_files(struct CompileState *compst)
     free(compst->parse_queue.ptr);
 }
 
-static char *compile_ast_to_object_file(struct FileState *fs)
+static char *compile_ast_to_object_file(struct FileState *fs, bool checkmain)
 {
     if (command_line_args.verbosity >= 1)
         printf("Building Control Flow Graphs: %s\n", fs->path);
@@ -265,7 +265,7 @@ static char *compile_ast_to_object_file(struct FileState *fs)
     if (command_line_args.verbosity >= 1)
         printf("Building LLVM IR: %s\n", fs->path);
 
-    LLVMModuleRef mod = codegen(&cfgfile, &fs->types);
+    LLVMModuleRef mod = codegen(&cfgfile, &fs->types, checkmain);
     free_control_flow_graphs(&cfgfile);
 
     if (command_line_args.verbosity >= 2)
@@ -439,7 +439,8 @@ int main(int argc, char **argv)
         printf("Data layout: %s\n", get_target()->data_layout);
     }
 
-    if (command_line_args.tokenize_only || command_line_args.parse_only) {
+    if (command_line_args.tokenize_only || command_line_args.parse_only)
+    {
         FILE *f = open_the_file(command_line_args.infile, NULL);
         Token *tokens = tokenize(f, command_line_args.infile);
         fclose(f);
@@ -490,7 +491,16 @@ int main(int argc, char **argv)
 
     char **objpaths = calloc(sizeof objpaths[0], compst.files.len + 1);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
-        objpaths[fs - compst.files.ptr] = compile_ast_to_object_file(fs);
+    {
+        if (strcmp(command_line_args.infile, fs->path) == 0)
+        {
+            objpaths[fs - compst.files.ptr] = compile_ast_to_object_file(fs, true);
+        }
+        else
+        {
+            objpaths[fs - compst.files.ptr] = compile_ast_to_object_file(fs, false);
+        }
+    }
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         free_ast(&fs->ast);
