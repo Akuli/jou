@@ -347,10 +347,14 @@ class Compiler:
         paths = self->get_object_file_paths()
 
         for i = 0; i < self->nfiles; i++:
+            checkmain: bool = False
             if self->verbosity >= 1:
                 printf("Build LLVM IR: %s\n", self->files[i].ast.path)
 
-            module = create_llvm_ir(&self->files[i].ast, &self->files[i].typectx)
+            if strcmp(self->args->main_path, self->files[i].ast.path) == 0:
+                checkmain = True
+
+            module = create_llvm_ir(&self->files[i].ast, &self->files[i].typectx, checkmain)
             if self->verbosity >= 2:
                 # Don't want to use LLVMDumpModule() because it dumps to stdout.
                 # When redirected, stdout and stderr tend to get mixed up into a weird order.

@@ -858,7 +858,7 @@ def file_defines_global_var(ast: AstFile*, name: byte*) -> bool:
     return False
 
 
-def create_llvm_ir(ast: AstFile*, ft: FileTypes*) -> LLVMModule*:
+def create_llvm_ir(ast: AstFile*, ft: FileTypes*, checkmain: bool) -> LLVMModule*:
     module = LLVMModuleCreateWithName(ast->path)
     LLVMSetTarget(module, target.triple)
     LLVMSetDataLayout(module, target.data_layout)
@@ -874,9 +874,12 @@ def create_llvm_ir(ast: AstFile*, ft: FileTypes*) -> LLVMModule*:
         builder = LLVMCreateBuilder(),
         file_types = ft
     }
+    mainflag: bool = False
 
     for s = ast->body.statements; s < &ast->body.statements[ast->body.nstatements]; s++:
         if s->kind == AstStatementKind::Function and s->function.body.nstatements > 0:
+            if strcmp((&s->function.signature)->name, "main") == 0:
+                mainflag = True
             a2i.define_function_or_method(&s->function, NULL)
         elif s->kind == AstStatementKind::Class:
             classdef = &s->classdef
@@ -888,6 +891,10 @@ def create_llvm_ir(ast: AstFile*, ft: FileTypes*) -> LLVMModule*:
         else:
             # TODO: need to handle some others?
             pass
+
+    if not mainflag and checkmain:
+        l: Location = Location{path = ast->path, lineno = 0}
+        fail(l, "missing `main` function to execute the program")
 
     LLVMDisposeBuilder(a2i.builder)
     return module
