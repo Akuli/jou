@@ -525,7 +525,7 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft, bool chec
     if (checkmain && mainflag == false) {
         struct Location l = {
             .filename = cfgfile->filename,
-            .lineno = 1,
+            .lineno = 0,
         };
         fail(l, "missing `main` function to execute the program");
     }
