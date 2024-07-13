@@ -258,6 +258,9 @@ class Compiler:
                             "  %s: imported in %s, exported in %s\n",
                             exp->name, src->ast.path, dest->ast.path,
                         )
+                    if strcmp(exp->name, "main") == 0:
+                        l: Location = Location{path=src->ast.path, lineno = 0}
+                        fail(l, "imported file should not have `main` function")
                     check_ast_and_import_conflicts(&dest->ast, exp)
                     dest->typectx.add_imported_symbol(exp)
 
