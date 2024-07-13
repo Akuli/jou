@@ -392,6 +392,14 @@ static void add_imported_symbols(struct CompileState *compst)
             Append(&seen_before, from);
 
             for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
+                if (strcmp(es->name, "main") == 0)
+                {
+                    struct Location l = {
+                        .filename = from->path,
+                        .lineno = 0,
+                    };
+                    fail(l, "imported file should not have `main` function");
+                }
                 if (command_line_args.verbosity >= 2) {
                     const char *kindstr;
                     switch(es->kind) {

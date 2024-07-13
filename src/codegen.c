@@ -516,19 +516,25 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft, bool chec
             LLVMSetInitializer(globalptr, LLVMConstNull(t));
     }
 
-    for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++) {
-        if (strcmp((*g)->signature.name, "main") == 0)
+    for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
+        if (strcmp((*g)->signature.name, "main") == 0) {
             mainflag = true;
-        codegen_function_or_method_def(&st, *g);
-    }
+            break;
+        }
 
-    if (checkmain && mainflag == false) {
+
+    if (checkmain && mainflag == false)
+    {
         struct Location l = {
             .filename = cfgfile->filename,
             .lineno = 0,
         };
+        // check main function for the file
         fail(l, "missing `main` function to execute the program");
     }
+
+    for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
+        codegen_function_or_method_def(&st, *g);
 
     LLVMDisposeBuilder(st.builder);
     return st.module;
