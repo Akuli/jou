@@ -1,0 +1,12 @@
+import "stdlib/io.jou"
+import "./imported/cycle.jou"
+
+def a(x: int) -> None:
+    printf("a %d\n", x)
+    if x > 0:
+        b(x-1)
+
+# Output: compiler error in file "tests/other_errors/import_cycle.jou": imported file should not have `main` function
+def main() -> int:
+    a(10)
+    return 0
