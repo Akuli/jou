@@ -1,5 +1,4 @@
-# Math lib
-# Some math functions
+# Defines the math functions in math.h
 
 # Choose bigger/smaller
 def min(a: int, b: int) -> int:
@@ -14,7 +13,9 @@ def max(a: int, b: int) -> int:
         return b
 
 declare fmin(a: double, b: double) -> double
+declare fminf(a: float, b: float) -> float
 declare fmax(a: double, b: double) -> double
+declare fmaxf(a: float, b: float) -> float
 
 def llmin(a: long, b: long) -> long:
     if a < b:
@@ -39,6 +40,9 @@ declare ceil(x: double) -> double
 declare floor(x: double) -> double
 # Returns the integral value that is nearest to x, with halfway cases rounded away from zero.
 declare round(x: double) -> double
+# Returns the remainder of A / B
+declare fmod(x: double, y: double) -> double
+declare fmodf(x: float, y: float) -> float
 
 # Trigonometric functions
 # These functions use radians as the angle unit.
@@ -68,14 +72,25 @@ declare asinh(x: double) -> double
 declare atanh(x: double) -> double
 
 # Exponential and logarithmic functions
-# returns e^x
+# Returns e^x
 declare exp(x: double) -> double
-# returns 2^x
+declare expf(x: float) -> float
+
+# Returns 2^x
 declare exp2(x: double) -> double
+declare exp2f(x: float) -> float
+
+# Returns 10^x
+declare exp10(x: double) -> double
+declare exp10f(x: float) -> float
+
 # Returns the natural logarithm of x.
 declare log(x: double) -> double
+decalre logf(x: float) -> float
 declare log2(x: double) -> double
+declare log2f(x: float) -> float
 declare log10(x: double) -> double
+declare log10f(x: float) -> float
 
 # Power functions
 # Raise to power.
@@ -88,7 +103,7 @@ declare cbrt(x: double) -> double
 declare hypot(x: double, y: double) -> double
 
 # Error and gamma functions
-# Returns the error function value for x
+# Returns the error function value for x.
 declare erf(x: double) -> double
 # Returns the complementary error function value for x.
 declare erfc(x: double) -> double
