@@ -755,8 +755,8 @@ static char *get_assert_from_token(ParserState *ps)
         default:
             break;
         }
-        if (data[0] != ')' && str.len >= 1 && str.ptr[str.len - 1] != '(')
-            AppendStr(&str, " ");
+        //if (data[0] != ')' && str.len >= 1 && str.ptr[str.len - 1] != '(')
+        //    AppendStr(&str, " ");
         AppendStr(&str, data);
         cnt++;
         ps->tokens++;
