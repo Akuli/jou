@@ -31,15 +31,19 @@ def llmax(a: long, b: long) -> long:
 # Returns the absolute value of x: |x|.
 declare abs(x: int) -> int
 declare fabs(x: double) -> double
+declare fabsf(x: float) -> float
 declare llabs(x: long) -> long
 
 # Rounding and remainder functions
 # Rounds x upward, returning the smallest integral value that is not less than x.
 declare ceil(x: double) -> double
+declare ceilf(x: float) -> float
 # Rounds x downward, returning the largest integral value that is not greater than x.
 declare floor(x: double) -> double
+declare floorf(x: float) -> float
 # Returns the integral value that is nearest to x, with halfway cases rounded away from zero.
 declare round(x: double) -> double
+declare roundf(x: float) -> float
 # Returns the remainder of A / B
 declare fmod(x: double, y: double) -> double
 declare fmodf(x: float, y: float) -> float
@@ -49,15 +53,22 @@ declare fmodf(x: float, y: float) -> float
 # One radian is the angle of a circle slice with equal radius and arc length, about 57 degrees.
 # A full turn (360 degrees) is 2pi (about 6.28) radians.
 declare cos(x: double) -> double
+declare cosf(x: float) -> float
 declare sin(x: double) -> double
+declare sinf(x: float) -> float
 declare tan(x: double) -> double
+declare tanf(x: float) -> float
 # The 'a' prefixed functions are inverse functions.
 # For example, asin is also known as arcsin and sin^-1.
 declare acos(x: double) -> double
+declare acosf(x: float) -> float
 declare asin(x: double) -> double
+declare asinf(x: float) -> float
 declare atan(x: double) -> double
+declare atanf(x: float) -> float
 # Returns the angle of a point (x, y). Note the reversed order of the arguments.
 declare atan2(y: double, x: double) -> double
+declare atan2f(y: float, x: float) -> float
 
 # Use nan("") to get a quiet NaN (Not-A-Number) value.
 # The argument must be an empty string.
@@ -65,11 +76,17 @@ declare nan(tagp: byte*) -> double
 
 # Hyperbolic versions of the trig functions
 declare cosh(x: double) -> double
+declare coshf(x: float) -> float
 declare sinh(x: double) -> double
+declare sinhf(x: float) -> float
 declare tanh(x: double) -> double
+declare tanhf(x: float) -> float
 declare acosh(x: double) -> double
+declare acoshf(x: float) -> float
 declare asinh(x: double) -> double
+declare asinhf(x: float) -> float
 declare atanh(x: double) -> double
+declare atanhf(x: float) -> float
 
 # Exponential and logarithmic functions
 # Returns e^x
@@ -95,19 +112,27 @@ declare log10f(x: float) -> float
 # Power functions
 # Raise to power.
 declare pow(x: double, y: double) -> double
+declare powf(x: float, y: float) -> float
 # Returns the square root of x.
 declare sqrt(x: double) -> double
+declare sqrtf(x: float) -> float
 # Returns the cubic root of x.
 declare cbrt(x: double) -> double
+declare cbrtf(x: float) -> float
 # Returns the hypotenuse of a right-angled triangle whose legs are x and y.
 declare hypot(x: double, y: double) -> double
+declare hypotf(x: float, y: float) -> float
 
 # Error and gamma functions
 # Returns the error function value for x.
 declare erf(x: double) -> double
+declare erff(x: float) -> float
 # Returns the complementary error function value for x.
 declare erfc(x: double) -> double
+declare erfcf(x: float) -> float
 # Returns the gamma function of x.
 declare tgamma(x: double) -> double
+declare tgammaf(x: float) -> float
 # Returns the natural logarithm of the absolute value of the gamma.
 declare lgamma(x: double) -> double
+declare lgammaf(x: float) -> float
