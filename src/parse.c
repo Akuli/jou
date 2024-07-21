@@ -725,41 +725,47 @@ static enum AstStatementKind determine_the_kind_of_a_statement_that_starts_with_
     return AST_STMT_EXPRESSION_STATEMENT;
 }
 
-// TODO: this function is just bad...
-static char *read_assertion_from_file(Location start, Location end)
+static char *get_assert_from_token(ParserState *ps)
 {
-    assert(start.filename == end.filename);
-    FILE *f = fopen(start.filename, "rb");
-    assert(f);
-
-    char line[1024];
-    int lineno = 1;
-    while (lineno < start.lineno) {
-        fgets(line, sizeof line, f);
-        lineno++;
-    }
-
     List(char) str = {0};
-    while (lineno <= end.lineno) {
-        memset(line, 0, sizeof line);
-        fgets(line, sizeof line, f);
-        lineno++;
+    int cnt = 0;
 
-        if (strstr(line, "#"))
-            *strstr(line, "#") = '\0';
-        trim_whitespace(line);
-        // Add spaces between the lines, but not after '(' or before ')'
-        if (line[0] != ')' && str.len >= 1 && str.ptr[str.len-1] != '(')
+    while (ps->tokens->type != TOKEN_NEWLINE)
+    {
+        char data[1024];
+        switch (ps->tokens->type) {
+        case TOKEN_SHORT:
+            sprintf(data, "%hd", (short)ps->tokens->data.short_value);
+            break;
+        case TOKEN_INT:
+            sprintf(data, "%d", (int)ps->tokens->data.int_value);
+            break;
+        case TOKEN_LONG:
+            sprintf(data, "%lld", (long long)ps->tokens->data.long_value);
+            break;
+        case TOKEN_FLOAT:
+        case TOKEN_DOUBLE:
+        case TOKEN_NAME:
+        case TOKEN_KEYWORD:
+            sprintf(data, "%s", ps->tokens->data.name);
+            break;
+        case TOKEN_OPERATOR:
+            sprintf(data, "%s", ps->tokens->data.operator);
+            break;
+        default:
+            break;
+        }
+        if (data[0] != ')' && str.len >= 1 && str.ptr[str.len - 1] != '(')
             AppendStr(&str, " ");
-        AppendStr(&str, line);
+        AppendStr(&str, data);
+        cnt++;
+        ps->tokens++;
     }
-
-    fclose(f);
     Append(&str, '\0');
 
-    if(!strncmp(str.ptr, "assert",6))
-        memmove(str.ptr, &str.ptr[6], strlen(&str.ptr[6]) + 1);
-    trim_whitespace(str.ptr);
+    while (cnt--)
+        ps->tokens--;
+
     return str.ptr;
 }
 
@@ -777,10 +783,8 @@ static AstStatement parse_oneline_statement(ParserState *ps)
     } else if (is_keyword(ps->tokens, "assert")) {
         ps->tokens++;
         result.kind = AST_STMT_ASSERT;
-        Location start = ps->tokens->location;
+        result.data.assertion.condition_str = get_assert_from_token(ps);
         result.data.assertion.condition = parse_expression(ps);
-        Location end = ps->tokens->location;
-        result.data.assertion.condition_str = read_assertion_from_file(start, end);
     } else if (is_keyword(ps->tokens, "pass")) {
         ps->tokens++;
         result.kind = AST_STMT_PASS;
