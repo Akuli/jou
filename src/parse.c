@@ -728,8 +728,10 @@ static enum AstStatementKind determine_the_kind_of_a_statement_that_starts_with_
 static char *read_assertion_from_file(Location error_location, const Token *start, const Token *end)
 {
     FILE *f = fopen(error_location.filename, "rb");
-    if (!f)
+    if (!f) {
+        printf("FAIL 1 fopen\n");
         goto error;
+    }
 
     List(char) result = {0};
 
@@ -750,14 +752,18 @@ static char *read_assertion_from_file(Location error_location, const Token *star
 
         if (t == end-1 || t[0].location.lineno != t[1].location.lineno) {
             // Last token of a line. Read code from file.
-            if (fseek(f, ostart, SEEK_SET) < 0)
+            if (fseek(f, ostart, SEEK_SET) < 0) {
+                printf("FAIL 2 fseek\n");
                 goto error;
+            }
             if (result.len > 0)
                 Append(&result, '\n');
             for (long i = ostart; i < oend; i++) {
                 int c = fgetc(f);
-                if (c == EOF || c == '\r' || c == '\n')
+                if (c == EOF || c == '\r' || c == '\n') {
+                    printf("FAIL 3 fgetc %d\n", c);
                     goto error;
+                }
                 Append(&result, (char)c);
             }
         }
