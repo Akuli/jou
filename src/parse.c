@@ -762,6 +762,10 @@ static char *read_assertion_from_file(Location error_location, const Token *star
                 int c = fgetc(f);
                 if (c == EOF || c == '\r' || c == '\n') {
                     printf("FAIL 3 fgetc %d\n", c);
+                    printf("File name: %s\n", error_location.filename);
+                    printf("Start offset: %ld\n", ostart);
+                    printf("End offset: %ld\n", oend);
+                    printf("The i variable: %ld\n", i);
                     goto error;
                 }
                 Append(&result, (char)c);
