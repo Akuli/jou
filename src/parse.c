@@ -750,9 +750,6 @@ static char *read_assertion_from_file(Location error_location, const Token *star
 
         if (t == end-1 || t[0].location.lineno != t[1].location.lineno) {
             // Last token of a line. Read code from file.
-            char *line = malloc(oend - ostart + 1);
-            if (!line)
-                goto error;
             if (fseek(f, ostart, SEEK_SET) < 0)
                 goto error;
             if (result.len > 0)
@@ -780,6 +777,8 @@ static char *read_assertion_from_file(Location error_location, const Token *star
             *p = ' ';  // join lines with a space
         }
     }
+
+    fclose(f);
     return result.ptr;
 
 error:
