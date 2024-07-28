@@ -91,7 +91,6 @@ struct Token {
         TOKEN_OPERATOR,
         TOKEN_END_OF_FILE,  // Marks the end of an array of Token
     } type;
-    Location location;
     union {
         int16_t short_value; // TOKEN_SHORT
         int32_t int_value;  // TOKEN_INT
@@ -102,6 +101,16 @@ struct Token {
         char name[100];  // TOKEN_NAME and TOKEN_KEYWORD. Also TOKEN_DOUBLE & TOKEN_FLOAT (LLVM wants a string anyway)
         char operator[4];  // TOKEN_OPERATOR
     } data;
+
+    /*
+    Contains only the line number, not column. In some cases you can use
+    start_offset and end_offset to work around that.
+    */
+    Location location;
+
+    // Number of bytes from start of file to start/end of this token.
+    long start_offset;
+    long end_offset;
 };
 
 // Constants can appear in AST and also compilation steps after AST.

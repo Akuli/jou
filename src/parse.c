@@ -725,42 +725,65 @@ static enum AstStatementKind determine_the_kind_of_a_statement_that_starts_with_
     return AST_STMT_EXPRESSION_STATEMENT;
 }
 
-// TODO: this function is just bad...
-static char *read_assertion_from_file(Location start, Location end)
+static char *read_assertion_from_file(Location error_location, const Token *start, const Token *end)
 {
-    assert(start.filename == end.filename);
-    FILE *f = fopen(start.filename, "rb");
-    assert(f);
+    FILE *f = fopen(error_location.filename, "rb");
+    if (!f)
+        goto error;
 
-    char line[1024];
-    int lineno = 1;
-    while (lineno < start.lineno) {
-        fgets(line, sizeof line, f);
-        lineno++;
+    List(char) result = {0};
+
+    long ostart, oend;  // offsets within file to include
+    for (const Token *t = start; t < end; t++) {
+        assert(t->start_offset < t->end_offset);
+
+        if (t == start || t->location.lineno != t[-1].location.lineno) {
+            // First token of a new line
+            ostart = t->start_offset;
+            oend = t->end_offset;
+        } else {
+            // Include more tokens from the line of code so that this token is added too.
+            // We cannot include the entire line because it might contain comments.
+            assert(oend <= t->start_offset);
+            oend = t->end_offset;
+        }
+
+        if (t == end-1 || t[0].location.lineno != t[1].location.lineno) {
+            // Last token of a line. Read code from file.
+            char *line = malloc(oend - ostart + 1);
+            if (!line)
+                goto error;
+            if (fseek(f, ostart, SEEK_SET) < 0)
+                goto error;
+            if (result.len > 0)
+                Append(&result, '\n');
+            for (long i = ostart; i < oend; i++) {
+                int c = fgetc(f);
+                if (c == EOF || c == '\r' || c == '\n')
+                    goto error;
+                Append(&result, (char)c);
+            }
+        }
     }
 
-    List(char) str = {0};
-    while (lineno <= end.lineno) {
-        memset(line, 0, sizeof line);
-        fgets(line, sizeof line, f);
-        lineno++;
-
-        if (strstr(line, "#"))
-            *strstr(line, "#") = '\0';
-        trim_whitespace(line);
-        // Add spaces between the lines, but not after '(' or before ')'
-        if (line[0] != ')' && str.len >= 1 && str.ptr[str.len-1] != '(')
-            AppendStr(&str, " ");
-        AppendStr(&str, line);
+    /*
+    Join lines with spaces, but do not put spaces just after '(' or before ')'.
+    This makes multiline asserts nicer, so "assert (\n    foo and bar\n)"
+    shows "foo and bar" as the assert condition.
+    */
+    Append(&result, '\0');
+    char *p;
+    while ((p = strstr(result.ptr, "\n"))) {
+        if ((p > result.ptr && p[-1] == '(') || (p[1] == ')')) {
+            memmove(p, p+1, strlen(p));  // delete newline character at p
+        } else {
+            *p = ' ';  // join lines with a space
+        }
     }
+    return result.ptr;
 
-    fclose(f);
-    Append(&str, '\0');
-
-    if(!strncmp(str.ptr, "assert",6))
-        memmove(str.ptr, &str.ptr[6], strlen(&str.ptr[6]) + 1);
-    trim_whitespace(str.ptr);
-    return str.ptr;
+error:
+    fail(error_location, "internal error: cannot read assertion text from file");
 }
 
 // does not eat a trailing newline
@@ -777,10 +800,9 @@ static AstStatement parse_oneline_statement(ParserState *ps)
     } else if (is_keyword(ps->tokens, "assert")) {
         ps->tokens++;
         result.kind = AST_STMT_ASSERT;
-        Location start = ps->tokens->location;
+        const Token *condstart = ps->tokens;
         result.data.assertion.condition = parse_expression(ps);
-        Location end = ps->tokens->location;
-        result.data.assertion.condition_str = read_assertion_from_file(start, end);
+        result.data.assertion.condition_str = read_assertion_from_file(result.location, condstart, ps->tokens);
     } else if (is_keyword(ps->tokens, "pass")) {
         ps->tokens++;
         result.kind = AST_STMT_PASS;

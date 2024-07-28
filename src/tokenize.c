@@ -420,10 +420,20 @@ static void handle_parentheses(struct State *st, const struct Token *t)
     }
 }
 
+// Returns the offset of the current location as number of bytes from start of file.
+static long get_offset(const struct State *st)
+{
+    long off = ftell(st->f);
+    if (off < 0)
+        fail(st->location, "internal error: ftell() failed");
+
+    return off - st->pushback.len;
+}
+
 static Token read_token(struct State *st)
 {
     while(1) {
-        Token t = { .location = st->location };
+        Token t = { .location = st->location, .start_offset = get_offset(st) };
         char c = read_byte(st);
 
         switch(c) {
@@ -482,6 +492,8 @@ static Token read_token(struct State *st)
             }
             break;
         }
+
+        t.end_offset = get_offset(st);
         return t;
     }
 }
