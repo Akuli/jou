@@ -196,6 +196,16 @@ static FILE *open_the_file(const char *path, const Location *import_location)
     return f;
 }
 
+static bool defines_main(const AstFile *ast)
+{
+    for (int i = 0; i < ast->body.nstatements; i++) {
+        const AstStatement *s = &ast->body.statements[i];
+        if (s->kind == AST_STMT_FUNCTION && !strcmp(s->data.function.signature.name, "main"))
+            return true;
+    }
+    return false;
+}
+
 static void parse_file(struct CompileState *compst, const char *filename, const Location *import_location)
 {
     if (find_file(compst, filename))
@@ -223,6 +233,16 @@ static void parse_file(struct CompileState *compst, const char *filename, const 
 
     if(command_line_args.verbosity >= 2)
         print_ast(&fs.ast);
+
+    // If it's not the file passed on command line, it shouldn't define main()
+    if (strcmp(filename, command_line_args.infile) && defines_main(&fs.ast)) {
+        /*
+        Set error location to import, so user immediately knows which file
+        imports something that defines main().
+        */
+        assert(import_location);
+        fail(*import_location, "imported file should not have `main` function");
+    }
 
     for (const AstImport *imp = fs.ast.imports.ptr; imp < End(fs.ast.imports); imp++) {
         Append(&compst->parse_queue, (struct ParseQueueItem){
@@ -418,30 +438,6 @@ static void add_imported_symbols(struct CompileState *compst)
     }
 }
 
-static const AstStatement *find_main_definition(const AstFile *ast)
-{
-    for (int i = 0; i < ast->body.nstatements; i++) {
-        const AstStatement *s = &ast->body.statements[i];
-        if (s->kind == AST_STMT_FUNCTION && !strcmp(s->data.function.signature.name, "main"))
-            return s;
-    }
-    return NULL;
-}
-
-static void check_main_definitions(const struct CompileState *compst)
-{
-    struct FileState *mainfile = find_file(compst, command_line_args.infile);
-
-    for (struct FileState *fs = compst->files.ptr; fs < End(compst->files); fs++) {
-        const AstStatement *maindef = find_main_definition(&fs->ast);
-
-        if (fs != mainfile && maindef)
-            fail(maindef->location, "imported file should not have `main` function");
-        if (fs == mainfile && !maindef)
-            fail((Location){.filename=fs->path, .lineno=0}, "missing `main` function to execute the program");
-    }
-}
-
 static void include_special_stdlib_file(struct CompileState *compst, const char *filename)
 {
     char *path = malloc(strlen(compst->stdlib_path) + strlen(filename) + 123);
@@ -516,7 +512,14 @@ int main(int argc, char **argv)
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
         objpaths[fs - compst.files.ptr] = compile_ast_to_object_file(fs);
 
-    check_main_definitions(&compst);
+    /*
+    Check for missing main() as late as possible, so that other errors come first.
+    This way Jou users can work on other functions before main() function is written.
+    */
+    struct FileState *mainfile = find_file(&compst, command_line_args.infile);
+    assert(mainfile);
+    if (!defines_main(&mainfile->ast))
+        fail((Location){.filename=mainfile->path, .lineno=0}, "missing `main` function to execute the program");
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         free_ast(&fs->ast);
