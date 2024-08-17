@@ -6,7 +6,17 @@ def a(x: int) -> None:
     if x > 0:
         b(x-1)
 
-# Output: compiler error in file "tests/other_errors/import_cycle.jou": imported file should not have `main` function
+# Output: a 10
+# Output: b 9
+# Output: a 8
+# Output: b 7
+# Output: a 6
+# Output: b 5
+# Output: a 4
+# Output: b 3
+# Output: a 2
+# Output: b 1
+# Output: a 0
 def main() -> int:
     a(10)
     return 0
