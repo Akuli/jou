@@ -243,7 +243,7 @@ static void parse_all_pending_files(struct CompileState *compst)
     free(compst->parse_queue.ptr);
 }
 
-static char *compile_ast_to_object_file(struct FileState *fs, bool checkmain)
+static char *compile_ast_to_object_file(struct FileState *fs)
 {
     if (command_line_args.verbosity >= 1)
         printf("Building Control Flow Graphs: %s\n", fs->path);
@@ -265,7 +265,7 @@ static char *compile_ast_to_object_file(struct FileState *fs, bool checkmain)
     if (command_line_args.verbosity >= 1)
         printf("Building LLVM IR: %s\n", fs->path);
 
-    LLVMModuleRef mod = codegen(&cfgfile, &fs->types, checkmain);
+    LLVMModuleRef mod = codegen(&cfgfile, &fs->types);
     free_control_flow_graphs(&cfgfile);
 
     if (command_line_args.verbosity >= 2)
@@ -392,14 +392,6 @@ static void add_imported_symbols(struct CompileState *compst)
             Append(&seen_before, from);
 
             for (struct ExportSymbol *es = from->pending_exports; es->name[0]; es++) {
-                if (strcmp(es->name, "main") == 0)
-                {
-                    struct Location l = {
-                        .filename = from->path,
-                        .lineno = 0,
-                    };
-                    fail(l, "imported file should not have `main` function");
-                }
                 if (command_line_args.verbosity >= 2) {
                     const char *kindstr;
                     switch(es->kind) {
@@ -426,6 +418,30 @@ static void add_imported_symbols(struct CompileState *compst)
     }
 }
 
+static const AstStatement *find_main_definition(const AstFile *ast)
+{
+    for (int i = 0; i < ast->body.nstatements; i++) {
+        const AstStatement *s = &ast->body.statements[i];
+        if (s->kind == AST_STMT_FUNCTION && !strcmp(s->data.function.signature.name, "main"))
+            return s;
+    }
+    return NULL;
+}
+
+static void check_main_definitions(const struct CompileState *compst)
+{
+    struct FileState *mainfile = find_file(compst, command_line_args.infile);
+
+    for (struct FileState *fs = compst->files.ptr; fs < End(compst->files); fs++) {
+        const AstStatement *maindef = find_main_definition(&fs->ast);
+
+        if (fs != mainfile && maindef)
+            fail(maindef->location, "imported file should not have `main` function");
+        if (fs == mainfile && !maindef)
+            fail((Location){.filename=fs->path, .lineno=0}, "missing `main` function to execute the program");
+    }
+}
+
 static void include_special_stdlib_file(struct CompileState *compst, const char *filename)
 {
     char *path = malloc(strlen(compst->stdlib_path) + strlen(filename) + 123);
@@ -447,8 +463,7 @@ int main(int argc, char **argv)
         printf("Data layout: %s\n", get_target()->data_layout);
     }
 
-    if (command_line_args.tokenize_only || command_line_args.parse_only)
-    {
+    if (command_line_args.tokenize_only || command_line_args.parse_only) {
         FILE *f = open_the_file(command_line_args.infile, NULL);
         Token *tokens = tokenize(f, command_line_args.infile);
         fclose(f);
@@ -499,16 +514,9 @@ int main(int argc, char **argv)
 
     char **objpaths = calloc(sizeof objpaths[0], compst.files.len + 1);
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++)
-    {
-        if (strcmp(command_line_args.infile, fs->path) == 0)
-        {
-            objpaths[fs - compst.files.ptr] = compile_ast_to_object_file(fs, true);
-        }
-        else
-        {
-            objpaths[fs - compst.files.ptr] = compile_ast_to_object_file(fs, false);
-        }
-    }
+        objpaths[fs - compst.files.ptr] = compile_ast_to_object_file(fs);
+
+    check_main_definitions(&compst);
 
     for (struct FileState *fs = compst.files.ptr; fs < End(compst.files); fs++) {
         free_ast(&fs->ast);

@@ -497,10 +497,8 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
     free(st->llvm_locals);
 }
 
-LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft, bool checkmain)
+LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft)
 {
-    bool mainflag = false;
-
     struct State st = {
         .module = LLVMModuleCreateWithName(cfgfile->filename),
         .builder = LLVMCreateBuilder(),
@@ -514,23 +512,6 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft, bool chec
         LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
         if ((*v)->defined_in_current_file)
             LLVMSetInitializer(globalptr, LLVMConstNull(t));
-    }
-
-    for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
-        if (strcmp((*g)->signature.name, "main") == 0) {
-            mainflag = true;
-            break;
-        }
-
-
-    if (checkmain && mainflag == false)
-    {
-        struct Location l = {
-            .filename = cfgfile->filename,
-            .lineno = 0,
-        };
-        // check main function for the file
-        fail(l, "missing `main` function to execute the program");
     }
 
     for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
