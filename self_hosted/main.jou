@@ -90,6 +90,11 @@ def parse_args(argc: int, argv: byte**) -> CommandLineArgs:
 
     return result
 
+def find_file(files: FileState*, nfiles: int, path: byte*) -> FileState*:
+    for i = 0; i < nfiles; i++:
+        if strcmp(files[i].ast.path, path) == 0:
+            return &files[i]
+    return NULL
 
 # C:\Users\myname\.foo-bar.jou --> "_foo_bar"
 # Result never contains "-", so you can add "-" separated suffixes without conflicts.
@@ -116,6 +121,14 @@ def get_sane_filename(path: byte*) -> byte[50]:
         if name[i] == '-':
             name[i] = '_'
     return name
+
+
+def check_main_function(ast: AstFile*) -> bool:
+    for i = 0; i < ast->body.nstatements; i++:
+        s = &ast->body.statements[i]
+        if s->kind == AstStatementKind::Function and strcmp(s->function.signature.name, "main") == 0:
+            return True
+    return False
 
 def check_ast_and_import_conflicts(ast: AstFile*, symbol: ExportSymbol*) -> None:
     for i = 0; i < ast->body.nstatements; i++:
@@ -209,6 +222,10 @@ class Compiler:
             free(tokens)  # TODO: do this properly
 
             evaluate_compile_time_if_statements_in_body(&ast.body)
+
+            if item.is_imported and check_main_function(&ast):
+                assert item.import_location.path != NULL
+                fail(item.import_location, "imported file should not have `main` function")
 
             self->files = realloc(self->files, sizeof self->files[0] * (self->nfiles + 1))
             self->files[self->nfiles++] = FileState{ast = ast}
@@ -466,6 +483,13 @@ def main(argc: int, argv: byte**) -> int:
         compiler.typecheck_stage2_all_files()
         compiler.process_imports_and_exports()
         compiler.typecheck_stage3_all_files()
+
+        mainfile = find_file(compiler.files, compiler.nfiles, args.main_path)
+        assert mainfile != NULL
+
+        if not check_main_function(&mainfile->ast):
+            l = Location{path=mainfile->ast.path, lineno=0}
+            fail(l, "missing `main` function to execute the program")
 
         object_files = compiler.create_object_files()
         executable = compiler.link(object_files)
