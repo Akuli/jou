@@ -236,7 +236,7 @@ function run_test()
 counter=0
 skipped=0
 
-for joufile in examples/*.jou examples/aoc2023/day*/part*.jou tests/*/*.jou; do
+for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou; do
     if ! [[ $joufile == *"$file_filter"* ]]; then
         # Skip silently, without showing that this is skipped.
         # This produces less noisy output when you select only a few tests.
