@@ -35,14 +35,6 @@ if $DIFF --help | grep -q -- --color; then
     diff_color="--color=always"
 fi
 
-function slice()
-{
-    local first_lineno="$1"
-    local last_lineno="$2"
-    local num_lines=$((last_lineno - first_lineno + 1))
-    head -n $last_lineno | tail -n $num_lines
-}
-
 function generate_expected_output()
 {
     local joufile="$1"
