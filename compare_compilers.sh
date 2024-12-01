@@ -31,7 +31,7 @@ done
 if [ ${#files[@]} = 0 ]; then
     # skip compiler_cli, because it has a race condition when two compilers simultaneously run it
     # TODO: do not skip Advent Of Code files
-    files=( $(find stdlib examples tests -name '*.jou' | grep -v aoc2023 | grep -v tests/should_succeed/compiler_cli | grep -v tests/crash | sort) )
+    files=( $(find stdlib examples tests -name '*.jou' | grep -v aoc202. | grep -v tests/should_succeed/compiler_cli | grep -v tests/crash | sort) )
 fi
 if [ ${#actions[@]} = 0 ]; then
     actions=(tokenize parse run)

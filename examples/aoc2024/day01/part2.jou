@@ -1,0 +1,28 @@
+import "stdlib/io.jou"
+import "stdlib/math.jou"
+
+
+def main() -> int:
+    f = fopen("input", "r")
+    assert f != NULL
+
+    left_column: int[2000]
+    right_column: int[2000]
+    n = 0
+    while fscanf(f, "%d %d", &left_column[n], &right_column[n]) == 2:
+        n++
+        assert n < 2000
+
+    fclose(f)
+
+    result: long = 0
+    for i = 0; i < n; i++:
+        count = 0
+        for k = 0; k < n; k++:
+            if left_column[i] == right_column[k]:
+                count++
+        result += count * left_column[i]
+
+    printf("%lld\n", result)  # Output: 31
+
+    return 0
