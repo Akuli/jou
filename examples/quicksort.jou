@@ -59,12 +59,7 @@ def quicksort(arr: int*, length: int, depth: int) -> None:
     arr[length / 2] = arr[length - 1]
     length--
 
-    # Rearrange elements so that:
-    #   - arr[0..end_of_small] <= pivot
-    #   - arr[start_of_big..pivot_temp] >= pivot
-    #   - the above two ranges cover the entire array (they may overlap)
-    #
-    # This looks like:
+    # Rearrange elements like this:
     #
     #         end_of_small
     #              ↓
