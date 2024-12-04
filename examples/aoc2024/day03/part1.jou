@@ -1,0 +1,56 @@
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/ascii.jou"
+
+
+# Moves s in-place beyond used characters. Returns 0 on failure.
+def parse_int(s: byte**) -> int:
+    result = 0
+    while is_ascii_digit(**s):
+        result *= 10
+        result += (*(*s)++ - '0')
+    return result
+
+
+# Returns 0 if doesn't match.
+def parse_mul(s: byte*) -> int:
+    if not starts_with(s, "mul("):
+        return 0
+    s = &s[4]
+
+    a = parse_int(&s)
+    if *s++ != ',':
+        return 0
+    b = parse_int(&s)
+    if *s++ != ')':
+        return 0
+    return a*b
+
+
+def main() -> int:
+    max_size = 100000
+    big_string: byte* = malloc(max_size)
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    i = 0
+    while True:
+        c = fgetc(f)
+        EOF = -1  # TODO: belongs to stdlib
+        if c == EOF:
+            break
+        assert i < max_size
+        big_string[i++] = c as byte
+
+    fclose(f)
+
+    result = 0 as long
+    s = big_string
+    while *s != '\0':
+        result += parse_mul(s++)
+
+    free(big_string)
+    printf("%d\n", result)  # Output: 161
+    return 0
