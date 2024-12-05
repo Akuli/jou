@@ -31,14 +31,14 @@ def main() -> int:
         templates[num_templates++] = read_grid_from_file(f)
     fclose(f)
 
-    f = fopen("input", "r")
+    f = fopen("sampleinput.txt", "r")
     grid = read_grid_from_file(f)
     fclose(f)
 
     result = 0
     for i = 0; i < num_templates; i++:
         result += count_template(&grid, &templates[i])
-    printf("%d\n", result)
+    printf("%d\n", result)  # Output: 9
 
     for i = 0; i < num_templates; i++:
         free(templates[i].data)
