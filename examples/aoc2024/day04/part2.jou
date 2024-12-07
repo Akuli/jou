@@ -8,7 +8,7 @@ import "stdlib/mem.jou"
 def count_template(grid: Grid*, template: Grid*) -> int:
     count = 0
     for ox = 0; ox <= grid->width - template->width; ox++:
-        for oy = 0; oy < grid->height - template->height; oy++:
+        for oy = 0; oy <= grid->height - template->height; oy++:
             all_match = True
             for x = 0; x < template->width; x++:
                 for y = 0; y < template->height; y++:
