@@ -1,0 +1,29 @@
+import "../grid.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    pos = grid.find_first('^')
+    movement = [0, -1]  # up
+
+    while True:
+        grid.set(pos, 'X')
+
+        new_pos = [pos[0] + movement[0], pos[1] + movement[1]]
+        if not grid.is_in_bounds(new_pos):
+            break
+        elif grid.get(new_pos) == '#':
+            # turn right 90deg
+            movement = [-movement[1], movement[0]]
+        else:
+            pos = new_pos
+
+    printf("%d\n", grid.count('X'))  # Output: 41
+ 
+    free(grid.data)
+    return 0
