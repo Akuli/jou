@@ -1,0 +1,55 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "../../aoc2023/grid.jou"
+
+
+#    o---------o---------o
+# result    center     point
+def reflect(point: int[2], center: int[2]) -> int[2]:
+    relative_x = point[0] - center[0]
+    relative_y = point[1] - center[1]
+    return [center[0] - relative_x, center[1] - relative_y]
+
+
+def add_antinodes(antennas: Grid, antinodes: Grid*, frequency: byte) -> None:
+    places = antennas.find_all(frequency)
+
+    for i = 0; places[i][0] != -1; i++:
+        for k = 0; places[k][0] != -1; k++:
+            if i != k:
+                a1 = reflect(places[i], places[k])
+                a2 = reflect(places[k], places[i])
+                if antinodes->is_in_bounds(a1):
+                    antinodes->set(a1, '#')
+                if antinodes->is_in_bounds(a2):
+                    antinodes->set(a2, '#')
+
+    free(places)
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    antennas = read_grid_from_file(f)
+    fclose(f)
+
+    antinodes = antennas.copy()
+    for p = antinodes.data; *p != '\0'; p++:
+        if *p != '\n':
+            *p = '.'
+
+    freqs: byte[100]
+    nfreqs = 0
+    for p = antennas.data; *p != '\0'; p++:
+        if *p != '.' and *p != '\n' and strchr(freqs, *p) == NULL:
+            assert nfreqs < sizeof(freqs)/sizeof(freqs[0])
+            freqs[nfreqs++] = *p
+
+    for i = 0; i < nfreqs; i++:
+        add_antinodes(antennas, &antinodes, freqs[i])
+    printf("%d\n", antinodes.count('#'))  # Output: 14
+
+    free(antennas.data)
+    free(antinodes.data)
+    return 0

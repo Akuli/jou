@@ -1,0 +1,79 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "stdlib/math.jou"
+import "../../aoc2023/grid.jou"
+
+
+#    o---------o---------o
+# result    center     point
+def reflect(point: int[2], center: int[2]) -> int[2]:
+    relative_x = point[0] - center[0]
+    relative_y = point[1] - center[1]
+    return [center[0] - relative_x, center[1] - relative_y]
+
+
+def gcd(a: int, b: int) -> int:
+    assert a > 0 and b > 0
+
+    while a > 0 and b > 0:
+        # Euclidean algorithm: Reduce the bigger number modulo smaller number.
+        if a > b:
+            a %= b
+        else:
+            b %= a
+
+    # Return whichever number isn't zero.
+    return max(a, b)
+
+
+def add_antinodes(antennas: Grid, antinodes: Grid*, frequency: byte) -> None:
+    places = antennas.find_all(frequency)
+
+    for i = 0; places[i][0] != -1; i++:
+        for k = 0; places[k][0] != -1; k++:
+            if i != k:
+                dx = places[k][0] - places[i][0]
+                dy = places[k][1] - places[i][1]
+
+                # Pick shortest (dx,dy) vector in the correct direction
+                unnecessary_multipliers = gcd(abs(dx), abs(dy))
+                dx /= unnecessary_multipliers
+                dy /= unnecessary_multipliers
+
+                # Walk in dx,dy direction.
+                pos = places[i]
+                while True:
+                    pos = [pos[0] + dx, pos[1] + dy]
+                    if not antinodes->is_in_bounds(pos):
+                        break
+                    antinodes->set(pos, '#')
+
+    free(places)
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    antennas = read_grid_from_file(f)
+    fclose(f)
+
+    antinodes = antennas.copy()
+    for p = antinodes.data; *p != '\0'; p++:
+        if *p != '\n':
+            *p = '.'
+
+    freqs: byte[100]
+    nfreqs = 0
+    for p = antennas.data; *p != '\0'; p++:
+        if *p != '.' and *p != '\n' and strchr(freqs, *p) == NULL:
+            assert nfreqs < sizeof(freqs)/sizeof(freqs[0])
+            freqs[nfreqs++] = *p
+
+    for i = 0; i < nfreqs; i++:
+        add_antinodes(antennas, &antinodes, freqs[i])
+    printf("%d\n", antinodes.count('#'))  # Output: 34
+
+    free(antennas.data)
+    free(antinodes.data)
+    return 0
