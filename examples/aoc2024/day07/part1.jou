@@ -1,0 +1,79 @@
+import "stdlib/mem.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+class Equation:
+    expected_result: long
+    values: long[100]
+    nvalues: int
+
+    def is_satisfiable(self) -> bool:
+        assert self->nvalues > 0
+        results: long* = malloc(sizeof(results[0]) * 1)
+        assert results != NULL
+        results[0] = self->values[0]
+        nresults = 1
+
+        for value = &self->values[1]; value < &self->values[self->nvalues]; value++:
+            if nresults == 0:
+                break
+
+            new_results: long* = malloc(sizeof(new_results[0]) * (nresults * 2))
+            assert new_results != NULL
+            new_nresults = 0
+
+            # Let's try plus
+            for i = 0; i < nresults; i++:
+                r = results[i] + (*value)
+                assert r >= results[i]
+                # if too big already, no way it will be ok later
+                if r <= self->expected_result:
+                    new_results[new_nresults++] = r
+
+            # Let's try multiplying
+            for i = 0; i < nresults; i++:
+                r = results[i] * (*value)
+                assert r >= results[i]
+                # if too big already, no way it will be ok later
+                if r <= self->expected_result:
+                    new_results[new_nresults++] = r
+
+            free(results)
+            results = new_results
+            nresults = new_nresults
+
+        found = False
+        for i = 0; i < nresults; i++:
+            if results[i] == self->expected_result:
+                found = True
+                break
+
+        free(results)
+        return found
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    result = 0L
+
+    line: byte[100]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        eq = Equation{expected_result = atoll(line)}
+
+        # Remaining numbers are always after a space
+        p = &line[0]
+        while strstr(p, " ") != NULL:
+            p = strstr(p, " ")
+            p++  # skip space
+            assert eq.nvalues < sizeof(eq.values)/sizeof(eq.values[0])
+            eq.values[eq.nvalues++] = atoll(p)
+
+        if eq.is_satisfiable():
+            result += eq.expected_result
+
+    fclose(f)
+    printf("%lld\n", result)  # Output: 3749
+    return 0
