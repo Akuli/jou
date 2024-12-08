@@ -202,10 +202,13 @@ function run_test()
     # jou flags start with space when non-empty
     command="$command$jou_flags"
 
-    if [[ "$joufile" =~ ^examples/aoc ]]; then
+    if [[ "$joufile" =~ ^examples/aoc ]] || [[ $joufile == *double_dotdot_import* ]]; then
         # AoC files use fopen("sampleinput.txt", "r").
         # We don't do this for all files, because I like relative paths in error messages.
         # jou_flags starts with a space whenever it isn't empty.
+        #
+        # Also, double_dotdot_import test had a bug that was reproducible only with
+        # relative path.
         command="cd $(dirname $joufile) && $command $(basename $joufile)"
     else
         command="$command $joufile"
@@ -236,7 +239,7 @@ function run_test()
 counter=0
 skipped=0
 
-for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou; do
+for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou tests/should_succeed/double_dotdot_import/*/*.jou; do
     if ! [[ $joufile == *"$file_filter"* ]]; then
         # Skip silently, without showing that this is skipped.
         # This produces less noisy output when you select only a few tests.
