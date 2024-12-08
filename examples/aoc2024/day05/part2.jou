@@ -39,7 +39,6 @@ def read_print_jobs(file: FILE*, njobs: int*) -> int[100]*:
 
     line: byte[100]
     while fgets(line, sizeof(line) as int, file) != NULL:
-        trim_ascii_whitespace(line)
         job: int[100]
         num_pages = 0
 
@@ -107,6 +106,8 @@ def main() -> int:
 
     njobs: int
     jobs = read_print_jobs(f, &njobs)
+
+    fclose(f)
 
     midsum = 0L
     for i = 0; i < njobs; i++:

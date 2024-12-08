@@ -39,7 +39,6 @@ def read_print_jobs(file: FILE*, njobs: int*) -> int[100]*:
 
     line: byte[100]
     while fgets(line, sizeof(line) as int, file) != NULL:
-        trim_ascii_whitespace(line)
         job: int[100]
         num_pages = 0
 
@@ -87,21 +86,7 @@ def main() -> int:
     njobs: int
     jobs = read_print_jobs(f, &njobs)
 
-#    for i = 0; i < nrules; i++:
-#        printf("Rule %d: %d|%d\n", i, rules[i][0], rules[i][1])
-#
-#    for i = 0; i < njobs; i++:
-#        printf("Job %d", i)
-#        if job_is_valid(rules, nrules, jobs[i]):
-#            printf(" VALID")
-#        else:
-#            printf(" invalid")
-#        printf(": ")
-#        for k = 0; jobs[i][k] != -1; k++:
-#            if k != 0:
-#                printf(",")
-#            printf("%d", jobs[i][k])
-#        printf("\n")
+    fclose(f)
 
     midsum = 0L
     for i = 0; i < njobs; i++:
