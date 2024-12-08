@@ -1,8 +1,9 @@
 # This file tests "../../" imports, which were previously broken.
 
 import "stdlib/io.jou"
-import "../../bar.jou"
+import "../../imported/bar.jou"
 
-def main() -> None:
+def main() -> int:
     printf("It runs\n")  # Output: It runs
-    bar(Point{x = 123, y = 456})
+    bar(Point{x = 123, y = 456})  # Output: Bar Bar 123 456
+    return 0
