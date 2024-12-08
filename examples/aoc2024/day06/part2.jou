@@ -1,0 +1,56 @@
+import "../../aoc2023/grid.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def we_gonna_get_stuck(grid: Grid*) -> bool:
+    # Order: [up, right, down, left] (rotates clockwise)
+    dx = [0, 1, 0, -1]
+    dy = [-1, 0, 1, 0]
+    visited = [grid->copy(), grid->copy(), grid->copy(), grid->copy()]
+
+    pos = grid->find_first('^')
+    movement_kind = 0
+    got_stuck = False
+
+    while True:
+        if visited[movement_kind].get(pos) == 'X':
+            # We saw the same exact move before.
+            got_stuck = True
+            break
+        visited[movement_kind].set(pos, 'X')
+
+        new_pos = [pos[0] + dx[movement_kind], pos[1] + dy[movement_kind]]
+        if not grid->is_in_bounds(new_pos):
+            break
+        elif grid->get(new_pos) == '#':
+            # turn right 90deg
+            movement_kind = (movement_kind + 1) % 4
+        else:
+            pos = new_pos
+
+    free(visited[0].data)
+    free(visited[1].data)
+    free(visited[2].data)
+    free(visited[3].data)
+    return got_stuck
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    counter = 0
+    for p = grid.data; *p != '\0'; p++:
+        if *p == '.':
+            # Place obstacle here
+            *p = '#'
+            if we_gonna_get_stuck(&grid):
+                counter++
+            *p = '.'
+
+    printf("%d\n", counter)  # Output: 6
+
+    free(grid.data)
+    return 0

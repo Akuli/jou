@@ -1,0 +1,46 @@
+import "../../aoc2023/grid.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+# Count how many times template matches grid
+# "." in template can be any character
+def count_template(grid: Grid*, template: Grid*) -> int:
+    count = 0
+    for ox = 0; ox <= grid->width - template->width; ox++:
+        for oy = 0; oy <= grid->height - template->height; oy++:
+            all_match = True
+            for x = 0; x < template->width; x++:
+                for y = 0; y < template->height; y++:
+                    grid_byte = grid->get([ox + x, oy + y])
+                    template_byte = template->get([x, y])
+                    if grid_byte != template_byte and template_byte != '.':
+                        all_match = False
+            if all_match:
+                count += 1
+    return count
+
+
+def main() -> int:
+    templates: Grid[10]
+    num_templates = 0
+
+    f = fopen("part2_templates.txt", "r")
+    while feof(f) == 0:
+        assert num_templates < sizeof(templates)/sizeof(templates[0])
+        templates[num_templates++] = read_grid_from_file(f)
+    fclose(f)
+
+    f = fopen("sampleinput.txt", "r")
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    result = 0
+    for i = 0; i < num_templates; i++:
+        result += count_template(&grid, &templates[i])
+    printf("%d\n", result)  # Output: 9
+
+    for i = 0; i < num_templates; i++:
+        free(templates[i].data)
+    free(grid.data)
+    return 0
