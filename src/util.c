@@ -35,6 +35,39 @@ void trim_whitespace(char *s)
     delete_slice(s, start);
 }
 
+/*
+In paths, "foo/../" is usually unnecessary, because it goes to a folder "foo" and then
+immediately back up. However, it makes a difference in a few cases:
+
+1. folder "foo" doesn't exist
+2. folder "foo" is a symlink to a different place
+3. we are actually looking at "../../" (so "foo" is "..")
+
+Special cases 1 and 2 are not relevant in the Jou compiler, but special case 3 is relevant
+when importing from "../../file.jou" (bad style, but should work).
+
+This function deletes one unnecessary "foo/../", and may be called recursively to delete
+all of them.
+*/
+static bool simplify_dotdot_once(char *path)
+{
+    assert(!strstr(path, "\\"));  // should be already taken care of when calling this
+
+    for (char *p = strstr(path, "/../"); p != NULL; p = strstr(p+1, "/../")) {
+        char *end = p+4;
+        char *start = p;
+        while (start > path && start[-1] != '/')
+            start--;
+
+        if (strncmp(start, "../", 3)) {
+            delete_slice(start, end);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void simplify_path(char *path)
 {
 #ifdef _WIN32
@@ -52,12 +85,7 @@ void simplify_path(char *path)
         delete_slice(p, p+2);
 
     // Delete unnecessary ".." components.
-    while ((p = strstr(path, "/../"))) {
-        char *delstart = p;
-        while (delstart > path && delstart[-1] != '/')
-            delstart--;
-        delete_slice(delstart, p+4);
-    }
+    while (simplify_dotdot_once(path)) {}
 }
 
 
