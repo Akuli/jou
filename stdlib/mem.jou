@@ -4,10 +4,26 @@
 # TODO: write a tutorial about using these and add a link
 declare malloc(size: long) -> void*
 declare calloc(a: long, b: long) -> void*
-declare realloc(ptr: void*, size: long) -> void*
+declare realloc(ptr: void*, new_size: long) -> void*
 declare free(ptr: void*) -> None
 
-# TODO: explain what each of these does
-declare memset(dest: void*, fill_byte: int, count: long) -> void*
-declare memcpy(dest: void*, source: void*, count: long) -> void*
-declare memmove(dest: void*, source: void*, count: long) -> void*
+# Fill a memory region with the given byte.
+# The most common way use case for this function is zeroing memory:
+#
+#   memset(&foo, 0, sizeof(foo))
+#
+declare memset(dest: void*, fill_byte: int, size: long) -> void*
+
+# These functions copy memory from one place to another. Source and destination
+# are of the same size, and pointers to their start are given.
+#
+# The difference between these two is how they handle overlapping memory. If
+# source and destination may overlap, use memmove(). If you know that source
+# and destination will never overlap, use memcpy(), because
+#   - it is a hint to people reading the code that there will be no overlap
+#   - it may be slightly faster.
+declare memcpy(dest: void*, source: void*, size: long) -> void*  # copy memory, overlaps are UB
+declare memmove(dest: void*, source: void*, size: long) -> void*  # copy memory, overlaps are ok
+
+# Swaps the contents of two memory regions of the same size.
+# This does nothing if the memory regions 
