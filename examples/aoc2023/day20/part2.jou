@@ -171,19 +171,13 @@ def run_part_of_input(start_flip_flop: Module*, end: Module*) -> int[5]:
                 assert False
 
 
-def swap(a: long*, b: long*) -> None:
-    old_a = *a
-    *a = *b
-    *b = old_a
-
-
 def gcd(a: long, b: long) -> long:
     assert a > 0 and b > 0
     while True:
         a %= b
         if a == 0:
             return b
-        swap(&a, &b)
+        memswap(&a, &b, sizeof(a))
 
 def lcm(a: long, b: long) -> long:
     return (a/gcd(a,b)) * b

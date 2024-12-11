@@ -5,12 +5,7 @@
 # Maybe this will some day become a part of the standard library :)
 
 import "stdlib/io.jou"
-
-
-def swap(a: int*, b: int*) -> None:
-    temp = *a
-    *a = *b
-    *b = temp
+import "stdlib/mem.jou"
 
 
 def print_array(prefix: byte*, arr: int*, length: int) -> None:
@@ -90,7 +85,7 @@ def quicksort(arr: int*, length: int, depth: int) -> None:
         # neither range can expand because of >pivot and <pivot elements
         assert arr[end_of_small] > pivot
         assert arr[start_of_big - 1] < pivot
-        swap(&arr[end_of_small], &arr[start_of_big - 1])
+        memswap(&arr[end_of_small], &arr[start_of_big - 1], sizeof(arr[0]))
 
     # Add back the removed pivot. It becomes a part of the overlap.
     arr[length++] = arr[end_of_small]

@@ -76,12 +76,6 @@ def job_is_valid(rules: int[2]*, nrules: int, job: int*) -> bool:
     return True
 
 
-def swap(a: int*, b: int*) -> None:
-    old_a = *a
-    *a = *b
-    *b = old_a
-
-
 def fix_job(rules: int[2]*, nrules: int, job: int*) -> None:
     length = 0
     while job[length] != -1:
@@ -94,7 +88,7 @@ def fix_job(rules: int[2]*, nrules: int, job: int*) -> None:
             first_idx = find_page(job, rule[0])
             second_idx = find_page(job, rule[1])
             if first_idx != -1 and second_idx != -1 and first_idx >= second_idx:
-                swap(&job[first_idx], &job[second_idx])
+                memswap(&job[first_idx], &job[second_idx], sizeof(job[0]))
 
 
 def main() -> int:
