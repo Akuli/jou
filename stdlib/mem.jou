@@ -27,7 +27,7 @@ declare memmove(dest: void*, source: void*, size: long) -> void*  # copy memory,
 
 # Swaps the contents of two memory regions of the same size.
 # This does nothing if the same memory region is passed twice.
-# This may not work correctly if two different but overlapping regions are given.
+# This probably doesn't do what you want if the memory regions overlap in some other way.
 def memswap(a: void*, b: void*, size: long) -> None:
     a_bytes: byte* = a
     b_bytes: byte* = b
