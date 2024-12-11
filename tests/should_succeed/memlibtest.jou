@@ -1,0 +1,15 @@
+import "stdlib/mem.jou"
+import "stdlib/io.jou"
+
+
+def main() -> int:
+    a = 123
+    b = 456
+
+    memswap(&a, &b, sizeof(a))
+    printf("%d %d\n", a, b)   # Output: 456 123
+
+    memswap(&a, &a, sizeof(a))  # does nothing
+    printf("%d %d\n", a, b)   # Output: 456 123
+
+    return 0

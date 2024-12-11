@@ -26,4 +26,13 @@ declare memcpy(dest: void*, source: void*, size: long) -> void*  # copy memory, 
 declare memmove(dest: void*, source: void*, size: long) -> void*  # copy memory, overlaps are ok
 
 # Swaps the contents of two memory regions of the same size.
-# This does nothing if the memory regions 
+# This does nothing if the same memory region is passed twice.
+# This may not work correctly if two different but overlapping regions are given.
+def memswap(a: void*, b: void*, size: long) -> None:
+    a_bytes: byte* = a
+    b_bytes: byte* = b
+
+    for i = 0L; i < size; i++:
+        old_a = a_bytes[i]
+        a_bytes[i] = b_bytes[i]
+        b_bytes[i] = old_a
