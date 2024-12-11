@@ -23,17 +23,11 @@ def predict_next(nums: long*, len: int) -> long:
     return result
 
 
-def swap(a: long*, b: long*) -> None:
-    tmp = *a
-    *a = *b
-    *b = tmp
-
-
 def reverse(nums: long*, len: int) -> None:
     p = nums
     q = &nums[len-1]
     while p < q:
-        swap(p++, q--)
+        memswap(p++, q--, sizeof(*p))
 
 
 # return value is an array terminated by nums_len=-1

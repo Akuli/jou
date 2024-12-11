@@ -62,18 +62,13 @@ class List:
             self->append(*v)
 
 
-def swap(a: long*, b: long*) -> None:
-    temp = *a
-    *a = *b
-    *b = temp
-
 def gcd(a: long, b: long) -> long:
     assert a > 0 and b > 0
     while True:
         a %= b
         if a == 0:
             return b
-        swap(&a, &b)
+        memswap(&a, &b, sizeof(a))
 
 def lcm(a: long, b: long) -> long:
     return (a/gcd(a,b)) * b

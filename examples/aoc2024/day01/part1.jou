@@ -1,11 +1,6 @@
 import "stdlib/io.jou"
 import "stdlib/math.jou"
-
-
-def swap(a: int*, b: int*) -> None:
-    temp = *a
-    *a = *b
-    *b = temp
+import "stdlib/mem.jou"
 
 
 def sort(array: int*, length: int) -> None:
@@ -15,7 +10,7 @@ def sort(array: int*, length: int) -> None:
         for i = 1; i < length; i++:
             if array[i] < array[smallest]:
                 smallest = i
-        swap(&array[0], &array[smallest])
+        memswap(&array[0], &array[smallest], sizeof(array[0]))
         array++
         length--
 
