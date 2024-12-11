@@ -31,12 +31,6 @@ def parse_disk_map(disk_map_string: byte*) -> int*:
     return result
 
 
-def swap(a: int*, b: int*) -> None:
-    temp = *a
-    *a = *b
-    *b = temp
-
-
 def fill_slots(disk_map: int*) -> None:
     blankptr = disk_map
 
@@ -51,7 +45,7 @@ def fill_slots(disk_map: int*) -> None:
         elif *last == -1:
             last--
         else:
-            swap(blankptr, last)
+            memswap(blankptr, last, sizeof(disk_map[0]))
 
 
 def compute_checksum(disk_map: int*) -> long:

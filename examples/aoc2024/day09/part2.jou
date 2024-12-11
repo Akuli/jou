@@ -31,17 +31,6 @@ def parse_disk_map(disk_map_string: byte*) -> int*:
     return result
 
 
-def swap(a: int*, b: int*) -> None:
-    temp = *a
-    *a = *b
-    *b = temp
-
-
-def swap_slice(a: int*, b: int*, length: int) -> None:
-    for i = 0; i < length; i++:
-        swap(&a[i], &b[i])
-
-
 def find_blank_spot(start: int*, end: int*, length_required: int) -> int*:
     for p = start; p <= &end[-length_required]; p++:
         ok = True
@@ -74,7 +63,7 @@ def fill_slots(disk_map: int*) -> None:
 
         blank_spot = find_blank_spot(disk_map, start, length)
         if blank_spot != NULL:
-            swap_slice(blank_spot, start, length)
+            memswap(blank_spot, start, length * sizeof(disk_map[0]))
 
 
 def compute_checksum(disk_map: int*) -> long:
