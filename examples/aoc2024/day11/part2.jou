@@ -1,0 +1,96 @@
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+# count_digits(999) = 3
+# count_digits(1000) = 4
+def count_digits(n: long) -> int:
+    result = 0
+    while n > 0:
+        n /= 10
+        result++
+    return result
+
+
+# split_digits(1234) == [12, 34]
+def split_digits(n: long) -> long[2]:
+    length = count_digits(n)
+    assert length % 2 == 0
+
+    power_of_10 = 1L
+    for i = 0; i < length/2; i++:
+        power_of_10 *= 10
+
+    return [n / power_of_10, n % power_of_10]
+
+
+# Usage: cache[a][b] == analyze_stone(a, b)
+global cache: long[100][100]
+
+
+# Handles the blinking of one stone.
+# Returns how many stones it splits into once all the blinking is done.
+def analyze_stone(stone_number: long, remaining_blinks: int) -> long:
+    cache_stone_number_limit = sizeof(cache)/sizeof(cache[0])
+    cache_remaining_blinks_limit = sizeof(cache[0])/sizeof(cache[0][0])
+
+    cacheptr: long* = NULL
+    if stone_number < cache_stone_number_limit and remaining_blinks < cache_remaining_blinks_limit:
+        cacheptr = &cache[stone_number][remaining_blinks]
+        if *cacheptr != 0:
+            return *cacheptr
+
+    while True:
+        if remaining_blinks == 0:
+            result = 1L
+            break
+
+        if stone_number == 0:
+            stone_number = 1
+            remaining_blinks--
+            continue
+
+        if count_digits(stone_number) % 2 == 0:
+            # Recursively calculate both halves and stop the loop.
+            pair = split_digits(stone_number)
+            result = (
+                analyze_stone(pair[0], remaining_blinks - 1)
+                + analyze_stone(pair[1], remaining_blinks - 1)
+            )
+            break
+
+        stone_number *= 2024
+        remaining_blinks--
+
+    if cacheptr != NULL:
+        *cacheptr = result
+    return result
+
+
+def main() -> int:
+    memset(&cache, 0, sizeof(cache))
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    line: byte[100] = ""
+    fgets(line, sizeof(line) as int, f)
+    fclose(f)
+
+    words = split_by_ascii_whitespace(line)
+
+    # First with 25 steps to make sure the rewritten code works
+    result25 = 0L
+    for i = 0; words[i] != NULL; i++:
+        result25 += analyze_stone(atoll(words[i]), 25)
+    printf("%lld\n", result25)  # Output: 55312
+
+    # Then with 75 steps, this is the real part 2
+    result75 = 0L
+    for i = 0; words[i] != NULL; i++:
+        result75 += analyze_stone(atoll(words[i]), 75)
+    printf("%lld\n", result75)  # Output: 65601038650482
+
+    free(words)
+    return 0
