@@ -27,7 +27,7 @@ import "stdlib/io.jou"
 def memswap(void* a, void* b, int size) -> void:
     # Create a temporary buffer to hold one chunk
     char[] temp = new char[size]
-    
+
     # Copy data from the first chunk to the temporary buffer
     memcpy(temp, a, size)
     # Copy data from the second chunk to the first chunk
@@ -122,11 +122,11 @@ After this, I said to the LLM:
 >
 > ```
 > Before swap:
-> Array A: 1 2 3 4 5 
-> Array B: 6 7 8 9 10 
+> Array A: 1 2 3 4 5
+> Array B: 6 7 8 9 10
 > After swap:
-> Array A: 6 7 8 9 10 
-> Array B: 1 2 3 4 5 
+> Array A: 6 7 8 9 10
+> Array B: 1 2 3 4 5
 > ```
 >
 > Thank you :)
@@ -138,36 +138,36 @@ I basically agree with everything,
 and I think this response is a good summary of the advantages and disadvantages of Jou.
 
 > I'm glad to hear that your code is running successfully!
-> 
+>
 > ### Thoughts on Jou
-> 
+>
 > #### What I Like:
 > 1. **Simplicity and Readability**: Jou appears to have a clean syntax that's designed with clarity in mind, which can make it easier to learn and maintain code.
-> 
+>
 > 2. **Memory Management**: By providing manual memory management tools (like `malloc`, `memcpy`, and `free`), Jou gives developers fine-grained control over memory usage. This can be beneficial for performance-critical applications.
-> 
+>
 > 3. **Low-Level Features**: Similar to C, Jou allows for low-level programming, which makes it suitable for systems programming, embedded systems, and situations where performance is critical.
-> 
+>
 > 4. **Strong Type System**: The strong typing enforced by the language can help catch errors at compile time rather than at runtime, which enhances safety and reliability.
-> 
+>
 > 5. **Automatic Conversions**: The automatic conversion between certain types (like arrays to pointers) can simplify syntax in many cases.
-> 
+>
 > #### What I Dislike:
 > 1. **Manual Memory Management**: While having manual control is beneficial, it also introduces the risk of memory leaks and undefined behavior if not handled carefully. This can increase the complexity of the code.
-> 
+>
 > 2. **Less Abstraction**: Compared to higher-level languages, the lack of abstractions like classes, exceptions, or advanced data structures may require more boilerplate code and can lead to more verbose solutions.
-> 
+>
 > 3. **Limited Ecosystem**: If Jou is relatively new or niche, it may have a smaller library ecosystem compared to more established languages, which could limit the availability of third-party tools and libraries.
-> 
+>
 > 4. **Learning Curve**: For developers used to languages with garbage collection and higher-level abstractions, the transition to a language like Jou might come with a steeper learning curve.
-> 
+>
 > ### Would I Use Jou in a Personal Project?
 > Whether to use Jou in a personal project would depend on the project's specific requirements and context:
-> 
+>
 > - **Performance-Critical Applications**: If I were working on a project that required high performance or direct hardware access (like game development, systems programming, or embedded applications), I might consider using Jou due to its low-level capabilities.
-> 
+>
 > - **Learning Experience**: If my goal was to learn more about how programming languages work, memory management, and low-level systems concepts, Jou could serve as an interesting and educational exploration.
-> 
+>
 > - **Community and Ecosystem**: However, if the project required access to a wide variety of libraries or community support, I might lean towards more established languages that have larger ecosystems and user bases.
-> 
+>
 > Ultimately, the choice would hinge on the specific needs of the project and my familiarity with the language. If Jou continues to evolve and gain features, it could become a compelling option for a wider range of projects!
