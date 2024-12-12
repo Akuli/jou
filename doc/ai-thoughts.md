@@ -1,23 +1,24 @@
 # AI's thoughts on Jou
 
-I told an LLM (specifically, https://deepai.org/chat) about Jou
-and asked to implement Jou's `memswap()` function.
+I told an LLM (specifically, [deepai.org/chat](https://deepai.org/chat)) about Jou
+and asked to implement Jou's `memswap()` function, defined in [stdlib/mem.jou](../stdlib/mem.jou).
 Here's my first message to the LLM:
 
 > The Jou programming language looks like Python but behaves like C. For example, the following program prints numbers 0 to 9:
 >
 > ```python
-import "stdlib/io.jou"
-
-def main() -> int:
-    for i = 0; i < 10; i++:
-        printf("%d\n", i)
-    return 0
-```
+> import "stdlib/io.jou"
+>
+> def main() -> int:
+>     for i = 0; i < 10; i++:
+>         printf("%d\n", i)
+>     return 0
+> ```
 >
 > Using Jou, write a function that swaps the content of two chunks of memory. Call it `memswap()` and add a comment explaining what it does.
 
-The AI gave me the following code which didn't compile:
+The LLM gave me the following code, which contains several errors.
+This is what most LLMs do when you ask them to generate Jou code.
 
 ```python
 import "stdlib/io.jou"
@@ -63,7 +64,7 @@ def main() -> int:
 
 After quite a lot of back and forth, it produced the following code:
 
-```
+```python
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
@@ -120,13 +121,13 @@ After this, I said to the AI:
 > Here's the output I get:
 >
 > ```
-Before swap:
-Array A: 1 2 3 4 5 
-Array B: 6 7 8 9 10 
-After swap:
-Array A: 6 7 8 9 10 
-Array B: 1 2 3 4 5 
-```
+> Before swap:
+> Array A: 1 2 3 4 5 
+> Array B: 6 7 8 9 10 
+> After swap:
+> Array A: 6 7 8 9 10 
+> Array B: 1 2 3 4 5 
+> ```
 >
 > Thank you :)
 >
