@@ -3,7 +3,7 @@
 Jou is a programming language that **looks like Python but behaves like C**.
 For example:
 
-```python3
+```python
 import "stdlib/io.jou"
 
 def main() -> int:
@@ -20,8 +20,10 @@ See the [examples](./examples/) and [tests](./tests/) directories for more examp
 or read [the Jou tutorial](./doc/tutorial.md).
 
 For now, Jou is great for writing small programs that don't have a lot of dependencies.
-For example, I solved all problems of [Advent of Code 2023](https://adventofcode.com/2023/) in Jou.
-See [examples/aoc2023](./examples/aoc2023/) for the code.
+For example, I solved all problems of [Advent of Code 2023](https://adventofcode.com/2023/) in Jou,
+and I'm currently working on Advent of Code 2024.
+See [examples/aoc2023](./examples/aoc2023/)
+and [examples/aoc2024](./examples/aoc2024/) for the code.
 
 I think Jou will be useful for two kinds of people:
 - People who find C programming fun but like Python's syntax
