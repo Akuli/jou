@@ -40,10 +40,11 @@ def main() -> int:
             *p = '.'
 
     freqs: byte[100]
+    memset(&freqs, 0, sizeof(freqs))
     nfreqs = 0
     for p = antennas.data; *p != '\0'; p++:
         if *p != '.' and *p != '\n' and strchr(freqs, *p) == NULL:
-            assert nfreqs < sizeof(freqs)/sizeof(freqs[0])
+            assert nfreqs + 1 < sizeof(freqs)/sizeof(freqs[0])
             freqs[nfreqs++] = *p
 
     for i = 0; i < nfreqs; i++:
