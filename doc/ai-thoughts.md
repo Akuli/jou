@@ -17,8 +17,11 @@ Here's my first message to the LLM:
 >
 > Using Jou, write a function that swaps the content of two chunks of memory. Call it `memswap()` and add a comment explaining what it does.
 
-The LLM gave me the following code, which contains several errors.
+The LLM gave me the following code, which contains several syntax errors.
 This is what most LLMs do when you ask them to generate Jou code.
+After quite a lot of back and forth, all errors were fixed and the code worked.
+
+<details><summary>Initial code (doesn't compile)</summary>
 
 ```python
 import "stdlib/io.jou"
@@ -62,7 +65,9 @@ def main() -> int:
     return 0
 ```
 
-After quite a lot of back and forth, it produced the following code:
+</details>
+
+<details><summary>Fixed code</summary>
 
 ```python
 import "stdlib/io.jou"
@@ -113,6 +118,8 @@ def main() -> int:
 
     return 0
 ```
+
+</details>
 
 After this, I said to the LLM:
 
