@@ -25,19 +25,32 @@ def mark_region(grid: Grid*, start: int[2]) -> None:
             todo[todo_len++] = [point[0] - 1, point[1]]
             todo[todo_len++] = [point[0] + 1, point[1]]
 
-def calculate_vertical_fence_length(grid: Grid*) -> int:
+
+def count_horizontal_fence_sides(grid: Grid*) -> int:
     result = 0
 
-    for y = 0; y < grid->height; y++:
-        # Count how many times we enter and exit sequence of stars along the row.
-        inside_stars = False
+    for y = 1; y < grid->height; y++:
+        # Count how many times we change the "side type" along line between two rows.
+        # Side type can be:
+        #
+        #   0       no top/bottom side, either fully inside or fully outside the region
+        #   1       top of region: below line belongs to region, above line doesn't
+        #   2       bottom of region: above line belongs to region, below line doesn't
+        side_type = 0
         for x = 0; x < grid->width; x++:
-            if grid->get([x, y]) == '*' and not inside_stars:
+            above = grid->get([x, y-1])
+            below = grid->get([x, y])
+            if above == '*' and below != '*':
+                new_side_type = 2
+            elif above != '*' and below == '*':
+                new_side_type = 1
+            else:
+                new_side_type = 0
+
+            if side_type != new_side_type and new_side_type != 0:
                 result++
-                inside_stars = True
-            if grid->get([x, y]) != '*' and inside_stars:
-                result++
-                inside_stars = False
+
+            side_type = new_side_type
 
     return result
 
@@ -60,7 +73,7 @@ def prepend_and_append_blank(grid: Grid*) -> None:
 
 
 def main() -> int:
-    f = fopen("sampleinput1.txt", "r")
+    f = fopen("sampleinput2.txt", "r")
     assert f != NULL
     grid = read_grid_from_file(f)
     fclose(f)
@@ -79,14 +92,14 @@ def main() -> int:
                 mark_region(&grid, [x, y])
                 area = grid.count('*')
 
-                fence1 = calculate_vertical_fence_length(&grid)
+                fence1 = count_horizontal_fence_sides(&grid)
                 grid.transpose()
-                fence2 = calculate_vertical_fence_length(&grid)
+                fence2 = count_horizontal_fence_sides(&grid)
                 grid.transpose()
 
                 while strstr(grid.data, "*") != NULL:
                     *strstr(grid.data, "*") = '.'
                 result += (fence1 + fence2) * area
 
-    printf("%d\n", result)  # Output: 1930
+    printf("%d\n", result)  # Output: 368
     return 0
