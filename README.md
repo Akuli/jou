@@ -42,6 +42,7 @@ Jou eliminates some surprising things in C. For example:
     like you can in C.
 - Jou has Windows support that doesn't suck.
     You simply download and extract a zip, and add it to `PATH`.
+    (See instructions below.)
 
 I will try my best to **keep Jou simple**,
 and not turn it into yet another big language that doesn't feel like C,
