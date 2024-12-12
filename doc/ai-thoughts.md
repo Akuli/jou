@@ -114,7 +114,7 @@ def main() -> int:
     return 0
 ```
 
-After this, I said to the AI:
+After this, I said to the LLM:
 
 > The code compiles and runs!!!!
 >
@@ -133,7 +133,7 @@ After this, I said to the AI:
 >
 > What are your thoughts on Jou? What do you like about it, and what do you dislike about it? Would you use Jou in a personal project?
 
-The AI responded like this.
+The LLM responded like this.
 I basically agree with everything,
 and I think this response is a good summary of the advantages and disadvantages of Jou.
 
