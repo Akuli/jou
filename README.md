@@ -204,9 +204,6 @@ is not currently supported.
 ## Updating to the latest version of Jou
 
 Run `jou --update`.
-On old versions of Jou that don't have `--update`,
-you need to instead delete the folder where you installed Jou
-and go through the setup instructions above again.
 
 
 ## Editor support
