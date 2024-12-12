@@ -1,10 +1,9 @@
 # Jou programming language
 
-Jou is an experimental toy programming language.
-Jou **looks like Python but behaves like C**.
+Jou is a programming language that **looks like Python but behaves like C**.
 For example:
 
-```python3
+```python
 import "stdlib/io.jou"
 
 def main() -> int:
@@ -21,8 +20,10 @@ See the [examples](./examples/) and [tests](./tests/) directories for more examp
 or read [the Jou tutorial](./doc/tutorial.md).
 
 For now, Jou is great for writing small programs that don't have a lot of dependencies.
-For example, I solved all problems of [Advent of Code 2023](https://adventofcode.com/2023/) in Jou.
-See [examples/aoc2023](./examples/aoc2023/) for the code.
+For example, I solved all problems of [Advent of Code 2023](https://adventofcode.com/2023/) in Jou,
+and I'm currently working on Advent of Code 2024.
+See [examples/aoc2023](./examples/aoc2023/)
+and [examples/aoc2024](./examples/aoc2024/) for the code.
 
 I think Jou will be useful for two kinds of people:
 - People who find C programming fun but like Python's syntax
@@ -45,12 +46,14 @@ Jou eliminates some surprising things in C. For example:
     like you can in C.
 - Jou has Windows support that doesn't suck.
     You simply download and extract a zip, and add it to `PATH`.
+    (See instructions below.)
 
 I will try my best to **keep Jou simple**,
 and not turn it into yet another big language that doesn't feel like C,
 such as C++, Zig, Rust, and many others.
 For example, the recommended way to print things will be C's `printf()` function,
 as explained in [the Jou tutorial](./doc/tutorial.md#cs-standard-library-libc).
+This also means that I reject many feature requests.
 
 Jou is not intended to be memory safe, because it would make Jou more difficult to use.
 See [Jou's UB documentation](./doc/ub.md) for more discussion,
@@ -203,9 +206,6 @@ is not currently supported.
 ## Updating to the latest version of Jou
 
 Run `jou --update`.
-On old versions of Jou that don't have `--update`,
-you need to instead delete the folder where you installed Jou
-and go through the setup instructions above again.
 
 
 ## Editor support
