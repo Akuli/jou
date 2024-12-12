@@ -1,57 +1,61 @@
 # Jou programming language
 
-Jou is an experimental toy programming language. It looks like this:
+Jou is a programming language that **looks like Python but behaves like C**.
+For example:
 
-```python3
+```python
 import "stdlib/io.jou"
 
 def main() -> int:
-    puts("Hello World")
+    printf("Hello World\n")
+
+    # Print numbers 0 to 9
+    for i = 0; i < 10; i++:
+        printf("%d\n", i)
+
     return 0
 ```
 
 See the [examples](./examples/) and [tests](./tests/) directories for more example programs
 or read [the Jou tutorial](./doc/tutorial.md).
 
-So far, Jou is usable for writing small programs that don't have a lot of dependencies.
-For example, I solved all problems of [Advent of Code 2023](https://adventofcode.com/2023/) in Jou.
-See [examples/aoc2023](./examples/aoc2023/) for the code.
+For now, Jou is great for writing small programs that don't have a lot of dependencies.
+For example, I solved all problems of [Advent of Code 2023](https://adventofcode.com/2023/) in Jou,
+and I'm currently working on Advent of Code 2024.
+See [examples/aoc2023](./examples/aoc2023/)
+and [examples/aoc2024](./examples/aoc2024/) for the code.
 
-Goals:
-- Minimalistic feel of C + simple Python-style syntax
-- Possible target audiences:
-    - People who find C programming fun
-    - Python programmers who want to try programming at a lower level (maybe to eventually learn C or Rust)
-- Compatibility with C, not just as one more feature but as the recommended way to do many things
-- Self-hosted compiler
-- Eliminate some stupid things in C. For example:
-    - Many useful warnings being disabled by default
-    - UB for comparing pointers into different memory areas
-        (as in `array <= foo && foo < array+sizeof(array)/sizeof(array[0])`)
-    - `negative % positive` is negative or zero, should IMO be positive or zero
-        (unless that is a lot slower, of course)
-    - Strict aliasing
-    - `int` possibly being only 16 bits
-    - `long` possibly being only 32 bits
-    - `char` possibly being more than 8 bits
-    - `char` possibly being signed
-    - `char` being named `char` even though it's really a byte
-- Generics, so that you can implement a generic `list` (dynamically growing array)
-    better than in C
-- Compiler errors for most common bugs in C (missing `free()`, double `free()`, use after free, etc.)
-- More keywords (`def`, `decl`, `forwarddecl`)
-- Enumerated unions = C `union` together with a C `enum` to tell which union member is active
-- Windows support that doesn't suck
+I think Jou will be useful for two kinds of people:
+- People who find C programming fun but like Python's syntax
+- Python programmers who want to try programming at a lower level (maybe to eventually learn C or Rust)
 
-Non-goals:
-- Yet another big language that doesn't feel at all like C (C++, Zig, Rust, ...)
-- Garbage collection (should feel lower level than that)
-- Wrapper functions for the C standard library
-- Wrapper libraries for existing C libraries (should just use the C library directly)
-- Trying to detect every possible memory bug at compile time
-    (Rust already does it better than I can, and even then it can be painful to use)
-- Copying Python's gotchas
-    (e.g. complicated import system with weird syntax and much more weird runtime behavior)
+
+## Design goals and non-goals
+
+Jou eliminates some surprising things in C. For example:
+- In C, `char` may or may not be signed, depending on your OS,
+    but Jou's `byte` data type is always unsigned.
+- In C, `negative % positive` is negative or zero,
+    which means that `array[i % array_len]` doesn't wrap around as expected.
+    In Jou, `negative % positive` is positive or zero.
+- Jou doesn't have strict aliasing.
+    This means that in Jou, memory is just bytes,
+    and you can't get [UB](doc/ub.md) by interpreting the same bytes in different ways,
+    like you can in C.
+- Jou has Windows support that doesn't suck.
+    You simply download and extract a zip, and add it to `PATH`.
+    (See instructions below.)
+
+I will try my best to **keep Jou simple**,
+and not turn it into yet another big language that doesn't feel like C,
+such as C++, Zig, Rust, and many others.
+For example, the recommended way to print things will be C's `printf()` function,
+as explained in [the Jou tutorial](./doc/tutorial.md#cs-standard-library-libc).
+This also means that I reject many feature requests.
+
+Jou is not intended to be memory safe, because it would make Jou more difficult to use.
+See [Jou's UB documentation](./doc/ub.md) for more discussion,
+including [thoughts on Rust](./doc/ub.md#rusts-approach-to-ub).
 
 
 ## Setup
@@ -200,9 +204,6 @@ is not currently supported.
 ## Updating to the latest version of Jou
 
 Run `jou --update`.
-On old versions of Jou that don't have `--update`,
-you need to instead delete the folder where you installed Jou
-and go through the setup instructions above again.
 
 
 ## Editor support
