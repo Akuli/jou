@@ -18,12 +18,9 @@ def add_antinodes(antennas: Grid, antinodes: Grid*, frequency: byte) -> None:
     for i = 0; places[i][0] != -1; i++:
         for k = 0; places[k][0] != -1; k++:
             if i != k:
-                a1 = reflect(places[i], places[k])
-                a2 = reflect(places[k], places[i])
-                if antinodes->is_in_bounds(a1):
-                    antinodes->set(a1, '#')
-                if antinodes->is_in_bounds(a2):
-                    antinodes->set(a2, '#')
+                a = reflect(places[i], places[k])
+                if antinodes->is_in_bounds(a):
+                    antinodes->set(a, '#')
 
     free(places)
 
