@@ -1,0 +1,77 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+import "stdlib/ascii.jou"
+
+
+# Return value contains:
+#   >=0     file id
+#   -1      blank
+#   -2      last of disk
+def parse_disk_map(disk_map_string: byte*) -> int*:
+    result: int* = malloc((strlen(disk_map_string) * 10 + 1) * sizeof(result[0]))
+    p = result
+
+    for i = 0; disk_map_string[i] != '\0'; i++:
+        assert is_ascii_digit(disk_map_string[i])
+
+        if i % 2 == 0:
+            # It is a file
+            file_id = i/2
+            size = disk_map_string[i] - '0'
+            while size --> 0:
+                *p++ = file_id
+        else:
+            # It is blank space
+            size = disk_map_string[i] - '0'
+            while size --> 0:
+                *p++ = -1
+
+    *p = -2
+    return result
+
+
+def fill_slots(disk_map: int*) -> None:
+    blankptr = disk_map
+
+    assert disk_map[0] != -2  # not empty
+    last = disk_map
+    while last[1] != -2:
+        last++
+
+    while blankptr < last:
+        if *blankptr != -1:
+            blankptr++
+        elif *last == -1:
+            last--
+        else:
+            memswap(blankptr, last, sizeof(disk_map[0]))
+
+
+def compute_checksum(disk_map: int*) -> long:
+    result = 0L
+    for i = 0; disk_map[i] >= 0; i++:
+        result += (disk_map[i] as long) * (i as long)
+    return result
+
+
+def main() -> int:
+    max_size = 100000
+    disk_map_string: byte* = malloc(max_size)
+    assert disk_map_string != NULL
+    disk_map_string[0] = '\0'
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    fgets(disk_map_string, max_size, f)
+    fclose(f)
+    trim_ascii_whitespace(disk_map_string)
+
+    disk_map = parse_disk_map(disk_map_string)
+    free(disk_map_string)
+
+    fill_slots(disk_map)
+    printf("%lld\n", compute_checksum(disk_map))  # Output: 1928
+
+    free(disk_map)
+    return 0

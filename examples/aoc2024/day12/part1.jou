@@ -1,0 +1,94 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "../../aoc2023/grid.jou"
+
+
+# Sets each letter of a region in the grid to '*'
+def mark_region(grid: Grid*, start: int[2]) -> None:
+    assert grid->count('*') == 0
+
+    region_letter = grid->get(start)
+    assert 'A' <= region_letter and region_letter <= 'Z'
+
+    todo: int[2][1000]
+    todo[0] = start
+    todo_len = 1
+
+    while todo_len > 0:
+        point = todo[--todo_len]
+        if grid->get(point) == region_letter:
+            grid->set(point, '*')
+            assert todo_len + 4 <= sizeof(todo) / sizeof(todo[0])
+            todo[todo_len++] = [point[0], point[1] - 1]
+            todo[todo_len++] = [point[0], point[1] + 1]
+            todo[todo_len++] = [point[0] - 1, point[1]]
+            todo[todo_len++] = [point[0] + 1, point[1]]
+
+def calculate_vertical_fence_length(grid: Grid*) -> int:
+    result = 0
+
+    for y = 0; y < grid->height; y++:
+        # Count how many times we enter and exit sequence of stars along the row.
+        inside_stars = False
+        for x = 0; x < grid->width; x++:
+            if grid->get([x, y]) == '*' and not inside_stars:
+                result++
+                inside_stars = True
+            if grid->get([x, y]) != '*' and inside_stars:
+                result++
+                inside_stars = False
+
+    return result
+
+
+def prepend_and_append_blank(grid: Grid*) -> None:
+    grid->data = realloc(grid->data, strlen(grid->data) + 2*grid->width + 69)
+    assert grid->data != NULL
+
+    # Add blank row to start
+    memmove(&grid->data[grid->width + 1], grid->data, strlen(grid->data) + 1)
+    memset(grid->data, '.', grid->width)
+    grid->data[grid->width] = '\n'
+
+    # Add blank row to end
+    for i = 0; i < grid->width; i++:
+        strcat(grid->data, ".")
+    strcat(grid->data, "\n")
+
+    grid->height += 2
+
+
+def main() -> int:
+    f = fopen("sampleinput1.txt", "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    # Surround with blanks to avoid annoying out-of-bounds checks
+    prepend_and_append_blank(&grid)
+    grid.transpose()
+    prepend_and_append_blank(&grid)
+    grid.transpose()
+
+    result = 0
+
+    for x = 0; x < grid.width; x++:
+        for y = 0; y < grid.height; y++:
+            if grid.get([x, y]) != '.':
+                mark_region(&grid, [x, y])
+                area = grid.count('*')
+
+                fence1 = calculate_vertical_fence_length(&grid)
+                grid.transpose()
+                fence2 = calculate_vertical_fence_length(&grid)
+                grid.transpose()
+
+                while strstr(grid.data, "*") != NULL:
+                    *strstr(grid.data, "*") = '.'
+                result += (fence1 + fence2) * area
+
+    printf("%d\n", result)  # Output: 1930
+
+    free(grid.data)
+    return 0

@@ -1,0 +1,55 @@
+import "../../aoc2023/grid.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def score_of_trailhead(grid: Grid, start: int[2]) -> int:
+    places: int[2][100]
+
+    nplaces = 1
+    places[0] = start
+
+    new_nplaces = 0  # not used, but silences compiler warning
+
+    for old_byte = '0'; old_byte < '9'; old_byte++:
+        new_places: int[2][100]
+        new_nplaces = 0
+
+        for old_p = &places[0]; old_p < &places[nplaces]; old_p++:
+            assert grid.get(*old_p) == old_byte
+
+            places_to_check = [
+                [(*old_p)[0], (*old_p)[1] - 1],
+                [(*old_p)[0], (*old_p)[1] + 1],
+                [(*old_p)[0] - 1, (*old_p)[1]],
+                [(*old_p)[0] + 1, (*old_p)[1]],
+            ]
+            for new_p = &places_to_check[0]; new_p < &places_to_check[4]; new_p++:
+                if (
+                    grid.is_in_bounds(*new_p)
+                    and grid.get(*new_p) == old_byte + 1
+                ):
+                    assert new_nplaces < sizeof(new_places)/sizeof(new_places[0])
+                    new_places[new_nplaces++] = *new_p
+
+        places = new_places
+        nplaces = new_nplaces
+
+    return new_nplaces
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    result = 0
+    for y = 0; y < grid.height; y++:
+        for x = 0; x < grid.width; x++:
+            if grid.get([x, y]) == '0':
+                result += score_of_trailhead(grid, [x, y])
+
+    printf("%d\n", result)  # Output: 81
+    free(grid.data)
+    return 0
