@@ -1,0 +1,81 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "../../aoc2023/grid.jou"
+
+
+def move_right(grid: Grid*, start: byte*) -> None:
+    assert start != NULL
+    assert *start == '@'
+
+    relevant_length = strspn(start, "@.O")
+
+    first_blank = -1
+    for i = 0; i < relevant_length; i++:
+        if start[i] == '.':
+            first_blank = i
+            break
+
+    if first_blank == -1:
+        # no room to move, do nothing
+        return
+
+    # shift boxes to the right, so effectively blank moves to left
+    memswap(&start[1], &start[first_blank], 1)
+    memswap(&start[0], &start[1], 1)
+    assert starts_with(start, ".@")
+
+
+def horizontal_mirror(grid: Grid*) -> None:
+    for y = 0; y < grid->height; y++:
+        first = &grid->data[(grid->width + 1) * y]
+        last = &first[grid->width - 1]
+        while first < last:
+            memswap(first++, last--, 1)
+
+
+def move(grid: Grid*, how: byte) -> None:
+    if how == '>':
+        move_right(grid, strstr(grid->data, "@"))
+    elif how == 'v':
+        grid->transpose()
+        move_right(grid, strstr(grid->data, "@"))
+        grid->transpose()
+    elif how == '<':
+        horizontal_mirror(grid)
+        move_right(grid, strstr(grid->data, "@"))
+        horizontal_mirror(grid)
+    elif how == '^':
+        grid->transpose()
+        horizontal_mirror(grid)
+        move_right(grid, strstr(grid->data, "@"))
+        horizontal_mirror(grid)
+        grid->transpose()
+    else:
+        assert False
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+
+    while True:
+        c = fgetc(f)
+        if c == -1:  # TODO: EOF constant
+            break
+        if c == '\n':
+            continue
+        move(&grid, c as byte)
+
+    fclose(f)
+
+    result = 0
+    for x = 0; x < grid.width; x++:
+        for y = 0; y < grid.height; y++:
+            if grid.get([x, y]) == 'O':
+                result += 100*y + x
+    printf("%d\n", result)  # Output: 2028
+
+    free(grid.data)
+    return 0
