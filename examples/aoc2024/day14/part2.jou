@@ -1,0 +1,95 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+global width: int
+global height: int
+
+
+class Robot:
+    position: int[2]
+    velocity: int[2]
+
+    def move(self) -> None:
+        self->position[0] += self->velocity[0]
+        self->position[1] += self->velocity[1]
+
+        self->position[0] %= width
+        self->position[1] %= height
+
+
+def main() -> int:
+#    # actual input params
+#    width = 101
+#    height = 103
+#    image_identifier = "xxxxxxxxxxxx"  # Picture of christmas tree contains this
+#    filename = "input"
+
+    # sample input params
+    width = 11
+    height = 7
+    image_identifier = "xxxx"
+    filename = "sampleinput.txt"
+
+    f = fopen(filename, "r")
+    assert f != NULL
+
+    max_robots = 1000
+    robots: Robot* = malloc(sizeof(robots[0]) * max_robots)
+    assert robots != NULL
+    nrobots = 0
+
+    px: int
+    py: int
+    vx: int
+    vy: int
+    while fscanf(f, "p=%d,%d v=%d,%d\n", &px, &py, &vx, &vy) == 4:
+        assert nrobots < max_robots
+        robots[nrobots++] = Robot{
+            position = [px, py],
+            velocity = [vx, vy],
+        }
+
+    fclose(f)
+
+    assert width < 150
+    assert height < 150
+    grid: byte[150][150]
+
+    move_counter = 0
+    found_signs_of_image = False
+
+    while not found_signs_of_image:
+        for i = 0; i < nrobots; i++:
+            robots[i].move()
+        move_counter++
+
+        for y = 0; y < height; y++:
+            memset(&grid[y], ' ', width)
+            grid[y][width] = '\0'
+        for i = 0; i < nrobots; i++:
+            grid[robots[i].position[1]][robots[i].position[0]] = 'x'
+
+        # Use the fact that picture of tree contains many consecutive x's
+        for y = 0; y < height; y++:
+            if strstr(grid[y], image_identifier) != NULL:
+                found_signs_of_image = True
+
+    # With sample input, this doesn't really look like a christmas tree at
+    # all. With actual input it's very obviously a christmas tree :)
+    #
+    # Output: *** Picture of christmas tree found after 6 moves ***
+    # Output: |   x   x  x|
+    # Output: | xxxx      |
+    # Output: | xx     x  |
+    # Output: |           |
+    # Output: |      x    |
+    # Output: |           |
+    # Output: |x          |
+    printf("*** Picture of christmas tree found after %d moves ***\n", move_counter)
+    for y = 0; y < height; y++:
+        printf("|%s|\n", grid[y])
+
+    free(robots)
+    return 0
