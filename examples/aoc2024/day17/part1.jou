@@ -20,6 +20,12 @@ def xor(a: long, b: long) -> long:
     return result
 
 
+def combo_op_to_string(n: int) -> byte*:
+    assert 0 <= n and n <= 6
+    results = ["0", "1", "2", "3", "A", "B", "C"]
+    return results[n]
+
+
 class Machine:
     reg_a: long
     reg_b: long
@@ -70,11 +76,9 @@ class Machine:
         self->reg_b = self->do_combo_op(combo_op) % 8
 
     # jnz = Jump if NonZero
-    def run_jnz(self, literal_op: int) -> bool:
+    def run_jnz(self, literal_op: int) -> None:
         if self->reg_a != 0:
             self->ip = &self->code[literal_op]
-            return True  # ip updated
-        return False
 
     # bxc = B Xor C
     def run_bxc(self) -> None:
@@ -85,31 +89,68 @@ class Machine:
         assert self->output_len < sizeof(self->output) / sizeof(self->output[0])
         self->output[self->output_len++] = (self->do_combo_op(combo_op) % 8) as int
 
+    def step(self) -> None:
+        opcode = *self->ip++
+        operand = *self->ip++
+        if opcode == 0:
+            self->run_adv(operand)
+        elif opcode == 1:
+            self->run_bxl(operand)
+        elif opcode == 2:
+            self->run_bst(operand)
+        elif opcode == 3:
+            self->run_jnz(operand)
+        elif opcode == 4:
+            self->run_bxc()  # operand is ignored
+        elif opcode == 5:
+            self->run_out(operand)
+        elif opcode == 6:
+            self->run_bdv(operand)
+        elif opcode == 7:
+            self->run_cdv(operand)
+        else:
+            assert False
+
     def run(self) -> None:
         while *self->ip != -1:
-            opcode = *self->ip++
-            if opcode == 0:
-                self->run_adv(*self->ip++)
+            self->step()
+
+    # Prints machine code and registers to stdout in human-readable form.
+    def print(self) -> None:
+        printf("Registers: A=%lld B=%lld C=%lld\n", self->reg_a, self->reg_b, self->reg_c)
+        for i = 0; self->code[i] != -1; i += 2:
+            if self->ip == &self->code[i]:
+                printf("--> %2d ", i)
+            else:
+                printf("    %2d ", i)
+
+            opcode = self->code[i]
+            operand = self->code[i+1]
+
+            if opcode == 0:  # adv
+                printf("A /= 2**%s\n", combo_op_to_string(operand))
             elif opcode == 1:
-                self->run_bxl(*self->ip++)
+                printf("B ^= %d\n", operand)
             elif opcode == 2:
-                self->run_bst(*self->ip++)
+                printf("B = %s %% 8\n", combo_op_to_string(operand))
             elif opcode == 3:
-                if not self->run_jnz(*self->ip):
-                    # Did not jump, skip jump instruction
-                    self->ip++
-                    self->ip++
+                printf("if A != 0: jump to %d\n", operand)
             elif opcode == 4:
-                self->ip++  # operand is ignored
-                self->run_bxc()
+                printf("B ^= C\n")
             elif opcode == 5:
-                self->run_out(*self->ip++)
+                printf("output %s %% 8\n", combo_op_to_string(operand))
             elif opcode == 6:
-                self->run_bdv(*self->ip++)
+                printf("B = A / 2**%s\n", combo_op_to_string(operand))
             elif opcode == 7:
-                self->run_cdv(*self->ip++)
+                printf("C = A / 2**%s\n", combo_op_to_string(operand))
             else:
                 assert False
+
+        if *self->ip == -1:
+            # Show IP pointing beyond end of program
+            printf("-->\n")
+
+        printf("\n")
 
 
 def main() -> int:
@@ -144,9 +185,22 @@ def main() -> int:
     fclose(f)
 
     m.ip = &m.code[0]
-    m.run()
+
+    # Output: Registers: A=729 B=0 C=0
+    # Output: -->  0 A /= 2**1
+    # Output:      2 output A % 8
+    # Output:      4 if A != 0: jump to 0
+    m.print()
+
+    # Output: Registers: A=364 B=0 C=0
+    # Output:      0 A /= 2**1
+    # Output: -->  2 output A % 8
+    # Output:      4 if A != 0: jump to 0
+    m.step()
+    m.print()
 
     # Output: 4,6,3,5,6,3,5,2,1,0
+    m.run()
     for i = 0; i < m.output_len; i++:
         if i != 0:
             putchar(',')
