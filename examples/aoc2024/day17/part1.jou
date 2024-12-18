@@ -1,0 +1,156 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+# TODO: xor operator
+def xor(a: long, b: long) -> long:
+    assert a >= 0
+    assert b >= 0
+
+    result = 0L
+    power_of_two = 1L
+
+    while a != 0 or b != 0:
+        if a % 2 != b % 2:
+            result += power_of_two
+        a /= 2
+        b /= 2
+        power_of_two *= 2
+
+    return result
+
+
+class Machine:
+    reg_a: long
+    reg_b: long
+    reg_c: long
+    code: int[100]  # 0-7 are instructions and operands, -1 = halt
+    ip: int*
+    output: int[1000]
+    output_len: int
+
+    def do_combo_op(self, n: int) -> long:
+        assert 0 <= n and n <= 6
+        if n == 4:
+            return self->reg_a
+        if n == 5:
+            return self->reg_b
+        if n == 6:
+            return self->reg_b
+        return n
+
+    def get_a_divided_by_two_to_power_of_combo_op(self, combo_op: int) -> long:
+        result = self->reg_a
+        i = self->do_combo_op(combo_op)
+
+        # TODO: bitwise shift operator
+        while i --> 0:
+            result /= 2
+
+        return result
+
+    # adv = A DiVision
+    def run_adv(self, combo_op: int) -> None:
+        self->reg_a = self->get_a_divided_by_two_to_power_of_combo_op(combo_op)
+
+    # bdv = B DiVision
+    def run_bdv(self, combo_op: int) -> None:
+        self->reg_b = self->get_a_divided_by_two_to_power_of_combo_op(combo_op)
+
+    # cdv = C DiVision
+    def run_cdv(self, combo_op: int) -> None:
+        self->reg_c = self->get_a_divided_by_two_to_power_of_combo_op(combo_op)
+
+    # bxl = B bitwise Xor with Literal
+    def run_bxl(self, literal_op: int) -> None:
+        self->reg_b = xor(self->reg_b, literal_op)
+
+    # bst = B Set value and Truncate to 3 bits
+    def run_bst(self, combo_op: int) -> None:
+        self->reg_b = self->do_combo_op(combo_op) % 8
+
+    # jnz = Jump if NonZero
+    def run_jnz(self, literal_op: int) -> bool:
+        if self->reg_a != 0:
+            self->ip = &self->code[literal_op]
+            return True  # ip updated
+        return False
+
+    # bxc = B Xor C
+    def run_bxc(self) -> None:
+        self->reg_b = xor(self->reg_b, self->reg_c)
+
+    # out = OUTput value
+    def run_out(self, combo_op: int) -> None:
+        assert self->output_len < sizeof(self->output) / sizeof(self->output[0])
+        self->output[self->output_len++] = (self->do_combo_op(combo_op) % 8) as int
+
+    def run(self) -> None:
+        while *self->ip != -1:
+            opcode = *self->ip++
+            if opcode == 0:
+                self->run_adv(*self->ip++)
+            elif opcode == 1:
+                self->run_bxl(*self->ip++)
+            elif opcode == 2:
+                self->run_bst(*self->ip++)
+            elif opcode == 3:
+                if not self->run_jnz(*self->ip):
+                    # Did not jump, skip jump instruction
+                    self->ip++
+                    self->ip++
+            elif opcode == 4:
+                self->ip++  # operand is ignored
+                self->run_bxc()
+            elif opcode == 5:
+                self->run_out(*self->ip++)
+            elif opcode == 6:
+                self->run_bdv(*self->ip++)
+            elif opcode == 7:
+                self->run_cdv(*self->ip++)
+            else:
+                assert False
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    m = Machine{}
+    line: byte[1000]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        if starts_with(line, "Register A: "):
+            m.reg_a = atoll(&line[12])
+        elif starts_with(line, "Register B: "):
+            m.reg_b = atoll(&line[12])
+        elif starts_with(line, "Register C: "):
+            m.reg_c = atoll(&line[12])
+        elif starts_with(line, "Program: "):
+            p = &line[9]
+            code_len = 0
+            while True:
+                number = *p++
+                assert '0' <= number and number <= '7'
+                assert code_len < sizeof(m.code)/sizeof(m.code[0])
+                m.code[code_len++] = number - '0'
+                if *p++ != ',':
+                    break
+
+            # Terminate with many halt instructions to reduce risk of overflow :)
+            for i = 0; i < 10; i++:
+                assert code_len < sizeof(m.code)/sizeof(m.code[0])
+                m.code[code_len++] = -1
+
+    fclose(f)
+
+    m.ip = &m.code[0]
+    m.run()
+
+    # Output: 4,6,3,5,6,3,5,2,1,0
+    for i = 0; i < m.output_len; i++:
+        if i != 0:
+            putchar(',')
+        printf("%d", m.output[i])
+    putchar('\n')
+
+    return 0
