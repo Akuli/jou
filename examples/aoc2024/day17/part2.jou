@@ -1,0 +1,31 @@
+# My input looked like this, as printed by code in part 1:
+#
+#    Registers: A=... B=0 C=0
+#         0 B = A % 8
+#         2 B ^= 1
+#         4 C = A / 2**B
+#         6 B ^= 5
+#         8 B ^= C
+#        10 A /= 2**3
+#        12 output B % 8
+#        14 if A != 0: jump to 0
+#
+# Suppose that value of A register in binary looks like ....abcdefgh, where
+# abcdefgh are the last bits. For example, if A = 420 = binary 110100100, then
+# abcdefgh = 10100100. Let's step through the code and see what it does:
+#
+#    Registers: A=...abcdefgh B=0 C=0
+#         0 B = def
+#         2 B = deF         here F denotes the opposite of f
+#         4 C = fgh if deF=000
+#               efg if deF=001
+#               def if deF=010
+#               cde if deF=011
+#               bcd if deF=100
+#               abc if deF=100
+#               ..
+#         6 B ^= 5
+#         8 B ^= C
+#        10 A /= 2**3
+#        12 output B % 8
+#        14 if A != 0: jump to 0

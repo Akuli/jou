@@ -114,6 +114,8 @@ class Machine:
     def run(self) -> None:
         while *self->ip != -1:
             self->step()
+            self->print()
+            #getchar()
 
     # Prints machine code and registers to stdout in human-readable form.
     def print(self) -> None:
@@ -154,7 +156,7 @@ class Machine:
 
 
 def main() -> int:
-    f = fopen("sampleinput.txt", "r")
+    f = fopen("input", "r")
     assert f != NULL
 
     m = Machine{}
@@ -190,13 +192,6 @@ def main() -> int:
     # Output: -->  0 A /= 2**1
     # Output:      2 output A % 8
     # Output:      4 if A != 0: jump to 0
-    m.print()
-
-    # Output: Registers: A=364 B=0 C=0
-    # Output:      0 A /= 2**1
-    # Output: -->  2 output A % 8
-    # Output:      4 if A != 0: jump to 0
-    m.step()
     m.print()
 
     # Output: 4,6,3,5,6,3,5,2,1,0
