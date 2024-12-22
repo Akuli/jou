@@ -1,0 +1,137 @@
+import "stdlib/io.jou"
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+import "../../aoc2023/grid.jou"
+
+
+class State:
+    place: int[2]
+    direction: int[2]
+    score: int
+    source: StateStats*  # where we came from
+
+    def next_states(self, stats_of_this_state: StateStats*) -> State[3]:
+        x = self->place[0]
+        y = self->place[1]
+        dx = self->direction[0]
+        dy = self->direction[1]
+
+        assert stats_of_this_state->x == x
+        assert stats_of_this_state->y == y
+
+        return [
+            # Go forward
+            State{place=[x+dx, y+dy], direction=[dx, dy], score=self->score + 1, source=stats_of_this_state},
+            # Turn both ways
+            State{place=[x, y], direction=[-dy, dx], score=self->score + 1000, source=stats_of_this_state},
+            State{place=[x, y], direction=[dy, -dx], score=self->score + 1000, source=stats_of_this_state},
+        ]
+
+
+def direction_to_0123(dir: int[2]) -> int:
+    if dir[0] == 1 and dir[1] == 0:
+        return 0  # right
+    if dir[0] == 0 and dir[1] == 1:
+        return 1  # down
+    if dir[0] == -1 and dir[1] == 0:
+        return 2  # left
+    if dir[0] == 0 and dir[1] == -1:
+        return 3  # up
+    assert False
+
+
+class StateStats:
+    best_score: int
+    sources: void*[10]  # TODO: https://github.com/Akuli/jou/issues/473
+    sources_len: int
+    x: int
+    y: int
+
+    def append_source(self, new_source: StateStats*) -> None:
+        if new_source != NULL:
+            assert self->sources_len < sizeof(self->sources)/sizeof(self->sources[0])
+            self->sources[self->sources_len++] = new_source
+
+
+def min4(a: int, b: int, c: int, d: int) -> int:
+    return min(min(a, b), min(c, d))
+
+
+# Traverse backwards to find all ways to reach best score, mark them on grid
+def mark_best_paths(grid: Grid*, dest_stats: StateStats*) -> None:
+    assert dest_stats != NULL
+    grid->set([dest_stats->x, dest_stats->y], 'O')
+    for i = 0; i < dest_stats->sources_len; i++:
+        mark_best_paths(grid, dest_stats->sources[i])
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    int_max = 0x7fffffff  # TODO: belongs to stdlib
+
+    assert grid.width <= 150
+    assert grid.height <= 150
+    all_stats: StateStats[4][150][150]* = malloc(sizeof(*all_stats))
+    assert all_stats != NULL
+
+    # (*all_stats)[x][y][direction as 0123] = shortest path to x,y counting turns
+    for x = 0; x < grid.width; x++:
+        for y = 0; y < grid.height; y++:
+            (*all_stats)[x][y] = [
+                StateStats{x=x, y=y, best_score=int_max},
+                StateStats{x=x, y=y, best_score=int_max},
+                StateStats{x=x, y=y, best_score=int_max},
+                StateStats{x=x, y=y, best_score=int_max},
+            ]
+
+    todo: State[2000]
+    todo[0] = State{place = grid.find_first('S'), direction = [1, 0], source = NULL}
+    todo_len = 1
+
+    while todo_len > 0:
+        # Pop from front (fast enough because todo list is short)
+        state = todo[0]
+        todo_len--
+        memmove(&todo[0], &todo[1], todo_len * sizeof(todo[0]))
+
+        stats = &(*all_stats)[state.place[0]][state.place[1]][direction_to_0123(state.direction)]
+
+        # Ignore states that have ran into walls.
+        if grid.get(state.place) == '#':
+            continue
+
+        if state.score == stats->best_score:
+            stats->append_source(state.source)
+        elif state.score < stats->best_score:
+            stats->best_score = state.score
+            stats->sources_len = 0
+            stats->append_source(state.source)
+
+            next_states: State[3] = state.next_states(stats)
+            assert todo_len + 3 <= sizeof(todo)/sizeof(todo[0])
+            memcpy(&todo[todo_len], &next_states, sizeof(next_states))
+            todo_len += 3
+
+    pos = grid.find_first('E')
+
+    # Make sure part 1 wasn't broken
+    best = min4(
+        (*all_stats)[pos[0]][pos[1]][0].best_score,
+        (*all_stats)[pos[0]][pos[1]][1].best_score,
+        (*all_stats)[pos[0]][pos[1]][2].best_score,
+        (*all_stats)[pos[0]][pos[1]][3].best_score,
+    )
+    printf("%d\n", best)  # Output: 7036
+
+    for s = &(*all_stats)[pos[0]][pos[1]][0]; s < &(*all_stats)[pos[0]][pos[1]][4]; s++:
+        if s->best_score == best:
+            mark_best_paths(&grid, s)
+    printf("%d\n", grid.count('O'))  # Output: 45
+
+    free(grid.data)
+    free(all_stats)
+    return 0
