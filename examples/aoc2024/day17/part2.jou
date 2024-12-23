@@ -96,7 +96,6 @@ def last_bits(n: long, how_many: int) -> long:
 #
 # Return value is a -1 terminated list that must be free()d.
 def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: int, last7: int) -> long*:
-    printf("find_matching_inputs: %d octs of output remaining, last7 = %d\n", desired_output_len, last7)
     assert desired_output_len >= 0
 
     results: long* = NULL
@@ -117,8 +116,6 @@ def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: i
                 (last7 == -1 or last_bits(last10, 7) == last7)
                 and get_first_output(code, last10) == desired_output[0]
             ):
-                printf("  get_first_output(code, %d) = %d\n", last10, get_first_output(code, last10))
-
                 # Recursively find more bits.
                 last7_before = last10 / 8  # shift right by 3
                 new_results = find_matching_inputs(code, &desired_output[1], desired_output_len - 1, last7_before)
@@ -142,7 +139,7 @@ def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: i
 
 
 def main() -> int:
-    f = fopen("input", "r")
+    f = fopen("sampleinput2.txt", "r")
     assert f != NULL
 
     line: byte[1000]
@@ -172,6 +169,7 @@ def main() -> int:
     for i = 0; results[i] != -1; i++:
         if results[i] < best:
             best = results[i]
-    printf("%lld\n", best)
+    free(results)
+    printf("%lld\n", best)  # Output: 117440
 
     return 0
