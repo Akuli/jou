@@ -112,6 +112,7 @@ def main() -> int:
     reg_a = 0L
     reg_b = 0L
     reg_c = 0L
+
     while fgets(line, sizeof(line) as int, f) != NULL:
         if starts_with(line, "Register A: "):
             reg_a = atoll(&line[12])
@@ -129,7 +130,6 @@ def main() -> int:
                 code[code_len++] = number - '0'
                 if *p++ != ',':
                     break
-
             # Terminate with many halt instructions to reduce risk of overflow :)
             for i = 0; i < 10; i++:
                 assert code_len < sizeof(code)/sizeof(code[0])
