@@ -105,7 +105,7 @@ def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: i
         # Ensure the code does nothing, imagining that the loop condition is at
         # start of loop rather than end.
         if last7 == -1 or last7 == 0:
-            # We can actually output a zero. It's not banned by the required
+            # The input can actually be zero. It's not banned by the required
             # last 7 bits.
             results = realloc(results, sizeof(results[0]) * (nresults + 1))
             assert results != NULL
