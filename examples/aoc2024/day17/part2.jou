@@ -47,7 +47,7 @@ def get_first_output(code: int*, reg_a: long) -> int:
         elif opcode == 2:  # bst = B Set value and Truncate to 3 bits
             regs[1] = do_combo_op(operand, regs) % 8
         elif opcode == 3:  # jnz = Jump if NonZero
-            if regs[0] != 0:  
+            if regs[0] != 0:
                 ip = &code[operand]
         elif opcode == 4:  # bxc = B Xor C
             regs[1] = xor(regs[1], regs[2])
@@ -65,6 +65,22 @@ def get_first_output(code: int*, reg_a: long) -> int:
                 regs[2] /= 2
 
     return -1  # no output
+
+
+class List:
+    ptr: long*
+    len: int
+    alloc: int
+
+    def append(self, item: long) -> None:
+        if self->len == self->alloc:
+            if self->alloc == 0:
+                self->alloc = 4
+            else:
+                self->alloc *= 2
+            self->ptr = realloc(self->ptr, self->alloc * sizeof(self->ptr[0]))
+            assert self->ptr != NULL
+        self->ptr[self->len++] = item
 
 
 def last_bits(n: long, how_many: int) -> long:
@@ -93,13 +109,9 @@ def last_bits(n: long, how_many: int) -> long:
 # This function finds all such x that:
 #   - when machine runs on x, it outputs the desired output
 #   - last 7 bits of x are as given (-1 means anything will do).
-#
-# Return value is a -1 terminated list that must be free()d.
-def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: int, last7: int) -> long*:
+def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: int, last7: int) -> List:
     assert desired_output_len >= 0
-
-    results: long* = NULL
-    nresults = 0
+    results = List{}
 
     if desired_output_len == 0:
         # Ensure the code does nothing, imagining that the loop condition is at
@@ -107,9 +119,7 @@ def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: i
         if last7 == -1 or last7 == 0:
             # The input can actually be zero. It's not banned by the required
             # last 7 bits.
-            results = realloc(results, sizeof(results[0]) * (nresults + 1))
-            assert results != NULL
-            results[nresults++] = 0
+            results.append(0)
     else:
         for last10 = 0; last10 < 1024; last10++:  # all 10 bit numbers
             if (
@@ -119,22 +129,14 @@ def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: i
                 # Recursively find more bits.
                 last7_before = last10 / 8  # shift right by 3
                 new_results = find_matching_inputs(code, &desired_output[1], desired_output_len - 1, last7_before)
-                nnew = 0
-                for i = 0; new_results[i] != -1; i++:
-                    new_results[i] *= 8  # shift left to make room
-                    new_results[i] = xor(new_results[i], last_bits(last10, 3))
-                    assert last_bits(new_results[i], 10) == last10
-                    nnew++
-                if nnew != 0:
-                    results = realloc(results, sizeof(results[0]) * (nresults + nnew))
-                    assert results != NULL
-                    memcpy(&results[nresults], new_results, nnew * sizeof(results[0]))
-                    nresults += nnew
-                free(new_results)
+                for i = 0; i < new_results.len; i++:
+                    x = new_results.ptr[i]
+                    x *= 8  # shift left to make room
+                    x = xor(x, last_bits(last10, 3))
+                    assert last_bits(x, 10) == last10
+                    results.append(x)
+                free(new_results.ptr)
 
-    results = realloc(results, sizeof(results[0]) * (nresults + 1))
-    assert results != NULL
-    results[nresults] = -1  # end of list
     return results
 
 
@@ -165,11 +167,11 @@ def main() -> int:
 
     results = find_matching_inputs(code, &code[code_len - code_len], code_len, -1)
 
-    best = results[0]
-    for i = 0; results[i] != -1; i++:
-        if results[i] < best:
-            best = results[i]
-    free(results)
+    best = results.ptr[0]
+    for i = 0; i < results.len; i++:
+        if results.ptr[i] < best:
+            best = results.ptr[i]
     printf("%lld\n", best)  # Output: 117440
 
+    free(results.ptr)
     return 0
