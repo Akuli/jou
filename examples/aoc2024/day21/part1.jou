@@ -1,0 +1,180 @@
+import "stdlib/io.jou"
+import "stdlib/ascii.jou"
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+class List:
+    ptr: byte[100]*
+    length: int
+    alloc: int
+
+    def append(self, string: byte*) -> None:
+        if self->length == self->alloc:
+            if self->alloc == 0:
+                self->alloc = 4
+            else:
+                self->alloc *= 2
+            self->ptr = realloc(self->ptr, sizeof(self->ptr[0]) * self->alloc)
+            assert self->ptr != NULL
+
+        assert strlen(string) < sizeof(self->ptr[0])
+        strcpy(self->ptr[self->length++], string)
+
+    def dedup(self) -> None:
+        i = 0
+        while i < self->length:
+            exists_before = False
+            for k = 0; k < i; k++:
+                if strcmp(self->ptr[k], self->ptr[i]) == 0:
+                    exists_before = True
+                    break
+            if exists_before:
+                self->ptr[k] = self->ptr[--self->length]
+            else:
+                i++
+
+
+class KeyPad:
+    rows: byte[3][4]
+
+    def find_button(self, button_label: byte) -> int[2]:
+        for x = 0; x < 3; x++:
+            for y = 0; y < 4; y++:
+                if self->rows[y][x] == button_label:
+                    return [x, y]
+        assert False
+
+    def goes_to_blank(self, directions: byte*) -> bool:
+        pos = self->find_button('A')
+
+        for p = directions; *p != '\0'; p++:
+            if *p == '<':
+                pos[0]--
+            elif *p == '>':
+                pos[0]++
+            elif *p == '^':
+                pos[1]--
+            elif *p == 'v':
+                pos[1]++
+            else:
+                assert *p == 'A'
+                continue
+
+            if self->rows[pos[1]][pos[0]] == ' ':
+                return True
+
+        return False
+
+    def get_presses(self, what_to_write: byte*) -> List:
+        result = List{}
+        result.append("")
+
+        for p = &what_to_write[0]; *p != '\0'; p++:
+            if p == &what_to_write[0]:
+                prev = 'A'
+            else:
+                prev = p[-1]
+
+            pos1 = self->find_button(prev)
+            pos2 = self->find_button(*p)
+
+            dx = pos2[0] - pos1[0]
+            dy = pos2[1] - pos1[1]
+
+            h: byte[100] = ""
+            v: byte[100] = ""
+            if dx < 0:
+                memset(&h, '<', abs(dx))
+            else:
+                memset(&h, '>', dx)
+            if dy < 0:
+                memset(&v, '^', abs(dy))
+            else:
+                memset(&v, 'v', dy)
+
+            result2 = List{}
+            for i = 0; i < result.length; i++:
+                # Do horizontal and vertical moves in both possible orders. This
+                # may affect other robots, because their arms move less if we use
+                # consecutive presses in the same direction.
+                assert strlen(result.ptr[i]) + strlen(h) + strlen(v) + strlen("A") < sizeof(result.ptr[0])
+
+                h_then_v = result.ptr[i]
+                strcat(h_then_v, h)
+                strcat(h_then_v, v)
+                strcat(h_then_v, "A")
+
+                v_then_h = result.ptr[i]
+                strcat(v_then_h, v)
+                strcat(v_then_h, h)
+                strcat(v_then_h, "A")
+
+                if not self->goes_to_blank(h_then_v):
+                    result2.append(h_then_v)
+                if not self->goes_to_blank(v_then_h):
+                    result2.append(v_then_h)
+
+            free(result.ptr)
+            result = result2
+            result.dedup()  # must be done right away so we don't run out of memory
+
+        return result
+
+    def get_presses_for_each(self, things_we_could_write: List) -> List:
+        result = List{}
+        for i = 0; i < things_we_could_write.length; i++:
+            adding = self->get_presses(things_we_could_write.ptr[i])
+            for i = 0; i < adding.length; i++:
+                result.append(adding.ptr[i])
+            free(adding.ptr)
+
+        result.dedup()
+        return result
+
+
+def main() -> int:
+    numeric_keypad = KeyPad{rows = [
+        ['7', '8', '9'],
+        ['4', '5', '6'],
+        ['1', '2', '3'],
+        [' ', '0', 'A'],
+    ]}
+
+    arrow_keypad = KeyPad{rows = [
+        [' ', '^', 'A'],
+        ['<', 'v', '>'],
+        [' ', ' ', ' '],
+        [' ', ' ', ' '],
+    ]}
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    result = 0
+
+    line: byte[20]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+
+        presses = numeric_keypad.get_presses(line)
+
+        repeat = 2
+        while repeat --> 0:
+            presses2 = arrow_keypad.get_presses_for_each(presses)
+            free(presses.ptr)
+            presses = presses2
+
+        assert presses.length != 0
+        shortest_len = strlen(presses.ptr[0]) as int
+        for i = 1; i < presses.length; i++:
+            shortest_len = min(shortest_len, strlen(presses.ptr[i]) as int)
+        free(presses.ptr)
+
+        result += shortest_len * atoi(line)
+
+    printf("%d\n", result)  # Output: 126384
+
+    fclose(f)
+    return 0
