@@ -75,13 +75,20 @@ def manhattan_distance(a: int[2], b: int[2]) -> int:
 
 
 def main() -> int:
-    f = fopen("input", "r")
+    # Sample input parameters
+    filename = "sampleinput.txt"
+    min_saved = 20
+
+    # Actual input parameters
+    #filename = "input"
+    #min_saved = 100
+
+    f = fopen(filename, "r")
     assert f != NULL
     grid = read_grid_from_file(f)
     fclose(f)
 
     path = find_path_through_maze(grid)
-    printf("%d\n", path.length)
 
     counter = 0
     for i1 = 0; i1 < path.length; i1++:
@@ -89,9 +96,9 @@ def main() -> int:
             if manhattan_distance(path.points[i1], path.points[i2]) == 2:
                 # we can cheat here
                 time_saved = i2 - i1 - 2
-                if time_saved >= 100:
+                if time_saved >= min_saved:
                     counter++
 
-    printf("%d\n", counter)
+    printf("%d\n", counter)  # Output: 5
 
     return 0
