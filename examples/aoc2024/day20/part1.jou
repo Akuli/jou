@@ -1,0 +1,106 @@
+import "../../aoc2023/grid.jou"
+import "stdlib/io.jou"
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+
+
+enum CheatStatus:
+    NotStarted
+    Ongoing
+    Done
+
+
+class Path:
+    points: int[2]*
+    length: int
+    alloc: int
+
+    def append(self, point: int[2]) -> None:
+        if self->length == self->alloc:
+            if self->alloc == 0:
+                self->alloc = 8
+            else:
+                self->alloc *= 2
+            self->points = realloc(self->points, sizeof(self->points[0]) * self->alloc)
+            assert self->points != NULL
+
+        self->points[self->length++] = point
+
+
+def find_path_through_maze(grid: Grid) -> Path:
+    path = Path{}
+    path.append(grid.find_first('S'))
+
+    while grid.get(path.points[path.length - 1]) != 'E':
+        x = path.points[path.length - 1][0]
+        y = path.points[path.length - 1][1]
+
+        neighbors = [
+            [x-1, y],
+            [x+1, y],
+            [x, y-1],
+            [x, y+1],
+        ]
+        chosen_neighbor: int[2]* = NULL
+        for i = 0; i < 4; i++:
+            new_place = neighbors[i]
+
+            # Do not go into walls
+            if grid.get(neighbors[i]) == '#':
+                continue
+
+            # Do not go to where we just came from
+            if (
+                path.length > 1
+                and new_place[0] == path.points[path.length - 2][0]
+                and new_place[1] == path.points[path.length - 2][1]
+            ):
+                continue
+
+            assert chosen_neighbor == NULL
+            chosen_neighbor = &neighbors[i]
+
+        assert chosen_neighbor != NULL
+        path.append(*chosen_neighbor)
+
+    return path
+
+
+def manhattan_distance(a: int[2], b: int[2]) -> int:
+    x1 = a[0]
+    y1 = a[1]
+    x2 = b[0]
+    y2 = b[1]
+    return abs(x2-x1) + abs(y2-y1)
+
+
+def main() -> int:
+    # Sample input parameters
+    filename = "sampleinput.txt"
+    min_saved = 20
+
+    # Actual input parameters
+    #filename = "input"
+    #min_saved = 100
+
+    f = fopen(filename, "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    path = find_path_through_maze(grid)
+
+    counter = 0
+    for i1 = 0; i1 < path.length; i1++:
+        for i2 = i1; i2 < path.length; i2++:
+            if manhattan_distance(path.points[i1], path.points[i2]) == 2:
+                # we can cheat here
+                time_saved = i2 - i1 - 2
+                if time_saved >= min_saved:
+                    counter++
+
+    printf("%d\n", counter)  # Output: 5
+
+    free(path.points)
+    free(grid.data)
+    return 0

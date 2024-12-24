@@ -1,0 +1,49 @@
+import "stdlib/ascii.jou"
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def is_available(towel: byte*, patterns: byte**) -> bool:
+    if towel[0] == '\0':
+        return True
+
+    for i = 0; patterns[i] != NULL; i++:
+        if (
+            starts_with(towel, patterns[i])
+            and is_available(&towel[strlen(patterns[i])], patterns)
+        ):
+            return True
+    return False
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    patterns_buf: byte[4096]
+    ret = fgets(patterns_buf, sizeof(patterns_buf) as int, f)
+    assert ret != NULL
+    patterns = split_by_ascii_whitespace(patterns_buf)
+
+    # remove trailing commas
+    for i = 0; patterns[i] != NULL; i++:
+        patterns[i][strcspn(patterns[i], ",")] = '\0'
+
+    line: byte[1000]
+    counter = 0
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        if line[0] == '\0':
+            # skip blank line
+            continue
+
+        if is_available(line, patterns):
+            counter++
+
+    printf("%d\n", counter)  # Output: 6
+
+    fclose(f)
+    free(patterns)
+    return 0
