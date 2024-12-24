@@ -1,0 +1,214 @@
+import "stdlib/io.jou"
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+
+
+def gcd(a: long, b: long) -> long:
+    assert a > 0 and b > 0
+
+    while a > 0 and b > 0:
+        # Euclidean algorithm: Reduce the bigger number modulo smaller number.
+        if a > b:
+            a %= b
+        else:
+            b %= a
+
+    # Return whichever number isn't zero.
+    return llmax(a, b)
+
+
+# Returns the shortest vector in the same direction as the given vector.
+def shortest_vector(v: long[2]) -> long[2]:
+    unwanted_scaling = gcd(llabs(v[0]), llabs(v[1]))
+    return [v[0] / unwanted_scaling, v[1] / unwanted_scaling]
+
+
+# Determines if two vectors go in the same direction.
+#
+# This would be easy with determinant, but I don't want to use them because
+# calculating determinant might overflow 64-bit long data type. I don't think
+# that would happen, but it could be really hard to debug.
+def same_direction(v1: long[2], v2: long[2]) -> bool:
+    s1 = shortest_vector(v1)
+    s2 = shortest_vector(v2)
+    return s1[0] == s2[0] and s1[1] == s2[1]
+
+
+# Solves the following linear equations for x and y:
+#
+#   ax + by = c
+#   dx + ey = f
+#
+# Assumes that there is a unique solution (may be negative or a fraction).
+# According to linear algebra, this is same as saying that (a,d) and (b,e)
+# vectors go in different directions.
+#
+# Return value is [x, y]. If solution is not an integer, returns [-1,-1].
+def solve_linear_unique_2x2_system(a: long, b: long, c: long, d: long, e: long, f: long) -> long[2]:
+    if a < 0:
+        a *= -1
+        b *= -1
+        c *= -1
+    if d < 0:
+        d *= -1
+        e *= -1
+        f *= -1
+
+    # Gaussian elimination + Euclidean algorithm
+    while a != 0 and d != 0:
+        if a > d:
+            # Subtract second equation from first n times
+            n = a/d
+            a -= n*d
+            b -= n*e
+            c -= n*f
+        else:
+            # Subtract first equation from second n times
+            n = d/a
+            d -= n*a
+            e -= n*b
+            f -= n*c
+
+    if a != 0:
+        memswap(&a, &d, sizeof(a))
+        memswap(&b, &e, sizeof(b))
+        memswap(&c, &f, sizeof(c))
+
+    # Due to uniqueness assumption, equations must now look like this:
+    #
+    #        by = c     (b != 0)
+    #   dx + ey = f     (d != 0)
+    assert a == 0
+    assert b != 0
+    assert d != 0
+
+    y = c / b
+    x = (f - e*y) / d
+
+    if a*x + b*y == c and d*x + e*y == f:
+        # Solution happens to consist of integers
+        return [x, y]
+    else:
+        return [-1L, -1L]
+
+
+def cost(a: long, b: long) -> long:
+    return 3*a + b
+
+
+# Solves a 1-dimensional variant of the problem. Specifically:
+#
+#   a*(button A presses) + b*(button B presses) = prize
+#
+# Returns [button A presses, button B presses].
+def optimize_1d(a: long, b: long, prize: long) -> long[2]:
+    assert a > 0
+    assert b > 0
+    assert prize > 0
+
+    if prize % gcd(a, b) != 0:
+        # The prize is not reachable. Any combination of a and b
+        # either doesn't reach the prize or jumps beyond the prize.
+        return [-1L, -1L]
+
+    # Figure out which button press moves the claw the most per token.
+    # Three B button presses cost as many tokens as one A button press.
+    # A is better if it moves the claw more for the same amount of tokens.
+    a_is_better = a > 3*b
+
+    # Start by pressing the better button as much as we can without going
+    # beyond the prize. Use the other button to move the rest of the way.
+    if a_is_better:
+        a_presses = prize / a
+        b_presses = (prize - a*a_presses) / b
+    else:
+        b_presses = prize / b
+        a_presses = (prize - b*b_presses) / a
+
+    while a_presses >= 0 and b_presses >= 0:
+        if a*a_presses + b*b_presses == prize:
+            # Done! Solution found!!!
+            return [a_presses, b_presses]
+
+        # Decrease the amount of better button presses. This makes the
+        # solution worse but may be necessary to land exactly at the claw.
+        #
+        # This seems to never happen with the inputs given in AoC.
+        if a_is_better:
+            a_presses--
+            b_presses = (prize - a*a_presses) / b
+        else:
+            b_presses--
+            a_presses = (prize - b*b_presses) / a
+
+    # No solution
+    return [-1L, -1L]
+
+
+class ClawMachine:
+    a_vector: long[2]
+    b_vector: long[2]
+    prize: long[2]
+
+    # Returns cheapest button presses to win, or [-1, -1] if cannot win.
+    def optimize(self) -> long[2]:
+        if same_direction(self->a_vector, self->b_vector):
+            # The machine moves along a line.
+            if not same_direction(self->a_vector, self->prize):
+                # The prize is not on the line.
+                return [-1L, -1L]
+            # Consider only the x coordinates.
+            return optimize_1d(self->a_vector[0], self->b_vector[0], self->prize[0])
+        else:
+            # According to linear algebra, there is a unique way to reach the
+            # prize. However, it may involve negative or non-integer amounts of
+            # button presses :)
+            solution = solve_linear_unique_2x2_system(
+                self->a_vector[0], self->b_vector[0], self->prize[0],
+                self->a_vector[1], self->b_vector[1], self->prize[1],
+            )
+            a_presses = solution[0]
+            b_presses = solution[1]
+            if a_presses >= 0 and b_presses >= 0:
+                return [a_presses, b_presses]
+            else:
+                return [-1L, -1L]
+
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    total_price = 0L
+
+    ax: long
+    ay: long
+    bx: long
+    by: long
+    px: long
+    py: long
+
+    while True:
+        ret = fscanf(f, "Button A: X+%lld, Y+%lld\n", &ax, &ay)
+        if ret != 2:
+            # End of file reached
+            break
+
+        ret = fscanf(f, "Button B: X+%lld, Y+%lld\n", &bx, &by)
+        assert ret == 2
+        ret = fscanf(f, "Prize: X=%lld, Y=%lld\n", &px, &py)
+        assert ret == 2
+
+        px += 10000000000000L
+        py += 10000000000000L
+
+        m = ClawMachine{a_vector = [ax, ay], b_vector = [bx, by], prize = [px, py]}
+        solution = m.optimize()
+        if solution[0] >= 0 and solution[1] >= 0:
+            total_price += cost(solution[0], solution[1])
+
+    printf("%lld\n", total_price)  # Output: 875318608908
+
+    fclose(f)
+    return 0

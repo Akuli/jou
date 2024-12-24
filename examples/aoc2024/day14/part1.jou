@@ -1,0 +1,69 @@
+import "stdlib/io.jou"
+
+
+enum Quadrant:
+    TopLeft
+    TopRight
+    BottomLeft
+    BottomRight
+    SomeKindOfMiddle
+
+
+global width: int
+global height: int
+
+
+def determine_quadrant(x: int, y: int) -> Quadrant:
+    assert 0 <= x and x < width
+    assert 0 <= y and y < height
+    assert width % 2 == 1
+    assert height % 2 == 1
+
+    mid_x = (width - 1) / 2
+    mid_y = (height - 1) / 2
+
+    if x < mid_x:
+        if y < mid_y:
+            return Quadrant::TopLeft
+        if y > mid_y:
+            return Quadrant::BottomLeft
+
+    if x > mid_x:
+        if y < mid_y:
+            return Quadrant::TopRight
+        if y > mid_y:
+            return Quadrant::BottomRight
+
+    assert x == mid_x or y == mid_y
+    return Quadrant::SomeKindOfMiddle
+
+
+def main() -> int:
+    # sampleinput size
+    width = 11
+    height = 7
+
+    # actual input size
+    #width = 101
+    #height = 103
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    qcounts: int[5] = [0, 0, 0, 0, 0]
+
+    px: int
+    py: int
+    vx: int
+    vy: int
+    while fscanf(f, "p=%d,%d v=%d,%d\n", &px, &py, &vx, &vy) == 4:
+        x = (px + 100*vx) % width
+        y = (py + 100*vy) % height
+        qcounts[determine_quadrant(x, y) as int]++
+
+    fclose(f)
+
+    # Output: 12
+    printf("%d\n", qcounts[0] * qcounts[1] * qcounts[2] * qcounts[3])
+
+    return 0

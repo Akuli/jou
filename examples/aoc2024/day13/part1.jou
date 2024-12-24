@@ -1,0 +1,63 @@
+import "stdlib/io.jou"
+
+
+def cost(a: int, b: int) -> int:
+    return 3*a + b
+
+
+class ClawMachine:
+    a_vector: int[2]
+    b_vector: int[2]
+    prize: int[2]
+
+    def is_solution(self, a: int, b: int) -> bool:
+        return (
+            a * self->a_vector[0] + b * self->b_vector[0] == self->prize[0]
+            and a * self->a_vector[1] + b * self->b_vector[1] == self->prize[1]
+        )
+
+    # Returns smallest possible cost to win, or -1 if cannot win
+    def optimize(self) -> int:
+        best_cost = -1
+
+        for a = 0; a <= 100; a++:
+            for b = 0; b <= 100; b++:
+                if self->is_solution(a, b) and (best_cost == -1 or cost(a, b) < best_cost):
+                    best_cost = cost(a, b)
+
+        return best_cost
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    total_price = 0
+
+    ax: int
+    ay: int
+    bx: int
+    by: int
+    px: int
+    py: int
+
+    while True:
+        ret = fscanf(f, "Button A: X+%d, Y+%d\n", &ax, &ay)
+        if ret != 2:
+            # End of file reached
+            break
+
+        ret = fscanf(f, "Button B: X+%d, Y+%d\n", &bx, &by)
+        assert ret == 2
+        ret = fscanf(f, "Prize: X=%d, Y=%d\n", &px, &py)
+        assert ret == 2
+
+        m = ClawMachine{a_vector = [ax, ay], b_vector = [bx, by], prize = [px, py]}
+        solution = m.optimize()
+        if solution != -1:
+            total_price += solution
+
+    printf("%d\n", total_price)  # Output: 480
+
+    fclose(f)
+    return 0
