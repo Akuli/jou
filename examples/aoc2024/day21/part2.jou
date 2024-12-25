@@ -1,0 +1,221 @@
+import "stdlib/io.jou"
+import "stdlib/ascii.jou"
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+# Compressed strings have bytes and their repetition counts.
+# For example, "AAAABB" compresses to:
+#
+#   [
+#       Compressed{b: 'A', repeat: 4},
+#       Compressed{b: 'B', repeat: 2},
+#       Compressed{b: '\0', repeat: 1},
+#   ]
+class Compressed:
+    b: byte
+    repeat: long
+
+
+def simplify_compressed_string(s: Compressed*) -> None:
+    src = s
+    dest = s
+    while src->b != '\0':
+        *dest = *src++
+        while dest->b == src->b:
+            dest->repeat += (src++)->repeat
+        dest++
+
+    # add terminator
+    dest->b = '\0'
+    dest->repeat = 1
+
+
+def compress(string: byte*) -> Compressed*:
+    size = strlen(string) + 1
+    result: Compressed* = malloc(size * sizeof(result[0]))
+    assert result != NULL
+
+    for i = 0; i < size; i++:
+        result[i] = Compressed{b = string[i], repeat = 1}
+    return result
+
+
+def compressed_strlen(c: Compressed*) -> long:
+    result = 0L
+    for i = 0; c[i].b != '\0'; i++:
+        result += c[i].repeat
+    return result
+
+
+# TODO: these belong to somewhere in stdlib
+declare rand() -> int
+declare srand(seed: int) -> None
+
+
+def manhattan_distance(a: int[2], b: int[2]) -> int:
+    return abs(a[0]-b[0]) + abs(a[1]-b[1])
+
+
+class KeyPad:
+    rows: byte[3][4]
+
+    def get(self, x: int, y: int) -> byte:
+        if x < 0 or x >= 3 or y < 0 or y >= 4:
+            return ' '
+        return self->rows[y][x]
+
+    def find_button(self, button_label: byte) -> int[2]:
+        for x = 0; x < 3; x++:
+            for y = 0; y < 4; y++:
+                if self->rows[y][x] == button_label:
+                    return [x, y]
+        assert False
+
+    # Sometimes (not very often), the order of horizontal and vertical moves
+    # matters. I don't know a good way to pick them properly, so let's try
+    # random guessing.
+    #
+    # Return value must be free()d.
+    def get_random_presses(self, what_to_write: byte*) -> byte*:
+        # Calculate length of resulting string
+        length = 0L
+        for p = &what_to_write[0]; *p != '\0'; p++:
+            if p == &what_to_write[0]:
+                prev = 'A'
+            else:
+                prev = p[-1]
+
+            pos1 = self->find_button(prev)
+            pos2 = self->find_button(*p)
+
+            length += manhattan_distance(pos1, pos2)
+            length++  # activate (A)
+
+        # TODO: don't malloc every time?
+        s: byte* = malloc(length + 1)
+        assert s != NULL
+        memset(s, 0, length + 1)
+
+        destptr = s
+
+        for p = &what_to_write[0]; *p != '\0'; p++:
+            if p == &what_to_write[0]:
+                prev = 'A'
+            else:
+                prev = p[-1]
+
+            pos1 = self->find_button(prev)
+            pos2 = self->find_button(*p)
+
+            dx = pos2[0] - pos1[0]
+            dy = pos2[1] - pos1[1]
+
+            if dx < 0:
+                dx_byte = '<'
+            else:
+                dx_byte = '>'
+
+            if dy < 0:
+                dy_byte = '^'
+            else:
+                dy_byte = 'v'
+
+            h_first_blocked = (self->get(pos1[0] + dx, pos1[1]) == ' ')
+            v_first_blocked = (self->get(pos1[0], pos1[1] + dy) == ' ')
+            assert not (h_first_blocked and v_first_blocked)
+
+            if dx == 0 or dy == 0:
+                # order doesn't matter
+                assert not h_first_blocked
+                assert not v_first_blocked
+                horizontal_first = True
+            elif h_first_blocked:
+                horizontal_first = False
+            elif v_first_blocked:
+                horizontal_first = True
+            else:
+                # Order usually doesn't matter, but in some cases it does.
+                # Let's choose 50% randomly because I can't think of a good way
+                # to figure out what's best.
+                horizontal_first = (rand() % 100 >= 50)
+
+            if horizontal_first:
+                memset(destptr, dx_byte, abs(dx))
+                destptr = &destptr[abs(dx)]
+                memset(destptr, dy_byte, abs(dy))
+                destptr = &destptr[abs(dy)]
+            else:
+                memset(destptr, dy_byte, abs(dy))
+                destptr = &destptr[abs(dy)]
+                memset(destptr, dx_byte, abs(dx))
+                destptr = &destptr[abs(dx)]
+
+            *destptr++ = 'A'
+
+        assert destptr == &s[length]
+        *destptr = '\0'
+        return s
+
+
+def main() -> int:
+    srand(123)
+
+    numeric_keypad = KeyPad{rows = [
+        ['7', '8', '9'],
+        ['4', '5', '6'],
+        ['1', '2', '3'],
+        [' ', '0', 'A'],
+    ]}
+
+    arrow_keypad = KeyPad{rows = [
+        [' ', '^', 'A'],
+        ['<', 'v', '>'],
+        [' ', ' ', ' '],
+        [' ', ' ', ' '],
+    ]}
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    result = 0L
+
+    line: byte[20]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        puts(line)
+        fflush(stdout)
+
+        shortest_len = -1L
+        limit = 1000L
+        for i = 0L; i < limit; i++:
+            presses = numeric_keypad.get_random_presses(line)
+
+            repeat = 25
+            while repeat --> 0:
+                printf("  repeat = %d\n", repeat)
+                fflush(stdout)
+                presses2 = arrow_keypad.get_random_presses(presses)
+                free(presses)
+                presses = presses2
+
+            new_len = strlen(presses)
+            free(presses)
+
+            if shortest_len == -1 or new_len < shortest_len:
+                printf("  (i=%lld) new shortest len: %lld\n", i, new_len)
+                fflush(stdout)
+                shortest_len = new_len
+
+                # We found something better, do similar search again to hopefully
+                # discover more if there is
+                if limit < 2*i:
+                    limit = 2*i
+
+        result += shortest_len * atoi(line)
+
+    printf("%lld\n", result)  # Output: 126384
+
+    fclose(f)
+    return 0
