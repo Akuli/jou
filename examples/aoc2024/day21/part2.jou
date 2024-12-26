@@ -18,26 +18,14 @@ class Compressed:
     repeat: long
 
 
-def is_fully_compressed(s: Compressed*) -> bool:
-    for i = 0; s[i].b != '\0' and s[i+1].b != '\0'; i++:
-        if s[i].repeat == 0:
-            # unnecessary item
-            return False
-        if s[i].b == s[i+1].b:
-            # same thing repeated, the whole point was to merge repeats :)
-            return False
-    return True
-
-
-# Merges adjacent compressed bytes.
-def improve_compression(s: Compressed*) -> None:
+def simplify_compressed_string(s: Compressed*) -> None:
+    src = s
     dest = s
-    for src = s; src->b != '\0'; src++:
-        if src->repeat != 0:
-            if dest != s and src->b == dest[-1].b:
-                dest[-1].repeat += src->repeat
-            else:
-                *dest++ = *src
+    while src->b != '\0':
+        *dest = *src++
+        while dest->b == src->b:
+            dest->repeat += (src++)->repeat
+        dest++
 
     # add terminator
     dest->b = '\0'
@@ -51,8 +39,6 @@ def compress(string: byte*) -> Compressed*:
 
     for i = 0; i < size; i++:
         result[i] = Compressed{b = string[i], repeat = 1}
-
-    improve_compression(result)
     return result
 
 
@@ -61,15 +47,6 @@ def compressed_strlen(c: Compressed*) -> long:
     for i = 0; c[i].b != '\0'; i++:
         result += c[i].repeat
     return result
-
-
-#def compressed_puts(c: Compressed*) -> None:
-#    for i = 0; c[i].b != '\0'; i++:
-#        n = c[i].repeat
-#        while n --> 0:
-#            putchar(c[i].b)
-#    putchar('\n')
-#    fflush(stdout)
 
 
 # TODO: these belong to somewhere in stdlib
@@ -101,27 +78,36 @@ class KeyPad:
     # random guessing.
     #
     # Return value must be free()d.
-    def get_random_presses(self, what_to_write: Compressed*) -> Compressed*:
-        assert is_fully_compressed(what_to_write)
-
-        n = 0
-        while what_to_write[n].b != '\0':
-            n++
-        max_compressed_length = 3*n
-
-        result: Compressed* = malloc((max_compressed_length + 1) * sizeof(result[0]))
-        assert result != NULL
-
-        destptr = result
-
-        for p = &what_to_write[0]; p->b != '\0'; p++:
+    def get_random_presses(self, what_to_write: byte*) -> byte*:
+        # Calculate length of resulting string
+        length = 0L
+        for p = &what_to_write[0]; *p != '\0'; p++:
             if p == &what_to_write[0]:
                 prev = 'A'
             else:
-                prev = p[-1].b
+                prev = p[-1]
 
             pos1 = self->find_button(prev)
-            pos2 = self->find_button(p->b)
+            pos2 = self->find_button(*p)
+
+            length += manhattan_distance(pos1, pos2)
+            length++  # activate (A)
+
+        # TODO: don't malloc every time?
+        s: byte* = malloc(length + 1)
+        assert s != NULL
+        memset(s, 0, length + 1)
+
+        destptr = s
+
+        for p = &what_to_write[0]; *p != '\0'; p++:
+            if p == &what_to_write[0]:
+                prev = 'A'
+            else:
+                prev = p[-1]
+
+            pos1 = self->find_button(prev)
+            pos2 = self->find_button(*p)
 
             dx = pos2[0] - pos1[0]
             dy = pos2[1] - pos1[1]
@@ -156,18 +142,21 @@ class KeyPad:
                 horizontal_first = (rand() % 100 >= 50)
 
             if horizontal_first:
-                *destptr++ = Compressed{b = dx_byte, repeat = abs(dx)}
-                *destptr++ = Compressed{b = dy_byte, repeat = abs(dy)}
+                memset(destptr, dx_byte, abs(dx))
+                destptr = &destptr[abs(dx)]
+                memset(destptr, dy_byte, abs(dy))
+                destptr = &destptr[abs(dy)]
             else:
-                *destptr++ = Compressed{b = dy_byte, repeat = abs(dy)}
-                *destptr++ = Compressed{b = dx_byte, repeat = abs(dx)}
+                memset(destptr, dy_byte, abs(dy))
+                destptr = &destptr[abs(dy)]
+                memset(destptr, dx_byte, abs(dx))
+                destptr = &destptr[abs(dx)]
 
-            *destptr++ = Compressed{b = 'A', repeat = p->repeat}
+            *destptr++ = 'A'
 
-        assert destptr == &result[max_compressed_length]
-        *destptr = Compressed{b = '\0', repeat = 1}
-        improve_compression(result)
-        return result
+        assert destptr == &s[length]
+        *destptr = '\0'
+        return s
 
 
 def main() -> int:
@@ -197,14 +186,13 @@ def main() -> int:
         trim_ascii_whitespace(line)
         puts(line)
         fflush(stdout)
-        line_c = compress(line)
 
         shortest_len = -1L
-        limit = 10000L
+        limit = 1000L
         for i = 0L; i < limit; i++:
-            presses = numeric_keypad.get_random_presses(line_c)
+            presses = numeric_keypad.get_random_presses(line)
 
-            repeat = 2
+            repeat = 25
             while repeat --> 0:
                 printf("  repeat = %d\n", repeat)
                 fflush(stdout)
@@ -212,7 +200,7 @@ def main() -> int:
                 free(presses)
                 presses = presses2
 
-            new_len = compressed_strlen(presses)
+            new_len = strlen(presses)
             free(presses)
 
             if shortest_len == -1 or new_len < shortest_len:
@@ -225,7 +213,6 @@ def main() -> int:
                 if limit < 2*i:
                     limit = 2*i
 
-        free(line_c)
         result += shortest_len * atoi(line)
 
     printf("%lld\n", result)  # Output: 126384
