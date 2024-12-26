@@ -656,6 +656,6 @@ def main() -> int:
 
 To learn more about Jou, I recommend:
 - reading other documentation files in the [doc](../doc/) folder
-- reading files in [stdlib/](../stdlib/)
+- reading files in [stdlib/](../stdlib/) and [examples/](../examples/)
 - writing small Jou programs (e.g. [Advent of Code](https://adventofcode.com/))
 - browsing Jou's issues on GitHub and fixing some of them :)
