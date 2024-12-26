@@ -5,50 +5,6 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 
-# Compressed strings have bytes and their repetition counts.
-# For example, "AAAABB" compresses to:
-#
-#   [
-#       Compressed{b: 'A', repeat: 4},
-#       Compressed{b: 'B', repeat: 2},
-#       Compressed{b: '\0', repeat: 1},
-#   ]
-class Compressed:
-    b: byte
-    repeat: long
-
-
-def simplify_compressed_string(s: Compressed*) -> None:
-    src = s
-    dest = s
-    while src->b != '\0':
-        *dest = *src++
-        while dest->b == src->b:
-            dest->repeat += (src++)->repeat
-        dest++
-
-    # add terminator
-    dest->b = '\0'
-    dest->repeat = 1
-
-
-def compress(string: byte*) -> Compressed*:
-    size = strlen(string) + 1
-    result: Compressed* = malloc(size * sizeof(result[0]))
-    assert result != NULL
-
-    for i = 0; i < size; i++:
-        result[i] = Compressed{b = string[i], repeat = 1}
-    return result
-
-
-def compressed_strlen(c: Compressed*) -> long:
-    result = 0L
-    for i = 0; c[i].b != '\0'; i++:
-        result += c[i].repeat
-    return result
-
-
 # TODO: these belong to somewhere in stdlib
 declare rand() -> int
 declare srand(seed: int) -> None
@@ -60,121 +16,143 @@ def manhattan_distance(a: int[2], b: int[2]) -> int:
 
 class KeyPad:
     rows: byte[3][4]
+    aimed_at_x: int
+    aimed_at_y: int
 
     def get(self, x: int, y: int) -> byte:
         if x < 0 or x >= 3 or y < 0 or y >= 4:
             return ' '
         return self->rows[y][x]
 
-    def find_button(self, button_label: byte) -> int[2]:
+    def find_key(self, button_label: byte) -> int[2]:
         for x = 0; x < 3; x++:
             for y = 0; y < 4; y++:
                 if self->rows[y][x] == button_label:
                     return [x, y]
         assert False
 
-    # Sometimes (not very often), the order of horizontal and vertical moves
-    # matters. I don't know a good way to pick them properly, so let's try
-    # random guessing.
-    #
-    # Return value must be free()d.
-    def get_random_presses(self, what_to_write: byte*) -> byte*:
-        # Calculate length of resulting string
-        length = 0L
-        for p = &what_to_write[0]; *p != '\0'; p++:
-            if p == &what_to_write[0]:
-                prev = 'A'
-            else:
-                prev = p[-1]
 
-            pos1 = self->find_button(prev)
-            pos2 = self->find_button(*p)
+# Recursive function. Before we recurse, parameters are:
+#   first keypad = the numeric keypad attached to door (the only numeric)
+#   last keypad = the keypad that a human is typing into
+#
+# Return value = how many times total the keys on last keypad were pressed.
+def press_key(keypads: KeyPad*, nkeypads: int, key_to_press: byte) -> long:
+    printf("Press '%c'\n", key_to_press)
+    fflush(stdout)
 
-            length += manhattan_distance(pos1, pos2)
-            length++  # activate (A)
+    if nkeypads == 1:
+        # Human is typing here, let's simply count the key presses.
+        # We don't care what they are, just how many.
+        printf(" --> trivial\n")
+        fflush(stdout)
+        getchar()
+        return 1
 
-        # TODO: don't malloc every time?
-        s: byte* = malloc(length + 1)
-        assert s != NULL
-        memset(s, 0, length + 1)
+    pos = keypads[0].find_key(key_to_press)
+    old_x = keypads[1].aimed_at_x
+    old_y = keypads[1].aimed_at_y
+    new_x = pos[0]
+    new_y = pos[1]
+    dx = new_x - old_x
+    dy = new_y - old_y
 
-        destptr = s
+    if dx < 0:
+        dx_key = '<'
+        dx_step = -1
+    else:
+        dx_key = '>'
+        dx_step = 1
 
-        for p = &what_to_write[0]; *p != '\0'; p++:
-            if p == &what_to_write[0]:
-                prev = 'A'
-            else:
-                prev = p[-1]
+    if dy < 0:
+        dy_key = '^'
+        dy_step = -1
+    else:
+        dy_key = 'v'
+        dy_step = 1
 
-            pos1 = self->find_button(prev)
-            pos2 = self->find_button(*p)
+    h_first_blocked = (keypads[0].get(new_x, old_y) == ' ')
+    v_first_blocked = (keypads[0].get(old_x, new_y) == ' ')
+    assert not (h_first_blocked and v_first_blocked)
 
-            dx = pos2[0] - pos1[0]
-            dy = pos2[1] - pos1[1]
+    if dx == 0 or dy == 0:
+        # order doesn't matter
+        assert not h_first_blocked
+        assert not v_first_blocked
+        horizontal_first = True
+    elif h_first_blocked:
+        horizontal_first = False
+    elif v_first_blocked:
+        horizontal_first = True
+    else:
+        # Order usually doesn't matter, but in some cases it does.
+        # Let's choose 50% randomly because I can't think of a good way
+        # to figure out what's best.
+        horizontal_first = (rand() % 100 >= 50)
 
-            if dx < 0:
-                dx_byte = '<'
-            else:
-                dx_byte = '>'
+    result = 0L
 
-            if dy < 0:
-                dy_byte = '^'
-            else:
-                dy_byte = 'v'
+    if horizontal_first:
+        n = abs(dx)
+        while n --> 0:
+            result += press_key(&keypads[1], nkeypads - 1, dx_key)
+            keypads[1].aimed_at_x += dx_step
 
-            h_first_blocked = (self->get(pos1[0] + dx, pos1[1]) == ' ')
-            v_first_blocked = (self->get(pos1[0], pos1[1] + dy) == ' ')
-            assert not (h_first_blocked and v_first_blocked)
+        n = abs(dy)
+        while n --> 0:
+            result += press_key(&keypads[1], nkeypads - 1, dy_key)
+            keypads[1].aimed_at_y += dy_step
+    else:
+        n = abs(dy)
+        while n --> 0:
+            result += press_key(&keypads[1], nkeypads - 1, dy_key)
+            keypads[1].aimed_at_y += dy_step
 
-            if dx == 0 or dy == 0:
-                # order doesn't matter
-                assert not h_first_blocked
-                assert not v_first_blocked
-                horizontal_first = True
-            elif h_first_blocked:
-                horizontal_first = False
-            elif v_first_blocked:
-                horizontal_first = True
-            else:
-                # Order usually doesn't matter, but in some cases it does.
-                # Let's choose 50% randomly because I can't think of a good way
-                # to figure out what's best.
-                horizontal_first = (rand() % 100 >= 50)
+        n = abs(dx)
+        while n --> 0:
+            result += press_key(&keypads[1], nkeypads - 1, dx_key)
+            keypads[1].aimed_at_x += dx_step
 
-            if horizontal_first:
-                memset(destptr, dx_byte, abs(dx))
-                destptr = &destptr[abs(dx)]
-                memset(destptr, dy_byte, abs(dy))
-                destptr = &destptr[abs(dy)]
-            else:
-                memset(destptr, dy_byte, abs(dy))
-                destptr = &destptr[abs(dy)]
-                memset(destptr, dx_byte, abs(dx))
-                destptr = &destptr[abs(dx)]
+    assert keypads[1].aimed_at_x == new_x
+    assert keypads[1].aimed_at_y == new_y
+    assert keypads[0].get(new_x, new_y) == key_to_press
 
-            *destptr++ = 'A'
-
-        assert destptr == &s[length]
-        *destptr = '\0'
-        return s
+    result += press_key(&keypads[1], nkeypads - 1, 'A')
+    return result
 
 
 def main() -> int:
     srand(123)
 
-    numeric_keypad = KeyPad{rows = [
-        ['7', '8', '9'],
-        ['4', '5', '6'],
-        ['1', '2', '3'],
-        [' ', '0', 'A'],
-    ]}
+    numeric_keypad = KeyPad{
+        rows = [
+            ['7', '8', '9'],
+            ['4', '5', '6'],
+            ['1', '2', '3'],
+            [' ', '0', 'A'],
+        ],
+    }
 
-    arrow_keypad = KeyPad{rows = [
-        [' ', '^', 'A'],
-        ['<', 'v', '>'],
-        [' ', ' ', ' '],
-        [' ', ' ', ' '],
-    ]}
+    arrow_keypad = KeyPad{
+        rows = [
+            [' ', '^', 'A'],
+            ['<', 'v', '>'],
+            [' ', ' ', ' '],
+            [' ', ' ', ' '],
+        ],
+    }
+
+    initial_keypads = [
+        numeric_keypad,
+        arrow_keypad,
+        arrow_keypad,
+    ]
+
+    # Aim each keypad to the previous (closer to door) keypad's A button
+    for i = 1; i < sizeof(initial_keypads)/sizeof(initial_keypads[0]); i++:
+        aim_at = initial_keypads[i-1].find_key('A')
+        initial_keypads[i].aimed_at_x = aim_at[0]
+        initial_keypads[i].aimed_at_y = aim_at[1]
 
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
@@ -187,33 +165,26 @@ def main() -> int:
         puts(line)
         fflush(stdout)
 
-        shortest_len = -1L
+        best = -1L
         limit = 1000L
-        for i = 0L; i < limit; i++:
-            presses = numeric_keypad.get_random_presses(line)
+        for k = 0L; k < limit; k++:
+            keypads = initial_keypads
 
-            repeat = 25
-            while repeat --> 0:
-                printf("  repeat = %d\n", repeat)
+            counter = 0L
+            for i = 0; line[i] != '\0'; i++:
+                counter += press_key(keypads, sizeof(keypads)/sizeof(keypads[0]) as int, line[i])
+
+            if best == -1 or counter < best:
+                printf("  (k=%lld) new best: %lld\n", k, counter)
                 fflush(stdout)
-                presses2 = arrow_keypad.get_random_presses(presses)
-                free(presses)
-                presses = presses2
-
-            new_len = strlen(presses)
-            free(presses)
-
-            if shortest_len == -1 or new_len < shortest_len:
-                printf("  (i=%lld) new shortest len: %lld\n", i, new_len)
-                fflush(stdout)
-                shortest_len = new_len
+                best = counter
 
                 # We found something better, do similar search again to hopefully
                 # discover more if there is
                 if limit < 2*i:
                     limit = 2*i
 
-        result += shortest_len * atoi(line)
+        result += best * atoi(line)
 
     printf("%lld\n", result)  # Output: 126384
 
