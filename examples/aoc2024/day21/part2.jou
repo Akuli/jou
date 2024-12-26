@@ -1,7 +1,6 @@
 import "stdlib/io.jou"
 import "stdlib/ascii.jou"
 import "stdlib/math.jou"
-import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 
@@ -38,15 +37,15 @@ class KeyPad:
 #
 # Return value = how many times total the keys on last keypad were pressed.
 def press_key(keypads: KeyPad*, nkeypads: int, key_to_press: byte) -> long:
-    printf("Press '%c'\n", key_to_press)
-    fflush(stdout)
+#    printf("Press '%c'\n", key_to_press)
+#    fflush(stdout)
 
     if nkeypads == 1:
         # Human is typing here, let's simply count the key presses.
         # We don't care what they are, just how many.
-        printf(" --> trivial\n")
-        fflush(stdout)
-        getchar()
+#        printf("user presses '%c'\n", key_to_press)
+#        fflush(stdout)
+#        #getchar()
         return 1
 
     pos = keypads[0].find_key(key_to_press)
@@ -144,6 +143,7 @@ def main() -> int:
 
     initial_keypads = [
         numeric_keypad,
+        arrow_keypad,
         arrow_keypad,
         arrow_keypad,
     ]
