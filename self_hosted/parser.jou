@@ -860,13 +860,22 @@ class Parser:
         while self->tokens->is_operator(",") and self->tokens[1].kind == TokenKind::Name:
             self->tokens = &self->tokens[2]
 
-        # TODO: more error handling
+        # Error for "x, y = 0"
+        if self->tokens->is_operator("="):
+            fail(self->tokens->location, "only one variable can be assigned at a time")
+
+        if self->tokens->is_operator("="):
+            fail(self->tokens->location, "only one variable can be assigned at a time")
 
         if not self->tokens->is_operator(":"):
             self->tokens->fail_expected_got("':' and a type after it (example: \"foo, bar: int\")")
         self->tokens++
 
         ntv.type = self->parse_type()
+
+        # Error for "x, y: int = 0"
+        if self->tokens->is_operator("="):
+            fail(self->tokens->location, "only one variable can be assigned at a time")
 
         *self = save_state
         return ntv
