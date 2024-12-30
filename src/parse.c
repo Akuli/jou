@@ -960,7 +960,6 @@ static AstEnumDef parse_enumdef(ParserState *ps)
 // Parses the "x: int" part of "x, y, z: int", leaving "y, z: int" to be parsed later.
 static AstNameTypeValue parse_first_of_multiple_local_var_declares(ParserState *ps)
 {
-
     assert(ps->tokens->type == TOKEN_NAME);
     assert(is_operator(&ps->tokens[1], ","));
 
