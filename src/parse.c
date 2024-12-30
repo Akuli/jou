@@ -968,12 +968,13 @@ static AstNameTypeValue parse_first_of_multiple_local_var_declares(ParserState *
     safe_strcpy(ntv.name, ps->tokens->data.name);
 
     // Take a backup of the parser where first variable name and its comma are consumed.
-    ps->tokens += 2;
     ParserState savestate = *ps;
+    savestate.tokens += 2;
 
-    // Find ":" so we can parse the type that comes after it
-    while (ps->tokens->type == TOKEN_NAME || is_operator(&ps->tokens[1], ","))
-        ps->tokens++;
+    // Skip variables and commas so we can parse the type that comes after it
+    ps->tokens++;
+    while (is_operator(ps->tokens, ",") && ps->tokens[1].type == TOKEN_NAME)
+        ps->tokens += 2;
 
     // Error for "x, y = 0"
     if (is_operator(ps->tokens, "="))
