@@ -842,6 +842,35 @@ class Parser:
             body = self->parse_body(),
         }
 
+    # Parses the "x: int" part of "x, y, z: int", leaving "y, z: int" to be parsed later.
+    def parse_first_of_multiple_local_var_declares(self) -> AstNameTypeValue:
+        assert self->tokens->kind == TokenKind::Name
+
+        ntv = AstNameTypeValue{
+            name = self->tokens->short_string,
+            name_location = self->tokens->location,
+        }
+
+        # Take a backup of the parser where first variable name and its comma are consumed.
+        save_state = *self
+        save_state.tokens = &save_state.tokens[2]
+
+        # Skip variables and commas so we can parse the type that comes after it
+        self->tokens++
+        while self->tokens->is_operator(",") and self->tokens[1].kind == TokenKind::Name:
+            self->tokens = &self->tokens[2]
+
+        # TODO: more error handling
+
+        if not self->tokens->is_operator(":"):
+            self->tokens->fail_expected_got("':' and a type after it (example: \"foo, bar: int\")")
+        self->tokens++
+
+        ntv.type = self->parse_type()
+
+        *self = save_state
+        return ntv
+
     def parse_statement(self) -> AstStatement:
         if self->tokens->is_keyword("import"):
             fail(self->tokens->location, "imports must be in the beginning of the file")
@@ -922,6 +951,17 @@ class Parser:
                 location = self->tokens->location,
                 kind = AstStatementKind::WhileLoop,
                 while_loop = self->parse_while_loop(),
+            }
+
+        if (
+            self->tokens[0].kind == TokenKind::Name
+            and self->tokens[1].is_operator(",")
+            and self->tokens[2].kind == TokenKind::Name
+        ):
+            return AstStatement{
+                location = self->tokens->location,
+                kind = AstStatementKind::DeclareLocalVar,
+                var_declaration = self->parse_first_of_multiple_local_var_declares(),
             }
 
         result = self->parse_oneline_statement()
