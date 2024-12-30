@@ -960,28 +960,36 @@ static AstEnumDef parse_enumdef(ParserState *ps)
 // Parses the "x: int" part of "x, y, z: int", leaving "y, z: int" to be parsed later.
 static AstNameTypeValue parse_first_of_multiple_local_var_declares(ParserState *ps)
 {
+
     assert(ps->tokens->type == TOKEN_NAME);
     assert(is_operator(&ps->tokens[1], ","));
 
-    char firstname[100];
-    safe_strcpy(firstname, ps->tokens->data.name);
+    AstNameTypeValue ntv = { .name_location = ps->tokens->location, .value = NULL };
+    safe_strcpy(ntv.name, ps->tokens->data.name);
 
+    // Take a backup of the parser where first variable name and its comma are consumed.
     ps->tokens += 2;
-
-    // Skip to last variable declaration (e.g. "z: int") and parse it to get the type
     ParserState savestate = *ps;
-    while (ps->tokens->type == TOKEN_NAME && is_operator(&ps->tokens[1], ","))
-        ps->tokens += 2;
-    // TODO: test how error message works
-    AstNameTypeValue ntv = parse_name_type_value(ps, "another variable name after ',' (example: \"foo, bar: int\")");
-    *ps = savestate;
 
-    // This syntax is only for declaring variables, not assigning
-    // TODO: test this
-    if (ntv.value)
+    // Find ":" so we can parse the type that comes after it
+    while (ps->tokens->type == TOKEN_NAME || is_operator(&ps->tokens[1], ","))
+        ps->tokens++;
+
+    // Error for "x, y = 0"
+    if (is_operator(ps->tokens, "="))
         fail(ps->tokens->location, "only one variable can be assigned at a time");
 
-    safe_strcpy(ntv.name, firstname);
+    if (!is_operator(ps->tokens, ":"))
+        fail_with_parse_error(ps->tokens, "':' and a type after it (example: \"foo, bar: int\")");
+    ps->tokens++;
+
+    ntv.type = parse_type(ps);
+
+    // Error for "x, y: int = 0"
+    if (is_operator(ps->tokens, "="))
+        fail(ps->tokens->location, "only one variable can be assigned at a time");
+
+    *ps = savestate;
     return ntv;
 }
 
