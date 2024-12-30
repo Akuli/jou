@@ -979,7 +979,7 @@ static AstNameTypeValue parse_first_of_multiple_local_var_declares(ParserState *
     // This syntax is only for declaring variables, not assigning
     // TODO: test this
     if (ntv.value)
-        fail_with_parse_error(ps->tokens, "only one variable can be assigned at a time");
+        fail(ps->tokens->location, "only one variable can be assigned at a time");
 
     safe_strcpy(ntv.name, firstname);
     return ntv;
