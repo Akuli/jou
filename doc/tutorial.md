@@ -315,6 +315,11 @@ def main() -> int:
     return 0
 ```
 
+Here `x: int` creates an integer variable `x` without assigning a value to it.
+This means that we leave 4 bytes of the computer's memory unused for now.
+We then pass the location of that memory to `get_point()`,
+so that it can write to that memory, i.e. set the value of the `x` variable.
+
 Instead of pointers, you could also use an `int[2]` array to return the two values:
 
 ```python
