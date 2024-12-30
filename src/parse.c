@@ -1067,7 +1067,7 @@ static AstStatement parse_statement(ParserState *ps)
         ps->tokens++;
         *result.data.forloop.incr = parse_oneline_statement(ps);
         result.data.forloop.body = parse_body(ps);
-    } else if (ps->tokens->type == TOKEN_NAME && is_operator(&ps->tokens[1], ",")) {
+    } else if (ps->tokens->type == TOKEN_NAME && is_operator(&ps->tokens[1], ",") && ps->tokens[2].type == TOKEN_NAME) {
         result.kind = AST_STMT_DECLARE_LOCAL_VAR;
         result.data.vardecl = parse_first_of_multiple_local_var_declares(ps);
     } else {
