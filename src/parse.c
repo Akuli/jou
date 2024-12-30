@@ -957,6 +957,34 @@ static AstEnumDef parse_enumdef(ParserState *ps)
     return result;
 }
 
+// Parses the "x: int" part of "x, y, z: int", leaving "y, z: int" to be parsed later.
+static AstNameTypeValue parse_first_of_multiple_local_var_declares(ParserState *ps)
+{
+    assert(ps->tokens->type == TOKEN_NAME);
+    assert(is_operator(&ps->tokens[1], ","));
+
+    char firstname[100];
+    safe_strcpy(firstname, ps->tokens->data.name);
+
+    ps->tokens += 2;
+
+    // Skip to last variable declaration (e.g. "z: int") and parse it to get the type
+    ParserState savestate = *ps;
+    while (ps->tokens->type == TOKEN_NAME && is_operator(&ps->tokens[1], ","))
+        ps->tokens += 2;
+    // TODO: test how error message works
+    AstNameTypeValue ntv = parse_name_type_value(ps, "another variable name after ',' (example: \"foo, bar: int\")");
+    *ps = savestate;
+
+    // This syntax is only for declaring variables, not assigning
+    // TODO: test this
+    if (ntv.value)
+        fail_with_parse_error(ps->tokens, "only one variable can be assigned at a time");
+
+    safe_strcpy(ntv.name, firstname);
+    return ntv;
+}
+
 static AstStatement parse_statement(ParserState *ps)
 {
     AstStatement result = { .location = ps->tokens->location };
@@ -1031,6 +1059,9 @@ static AstStatement parse_statement(ParserState *ps)
         ps->tokens++;
         *result.data.forloop.incr = parse_oneline_statement(ps);
         result.data.forloop.body = parse_body(ps);
+    } else if (ps->tokens->type == TOKEN_NAME && is_operator(&ps->tokens[1], ",")) {
+        result.kind = AST_STMT_DECLARE_LOCAL_VAR;
+        result.data.vardecl = parse_first_of_multiple_local_var_declares(ps);
     } else {
         result = parse_oneline_statement(ps);
         eat_newline(ps);
