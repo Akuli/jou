@@ -314,9 +314,10 @@ def main() -> int:
     return 0
 ```
 
-Here `x, y: int` creates two local `int` variables without assigning values to them.
-This means setting aside two 4-byte sections of the computer's memory.
-We then tell the `get_point()` function to write into that memory.
+Here `x, y: int` creates two integer variables without assigning values to them.
+This means that we leave 8 bytes (4 bytes for both) of the computer's memory unused for now.
+We then pass the location of that memory to `get_point()`,
+so that it can write to that memory, i.e. set the values of the `x` and `y` variables.
 
 Instead of pointers, you could also use an `int[2]` array to return the two values:
 
