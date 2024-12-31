@@ -1,0 +1,10 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def main() -> int:
+    array = [1, 2, 3]
+    p: void* = array
+    memset(p, 0, 4)
+    printf("[%d, %d, %d]\n", array[0], array[1], array[2])  # Output: [0, 2, 3]
+    return 0
