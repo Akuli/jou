@@ -623,6 +623,7 @@ static void do_explicit_cast(const FunctionOrMethodTypes *fom, ExpressionTypes *
     if (
         from != to
         && !(from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER && from->data.array.membertype == to->data.valuetype)
+        && !(from->kind == TYPE_ARRAY && to->kind == TYPE_VOID_POINTER)
         && !(is_pointer_type(from) && is_pointer_type(to))
         && !(is_number_type(from) && is_number_type(to))
         && !(is_integer_type(from) && to->kind == TYPE_ENUM)
