@@ -308,17 +308,16 @@ def get_point(x: int*, y: int*) -> None:
     *y = 456
 
 def main() -> int:
-    x: int
-    y: int
+    x, y: int
     get_point(&x, &y)
     printf("The point is (%d,%d)\n", x, y)  # Output: The point is (123,456)
     return 0
 ```
 
-Here `x: int` creates an integer variable `x` without assigning a value to it.
-This means that we leave 4 bytes of the computer's memory unused for now.
+Here `x, y: int` creates two integer variables without assigning values to them.
+This means that we leave 8 bytes (4 bytes for both) of the computer's memory unused for now.
 We then pass the location of that memory to `get_point()`,
-so that it can write to that memory, i.e. set the value of the `x` variable.
+so that it can write to that memory, i.e. set the values of the `x` and `y` variables.
 
 Instead of pointers, you could also use an `int[2]` array to return the two values:
 
@@ -366,15 +365,14 @@ def get_point(x: int*, y: int*) -> None:
     *y = 456
 
 def main() -> int:
-    x: int
-    y: int
+    x, y: int
     get_point(&x, &y)
     printf("The point is (%d,%d)\n", x, y)  # Output: The point is (123,456)
     return 0
 ```
 
-Here `x: int` creates a variable of type `int` without assigning a value to it.
-If you try to use the value of `x` before it is set,
+Here `x, y: int` creates two variables of type `int` without assigning values to them.
+If you try to use the value of `x` or `y` before they are set,
 you will most likely get a compiler warning together with a random garbage value when the program runs.
 For example, if I delete the `get_point(&x, &y)` line, I get:
 

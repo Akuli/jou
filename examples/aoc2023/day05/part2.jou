@@ -42,9 +42,7 @@ class Map:
     ntriples: int
 
     def add_triple(self, s: byte*) -> None:
-        a: long
-        b: long
-        c: long
+        a, b, c: long
         assert sscanf(s, "%lld %lld %lld", &a, &b, &c) == 3
 
         assert self->ntriples < sizeof(self->triples)/sizeof(self->triples[0])

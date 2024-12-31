@@ -164,12 +164,7 @@ def main() -> int:
 
     r: Ray
 
-    x: long
-    y: long
-    z: long
-    dx: long
-    dy: long
-    dz: long
+    x, y, z, dx, dy, dz: long
     while fscanf(f, "%lld, %lld, %lld @ %lld, %lld, %lld\n", &x, &y, &z, &dx, &dy, &dz) == 6:
         assert nrays < sizeof(rays)/sizeof(rays[0])
         rays[nrays++] = Ray{start = [x,y], dir = [dx,dy]}

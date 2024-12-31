@@ -55,8 +55,7 @@ def find_adjacent_numbers(input: byte*, p: byte*) -> int[10]:
         for dx = -1; dx <= 1; dx++:
             neighbor = &p[dx + line_size*dy]
             if input <= neighbor and neighbor < &input[strlen(input)] and is_ascii_digit(*neighbor):
-                start: byte*
-                end: byte*
+                start, end: byte*
                 find_whole_number(input, neighbor, &start, &end)
                 if start != last_start or end != last_end:
                     last_start = start
