@@ -541,8 +541,11 @@ static bool can_cast_implicitly(const Type *from, const Type *to)
     return
         from == to
         || (
-            // array to pointer implicitly
+            // array to pointer with same item type
             from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER && from->data.array.membertype == to->data.valuetype
+        ) || (
+            // array to void*
+            from->kind == TYPE_ARRAY && to->kind == TYPE_VOID_POINTER
         ) || (
             // Cast to bigger integer types implicitly, unless it is signed-->unsigned.
             is_integer_type(from)
@@ -594,7 +597,7 @@ static void do_implicit_cast(
         fail_with_implicit_cast_error(location, errormsg_template, from, to);
 
     types->implicit_cast_type = to;
-    types->implicit_array_to_pointer_cast = (from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER);
+    types->implicit_array_to_pointer_cast = (from->kind == TYPE_ARRAY && is_pointer_type(to));
     if (types->implicit_array_to_pointer_cast)
         ensure_can_take_address(
             fom,
@@ -620,6 +623,7 @@ static void do_explicit_cast(const FunctionOrMethodTypes *fom, ExpressionTypes *
     if (
         from != to
         && !(from->kind == TYPE_ARRAY && to->kind == TYPE_POINTER && from->data.array.membertype == to->data.valuetype)
+        && !(from->kind == TYPE_ARRAY && to->kind == TYPE_VOID_POINTER)
         && !(is_pointer_type(from) && is_pointer_type(to))
         && !(is_number_type(from) && is_number_type(to))
         && !(is_integer_type(from) && to->kind == TYPE_ENUM)
