@@ -329,74 +329,81 @@ def all_instances(regex: byte*) -> byte**:
     return result
 
 
-def count_presses_for_numpad_moves(numpad_moves: byte*) -> long:
-    ctr = LengthCounter{}
-    for i = 0; i < sizeof(ctr.queues) / sizeof(ctr.queues[0]); i++:
-        ctr.queues[i] = ""
-    ctr.queues[0] = numpad_moves
-    memset(ctr.prev_bytes, 'A', sizeof(ctr.prev_bytes))
-
-    counters: LengthCounter[10000]
-    counters[0] = ctr
-    counters_end = &counters[sizeof(counters) / sizeof(counters[0])]
-
-    head = &counters[1]  # there is one counter
-    tail = &counters[0]
-    best = -1L
-
-    while head != tail:
-        ctr = *tail++
-        if tail == counters_end:
-            tail = &counters[0]
-
-        #ctr.dump()
-
-        if ctr.all_queues_are_empty():
-            result = ctr.counted_length
-            if best == -1 or result < best:
-                best = result
-            continue
-
-        it_worked = ctr.advance()
-        if it_worked:
-            *head++ = ctr
-            if head == counters_end:
-                head = &counters[0]
-            assert head != tail  # not full
-        else:
-            assert ctr.needs_splitting()
-            new_counters = ctr.split()
-
-            *head++ = new_counters[0]
-            if head == counters_end:
-                head = &counters[0]
-            assert head != tail  # not full
-
-            *head++ = new_counters[1]
-            if head == counters_end:
-                head = &counters[0]
-            assert head != tail  # not full
+# Cost of user pressing a key on keypad 0
+def keypad0_cost(keypad0_prev_key: byte, keypad0_key: byte) -> long:
+    return 1
 
 
-    return best
+# Cost of robot pressing a key on keypad 1
+def keypad1_cost(keypad1_prev_key: byte, keypad1_key: byte) -> long:
+    keypad1_moves_regex = arrow_keypad_table[keypad1_prev_key][keypad1_key]
+    insts = all_instances(keypad1_moves_regex)
+
+    best_cost = -1L
+    for i = 0; insts[i] != NULL; i++:
+        cost = 0L
+        prev = 'A'  # robot is still aimed at activate button after the previous key press
+        for p = insts[i]; *p != '\0'; p++:
+            cost += keypad0_cost(prev, *p)
+            prev = *p
+        free(insts[i])
+
+        if best_cost == -1 or cost < best_cost:
+            best_cost = cost
+
+    free(insts)
+    return best_cost
+
+
+# Cost of robot pressing a key on keypad 2
+def keypad2_cost(keypad2_prev_key: byte, keypad2_key: byte) -> long:
+    keypad2_moves_regex = arrow_keypad_table[keypad2_prev_key][keypad2_key]
+    insts = all_instances(keypad2_moves_regex)
+
+    best_cost = -1L
+    for i = 0; insts[i] != NULL; i++:
+        cost = 0L
+        prev = 'A'  # robot is still aimed at activate button after the previous key press
+        for p = insts[i]; *p != '\0'; p++:
+            cost += keypad1_cost(prev, *p)
+            prev = *p
+        free(insts[i])
+
+        if best_cost == -1 or cost < best_cost:
+            best_cost = cost
+
+    free(insts)
+    return best_cost
+
+
+def count_presses_for_numpad_moves(moves: byte*) -> long:
+    cost = 0L
+    prev = 'A'  # robot is still aimed at activate button after the previous key press
+    for p = moves; *p != '\0'; p++:
+        cost += keypad2_cost(prev, *p)
+        prev = *p
+    return cost
 
 
 def do_the_thing(code: byte*) -> None:
     printf("Code: %s\n", code)
     fflush(stdout)
     numpad_regex = get_numpad_regex(code)
-    numpad_moves = all_instances(numpad_regex)
+    insts = all_instances(numpad_regex)
 
-    for i = 0; numpad_moves[i] != NULL; i++:
-        n = count_presses_for_numpad_moves(numpad_moves[i])
-        printf("  %s --> %lld\n", numpad_moves[i], n)
+    for i = 0; insts[i] != NULL; i++:
+        printf("Trying %s...\n", insts[i])
+        n = count_presses_for_numpad_moves(insts[i])
+        printf("  %s --> %lld\n", insts[i], n)
         fflush(stdout)
-        free(numpad_moves[i])
-    free(numpad_moves)
+        free(insts[i])
+    free(insts)
+    puts("")
 
 
 def main() -> int:
     init_tables()
+#    printf("%d\n", keypad2_cost('<', '>'))
     do_the_thing("029A")
     do_the_thing("980A")
     do_the_thing("179A")

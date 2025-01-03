@@ -1,33 +1,13 @@
-Pitäisi painella <^
-Liikutaan A:sta alas ja ihan vasemmalle, sitten ylös: v<<A>^A
+Viimeisessä stringissä hinnat.
+Hakasuluissa oleva on prefiksi, jonka pitää olla edessä.
+[...^]^ --> A --> 1
+[...^]A --> >A --> 2
+[...^]< --> v<A --> 3
+[...^]v --> vA --> 2
+[...^]> --> v>A | >vA --> 3
+[...A]A --> A --> 1
+jne
 
-numpad moves:
-	"^^" => ""
-	"^A" => ">"
-	"^<" => "v<"
-	"^v" => "v"
-	"^>" => "v>" tai ">v"
-
-	"A^" => "<"
-	"AA" => ""
-	"A<" => "v<<"
-	"Av" => "v<"
-	"A>" => "v"
-
-	"<^" => ">^"
-	"<A" => ">>^"
-	"<<" => ""
-	"<v" => ">"
-	"<>" => ">>"
-
-	"v^" => "^"
-	"vA" => ">^" tai "^>"
-	"v<" => "<"
-	"vv" => ""
-	"v>" => ">"
-
-	">^" => "<^" tai "^<"
-	">A" => "^"
-	"><" => "<<"
-	">v" => "<"
-	">>" => ""
+Sitten toisiksi viimeisen stringin hinnoittelua. Riippuu edellisestä.
+[...^^]^ --> [...A]A --> 1
+[...
