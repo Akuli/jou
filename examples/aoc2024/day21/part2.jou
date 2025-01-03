@@ -147,308 +147,252 @@ def get_numpad_regex(code: byte*) -> byte[100]:
     return result
 
 
-def find_opening_paren(start: byte*, p: byte*) -> byte*:
-    assert p >= start
-    assert *p == ')'
-    depth = 1
-    while depth != 0:
-        p--
-        assert p >= start
-        if *p == ')':
-            depth++
-        if *p == '(':
-            depth--
-    assert *p == '('
-    return p
+class LengthCounter:
+    queues: byte*[3]
+    prev_bytes: byte[3]
+    counted_length: long
 
+    def dump(self) -> None:
+        printf("--- Counter Dump BEGINS ---\n")
+        printf("Counted Length: %lld\n", self->counted_length)
+        for i = 0; i < sizeof(self->queues) / sizeof(self->queues[0]); i++:
+            printf("Queue %d: prev byte '%c', queued \"%s\"\n", i, self->prev_bytes[i], self->queues[i])
+        printf("--- Counter Dump ENDS ---\n")
+        fflush(stdout)
 
-def find_closing_paren(p: byte*) -> byte*:
-    assert *p == '('
-    depth = 1
-    while depth != 0:
-        p++
-        assert *p != '\0'
-        if *p == '(':
-            depth++
-        if *p == ')':
-            depth--
-    assert *p == ')'
-    return p
+    def all_queues_are_empty(self) -> bool:
+        for i = 0; i < sizeof(self->queues) / sizeof(self->queues[0]); i++:
+            if self->queues[i][0] != '\0':
+                return False
+        return True
 
+    def needs_splitting(self) -> bool:
+        for i = sizeof(self->queues) / sizeof(self->queues[0]) - 1; i >= 0; i--:
+            if self->queues[i][0] != '\0':
+                # Found last queue that contains branching
+                return self->queues[i][0] == '('
+        # We're fully done, all queues are empty
+        return False
 
-# Branches look like (choice1|choice2|choice3), where each choice may contain more branching.
-# This function calculates how long a choice is, given its start.
-def choice_len(p: byte*) -> int:
-    n = 0
-    depth = 0
-    for n = 0; p[n] != '\0'; n++:
-        if depth == 0 and (p[n] == '|' or p[n] == ')'):
-            # Found it :)
-            break
-        if p[n] == '(':
-            depth++
-        if p[n] == ')':
-            depth--
+    def split(self) -> LengthCounter[2]:
+        assert self->needs_splitting()
 
-    return n
+        i = sizeof(self->queues) / sizeof(self->queues[0]) - 1
+        while self->queues[i][0] == '\0':
+            assert i > 0
+            i--
+        assert self->queues[i][0] == '('
 
-
-# For looping through all choices.
-def next_choice(prev_start: byte*) -> byte*:
-    assert prev_start != NULL
-    end = &prev_start[choice_len(prev_start)]
-    if *end == ')':
-        # Last choice was processed, we're done
-        return NULL
-    assert *end == '|'
-    return &end[1]
-
-
-class StringBuilder:
-    ptr: byte*
-    len: long
-    alloc: long
-
-    def grow(self, desired_size: long) -> None:
-        if self->alloc == 0:
-            self->alloc = 1
-        while self->alloc < desired_size:
-            self->alloc *= 2
-
-        self->ptr = realloc(self->ptr, sizeof(self->ptr[0]) * self->alloc)
-        assert self->ptr != NULL
-
-    def append_str_n(self, s: byte*, n: long) -> None:
-        assert n >= 0
-        self->grow(self->len + n)
-        memcpy(&self->ptr[self->len], s, n)
-        self->len += n
-
-    def append_str(self, s: byte*) -> None:
-        self->append_str_n(s, strlen(s))
-
-    def terminate(self) -> None:
-        self->grow(self->len + 1)
-        self->ptr[self->len] = '\0'
-
-
-# If two branchings are after each other, combines them like so:
-# (a|b)(c|d) --> (ac|ad|bc|bd)
-def combine_adjacent_branches(orig_regex: byte*) -> byte*:
-    close1 = strstr(orig_regex, ")(")
-    if close1 == NULL:
-        return NULL  # nothing to do
-
-    open1 = find_opening_paren(orig_regex, close1)
-    open2 = &close1[1]
-    close2 = find_closing_paren(open2)
-
-    sb = StringBuilder{}
-
-    # Add the prefix that is not changed
-    sb.append_str_n(orig_regex, (open1 as long) - (orig_regex as long))
-
-    # Combine both branches into one.
-    sb.append_str("(")
-    for choice1 = &open1[1]; choice1 != NULL; choice1 = next_choice(choice1):
-        len1 = choice_len(choice1)
-        for choice2 = &open2[1]; choice2 != NULL; choice2 = next_choice(choice2):
-            len2 = choice_len(choice2)
-            sb.append_str_n(choice1, len1)
-            sb.append_str_n(choice2, len2)
-            sb.append_str("|")
-
-    assert sb.ptr[sb.len - 1] == '|'
-    sb.ptr[sb.len - 1] = ')'
-
-    # Add common suffix
-    sb.append_str(&close2[1])
-
-    sb.terminate()
-    return sb.ptr
-
-
-# Examples: ('^' indicates p parameter)
-#
-#   (a(b|c)d|e) --> abd|acd|e
-#         ^
-#
-#   (a|b(c|d)e) --> a|bce|bde
-#           ^
-def merge_with_outer_group(orig_regex: byte*, p: byte*) -> byte*:
-    assert *p == ')'  # end of inner group
-    ig_close = p
-
-    while True:
-        p++
-        p = &p[choice_len(p)]
-        if *p == ')':
-            og_close = p
-            break
-        assert *p == '|'
-    og_close = p
-
-    ig_open = find_opening_paren(orig_regex, ig_close)
-    og_open = find_opening_paren(orig_regex, og_close)
-
-    sb = StringBuilder{}
-
-    sb.append_str_n(orig_regex, (og_open as long) - (orig_regex as long))
-    sb.append_str("(")
-
-    for ochoice = &og_open[1]; ochoice != NULL; ochoice = next_choice(ochoice):
-        ochoice_len = choice_len(ochoice)
-        if ochoice <= ig_open and ig_open <= &ochoice[ochoice_len]:
-            # Output multiple choices, one for each inner choice.
-            for ichoice = &ig_open[1]; ichoice != NULL; ichoice = next_choice(ichoice):
-                ichoice_len = choice_len(ichoice)
-                sb.append_str_n(ochoice, (ig_open as long) - (ochoice as long))
-                sb.append_str_n(ichoice, ichoice_len)
-                sb.append_str_n(&ig_close[1], (&ochoice[ochoice_len] as long) - (&ig_close[1] as long))
-                sb.append_str("|")
+        # Replace the branching queue with two new queues, as in "(a|b)c" --> ["ac", "bc"]
+        split: byte*[2]
+        if strcmp(self->queues[i], "(v>|>v)A") == 0:
+            split = ["v>A", ">vA"]
+        elif strcmp(self->queues[i], "(v<|<v)A") == 0:
+            split = ["v<A", "<vA"]
+        elif strcmp(self->queues[i], "(>^|^>)A") == 0:
+            split = [">^A", "^>A"]
+        elif strcmp(self->queues[i], "(<^|^<)A") == 0:
+            split = ["<^A", "^<A"]
         else:
-            # Output this choice as is.
-            sb.append_str_n(ochoice, ochoice_len)
-            sb.append_str("|")
+            # Don't want to do it dynamically, because memory allocation would be hard to get right
+            assert False
 
-    assert sb.ptr[sb.len - 1] == '|'
-    sb.ptr[sb.len - 1] = ')'
+        ctr1 = *self
+        ctr1.queues[i] = split[0]
 
-    sb.append_str(&og_close[1])
+        ctr2 = *self
+        ctr2.queues[i] = split[1]
 
-    sb.terminate()
-    return sb.ptr
+        return [ctr1, ctr2]
+
+    def fill_queue_from_below(self, idx: int) -> bool:
+        assert self->queues[idx][0] == '\0'
+        assert idx != 0
+
+        if self->queues[idx-1][0] == '\0':
+            if not self->fill_queue_from_below(idx-1):
+                # counter needs to be split
+                return False
+
+        prev = self->prev_bytes[idx-1]
+        next = *self->queues[idx-1]
+        assert next != '\0'
+        if next == '(':
+            # counter needs to be split
+            return False
+        self->prev_bytes[idx-1] = next
+        self->queues[idx-1]++
+
+        self->queues[idx] = arrow_keypad_table[prev][next]
+        assert self->queues[idx] != NULL
+        assert self->queues[idx][0] != '\0'
+
+        if self->queues[idx][0] == '(':
+            # counter needs to be split
+            return False
+
+        return True
+
+    def advance(self) -> bool:
+        last_queue_idx = ((sizeof(self->queues) / sizeof(self->queues[0])) as int) - 1
+        if self->queues[last_queue_idx][0] == '\0':
+            fill_ok = self->fill_queue_from_below(last_queue_idx)
+            if not fill_ok:
+                # counter needs to be split
+                return False
+
+        assert self->queues[last_queue_idx][0] != '\0'
+
+#        printf("Counting: %s\n", self->queues[last_queue_idx])
+#        fflush(stdout)
+        self->counted_length += strlen(self->queues[last_queue_idx])
+        self->queues[last_queue_idx] = ""
+        return True
 
 
-# Ensures that there is never a special character '(', '|' or ')' after the
-# end-of-branching character ')'. This simplifies adding another arrow keypad,
-# because we know what the next character will be when branching is done.
-def preprocess_regex(regex: byte*) -> byte*:
-    regex = strdup(regex)
-    assert regex != NULL
+def all_instances(regex: byte*) -> byte**:
+    result: byte**
 
-    while True:
-        # Handle )(
-        regex2 = combine_adjacent_branches(regex)
-        if regex2 != NULL:
-            free(regex)
-            regex = regex2
-            continue
-
-        # Handle )| and ))
-        p = strstr(regex, ")|")
-        if p == NULL:
-            p = strstr(regex, "))")
-        if p != NULL:
-            regex2 = merge_with_outer_group(regex, p)
-            assert regex2 != NULL
-            free(regex)
-            regex = regex2
-            continue
-
-        break
-
-    return regex
-
-
-def shortest_instance_len(regex: byte*) -> long:
-    if strchr(regex, '(') == NULL:
-        # no more branching
-        return strlen(regex)
+    if strstr(regex, "(") == NULL:
+        # no branching
+        result = malloc(sizeof(result[0]) * 2)
+        assert result != NULL
+        result[0] = strdup(regex)
+        assert result[0] != NULL
+        result[1] = NULL
+        return result
 
     if regex[0] != '(':
-        # branches later in the regex, let's recurse for that
-        i = 0
-        while regex[i] != '(':
-            i++
-        return i + shortest_instance_len(&regex[i])
+        # Branches later, do it recursively and add prefix directly from regex
+        n = strcspn(regex, "(")
+        result = all_instances(&regex[n])
+        for i = 0; result[i] != NULL; i++:
+            newstr: byte* = malloc(n + strlen(result[i]) + 1)
+            assert newstr != NULL
+            memcpy(newstr, regex, n)
+            strcpy(&newstr[n], result[i])
+            free(result[i])
+            result[i] = newstr
+        return result
 
-    # starts with branching, let's handle first branch
-    end = find_closing_paren(regex)
+    if regex[strlen(regex)-1] != ')':
+        # Branches at start but not all the way to end, recurse and add suffix from regex
+        suffix = strrchr(regex, ')')
+        assert suffix != NULL
+        suffix++
+        tempcopy = strdup(regex)
+        assert tempcopy != NULL
+        tempcopy[(suffix as long) - (regex as long)] = '\0'
+        result = all_instances(tempcopy)
+        free(tempcopy)
+        for i = 0; result[i] != NULL; i++:
+            result[i] = realloc(result[i], strlen(result[i]) + strlen(suffix) + 1)
+            assert result[i] != NULL
+            strcat(result[i], suffix)
+        return result
+
+    # Handle branching
+    assert regex[0] == '('
+    assert regex[strlen(regex)-1] == ')'
+    result = NULL
+    result_len = 0L
+    start = 1
+    while regex[start-1] != ')':
+        end = start
+        depth = 0
+        while True:
+            end++
+            assert regex[end] != '\0'
+            if depth == 0 and (regex[end] == '|' or regex[end] == ')'):
+                break
+            if regex[end] == '(':
+                depth++
+            if regex[end] == ')':
+                depth--
+        branch = strdup(&regex[start])
+        assert branch != NULL
+        branch[end - start] = '\0'
+        branch_insts = all_instances(branch)
+        free(branch)
+        n = 0
+        while branch_insts[n] != NULL:
+            n++
+        result = realloc(result, sizeof(result[0]) * (result_len + n))
+        assert result != NULL
+        memcpy(&result[result_len], branch_insts, sizeof(result[0]) * n)
+        result_len += n
+        free(branch_insts)
+        start = end+1
+    result = realloc(result, sizeof(result[0]) * (result_len + 1))
+    assert result != NULL
+    result[result_len] = NULL
+    return result
+
+
+def count_presses_for_numpad_moves(numpad_moves: byte*) -> long:
+    ctr = LengthCounter{}
+    for i = 0; i < sizeof(ctr.queues) / sizeof(ctr.queues[0]); i++:
+        ctr.queues[i] = ""
+    ctr.queues[0] = numpad_moves
+    memset(ctr.prev_bytes, 'A', sizeof(ctr.prev_bytes))
+
+    counters: LengthCounter[10000]
+    counters[0] = ctr
+    counters_end = &counters[sizeof(counters) / sizeof(counters[0])]
+
+    head = &counters[1]  # there is one counter
+    tail = &counters[0]
     best = -1L
-    for choice = &regex[1]; choice != NULL; choice = next_choice(choice):
-        substring = strdup(choice)
-        assert substring != NULL
-        substring[choice_len(choice)] = '\0'
-        n = shortest_instance_len(substring)
-        free(substring)
-        if best == -1 or n == best:
-            best = n
 
-    assert best != -1
-    return best + shortest_instance_len(&end[1])
+    while head != tail:
+        ctr = *tail++
+        if tail == counters_end:
+            tail = &counters[0]
 
+        #ctr.dump()
 
-def apply_arrow_keypad_to_regex(orig_regex: byte*) -> byte*:
-    result = StringBuilder{}
+        if ctr.all_queues_are_empty():
+            result = ctr.counted_length
+            if best == -1 or result < best:
+                best = result
+            continue
 
-    prev = 'A'
-    prevstack: byte[1000]
-    prevstack_len = 0
-
-    for i = 0; orig_regex[i] != '\0'; i++:
-        if orig_regex[i] == '(':
-            # We will need to come back to this state later when handling other cases
-            assert prevstack_len < sizeof(prevstack) / sizeof(prevstack[0])
-            prevstack[prevstack_len++] = prev
-            result.append_str("(")
-
-        elif orig_regex[i] == '|':
-            # Process also the letter just after end of branching, since it depends on prev.
-            end = strstr(&orig_regex[i], ")")
-            assert end != NULL
-
-            # Special characters should have been pre-processed away.
-            assert end[1] != '('
-            assert end[1] != '|'
-            assert end[1] != ')'
-
-            if end[1] != '\0':
-                s = arrow_keypad_table[prev][end[1]]
-                assert s != NULL
-                result.append_str(s)
-
-            result.append_str("|")
-
-            # Come back to earlier state
-            assert prevstack_len > 0
-            prev = prevstack[prevstack_len - 1]
-
-        elif orig_regex[i] == ')':
-            result.append_str(")")
-            prevstack_len--
-            if orig_regex[i+1] != '\0':
-                # Next character has already been processed, skip it but use it as prev
-                i++
-                prev = orig_regex[i]
-                assert prev != '\0'
-
+        it_worked = ctr.advance()
+        if it_worked:
+            *head++ = ctr
+            if head == counters_end:
+                head = &counters[0]
+            assert head != tail  # not full
         else:
-            s = arrow_keypad_table[prev][orig_regex[i]]
-            assert s != NULL
-            result.append_str(s)
-            prev = orig_regex[i]
+            assert ctr.needs_splitting()
+            new_counters = ctr.split()
 
-    result.terminate()
-    return result.ptr
+            *head++ = new_counters[0]
+            if head == counters_end:
+                head = &counters[0]
+            assert head != tail  # not full
+
+            *head++ = new_counters[1]
+            if head == counters_end:
+                head = &counters[0]
+            assert head != tail  # not full
+
+
+    return best
 
 
 def do_the_thing(code: byte*) -> None:
-    numpad_array = get_numpad_regex(code)
-
-    regex: byte* = numpad_array
-    for i = 0; i < 2; i++:
-        regex2 = preprocess_regex(regex)
-        if regex != &numpad_array[0]:
-            free(regex)
-        regex = apply_arrow_keypad_to_regex(regex2)
-        free(regex2)
-
-    printf("%s --> %lld (%lld)\n", code, shortest_instance_len(regex), strlen(regex))
+    printf("Code: %s\n", code)
     fflush(stdout)
+    numpad_regex = get_numpad_regex(code)
+    numpad_moves = all_instances(numpad_regex)
 
-    if regex != &numpad_array[0]:
-        free(regex)
+    for i = 0; numpad_moves[i] != NULL; i++:
+        n = count_presses_for_numpad_moves(numpad_moves[i])
+        printf("  %s --> %lld\n", numpad_moves[i], n)
+        fflush(stdout)
+        free(numpad_moves[i])
+    free(numpad_moves)
 
 
 def main() -> int:
