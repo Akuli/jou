@@ -2,231 +2,112 @@ import "stdlib/io.jou"
 import "stdlib/ascii.jou"
 import "stdlib/math.jou"
 import "stdlib/str.jou"
+import "stdlib/mem.jou"
 
 
-# TODO: these belong to somewhere in stdlib
-declare rand() -> int
-declare srand(seed: int) -> None
+def dx_string(dx: int, dest: byte*) -> None:
+    if dx >= 0:
+        memset(dest, '>', dx)
+    else:
+        memset(dest, '<', abs(dx))
+    dest[abs(dx)] = '\0'
 
 
-def manhattan_distance(a: int[2], b: int[2]) -> int:
-    return abs(a[0]-b[0]) + abs(a[1]-b[1])
+def dy_string(dy: int, dest: byte*) -> None:
+    if dy >= 0:
+        memset(dest, 'v', dy)
+    else:
+        memset(dest, '^', abs(dy))
+    dest[abs(dy)] = '\0'
 
 
-class KeyPad:
-    rows: byte[3][4]
-    aimed_at_x: int
-    aimed_at_y: int
-    label_to_xy: int[2][128]
+def change_place_on_numpad(prev: byte, cur: byte, result1: byte*, result2: byte*) -> int:
+    places: int[2][128]
+    memset(places, 0, sizeof(places))
 
-    def setup_mapping(self) -> None:
-        for i = 0; i < 128; i++:
-            self->label_to_xy[i] = [-1, -1]
+    places['7'] = [0, 0]
+    places['8'] = [1, 0]
+    places['9'] = [2, 0]
 
-        for x = 0; x < 3; x++:
-            for y = 0; y < 4; y++:
-                if self->rows[y][x] != ' ':
-                    assert self->rows[y][x] < 128
-                    self->label_to_xy[self->rows[y][x]] = [x, y]
+    places['4'] = [0, 1]
+    places['5'] = [1, 1]
+    places['6'] = [2, 1]
 
-    def get(self, x: int, y: int) -> byte:
-        if x < 0 or x >= 3 or y < 0 or y >= 4:
-            return ' '
-        return self->rows[y][x]
+    places['1'] = [0, 2]
+    places['2'] = [1, 2]
+    places['3'] = [2, 2]
 
-    def find_key(self, button_label: byte) -> int[2]:
-        assert button_label < 128
-        return self->label_to_xy[button_label]
+    # nothing on the left of zero
+    places['0'] = [1, 3]
+    places['A'] = [2, 3]
 
+    old_pos = places[prev]
+    new_pos = places[cur]
+    dx = new_pos[0] - old_pos[0]
+    dy = new_pos[1] - old_pos[1]
 
-# Recursive function. Before we recurse, parameters are:
-#   first keypad = the numeric keypad attached to door (the only numeric)
-#   last keypad = the keypad that a human is typing into
-#
-# Return value = how many times total the keys on last keypad were pressed.
-def press_key(keypads: KeyPad*, nkeypads: int, key_to_press: byte) -> long:
-    if nkeypads >= 20:
-        n = 28-nkeypads
-        while n --> 0:
-            printf("  ")
-        printf("level %d: press '%c'\n", nkeypads, key_to_press)
-        fflush(stdout)
-
-    if nkeypads == 1:
-        # Human is typing here, let's simply count the key presses.
-        # We don't care what they are, just how many.
-#        printf("user presses '%c'\n", key_to_press)
-#        fflush(stdout)
-#        #getchar()
+    if dx == 0:
+        dy_string(result1)
+        strcat(result1, "A")
         return 1
 
-    pos = keypads[0].find_key(key_to_press)
-    old_x = keypads[1].aimed_at_x
-    old_y = keypads[1].aimed_at_y
-    new_x = pos[0]
-    new_y = pos[1]
-    dx = new_x - old_x
-    dy = new_y - old_y
+    if dy == 0:
+        dx_string(result1)
+        strcat(result1, "A")
+        return 1
 
-    if dx < 0:
-        dx_key = '<'
-        dx_step = -1
-    else:
-        dx_key = '>'
-        dx_step = 1
+    # Result 1: first x, then y
+    dx_string(result1)
+    dy_string(&result1[strlen(result1)])
+    strcat(result1, "A")
 
-    if dy < 0:
-        dy_key = '^'
-        dy_step = -1
-    else:
-        dy_key = 'v'
-        dy_step = 1
+    # Result 2: first y, then x
+    dy_string(result1)
+    dx_string(&result1[strlen(result1)])
+    strcat(result1, "A")
 
-    h_first_blocked = (keypads[0].get(new_x, old_y) == ' ')
-    v_first_blocked = (keypads[0].get(old_x, new_y) == ' ')
-    assert not (h_first_blocked and v_first_blocked)
+    return 2
 
-    if dx == 0 or dy == 0:
-        # order doesn't matter
-        assert not h_first_blocked
-        assert not v_first_blocked
-        horizontal_first = True
-    elif h_first_blocked:
-        horizontal_first = False
-    elif v_first_blocked:
-        horizontal_first = True
-    else:
-        # Order usually doesn't matter, but in some cases it does.
-        # Let's choose 50% randomly because I can't think of a good way
-        # to figure out what's best.
-        horizontal_first = (rand() % 100 >= 50)
 
-    result = 0L
+def get_numpad_moves(code: byte*) -> byte[50][20]:
+    assert strlen(code) == 4
+    assert is_ascii_digit(code[0])
+    assert is_ascii_digit(code[1])
+    assert is_ascii_digit(code[2])
+    assert code[3] == 'A'
 
-    if horizontal_first:
-        n = abs(dx)
-        while n --> 0:
-            result += press_key(&keypads[1], nkeypads - 1, dx_key)
-            keypads[1].aimed_at_x += dx_step
+    results: byte[50][20]
+    nresults: int
+    memset(results, 0, sizeof(results))
 
-        n = abs(dy)
-        while n --> 0:
-            result += press_key(&keypads[1], nkeypads - 1, dy_key)
-            keypads[1].aimed_at_y += dy_step
-    else:
-        n = abs(dy)
-        while n --> 0:
-            result += press_key(&keypads[1], nkeypads - 1, dy_key)
-            keypads[1].aimed_at_y += dy_step
+    for i = 0; i < 4; i++:
+        if i == 0:
+            prev = 'A'
+        else:
+            prev = code[i-1]
 
-        n = abs(dx)
-        while n --> 0:
-            result += press_key(&keypads[1], nkeypads - 1, dx_key)
-            keypads[1].aimed_at_x += dx_step
+        string1: byte[10]
+        string2: byte[10]
+        count = change_place_on_numpad(prev, code[i], string1, string2)
 
-    assert keypads[1].aimed_at_x == new_x
-    assert keypads[1].aimed_at_y == new_y
-    assert keypads[0].get(new_x, new_y) == key_to_press
+        if count == 1:
+            for k = 0; k < nresults; k++:
+                strcat(results[k], string1)
+        elif count == 2:
+            # Duplicate the results, handle them both ways
+            memcpy(&results[nresults], results, nresults * sizeof(results[0]))
+            for k = 0; k < nresults; k++:
+                strcat(results[k], string1)
+                strcat(results[nresults + k], string2)
+            nresults *= 2
+        else:
+            assert False
 
-    result += press_key(&keypads[1], nkeypads - 1, 'A')
-    return result
+    return results
 
 
 def main() -> int:
-    srand(123)
-
-    numeric_keypad = KeyPad{
-        rows = [
-            ['7', '8', '9'],
-            ['4', '5', '6'],
-            ['1', '2', '3'],
-            [' ', '0', 'A'],
-        ],
-    }
-
-    arrow_keypad = KeyPad{
-        rows = [
-            [' ', '^', 'A'],
-            ['<', 'v', '>'],
-            [' ', ' ', ' '],
-            [' ', ' ', ' '],
-        ],
-    }
-
-    initial_keypads = [
-        numeric_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-#        arrow_keypad,
-#        arrow_keypad,
-#        arrow_keypad,
-#        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-#        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-        arrow_keypad,
-    ]
-
-#    assert sizeof(initial_keypads)/sizeof(initial_keypads[0]) == 1 + 25 + 1
-
-    for i = 0; i < sizeof(initial_keypads)/sizeof(initial_keypads[0]); i++:
-        initial_keypads[i].setup_mapping()
-
-    # Aim each keypad to the previous (closer to door) keypad's A button
-    for i = 1; i < sizeof(initial_keypads)/sizeof(initial_keypads[0]); i++:
-        aim_at = initial_keypads[i-1].find_key('A')
-        initial_keypads[i].aimed_at_x = aim_at[0]
-        initial_keypads[i].aimed_at_y = aim_at[1]
-
-    f = fopen("sampleinput.txt", "r")
-    assert f != NULL
-
-    result = 0L
-
-    line: byte[20]
-    while fgets(line, sizeof(line) as int, f) != NULL:
-        trim_ascii_whitespace(line)
-        puts(line)
-        fflush(stdout)
-
-        best = -1L
-        limit = 100L
-        for k = 0L; k < limit; k++:
-            keypads = initial_keypads
-
-            counter = 0L
-            for i = 0; line[i] != '\0'; i++:
-                counter += press_key(keypads, sizeof(keypads)/sizeof(keypads[0]) as int, line[i])
-
-            if best == -1 or counter < best:
-                printf("  (k=%lld) new best: %lld\n", k, counter)
-                fflush(stdout)
-                best = counter
-
-                # We found something better, do similar search again to hopefully
-                # discover more if there is
-                if limit < 3*k:
-                    limit = 3*k
-
-        result += best * atoi(line)
-
-    printf("%lld\n", result)  # Output: 126384
-
-    fclose(f)
+    moves = get_numpad_moves("029A")
+    for i = 0; moves[i][0] != '\0'; i++:
+        puts(moves[i])
     return 0
