@@ -1,0 +1,92 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+
+# TODO: belongs to stdlib
+declare memcmp(a: void*, b: void*, n: long) -> int
+
+
+def xor(a: long, b: long) -> long:
+    assert a >= 0
+    assert b >= 0
+
+    result = 0L
+    power_of_two = 1L
+
+    while a != 0 or b != 0:
+        if a % 2 != b % 2:
+            result += power_of_two
+        a /= 2
+        b /= 2
+        power_of_two *= 2
+
+    return result
+
+
+def next_num(n: long) -> long:
+    n = xor(n, n * 64) % 16777216
+    n = xor(n, n / 32) % 16777216
+    n = xor(n, n * 2048) % 16777216
+    return n
+
+
+def num_bananas_from_buyer(state: long, diff_seq: int[4]) -> int:
+    last_deltas = [69, 69, 69, 69]  # dummy values
+
+    k = 2000
+    while k --> 0:
+        old = (state % 10) as int
+        state = next_num(state)
+        new = (state % 10) as int
+        delta = new - old
+
+        # push to end
+        memmove(&last_deltas[0], &last_deltas[1], 3 * sizeof(last_deltas[0]))
+        last_deltas[3] = delta
+
+        if memcmp(last_deltas, diff_seq, sizeof(diff_seq)) == 0:
+            return new
+
+    return 0
+
+
+def main() -> int:
+    inputs: long[3000]
+    ninputs = 0
+
+    f = fopen("sampleinput2.txt", "r")
+    assert f != NULL
+
+    line: byte[100]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        assert ninputs < sizeof(inputs)/sizeof(inputs[0])
+        inputs[ninputs++] = atoll(line)
+
+    fclose(f)
+
+
+    printf("%d\n", num_bananas_from_buyer(1, [-2,1,-1,3]))
+    printf("%d\n", num_bananas_from_buyer(2, [-2,1,-1,3]))
+    printf("%d\n", num_bananas_from_buyer(3, [-2,1,-1,3]))
+    printf("%d\n", num_bananas_from_buyer(2024, [-2,1,-1,3]))
+
+    best = -1
+
+    for a = -9; a <= 9; a++:
+        for b = -9; b <= 9; b++:
+            printf("a=%d b=%d\n", a, b)
+            fflush(stdout)
+            for c = -9; c <= 9; c++:
+                for d = -9; d <= 9; d++:
+                    result = 0
+                    for i = 0; i < ninputs; i++:
+                        result += num_bananas_from_buyer(inputs[i], [a, b, c, d])
+
+                    if result > best:
+                        printf("best = %d bananas for [%d,%d,%d,%d]\n", result, a, b, c, d)
+                        best = result
+
+    printf("%d\n", result)  # Output: 37327623
+
+    return 0
