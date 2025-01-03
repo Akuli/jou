@@ -31,23 +31,25 @@ def next_num(n: long) -> long:
     return n
 
 
-def num_bananas_from_buyer(state: long, diff_seq: int[4]) -> int:
-    last_deltas = [69, 69, 69, 69]  # dummy values
-
-    k = 2000
-    while k --> 0:
+def compute_deltas_and_last_digits(state: long, deltas: int*, last_digits: int*) -> None:
+    result: int[2000]
+    for i = 0; i < 2000; i++:
         old = (state % 10) as int
         state = next_num(state)
         new = (state % 10) as int
-        delta = new - old
+        deltas[i] = new - old
+        last_digits[i] = new
 
-        # push to end
-        memmove(&last_deltas[0], &last_deltas[1], 3 * sizeof(last_deltas[0]))
-        last_deltas[3] = delta
 
-        if memcmp(last_deltas, diff_seq, sizeof(diff_seq)) == 0:
-            return new
-
+def num_bananas_from_buyer(deltas: int*, last_digits: int*, diff_seq: int[4]) -> int:
+    for i = 3; i < 2000; i++:
+        if (
+            diff_seq[0] == deltas[i-3]
+            and diff_seq[1] == deltas[i-2]
+            and diff_seq[2] == deltas[i-1]
+            and diff_seq[3] == deltas[i]
+        ):
+            return last_digits[i]
     return 0
 
 
@@ -56,6 +58,7 @@ def main() -> int:
     ninputs = 0
 
     f = fopen("sampleinput2.txt", "r")
+#    f = fopen("input", "r")
     assert f != NULL
 
     line: byte[100]
@@ -65,28 +68,31 @@ def main() -> int:
 
     fclose(f)
 
+    # Precompute sequence of deltas for each input to speed up
+    deltas: int[2000]* = malloc(sizeof(deltas[0]) * ninputs)
+    last_digits: int[2000]* = malloc(sizeof(last_digits[0]) * ninputs)
 
-    printf("%d\n", num_bananas_from_buyer(1, [-2,1,-1,3]))
-    printf("%d\n", num_bananas_from_buyer(2, [-2,1,-1,3]))
-    printf("%d\n", num_bananas_from_buyer(3, [-2,1,-1,3]))
-    printf("%d\n", num_bananas_from_buyer(2024, [-2,1,-1,3]))
+    assert deltas != NULL
+    assert last_digits != NULL
+
+    for i = 0; i < ninputs; i++:
+        compute_deltas_and_last_digits(inputs[i], deltas[i], last_digits[i])
 
     best = -1
 
     for a = -9; a <= 9; a++:
         for b = -9; b <= 9; b++:
-            printf("a=%d b=%d\n", a, b)
-            fflush(stdout)
             for c = -9; c <= 9; c++:
                 for d = -9; d <= 9; d++:
                     result = 0
                     for i = 0; i < ninputs; i++:
-                        result += num_bananas_from_buyer(inputs[i], [a, b, c, d])
+                        result += num_bananas_from_buyer(deltas[i], last_digits[i], [a, b, c, d])
 
                     if result > best:
                         printf("best = %d bananas for [%d,%d,%d,%d]\n", result, a, b, c, d)
+                        fflush(stdout)
                         best = result
 
-    printf("%d\n", result)  # Output: 37327623
+    printf("%d\n", best)  # Output: 23
 
     return 0
