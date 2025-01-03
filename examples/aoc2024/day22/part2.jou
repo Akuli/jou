@@ -31,52 +31,59 @@ def next_num(n: long) -> long:
     return n
 
 
-def compute_deltas_and_last_digits(state: long, deltas: int*, last_digits: int*) -> None:
-    result: int[2000]
-    for i = 0; i < 2000; i++:
-        old = (state % 10) as int
-        state = next_num(state)
-        new = (state % 10) as int
-        deltas[i] = new - old
-        last_digits[i] = new
+# Return value is always less than 20*20*20*20
+def diffseq_to_int(diffseq: int[4]) -> int:
+    diffseq[0] += 10
+    diffseq[1] += 10
+    diffseq[2] += 10
+    diffseq[3] += 10
+    return ((diffseq[0] * 20 + diffseq[1]) * 20 + diffseq[2]) * 20 + diffseq[3]
 
 
-def num_bananas_from_buyer(deltas: int*, last_digits: int*, diff_seq: int[4]) -> int:
-    for i = 3; i < 2000; i++:
-        if (
-            diff_seq[0] == deltas[i-3]
-            and diff_seq[1] == deltas[i-2]
-            and diff_seq[2] == deltas[i-1]
-            and diff_seq[3] == deltas[i]
-        ):
-            return last_digits[i]
-    return 0
+class Buyer:
+    seed: long
+    diffseq_to_bananas: int*
+
+    def init_from_seed(self) -> None:
+        last_digits: int[2000]
+        deltas: int[2000]
+
+        state = self->seed
+        for i = 0; i < 2000; i++:
+            old = (state % 10) as int
+            state = next_num(state)
+            new = (state % 10) as int
+
+            last_digits[i] = new
+            deltas[i] = new - old
+
+        self->diffseq_to_bananas = calloc(sizeof(self->diffseq_to_bananas[0]), 20*20*20*20)
+        assert self->diffseq_to_bananas != NULL
+
+        # Go backwards so that we overwrite with whatever appears first in array
+        for i = 1999; i >= 3; i--:
+            diffseq = [deltas[i-3], deltas[i-2], deltas[i-1], deltas[i]]
+            self->diffseq_to_bananas[diffseq_to_int(diffseq)] = last_digits[i]
 
 
 def main() -> int:
-    inputs: long[3000]
-    ninputs = 0
+    max_buyers = 3000
+    buyers: Buyer* = malloc(sizeof(buyers[0]) * 3000)
+    assert buyers != NULL
+    nbuyers = 0
 
     f = fopen("sampleinput2.txt", "r")
-#    f = fopen("input", "r")
     assert f != NULL
 
     line: byte[100]
     while fgets(line, sizeof(line) as int, f) != NULL:
-        assert ninputs < sizeof(inputs)/sizeof(inputs[0])
-        inputs[ninputs++] = atoll(line)
+        assert nbuyers < max_buyers
+        buyers[nbuyers++] = Buyer{seed = atoll(line)}
 
     fclose(f)
 
-    # Precompute sequence of deltas for each input to speed up
-    deltas: int[2000]* = malloc(sizeof(deltas[0]) * ninputs)
-    last_digits: int[2000]* = malloc(sizeof(last_digits[0]) * ninputs)
-
-    assert deltas != NULL
-    assert last_digits != NULL
-
-    for i = 0; i < ninputs; i++:
-        compute_deltas_and_last_digits(inputs[i], deltas[i], last_digits[i])
+    for i = 0; i < nbuyers; i++:
+        buyers[i].init_from_seed()
 
     best = -1
 
@@ -85,14 +92,16 @@ def main() -> int:
             for c = -9; c <= 9; c++:
                 for d = -9; d <= 9; d++:
                     result = 0
-                    for i = 0; i < ninputs; i++:
-                        result += num_bananas_from_buyer(deltas[i], last_digits[i], [a, b, c, d])
+                    for i = 0; i < nbuyers; i++:
+                        result += buyers[i].diffseq_to_bananas[diffseq_to_int([a, b, c, d])]
 
                     if result > best:
-                        printf("best = %d bananas for [%d,%d,%d,%d]\n", result, a, b, c, d)
-                        fflush(stdout)
                         best = result
 
     printf("%d\n", best)  # Output: 23
+
+    for i = 0; i < nbuyers; i++:
+        free(buyers[i].diffseq_to_bananas)
+    free(buyers)
 
     return 0
