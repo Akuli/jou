@@ -380,10 +380,7 @@ def shortest_instance_len(regex: byte*) -> long:
 
 
 def apply_arrow_keypad_to_regex(orig_regex: byte*) -> byte*:
-    max_result_len = 10*strlen(orig_regex)  # hopefully enough...
-    result: byte* = malloc(max_result_len + 1)
-    assert result != NULL
-    result_len = 0L
+    result = StringBuilder{}
 
     prev = 'A'
     prevstack: byte[1000]
@@ -394,8 +391,7 @@ def apply_arrow_keypad_to_regex(orig_regex: byte*) -> byte*:
             # We will need to come back to this state later when handling other cases
             assert prevstack_len < sizeof(prevstack) / sizeof(prevstack[0])
             prevstack[prevstack_len++] = prev
-
-            result[result_len++] = '('
+            result.append_str("(")
 
         elif orig_regex[i] == '|':
             # Process also the letter just after end of branching, since it depends on prev.
@@ -410,17 +406,15 @@ def apply_arrow_keypad_to_regex(orig_regex: byte*) -> byte*:
 
             s = arrow_keypad_table[prev][end[1]]
             assert s != NULL
-            strcpy(&result[result_len], s)
-            result_len += strlen(s)
-
-            result[result_len++] = '|'
+            result.append_str(s)
+            result.append_str("|")
 
             # Come back to earlier state
             assert prevstack_len > 0
             prev = prevstack[prevstack_len - 1]
 
         elif orig_regex[i] == ')':
-            result[result_len++] = ')'
+            result.append_str(")")
             prevstack_len--
             if orig_regex[i+1] != '\0':
                 # Next character has already been processed, skip it but use it as prev
@@ -431,12 +425,11 @@ def apply_arrow_keypad_to_regex(orig_regex: byte*) -> byte*:
         else:
             s = arrow_keypad_table[prev][orig_regex[i]]
             assert s != NULL
-            strcpy(&result[result_len], s)
-            result_len += strlen(s)
+            result.append_str(s)
             prev = orig_regex[i]
 
-    result[result_len] = '\0'
-    return result
+    result.terminate()
+    return result.ptr
 
 
 def do_the_thing(code: byte*) -> None:
