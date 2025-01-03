@@ -402,11 +402,12 @@ def apply_arrow_keypad_to_regex(orig_regex: byte*) -> byte*:
             assert end[1] != '('
             assert end[1] != '|'
             assert end[1] != ')'
-            assert end[1] != '\0'
 
-            s = arrow_keypad_table[prev][end[1]]
-            assert s != NULL
-            result.append_str(s)
+            if end[1] != '\0':
+                s = arrow_keypad_table[prev][end[1]]
+                assert s != NULL
+                result.append_str(s)
+
             result.append_str("|")
 
             # Come back to earlier state
@@ -433,16 +434,21 @@ def apply_arrow_keypad_to_regex(orig_regex: byte*) -> byte*:
 
 
 def do_the_thing(code: byte*) -> None:
-    regex1 = get_numpad_regex(code)
-    regex2 = preprocess_regex(regex1)
-    regex3 = apply_arrow_keypad_to_regex(regex2)
-    regex4 = preprocess_regex(regex3)
-    regex5 = apply_arrow_keypad_to_regex(regex4)
-    printf("%s %lld\n", code, shortest_instance_len(regex5))
-    free(regex2)
-    free(regex3)
-    free(regex4)
-    free(regex5)
+    numpad_array = get_numpad_regex(code)
+
+    regex: byte* = numpad_array
+    for i = 0; i < 2; i++:
+        regex2 = preprocess_regex(regex)
+        if regex != &numpad_array[0]:
+            free(regex)
+        regex = apply_arrow_keypad_to_regex(regex2)
+        free(regex2)
+
+    printf("%s --> %lld (%lld)\n", code, shortest_instance_len(regex), strlen(regex))
+    fflush(stdout)
+
+    if regex != &numpad_array[0]:
+        free(regex)
 
 
 def main() -> int:
