@@ -15,10 +15,17 @@ global arrow_keypad_table: byte*[2][128][128]
 # For example, numpad_table['7'] = [0, 0] because it's in top left corner.
 global numpad_table: int[2][128]
 
+# Cost is number of button presses by user.
+#
+# Indexed by level. Level 0 is the directional keypad where user types (cost is
+# always 1). Levels 1-25 are operated by robots, so there are 26 levels.
+global cost_cache: long[128][128][26]
+
 
 def init_tables() -> None:
     memset(arrow_keypad_table, 0, sizeof(arrow_keypad_table))
     memset(numpad_table, 0, sizeof(numpad_table))
+    memset(cost_cache, 0, sizeof(cost_cache))
 
     #   ^ A
     # < v >
@@ -157,73 +164,63 @@ def get_numpad_move_sequences(code: byte*) -> byte[50][50]:
     return results
 
 
-# Cost of user pressing a key on keypad 0
-def keypad0_cost(keypad0_prev_key: byte, keypad0_key: byte) -> long:
-    return 1
+# Level 0 = user
+# Level 25 = keypad closest to door
+#
+# Returns the cost (number of user presses) needed to press the given key on
+# the keypad at the level. Assumes smaller-numbered levels start at A. This
+# makes sense, because they also go to A at end of pressing the key.
+def keypad_cost(level: int, prev_key: byte, key: byte) -> long:
+    cacheptr = &cost_cache[level][prev_key][key]
+    if *cacheptr != 0:
+        return *cacheptr
+
+    if level == 0:
+        # Single key press from user
+        best_cost = 1L
+    else:
+        moves = arrow_keypad_table[prev_key][key]
+
+        best_cost = -1L
+        for i = 0; i < 2 and moves[i] != NULL; i++:
+            cost = 0L
+            prev = 'A'  # robot is still aimed at activate button after previous key press
+            for p = moves[i]; *p != '\0'; p++:
+                # Press keys on smaller-numbered level
+                cost += keypad_cost(level-1, prev, *p)
+                prev = *p
+
+            if best_cost == -1 or cost < best_cost:
+                best_cost = cost
+
+    *cacheptr = best_cost
+    return best_cost
 
 
-# Cost of robot pressing a key on keypad 1
-def keypad1_cost(keypad1_prev_key: byte, keypad1_key: byte) -> long:
-    moves = arrow_keypad_table[keypad1_prev_key][keypad1_key]
+# No caching
+def numpad_cost(code: byte*) -> long:
+    moves = get_numpad_move_sequences(code)
 
     best_cost = -1L
-    for i = 0; i < 2 and moves[i] != NULL; i++:
+    for i = 0; moves[i][0] != '\0'; i++:
         cost = 0L
-        prev = 'A'  # robot is still aimed at activate button after the previous key press
-        for p = moves[i]; *p != '\0'; p++:
-            cost += keypad0_cost(prev, *p)
+        prev = 'A'
+        for p = &moves[i][0]; *p != '\0'; p++:
+            cost += keypad_cost(2, prev, *p)
             prev = *p
 
         if best_cost == -1 or cost < best_cost:
             best_cost = cost
 
     return best_cost
-
-
-# Cost of robot pressing a key on keypad 2
-def keypad2_cost(keypad2_prev_key: byte, keypad2_key: byte) -> long:
-    moves = arrow_keypad_table[keypad2_prev_key][keypad2_key]
-
-    best_cost = -1L
-    for i = 0; i < 2 and moves[i] != NULL; i++:
-        cost = 0L
-        prev = 'A'  # robot is still aimed at activate button after the previous key press
-        for p = moves[i]; *p != '\0'; p++:
-            cost += keypad1_cost(prev, *p)
-            prev = *p
-
-        if best_cost == -1 or cost < best_cost:
-            best_cost = cost
-
-    return best_cost
-
-
-def count_presses_for_numpad_moves(moves: byte*) -> long:
-    cost = 0L
-    prev = 'A'  # robot is still aimed at activate button after the previous key press
-    for p = moves; *p != '\0'; p++:
-        cost += keypad2_cost(prev, *p)
-        prev = *p
-    return cost
 
 
 def do_the_thing(code: byte*) -> None:
-    printf("Code: %s\n", code)
-    fflush(stdout)
-
-    moves = get_numpad_move_sequences(code)
-
-    for i = 0; moves[i][0] != '\0'; i++:
-        printf("Trying %s...\n", moves[i])
-        n = count_presses_for_numpad_moves(moves[i])
-        printf("  %s --> %lld\n", moves[i], n)
-        fflush(stdout)
-    puts("")
+    printf("%s %lld\n", code, numpad_cost(code))
 
 
 def main() -> int:
     init_tables()
-#    printf("%d\n", keypad2_cost('<', '>'))
     do_the_thing("029A")
     do_the_thing("980A")
     do_the_thing("179A")
