@@ -17,6 +17,17 @@ class KeyPad:
     rows: byte[3][4]
     aimed_at_x: int
     aimed_at_y: int
+    label_to_xy: int[2][128]
+
+    def setup_mapping(self) -> None:
+        for i = 0; i < 128; i++:
+            self->label_to_xy[i] = [-1, -1]
+
+        for x = 0; x < 3; x++:
+            for y = 0; y < 4; y++:
+                if self->rows[y][x] != ' ':
+                    assert self->rows[y][x] < 128
+                    self->label_to_xy[self->rows[y][x]] = [x, y]
 
     def get(self, x: int, y: int) -> byte:
         if x < 0 or x >= 3 or y < 0 or y >= 4:
@@ -24,11 +35,8 @@ class KeyPad:
         return self->rows[y][x]
 
     def find_key(self, button_label: byte) -> int[2]:
-        for x = 0; x < 3; x++:
-            for y = 0; y < 4; y++:
-                if self->rows[y][x] == button_label:
-                    return [x, y]
-        assert False
+        assert button_label < 128
+        return self->label_to_xy[button_label]
 
 
 # Recursive function. Before we recurse, parameters are:
@@ -37,8 +45,12 @@ class KeyPad:
 #
 # Return value = how many times total the keys on last keypad were pressed.
 def press_key(keypads: KeyPad*, nkeypads: int, key_to_press: byte) -> long:
-#    printf("Press '%c'\n", key_to_press)
-#    fflush(stdout)
+    if nkeypads >= 20:
+        n = 28-nkeypads
+        while n --> 0:
+            printf("  ")
+        printf("level %d: press '%c'\n", nkeypads, key_to_press)
+        fflush(stdout)
 
     if nkeypads == 1:
         # Human is typing here, let's simply count the key presses.
@@ -146,7 +158,35 @@ def main() -> int:
         arrow_keypad,
         arrow_keypad,
         arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+#        arrow_keypad,
+#        arrow_keypad,
+#        arrow_keypad,
+#        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+#        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
+        arrow_keypad,
     ]
+
+#    assert sizeof(initial_keypads)/sizeof(initial_keypads[0]) == 1 + 25 + 1
+
+    for i = 0; i < sizeof(initial_keypads)/sizeof(initial_keypads[0]); i++:
+        initial_keypads[i].setup_mapping()
 
     # Aim each keypad to the previous (closer to door) keypad's A button
     for i = 1; i < sizeof(initial_keypads)/sizeof(initial_keypads[0]); i++:
@@ -166,7 +206,7 @@ def main() -> int:
         fflush(stdout)
 
         best = -1L
-        limit = 1000L
+        limit = 100L
         for k = 0L; k < limit; k++:
             keypads = initial_keypads
 
@@ -181,8 +221,8 @@ def main() -> int:
 
                 # We found something better, do similar search again to hopefully
                 # discover more if there is
-                if limit < 2*i:
-                    limit = 2*i
+                if limit < 3*k:
+                    limit = 3*k
 
         result += best * atoi(line)
 
