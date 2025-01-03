@@ -5,10 +5,11 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 
-# arrow_keypad_table['^']['A'] = [">", NULL]
+# arrow_keypad_table['^']['>'] = [">A", NULL]
 #
-# This means that if we previously pressed ^ and we now press A, we must move right.
-global arrow_keypad_table: byte*[128][128]
+# This means that if robot arm previously pressed ^ and we want it to press >,
+# we must move right and then press A.
+global arrow_keypad_table: byte*[2][128][128]
 
 # Locations of each character in numeric keypad
 # For example, numpad_table['7'] = [0, 0] because it's in top left corner.
@@ -21,35 +22,35 @@ def init_tables() -> None:
 
     #   ^ A
     # < v >
-    arrow_keypad_table['^']['^'] = "A"
-    arrow_keypad_table['^']['A'] = ">A"
-    arrow_keypad_table['^']['<'] = "v<A"
-    arrow_keypad_table['^']['v'] = "vA"
-    arrow_keypad_table['^']['>'] = "(v>|>v)A"
+    arrow_keypad_table['^']['^'] = ["A", NULL as byte*]
+    arrow_keypad_table['^']['A'] = [">A", NULL as byte*]
+    arrow_keypad_table['^']['<'] = ["v<A", NULL as byte*]
+    arrow_keypad_table['^']['v'] = ["vA", NULL as byte*]
+    arrow_keypad_table['^']['>'] = ["v>A", ">vA"]
 
-    arrow_keypad_table['A']['^'] = "<A"
-    arrow_keypad_table['A']['A'] = "A"
-    arrow_keypad_table['A']['<'] = "v<<A"
-    arrow_keypad_table['A']['v'] = "(v<|<v)A"
-    arrow_keypad_table['A']['>'] = "vA"
+    arrow_keypad_table['A']['^'] = ["<A", NULL as byte*]
+    arrow_keypad_table['A']['A'] = ["A", NULL as byte*]
+    arrow_keypad_table['A']['<'] = ["v<<A", NULL as byte*]
+    arrow_keypad_table['A']['v'] = ["v<A", "<vA"]
+    arrow_keypad_table['A']['>'] = ["vA", NULL as byte*]
 
-    arrow_keypad_table['<']['^'] = ">^A"
-    arrow_keypad_table['<']['A'] = ">>^A"
-    arrow_keypad_table['<']['<'] = "A"
-    arrow_keypad_table['<']['v'] = ">A"
-    arrow_keypad_table['<']['>'] = ">>A"
+    arrow_keypad_table['<']['^'] = [">^A", NULL as byte*]
+    arrow_keypad_table['<']['A'] = [">>^A", NULL as byte*]
+    arrow_keypad_table['<']['<'] = ["A", NULL as byte*]
+    arrow_keypad_table['<']['v'] = [">A", NULL as byte*]
+    arrow_keypad_table['<']['>'] = [">>A", NULL as byte*]
 
-    arrow_keypad_table['v']['^'] = "^A"
-    arrow_keypad_table['v']['A'] = "(>^|^>)A"
-    arrow_keypad_table['v']['<'] = "<A"
-    arrow_keypad_table['v']['v'] = "A"
-    arrow_keypad_table['v']['>'] = ">A"
+    arrow_keypad_table['v']['^'] = ["^A", NULL as byte*]
+    arrow_keypad_table['v']['A'] = [">^A", "^>A"]
+    arrow_keypad_table['v']['<'] = ["<A", NULL as byte*]
+    arrow_keypad_table['v']['v'] = ["A", NULL as byte*]
+    arrow_keypad_table['v']['>'] = [">A", NULL as byte*]
 
-    arrow_keypad_table['>']['^'] = "(<^|^<)A"
-    arrow_keypad_table['>']['A'] = "^A"
-    arrow_keypad_table['>']['<'] = "<<A"
-    arrow_keypad_table['>']['v'] = "<A"
-    arrow_keypad_table['>']['>'] = "A"
+    arrow_keypad_table['>']['^'] = ["<^A", "^<A"]
+    arrow_keypad_table['>']['A'] = ["^A", NULL as byte*]
+    arrow_keypad_table['>']['<'] = ["<<A", NULL as byte*]
+    arrow_keypad_table['>']['v'] = ["<A", NULL as byte*]
+    arrow_keypad_table['>']['>'] = ["A", NULL as byte*]
 
     # 7 8 9
     # 4 5 6
@@ -90,243 +91,70 @@ def add_dy_string(dy: int, dest: byte*) -> None:
     dest[offset + abs(dy)] = '\0'
 
 
-# Max length estimate: can't be longer than "(xxyyy|yyyxx)A" because numpad is 3x4 size
-def get_numpad_regex_for_single_move(prev: byte, cur: byte) -> byte[25]:
-    old_pos = numpad_table[prev]
-    new_pos = numpad_table[cur]
-    dx = new_pos[0] - old_pos[0]
-    dy = new_pos[1] - old_pos[1]
-
-    result: byte[25] = ""
-
-    if dx == 0:
-        add_dy_string(dy, result)
-    elif dy == 0:
-        add_dx_string(dx, result)
-    elif old_pos[0] == 0 and new_pos[1] == 3:
-        # Can't do vertical first, would go to forbidden part
-        add_dx_string(dx, result)
-        add_dy_string(dy, result)
-    elif old_pos[1] == 3 and new_pos[0] == 0:
-        # Can't do horizontal first, would go to forbidden part
-        add_dy_string(dy, result)
-        add_dx_string(dx, result)
-    else:
-        # We can move first horizontal then vertical, or first vertical then horizontal.
-        # Result looks like e.g. "(>>vv|vv>>)A"
-        strcat(result, "(")
-        add_dx_string(dx, result)
-        add_dy_string(dy, result)
-        strcat(result, "|")
-        add_dy_string(dy, result)
-        add_dx_string(dx, result)
-        strcat(result, ")")
-
-    strcat(result, "A")
-    return result
-
-
-# Max length estimate: consists of 4 pieces that each fit to 25 bytes
-def get_numpad_regex(code: byte*) -> byte[100]:
+# Each sequence of moves fits in 20 characters:
+#   - numpad is 3x4, so each move is at most 5 characters (2 horizontal, 3 vertical)
+#   - there are 4 moves
+#
+# There are at most 16 sequences of moves:
+#   - start with no moves (1 empty sequence)
+#   - for each move, we have in the worst case 2 different ways to do it, doubles 4 times
+#
+# I used bigger size in case there's mistake :D
+def get_numpad_move_sequences(code: byte*) -> byte[50][50]:
     assert strlen(code) == 4
     assert is_ascii_digit(code[0])
     assert is_ascii_digit(code[1])
     assert is_ascii_digit(code[2])
     assert code[3] == 'A'
 
-    result: byte[100] = ""
+    results: byte[50][50]
+    memset(results, 0, sizeof(results))
+    nresults = 1
 
-    for i = 0; i < 4; i++:
-        if i == 0:
+    for p = code; *p != '\0'; p++:
+        if p == code:
             prev = 'A'
         else:
-            prev = code[i-1]
-        part = get_numpad_regex_for_single_move(prev, code[i])
-        strcat(result, part)
+            prev = p[-1]
 
-    return result
+        old_pos = numpad_table[prev]
+        new_pos = numpad_table[*p]
+        dx = new_pos[0] - old_pos[0]
+        dy = new_pos[1] - old_pos[1]
 
-
-class LengthCounter:
-    queues: byte*[3]
-    prev_bytes: byte[3]
-    counted_length: long
-
-    def dump(self) -> None:
-        printf("--- Counter Dump BEGINS ---\n")
-        printf("Counted Length: %lld\n", self->counted_length)
-        for i = 0; i < sizeof(self->queues) / sizeof(self->queues[0]); i++:
-            printf("Queue %d: prev byte '%c', queued \"%s\"\n", i, self->prev_bytes[i], self->queues[i])
-        printf("--- Counter Dump ENDS ---\n")
-        fflush(stdout)
-
-    def all_queues_are_empty(self) -> bool:
-        for i = 0; i < sizeof(self->queues) / sizeof(self->queues[0]); i++:
-            if self->queues[i][0] != '\0':
-                return False
-        return True
-
-    def needs_splitting(self) -> bool:
-        for i = sizeof(self->queues) / sizeof(self->queues[0]) - 1; i >= 0; i--:
-            if self->queues[i][0] != '\0':
-                # Found last queue that contains branching
-                return self->queues[i][0] == '('
-        # We're fully done, all queues are empty
-        return False
-
-    def split(self) -> LengthCounter[2]:
-        assert self->needs_splitting()
-
-        i = sizeof(self->queues) / sizeof(self->queues[0]) - 1
-        while self->queues[i][0] == '\0':
-            assert i > 0
-            i--
-        assert self->queues[i][0] == '('
-
-        # Replace the branching queue with two new queues, as in "(a|b)c" --> ["ac", "bc"]
-        split: byte*[2]
-        if strcmp(self->queues[i], "(v>|>v)A") == 0:
-            split = ["v>A", ">vA"]
-        elif strcmp(self->queues[i], "(v<|<v)A") == 0:
-            split = ["v<A", "<vA"]
-        elif strcmp(self->queues[i], "(>^|^>)A") == 0:
-            split = [">^A", "^>A"]
-        elif strcmp(self->queues[i], "(<^|^<)A") == 0:
-            split = ["<^A", "^<A"]
+        if dx == 0:
+            for i = 0; i < nresults; i++:
+                add_dy_string(dy, results[i])
+        elif dy == 0:
+            for i = 0; i < nresults; i++:
+                add_dx_string(dx, results[i])
+        elif old_pos[0] == 0 and new_pos[1] == 3:
+            # Can't do vertical first, would go to forbidden part
+            for i = 0; i < nresults; i++:
+                add_dx_string(dx, results[i])
+                add_dy_string(dy, results[i])
+        elif old_pos[1] == 3 and new_pos[0] == 0:
+            # Can't do horizontal first, would go to forbidden part
+            for i = 0; i < nresults; i++:
+                add_dy_string(dy, results[i])
+                add_dx_string(dx, results[i])
         else:
-            # Don't want to do it dynamically, because memory allocation would be hard to get right
-            assert False
+            # We can move first horizontal then vertical, or first vertical then horizontal.
+            # Duplicate results and do both.
+            assert 2 * nresults < sizeof(results) / sizeof(results[0])
+            memcpy(&results[nresults], results, sizeof(results[0]) * nresults)
+            for i = 0; i < nresults; i++:
+                add_dx_string(dx, results[i])
+                add_dy_string(dy, results[i])
+            for i = nresults; i < 2*nresults; i++:
+                add_dy_string(dy, results[i])
+                add_dx_string(dx, results[i])
+            nresults *= 2
 
-        ctr1 = *self
-        ctr1.queues[i] = split[0]
+        for i = 0; i < nresults; i++:
+            strcat(results[i], "A")
 
-        ctr2 = *self
-        ctr2.queues[i] = split[1]
-
-        return [ctr1, ctr2]
-
-    def fill_queue_from_below(self, idx: int) -> bool:
-        assert self->queues[idx][0] == '\0'
-        assert idx != 0
-
-        if self->queues[idx-1][0] == '\0':
-            if not self->fill_queue_from_below(idx-1):
-                # counter needs to be split
-                return False
-
-        prev = self->prev_bytes[idx-1]
-        next = *self->queues[idx-1]
-        assert next != '\0'
-        if next == '(':
-            # counter needs to be split
-            return False
-        self->prev_bytes[idx-1] = next
-        self->queues[idx-1]++
-
-        self->queues[idx] = arrow_keypad_table[prev][next]
-        assert self->queues[idx] != NULL
-        assert self->queues[idx][0] != '\0'
-
-        if self->queues[idx][0] == '(':
-            # counter needs to be split
-            return False
-
-        return True
-
-    def advance(self) -> bool:
-        last_queue_idx = ((sizeof(self->queues) / sizeof(self->queues[0])) as int) - 1
-        if self->queues[last_queue_idx][0] == '\0':
-            fill_ok = self->fill_queue_from_below(last_queue_idx)
-            if not fill_ok:
-                # counter needs to be split
-                return False
-
-        assert self->queues[last_queue_idx][0] != '\0'
-
-#        printf("Counting: %s\n", self->queues[last_queue_idx])
-#        fflush(stdout)
-        self->counted_length += strlen(self->queues[last_queue_idx])
-        self->queues[last_queue_idx] = ""
-        return True
-
-
-def all_instances(regex: byte*) -> byte**:
-    result: byte**
-
-    if strstr(regex, "(") == NULL:
-        # no branching
-        result = malloc(sizeof(result[0]) * 2)
-        assert result != NULL
-        result[0] = strdup(regex)
-        assert result[0] != NULL
-        result[1] = NULL
-        return result
-
-    if regex[0] != '(':
-        # Branches later, do it recursively and add prefix directly from regex
-        n = strcspn(regex, "(")
-        result = all_instances(&regex[n])
-        for i = 0; result[i] != NULL; i++:
-            newstr: byte* = malloc(n + strlen(result[i]) + 1)
-            assert newstr != NULL
-            memcpy(newstr, regex, n)
-            strcpy(&newstr[n], result[i])
-            free(result[i])
-            result[i] = newstr
-        return result
-
-    if regex[strlen(regex)-1] != ')':
-        # Branches at start but not all the way to end, recurse and add suffix from regex
-        suffix = strrchr(regex, ')')
-        assert suffix != NULL
-        suffix++
-        tempcopy = strdup(regex)
-        assert tempcopy != NULL
-        tempcopy[(suffix as long) - (regex as long)] = '\0'
-        result = all_instances(tempcopy)
-        free(tempcopy)
-        for i = 0; result[i] != NULL; i++:
-            result[i] = realloc(result[i], strlen(result[i]) + strlen(suffix) + 1)
-            assert result[i] != NULL
-            strcat(result[i], suffix)
-        return result
-
-    # Handle branching
-    assert regex[0] == '('
-    assert regex[strlen(regex)-1] == ')'
-    result = NULL
-    result_len = 0L
-    start = 1
-    while regex[start-1] != ')':
-        end = start
-        depth = 0
-        while True:
-            end++
-            assert regex[end] != '\0'
-            if depth == 0 and (regex[end] == '|' or regex[end] == ')'):
-                break
-            if regex[end] == '(':
-                depth++
-            if regex[end] == ')':
-                depth--
-        branch = strdup(&regex[start])
-        assert branch != NULL
-        branch[end - start] = '\0'
-        branch_insts = all_instances(branch)
-        free(branch)
-        n = 0
-        while branch_insts[n] != NULL:
-            n++
-        result = realloc(result, sizeof(result[0]) * (result_len + n))
-        assert result != NULL
-        memcpy(&result[result_len], branch_insts, sizeof(result[0]) * n)
-        result_len += n
-        free(branch_insts)
-        start = end+1
-    result = realloc(result, sizeof(result[0]) * (result_len + 1))
-    assert result != NULL
-    result[result_len] = NULL
-    return result
+    return results
 
 
 # Cost of user pressing a key on keypad 0
@@ -336,43 +164,37 @@ def keypad0_cost(keypad0_prev_key: byte, keypad0_key: byte) -> long:
 
 # Cost of robot pressing a key on keypad 1
 def keypad1_cost(keypad1_prev_key: byte, keypad1_key: byte) -> long:
-    keypad1_moves_regex = arrow_keypad_table[keypad1_prev_key][keypad1_key]
-    insts = all_instances(keypad1_moves_regex)
+    moves = arrow_keypad_table[keypad1_prev_key][keypad1_key]
 
     best_cost = -1L
-    for i = 0; insts[i] != NULL; i++:
+    for i = 0; i < 2 and moves[i] != NULL; i++:
         cost = 0L
         prev = 'A'  # robot is still aimed at activate button after the previous key press
-        for p = insts[i]; *p != '\0'; p++:
+        for p = moves[i]; *p != '\0'; p++:
             cost += keypad0_cost(prev, *p)
             prev = *p
-        free(insts[i])
 
         if best_cost == -1 or cost < best_cost:
             best_cost = cost
 
-    free(insts)
     return best_cost
 
 
 # Cost of robot pressing a key on keypad 2
 def keypad2_cost(keypad2_prev_key: byte, keypad2_key: byte) -> long:
-    keypad2_moves_regex = arrow_keypad_table[keypad2_prev_key][keypad2_key]
-    insts = all_instances(keypad2_moves_regex)
+    moves = arrow_keypad_table[keypad2_prev_key][keypad2_key]
 
     best_cost = -1L
-    for i = 0; insts[i] != NULL; i++:
+    for i = 0; i < 2 and moves[i] != NULL; i++:
         cost = 0L
         prev = 'A'  # robot is still aimed at activate button after the previous key press
-        for p = insts[i]; *p != '\0'; p++:
+        for p = moves[i]; *p != '\0'; p++:
             cost += keypad1_cost(prev, *p)
             prev = *p
-        free(insts[i])
 
         if best_cost == -1 or cost < best_cost:
             best_cost = cost
 
-    free(insts)
     return best_cost
 
 
@@ -388,16 +210,14 @@ def count_presses_for_numpad_moves(moves: byte*) -> long:
 def do_the_thing(code: byte*) -> None:
     printf("Code: %s\n", code)
     fflush(stdout)
-    numpad_regex = get_numpad_regex(code)
-    insts = all_instances(numpad_regex)
 
-    for i = 0; insts[i] != NULL; i++:
-        printf("Trying %s...\n", insts[i])
-        n = count_presses_for_numpad_moves(insts[i])
-        printf("  %s --> %lld\n", insts[i], n)
+    moves = get_numpad_move_sequences(code)
+
+    for i = 0; moves[i][0] != '\0'; i++:
+        printf("Trying %s...\n", moves[i])
+        n = count_presses_for_numpad_moves(moves[i])
+        printf("  %s --> %lld\n", moves[i], n)
         fflush(stdout)
-        free(insts[i])
-    free(insts)
     puts("")
 
 
