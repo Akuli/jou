@@ -47,24 +47,24 @@ def change_place_on_numpad(prev: byte, cur: byte, result1: byte*, result2: byte*
     dy = new_pos[1] - old_pos[1]
 
     if dx == 0:
-        dy_string(result1)
+        dy_string(dy, result1)
         strcat(result1, "A")
         return 1
 
     if dy == 0:
-        dx_string(result1)
+        dx_string(dx, result1)
         strcat(result1, "A")
         return 1
 
     # Result 1: first x, then y
-    dx_string(result1)
-    dy_string(&result1[strlen(result1)])
+    dx_string(dx, result1)
+    dy_string(dy, &result1[strlen(result1)])
     strcat(result1, "A")
 
     # Result 2: first y, then x
-    dy_string(result1)
-    dx_string(&result1[strlen(result1)])
-    strcat(result1, "A")
+    dy_string(dy, result2)
+    dx_string(dx, &result2[strlen(result2)])
+    strcat(result2, "A")
 
     return 2
 
@@ -77,7 +77,7 @@ def get_numpad_moves(code: byte*) -> byte[50][20]:
     assert code[3] == 'A'
 
     results: byte[50][20]
-    nresults: int
+    nresults = 1  # one empty string for now
     memset(results, 0, sizeof(results))
 
     for i = 0; i < 4; i++:
@@ -106,8 +106,108 @@ def get_numpad_moves(code: byte*) -> byte[50][20]:
     return results
 
 
+# arrow_keypad_table['^']['A'] = [">", NULL]
+#
+# This means that if we previously pressed ^ and we now press A, we must move right.
+global arrow_keypad_table: byte*[2][128][128]
+
+
+def init_arrow_keypad_table() -> None:
+    #   ^ A
+    # < v >
+    arrow_keypad_table['^']['^'] = ["", NULL as byte*]
+    arrow_keypad_table['^']['A'] = [">", NULL as byte*]
+    arrow_keypad_table['^']['<'] = ["v<", NULL as byte*]
+    arrow_keypad_table['^']['v'] = ["v", NULL as byte*]
+    arrow_keypad_table['^']['>'] = ["v>", ">v"]
+    arrow_keypad_table['A']['^'] = ["<", NULL as byte*]
+    arrow_keypad_table['A']['A'] = ["", NULL as byte*]
+    arrow_keypad_table['A']['<'] = ["v<<", NULL as byte*]
+    arrow_keypad_table['A']['v'] = ["v<", "<v"]
+    arrow_keypad_table['A']['>'] = ["v", NULL as byte*]
+    arrow_keypad_table['<']['^'] = [">^", NULL as byte*]
+    arrow_keypad_table['<']['A'] = [">>^", NULL as byte*]
+    arrow_keypad_table['<']['<'] = ["", NULL as byte*]
+    arrow_keypad_table['<']['v'] = [">", NULL as byte*]
+    arrow_keypad_table['<']['>'] = [">>", NULL as byte*]
+    arrow_keypad_table['v']['^'] = ["^", NULL as byte*]
+    arrow_keypad_table['v']['A'] = [">^", "^>"]
+    arrow_keypad_table['v']['<'] = ["<", NULL as byte*]
+    arrow_keypad_table['v']['v'] = ["", NULL as byte*]
+    arrow_keypad_table['v']['>'] = [">", NULL as byte*]
+    arrow_keypad_table['>']['^'] = ["<^", "^<"]
+    arrow_keypad_table['>']['A'] = ["^", NULL as byte*]
+    arrow_keypad_table['>']['<'] = ["<<", NULL as byte*]
+    arrow_keypad_table['>']['v'] = ["<", NULL as byte*]
+    arrow_keypad_table['>']['>'] = ["", NULL as byte*]
+
+
+def apply_arrow_keypad(s: byte*) -> byte**:
+    alloc_size = 4*strlen(s) + 1  # surely big enough to fit result string
+    results: byte** = malloc(sizeof(results[0]))
+    assert results != NULL
+    results[0] = malloc(alloc_size)
+    assert results[0] != NULL
+    results[0][0] = '\0'
+    nresults = 1
+
+    for i = 0; s[i] != '\0'; i++:
+        printf("hi! %c\n", s[i])
+        fflush(stdout)
+        if i == 0:
+            prev = 'A'
+        else:
+            prev = s[i-1]
+            assert prev < 128
+
+        to_add = arrow_keypad_table[prev][s[i]]
+        if to_add[1] == NULL:
+            for k = 0; k < nresults; k++:
+                strcat(results[k], to_add[0])
+                strcat(results[k], "A")
+        else:
+            # Duplicate the results and add both possible suffixes
+            results = realloc(results, sizeof(results[0]) * 2 * nresults)
+            assert results != NULL
+            for k = 0; k < nresults; k++:
+                results[nresults + k] = malloc(alloc_size)
+                assert results[nresults + k] != NULL
+                strcpy(results[nresults + k], results[k])
+                strcat(results[k], to_add[0])
+                strcat(results[k], "A")
+                strcat(results[nresults + k], to_add[1])
+                strcat(results[nresults + k], "A")
+            nresults *= 2
+
+    results = realloc(results, sizeof(results[0]) * (nresults + 1))
+    assert results != NULL
+    results[nresults] = NULL
+    return results
+
+
 def main() -> int:
-    moves = get_numpad_moves("029A")
+    init_arrow_keypad_table()
+
+    moves = get_numpad_moves("980A")
     for i = 0; moves[i][0] != '\0'; i++:
         puts(moves[i])
+
+    puts("------")
+    fflush(stdout)
+
+    results = apply_arrow_keypad(moves[0])
+    minlen = -1L
+    for i = 0; results[i] != NULL; i++:
+        results2 = apply_arrow_keypad(results[i])
+        for k = 0; results2[k] != NULL; k++:
+            len = strlen(results2[k])
+            if minlen == -1 or len < minlen:
+                minlen = len
+            free(results2[k])
+        free(results2)
+        free(results[i])
+    free(results)
+
+    printf("%lld\n", minlen)
+
     return 0
