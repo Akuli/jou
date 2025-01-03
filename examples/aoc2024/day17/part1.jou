@@ -1,0 +1,151 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+def combo_op_to_string(n: int) -> byte*:
+    assert 0 <= n and n <= 6
+    results = ["0", "1", "2", "3", "A", "B", "C"]
+    return results[n]
+
+
+# Prints machine code and registers to stdout in human-readable form.
+# In the code, 0-7 are instructions and operands and -1 = halt.
+def print_code(code: int*) -> None:
+    for i = 0; code[i] != -1; i += 2:
+        printf("%4d  ", i)
+
+        opcode = code[i]
+        operand = code[i+1]
+
+        if opcode == 0:
+            printf("A /= 2**%s\n", combo_op_to_string(operand))
+        elif opcode == 1:
+            printf("B ^= %d\n", operand)
+        elif opcode == 2:
+            printf("B = %s %% 8\n", combo_op_to_string(operand))
+        elif opcode == 3:
+            printf("if A != 0: jump to %d\n", operand)
+        elif opcode == 4:
+            printf("B ^= C\n")
+        elif opcode == 5:
+            printf("output %s %% 8\n", combo_op_to_string(operand))
+        elif opcode == 6:
+            printf("B = A / 2**%s\n", combo_op_to_string(operand))
+        elif opcode == 7:
+            printf("C = A / 2**%s\n", combo_op_to_string(operand))
+        else:
+            assert False
+
+
+# TODO: xor operator
+def xor(a: long, b: long) -> long:
+    assert a >= 0
+    assert b >= 0
+
+    result = 0L
+    power_of_two = 1L
+
+    while a != 0 or b != 0:
+        if a % 2 != b % 2:
+            result += power_of_two
+        a /= 2
+        b /= 2
+        power_of_two *= 2
+
+    return result
+
+
+def do_combo_op(n: int, regs: long[3]) -> long:
+    assert 0 <= n and n <= 6
+    if n >= 4:
+        return regs[n - 4]
+    else:
+        return n
+
+
+def run_code(code: int*, regs: long[3]) -> None:
+    output_started = False
+    ip = &code[0]
+
+    while *ip != -1:
+        opcode = *ip++
+        operand = *ip++
+
+        if opcode == 0:  # adv = A DiVision
+            i = do_combo_op(operand, regs)
+            while i --> 0:
+                regs[0] /= 2  # TODO: add left shift operator to Jou
+        elif opcode == 1:  # bxl = B bitwise Xor with Literal
+            regs[1] = xor(regs[1], operand)
+        elif opcode == 2:  # bst = B Set value and Truncate to 3 bits
+            regs[1] = do_combo_op(operand, regs) % 8
+        elif opcode == 3:  # jnz = Jump if NonZero
+            if regs[0] != 0:
+                ip = &code[operand]
+        elif opcode == 4:  # bxc = B Xor C
+            regs[1] = xor(regs[1], regs[2])
+        elif opcode == 5:  # out = OUTput value
+            if output_started:
+                putchar(',')
+            output_started = True
+            printf("%d", do_combo_op(operand, regs) % 8)
+        elif opcode == 6:  # bdv = B DiVision
+            regs[1] = regs[0]
+            i = do_combo_op(operand, regs)
+            while i --> 0:
+                regs[1] /= 2
+        elif opcode == 7:  # cdv = C DiVision
+            regs[2] = regs[0]
+            i = do_combo_op(operand, regs)
+            while i --> 0:
+                regs[2] /= 2
+
+    putchar('\n')
+
+
+def main() -> int:
+    f = fopen("sampleinput1.txt", "r")
+    assert f != NULL
+
+    line: byte[1000]
+    code: int[100]
+    reg_a = 0L
+    reg_b = 0L
+    reg_c = 0L
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        if starts_with(line, "Register A: "):
+            reg_a = atoll(&line[12])
+        elif starts_with(line, "Register B: "):
+            reg_b = atoll(&line[12])
+        elif starts_with(line, "Register C: "):
+            reg_c = atoll(&line[12])
+        elif starts_with(line, "Program: "):
+            p = &line[9]
+            code_len = 0
+            while True:
+                number = *p++
+                assert '0' <= number and number <= '7'
+                assert code_len < sizeof(code)/sizeof(code[0])
+                code[code_len++] = number - '0'
+                if *p++ != ',':
+                    break
+            # Terminate with many halt instructions to reduce risk of overflow :)
+            for i = 0; i < 10; i++:
+                assert code_len < sizeof(code)/sizeof(code[0])
+                code[code_len++] = -1
+
+    fclose(f)
+
+    # Output: Registers: A=729 B=0 C=0
+    printf("Registers: A=%lld B=%lld C=%lld\n", reg_a, reg_b, reg_c)
+
+    # Output:    0  A /= 2**1
+    # Output:    2  output A % 8
+    # Output:    4  if A != 0: jump to 0
+    print_code(code)
+
+    # Output: 4,6,3,5,6,3,5,2,1,0
+    run_code(code, [reg_a, reg_b, reg_c])
+
+    return 0

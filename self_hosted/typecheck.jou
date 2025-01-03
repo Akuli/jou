@@ -31,6 +31,7 @@ def can_cast_implicitly(from: Type*, to: Type*) -> bool:
     return (
         from == to
         or (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::VoidPointer)
         or (
             from->is_integer_type()
             and to->is_integer_type()
@@ -46,6 +47,7 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
     return (
         from == to
         or (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::VoidPointer)
         or (from->is_pointer_type() and to->is_pointer_type())
         or (from->is_number_type() and to->is_number_type())
         or (from->is_integer_type() and to->kind == TypeKind::Enum)
@@ -165,7 +167,7 @@ class ExpressionTypes:
             fail_with_implicit_cast_error(error_location, error_template, from, to)
 
         self->implicit_cast_type = to
-        if from->kind == TypeKind::Array and to->kind == TypeKind::Pointer:
+        if from->kind == TypeKind::Array and to->is_pointer_type():
             self->implicit_array_to_pointer_cast = True
             ensure_can_take_address(
                 self->expression,

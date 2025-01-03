@@ -957,6 +957,42 @@ static AstEnumDef parse_enumdef(ParserState *ps)
     return result;
 }
 
+// Parses the "x: int" part of "x, y, z: int", leaving "y, z: int" to be parsed later.
+static AstNameTypeValue parse_first_of_multiple_local_var_declares(ParserState *ps)
+{
+    assert(ps->tokens->type == TOKEN_NAME);
+    assert(is_operator(&ps->tokens[1], ","));
+
+    AstNameTypeValue ntv = { .name_location = ps->tokens->location, .value = NULL };
+    safe_strcpy(ntv.name, ps->tokens->data.name);
+
+    // Take a backup of the parser where first variable name and its comma are consumed.
+    ParserState savestate = *ps;
+    savestate.tokens += 2;
+
+    // Skip variables and commas so we can parse the type that comes after it
+    ps->tokens++;
+    while (is_operator(ps->tokens, ",") && ps->tokens[1].type == TOKEN_NAME)
+        ps->tokens += 2;
+
+    // Error for "x, y = 0"
+    if (is_operator(ps->tokens, "="))
+        fail(ps->tokens->location, "only one variable can be assigned at a time");
+
+    if (!is_operator(ps->tokens, ":"))
+        fail_with_parse_error(ps->tokens, "':' and a type after it (example: \"foo, bar: int\")");
+    ps->tokens++;
+
+    ntv.type = parse_type(ps);
+
+    // Error for "x, y: int = 0"
+    if (is_operator(ps->tokens, "="))
+        fail(ps->tokens->location, "only one variable can be assigned at a time");
+
+    *ps = savestate;
+    return ntv;
+}
+
 static AstStatement parse_statement(ParserState *ps)
 {
     AstStatement result = { .location = ps->tokens->location };
@@ -1031,6 +1067,9 @@ static AstStatement parse_statement(ParserState *ps)
         ps->tokens++;
         *result.data.forloop.incr = parse_oneline_statement(ps);
         result.data.forloop.body = parse_body(ps);
+    } else if (ps->tokens->type == TOKEN_NAME && is_operator(&ps->tokens[1], ",") && ps->tokens[2].type == TOKEN_NAME) {
+        result.kind = AST_STMT_DECLARE_LOCAL_VAR;
+        result.data.vardecl = parse_first_of_multiple_local_var_declares(ps);
     } else {
         result = parse_oneline_statement(ps);
         eat_newline(ps);

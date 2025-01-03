@@ -1,0 +1,72 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+class State:
+    x: int
+    y: int
+    steps: int
+
+    def next_states(self) -> State[4]:
+        return [
+            State{x=self->x+1, y=self->y, steps=self->steps + 1},
+            State{x=self->x-1, y=self->y, steps=self->steps + 1},
+            State{x=self->x, y=self->y+1, steps=self->steps + 1},
+            State{x=self->x, y=self->y-1, steps=self->steps + 1},
+        ]
+
+
+def main() -> int:
+    # Sample input parameters
+    filename = "sampleinput.txt"
+    size = 7
+
+    # Actual input parameters
+#    filename = "input"
+#    size = 71
+
+    grid: byte[71][71]
+    min_steps: int[71][71]
+
+    f = fopen(filename, "r")
+    assert f != NULL
+
+    memset(&grid, '.', sizeof(grid))
+    x_in, y_in: int
+    while fscanf(f, "%d,%d\n", &x_in, &y_in) == 2:
+        assert 0 <= x_in and x_in < size
+        assert 0 <= y_in and y_in < size
+        grid[y_in][x_in] = '#'
+
+        int_max = 0x7fffffff  # TODO: belongs to stdlib
+        for x = 0; x < size; x++:
+            for y = 0; y < size; y++:
+                min_steps[y][x] = int_max
+
+        todo: State[2000]
+        todo[0] = State{x=0, y=0, steps=0}
+        todo_len = 1
+
+        while todo_len > 0:
+            state = todo[0]
+            todo_len--
+            memmove(&todo[0], &todo[1], todo_len * sizeof(todo[0]))
+
+            if state.x < 0 or state.x >= size or state.y < 0 or state.y >= size or grid[state.y][state.x] == '#':
+                continue
+
+            steps_ptr = &min_steps[state.y][state.x]
+            if state.steps < *steps_ptr:
+                *steps_ptr = state.steps
+
+                next_states: State[4] = state.next_states()
+                assert todo_len + 4 <= sizeof(todo)/sizeof(todo[0])
+                memcpy(&todo[todo_len], &next_states, sizeof(next_states))
+                todo_len += 4
+
+        if min_steps[size-1][size-1] == int_max:
+            printf("%d,%d\n", x_in, y_in)  # Output: 6,1
+            break
+
+    fclose(f)
+    return 0

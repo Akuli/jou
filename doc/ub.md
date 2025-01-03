@@ -113,7 +113,7 @@ the call to `make_string()` is evaluated first.
 Once `make_string()` has returned, its local variables no longer exist,
 and as you would expect, it is UB to access pointers that point into them.
 
-A simple fix is to return the entire array from `make_string()`, not just the first character.
+A simple fix is to return the entire array from `make_string()`, not just its location in memory.
 In other words, we change `-> byte*` to `-> byte[50]`.
 This gives us a new compiler error on a different line:
 

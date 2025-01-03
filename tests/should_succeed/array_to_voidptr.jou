@@ -1,0 +1,17 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def main() -> int:
+    # Implicit cast
+    array = [1, 2, 3, 4]
+    p: void* = array
+    memset(p, 0, 4)
+    printf("[%d, %d, %d]\n", array[0], array[1], array[2])  # Output: [0, 2, 3]
+
+    # Explicit cast
+    array = [1, 2, 3, 4]
+    memset(array as void*, 0, 4)
+    printf("[%d, %d, %d]\n", array[0], array[1], array[2])  # Output: [0, 2, 3]
+
+    return 0

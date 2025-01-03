@@ -174,12 +174,7 @@ def read_input(N: int) -> MovingPoint*:
 
     result: MovingPoint* = malloc(N * sizeof(result[0]))
     for i = 0; i < N; i++:
-        x: long
-        y: long
-        z: long
-        dx: long
-        dy: long
-        dz: long
+        x, y, z, dx, dy, dz: long
         assert fscanf(f, "%lld, %lld, %lld @ %lld, %lld, %lld\n", &x, &y, &z, &dx, &dy, &dz) == 6
         result[i] = MovingPoint{start = [x,y,z], speed = [dx,dy,dz]}
 
