@@ -5,6 +5,69 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 
+# arrow_keypad_table['^']['A'] = [">", NULL]
+#
+# This means that if we previously pressed ^ and we now press A, we must move right.
+global arrow_keypad_table: byte*[2][128][128]
+
+# Locations of each character in numeric keypad
+# For example, numpad_table['7'] = [0, 0] because it's in top left corner.
+global numpad_table: int[2][128]
+
+
+def init_tables() -> None:
+    memset(arrow_keypad_table, 0, sizeof(arrow_keypad_table))
+    memset(numpad_table, 0, sizeof(numpad_table))
+
+    #   ^ A
+    # < v >
+    arrow_keypad_table['^']['^'] = ["", NULL as byte*]
+    arrow_keypad_table['^']['A'] = [">", NULL as byte*]
+    arrow_keypad_table['^']['<'] = ["v<", NULL as byte*]
+    arrow_keypad_table['^']['v'] = ["v", NULL as byte*]
+    arrow_keypad_table['^']['>'] = ["v>", ">v"]
+    arrow_keypad_table['A']['^'] = ["<", NULL as byte*]
+    arrow_keypad_table['A']['A'] = ["", NULL as byte*]
+    arrow_keypad_table['A']['<'] = ["v<<", NULL as byte*]
+    arrow_keypad_table['A']['v'] = ["v<", "<v"]
+    arrow_keypad_table['A']['>'] = ["v", NULL as byte*]
+    arrow_keypad_table['<']['^'] = [">^", NULL as byte*]
+    arrow_keypad_table['<']['A'] = [">>^", NULL as byte*]
+    arrow_keypad_table['<']['<'] = ["", NULL as byte*]
+    arrow_keypad_table['<']['v'] = [">", NULL as byte*]
+    arrow_keypad_table['<']['>'] = [">>", NULL as byte*]
+    arrow_keypad_table['v']['^'] = ["^", NULL as byte*]
+    arrow_keypad_table['v']['A'] = [">^", "^>"]
+    arrow_keypad_table['v']['<'] = ["<", NULL as byte*]
+    arrow_keypad_table['v']['v'] = ["", NULL as byte*]
+    arrow_keypad_table['v']['>'] = [">", NULL as byte*]
+    arrow_keypad_table['>']['^'] = ["<^", "^<"]
+    arrow_keypad_table['>']['A'] = ["^", NULL as byte*]
+    arrow_keypad_table['>']['<'] = ["<<", NULL as byte*]
+    arrow_keypad_table['>']['v'] = ["<", NULL as byte*]
+    arrow_keypad_table['>']['>'] = ["", NULL as byte*]
+
+    # 7 8 9
+    # 4 5 6
+    # 1 2 3
+    #   0 A
+    numpad_table['7'] = [0, 0]
+    numpad_table['8'] = [1, 0]
+    numpad_table['9'] = [2, 0]
+
+    numpad_table['4'] = [0, 1]
+    numpad_table['5'] = [1, 1]
+    numpad_table['6'] = [2, 1]
+
+    numpad_table['1'] = [0, 2]
+    numpad_table['2'] = [1, 2]
+    numpad_table['3'] = [2, 2]
+
+    # nothing on the left of zero
+    numpad_table['0'] = [1, 3]
+    numpad_table['A'] = [2, 3]
+
+
 def dx_string(dx: int, dest: byte*) -> None:
     if dx >= 0:
         memset(dest, '>', dx)
@@ -22,27 +85,8 @@ def dy_string(dy: int, dest: byte*) -> None:
 
 
 def change_place_on_numpad(prev: byte, cur: byte, result1: byte*, result2: byte*) -> int:
-    places: int[2][128]
-    memset(places, 0, sizeof(places))
-
-    places['7'] = [0, 0]
-    places['8'] = [1, 0]
-    places['9'] = [2, 0]
-
-    places['4'] = [0, 1]
-    places['5'] = [1, 1]
-    places['6'] = [2, 1]
-
-    places['1'] = [0, 2]
-    places['2'] = [1, 2]
-    places['3'] = [2, 2]
-
-    # nothing on the left of zero
-    places['0'] = [1, 3]
-    places['A'] = [2, 3]
-
-    old_pos = places[prev]
-    new_pos = places[cur]
+    old_pos = numpad_table[prev]
+    new_pos = numpad_table[cur]
     dx = new_pos[0] - old_pos[0]
     dy = new_pos[1] - old_pos[1]
 
@@ -106,42 +150,6 @@ def get_numpad_moves(code: byte*) -> byte[50][20]:
     return results
 
 
-# arrow_keypad_table['^']['A'] = [">", NULL]
-#
-# This means that if we previously pressed ^ and we now press A, we must move right.
-global arrow_keypad_table: byte*[2][128][128]
-
-
-def init_arrow_keypad_table() -> None:
-    #   ^ A
-    # < v >
-    arrow_keypad_table['^']['^'] = ["", NULL as byte*]
-    arrow_keypad_table['^']['A'] = [">", NULL as byte*]
-    arrow_keypad_table['^']['<'] = ["v<", NULL as byte*]
-    arrow_keypad_table['^']['v'] = ["v", NULL as byte*]
-    arrow_keypad_table['^']['>'] = ["v>", ">v"]
-    arrow_keypad_table['A']['^'] = ["<", NULL as byte*]
-    arrow_keypad_table['A']['A'] = ["", NULL as byte*]
-    arrow_keypad_table['A']['<'] = ["v<<", NULL as byte*]
-    arrow_keypad_table['A']['v'] = ["v<", "<v"]
-    arrow_keypad_table['A']['>'] = ["v", NULL as byte*]
-    arrow_keypad_table['<']['^'] = [">^", NULL as byte*]
-    arrow_keypad_table['<']['A'] = [">>^", NULL as byte*]
-    arrow_keypad_table['<']['<'] = ["", NULL as byte*]
-    arrow_keypad_table['<']['v'] = [">", NULL as byte*]
-    arrow_keypad_table['<']['>'] = [">>", NULL as byte*]
-    arrow_keypad_table['v']['^'] = ["^", NULL as byte*]
-    arrow_keypad_table['v']['A'] = [">^", "^>"]
-    arrow_keypad_table['v']['<'] = ["<", NULL as byte*]
-    arrow_keypad_table['v']['v'] = ["", NULL as byte*]
-    arrow_keypad_table['v']['>'] = [">", NULL as byte*]
-    arrow_keypad_table['>']['^'] = ["<^", "^<"]
-    arrow_keypad_table['>']['A'] = ["^", NULL as byte*]
-    arrow_keypad_table['>']['<'] = ["<<", NULL as byte*]
-    arrow_keypad_table['>']['v'] = ["<", NULL as byte*]
-    arrow_keypad_table['>']['>'] = ["", NULL as byte*]
-
-
 def apply_arrow_keypad(s: byte*) -> byte**:
     alloc_size = 4*strlen(s) + 1  # surely big enough to fit result string
     results: byte** = malloc(sizeof(results[0]))
@@ -152,8 +160,6 @@ def apply_arrow_keypad(s: byte*) -> byte**:
     nresults = 1
 
     for i = 0; s[i] != '\0'; i++:
-        printf("hi! %c\n", s[i])
-        fflush(stdout)
         if i == 0:
             prev = 'A'
         else:
@@ -186,7 +192,7 @@ def apply_arrow_keypad(s: byte*) -> byte**:
 
 
 def main() -> int:
-    init_arrow_keypad_table()
+    init_tables()
 
     moves = get_numpad_moves("980A")
     for i = 0; moves[i][0] != '\0'; i++:
