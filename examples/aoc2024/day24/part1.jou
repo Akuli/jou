@@ -1,0 +1,140 @@
+import "stdlib/str.jou"
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+
+
+enum LogicOp:
+    And
+    Or
+    Xor
+
+
+class LogicGate:
+    inputs: int*[2]  # -1 = undefined, otherwise 0 or 1
+    output: int*
+    op: LogicOp
+
+    def run(self) -> None:
+        if *self->inputs[0] == -1 or *self->inputs[1] == -1:
+            return
+
+        i1 = (*self->inputs[0] == 1)
+        i2 = (*self->inputs[1] == 1)
+
+        if self->op == LogicOp::And:
+            *self->output = (i1 and i2) as int
+        elif self->op == LogicOp::Or:
+            *self->output = (i1 or i2) as int
+        elif self->op == LogicOp::Xor:
+            *self->output = (i1 != i2) as int
+        else:
+            assert False
+
+
+class VariableManager:
+    variables: int[500]
+    nvariables: int
+    varnames: byte[4][500]
+
+    def get_var(self, name: byte*) -> int*:
+        for i = 0; i < self->nvariables; i++:
+            if strcmp(name, self->varnames[i]) == 0:
+                return &self->variables[i]
+        return NULL
+
+    def get_or_create_var(self, name: byte*) -> int*:
+        exist = self->get_var(name)
+        if exist != NULL:
+            return exist
+
+        assert self->nvariables < 500
+        i = self->nvariables++
+
+        assert strlen(name) == 3
+        strcpy(self->varnames[i], name)
+        self->variables[i] = -1  # uninitialized
+
+        return &self->variables[i]
+
+    def get_result(self) -> long:
+        # Variables starting with z are named z00, z01, z02, ...
+        # Loop backwards to get bit order right.
+        zcount = 0
+        for i = 0; i < self->nvariables; i++:
+            if self->varnames[i][0] == 'z':
+                zcount++
+
+        result = 0L
+        for i = zcount-1; i >= 0; i--:
+            name: byte[100]
+            sprintf(name, "z%02d", i)
+
+            v = self->get_var(name)
+            assert v != NULL
+            if *v == -1:
+                return -1
+
+            result *= 2
+            result += *v
+
+        return result
+
+
+def main() -> int:
+    varmgr = VariableManager{}
+
+    gates: LogicGate[500]
+    ngates = 0
+
+    f = fopen("input", "r")
+    assert f != NULL
+
+    line: byte[100]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        if line[0] == '\0':
+            # end of initial values, start of logic gates
+            break
+
+        # initial value of variable, e.g. "x01: 1"
+        assert strlen(line) == 6
+        assert line[3] == ':'
+        line[3] = '\0'
+        *varmgr.get_or_create_var(line) = atoi(&line[5])
+
+    input1, op, input2, output: byte[4]
+    while fscanf(f, "%3s %3s %3s -> %3s\n", input1, op, input2, output) == 4:
+        if strcmp(op, "AND") == 0:
+            op_enum = LogicOp::And
+        elif strcmp(op, "OR") == 0:
+            op_enum = LogicOp::Or
+        elif strcmp(op, "XOR") == 0:
+            op_enum = LogicOp::Xor
+        else:
+            assert False
+
+        assert ngates < sizeof(gates)/sizeof(gates[0])
+        gates[ngates++] = LogicGate{
+            inputs = [varmgr.get_or_create_var(input1), varmgr.get_or_create_var(input2)],
+            output = varmgr.get_or_create_var(output),
+            op = op_enum,
+        }
+
+    # Check that no gate has multiple outputs hooked up to its input
+    for i = 0; i < ngates; i++:
+        for k = 0; k < 2; k++:
+            var = gates[i].inputs[k]
+            count = 0
+            for g = &gates[0]; g < &gates[ngates]; g++:
+                if g->output == var:
+                    count++
+            assert count <= 1
+
+    while varmgr.get_result() == -1:
+        for g = &gates[0]; g < &gates[ngates]; g++:
+            g->run()
+
+    printf("%lld\n", varmgr.get_result())  # Output: 2024
+
+    fclose(f)
+    return 0
