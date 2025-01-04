@@ -38,7 +38,7 @@ def diffseq_to_int(diffseq: int[4]) -> int:
 
 class Buyer:
     seed: long
-    diffseq_to_bananas: int*
+    diffseq_to_bananas: byte*
 
     def init_from_seed(self) -> None:
         last_digits: int[2000]
@@ -59,7 +59,7 @@ class Buyer:
         # Go backwards so that we overwrite with whatever appears first in array
         for i = 1999; i >= 3; i--:
             diffseq = [deltas[i-3], deltas[i-2], deltas[i-1], deltas[i]]
-            self->diffseq_to_bananas[diffseq_to_int(diffseq)] = last_digits[i]
+            self->diffseq_to_bananas[diffseq_to_int(diffseq)] = last_digits[i] as byte
 
 
 def main() -> int:
