@@ -55,13 +55,6 @@ def sort_group(group: int*) -> None:
             break
 
 
-def group_contains(group: int*, value: int) -> bool:
-    for i = 0; group[i] != -1; i++:
-        if group[i] == value:
-            return True
-    return False
-
-
 def groups_are_equal(g1: int*, g2: int*) -> bool:
     for i = 0; g1[i] != -1 or g2[i] != -1; i++:
         if g1[i] != g2[i]:
@@ -168,9 +161,9 @@ def merge_all_mergeable_pairs(conn_matrix: bool**, old_groups: int**) -> int**:
 
                 result[result_len++] = m
 
-                # Print a dot every 100 successful merges.
+                # Print a dot every 1000 successful merges.
                 # Helpful with actual input because it is really slow :)
-                if result_len % 100 == 0:
+                if result_len % 1000 == 0:
                     printf(".")
                     fflush(stdout)
 
@@ -186,7 +179,7 @@ def main() -> int:
     assert names != NULL
     ncomputers = 0
 
-    f = fopen("input", "r")
+    f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
     name1: byte[3]
@@ -233,10 +226,10 @@ def main() -> int:
     # There should be one group remaining
     assert groups[0] != NULL
 
-    # Output: co-de-ka-ta
+    # Output: co,de,ka,ta
     for i = 0; groups[0][i] != -1; i++:
         if i != 0:
-            printf("-")
+            printf(",")
         printf("%s", names[groups[0][i]])
     printf("\n")
 
