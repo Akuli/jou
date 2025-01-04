@@ -170,6 +170,8 @@ def merge_all_mergeable_pairs(conn_matrix: bool**, old_groups: int**) -> int**:
     printf("\n")
     fflush(stdout)
 
+    result = realloc(result, sizeof(result[0]) * (result_len + 1))
+    assert result != NULL
     result[result_len] = NULL
     return result
 
