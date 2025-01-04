@@ -6,8 +6,8 @@
 #   echo '}' >> asd.txt
 #   dot -Tpng -o asd.png asd.txt
 
-
 import "stdlib/str.jou"
+import "stdlib/mem.jou"
 import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 
@@ -27,12 +27,12 @@ enum GateType:
     # Purpose: Used to detect overflow
     InputAnd
 
-    # Inputs: result of InputXor, carry bit from previous level
+    # Inputs: result of InputXor, overflow/carry bit from previous level
     # Output: value of znn (the output bit of x+y)
     # Purpose: Calculates the sum of the two numbers
     OutputXor
 
-    # Inputs: result of InputXor, carry bit from previous level
+    # Inputs: result of InputXor, overflow/carry bit from previous level
     # Output: 1 if we overflow when adding bits 1,0 or 0,1 due to carrying
     #         0 if there's no overflow, or the overflow happens due to input 1,1
     # Purpose: Creates intermediate value used when calculating overflow/carry
@@ -43,6 +43,16 @@ enum GateType:
     #         0 if there is no overflow
     # Purpose: This is the overflow/carry bit sent to the next adder
     OverflowOr
+
+
+# Special cases:
+#
+#   - First adder doesn't need to handle overflow/carry from previous adders,
+#     so it only has InputXor and InputAnd. Result of InputXor is used for
+#     output and result of InputAnd is used for carry.
+#
+#   - Last adder's OverflowOr outputs to z45, the last output bit. In other
+#     adders, it goes to the next adder's OutputXor and OverflowAnd.
 
 
 class Gate:
@@ -71,103 +81,137 @@ class Gate:
         printf("\n")
 
 
-def check_gtype_counts(gates: Gate*, ngates: int) -> None:
-    counts = [0, 0, 0, 0, 0]
-    for i = 0; i < ngates; i++:
-        counts[gates[i].gtype as int]++
+# By design, every gate uses the inputs somehow.
+# We can use this to determine a somewhat reasonable ordering for the gates.
+#
+# Specifically, if x30 and y30 affect a gate, and inputs x31,y31,x32,y32,...
+# don't, we assign it number 30, and then sort by affected values.
+def sort_gates(gates: Gate*, ngates: int) -> None:
+    assert ngates < 250
+    sort_values: int[250]
+    memset(sort_values, 0, sizeof(sort_values))
 
-    assert counts[InputXor
-    input_xors = 0
-    input_ands = 0
-    output_xors = 0
-    overflow_ands = 0
-    overflow_ors = 0
+    todo_max = 1000
+    todo: byte[4]* = malloc(sizeof(todo[0]) * todo_max)
+    assert todo != NULL
+
+    for inputnum = 0; inputnum < 45; inputnum++:
+        sprintf(todo[0], "x%02d", inputnum)  # e.g. x06
+        sprintf(todo[1], "x%02d", inputnum)  # e.g. x06
+        todo_len = 2
+
+        while todo_len > 0:
+            name: byte[4] = todo[--todo_len]
+            assert strlen(name) == 3
+
+            for i = 0; i < ngates; i++:
+                if strcmp(gates[i].inputs[0], name) == 0 or strcmp(gates[i].inputs[1], name) == 0:
+                    sort_values[i] = inputnum + 1  # never zero
+                    assert todo_len < todo_max
+                    todo[todo_len++] = gates[i].output
+
+    free(todo)
+
+    # stupid sort algorithm
+    while True:
+        did_something = False
+        for i = 1; i < ngates; i++:
+            if sort_values[i-1] > sort_values[i]:
+                memswap(&sort_values[i-1], &sort_values[i], sizeof(sort_values[0]))
+                memswap(&gates[i-1], &gates[i], sizeof(gates[0]))
+                did_something = True
+        if not did_something:
+            break
 
 
-# Due to carrying, every gate affects the last output z45 somehow.
-# 
-def sort_gates_by_distance_from_z45
+# Returns number of errors: 1 if connection is wrong, 0 if it is correct.
+# g2g = gate to gate
+def check_g2g(from: Gate*, to: Gate*) -> int:
+    if strcmp(from->output, to->inputs[0]) == 0 or strcmp(from->output, to->inputs[1]) == 0:
+        return 0
+    else:
+        return 1
+
+
+# Returns number of errors: 1 if connection is wrong, 0 if it is correct.
+# g2o = gate to output
+def check_g2o(from: Gate*, znum: int) -> int:
+    znn: byte[10]  # e.g. z05
+    sprintf(znn, "z%02d", znum)
+    if strcmp(from->output, znn) == 0:
+        return 0
+    else:
+        return 1
 
 
 # Determines how badly the sum machine seems to be wired.
 # Zero is a machine that is working as expected.
-def calculate_score(gates: Gate*, ngates: int) -> int:
-    input_xors: Gate*[45]
-    input_ands: Gate*[45]
-    # First adder only has input xors (used for output) and input ands (used for overflow/carry)
-    output_xors: Gate*[44]
-    overflow_ands: Gate*[44]
-    overflow_ors: Gate*[44]
+def calculate_score(orig_gates: Gate*, ngates: int) -> int:
+    # Make copy of input to avoid surprises (probably not necessary)
+    assert ngates <= 250
+    gates: Gate[250]
+    memcpy(gates, orig_gates, ngates * sizeof(gates[0]))
 
+    sort_gates(gates, ngates)
+
+    gate_arrays: Gate[45][5]
     counts = [0, 0, 0, 0, 0]
     for i = 0; i < ngates; i++:
-        counts[gates[i].gtype as int]++
+        type_index = gates[i].gtype as int
+        assert counts[type_index] < 45
+        gate_arrays[type_index][counts[type_index]++] = gates[i]
 
-    assert counts[InputXor as int] == 45
-    assert counts[InputAnd as int] == 45
-    assert counts[OutputXor as int] == 44
-    assert counts[OverflowAnd as int] == 44
-    assert counts[OverflowOr as int] == 44
+    ixor = GateType::InputXor as int
+    iand = GateType::InputAnd as int
+    oxor = GateType::OutputXor as int
+    oand = GateType::OverflowAnd as int
+    oor = GateType::OverflowOr as int
 
-    # Just put the things to the arrays, in any order
-    memset(counts, 0, sizeof(counts))
-    
+    # There are 45 adders, but the first adder is simpler than others. It only
+    # has two gates: InputXor for output, InputAnd for overflow/carry.
+    assert counts[ixor] == 45
+    assert counts[iand] == 45
+    assert counts[oxor] == 44
+    assert counts[oand] == 44
+    assert counts[oor] == 44
 
-    for i = 0; i < ngates; i++:
-        if gates[i].gtype == GateType::InputXor:
-            input_xors
+    error_count = 0
 
+    # First adder: InputXor for output
+    error_count += check_g2o(&gate_arrays[ixor][0], 0)
 
-def goes_to_1_gate(
-    gates: Gate*,
-    ngates: int,
-    wire: byte*,
-    gtype: GateType,
-) -> bool:
-    found = False
+    # First adder: carry into next OutputXor and OverflowAnd
+    error_count += check_g2g(&gate_arrays[iand][0], &gate_arrays[oxor][0])
+    error_count += check_g2g(&gate_arrays[iand][0], &gate_arrays[oand][0])
 
-    for i = 0; i < ngates; i++:
-        if strcmp(gates[i].inputs[0], wire) == 0 or strcmp(gates[i].inputs[1], wire) == 0:
-            if gates[i].gtype != gtype:
-                return False
-            if found:
-                # it goes to two gates, both of the given type
-                return False
-            found = True
+    for i = 1; i < 45; i++:
+        # Remaining adders: InputXor goes to OutputXor and OverflowAnd
+        error_count += check_g2g(&gate_arrays[ixor][i], &gate_arrays[oxor][i-1])
+        error_count += check_g2g(&gate_arrays[ixor][i], &gate_arrays[oand][i-1])
 
-    return found
+        # Remaining adders: InputAnd goes to OverflowOr
+        error_count += check_g2g(&gate_arrays[iand][i], &gate_arrays[oor][i-1])
 
+        # Remaining adders: OutputXor computes the result
+        error_count += check_g2o(&gate_arrays[oxor][i-1], i)
 
-def goes_to_2_gates(
-    gates: Gate*,
-    ngates: int,
-    wire: byte*,
-    gtype1: GateType,
-    gtype2: GateType,
-) -> bool:
-    assert gtype1 != gtype2
+        # Remaining adders: OverflowAnd goes to OverflowOr
+        error_count += check_g2g(&gate_arrays[oand][i-1], &gate_arrays[oor][i-1])
 
-    found1 = False
-    found2 = False
+        if i != 44:
+            # Remaining adders except last: OverflowOr goes to next adder's
+            # OutputXor and OverflowAnd
+            error_count += check_g2g(&gate_arrays[oor][i-1], &gate_arrays[oxor][i])
+            error_count += check_g2g(&gate_arrays[oor][i-1], &gate_arrays[oand][i])
 
-    for i = 0; i < ngates; i++:
-        if strcmp(gates[i].inputs[0], wire) == 0 or strcmp(gates[i].inputs[1], wire) == 0:
-            if gates[i].gtype == gtype1:
-                if found1:
-                    return False
-                found1 = True
-            elif gates[i].gtype == gtype2:
-                if found2:
-                    return False
-                found2 = True
-            else:
-                return False
+    # Last adder: OverflowOr goes to last output (z45)
+    error_count += check_g2o(&gate_arrays[oxor][43], 45)
 
-    return found1 and found2
+    return error_count
 
 
 def main() -> int:
-    gates: Gate[500]
+    gates: Gate[250]
     ngates = 0
 
     f = fopen("input", "r")
@@ -211,41 +255,7 @@ def main() -> int:
         assert ngates < sizeof(gates)/sizeof(gates[0])
         gates[ngates++] = g
 
-    for i = 0; i < ngates; i++:
-        # Most InputAnd gates should connect to an OverflowOr.
-        if (
-            gates[i].gtype == GateType::InputAnd
-            and gates[i].level != 0
-            and not goes_to_1_gate(gates, ngates, gates[i].output, GateType::OverflowOr)
-        ):
-            printf("sus1 %s\n", gates[i].output)
-
-        # First InputAnd produces the overflow bit directly, so it connects to
-        # the next OutputXor and OverflowAnd.
-        if (
-            gates[i].gtype == GateType::InputAnd
-            and gates[i].level == 0
-            and not goes_to_2_gates(gates, ngates, gates[i].output, GateType::OutputXor, GateType::OverflowAnd)
-        ):
-            printf("sus2 %s\n", gates[i].output)
-
-        # Most InputXor gates should connect to an OutputXor and OverflowAnd.
-        if (
-            gates[i].gtype == GateType::InputXor
-            and gates[i].level != 0
-            and not goes_to_2_gates(gates, ngates, gates[i].output, GateType::OutputXor, GateType::OverflowAnd)
-        ):
-            printf("sus3 %s\n", gates[i].output)
-
-        # First InputXor gate produces the first output directly.
-        if (
-            gates[i].gtype == GateType::InputXor
-            and gates[i].level == 0
-            and strcmp(gates[i].output, "z00") != 0
-        ):
-            printf("sus4 %s\n", gates[i].output)
-
-            
+    printf("%d\n", calculate_score(gates, ngates))
 
     fclose(f)
     return 0
