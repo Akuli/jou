@@ -1,0 +1,23 @@
+For all bits except the first and the last, there are 5 logic gates.
+
+InputXor:
+	Inputs: xnn, ynn (e.g. x05, y05)
+	Output: 1 if exactly one input is on, 0 if neither or both
+
+InputAnd:
+	Inputs: xnn, ynn (e.g. x05, y05)
+	Output: 1 if both inputs are on, 0 otherwise
+
+OutputXor (missing for first bit, output taken directly from InputXor)
+	Inputs: result of InputXor, result of previous OverflowXor
+	Output: value of znn
+
+OverflowAnd
+	Inputs: result of InputXor, overflow n-1
+	Output: 1 if we overflow with inputs 1,0 or 0,1 due to carrying
+		0 if we either don't overflow, or the overflow doesn't involve carrying
+
+OverflowOr
+	Inputs: result of InputAnd, result of OverflowAnd
+	Output: 1 if we overflow, either with input 1,1 or through OverflowAnd
+		0 if we don't overflow
