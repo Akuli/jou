@@ -5,7 +5,6 @@ import "stdlib/io.jou"
 
 class Computer:
     name: byte[3]
-    group_id: int  # computers connected together have same group id
     connections: void*[100]  # TODO: should be Computer*[100], can't be due to compiler bug
 
     def connect(self, other: Computer*) -> None:
@@ -34,21 +33,10 @@ def find_or_create_computer(computers: Computer*, ncomputers: int*, name: byte*)
     c = &computers[*ncomputers]
     assert strlen(name) == 2
     strcpy(c->name, name)
-    c->group_id = *ncomputers  # unique initially
     memset(c->connections, 0, sizeof(c->connections))
 
     ++*ncomputers
     return c
-
-
-def merge_groups(computers: Computer*, ncomputers: int, id1: int, id2: int) -> None:
-    printf("Merge %d,%d\n", id1, id2)
-    if id1 == id2:
-        return
-
-    for i = 0; i < ncomputers; i++:
-        if computers[i].group_id == id1:
-            computers[i].group_id = id2
 
 
 def main() -> int:
