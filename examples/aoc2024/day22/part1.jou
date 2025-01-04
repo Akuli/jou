@@ -1,0 +1,46 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+def xor(a: long, b: long) -> long:
+    assert a >= 0
+    assert b >= 0
+
+    result = 0L
+    power_of_two = 1L
+
+    while a != 0 or b != 0:
+        if a % 2 != b % 2:
+            result += power_of_two
+        a /= 2
+        b /= 2
+        power_of_two *= 2
+
+    return result
+
+
+def next_num(n: long) -> long:
+    n = xor(n, n * 64) % 16777216
+    n = xor(n, n / 32) % 16777216
+    n = xor(n, n * 2048) % 16777216
+    return n
+
+
+def main() -> int:
+    f = fopen("sampleinput1.txt", "r")
+    assert f != NULL
+
+    result = 0L
+
+    line: byte[100]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        n = atoll(line)
+        k = 2000
+        while k --> 0:
+            n = next_num(n)
+        result += n
+
+    printf("%lld\n", result)  # Output: 37327623
+
+    fclose(f)
+    return 0
