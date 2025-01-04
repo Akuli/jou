@@ -1,0 +1,29 @@
+# Advent of Code doesn't provide very nice test files for part 2.
+#
+# This file (written by me) defines a working sum machine. It takes 4-bit
+# inputs x00,...,x03 and y00,...,y03, and outputs a 5-bit sum in z00,...,z04.
+
+# First adder
+x00 XOR y00 -> z00  # output
+x00 AND y00 -> co0  # co = carry out
+
+# Second adder
+x01 XOR y01 -> ix1  # ix = InputXor
+x01 AND y01 -> ia1  # ia = InputAnd
+ix1 XOR co0 -> z01  # output
+ix1 AND co0 -> oa1  # oa = OverflowAnd
+ia1 OR oa1 -> co1   # co = carry out
+
+# Third adder
+x02 XOR y02 -> ix2
+x02 AND y02 -> ia2
+ix2 XOR co1 -> z02
+ix2 AND co1 -> oa2
+ia2 OR oa2 -> co2
+
+# Fourth (last) adder
+x03 XOR y03 -> ix3
+x03 AND y03 -> ia3
+ix3 XOR co2 -> z03
+ix3 AND co2 -> oa3
+ia3 OR oa3 -> z04   # carry goes into last result bit

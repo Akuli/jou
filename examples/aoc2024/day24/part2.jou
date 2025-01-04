@@ -44,41 +44,20 @@ enum GateType:
     # Purpose: This is the overflow/carry bit sent to the next adder
     OverflowOr
 
-
 # Special cases:
 #
 #   - First adder doesn't need to handle overflow/carry from previous adders,
 #     so it only has InputXor and InputAnd. Result of InputXor is used for
 #     output and result of InputAnd is used for carry.
 #
-#   - Last adder's OverflowOr outputs to z45, the last output bit. In other
+#   - Last adder's OverflowOr outputs to the last output bit (z45). In other
 #     adders, it goes to the next adder's OutputXor and OverflowAnd.
 
 
 class Gate:
     inputs: byte[4][2]
     output: byte[4]
-    level: int
     gtype: GateType
-
-    def print(self) -> None:
-        if self->gtype == GateType::InputXor:
-            printf("InputXor")
-        elif self->gtype == GateType::InputAnd:
-            printf("InputAnd")
-        elif self->gtype == GateType::OutputXor:
-            printf("OutputXor")
-        elif self->gtype == GateType::OverflowAnd:
-            printf("OverflowAnd")
-        elif self->gtype == GateType::OverflowOr:
-            printf("OverflowOr")
-        else:
-            assert False
-
-        printf(": %s XOR %s -> %s", self->inputs[0], self->inputs[1], self->output)
-        if self->level != -1:
-            printf(" [level=%d]", self->level)
-        printf("\n")
 
 
 # By design, every gate uses the inputs somehow.
@@ -146,7 +125,7 @@ def check_g2o(from: Gate*, znum: int) -> int:
 
 # Determines how badly the sum machine seems to be wired.
 # Zero is a machine that is working as expected.
-def calculate_score(orig_gates: Gate*, ngates: int) -> int:
+def count_errors(orig_gates: Gate*, ngates: int) -> int:
     # Make copy of input to avoid surprises (probably not necessary)
     assert ngates <= 250
     gates: Gate[250]
@@ -167,13 +146,14 @@ def calculate_score(orig_gates: Gate*, ngates: int) -> int:
     oand = GateType::OverflowAnd as int
     oor = GateType::OverflowOr as int
 
-    # There are 45 adders, but the first adder is simpler than others. It only
-    # has two gates: InputXor for output, InputAnd for overflow/carry.
-    assert counts[ixor] == 45
-    assert counts[iand] == 45
-    assert counts[oxor] == 44
-    assert counts[oand] == 44
-    assert counts[oor] == 44
+    # With real input, there are 45 adders, but the first adder is simpler than others.
+    # It only has two gates: InputXor for output, InputAnd for overflow/carry.
+    num_adders = ngates/5 + 1
+    assert counts[ixor] == num_adders
+    assert counts[iand] == num_adders
+    assert counts[oxor] == num_adders - 1
+    assert counts[oand] == num_adders - 1
+    assert counts[oor] == num_adders - 1
 
     error_count = 0
 
@@ -184,7 +164,7 @@ def calculate_score(orig_gates: Gate*, ngates: int) -> int:
     error_count += check_g2g(&gate_arrays[iand][0], &gate_arrays[oxor][0])
     error_count += check_g2g(&gate_arrays[iand][0], &gate_arrays[oand][0])
 
-    for i = 1; i < 45; i++:
+    for i = 1; i < num_adders; i++:
         # Remaining adders: InputXor goes to OutputXor and OverflowAnd
         error_count += check_g2g(&gate_arrays[ixor][i], &gate_arrays[oxor][i-1])
         error_count += check_g2g(&gate_arrays[ixor][i], &gate_arrays[oand][i-1])
@@ -198,35 +178,47 @@ def calculate_score(orig_gates: Gate*, ngates: int) -> int:
         # Remaining adders: OverflowAnd goes to OverflowOr
         error_count += check_g2g(&gate_arrays[oand][i-1], &gate_arrays[oor][i-1])
 
-        if i != 44:
+        if i != num_adders-1:
             # Remaining adders except last: OverflowOr goes to next adder's
             # OutputXor and OverflowAnd
             error_count += check_g2g(&gate_arrays[oor][i-1], &gate_arrays[oxor][i])
             error_count += check_g2g(&gate_arrays[oor][i-1], &gate_arrays[oand][i])
 
-    # Last adder: OverflowOr goes to last output (z45)
-    error_count += check_g2o(&gate_arrays[oxor][43], 45)
+    # Last adder: OverflowOr goes to last output (z45 with real input)
+    error_count += check_g2o(&gate_arrays[oor][num_adders-2], num_adders)
 
     return error_count
 
 
-def main() -> int:
+def read_gates(filename: byte*, ngates: int*) -> Gate[250]:
     gates: Gate[250]
-    ngates = 0
+    memset(gates, 0, sizeof(gates))  # TODO: why is this needed to prevent compiler warning?
+    *ngates = 0
 
-    f = fopen("input", "r")
+    f = fopen(filename, "r")
     assert f != NULL
 
     line: byte[100]
     while fgets(line, sizeof(line) as int, f) != NULL:
-        trim_ascii_whitespace(line)
-        if line[0] == '\0':
-            # end of initial values, start of logic gates
-            break
+        # Remove comments, if any. I wrote test file by hand.
+        if strstr(line, "#") != NULL:
+            *strstr(line, "#") = '\0'
 
-    g: Gate
-    op: byte[4]
-    while fscanf(f, "%3s %3s %3s -> %3s\n", &g.inputs[0], op, &g.inputs[1], &g.output) == 4:
+        trim_ascii_whitespace(line)
+
+        # ignore blanks and comment-only lines
+        if line[0] == '\0':
+            continue
+
+        # AoC input files have unnecessary lines at start, e.g. "x01: 1"
+        if strstr(line, ":") != NULL:
+            continue
+
+        g: Gate
+        op: byte[4]
+        n = sscanf(line, "%3s %3s %3s -> %3s", &g.inputs[0], op, &g.inputs[1], &g.output)
+        assert n == 4
+
         # Inputs that don't come from other gates cannot be connected wrong, so
         # the wiring mistakes don't mess this up.
         if (
@@ -240,7 +232,6 @@ def main() -> int:
                 g.gtype = GateType::InputAnd
             else:
                 assert False
-            g.level = atoi(&g.inputs[0][1])  # Example: x05 --> 5
         else:
             if strcmp(op, "XOR") == 0:
                 g.gtype = GateType::OutputXor
@@ -250,12 +241,21 @@ def main() -> int:
                 g.gtype = GateType::OverflowOr
             else:
                 assert False
-            g.level = -1  # unknown
 
-        assert ngates < sizeof(gates)/sizeof(gates[0])
-        gates[ngates++] = g
-
-    printf("%d\n", calculate_score(gates, ngates))
+        assert *ngates < sizeof(gates)/sizeof(gates[0])
+        gates[(*ngates)++] = g
 
     fclose(f)
+    return gates
+
+
+def main() -> int:
+    # Ensure that counting errors works
+    ngates: int
+    gates = read_gates("sampleinput2-correct.txt", &ngates)
+    printf("%d\n", count_errors(gates, ngates))
+    assert count_errors(gates, ngates) == 0
+
+    
+
     return 0
