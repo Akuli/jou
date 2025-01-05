@@ -279,11 +279,10 @@ def test_counting() -> None:
     assert count_errors(gates, ngates) == 0
 
 
-def fix_order_of_outputs(gates: Gate*, ngates: int, progress_prints: bool) -> None:
+def fix_order_of_outputs(gates: Gate*, ngates: int) -> None:
     while count_errors(gates, ngates) > 0:
-        if progress_prints:
-            printf("---------- There are %d errors. ----------\n", count_errors(gates, ngates))
-            fflush(stdout)
+        printf("---------- There are %d errors. ----------\n", count_errors(gates, ngates))
+        fflush(stdout)
 
         # Swap two gates so that error count decreases as much as possible
         best_g1: Gate* = NULL
@@ -291,31 +290,27 @@ def fix_order_of_outputs(gates: Gate*, ngates: int, progress_prints: bool) -> No
         best_count = -1
 
         for g1 = &gates[0]; g1 < &gates[ngates]; g1++:
-            if progress_prints:
-                printf("%lld/%d", (((g1 as long) - (&gates[0] as long)) / sizeof(gates[0])) as int, ngates)
-                fflush(stdout)
+            printf("%lld/%d", (((g1 as long) - (&gates[0] as long)) / sizeof(gates[0])) as int, ngates)
+            fflush(stdout)
 
             for g2 = &g1[1]; g2 < &gates[ngates]; g2++:
                 memswap(&g1->output, &g2->output, sizeof(g1->output))
                 count = count_errors(gates, ngates)
                 memswap(&g1->output, &g2->output, sizeof(g1->output))
 
-                if progress_prints:
-                    printf(".")
-                    fflush(stdout)
+                printf(".")
+                fflush(stdout)
 
                 if best_count == -1 or count < best_count:
-                    if progress_prints:
-                        printf("[%d]", count)
-                        fflush(stdout)
+                    printf("[%d]", count)
+                    fflush(stdout)
 
                     best_count = count
                     best_g1 = g1
                     best_g2 = g2
 
-            if progress_prints:
-                printf("\n")
-                fflush(stdout)
+            printf("\n")
+            fflush(stdout)
 
         assert best_g1 != NULL
         assert best_g2 != NULL
@@ -329,7 +324,43 @@ def main() -> int:
     gates = read_gates("sampleinput2-mixed.txt", &ngates)
     orig_gates = gates
 
-    fix_order_of_outputs(gates, ngates, False)  # use True instead of False for actual input
+    # Output: ---------- There are 6 errors. ----------
+    # Output: 0/17.[9]..[7].............
+    # Output: 1/17.[6]..............
+    # Output: 2/17..............
+    # Output: 3/17.........[3]....
+    # Output: 4/17............
+    # Output: 5/17...........
+    # Output: 6/17..........
+    # Output: 7/17.........
+    # Output: 8/17........
+    # Output: 9/17.......
+    # Output: 10/17......
+    # Output: 11/17.....
+    # Output: 12/17....
+    # Output: 13/17...
+    # Output: 14/17..
+    # Output: 15/17.
+    # Output: 16/17
+    # Output: ---------- There are 3 errors. ----------
+    # Output: 0/17.[6]..[5]....[4].........
+    # Output: 1/17.[3]..............
+    # Output: 2/17..............
+    # Output: 3/17.............
+    # Output: 4/17............
+    # Output: 5/17...........
+    # Output: 6/17..........
+    # Output: 7/17.[0]........
+    # Output: 8/17........
+    # Output: 9/17.......
+    # Output: 10/17......
+    # Output: 11/17.....
+    # Output: 12/17....
+    # Output: 13/17...
+    # Output: 14/17..
+    # Output: 15/17.
+    # Output: 16/17
+    fix_order_of_outputs(gates, ngates)
 
     bad_outputs: byte*[10]
     bad_outputs_len = 0
