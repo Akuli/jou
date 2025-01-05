@@ -70,15 +70,13 @@ def sort_gates(gates: Gate*, ngates: int) -> None:
     sort_values: int[250]
     memset(sort_values, 0, sizeof(sort_values))
 
-    maxlen = 1000
-    todo: byte[4]* = malloc(sizeof(todo[0]) * maxlen)
-    done: byte[4]* = malloc(sizeof(done[0]) * maxlen)
-    assert todo != NULL
-    assert done != NULL
+    maxlen = 400
+    todo: byte[4][400]
+    done: byte[4][400]
 
     for inputnum = 0; inputnum < 45; inputnum++:
         sprintf(todo[0], "x%02d", inputnum)  # e.g. x06
-        sprintf(todo[1], "x%02d", inputnum)  # e.g. x06
+        sprintf(todo[1], "y%02d", inputnum)  # e.g. y06
         todo_len = 2
         done_len = 0
 
@@ -101,8 +99,6 @@ def sort_gates(gates: Gate*, ngates: int) -> None:
 
             assert done_len < maxlen
             done[done_len++] = name
-
-    free(todo)
 
     # stupid sort algorithm
     while True:
@@ -151,11 +147,13 @@ def check_g2o(from: Gate*, znum: int) -> int:
 # Determines how badly the sum machine seems to be wired.
 # Zero is a machine that is working as expected.
 def count_errors(orig_gates: Gate*, ngates: int) -> int:
-    # Make copy of input to avoid surprises (probably not necessary)
+    # Make copy of input to avoid surprises. Can mess up indexing in surprising
+    # ways if we don't do this.
     assert ngates <= 250
     gates: Gate[250]
     memcpy(gates, orig_gates, ngates * sizeof(gates[0]))
 
+    # Sort copy, not original.
     sort_gates(gates, ngates)
 
     gate_arrays: Gate[45][5]
