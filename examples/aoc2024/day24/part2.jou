@@ -16,30 +16,30 @@ import "stdlib/io.jou"
 # Each adder (except the first and last) consists of the following 5 logic gates.
 enum GateType:
     # Inputs: xnn, ynn (e.g. x05 and y05)
-    # Output: 1 if inputs are 1,0 or 0,1
+    # Result: 1 if inputs are 1,0 or 0,1
     #         0 if inputs are 1,1 or 0,0
     # Purpose: Used for both output and overflow checking
     InputXor
 
     # Inputs: xnn, ynn
-    # Output: 1 if inputs are 1,1
+    # Result: 1 if inputs are 1,1
     #         0 if inputs are anything else
     # Purpose: Used to detect overflow
     InputAnd
 
     # Inputs: result of InputXor, overflow/carry bit from previous level
-    # Output: value of znn (the output bit of x+y)
+    # Result: value of znn (the output bit of x+y)
     # Purpose: Calculates the sum of the two numbers
     OutputXor
 
     # Inputs: result of InputXor, overflow/carry bit from previous level
-    # Output: 1 if we overflow when adding bits 1,0 or 0,1 due to carrying
+    # Result: 1 if we overflow when adding bits 1,0 or 0,1 due to carrying
     #         0 if there's no overflow, or the overflow happens due to input 1,1
     # Purpose: Creates intermediate value used when calculating overflow/carry
     OverflowAnd
 
     # Inputs: result of InputAnd, result of OverflowAnd
-    # Output: 1 if we overflow in any way, due to input 1,1 or carrying
+    # Result: 1 if we overflow in any way, due to input 1,1 or carrying
     #         0 if there is no overflow
     # Purpose: This is the overflow/carry bit sent to the next adder
     OverflowOr
