@@ -822,6 +822,14 @@ class Parser:
         assert self->tokens->is_keyword("for")
         self->tokens++
 
+        # Check if it's "for i in ..." loop, those are not supported
+        if (
+            self->tokens[0].kind == TokenKind::Name
+            and self->tokens[1].kind == TokenKind::Name
+            and strcmp(self->tokens[1].short_string, "in") == 0
+        ):
+            fail(self->tokens[1].location, "Python-style for loops aren't supported. Use e.g. 'for i = 0; i < 10; i++'")
+
         init: AstStatement* = malloc(sizeof *init)
         incr: AstStatement* = malloc(sizeof *incr)
 
