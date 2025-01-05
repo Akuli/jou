@@ -1,0 +1,56 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "../../aoc2023/grid.jou"
+
+
+def fits(key: int*, lock: int*) -> bool:
+    for i = 0; i < 5; i++:
+        if key[i] + lock[i] > 5:
+            return False
+    return True
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    keys: int[5][500]
+    locks: int[5][500]
+    nkeys = 0
+    nlocks = 0
+
+    while feof(f) == 0:
+        grid = read_grid_from_file(f)
+        assert grid.width == 5
+        assert grid.height == 7
+
+        dest: int*
+        if grid.get([0, 0]) == '#':
+            # lock
+            assert nlocks < sizeof(locks)/sizeof(locks[0])
+            dest = locks[nlocks++]
+        else:
+            # key
+            assert nkeys < sizeof(keys)/sizeof(keys[0])
+            dest = keys[nkeys++]
+
+        for x = 0; x < 5; x++:
+            count = -1  # ignore one full row
+            for y = 0; y < 7; y++:
+                if grid.get([x, y]) == '#':
+                    count++
+            assert count >= 0
+            dest[x] = count
+
+        free(grid.data)
+
+    fclose(f)
+
+    result = 0
+    for il = 0; il < nlocks; il++:
+        for ik = 0; ik < nkeys; ik++:
+            if fits(keys[ik], locks[il]):
+                result++
+
+    printf("%d\n", result)  # Output: 3
+    return 0
