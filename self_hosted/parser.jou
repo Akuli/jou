@@ -343,12 +343,18 @@ class Parser:
                 if not is_method:
                     fail(self->tokens->location, "'self' cannot be used here")
 
-                result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
-                result.args[result.nargs++] = AstNameTypeValue{
+                self_arg = AstNameTypeValue{
                     name = "self",
                     name_location = self->tokens->location,
                 }
                 self->tokens++
+
+                if self->tokens->is_operator(":"):
+                    self->tokens++
+                    self_arg.type = self->parse_type()
+
+                result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
+                result.args[result.nargs++] = self_arg
                 used_self = True
 
             else:
