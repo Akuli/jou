@@ -20,7 +20,7 @@ jobs:
       # Do not valgrind when there's nothing new to valgrind in the repo
       - name: Check if there was any commits within the last 24 hours
         run: |
-          if git --no-pager log --oneline --since="24 seconds ago" --exit-code; then
+          if git --no-pager log --oneline --since="24 hours ago" --exit-code; then
             echo "No commits, will not run valgrind"
             echo "recent_commits=false" >> $GITHUB_ENV
           else
