@@ -1053,6 +1053,15 @@ static AstStatement parse_statement(ParserState *ps)
         result.data.whileloop.body = parse_body(ps);
     } else if (is_keyword(ps->tokens, "for")) {
         ps->tokens++;
+
+        // Check if it's "for i in ..." loop, those are not supported
+        if (ps->tokens[0].type == TOKEN_NAME
+            && ps->tokens[1].type == TOKEN_NAME
+            && !strcmp(ps->tokens[1].data.name, "in"))
+        {
+            fail(ps->tokens[1].location, "Python-style for loops aren't supported. Use e.g. 'for i = 0; i < 10; i++'");
+        }
+
         result.kind = AST_STMT_FOR;
         result.data.forloop.init = malloc(sizeof *result.data.forloop.init);
         result.data.forloop.incr = malloc(sizeof *result.data.forloop.incr);
