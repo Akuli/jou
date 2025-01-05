@@ -57,6 +57,7 @@ def add_more_members_to_group(
         memcpy(biggest_group, group, sizeof(group[0]) * group_len)
 
     # Always add members in order, speeds up search a lot
+    assert group_len > 0
     for i = group[group_len - 1] + 1; i < ncomputers; i++:
         # Do not add same group member twice.
         # Do not add members that don't connect with all existing members.
@@ -74,7 +75,9 @@ def add_more_members_to_group(
                 group_len + 1,
                 biggest_group,
                 biggest_group_len,
-                ncomputers, conn_matrix)
+                ncomputers,
+                conn_matrix,
+            )
 
 
 def main() -> int:
