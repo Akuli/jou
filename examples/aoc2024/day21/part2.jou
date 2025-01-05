@@ -1,0 +1,245 @@
+# The code looks simple, but it took many days for me to come up with this
+# simple approach :)
+
+import "stdlib/io.jou"
+import "stdlib/ascii.jou"
+import "stdlib/math.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+
+# arrow_keypad_table['^']['>'] = [">A", NULL]
+#
+# This means that if robot arm previously pressed ^ and we want it to press >,
+# we must move right and then press A.
+global arrow_keypad_table: byte*[2][128][128]
+
+# Locations of each character in numeric keypad
+# For example, numpad_table['7'] = [0, 0] because it's in top left corner.
+global numpad_table: int[2][128]
+
+# Cost is number of button presses by user.
+#
+# Indexed by level. Level 0 is the directional keypad where user types (cost is
+# always 1). Levels 1-25 are operated by robots, so there are 26 levels.
+global cost_cache: long[128][128][26]
+
+
+def init_tables() -> None:
+    memset(arrow_keypad_table, 0, sizeof(arrow_keypad_table))
+    memset(numpad_table, 0, sizeof(numpad_table))
+    memset(cost_cache, 0, sizeof(cost_cache))
+
+    #   ^ A
+    # < v >
+    arrow_keypad_table['^']['^'] = ["A", NULL as byte*]
+    arrow_keypad_table['^']['A'] = [">A", NULL as byte*]
+    arrow_keypad_table['^']['<'] = ["v<A", NULL as byte*]
+    arrow_keypad_table['^']['v'] = ["vA", NULL as byte*]
+    arrow_keypad_table['^']['>'] = ["v>A", ">vA"]
+
+    arrow_keypad_table['A']['^'] = ["<A", NULL as byte*]
+    arrow_keypad_table['A']['A'] = ["A", NULL as byte*]
+    arrow_keypad_table['A']['<'] = ["v<<A", NULL as byte*]
+    arrow_keypad_table['A']['v'] = ["v<A", "<vA"]
+    arrow_keypad_table['A']['>'] = ["vA", NULL as byte*]
+
+    arrow_keypad_table['<']['^'] = [">^A", NULL as byte*]
+    arrow_keypad_table['<']['A'] = [">>^A", NULL as byte*]
+    arrow_keypad_table['<']['<'] = ["A", NULL as byte*]
+    arrow_keypad_table['<']['v'] = [">A", NULL as byte*]
+    arrow_keypad_table['<']['>'] = [">>A", NULL as byte*]
+
+    arrow_keypad_table['v']['^'] = ["^A", NULL as byte*]
+    arrow_keypad_table['v']['A'] = [">^A", "^>A"]
+    arrow_keypad_table['v']['<'] = ["<A", NULL as byte*]
+    arrow_keypad_table['v']['v'] = ["A", NULL as byte*]
+    arrow_keypad_table['v']['>'] = [">A", NULL as byte*]
+
+    arrow_keypad_table['>']['^'] = ["<^A", "^<A"]
+    arrow_keypad_table['>']['A'] = ["^A", NULL as byte*]
+    arrow_keypad_table['>']['<'] = ["<<A", NULL as byte*]
+    arrow_keypad_table['>']['v'] = ["<A", NULL as byte*]
+    arrow_keypad_table['>']['>'] = ["A", NULL as byte*]
+
+    # 7 8 9
+    # 4 5 6
+    # 1 2 3
+    #   0 A
+    numpad_table['7'] = [0, 0]
+    numpad_table['8'] = [1, 0]
+    numpad_table['9'] = [2, 0]
+
+    numpad_table['4'] = [0, 1]
+    numpad_table['5'] = [1, 1]
+    numpad_table['6'] = [2, 1]
+
+    numpad_table['1'] = [0, 2]
+    numpad_table['2'] = [1, 2]
+    numpad_table['3'] = [2, 2]
+
+    # nothing on the left of zero
+    numpad_table['0'] = [1, 3]
+    numpad_table['A'] = [2, 3]
+
+
+def add_dx_string(dx: int, dest: byte*) -> None:
+    offset = strlen(dest)
+    if dx >= 0:
+        memset(&dest[offset], '>', dx)
+    else:
+        memset(&dest[offset], '<', abs(dx))
+    dest[offset + abs(dx)] = '\0'
+
+
+def add_dy_string(dy: int, dest: byte*) -> None:
+    offset = strlen(dest)
+    if dy >= 0:
+        memset(&dest[offset], 'v', dy)
+    else:
+        memset(&dest[offset], '^', abs(dy))
+    dest[offset + abs(dy)] = '\0'
+
+
+# Each sequence of moves fits in 20 characters:
+#   - numpad is 3x4, so each move is at most 5 characters (2 horizontal, 3 vertical)
+#   - there are 4 moves
+#
+# There are at most 16 sequences of moves:
+#   - start with no moves (1 empty sequence)
+#   - for each move, we have in the worst case 2 different ways to do it, doubles 4 times
+#
+# I used bigger size in case there's mistake :D
+def get_numpad_move_sequences(code: byte*) -> byte[50][50]:
+    assert strlen(code) == 4
+    assert is_ascii_digit(code[0])
+    assert is_ascii_digit(code[1])
+    assert is_ascii_digit(code[2])
+    assert code[3] == 'A'
+
+    results: byte[50][50]
+    memset(results, 0, sizeof(results))
+    nresults = 1
+
+    for p = code; *p != '\0'; p++:
+        if p == code:
+            prev = 'A'
+        else:
+            prev = p[-1]
+
+        old_pos = numpad_table[prev]
+        new_pos = numpad_table[*p]
+        dx = new_pos[0] - old_pos[0]
+        dy = new_pos[1] - old_pos[1]
+
+        if dx == 0:
+            for i = 0; i < nresults; i++:
+                add_dy_string(dy, results[i])
+        elif dy == 0:
+            for i = 0; i < nresults; i++:
+                add_dx_string(dx, results[i])
+        elif old_pos[0] == 0 and new_pos[1] == 3:
+            # Can't do vertical first, would go to forbidden part
+            for i = 0; i < nresults; i++:
+                add_dx_string(dx, results[i])
+                add_dy_string(dy, results[i])
+        elif old_pos[1] == 3 and new_pos[0] == 0:
+            # Can't do horizontal first, would go to forbidden part
+            for i = 0; i < nresults; i++:
+                add_dy_string(dy, results[i])
+                add_dx_string(dx, results[i])
+        else:
+            # We can move first horizontal then vertical, or first vertical then horizontal.
+            # Duplicate results and do both.
+            assert 2 * nresults < sizeof(results) / sizeof(results[0])
+            memcpy(&results[nresults], results, sizeof(results[0]) * nresults)
+            for i = 0; i < nresults; i++:
+                add_dx_string(dx, results[i])
+                add_dy_string(dy, results[i])
+            for i = nresults; i < 2*nresults; i++:
+                add_dy_string(dy, results[i])
+                add_dx_string(dx, results[i])
+            nresults *= 2
+
+        for i = 0; i < nresults; i++:
+            strcat(results[i], "A")
+
+    return results
+
+
+# Level 0 = user
+# Level 25 = keypad closest to door
+#
+# Returns the cost (number of user presses) needed to press the given key on
+# the keypad at the level. Assumes smaller-numbered levels start at A. This
+# makes sense, because they also go to A at end of pressing the key.
+def keypad_cost(level: int, prev_key: byte, key: byte) -> long:
+    cacheptr = &cost_cache[level][prev_key][key]
+    if *cacheptr != 0:
+        return *cacheptr
+
+    if level == 0:
+        # Single key press from user
+        best_cost = 1L
+    else:
+        moves = arrow_keypad_table[prev_key][key]
+
+        best_cost = -1L
+        for i = 0; i < 2 and moves[i] != NULL; i++:
+            cost = 0L
+            prev = 'A'  # robot is still aimed at activate button after previous key press
+            for p = moves[i]; *p != '\0'; p++:
+                # Press keys on smaller-numbered level
+                cost += keypad_cost(level-1, prev, *p)
+                prev = *p
+
+            if best_cost == -1 or cost < best_cost:
+                best_cost = cost
+
+    *cacheptr = best_cost
+    return best_cost
+
+
+# No caching
+def numpad_cost(code: byte*, initial_level: int) -> long:
+    moves = get_numpad_move_sequences(code)
+
+    best_cost = -1L
+    for i = 0; moves[i][0] != '\0'; i++:
+        cost = 0L
+        prev = 'A'
+        for p = &moves[i][0]; *p != '\0'; p++:
+            cost += keypad_cost(initial_level, prev, *p)
+            prev = *p
+
+        if best_cost == -1 or cost < best_cost:
+            best_cost = cost
+
+    return best_cost
+
+
+def main() -> int:
+    init_tables()
+
+    # Sample input parameters. Calculates same thing as part 1 (expected output
+    # is given on AoC website), but this optimized version also solves part 2.
+    filename = "sampleinput.txt"
+    initial_level = 2
+
+    # Actual input parameters for part 2
+    #filename = "input"
+    #initial_level = 25
+
+    f = fopen(filename, "r")
+    assert f != NULL
+
+    result = 0L
+    line: byte[20]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        result += numpad_cost(line, initial_level) * atoi(line)
+
+    printf("%lld\n", result)  # Output: 126384
+
+    fclose(f)
+    return 0
