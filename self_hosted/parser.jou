@@ -343,12 +343,18 @@ class Parser:
                 if not is_method:
                     fail(self->tokens->location, "'self' cannot be used here")
 
-                result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
-                result.args[result.nargs++] = AstNameTypeValue{
+                self_arg = AstNameTypeValue{
                     name = "self",
                     name_location = self->tokens->location,
                 }
                 self->tokens++
+
+                if self->tokens->is_operator(":"):
+                    self->tokens++
+                    self_arg.type = self->parse_type()
+
+                result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
+                result.args[result.nargs++] = self_arg
                 used_self = True
 
             else:
@@ -516,6 +522,8 @@ class Parser:
         elif self->tokens->is_keyword("NULL"):
             expr.kind = AstExpressionKind::Null
             self->tokens++
+        elif self->tokens->is_keyword("None"):
+            fail(self->tokens->location, "None is not a value in Jou, use e.g. -1 for numbers or NULL for pointers")
         elif self->tokens->is_keyword("self"):
             if not self->is_parsing_method_body:
                 fail(self->tokens->location, "'self' cannot be used here")

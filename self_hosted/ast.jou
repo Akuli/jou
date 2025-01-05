@@ -677,7 +677,13 @@ class AstSignature:
         for i = 0; i < self->nargs; i++:
             if i != 0:
                 printf(", ")
-            if strcmp(self->args[i].name, "self") == 0:
+
+            if (
+                strcmp(self->args[i].name, "self") == 0
+                and self->args[i].type.kind == AstTypeKind::Named
+                and self->args[i].type.name[0] == '\0'
+            ):
+                # self with implicitly given type
                 printf("self")
             else:
                 self->args[i].print_with_tree_printer(NULL)
