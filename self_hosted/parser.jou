@@ -516,6 +516,8 @@ class Parser:
         elif self->tokens->is_keyword("NULL"):
             expr.kind = AstExpressionKind::Null
             self->tokens++
+        elif self->tokens->is_keyword("None"):
+            fail(self->tokens->location, "None is not a value in Jou, use e.g. -1 for numbers or NULL for pointers")
         elif self->tokens->is_keyword("self"):
             if not self->is_parsing_method_body:
                 fail(self->tokens->location, "'self' cannot be used here")
