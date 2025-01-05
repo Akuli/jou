@@ -1,0 +1,22 @@
+# Same as sampleinput2-correct.txt, but two pairs of outputs has been swapped.
+
+x00 XOR y00 -> z00
+x00 AND y00 -> co0
+
+x01 XOR y01 -> ix1
+x01 AND y01 -> ix3  # SWAPPED A
+ix1 XOR co0 -> z01
+ix1 AND co0 -> oa1
+ia1 OR oa1 -> co1
+
+x02 XOR y02 -> ia2  # SWAPPED B
+x02 AND y02 -> ix2  # SWAPPED B
+ix2 XOR co1 -> z02
+ix2 AND co1 -> oa2
+ia2 OR oa2 -> co2
+
+x03 XOR y03 -> ia1  # SWAPPED A
+x03 AND y03 -> ia3
+ix3 XOR co2 -> z03
+ix3 AND co2 -> oa3
+ia3 OR oa3 -> z04
