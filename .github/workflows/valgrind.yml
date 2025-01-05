@@ -19,7 +19,9 @@ jobs:
       - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
       - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
-      - run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.opt-level }}"
+      #- run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.opt-level }}"
+      - run: echo "Valgrinding... Brrr..."
+      - run: cat oh no this command will error
 
   # Based on: https://github.com/python/typeshed/blob/9f28171658b9ca6c32a7cb93fbb99fc92b17858b/.github/workflows/daily.yml
   create-issue-on-failure:
