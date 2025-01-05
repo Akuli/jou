@@ -26,8 +26,8 @@ jobs:
     name: Create an issue if valgrind failed
     runs-on: ubuntu-latest
     needs: [valgrind]
-    #if: ${{ github.repository == 'Akuli/jou' && always() && github.event_name == 'schedule' && valgrind }}
-    if: ${{ github.repository == 'Akuli/jou' && always() && valgrind }}
+    #if: ${{ github.repository == 'Akuli/jou' && always() && github.event_name == 'schedule' && needs.valgrind.result == 'failure' }}
+    if: ${{ github.repository == 'Akuli/jou' && always() && needs.valgrind.result == 'failure' }}
     permissions:
       issues: write
     steps:
