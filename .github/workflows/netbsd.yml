@@ -9,7 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: cross-platform-actions/action@v0.23.0
+      # TODO: disabled temporarily, see #546
+      - if: false
+        uses: cross-platform-actions/action@v0.23.0
         env:
           PKG_PATH: 'https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/amd64/9.3/All'
         with:
