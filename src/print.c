@@ -172,9 +172,10 @@ static void print_ast_function_signature(const AstSignature *sig)
     printf("%s(", sig->name);
     for (const AstNameTypeValue *ntv = sig->args.ptr; ntv < End(sig->args); ntv++) {
         if (ntv > sig->args.ptr) printf(", ");
-        if (!strcmp(ntv->name, "self"))
+        if (!strcmp(ntv->name, "self") && ntv->type.kind == AST_TYPE_NAMED && ntv->type.data.name[0] == '\0') {
+            // self with implicitly given type
             printf("self");
-        else{
+        } else {
             printf("%s: ", ntv->name);
             print_ast_type(&ntv->type);
         }
