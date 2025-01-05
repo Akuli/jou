@@ -16,12 +16,28 @@ jobs:
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
       - uses: actions/checkout@v3
-      - run: sudo apt update
-      - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
-      - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
-      #- run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.opt-level }}"
-      - run: echo "Valgrinding... Brrr..."
-      - run: cat oh no this command will error
+
+      # Do not valgrind when there's nothing new to valgrind in the repo
+      - name: Check if there was any commits within the last 24 hours
+        run: |
+          if git --no-pager log --oneline --since="24 hours ago" --exit-code; then
+            echo "No commits, will not run valgrind"
+            echo "recent_commits=false" >> $GITHUB_ENV
+          else
+            echo "recent_commits=true" >> $GITHUB_ENV
+          fi
+
+      - if: env.recent_commits == 'true'
+        run: sudo apt update
+
+      - if: env.recent_commits == 'true'
+        run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
+
+      - if: env.recent_commits == 'true'
+        run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
+
+      - if: env.recent_commits == 'true'
+        run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.opt-level }}"
 
   # Based on: https://github.com/python/typeshed/blob/9f28171658b9ca6c32a7cb93fbb99fc92b17858b/.github/workflows/daily.yml
   create-issue-on-failure:
