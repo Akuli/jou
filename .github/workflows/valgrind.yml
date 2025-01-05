@@ -1,0 +1,43 @@
+# Runs tests with valgrind. That catches various memory bugs, but is too slow
+# for running in every pull request.
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:  # Can also be triggered manually from github UI
+
+jobs:
+  valgrind:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        llvm-version: [11, 13, 14]
+        # Testing all levels because there was a bug that only happened with -O1. (#224)
+        opt-level: ['-O0', '-O1', '-O2', '-O3']
+    steps:
+      - uses: actions/checkout@v3
+      - run: sudo apt update
+      - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
+      - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
+      - run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.opt-level }}"
+
+  # Based on: https://github.com/python/typeshed/blob/9f28171658b9ca6c32a7cb93fbb99fc92b17858b/.github/workflows/daily.yml
+  create-issue-on-failure:
+    name: Create an issue if valgrind failed
+    runs-on: ubuntu-latest
+    needs: [valgrind]
+    #if: ${{ github.repository == 'Akuli/jou' && always() && github.event_name == 'schedule' && valgrind }}
+    if: ${{ github.repository == 'Akuli/jou' && always() && valgrind }}
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.create({
+              owner: "Akuli",
+              repo: "jou",
+              title: `Running tests with valgrind failed on ${new Date().toDateString()}`,
+              body: "See valgrind output here: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            })
