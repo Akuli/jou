@@ -9,14 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # TODO: disabled temporarily, see #546
-      - if: false
-        uses: cross-platform-actions/action@v0.23.0
+      - uses: cross-platform-actions/action@v0.26.0
         env:
-          PKG_PATH: 'https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/amd64/9.3/All'
+          PKG_PATH: 'https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/amd64/10.0/All'
         with:
           operating_system: netbsd
-          version: '9.3' #TODO: bump to 10.0
+          version: '10.0'
           environment_variables: PKG_PATH
           run: |
             sudo pkgin -y install clang libLLVM gmake diffutils && \
