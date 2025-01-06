@@ -5,11 +5,25 @@ class Location:
     path: byte*  # Not owned. Points to a string that is held elsewhere.
     lineno: int
 
-def fail(location: Location, message: byte*) -> noreturn:
-    # When stdout is redirected to same place as stderr,
-    # make sure that normal printf()s show up before our error.
+
+# When stdout is redirected to same place as stderr,
+# make sure that normal printf()s show up before our warning.
+def flush_streams() -> None:
     fflush(stdout)
     fflush(stderr)
+
+
+def show_warning(location: Location, message: byte*) -> None:
+    flush_streams()
+
+    fprintf(stderr, "compiler warning for file \"%s\"", location.path)
+    if location.lineno != 0:
+        fprintf(stderr, ", line %d", location.lineno)
+    fprintf(stderr, ": %s\n", message)
+
+
+def fail(location: Location, message: byte*) -> noreturn:
+    flush_streams()
 
     fprintf(stderr, "compiler error in file \"%s\"", location.path)
     if location.lineno != 0:
