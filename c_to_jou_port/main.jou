@@ -1,19 +1,11 @@
-#include <assert.h>
-#include <libgen.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include "jou_compiler.h"
-#include "util.h"
-#include <llvm-c/Analysis.h>
-#include <llvm-c/Core.h>
-#include <llvm-c/Linker.h>
-#include <llvm-c/Transforms/PassManagerBuilder.h>
+import "stdlib/io.jou"
+import "stdlib/process.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
 
 import "./llvm.jou"
 import "./structs.jou"
+import "./update.jou"
 
 
 def optimize(module: LLVMModule*, level: int) -> None:
@@ -32,7 +24,7 @@ def optimize(module: LLVMModule*, level: int) -> None:
     LLVMDisposePassManager(pm)
 
 
-def print_help() -> None:
+def print_help(argv0: byte*) -> None:
     printf("Usage:\n")
     printf("  %s [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags \"...\"] FILENAME\n", argv0)
     printf("  %s --help       # This message\n", argv0)
@@ -48,8 +40,6 @@ def print_help() -> None:
     printf("  --parse-only     display only the AST (parse tree), don't do anything else\n")
     printf("  --linker-flags   appended to the linker command, so you can use external libraries\n")
 
-global command_line_args: CommandLineArgs
-
 def parse_arguments(argc: int, argv: byte**) -> None:
     memset(&command_line_args, 0, sizeof command_line_args)
     command_line_args.argv0 = argv[0]
@@ -57,7 +47,7 @@ def parse_arguments(argc: int, argv: byte**) -> None:
     command_line_args.optlevel = 1
 
     if argc == 2 and strcmp(argv[1], "--help") == 0:
-        print_help()
+        print_help(argv[0])
         exit(0)
 
     if argc == 2 and strcmp(argv[1], "--update") == 0:
@@ -425,7 +415,7 @@ def include_special_stdlib_file(compst: CompileState*, filename: byte*) -> None:
     parse_file(compst, path, NULL)
     free(path)
 
-def main(argc: int, argv: byte**) -> None:
+def main(argc: int, argv: byte**) -> int:
     init_target()
     init_types()
     stdlib = find_stdlib()

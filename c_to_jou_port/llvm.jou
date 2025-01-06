@@ -18,6 +18,9 @@ class LLVMTargetData:
 class LLVMTargetMachine:
     _dummy: int
 
+class LLVMPassManagerBuilder:
+    _dummy: int
+
 # =========== Target.h ===========
 declare LLVMInitializeX86TargetInfo() -> None
 declare LLVMInitializeX86Target() -> None
@@ -276,3 +279,17 @@ declare LLVMBuildInsertValue(Builder: LLVMBuilder*, AggVal: LLVMValue*, EltVal: 
 declare LLVMCreatePassManager() -> LLVMPassManager*
 declare LLVMRunPassManager(PM: LLVMPassManager*, M: LLVMModule*) -> int
 declare LLVMDisposePassManager(PM: LLVMPassManager*) -> None
+
+
+# =========== Transforms/PassManagerBuilder.h ===========
+declare LLVMPassManagerBuilderCreate() -> LLVMPassManagerBuilder*
+declare LLVMPassManagerBuilderDispose(PMB: LLVMPassManagerBuilder*) -> None
+declare LLVMPassManagerBuilderSetOptLevel(PMB: LLVMPassManagerBuilder*, OptLevel: int) -> None
+declare LLVMPassManagerBuilderSetSizeLevel(PMB: LLVMPassManagerBuilder*, SizeLevel: int) -> None
+declare LLVMPassManagerBuilderSetDisableUnitAtATime(PMB: LLVMPassManagerBuilder*, Value: int) -> None
+declare LLVMPassManagerBuilderSetDisableUnrollLoops(PMB: LLVMPassManagerBuilder*, Value: int) -> None
+declare LLVMPassManagerBuilderSetDisableSimplifyLibCalls(PMB: LLVMPassManagerBuilder*, Value: int) -> None
+declare LLVMPassManagerBuilderUseInlinerWithThreshold(PMB: LLVMPassManagerBuilder*, Threshold: int) -> None
+declare LLVMPassManagerBuilderPopulateFunctionPassManager(PMB: LLVMPassManagerBuilder*, PM: LLVMPassManager*) -> None
+declare LLVMPassManagerBuilderPopulateModulePassManager(PMB: LLVMPassManagerBuilder*, PM: LLVMPassManager*) -> None
+declare LLVMPassManagerBuilderPopulateLTOPassManager(PMB: LLVMPassManagerBuilder*, PM: LLVMPassManager*, Internalize: int, RunInliner: int) -> None
