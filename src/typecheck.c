@@ -60,11 +60,11 @@ static const Type *find_any_var(const FileTypes *ft, const char *name)
         for (LocalVariable **var = ft->current_fom_types->locals.ptr; var < End(ft->current_fom_types->locals); var++)
             if (!strcmp((*var)->name, name))
                 return (*var)->type;
-    for (GlobalVariable **var = ft->globals.ptr; var < End(ft->globals); var++)
-        if (!strcmp((*var)->name, name)) {
-            if ((*var)->usedptr)
-                *(*var)->usedptr = true;
-            return (*var)->type;
+    for (GlobalVariable *var = ft->globals.ptr; var < End(ft->globals); var++)
+        if (!strcmp(var->name, name)) {
+            if (var->usedptr)
+                *var->usedptr = true;
+            return var->type;
         }
     return NULL;
 }
@@ -205,14 +205,15 @@ static ExportSymbol handle_global_var(FileTypes *ft, const AstNameTypeValue *var
         fail(vardecl->name_location, "a global variable named '%s' already exists", vardecl->name);
 
     assert(!vardecl->value);
-    GlobalVariable *g = calloc(1, sizeof *g);
-    safe_strcpy(g->name, vardecl->name);
-    g->type = type_from_ast(ft, &vardecl->type);
-    g->defined_in_current_file = defined_here;
+    GlobalVariable g = {
+        .type = type_from_ast(ft, &vardecl->type),
+        .defined_in_current_file = defined_here,
+    };
+    safe_strcpy(g.name, vardecl->name);
     Append(&ft->globals, g);
 
-    ExportSymbol es = { .kind = EXPSYM_GLOBAL_VAR, .data.type = g->type };
-    safe_strcpy(es.name, g->name);
+    ExportSymbol es = { .kind = EXPSYM_GLOBAL_VAR, .data.type = g.type };
+    safe_strcpy(es.name, g.name);
     return es;
 }
 

@@ -247,8 +247,6 @@ void free_export_symbol(const ExportSymbol *es)
 
 void free_file_types(const FileTypes *ft)
 {
-    for (GlobalVariable **g = ft->globals.ptr; g < End(ft->globals); g++)
-        free(*g);
     for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++)
         free_type(*t);
     for (struct SignatureAndUsedPtr *f = ft->functions.ptr; f < End(ft->functions); f++)

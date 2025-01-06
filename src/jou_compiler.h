@@ -493,7 +493,7 @@ struct FunctionOrMethodTypes {
 struct FileTypes {
     FunctionOrMethodTypes *current_fom_types;  // conceptually this is internal to typecheck.c
     List(FunctionOrMethodTypes) fomtypes;
-    List(GlobalVariable *) globals;  // TODO: probably doesn't need to has pointers
+    List(GlobalVariable) globals;
     List(Type *) owned_types;   // These will be freed later
     List(struct TypeAndUsedPtr { const Type *type; bool *usedptr; }) types;
     List(struct SignatureAndUsedPtr { Signature signature; bool *usedptr; }) functions;

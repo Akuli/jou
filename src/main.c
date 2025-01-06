@@ -366,7 +366,7 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
         }
     }
 
-    struct GlobalVariable *g;
+    struct GlobalVariable g;
 
     switch(es->kind) {
     case EXPSYM_FUNCTION:
@@ -382,11 +382,13 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
         });
         break;
     case EXPSYM_GLOBAL_VAR:
-        g = calloc(1, sizeof(*g));
-        g->type = es->data.type;
-        g->usedptr = &imp->used;
-        assert(strlen(es->name) < sizeof g->name);
-        strcpy(g->name, es->name);
+        g = (GlobalVariable){
+            .type = es->data.type,
+            .usedptr = &imp->used,
+        };
+
+        assert(strlen(es->name) < sizeof g.name);
+        strcpy(g.name, es->name);
         Append(&fs->types.globals, g);
         break;
     }

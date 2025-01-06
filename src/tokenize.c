@@ -45,7 +45,7 @@ static char read_byte(struct State *st) {
 
     // Use the zero byte to represent end of file.
     if (c == '\0')
-        fail(st->location, "source file contains a zero byte");  // TODO: test this
+        fail(st->location, "source file contains a zero byte");
     if (c == EOF) {
         assert(!ferror(st->f));
         return '\0';
