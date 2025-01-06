@@ -507,10 +507,10 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft)
     LLVMSetTarget(st.module, get_target()->triple);
     LLVMSetDataLayout(st.module, get_target()->data_layout);
 
-    for (GlobalVariable **v = ft->globals.ptr; v < End(ft->globals); v++) {
-        LLVMTypeRef t = codegen_type((*v)->type);
-        LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, (*v)->name);
-        if ((*v)->defined_in_current_file)
+    for (GlobalVariable *v = ft->globals.ptr; v < End(ft->globals); v++) {
+        LLVMTypeRef t = codegen_type(v->type);
+        LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, v->name);
+        if (v->defined_in_current_file)
             LLVMSetInitializer(globalptr, LLVMConstNull(t));
     }
 
