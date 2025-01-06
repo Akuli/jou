@@ -1,0 +1,258 @@
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "./structs.jou"
+import "./free.jou"
+
+class TypeInfo:
+    type: Type
+    # TODO: pointer should be TypeInfo* but can't be due to compiler bug
+    pointer: void*  # type that represents a pointer to this type, or NULL
+    # TODO: arrays should be TypeInfo** but can't be due to compiler bug
+    arrays: void*  # types that represent arrays of this type
+    narrays: long
+
+    def get_pointer(self) -> TypeInfo*:
+        return self->pointer
+
+    def get_arrays(self) -> TypeInfo**:
+        return self->arrays
+
+# Types are cached into global state. This makes a lot of things easier
+# because you don't need to copy and free the types everywhere. This is
+# important: previously it was a lot of work to find forgotten copies and
+# frees with valgrind.
+#
+# This also simplifies checking whether two types are the same type: you
+# can simply use "==" between two "const Type *" pointers.
+#
+# Class types are a bit different. When you make a class, you get a
+# pointer that you must pass to free_type() later. You can still "=="
+# compare types, because two different classes with the same members are
+# not the same type.
+class GlobalTypeState:
+    integers: TypeInfo[2][65]  # integers[i][j] = i-bit integer, j=1 for signed, j=0 for unsigned
+    boolean: TypeInfo
+    doublelele: TypeInfo
+    floater: TypeInfo
+    voidptr: TypeInfo
+
+global global_type_state: GlobalTypeState
+
+global boolType: Type*      # bool
+global shortType: Type*     # short (16-bit signed)
+global intType: Type*       # int (32-bit signed)
+global longType: Type*      # long (64-bit signed)
+global byteType: Type*      # byte (8-bit unsigned)
+global floatType: Type*     # float (32-bit)
+global doubleType: Type*    # double (64-bit)
+global voidPtrType: Type*   # void*
+
+# The TypeInfo for type T contains the type T* (if it has been used)
+# and all array types with element type T.
+def free_pointer_and_array_types(info: TypeInfo*) -> None:
+    free_type(&info->get_pointer()->type)
+    for arrtype = info->get_arrays(); arrtype < &info->get_arrays()[info->narrays]; arrtype++:
+        free_type(&(*arrtype)->type)
+    free(info->arrays)
+
+def free_type(t: Type*) -> None:
+    if t != NULL:
+        if t->kind == TypeKind::Class:
+            for m = t->classdata.methods; m < &t->classdata.methods[t->classdata.nmethods]; m++:
+                free_signature(m)
+            free(t->classdata.fields)
+            free(t->classdata.methods)
+
+        ti = t as TypeInfo*
+        assert &ti->type == t
+
+        free_pointer_and_array_types(ti)
+        free(t)
+
+def free_global_type_state() -> None:
+    free_pointer_and_array_types(&global_type_state.boolean)
+    free_pointer_and_array_types(&global_type_state.floater)
+    free_pointer_and_array_types(&global_type_state.doublelele)
+    free_pointer_and_array_types(&global_type_state.voidptr)
+    for size = 8; size <= 64; size *= 2:
+        for is_signed = 0; is_signed <= 1; is_signed++:
+            free_pointer_and_array_types(&global_type_state.integers[size][is_signed])
+
+def init_types() -> None:
+    memset(&global_type_state, 0, sizeof(global_type_state))
+
+    boolType = &global_type_state.boolean.type
+    shortType = &global_type_state.integers[16][1].type
+    intType = &global_type_state.integers[32][1].type
+    longType = &global_type_state.integers[64][1].type
+    byteType = &global_type_state.integers[8][0].type
+    floatType = &global_type_state.floater.type
+    doubleType = &global_type_state.doublelele.type
+    voidPtrType = &global_type_state.voidptr.type
+
+    global_type_state.boolean.type = Type{name = "bool", kind = TypeKind::Bool }
+    global_type_state.voidptr.type = Type{name = "void*", kind = TypeKind::VoidPointer }
+    global_type_state.floater.type = Type{name = "float", kind = TypeKind::FloatingPoint, width_in_bits = 32 }
+    global_type_state.doublelele.type = Type{name = "double", kind = TypeKind::FloatingPoint, width_in_bits = 64 }
+
+    for size = 8; size <= 64; size *= 2:
+        global_type_state.integers[size][0].type.kind = TypeKind::UnsignedInteger
+        global_type_state.integers[size][1].type.kind = TypeKind::SignedInteger
+
+        global_type_state.integers[size][0].type.width_in_bits = size
+        global_type_state.integers[size][1].type.width_in_bits = size
+
+        sprintf(global_type_state.integers[size][0].type.name, "<%d-bit unsigned integer>", size)
+        sprintf(global_type_state.integers[size][1].type.name, "<%d-bit signed integer>", size)
+
+    strcpy(global_type_state.integers[8][0].type.name, "byte")
+    strcpy(global_type_state.integers[16][1].type.name, "short")
+    strcpy(global_type_state.integers[32][1].type.name, "int")
+    strcpy(global_type_state.integers[64][1].type.name, "long")
+
+def get_integer_type(size_in_bits: int, is_signed: bool) -> Type*:
+    assert size_in_bits==8 or size_in_bits==16 or size_in_bits==32 or size_in_bits==64
+    return &global_type_state.integers[size_in_bits][is_signed as int].type
+
+def get_pointer_type(t: Type*) -> Type*:
+    info = t as TypeInfo*
+    assert t == &info->type  # the 'type' field is first member and has 0 bytes offset
+
+    if info->pointer == NULL:
+        ptr: TypeInfo* = calloc(1, sizeof *ptr)
+        ptr->type = Type{kind=TypeKind::Pointer, valuetype=t }
+        snprintf(ptr->type.name, sizeof ptr->type.name, "%s*", t->name)
+        info->pointer = ptr
+
+    return &info->get_pointer()->type
+
+def get_array_type(t: Type*, len: int) -> Type*:
+    info = t as TypeInfo*
+    assert &info->type == t
+
+    assert len > 0
+    for existing = info->get_arrays(); existing < &info->get_arrays()[info->narrays]; existing++:
+        if (*existing)->type.array.len == len:
+            return &(*existing)->type
+
+    arr: TypeInfo* = calloc(1, sizeof *arr)
+    arr->type = Type{kind = TypeKind::Array, array = ArrayType{membertype = t, len = len}}
+    snprintf(arr->type.name, sizeof arr->type.name, "%s[%d]", t->name, len)
+    info->arrays = realloc(info->arrays, sizeof(info->get_arrays()[0]) * (info->narrays + 1))
+    assert info->arrays != NULL
+    info->get_arrays()[info->narrays++] = arr
+    return &arr->type
+
+def is_integer_type(t: Type*) -> bool:
+    return t->kind == TypeKind::SignedInteger or t->kind == TypeKind::UnsignedInteger
+
+def is_number_type(t: Type*) -> bool:
+    return is_integer_type(t) or t->kind == TypeKind::FloatingPoint
+
+def is_pointer_type(t: Type*) -> bool:
+    return (t->kind == TypeKind::Pointer or t->kind == TypeKind::VoidPointer)
+
+def type_of_constant(c: Constant*) -> Type*:
+    if c->kind == ConstantKind::EnumMember:
+        return c->enum_member.enumtype
+    if c->kind == ConstantKind::Null:
+        return voidPtrType
+    if c->kind == ConstantKind::Double:
+        return doubleType
+    if c->kind == ConstantKind::Float:
+        return floatType
+    if c->kind == ConstantKind::Bool:
+        return boolType
+    if c->kind == ConstantKind::String:
+        return get_pointer_type(byteType)
+    if c->kind == ConstantKind::Integer:
+        return get_integer_type(c->integer.width_in_bits, c->integer.is_signed)
+    assert False
+
+def create_opaque_class(name: byte*) -> Type*:
+    result: TypeInfo* = calloc(1, sizeof *result)
+    result->type = Type{kind = TypeKind::OpaqueClass}
+
+    assert strlen(name) < sizeof result->type.name
+    strcpy(result->type.name, name)
+
+    return &result->type
+
+def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*:
+    result: TypeInfo* = calloc(1, sizeof *result)
+    result->type = Type{
+        kind = TypeKind::Enum,
+        enummembers = EnumType{count=membercount, names=membernames},
+    }
+
+    assert strlen(name) < sizeof result->type.name
+    strcpy(result->type.name, name)
+
+    return &result->type
+
+
+def get_self_class(sig: Signature*) -> Type*:
+    if sig->nargs > 0 and strcmp(sig->argnames[0], "self") == 0:
+        if sig->argtypes[0]->kind == TypeKind::Pointer:
+            return sig->argtypes[0]->valuetype
+        if sig->argtypes[0]->kind == TypeKind::Class:
+            return sig->argtypes[0]
+        assert False
+    return NULL
+
+def signature_to_string(sig: Signature*, include_return_type: bool, include_self: bool) -> byte*:
+    result = strdup(sig->name)
+    assert result != NULL
+
+    result = realloc(result, strlen(result) + 2)
+    assert result != NULL
+    strcat(result, "(")
+
+    for i = 0; i < sig->nargs; i++:
+        if strcmp(sig->argnames[i], "self") == 0 and not include_self:
+            continue
+
+        assert sizeof sig->argnames[i] == 100
+        assert sizeof sig->argtypes[i]->name == 100
+        result = realloc(result, strlen(result) + 300)
+        assert result != NULL
+        strcat(result, sig->argnames[i])
+        strcat(result, ": ")
+        strcat(result, sig->argtypes[i]->name)
+        if i < sig->nargs - 1:
+            strcat(result, ", ")
+
+    result = realloc(result, strlen(result) + 100)
+    assert result != NULL
+
+    if sig->takes_varargs:
+        if sig->nargs != 0:
+            strcat(result, ", ")
+        strcat(result, "...")
+    strcat(result, ")")
+
+    if include_return_type:
+        assert sizeof(sig->returntype->name) == 100
+        result = realloc(result, strlen(result) + 200)
+        assert result != NULL
+
+        strcat(result, " -> ")
+        if sig->is_noreturn:
+            strcat(result, "noreturn")
+        elif sig->returntype == NULL:
+            strcat(result, "void")
+        else:
+            strcat(result, sig->returntype->name)
+
+    return result
+
+def copy_signature(sig: Signature*) -> Signature:
+    result = *sig
+
+    result.argtypes = malloc(sizeof(result.argtypes[0]) * result.nargs)
+    memcpy(result.argtypes, sig->argtypes, sizeof(result.argtypes[0]) * result.nargs)
+
+    result.argnames = malloc(sizeof(result.argnames[0]) * result.nargs)
+    memcpy(result.argnames, sig->argnames, sizeof(result.argnames[0]) * result.nargs)
+
+    return result

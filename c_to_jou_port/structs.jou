@@ -1,0 +1,551 @@
+import "./llvm.jou"
+import "stdlib/str.jou"
+import "./types.jou"
+
+class CommandLineArgs:
+    argv0: byte*  # Program name
+    verbosity: int  # How much debug/progress info to print, how many times -v/--verbose passed
+    valgrind: bool  # true --> Use valgrind when runnning user's jou program
+    tokenize_only: bool  # If true, tokenize the file passed on command line and don't actually compile anything
+    parse_only: bool  # If true, parse the file passed on command line and don't actually compile anything
+    optlevel: int  # Optimization level (0 don't optimize, 3 optimize a lot)
+    infile: byte*  # The "main" Jou file (can import other files)
+    outfile: byte*  # If not NULL, where to output executable
+    linker_flags: byte*  # String that is appended to linking command
+
+# Command-line arguments are a global variable because I like it.
+global command_line_args: CommandLineArgs
+
+class Location:
+    filename: byte*
+    lineno: int
+
+enum TokenKind:
+    Short
+    Int
+    Long
+    Float
+    Double
+    Char
+    String
+    Name
+    Keyword
+    Newline
+    Indent
+    Dedent
+    Operator
+    EndOfFile  # Marks the end of an array of Token
+
+class Token:
+    type: TokenKind
+    location: Location
+    union:
+        short_value: short  # TokenKind::Short
+        int_value: int      # TokenKind::Int
+        long_value: long    # TokenKind::Long
+        char_value: byte    # TokenKind::Char
+        string_value: byte*  # TokenKind::String
+        indentation_level: int  # TokenKind::Newline, indicates how many spaces after newline
+        name: byte[100]  # TokenKind::Name and TokenKind::Keyword. Also TokenKind::Double & TokenKind::Float (LLVM wants a string anyway)
+        operator: byte[4]  # TokenKind::Operator
+
+# Constants can appear in AST and also compilation steps after AST.
+enum ConstantKind:
+    EnumMember
+    Integer
+    Float
+    Double
+    String
+    Null
+    Bool
+
+class IntegerConstant:
+    width_in_bits: int
+    is_signed: bool
+    value: long
+
+class EnumMemberConstant:
+    enumtype: Type*
+    memberidx: int
+
+class Constant:
+    kind: ConstantKind
+    union:
+        integer: IntegerConstant
+        str: byte*
+        double_or_float_text: byte[100]  # convenient because LLVM wants a string anyway
+        boolean: bool
+        enum_member: EnumMemberConstant
+
+def copy_constant(c: Constant) -> Constant:
+    if c.kind == ConstantKind::String:
+        c.str = strdup(c.str)
+        assert c.str != NULL
+    return c
+
+def int_constant(type: Type*, value: long) -> Constant:
+    assert is_integer_type(type)
+    return Constant{
+        kind = ConstantKind::Integer,
+        integer = IntegerConstant{
+            width_in_bits = type->width_in_bits,
+            is_signed = type->kind == TypeKind::SignedInteger,
+            value = value
+        }
+    }
+
+# There is AstType and Type. The distinction is that Type contains more
+# information, e.g. AstType could just contain the name "int" while the
+# Type knows that it is a 32-bit signed integer. This is important for
+# e.g. structs: we only know the name of a struct when parsing, but we
+# will eventually need to know a lot more.
+#
+# AstType can also represent "void" even though that is not a valid type.
+# It simply appears as a named type with name "void".
+enum AstTypeKind:
+    Named
+    Pointer
+    Array
+
+class AstArrayType:
+    membertype: void*  # TODO: should be AstType*, but I'm arfaid I might run into compiler bug
+    len: AstExpression*
+
+    def get_membertype(self) -> AstType*:
+        return self->membertype
+
+class AstType:
+    kind: AstTypeKind
+    location: Location
+    union:
+        name: byte[100]      # AstTypeKind::Named
+        valuetype: AstType*  # AstTypeKind::Pointer
+        array: AstArrayType
+
+class AstSignature:
+    name_location: Location
+    name: byte[100]
+    args: AstNameTypeValue*
+    nargs: int
+    takes_varargs: bool  # true for functions like printf()
+    returntype: AstType  # can represent None
+
+class AstCall:
+    calledname: byte[100]  # e.g. function name, method name, struct name (instantiation)
+    argnames: byte[100]*  # NULL when arguments are not named, e.g. function calls
+    args: AstExpression *
+    nargs: int
+
+enum AstExpressionKind:
+    Constant
+    GetEnumMember  # Cannot be just a Constant because ast doesn't know about Types.
+    FunctionCall
+    BraceInit
+    Array
+    GetField     # foo.bar
+    DerefAndGetField  # foo->bar (shorthand for (*foo).bar)
+    CallMethod  # foo.bar()
+    DerefAndCallMethod  # foo->bar()
+    Indexing  # foo[bar]
+    As  # foo as SomeType
+    GetVariable
+    AddressOf  # &foo
+    SizeOf
+    Dereference  # *foo
+    And
+    Or
+    Not
+    Add
+    Sub
+    Neg
+    Mul
+    Div
+    Mod
+    Eq
+    Ne
+    # We need all of gt,ge,lt,le (>,>=,<,<=) because a<b and b>a do different
+    # things: a<b evaluates a first, but b>a evaluates b first.
+    Gt
+    Ge
+    Lt
+    Le
+    PreIncrement  # ++foo
+    PreDecrement  # --foo
+    PostIncrement  # foo++
+    PostDecrement  # foo--
+
+
+class AstArrayExpression:
+    items: AstExpression*
+    count: int
+
+
+class AstAsExpression:
+    obj: AstExpression*
+    type: AstType
+
+
+class AstMethodCallExpression:
+    obj: AstExpression*
+    call: AstCall
+
+
+class AstClassFieldExpression:
+    obj: AstExpression*
+    fieldname: byte[100]
+
+
+class AstEnumMemberExpression:
+    enumname: byte[100]
+    membername: byte[100]
+    
+
+class AstExpression:
+    location: Location
+    kind: AstExpressionKind
+    union:
+        constant: Constant  # AstExpressionKind::Constant
+        varname: byte[100]  # AstExpressionKind::GetVariable
+        call: AstCall       # AstExpressionKind::Call, AstExpressionKind::BraceInit
+        array: AstArrayExpression  # AstExpressionKind::ARRAY
+        as_: AstAsExpression   # AstExpressionKind::AS
+        methodcall: AstMethodCallExpression  # AstExpressionKind::CallMethod, AstExpressionKind::DerefAndCallMethod
+        classfield: AstClassFieldExpression  # AstExpressionKind::GetField, AstExpressionKind::DerefAndGetField
+        enummember: AstEnumMemberExpression  # AstExpressionKind::GetEnumMember
+        # The "operands" pointer is an array of 1 to 2 expressions.
+        # A couple examples to hopefully give you an idea of how it works in general:
+        #
+        #    * For AstExpressionKind::DEREFERENCE, it is the dereferenced value: the "foo" of "*foo".
+        #    * For AstExpressionKind::ADD, it is an array of the two things being added.
+        #    * For AstExpressionKind::ASSIGN, these are the left and right side of the assignment.
+        operands: AstExpression*
+
+class AstBody:
+    statements: AstStatement*
+    nstatements: int
+
+class AstConditionAndBody:
+    condition: AstExpression
+    body: AstBody 
+
+class AstForLoop:
+    # for init; cond; incr:
+    #     ...body...
+    #
+    # init and incr must be pointers because this struct goes inside AstStatement.
+    init: AstStatement*
+    cond: AstExpression
+    incr: AstStatement*
+    body: AstBody
+
+class AstIfStatement:
+    if_and_elifs: AstConditionAndBody*
+    n_if_and_elifs: int  # Always >= 1 for the initial "if"
+    elsebody: AstBody  # Empty (0 statements) means no else
+
+class AstNameTypeValue:
+    # name: type = value
+    name: byte[100]
+    name_location: Location
+    type: AstType
+    value: AstExpression* # can be NULL if value is missing
+
+class AstAssignment:
+    # target = value
+    target: AstExpression
+    value: AstExpression
+
+class AstAssert:
+    condition: AstExpression
+    condition_str: byte*
+
+class AstFunction:
+    signature: AstSignature
+    body: AstBody  # empty body means declaration, otherwise it's definition
+
+class AstUnionFields:
+    fields: AstNameTypeValue*
+    nfields: int
+
+enum AstClassMemberKind:
+    Field
+    Union
+    Method
+
+class AstClassMember:
+    kind: AstClassMemberKind
+    union:
+        field: AstNameTypeValue
+        unionfields: AstUnionFields
+        method: AstFunction
+
+class AstClassDef:
+    name: byte[100]
+    members: AstClassMember*
+    nmembers: int
+
+class AstEnumDef:
+    name: byte[100]
+    membernames: byte[100]*
+    nmembers: int
+
+class AstImport:
+    location: Location
+    specified_path: byte*  # Path in jou code e.g. "stdlib/io.jou"
+    resolved_path: byte*  # Absolute path or relative to current working directory e.g. "/home/akuli/jou/stdlib/io.jou"
+    used: bool    # For warning messages
+
+enum AstStatementKind:
+    Return
+    Assert
+    Pass
+    If
+    While
+    For
+    Break
+    Continue
+    DeclareLocalVar
+    Assign
+    InPlaceAdd  # x += y
+    InPlaceSub
+    InPlaceMul
+    InPlaceDiv
+    InPlaceMod
+    ExpressionStatement  # Evaluate an expression and discard the result.
+    Function
+    DeclareGlobalVar
+    DefineGlobalVar
+    DefineClass
+    DefineEnum
+
+class AstStatement:
+    location: Location
+    kind: AstStatementKind
+    union:
+        expression: AstExpression    # AstStatementKind::EXPRESSION_STATEMENT
+        returnvalue: AstExpression*  # AstStatementKind::Return (can be NULL)
+        assertion: AstAssert
+        whileloop: AstConditionAndBody
+        ifstatement: AstIfStatement
+        forloop: AstForLoop
+        vardecl: AstNameTypeValue
+        assignment: AstAssignment  # also used for inplace operations
+        function: AstFunction
+        classdef: AstClassDef
+        enumdef: AstEnumDef
+
+class AstFile:
+    path: byte*  # not owned. TODO what does this reference and why does this stay alive long enough?
+    imports: AstImport*
+    nimports: int
+    body: AstBody
+
+class ClassField:
+    name: byte[100]
+    type: Type*
+    # If multiple fields have the same union_id, they belong to the same union.
+    # It means that only one of the fields can be used at a time.
+    union_id: int
+
+class ClassData:
+    fields: ClassField*
+    nfields: int
+    methods: Signature*
+    nmethods: int
+
+class ArrayType:
+    membertype: Type*
+    len: long
+
+class EnumType:
+    count: int
+    names: byte[100]*
+
+enum TypeKind:
+    SignedInteger
+    UnsignedInteger
+    Bool
+    FloatingPoint  # float or double
+    Pointer
+    VoidPointer
+    Array
+    Class
+    OpaqueClass  # class with unknown members. TODO when used?
+    Enum
+
+class Type:
+    name: byte[500]   # All types have a name for error messages and debugging.
+    kind: TypeKind
+    union:
+        width_in_bits: int  # SignedInteger, UnsignedInteger, FloatingPoint
+        valuetype: Type*  # Pointer
+        classdata: ClassData  # Class
+        array: ArrayType  # Array
+        enummembers: EnumType
+
+class Signature:
+    name: byte[100]  # Function or method name. For methods it does not include the name of the class.
+    nargs: int
+    argtypes: Type**
+    argnames: byte[100]*
+    takes_varargs: bool  # true for functions like printf()
+    returntype: Type*    # NULL, if does not return a value
+    is_noreturn: bool
+    returntype_location: Location  # meaningful even if returntype is NULL
+
+
+class GlobalVariable:
+    name: byte[100]  # Same as in user's code, never empty
+    type: Type*
+    defined_in_current_file: bool  # not declare-only (e.g. stdout) or imported
+    usedptr: bool*  # If non-NULL, set to true when the variable is used. This is how we detect unused imports.
+
+class LocalVariable:
+    id: int  # Unique, but you can also compare pointers to Variable.
+    name: byte[100]  # Same name as in user's code, empty for temporary variables created by compiler
+    type: Type*
+    is_argument: bool    # First n variables are always the arguments
+
+class ExpressionTypes:
+    expr: AstExpression*  # not owned
+    type: Type*
+    implicit_cast_type: Type*  # NULL for no implicit cast
+
+    # Flags to indicate whether special kinds of implicit casts happened
+    implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
+    implicit_string_to_array_cast: bool     # "..." to byte[N]
+
+enum ExportSymbolKind:
+    Function
+    Type
+    GlobalVar
+
+class ExportSymbol:
+    kind: ExportSymbolKind
+    name: byte[200]
+    union:
+        funcsignature: Signature
+        type: Type*  # ExportSymbolKind::Type and ExportSymbolKind::GlobalVar
+
+# Type information about a function or method defined in the current file.
+class FunctionOrMethodTypes:
+    signature: Signature
+    expr_types: ExpressionTypes**
+    n_expr_types: int
+    locals: LocalVariable**
+    locals_len: int
+
+class TypeAndUsedPtr:
+    type: Type*
+    usedptr: bool*
+
+class SignatureAndUsedPtr:
+    signature: Signature
+    usedptr: bool*
+
+# Type information about a file.
+class FileTypes:
+    current_fom_types: FunctionOrMethodTypes*  # conceptually this is internal to typecheck.c
+    fomtypes: FunctionOrMethodTypes*
+    nfomtypes: int
+    globals: GlobalVariable*
+    nglobals: int
+    owned_types: Type**  # These will be freed later
+    n_owned_types: int
+    types: TypeAndUsedPtr*
+    ntypes: int
+    functions: SignatureAndUsedPtr*
+    nfunctions: int
+
+
+enum CfInstructionKind:
+    Constant
+    SpecialConstant  # e.g. "WINDOWS", unlike CF_Constant this doesn't trigger "this code will never run" warnings
+    StringArray
+    Call  # function or method call, depending on whether self_type is NULL (see below)
+    AddressOfLocalVar
+    AddressOfGlobalVar
+    SizeOf
+    PtrMemsetToZero  # takes one operand, a pointer: memset(ptr, 0, sizeof(*ptr))
+    PtrStore  # *op1 = op2 (does not use destvar, takes 2 operands)
+    PtrLoad  # aka dereference
+    PtrToInt64
+    Int64ToPtr
+    PtrClassField  # takes 1 operand (pointer), sets destvar to &op->fieldname
+    PtrCast
+    PtrAddInt
+    # Left and right side of number operations must be of the same type (except CF_NUM_CAST).
+    NumAdd
+    NumSub
+    NumMul
+    NumDiv
+    NumMod
+    NumEq
+    NumLt
+    NumCast
+    EnumToInt32
+    Int32ToEnum
+    BoolNegate  # TODO: get rid of this?
+    VarCpy  # similar to assignment statements: var1 = var2
+
+class CfStringArray:
+    str: byte*
+    len: int
+
+# Control Flow Graph.
+# Struct names not prefixed with Cfg because it looks too much like "config" to me
+class CfInstruction:
+    location: Location
+    kind: CfInstructionKind
+    union:
+        constant: Constant       # CfInstructionKind::Constant
+        strarray: CfStringArray  # CfInstructionKind::StringArray
+        signature: Signature     # CfInstructionKind::Call
+        fieldname: byte[100]     # CfInstructionKind::PtrClassField
+        globalname: byte[100]    # CfInstructionKind::AddressOfGlobalVar
+        scname: byte[100]        # CfInstructionKind::SpecialConstant
+        type: Type*              # CfInstructionKind::SizeOf
+
+    operands: LocalVariable**  # e.g. numbers to add, function arguments
+    noperands: int
+    destvar: LocalVariable*  # NULL when it doesn't make sense, e.g. functions that return void
+    hide_unreachable_warning: bool # usually false, can be set to true to avoid unreachable warning false positives
+
+class CfBlock:
+    instructions: CfInstruction*
+    ninstructions: int
+    branchvar: LocalVariable*  # boolean value used to decide where to jump next
+
+    # iftrue and iffalse are NULL for special end block and after calling a noreturn function.
+    # When iftrue and iffalse are the same, the branchvar is not used and may be NULL.
+    iftrue: CfBlock*
+    iffalse: CfBlock*
+
+class CfGraph:
+    signature: Signature
+    start_block: CfBlock  # First block
+    end_block: CfBlock  # Always empty. Return statement jumps here.
+    all_blocks: CfBlock**
+    n_all_blocks: int
+    locals: LocalVariable**   # First n variables are the function arguments
+    nlocals: int
+
+class CfGraphFile:
+    filename: byte*
+    graphs: CfGraph**  # only for defined functions
+    ngraphs: int
+
+
+# LLVM makes a mess of how to define what kind of computer will run the
+# compiled programs. Sometimes it wants a target triple, sometimes a
+# data layout. Sometimes it wants a string, sometimes an object
+# representing the thing.
+#
+# This struct aims to provide everything you may ever need. Hopefully it
+# will make the mess slightly less miserable to you.
+class Target:
+    triple: byte[100]
+    data_layout: byte[500]
+    target_ref: LLVMTarget*
+    target_machine_ref: LLVMTargetMachine*
+    target_data_ref: LLVMTargetData*
