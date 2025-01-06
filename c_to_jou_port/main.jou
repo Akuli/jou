@@ -5,6 +5,7 @@ import "stdlib/errno.jou"
 import "stdlib/str.jou"
 
 import "./llvm.jou"
+import "./types.jou"
 import "./free.jou"
 import "./parser.jou"
 import "./paths.jou"
@@ -285,19 +286,19 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
     ):
         return (
             importsym->kind == ExportSymbolKind::GlobalVar
-            and strcmp(importsym->name, stmt->vardecl.name) == 0
+            and strcmp(importsym->name, stmt->var_declaration.name) == 0
         )
 
-    if stmt->kind == AstStatementKind::DefineClass:
+    if stmt->kind == AstStatementKind::Class:
         return (
             importsym->kind == ExportSymbolKind::Type
-            and strcmp(importsym->name, stmt->data.classdef.name) == 0
+            and strcmp(importsym->name, stmt->classdef.name) == 0
         )
 
-    if stmt->kind == AstStatementKind::DefineEnum:
+    if stmt->kind == AstStatementKind::Enum:
         return (
             importsym->kind == ExportSymbolKind::Type
-            and strcmp(importsym->name, stmt->data.enumdef.name) == 0
+            and strcmp(importsym->name, stmt->enumdef.name) == 0
         )
 
     assert False  # TODO
@@ -322,19 +323,19 @@ def add_imported_symbol(fs: FileState*, es: ExportSymbol*, imp: AstImport*) -> N
         fs->types.functions = realloc(fs->types.functions, sizeof(fs->types.functions[0]) * (fs->types.nfunctions + 1))
         assert fs->types.functions != NULL
         fs->types.functions[fs->types.nfunctions++] = SignatureAndUsedPtr{
-            signature = copy_signature(&es->data.funcsignature),
+            signature = copy_signature(&es->funcsignature),
             usedptr = &imp->used,
         }
     elif es->kind == ExportSymbolKind::Type:
         fs->types.types = realloc(fs->types.types, sizeof(fs->types.types[0]) * (fs->types.ntypes + 1))
         assert fs->types.types != NULL
         fs->types.types[fs->types.ntypes++] = TypeAndUsedPtr{
-            type = es->data.type,
+            type = es->type,
             usedptr = &imp->used,
         }
     elif es->kind == ExportSymbolKind::GlobalVar:
         g = GlobalVariable{
-            type = es->data.type,
+            type = es->type,
             usedptr = &imp->used,
         }
 
@@ -348,7 +349,7 @@ def add_imported_symbol(fs: FileState*, es: ExportSymbol*, imp: AstImport*) -> N
         assert False
 
 def add_imported_symbols(compst: CompileState*) -> None:
-    for to = compst->files.ptr; to < &compst->files[compst->nfiles]; to++:
+    for to = compst->files; to < &compst->files[compst->nfiles]; to++:
         seen_before: FileState** = NULL
         seen_before_len = 0
 
@@ -359,8 +360,8 @@ def add_imported_symbols(compst: CompileState*) -> None:
             if from == to:
                 fail(imp->location, "the file itself cannot be imported")
 
-            for i = 0; i < seen_before.len; i++:
-                if seen_before.ptr[i] == from:
+            for i = 0; i < seen_before_len; i++:
+                if seen_before[i] == from:
                     msg: byte[500]
                     snprintf(msg, sizeof msg, "file \"%s\" is imported twice", imp->specified_path)
                     fail(imp->location, msg)
@@ -387,7 +388,7 @@ def add_imported_symbols(compst: CompileState*) -> None:
         free(seen_before)
 
     # Mark all exports as no longer pending.
-    for fs = compst->files.ptr; fs < &compst->files[compst->nfiles]; fs++:
+    for fs = compst->files; fs < &compst->files[compst->nfiles]; fs++:
         for es = fs->pending_exports; es->name[0] != '\0'; es++:
             free_export_symbol(es)
         free(fs->pending_exports)
@@ -400,26 +401,26 @@ def include_special_stdlib_file(compst: CompileState*, filename: byte*) -> None:
     free(path)
 
 def main(argc: int, argv: byte**) -> int:
-    init_target()
+    assert False  # TODO: do this
+    #init_target()
     init_types()
     stdlib = find_stdlib()
     parse_arguments(argc, argv)
 
     compst = CompileState{ stdlib_path = stdlib }
     if command_line_args.verbosity >= 2:
-        printf("Target triple: %s\n", get_target()->triple)
-        printf("Data layout: %s\n", get_target()->data_layout)
+        assert False  # TODO: do this
+#        printf("Target triple: %s\n", get_target()->triple)
+#        printf("Data layout: %s\n", get_target()->data_layout)
 
     if command_line_args.tokenize_only or command_line_args.parse_only:
-        f = open_the_file(command_line_args.infile, NULL)
-        tokens = tokenize(f, command_line_args.infile)
-        fclose(f)
+        tokens = tokenize(command_line_args.infile, NULL)
         if command_line_args.tokenize_only:
             print_tokens(tokens)
         else:
             ast = parse(tokens, compst.stdlib_path)
-            print_ast(&ast)
-            free_ast(&ast)
+            ast.print()
+            ast.free()
         free_tokens(tokens)
         return 0
 
@@ -434,56 +435,62 @@ def main(argc: int, argv: byte**) -> int:
     if command_line_args.verbosity >= 1:
         printf("Type-checking...\n")
 
-    for fs = compst.files.ptr; fs < End(compst.files); fs++:
+    for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:
         if command_line_args.verbosity >= 1:
             printf("  stage 1: %s\n", fs->path)
-        fs->pending_exports = typecheck_stage1_create_types(&fs->types, &fs->ast)
+        assert False  # TODO: do this
+        #fs->pending_exports = typecheck_stage1_create_types(&fs->types, &fs->ast)
 
     add_imported_symbols(&compst)
-    for fs = compst.files.ptr; fs < &compst.files[compst.nfiles]; fs++:
+    for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:
         if command_line_args.verbosity >= 1:
             printf("  stage 2: %s\n", fs->path)
-        fs->pending_exports = typecheck_stage2_populate_types(&fs->types, &fs->ast)
+        assert False  # TODO: do this
+        #fs->pending_exports = typecheck_stage2_populate_types(&fs->types, &fs->ast)
 
     add_imported_symbols(&compst)
-    for fs = compst.files.ptr; fs < &compst.files[compst.nfiles]; fs++:
+    for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:
         if command_line_args.verbosity >= 1:
             printf("  stage 3: %s\n", fs->path)
-        typecheck_stage3_function_and_method_bodies(&fs->types, &fs->ast)
+        assert False  # TODO: do this
+        #typecheck_stage3_function_and_method_bodies(&fs->types, &fs->ast)
 
-    char **objpaths = calloc(sizeof objpaths[0], compst.files.len + 1)
-    for fs = compst.files.ptr; fs < &compst.files[compst.nfiles]; fs++:
-        objpaths[fs - compst.files.ptr] = compile_ast_to_object_file(fs)
+    objpaths: byte** = calloc(sizeof objpaths[0], compst.nfiles + 1)
+    for i = 0; i < compst.nfiles; i++:
+        objpaths[i] = compile_ast_to_object_file(&compst.files[i])
 
     # Check for missing main() as late as possible, so that other errors come first.
     # This way Jou users can work on other functions before main() function is written.
     mainfile = find_file(&compst, command_line_args.infile)
     assert mainfile != NULL
     if not defines_main(&mainfile->ast):
-        fail(Location{filename=mainfile->path, lineno=0}, "missing `main` function to execute the program")
+        fail(Location{path=mainfile->path, lineno=0}, "missing `main` function to execute the program")
 
-    for fs = compst.files.ptr; fs < &compst.files[compst.nfiles]; fs++:
-        free_ast(&fs->ast)
+    for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:
+        fs->ast.free()
         free(fs->path)
         free_file_types(&fs->types)
-    free(compst.files.ptr)
+    free(compst.files)
     free(stdlib)
 
     if command_line_args.outfile != NULL:
         exepath = strdup(command_line_args.outfile)
     else:
-        exepath = get_default_exe_path()
+        assert False  # TODO: do this
+        #exepath = get_default_exe_path()
 
-    run_linker(objpaths, exepath)
+    assert False  # TODO: do this
+    #run_linker(objpaths, exepath)
     for i = 0; objpaths[i] != NULL; i++:
         free(objpaths[i])
     free(objpaths)
 
     ret = 0
-    if command_line_args.outfile:
+    if command_line_args.outfile != NULL:
         if command_line_args.verbosity >= 1:
             printf("Run: %s\n", exepath)
-        ret = run_exe(exepath, command_line_args.valgrind)
+        assert False  # TODO: do this
+        #ret = run_exe(exepath, command_line_args.valgrind)
 
     free(exepath)
 
