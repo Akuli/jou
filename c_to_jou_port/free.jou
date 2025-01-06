@@ -2,12 +2,13 @@
 
 import "./structs.jou"
 import "./types.jou"
+import "./token.jou"
 import "stdlib/mem.jou"
 
 def free_tokens(tokenlist: Token*) -> None:
-    for t = tokenlist; t->type != TokenKind::EndOfFile; t++:
-        if t->type == TokenKind::String:
-            free(t->string_value)
+    for t = tokenlist; t->kind != TokenKind::EndOfFile; t++:
+        if t->kind == TokenKind::String:
+            free(t->long_string)
     free(tokenlist)
 
 def free_constant(c: Constant*) -> None:

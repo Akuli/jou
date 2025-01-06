@@ -1,11 +1,14 @@
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 import "stdlib/mem.jou"
+import "stdlib/errno.jou"
 import "stdlib/str.jou"
 
 import "./llvm.jou"
+import "./errors_and_warnings.jou"
 import "./structs.jou"
 import "./update.jou"
+import "./tokenizer.jou"
 
 
 def optimize(module: LLVMModule*, level: int) -> None:
@@ -63,8 +66,8 @@ def parse_arguments(argc: int, argv: byte**) -> None:
         elif strcmp(argv[i], "--verbose") == 0:
             command_line_args.verbosity++
             i++
-        elif strncmp(argv[i], "-v", 2) == 0 and strspn(argv[i] + 1, "v") == strlen(argv[i])-1:
-            command_line_args.verbosity += strlen(argv[i]) - 1
+        elif starts_with(argv[i], "-v") and strspn(&argv[i][1], "v") == strlen(argv[i])-1:
+            command_line_args.verbosity += (strlen(argv[i]) as int) - 1
             i++
         elif strcmp(argv[i], "--valgrind") == 0:
             command_line_args.valgrind = True
@@ -115,9 +118,8 @@ def parse_arguments(argc: int, argv: byte**) -> None:
             fprintf(stderr, "%s: unknown argument \"%s\"", argv[0], argv[i])
             fprintf(stderr, " (try \"%s --help\")\n", argv[0])
             exit(2)
-        elif command_line_args.infile:
-            fprintf(stderr, "%s: you can only pass one Jou file", argv[0])
-            fprintf(stderr, " (try \"%s --help\")\n", argv[0])
+        elif command_line_args.infile != NULL:
+            fprintf(stderr, "%s: you can only pass one Jou file (try \"%s --help\")\n", argv[0], argv[0])
             exit(2)
         else:
             command_line_args.infile = argv[i++]
@@ -146,7 +148,7 @@ class CompileState:
     parse_queue_len: int
 
 def find_file(compst: CompileState*, path: byte*) -> FileState*:
-    for fs = compst->files.ptr; fs < &compst->files[compst->nfiles]; fs++:
+    for fs = compst->files; fs < &compst->files[compst->nfiles]; fs++:
         if strcmp(fs->path, path) == 0:
             return fs
     return NULL
@@ -157,16 +159,16 @@ def open_the_file(path: byte*, import_location: Location*) -> FILE*:
         msg: byte[500]
         if import_location != NULL:
             snprintf(msg, sizeof(msg), "cannot import from \"%s\": %s", path, strerror(get_errno()))
-            fail(import_location, msg)
+            fail(*import_location, msg)
         else:
-            snprintf(msg, sizeof(msg), "cannot open file: %s", strerror(errno))
-            fail(Location{filename=path}, msg)
+            snprintf(msg, sizeof(msg), "cannot open file: %s", strerror(get_errno()))
+            fail(Location{path=path}, msg)
     return f
 
 def defines_main(ast: AstFile*) -> bool:
     for i = 0; i < ast->body.nstatements; i++:
         s = &ast->body.statements[i]
-        if s->kind == AstStatementKind::Function and strcmp(s->data.function.signature.name, "main") == 0:
+        if s->kind == AstStatementKind::Function and strcmp(s->function.signature.name, "main") == 0:
             return True
     return False
 
@@ -178,9 +180,7 @@ def parse_file(compst: CompileState*, filename: byte*, import_location: Location
 
     if command_line_args.verbosity >= 1:
         printf("Tokenizing %s\n", filename)
-    f = open_the_file(fs.path, import_location)
-    tokens = tokenize(f, fs.path)
-    fclose(f)
+    tokens = tokenize(fs.path, import_location)
 
     if command_line_args.verbosity >= 2:
         print_tokens(tokens)

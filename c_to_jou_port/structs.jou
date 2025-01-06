@@ -1,6 +1,8 @@
-import "./llvm.jou"
 import "stdlib/str.jou"
+
+import "./llvm.jou"
 import "./types.jou"
+import "./errors_and_warnings.jou"
 
 class CommandLineArgs:
     argv0: byte*  # Program name
@@ -15,39 +17,6 @@ class CommandLineArgs:
 
 # Command-line arguments are a global variable because I like it.
 global command_line_args: CommandLineArgs
-
-class Location:
-    filename: byte*
-    lineno: int
-
-enum TokenKind:
-    Short
-    Int
-    Long
-    Float
-    Double
-    Char
-    String
-    Name
-    Keyword
-    Newline
-    Indent
-    Dedent
-    Operator
-    EndOfFile  # Marks the end of an array of Token
-
-class Token:
-    type: TokenKind
-    location: Location
-    union:
-        short_value: short  # TokenKind::Short
-        int_value: int      # TokenKind::Int
-        long_value: long    # TokenKind::Long
-        char_value: byte    # TokenKind::Char
-        string_value: byte*  # TokenKind::String
-        indentation_level: int  # TokenKind::Newline, indicates how many spaces after newline
-        name: byte[100]  # TokenKind::Name and TokenKind::Keyword. Also TokenKind::Double & TokenKind::Float (LLVM wants a string anyway)
-        operator: byte[4]  # TokenKind::Operator
 
 # Constants can appear in AST and also compilation steps after AST.
 enum ConstantKind:

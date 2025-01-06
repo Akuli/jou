@@ -1,10 +1,12 @@
 # Self-update: "jou --update" updates the Jou compiler.
 
 import "stdlib/ascii.jou"
+import "stdlib/errno.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
+import "stdlib/mem.jou"
 import "stdlib/process.jou"
-import "./util.jou"
+import "./paths.jou"
 
 # TODO: add some kind of chdir to standard library
 if WINDOWS:
@@ -41,7 +43,7 @@ def update_jou_compiler() -> None:
     printf("Installation directory: %s\n\n", exedir)
 
     if chdir(exedir) == -1:
-        fprintf(stderr, "chdir(\"%s\") failed: %s\n", exedir, strerror(errno))
+        fprintf(stderr, "chdir(\"%s\") failed: %s\n", exedir, strerror(get_errno()))
         fail_update()
 
     if WINDOWS:
