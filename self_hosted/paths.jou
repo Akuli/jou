@@ -132,6 +132,33 @@ def get_path_to_file_in_jou_compiled(filename: byte*) -> byte*:
 def delete_slice(start: byte*, end: byte*) -> None:
     memmove(start, end, strlen(end) + 1)
 
+# In paths, "foo/../" is usually unnecessary, because it goes to a folder "foo" and then
+# immediately back up. However, it makes a difference in a few cases:
+#
+# 1. folder "foo" doesn't exist
+# 2. folder "foo" is a symlink to a different place
+# 3. we are actually looking at "../../" (so "foo" is "..")
+#
+# Special cases 1 and 2 are not relevant in the Jou compiler, but special case 3 is relevant
+# when importing from "../../file.jou" (bad style, but should work).
+#
+# This function deletes one unnecessary "foo/../", and may be called recursively to delete
+# all of them.
+def simplify_dotdot_once(path: byte*) -> bool:
+    assert strstr(path, "\\") == NULL  # should be already taken care of when calling this
+
+    for p = strstr(path, "/../"); p != NULL; p = strstr(&p[1], "/../"):
+        end = &p[4]
+        start = p
+        while start > path and start[-1] != '/':
+            start--
+
+        if not starts_with(start, "../"):
+            delete_slice(start, end)
+            return True
+
+    return False
+
 def simplify_path(path: byte*) -> None:
     if WINDOWS:
         # Backslash to forward slash.
@@ -142,6 +169,7 @@ def simplify_path(path: byte*) -> None:
     # Delete "." components.
     while starts_with(path, "./"):
         delete_slice(path, &path[2])
+
     while True:
         p = strstr(path, "/./")
         if p == NULL:
@@ -149,12 +177,5 @@ def simplify_path(path: byte*) -> None:
         delete_slice(p, &p[2])
 
     # Delete unnecessary ".." components.
-    while True:
-        p = strstr(path, "/../")
-        if p == NULL:
-            break  # TODO: walrus operator  p := strstr(...)
-
-        start_of_previous_component = p
-        while start_of_previous_component != path and start_of_previous_component[-1] != '/':
-            start_of_previous_component--
-        delete_slice(start_of_previous_component, &p[4])
+    while simplify_dotdot_once(path):
+        pass
