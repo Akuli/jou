@@ -1,6 +1,7 @@
 # Boring boilerplate code to free up data structures used in compilation.
 
 import "./structs.jou"
+import "./ast.jou"
 import "./types.jou"
 import "./token.jou"
 import "stdlib/mem.jou"
@@ -144,8 +145,8 @@ def free_ast_statement(stmt: AstStatement*) -> None:
             free(stmt->returnvalue)
     elif (
         stmt->kind == AstStatementKind::DeclareLocalVar
-        or stmt->kind == AstStatementKind::DeclareGlobalVar
-        or stmt->kind == AstStatementKind::DefineGlobalVar
+        or stmt->kind == AstStatementKind::GlobalVariableDeclaration
+        or stmt->kind == AstStatementKind::GlobalVariableDefinition
     ):
         free_name_type_value(&stmt->vardecl)
     elif (

@@ -344,10 +344,10 @@ ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstFile *ast)
     for (int i = 0; i < ast->body.nstatements; i++) {
         const AstStatement *stmt = &ast->body.statements[i];
         switch(stmt->kind) {
-        case AstStatementKind::DeclareGlobalVar:
+        case AstStatementKind::GlobalVariableDeclaration:
             Append(&exports, handle_global_var(ft, &stmt->data.vardecl, false));
             break;
-        case AstStatementKind::DefineGlobalVar:
+        case AstStatementKind::GlobalVariableDefinition:
             Append(&exports, handle_global_var(ft, &stmt->data.vardecl, true));
             break;
         case AstStatementKind::Function:
@@ -1387,10 +1387,10 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
     case AstStatementKind::Pass:
         break;
 
-    case AstStatementKind::DeclareGlobalVar:
+    case AstStatementKind::GlobalVariableDeclaration:
     case AstStatementKind::DefineClass:
     case AstStatementKind::DefineEnum:
-    case AstStatementKind::DefineGlobalVar:
+    case AstStatementKind::GlobalVariableDefinition:
     case AstStatementKind::Function:
         assert(0);
     }

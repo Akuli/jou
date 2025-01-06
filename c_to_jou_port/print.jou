@@ -383,13 +383,13 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
                 print_ast_expression(stmt->data.vardecl.value, sub);
             }
             break;
-        case AstStatementKind::DeclareGlobalVar:
+        case AstStatementKind::GlobalVariableDeclaration:
             assert(!stmt->data.vardecl.value);
             printf("declare global var %s: ", stmt->data.vardecl.name);
             print_ast_type(&stmt->data.vardecl.type);
             printf("\n");
             break;
-        case AstStatementKind::DefineGlobalVar:
+        case AstStatementKind::GlobalVariableDefinition:
             assert(!stmt->data.vardecl.value);
             printf("define global var %s: ", stmt->data.vardecl.name);
             print_ast_type(&stmt->data.vardecl.type);
