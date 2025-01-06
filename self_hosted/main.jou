@@ -5,6 +5,7 @@ import "stdlib/errno.jou"
 import "stdlib/str.jou"
 
 import "./llvm.jou"
+import "./target.jou"
 import "./types.jou"
 import "./free.jou"
 import "./parser.jou"
@@ -401,8 +402,7 @@ def include_special_stdlib_file(compst: CompileState*, filename: byte*) -> None:
     free(path)
 
 def main(argc: int, argv: byte**) -> int:
-    assert False  # TODO: do this
-    #init_target()
+    init_target()
     init_types()
     stdlib = find_stdlib()
     parse_arguments(argc, argv)
@@ -494,6 +494,8 @@ def main(argc: int, argv: byte**) -> int:
 
     free(exepath)
 
-    free_global_type_state()  # not really necessary, but makes valgrind much happier
+    # not really necessary, but makes valgrind much happier
+    free_global_type_state()
+    cleanup_target()
 
     return ret
