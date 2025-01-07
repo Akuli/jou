@@ -5,6 +5,7 @@ import "stdlib/errno.jou"
 import "stdlib/str.jou"
 
 import "./llvm.jou"
+import "./typecheck.jou"
 import "./target.jou"
 import "./types.jou"
 import "./free.jou"
@@ -179,7 +180,7 @@ def defines_main(ast: AstFile*) -> bool:
     return False
 
 def parse_file(compst: CompileState*, filename: byte*, import_location: Location*) -> None:
-    if find_file(compst, filename) == NULL:
+    if find_file(compst, filename) != NULL:
         return
 
     fs = FileState{path = strdup(filename)}
@@ -409,9 +410,8 @@ def main(argc: int, argv: byte**) -> int:
 
     compst = CompileState{ stdlib_path = stdlib }
     if command_line_args.verbosity >= 2:
-        assert False  # TODO: do this
-#        printf("Target triple: %s\n", get_target()->triple)
-#        printf("Data layout: %s\n", get_target()->data_layout)
+        printf("Target triple: %s\n", target.triple)
+        printf("Data layout: %s\n", target.data_layout)
 
     if command_line_args.tokenize_only or command_line_args.parse_only:
         tokens = tokenize(command_line_args.infile, NULL)
@@ -438,8 +438,7 @@ def main(argc: int, argv: byte**) -> int:
     for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:
         if command_line_args.verbosity >= 1:
             printf("  stage 1: %s\n", fs->path)
-        assert False  # TODO: do this
-        #fs->pending_exports = typecheck_stage1_create_types(&fs->types, &fs->ast)
+        fs->pending_exports = typecheck_stage1_create_types(&fs->types, &fs->ast)
 
     add_imported_symbols(&compst)
     for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:

@@ -1,1460 +1,1489 @@
 #include "jou_compiler.h"
 #include <stdnoreturn.h>
 
-static const Type *find_type(const FileTypes *ft, const char *name)
-{
-    for (struct TypeAndUsedPtr *t = ft->types.ptr; t < End(ft->types); t++) {
-        if (!strcmp(t->type->name, name)) {
-            if (t->usedptr)
-                *t->usedptr = true;
-            return t->type;
-        }
-    }
-    return NULL;
-}
+def find_type(ft: FileTypes*, name: byte*) -> Type*:
+    for t = ft->types; t < &ft->types[ft->ntypes]; t++:
+        if strcmp(t->type->name, name) == 0:
+            if t->usedptr != NULL:
+                *t->usedptr = True
+            return t->type
+    return NULL
 
-static const Signature *find_function(const FileTypes *ft, const char *name)
-{
-    for (struct SignatureAndUsedPtr *f = ft->functions.ptr; f < End(ft->functions); f++) {
-        if (!strcmp(f->signature.name, name)) {
-            if (f->usedptr)
-                *f->usedptr = true;
-            return &f->signature;
-        }
-    }
-    return NULL;
-}
+def find_function(ft: FileTypes*, name: byte*) -> Signature*:
+    for f = ft->functions.ptr; f < &ft->functions[ft->nfunctions]; f++:
+        if strcmp(f->signature.name, name) == 0:
+            if f->usedptr != NULL:
+                *f->usedptr = True
+            return &f->signature
+    return NULL
 
-static const Signature *find_method(const Type *selfclass, const char *name)
-{
-    if (selfclass->kind != TypeKind::Class)
-        return NULL;
-    for (const Signature *m = selfclass->data.classdata.methods.ptr; m < End(selfclass->data.classdata.methods); m++)
-        if (!strcmp(m->name, name))
+def find_method(selfclass: Type*, name: byte*) -> Signature*:
+    if selfclass->kind != TypeKind::Class:
+        return NULL
+    for m = selfclass->data.classdata.methods; m < &selfclass->data.classdata.methods[selfclass->data.classdata.nmethods]; m++:
+        if strcmp(m->name, name) == 0:
             return m;
-    return NULL;
-}
+    return NULL
 
-static const Signature *find_function_or_method(const FileTypes *ft, const Type *selfclass, const char *name)
-{
-    if (selfclass)
-        return find_method(selfclass, name);
-    else
-        return find_function(ft, name);
-}
+def find_function_or_method(ft: FileTypes*, selfclass: Type*, name: byte*) -> Signature*:
+    if selfclass != NULL:
+        return find_method(selfclass, name)
+    else:
+        return find_function(ft, name)
 
-static const LocalVariable *find_local_var(const FileTypes *ft, const char *name)
-{
-    if (ft->current_fom_types)
-        for (LocalVariable **var = ft->current_fom_types->locals.ptr; var < End(ft->current_fom_types->locals); var++)
-            if (!strcmp((*var)->name, name))
-                return *var;
-    return NULL;
-}
+def find_local_var(ft: FileTypes*, name: byte*) -> LocalVariable*:
+    if ft->current_fom_types != NULL:
+        for var = ft->current_fom_types->locals; var < &ft->current_fom_types->locals[ft->current_fom_types->nlocals]; var++:
+            if strcmp((*var)->name, name) == 0:
+                return *var
+    return NULL
 
-static const Type *find_any_var(const FileTypes *ft, const char *name)
-{
-    if (get_special_constant(name) != -1)
-        return boolType;
-    if (ft->current_fom_types)
-        for (LocalVariable **var = ft->current_fom_types->locals.ptr; var < End(ft->current_fom_types->locals); var++)
-            if (!strcmp((*var)->name, name))
-                return (*var)->type;
-    for (GlobalVariable *var = ft->globals.ptr; var < End(ft->globals); var++)
-        if (!strcmp(var->name, name)) {
-            if (var->usedptr)
-                *var->usedptr = true;
-            return var->type;
-        }
-    return NULL;
-}
+def find_any_var(ft: FileTypes*, name: byte*) -> Type*:
+    if get_special_constant(name) != -1:
+        return boolType
+    if ft->current_fom_types:
+        for lvar = ft->current_fom_types->locals.ptr; lvar < &ft->current_fom_types->locals[ft->current_fom_types->nlocals]; lvar++:
+            if strcmp((*lvar)->name, name) == 0:
+                return (*lvar)->type
+    for gvar = ft->globals.ptr; gvar < End(ft->globals); gvar++:
+        if strcmp(gvar->name, name) == 0:
+            if gvar->usedptr
+                *gvar->usedptr = True
+            return gvar->type
+    return NULL
 
-static const char *short_type_description(const Type *t)
-{
-    switch(t->kind) {
-        case TypeKind::OpaqueClass:
-        case TypeKind::Class:
-            return "a class";
-        case TypeKind::Enum:
+def short_type_description(Type*t) -> byte*:
+    if t->kind == TypeKind::OpaqueClass or t->kind == TypeKind::Class:
+        return "a class"
+    if t->kind == TypeKind::Enum:
             return "an enum";
-        case TypeKind::VoidPointer:
-        case TypeKind::Pointer:
-            return "a pointer type";
-        case TypeKind::SignedInteger:
-        case TypeKind::UnsignedInteger:
-        case TypeKind::FloatingPoint:
-            return "a number type";
-        case TypeKind::Array:
-            return "an array type";
-        case TypeKind::Bool:
-            return "the built-in bool type";
-    }
-}
+    if t->kind == TypeKind::VoidPointer or t->kind == TypeKind::Pointer:
+        return "a pointer type";
+    if (
+        t->kind == TypeKind::SignedInteger
+        or t->kind == TypeKind::UnsignedInteger
+        or t->kind == TypeKind::FloatingPoint
+    ):
+        return "a number type";
+    if t->kind == TypeKind::Array:
+        return "an array type";
+    if t->kind == TypeKind::Bool:
+        return "the built-in bool type";
+    assert False
 
-ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstFile *ast)
-{
-    List(ExportSymbol) exports = {0};
+def typecheck_stage1_create_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*:
+    exports: ExportSymbol* = NULL
+    nexports = 0
 
-    for (int i = 0; i < ast->body.nstatements; i++) {
-        const AstStatement *stmt = &ast->body.statements[i];
-        Type *t;
-        char name[100];
+    for i = 0; i < ast->body.nstatements; i++:
+        stmt = &ast->body.statements[i];
 
-        switch(stmt->kind) {
-        case AstStatementKind::DefineClass:
-            safe_strcpy(name, stmt->data.classdef.name);
-            t = create_opaque_class(name);
-            break;
-        case AstStatementKind::DefineEnum:
-            safe_strcpy(name, stmt->data.enumdef.name);
-            t = create_enum(name, stmt->data.enumdef.nmembers, stmt->data.enumdef.membernames);
-            break;
-        default:
-            continue;
-        }
+        name: byte[100]
+        if stmt->kind == AstStatementKind::DefineClass:
+            assert sizeof(name) == sizeof(stmt->classdef.name)
+            strcpy(name, stmt->classdef.name)
+            t = create_opaque_class(name)
+        elif stmt->kind == AstStatementKind::DefineEnum:
+            assert sizeof(name) == sizeof(stmt->enumdef.name)
+            strcpy(name, stmt->data.enumdef.name)
+            t = create_enum(name, stmt->data.enumdef.nmembers, stmt->data.enumdef.membernames)
+        else:
+            continue
 
-        const Type *existing = find_type(ft, name);
-        if (existing)
-            fail(stmt->location, "%s named '%s' already exists", short_type_description(existing), name);
+        if find_type(ft, name) != NULL:
+            msg: byte[500]
+            snprintf(msg, sizeof(msg), "%s named '%s' already exists", short_type_description(existing), name)
+            fail(stmt->location, msg)
 
-        Append(&ft->types, (struct TypeAndUsedPtr){ .type=t, .usedptr=NULL });
-        Append(&ft->owned_types, t);
+        ft->types = realloc(ft->types, sizeof(ft->types[0]) * (ft->ntypes + 1))
+        assert ft->types != NULL
+        ft->types[ft->ntypes++] = TypeAndUsedPtr{type=t, usedptr=NULL}
 
-        struct ExportSymbol es = { .kind = ExportSymbolKind::Type, .data.type = t };
-        safe_strcpy(es.name, name);
-        Append(&exports, es);
-    }
+        ft->owned_types = realloc(ft->owned_types, sizeof(ft->owned_types[0]) * (ft->n_owned_types + 1))
+        assert ft->owned_types != NULL
+        ft->types[ft->n_owned_types++] = t
 
-    Append(&exports, (ExportSymbol){0});
-    return exports.ptr;
-}
+        es = ExportSymbol{kind = ExportSymbolKind::Type, type = t}
+        assert sizeof(es.name) == sizeof(name)
+        strcpy(es.name, name)
 
-int evaluate_array_length(const AstExpression *expr)
-{
-    if (expr->kind == AstExpressionKind::Constant
-        && expr->data.constant.kind == ConstantKind::Integer
-        && expr->data.constant.data.integer.is_signed
-        && expr->data.constant.data.integer.width_in_bits == 32)
-    {
-        return (int)expr->data.constant.data.integer.value;
-    }
+        exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+        assert exports != NULL
+        exports[nexports++] = es
 
-    fail(expr->location, "cannot evaluate array length at compile time");
-}
+    exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+    assert exports != NULL
+    exports[nexports] = ExportSymbol{}  # list terminator
+    return exports
 
-static bool is_void(const AstType *t)
-{
-    return t->kind == AstTypeKind::Named && !strcmp(t->data.name, "void");
-}
+def evaluate_array_length(expr: AstExpression*) -> long:
+    # TODO: will need to be updated due to different AST
+    if (
+        expr->kind == AstExpressionKind::Constant
+        and expr->data.constant.kind == ConstantKind::Integer
+        and expr->data.constant.data.integer.is_signed
+        and expr->data.constant.data.integer.width_in_bits == 32
+    ):
+        return expr->data.constant.data.integer.value as int
 
-static bool is_none(const AstType *t)
-{
-    return t->kind == AstTypeKind::Named && !strcmp(t->data.name, "None");
-}
+    fail(expr->location, "cannot evaluate array length at compile time")
 
-static bool is_noreturn(const AstType *t)
-{
-    return t->kind == AstTypeKind::Named && !strcmp(t->data.name, "noreturn");
-}
+def is_void(const AstType *t) -> bool:
+    return t->kind == AstTypeKind::Named and strcmp(t->data.name, "void") == 0
 
-static const Type *type_from_ast(const FileTypes *ft, const AstType *asttype)
-{
-    if (is_void(asttype) || is_none(asttype) || is_noreturn(asttype))
-        fail(asttype->location, "'%s' cannot be used here because it is not a type", asttype->data.name);
+def is_none(const AstType *t) -> bool:
+    return t->kind == AstTypeKind::Named and strcmp(t->data.name, "None") == 0
 
-    const Type *tmp;
+def is_noreturn(const AstType *t) -> bool:
+    return t->kind == AstTypeKind::Named and strcmp(t->data.name, "noreturn") == 0
 
-    switch(asttype->kind) {
-    case AstTypeKind::Named:
-        if (!strcmp(asttype->data.name, "short"))
+def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
+    msg: byte[500]
+
+    if is_void(asttype) or is_none(asttype) or is_noreturn(asttype):
+        snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype->data.name)
+        fail(asttype->location, msg)
+
+    switch(asttype->kind:
+    if asttype->kind == AstTypeKind::Named:
+        if strcmp(asttype->data.name, "short") == 0:
             return shortType;
-        if (!strcmp(asttype->data.name, "int"))
+        if strcmp(asttype->data.name, "int") == 0:
             return intType;
-        if (!strcmp(asttype->data.name, "long"))
+        if strcmp(asttype->data.name, "long") == 0:
             return longType;
-        if (!strcmp(asttype->data.name, "byte"))
+        if strcmp(asttype->data.name, "byte") == 0:
             return byteType;
-        if (!strcmp(asttype->data.name, "bool"))
+        if strcmp(asttype->data.name, "bool") == 0:
             return boolType;
-        if (!strcmp(asttype->data.name, "float"))
+        if strcmp(asttype->data.name, "float") == 0:
             return floatType;
-        if (!strcmp(asttype->data.name, "double"))
+        if strcmp(asttype->data.name, "double") == 0:
             return doubleType;
-        if ((tmp = find_type(ft, asttype->data.name)))
-            return tmp;
-        fail(asttype->location, "there is no type named '%s'", asttype->data.name);
+        found = find_type(ft, asttype->data.name)
+        if found != NULL:
+            return found
 
-    case AstTypeKind::Pointer:
-        if (is_void(asttype->data.valuetype))
+        snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype->data.name)
+        fail(asttype->location, msg)
+
+    if asttype->kind == AstTypeKind::Pointer:
+        if is_void(asttype->data.valuetype))
             return voidPtrType;
         return get_pointer_type(type_from_ast(ft, asttype->data.valuetype));
 
-    case AstTypeKind::Array:
+    if asttype->kind == AstTypeKind::Array:
         tmp = type_from_ast(ft, asttype->data.valuetype);
         int len = evaluate_array_length(asttype->data.array.len);
-        if (len <= 0)
+        if len <= 0:
             fail(asttype->data.array.len->location, "array length must be positive");
         return get_array_type(tmp, len);
+
+    assert False
+
+def handle_global_var(ft: FileTypes*, vardecl: AstNameTypeValue*, defined_here: bool) -> ExportSymbol:
+    assert ft->current_fom_types == NULL  # find_any_var() only finds global vars
+    if find_any_var(ft, vardecl->name) != NULL:
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "a global variable named '%s' already exists", vardecl->name)
+        fail(vardecl->name_location, msg)
+
+    assert vardecl->value == NULL
+    g = GlobalVariable{
+        type = type_from_ast(ft, &vardecl->type),
+        defined_in_current_file = defined_here,
     }
-}
 
-static ExportSymbol handle_global_var(FileTypes *ft, const AstNameTypeValue *vardecl, bool defined_here)
-{
-    assert(ft->current_fom_types == NULL);  // find_any_var() only finds global vars
-    if (find_any_var(ft, vardecl->name))
-        fail(vardecl->name_location, "a global variable named '%s' already exists", vardecl->name);
+    assert sizeof(g.name) == sizeof(vardecl->name)
+    strcpy(g.name, vardecl->name)
 
-    assert(!vardecl->value);
-    GlobalVariable g = {
-        .type = type_from_ast(ft, &vardecl->type),
-        .defined_in_current_file = defined_here,
-    };
-    safe_strcpy(g.name, vardecl->name);
-    Append(&ft->globals, g);
+    ft->globals = realloc(ft->globals, sizeof(ft->globals[0]) * (ft->nglobals + 1))
+    assert ft->globals != NULL
+    ft->globals[ft->nglobals++] = g
 
-    ExportSymbol es = { .kind = ExportSymbolKind::GlobalVar, .data.type = g.type };
-    safe_strcpy(es.name, g.name);
-    return es;
-}
+    es = ExportSymbol{kind = ExportSymbolKind::GlobalVar, type = g.type}
+    assert sizeof(es.name) == sizeof(g.name)
+    strcpy(es.name, g.name)
+    return es
 
-static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, const Type *self_class)
-{
-    if (find_function_or_method(ft, self_class, astsig->name))
-        fail(astsig->name_location, "a %s named '%s' already exists", self_class ? "method" : "function", astsig->name);
+def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -> Signature:
+    msg: byte[500]
 
-    Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
-    safe_strcpy(sig.name, astsig->name);
+    if find_function_or_method(ft, self_class, astsig->name) != NULL:
+        if self_class != NULL:
+            snprintf(msg, sizeof(msg), "a method named '%s' already exists", astsig->name)
+        else:
+            snprintf(msg, sizeof(msg), "a function named '%s' already exists", astsig->name)
+        fail(astsig->name_location, ,sg)
 
-    size_t size = sizeof(sig.argnames[0]) * sig.nargs;
-    sig.argnames = malloc(size);
-    for (int i = 0; i < sig.nargs; i++)
-        safe_strcpy(sig.argnames[i], astsig->args.ptr[i].name);
+    sig = Signature{ nargs = astsig->args.len, takes_varargs = astsig->takes_varargs}
+    assert sizeof(sig.name) == sizeof(astsig->name)
+    strcpy(sig.name, astsig->name)
 
-    sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs);  // NOLINT
-    for (int i = 0; i < sig.nargs; i++) {
-        const Type *argtype;
+    size = sizeof(sig.argnames[0]) * sig.nargs
+    sig.argnames = malloc(size)
+    for i = 0; i < sig.nargs; i++:
+        assert sizeof(sig.argnames[i]) == sizeof(astsig->args.ptr[i].name)
+        strcpy(sig.argnames[i], astsig->args.ptr[i].name)
+
+    sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs)
+    for i = 0; i < sig.nargs; i++:
         if (
-            !strcmp(sig.argnames[i], "self")
-            && astsig->args.ptr[i].type.kind == AstTypeKind::Named
-            && astsig->args.ptr[i].type.data.name[0] == '\0'
-        ) {
-            // just "self" without a type after it --> default to "self: Foo*" in class Foo
-            argtype = get_pointer_type(self_class);
-        } else {
-            argtype = type_from_ast(ft, &astsig->args.ptr[i].type);
-        }
+            strcmp(sig.argnames[i], "self") == 0
+            and astsig->args.ptr[i].type.kind == AstTypeKind::Named
+            and astsig->args.ptr[i].type.data.name[0] == '\0'
+        ):
+            # just "self" without a type after it --> default to "self: Foo*" in class Foo
+            argtype = get_pointer_type(self_class)
+        else:
+            argtype = type_from_ast(ft, &astsig->args.ptr[i].type)
 
-        if (!strcmp(sig.argnames[i], "self") && argtype != self_class && argtype != get_pointer_type(self_class))
-        {
-            fail(astsig->args.ptr[i].type.location, "type of self must be %s* (default) or %s", self_class->name, self_class->name);
-        }
+        if strcmp(sig.argnames[i], "self") == 0 and argtype != self_class and argtype != get_pointer_type(self_class):
+            snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class->name, self_class->name)
+            fail(astsig->args.ptr[i].type.location, msg)
 
-        sig.argtypes[i] = argtype;
-    }
+        sig.argtypes[i] = argtype
 
-    sig.is_noreturn = is_noreturn(&astsig->returntype);
-    if (is_none(&astsig->returntype) || is_noreturn(&astsig->returntype))
-        sig.returntype = NULL;
-    else if (is_void(&astsig->returntype))
-        fail(astsig->returntype.location, "void is not a valid return type, use '-> None' if the function does not return a value");
-    else
-        sig.returntype = type_from_ast(ft, &astsig->returntype);
+    sig.is_noreturn = is_noreturn(&astsig->returntype)
+    if is_none(&astsig->returntype) or is_noreturn(&astsig->returntype):
+        sig.returntype = NULL
+    else if is_void(&astsig->returntype):
+        fail(astsig->returntype.location, "void is not a valid return type, use '-> None' if the function does not return a value")
+    else:
+        sig.returntype = type_from_ast(ft, &astsig->returntype)
 
-    if (!self_class && !strcmp(sig.name, "main")) {
-        // special main() function checks
-        if (sig.returntype != intType)
+    if self_class == NULL and strcmp(sig.name, "main") == 0
+        # special main() function checks
+        if sig.returntype != intType_
             fail(astsig->returntype.location, "the main() function must return int");
-        if (sig.nargs != 0 && !(
+        if (
+            sig.nargs != 0
+            and not (
                 sig.nargs == 2
-                && sig.argtypes[0] == intType
-                && sig.argtypes[1] == get_pointer_type(get_pointer_type(byteType))))
-        {
+                and sig.argtypes[0] == intType
+                and sig.argtypes[1] == get_pointer_type(get_pointer_type(byteType))
+            )
+        ):
             fail(
                 astsig->args.ptr[0].type.location,
                 "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
-            );
+            )
+
+    sig.returntype_location = astsig->returntype.location
+
+    if self_class != NULL:
+        ft->functions = realloc(ft->functions, sizeof(ft->functions[0]) * (ft->nfunctions + 1))
+        assert ft->functions != NULL
+        ft->functions[ft->nfunctions++] = SignatureAndUsedPtr{
+            signature = copy_signature(&sig),
+            usedptr = NULL,
         }
-    }
 
-    sig.returntype_location = astsig->returntype.location;
+    return sig
 
-    if (!self_class)
-        Append(&ft->functions, (struct SignatureAndUsedPtr){ .signature=copy_signature(&sig), .usedptr=NULL });
+def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> None:
+    /# Previous type-checking stage created an opaque struct.
+    type: Type* = NULL
+    for s = ft->owned_types; s < &ft->owned_types[ft->n_owned_types]; s++:
+        if strcmp((*s)->name, classdef->name) == 0:
+            type = *s
+            break
 
-    return sig;
-}
+    assert type != NULL
+    assert type->kind == TypeKind::OpaqueClass
+    type->kind = TypeKind::Class
 
-static void handle_class_members_stage2(FileTypes *ft, const AstClassDef *classdef)
-{
-    // Previous type-checking stage created an opaque struct.
-    Type *type = NULL;
-    for (Type **s = ft->owned_types.ptr; s < End(ft->owned_types); s++) {
-        if (!strcmp((*s)->name, classdef->name)) {
-            type = *s;
-            break;
-        }
-    }
-    assert(type);
-    assert(type->kind == TypeKind::OpaqueClass);
-    type->kind = TypeKind::Class;
+    memset(&type->data.classdata, 0, sizeof type->data.classdata)
 
-    memset(&type->data.classdata, 0, sizeof type->data.classdata);
-
-    int union_id = 0;
-    for (const AstClassMember *m = classdef->members.ptr; m < End(classdef->members); m++) {
-        switch(m->kind) {
-            case AstClassMemberKind::Field:
-            {
-                struct ClassField f = {
-                    .type = type_from_ast(ft, &m->data.field.type),
-                    .union_id = union_id++,
-                };
-                safe_strcpy(f.name, m->data.field.name);
-                Append(&type->data.classdata.fields, f);
-                break;
+    union_id = 0
+    for (m = classdef->members; m < &classdef->members[classdef->nmembers]; m++:
+        if m->kind == AstClassMemberKind::Field:
+            f = ClassField{
+                type = type_from_ast(ft, &m->data.field.type),
+                union_id = union_id++,
             }
-            case AstClassMemberKind::Union:
-            {
-                int uid = union_id++;
-                for (struct AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++) {
-                    struct ClassField f = {
-                        .type = type_from_ast(ft, &ntv->type),
-                        .union_id = uid,
-                    };
-                    safe_strcpy(f.name, ntv->name);
-                    Append(&type->data.classdata.fields, f);
+            assert sizeof(f.name) == sizeof(m->data.field.name)
+            strcpy(f.name, m->data.field.name)
+
+            type->data.classdata.fields = realloc(type->data.classdata.fields, sizeof(type->data.classdata.fields[0]) * (type->data.classdata.nfields + 1))
+            assert type->data.classdata.fields != NULL
+            type->data.classdata.fields[type->data.classdata.nfields++] = f
+
+        elif m->kind == AstClassMemberKind::Union:
+            int uid = union_id++;
+            for ntv = m->unionfields.fields; ntv < &m->unionfields.fields[m->unionfields.length]; ntv++:
+                f = ClassField{
+                    type = type_from_ast(ft, &ntv->type),
+                    union_id = uid,
                 }
-                break;
-            }
-            case AstClassMemberKind::Method:
-            {
-                // Don't handle the method body yet: that is a part of stage 3, not stage 2
-                Signature sig = handle_signature(ft, &m->data.method.signature, type);
-                Append(&type->data.classdata.methods, sig);
-                break;
-            }
-        }
-    }
-}
+                assert sizeof(f.name) == sizeof(ntv->name)
+                strcpy(f.name, ntv->name)
 
-ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstFile *ast)
-{
-    List(ExportSymbol) exports = {0};
+                type->data.classdata.fields = realloc(type->data.classdata.fields, sizeof(type->data.classdata.fields[0]) * (type->data.classdata.nfields + 1))
+                assert type->data.classdata.fields != NULL
+                type->data.classdata.fields[type->data.classdata.nfields++] = f
 
-    for (int i = 0; i < ast->body.nstatements; i++) {
-        const AstStatement *stmt = &ast->body.statements[i];
-        switch(stmt->kind) {
-        case AstStatementKind::GlobalVariableDeclaration:
-            Append(&exports, handle_global_var(ft, &stmt->data.vardecl, false));
-            break;
-        case AstStatementKind::GlobalVariableDefinition:
-            Append(&exports, handle_global_var(ft, &stmt->data.vardecl, true));
-            break;
-        case AstStatementKind::Function:
-            {
-                Signature sig = handle_signature(ft, &stmt->data.function.signature, NULL);
-                ExportSymbol es = { .kind = ExportSymbolKind::Function, .data.funcsignature = sig };
-                safe_strcpy(es.name, sig.name);
-                Append(&exports, es);
-            }
-            break;
-        case AstStatementKind::DefineClass:
+        elif m->kind == AstClassMemberKind::Method:
+            # Don't handle the method body yet: that is a part of stage 3, not stage 2
+            sig = handle_signature(ft, &m->data.method.signature, type)
+
+            type->data.classdata.methods = realloc(type->data.classdata.methods, sizeof(type->data.classdata.methods[0]) * (type->data.classdata.nmethods + 1))
+            assert type->data.classdata.methods != NULL
+            type->data.classdata.methods[type->data.classdata.nmethods++] = sig
+
+        else:
+            assert False
+
+
+def typecheck_stage2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*:
+    exports: ExportSymbol* = NULL
+    nexports = 0
+
+    for i = 0; i < ast->body.nstatements; i++:
+        stmt = &ast->body.statements[i];
+
+        exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+        assert exports != NULL
+
+        if stmt->kind == AstStatementKind::GlobalVariableDeclaration:
+            exports[nexports++] = handle_global_var(ft, &stmt->data.vardecl, False)
+        elif stmt->kind == AstStatementKind::GlobalVariableDefinition:
+            exports[nexports++] = handle_global_var(ft, &stmt->data.vardecl, True)
+        elif stmt->kind == AstStatementKind::Function:
+            Signature sig = handle_signature(ft, &stmt->data.function.signature, NULL);
+            ExportSymbol es = { .kind = ExportSymbolKind::Function, .data.funcsignature = sig };
+            safe_strcpy(es.name, sig.name);
+            exports[nexports++] = es
+        elif stmt->kind == AstStatementKind::DefineClass:
             handle_class_members_stage2(ft, &stmt->data.classdef);
-            break;
-        case AstStatementKind::DefineEnum:
-            // Everything done in previous type-checking steps.
-            break;
-        default:
-            assert(0);
-        }
-    }
+        elif stmt->kind == AstStatementKind::DefineEnum:
+            pass  # Everything done in previous type-checking steps.
+        else:
+            assert False
 
-    Append(&exports, (ExportSymbol){0});
-    return exports.ptr;
-}
+    exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+    assert exports != NULL
+    exports[nexports] = ExportSymbol{}
+    return exports
 
-static LocalVariable *add_variable(FileTypes *ft, const Type *t, const char *name)
-{
-    LocalVariable *var = calloc(1, sizeof *var);
-    var->id = ft->current_fom_types->locals.len;
-    var->type = t;
+def add_variable(ft: FileTypes*, Type*t, name: byte*) -> LocalVariable*:
+    var: LocalVariable* = calloc(1, sizeof *var)
+    var->id = ft->current_fom_types->locals.len
+    var->type = t
 
-    assert(name);
-    assert(!find_local_var(ft, name));
-    assert(strlen(name) < sizeof var->name);
+    assert name != NULL
+    assert find_local_var(ft, name) == NULL
+    assert strlen(name) < sizeof(var->name)
     strcpy(var->name, name);
 
-    Append(&ft->current_fom_types->locals, var);
-    return var;
-}
+    ft->current_fom_types->locals = realloc(ft->current_fom_types->locals, sizeof(ft->current_fom_types->locals[0]) * (ft->current_fom_types->nlocals + 1))
+    assert ft->current_fom_types->locals != NULL
+    ft->current_fom_types->locals[ft->current_fom_types->nlocals++] = var
 
-// Intended for errors. Returned string can be overwritten in next call.
-static const char *short_expression_description(const AstExpression *expr)
-{
-    static char result[200];
+    return var
 
-    switch(expr->kind) {
-    // Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
-    case AstExpressionKind::Constant: return "a constant";
-    case AstExpressionKind::GetEnumMember: return "an enum member";
-    case AstExpressionKind::SizeOf: return "a sizeof expression";
-    case AstExpressionKind::FunctionCall: return "a function call";
-    case AstExpressionKind::CallMethod: return "a method call";
-    case AstExpressionKind::DerefAndCallMethod: return "a method call";
-    case AstExpressionKind::BraceInit: return "a newly created instance";
-    case AstExpressionKind::Array: return "an array literal";
-    case AstExpressionKind::Indexing: return "an indexed value";
-    case AstExpressionKind::As: return "the result of a cast";
-    case AstExpressionKind::Dereference: return "the value of a pointer";
-    case AstExpressionKind::And: return "the result of 'and'";
-    case AstExpressionKind::Or: return "the result of 'or'";
-    case AstExpressionKind::Not: return "the result of 'not'";
+global short_expr_desc_result: byte[200]
 
-    case AstExpressionKind::GetVariable:
-        if (!strcmp(expr->data.varname,"self"))
-            return "self";
-        if (get_special_constant(expr->data.varname) != -1)
-            return "a special constant";
-        return "a variable";
+# Intended for errors. Returned string can be overwritten in next call.
+# Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
+def short_expression_description(expr: AstExpression*) -> byte*:
+    if expr->kind == AstExpressionKind::Constant:
+        return "a constant";
+    if expr->kind == AstExpressionKind::GetEnumMember:
+        return "an enum member";
+    if expr->kind == AstExpressionKind::SizeOf:
+        return "a sizeof expression";
+    if expr->kind == AstExpressionKind::FunctionCall:
+        return "a function call";
+    if expr->kind == AstExpressionKind::CallMethod:
+        return "a method call";
+    if expr->kind == AstExpressionKind::DerefAndCallMethod:
+        return "a method call";
+    if expr->kind == AstExpressionKind::BraceInit:
+        return "a newly created instance";
+    if expr->kind == AstExpressionKind::Array:
+        return "an array literal";
+    if expr->kind == AstExpressionKind::Indexing:
+        return "an indexed value";
+    if expr->kind == AstExpressionKind::As:
+        return "the result of a cast";
+    if expr->kind == AstExpressionKind::Dereference:
+        return "the value of a pointer";
+    if expr->kind == AstExpressionKind::And:
+        return "the result of 'and'";
+    if expr->kind == AstExpressionKind::Or:
+        return "the result of 'or'";
+    if expr->kind == AstExpressionKind::Not:
+        return "the result of 'not'";
 
-    case AstExpressionKind::Add:
-    case AstExpressionKind::Sub:
-    case AstExpressionKind::Mul:
-    case AstExpressionKind::Div:
-    case AstExpressionKind::Mod:
-    case AstExpressionKind::Neg:
-        return "the result of a calculation";
+    if expr->kind == AstExpressionKind::GetVariable:
+        if strcmp(expr->data.varname,"self") == 0:
+            return "self"
+        if get_special_constant(expr->data.varname) != -1
+            return "a special constant"
+        return "a variable"
 
-    case AstExpressionKind::Eq:
-    case AstExpressionKind::Ne:
-    case AstExpressionKind::Gt:
-    case AstExpressionKind::Ge:
-    case AstExpressionKind::Lt:
-    case AstExpressionKind::Le:
+    if (
+        expr->kind == AstExpressionKind::Add
+        or expr->kind == AstExpressionKind::Sub
+        or expr->kind == AstExpressionKind::Mul
+        or expr->kind == AstExpressionKind::Div
+        or expr->kind == AstExpressionKind::Mod
+        or expr->kind == AstExpressionKind::Neg
+    ):
+        return "the result of a calculation"
+
+    if (
+        expr->kind == AstExpressionKind::Eq
+        or expr->kind == AstExpressionKind::Ne
+        or expr->kind == AstExpressionKind::Gt
+        or expr->kind == AstExpressionKind::Ge
+        or expr->kind == AstExpressionKind::Lt
+        or expr->kind == AstExpressionKind::Le
+    ):
         return "the result of a comparison";
 
-    case AstExpressionKind::PreIncrement:
-    case AstExpressionKind::PostIncrement:
+    if (
+        expr->kind == AstExpressionKind::PreIncrement
+        or expr->kind == AstExpressionKind::PostIncrement
+    ):
         return "the result of incrementing a value";
 
-    case AstExpressionKind::PreDecrement:
-    case AstExpressionKind::PostDecrement:
+    if (
+        expr->kind == AstExpressionKind::PreDecrement
+        or expr->kind == AstExpressionKind::PostDecrement
+    ):
         return "the result of decrementing a value";
 
-    case AstExpressionKind::AddressOf:
-        snprintf(result, sizeof result, "address of %s", short_expression_description(&expr->data.operands[0]));
-        break;
+    if expr->kind == AstExpressionKind::AddressOf:
+        snprintf(short_expr_desc_result, sizeof short_expr_desc_result, "address of %s", short_expression_description(&expr->data.operands[0]));
+        return short_expr_desc_result
 
-    case AstExpressionKind::GetField:
-    case AstExpressionKind::DerefAndGetField:
-        snprintf(result, sizeof result, "field '%s'", expr->data.classfield.fieldname);
-        break;
-    }
+    if (
+        expr->kind == AstExpressionKind::GetField
+        or expr->kind == AstExpressionKind::DerefAndGetField
+    ):
+        snprintf(short_expr_desc_result, sizeof short_expr_desc_result, "field '%s'", expr->data.classfield.fieldname);
+        return short_expr_desc_result
 
-    return result;
-}
+    assert False
 
-/*
-The & operator can't go in front of most expressions.
-You can't do &(1 + 2), for example.
 
-The same rules apply to assignments: "foo = bar" is treated as setting the
-value of the pointer &foo to bar.
+# The & operator can't go in front of most expressions.
+# You can't do &(1 + 2), for example.
+#
+# The same rules apply to assignments: "foo = bar" is treated as setting the
+# value of the pointer &foo to bar.
+#
+# errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
+def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, errmsg_template: byte*) -> None:
+    assert fom != NULL
 
-errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
-*/
-static void ensure_can_take_address(const FunctionOrMethodTypes *fom, const AstExpression *expr, const char *errmsg_template)
-{
-    assert(fom != NULL);
-
-    switch(expr->kind) {
-    case AstExpressionKind::Dereference:
-    case AstExpressionKind::Indexing:  // &foo[bar]
-    case AstExpressionKind::DerefAndGetField:  // &foo->bar = foo + offset (it doesn't use &foo)
+    if (
+        expr->kind == AstExpressionKind::Dereference
+        or expr->kind == AstExpressionKind::Indexing  # &foo[bar]
+        or expr->kind == AstExpressionKind::DerefAndGetField  # &foo->bar = foo + offset (it doesn't use &foo)
+    ):
         return;
 
-    case AstExpressionKind::GetField:
-        // &foo.bar = &foo + offset
-        {
-            // Turn "cannot assign to %s" into "cannot assign to a field of %s".
-            // This assumes that errmsg_template is relatively simple, i.e. it only contains one %s somewhere.
-            char *newtemplate = malloc(strlen(errmsg_template) + 100);
-            sprintf(newtemplate, errmsg_template, "a field of %s");
-            ensure_can_take_address(fom, &expr->data.operands[0], newtemplate);
-            free(newtemplate);
-        }
-        return;
+    if expr->kind == AstExpressionKind::GetField:
+        # &foo.bar = &foo + offset
 
-    case AstExpressionKind::GetVariable:
-        if (get_special_constant(expr->data.varname) != -1)
-            goto error;
+        # Turn "cannot assign to %s" into "cannot assign to a field of %s".
+        # This assumes that errmsg_template is relatively simple, i.e. it only contains one %s somewhere.
+        newtemplate: byte* = malloc(strlen(errmsg_template) + 100)
+        sprintf(newtemplate, errmsg_template, "a field of %s")
 
-        // In methods that take self as a pointer, you cannot take address of self
-        if (!strcmp(expr->data.varname, "self")) {
-            if (fom->signature.argtypes[0]->kind == TypeKind::Pointer)
-                goto error;
-        }
+        ensure_can_take_address(fom, &expr->data.operands[0], newtemplate)
+        free(newtemplate)
+        return
 
-        return;
+    # You can usually take address of variable, but:
+    #   - you can't take address of special constant (e.g. &WINDOWS)
+    #   - in methods that take self as a pointer, you cannot take address of self
+    if (
+        expr->kind == AstExpressionKind::GetVariable
+        and get_special_constant(expr->data.varname) == -1
+        and not (
+            strcmp(expr->data.varname, "self") == 0
+            and fom->signature.argtypes[0]->kind == TypeKind::Pointer
+        )
+    ):
+        return
 
-    default:
-        goto error;
-    }
+    msg: byte[500]
+    snprintf(msg, sizeof(msg), errmsg_template, short_expression_description(expr))
+    fail(expr->location, msg)
 
-error:
-    fail(expr->location, errmsg_template, short_expression_description(expr));
-}
+# Implicit casts are used in many places, e.g. function arguments.
+#
+# When you pass an argument of the wrong type, it's best to give an error message
+# that says so, instead of some generic "expected type foo, got object of type bar"
+# kind of message.
+#
+# The template can contain "<from>" and "<to>". They will be substituted with names
+# of types. We cannot use printf() style functions because the arguments can be in
+# any order.
+def fail_with_implicit_cast_error(location: Location, template: byte*, from: Type*, to: Type*) -> None:
+    assert template != NULL
 
-/*
-Implicit casts are used in many places, e.g. function arguments.
+    n = 0
+    for i = 0; template[i] != '\0'; i++:
+        if template[i] == '<':
+            n++
 
-When you pass an argument of the wrong type, it's best to give an error message
-that says so, instead of some generic "expected type foo, got object of type bar"
-kind of message.
+    message: byte* = malloc(sizeof(from->name)*n + strlen(template) + 1)
+    message[0] = '\0'
+    while *template != '\0':
+        if starts_with(template, "<from>"):
+            template = &template[6]
+            strcat(message, from->name)
+        elif starts_with(template, "<to>"):
+            template = &template[4]
+            strcat(message, to->name)
+        else:
+            s = [*template++, '\0']
+            strcat(message, s)
 
-The template can contain "FROM" and "TO". They will be substituted with names
-of types. We cannot use printf() style functions because the arguments can be in
-any order.
-*/
-static noreturn void fail_with_implicit_cast_error(
-    Location location, const char *template, const Type *from, const Type *to)
-{
-    assert(template);
+    fail(location, message)
 
-    List(char) msg = {0};
-    while(*template){
-        if (!strncmp(template, "FROM", 4)) {
-            AppendStr(&msg, from->name);
-            template += 4;
-        } else if (!strncmp(template, "TO", 2)) {
-            AppendStr(&msg, to->name);
-            template += 2;
-        } else {
-            Append(&msg, template[0]);
-            template++;
-        }
-    }
-    fail(location, "%.*s", msg.len, msg.ptr);
-}
 
-static bool can_cast_implicitly(const Type *from, const Type *to)
-{
-    return
+def can_cast_implicitly(from: Type*, to: Type*) -> bool:
+    # TODO: document these properly. But they are:
+    #   array to pointer, e.g. int[3] --> int* (needs special-casing elsewhere)
+    #   from one integer type to another bigger integer type, unless it is signed-->unsigned
+    #   between two pointer types when one of the two is void*
+    #   from float to double (TODO)
+    return (
         from == to
-        || (
-            // array to pointer with same item type
-            from->kind == TypeKind::Array && to->kind == TypeKind::Pointer && from->data.array.membertype == to->data.valuetype
-        ) || (
-            // array to void*
-            from->kind == TypeKind::Array && to->kind == TypeKind::VoidPointer
-        ) || (
-            // Cast to bigger integer types implicitly, unless it is signed-->unsigned.
-            is_integer_type(from)
-            && is_integer_type(to)
-            && from->data.width_in_bits < to->data.width_in_bits
-            && !(from->kind == TypeKind::SignedInteger && to->kind == TypeKind::UnsignedInteger)
-        ) || (
-            // Cast to bigger floating-point type.
-            from == floatType && to == doubleType
-        ) || (
-            // Cast from any integer type to float/double.
-            is_integer_type(from) && to->kind == TypeKind::FloatingPoint
-        ) || (
-            // Cast implicitly between void pointer and any other pointer.
-            (from->kind == TypeKind::Pointer && to->kind == TypeKind::VoidPointer)
-            || (from->kind == TypeKind::VoidPointer && to->kind == TypeKind::Pointer)
-        );
-}
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::VoidPointer)
+        or (
+            from->is_integer_type()
+            and to->is_integer_type()
+            and from->size_in_bits < to->size_in_bits
+            and not (from->kind == TypeKind::SignedInteger and to->kind == TypeKind::UnsignedInteger)
+        )
+        or (from == &float_type and to == &double_type)
+        or (from->is_integer_type() and to->kind == TypeKind::FloatingPoint)
+        or (from->is_pointer_type() and to->is_pointer_type() and (from == &void_ptr_type or to == &void_ptr_type))
+    )
 
-static void do_implicit_cast(
-    const FunctionOrMethodTypes *fom,
-    ExpressionTypes *types,
-    const Type *to,
-    Location location,
-    const char *errormsg_template)
-{
-    assert(!types->implicit_cast_type);
-    assert(!types->implicit_array_to_pointer_cast);
-    const Type *from = types->type;
-    if (from == to)
-        return;
+def can_cast_explicitly(from: Type*, to: Type*) -> bool:
+    return (
+        from == to
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::VoidPointer)
+        or (from->is_pointer_type() and to->is_pointer_type())
+        or (from->is_number_type() and to->is_number_type())
+        or (from->is_integer_type() and to->kind == TypeKind::Enum)
+        or (from->kind == TypeKind::Enum and to->is_integer_type())
+        or (from == &bool_type and to->is_integer_type())
+        or (from->is_pointer_type() and to == long_type)
+        or (from == long_type and to->is_pointer_type())
+    )
+
+def do_implicit_cast(
+    fom: FunctionOrMethodTypes*,
+    types: ExpressionTypes*,
+    to: Type*,
+    location: Location,
+    errormsg_template: byte*,
+) -> None:
+    assert types->implicit_cast_type == NULL
+    assert not types->implicit_array_to_pointer_cast
+    from = types->type
+    if from == to:
+        return
 
     if (
         types->expr->kind == AstExpressionKind::Constant
-        && types->expr->data.constant.kind == ConstantKind::String
-        && from == get_pointer_type(byteType)
-        && to->kind == TypeKind::Array
-        && to->data.array.membertype == byteType
-    )
-    {
-        int string_size = strlen(types->expr->data.constant.data.str) + 1;
-        if (to->data.array.len < string_size) {
-            fail(location, "a string of %d bytes (including '\\0') does not fit into %s", string_size, to->name);
-        }
-        types->implicit_string_to_array_cast = true;
-    }
-    // Passing in NULL for errormsg_template can be used to "force" a cast to happen.
-    else if (errormsg_template != NULL && !can_cast_implicitly(from, to))
-        fail_with_implicit_cast_error(location, errormsg_template, from, to);
+        and types->expr->data.constant.kind == ConstantKind::String
+        and from == get_pointer_type(byteType)
+        and to->kind == TypeKind::Array
+        and to->data.array.membertype == byteType
+    ):
+        string_size = strlen(types->expr->data.constant.data.str) + 1
+        if to->data.array.len < string_size:
+            msg: byte[500]
+            snprintf(msg, sizeof(msg), "a string of %d bytes (including '\\0') does not fit into %s", string_size, to->name)
+            fail(location, msg)
+        types->implicit_string_to_array_cast = True
+    # Passing in NULL for errormsg_template can be used to "force" a cast to happen.
+    elif errormsg_template != NULL and not can_cast_implicitly(from, to):
+        fail_with_implicit_cast_error(location, errormsg_template, from, to)
 
-    types->implicit_cast_type = to;
-    types->implicit_array_to_pointer_cast = (from->kind == TypeKind::Array && is_pointer_type(to));
-    if (types->implicit_array_to_pointer_cast)
+    types->implicit_cast_type = to
+    types->implicit_array_to_pointer_cast = (from->kind == TypeKind::Array and is_pointer_type(to))
+
+    if types->implicit_array_to_pointer_cast:
         ensure_can_take_address(
             fom,
             types->expr,
             "cannot create a pointer into an array that comes from %s (try storing it to a local variable first)"
-        );
-}
-
-static void cast_array_to_pointer(const FunctionOrMethodTypes *fom, ExpressionTypes *types)
-{
-    assert(types->type->kind == TypeKind::Array);
-    do_implicit_cast(fom, types, get_pointer_type(types->type->data.array.membertype), (Location){0}, NULL);
-}
-
-static void do_explicit_cast(const FunctionOrMethodTypes *fom, ExpressionTypes *types, const Type *to, Location location)
-{
-    assert(!types->implicit_cast_type);
-    const Type *from = types->type;
-
-    if (from == to)
-        show_warning(location, "unnecessary cast from %s to %s", from->name, to->name);
-
-    if (
-        from != to
-        && !(from->kind == TypeKind::Array && to->kind == TypeKind::Pointer && from->data.array.membertype == to->data.valuetype)
-        && !(from->kind == TypeKind::Array && to->kind == TypeKind::VoidPointer)
-        && !(is_pointer_type(from) && is_pointer_type(to))
-        && !(is_number_type(from) && is_number_type(to))
-        && !(is_integer_type(from) && to->kind == TypeKind::Enum)
-        && !(from->kind == TypeKind::Enum && is_integer_type(to))
-        && !(from->kind == TypeKind::Bool && is_integer_type(to))
-        && !(is_pointer_type(from) && to == longType)
-        && !(from == longType && is_pointer_type(to))
-    )
-    {
-        fail(location, "cannot cast from type %s to %s", from->name, to->name);
-    }
-
-    if (from->kind == TypeKind::Array && is_pointer_type(to))
-        cast_array_to_pointer(fom, types);
-}
-
-static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression *expr);
-
-static ExpressionTypes *typecheck_expression_not_void(FileTypes *ft, const AstExpression *expr)
-{
-    ExpressionTypes *types = typecheck_expression(ft, expr);
-    if (!types) {
-        switch(expr->kind) {
-        case AstExpressionKind::FunctionCall:
-            fail(
-                expr->location, "function '%s' does not return a value", expr->data.call.calledname);
-            break;
-        case AstExpressionKind::CallMethod:
-            fail(
-                expr->location, "method '%s' does not return a value", expr->data.methodcall.call.calledname);
-            break;
-        default:
-            assert(0);
-        }
-    }
-    return types;
-}
-
-static void typecheck_expression_with_implicit_cast(
-    FileTypes *ft,
-    const AstExpression *expr,
-    const Type *casttype,
-    const char *errormsg_template)
-{
-    ExpressionTypes *types = typecheck_expression_not_void(ft, expr);
-    do_implicit_cast(ft->current_fom_types, types, casttype, expr->location, errormsg_template);
-}
-
-static const Type *check_binop(
-    const FunctionOrMethodTypes *fom,
-    enum AstExpressionKind op,
-    Location location,
-    ExpressionTypes *lhstypes,
-    ExpressionTypes *rhstypes)
-{
-    const char *do_what;
-    switch(op) {
-    case AstExpressionKind::Add: do_what = "add"; break;
-    case AstExpressionKind::Sub: do_what = "subtract"; break;
-    case AstExpressionKind::Mul: do_what = "multiply"; break;
-    case AstExpressionKind::Div: do_what = "divide"; break;
-    case AstExpressionKind::Mod: do_what = "take remainder with"; break;
-
-    case AstExpressionKind::Eq:
-    case AstExpressionKind::Ne:
-    case AstExpressionKind::Gt:
-    case AstExpressionKind::Ge:
-    case AstExpressionKind::Lt:
-    case AstExpressionKind::Le:
-        do_what = "compare";
-        break;
-
-    default:
-        assert(0);
-    }
-
-    bool got_bools = lhstypes->type == boolType && rhstypes->type == boolType;
-    bool got_integers = is_integer_type(lhstypes->type) && is_integer_type(rhstypes->type);
-    bool got_numbers = is_number_type(lhstypes->type) && is_number_type(rhstypes->type);
-    bool got_enums = lhstypes->type->kind == TypeKind::Enum && rhstypes->type->kind == TypeKind::Enum;
-    bool got_pointers = (
-        is_pointer_type(lhstypes->type)
-        && is_pointer_type(rhstypes->type)
-        && (
-            // Ban comparisons like int* == byte*, unless one of the two types is void*
-            lhstypes->type == rhstypes->type
-            || lhstypes->type == voidPtrType
-            || rhstypes->type == voidPtrType
         )
-    );
+
+def cast_array_to_pointer(fom: FunctionOrMethodTypes*, types: ExpressionTypes*) -> None:
+    assert types->type->kind == TypeKind::Array
+    do_implicit_cast(fom, types, get_pointer_type(types->type->data.array.membertype), Location{}, NULL)
+
+def do_explicit_cast(fom: FunctionOrMethodTypes*, types: ExpressionTypes*, to: Type*, location: Location)
+    assert types->implicit_cast_type == NULL
+    from = types->type
+
+    msg: byte[500]
+
+    if from == to:
+        snprintf(msg, sizeof(msg), "unnecessary cast from %s to %s", from->name, to->name)
+        show_warning(location, msg)
+
+    if not can_cast_explicitly(from, to):
+        snprintf(msg, sizeof(msg), "cannot cast from type %s to %s", from->name, to->name)
+        fail(location, msg)
+
+    if from->kind == TypeKind::Array and is_pointer_type(to):
+        cast_array_to_pointer(fom, types)
+
+def typecheck_expression_not_void(ft: FileTypes*, expr: AstExpression*) -> ExpressionTypes*:
+    types: ExpressionTypes* = typecheck_expression(ft, expr)
+    if types != NULL:
+        return types
+
+    # Should be function/method call that returns void
+    msg: byte[500]
+
+    if expr->kind == AstExpressionKind::FunctionCall:
+        snprintf(msg, sizeof(msg), "function '%s' does not return a value", expr->data.call.calledname)
+    elif expr->kind == AstExpressionKind::CallMethod:
+        snprintf(msg, sizeof(msg), "method '%s' does not return a value", expr->data.methodcall.call.calledname)
+    else:
+        assert False
+    fail(expr->location, msg)
+
+def typecheck_expression_with_implicit_cast(
+    ft: FileTypes*,
+    expr: AstExpression*,
+    casttype: Type*,
+    errormsg_template: byte*,
+) -> None:
+    types = typecheck_expression_not_void(ft, expr)
+    do_implicit_cast(ft->current_fom_types, types, casttype, expr->location, errormsg_template)
+
+def check_binop(
+    fom: FunctionOrMethodTypes*,
+    op: AstExpressionKind,
+    location: Location,
+    ExpressionTypes *lhstypes,
+    ExpressionTypes *rhstypes,
+) -> Type*:
+    do_what: byte*
+    if op == AstExpressionKind::Add:
+        do_what = "add"
+    elif op == AstExpressionKind::Sub:
+        do_what = "subtract"
+    elif op == AstExpressionKind::Mul:
+        do_what = "multiply"
+    elif op == AstExpressionKind::Div:
+        do_what = "divide"
+    elif op == AstExpressionKind::Mod:
+        do_what = "take remainder with"
+    elif (
+        op == AstExpressionKind::Eq
+        or op == AstExpressionKind::Ne
+        or op == AstExpressionKind::Gt
+        or op == AstExpressionKind::Ge
+        or op == AstExpressionKind::Lt
+        or op == AstExpressionKind::Le
+    ):
+        do_what = "compare";
+    else:
+        assert False
+
+    got_bools = lhstypes->type == boolType and rhstypes->type == boolType
+    got_integers = is_integer_type(lhstypes->type) and is_integer_type(rhstypes->type)
+    got_numbers = is_number_type(lhstypes->type) and is_number_type(rhstypes->type)
+    got_enums = lhstypes->type->kind == TypeKind::Enum and rhstypes->type->kind == TypeKind::Enum
+    got_pointers = (
+        is_pointer_type(lhstypes->type)
+        and is_pointer_type(rhstypes->type)
+        and (
+            # Ban comparisons like int* == byte*, unless one of the two types is void*
+            lhstypes->type == rhstypes->type
+            or lhstypes->type == voidPtrType
+            or rhstypes->type == voidPtrType
+        )
+    )
 
     if (
-        (!got_bools && !got_numbers && !got_enums && !got_pointers)
-        || ((got_bools || got_enums) && op != AstExpressionKind::Eq && op != AstExpressionKind::Ne)
-        || (got_pointers && op != AstExpressionKind::Eq && op != AstExpressionKind::Ne && op != AstExpressionKind::Gt && op != AstExpressionKind::Ge && op != AstExpressionKind::Lt && op != AstExpressionKind::Le)
-    )
-        fail(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name);
+        (
+            (not got_bools)
+            and (not got_numbers)
+            and (not got_enums)
+            and (not got_pointers)
+        ) or (
+            (got_bools or got_enums)
+            and op != AstExpressionKind::Eq
+            and op != AstExpressionKind::Ne
+        ) or (
+            got_pointers
+            and op != AstExpressionKind::Eq
+            and op != AstExpressionKind::Ne
+            and op != AstExpressionKind::Gt
+            and op != AstExpressionKind::Ge
+            and op != AstExpressionKind::Lt
+            and op != AstExpressionKind::Le
+        )
+    ):
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name)
+        fail(location, msg)
 
-    const Type *cast_type = NULL;
-    if (got_bools)
-        cast_type = boolType;
-    if (got_integers) {
+    cast_type: Type* = NULL
+    if got_bools:
+        cast_type = boolType
+    if got_integers:
         cast_type = get_integer_type(
             max(lhstypes->type->data.width_in_bits, rhstypes->type->data.width_in_bits),
-            lhstypes->type->kind == TypeKind::SignedInteger || rhstypes->type->kind == TypeKind::SignedInteger
-        );
-    }
-    if (got_numbers && !got_integers)
-        cast_type = (lhstypes->type == doubleType || rhstypes->type == doubleType) ? doubleType : floatType;
-    if (got_pointers)
-        cast_type = get_integer_type(64, false);  // unsigned long
-    if (got_enums)
-        cast_type = intType;
-    assert(cast_type);
+            lhstypes->type->kind == TypeKind::SignedInteger or rhstypes->type->kind == TypeKind::SignedInteger
+        )
+    if got_numbers and not got_integers:
+        if lhstypes->type == doubleType or rhstypes->type == doubleType:
+            cast_type = doubleType
+        else:
+            cast_type = floatType
+    if got_pointers:
+        cast_type = get_integer_type(64, False)
+    if got_enums:
+        cast_type = intType
+    assert cast_type != NULL
 
-    do_implicit_cast(fom, lhstypes, cast_type, (Location){0}, NULL);
-    do_implicit_cast(fom, rhstypes, cast_type, (Location){0}, NULL);
+    do_implicit_cast(fom, lhstypes, cast_type, Location{}, NULL);
+    do_implicit_cast(fom, rhstypes, cast_type, Location{}, NULL);
 
-    switch(op) {
-        case AstExpressionKind::Add:
-        case AstExpressionKind::Sub:
-        case AstExpressionKind::Mul:
-        case AstExpressionKind::Div:
-        case AstExpressionKind::Mod:
-            return cast_type;
-        case AstExpressionKind::Eq:
-        case AstExpressionKind::Ne:
-        case AstExpressionKind::Gt:
-        case AstExpressionKind::Ge:
-        case AstExpressionKind::Lt:
-        case AstExpressionKind::Le:
-            return boolType;
-        default:
-            assert(0);
-    }
-}
+    if (
+        op == AstExpressionKind::Add
+        or op == AstExpressionKind::Sub
+        or op == AstExpressionKind::Mul
+        or op == AstExpressionKind::Div
+        or op == AstExpressionKind::Mod
+    ):
+        return cast_type;
 
-static const Type *check_increment_or_decrement(FileTypes *ft, const AstExpression *expr)
-{
-    const char *bad_type_fmt, *bad_expr_fmt;
-    switch(expr->kind) {
-    case AstExpressionKind::PreIncrement:
-    case AstExpressionKind::PostIncrement:
-        bad_type_fmt = "cannot increment a value of type %s";
-        bad_expr_fmt = "cannot increment %s";
-        break;
-    case AstExpressionKind::PreDecrement:
-    case AstExpressionKind::PostDecrement:
-        bad_type_fmt = "cannot decrement a value of type %s";
-        bad_expr_fmt = "cannot decrement %s";
-        break;
-    default:
-        assert(0);
-    }
+    if (
+        op == AstExpressionKind::Eq
+        or op == AstExpressionKind::Ne
+        or op == AstExpressionKind::Gt
+        or op == AstExpressionKind::Ge
+        or op == AstExpressionKind::Lt
+        or op == AstExpressionKind::Le
+    ):
+        return boolType;
 
-    ensure_can_take_address(ft->current_fom_types, &expr->data.operands[0], bad_expr_fmt);
-    const Type *t = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
-    if (!is_integer_type(t) && !is_pointer_type(t))
-        fail(expr->location, bad_type_fmt, t->name);
-    return t;
-}
+    assert False
 
-static void typecheck_dereferenced_pointer(Location location, const Type *t)
-{
-    // TODO: improved error message for dereferencing void*
-    if (t->kind != TypeKind::Pointer)
-        fail(location, "the dereference operator '*' is only for pointers, not for %s", t->name);
-}
 
-// ptr[index]
-static const Type *typecheck_indexing(
-    FileTypes *ft, const AstExpression *ptrexpr, const AstExpression *indexexpr)
-{
-    ExpressionTypes *types = typecheck_expression_not_void(ft, ptrexpr);
+def check_increment_or_decrement(ft: FileTypes*, expr: AstExpression*) -> Type*:
+    bad_type_fmt, bad_expr_fmt: byte*
 
-    const Type *ptrtype;
-    if (types->type->kind == TypeKind::Array) {
+    if expr->kind == AstExpressionKind::PreIncrement or expr->kind == AstExpressionKind::PostIncrement:
+        bad_type_fmt = "cannot increment a value of type %s"
+        bad_expr_fmt = "cannot increment %s"
+    elif expr->kind == AstExpressionKind::PreDecrement or expr->kind == AstExpressionKind::PostDecrement:
+        bad_type_fmt = "cannot decrement a value of type %s"
+        bad_expr_fmt = "cannot decrement %s"
+    else:
+        assert False
+
+    ensure_can_take_address(ft->current_fom_types, &expr->data.operands[0], bad_expr_fmt)
+
+    t = typecheck_expression_not_void(ft, &expr->data.operands[0])->type
+    if not is_integer_type(t) and not is_pointer_type(t):
+        msg: byte[500]
+        snprintf(smg, sizeof(msg), bad_type_fmt, t->name)
+        fail(expr->location, msg)
+    return t
+
+def typecheck_dereferenced_pointer(location: Location, t: Type*) -> None:
+    # TODO: improved error message for dereferencing void*
+    if t->kind != TypeKind::Pointer:
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "the dereference operator '*' is only for pointers, not for %s", t->name)
+        fail(location, msg)
+
+# ptr[index]
+def typecheck_indexing(
+    ft: FileTypes*,
+    ptrexpr: AstExpression*,
+    indexexpr: AstExpression*,
+) -> Type*:
+    msg: byte[500]
+
+    types = typecheck_expression_not_void(ft, ptrexpr)
+
+    if types->type->kind == TypeKind::Array:
         cast_array_to_pointer(ft->current_fom_types, types);
-        ptrtype = types->implicit_cast_type;
-    } else {
-        if (types->type->kind != TypeKind::Pointer)
-            fail(ptrexpr->location, "value of type %s cannot be indexed", types->type->name);
-        ptrtype = types->type;
-    }
-    assert(ptrtype->kind == TypeKind::Pointer);
+        ptrtype = types->implicit_cast_type
+    else:
+        if types->type->kind != TypeKind::Pointer:
+            snprintf(msg, sizeof(msg), "value of type %s cannot be indexed", types->type->name)
+            fail(ptrexpr->location, msg)
+        ptrtype = types->type
 
-    ExpressionTypes *indextypes = typecheck_expression_not_void(ft, indexexpr);
-    if (!is_integer_type(indextypes->type)) {
-        fail(
-            indexexpr->location,
-            "the index inside [...] must be an integer, not %s",
-            indextypes->type->name);
-    }
+    assert ptrtype != NULL
+    assert ptrtype->kind == TypeKind::Pointer
 
-    // LLVM assumes that indexes smaller than 64 bits are signed.
-    // https://github.com/Akuli/jou/issues/48
-    do_implicit_cast(ft->current_fom_types, indextypes, longType, (Location){0}, NULL);
+    indextypes = typecheck_expression_not_void(ft, indexexpr)
+    if not is_integer_type(indextypes->type):
+        snprintf(msg, sizeof(msg), "the index inside [...] must be an integer, not %s", indextypes->type->name)
+        fail(indexexpr->location, msg)
 
-    return ptrtype->data.valuetype;
-}
+    # LLVM assumes that indexes smaller than 64 bits are signed.
+    # https://github.com/Akuli/jou/issues/48
+    do_implicit_cast(ft->current_fom_types, indextypes, longType, Location{}, NULL);
 
-static void typecheck_and_or(
-    FileTypes *ft, const AstExpression *lhsexpr, const AstExpression *rhsexpr, const char *and_or)
-{
-    assert(!strcmp(and_or, "and") || !strcmp(and_or, "or"));
-    char errormsg[100];
-    sprintf(errormsg, "'%s' only works with booleans, not FROM", and_or);
+    return ptrtype->data.valuetype
 
-    typecheck_expression_with_implicit_cast(ft, lhsexpr, boolType, errormsg);
-    typecheck_expression_with_implicit_cast(ft, rhsexpr, boolType, errormsg);
-}
 
-static const char *nth(int n)
-{
-    assert(n >= 1);
+def typecheck_and_or(
+    ft: FileTypes*,
+    lhsexpr: AstExpression*,
+    rhsexpr: AstExpression*,
+    and_or: byte*,
+) -> None:
+    assert strcmp(and_or, "and") == 0 or strcmp(and_or, "or") == 0
 
-    const char *first_few[] = { NULL, "first", "second", "third", "fourth", "fifth", "sixth" };
-    if (n < (int)(sizeof(first_few)/sizeof(first_few[0])))
-        return first_few[n];
+    errormsg: byte[100]
+    snprintf(errormsg, sizeof(errormsg), "'%s' only works with booleans, not <from>", and_or)
 
-    static char result[100];
-    sprintf(result, "%dth", n);
-    return result;
-}
+    typecheck_expression_with_implicit_cast(ft, lhsexpr, boolType, errormsg)
+    typecheck_expression_with_implicit_cast(ft, rhsexpr, boolType, errormsg)
 
-// returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
-static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCall *call, const Type *self_type, Location location)
-{
-    const Signature *sig = find_function_or_method(ft, self_type, call->calledname);
-    if (!sig) {
-        if (!self_type)
-            fail(location, "function '%s' not found", call->calledname);
 
-        // If self type is a pointer to a struct that has the method, mention it in the error message
-        if (self_type->kind == TypeKind::Pointer && find_method(self_type->data.valuetype, call->calledname)) {
-            fail(
-                location,
+global nth_result_buffer: byte[100]
+
+
+# Be aware that return value may change as you call this many times.
+def nth(n: int) -> byte*:
+    assert n >= 1
+
+    first_few = [NULL as byte*, "first", "second", "third", "fourth", "fifth", "sixth"]
+    if n < sizeof(first_few) / sizeof(first_few[0]):
+        return first_few[n]
+
+    sprintf(nth_result_buffer, "%dth", n)
+    return nth_result_buffer
+
+
+def plural_s(n: int) -> byte*:
+    if n == 1:
+        # e.g. "1 argument"
+        return ""
+    else:
+        # e.g. "0 arguments", "2 arguments"
+        return "s"
+
+
+# returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
+def typecheck_function_or_method_call(ft: FileTypes*, call: AstCall*, self_type: Type*, location: Location) -> Type*:
+    msg: byte[500]
+
+    sig = find_function_or_method(ft, self_type, call->calledname)
+    if sig == NULL:
+        if self_type == NULL:
+            snprintf(msg, sizeof(msg), "function '%s' not found", call->calledname)
+        elif self_type->kind == TypeKind::Class:
+            snprintf(
+                msg, sizeof(msg),
+                "class %s does not have a method named '%s'",
+                self_type->name, call->calledname)
+        elif self_type->kind == TypeKind::Pointer and find_method(self_type->data.valuetype, call->calledname) != NULL:
+            snprintf(
+                msg, sizeof(msg), 
                 "the method '%s' is defined on class %s, not on the pointer type %s,"
                 " so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
-                call->calledname, self_type->data.valuetype->name, self_type->name);
-        }
-        // If it is not a class, explain to the user that there are no methods
-        if (self_type->kind != TypeKind::Class) {
-            fail(
-                location,
+                call->calledname, self_type->data.valuetype->name, self_type->name)
+        else:
+            snprintf(
+                msg, sizeof(msg),
                 "type %s does not have any methods because it is %s, not a class",
-                self_type->name, short_type_description(self_type));
-        }
-        fail(location, "class %s does not have a method named '%s'",
-            self_type->name, call->calledname);
-    }
+                self_type->name, short_type_description(self_type))
 
-    char *sigstr = signature_to_string(sig, false, false);
+        fail(location, msg)
 
-    int nargs = sig->nargs;
-    if (self_type)
-        nargs--;
-    if (call->nargs < nargs || (call->nargs > nargs && !sig->takes_varargs)) {
-        fail(
-            location,
+    if self_type == NULL:
+        function_or_method = "function"
+    else:
+        function_or_method = "method"
+
+    sigstr = signature_to_string(sig, False, False)
+
+    nargs = sig->nargs
+    if self_type != NULL:
+        nargs--
+
+    if call->nargs < nargs or (call->nargs > nargs and not sig->takes_varargs):
+        snprintf(
+            msg, sizeof(msg),
             "%s %s takes %d argument%s, but it was called with %d argument%s",
-            self_type ? "method" : "function",
+            function_or_method
             sigstr,
             nargs,
-            nargs==1?"":"s",
+            plural_s(nargs),
             call->nargs,
-            call->nargs==1?"":"s"
-        );
-    }
+            plural_s(call->nargs),
+        )
+        fail(location, msg)
 
-    int k = 0;
-    for (int i = 0; i < sig->nargs; i++) {
-        if (!strcmp(sig->argnames[i], "self"))
-            continue;
-        // This is a common error, so worth spending some effort to get a good error message.
-        char msg[500];
-        snprintf(msg, sizeof msg, "%s argument of %s %s should have type TO, not FROM", nth(i+1), self_type ? "method" : "function", sigstr);
-        typecheck_expression_with_implicit_cast(ft, &call->args[k++], sig->argtypes[i], msg);
-    }
+    k = 0
+    for i = 0; i < sig->nargs; i++:
+        if strcmp(sig->argnames[i], "self") == 0:
+            continue
+        # This is a common error, so worth spending some effort to get a good error message.
+        msg: byte[500]
+        snprintf(msg, sizeof msg, "%s argument of %s %s should have type <to>, not <from>", nth(i+1), function_or_method, sigstr)
+        typecheck_expression_with_implicit_cast(ft, &call->args[k++], sig->argtypes[i], msg)
 
-    for (int i = k; i < call->nargs; i++) {
-        // This code runs for varargs, e.g. the things to format in printf().
-        ExpressionTypes *types = typecheck_expression_not_void(ft, &call->args[i]);
+    for i = k; i < call->nargs; i++:
+        # This code runs for varargs, e.g. the things to format in printf().
+        types = typecheck_expression_not_void(ft, &call->args[i])
 
-        if (types->type->kind == TypeKind::Array)
-            cast_array_to_pointer(ft->current_fom_types, types);
-        else if (
-            (is_integer_type(types->type) && types->type->data.width_in_bits < 32)
-            || types->type == boolType)
-        {
-            // Add implicit cast to signed int, just like in C.
-            do_implicit_cast(ft->current_fom_types, types, intType, (Location){0}, NULL);
-        }
-        else if (types->type == floatType)
-            do_implicit_cast(ft->current_fom_types, types, doubleType, (Location){0}, NULL);
-    }
+        if types->type->kind == TypeKind::Array:
+            cast_array_to_pointer(ft->current_fom_types, types)
+        elif (
+            (is_integer_type(types->type) and types->type->data.width_in_bits < 32)
+            or types->type == boolType
+        ):
+            # Add implicit cast to signed int, just like in C.
+            do_implicit_cast(ft->current_fom_types, types, intType, Location{}, NULL)
+        elif types->type == floatType:
+            do_implicit_cast(ft->current_fom_types, types, doubleType, Location{}, NULL)
 
-    free(sigstr);
-    return sig->returntype;
-}
+    free(sigstr)
+    return sig->returntype
 
-static const struct ClassField *typecheck_class_field(
-    const Type *classtype, const char *fieldname, Location location)
-{
-    assert(classtype->kind == TypeKind::Class);
-    for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++)
-        if (!strcmp(f->name, fieldname))
-            return f;
-    fail(location, "class %s has no field named '%s'", classtype->name, fieldname);
-}
 
-static const Type *typecheck_instantiation(FileTypes *ft, const AstCall *call, Location location)
-{
-    struct AstType tmp = { .kind = AstTypeKind::Named, .location = location };
-    safe_strcpy(tmp.data.name, call->calledname);
-    const Type *t = type_from_ast(ft, &tmp);
+def typecheck_class_field(
+    classtype: Type*,
+    fieldname: byte*,
+    location: Location,
+) -> ClassField*:
+    assert classtype->kind == TypeKind::Class
+    for f = classtype->data.classdata.fields; f < &classtype->data.classdata.fields[classtype->data.classdata.nfields]; f++:
+        if strcmp(f->name, fieldname) == 0:
+            return f
 
-    if (t->kind != TypeKind::Class) {
-        fail(location,
-            "the %s{...} syntax is only for classes, but %s is %s",
-            t->name, t->name, short_type_description(t));
-    }
+    msg: byte[500]
+    snprintf(msg, sizeof(msg), "class %s has no field named '%s'", classtype->name, fieldname)
+    fail(location, msg)
 
-    const struct ClassField ** specified_fields = malloc(sizeof(specified_fields[0]) * call->nargs);  // NOLINT
 
-    for (int i = 0; i < call->nargs; i++) {
-        const struct ClassField *f = typecheck_class_field(t, call->argnames[i], call->args[i].location);
-        char msg[1000];
+def typecheck_instantiation(ft: FileTypes*, call: AstCall*, location: Location) -> Type*:
+    tmp = AstType{kind = AstTypeKind::Named, location = location}
+    assert sizeof(tmp.data.name) == sizeof(call->calledname)
+    strcpy(tmp.data.name, call->calledname)
+    t = type_from_ast(ft, &tmp)
+
+    msg: byte[500]
+
+    if t->kind != TypeKind::Class:
+        snprintf(
+            msg, sizeof(msg),
+            "the %s{...} syntax is only for classes, but %s is %s", 
+            t->name, t->name, short_type_description(t))
+        fail(location, msg)
+
+    specified_fields: ClassField** = malloc(sizeof(specified_fields[0]) * call->nargs)
+
+    for i = 0; i < call->nargs; i++:
+        f = typecheck_class_field(t, call->argnames[i], call->args[i].location)
         snprintf(msg, sizeof msg,
-            "value for field '%s' of class %s must be of type TO, not FROM",
+            "value for field '%s' of class %s must be of type <to>, not <from>",
             call->argnames[i], call->calledname);
         typecheck_expression_with_implicit_cast(ft, &call->args[i], f->type, msg);
-        specified_fields[i] = f;
-    }
+        specified_fields[i] = f
 
-    for (int i1 = 0; i1 < call->nargs; i1++) {
-        for (int i2 = i1+1; i2 < call->nargs; i2++) {
-            if (specified_fields[i1]->union_id == specified_fields[i2]->union_id) {
+    for i1 = 0; i1 < call->nargs; i1++:
+        for i2 = i1+1; i2 < call->nargs; i2++:
+            if specified_fields[i1]->union_id == specified_fields[i2]->union_id:
                 fail(
                     call->args[i2].location,
                     "fields '%s' and '%s' cannot be set simultaneously because they belong to the same union",
-                    specified_fields[i1]->name, specified_fields[i2]->name);
-            }
-        }
-    }
+                    specified_fields[i1]->name, specified_fields[i2]->name)
 
-    free(specified_fields);
-    return t;
-}
+    free(specified_fields)
+    return t
 
-static bool enum_member_exists(const Type *t, const char *name)
-{
-    assert(t->kind == TypeKind::Enum);
-    for (int i = 0; i < t->data.enummembers.count; i++)
-        if (!strcmp(t->data.enummembers.names[i], name))
-            return true;
-    return false;
-}
 
-static const Type *cast_array_members_to_a_common_type(const FunctionOrMethodTypes *fom, Location error_location, ExpressionTypes **exprtypes)
-{
-    // Avoid O(ntypes^2) code in a long array where all or almost all items have the same type.
-    // This is at most O(ntypes*k) where k is the number of distinct types.
-    List(const Type *) distinct = {0};
-    for (ExpressionTypes **et = exprtypes; *et; et++) {
-        bool found = false;
-        for (const Type **t = distinct.ptr; t < End(distinct); t++) {
-            if ((*et)->type == *t) {
-                found = true;
-                break;
-            }
-        }
-        if (!found)
-            Append(&distinct, (*et)->type);
-    }
+def enum_member_exists(t: Type*, name: byte*) -> bool:
+    assert t->kind == TypeKind::Enum
+    for i = 0; i < t->data.enummembers.count; i++:
+        if strcmp(t->data.enummembers.names[i], name) == 0:
+            return True
+    return False
 
-    List(const Type *) compatible_with_all = {0};
-    for (const Type **t = distinct.ptr; t < End(distinct); t++) {
-        bool t_compatible_with_all_others = true;
-        for (const Type **t2 = distinct.ptr; t2 < End(distinct); t2++) {
-            if (!can_cast_implicitly(*t2,*t)) {
-                t_compatible_with_all_others = false;
-                break;
-            }
-        }
-        if (t_compatible_with_all_others)
-            Append(&compatible_with_all, *t);
-    }
 
-    if (compatible_with_all.len != 1) {
-        List(char) namestr = {0};
-        for (const Type **t = distinct.ptr; t < End(distinct); t++) {
-            AppendStr(&namestr, (*t)->name);
-            AppendStr(&namestr, ", ");
-        }
-        fail(
-            error_location, "array items have different types (%.*s)",
-            namestr.len - 2, namestr.ptr);
-    }
-    const Type *elemtype = compatible_with_all.ptr[0];
-    free(distinct.ptr);
-    free(compatible_with_all.ptr);
+def cast_array_members_to_a_common_type(fom: FunctionOrMethodTypes*, error_location: Location, exprtypes: ExpressionTypes**) -> Type*:
+    # Avoid O(ntypes^2) code in a long array where all or almost all items have the same type.
+    # This is at most O(ntypes*k) where k is the number of distinct types.
+    distinct: Type** = NULL
+    ndistinct = 0
 
-    for (ExpressionTypes **et = exprtypes; *et; et++)
-        do_implicit_cast(fom, *et, elemtype, error_location, NULL);
-    return elemtype;
-}
+    for (ExpressionTypes **et = exprtypes; *et; et++:
+        found = False
+        for t = distinct; t < &distinct[ndistinct]; t++:
+            if (*et)->type == *t:
+                found = True
+                break
+        if not !found:
+            distinct = realloc(distinct, sizeof(distinct[0]) * (ndistinct + 1))
+            assert distinct != NULL
+            distinct[ndistinct++] = (*et)->type
 
-static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression *expr)
-{
-    const Type *temptype;
-    const Type *result;
+    compatible_with_all: Type** = NULL
+    n_compatible_with_all = 0
 
-    switch(expr->kind) {
-    case AstExpressionKind::GetEnumMember:
-        result = find_type(ft, expr->data.enummember.enumname);
-        if (!result)
-            fail(
-                expr->location, "there is no type named '%s'", expr->data.enummember.enumname);
-        if (result->kind != TypeKind::Enum)
-            fail(
-                expr->location, "the '::' syntax is only for enums, but %s is %s",
-                expr->data.enummember.enumname, short_type_description(result));
-        if (!enum_member_exists(result, expr->data.enummember.membername))
-            fail(expr->location, "enum %s has no member named '%s'",
-                expr->data.enummember.enumname, expr->data.enummember.membername);
-        break;
-    case AstExpressionKind::FunctionCall:
-        result = typecheck_function_or_method_call(ft, &expr->data.call, NULL, expr->location);
-        if (!result)
-            return NULL;
-        break;
-    case AstExpressionKind::SizeOf:
+    for t = distinct; t < &distinct[ndistinct]; t++:
+        t_compatible_with_all_others = True
+        for t2 = distinct.ptr; t2 < &distinct[ndistinct]; t2++:
+            if not can_cast_implicitly(*t2, *t):
+                t_compatible_with_all_others = False
+                break
+
+        if t_compatible_with_all_others:
+            compatible_with_all = realloc(compatible_with_all, sizeof(compatible_with_all[0]) * (n_compatible_with_all + 1))
+            assert compatible_with_all != NULL
+            compatible_with_all[n_compatible_with_all++] = *t
+
+    if n_compatible_with_all != 1:
+        size = 500
+        for t = distinct.ptr; t < &distinct[ndistinct]; t++:
+            size += strlen((*t)->name) + 3  # 1 for comma, 1 for space, 1 because why not lol
+
+        msg: byte* = malloc(size)
+        assert msg != NULL
+
+        strcpy(msg, "array items have different types (")
+        for t = distinct; t < &distinct[ndistinct]; t++:
+            if t != distinct:
+                strcat(msg, ", ")
+            strcat(msg, (*t)->name)
+        strcat(msg, ")")
+        fail(error_location, msg)
+
+    elemtype = compatible_with_all[0]
+    free(distinct)
+    free(compatible_with_all)
+
+    for et = exprtypes; *et; et++:
+        do_implicit_cast(fom, *et, elemtype, error_location, NULL)
+    return elemtype
+
+
+def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionTypes*:
+    msg: byte[500]
+    result: Type* = NULL
+
+    if expr->kind == AstExpressionKind::GetEnumMember:
+        result = find_type(ft, expr->data.enummember.enumname)
+        if result == NULL:
+            snprintf(msg, sizeof(msg), "there is no type named '%s'", expr->data.enummember.enumname)
+            fail(expr->location, msg)
+        if result->kind != TypeKind::Enum:
+            snprintf(
+                msg, sizeof(msg),
+                "the '::' syntax is only for enums, but %s is %s",
+                expr->data.enummember.enumname,
+                short_type_description(result),
+            )
+            fail(expr->location, msg)
+        if not enum_member_exists(result, expr->data.enummember.membername))
+            snprintf(
+                msg, sizeof(msg),
+                "enum %s has no member named '%s'",
+                expr->data.enummember.enumname, expr->data.enummember.membername)
+            fail(expr->location, msg)
+
+    elif expr->kind == AstExpressionKind::FunctionCall:
+        result = typecheck_function_or_method_call(ft, &expr->data.call, NULL, expr->location)
+        if result == NULL:
+            return NULL
+
+    elif expr->kind == AstExpressionKind::SizeOf:
         typecheck_expression_not_void(ft, &expr->data.operands[0]);
         result = longType;
-        break;
-    case AstExpressionKind::BraceInit:
+
+    elif expr->kind == AstExpressionKind::BraceInit:
         result = typecheck_instantiation(ft, &expr->data.call, expr->location);
-        break;
-    case AstExpressionKind::Array:
-        {
-            int n = expr->data.array.count;
-            ExpressionTypes **exprtypes = calloc(sizeof(exprtypes[0]), n+1);  // NOLINT
-            for (int i = 0; i < n; i++)
-                exprtypes[i] = typecheck_expression_not_void(ft, &expr->data.array.items[i]);
 
-            const Type *membertype = cast_array_members_to_a_common_type(ft->current_fom_types, expr->location, exprtypes);
-            free(exprtypes);
-            result = get_array_type(membertype, n);
-        }
-        break;
-    case AstExpressionKind::GetField:
-        temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
-        if (temptype->kind != TypeKind::Class)
-            fail(
-                expr->location,
+    elif expr->kind == AstExpressionKind::Array:
+        n = expr->data.array.count
+        exprtypes: ExpressionTypes** = calloc(sizeof(exprtypes[0]), n+1)
+        for i = 0; i < n; i++:
+            exprtypes[i] = typecheck_expression_not_void(ft, &expr->data.array.items[i])
+
+        membertype = cast_array_members_to_a_common_type(ft->current_fom_types, expr->location, exprtypes)
+        free(exprtypes)
+        result = get_array_type(membertype, n)
+
+    elif expr->kind == AstExpressionKind::GetField:
+        temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type
+        if temptype->kind != TypeKind::Class:
+            snprintf(
+                msg, sizeof(msg),
                 "left side of the '.' operator must be an instance of a class, not %s",
-                temptype->name);
-        result = typecheck_class_field(temptype, expr->data.classfield.fieldname, expr->location)->type;
-        break;
-    case AstExpressionKind::DerefAndGetField:
+                temptype->name)
+            fail(expr->location, msg)
+        result = typecheck_class_field(temptype, expr->data.classfield.fieldname, expr->location)->type
+
+    elif expr->kind == AstExpressionKind::DerefAndGetField:
         temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
-        if (temptype->kind != TypeKind::Pointer || temptype->data.valuetype->kind != TypeKind::Class)
-            fail(
-                expr->location,
+        if temptype->kind != TypeKind::Pointer or temptype->data.valuetype->kind != TypeKind::Class:
+            snprintf(
+                msg, sizeof(msg),
                 "left side of the '->' operator must be a pointer to a class, not %s",
-                temptype->name);
-        result = typecheck_class_field(temptype->data.valuetype, expr->data.classfield.fieldname, expr->location)->type;
-        break;
-    case AstExpressionKind::DerefAndCallMethod:
+                temptype->name)
+            fail(expr->location, msg)
+        result = typecheck_class_field(temptype->data.valuetype, expr->data.classfield.fieldname, expr->location)->type
+
+    elif expr->kind == AstExpressionKind::DerefAndCallMethod:
         temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
-        if (temptype->kind != TypeKind::Pointer)
-            fail(
-                expr->location,
+        if temptype->kind != TypeKind::Pointer:
+            snprintf(msg, sizeof(msg),
                 "left side of the '->' operator must be a pointer, not %s",
-                temptype->name);
-        result = typecheck_function_or_method_call(ft, &expr->data.methodcall.call, temptype->data.valuetype, expr->location);
-        break;
-    case AstExpressionKind::CallMethod:
-        temptype = typecheck_expression_not_void(ft, expr->data.methodcall.obj)->type;
-        result = typecheck_function_or_method_call(ft, &expr->data.methodcall.call, temptype, expr->location);
+                temptype->name)
+            fail(expr->location, msg)
+        result = typecheck_function_or_method_call(ft, &expr->data.methodcall.call, temptype->data.valuetype, expr->location)
 
-        // If self argument is passed by pointer, make sure we can create that pointer
-        assert(temptype->kind == TypeKind::Class);
-        bool found = false;
-        for (const Signature *m = temptype->data.classdata.methods.ptr; m < End(temptype->data.classdata.methods); m++) {
-            if (!strcmp(m->name, expr->data.methodcall.call.calledname)) {
-                if (is_pointer_type(m->argtypes[0])) {
-                    char tmp[500];
-                    snprintf(
-                        tmp, sizeof tmp,
-                        "cannot take address of %%s, needed for calling the %s() method",
-                        expr->data.methodcall.call.calledname);
-                    ensure_can_take_address(ft->current_fom_types, expr->data.methodcall.obj, tmp);
-                }
-                found = true;
-                break;
-            }
-        }
-        assert(found);
+    elif expr->kind == AstExpressionKind::CallMethod:
+        temptype = typecheck_expression_not_void(ft, expr->data.methodcall.obj)->type
+        result = typecheck_function_or_method_call(ft, &expr->data.methodcall.call, temptype, expr->location)
 
-        if (!result)
-            return NULL;
-        break;
-    case AstExpressionKind::Indexing:
-        result = typecheck_indexing(ft, &expr->data.operands[0], &expr->data.operands[1]);
-        break;
-    case AstExpressionKind::AddressOf:
-        ensure_can_take_address(ft->current_fom_types, &expr->data.operands[0], "the '&' operator cannot be used with %s");
-        temptype = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
-        result = get_pointer_type(temptype);
-        break;
-    case AstExpressionKind::GetVariable:
-        result = find_any_var(ft, expr->data.varname);
-        if (!result)
-            fail(expr->location, "no variable named '%s'", expr->data.varname);
-        break;
-    case AstExpressionKind::Dereference:
-        temptype = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
-        typecheck_dereferenced_pointer(expr->location, temptype);
-        result = temptype->data.valuetype;
-        break;
-    case AstExpressionKind::Constant:
-        result = type_of_constant(&expr->data.constant);
-        break;
-    case AstExpressionKind::And:
-        typecheck_and_or(ft, &expr->data.operands[0], &expr->data.operands[1], "and");
-        result = boolType;
-        break;
-    case AstExpressionKind::Or:
-        typecheck_and_or(ft, &expr->data.operands[0], &expr->data.operands[1], "or");
-        result = boolType;
-        break;
-    case AstExpressionKind::Not:
+        # If self argument is passed by pointer, make sure we can create that pointer
+        found = False
+        assert temptype->kind == TypeKind::Class
+        for m = temptype->data.classdata.methods; m < &temptype->data.classdata.methods[temptype->data.classdata.nmethods]; m++:
+            if strcmp(m->name, expr->data.methodcall.call.calledname) != 0:
+                continue
+
+            if is_pointer_type(m->argtypes[0]):
+                assert strstr(expr->data.methodcall.call.calledname, "%") == NULL
+                snprintf(
+                    msg, sizeof msg,
+                    "cannot take address of %%s, needed for calling the %s() method",
+                    expr->data.methodcall.call.calledname)
+                ensure_can_take_address(ft->current_fom_types, expr->data.methodcall.obj, msg)
+
+            found = True
+            break
+
+        assert found
+
+        if result == NULL:
+            return NULL
+
+    elif expr->kind == AstExpressionKind::Indexing:
+        result = typecheck_indexing(ft, &expr->data.operands[0], &expr->data.operands[1])
+
+    elif expr->kind == AstExpressionKind::AddressOf:
+        ensure_can_take_address(ft->current_fom_types, &expr->data.operands[0], "the '&' operator cannot be used with %s")
+        temptype = typecheck_expression_not_void(ft, &expr->data.operands[0])->type
+        result = get_pointer_type(temptype)
+
+    elif expr->kind == AstExpressionKind::GetVariable:
+        result = find_any_var(ft, expr->data.varname)
+        if result == NULL:
+            fail(expr->location, "no variable named '%s'", expr->data.varname)
+
+    elif expr->kind == AstExpressionKind::Dereference:
+        temptype = typecheck_expression_not_void(ft, &expr->data.operands[0])->type
+        typecheck_dereferenced_pointer(expr->location, temptype)
+        result = temptype->data.valuetype
+
+    elif expr->kind == AstExpressionKind::Constant:
+        result = type_of_constant(&expr->data.constant)
+
+    elif expr->kind == AstExpressionKind::And:
+        typecheck_and_or(ft, &expr->data.operands[0], &expr->data.operands[1], "and")
+        result = boolType
+
+    elif expr->kind == AstExpressionKind::Or:
+        typecheck_and_or(ft, &expr->data.operands[0], &expr->data.operands[1], "or")
+        result = boolType
+
+    elif expr->kind == AstExpressionKind::Not:
         typecheck_expression_with_implicit_cast(
             ft, &expr->data.operands[0], boolType,
-            "value after 'not' must be a boolean, not FROM");
-        result = boolType;
-        break;
-    case AstExpressionKind::Neg:
-        result = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
-        if (result->kind != TypeKind::SignedInteger && result->kind != TypeKind::FloatingPoint)
-            fail(
-                expr->location,
-                "value after '-' must be a float or double or a signed integer, not %s",
-                result->name);
-        break;
-    case AstExpressionKind::Add:
-    case AstExpressionKind::Sub:
-    case AstExpressionKind::Mul:
-    case AstExpressionKind::Div:
-    case AstExpressionKind::Mod:
-    case AstExpressionKind::Eq:
-    case AstExpressionKind::Ne:
-    case AstExpressionKind::Gt:
-    case AstExpressionKind::Ge:
-    case AstExpressionKind::Lt:
-    case AstExpressionKind::Le:
-        {
-            ExpressionTypes *lhstypes = typecheck_expression_not_void(ft, &expr->data.operands[0]);
-            ExpressionTypes *rhstypes = typecheck_expression_not_void(ft, &expr->data.operands[1]);
-            result = check_binop(ft->current_fom_types, expr->kind, expr->location, lhstypes, rhstypes);
-            break;
-        }
-    case AstExpressionKind::PreIncrement:
-    case AstExpressionKind::PreDecrement:
-    case AstExpressionKind::PostIncrement:
-    case AstExpressionKind::PostDecrement:
-        result = check_increment_or_decrement(ft, expr);
-        break;
-    case AstExpressionKind::As:
-        {
-            ExpressionTypes *origtypes = typecheck_expression_not_void(ft, expr->data.as.obj);
-            result = type_from_ast(ft, &expr->data.as.type);
-            do_explicit_cast(ft->current_fom_types, origtypes, result, expr->location);
-        }
-        break;
-    }
+            "value after 'not' must be a boolean, not <from>")
+        result = boolType
 
-    ExpressionTypes *types = calloc(1, sizeof *types);
+    elif expr->kind == AstExpressionKind::Neg:
+        result = typecheck_expression_not_void(ft, &expr->data.operands[0])->type
+        if result->kind != TypeKind::SignedInteger and result->kind != TypeKind::FloatingPoint:
+            snprintf(msg, sizeof(msg), 
+                "value after '-' must be a float or double or a signed integer, not %s",
+                result->name)
+            fail(expr->location, msg)
+
+    elif (
+        expr->kind == AstExpressionKind::Add
+        or expr->kind == AstExpressionKind::Sub
+        or expr->kind == AstExpressionKind::Mul
+        or expr->kind == AstExpressionKind::Div
+        or expr->kind == AstExpressionKind::Mod
+        or expr->kind == AstExpressionKind::Eq
+        or expr->kind == AstExpressionKind::Ne
+        or expr->kind == AstExpressionKind::Gt
+        or expr->kind == AstExpressionKind::Ge
+        or expr->kind == AstExpressionKind::Lt
+        or expr->kind == AstExpressionKind::Le
+    ):
+        lhstypes = typecheck_expression_not_void(ft, &expr->data.operands[0])
+        rhstypes = typecheck_expression_not_void(ft, &expr->data.operands[1])
+        result = check_binop(ft->current_fom_types, expr->kind, expr->location, lhstypes, rhstypes)
+
+    elif (
+        expr->kind == AstExpressionKind::PreIncrement
+        or expr->kind == AstExpressionKind::PreDecrement
+        or expr->kind == AstExpressionKind::PostIncrement
+        or expr->kind == AstExpressionKind::PostDecrement
+    ):
+        result = check_increment_or_decrement(ft, expr)
+
+    elif expr->kind == AstExpressionKind::As:
+        ExpressionTypes *origtypes = typecheck_expression_not_void(ft, expr->data.as.obj)
+        result = type_from_ast(ft, &expr->data.as.type)
+        do_explicit_cast(ft->current_fom_types, origtypes, result, expr->location)
+
+    else:
+        assert False
+
+    assert result != NULL
+
+    types: ExpressionTypes* = calloc(1, sizeof *types);
     types->expr = expr;
     types->type = result;
-    Append(&ft->current_fom_types->expr_types, types);
-    return types;
-}
 
-static void typecheck_statement(FileTypes *ft, const AstStatement *stmt);
+    ft->current_fom_types->expr_types = realloc(ft->current_fom_types->expr_types, sizeof(ft->current_fom_types->expr_types[0]) * ft->current_fom_types->n_expr_types)
+    assert ft->current_fom_types->expr_types != NULL
+    ft->current_fom_types->expr_types[ft->current_fom_types->n_expr_types++] = types
 
-static void typecheck_body(FileTypes *ft, const AstBody *body)
-{
-    for (int i = 0; i < body->nstatements; i++)
-        typecheck_statement(ft, &body->statements[i]);
-}
+    return types
 
-static void typecheck_if_statement(FileTypes *ft, const AstIfStatement *ifstmt)
-{
-    for (int i = 0; i < ifstmt->n_if_and_elifs; i++) {
-        const char *errmsg;
-        if (i == 0)
-            errmsg = "'if' condition must be a boolean, not FROM";
-        else
-            errmsg = "'elif' condition must be a boolean, not FROM";
+
+def typecheck_body(ft: FileTypes*, body: AstBody*) -> None:
+    for i = 0; i < body->nstatements; i++:
+        typecheck_statement(ft, &body->statements[i])
+
+
+def typecheck_if_statement(ft: FileTypes*, const AstIfStatement *ifstmt):
+    for i = 0; i < ifstmt->n_if_and_elifs; i++:
+        if i == 0:
+            errmsg = "'if' condition must be a boolean, not <from>"
+        else:
+            errmsg = "'elif' condition must be a boolean, not <from>"
 
         typecheck_expression_with_implicit_cast(
-            ft, &ifstmt->if_and_elifs[i].condition, boolType, errmsg);
-        typecheck_body(ft, &ifstmt->if_and_elifs[i].body);
-    }
-    typecheck_body(ft, &ifstmt->elsebody);
-}
+            ft, &ifstmt->if_and_elifs[i].condition, boolType, errmsg)
+        typecheck_body(ft, &ifstmt->if_and_elifs[i].body)
 
-static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
-{
-    switch(stmt->kind) {
-    case AstStatementKind::If:
-        typecheck_if_statement(ft, &stmt->data.ifstatement);
-        break;
+    typecheck_body(ft, &ifstmt->elsebody)
 
-    case AstStatementKind::While:
+def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
+    msg: byte[500]
+
+    if stmt->kind == AstStatementKind::If:
+        typecheck_if_statement(ft, &stmt->data.ifstatement)
+
+    elif stmt->kind == AstStatementKind::While:
         typecheck_expression_with_implicit_cast(
             ft, &stmt->data.whileloop.condition, boolType,
-            "'while' condition must be a boolean, not FROM");
-        typecheck_body(ft, &stmt->data.whileloop.body);
-        break;
+            "'while' condition must be a boolean, not <from>")
+        typecheck_body(ft, &stmt->data.whileloop.body)
 
-    case AstStatementKind::For:
-        typecheck_statement(ft, stmt->data.forloop.init);
+    elif stmt->kind == AstStatementKind::For:
+        typecheck_statement(ft, stmt->data.forloop.init)
         typecheck_expression_with_implicit_cast(
             ft, &stmt->data.forloop.cond, boolType,
-            "'for' condition must be a boolean, not FROM");
-        typecheck_body(ft, &stmt->data.forloop.body);
-        typecheck_statement(ft, stmt->data.forloop.incr);
-        break;
+            "'for' condition must be a boolean, not <from>")
+        typecheck_body(ft, &stmt->data.forloop.body)
+        typecheck_statement(ft, stmt->data.forloop.incr)
 
-    case AstStatementKind::Break:
-        break;
+    elif (
+        stmt->kind == AstStatementKind::Break
+        or stmt->kind == AstStatementKind::Continue
+        or stmt->kind == AstStatementKind::Pass
+    ):
+        pass
 
-    case AstStatementKind::Continue:
-        break;
+    elif stmt->kind == AstStatementKind::Assign:
+        targetexpr = &stmt->data.assignment.target
+        valueexpr = &stmt->data.assignment.value
 
-    case AstStatementKind::Assign:
-        {
-            const AstExpression *targetexpr = &stmt->data.assignment.target;
-            const AstExpression *valueexpr = &stmt->data.assignment.value;
-            if (targetexpr->kind == AstExpressionKind::GetVariable
-                && !find_any_var(ft, targetexpr->data.varname))
-            {
-                // Making a new variable. Use the type of the value being assigned.
-                const ExpressionTypes *types = typecheck_expression_not_void(ft, valueexpr);
-                add_variable(ft, types->type, targetexpr->data.varname);
-            } else {
-                // Convert value to the type of an existing variable or other assignment target.
-                ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s");
+        if (
+            targetexpr->kind == AstExpressionKind::GetVariable
+            and find_any_var(ft, targetexpr->data.varname) == NULL
+        ):
+            # Making a new variable. Use the type of the value being assigned.
+            types = typecheck_expression_not_void(ft, valueexpr)
+            add_variable(ft, types->type, targetexpr->data.varname)
+        else:
+            # Convert value to the type of an existing variable or other assignment target.
+            ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
 
-                char errmsg[500];
-                if (targetexpr->kind == AstExpressionKind::Dereference) {
-                    strcpy(errmsg, "cannot place a value of type FROM into a pointer of type TO*");
-                } else {
-                    snprintf(errmsg, sizeof errmsg,
-                        "cannot assign a value of type FROM to %s of type TO",
-                        short_expression_description(targetexpr));
-                }
-                const ExpressionTypes *targettypes = typecheck_expression_not_void(ft, targetexpr);
-                typecheck_expression_with_implicit_cast(ft, valueexpr, targettypes->type, errmsg);
-            }
-            break;
-        }
+            if targetexpr->kind == AstExpressionKind::Dereference:
+                strcpy(msg, "cannot place a value of type <from> into a pointer of type <to>*")
+            else:
+                snprintf(msg, sizeof msg,
+                    "cannot assign a value of type <from> to %s of type <to>",
+                    short_expression_description(targetexpr))
 
-    case AstStatementKind::InPlaceAdd:
-    case AstStatementKind::InPlaceSub:
-    case AstStatementKind::InPlaceMul:
-    case AstStatementKind::InPlaceDiv:
-    case AstStatementKind::InPlaceMod:
-    {
-        const AstExpression *targetexpr = &stmt->data.assignment.target;
-        const AstExpression *valueexpr = &stmt->data.assignment.value;
+            targettypes = typecheck_expression_not_void(ft, targetexpr)
+            typecheck_expression_with_implicit_cast(ft, valueexpr, targettypes->type, msg);
 
-        enum AstExpressionKind op;
-        const char *opname;
+    elif (
+        stmt->kind == AstStatementKind::InPlaceAdd
+        or stmt->kind == AstStatementKind::InPlaceSub
+        or stmt->kind == AstStatementKind::InPlaceMul
+        or stmt->kind == AstStatementKind::InPlaceDiv
+        or stmt->kind == AstStatementKind::InPlaceMod
+    ):
+        targetexpr = &stmt->data.assignment.target
+        valueexpr = &stmt->data.assignment.value
 
-        switch(stmt->kind) {
-            case AstStatementKind::InPlaceAdd: op = AstExpressionKind::Add; opname = "addition"; break;
-            case AstStatementKind::InPlaceSub: op = AstExpressionKind::Sub; opname = "subtraction"; break;
-            case AstStatementKind::InPlaceMul: op = AstExpressionKind::Mul; opname = "multiplication"; break;
-            case AstStatementKind::InPlaceDiv: op = AstExpressionKind::Div; opname = "division"; break;
-            case AstStatementKind::InPlaceMod: op = AstExpressionKind::Mod; opname = "modulo"; break;
-            default: assert(0);
-        }
+        ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
+        targettypes = typecheck_expression_not_void(ft, targetexpr)
+        valuetypes = typecheck_expression_not_void(ft, valueexpr)
 
-        ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s");
-        ExpressionTypes *targettypes = typecheck_expression_not_void(ft, targetexpr);
-        ExpressionTypes *valuetypes = typecheck_expression_not_void(ft, valueexpr);
+        if stmt->kind == AstStatementKind::InPlaceAdd:
+            op = AstExpressionKind::Add
+            opname = "addition"
+        elif stmt->kind == AstStatementKind::InPlaceSub:
+            op = AstExpressionKind::Sub
+            opname = "subtraction"
+        elif stmt->kind == AstStatementKind::InPlaceMul:
+            op = AstExpressionKind::Mul
+            opname = "multiplication"
+        elif stmt->kind == AstStatementKind::InPlaceDiv:
+            op = AstExpressionKind::Div
+            opname = "division"
+        elif stmt->kind == AstStatementKind::InPlaceMod:
+            op = AstExpressionKind::Mod;
+            opname = "modulo"
+        else:
+            assert False
 
-        const Type *t = check_binop(ft->current_fom_types, op, stmt->location, targettypes, valuetypes);
-        ExpressionTypes tempvalue_types = { .expr = targetexpr, .type = t };
+        t = check_binop(ft->current_fom_types, op, stmt->location, targettypes, valuetypes);
+        ExpressionTypes tempvalue_types = {expr = targetexpr, type = t}
 
-        char msg[500];
-        snprintf(msg, sizeof msg, "%s produced a value of type FROM which cannot be assigned back to TO", opname);
-        do_implicit_cast(ft->current_fom_types, &tempvalue_types, targettypes->type, stmt->location, msg);
+        snprintf(msg, sizeof msg, "%s produced a value of type <from> which cannot be assigned back to <to>", opname)
+        do_implicit_cast(ft->current_fom_types, &tempvalue_types, targettypes->type, stmt->location, msg)
 
-        // I think it is currently impossible to cast target.
-        // If this assert fails, we probably need to add another error message for it.
-        assert(!targettypes->implicit_cast_type);
-        break;
-    }
+        # I think it is currently impossible to cast target.
+        # If this assert fails, we probably need to add another error message for it.
+        assert targettypes->implicit_cast_type == NULL
 
-    case AstStatementKind::Return:
-        if (ft->current_fom_types->signature.is_noreturn)
-            fail(
-                stmt->location,
+    elif stmt->kind == AstStatementKind::Return:
+        if ft->current_fom_types->signature.is_noreturn:
+            snprintf(msg, sizeof(msg),
                 "function '%s' cannot return because it was defined with '-> noreturn'",
-                ft->current_fom_types->signature.name);
+                ft->current_fom_types->signature.name)
+            fail(stmt->location, msg)
 
-        const Type *returntype = ft->current_fom_types->signature.returntype;
-        if (stmt->data.returnvalue && !returntype) {
-            fail(
-                stmt->location,
-                "function '%s' cannot return a value because it was defined with '-> None'",
-                ft->current_fom_types->signature.name);
-        }
-        if (returntype && !stmt->data.returnvalue) {
-            fail(
-                stmt->location,
+        returntype = ft->current_fom_types->signature.returntype
+
+        if stmt->data.returnvalue != NULL and returntype == NULL:
+            snprintf(msg, sizeof(msg), "function '%s' cannot return a value because it was defined with '-> None'",
+                ft->current_fom_types->signature.name
+            fail(stmt->location, msg)
+
+        if returntype != NULL and !stmt->data.returnvalue == NULL:
+            snprintf(msg, sizeof(msg), 
                 "a return value is needed, because the return type of function '%s' is %s",
                 ft->current_fom_types->signature.name,
-                ft->current_fom_types->signature.returntype->name);
-        }
+                ft->current_fom_types->signature.returntype->name)
+            fail(stmt->location, msg)
 
-        if (stmt->data.returnvalue) {
-            char msg[200];
+        if stmt->data.returnvalue != NULL:
             snprintf(msg, sizeof msg,
-                "attempting to return a value of type FROM from function '%s' defined with '-> TO'",
-                ft->current_fom_types->signature.name);
+                "attempting to return a value of type <from> from function '%s' defined with '-> <to>'",
+                ft->current_fom_types->signature.name)
             typecheck_expression_with_implicit_cast(
-                ft, stmt->data.returnvalue, find_local_var(ft, "return")->type, msg);
-        }
+                ft, stmt->data.returnvalue, find_local_var(ft, "return")->type, msg)
 
-        break;
+    elif stmt->kind == AstStatementKind::DeclareLocalVar:
+        if find_any_var(ft, stmt->data.vardecl.name):
+            snprintf(msg, sizeof(msg), "a variable named '%s' already exists", stmt->data.vardecl.name)
+            fail(stmt->location, msg)
 
-    case AstStatementKind::DeclareLocalVar:
-        if (find_any_var(ft, stmt->data.vardecl.name))
-            fail(stmt->location, "a variable named '%s' already exists", stmt->data.vardecl.name);
+        type = type_from_ast(ft, &stmt->data.vardecl.type)
+        add_variable(ft, type, stmt->data.vardecl.name)
 
-        const Type *type = type_from_ast(ft, &stmt->data.vardecl.type);
-        add_variable(ft, type, stmt->data.vardecl.name);
-        if (stmt->data.vardecl.value) {
+        if stmt->data.vardecl.value != NULL:
             typecheck_expression_with_implicit_cast(
                 ft, stmt->data.vardecl.value, type,
-                "initial value for variable of type TO cannot be of type FROM");
-        }
-        break;
+                "initial value for variable of type <to> cannot be of type <from>");
 
-    case AstStatementKind::ExpressionStatement:
-        typecheck_expression(ft, &stmt->data.expression);
-        break;
+    elif stmt->kind == AstStatementKind::ExpressionStatement:
+        typecheck_expression(ft, &stmt->data.expression)
 
-    case AstStatementKind::Assert:
-        typecheck_expression_with_implicit_cast(ft, &stmt->data.expression, boolType, "assertion must be a boolean, not FROM");
-        break;
+    elif stmt->kind == AstStatementKind::Assert:
+        typecheck_expression_with_implicit_cast(ft, &stmt->data.expression, boolType, "assertion must be a boolean, not <from>")
 
-    case AstStatementKind::Pass:
-        break;
+    else:
+        assert False
 
-    case AstStatementKind::GlobalVariableDeclaration:
-    case AstStatementKind::DefineClass:
-    case AstStatementKind::DefineEnum:
-    case AstStatementKind::GlobalVariableDefinition:
-    case AstStatementKind::Function:
-        assert(0);
-    }
-}
 
-static void typecheck_function_or_method_body(FileTypes *ft, const Signature *sig, const AstBody *body)
-{
-    assert(!ft->current_fom_types);
-    Append(&ft->fomtypes, (struct FunctionOrMethodTypes){0});
-    ft->current_fom_types = End(ft->fomtypes) - 1;
-    ft->current_fom_types->signature = copy_signature(sig);
+def typecheck_function_or_method_body(ft: FileTypes*, sig: Signature*, body: AstBody*) -> None:
+    assert ft->current_fom_types == NULL
 
-    for (int i = 0; i < sig->nargs; i++) {
-        LocalVariable *v = add_variable(ft, sig->argtypes[i], sig->argnames[i]);
-        v->is_argument = true;
-    }
-    if (sig->returntype)
-        add_variable(ft, sig->returntype, "return");
+    ft->fomtypes = realloc(ft->fomtypes, sizeof(ft->fomtypes[0]) * (ft->nfomtypes + 1))
+    assert ft->fomtypes != NULL
+    ft->fomtypes[ft->nfomtypes++] = FunctionOrMethodTypes{}
 
-    typecheck_body(ft, body);
-    ft->current_fom_types = NULL;
-}
+    ft->current_fom_types = &ft->fomtypes[ft->nfomtypes - 1]
+    ft->current_fom_types->signature = copy_signature(sig)
 
-void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstFile *ast)
-{
-    for (int i = 0; i < ast->body.nstatements; i++) {
-        const AstStatement *stmt = &ast->body.statements[i];
-        if (stmt->kind == AstStatementKind::Function && stmt->data.function.body.nstatements > 0) {
-            const Signature *sig = NULL;
-            for (struct SignatureAndUsedPtr *f = ft->functions.ptr; f < End(ft->functions); f++) {
-                if (!strcmp(f->signature.name, stmt->data.function.signature.name)) {
-                    sig = &f->signature;
-                    break;
-                }
-            }
-            assert(sig);
-            typecheck_function_or_method_body(ft, sig, &stmt->data.function.body);
-        }
+    for i = 0; i < sig->nargs; i++:
+        v = add_variable(ft, sig->argtypes[i], sig->argnames[i])
+        v->is_argument = True
 
-        if (stmt->kind == AstStatementKind::DefineClass) {
-            Type *classtype = NULL;
-            for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++) {
-                if (!strcmp((*t)->name, stmt->data.classdef.name)) {
-                    classtype = *t;
-                    break;
-                }
-            }
-            assert(classtype);
+    if sig->returntype:
+        add_variable(ft, sig->returntype, "return")
 
-            for (AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++) {
-                if (m->kind != AstClassMemberKind::Method)
-                    continue;
-                const AstFunction *method = &m->data.method;
+    typecheck_body(ft, body)
+    ft->current_fom_types = NULL
 
-                Signature *sig = NULL;
-                for (Signature *s = classtype->data.classdata.methods.ptr; s < End(classtype->data.classdata.methods); s++) {
-                    if (!strcmp(s->name, method->signature.name)) {
-                        sig = s;
-                        break;
-                    }
-                }
-                assert(sig);
-                typecheck_function_or_method_body(ft, sig, &method->body);
-            }
-        }
-    }
-}
+
+def typecheck_stage3_function_and_method_bodies(ft: FileTypes*, ast: AstFile*) -> None:
+    for i = 0; i < ast->body.nstatements; i++:
+        stmt = &ast->body.statements[i];
+        if stmt->kind == AstStatementKind::Function and stmt->data.function.body.nstatements > 0:
+            sig: Signature* = NULL
+            for f = ft->functions; f < &ft->functions[ft->nfunctions]; f++:
+                if strcmp(f->signature.name, stmt->data.function.signature.name) == 0:
+                    sig = &f->signature
+                    break
+            assert sig != NULL
+
+            typecheck_function_or_method_body(ft, sig, &stmt->data.function.body)
+
+        if stmt->kind == AstStatementKind::DefineClass:
+            classtype: Type* = NULL
+            for t = ft->owned_types; t < &ft->owned_types[ft->n_owned_types]; t++:
+                if strcmp((*t)->name, stmt->data.classdef.name) == 0:
+                    classtype = *t
+                    break
+            assert classtype != NULL
+
+            for m = stmt->data.classdef.members; m < &stmt->data.classdef.members[stmt->data.classdef.nmembers]; m++:
+                if m->kind != AstClassMemberKind::Method:
+                    continue
+                method = &m->method;
+
+                sig: Signature* = NULL
+                for s = classtype->data.classdata.methods; s < &classtype->data.classdata.methods[classtype->data.classdata.nmethods]; s++:
+                    if strcmp(s->name, method->signature.name) == 0:
+                        sig = s
+                        break
+                assert sig != NULL
+                typecheck_function_or_method_body(ft, sig, &method->body)
