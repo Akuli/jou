@@ -1,4 +1,5 @@
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
 
@@ -275,7 +276,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
 
     sig.returntype_location = astsig->return_type.location
 
-    if self_class != NULL:
+    if self_class == NULL:
         ft->functions = realloc(ft->functions, sizeof(ft->functions[0]) * (ft->nfunctions + 1))
         assert ft->functions != NULL
         ft->functions[ft->nfunctions++] = SignatureAndUsedPtr{
@@ -1489,6 +1490,7 @@ def typecheck_stage3_function_and_method_bodies(ft: FileTypes*, ast: AstFile*) -
     for i = 0; i < ast->body.nstatements; i++:
         stmt = &ast->body.statements[i]
         if stmt->kind == AstStatementKind::Function and stmt->function.body.nstatements > 0:
+            printf("Looking for function %s\n", stmt->function.signature.name)
             sig: Signature* = NULL
             for f = ft->functions; f < &ft->functions[ft->nfunctions]; f++:
                 if strcmp(f->signature.name, stmt->function.signature.name) == 0:

@@ -265,8 +265,8 @@ def signature_to_string(sig: Signature*, include_return_type: bool, include_self
             continue
 
         assert sizeof sig->argnames[i] == 100
-        assert sizeof sig->argtypes[i]->name == 100
-        result = realloc(result, strlen(result) + 300)
+        assert sizeof sig->argtypes[i]->name == 500
+        result = realloc(result, strlen(result) + 1000)
         assert result != NULL
         strcat(result, sig->argnames[i])
         strcat(result, ": ")
