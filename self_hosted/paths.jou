@@ -3,6 +3,8 @@ import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
+import "./structs.jou"
+
 if WINDOWS:
     declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
 elif MACOS:
@@ -119,14 +121,93 @@ else:
     def my_mkdir(path: byte*) -> None:
         mkdir(path, 0o777)  # this is what mkdir in bash does according to strace
 
-def get_path_to_file_in_jou_compiled(filename: byte*) -> byte*:
-    # TODO: is placing jou_compiled to current working directory a good idea?
-    my_mkdir("jou_compiled")
-    my_mkdir("jou_compiled/self_hosted")
 
-    result: byte* = malloc(strlen(filename) + 100)
-    sprintf(result, "jou_compiled/self_hosted/%s", filename)
+def write_gitignore(p: byte*) -> None:
+    filename: byte* = malloc(strlen(p) + 100)
+    assert filename != NULL
+    strcat(filename, "/.gitignore")
+
+    f = fopen(filename, "r")
+    if f != NULL:
+        # already exists
+        fclose(f)
+    else:
+        # write '*' into gitignore, so that git won't track any compiled files
+        f = fopen(filename, "w")
+        if f != NULL:
+            fprintf(f, "*")
+            fclose(f)
+
+    free(filename)
+
+
+def mkdir_exist_ok(p: byte*) -> None:
+    # TODO: check if errno == EEXIST
+    # Currently no good way to access EEXIST constant
+    my_mkdir(p)
+
+
+def get_path_to_file_in_jou_compiled(filename: byte*) -> byte*:
+    # Place compiled files so that it's difficult to get race conditions when
+    # compiling multiple Jou files simultaneously (tests do that)
+    tmp = strdup(command_line_args.infile)
+    infile_folder = strdup(dirname(tmp))
+    free(tmp)
+
+    subfolder = get_filename_without_jou_suffix(command_line_args.infile)
+
+    result: byte* = malloc(strlen(infile_folder) + strlen(subfolder) + strlen(filename) + 100)
+    assert result != NULL
+
+    sprintf(result, "%s/jou_compiled", infile_folder)
+    mkdir_exist_ok(result)
+    write_gitignore(result)
+
+    sprintf(result, "%s/jou_compiled/%s", infile_folder, subfolder)
+    mkdir_exist_ok(result)
+
+    sprintf(result, "%s/jou_compiled/%s/%s", infile_folder, subfolder, filename)
+    mkdir_exist_ok(result)
+
+    free(infile_folder)
+    free(subfolder)
+    free(result)
     return result
+
+
+
+def get_filename_without_jou_suffix(path: byte*) -> byte*:
+    last_slash = strrchr(path, '/')
+    if last_slash != NULL:
+        path = &last_slash[1]
+
+    if WINDOWS:    
+        last_slash = strrchr(path, '\\')
+        if last_slash != NULL:
+            path = &last_slash[1]
+
+    len = strlen(path)
+    if len > 4 and ends_with(path, ".jou"):
+        len -= 4
+
+    result: byte* = malloc(len+1)
+    assert result != NULL
+    memcpy(result, path, len)
+    result[len] = '\0'
+
+    return result
+
+
+def get_default_exe_path() -> byte*:
+    name = get_filename_without_jou_suffix(command_line_args.infile)
+    if WINDOWS:
+        name = realloc(name, strlen(name) + 10)
+        strcat(name, ".exe")
+
+    path = get_path_to_file_in_jou_compiled(name)
+    free(name)
+    return path
+
 
 # TODO: put this to stdlib? or does it do too much for a stdlib function?
 def delete_slice(start: byte*, end: byte*) -> None:

@@ -5,6 +5,7 @@ import "stdlib/errno.jou"
 import "stdlib/str.jou"
 
 import "./llvm.jou"
+import "./output.jou"
 import "./typecheck.jou"
 import "./target.jou"
 import "./types.jou"
@@ -476,8 +477,7 @@ def main(argc: int, argv: byte**) -> int:
         assert False  # TODO: do this
         #exepath = get_default_exe_path()
 
-    assert False  # TODO: do this
-    #run_linker(objpaths, exepath)
+    run_linker(objpaths, exepath)
     for i = 0; objpaths[i] != NULL; i++:
         free(objpaths[i])
     free(objpaths)
