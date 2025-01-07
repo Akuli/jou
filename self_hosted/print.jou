@@ -508,10 +508,10 @@ static void print_cf_instruction(const CfInstruction *ins)
         printf("%s = ", varname(ins->destvar));
 
     switch(ins->kind) {
-    case CF_ADDRESS_OF_LOCAL_VAR:
+    case CfInstructionKind::AddressOfLocalVar:
         printf("address of %s (local variable)", varname(ins->operands[0]));
         break;
-    case CF_ADDRESS_OF_GLOBAL_VAR:
+    case CfInstructionKind::AddressOfGlobalVar:
         printf("address of %s (global variable)", ins->data.globalname);
         break;
     case CF_SIZEOF:
@@ -532,7 +532,7 @@ static void print_cf_instruction(const CfInstruction *ins)
         }
         printf(")");
         break;
-    case CF_NUM_CAST:
+    case CfInstructionKind::NumCast:
         printf(
             "number cast %s (%d-bit %s --> %d-bit %s)",
             varname(ins->operands[0]),
@@ -541,16 +541,16 @@ static void print_cf_instruction(const CfInstruction *ins)
             ins->destvar->type->data.width_in_bits,
             very_short_number_type_description(ins->destvar->type));
         break;
-    case CF_ENUM_TO_INT32:
+    case CfInstructionKind::EnumToInt32:
         printf("cast %s from enum to 32-bit signed int", varname(ins->operands[0]));
         break;
-    case CF_INT32_TO_ENUM:
+    case CfInstructionKind::Int32ToEnum:
         printf("cast %s from 32-bit signed int to enum", varname(ins->operands[0]));
         break;
-    case CF_PTR_TO_INT64:
+    case CfInstructionKind::PtrToInt64:
         printf("cast %s to 64-bit integer", varname(ins->operands[0]));
         break;
-    case CF_INT64_TO_PTR:
+    case CfInstructionKind::Int64ToPtr:
         printf("cast %s from 64-bit integer to pointer", varname(ins->operands[0]));
         break;
     case CfInstructionKind::Constant:
@@ -564,7 +564,7 @@ static void print_cf_instruction(const CfInstruction *ins)
         print_string(ins->data.strarray.str, ins->data.strarray.len);
         break;
 
-    case CF_NUM_ADD:
+    case CfInstructionKind::NumAdd:
     case CF_NUM_SUB:
     case CF_NUM_MUL:
     case CF_NUM_DIV:
@@ -572,7 +572,7 @@ static void print_cf_instruction(const CfInstruction *ins)
     case CF_NUM_EQ:
     case CF_NUM_LT:
         switch(ins->kind){
-            case CF_NUM_ADD: printf("num add "); break;
+            case CfInstructionKind::NumAdd: printf("num add "); break;
             case CF_NUM_SUB: printf("num sub "); break;
             case CF_NUM_MUL: printf("num mul "); break;
             case CF_NUM_DIV: printf("num div "); break;
@@ -583,26 +583,26 @@ static void print_cf_instruction(const CfInstruction *ins)
         }
         printf("%s, %s", varname(ins->operands[0]), varname(ins->operands[1]));
         break;
-    case CF_PTR_LOAD:
+    case CfInstructionKind::PtrLoad:
         // Extra parentheses to make these stand out a bit.
         printf("*(%s)", varname(ins->operands[0]));
         break;
     case CF_PTR_STORE:
         printf("*(%s) = %s", varname(ins->operands[0]), varname(ins->operands[1]));
         break;
-    case CF_PTR_ADD_INT:
+    case CfInstructionKind::PtrAddInt:
         printf("ptr %s + integer %s", varname(ins->operands[0]), varname(ins->operands[1]));
         break;
-    case CF_PTR_CLASS_FIELD:
+    case CfInstructionKind::PtrClassField:
         printf("%s + offset of field \"%s\"", varname(ins->operands[0]), ins->data.fieldname);
         break;
-    case CF_PTR_CAST:
+    case CfInstructionKind::PtrCast:
         printf("pointer cast %s", varname(ins->operands[0]));
         break;
-    case CF_PTR_MEMSET_TO_ZERO:
+    case CfInstructionKind::PtrMemsetToZero:
         printf("set value of pointer %s to zero bytes", varname(ins->operands[0]));
         break;
-    case CF_VARCPY:
+    case CfInstructionKind::VarCpy:
         printf("%s", varname(ins->operands[0]));
         break;
     }

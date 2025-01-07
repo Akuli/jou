@@ -107,7 +107,7 @@ enum ExportSymbolKind:
 
 class ExportSymbol:
     kind: ExportSymbolKind
-    name: byte[100]
+    name: byte[100]  # TODO: maybe this should be 200 because it can be ClassName.method_name? or something else?
     union:
         funcsignature: Signature
         type: Type*  # ExportSymbolKind::Type and ExportSymbolKind::GlobalVar
@@ -159,7 +159,7 @@ enum CfInstructionKind:
     PtrClassField  # takes 1 operand (pointer), sets destvar to &op->fieldname
     PtrCast
     PtrAddInt
-    # Left and right side of number operations must be of the same type (except CF_NUM_CAST).
+    # Left and right side of number operations must be of the same type (except CfInstructionKind::NumCast).
     NumAdd
     NumSub
     NumMul
@@ -195,6 +195,20 @@ class CfInstruction:
     noperands: int
     destvar: LocalVariable*  # NULL when it doesn't make sense, e.g. functions that return void
     hide_unreachable_warning: bool # usually false, can be set to true to avoid unreachable warning false positives
+
+    # operands should be NULL-terminated array, or NULL for empty
+    # TODO: does it ever need to be NULL?
+    # TODO: do we need this method at all?
+    def set_operands(self, operands: LocalVariable**) -> None:
+        self->noperands = 0
+        while operands != NULL and operands[self->noperands] != NULL:
+            self->noperands++
+
+        nbytes = sizeof(self->operands[0]) * self->noperands
+        self->operands = malloc(nbytes)
+        assert self->operands != NULL
+        memcpy(self->operands, operands, nbytes)
+
 
 class CfBlock:
     instructions: CfInstruction*

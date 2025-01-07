@@ -97,7 +97,7 @@ static void update_statuses_with_instruction(const CfGraph *cfg, enum VarStatus 
         return;
 
     switch(ins->kind) {
-    case CF_VARCPY:
+    case CfInstructionKind::VarCpy:
         statuses[destidx] = statuses[find_var_index(cfg, ins->operands[0])];
         if (statuses[destidx] == VS_UNPREDICTABLE) {
             // Assume that unpredictable variables always yield non-garbage values.
@@ -105,7 +105,7 @@ static void update_statuses_with_instruction(const CfGraph *cfg, enum VarStatus 
             statuses[destidx] = VS_DEFINED;
         }
         break;
-    case CF_ADDRESS_OF_LOCAL_VAR:
+    case CfInstructionKind::AddressOfLocalVar:
         statuses[find_var_index(cfg, ins->operands[0])] = VS_UNPREDICTABLE;
         statuses[destidx] = VS_DEFINED;
         break;
