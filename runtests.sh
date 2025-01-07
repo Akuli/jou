@@ -225,7 +225,9 @@ function run_test()
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
         export PATH="$PWD:$PATH"
-        ulimit -v 500000 2>/dev/null
+        if [ $valgrind = no ]; then
+            ulimit -v 500000 2>/dev/null
+        fi
         bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r'
     ) &>> $diffpath; then
         show_ok "$command"
