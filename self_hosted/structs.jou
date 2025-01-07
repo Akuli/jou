@@ -1,3 +1,5 @@
+# TODO: delete this file, merge into others
+
 import "stdlib/str.jou"
 
 import "./llvm.jou"
@@ -30,7 +32,7 @@ enum ConstantKind:
     Bool
 
 class IntegerConstant:
-    width_in_bits: int
+    size_in_bits: int
     is_signed: bool
     value: long
 
@@ -58,54 +60,11 @@ def int_constant(type: Type*, value: long) -> Constant:
     return Constant{
         kind = ConstantKind::Integer,
         integer = IntegerConstant{
-            width_in_bits = type->width_in_bits,
+            size_in_bits = type->size_in_bits,
             is_signed = type->kind == TypeKind::SignedInteger,
             value = value
         }
     }
-
-class ClassField:
-    name: byte[100]
-    type: Type*
-    # If multiple fields have the same union_id, they belong to the same union.
-    # It means that only one of the fields can be used at a time.
-    union_id: int
-
-class ClassData:
-    fields: ClassField*
-    nfields: int
-    methods: Signature*
-    nmethods: int
-
-class ArrayType:
-    membertype: Type*
-    len: long
-
-class EnumType:
-    count: int
-    names: byte[100]*
-
-enum TypeKind:
-    SignedInteger
-    UnsignedInteger
-    Bool
-    FloatingPoint  # float or double
-    Pointer
-    VoidPointer
-    Array
-    Class
-    OpaqueClass  # class with unknown members. TODO when used?
-    Enum
-
-class Type:
-    name: byte[500]   # All types have a name for error messages and debugging.
-    kind: TypeKind
-    union:
-        width_in_bits: int  # SignedInteger, UnsignedInteger, FloatingPoint
-        valuetype: Type*  # Pointer
-        classdata: ClassData  # Class
-        array: ArrayType  # Array
-        enummembers: EnumType
 
 class Signature:
     name: byte[100]  # Function or method name. For methods it does not include the name of the class.
@@ -113,8 +72,10 @@ class Signature:
     argtypes: Type**
     argnames: byte[100]*
     takes_varargs: bool  # true for functions like printf()
+    # TODO: rename to return_type
     returntype: Type*    # NULL, if does not return a value
     is_noreturn: bool
+    # TODO: rename to return_type_location
     returntype_location: Location  # meaningful even if returntype is NULL
 
 
@@ -157,7 +118,7 @@ class FunctionOrMethodTypes:
     expr_types: ExpressionTypes**
     n_expr_types: int
     locals: LocalVariable**
-    locals_len: int
+    nlocals: int
 
 class TypeAndUsedPtr:
     type: Type*
