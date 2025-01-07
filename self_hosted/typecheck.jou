@@ -1295,7 +1295,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
     types->expr = expr
     types->type = result
 
-    ft->current_fom_types->expr_types = realloc(ft->current_fom_types->expr_types, sizeof(ft->current_fom_types->expr_types[0]) * ft->current_fom_types->n_expr_types)
+    ft->current_fom_types->expr_types = realloc(ft->current_fom_types->expr_types, sizeof(ft->current_fom_types->expr_types[0]) * (ft->current_fom_types->n_expr_types + 1))
     assert ft->current_fom_types->expr_types != NULL
     ft->current_fom_types->expr_types[ft->current_fom_types->n_expr_types++] = types
 
@@ -1490,7 +1490,6 @@ def typecheck_stage3_function_and_method_bodies(ft: FileTypes*, ast: AstFile*) -
     for i = 0; i < ast->body.nstatements; i++:
         stmt = &ast->body.statements[i]
         if stmt->kind == AstStatementKind::Function and stmt->function.body.nstatements > 0:
-            printf("Looking for function %s\n", stmt->function.signature.name)
             sig: Signature* = NULL
             for f = ft->functions; f < &ft->functions[ft->nfunctions]; f++:
                 if strcmp(f->signature.name, stmt->function.signature.name) == 0:
