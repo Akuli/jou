@@ -514,7 +514,7 @@ static void print_cf_instruction(const CfInstruction *ins)
     case CfInstructionKind::AddressOfGlobalVar:
         printf("address of %s (global variable)", ins->data.globalname);
         break;
-    case CF_SIZEOF:
+    case CfInstructionKind::SizeOf:
         printf("sizeof %s", ins->data.type->name);
         break;
     case CF_BOOL_NEGATE:
@@ -587,7 +587,7 @@ static void print_cf_instruction(const CfInstruction *ins)
         // Extra parentheses to make these stand out a bit.
         printf("*(%s)", varname(ins->operands[0]));
         break;
-    case CF_PTR_STORE:
+    case CfInstructionKind::PtrStore:
         printf("*(%s) = %s", varname(ins->operands[0]), varname(ins->operands[1]));
         break;
     case CfInstructionKind::PtrAddInt:

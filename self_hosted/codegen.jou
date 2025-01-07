@@ -308,11 +308,11 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CfInstructionKind::Constant: setdest(codegen_constant(st, &ins->data.constant)); break;
         case CF_SPECIAL_CONSTANT: setdest(codegen_special_constant(ins->data.scname)); break;
         case CfInstructionKind::StringArray: setdest(LLVMConstString(ins->data.strarray.str, ins->data.strarray.len, true)); break;
-        case CF_SIZEOF: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
+        case CfInstructionKind::SizeOf: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
         case CfInstructionKind::AddressOfLocalVar: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CfInstructionKind::AddressOfGlobalVar: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
         case CfInstructionKind::PtrLoad: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
-        case CF_PTR_STORE: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
+        case CfInstructionKind::PtrStore: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
         case CfInstructionKind::PtrToInt64: setdest(LLVMBuildPtrToInt(st->builder, getop(0), LLVMInt64Type(), "ptr_as_long")); break;
         case CfInstructionKind::Int64ToPtr: setdest(LLVMBuildIntToPtr(st->builder, getop(0), codegen_type(ins->destvar->type), "long_as_ptr")); break;
         case CfInstructionKind::PtrClassField:

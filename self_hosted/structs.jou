@@ -143,6 +143,10 @@ class FileTypes:
     nfunctions: int
 
 
+class CfStringArray:
+    str: byte*
+    len: int
+
 enum CfInstructionKind:
     Constant
     SpecialConstant  # e.g. "WINDOWS", unlike CF_Constant this doesn't trigger "this code will never run" warnings
@@ -172,10 +176,6 @@ enum CfInstructionKind:
     Int32ToEnum
     BoolNegate  # TODO: get rid of this?
     VarCpy  # similar to assignment statements: var1 = var2
-
-class CfStringArray:
-    str: byte*
-    len: int
 
 # Control Flow Graph.
 # Struct names not prefixed with Cfg because it looks too much like "config" to me
