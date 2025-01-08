@@ -269,9 +269,9 @@ function run_test()
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
         if [[ "$OS" =~ Windows ]]; then
-            pathsep=";"
+            PATHSEP=";"
         else
-            pathsep=":"
+            PATHSEP=":"
         fi
 
         if [ $stage == 3 ]; then
