@@ -39,6 +39,15 @@ jobs:
         run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
 
       - if: env.recent_commits == 'true'
+        name: "Test stage1 compiler with valgrind"
+        run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.opt-level }}" --stage1
+
+      - if: env.recent_commits == 'true'
+        name: "Test stage2 compiler with valgrind"
+        run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.opt-level }}" --stage2
+
+      - if: env.recent_commits == 'true'
+        name: "Test stage3 compiler with valgrind"
         run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.opt-level }}"
 
   # Based on: https://github.com/python/typeshed/blob/9f28171658b9ca6c32a7cb93fbb99fc92b17858b/.github/workflows/daily.yml

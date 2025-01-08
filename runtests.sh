@@ -13,6 +13,10 @@ set -e -o pipefail
 
 function usage() {
     echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
+    echo ""
+    echo "By default, this tests the stage 3 compiler (see bootstrapping in README). Use"
+    echo "--stage1 or --stage2 to test other stages as needed."
+    echo ""
     echo "If a FILE_FILTER is given, runs only test files whose path contains it."
     echo "For example, you can use \"$0 class\" to run class-related tests."
     exit 2
@@ -23,6 +27,7 @@ verbose=no
 run_make=yes
 jou_flags=""
 file_filter=""
+stage=3
 
 while [ $# != 0 ]; do
     case "$1" in
@@ -44,6 +49,14 @@ while [ $# != 0 ]; do
             fi
             jou_flags="$jou_flags $2"
             shift 2
+            ;;
+        --stage1)
+            stage=1
+            shift
+            ;;
+        --stage2)
+            stage=2
+            shift
             ;;
         -*)
             usage
