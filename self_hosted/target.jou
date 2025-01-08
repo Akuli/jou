@@ -78,10 +78,15 @@ def init_target() -> None:
     assert error == NULL
     assert target.target != NULL
 
+    if running_on_arm64_mac():
+        arch = "arm64"
+    else:
+        arch = "x86-64"
+
     target.target_machine = LLVMCreateTargetMachine(
         target.target,
         target.triple,
-        "x86-64",
+        arch,
         "",
         LLVMCodeGenOptLevel::Default,
         LLVMRelocMode::PIC,
