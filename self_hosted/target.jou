@@ -54,7 +54,10 @@ def init_target() -> None:
         # LLVM's default is x86_64-pc-windows-msvc
         target.triple = "x86_64-pc-windows-gnu"
     else:
+        system("uname -m")
+        printf("system(...) returns %d\n", system("test `uname -m` = arm64"))
         triple = LLVMGetDefaultTargetTriple()
+        printf("triple=\"%s\"\n", triple)
         assert strlen(triple) < sizeof target.triple
         strcpy(target.triple, triple)
         LLVMDisposeMessage(triple)
