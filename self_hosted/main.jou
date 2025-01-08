@@ -5,6 +5,7 @@ import "stdlib/errno.jou"
 import "stdlib/str.jou"
 
 import "./build_cfg.jou"
+import "./print.jou"
 import "./llvm.jou"
 import "./output.jou"
 import "./typecheck.jou"
@@ -233,20 +234,21 @@ def parse_all_pending_files(compst: CompileState*) -> None:
     free(compst->parse_queue)
 
 def compile_ast_to_object_file(fs: FileState*) -> byte*:
-    assert False  # TODO: port this
-#    if command_line_args.verbosity >= 1:
-#        printf("Building Control Flow Graphs: %s\n", fs->path)
-#
-#    cfgfile = build_control_flow_graphs(&fs->ast, &fs->types)
-#    for imp = fs->ast.imports; imp < &fs->ast.imports[fs->ast.nimports]; imp++:
-#        if not imp->used:
-#            msg: byte[500]
-#            snprintf(msg, sizeof msg, "\"%s\" imported but not used", imp->specified_path)
-#            show_warning(imp->location, msg)
-#
-#    if command_line_args.verbosity >= 2:
-#        print_control_flow_graphs(&cfgfile)
-#
+    if command_line_args.verbosity >= 1:
+        printf("Building Control Flow Graphs: %s\n", fs->path)
+
+    cfgfile = build_control_flow_graphs(&fs->ast, &fs->types)
+    for imp = fs->ast.imports; imp < &fs->ast.imports[fs->ast.nimports]; imp++:
+        if not imp->used:
+            msg: byte[500]
+            snprintf(msg, sizeof msg, "\"%s\" imported but not used", imp->specified_path)
+            show_warning(imp->location, msg)
+
+    if command_line_args.verbosity >= 2:
+        print_control_flow_graphs(&cfgfile)
+
+    # TODO: implement this
+    assert False
 #    if command_line_args.verbosity >= 1:
 #        printf("Analyzing CFGs: %s\n", fs->path)
 #    simplify_control_flow_graphs(&cfgfile)

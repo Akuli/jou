@@ -1,679 +1,242 @@
-#include <ctype.h>
-#include <stdio.h>
-#include "jou_compiler.h"
-#include "util.h"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
 
-static void print_byte(char b)
-{
-    printf("%#02x", b);
-    if (isprint(b))
-        printf(" '%c'", b);
-}
+import "./llvm.jou"
+import "./structs.jou"
+import "./types.jou"
 
-static void print_string(const char *s, int len)
-{
-    putchar('"');
-    for (int i = 0; i<len || (len==-1 && s[i]); i++) {
-        if (isprint(s[i]))
-            putchar(s[i]);
-        else if (s[i] == '\n')
-            printf("\\n");
-        else
-            printf("\\x%02x", (unsigned char)s[i]);     // TODO: \x is not yet recognized by the tokenizer
-    }
-    putchar('"');
-}
 
-static void print_constant(const Constant *c)
-{
-    switch(c->kind) {
-    case ConstantKind::EnumMember:
-        printf("enum member %d of %s", c->data.enum_member.memberidx, c->data.enum_member.enumtype->name);
-        break;
-    case ConstantKind::Bool:
-        printf(c->data.boolean ? "True" : "False");
-        break;
-    case ConstantKind::Float:
-        printf("float %s", c->data.double_or_float_text);
-        break;
-    case ConstantKind::Double:
-        printf("double %s", c->data.double_or_float_text);
-        break;
-    case ConstantKind::Integer:
+def print_string(s: byte*, len: int) -> None:
+    putchar('"')
+    for i = 0; i < len or (len == -1 and s[i] != '\0'); i++:
+        if 32 <= s[i] and s[i] <= 126:
+            # printable ascii character
+            putchar(s[i])
+        elif s[i] == '\n':
+            printf("\\n")
+        else:
+            printf("\\x%02x", s[i])     # TODO: \x is not yet recognized by the tokenizer
+    putchar('"')
+
+
+def print_constant(c: Constant*) -> None:
+    if c->kind == ConstantKind::EnumMember:
+        printf("enum member %d of %s", c->enum_member.memberidx, c->enum_member.enumtype->name)
+    elif c->kind == ConstantKind::Bool:
+        if c->boolean:
+            printf("True")
+        else:
+            printf("False")
+    elif c->kind == ConstantKind::Float:
+        printf("float %s", c->double_or_float_text)
+    elif c->kind == ConstantKind::Double:
+        printf("double %s", c->double_or_float_text)
+    elif c->kind == ConstantKind::Integer:
+        if c->integer.is_signed:
+            signed_or_unsigned = "signed"
+        else:
+            signed_or_unsigned = "unsigned"
         printf(
             "%lld (%d-bit %s)",
-            c->data.integer.value,
-            c->data.integer.width_in_bits,
-            c->data.integer.is_signed ? "signed" : "unsigned");
-        break;
-    case ConstantKind::Null:
-        printf("NULL");
-        break;
-    case ConstantKind::String:
-        print_string(c->data.str, -1);
-        break;
-    }
-}
-
-void print_token(const Token *token)
-{
-    switch(token->type) {
-    case TOKEN_SHORT:
-        printf("short %hd\n", (short)token->data.short_value);
-        break;
-    case TOKEN_INT:
-        printf("integer %d\n", (int)token->data.int_value);
-        break;
-    case TOKEN_LONG:
-        printf("long %lld\n", (long long)token->data.long_value);
-        break;
-    case TOKEN_FLOAT:
-        printf("float %s\n", token->data.name);
-        break;
-    case TOKEN_DOUBLE:
-        printf("double %s\n", token->data.name);
-        break;
-    case TOKEN_CHAR:
-        printf("byte ");
-        print_byte(token->data.char_value);
-        printf("\n");
-        break;
-    case TokenKind::String:
-        printf("string ");
-        print_string(token->data.string_value, -1);
-        printf("\n");
-        break;
-    case TOKEN_NAME:
-        printf("name \"%s\"\n", token->data.name);
-        break;
-    case TOKEN_KEYWORD:
-        printf("keyword \"%s\"\n", token->data.name);
-        break;
-    case TOKEN_NEWLINE:
-        printf("newline token (next line has %d spaces of indentation)\n", token->data.indentation_level);
-        break;
-    case TokenKind::EndOfFile:
-        printf("end of file\n");
-        break;
-    case TOKEN_INDENT:
-        printf("indent (+4 spaces)\n");
-        break;
-    case TOKEN_DEDENT:
-        printf("dedent (-4 spaces)\n");
-        break;
-    case TOKEN_OPERATOR:
-        printf("operator '%s'\n", token->data.operator);
-        break;
-    }
-}
-
-void print_tokens(const Token *tokens)
-{
-    printf("===== Tokens for file \"%s\" =====\n", tokens->location.filename);
-    int lastlineno = -1;
-    do {
-        if (tokens->location.lineno != lastlineno) {
-            printf("\nLine %d:\n", tokens->location.lineno);
-            lastlineno = tokens->location.lineno;
-        }
-        printf("  ");
-        print_token(tokens);
-    } while (tokens++->type != TokenKind::EndOfFile);
-
-    printf("\n");
-}
-
-struct TreePrinter {
-    char prefix[100];
-};
-
-// Returned sub-printer can be used to print lines that appear "inside"/"below" the given line.
-struct TreePrinter print_tree_prefix(struct TreePrinter tp, bool last)
-{
-    struct TreePrinter sub;
-    if (last) {
-        printf("%s`--- ", tp.prefix);
-        snprintf(sub.prefix, sizeof sub.prefix, "%s  ", tp.prefix);
-    } else {
-        printf("%s|--- ", tp.prefix);
-        snprintf(sub.prefix, sizeof sub.prefix, "%s| ", tp.prefix);
-    }
-    return sub;
-}
-
-static void print_ast_type_without_line_number(const struct AstType *t)
-{
-    switch(t->kind) {
-    case AstTypeKind::Named:
-        printf("%s", t->data.name);
-        break;
-    case AstTypeKind::Array:
-        print_ast_type_without_line_number(t->data.array.membertype);
-        // TODO: improve this?
-        // The challenge is that expressions are currently printed on multiple lines,
-        // and types on a single line.
-        printf("[<size>]");
-        break;
-    case AstTypeKind::Pointer:
-        print_ast_type_without_line_number(t->data.valuetype);
-        printf("*");
-        break;
-    }
-}
-
-static void print_ast_type(const struct AstType *t)
-{
-    print_ast_type_without_line_number(t);
-    printf(" [line %d]", t->location.lineno);
-}
-
-static void print_ast_function_signature(const AstSignature *sig)
-{
-    printf("%s(", sig->name);
-    for (const AstNameTypeValue *ntv = sig->args.ptr; ntv < End(sig->args); ntv++) {
-        if (ntv > sig->args.ptr) printf(", ");
-        if (!strcmp(ntv->name, "self") && ntv->type.kind == AstTypeKind::Named && ntv->type.data.name[0] == '\0') {
-            // self with implicitly given type
-            printf("self");
-        } else {
-            printf("%s: ", ntv->name);
-            print_ast_type(&ntv->type);
-        }
-        assert(!ntv->value);
-    }
-    if (sig->takes_varargs) {
-        if (sig->args.len != 0)
-            printf(", ");
-        printf("...");
-    }
-    printf(") -> ");
-    print_ast_type(&sig->returntype);
-    printf("\n");
-}
-
-static void print_ast_call(const AstCall *call, struct TreePrinter tp, const AstExpression *self);
-
-static void print_ast_expression(const AstExpression *expr, struct TreePrinter tp)
-{
-    printf("[line %d] ", expr->location.lineno);
-    int n = 0;  // number of operands
-
-    switch(expr->kind) {
-    case AstExpressionKind::FunctionCall:
-        printf("call function \"%s\"\n", expr->data.call.calledname);
-        print_ast_call(&expr->data.call, tp, NULL);
-        break;
-    case AstExpressionKind::BraceInit:
-        printf("instantiate \"%s\"\n", expr->data.call.calledname);
-        print_ast_call(&expr->data.call, tp, NULL);
-        break;
-    case AstExpressionKind::Array:
-        printf("array\n");
-        for (int i = 0; i < expr->data.array.count; i++)
-            print_ast_expression(&expr->data.array.items[i], print_tree_prefix(tp, i==expr->data.array.count-1));
-        break;
-    case AstExpressionKind::DerefAndGetField:
-        printf("dereference and ");
-        __attribute__((fallthrough));
-    case AstExpressionKind::GetField:
-        printf("get class field \"%s\"\n", expr->data.classfield.fieldname);
-        print_ast_expression(expr->data.classfield.obj, print_tree_prefix(tp, true));
-        break;
-    case AstExpressionKind::DerefAndCallMethod:
-        printf("dereference and ");
-        __attribute__((fallthrough));
-    case AstExpressionKind::CallMethod:
-        printf("call method \"%s\"\n", expr->data.methodcall.call.calledname);
-        print_ast_call(&expr->data.methodcall.call, tp, expr->data.methodcall.obj);
-        break;
-    case AstExpressionKind::GetEnumMember:
-        printf("get member \"%s\" from enum \"%s\"\n",
-            expr->data.enummember.membername, expr->data.enummember.enumname);
-        break;
-    case AstExpressionKind::SizeOf:
-        printf("sizeof\n");
-        print_ast_expression(expr->data.classfield.obj, print_tree_prefix(tp, true));
-        break;
-    case AstExpressionKind::GetVariable:
-        if (!strcmp(expr->data.varname, "self"))
-            printf("self\n");
-        else
-            printf("get variable \"%s\"\n", expr->data.varname);
-        break;
-    case AstExpressionKind::Constant:
-        print_constant(&expr->data.constant);
-        printf("\n");
-        break;
-    case AstExpressionKind::As:
-        printf("as ");
-        print_ast_type(&expr->data.as.type);
-        printf("\n");
-        print_ast_expression(expr->data.as.obj, print_tree_prefix(tp, true));
-        break;
-
-    case AstExpressionKind::AddressOf: puts("address of"); n=1; break;
-    case AstExpressionKind::Dereference: puts("dereference"); n=1; break;
-    case AstExpressionKind::Neg: puts("negate"); n=1; break;
-    case AstExpressionKind::Not: puts("not"); n=1; break;
-    case AstExpressionKind::PreIncrement: puts("pre-increment"); n=1; break;
-    case AstExpressionKind::PreDecrement: puts("pre-decrement"); n=1; break;
-    case AstExpressionKind::PostIncrement: puts("post-increment"); n=1; break;
-    case AstExpressionKind::PostDecrement: puts("post-decrement"); n=1; break;
-
-    case AstExpressionKind::Indexing: puts("indexing"); n=2; break;
-    case AstExpressionKind::Eq: puts("eq"); n=2; break;
-    case AstExpressionKind::Ne: puts("ne"); n=2; break;
-    case AstExpressionKind::Gt: puts("gt"); n=2; break;
-    case AstExpressionKind::Ge: puts("ge"); n=2; break;
-    case AstExpressionKind::Lt: puts("lt"); n=2; break;
-    case AstExpressionKind::Le: puts("le"); n=2; break;
-    case AstExpressionKind::Add: puts("add"); n=2; break;
-    case AstExpressionKind::Sub: puts("sub"); n=2; break;
-    case AstExpressionKind::Mul: puts("mul"); n=2; break;
-    case AstExpressionKind::Div: puts("div"); n=2; break;
-    case AstExpressionKind::Mod: puts("mod"); n=2; break;
-    case AstExpressionKind::And: puts("and"); n=2; break;
-    case AstExpressionKind::Or: puts("or"); n=2; break;
-    }
-
-    for (int i = 0; i < n; i++)
-        print_ast_expression(&expr->data.operands[i], print_tree_prefix(tp, i==n-1));
-}
-
-static void print_ast_call(const AstCall *call, struct TreePrinter tp, const AstExpression *self)
-{
-    if(self){
-        struct TreePrinter self_printer = print_tree_prefix(tp, call->nargs == 0);
-        printf("self: ");
-        print_ast_expression(self, self_printer);
-    }
-
-    for (int i = 0; i < call->nargs; i++) {
-        struct TreePrinter sub = print_tree_prefix(tp, i == call->nargs - 1);
-        if (call->argnames)
-            printf("field \"%s\": ", call->argnames[i]);
-        else
-            printf("argument %d: ", i);
-        print_ast_expression(&call->args[i], sub);
-    }
-}
-
-static void print_ast_body(const AstBody *body, struct TreePrinter tp);
-
-static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
-{
-    printf("[line %d] ", stmt->location.lineno);
-
-    struct TreePrinter sub;
-
-    switch(stmt->kind) {
-        case AstStatementKind::ExpressionStatement:
-            printf("expression statement\n");
-            print_ast_expression(&stmt->data.expression, print_tree_prefix(tp, true));
-            break;
-        case AstStatementKind::Assert:
-            printf("assert \"%s\"\n", stmt->data.assertion.condition_str);
-            print_ast_expression(&stmt->data.assertion.condition, print_tree_prefix(tp, true));
-            break;
-        case AstStatementKind::Return:
-            printf("return\n");
-            if (stmt->data.returnvalue)
-                print_ast_expression(stmt->data.returnvalue, print_tree_prefix(tp, true));
-            break;
-        case AstStatementKind::If:
-            printf("if\n");
-            for (int i = 0; i < stmt->data.ifstatement.n_if_and_elifs; i++) {
-                sub = print_tree_prefix(tp, false);
-                printf("condition: ");
-                print_ast_expression(&stmt->data.ifstatement.if_and_elifs[i].condition, sub);
-
-                bool is_last_row = (
-                    i == stmt->data.ifstatement.n_if_and_elifs-1
-                    && stmt->data.ifstatement.elsebody.nstatements == 0);
-                sub = print_tree_prefix(tp, is_last_row);
-                printf("body:\n");
-                print_ast_body(&stmt->data.ifstatement.if_and_elifs[i].body, sub);
-            }
-            if (stmt->data.ifstatement.elsebody.nstatements > 0) {
-                sub = print_tree_prefix(tp, true);
-                printf("else body:\n");
-                print_ast_body(&stmt->data.ifstatement.elsebody, sub);
-            }
-            break;
-        case AstStatementKind::While:
-            printf("while loop\n");
-            sub = print_tree_prefix(tp, false);
-            printf("condition: ");
-            print_ast_expression(&stmt->data.whileloop.condition, sub);
-            sub = print_tree_prefix(tp, true);
-            printf("body:\n");
-            print_ast_body(&stmt->data.whileloop.body, sub);
-            break;
-        case AstStatementKind::For:
-            printf("for loop\n");
-            sub = print_tree_prefix(tp, false);
-            printf("init: ");
-            print_ast_statement(stmt->data.forloop.init, sub);
-            sub = print_tree_prefix(tp, false);
-            printf("cond: ");
-            print_ast_expression(&stmt->data.forloop.cond, sub);
-            sub = print_tree_prefix(tp, false);
-            printf("incr: ");
-            print_ast_statement(stmt->data.forloop.incr, sub);
-            sub = print_tree_prefix(tp, true);
-            printf("body:\n");
-            print_ast_body(&stmt->data.forloop.body, sub);
-            break;
-        case AstStatementKind::Break:
-            printf("break\n");
-            break;
-        case AstStatementKind::Continue:
-            printf("continue\n");
-            break;
-        case AstStatementKind::Pass:
-            printf("pass\n");
-            break;
-        case AstStatementKind::DeclareLocalVar:
-            printf("declare local var %s: ", stmt->data.vardecl.name);
-            print_ast_type(&stmt->data.vardecl.type);
-            printf("\n");
-            if (stmt->data.vardecl.value) {
-                sub = print_tree_prefix(tp, true);
-                printf("initial value: ");
-                print_ast_expression(stmt->data.vardecl.value, sub);
-            }
-            break;
-        case AstStatementKind::GlobalVariableDeclaration:
-            assert(!stmt->data.vardecl.value);
-            printf("declare global var %s: ", stmt->data.vardecl.name);
-            print_ast_type(&stmt->data.vardecl.type);
-            printf("\n");
-            break;
-        case AstStatementKind::GlobalVariableDefinition:
-            assert(!stmt->data.vardecl.value);
-            printf("define global var %s: ", stmt->data.vardecl.name);
-            print_ast_type(&stmt->data.vardecl.type);
-            printf("\n");
-            break;
-        case AstStatementKind::Function:
-            printf("%s a function: ", stmt->data.function.body.nstatements == 0 ? "declare" : "define");
-            print_ast_function_signature(&stmt->data.function.signature);
-            print_ast_body(&stmt->data.function.body, tp);
-            break;
-        case AstStatementKind::DefineClass:
-            printf(
-                "define a class \"%s\" with %d members\n",
-                stmt->data.classdef.name, stmt->data.classdef.members.len);
-            for (AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++){
-                sub = print_tree_prefix(tp, m == End(stmt->data.classdef.members)-1);
-                switch(m->kind) {
-                case AstClassMemberKind::Field:
-                    printf("field %s: ", m->data.field.name);
-                    print_ast_type(&m->data.field.type);
-                    printf("\n");
-                    break;
-                case AstClassMemberKind::Union:
-                    printf("union:\n");
-                    for (AstNameTypeValue *ntv = m->data.unionfields.ptr; ntv < End(m->data.unionfields); ntv++) {
-                        print_tree_prefix(sub, ntv == End(m->data.unionfields)-1);
-                        printf("%s: ", ntv->name);
-                        print_ast_type(&ntv->type);
-                        printf("\n");
-                    }
-                    break;
-                case AstClassMemberKind::Method:
-                    printf("method ");
-                    print_ast_function_signature(&m->data.method.signature);
-                    print_ast_body(&m->data.method.body, sub);
-                    break;
-                }
-            }
-            break;
-        case AstStatementKind::DefineEnum:
-            printf("define enum \"%s\" with %d members\n",
-                stmt->data.enumdef.name, stmt->data.enumdef.nmembers);
-            for (int i = 0; i < stmt->data.enumdef.nmembers; i++) {
-                print_tree_prefix(tp, i==stmt->data.enumdef.nmembers-1);
-                puts(stmt->data.enumdef.membernames[i]);
-            }
-            break;
-#define PrintAssignment \
-    print_ast_expression(&stmt->data.assignment.target, print_tree_prefix(tp, false)); \
-    print_ast_expression(&stmt->data.assignment.value, print_tree_prefix(tp, true));
-        case AstStatementKind::Assign: puts("assign"); PrintAssignment; break;
-        case AstStatementKind::InPlaceAdd: puts("in-place add"); PrintAssignment; break;
-        case AstStatementKind::InPlaceSub: puts("in-place sub"); PrintAssignment; break;
-        case AstStatementKind::InPlaceMul: puts("in-place mul"); PrintAssignment; break;
-        case AstStatementKind::InPlaceDiv: puts("in-place div"); PrintAssignment; break;
-        case AstStatementKind::InPlaceMod: puts("in-place mod"); PrintAssignment; break;
-#undef PrintAssignment
-    }
-}
-
-static void print_ast_body(const AstBody *body, struct TreePrinter tp)
-{
-    for (int i = 0; i < body->nstatements; i++)
-        print_ast_statement(&body->statements[i], print_tree_prefix(tp, i == body->nstatements - 1));
-}
-
-void print_ast(const AstFile *ast)
-{
-    printf("===== AST for file \"%s\" =====\n", ast->path);
-
-    for (const AstImport *imp = ast->imports.ptr; imp < End(ast->imports); imp++) {
-        printf(
-            "line %d: Import \"%s\", which resolves to \"%s\".\n",
-            imp->location.lineno,
-            imp->specified_path,
-            imp->resolved_path
-        );
-    }
-
-    for (int i = 0; i < ast->body.nstatements; i++)
-        print_ast_statement(&ast->body.statements[i], (struct TreePrinter){0});
-}
+            c->integer.value,
+            c->integer.size_in_bits,
+            signed_or_unsigned,
+        )
+    elif c->kind == ConstantKind::Null:
+        printf("NULL")
+    elif c->kind == ConstantKind::String:
+        print_string(c->str, -1)
+    else:
+        assert False
 
 
-static const char *varname(const LocalVariable *var)
-{
-    if (var->name[0])
-        return var->name;
+def varname_for_printing(var: LocalVariable*) -> byte*:
+    if var->name[0] != '\0':
+        # it is named, not a dummy
+        return var->name
 
-    // Cycle through enough space for a few variables, so that you
-    // can call this several times inside the same printf()
-    static char names[50 + sizeof var->name][5];
-    static unsigned i = 0;
-    char *s = names[i++];
-    i %= sizeof(names) / sizeof(names[0]);
+    # TODO: port this properly if needed
+#    // Cycle through enough space for a few variables, so that you
+#    // can call this several times inside the same printf()
+#    static char names[50 + sizeof var->name][5];
+#    static unsigned i = 0;
+#    char *s = names[i++];
+#    i %= sizeof(names) / sizeof(names[0]);
+#
+#    sprintf(s, "$%d", var->id);
+#    return s;
+    return "<temporary var>"
 
-    sprintf(s, "$%d", var->id);
-    return s;
-}
 
-static const char *very_short_number_type_description(const Type *t)
-{
-    switch(t->kind) {
-        case TypeKind::FloatingPoint: return "floating";
-        case TypeKind::SignedInteger: return "signed";
-        case TypeKind::UnsignedInteger: return "unsigned";
-        default: assert(0);
-    }
-}
+def very_short_number_type_description(t: Type*) -> byte*:
+    if t->kind == TypeKind::FloatingPoint:
+        return "floating"
+    if t->kind == TypeKind::SignedInteger:
+        return "signed"
+    if t->kind == TypeKind::UnsignedInteger:
+        return "unsigned"
+    assert False
 
-static void print_cf_instruction(const CfInstruction *ins)
-{
-    printf("    line %-4d  ", ins->location.lineno);
 
-    if (ins->destvar)
-        printf("%s = ", varname(ins->destvar));
+def print_cf_instruction(ins: CfInstruction*) -> None:
+    printf("    line %-4d  ", ins->location.lineno)
 
-    switch(ins->kind) {
-    case CfInstructionKind::AddressOfLocalVar:
-        printf("address of %s (local variable)", varname(ins->operands[0]));
-        break;
-    case CfInstructionKind::AddressOfGlobalVar:
-        printf("address of %s (global variable)", ins->data.globalname);
-        break;
-    case CfInstructionKind::SizeOf:
-        printf("sizeof %s", ins->data.type->name);
-        break;
-    case CF_BOOL_NEGATE:
-        printf("boolean negation of %s", varname(ins->operands[0]));
-        break;
-    case CfInstructionKind::Call:
-        if (get_self_class(&ins->data.signature))
-            printf("call method %s.", get_self_class(&ins->data.signature)->name);
-        else
-            printf("call function ");
-        printf("%s(", ins->data.signature.name);
-        for (int i = 0; i < ins->noperands; i++) {
-            if(i) printf(", ");
-            printf("%s", varname(ins->operands[i]));
-        }
-        printf(")");
-        break;
-    case CfInstructionKind::NumCast:
+    if ins->destvar != NULL:
+        printf("%s = ", varname_for_printing(ins->destvar))
+
+    if ins->kind == CfInstructionKind::AddressOfLocalVar:
+        printf("address of %s (local variable)", varname_for_printing(ins->operands[0]))
+    elif ins->kind == CfInstructionKind::AddressOfGlobalVar:
+        printf("address of %s (global variable)", ins->globalname)
+    elif ins->kind == CfInstructionKind::SizeOf:
+        printf("sizeof %s", ins->type->name)
+    elif ins->kind == CfInstructionKind::BoolNegate:
+        printf("boolean negation of %s", varname_for_printing(ins->operands[0]))
+    elif ins->kind == CfInstructionKind::Call:
+        if get_self_class(&ins->signature) != NULL:
+            printf("call method %s.", get_self_class(&ins->signature)->name)
+        else:
+            printf("call function ")
+        printf("%s(", ins->signature.name)
+        for i = 0; i < ins->noperands; i++:
+            if i != 0:
+                printf(", ")
+            printf("%s", varname_for_printing(ins->operands[i]))
+        printf(")")
+    elif ins->kind == CfInstructionKind::NumCast:
         printf(
             "number cast %s (%d-bit %s --> %d-bit %s)",
-            varname(ins->operands[0]),
-            ins->operands[0]->type->data.width_in_bits,
+            varname_for_printing(ins->operands[0]),
+            ins->operands[0]->type->size_in_bits,
             very_short_number_type_description(ins->operands[0]->type),
-            ins->destvar->type->data.width_in_bits,
-            very_short_number_type_description(ins->destvar->type));
-        break;
-    case CfInstructionKind::EnumToInt32:
-        printf("cast %s from enum to 32-bit signed int", varname(ins->operands[0]));
-        break;
-    case CfInstructionKind::Int32ToEnum:
-        printf("cast %s from 32-bit signed int to enum", varname(ins->operands[0]));
-        break;
-    case CfInstructionKind::PtrToInt64:
-        printf("cast %s to 64-bit integer", varname(ins->operands[0]));
-        break;
-    case CfInstructionKind::Int64ToPtr:
-        printf("cast %s from 64-bit integer to pointer", varname(ins->operands[0]));
-        break;
-    case CfInstructionKind::Constant:
-        print_constant(&ins->data.constant);
-        break;
-    case CF_SPECIAL_CONSTANT:
-        printf("special constant \"%s\"", ins->data.scname);
-        break;
-    case CfInstructionKind::StringArray:
-        printf("string array ");
-        print_string(ins->data.strarray.str, ins->data.strarray.len);
-        break;
+            ins->destvar->type->size_in_bits,
+            very_short_number_type_description(ins->destvar->type))
+    elif ins->kind == CfInstructionKind::EnumToInt32:
+        printf("cast %s from enum to 32-bit signed int", varname_for_printing(ins->operands[0]))
+    elif ins->kind == CfInstructionKind::Int32ToEnum:
+        printf("cast %s from 32-bit signed int to enum", varname_for_printing(ins->operands[0]))
+    elif ins->kind == CfInstructionKind::PtrToInt64:
+        printf("cast %s to 64-bit integer", varname_for_printing(ins->operands[0]))
+    elif ins->kind == CfInstructionKind::Int64ToPtr:
+        printf("cast %s from 64-bit integer to pointer", varname_for_printing(ins->operands[0]))
+    elif ins->kind == CfInstructionKind::Constant:
+        print_constant(&ins->constant)
+    elif ins->kind == CfInstructionKind::SpecialConstant:
+        printf("special constant \"%s\"", ins->scname)
+    elif ins->kind == CfInstructionKind::StringArray:
+        printf("string array ")
+        print_string(ins->strarray.str, ins->strarray.len)
+    elif (
+        ins->kind == CfInstructionKind::NumAdd
+        or ins->kind == CfInstructionKind::NumSub
+        or ins->kind == CfInstructionKind::NumMul
+        or ins->kind == CfInstructionKind::NumDiv
+        or ins->kind == CfInstructionKind::NumMod
+        or ins->kind == CfInstructionKind::NumEq
+        or ins->kind == CfInstructionKind::NumLt
+    ):
+        if ins->kind == CfInstructionKind::NumAdd:
+            printf("num add ")
+        elif ins->kind == CfInstructionKind::NumSub:
+            printf("num sub ")
+        elif ins->kind == CfInstructionKind::NumMul:
+            printf("num mul ")
+        elif ins->kind == CfInstructionKind::NumDiv:
+            printf("num div ")
+        elif ins->kind == CfInstructionKind::NumMod:
+            printf("num mod ")
+        elif ins->kind == CfInstructionKind::NumEq:
+            printf("num eq ")
+        elif ins->kind == CfInstructionKind::NumLt:
+            printf("num lt ")
+        else:
+            assert False
+        printf("%s, %s", varname_for_printing(ins->operands[0]), varname_for_printing(ins->operands[1]))
+    elif ins->kind == CfInstructionKind::PtrLoad:
+        # Extra parentheses to make these stand out a bit.
+        printf("*(%s)", varname_for_printing(ins->operands[0]))
+    elif ins->kind == CfInstructionKind::PtrStore:
+        printf("*(%s) = %s", varname_for_printing(ins->operands[0]), varname_for_printing(ins->operands[1]))
+    elif ins->kind == CfInstructionKind::PtrAddInt:
+        printf("ptr %s + integer %s", varname_for_printing(ins->operands[0]), varname_for_printing(ins->operands[1]))
+    elif ins->kind == CfInstructionKind::PtrClassField:
+        printf("%s + offset of field \"%s\"", varname_for_printing(ins->operands[0]), ins->fieldname)
+    elif ins->kind == CfInstructionKind::PtrCast:
+        printf("pointer cast %s", varname_for_printing(ins->operands[0]))
+    elif ins->kind == CfInstructionKind::PtrMemsetToZero:
+        printf("set value of pointer %s to zero bytes", varname_for_printing(ins->operands[0]))
+    elif ins->kind == CfInstructionKind::VarCpy:
+        printf("%s", varname_for_printing(ins->operands[0]))
+    else:
+        assert False
+    printf("\n")
 
-    case CfInstructionKind::NumAdd:
-    case CF_NUM_SUB:
-    case CF_NUM_MUL:
-    case CF_NUM_DIV:
-    case CF_NUM_MOD:
-    case CF_NUM_EQ:
-    case CF_NUM_LT:
-        switch(ins->kind){
-            case CfInstructionKind::NumAdd: printf("num add "); break;
-            case CF_NUM_SUB: printf("num sub "); break;
-            case CF_NUM_MUL: printf("num mul "); break;
-            case CF_NUM_DIV: printf("num div "); break;
-            case CF_NUM_MOD: printf("num mod "); break;
-            case CF_NUM_EQ: printf("num eq "); break;
-            case CF_NUM_LT: printf("num lt "); break;
-            default: assert(0);
-        }
-        printf("%s, %s", varname(ins->operands[0]), varname(ins->operands[1]));
-        break;
-    case CfInstructionKind::PtrLoad:
-        // Extra parentheses to make these stand out a bit.
-        printf("*(%s)", varname(ins->operands[0]));
-        break;
-    case CfInstructionKind::PtrStore:
-        printf("*(%s) = %s", varname(ins->operands[0]), varname(ins->operands[1]));
-        break;
-    case CfInstructionKind::PtrAddInt:
-        printf("ptr %s + integer %s", varname(ins->operands[0]), varname(ins->operands[1]));
-        break;
-    case CfInstructionKind::PtrClassField:
-        printf("%s + offset of field \"%s\"", varname(ins->operands[0]), ins->data.fieldname);
-        break;
-    case CfInstructionKind::PtrCast:
-        printf("pointer cast %s", varname(ins->operands[0]));
-        break;
-    case CfInstructionKind::PtrMemsetToZero:
-        printf("set value of pointer %s to zero bytes", varname(ins->operands[0]));
-        break;
-    case CfInstructionKind::VarCpy:
-        printf("%s", varname(ins->operands[0]));
-        break;
-    }
-    printf("\n");
-}
 
-void print_control_flow_graph(const CfGraph *cfg)
-{
-    char *sigstr = signature_to_string(&cfg->signature, true, true);
-    printf("Function %s\n", sigstr);
-    free(sigstr);
+def print_control_flow_graph(cfg: CfGraph*) -> None:
+    sigstr: byte* = signature_to_string(&cfg->signature, True, True)
+    printf("Function %s\n", sigstr)
+    free(sigstr)
 
-    printf("  Variables:\n");
-    for (LocalVariable **var = cfg->locals.ptr; var < End(cfg->locals); var++) {
-        printf("    %-20s  %s\n", varname(*var), (*var)->type->name);
-    }
+    printf("  Variables:\n")
+    for var = cfg->locals; var < &cfg->locals[cfg->nlocals]; var++:
+        printf("    %-20s  %s\n", varname_for_printing(*var), (*var)->type->name)
 
-    for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++) {
-        printf("  Block %d", (int)(b - cfg->all_blocks.ptr));
-        if (*b == &cfg->start_block)
-            printf(" (start block)");
-        if (*b == &cfg->end_block) {
-            assert((*b)->instructions.len == 0);
-            printf(" is the end block.\n");
-            continue;
-        }
-        printf(":\n");
-        for (CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
-            print_cf_instruction(ins);
+    for blockidx = 0; blockidx < cfg->n_all_blocks; blockidx++:
+        printf("  Block %d", blockidx)
 
-        if (*b == &cfg->end_block) {
-            assert((*b)->iftrue == NULL);
-            assert((*b)->iffalse == NULL);
-        } else if ((*b)->iftrue == NULL && (*b)->iffalse == NULL) {
-            printf("    Execution stops here. We have called a noreturn function.\n");
-        } else {
-            int trueidx=-1, falseidx=-1;
-            for (int i = 0; i < cfg->all_blocks.len; i++) {
-                if (cfg->all_blocks.ptr[i]==(*b)->iftrue) trueidx=i;
-                if (cfg->all_blocks.ptr[i]==(*b)->iffalse) falseidx=i;
-            }
-            assert(trueidx!=-1);
-            assert(falseidx!=-1);
-            if (trueidx==falseidx)
-                printf("    Jump to block %d.\n", trueidx);
-            else {
-                assert((*b)->branchvar);
+        b = &cfg->all_blocks[blockidx]
+        if *b == &cfg->start_block:
+            printf(" (start block)")
+        if *b == &cfg->end_block:
+            assert (*b)->ninstructions == 0
+            printf(" is the end block.\n")
+            continue
+
+        printf(":\n")
+
+        for ins = (*b)->instructions; ins < &(*b)->instructions[(*b)->ninstructions]; ins++:
+            print_cf_instruction(ins)
+
+        if *b == &cfg->end_block:
+            assert (*b)->iftrue == NULL
+            assert (*b)->iffalse == NULL
+        elif (*b)->iftrue == NULL and (*b)->iffalse == NULL:
+            printf("    Execution stops here. We have called a noreturn function.\n")
+        else:
+            trueidx = -1
+            falseidx = -1
+            for i = 0; i < cfg->n_all_blocks; i++:
+                if cfg->all_blocks[i] == (*b)->iftrue:
+                    trueidx = i
+                if cfg->all_blocks[i]==(*b)->iffalse:
+                    falseidx = i
+            assert trueidx != -1
+            assert falseidx != -1
+            if trueidx == falseidx:
+                printf("    Jump to block %d.\n", trueidx)
+            else:
+                assert (*b)->branchvar != NULL
                 printf("    If %s is True jump to block %d, otherwise block %d.\n",
-                    varname((*b)->branchvar), trueidx, falseidx);
-            }
-        }
-    }
+                    varname_for_printing((*b)->branchvar), trueidx, falseidx)
 
-    printf("\n");
-}
+    printf("\n")
 
-void print_control_flow_graphs(const CfGraphFile *cfgfile)
-{
-    printf("===== Control Flow Graphs for file \"%s\" =====\n", cfgfile->filename);
-    for (CfGraph **cfg = cfgfile->graphs.ptr; cfg < End(cfgfile->graphs); cfg++)
-        print_control_flow_graph(*cfg);
-}
 
-void print_llvm_ir(LLVMModuleRef module, bool is_optimized)
-{
-    size_t len;
-    const char *filename = LLVMGetSourceFileName(module, &len);
-    printf("===== %s LLVM IR for file \"%.*s\" =====\n",
-        is_optimized ? "Optimized" : "Unoptimized", (int)len, filename);
+def print_control_flow_graphs(cfgfile: CfGraphFile*) -> None:
+    printf("===== Control Flow Graphs for file \"%s\" =====\n", cfgfile->filename)
+    for cfg = cfgfile->graphs; cfg < &cfgfile->graphs[cfgfile->ngraphs]; cfg++:
+        print_control_flow_graph(*cfg)
 
-    char *s = LLVMPrintModuleToString(module);
-    puts(s);
-    LLVMDisposeMessage(s);
-}
+def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
+    if is_optimized:
+        opt_or_unopt = "Optimized"
+    else:
+        opt_or_unopt = "Unoptimized"
+
+    len = 0L
+    filename = LLVMGetSourceFileName(module, &len)
+    printf("===== %s LLVM IR for file \"%.*s\" =====\n", opt_or_unopt, len as int, filename)
+
+    s = LLVMPrintModuleToString(module)
+    puts(s)
+    LLVMDisposeMessage(s)
