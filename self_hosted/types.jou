@@ -284,8 +284,8 @@ def signature_to_string(sig: Signature*, include_return_type: bool, include_self
     strcat(result, ")")
 
     if include_return_type:
-        assert sizeof(sig->returntype->name) == 100
-        result = realloc(result, strlen(result) + 200)
+        assert sizeof(sig->returntype->name) == 500
+        result = realloc(result, strlen(result) + 600)
         assert result != NULL
 
         strcat(result, " -> ")

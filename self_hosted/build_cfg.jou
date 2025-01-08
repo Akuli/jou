@@ -743,6 +743,8 @@ def build_expression(st: State*, expr: AstExpression*) -> LocalVariable*:
         temp = build_expression(st, &expr->operands[0])
         result = add_local_var(st, types->type)
         add_unary_op(st, expr->location, CfInstructionKind::PtrLoad, temp, result)
+    elif expr->kind == AstExpressionKind::Self:
+        assert False  # TODO: implement, and delete old implementation if any
     elif (
         expr->kind == AstExpressionKind::Bool
         or expr->kind == AstExpressionKind::Byte
@@ -753,12 +755,33 @@ def build_expression(st: State*, expr: AstExpression*) -> LocalVariable*:
         or expr->kind == AstExpressionKind::Long
         or expr->kind == AstExpressionKind::Null
         or expr->kind == AstExpressionKind::String
-        or expr->kind == AstExpressionKind::Self
     ):
-        # TODO: implement all these
-        #result = add_local_var(st, types->type)
-        #add_constant(st, expr->location, expr->constant, result)
-        assert False
+        if expr->kind == AstExpressionKind::Bool:
+            c = Constant{kind = ConstantKind::Bool, boolean = expr->bool_value}
+        elif expr->kind == AstExpressionKind::Byte:
+            c = int_constant(byteType, expr->byte_value)
+        elif expr->kind == AstExpressionKind::Short:
+            c = int_constant(shortType, expr->short_value)
+        elif expr->kind == AstExpressionKind::Int:
+            c = int_constant(intType, expr->int_value)
+        elif expr->kind == AstExpressionKind::Long:
+            c = int_constant(longType, expr->long_value)
+        elif expr->kind == AstExpressionKind::Null:
+            c = Constant{kind = ConstantKind::Null}
+        elif expr->kind == AstExpressionKind::Float:
+            c = Constant{kind = ConstantKind::Float}
+            assert sizeof(c.double_or_float_text) == sizeof(expr->float_or_double_text)
+            strcpy(c.double_or_float_text, expr->float_or_double_text)
+        elif expr->kind == AstExpressionKind::Double:
+            c = Constant{kind = ConstantKind::Double}
+            assert sizeof(c.double_or_float_text) == sizeof(expr->float_or_double_text)
+            strcpy(c.double_or_float_text, expr->float_or_double_text)
+        elif expr->kind == AstExpressionKind::String:
+            c = Constant{kind = ConstantKind::String, str = strdup(expr->string)}
+        else:
+            assert False
+        result = add_local_var(st, types->type)
+        add_constant(st, expr->location, c, result)
     elif expr->kind == AstExpressionKind::And:
         result = build_and_or(st, &expr->operands[0], &expr->operands[1], AndOr::And)
     elif expr->kind == AstExpressionKind::Or:
