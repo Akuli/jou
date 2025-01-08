@@ -240,10 +240,8 @@ static LLVMValueRef codegen_special_constant(const char *name)
     return LLVMConstInt(LLVMInt1Type(), v, false);
 }
 
-static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, const char *ignored)
+static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
 {
-    (void)ignored;  // for compatibility with llvm functions
-
     // Jou's % operator ensures that a%b has same sign as b:
     // jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
     LLVMValueRef llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp");
@@ -251,9 +249,8 @@ static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, L
     return LLVMBuildSRem(builder, sum, rhs, "smod");
 }
 
-static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, const char *ignored)
+static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
 {
-    (void)ignored;  // for compatibility with llvm functions
     /*
     LLVM's provides two divisions. One truncates, the other is an "exact div"
     that requires there is no remainder. Jou uses floor division which is
@@ -261,29 +258,57 @@ static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, L
 
         floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
     */
-    LLVMValueRef top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs, NULL), "sdiv_tmp");
+    LLVMValueRef top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp");
     return LLVMBuildExactSDiv(builder, top, rhs, "sdiv");
 }
 
-static LLVMValueRef build_num_operation(
-    LLVMBuilderRef builder,
-    LLVMValueRef lhs,
-    LLVMValueRef rhs,
-    /*
-    Many number operations are not the same for signed and unsigned integers.
-    Signed division example with 8 bits: 255 / 2 = (-1) / 2 = 0
-    Unsigned division example with 8 bits: 255 / 2 = 127
-    */
-    const Type *t,
-    LLVMValueRef (*signedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
-    LLVMValueRef (*unsignedfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*),
-    LLVMValueRef (*floatfn)(LLVMBuilderRef,LLVMValueRef,LLVMValueRef,const char*))
+static void codegen_arithmetic_instruction(const struct State *st, const CfInstruction *ins)
 {
-    switch(t->kind) {
-        case TYPE_FLOATING_POINT: return floatfn(builder, lhs, rhs, "float_op");
-        case TYPE_SIGNED_INTEGER: return signedfn(builder, lhs, rhs, "signed_op");
-        case TYPE_UNSIGNED_INTEGER: return unsignedfn(builder, lhs, rhs, "unsigned_op");
-        default: assert(0);
+    LLVMValueRef lhs = get_local_var(st, ins->operands[0]);
+    LLVMValueRef rhs = get_local_var(st, ins->operands[1]);
+
+    assert(ins->operands[0]->type == ins->operands[1]->type);
+    const Type *type = ins->operands[0]->type;
+
+    switch (type->kind) {
+        case TYPE_FLOATING_POINT: {
+            switch (ins->kind) {
+                case CF_NUM_ADD: set_local_var(st, ins->destvar, LLVMBuildFAdd(st->builder, lhs, rhs, "float_sum")); break;
+                case CF_NUM_SUB: set_local_var(st, ins->destvar, LLVMBuildFSub(st->builder, lhs, rhs, "float_diff")); break;
+                case CF_NUM_MUL: set_local_var(st, ins->destvar, LLVMBuildFMul(st->builder, lhs, rhs, "float_prod")); break;
+                case CF_NUM_DIV: set_local_var(st, ins->destvar, LLVMBuildFDiv(st->builder, lhs, rhs, "float_quot")); break;
+                case CF_NUM_MOD: set_local_var(st, ins->destvar, LLVMBuildFRem(st->builder, lhs, rhs, "float_mod")); break;
+                default: assert(0);
+            }
+            break;
+        }
+
+        case TYPE_SIGNED_INTEGER: {
+            switch (ins->kind) {
+                case CF_NUM_ADD: set_local_var(st, ins->destvar, LLVMBuildAdd(st->builder, lhs, rhs, "int_sum")); break;
+                case CF_NUM_SUB: set_local_var(st, ins->destvar, LLVMBuildSub(st->builder, lhs, rhs, "int_diff")); break;
+                case CF_NUM_MUL: set_local_var(st, ins->destvar, LLVMBuildMul(st->builder, lhs, rhs, "int_prod")); break;
+                case CF_NUM_DIV: set_local_var(st, ins->destvar, build_signed_div(st->builder, lhs, rhs)); break;
+                case CF_NUM_MOD: set_local_var(st, ins->destvar, build_signed_mod(st->builder, lhs, rhs)); break;
+                default: assert(0);
+            }
+            break;
+        }
+
+        case TYPE_UNSIGNED_INTEGER: {
+            switch (ins->kind) {
+                case CF_NUM_ADD: set_local_var(st, ins->destvar, LLVMBuildAdd(st->builder, lhs, rhs, "uint_sum")); break;
+                case CF_NUM_SUB: set_local_var(st, ins->destvar, LLVMBuildSub(st->builder, lhs, rhs, "uint_diff")); break;
+                case CF_NUM_MUL: set_local_var(st, ins->destvar, LLVMBuildMul(st->builder, lhs, rhs, "uint_prod")); break;
+                case CF_NUM_DIV: set_local_var(st, ins->destvar, LLVMBuildUDiv(st->builder, lhs, rhs, "uint_quot")); break;
+                case CF_NUM_MOD: set_local_var(st, ins->destvar, LLVMBuildURem(st->builder, lhs, rhs, "uint_mod")); break;
+                default: assert(0);
+            }
+            break;
+        }
+
+        default:
+            assert(0);
     }
 }
 
@@ -379,11 +404,13 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             setdest(getop(0));
             break;
 
-        case CF_NUM_ADD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildAdd, LLVMBuildAdd, LLVMBuildFAdd)); break;
-        case CF_NUM_SUB: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildSub, LLVMBuildSub, LLVMBuildFSub)); break;
-        case CF_NUM_MUL: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildMul, LLVMBuildMul, LLVMBuildFMul)); break;
-        case CF_NUM_DIV: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_div, LLVMBuildUDiv, LLVMBuildFDiv)); break;
-        case CF_NUM_MOD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_mod, LLVMBuildURem, LLVMBuildFRem)); break;
+        case CF_NUM_ADD:
+        case CF_NUM_SUB:
+        case CF_NUM_MUL:
+        case CF_NUM_DIV:
+        case CF_NUM_MOD:
+            codegen_arithmetic_instruction(st, ins);
+            break;
 
         case CF_NUM_EQ:
             if (is_integer_type(ins->operands[0]->type))
