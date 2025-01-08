@@ -157,13 +157,13 @@ jobs:
           path: "test dir"
       - run: cd "test dir" && ./windows_setup.sh --small
         shell: bash
-      - name: "Test stage 1 compiler"
+      - name: "Compile and test stage 1 compiler"
         run: cd "test dir" && source activate && ./runtests.sh --verbose --stage1
         shell: bash
-      - name: "Test stage 2 compiler"
+      - name: "Compile and test stage 2 compiler"
         run: cd "test dir" && source activate && ./runtests.sh --verbose --stage2
         shell: bash
-      - name: "Test stage 3 compiler"
+      - name: "Compile and test stage 3 compiler"
         run: cd "test dir" && source activate && ./runtests.sh --verbose
         shell: bash
 

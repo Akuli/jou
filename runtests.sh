@@ -12,7 +12,7 @@ export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
 function usage() {
-    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
+    echo "Usage: $0 [--valgrind] [--verbose] [--stage1 | --stage2] [--dont-run-make] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
     echo ""
     echo "By default, this tests the stage 3 compiler (see bootstrapping in README). Use"
     echo "--stage1 or --stage2 to test other stages as needed."
@@ -80,18 +80,6 @@ if [ $valgrind = yes ]; then
     esac
 fi
 
-if [ $run_make = yes ]; then
-    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
-        source activate
-        mingw32-make
-    elif [[ "$OS" =~ NetBSD ]]; then
-        gmake
-    else
-        make
-    fi
-
-fi
-
 DIFF=$(which gdiff || which diff)
 if $DIFF --help | grep -q -- --color; then
     diff_color="--color=always"
@@ -122,6 +110,17 @@ else
 fi
 echo "<joudir> in expected output will be replaced with $joudir."
 echo "<jouexe> in expected output will be replaced with $jouexe."
+
+if [ $run_make = yes ]; then
+    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
+        source activate
+        mingw32-make $jouexe
+    elif [[ "$OS" =~ NetBSD ]]; then
+        gmake $jouexe
+    else
+        make $jouexe
+    fi
+fi
 
 function generate_expected_output()
 {
@@ -211,13 +210,19 @@ function run_test()
 
     local command=""
 
+    if [ $stage = 3 ]; then
+        command="jou"
+    else
+        command="stage$stage"  # in "bootstrap" folder, PATH is adjusted in other part of this script
+    fi
+
+    if [[ "$OS" =~ Windows ]]; then
+        command="$command.exe"
+    fi
+
     if [ $valgrind = yes ] && [ $correct_exit_code == 0 ]; then
         # Valgrind the compiler process and the compiled executable
-        command="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions='$(pwd)/valgrind-suppressions.sup' jou --valgrind"
-    elif [[ "$OS" =~ Windows ]]; then
-        command="jou.exe"
-    else
-        command="jou"
+        command="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions='$(pwd)/valgrind-suppressions.sup' $jouexe --valgrind"
     fi
 
     # jou flags start with space when non-empty
@@ -245,7 +250,13 @@ function run_test()
     if $DIFF --text -u $diff_color <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
-        export PATH="$PWD:$PATH"
+        if [ $stage == 3 ]; then
+            export PATH="$PWD:$PATH"
+        else
+            # stage1 and stage2 executables are in "bootstrap/" folder
+            export PATH="$PWD/bootstrap:$PATH"
+        fi
+
         if [ $valgrind = no ]; then
             ulimit -v 500000 2>/dev/null
         fi
