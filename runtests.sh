@@ -187,19 +187,37 @@ function should_skip()
     local joufile="$1"
     local correct_exit_code="$2"
 
-    # Skip tests when:
-    #   * the test is supposed to crash, but optimizations are enabled (unpredictable by design)
-    #   * the test is supposed to fail (crash or otherwise) and we use valgrind (see README)
-    #   * the "test" is actually a GUI program in examples/
-    if ( [[ $joufile =~ ^tests/crash/ ]] && ! [[ "$jou_flags" =~ -O0 ]] ) \
-        || ( [ $valgrind = yes ] && [ $correct_exit_code != 0 ] ) \
-        || [ $joufile = examples/x11_window.jou ] \
-        || [ $joufile = examples/memory_leak.jou ]
-    then
-        return 0  # true
-    else
-        return 1  # false
+    # For stages 1 and 2, error handling is not important (users won't see it),
+    # so only test that we support all features of Jou. Skip everything else.
+    if [ $stage != 3 ] && (grep -qE 'Warning:|Error:' $joufile || ! [[ $joufile =~ should_succeed ]]); then
+        return 0
     fi
+
+    # When optimizations are enabled, skip tests that are supposed to crash.
+    # Running them would be unpredictable by design.
+    if [[ $joufile =~ ^tests/crash/ ]] && ! [[ "$jou_flags" =~ -O0 ]]; then
+        return 0
+    fi
+
+    # When running valgrind, skip tests that are supposed to fail, because:
+    #   - error handling is easier if you don't free memory (OS will do it)
+    #   - in Jou compilers, error handling is simple and not very likely to contain UB
+    #   - valgrinding is slow, this means we valgrind a lot less
+    if [ $valgrind = yes ] && [ $correct_exit_code != 0 ]; then
+        return 0
+    fi
+
+    # compiler_cli.jou hard-codes ./jou or ./jou.exe, so it tests stage 3 anyway
+    if [ $stage != 3 ] && [[ $joufile =~ compiler_cli ]]; then
+        return 0
+    fi
+
+    # Skip special programs that don't interact nicely with automated tests
+    if [ $joufile = examples/x11_window.jou ] || [ $joufile = examples/memory_leak.jou ]; then
+        return 0
+    fi
+
+    return 1  # false, don't skip
 }
 
 function run_test()
@@ -280,30 +298,9 @@ for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou tests/s
         continue
     fi
 
-    # For early bootstrapping stages, we only want to ensure that the bootstrap
-    # compiler supports all Jou syntax. Getting error handling exactly right
-    # doesn't matter, because users don't see it anyway.
-    if [ $stage != 3 ] && grep -qE 'Warning:|Error:' $joufile; then
-        continue
-    fi
-
-    # compiler_cli.jou hard-codes ./jou or ./jou.exe, so it tests stage 3 anyway
-    if [ $stage != 3 ] && [[ $joufile =~ compiler_cli ]]; then
-        continue
-    fi
-
     case $joufile in
-        examples/* | tests/should_succeed/*)
-            correct_exit_code=0
-            ;;
-        *)
-            # It's supposed to fail when compiling or at runtime.
-            #
-            if [ $stage != 3 ]; then
-                continue
-            fi
-            correct_exit_code=1
-            ;;
+        examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
+        *) correct_exit_code=1; ;;
     esac
 
     counter=$((counter + 1))
