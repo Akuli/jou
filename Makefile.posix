@@ -4,10 +4,13 @@
 LLVM_CONFIG ?= $(shell \
 	which llvm-config-14 \
 	|| which /usr/local/opt/llvm@14/bin/llvm-config \
+	|| which /opt/homebrew/opt/llvm@14/bin/llvm-config \
 	|| which llvm-config-13 \
 	|| which /usr/local/opt/llvm@13/bin/llvm-config \
+	|| which /opt/homebrew/opt/llvm@13/bin/llvm-config \
 	|| which llvm-config-11 \
 	|| which /usr/local/opt/llvm@11/bin/llvm-config \
+	|| which /opt/homebrew/opt/llvm@11/bin/llvm-config \
 	|| which /usr/pkg/libexec/libLLVM/llvm-config \
 	)
 CFLAGS += $(shell $(LLVM_CONFIG) --cflags)
