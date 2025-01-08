@@ -26,7 +26,7 @@ def evaluate_condition(expr: AstExpression*) -> bool:
     if expr->kind == AstExpressionKind::And:
         return evaluate_condition(&expr->operands[0]) and evaluate_condition(&expr->operands[1])
     if expr->kind == AstExpressionKind::Or:
-        return evaluate_condition(&expr->operands[0]) and evaluate_condition(&expr->operands[1])
+        return evaluate_condition(&expr->operands[0]) or evaluate_condition(&expr->operands[1])
     if expr->kind == AstExpressionKind::Not:
         return not evaluate_condition(&expr->operands[0])
 
