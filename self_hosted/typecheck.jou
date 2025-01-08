@@ -1177,7 +1177,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
         if expr->call.method_call_self == NULL:
             result = typecheck_function_or_method_call(ft, &expr->call, NULL, expr->location)
         elif expr->call.uses_arrow_operator:
-            temptype = typecheck_expression_not_void(ft, expr->class_field.instance)->type
+            temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)->type
             if temptype->kind != TypeKind::Pointer:
                 snprintf(msg, sizeof(msg),
                     "left side of the '->' operator must be a pointer, not %s",
