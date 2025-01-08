@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./llvm.jou"
@@ -50,22 +51,23 @@ def print_constant(c: Constant*) -> None:
         assert False
 
 
+global printed_varnames: byte[10][10]
+global printed_varnames_idx: int
+
+
+
 def varname_for_printing(var: LocalVariable*) -> byte*:
     if var->name[0] != '\0':
         # it is named, not a dummy
         return var->name
 
-    # TODO: port this properly if needed
-#    // Cycle through enough space for a few variables, so that you
-#    // can call this several times inside the same printf()
-#    static char names[50 + sizeof var->name][5];
-#    static unsigned i = 0;
-#    char *s = names[i++];
-#    i %= sizeof(names) / sizeof(names[0]);
-#
-#    sprintf(s, "$%d", var->id);
-#    return s;
-    return "<temporary var>"
+    # Cycle through enough space for a few variables, so that you
+    # can call this several times inside the same printf().
+    s: byte* = printed_varnames[printed_varnames_idx++]
+    printed_varnames_idx %= (sizeof(printed_varnames) / sizeof(printed_varnames[0])) as int
+
+    sprintf(s, "$%d", var->id)
+    return s
 
 
 def very_short_number_type_description(t: Type*) -> byte*:
@@ -173,6 +175,8 @@ def print_cf_instruction(ins: CfInstruction*) -> None:
 
 
 def print_control_flow_graph(cfg: CfGraph*) -> None:
+    printed_varnames_idx = 0
+
     sigstr: byte* = signature_to_string(&cfg->signature, True, True)
     printf("Function %s\n", sigstr)
     free(sigstr)

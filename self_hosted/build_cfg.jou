@@ -320,9 +320,12 @@ def build_class_field_pointer(
 
     for f = class_type->classdata.fields; f < &class_type->classdata.fields[class_type->classdata.nfields]; f++:
         if strcmp(f->name, fieldname) == 0:
+            result = add_local_var(st, get_pointer_type(f->type))
+
             ins = CfInstruction{
                 location = location,
                 kind = CfInstructionKind::PtrClassField,
+                destvar = result,
             }
 
             assert sizeof(ins.fieldname) == sizeof(f->name)
@@ -331,7 +334,6 @@ def build_class_field_pointer(
             operands = [instance, NULL as LocalVariable*]
             ins.set_operands(operands)
 
-            result = add_local_var(st, get_pointer_type(f->type))
             add_instruction(st, ins)
             return result
 

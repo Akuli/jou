@@ -329,6 +329,7 @@ def codegen_instruction(st: State*, ins: CfInstruction*) -> None:
         set_local_var(st, ins->destvar, LLVMBuildIntToPtr(st->builder, get_local_var(st, ins->operands[0]), codegen_type(ins->destvar->type), "long_as_ptr"))
     elif ins->kind == CfInstructionKind::PtrClassField:
         classtype = ins->operands[0]->type->value_type
+        assert classtype->kind == TypeKind::Class
         f = classtype->classdata.fields
         while strcmp(f->name, ins->fieldname) != 0:
             f++
