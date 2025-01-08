@@ -687,11 +687,15 @@ def build_expression(st: State*, expr: AstExpression*) -> LocalVariable*:
         add_constant(st, expr->location, c, result)
     elif expr->kind == AstExpressionKind::GetVariable:
         if get_special_constant(expr->varname) != -1:
-            assert False # TODO
-#            result = add_local_var(st, boolType)
-#            union CfInstructionData data;
-#            safe_strcpy(data.scname, expr->varname);
-#            add_instruction(st, expr->location, CF_SPECIAL_CONSTANT, &data, NULL, result)
+            result = add_local_var(st, boolType)
+            ins = CfInstruction{
+                location = expr->location,
+                kind = CfInstructionKind::SpecialConstant,
+                destvar = result,
+            }
+            assert sizeof(ins.scname) == sizeof(expr->varname)
+            strcpy(ins.scname, expr->varname)
+            add_instruction(st, ins)
         else:
             temp = find_local_var_cf(st, expr->varname)
             if temp != NULL:
