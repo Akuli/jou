@@ -259,7 +259,8 @@ def compile_ast_to_object_file(fs: FileState*) -> byte*:
         printf("Building LLVM IR: %s\n", fs->path)
 
     mod = codegen(&cfgfile, &fs->types)
-    free_control_flow_graphs(&cfgfile)
+    # TODO: free the control flow graphs, this crashes for some reason
+    #free_control_flow_graphs(&cfgfile)
 
     if command_line_args.verbosity >= 2:
         print_llvm_ir(mod, False)

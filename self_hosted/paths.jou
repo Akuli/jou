@@ -124,8 +124,7 @@ else:
 
 def write_gitignore(p: byte*) -> None:
     filename: byte* = malloc(strlen(p) + 100)
-    assert filename != NULL
-    strcat(filename, "/.gitignore")
+    sprintf(filename, "%s/.gitignore", p)
 
     f = fopen(filename, "r")
     if f != NULL:
@@ -171,7 +170,6 @@ def get_path_to_file_in_jou_compiled(filename: byte*) -> byte*:
 
     free(infile_folder)
     free(subfolder)
-    free(result)
     return result
 
 

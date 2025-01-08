@@ -572,9 +572,9 @@ def build_function_or_method_call(
         location = location,
         kind = CfInstructionKind::Call,
         signature = copy_signature(sig),
-        operands = args,
         destvar = return_value,
     }
+    ins.set_operands(args)
     add_instruction(st, ins)
 
     if sig->is_noreturn:

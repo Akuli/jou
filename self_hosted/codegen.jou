@@ -1,4 +1,5 @@
 import "stdlib/math.jou"
+import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
@@ -98,7 +99,7 @@ def codegen_type(type: Type*) -> LLVMType*:
         # this is compiler internal/temporary thing and should never end up here
         assert False
     if type->kind == TypeKind::Class:
-        codegen_class_type(type)
+        return codegen_class_type(type)
     if type->kind == TypeKind::Enum:
         return LLVMInt32Type()
     assert False
@@ -180,6 +181,7 @@ def codegen_function_or_method_decl(st: State*, sig: Signature*) -> LLVMValue*:
 
 
 def codegen_call(st: State*, sig: Signature*, args: LLVMValue**, nargs: int) -> LLVMValue*:
+    printf("Calling %s with %d args\n", signature_to_string(sig, False, True), nargs)
     function: LLVMValue* = codegen_function_or_method_decl(st, sig)
     assert function != NULL
     assert LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind::Pointer
