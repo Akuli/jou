@@ -26,9 +26,9 @@ config.jou:
 
 # Stage 1 of bootstrapping: Compile the bootstrap compiler with a C compiler.
 BSRC := $(wildcard bootstrap_compiler/*.c)
-bootstrap/obj/%.o: bootstrap_compiler/%.c $(wildcard bootstrap_compiler/*.h) config.h
+bootstrap_obj_%.o: bootstrap_compiler/%.c $(wildcard bootstrap_compiler/*.h) config.h
 	mkdir -p bootstrap/obj && $(CC) -c $(CFLAGS) $< -o $@
-bootstrap/stage1.exe: $(BSRC:bootstrap_compiler/%.c=bootstrap/obj/%.o)
+bootstrap/stage1.exe: $(BSRC:bootstrap_compiler/%.c=bootstrap_obj_%.o)
 	$(CC) $(CFLAGS) $^ -o bootstrap/stage1.exe $(LDFLAGS)
 
 # Stage 2 of bootstrapping: Compile the Jou compiler with the bootstrap compiler.
