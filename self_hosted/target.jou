@@ -21,20 +21,34 @@ class Target:
 
 global target: Target
 
-def init_target() -> None:
-    LLVMInitializeX86TargetInfo()
-    LLVMInitializeX86Target()
-    LLVMInitializeX86TargetMC()
-    LLVMInitializeX86AsmParser()
-    LLVMInitializeX86AsmPrinter()
 
-    if MACOS:
-        # Needed when compiling for new macs with the M1 chip
+# This function is a bit of a hack.
+#
+# Ideally, we would initialize all available targets, or perhaps only the
+# native target, but information about supported targets is only in the C
+# header files. If we initialize the wrong target, the code will compile, but
+# it prints a warning message like this at runtime, every time you invoke the
+# Jou compiler:
+#
+#   'x86-64' is not a recognized processor for this target (ignoring processor)
+#
+def running_on_arm64_mac() -> bool:
+    return MACOS and system("test `uname -m` = arm64") == 0
+
+
+def init_target() -> None:
+    if running_on_arm64_mac():
         LLVMInitializeAArch64TargetInfo()
         LLVMInitializeAArch64Target()
         LLVMInitializeAArch64TargetMC()
         LLVMInitializeAArch64AsmParser()
         LLVMInitializeAArch64AsmPrinter()
+    else:
+        LLVMInitializeX86TargetInfo()
+        LLVMInitializeX86Target()
+        LLVMInitializeX86TargetMC()
+        LLVMInitializeX86AsmParser()
+        LLVMInitializeX86AsmPrinter()
 
     if WINDOWS:
         # LLVM's default is x86_64-pc-windows-msvc
