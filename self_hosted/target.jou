@@ -28,6 +28,14 @@ def init_target() -> None:
     LLVMInitializeX86AsmParser()
     LLVMInitializeX86AsmPrinter()
 
+    if MACOS:
+        # Needed when compiling for new macs with the M1 chip
+        LLVMInitializeAArch64TargetInfo()
+        LLVMInitializeAArch64Target()
+        LLVMInitializeAArch64TargetMC()
+        LLVMInitializeAArch64AsmParser()
+        LLVMInitializeAArch64AsmPrinter()
+
     if WINDOWS:
         # LLVM's default is x86_64-pc-windows-msvc
         target.triple = "x86_64-pc-windows-gnu"
