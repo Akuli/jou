@@ -264,7 +264,3 @@ autoindent_regexes = {dedent = 'return( .+)?|break|pass|continue', indent = '.*:
 
 To apply this configuration, copy/paste it to end of Porcupine's `filetypes.toml`
 (menubar at top --> *Settings* --> *Config Files* --> *Edit filetypes.toml*).
-
-
-## How does the compiler work?
-
