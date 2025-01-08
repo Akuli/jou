@@ -240,10 +240,8 @@ static LLVMValueRef codegen_special_constant(const char *name)
     return LLVMConstInt(LLVMInt1Type(), v, false);
 }
 
-static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, const char *ignored)
+static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
 {
-    (void)ignored;  // for compatibility with llvm functions
-
     // Jou's % operator ensures that a%b has same sign as b:
     // jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
     LLVMValueRef llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp");
@@ -251,9 +249,8 @@ static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, L
     return LLVMBuildSRem(builder, sum, rhs, "smod");
 }
 
-static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, const char *ignored)
+static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
 {
-    (void)ignored;  // for compatibility with llvm functions
     /*
     LLVM's provides two divisions. One truncates, the other is an "exact div"
     that requires there is no remainder. Jou uses floor division which is
@@ -261,7 +258,7 @@ static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, L
 
         floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
     */
-    LLVMValueRef top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs, NULL), "sdiv_tmp");
+    LLVMValueRef top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp");
     return LLVMBuildExactSDiv(builder, top, rhs, "sdiv");
 }
 
@@ -291,8 +288,8 @@ static void codegen_arithmetic_instruction(const struct State *st, const CfInstr
                 case CF_NUM_ADD: set_local_var(st, ins->destvar, LLVMBuildAdd(st->builder, lhs, rhs, "int_sum")); break;
                 case CF_NUM_SUB: set_local_var(st, ins->destvar, LLVMBuildSub(st->builder, lhs, rhs, "int_diff")); break;
                 case CF_NUM_MUL: set_local_var(st, ins->destvar, LLVMBuildMul(st->builder, lhs, rhs, "int_prod")); break;
-                case CF_NUM_DIV: set_local_var(st, ins->destvar, build_signed_div(st->builder, lhs, rhs, "int_quot")); break;
-                case CF_NUM_MOD: set_local_var(st, ins->destvar, build_signed_mod(st->builder, lhs, rhs, "int_mod")); break;
+                case CF_NUM_DIV: set_local_var(st, ins->destvar, build_signed_div(st->builder, lhs, rhs)); break;
+                case CF_NUM_MOD: set_local_var(st, ins->destvar, build_signed_mod(st->builder, lhs, rhs)); break;
                 default: assert(0);
             }
             break;
