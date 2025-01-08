@@ -34,8 +34,8 @@ def codegen_union_type(types: LLVMType**, ntypes: int) -> LLVMType*:
 
     sizeneeded = 0L
     for i = 0; i < ntypes; i++:
-        size1 = LLVMABISizeOfType(get_target()->target_data_ref, types[i])
-        size2 = LLVMStoreSizeOfType(get_target()->target_data_ref, types[i])
+        size1 = LLVMABISizeOfType(target.target_data_ref, types[i])
+        size2 = LLVMStoreSizeOfType(target.target_data_ref, types[i])
 
         # If this assert fails, you need to figure out which of the size functions should be used.
         # I don't know what their difference is.
@@ -49,7 +49,7 @@ def codegen_union_type(types: LLVMType**, ntypes: int) -> LLVMType*:
 def codegen_class_type(type: Type*) -> LLVMType*:
     assert type->kind == TypeKind::Class
 
-    n = type->data.classdata.fields.len
+    n = type->classdata.fields.len
 
     flat_elems: LLVMType** = malloc(sizeof(flat_elems[0]) * n)
     for i = 0; i < n; i++:
@@ -58,14 +58,14 @@ def codegen_class_type(type: Type*) -> LLVMType*:
         if type->classdata.fields[i].type->kind == TypeKind::Pointer:
             flat_elems[i] = codegen_type(voidPtrType)
         else
-            flat_elems[i] = codegen_type(type->data.classdata.fields.ptr[i].type)
+            flat_elems[i] = codegen_type(type->classdata.fields.ptr[i].type)
 
     # Combine together fields of the same union.
     combined: LLVMType** = malloc(sizeof(combined[0]) * n)
     combinedlen = 0
     for start = 0; start < n; start = end:
         end = start + 1
-        while end < n and type->classdata.fields[start].union_id == type->data.classdata.fields[end].union_id:
+        while end < n and type->classdata.fields[start].union_id == type->classdata.fields[end].union_id:
             end++
         combined[combinedlen++] = codegen_union_type(&flat_elems[start], end-start);
 
@@ -77,9 +77,9 @@ def codegen_class_type(type: Type*) -> LLVMType*:
 
 def codegen_type(type: Type*) -> LLVMType*:
     if type->kind == TypeKind::Array:
-        return LLVMArrayType(codegen_type(type->data.array.membertype), type->data.array.len)
+        return LLVMArrayType(codegen_type(type->array.membertype), type->array.len)
     if type->kind == TypeKind::Pointer:
-        return LLVMPointerType(codegen_type(type->data.valuetype), 0)
+        return LLVMPointerType(codegen_type(type->valuetype), 0)
     if type->kind == TypeKind::FloatingPoint:
         if type->size_in_bits == 32:
             return LLVMFloatType()
@@ -206,17 +206,17 @@ def make_a_string_constant(st: State*, s: byte*) -> LLVMValue*:
 
 def codegen_constant(st: State*, c: Constant*) -> LLVMValue*:
     if c->kind == ConstantKind::Bool:
-        return LLVMConstInt(LLVMInt1Type(), c->data.boolean, false)
+        return LLVMConstInt(LLVMInt1Type(), c->boolean, false)
     if c->kind == ConstantKind::Integer:
-        return LLVMConstInt(codegen_type(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed)
+        return LLVMConstInt(codegen_type(type_of_constant(c)), c->integer.value, c->integer.is_signed)
     if c->kind == ConstantKind::Float or c->kind == ConstantKind::Double:
-        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->data.double_or_float_text)
+        return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->double_or_float_text)
     if c->kind == ConstantKind::Null:
         return LLVMConstNull(codegen_type(voidPtrType))
     if c->kind == ConstantKind::String:
-        return make_a_string_constant(st, c->data.str)
+        return make_a_string_constant(st, c->str)
     if c->kind == ConstantKind::EnumMember:
-        return LLVMConstInt(LLVMInt32Type(), c->data.enum_member.memberidx, False)
+        return LLVMConstInt(LLVMInt32Type(), c->enum_member.memberidx, False)
     assert False
 
 
@@ -226,281 +226,272 @@ def codegen_special_constant(name: byte*) -> LLVMValue*:
     return LLVMConstInt(LLVMInt1Type(), v, False)
 
 
-def build_signed_mod(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*, ignored: byte*) -> LLVMValue*:
-    (void)ignored;  // for compatibility with llvm functions
+def build_signed_mod(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*) -> LLVMValue*:
+    # Jou's % operator ensures that a%b has same sign as b:
+    # jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
+    llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp")
+    sum = LLVMBuildAdd(builder, llmod, rhs, "smod_tmp")
+    return LLVMBuildSRem(builder, sum, rhs, "smod")
 
-    // Jou's % operator ensures that a%b has same sign as b:
-    // jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
-    LLVMValue* llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp");
-    LLVMValue* sum = LLVMBuildAdd(builder, llmod, rhs, "smod_tmp");
-    return LLVMBuildSRem(builder, sum, rhs, "smod");
-}
 
-def build_signed_div(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*, ignored: byte*) -> LLVMValue*:
-    (void)ignored;  // for compatibility with llvm functions
-    /*
-    LLVM's provides two divisions. One truncates, the other is an "exact div"
-    that requires there is no remainder. Jou uses floor division which is
-    neither of the two, but is quite easy to implement:
+def build_signed_div(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*) -> LLVMValue*:
+    # LLVM's provides two divisions. One truncates, the other is an "exact div"
+    # that requires there is no remainder. Jou uses floor division which is
+    # neither of the two, but is quite easy to implement:
+    #
+    #    floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
+    #
+    top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp")
+    return LLVMBuildExactSDiv(builder, top, rhs, "sdiv")
 
-        floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
-    */
-    LLVMValue* top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs, NULL), "sdiv_tmp");
-    return LLVMBuildExactSDiv(builder, top, rhs, "sdiv");
-}
 
-static LLVMValue* build_num_operation(
-    builder: LLVMBuilder*,
-    lhs: LLVMValue*,
-    rhs: LLVMValue*,
-    /*
-    Many number operations are not the same for signed and unsigned integers.
-    Signed division example with 8 bits: 255 / 2 = (-1) / 2 = 0
-    Unsigned division example with 8 bits: 255 / 2 = 127
-    */
-    const Type *t,
-    LLVMValue* (*signedfn)(LLVMBuilder*,LLVMValue*,LLVMValue*,const char*),
-    LLVMValue* (*unsignedfn)(LLVMBuilder*,LLVMValue*,LLVMValue*,const char*),
-    LLVMValue* (*floatfn)(LLVMBuilder*,LLVMValue*,LLVMValue*,const char*))
-{
-    switch(t->kind) {
-        case TypeKind::FloatingPoint: return floatfn(builder, lhs, rhs, "float_op");
-        case TypeKind::SignedInteger: return signedfn(builder, lhs, rhs, "signed_op");
-        case TypeKind::UnsignedInteger: return unsignedfn(builder, lhs, rhs, "unsigned_op");
-        default: assert(0);
-    }
-}
+def codegen_arithmetic_instruction(st: State*, ins: CfInstruction*) -> None:
+    lhs = get_local_var(st, ins->operands[0])
+    rhs = get_local_var(st, ins->operands[1])
 
-static void codegen_instruction(st: State*, const CfInstruction *ins)
-{
-#define setdest(val) set_local_var(st, ins->destvar, (val))
-#define get(var) get_local_var(st, (var))
-#define getop(i) get(ins->operands[(i)])
+    assert ins->operands[0]->type == ins->operands[1]->type
+    type = ins->operands[0]->type
 
-    switch(ins->kind) {
-        case CfInstructionKind::Call:
-            {
-                LLVMValue* *args = malloc(ins->noperands * sizeof(args[0]));  // NOLINT
-                for (int i = 0; i < ins->noperands; i++)
-                    args[i] = getop(i);
-                LLVMValue* return_value = codegen_call(st, &ins->data.signature, args, ins->noperands);
-                if (ins->destvar)
-                    setdest(return_value);
-                free(args);
-            }
-            break;
-        case CfInstructionKind::Constant: setdest(codegen_constant(st, &ins->data.constant)); break;
-        case CF_SPECIAL_CONSTANT: setdest(codegen_special_constant(ins->data.scname)); break;
-        case CfInstructionKind::StringArray: setdest(LLVMConstString(ins->data.strarray.str, ins->data.strarray.len, true)); break;
-        case CfInstructionKind::SizeOf: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
-        case CfInstructionKind::AddressOfLocalVar: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
-        case CfInstructionKind::AddressOfGlobalVar: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
-        case CfInstructionKind::PtrLoad: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
-        case CfInstructionKind::PtrStore: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
-        case CfInstructionKind::PtrToInt64: setdest(LLVMBuildPtrToInt(st->builder, getop(0), LLVMInt64Type(), "ptr_as_long")); break;
-        case CfInstructionKind::Int64ToPtr: setdest(LLVMBuildIntToPtr(st->builder, getop(0), codegen_type(ins->destvar->type), "long_as_ptr")); break;
-        case CfInstructionKind::PtrClassField:
-            {
-                const Type *classtype = ins->operands[0]->type->data.valuetype;
-                const struct ClassField *f = classtype->data.classdata.fields.ptr;
-                while (strcmp(f->name, ins->data.fieldname))
-                    f++;
+    if type->kind == TYPE_FLOATING_POINT:
+        if ins->kind == CfInstructionKind::NumAdd:
+            set_local_var(st, ins->destvar, LLVMBuildFAdd(st->builder, lhs, rhs, "float_sum"))
+        elif ins->kind == CfInstructionKind::NumSub:
+            set_local_var(st, ins->destvar, LLVMBuildFSub(st->builder, lhs, rhs, "float_diff"))
+        elif ins->kind == CfInstructionKind::NumMul:
+            set_local_var(st, ins->destvar, LLVMBuildFMul(st->builder, lhs, rhs, "float_prod"))
+        elif ins->kind == CfInstructionKind::NumDiv:
+            set_local_var(st, ins->destvar, LLVMBuildFDiv(st->builder, lhs, rhs, "float_quot"))
+        elif ins->kind == CfInstructionKind::NumMod:
+            set_local_var(st, ins->destvar, LLVMBuildFRem(st->builder, lhs, rhs, "float_mod"))
+        else:
+            assert False
 
-                LLVMValue* val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), f->union_id, ins->data.fieldname);
-                // This cast is needed in two cases:
-                //  * All pointers are i8* in structs so we can do self-referencing classes.
-                //  * This is how unions work.
-                val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(f->type),0), "struct_member_cast");
-                setdest(val);
-            }
-            break;
-        case CfInstructionKind::PtrMemsetToZero:
-            {
-                LLVMValue* size = LLVMSizeOf(codegen_type(ins->operands[0]->type->data.valuetype));
-                LLVMBuildMemSet(st->builder, getop(0), LLVMConstInt(LLVMInt8Type(), 0, false), size, 0);
-            }
-            break;
-        case CfInstructionKind::PtrAddInt:
-            setdest(LLVMBuildGEP(st->builder, getop(0), (LLVMValue*[]){getop(1)}, 1, "ptr_add_int"));
-            break;
-        case CfInstructionKind::NumCast:
-            {
-                const Type *from = ins->operands[0]->type;
-                const Type *to = ins->destvar->type;
-                assert(is_number_type(from) && is_number_type(to));
+    elif type->kind == TYPE_SIGNED_INTEGER:
+        if ins->kind == CfInstructionKind::NumAdd:
+            set_local_var(st, ins->destvar, LLVMBuildAdd(st->builder, lhs, rhs, "int_sum"))
+        elif ins->kind == CfInstructionKind::NumSub:
+            set_local_var(st, ins->destvar, LLVMBuildSub(st->builder, lhs, rhs, "int_diff"))
+        elif ins->kind == CfInstructionKind::NumMul:
+            set_local_var(st, ins->destvar, LLVMBuildMul(st->builder, lhs, rhs, "int_prod"))
+        elif ins->kind == CfInstructionKind::NumDiv:
+            set_local_var(st, ins->destvar, build_signed_div(st->builder, lhs, rhs))
+        elif ins->kind == CfInstructionKind::NumMod:
+            set_local_var(st, ins->destvar, build_signed_mod(st->builder, lhs, rhs))
+        else:
+            assert False
 
-                if (is_integer_type(from) && is_integer_type(to)) {
-                    // Examples:
-                    //  signed 8-bit 0xFF (-1) --> 16-bit 0xFFFF (-1 or max value)
-                    //  unsigned 8-bit 0xFF (255) --> 16-bit 0x00FF (255)
-                    setdest(LLVMBuildIntCast2(st->builder, getop(0), codegen_type(to), from->kind == TypeKind::SignedInteger, "int_cast"));
-                } else if (is_integer_type(from) && to->kind == TypeKind::FloatingPoint) {
-                    // integer --> double / float
-                    if (from->kind == TypeKind::SignedInteger)
-                        setdest(LLVMBuildSIToFP(st->builder, getop(0), codegen_type(to), "cast"));
-                    else
-                        setdest(LLVMBuildUIToFP(st->builder, getop(0), codegen_type(to), "cast"));
-                } else if (from->kind == TypeKind::FloatingPoint && is_integer_type(to)) {
-                    if (to->kind == TypeKind::SignedInteger)
-                        setdest(LLVMBuildFPToSI(st->builder, getop(0), codegen_type(to), "cast"));
-                    else
-                        setdest(LLVMBuildFPToUI(st->builder, getop(0), codegen_type(to), "cast"));
-                } else if (from->kind == TypeKind::FloatingPoint && to->kind == TypeKind::FloatingPoint) {
-                    setdest(LLVMBuildFPCast(st->builder, getop(0), codegen_type(to), "cast"));
-                } else {
-                    assert(0);
-                }
-            }
-            break;
+    elif type->kind == TYPE_UNSIGNED_INTEGER:
+        if ins->kind == CfInstructionKind::NumAdd:
+            set_local_var(st, ins->destvar, LLVMBuildAdd(st->builder, lhs, rhs, "uint_sum"))
+        elif ins->kind == CfInstructionKind::NumSub:
+            set_local_var(st, ins->destvar, LLVMBuildSub(st->builder, lhs, rhs, "uint_diff"))
+        elif ins->kind == CfInstructionKind::NumMul:
+            set_local_var(st, ins->destvar, LLVMBuildMul(st->builder, lhs, rhs, "uint_prod"))
+        elif ins->kind == CfInstructionKind::NumDiv:
+            set_local_var(st, ins->destvar, LLVMBuildUDiv(st->builder, lhs, rhs, "uint_quot"))
+        elif ins->kind == CfInstructionKind::NumMod:
+            set_local_var(st, ins->destvar, LLVMBuildURem(st->builder, lhs, rhs, "uint_mod"))
+        else:
+            assert False
 
-        case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate")); break;
-        case CfInstructionKind::PtrCast: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(ins->destvar->type), "ptr_cast")); break;
+    else:
+        assert False
 
-        // various no-ops
-        case CfInstructionKind::VarCpy:
-        case CfInstructionKind::Int32ToEnum:
-        case CfInstructionKind::EnumToInt32:
-            setdest(getop(0));
-            break;
 
-        case CfInstructionKind::NumAdd: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildAdd, LLVMBuildAdd, LLVMBuildFAdd)); break;
-        case CF_NUM_SUB: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildSub, LLVMBuildSub, LLVMBuildFSub)); break;
-        case CF_NUM_MUL: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, LLVMBuildMul, LLVMBuildMul, LLVMBuildFMul)); break;
-        case CF_NUM_DIV: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_div, LLVMBuildUDiv, LLVMBuildFDiv)); break;
-        case CF_NUM_MOD: setdest(build_num_operation(st->builder, getop(0), getop(1), ins->operands[0]->type, build_signed_mod, LLVMBuildURem, LLVMBuildFRem)); break;
+def codegen_instruction(st: State*, ins: CfInstruction*) -> None:
+    if ins->kind == CfInstructionKind::Call:
+        args: LLVMValue** = malloc(ins->noperands * sizeof(args[0]))
+        for i = 0; i < ins->noperands; i++:
+            args[i] = get_local_var(st, ins->operands[i])
+        return_value = codegen_call(st, &ins->signature, args, ins->noperands)
+        if ins->destvar != NULL:
+            set_local_var(st, ins->destvar, return_value)
+        free(args)
+    elif ins->kind == CfInstructionKind::Constant:
+        set_local_var(st, ins->destvar, codegen_constant(st, &ins->constant))
+    elif ins->kind == CfInstructionKind::SpecialConstant:
+        set_local_var(st, ins->destvar, codegen_special_constant(ins->scname))
+    elif ins->kind == CfInstructionKind::StringArray:
+        set_local_var(st, ins->destvar, LLVMConstString(ins->strarray.str, ins->strarray.len, true))
+    elif ins->kind == CfInstructionKind::SizeOf:
+        set_local_var(st, ins->destvar, LLVMSizeOf(codegen_type(ins->type)))
+    elif ins->kind == CfInstructionKind::AddressOfLocalVar:
+        set_local_var(st, ins->destvar, get_pointer_to_local_var(st, ins->operands[0]))
+    elif ins->kind == CfInstructionKind::AddressOfGlobalVar:
+        set_local_var(st, ins->destvar, LLVMGetNamedGlobal(st->module, ins->globalname))
+    elif ins->kind == CfInstructionKind::PtrLoad:
+        set_local_var(st, ins->destvar, LLVMBuildLoad(st->builder, get_local_var(st, ins->operands[0]), "ptr_load"))
+    elif ins->kind == CfInstructionKind::PtrStore:
+        LLVMBuildStore(st->builder, get_local_var(st, ins->operands[1]), get_local_var(st, ins->operands[0]))
+    elif ins->kind == CfInstructionKind::PtrToInt64:
+        set_local_var(st, ins->destvar, LLVMBuildPtrToInt(st->builder, get_local_var(st, ins->operands[0]), LLVMInt64Type(), "ptr_as_long"))
+    elif ins->kind == CfInstructionKind::Int64ToPtr:
+        set_local_var(st, ins->destvar, LLVMBuildIntToPtr(st->builder, get_local_var(st, ins->operands[0]), codegen_type(ins->destvar->type), "long_as_ptr"))
+    elif ins->kind == CfInstructionKind::PtrClassField:
+        classtype = ins->operands[0]->type->value_type
+        const struct ClassField *f = classtype->classdata.fields
+        while strcmp(f->name, ins->fieldname) != 0:
+            f++
+            assert f < &classtype->classdata.fields[classtype->classdata.nfields]
 
-        case CF_NUM_EQ:
-            if (is_integer_type(ins->operands[0]->type))
-                setdest(LLVMBuildICmp(st->builder, LLVMIntEQ, getop(0), getop(1), "num_eq"));
-            else
-                setdest(LLVMBuildFCmp(st->builder, LLVMRealOEQ, getop(0), getop(1), "num_eq"));
-            break;
-        case CF_NUM_LT:
-            if (ins->operands[0]->type->kind == TypeKind::UnsignedInteger && ins->operands[1]->type->kind == TypeKind::UnsignedInteger)
-                setdest(LLVMBuildICmp(st->builder, LLVMIntULT, getop(0), getop(1), "num_lt"));
-            else if (is_integer_type(ins->operands[0]->type) && is_integer_type(ins->operands[1]->type))
-                setdest(LLVMBuildICmp(st->builder, LLVMIntSLT, getop(0), getop(1), "num_lt"));
-            else
-                setdest(LLVMBuildFCmp(st->builder, LLVMRealOLT, getop(0), getop(1), "num_lt"));
-            break;
-    }
+        val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), get_local_var(st, ins->operands[0]), f->union_id, ins->fieldname)
+        # This cast is needed in two cases:
+        #  * All pointers are i8* in structs so we can do self-referencing classes.
+        #  * This is how unions work.
+        val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(f->type), 0), "struct_member_cast")
+        set_local_var(st, ins->destvar, val)
+    elif ins->kind == CfInstructionKind::PtrMemsetToZero:
+        LLVMValueRef size = LLVMSizeOf(codegen_type(ins->operands[0]->type->valuetype))
+        LLVMBuildMemSet(st->builder, get_local_var(st, ins->operands[0]), LLVMConstInt(LLVMInt8Type(), 0, false), size, 0)
+    elif ins->kind == CfInstructionKind::PtrAddInt:
+        set_local_var(st, ins->destvar, LLVMBuildGEP(st->builder, get_local_var(st, ins->operands[0]), (LLVMValueRef[]){get_local_var(st, ins->operands[1])}, 1, "ptr_add_int"))
+    elif ins->kind == CfInstructionKind::NumCast:
+        from = ins->operands[0]->type
+        to = ins->destvar->type
+        assert is_number_type(from) and is_number_type(to)
 
-#undef setdest
-#undef get
-#undef getop
-}
+        if is_integer_type(from) and is_integer_type(to):
+            # Examples:
+            #  signed 8-bit 0xFF (-1) --> 16-bit 0xFFFF (-1 or max value)
+            #  unsigned 8-bit 0xFF (255) --> 16-bit 0x00FF (255)
+            set_local_var(st, ins->destvar, LLVMBuildIntCast2(st->builder, get_local_var(st, ins->operands[0]), codegen_type(to), from->kind == TYPE_SIGNED_INTEGER, "int_cast"))
+        elif is_integer_type(from) and to->kind == TYPE_FLOATING_POINT:
+            # integer --> double / float
+            if from->kind == TYPE_SIGNED_INTEGER:
+                set_local_var(st, ins->destvar, LLVMBuildSIToFP(st->builder, get_local_var(st, ins->operands[0]), codegen_type(to), "cast"))
+            else:
+                set_local_var(st, ins->destvar, LLVMBuildUIToFP(st->builder, get_local_var(st, ins->operands[0]), codegen_type(to), "cast"))
+        elif from->kind == TYPE_FLOATING_POINT and is_integer_type(to):
+            if to->kind == TYPE_SIGNED_INTEGER:
+                set_local_var(st, ins->destvar, LLVMBuildFPToSI(st->builder, get_local_var(st, ins->operands[0]), codegen_type(to), "cast"))
+            else:
+                set_local_var(st, ins->destvar, LLVMBuildFPToUI(st->builder, get_local_var(st, ins->operands[0]), codegen_type(to), "cast"))
+        elif from->kind == TYPE_FLOATING_POINT and to->kind == TYPE_FLOATING_POINT:
+            set_local_var(st, ins->destvar, LLVMBuildFPCast(st->builder, get_local_var(st, ins->operands[0]), codegen_type(to), "cast"))
+        else:
+            assert False
+    elif ins->kind == CfInstructionKind::BoolNegate:
+        set_local_var(st, ins->destvar, LLVMBuildXor(st->builder, get_local_var(st, ins->operands[0]), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate"))
+    elif ins->kind == CfInstructionKind::PtrCast:
+        set_local_var(st, ins->destvar, LLVMBuildBitCast(st->builder, get_local_var(st, ins->operands[0]), codegen_type(ins->destvar->type), "ptr_cast"))
+    elif ins->kind == CfInstructionKind::Varcpy or ins->kind == CfInstructionKind::Int32ToEnum or ins->kind == CfInstructionKind::EnumToInt32:
+        set_local_var(st, ins->destvar, get_local_var(st, ins->operands[0]))
+    elif ins->kind == CfInstructionKind::NumAdd or ins->kind == CfInstructionKind::NumSub or ins->kind == CfInstructionKind::NumMul or ins->kind == CfInstructionKind::NumDiv or ins->kind == CfInstructionKind::NumMod:
+        codegen_arithmetic_instruction(st, ins)
+    elif ins->kind == CfInstructionKind::NumEq:
+        if is_integer_type(ins->operands[0]->type):
+            set_local_var(st, ins->destvar, LLVMBuildICmp(st->builder, LLVMIntEQ, get_local_var(st, ins->operands[0]), get_local_var(st, ins->operands[1]), "num_eq"))
+        else:
+            set_local_var(st, ins->destvar, LLVMBuildFCmp(st->builder, LLVMRealOEQ, get_local_var(st, ins->operands[0]), get_local_var(st, ins->operands[1]), "num_eq"))
+    elif ins->kind == CfInstructionKind::NumLt:
+        if (ins->operands[0]->type->kind == TYPE_UNSIGNED_INTEGER and ins->operands[1]->type->kind == TYPE_UNSIGNED_INTEGER)
+            set_local_var(st, ins->destvar, LLVMBuildICmp(st->builder, LLVMIntULT, get_local_var(st, ins->operands[0]), get_local_var(st, ins->operands[1]), "num_lt"))
+        else if is_integer_type(ins->operands[0]->type) and is_integer_type(ins->operands[1]->type):
+            set_local_var(st, ins->destvar, LLVMBuildICmp(st->builder, LLVMIntSLT, get_local_var(st, ins->operands[0]), get_local_var(st, ins->operands[1]), "num_lt"))
+        else:
+            set_local_var(st, ins->destvar, LLVMBuildFCmp(st->builder, LLVMRealOLT, get_local_var(st, ins->operands[0]), get_local_var(st, ins->operands[1]), "num_lt"))
+    else:
+        assert False
 
-static int find_block(const CfGraph *cfg, const CfBlock *b)
-{
-    for (int i = 0; i < cfg->all_blocks.len; i++)
-        if (cfg->all_blocks.ptr[i] == b)
-            return i;
-    assert(0);
-}
 
-#if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
-static void codegen_call_to_the_special_startup_function(st: State*)
-{
-    LLVMType* functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
-    LLVMValue* func = LLVMAddFunction(st->module, "_jou_startup", functype);
-    LLVMBuildCall2(st->builder, functype, func, NULL, 0, "");
-}
-#endif
+def find_block(const CfGraph *cfg, const CfBlock *b) -> int:
+    for i = 0; i < cfg->all_blocks.len; i++:
+        if cfg->all_blocks.ptr[i] == b:
+            return i
+    assert False
 
-static void codegen_function_or_method_def(st: State*, const CfGraph *cfg)
-{
-    st->cfvars = cfg->locals.ptr;
-    st->cfvars_end = End(cfg->locals);
-    st->llvm_locals = malloc(sizeof(st->llvm_locals[0]) * cfg->locals.len); // NOLINT
 
-    LLVMValue* llvm_func = codegen_function_or_method_decl(st, &cfg->signature);
+def codegen_call_to_the_special_startup_function(st: State*) -> None:
+    if WINDOWS or MACOS or NETBSD:
+        functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false)
+        func = LLVMAddFunction(st->module, "_jou_startup", functype)
+        LLVMBuildCall2(st->builder, functype, func, NULL, 0, "")
 
-    LLVMBasicBlock* *blocks = malloc(sizeof(blocks[0]) * cfg->all_blocks.len); // NOLINT
-    for (int i = 0; i < cfg->all_blocks.len; i++) {
-        char name[50];
-        sprintf(name, "block%d", i);
-        blocks[i] = LLVMAppendBasicBlock(llvm_func, name);
-    }
 
-    assert(cfg->all_blocks.ptr[0] == &cfg->start_block);
-    LLVMPositionBuilderAtEnd(st->builder, blocks[0]);
+def codegen_function_or_method_def(st: State*, cfg: CfGraph*) -> None:
+    st->cfvars = cfg->locals
+    st->cfvars_end = &cfg->locals[cfg->nlocals]
+    st->llvm_locals = malloc(sizeof(st->llvm_locals[0]) * cfg->nlocals)
 
-#if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
-    if (!get_self_class(&cfg->signature) && !strcmp(cfg->signature.name, "main"))
-        codegen_call_to_the_special_startup_function(st);
-#endif
+    llvm_func = codegen_function_or_method_decl(st, &cfg->signature)
 
-    // Allocate stack space for local variables at start of function.
-    LLVMValue* return_value = NULL;
-    for (int i = 0; i < cfg->locals.len; i++) {
-        LocalVariable *v = cfg->locals.ptr[i];
-        st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(v->type), v->name);
-        if (!strcmp(v->name, "return"))
-            return_value = st->llvm_locals[i];
-    }
+    blocks: LLVMBasicBlock** = malloc(sizeof(blocks[0]) * cfg->all_blocks.len)
+    for i = 0; i < cfg->all_blocks.len; i++:
+        name: byte[50]
+        sprintf(name, "block%d", i)
+        blocks[i] = LLVMAppendBasicBlock(llvm_func, name)
 
-    // Place arguments into the first n local variables.
-    for (int i = 0; i < cfg->signature.nargs; i++)
-        set_local_var(st, cfg->locals.ptr[i], LLVMGetParam(llvm_func, i));
+    assert cfg->all_blocks.ptr[0] == &cfg->start_block
+    LLVMPositionBuilderAtEnd(st->builder, blocks[0])
 
-    for (CfBlock **b = cfg->all_blocks.ptr; b <End(cfg->all_blocks); b++) {
-        LLVMPositionBuilderAtEnd(st->builder, blocks[b - cfg->all_blocks.ptr]);
+    if get_self_class(&cfg->signature) == NULL and strcmp(cfg->signature.name, "main") == 0:
+        # Insert special code at start of main()
+        codegen_call_to_the_special_startup_function(st)
 
-        for (CfInstruction *ins = (*b)->instructions.ptr; ins < End((*b)->instructions); ins++)
-            codegen_instruction(st, ins);
+    # Allocate stack space for local variables at start of function.
+    return_value: LLVMValue* = NULL
+    for i = 0; i < cfg->locals.len; i++:
+        v = cfg->locals[i]
+        st->llvm_locals[i] = LLVMBuildAlloca(st->builder, codegen_type(v->type), v->name)
+        if strcmp(v->name, "return") == 0:
+            return_value = st->llvm_locals[i]
 
-        if (*b == &cfg->end_block) {
-            assert((*b)->instructions.len == 0);
-            // The "return" variable may have been deleted as unused.
-            // In that case return_value is NULL but signature.returntype isn't.
-            if (return_value)
-                LLVMBuildRet(st->builder, LLVMBuildLoad(st->builder, return_value, "return_value"));
-            else if (cfg->signature.returntype || cfg->signature.is_noreturn)
-                LLVMBuildUnreachable(st->builder);
-            else
-                LLVMBuildRetVoid(st->builder);
-        } else if ((*b)->iftrue && (*b)->iffalse) {
-            if ((*b)->iftrue == (*b)->iffalse) {
-                LLVMBuildBr(st->builder, blocks[find_block(cfg, (*b)->iftrue)]);
-            } else {
-                assert((*b)->branchvar);
+    # Place arguments into the first n local variables.
+    for i = 0; i < cfg->signature.nargs; i++:
+        set_local_var(st, cfg->locals.ptr[i], LLVMGetParam(llvm_func, i))
+
+    for b = cfg->all_blocks; b < &cfg->all_blocks[cfg->n_all_blocks]; b++:
+        LLVMPositionBuilderAtEnd(st->builder, blocks[b - cfg->all_blocks.ptr])
+
+        for ins = (*b)->instructions; ins < &(*b)->instructions[(*b)->ninstructions]; ins++:
+            codegen_instruction(st, ins)
+
+        if *b == &cfg->end_block:
+            assert (*b)->instructions.len == 0
+            # The "return" variable may have been deleted as unused.
+            # In that case return_value is NULL but signature.returntype isn't.
+            if return_value != NULL:
+                LLVMBuildRet(st->builder, LLVMBuildLoad(st->builder, return_value, "return_value"))
+            else if cfg->signature.returntype != NULL or cfg->signature.is_noreturn:
+                LLVMBuildUnreachable(st->builder)
+            else:
+                LLVMBuildRetVoid(st->builder)
+        elif (*b)->iftrue != NULL and (*b)->iffalse != NULL:
+            if (*b)->iftrue == (*b)->iffalse:
+                LLVMBuildBr(st->builder, blocks[find_block(cfg, (*b)->iftrue)])
+            else:
+                assert (*b)->branchvar != NULL
                 LLVMBuildCondBr(
                     st->builder,
                     get_local_var(st, (*b)->branchvar),
                     blocks[find_block(cfg, (*b)->iftrue)],
-                    blocks[find_block(cfg, (*b)->iffalse)]);
-            }
-        } else if (!(*b)->iftrue && !(*b)->iffalse) {
+                    blocks[find_block(cfg, (*b)->iffalse)])
+        elif (*b)->iftrue == NULL and (*b)->iffalse == NULL:
             LLVMBuildUnreachable(st->builder);
-        } else {
-            assert(0);
-        }
+        else:
+            assert False
+
+    free(blocks)
+    free(st->llvm_locals)
+
+
+def codegen(cfgfile: CfGraphFile*, ft: FileTypes*) -> LLVMModule*:
+    st = State{
+        module = LLVMModuleCreateWithName(cfgfile->filename),
+        builder = LLVMCreateBuilder(),
     }
 
-    free(blocks);
-    free(st->llvm_locals);
-}
+    LLVMSetTarget(st.module, target.triple)
+    LLVMSetDataLayout(st.module, target.data_layout)
 
-LLVMModule* codegen(const CfGraphFile *cfgfile, const FileTypes *ft)
-{
-    struct State st = {
-        .module = LLVMModuleCreateWithName(cfgfile->filename),
-        .builder = LLVMCreateBuilder(),
-    };
+    for v = ft->globals.ptr; v < &ft->globals[ft->nglobals]; v++:
+        LLVMTypeRef t = codegen_type(v->type)
+        LLVMValueRef globalptr = LLVMAddGlobal(st.module, t, v->name)
+        if v->defined_in_current_file:
+            LLVMSetInitializer(globalptr, LLVMConstNull(t))
 
-    LLVMSetTarget(st.module, get_target()->triple);
-    LLVMSetDataLayout(st.module, get_target()->data_layout);
+    for g = cfgfile->graphs.ptr; g < &cfgfile->graphs[cfgfile->ngraphs]; g++:
+        codegen_function_or_method_def(&st, *g)
 
-    for (GlobalVariable *v = ft->globals.ptr; v < End(ft->globals); v++) {
-        LLVMType* t = codegen_type(v->type);
-        LLVMValue* globalptr = LLVMAddGlobal(st.module, t, v->name);
-        if (v->defined_in_current_file)
-            LLVMSetInitializer(globalptr, LLVMConstNull(t));
-    }
-
-    for (CfGraph **g = cfgfile->graphs.ptr; g < End(cfgfile->graphs); g++)
-        codegen_function_or_method_def(&st, *g);
-
-    LLVMDisposeBuilder(st.builder);
-    return st.module;
-}
+    LLVMDisposeBuilder(st.builder)
+    return st.module
