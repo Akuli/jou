@@ -116,10 +116,12 @@ for action in ${actions[@]}; do
     (
         set +e
         ./jou $flag $file 2>&1 | grep -vE 'undefined reference to|multiple definition of|\bld: |compiler warning for file'
+        true
     ) > tmp/compare_compilers/compiler_written_in_c.txt
     (
         set +e
         ./self_hosted_compiler $flag $file 2>&1 | grep -vE 'undefined reference to|multiple definition of|\bld: |linking failed|compiler warning for file'
+        true
     ) > tmp/compare_compilers/self_hosted.txt
 
     if [ -f $error_list_file ] && grep -qxF $file <(cat $error_list_file | tr -d '\r'); then
