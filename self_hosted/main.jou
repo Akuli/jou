@@ -248,36 +248,36 @@ def compile_ast_to_object_file(fs: FileState*) -> byte*:
         print_control_flow_graphs(&cfgfile)
 
     # TODO: implement this
-    assert False
 #    if command_line_args.verbosity >= 1:
 #        printf("Analyzing CFGs: %s\n", fs->path)
 #    simplify_control_flow_graphs(&cfgfile)
 #    if command_line_args.verbosity >= 2:
 #        print_control_flow_graphs(&cfgfile)
-#
-#    if command_line_args.verbosity >= 1:
-#        printf("Building LLVM IR: %s\n", fs->path)
-#
-#    mod = codegen(&cfgfile, &fs->types)
-#    free_control_flow_graphs(&cfgfile)
-#
-#    if command_line_args.verbosity >= 2:
-#        print_llvm_ir(mod, False)
-#
-#    # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
-#    # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
-#    LLVMVerifyModule(mod, LLVMAbortProcessAction, NULL)
-#
-#    if command_line_args.optlevel != 0:
-#        if command_line_args.verbosity >= 1:
-#            printf("Optimizing %s (level %d)\n", fs->path, command_line_args.optlevel)
-#        optimize(mod, command_line_args.optlevel)
-#        if command_line_args.verbosity >= 2:
-#            print_llvm_ir(mod, True)
-#
-#    objpath = compile_to_object_file(mod)
-#    LLVMDisposeModule(mod)
-#    return objpath
+
+    if command_line_args.verbosity >= 1:
+        printf("Building LLVM IR: %s\n", fs->path)
+
+    mod = codegen(&cfgfile, &fs->types)
+    free_control_flow_graphs(&cfgfile)
+
+    if command_line_args.verbosity >= 2:
+        print_llvm_ir(mod, False)
+
+    # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
+    # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
+    LLVMVerifyModule(mod, LLVMAbortProcessAction, NULL)
+
+    if command_line_args.optlevel != 0:
+        if command_line_args.verbosity >= 1:
+            printf("Optimizing %s (level %d)\n", fs->path, command_line_args.optlevel)
+        optimize(mod, command_line_args.optlevel)
+        if command_line_args.verbosity >= 2:
+            print_llvm_ir(mod, True)
+
+    objpath = compile_to_object_file(mod)
+    LLVMDisposeModule(mod)
+    return objpath
+
 
 def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSymbol*) -> bool:
     if stmt->kind == AstStatementKind::Function:
