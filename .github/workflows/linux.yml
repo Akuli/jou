@@ -36,8 +36,14 @@ jobs:
       - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make
       - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
-      - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
-      - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }} --verbose"
+      - name: "Test stage 1 compiler"
+        run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}" --stage1
+      - name: "Test stage 2 compiler"
+        run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}" --stage2
+      - name: "Test stage 3 compiler"
+        run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
+      - name: "Test stage 3 compiler with the compiler's --verbose flag"
+        run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
       - run: make clean
       - name: Check that "make clean" deleted all files not committed to Git
         run: |
