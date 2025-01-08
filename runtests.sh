@@ -102,7 +102,11 @@ mkdir -p tmp/tests
 
 joudir="$(pwd)"
 if [[ "$OS" =~ Windows ]]; then
-    jouexe="jou.exe"
+    if [ $stage = 3 ]; then
+        jouexe="jou.exe"
+    else
+        jouexe="bootstrap/stage$stage.exe"
+    fi
     if [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
         # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
         letter=${joudir:1:1}
@@ -110,7 +114,11 @@ if [[ "$OS" =~ Windows ]]; then
         unset letter
     fi
 else
-    jouexe="./jou"
+    if [ $stage = 3 ]; then
+        jouexe="./jou"
+    else
+        jouexe="./bootstrap/stage$stage"
+    fi
 fi
 echo "<joudir> in expected output will be replaced with $joudir."
 echo "<jouexe> in expected output will be replaced with $jouexe."
@@ -261,10 +269,32 @@ for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou tests/s
         continue
     fi
 
+    # For early bootstrapping stages, we only want to ensure that the bootstrap
+    # compiler supports all Jou syntax. Getting error handling exactly right
+    # doesn't matter, because users don't see it anyway.
+    if [ $stage != 3 ] && grep -qE 'Warning:|Error:' $joufile; then
+        continue
+    fi
+
+    # compiler_cli.jou hard-codes ./jou or ./jou.exe, so it tests stage 3 anyway
+    if [ $stage != 3 ] && [[ $joufile =~ compiler_cli ]]; then
+        continue
+    fi
+
     case $joufile in
-        examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
-        *) correct_exit_code=1; ;;  # compiler or runtime error
+        examples/* | tests/should_succeed/*)
+            correct_exit_code=0
+            ;;
+        *)
+            # It's supposed to fail when compiling or at runtime.
+            #
+            if [ $stage != 3 ]; then
+                continue
+            fi
+            correct_exit_code=1
+            ;;
     esac
+
     counter=$((counter + 1))
 
     if should_skip $joufile $correct_exit_code; then
