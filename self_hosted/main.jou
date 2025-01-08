@@ -5,6 +5,7 @@ import "stdlib/errno.jou"
 import "stdlib/str.jou"
 
 import "./build_cfg.jou"
+import "./evaluate.jou"
 import "./run.jou"
 import "./codegen.jou"
 import "./print.jou"
@@ -203,9 +204,9 @@ def parse_file(compst: CompileState*, filename: byte*, import_location: Location
     free_tokens(tokens)
 
     # TODO: enable this
-#    if command_line_args.verbosity >= 1:
-#        printf("Evaluating compile-time if statements in %s\n", filename)
-#    evaluate_compile_time_if_statements(&fs.ast.body)
+    if command_line_args.verbosity >= 1:
+        printf("Evaluating compile-time if statements in %s\n", filename)
+    evaluate_compile_time_if_statements(&fs.ast.body)
 
     if command_line_args.verbosity >= 2:
         fs.ast.print()

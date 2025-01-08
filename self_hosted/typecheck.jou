@@ -3,13 +3,10 @@ import "stdlib/math.jou"
 import "stdlib/mem.jou"
 
 import "./structs.jou"
+import "./evaluate.jou"
 import "./types.jou"
 import "./ast.jou"
 import "./errors_and_warnings.jou"
-
-# TODO: dummy function for now
-def get_special_constant(name: byte*) -> int:
-    return -1
 
 def find_type(ft: FileTypes*, name: byte*) -> Type*:
     for t = ft->types; t < &ft->types[ft->ntypes]; t++:
