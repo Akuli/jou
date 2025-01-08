@@ -108,17 +108,19 @@ for action in ${actions[@]}; do
         flag=--${action}-only
     fi
 
-    # Run both compilers, and filter out lines that are known to differ but it doesn't matter (mostly linker errors)
-    # Run compilers in parallel to speed up.
+    # Run both compilers, and filter out lines that are known to differ but it doesn't
+    # matter (mostly linker errors).
+    #
+    # It is tempting to run compilers in parallel to speed up, but it doesn't work
+    # because they use the same temporary files in jou_compiled directories.
     (
         set +e
         ./jou $flag $file 2>&1 | grep -vE 'undefined reference to|multiple definition of|\bld: |compiler warning for file'
-    ) > tmp/compare_compilers/compiler_written_in_c.txt &
+    ) > tmp/compare_compilers/compiler_written_in_c.txt
     (
         set +e
         ./self_hosted_compiler $flag $file 2>&1 | grep -vE 'undefined reference to|multiple definition of|\bld: |linking failed|compiler warning for file'
-    ) > tmp/compare_compilers/self_hosted.txt &
-    wait
+    ) > tmp/compare_compilers/self_hosted.txt
 
     if [ -f $error_list_file ] && grep -qxF $file <(cat $error_list_file | tr -d '\r'); then
         # The file is skipped, so the two compilers should behave differently
