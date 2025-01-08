@@ -52,12 +52,11 @@ jobs:
       issues: write
     steps:
       - run: |
-          echo "Checking if there is already an issue about valgrind failures..."
-          if curl -s https://api.github.com/repos/${{ github.repository }}/issues?state=open | jq '.[].title' | grep "Running tests with valgrind failed on"; then
-            echo "There is already an open issue about valgrind. Not creating a new one."
+          echo "Checking if there is already an issue about valgrind errors..."
+          if curl -s https://api.github.com/repos/${{ github.repository }}/issues?state=open | jq '.[].title' | grep "Running tests with valgrind failed"; then
+            echo "There is already an open issue about the valgrind errors. Not creating a new one."
           else
             echo "No open issue found, creating a new one."
-            title="Running tests with valgrind failed on $(date +'%Y-%m-%d')"
             curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -H "Accept: application/vnd.github.v3+json" \
               https://api.github.com/repos/${{ github.repository }}/issues \
