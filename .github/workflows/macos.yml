@@ -5,9 +5,42 @@ on:
   pull_request:
 
 jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        # Testing all levels because there was a bug that only happened with -O1. (#224)
+        opt-level: ['-O0', '-O1', '-O2', '-O3']
+    steps:
+      - uses: actions/checkout@v3
+      - run: brew install bash diffutils llvm@14
+
+      - run: make
+      - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
+      - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }} --verbose"
+      - run: make clean
+
+      - name: Check that "make clean" deleted all files not committed to Git
+        shell: bash
+        run: |
+          if [ "$(git status --porcelain --ignored)" != "" ]; then
+            git status --ignored
+            exit 1
+          fi
+
   doctest:
     runs-on: macos-latest
     timeout-minutes: 5
     steps:
-      - run: |
-          env | grep ARCH
+      - uses: actions/checkout@v3
+      - run: brew install bash diffutils llvm@14
+      - run: ./doctest.sh
+
+  compare-compilers:
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v3
+      - run: brew install bash diffutils llvm@14
+      - run: ./compare_compilers.sh
