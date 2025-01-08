@@ -7,6 +7,7 @@ on:
 jobs:
   test:
     runs-on: macos-latest
+    timeout-minutes: 5
     strategy:
       matrix:
         # Testing all levels because there was a bug that only happened with -O1. (#224)
@@ -37,6 +38,7 @@ jobs:
 
   doctest:
     runs-on: macos-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v3
       - run: brew install bash diffutils llvm@{13,14}
@@ -47,6 +49,7 @@ jobs:
 
   compare-compilers:
     runs-on: macos-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v3
       - run: brew install bash diffutils llvm@{13,14}
