@@ -43,7 +43,7 @@ jobs:
       - name: "Test stage 3 compiler"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
       - name: "Test stage 3 compiler with the compiler's --verbose flag"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
+        run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }} --verbose"
       - run: make clean
       - name: Check that "make clean" deleted all files not committed to Git
         run: |
