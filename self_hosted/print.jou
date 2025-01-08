@@ -182,42 +182,44 @@ def print_control_flow_graph(cfg: CfGraph*) -> None:
         printf("    %-20s  %s\n", varname_for_printing(*var), (*var)->type->name)
 
     for blockidx = 0; blockidx < cfg->n_all_blocks; blockidx++:
-        printf("  Block %d", blockidx)
+        b = cfg->all_blocks[blockidx]
 
-        b = &cfg->all_blocks[blockidx]
-        if *b == &cfg->start_block:
+        printf("  Block %d", blockidx)
+        #printf(" at %p", b)
+
+        if b == &cfg->start_block:
             printf(" (start block)")
-        if *b == &cfg->end_block:
-            assert (*b)->ninstructions == 0
+        if b == &cfg->end_block:
+            assert b->ninstructions == 0
             printf(" is the end block.\n")
             continue
 
         printf(":\n")
 
-        for ins = (*b)->instructions; ins < &(*b)->instructions[(*b)->ninstructions]; ins++:
+        for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
             print_cf_instruction(ins)
 
-        if *b == &cfg->end_block:
-            assert (*b)->iftrue == NULL
-            assert (*b)->iffalse == NULL
-        elif (*b)->iftrue == NULL and (*b)->iffalse == NULL:
+        if b == &cfg->end_block:
+            assert b->iftrue == NULL
+            assert b->iffalse == NULL
+        elif b->iftrue == NULL and b->iffalse == NULL:
             printf("    Execution stops here. We have called a noreturn function.\n")
         else:
             trueidx = -1
             falseidx = -1
             for i = 0; i < cfg->n_all_blocks; i++:
-                if cfg->all_blocks[i] == (*b)->iftrue:
+                if cfg->all_blocks[i] == b->iftrue:
                     trueidx = i
-                if cfg->all_blocks[i]==(*b)->iffalse:
+                if cfg->all_blocks[i]==b->iffalse:
                     falseidx = i
             assert trueidx != -1
             assert falseidx != -1
             if trueidx == falseidx:
                 printf("    Jump to block %d.\n", trueidx)
             else:
-                assert (*b)->branchvar != NULL
+                assert b->branchvar != NULL
                 printf("    If %s is True jump to block %d, otherwise block %d.\n",
-                    varname_for_printing((*b)->branchvar), trueidx, falseidx)
+                    varname_for_printing(b->branchvar), trueidx, falseidx)
 
     printf("\n")
 
