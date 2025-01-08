@@ -229,13 +229,17 @@ function run_test()
     local command=""
 
     if [ $stage = 3 ]; then
-        command="jou"
+        if [[ "$OS" =~ Windows ]]; then
+            command="jou.exe"
+        else
+            command="jou"
+        fi
     else
-        command="stage$stage"  # in "bootstrap" folder, PATH is adjusted in other part of this script
-    fi
-
-    if [[ "$OS" =~ Windows ]]; then
-        command="$command.exe"
+        if [[ "$OS" =~ Windows ]]; then
+            command="bootstrap\stage$stage.exe"
+        else
+            command="bootstrap/stage$stage"
+        fi
     fi
 
     if [ $valgrind = yes ] && [ $correct_exit_code == 0 ]; then
@@ -268,13 +272,7 @@ function run_test()
     if $DIFF --text -u $diff_color <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
-        if [ $stage == 3 ]; then
-            export PATH="$PWD:$PATH"
-        else
-            # stage1 and stage2 executables are in "bootstrap/" folder
-            export PATH="$PWD/bootstrap:$PATH"
-        fi
-
+        export PATH="$PWD:$PATH"
         if [ $valgrind = no ]; then
             ulimit -v 500000 2>/dev/null
         fi
