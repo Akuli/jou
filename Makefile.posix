@@ -49,12 +49,12 @@ bootstrap/stage1: $(BSRC:bootstrap_compiler/%.c=bootstrap/obj/%.o)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 # Stage 2 of bootstrapping: Compile the Jou compiler with the bootstrap compiler.
-bootstrap/stage2: bootstrap/stage1 config.jou $(wildcard jou_compiler/*.jou)
-	bootstrap/stage1 -o bootstrap/stage2 --linker-flags "$(LDFLAGS)" jou_compiler/main.jou
+bootstrap/stage2: bootstrap/stage1 config.jou $(wildcard compiler/*.jou)
+	rm -rf compiler/jou_compiled && bootstrap/stage1 -o bootstrap/stage2 --linker-flags "$(LDFLAGS)" compiler/main.jou
 
 # Stage 3 of bootstrapping: Compile the Jou compiler with the Jou compiler.
-jou: bootstrap/stage2 config.jou $(wildcard jou_compiler/*.jou)
-	bootstrap/stage2 -o jou --linker-flags "$(LDFLAGS)" jou_compiler/main.jou
+jou: bootstrap/stage2 config.jou $(wildcard compiler/*.jou)
+	rm -rf compiler/jou_compiled && bootstrap/stage2 -o jou --linker-flags "$(LDFLAGS)" compiler/main.jou
 
 .PHONY: clean
 clean:

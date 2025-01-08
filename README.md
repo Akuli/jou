@@ -211,7 +211,7 @@ Run `jou --update`.
 
 ## Compilers
 
-The Jou compiler (in [jou_compiler/](./jou_compiler/) folder) is written in Jou.
+The Jou compiler (in [compiler/](./compiler/) folder) is written in Jou.
 It can compile itself.
 However, this doesn't help you much if you have nothing that can compile Jou code.
 
