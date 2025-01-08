@@ -236,7 +236,8 @@ function run_test()
         fi
     else
         if [[ "$OS" =~ Windows ]]; then
-            command="stage$stage.exe"
+            # I can't get this to work without an absolute path.
+            command="\"$joudir/$jouexe\""
         else
             command="stage$stage"
         fi
@@ -272,7 +273,7 @@ function run_test()
     if $DIFF --text -u $diff_color <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
-        export PATH="$PWD:$PWD/bootstrap:$PWD\bootstrap:$PATH"
+        export PATH="$PWD:$PWD/bootstrap:$PATH"
         if [ $valgrind = no ]; then
             ulimit -v 500000 2>/dev/null
         fi
