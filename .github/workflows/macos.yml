@@ -23,7 +23,7 @@ jobs:
       - run: make clean
 
       - name: Compile with LLVM 14
-      - run: LLVM_CONFIG=/usr/local/opt/llvm@14/bin/llvm-config make
+        run: LLVM_CONFIG=/usr/local/opt/llvm@14/bin/llvm-config make
       - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
       - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }} --verbose"
       - run: make clean
