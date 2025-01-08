@@ -38,7 +38,9 @@ def run_linker(objpaths: byte**, exepath: byte*) -> None:
         strcat(quoted_object_files, objpaths[i])  # TODO: escape properly?
         strcat(quoted_object_files, "\"")
 
-    size = strlen(instdir) + strlen(quoted_object_files) + strlen(exepath) + strlen(linker_flags) + strlen(get_jou_clang_path()) + 100
+    size = strlen(instdir) + strlen(quoted_object_files) + strlen(exepath) + strlen(linker_flags) + 100
+    if get_jou_clang_path() != NULL:
+        size += strlen(get_jou_clang_path())
     command: byte* = malloc(size)
 
     if WINDOWS:
