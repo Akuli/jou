@@ -21,12 +21,22 @@ class Target:
 
 global target: Target
 
+
 def init_target() -> None:
     LLVMInitializeX86TargetInfo()
     LLVMInitializeX86Target()
     LLVMInitializeX86TargetMC()
     LLVMInitializeX86AsmParser()
     LLVMInitializeX86AsmPrinter()
+
+    if MACOS:
+        # Support the new M1 macs. This will enable the target also on x86_64
+        # macs, but it doesn't matter.
+        LLVMInitializeAArch64TargetInfo()
+        LLVMInitializeAArch64Target()
+        LLVMInitializeAArch64TargetMC()
+        LLVMInitializeAArch64AsmParser()
+        LLVMInitializeAArch64AsmPrinter()
 
     if WINDOWS:
         # LLVM's default is x86_64-pc-windows-msvc
@@ -48,7 +58,7 @@ def init_target() -> None:
     target.target_machine = LLVMCreateTargetMachine(
         target.target,
         target.triple,
-        "x86-64",
+        "",
         "",
         LLVMCodeGenOptLevel::Default,
         LLVMRelocMode::PIC,

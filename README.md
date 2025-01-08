@@ -121,12 +121,12 @@ $ LLVM_CONFIG=llvm-config-11 make
 
 MacOS support is new. Please create an issue if something doesn't work.
 
-1. Install Git, make and LLVM 13.
+1. Install Git, make and LLVM 14.
     If you do software development on MacOS, you probably already have Git and make,
     because they come with Xcode Command Line Tools.
-    You can use [brew](https://brew.sh/) to install LLVM 13:
+    You can use [brew](https://brew.sh/) to install LLVM 14:
     ```
-    $ brew install llvm@13
+    $ brew install llvm@14
     ```
 2. Download and compile Jou.
     ```
