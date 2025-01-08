@@ -1,5 +1,4 @@
 import "stdlib/math.jou"
-import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
@@ -181,7 +180,6 @@ def codegen_function_or_method_decl(st: State*, sig: Signature*) -> LLVMValue*:
 
 
 def codegen_call(st: State*, sig: Signature*, args: LLVMValue**, nargs: int) -> LLVMValue*:
-    printf("Calling %s with %d args\n", signature_to_string(sig, False, True), nargs)
     function: LLVMValue* = codegen_function_or_method_decl(st, sig)
     assert function != NULL
     assert LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind::Pointer
