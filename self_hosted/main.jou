@@ -5,6 +5,7 @@ import "stdlib/errno.jou"
 import "stdlib/str.jou"
 
 import "./build_cfg.jou"
+import "./codegen.jou"
 import "./print.jou"
 import "./llvm.jou"
 import "./output.jou"
@@ -265,7 +266,7 @@ def compile_ast_to_object_file(fs: FileState*) -> byte*:
 
     # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
     # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
-    LLVMVerifyModule(mod, LLVMAbortProcessAction, NULL)
+    LLVMVerifyModule(mod, LLVMVerifierFailureAction::AbortProcess, NULL)
 
     if command_line_args.optlevel != 0:
         if command_line_args.verbosity >= 1:
