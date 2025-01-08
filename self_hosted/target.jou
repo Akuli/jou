@@ -55,9 +55,17 @@ def init_target() -> None:
         target.triple = "x86_64-pc-windows-gnu"
     else:
         system("uname -m")
+        fflush(stdout)
+        fflush(stderr)
         printf("system(...) returns %d\n", system("test `uname -m` = arm64"))
+        fflush(stdout)
+        fflush(stderr)
         triple = LLVMGetDefaultTargetTriple()
+        fflush(stdout)
+        fflush(stderr)
         printf("triple=\"%s\"\n", triple)
+        fflush(stdout)
+        fflush(stderr)
         assert strlen(triple) < sizeof target.triple
         strcpy(target.triple, triple)
         LLVMDisposeMessage(triple)
