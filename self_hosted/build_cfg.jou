@@ -487,6 +487,15 @@ def build_address_of_expression(st: State*, address_of_what: AstExpression*) -> 
             add_unary_op(st, address_of_what->location, CfInstructionKind::AddressOfLocalVar, local_var, addr)
         return addr
 
+    if address_of_what->kind == AstExpressionKind::Self:
+        ptrtype = get_pointer_type(get_expr_types(st, address_of_what)->type)
+        addr = add_local_var(st, ptrtype)
+
+        local_var = find_local_var_cf(st, "self")
+        assert local_var != NULL
+        add_unary_op(st, address_of_what->location, CfInstructionKind::AddressOfLocalVar, local_var, addr)
+        return addr
+
     if address_of_what->kind == AstExpressionKind::Dereference:
         # &*foo --> just evaluate foo
         return build_expression(st, &address_of_what->operands[0])
