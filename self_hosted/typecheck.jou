@@ -920,7 +920,7 @@ def typecheck_function_or_method_call(ft: FileTypes*, call: AstCall*, self_type:
                 self_type->name, call->name)
         elif self_type->kind == TypeKind::Pointer and find_method(self_type->value_type, call->name) != NULL:
             snprintf(
-                msg, sizeof(msg), 
+                msg, sizeof(msg),
                 "the method '%s' is defined on class %s, not on the pointer type %s, so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
                 call->name, self_type->value_type->name, self_type->name)
         else:
@@ -1008,7 +1008,7 @@ def typecheck_instantiation(ft: FileTypes*, inst: AstInstantiation*, location: L
     if t->kind != TypeKind::Class:
         snprintf(
             msg, sizeof(msg),
-            "the %s{...} syntax is only for classes, but %s is %s", 
+            "the %s{...} syntax is only for classes, but %s is %s",
             t->name, t->name, short_type_description(t))
         fail(location, msg)
 
@@ -1260,7 +1260,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
     elif expr->kind == AstExpressionKind::Negate:
         result = typecheck_expression_not_void(ft, &expr->operands[0])->type
         if result->kind != TypeKind::SignedInteger and result->kind != TypeKind::FloatingPoint:
-            snprintf(msg, sizeof(msg), 
+            snprintf(msg, sizeof(msg),
                 "value after '-' must be a float or double or a signed integer, not %s",
                 result->name)
             fail(expr->location, msg)
@@ -1439,7 +1439,7 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             fail(stmt->location, msg)
 
         if return_type != NULL and stmt->return_value == NULL:
-            snprintf(msg, sizeof(msg), 
+            snprintf(msg, sizeof(msg),
                 "a return value is needed, because the return type of function '%s' is %s",
                 ft->current_fom_types->signature.name,
                 ft->current_fom_types->signature.returntype->name)
