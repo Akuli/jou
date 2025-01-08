@@ -15,7 +15,6 @@ class AstArrayType:
     member_type: AstType*
     length: AstExpression*
 
-    # TODO: use this
     def free(self) -> None:
         self->member_type->free()
         self->length->free()
@@ -31,19 +30,15 @@ class AstType:
         value_type: AstType* # AstTypeKind::Pointer
         array: AstArrayType # AstTypeKind::Array
 
-    # TODO: use this
     def is_void(self) -> bool:
         return self->kind == AstTypeKind::Named and strcmp(self->name, "void") == 0
 
-    # TODO: use this
     def is_none(self) -> bool:
         return self->kind == AstTypeKind::Named and strcmp(self->name, "None") == 0
 
-    # TODO: use this
     def is_noreturn(self) -> bool:
         return self->kind == AstTypeKind::Named and strcmp(self->name, "noreturn") == 0
 
-    # TODO: use this
     def print(self, show_lineno: bool) -> None:
         if self->kind == AstTypeKind::Named:
             printf("%s", self->name)
@@ -59,7 +54,6 @@ class AstType:
         if show_lineno:
             printf(" [line %d]", self->location.lineno)
 
-    # TODO: use this
     def free(self) -> None:
         if self->kind == AstTypeKind::Pointer:
             self->value_type->free()
@@ -102,7 +96,7 @@ enum AstExpressionKind:
     Self    # not a variable lookup, so you can't use 'self' as variable name outside a class
     GetVariable
     GetEnumMember
-    GetClassField   # foo.bar, foo->bar
+    GetClassField
     As
     # unary operators
     SizeOf      # sizeof x
@@ -145,17 +139,15 @@ class AstExpression:
         bool_value: bool
         call: AstCall
         instantiation: AstInstantiation
-        as_: AstAsExpression*  # Must be pointer, because it contains an AstExpression
+        as_expression: AstAsExpression*  # Must be pointer, because it contains an AstExpression
         array: AstArray
         varname: byte[100]
         float_or_double_text: byte[100]
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
 
-    # TODO: use this
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
 
-    # TODO: use this
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("[line %d] ", self->location.lineno)
         if self->kind == AstExpressionKind::String:
@@ -218,9 +210,9 @@ class AstExpression:
             self->class_field.instance->print_with_tree_printer(tp.print_prefix(True))
         elif self->kind == AstExpressionKind::As:
             printf("as ")
-            self->as_->type.print(True)
+            self->as_expression->type.print(True)
             printf("\n")
-            self->as_->value.print_with_tree_printer(tp.print_prefix(True))
+            self->as_expression->value.print_with_tree_printer(tp.print_prefix(True))
         elif self->kind == AstExpressionKind::SizeOf:
             printf("sizeof\n")
         elif self->kind == AstExpressionKind::AddressOf:
@@ -271,13 +263,12 @@ class AstExpression:
         for i = 0; i < self->get_arity(); i++:
             self->operands[i].print_with_tree_printer(tp.print_prefix(i == self->get_arity()-1))
 
-    # TODO: use this
     def free(self) -> None:
         if self->kind == AstExpressionKind::Call:
             self->call.free()
         elif self->kind == AstExpressionKind::As:
-            self->as_->free()
-            free(self->as_)
+            self->as_expression->free()
+            free(self->as_expression)
         elif self->kind == AstExpressionKind::String:
             free(self->string)
         elif self->kind == AstExpressionKind::GetClassField:
@@ -288,7 +279,6 @@ class AstExpression:
                 self->operands[i].free()
             free(self->operands)
 
-    # TODO: use this
     # arity = number of operands, e.g. 2 for a binary operator such as "+"
     def get_arity(self) -> int:
         if (
@@ -322,7 +312,6 @@ class AstExpression:
             return 2
         return 0
 
-    # TODO: use this
     def can_have_side_effects(self) -> bool:
         return (
             self->kind == AstExpressionKind::Call
@@ -336,7 +325,6 @@ class AstArray:
     length: int
     items: AstExpression*
 
-    # TODO: use this
     def free(self) -> None:
         for i = 0; i < self->length; i++:
             self->items[i].free()
@@ -395,7 +383,7 @@ class AstCall:
         free(self->args)
 
 class AstInstantiation:
-    class_name_location: Location  # TODO: probably not necessary, can use location of the instantiate expression
+    class_name_location: Location
     class_name: byte[100]
     nfields: int
     field_names: byte[100]*
@@ -716,7 +704,6 @@ class AstImport:
     location: Location
     specified_path: byte*  # Path in jou code e.g. "stdlib/io.jou"
     resolved_path: byte*  # Absolute path or relative to current working directory e.g. "/home/akuli/jou/stdlib/io.jou"
-    used: bool  # For warning messages
 
     def print(self) -> None:
         printf(

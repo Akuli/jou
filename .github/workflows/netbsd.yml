@@ -10,7 +10,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: cross-platform-actions/action@v0.26.0
+      # TODO: disabled for now because freezes with no output for some reason.
+      # Started happening in #562, so it has something to do with self-hosted compiler.
+      - if: false
+        uses: cross-platform-actions/action@v0.26.0
         env:
           PKG_PATH: 'https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/amd64/10.0/All'
         with:

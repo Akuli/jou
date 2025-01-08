@@ -1,61 +1,543 @@
-# Type checking is split into several stages:
-#    1. Create types. After this, classes defined in Jou exist, but
-#       they are opaque and contain no members. Enums exist and contain
-#       their members (although it doesn't really matter whether enum
-#       members are handled in stage 1 or 2).
-#    2. Check signatures, global variables and class bodies, but ignore
-#       bodies of functions and methods. This stage assumes that all
-#       types exist, but doesn't need to know what fields each class has.
-#    3. Check function and method bodies.
-#
-# The goal of this design is to make cyclic imports possible. At each
-# stage, we don't need the results from the same stage, only from
-# previous stages. This means that cyclic imports "just work" if we do
-# each stage on all files before moving on to the next stage.
-
-import "stdlib/io.jou"
 import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/math.jou"
 import "stdlib/mem.jou"
-import "./ast.jou"
-import "./types.jou"
-import "./errors_and_warnings.jou"
+
+import "./structs.jou"
 import "./evaluate.jou"
+import "./types.jou"
+import "./ast.jou"
+import "./errors_and_warnings.jou"
+
+def find_type(ft: FileTypes*, name: byte*) -> Type*:
+    for t = ft->types; t < &ft->types[ft->ntypes]; t++:
+        if strcmp(t->type->name, name) == 0:
+            if t->usedptr != NULL:
+                *t->usedptr = True
+            return t->type
+    return NULL
+
+def find_function(ft: FileTypes*, name: byte*) -> Signature*:
+    for f = ft->functions; f < &ft->functions[ft->nfunctions]; f++:
+        if strcmp(f->signature.name, name) == 0:
+            if f->usedptr != NULL:
+                *f->usedptr = True
+            return &f->signature
+    return NULL
+
+def find_method(selfclass: Type*, name: byte*) -> Signature*:
+    if selfclass->kind != TypeKind::Class:
+        return NULL
+    for m = selfclass->classdata.methods; m < &selfclass->classdata.methods[selfclass->classdata.nmethods]; m++:
+        if strcmp(m->name, name) == 0:
+            return m
+    return NULL
+
+def find_function_or_method(ft: FileTypes*, selfclass: Type*, name: byte*) -> Signature*:
+    if selfclass != NULL:
+        return find_method(selfclass, name)
+    else:
+        return find_function(ft, name)
+
+def find_local_var(ft: FileTypes*, name: byte*) -> LocalVariable*:
+    if ft->current_fom_types != NULL:
+        for var = ft->current_fom_types->locals; var < &ft->current_fom_types->locals[ft->current_fom_types->nlocals]; var++:
+            if strcmp((*var)->name, name) == 0:
+                return *var
+    return NULL
+
+def find_any_var(ft: FileTypes*, name: byte*) -> Type*:
+    if get_special_constant(name) != -1:
+        return boolType
+    if ft->current_fom_types != NULL:
+        for lvar = ft->current_fom_types->locals; lvar < &ft->current_fom_types->locals[ft->current_fom_types->nlocals]; lvar++:
+            if strcmp((*lvar)->name, name) == 0:
+                return (*lvar)->type
+    for gvar = ft->globals; gvar < &ft->globals[ft->nglobals]; gvar++:
+        if strcmp(gvar->name, name) == 0:
+            if gvar->usedptr != NULL:
+                *gvar->usedptr = True
+            return gvar->type
+    return NULL
+
+def short_type_description(t: Type*) -> byte*:
+    if t->kind == TypeKind::OpaqueClass or t->kind == TypeKind::Class:
+        return "a class"
+    if t->kind == TypeKind::Enum:
+        return "an enum"
+    if t->kind == TypeKind::VoidPointer or t->kind == TypeKind::Pointer:
+        return "a pointer type"
+    if (
+        t->kind == TypeKind::SignedInteger
+        or t->kind == TypeKind::UnsignedInteger
+        or t->kind == TypeKind::FloatingPoint
+    ):
+        return "a number type"
+    if t->kind == TypeKind::Array:
+        return "an array type"
+    if t->kind == TypeKind::Bool:
+        return "the built-in bool type"
+    assert False
+
+def typecheck_stage1_create_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*:
+    exports: ExportSymbol* = NULL
+    nexports = 0
+
+    for i = 0; i < ast->body.nstatements; i++:
+        stmt = &ast->body.statements[i]
+
+        name: byte[100]
+        if stmt->kind == AstStatementKind::Class:
+            assert sizeof(name) == sizeof(stmt->classdef.name)
+            strcpy(name, stmt->classdef.name)
+            t = create_opaque_class(name)
+        elif stmt->kind == AstStatementKind::Enum:
+            assert sizeof(name) == sizeof(stmt->enumdef.name)
+            strcpy(name, stmt->enumdef.name)
+            t = create_enum(name, stmt->enumdef.member_count, stmt->enumdef.member_names)
+        else:
+            continue
+
+        existing = find_type(ft, name)
+        if existing != NULL:
+            msg: byte[500]
+            snprintf(msg, sizeof(msg), "%s named '%s' already exists", short_type_description(existing), name)
+            fail(stmt->location, msg)
+
+        ft->types = realloc(ft->types, sizeof(ft->types[0]) * (ft->ntypes + 1))
+        assert ft->types != NULL
+        ft->types[ft->ntypes++] = TypeAndUsedPtr{type=t, usedptr=NULL}
+
+        ft->owned_types = realloc(ft->owned_types, sizeof(ft->owned_types[0]) * (ft->n_owned_types + 1))
+        assert ft->owned_types != NULL
+        ft->owned_types[ft->n_owned_types++] = t
+
+        es = ExportSymbol{kind = ExportSymbolKind::Type, type = t}
+        assert sizeof(es.name) == sizeof(name)
+        strcpy(es.name, name)
+
+        exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+        assert exports != NULL
+        exports[nexports++] = es
+
+    exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+    assert exports != NULL
+    exports[nexports] = ExportSymbol{}  # list terminator
+    return exports
+
+def evaluate_array_length(expr: AstExpression*) -> int:
+    if expr->kind == AstExpressionKind::Int:
+        return expr->int_value
+    fail(expr->location, "cannot evaluate array length at compile time")
+
+def is_void(t: AstType*) -> bool:
+    return t->kind == AstTypeKind::Named and strcmp(t->name, "void") == 0
+
+def is_none(t: AstType*) -> bool:
+    return t->kind == AstTypeKind::Named and strcmp(t->name, "None") == 0
+
+def is_noreturn(t: AstType*) -> bool:
+    return t->kind == AstTypeKind::Named and strcmp(t->name, "noreturn") == 0
+
+def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
+    msg: byte[500]
+
+    if is_void(asttype) or is_none(asttype) or is_noreturn(asttype):
+        snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype->name)
+        fail(asttype->location, msg)
+
+    if asttype->kind == AstTypeKind::Named:
+        if strcmp(asttype->name, "short") == 0:
+            return shortType
+        if strcmp(asttype->name, "int") == 0:
+            return intType
+        if strcmp(asttype->name, "long") == 0:
+            return longType
+        if strcmp(asttype->name, "byte") == 0:
+            return byteType
+        if strcmp(asttype->name, "bool") == 0:
+            return boolType
+        if strcmp(asttype->name, "float") == 0:
+            return floatType
+        if strcmp(asttype->name, "double") == 0:
+            return doubleType
+
+        found = find_type(ft, asttype->name)
+        if found != NULL:
+            return found
+
+        snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype->name)
+        fail(asttype->location, msg)
+
+    if asttype->kind == AstTypeKind::Pointer:
+        if is_void(asttype->value_type):
+            return voidPtrType
+        return get_pointer_type(type_from_ast(ft, asttype->value_type))
+
+    if asttype->kind == AstTypeKind::Array:
+        tmp = type_from_ast(ft, asttype->value_type)
+        len = evaluate_array_length(asttype->array.length)
+        if len <= 0:
+            fail(asttype->array.length->location, "array length must be positive")
+        return get_array_type(tmp, len)
+
+    assert False
+
+def handle_global_var(ft: FileTypes*, vardecl: AstNameTypeValue*, defined_here: bool) -> ExportSymbol:
+    assert ft->current_fom_types == NULL  # find_any_var() only finds global vars
+    if find_any_var(ft, vardecl->name) != NULL:
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "a global variable named '%s' already exists", vardecl->name)
+        fail(vardecl->name_location, msg)
+
+    assert vardecl->value == NULL
+    g = GlobalVariable{
+        type = type_from_ast(ft, &vardecl->type),
+        defined_in_current_file = defined_here,
+    }
+
+    assert sizeof(g.name) == sizeof(vardecl->name)
+    strcpy(g.name, vardecl->name)
+
+    ft->globals = realloc(ft->globals, sizeof(ft->globals[0]) * (ft->nglobals + 1))
+    assert ft->globals != NULL
+    ft->globals[ft->nglobals++] = g
+
+    es = ExportSymbol{kind = ExportSymbolKind::GlobalVar, type = g.type}
+    assert sizeof(es.name) == sizeof(g.name)
+    strcpy(es.name, g.name)
+    return es
+
+def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -> Signature:
+    msg: byte[500]
+
+    if find_function_or_method(ft, self_class, astsig->name) != NULL:
+        if self_class != NULL:
+            snprintf(msg, sizeof(msg), "a method named '%s' already exists", astsig->name)
+        else:
+            snprintf(msg, sizeof(msg), "a function named '%s' already exists", astsig->name)
+        fail(astsig->name_location, msg)
+
+    sig = Signature{nargs = astsig->nargs, takes_varargs = astsig->takes_varargs}
+    assert sizeof(sig.name) == sizeof(astsig->name)
+    strcpy(sig.name, astsig->name)
+
+    size = sizeof(sig.argnames[0]) * sig.nargs
+    sig.argnames = malloc(size)
+    for i = 0; i < sig.nargs; i++:
+        assert sizeof(sig.argnames[i]) == sizeof(astsig->args[i].name)
+        strcpy(sig.argnames[i], astsig->args[i].name)
+
+    sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs)
+    for i = 0; i < sig.nargs; i++:
+        if (
+            strcmp(sig.argnames[i], "self") == 0
+            and astsig->args[i].type.kind == AstTypeKind::Named
+            and astsig->args[i].type.name[0] == '\0'
+        ):
+            # just "self" without a type after it --> default to "self: Foo*" in class Foo
+            argtype = get_pointer_type(self_class)
+        else:
+            argtype = type_from_ast(ft, &astsig->args[i].type)
+
+        if strcmp(sig.argnames[i], "self") == 0 and argtype != self_class and argtype != get_pointer_type(self_class):
+            snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class->name, self_class->name)
+            fail(astsig->args[i].type.location, msg)
+
+        sig.argtypes[i] = argtype
+
+    sig.is_noreturn = is_noreturn(&astsig->return_type)
+    if is_none(&astsig->return_type) or is_noreturn(&astsig->return_type):
+        sig.returntype = NULL
+    elif is_void(&astsig->return_type):
+        fail(astsig->return_type.location, "void is not a valid return type, use '-> None' if the function does not return a value")
+    else:
+        sig.returntype = type_from_ast(ft, &astsig->return_type)
+
+    if self_class == NULL and strcmp(sig.name, "main") == 0:
+        # special main() function checks
+        if sig.returntype != intType:
+            fail(astsig->return_type.location, "the main() function must return int")
+        if (
+            sig.nargs != 0
+            and not (
+                sig.nargs == 2
+                and sig.argtypes[0] == intType
+                and sig.argtypes[1] == get_pointer_type(get_pointer_type(byteType))
+            )
+        ):
+            fail(
+                astsig->args[0].type.location,
+                "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
+            )
+
+    sig.returntype_location = astsig->return_type.location
+
+    if self_class == NULL:
+        ft->functions = realloc(ft->functions, sizeof(ft->functions[0]) * (ft->nfunctions + 1))
+        assert ft->functions != NULL
+        ft->functions[ft->nfunctions++] = SignatureAndUsedPtr{
+            signature = copy_signature(&sig),
+            usedptr = NULL,
+        }
+
+    return sig
+
+def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> None:
+    # Previous type-checking stage created an opaque struct.
+    type: Type* = NULL
+    for s = ft->owned_types; s < &ft->owned_types[ft->n_owned_types]; s++:
+        if strcmp((*s)->name, classdef->name) == 0:
+            type = *s
+            break
+
+    assert type != NULL
+    assert type->kind == TypeKind::OpaqueClass
+    type->kind = TypeKind::Class
+
+    memset(&type->classdata, 0, sizeof type->classdata)
+
+    union_id = 0
+    for m = classdef->members; m < &classdef->members[classdef->nmembers]; m++:
+        if m->kind == AstClassMemberKind::Field:
+            f = ClassField{
+                type = type_from_ast(ft, &m->field.type),
+                union_id = union_id++,
+            }
+            assert sizeof(f.name) == sizeof(m->field.name)
+            strcpy(f.name, m->field.name)
+
+            type->classdata.fields = realloc(type->classdata.fields, sizeof(type->classdata.fields[0]) * (type->classdata.nfields + 1))
+            assert type->classdata.fields != NULL
+            type->classdata.fields[type->classdata.nfields++] = f
+
+        elif m->kind == AstClassMemberKind::Union:
+            uid = union_id++
+            for ntv = m->union_fields.fields; ntv < &m->union_fields.fields[m->union_fields.nfields]; ntv++:
+                f = ClassField{
+                    type = type_from_ast(ft, &ntv->type),
+                    union_id = uid,
+                }
+                assert sizeof(f.name) == sizeof(ntv->name)
+                strcpy(f.name, ntv->name)
+
+                type->classdata.fields = realloc(type->classdata.fields, sizeof(type->classdata.fields[0]) * (type->classdata.nfields + 1))
+                assert type->classdata.fields != NULL
+                type->classdata.fields[type->classdata.nfields++] = f
+
+        elif m->kind == AstClassMemberKind::Method:
+            # Don't handle the method body yet: that is a part of stage 3, not stage 2
+            sig = handle_signature(ft, &m->method.signature, type)
+
+            type->classdata.methods = realloc(type->classdata.methods, sizeof(type->classdata.methods[0]) * (type->classdata.nmethods + 1))
+            assert type->classdata.methods != NULL
+            type->classdata.methods[type->classdata.nmethods++] = sig
+
+        else:
+            assert False
 
 
-def can_cast_implicitly(from: Type*, to: Type*) -> bool:
-    # TODO: document these properly. But they are:
-    #   array to pointer, e.g. int[3] --> int* (needs special-casing elsewhere)
-    #   from one integer type to another bigger integer type, unless it is signed-->unsigned
-    #   between two pointer types when one of the two is void*
-    #   from float to double (TODO)
-    return (
-        from == to
-        or (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
-        or (from->kind == TypeKind::Array and to->kind == TypeKind::VoidPointer)
+def typecheck_stage2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*:
+    exports: ExportSymbol* = NULL
+    nexports = 0
+
+    for i = 0; i < ast->body.nstatements; i++:
+        stmt = &ast->body.statements[i]
+
+        exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+        assert exports != NULL
+
+        if stmt->kind == AstStatementKind::GlobalVariableDeclaration:
+            exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, False)
+        elif stmt->kind == AstStatementKind::GlobalVariableDefinition:
+            exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, True)
+        elif stmt->kind == AstStatementKind::Function:
+            sig = handle_signature(ft, &stmt->function.signature, NULL)
+            es = ExportSymbol{kind = ExportSymbolKind::Function, funcsignature = sig}
+            assert sizeof(es.name) == sizeof(sig.name)
+            strcpy(es.name, sig.name)
+            exports[nexports++] = es
+        elif stmt->kind == AstStatementKind::Class:
+            handle_class_members_stage2(ft, &stmt->classdef)
+        elif stmt->kind == AstStatementKind::Enum:
+            pass  # Everything done in previous type-checking steps.
+        else:
+            assert False
+
+    exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+    assert exports != NULL
+    exports[nexports] = ExportSymbol{}
+    return exports
+
+def add_variable(ft: FileTypes*, t: Type*, name: byte*) -> LocalVariable*:
+    var: LocalVariable* = calloc(1, sizeof *var)
+    var->id = ft->current_fom_types->nlocals
+    var->type = t
+
+    assert name != NULL
+    assert find_local_var(ft, name) == NULL
+    assert strlen(name) < sizeof(var->name)
+    strcpy(var->name, name)
+
+    ft->current_fom_types->locals = realloc(ft->current_fom_types->locals, sizeof(ft->current_fom_types->locals[0]) * (ft->current_fom_types->nlocals + 1))
+    assert ft->current_fom_types->locals != NULL
+    ft->current_fom_types->locals[ft->current_fom_types->nlocals++] = var
+
+    return var
+
+global short_expr_desc_result: byte[200]
+
+# Intended for errors. Returned string can be overwritten in next call.
+# Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
+def short_expression_description(expr: AstExpression*) -> byte*:
+    if (
+        expr->kind == AstExpressionKind::String
+        or expr->kind == AstExpressionKind::Int
+        or expr->kind == AstExpressionKind::Short
+        or expr->kind == AstExpressionKind::Long
+        or expr->kind == AstExpressionKind::Byte
+        or expr->kind == AstExpressionKind::Float
+        or expr->kind == AstExpressionKind::Double
+        or expr->kind == AstExpressionKind::Bool
+    ):
+        return "a constant"
+
+    if expr->kind == AstExpressionKind::Null:
+        return "NULL"
+    if expr->kind == AstExpressionKind::GetEnumMember:
+        return "an enum member"
+    if expr->kind == AstExpressionKind::SizeOf:
+        return "a sizeof expression"
+    if expr->kind == AstExpressionKind::Instantiate:
+        return "a newly created instance"
+    if expr->kind == AstExpressionKind::Array:
+        return "an array literal"
+    if expr->kind == AstExpressionKind::Indexing:
+        return "an indexed value"
+    if expr->kind == AstExpressionKind::As:
+        return "the result of a cast"
+    if expr->kind == AstExpressionKind::Dereference:
+        return "the value of a pointer"
+    if expr->kind == AstExpressionKind::And:
+        return "the result of 'and'"
+    if expr->kind == AstExpressionKind::Or:
+        return "the result of 'or'"
+    if expr->kind == AstExpressionKind::Not:
+        return "the result of 'not'"
+    if expr->kind == AstExpressionKind::Self:
+        return "self"
+
+    if expr->kind == AstExpressionKind::Call:
+        if expr->call.method_call_self == NULL:
+            return "a function call"
+        else:
+            return "a method call"
+
+    if expr->kind == AstExpressionKind::GetVariable:
+        if get_special_constant(expr->varname) != -1:
+            return "a special constant"
+        return "a variable"
+
+    if (
+        expr->kind == AstExpressionKind::Add
+        or expr->kind == AstExpressionKind::Subtract
+        or expr->kind == AstExpressionKind::Multiply
+        or expr->kind == AstExpressionKind::Divide
+        or expr->kind == AstExpressionKind::Modulo
+        or expr->kind == AstExpressionKind::Negate
+    ):
+        return "the result of a calculation"
+
+    if (
+        expr->kind == AstExpressionKind::Eq
+        or expr->kind == AstExpressionKind::Ne
+        or expr->kind == AstExpressionKind::Gt
+        or expr->kind == AstExpressionKind::Ge
+        or expr->kind == AstExpressionKind::Lt
+        or expr->kind == AstExpressionKind::Le
+    ):
+        return "the result of a comparison"
+
+    if (
+        expr->kind == AstExpressionKind::PreIncr
+        or expr->kind == AstExpressionKind::PostIncr
+    ):
+        return "the result of incrementing a value"
+
+    if (
+        expr->kind == AstExpressionKind::PreDecr
+        or expr->kind == AstExpressionKind::PostDecr
+    ):
+        return "the result of decrementing a value"
+
+    if expr->kind == AstExpressionKind::AddressOf:
+        snprintf(short_expr_desc_result, sizeof short_expr_desc_result, "address of %s", short_expression_description(&expr->operands[0]))
+        return short_expr_desc_result
+
+    if expr->kind == AstExpressionKind::GetClassField:
+        snprintf(short_expr_desc_result, sizeof short_expr_desc_result, "field '%s'", expr->class_field.field_name)
+        return short_expr_desc_result
+
+    assert False
+
+
+# The & operator can't go in front of most expressions.
+# You can't do &(1 + 2), for example.
+#
+# The same rules apply to assignments: "foo = bar" is treated as setting the
+# value of the pointer &foo to bar.
+#
+# errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
+def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, errmsg_template: byte*) -> None:
+    assert fom != NULL
+
+    if (
+        expr->kind == AstExpressionKind::Dereference
+        or expr->kind == AstExpressionKind::Indexing  # &foo[bar]
         or (
-            from->is_integer_type()
-            and to->is_integer_type()
-            and from->size_in_bits < to->size_in_bits
-            and not (from->kind == TypeKind::SignedInteger and to->kind == TypeKind::UnsignedInteger)
+            # &foo->bar = foo + offset (it doesn't use &foo)
+            expr->kind == AstExpressionKind::GetClassField
+            and expr->class_field.uses_arrow_operator
         )
-        or (from == &float_type and to == &double_type)
-        or (from->is_integer_type() and to->kind == TypeKind::FloatingPoint)
-        or (from->is_pointer_type() and to->is_pointer_type() and (from == &void_ptr_type or to == &void_ptr_type))
-    )
+    ):
+        return
 
-def can_cast_explicitly(from: Type*, to: Type*) -> bool:
-    return (
-        from == to
-        or (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
-        or (from->kind == TypeKind::Array and to->kind == TypeKind::VoidPointer)
-        or (from->is_pointer_type() and to->is_pointer_type())
-        or (from->is_number_type() and to->is_number_type())
-        or (from->is_integer_type() and to->kind == TypeKind::Enum)
-        or (from->kind == TypeKind::Enum and to->is_integer_type())
-        or (from == &bool_type and to->is_integer_type())
-        or (from->is_pointer_type() and to == long_type)
-        or (from == long_type and to->is_pointer_type())
-    )
+    if expr->kind == AstExpressionKind::GetClassField:
+        # &foo.bar = &foo + offset
+        assert not expr->class_field.uses_arrow_operator
+
+        # Turn "cannot assign to %s" into "cannot assign to a field of %s".
+        # This assumes that errmsg_template is relatively simple, i.e. it only contains one %s somewhere.
+        newtemplate: byte* = malloc(strlen(errmsg_template) + 100)
+        sprintf(newtemplate, errmsg_template, "a field of %s")
+
+        ensure_can_take_address(fom, &expr->operands[0], newtemplate)
+        free(newtemplate)
+        return
+
+    # You can usually take address of variable, but you can't take address of special
+    # constant (e.g. &WINDOWS)
+    if (
+        expr->kind == AstExpressionKind::GetVariable
+        and get_special_constant(expr->varname) == -1
+    ):
+        return
+
+    # You can take address of self if it's not passed as a pointer:
+    #
+    #   def method(self: MyClass) -> None:
+    #       do_something(&self)
+    #
+    # This lets you e.g. write methods that return a modified instance.
+    if (
+        expr->kind == AstExpressionKind::Self
+        and fom->signature.argtypes[0]->kind == TypeKind::Class
+    ):
+        return
+
+    msg: byte[500]
+    snprintf(msg, sizeof(msg), errmsg_template, short_expression_description(expr))
+    fail(expr->location, msg)
 
 # Implicit casts are used in many places, e.g. function arguments.
 #
@@ -90,584 +572,133 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
     fail(location, message)
 
 
-# To understand the purpose of ExportSymbol, suppose file A imports file B.
-#   - Type checking file B produces an ExportSymbol that matches the import in file A.
-#   - Before the next type checking stage, the ExportSymbol is added to file A's types.
-#   - During the next stage, file A can use the imported symbol.
-enum ExportSymbolKind:
-    Function
-    Type
-    GlobalVariable
-
-class ExportSymbol:
-    kind: ExportSymbolKind
-    name: byte[100]
-
-    union:
-        signature: Signature    # ExportSymbolKind::Function
-        type: Type*             # ExportSymbolKind::Type, ExportSymbolKind::GlobalVariable
-
-    def print(self) -> None:
-        if self->kind == ExportSymbolKind::Function:
-            s = self->signature.to_string(True, True)
-            printf("ExportSymbol: function %s\n", s)
-            free(s)
-        elif self->kind == ExportSymbolKind::Type:
-            printf("ExportSymbol: type %s as \"%s\"\n", self->type->name, self->name)
-        elif self->kind == ExportSymbolKind::GlobalVariable:
-            printf("ExportSymbol: variable %s: %s\n", self->name, self->type->name)
-        else:
-            assert False
-
-class ExpressionTypes:
-    expression: AstExpression*
-    original_type: Type*
-    implicit_cast_type: Type*  # NULL if no implicit casting is needed
-    next: ExpressionTypes*  # TODO: switch to more efficient structure than linked list?
-
-    # Flags to indicate whether special kinds of implicit casts happened
-    implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
-    implicit_string_to_array_cast: bool     # "..." to byte[N]
-
-    def get_type_after_implicit_cast(self) -> Type*:
-        assert self->original_type != NULL
-        if self->implicit_cast_type == NULL:
-            return self->original_type
-        return self->implicit_cast_type
-
-    # TODO: error_location is probably unnecessary, can get location from self->expression
-    def do_implicit_cast(self, to: Type*, error_location: Location, error_template: byte*) -> None:
-        # This cannot be called multiple times
-        assert self->implicit_cast_type == NULL
-        assert not self->implicit_array_to_pointer_cast
-        assert not self->implicit_string_to_array_cast
-
-        from = self->original_type
-        if from == to:
-            return
-
-        if (
-            self->expression->kind == AstExpressionKind::String
-            and from == byte_type->get_pointer_type()
-            and to->kind == TypeKind::Array
-            and to->array.item_type == byte_type
-        ):
-            string_size = strlen(self->expression->string) + 1
-            if to->array.length < string_size:
-                message: byte[100]
-                snprintf(
-                    message, sizeof message,
-                    "a string of %d bytes (including '\\0') does not fit into %s",
-                    string_size, to->name,
-                )
-                fail(error_location, message)
-            self->implicit_string_to_array_cast = True
-        # Passing in NULL for error_template can be used to force a cast to happen.
-        elif error_template != NULL and not can_cast_implicitly(from, to):
-            fail_with_implicit_cast_error(error_location, error_template, from, to)
-
-        self->implicit_cast_type = to
-        if from->kind == TypeKind::Array and to->is_pointer_type():
-            self->implicit_array_to_pointer_cast = True
-            ensure_can_take_address(
-                self->expression,
-                "cannot create a pointer into an array that comes from %s (try storing it to a local variable first)",
-            )
-
-    # Does not store the new type to self, because explicit casts have their own AstExpression which has its own expression types.
-    def do_explicit_cast(self, to: Type*, error_location: Location) -> None:
-        assert self->implicit_cast_type == NULL
-        assert not self->implicit_array_to_pointer_cast
-
-        from = self->original_type
-        if not can_cast_explicitly(from, to):
-            message: byte[500]
-            snprintf(&message[0], sizeof message, "cannot cast from type %s to %s", from->name, to->name)
-            fail(error_location, message)
-
-        if from->kind == TypeKind::Array and to->is_pointer_type():
-            self->cast_array_to_pointer()
-
-    def cast_array_to_pointer(self) -> None:
-        assert self->original_type->kind == TypeKind::Array
-        self->do_implicit_cast(self->original_type->array.item_type->get_pointer_type(), Location{}, NULL)
-
-class LocalVariable:
-    name: byte[100]
-    type: Type*
-    next: LocalVariable*  # TODO: switch to more efficient structure than linked list?
-
-class GlobalVariable:
-    name: byte[100]
-    type: Type*
-
-class FunctionOrMethodTypes:
-    signature: Signature
-    expression_types: ExpressionTypes*
-    local_vars: LocalVariable*
-
-    def get_expression_types(self, expr: AstExpression*) -> ExpressionTypes*:
-        for et = self->expression_types; et != NULL; et = et->next:
-            if et->expression == expr:
-                return et
-        return NULL
-
-    def find_local_var(self, name: byte*) -> LocalVariable*:
-        for v = self->local_vars; v != NULL; v = v->next:
-            if strcmp(v->name, name) == 0:
-                return v
-        return NULL
-
-# All type information for a Jou file. This is initially empty, and is filled during each stage of type checking.
-class FileTypes:
-    # Includes imported and defined functions.
-    all_functions: Signature*
-    n_all_functions: int
-
-    defined_functions: FunctionOrMethodTypes*
-    n_defined_functions: int
-
-    types: Type**
-    ntypes: int
-
-    globals: GlobalVariable*
-    nglobals: int
-
-    def add_imported_symbol(self, symbol: ExportSymbol*) -> None:
-        if symbol->kind == ExportSymbolKind::Type:
-            self->types = realloc(self->types, (self->ntypes + 1) * sizeof(self->types[0]))
-            self->types[self->ntypes++] = symbol->type
-        elif symbol->kind == ExportSymbolKind::Function:
-            self->all_functions = realloc(self->all_functions, sizeof self->all_functions[0] * (self->n_all_functions + 1))
-            self->all_functions[self->n_all_functions++] = symbol->signature.copy()
-        elif symbol->kind == ExportSymbolKind::GlobalVariable:
-            pass  # TODO
-        else:
-            symbol->print()
-            assert False
-
-    def find_function(self, name: byte*) -> Signature*:
-        for i = 0; i < self->n_all_functions; i++:
-            if strcmp(self->all_functions[i].name, name) == 0:
-                return &self->all_functions[i]
-        return NULL
-
-    # If class_type is NULL, this finds a function
-    def find_defined_function_or_method(self, name: byte*, class_type: Type*) -> FunctionOrMethodTypes*:
-        assert class_type == NULL or class_type->kind == TypeKind::Class
-        for i = 0; i < self->n_defined_functions; i++:
-            if (
-                strcmp(self->defined_functions[i].signature.name, name) == 0
-                and self->defined_functions[i].signature.get_containing_class() == class_type
-            ):
-                return &self->defined_functions[i]
-        return NULL
-
-    def find_type(self, name: byte*) -> Type*:
-        for i = 0; i < self->ntypes; i++:
-            if strcmp(self->types[i]->name, name) == 0:
-                return self->types[i]
-        return NULL
-
-    def find_global_var(self, name: byte*) -> Type*:
-        for i = 0; i < self->nglobals; i++:
-            if strcmp(self->globals[i].name, name) == 0:
-                return self->globals[i].type
-        return NULL
-
-def check_type_doesnt_exist(ft: FileTypes*, name: byte*, location: Location) -> None:
-    existing = ft->find_type(name)
-    if existing != NULL:
-        description = short_type_description(existing)
-        message: byte[500]
-        snprintf(message, sizeof message, "%s named '%s' already exists", description, name)
-        fail(location, message)
-
-def typecheck_stage1_create_types(ft: FileTypes*, file: AstFile*) -> ExportSymbol*:
-    exports: ExportSymbol* = NULL
-    nexports = 0
-
-    for i = 0; i < file->body.nstatements; i++:
-        if file->body.statements[i].kind == AstStatementKind::Class:
-            classdef = &file->body.statements[i].classdef
-            check_type_doesnt_exist(ft, classdef->name, classdef->name_location)
-            t = create_opaque_class(classdef->name)
-        elif file->body.statements[i].kind == AstStatementKind::Enum:
-            enumdef = &file->body.statements[i].enumdef
-            check_type_doesnt_exist(ft, enumdef->name, enumdef->name_location)
-            t = create_enum(enumdef->name, enumdef->member_count, enumdef->member_names)
-        else:
-            continue
-
-        ft->types = realloc(ft->types, (ft->ntypes + 1) * sizeof ft->types[0])
-        ft->types[ft->ntypes++] = t
-        exports = realloc(exports, (nexports + 1) * sizeof exports[0])
-        exports[nexports++] = ExportSymbol{
-            kind = ExportSymbolKind::Type,
-            name = t->name,
-            type = t,
-        }
-
-    exports = realloc(exports, sizeof exports[0] * (nexports + 1))
-    exports[nexports] = ExportSymbol{}
-    return exports
-
-
-def evaluate_array_length(expression: AstExpression*) -> int:
-    # TODO: support something more fancy?
-    if expression->kind == AstExpressionKind::Int:
-        return expression->int_value
-    fail(expression->location, "cannot evaluate array length at compile time")
-
-def type_from_ast(ft: FileTypes*, ast_type: AstType*) -> Type*:
-    if ast_type->is_void():
-        fail(ast_type->location, "'void' cannot be used here because it is not a type")
-    if ast_type->is_none():
-        fail(ast_type->location, "'None' cannot be used here because it is not a type")
-    if ast_type->is_noreturn():
-        fail(ast_type->location, "'noreturn' cannot be used here because it is not a type")
-
-    if ast_type->kind == AstTypeKind::Named:
-        if strcmp(ast_type->name, "short") == 0:
-            return short_type
-        if strcmp(ast_type->name, "int") == 0:
-            return int_type
-        if strcmp(ast_type->name, "long") == 0:
-            return long_type
-        if strcmp(ast_type->name, "byte") == 0:
-            return byte_type
-        if strcmp(ast_type->name, "bool") == 0:
-            return &bool_type
-        if strcmp(ast_type->name, "float") == 0:
-            return &float_type
-        if strcmp(ast_type->name, "double") == 0:
-            return &double_type
-
-        result = ft->find_type(ast_type->name)
-        if result != NULL:
-            return result
-
-        message: byte* = malloc(strlen(ast_type->name) + 100)
-        sprintf(message, "there is no type named '%s'", ast_type->name)
-        fail(ast_type->location, message)
-
-    if ast_type->kind == AstTypeKind::Pointer:
-        if ast_type->value_type->is_void():
-            return &void_ptr_type
-        return type_from_ast(ft, ast_type->value_type)->get_pointer_type()
-
-    if ast_type->kind == AstTypeKind::Array:
-        member_type = type_from_ast(ft, ast_type->array.member_type)
-        length = evaluate_array_length(ast_type->array.length)
-        if length <= 0:
-            fail(ast_type->array.length->location, "array length must be positive")
-        return member_type->get_array_type(length)
-
-    ast_type->print(True)
-    printf("\n")
-    assert False  # TODO
-
-def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_type: Type*) -> Signature:
-    assert self_type == NULL or self_type->kind == TypeKind::Class
-
-    sig = Signature{
-        name = astsig->name,
-        nargs = astsig->nargs,
-        takes_varargs = astsig->takes_varargs,
-    }
-
-    sig.argnames = malloc(sizeof sig.argnames[0] * sig.nargs)
-    for i = 0; i < sig.nargs; i++:
-        sig.argnames[i] = astsig->args[i].name
-
-    sig.argtypes = malloc(sizeof sig.argtypes[0] * sig.nargs)
-    for i = 0; i < sig.nargs; i++:
-        if strcmp(astsig->args[i].name, "self") == 0:
-            assert self_type != NULL
-            sig.argtypes[i] = self_type->get_pointer_type()
-        else:
-            sig.argtypes[i] = type_from_ast(ft, &astsig->args[i].type)
-
-    if astsig->return_type.is_none() or astsig->return_type.is_noreturn():
-        sig.return_type = NULL
-    else:
-        sig.return_type = type_from_ast(ft, &astsig->return_type)
-
-    if self_type == NULL and strcmp(sig.name, "main") == 0:
-        # special main() function checks
-        if sig.return_type != int_type:
-            fail(astsig->return_type.location, "the main() function must return int")
-        if sig.nargs != 0 and not (
-            sig.nargs == 2
-            and sig.argtypes[0] == int_type
-            and sig.argtypes[1] == byte_type->get_pointer_type()->get_pointer_type()
-        ):
-            fail(
-                astsig->args[0].type.location,
-                "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
-            )
-
-    return sig
-
-def handle_class_members_stage2(ft: FileTypes*, classdef: AstClassDef*) -> None:
-    # Previous type-checking stage created an opaque type.
-    type: Type* = NULL
-    for i = 0; i < ft->ntypes; i++:
-        if strcmp(ft->types[i]->name, classdef->name) == 0:
-            type = ft->types[i]
-            break
-    assert type != NULL
-
-    assert type->kind == TypeKind::OpaqueClass
-    type->kind = TypeKind::Class
-
-    memset(&type->class_members, 0, sizeof type->class_members)
-
-    union_id = 0
-    for i = 0; i < classdef->nmembers; i++:
-        member = &classdef->members[i]
-        if member->kind == AstClassMemberKind::Field:
-            type->class_members.fields = realloc(type->class_members.fields, (type->class_members.nfields + 1) * sizeof type->class_members.fields[0])
-            type->class_members.fields[type->class_members.nfields++] = ClassField{
-                name = member->field.name,
-                type = type_from_ast(ft, &member->field.type),
-                union_id = union_id++,
-            }
-        elif member->kind == AstClassMemberKind::Union:
-            uid = union_id++
-            for k = 0; k < member->union_fields.nfields; k++:
-                type->class_members.fields = realloc(type->class_members.fields, (type->class_members.nfields + 1) * sizeof type->class_members.fields[0])
-                type->class_members.fields[type->class_members.nfields++] = ClassField{
-                    name = member->union_fields.fields[k].name,
-                    type = type_from_ast(ft, &member->union_fields.fields[k].type),
-                    union_id = uid,
-                }
-        elif member->kind == AstClassMemberKind::Method:
-            # Don't handle the method body yet: that is a part of stage 3, not stage 2
-            sig = handle_signature(ft, &member->method.signature, type)
-            type->class_members.methods = realloc(type->class_members.methods, sizeof type->class_members.methods[0] * (type->class_members.nmethods + 1))
-            type->class_members.methods[type->class_members.nmethods++] = sig
-        else:
-            assert False
-
-# Returned array is terminated by ExportSymbol with empty name.
-def typecheck_stage2_populate_types(ft: FileTypes*, ast_file: AstFile*) -> ExportSymbol*:
-    message: byte[200]
-
-    exports: ExportSymbol* = NULL
-    nexports = 0
-
-    for i = 0; i < ast_file->body.nstatements; i++:
-        ts = &ast_file->body.statements[i]
-
-        if ts->kind == AstStatementKind::Function:
-            if ft->find_function(ts->function.signature.name) != NULL:
-                snprintf(
-                    message, sizeof message,
-                    "a function named '%s' already exists",
-                    ts->function.signature.name,
-                )
-                fail(ts->location, message)
-
-            sig = handle_signature(ft, &ts->function.signature, NULL)
-            ft->all_functions = realloc(ft->all_functions, sizeof ft->all_functions[0] * (ft->n_all_functions + 1))
-            ft->all_functions[ft->n_all_functions++] = sig.copy()
-            exports = realloc(exports, sizeof exports[0] * (nexports + 1))
-            exports[nexports++] = ExportSymbol{
-                kind = ExportSymbolKind::Function,
-                name = sig.name,
-                signature = sig,
-            }
-
-        if ts->kind == AstStatementKind::Class:
-            handle_class_members_stage2(ft, &ts->classdef)
-
-        if (
-            ts->kind == AstStatementKind::GlobalVariableDeclaration
-            or ts->kind == AstStatementKind::GlobalVariableDefinition
-        ):
-            if ft->find_global_var(ts->var_declaration.name) != NULL:
-                snprintf(
-                    message, sizeof message,
-                    "a global variable named '%s' already exists",
-                    ts->var_declaration.name,
-                )
-                fail(ts->location, message)
-
-            assert ts->var_declaration.value == NULL
-            type = type_from_ast(ft, &ts->var_declaration.type)
-            ft->globals = realloc(ft->globals, (ft->nglobals + 1) * sizeof ft->globals[0])
-            ft->globals[ft->nglobals++] = GlobalVariable{name = ts->var_declaration.name, type = type}
-
-            exports = realloc(exports, sizeof exports[0] * (nexports + 1))
-            exports[nexports++] = ExportSymbol{
-                kind = ExportSymbolKind::GlobalVariable,
-                name = ts->var_declaration.name,
-                type = type,
-            }
-
-    exports = realloc(exports, sizeof exports[0] * (nexports + 1))
-    exports[nexports] = ExportSymbol{}
-    return exports
-
-
-def plural_s(n: int) -> byte*:
-    if n == 1:
-        return ""
-    return "s"
-
-def nth(n: int) -> byte[100]:
-    first_few = [NULL as byte*, "first", "second", "third", "fourth", "fifth", "sixth"]
-    result: byte[100]
-
-    if n < sizeof first_few / sizeof first_few[0]:
-        strcpy(result, first_few[n])
-    else:
-        sprintf(result, "%dth", n)
-    return result
-
-def short_type_description(t: Type*) -> byte*:
-    if t->kind == TypeKind::Class or t->kind == TypeKind::OpaqueClass:
-        return "a class"
-    if t->kind == TypeKind::Enum:
-        return "an enum"
-    if t->is_pointer_type():
-        return "a pointer type"
-    if t->is_number_type():
-        return "a number type"
-    if t->kind == TypeKind::Array:
-        return "an array type"
-    if t == &bool_type:
-        return "the built-in bool type"
-    assert False
-
-# TODO: make this a method in class AstExpression?
-def short_expression_description(expr: AstExpression*) -> byte[200]:
-    result: byte[200]
-
-    # Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
-    if (
-        expr->kind == AstExpressionKind::String
-        or expr->kind == AstExpressionKind::Short
-        or expr->kind == AstExpressionKind::Int
-        or expr->kind == AstExpressionKind::Long
-        or expr->kind == AstExpressionKind::Byte
-        or expr->kind == AstExpressionKind::Bool
-        or expr->kind == AstExpressionKind::Null
-    ):
-        return "a constant"
-    elif (
-        expr->kind == AstExpressionKind::Negate
-        or expr->kind == AstExpressionKind::Add
-        or expr->kind == AstExpressionKind::Subtract
-        or expr->kind == AstExpressionKind::Multiply
-        or expr->kind == AstExpressionKind::Divide
-        or expr->kind == AstExpressionKind::Modulo
-    ):
-        return "the result of a calculation"
-    elif (
-        expr->kind == AstExpressionKind::Eq
-        or expr->kind == AstExpressionKind::Ne
-        or expr->kind == AstExpressionKind::Gt
-        or expr->kind == AstExpressionKind::Ge
-        or expr->kind == AstExpressionKind::Lt
-        or expr->kind == AstExpressionKind::Le
-    ):
-        return "the result of a comparison"
-    elif expr->kind == AstExpressionKind::Call:
-        sprintf(result, "a %s call", expr->call.function_or_method())
-        return result
-    elif expr->kind == AstExpressionKind::Instantiate:
-        return "a newly created instance"
-    elif expr->kind == AstExpressionKind::GetVariable:
-        if get_special_constant(expr->varname) == -1:
-            return "a variable"
-        return "a special constant"
-    elif expr->kind == AstExpressionKind::GetEnumMember:
-        return "an enum member"
-    elif expr->kind == AstExpressionKind::GetClassField:
-        snprintf(result, sizeof result, "field '%s'", expr->class_field.field_name)
-        return result
-    elif expr->kind == AstExpressionKind::As:
-        return "the result of a cast"
-    elif expr->kind == AstExpressionKind::SizeOf:
-        return "a sizeof expression"
-    elif expr->kind == AstExpressionKind::AddressOf:
-        subresult = short_expression_description(expr->operands)
-        snprintf(result, sizeof result, "address of %s", subresult)
-        return result
-    elif expr->kind == AstExpressionKind::Dereference:
-        return "the value of a pointer"
-    elif expr->kind == AstExpressionKind::And:
-        return "the result of 'and'"
-    elif expr->kind == AstExpressionKind::Or:
-        return "the result of 'or'"
-    elif expr->kind == AstExpressionKind::Not:
-        return "the result of 'not'"
-    elif expr->kind == AstExpressionKind::PreIncr or expr->kind == AstExpressionKind::PostIncr:
-        return "the result of incrementing a value"
-    elif expr->kind == AstExpressionKind::PreDecr or expr->kind == AstExpressionKind::PostDecr:
-        return "the result of decrementing a value"
-    elif expr->kind == AstExpressionKind::Indexing:
-        return "an indexed value"
-    elif expr->kind == AstExpressionKind::Self:
-        return "self"
-    elif expr->kind == AstExpressionKind::Array:
-        return "an array literal"
-    else:
-        expr->print()
-        printf("*** %d\n", expr->kind)
-        assert False
-
-# The & operator can't go in front of most expressions.
-# You can't do &(1 + 2), for example.
-#
-# The same rules apply to assignments: "foo = bar" is treated as setting the
-# value of the pointer &foo to bar.
-#
-# error_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
-def ensure_can_take_address(expression: AstExpression*, error_template: byte*) -> None:
-    if expression->kind == AstExpressionKind::GetClassField:
-        # &foo.bar --> must ensure we can take address of foo.
-        # Doesn't apply to &foo->bar because that's foo + some offset, so foo is already a pointer.
-        if not expression->class_field.uses_arrow_operator:
-            # Turn "cannot assign to %s" into "cannot assign to a field of %s".
-            # This assumes that error_template is relatively simple, i.e. it only contains one %s somewhere.
-            new_template = malloc(strlen(error_template) + 50)
-            sprintf(new_template, error_template, "a field of %s")
-            ensure_can_take_address(&expression->operands[0], new_template)
-            free(new_template)
+def can_cast_implicitly(from: Type*, to: Type*) -> bool:
+    # TODO: document these properly. But they are:
+    #   array to pointer, e.g. int[3] --> int* (needs special-casing elsewhere)
+    #   from one integer type to another bigger integer type, unless it is signed-->unsigned
+    #   between two pointer types when one of the two is void*
+    #   from float to double (TODO)
+    return (
+        from == to
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::VoidPointer)
+        or (
+            from->is_integer_type()
+            and to->is_integer_type()
+            and from->size_in_bits < to->size_in_bits
+            and not (from->kind == TypeKind::SignedInteger and to->kind == TypeKind::UnsignedInteger)
+        )
+        or (from == floatType and to == doubleType)
+        or (from->is_integer_type() and to->kind == TypeKind::FloatingPoint)
+        or (from->is_pointer_type() and to->is_pointer_type() and (from == voidPtrType or to == voidPtrType))
+    )
+
+def can_cast_explicitly(from: Type*, to: Type*) -> bool:
+    return (
+        from == to
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::Pointer and from->array.item_type == to->value_type)
+        or (from->kind == TypeKind::Array and to->kind == TypeKind::VoidPointer)
+        or (from->is_pointer_type() and to->is_pointer_type())
+        or (from->is_number_type() and to->is_number_type())
+        or (from->is_integer_type() and to->kind == TypeKind::Enum)
+        or (from->kind == TypeKind::Enum and to->is_integer_type())
+        or (from == boolType and to->is_integer_type())
+        or (from->is_pointer_type() and to == longType)
+        or (from == longType and to->is_pointer_type())
+    )
+
+def do_implicit_cast(
+    fom: FunctionOrMethodTypes*,
+    types: ExpressionTypes*,
+    to: Type*,
+    location: Location,
+    errormsg_template: byte*,
+) -> None:
+    assert types->implicit_cast_type == NULL
+    assert not types->implicit_array_to_pointer_cast
+    from = types->type
+    if from == to:
         return
 
-    if expression->kind == AstExpressionKind::GetVariable:
-        # &foo is usually fine, but &WINDOWS is not
-        if get_special_constant(expression->varname) == -1:
-            return
-
     if (
-        expression->kind == AstExpressionKind::Dereference  # &*foo
-        or expression->kind == AstExpressionKind::Indexing  # &foo[bar] = foo + some offset (foo is a pointer)
+        types->expr->kind == AstExpressionKind::String
+        and from == get_pointer_type(byteType)
+        and to->kind == TypeKind::Array
+        and to->array.item_type == byteType
     ):
-        return
+        string_size = strlen(types->expr->string) + 1
+        if to->array.len < string_size:
+            msg: byte[500]
+            snprintf(msg, sizeof(msg), "a string of %d bytes (including '\\0') does not fit into %s", string_size, to->name)
+            fail(location, msg)
+        types->implicit_string_to_array_cast = True
+    # Passing in NULL for errormsg_template can be used to "force" a cast to happen.
+    elif errormsg_template != NULL and not can_cast_implicitly(from, to):
+        fail_with_implicit_cast_error(location, errormsg_template, from, to)
 
-    # Anything else is an error.
-    desc: byte[200] = short_expression_description(expression)
-    error = malloc(strlen(error_template) + 300)
-    sprintf(error, error_template, desc)
-    fail(expression->location, error)
+    types->implicit_cast_type = to
+    types->implicit_array_to_pointer_cast = (from->kind == TypeKind::Array and is_pointer_type(to))
 
-def max(a: int, b: int) -> int:
-    if a > b:
-        return a
-    return b
+    if types->implicit_array_to_pointer_cast:
+        ensure_can_take_address(
+            fom,
+            types->expr,
+            "cannot create a pointer into an array that comes from %s (try storing it to a local variable first)"
+        )
+
+def cast_array_to_pointer(fom: FunctionOrMethodTypes*, types: ExpressionTypes*) -> None:
+    assert types->type->kind == TypeKind::Array
+    do_implicit_cast(fom, types, get_pointer_type(types->type->array.item_type), Location{}, NULL)
+
+def do_explicit_cast(fom: FunctionOrMethodTypes*, types: ExpressionTypes*, to: Type*, location: Location) -> None:
+    assert types->implicit_cast_type == NULL
+    from = types->type
+
+    msg: byte[500]
+
+    if from == to:
+        snprintf(msg, sizeof(msg), "unnecessary cast from %s to %s", from->name, to->name)
+        show_warning(location, msg)
+
+    if not can_cast_explicitly(from, to):
+        snprintf(msg, sizeof(msg), "cannot cast from type %s to %s", from->name, to->name)
+        fail(location, msg)
+
+    if from->kind == TypeKind::Array and is_pointer_type(to):
+        cast_array_to_pointer(fom, types)
+
+def typecheck_expression_not_void(ft: FileTypes*, expr: AstExpression*) -> ExpressionTypes*:
+    types: ExpressionTypes* = typecheck_expression(ft, expr)
+    if types != NULL:
+        return types
+
+    # Should be function/method call that returns void
+    assert expr->kind == AstExpressionKind::Call
+
+    msg: byte[500]
+    if expr->call.method_call_self == NULL:
+        snprintf(msg, sizeof(msg), "function '%s' does not return a value", expr->call.name)
+    else:
+        snprintf(msg, sizeof(msg), "method '%s' does not return a value", expr->call.name)
+    fail(expr->location, msg)
+
+def typecheck_expression_with_implicit_cast(
+    ft: FileTypes*,
+    expr: AstExpression*,
+    casttype: Type*,
+    errormsg_template: byte*,
+) -> None:
+    types = typecheck_expression_not_void(ft, expr)
+    do_implicit_cast(ft->current_fom_types, types, casttype, expr->location, errormsg_template)
 
 def check_binop(
+    fom: FunctionOrMethodTypes*,
     op: AstExpressionKind,
     location: Location,
-    lhs_types: ExpressionTypes*,
-    rhs_types: ExpressionTypes*,
+    lhstypes: ExpressionTypes*,
+    rhstypes: ExpressionTypes*,
 ) -> Type*:
-    result_is_bool = False
+    do_what: byte*
     if op == AstExpressionKind::Add:
         do_what = "add"
     elif op == AstExpressionKind::Subtract:
@@ -678,756 +709,823 @@ def check_binop(
         do_what = "divide"
     elif op == AstExpressionKind::Modulo:
         do_what = "take remainder with"
-    else:
-        assert (
-            op == AstExpressionKind::Eq
-            or op == AstExpressionKind::Ne
-            or op == AstExpressionKind::Gt
-            or op == AstExpressionKind::Ge
-            or op == AstExpressionKind::Lt
-            or op == AstExpressionKind::Le
-        )
+    elif (
+        op == AstExpressionKind::Eq
+        or op == AstExpressionKind::Ne
+        or op == AstExpressionKind::Gt
+        or op == AstExpressionKind::Ge
+        or op == AstExpressionKind::Lt
+        or op == AstExpressionKind::Le
+    ):
         do_what = "compare"
-        result_is_bool = True
+    else:
+        assert False
 
-    got_bools = lhs_types->original_type == &bool_type and rhs_types->original_type == &bool_type
-    got_integers = lhs_types->original_type->is_integer_type() and rhs_types->original_type->is_integer_type()
-    got_numbers = lhs_types->original_type->is_number_type() and rhs_types->original_type->is_number_type()
-    got_enums = lhs_types->original_type->kind == TypeKind::Enum and rhs_types->original_type->kind == TypeKind::Enum
+    got_bools = lhstypes->type == boolType and rhstypes->type == boolType
+    got_integers = is_integer_type(lhstypes->type) and is_integer_type(rhstypes->type)
+    got_numbers = is_number_type(lhstypes->type) and is_number_type(rhstypes->type)
+    got_enums = lhstypes->type->kind == TypeKind::Enum and rhstypes->type->kind == TypeKind::Enum
     got_pointers = (
-        lhs_types->original_type->is_pointer_type()
-        and rhs_types->original_type->is_pointer_type()
+        is_pointer_type(lhstypes->type)
+        and is_pointer_type(rhstypes->type)
         and (
             # Ban comparisons like int* == byte*, unless one of the two types is void*
-            lhs_types->original_type == rhs_types->original_type
-            or lhs_types->original_type == &void_ptr_type
-            or rhs_types->original_type == &void_ptr_type
+            lhstypes->type == rhstypes->type
+            or lhstypes->type == voidPtrType
+            or rhstypes->type == voidPtrType
         )
     )
 
     if (
-        (not got_bools and not got_numbers and not got_enums and not got_pointers)
-        or (op != AstExpressionKind::Eq and op != AstExpressionKind::Ne and not got_numbers)
-    ):
-        message: byte[500]
-        snprintf(
-            message, sizeof message,
-            "wrong types: cannot %s %s and %s",
-            do_what, lhs_types->original_type->name, rhs_types->original_type->name,
+        (
+            (not got_bools)
+            and (not got_numbers)
+            and (not got_enums)
+            and (not got_pointers)
+        ) or (
+            (got_bools or got_enums)
+            and op != AstExpressionKind::Eq
+            and op != AstExpressionKind::Ne
+        ) or (
+            got_pointers
+            and op != AstExpressionKind::Eq
+            and op != AstExpressionKind::Ne
+            and op != AstExpressionKind::Gt
+            and op != AstExpressionKind::Ge
+            and op != AstExpressionKind::Lt
+            and op != AstExpressionKind::Le
         )
-        fail(location, message)
+    ):
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name)
+        fail(location, msg)
 
+    cast_type: Type* = NULL
     if got_bools:
-        cast_type = &bool_type
-    elif got_integers:
-        size = max(lhs_types->original_type->size_in_bits, rhs_types->original_type->size_in_bits)
-        if (
-            lhs_types->original_type->kind == TypeKind::SignedInteger
-            or rhs_types->original_type->kind == TypeKind::SignedInteger
-        ):
-            cast_type = &signed_integers[size]
+        cast_type = boolType
+    if got_integers:
+        cast_type = get_integer_type(
+            max(lhstypes->type->size_in_bits, rhstypes->type->size_in_bits),
+            lhstypes->type->kind == TypeKind::SignedInteger or rhstypes->type->kind == TypeKind::SignedInteger
+        )
+    if got_numbers and not got_integers:
+        if lhstypes->type == doubleType or rhstypes->type == doubleType:
+            cast_type = doubleType
         else:
-            cast_type = &unsigned_integers[size]
-    elif got_numbers:
-        if lhs_types->original_type == &double_type or rhs_types->original_type == &double_type:
-            cast_type = &double_type
-        else:
-            cast_type = &float_type
-    elif got_pointers:
-        cast_type = &void_ptr_type
-    elif got_enums:
-        cast_type = int_type
+            cast_type = floatType
+    if got_pointers:
+        cast_type = get_integer_type(64, False)
+    if got_enums:
+        cast_type = intType
+    assert cast_type != NULL
+
+    do_implicit_cast(fom, lhstypes, cast_type, Location{}, NULL)
+    do_implicit_cast(fom, rhstypes, cast_type, Location{}, NULL)
+
+    if (
+        op == AstExpressionKind::Add
+        or op == AstExpressionKind::Subtract
+        or op == AstExpressionKind::Multiply
+        or op == AstExpressionKind::Divide
+        or op == AstExpressionKind::Modulo
+    ):
+        return cast_type
+
+    if (
+        op == AstExpressionKind::Eq
+        or op == AstExpressionKind::Ne
+        or op == AstExpressionKind::Gt
+        or op == AstExpressionKind::Ge
+        or op == AstExpressionKind::Lt
+        or op == AstExpressionKind::Le
+    ):
+        return boolType
+
+    assert False
+
+
+def check_increment_or_decrement(ft: FileTypes*, expr: AstExpression*) -> Type*:
+    bad_type_fmt, bad_expr_fmt: byte*
+
+    if expr->kind == AstExpressionKind::PreIncr or expr->kind == AstExpressionKind::PostIncr:
+        bad_type_fmt = "cannot increment a value of type %s"
+        bad_expr_fmt = "cannot increment %s"
+    elif expr->kind == AstExpressionKind::PreDecr or expr->kind == AstExpressionKind::PostDecr:
+        bad_type_fmt = "cannot decrement a value of type %s"
+        bad_expr_fmt = "cannot decrement %s"
     else:
         assert False
 
-    lhs_types->do_implicit_cast(cast_type, Location{}, NULL)
-    rhs_types->do_implicit_cast(cast_type, Location{}, NULL)
+    ensure_can_take_address(ft->current_fom_types, &expr->operands[0], bad_expr_fmt)
 
-    if result_is_bool:
-        return &bool_type
+    t = typecheck_expression_not_void(ft, &expr->operands[0])->type
+    if not is_integer_type(t) and not is_pointer_type(t):
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), bad_type_fmt, t->name)
+        fail(expr->location, msg)
+    return t
+
+def typecheck_dereferenced_pointer(location: Location, t: Type*) -> None:
+    # TODO: improved error message for dereferencing void*
+    if t->kind != TypeKind::Pointer:
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "the dereference operator '*' is only for pointers, not for %s", t->name)
+        fail(location, msg)
+
+# ptr[index]
+def typecheck_indexing(
+    ft: FileTypes*,
+    ptrexpr: AstExpression*,
+    indexexpr: AstExpression*,
+) -> Type*:
+    msg: byte[500]
+
+    types = typecheck_expression_not_void(ft, ptrexpr)
+
+    if types->type->kind == TypeKind::Array:
+        cast_array_to_pointer(ft->current_fom_types, types)
+        ptrtype = types->implicit_cast_type
     else:
-        return cast_type
+        if types->type->kind != TypeKind::Pointer:
+            snprintf(msg, sizeof(msg), "value of type %s cannot be indexed", types->type->name)
+            fail(ptrexpr->location, msg)
+        ptrtype = types->type
 
-def check_class_field(location: Location, class_type: Type*, field_name: byte*) -> ClassField*:
-    assert class_type->kind == TypeKind::Class
+    assert ptrtype != NULL
+    assert ptrtype->kind == TypeKind::Pointer
 
-    field = class_type->class_members.find_field(field_name)
-    if field == NULL:
-        message: byte[500]
-        snprintf(message, sizeof message, "class %s has no field named '%s'", class_type->name, field_name)
-        fail(location, message)
-    return field
+    indextypes = typecheck_expression_not_void(ft, indexexpr)
+    if not is_integer_type(indextypes->type):
+        snprintf(msg, sizeof(msg), "the index inside [...] must be an integer, not %s", indextypes->type->name)
+        fail(indexexpr->location, msg)
 
-def cast_array_items_to_a_common_type(error_location: Location, types: ExpressionTypes**, ntypes: int) -> Type*:
+    # LLVM assumes that indexes smaller than 64 bits are signed.
+    # https://github.com/Akuli/jou/issues/48
+    do_implicit_cast(ft->current_fom_types, indextypes, longType, Location{}, NULL)
+
+    return ptrtype->value_type
+
+
+def typecheck_and_or(
+    ft: FileTypes*,
+    lhsexpr: AstExpression*,
+    rhsexpr: AstExpression*,
+    and_or: byte*,
+) -> None:
+    assert strcmp(and_or, "and") == 0 or strcmp(and_or, "or") == 0
+
+    errormsg: byte[100]
+    snprintf(errormsg, sizeof(errormsg), "'%s' only works with booleans, not <from>", and_or)
+
+    typecheck_expression_with_implicit_cast(ft, lhsexpr, boolType, errormsg)
+    typecheck_expression_with_implicit_cast(ft, rhsexpr, boolType, errormsg)
+
+
+global nth_result_buffer: byte[100]
+
+
+# Be aware that return value may change as you call this many times.
+def nth(n: int) -> byte*:
+    assert n >= 1
+
+    first_few = [NULL as byte*, "first", "second", "third", "fourth", "fifth", "sixth"]
+    if n < sizeof(first_few) / sizeof(first_few[0]):
+        return first_few[n]
+
+    sprintf(nth_result_buffer, "%dth", n)
+    return nth_result_buffer
+
+
+def plural_s(n: int) -> byte*:
+    if n == 1:
+        # e.g. "1 argument"
+        return ""
+    else:
+        # e.g. "0 arguments", "2 arguments"
+        return "s"
+
+
+# returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
+def typecheck_function_or_method_call(ft: FileTypes*, call: AstCall*, self_type: Type*, location: Location) -> Type*:
+    msg: byte[500]
+
+    sig = find_function_or_method(ft, self_type, call->name)
+    if sig == NULL:
+        if self_type == NULL:
+            snprintf(msg, sizeof(msg), "function '%s' not found", call->name)
+        elif self_type->kind == TypeKind::Class:
+            snprintf(
+                msg, sizeof(msg),
+                "class %s does not have a method named '%s'",
+                self_type->name, call->name)
+        elif self_type->kind == TypeKind::Pointer and find_method(self_type->value_type, call->name) != NULL:
+            snprintf(
+                msg, sizeof(msg),
+                "the method '%s' is defined on class %s, not on the pointer type %s, so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
+                call->name, self_type->value_type->name, self_type->name)
+        else:
+            snprintf(
+                msg, sizeof(msg),
+                "type %s does not have any methods because it is %s, not a class",
+                self_type->name, short_type_description(self_type))
+
+        fail(location, msg)
+
+    if self_type == NULL:
+        function_or_method = "function"
+    else:
+        function_or_method = "method"
+
+    sigstr = signature_to_string(sig, False, False)
+
+    nargs = sig->nargs
+    if self_type != NULL:
+        nargs--
+
+    if call->nargs < nargs or (call->nargs > nargs and not sig->takes_varargs):
+        snprintf(
+            msg, sizeof(msg),
+            "%s %s takes %d argument%s, but it was called with %d argument%s",
+            function_or_method,
+            sigstr,
+            nargs,
+            plural_s(nargs),
+            call->nargs,
+            plural_s(call->nargs),
+        )
+        fail(location, msg)
+
+    k = 0
+    for i = 0; i < sig->nargs; i++:
+        if strcmp(sig->argnames[i], "self") == 0:
+            continue
+        # This is a common error, so worth spending some effort to get a good error message.
+        snprintf(msg, sizeof msg, "%s argument of %s %s should have type <to>, not <from>", nth(i+1), function_or_method, sigstr)
+        typecheck_expression_with_implicit_cast(ft, &call->args[k++], sig->argtypes[i], msg)
+
+    for i = k; i < call->nargs; i++:
+        # This code runs for varargs, e.g. the things to format in printf().
+        types = typecheck_expression_not_void(ft, &call->args[i])
+
+        if types->type->kind == TypeKind::Array:
+            cast_array_to_pointer(ft->current_fom_types, types)
+        elif (
+            (is_integer_type(types->type) and types->type->size_in_bits < 32)
+            or types->type == boolType
+        ):
+            # Add implicit cast to signed int, just like in C.
+            do_implicit_cast(ft->current_fom_types, types, intType, Location{}, NULL)
+        elif types->type == floatType:
+            do_implicit_cast(ft->current_fom_types, types, doubleType, Location{}, NULL)
+
+    free(sigstr)
+    return sig->returntype
+
+
+def typecheck_class_field(
+    classtype: Type*,
+    fieldname: byte*,
+    location: Location,
+) -> ClassField*:
+    assert classtype->kind == TypeKind::Class
+    for f = classtype->classdata.fields; f < &classtype->classdata.fields[classtype->classdata.nfields]; f++:
+        if strcmp(f->name, fieldname) == 0:
+            return f
+
+    msg: byte[500]
+    snprintf(msg, sizeof(msg), "class %s has no field named '%s'", classtype->name, fieldname)
+    fail(location, msg)
+
+
+def typecheck_instantiation(ft: FileTypes*, inst: AstInstantiation*, location: Location) -> Type*:
+    tmp = AstType{kind = AstTypeKind::Named, location = inst->class_name_location}
+    assert sizeof(tmp.name) == sizeof(inst->class_name)
+    strcpy(tmp.name, inst->class_name)
+    t = type_from_ast(ft, &tmp)
+
+    msg: byte[500]
+
+    if t->kind != TypeKind::Class:
+        snprintf(
+            msg, sizeof(msg),
+            "the %s{...} syntax is only for classes, but %s is %s",
+            t->name, t->name, short_type_description(t))
+        fail(location, msg)
+
+    specified_fields: ClassField** = malloc(sizeof(specified_fields[0]) * inst->nfields)
+
+    for i = 0; i < inst->nfields; i++:
+        f = typecheck_class_field(t, inst->field_names[i], inst->field_values[i].location)
+
+        snprintf(msg, sizeof msg,
+            "value for field '%s' of class %s must be of type <to>, not <from>",
+            inst->field_names[i], inst->class_name)
+        typecheck_expression_with_implicit_cast(ft, &inst->field_values[i], f->type, msg)
+        specified_fields[i] = f
+
+    for i1 = 0; i1 < inst->nfields; i1++:
+        for i2 = i1+1; i2 < inst->nfields; i2++:
+            if specified_fields[i1]->union_id == specified_fields[i2]->union_id:
+                snprintf(msg, sizeof(msg),
+                    "fields '%s' and '%s' cannot be set simultaneously because they belong to the same union",
+                    specified_fields[i1]->name, specified_fields[i2]->name)
+                fail(inst->field_values[i2].location,msg)
+
+    free(specified_fields)
+    return t
+
+
+def enum_member_exists(t: Type*, name: byte*) -> bool:
+    assert t->kind == TypeKind::Enum
+    for i = 0; i < t->enummembers.count; i++:
+        if strcmp(t->enummembers.names[i], name) == 0:
+            return True
+    return False
+
+
+def cast_array_members_to_a_common_type(fom: FunctionOrMethodTypes*, error_location: Location, exprtypes: ExpressionTypes**) -> Type*:
     # Avoid O(ntypes^2) code in a long array where all or almost all items have the same type.
-    # This is at most O(ntypes*ndistinct).
-    distinct: Type** = malloc(sizeof distinct[0] * ntypes)
+    # This is at most O(ntypes*k) where k is the number of distinct types.
+    distinct: Type** = NULL
     ndistinct = 0
-    for i = 0; i < ntypes; i++:
+
+    for et = exprtypes; *et != NULL; et++:
         found = False
-        for k = 0; k < ndistinct; k++:
-            if distinct[k] == types[i]->original_type:
+        for t = distinct; t < &distinct[ndistinct]; t++:
+            if (*et)->type == *t:
                 found = True
                 break
         if not found:
-            distinct[ndistinct++] = types[i]->original_type
+            distinct = realloc(distinct, sizeof(distinct[0]) * (ndistinct + 1))
+            assert distinct != NULL
+            distinct[ndistinct++] = (*et)->type
 
-    compatible_with_all: Type** = malloc(sizeof compatible_with_all[0] * ndistinct)
+    compatible_with_all: Type** = NULL
     n_compatible_with_all = 0
-    for i = 0; i < ndistinct; i++:
-        compat = True
-        for k = 0; k < ndistinct; k++:
-            if not can_cast_implicitly(distinct[k], distinct[i]):
-                compat = False
+
+    for t = distinct; t < &distinct[ndistinct]; t++:
+        t_compatible_with_all_others = True
+        for t2 = distinct; t2 < &distinct[ndistinct]; t2++:
+            if not can_cast_implicitly(*t2, *t):
+                t_compatible_with_all_others = False
                 break
-        if compat:
-            compatible_with_all[n_compatible_with_all++] = distinct[i]
+
+        if t_compatible_with_all_others:
+            compatible_with_all = realloc(compatible_with_all, sizeof(compatible_with_all[0]) * (n_compatible_with_all + 1))
+            assert compatible_with_all != NULL
+            compatible_with_all[n_compatible_with_all++] = *t
 
     if n_compatible_with_all != 1:
-        # Can't make an unambiguous choice. Mention all types we considered in the error message.
-        assert sizeof distinct[0]->name == 100
-        message: byte* = calloc(200, ndistinct+1)
-        strcpy(message, "array items have different types (")
-        for i = 0; i < ndistinct; i++:
-            if i != 0:
-                strcat(message, ", ")
-            strcat(message, distinct[i]->name)
-        strcat(message, ")")
-        fail(error_location, message)
+        size = 500L
+        for t = distinct; t < &distinct[ndistinct]; t++:
+            size += strlen((*t)->name) + 3  # 1 for comma, 1 for space, 1 because why not lol
 
-    item_type = compatible_with_all[0]
+        msg: byte* = malloc(size)
+        assert msg != NULL
+
+        strcpy(msg, "array items have different types (")
+        for t = distinct; t < &distinct[ndistinct]; t++:
+            if t != distinct:
+                strcat(msg, ", ")
+            strcat(msg, (*t)->name)
+        strcat(msg, ")")
+        fail(error_location, msg)
+
+    elemtype = compatible_with_all[0]
     free(distinct)
     free(compatible_with_all)
 
-    for i = 0; i < ntypes; i++:
-        types[i]->do_implicit_cast(item_type, Location{}, NULL)
-    return item_type
+    for et = exprtypes; *et != NULL; et++:
+        do_implicit_cast(fom, *et, elemtype, error_location, NULL)
+    return elemtype
 
 
-class Stage3TypeChecker:
-    file_types: FileTypes*
-    current_function_or_method: FunctionOrMethodTypes*
-    nested_loop_count: int
+def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionTypes*:
+    msg: byte[500]
+    result: Type* = NULL
 
-    def add_local_var(self, name: byte*, type: Type*) -> LocalVariable*:
-        v: LocalVariable* = calloc(1, sizeof *v)
-        assert strlen(name) < sizeof v->name
-        strcpy(v->name, name)
-        v->type = type
+    if expr->kind == AstExpressionKind::Bool:
+        result = boolType
+    elif expr->kind == AstExpressionKind::Byte:
+        result = byteType
+    elif expr->kind == AstExpressionKind::Double:
+        result = doubleType
+    elif expr->kind == AstExpressionKind::Float:
+        result = floatType
+    elif expr->kind == AstExpressionKind::Short:
+        result = shortType
+    elif expr->kind == AstExpressionKind::Int:
+        result = intType
+    elif expr->kind == AstExpressionKind::Long:
+        result = longType
+    elif expr->kind == AstExpressionKind::Null:
+        result = voidPtrType
+    elif expr->kind == AstExpressionKind::String:
+        result = get_pointer_type(byteType)
 
-        dest_pointer = &self->current_function_or_method->local_vars
-        while *dest_pointer != NULL:
-            dest_pointer = &(*dest_pointer)->next
+    elif expr->kind == AstExpressionKind::GetEnumMember:
+        result = find_type(ft, expr->enum_member.enum_name)
+        if result == NULL:
+            snprintf(msg, sizeof(msg), "there is no type named '%s'", expr->enum_member.enum_name)
+            fail(expr->location, msg)
+        if result->kind != TypeKind::Enum:
+            snprintf(
+                msg, sizeof(msg),
+                "the '::' syntax is only for enums, but %s is %s",
+                expr->enum_member.enum_name,
+                short_type_description(result),
+            )
+            fail(expr->location, msg)
+        if not enum_member_exists(result, expr->enum_member.member_name):
+            snprintf(
+                msg, sizeof(msg),
+                "enum %s has no member named '%s'",
+                expr->enum_member.enum_name, expr->enum_member.member_name)
+            fail(expr->location, msg)
 
-        *dest_pointer = v
-        return v
+    elif expr->kind == AstExpressionKind::SizeOf:
+        typecheck_expression_not_void(ft, &expr->operands[0])
+        result = longType
 
-    def find_var(self, name: byte*) -> Type*:
-        if get_special_constant(name) != -1:
-            return &bool_type
-        local_var = self->current_function_or_method->find_local_var(name)
-        if local_var != NULL:
-            return local_var->type
-        for i = 0; i < self->file_types->nglobals; i++:
-            if strcmp(self->file_types->globals[i].name, name) == 0:
-                return self->file_types->globals[i].type
-        return NULL
+    elif expr->kind == AstExpressionKind::Instantiate:
+        result = typecheck_instantiation(ft, &expr->instantiation, expr->location)
 
-    def find_function_or_method(self, self_type: Type*, name: byte*) -> Signature*:
-        if self_type == NULL:
-            return self->file_types->find_function(name)
-        elif self_type->kind == TypeKind::Class:
-            return self_type->class_members.find_method(name)
+    elif expr->kind == AstExpressionKind::Array:
+        n = expr->array.length
+        exprtypes: ExpressionTypes** = calloc(sizeof(exprtypes[0]), n+1)
+        for i = 0; i < n; i++:
+            exprtypes[i] = typecheck_expression_not_void(ft, &expr->array.items[i])
+
+        membertype = cast_array_members_to_a_common_type(ft->current_fom_types, expr->location, exprtypes)
+        free(exprtypes)
+        result = get_array_type(membertype, n)
+
+    elif expr->kind == AstExpressionKind::GetClassField:
+        if expr->class_field.uses_arrow_operator:
+            temptype = typecheck_expression_not_void(ft, expr->class_field.instance)->type
+            if temptype->kind != TypeKind::Pointer or temptype->value_type->kind != TypeKind::Class:
+                snprintf(
+                    msg, sizeof(msg),
+                    "left side of the '->' operator must be a pointer to a class, not %s",
+                    temptype->name)
+                fail(expr->location, msg)
+            result = typecheck_class_field(temptype->value_type, expr->class_field.field_name, expr->location)->type
         else:
+            temptype = typecheck_expression_not_void(ft, expr->class_field.instance)->type
+            if temptype->kind != TypeKind::Class:
+                snprintf(
+                    msg, sizeof(msg),
+                    "left side of the '.' operator must be an instance of a class, not %s",
+                    temptype->name)
+                fail(expr->location, msg)
+            result = typecheck_class_field(temptype, expr->class_field.field_name, expr->location)->type
+
+    elif expr->kind == AstExpressionKind::Call:
+        if expr->call.method_call_self == NULL:
+            result = typecheck_function_or_method_call(ft, &expr->call, NULL, expr->location)
+        elif expr->call.uses_arrow_operator:
+            temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)->type
+            if temptype->kind != TypeKind::Pointer:
+                snprintf(msg, sizeof(msg),
+                    "left side of the '->' operator must be a pointer, not %s",
+                    temptype->name)
+                fail(expr->location, msg)
+            result = typecheck_function_or_method_call(ft, &expr->call, temptype->value_type, expr->location)
+        else:
+            temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)->type
+            result = typecheck_function_or_method_call(ft, &expr->call, temptype, expr->location)
+
+            # If self argument is passed by pointer, make sure we can create that pointer
+            found = False
+            assert temptype->kind == TypeKind::Class
+            for m = temptype->classdata.methods; m < &temptype->classdata.methods[temptype->classdata.nmethods]; m++:
+                if strcmp(m->name, expr->call.name) != 0:
+                    continue
+
+                if is_pointer_type(m->argtypes[0]):
+                    assert strstr(expr->call.name, "%") == NULL
+                    snprintf(
+                        msg, sizeof msg,
+                        "cannot take address of %%s, needed for calling the %s() method",
+                        expr->call.name)
+                    ensure_can_take_address(ft->current_fom_types, expr->call.method_call_self, msg)
+
+                found = True
+                break
+
+            assert found
+
+        if result == NULL:
+            # no return value produced
             return NULL
 
-    def do_call(self, call: AstCall*) -> Type*:
-        message: byte[500]
+    elif expr->kind == AstExpressionKind::Indexing:
+        result = typecheck_indexing(ft, &expr->operands[0], &expr->operands[1])
 
-        if call->method_call_self != NULL:
-            self_type = self->do_expression(call->method_call_self)->original_type
-            if call->uses_arrow_operator:
-                if self_type->kind != TypeKind::Pointer or self_type->value_type->kind != TypeKind::Class:
-                    snprintf(
-                        message, sizeof message,
-                        "left side of the '->' operator must be a pointer, not %s",
-                        self_type->name,
-                    )
-                    fail(call->location, message)
-                self_type = self_type->value_type
+    elif expr->kind == AstExpressionKind::AddressOf:
+        ensure_can_take_address(ft->current_fom_types, &expr->operands[0], "the '&' operator cannot be used with %s")
+        temptype = typecheck_expression_not_void(ft, &expr->operands[0])->type
+        result = get_pointer_type(temptype)
+
+    elif expr->kind == AstExpressionKind::GetVariable:
+        result = find_any_var(ft, expr->varname)
+        if result == NULL:
+            snprintf(msg, sizeof(msg), "no variable named '%s'", expr->varname)
+            fail(expr->location, msg)
+
+    elif expr->kind == AstExpressionKind::Self:
+        selfvar = find_local_var(ft, "self")
+        assert selfvar != NULL
+        result = selfvar->type
+
+    elif expr->kind == AstExpressionKind::Dereference:
+        temptype = typecheck_expression_not_void(ft, &expr->operands[0])->type
+        typecheck_dereferenced_pointer(expr->location, temptype)
+        result = temptype->value_type
+
+    elif expr->kind == AstExpressionKind::And:
+        typecheck_and_or(ft, &expr->operands[0], &expr->operands[1], "and")
+        result = boolType
+
+    elif expr->kind == AstExpressionKind::Or:
+        typecheck_and_or(ft, &expr->operands[0], &expr->operands[1], "or")
+        result = boolType
+
+    elif expr->kind == AstExpressionKind::Not:
+        typecheck_expression_with_implicit_cast(
+            ft, &expr->operands[0], boolType,
+            "value after 'not' must be a boolean, not <from>")
+        result = boolType
+
+    elif expr->kind == AstExpressionKind::Negate:
+        result = typecheck_expression_not_void(ft, &expr->operands[0])->type
+        if result->kind != TypeKind::SignedInteger and result->kind != TypeKind::FloatingPoint:
+            snprintf(msg, sizeof(msg),
+                "value after '-' must be a float or double or a signed integer, not %s",
+                result->name)
+            fail(expr->location, msg)
+
+    elif (
+        expr->kind == AstExpressionKind::Add
+        or expr->kind == AstExpressionKind::Subtract
+        or expr->kind == AstExpressionKind::Multiply
+        or expr->kind == AstExpressionKind::Divide
+        or expr->kind == AstExpressionKind::Modulo
+        or expr->kind == AstExpressionKind::Eq
+        or expr->kind == AstExpressionKind::Ne
+        or expr->kind == AstExpressionKind::Gt
+        or expr->kind == AstExpressionKind::Ge
+        or expr->kind == AstExpressionKind::Lt
+        or expr->kind == AstExpressionKind::Le
+    ):
+        lhstypes = typecheck_expression_not_void(ft, &expr->operands[0])
+        rhstypes = typecheck_expression_not_void(ft, &expr->operands[1])
+        result = check_binop(ft->current_fom_types, expr->kind, expr->location, lhstypes, rhstypes)
+
+    elif (
+        expr->kind == AstExpressionKind::PreIncr
+        or expr->kind == AstExpressionKind::PreDecr
+        or expr->kind == AstExpressionKind::PostIncr
+        or expr->kind == AstExpressionKind::PostDecr
+    ):
+        result = check_increment_or_decrement(ft, expr)
+
+    elif expr->kind == AstExpressionKind::As:
+        origtypes = typecheck_expression_not_void(ft, &expr->as_->value)
+        result = type_from_ast(ft, &expr->as_->type)
+        do_explicit_cast(ft->current_fom_types, origtypes, result, expr->location)
+
+    else:
+        printf("%d\n", expr->kind)
+        assert False
+
+    assert result != NULL
+
+    types: ExpressionTypes* = calloc(1, sizeof *types)
+    types->expr = expr
+    types->type = result
+
+    ft->current_fom_types->expr_types = realloc(ft->current_fom_types->expr_types, sizeof(ft->current_fom_types->expr_types[0]) * (ft->current_fom_types->n_expr_types + 1))
+    assert ft->current_fom_types->expr_types != NULL
+    ft->current_fom_types->expr_types[ft->current_fom_types->n_expr_types++] = types
+
+    return types
+
+
+def typecheck_body(ft: FileTypes*, body: AstBody*) -> None:
+    for i = 0; i < body->nstatements; i++:
+        typecheck_statement(ft, &body->statements[i])
+
+
+def typecheck_if_statement(ft: FileTypes*, ifstmt: AstIfStatement*) -> None:
+    for i = 0; i < ifstmt->n_if_and_elifs; i++:
+        if i == 0:
+            errmsg = "'if' condition must be a boolean, not <from>"
         else:
-            self_type = NULL
+            errmsg = "'elif' condition must be a boolean, not <from>"
 
-        signature = self->find_function_or_method(self_type, call->name)
-        if signature == NULL:
-            if self_type == NULL:
-                snprintf(message, sizeof message, "function '%s' not found", call->name)
-            elif (
-                self_type->kind == TypeKind::Pointer
-                and self_type->value_type->kind == TypeKind::Class
-                and self_type->value_type->class_members.find_method(call->name) != NULL
-            ):
-                snprintf(
-                    message, sizeof message,
-                    "the method '%s' is defined on class %s, not on the pointer type %s, so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
-                    call->name, self_type->value_type->name, self_type->name,
-                )
-            elif self_type->kind == TypeKind::Class:
-                snprintf(
-                    message, sizeof message,
-                    "class %s does not have a method named '%s'", self_type->name, call->name,
-                )
-            else:
-                snprintf(
-                    message, sizeof message,
-                    "type %s does not have any methods because it is %s, not a class",
-                    self_type->name, short_type_description(self_type),
-                )
-            fail(call->location, message)
+        typecheck_expression_with_implicit_cast(
+            ft, &ifstmt->if_and_elifs[i].condition, boolType, errmsg)
+        typecheck_body(ft, &ifstmt->if_and_elifs[i].body)
 
-        if call->method_call_self != NULL and not call->uses_arrow_operator:
-            snprintf(
-                message, sizeof message,
-                "cannot take address of %%s, needed for calling the %s() method", call->name)
-            ensure_can_take_address(call->method_call_self, message)
+    typecheck_body(ft, &ifstmt->else_body)
 
-        signature_string = signature->to_string(False, False)
+def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
+    msg: byte[500]
 
-        expected = signature->nargs
-        if self_type != NULL:
-            expected--  # exclude self
+    if stmt->kind == AstStatementKind::If:
+        typecheck_if_statement(ft, &stmt->if_statement)
 
-        if call->nargs < expected or (call->nargs > expected and not signature->takes_varargs):
-            snprintf(
-                message, sizeof message,
-                "%s %s takes %d argument%s, but it was called with %d argument%s",
-                signature->function_or_method(),
-                signature_string,
-                expected,
-                plural_s(expected),
-                call->nargs,
-                plural_s(call->nargs),
-            )
-            fail(call->location, message)
+    elif stmt->kind == AstStatementKind::WhileLoop:
+        typecheck_expression_with_implicit_cast(
+            ft, &stmt->while_loop.condition, boolType,
+            "'while' condition must be a boolean, not <from>")
+        typecheck_body(ft, &stmt->while_loop.body)
 
-        k = 0
-        for i = 0; i < signature->nargs; i++:
-            if strcmp(signature->argnames[i], "self") == 0:
-                continue
+    elif stmt->kind == AstStatementKind::ForLoop:
+        typecheck_statement(ft, stmt->for_loop.init)
+        typecheck_expression_with_implicit_cast(
+            ft, &stmt->for_loop.cond, boolType,
+            "'for' condition must be a boolean, not <from>")
+        typecheck_body(ft, &stmt->for_loop.body)
+        typecheck_statement(ft, stmt->for_loop.incr)
 
-            # This is a common error, so worth spending some effort to get a good error message.
-            tmp = nth(i+1)
-            snprintf(
-                message, sizeof message,
-                "%s argument of %s %s should have type <to>, not <from>",
-                tmp, signature->function_or_method(), signature_string,
-            )
-            self->do_expression_and_implicit_cast(&call->args[k++], signature->argtypes[i], message)
+    elif (
+        stmt->kind == AstStatementKind::Break
+        or stmt->kind == AstStatementKind::Continue
+        or stmt->kind == AstStatementKind::Pass
+    ):
+        pass
 
-        for i = k; i < call->nargs; i++:
-            # This code runs for varargs, e.g. the things to format in printf().
-            types = self->do_expression(&call->args[i])
+    elif stmt->kind == AstStatementKind::Assign:
+        targetexpr = &stmt->assignment.target
+        valueexpr = &stmt->assignment.value
 
-            if (
-                (types->original_type->is_integer_type() and types->original_type->size_in_bits < 32)
-                or types->original_type == &bool_type
-            ):
-                # Add implicit cast to signed int, just like in C.
-                types->do_implicit_cast(int_type, Location{}, NULL)
-            elif types->original_type == &float_type:
-                types->do_implicit_cast(&double_type, Location{}, NULL)
-            elif types->original_type->kind == TypeKind::Array:
-                types->cast_array_to_pointer()
-
-        free(signature_string)
-        return signature->return_type
-
-    def do_increment_or_decrement(self, expression: AstExpression*, increment_or_decrement: byte*) -> Type*:
-        assert strcmp(increment_or_decrement, "increment") == 0 or strcmp(increment_or_decrement, "decrement") == 0
-
-        bad_expression_error_template: byte[50]
-        sprintf(bad_expression_error_template, "cannot %s %%s", increment_or_decrement)
-        ensure_can_take_address(&expression->operands[0], bad_expression_error_template)
-
-        t = self->do_expression(&expression->operands[0])->original_type
-        if not t->is_integer_type() and not t->is_pointer_type():
-            error: byte* = malloc(strlen(t->name) + 100)
-            sprintf(error, "cannot %s a value of type %s", increment_or_decrement, t->name)
-            fail(expression->location, error)
-        return t
-
-    def do_enum_member(self, location: Location, enum_name: byte*, member_name: byte*) -> Type*:
-        message: byte[200]
-
-        enum_type = self->file_types->find_type(enum_name)
-        if enum_type == NULL:
-            snprintf(message, sizeof message, "there is no type named '%s'", enum_name)
-            fail(location, message)
-
-        if enum_type->kind != TypeKind::Enum:
-            snprintf(
-                message, sizeof message,
-                "the '::' syntax is only for enums, but %s is %s",
-                enum_name, short_type_description(enum_type),
-            )
-            fail(location, message)
-
-        if enum_type->enum_members.find_index(member_name) == -1:
-            snprintf(message, sizeof message, "enum %s has no member named '%s'", enum_name, member_name)
-            fail(location, message)
-
-        return enum_type
-
-    def do_instantiation(self, instantiation: AstInstantiation*) -> Type*:
-        message:byte[500]
-
-        t = self->file_types->find_type(instantiation->class_name)
-        if t == NULL:
-            snprintf(
-                message, sizeof message,
-                "there is no type named '%s'", instantiation->class_name,
-            )
-            fail(instantiation->class_name_location, message)
-
-        if t->kind != TypeKind::Class:
-            description = short_type_description(t)
-            snprintf(
-                message, sizeof message,
-                "the %s{...} syntax is only for classes, but %s is %s",
-                t->name, t->name, description,
-            )
-            fail(instantiation->class_name_location, message)
-
-        specified_fields: ClassField** = malloc(sizeof specified_fields[0] * instantiation->nfields)
-        for i = 0; i < instantiation->nfields; i++:
-            snprintf(
-                message, sizeof message,
-                "value for field '%s' of class %s must be of type <to>, not <from>",
-                instantiation->field_names[i], t->name,
-            )
-            specified_fields[i] = check_class_field(
-                instantiation->field_values[i].location,
-                t,
-                instantiation->field_names[i],
-            )
-            self->do_expression_and_implicit_cast(
-                &instantiation->field_values[i],
-                specified_fields[i]->type,
-                message,
-            )
-
-        for i1 = 0; i1 < instantiation->nfields; i1++:
-            for i2 = i1+1; i2 < instantiation->nfields; i2++:
-                if specified_fields[i1]->union_id == specified_fields[i2]->union_id:
-                    snprintf(
-                        message, sizeof message,
-                        "fields '%s' and '%s' cannot be set simultaneously because they belong to the same union",
-                        specified_fields[i1]->name,
-                        specified_fields[i2]->name,
-                    )
-                    fail(instantiation->field_values[i2].location, message)
-
-        return t
-
-    def do_indexing(self, pointer: AstExpression*, index: AstExpression*) -> Type*:
-        message: byte[500]
-        types = self->do_expression(pointer)
-
-        if types->original_type->kind == TypeKind::Array:
-            types->cast_array_to_pointer()
-            pointer_type = types->implicit_cast_type
-        elif types->original_type->kind == TypeKind::Pointer:
-            pointer_type = types->original_type
-        else:
-            snprintf(message, sizeof message[0], "value of type %s cannot be indexed", types->original_type->name)
-            fail(pointer->location, message)
-
-        index_types = self->do_expression(index)
-        assert index_types != NULL
-
-        if not index_types->original_type->is_integer_type():
-            snprintf(message, sizeof message[0], "the index inside [...] must be an integer, not %s", index_types->original_type->name)
-            fail(index->location, message)
-
-        # LLVM assumes that indexes smaller than 64 bits are signed.
-        # https://github.com/Akuli/jou/issues/48
-        index_types->do_implicit_cast(long_type, Location{}, NULL)
-
-        return pointer_type->value_type
-
-    def do_expression_maybe_void(self, expression: AstExpression*) -> ExpressionTypes*:
-        result: Type*
-        message: byte[200]
-
-        if expression->kind == AstExpressionKind::String:
-            result = byte_type->get_pointer_type()
-        elif expression->kind == AstExpressionKind::Bool:
-            result = &bool_type
-        elif expression->kind == AstExpressionKind::Byte:
-            result = byte_type
-        elif expression->kind == AstExpressionKind::Short:
-            result = short_type
-        elif expression->kind == AstExpressionKind::Int:
-            result = int_type
-        elif expression->kind == AstExpressionKind::Long:
-            result = long_type
-        elif expression->kind == AstExpressionKind::Float:
-            result = &float_type
-        elif expression->kind == AstExpressionKind::Double:
-            result = &double_type
-        elif expression->kind == AstExpressionKind::Null:
-            result = &void_ptr_type
-        elif expression->kind == AstExpressionKind::Array:
-            n = expression->array.length
-            item_types: ExpressionTypes** = malloc(n * sizeof item_types[0])
-            for i = 0; i < n; i++:
-                item_types[i] = self->do_expression(&expression->array.items[i])
-            member_type = cast_array_items_to_a_common_type(expression->location, item_types, n)
-            free(item_types)
-            result = member_type->get_array_type(n)
-        elif expression->kind == AstExpressionKind::Call:
-            result = self->do_call(&expression->call)
-            if result == NULL:
-                return NULL
-        elif expression->kind == AstExpressionKind::GetVariable:
-            result = self->find_var(expression->varname)
-            if result == NULL:
-                snprintf(message, sizeof message, "no variable named '%s'", expression->varname)
-                fail(expression->location, message)
-        elif expression->kind == AstExpressionKind::As:
-            value_types = self->do_expression(&expression->as_expression->value)
-            result = type_from_ast(self->file_types, &expression->as_expression->type)
-            value_types->do_explicit_cast(result, expression->location)
-        elif expression->kind == AstExpressionKind::GetEnumMember:
-            result = self->do_enum_member(
-                expression->location,
-                expression->enum_member.enum_name,
-                expression->enum_member.member_name,
-            )
-        elif expression->kind == AstExpressionKind::And:
-            self->do_expression_and_implicit_cast(&expression->operands[0], &bool_type, "'and' only works with booleans, not <from>")
-            self->do_expression_and_implicit_cast(&expression->operands[1], &bool_type, "'and' only works with booleans, not <from>")
-            result = &bool_type
-        elif expression->kind == AstExpressionKind::Or:
-            self->do_expression_and_implicit_cast(&expression->operands[0], &bool_type, "'or' only works with booleans, not <from>")
-            self->do_expression_and_implicit_cast(&expression->operands[1], &bool_type, "'or' only works with booleans, not <from>")
-            result = &bool_type
-        elif (
-            expression->kind == AstExpressionKind::Add
-            or expression->kind == AstExpressionKind::Subtract
-            or expression->kind == AstExpressionKind::Multiply
-            or expression->kind == AstExpressionKind::Divide
-            or expression->kind == AstExpressionKind::Modulo
-            or expression->kind == AstExpressionKind::Eq
-            or expression->kind == AstExpressionKind::Ne
-            or expression->kind == AstExpressionKind::Gt
-            or expression->kind == AstExpressionKind::Ge
-            or expression->kind == AstExpressionKind::Lt
-            or expression->kind == AstExpressionKind::Le
+        if (
+            targetexpr->kind == AstExpressionKind::GetVariable
+            and find_any_var(ft, targetexpr->varname) == NULL
         ):
-            lhs_types = self->do_expression(&expression->operands[0])
-            rhs_types = self->do_expression(&expression->operands[1])
-            result = check_binop(expression->kind, expression->location, lhs_types, rhs_types)
-        elif expression->kind == AstExpressionKind::Negate:
-            result = self->do_expression(&expression->operands[0])->original_type
-            # TODO: check for floats/doubles too
-            if result->kind != TypeKind::SignedInteger and result->kind != TypeKind::FloatingPoint:
-                snprintf(
-                    message, sizeof message,
-                    "value after '-' must be a float or double or a signed integer, not %s",
-                    result->name,
-                )
-                fail(expression->location, message)
-        elif expression->kind == AstExpressionKind::PreIncr or expression->kind == AstExpressionKind::PostIncr:
-            result = self->do_increment_or_decrement(expression, "increment")
-        elif expression->kind == AstExpressionKind::PreDecr or expression->kind == AstExpressionKind::PostDecr:
-            result = self->do_increment_or_decrement(expression, "decrement")
-        elif expression->kind == AstExpressionKind::GetClassField:
-            lhs_type = self->do_expression(expression->class_field.instance)->original_type
-            if expression->class_field.uses_arrow_operator:
-                if lhs_type->kind != TypeKind::Pointer or lhs_type->value_type->kind != TypeKind::Class:
-                    snprintf(
-                        message, sizeof message,
-                        "left side of the '->' operator must be a pointer to a class, not %s",
-                        lhs_type->name,
-                    )
-                    fail(expression->location, message)
-                result = check_class_field(expression->location, lhs_type->value_type, expression->class_field.field_name)->type
-            else:
-                if lhs_type->kind != TypeKind::Class:
-                    snprintf(
-                        message, sizeof message,
-                        "left side of the '.' operator must be an instance of a class, not %s",
-                        lhs_type->name,
-                    )
-                    fail(expression->location, message)
-                result = check_class_field(expression->location, lhs_type, expression->class_field.field_name)->type
-        elif expression->kind == AstExpressionKind::AddressOf:
-            ensure_can_take_address(&expression->operands[0], "the '&' operator cannot be used with %s")
-            result = self->do_expression(&expression->operands[0])->original_type->get_pointer_type()
-        elif expression->kind == AstExpressionKind::Dereference:
-            pointer_type = self->do_expression(expression->operands)->original_type
-            if pointer_type->kind != TypeKind::Pointer:
-                snprintf(
-                    message, sizeof message,
-                    "the dereference operator '*' is only for pointers, not for %s",
-                    pointer_type->name,
-                )
-                fail(expression->location, message)
-            result = pointer_type->value_type
-        elif expression->kind == AstExpressionKind::Instantiate:
-            result = self->do_instantiation(&expression->instantiation)
-        elif expression->kind == AstExpressionKind::Indexing:
-            result = self->do_indexing(&expression->operands[0], &expression->operands[1])
-        elif expression->kind == AstExpressionKind::Not:
-            self->do_expression_and_implicit_cast(
-                &expression->operands[0], &bool_type,
-                "value after 'not' must be a boolean, not <from>",
-            )
-            result = &bool_type
-        elif expression->kind == AstExpressionKind::Self:
-            class_type = self->current_function_or_method->signature.get_containing_class()
-            assert class_type != NULL
-            result = class_type->get_pointer_type()
-        elif expression->kind == AstExpressionKind::SizeOf:
-            self->do_expression(&expression->operands[0])
-            result = long_type
+            # Making a new variable. Use the type of the value being assigned.
+            types = typecheck_expression_not_void(ft, valueexpr)
+            add_variable(ft, types->type, targetexpr->varname)
         else:
-            printf("*** expr %d\n", expression->kind as int)
-            expression->print()
+            # Convert value to the type of an existing variable or other assignment target.
+            ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
+
+            if targetexpr->kind == AstExpressionKind::Dereference:
+                strcpy(msg, "cannot place a value of type <from> into a pointer of type <to>*")
+            else:
+                snprintf(msg, sizeof msg,
+                    "cannot assign a value of type <from> to %s of type <to>",
+                    short_expression_description(targetexpr))
+
+            targettypes = typecheck_expression_not_void(ft, targetexpr)
+            typecheck_expression_with_implicit_cast(ft, valueexpr, targettypes->type, msg)
+
+    elif (
+        stmt->kind == AstStatementKind::InPlaceAdd
+        or stmt->kind == AstStatementKind::InPlaceSubtract
+        or stmt->kind == AstStatementKind::InPlaceMultiply
+        or stmt->kind == AstStatementKind::InPlaceDivide
+        or stmt->kind == AstStatementKind::InPlaceModulo
+    ):
+        targetexpr = &stmt->assignment.target
+        valueexpr = &stmt->assignment.value
+
+        ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
+        targettypes = typecheck_expression_not_void(ft, targetexpr)
+        value_types = typecheck_expression_not_void(ft, valueexpr)
+
+        if stmt->kind == AstStatementKind::InPlaceAdd:
+            op = AstExpressionKind::Add
+            opname = "addition"
+        elif stmt->kind == AstStatementKind::InPlaceSubtract:
+            op = AstExpressionKind::Subtract
+            opname = "subtraction"
+        elif stmt->kind == AstStatementKind::InPlaceMultiply:
+            op = AstExpressionKind::Multiply
+            opname = "multiplication"
+        elif stmt->kind == AstStatementKind::InPlaceDivide:
+            op = AstExpressionKind::Divide
+            opname = "division"
+        elif stmt->kind == AstStatementKind::InPlaceModulo:
+            op = AstExpressionKind::Modulo
+            opname = "modulo"
+        else:
             assert False
 
-        p: ExpressionTypes* = malloc(sizeof *p)
-        *p = ExpressionTypes{
-            expression = expression,
-            original_type = result,
-            next = self->current_function_or_method->expression_types,
-        }
-        self->current_function_or_method->expression_types = p
-        return p
+        t = check_binop(ft->current_fom_types, op, stmt->location, targettypes, value_types)
+        tempvalue_types = ExpressionTypes{expr = targetexpr, type = t}
 
-    def do_expression(self, expression: AstExpression*) -> ExpressionTypes*:
-        types = self->do_expression_maybe_void(expression)
-        if types == NULL:
-            assert expression->kind == AstExpressionKind::Call
-            name = expression->call.name
-            message = malloc(strlen(name) + 100)
-            sprintf(message, "%s '%s' does not return a value", expression->call.function_or_method(), name)
-            fail(expression->location, message)
-        return types
-
-    def do_expression_and_implicit_cast(
-        self,
-        expression: AstExpression*,
-        cast_type: Type*,
-        error_message_template: byte*,
-    ) -> ExpressionTypes*:
-        types = self->do_expression(expression)
-        types->do_implicit_cast(cast_type, expression->location, error_message_template)
-        return types
-
-    def do_in_place_operation(
-        self,
-        location: Location,
-        target: AstExpression*, # the foo of "foo += 1"
-        value: AstExpression*,  # the 1 of "foo += 1"
-        op_expr_kind: AstExpressionKind,  # e.g. AstExpressionKind::Add
-        op_description: byte[20],  # e.g. "addition"
-    ) -> None:
-        ensure_can_take_address(target, "cannot assign to %s")
-        target_types = self->do_expression(target)
-        value_types = self->do_expression(value)
-
-        t = check_binop(op_expr_kind, location, target_types, value_types)
-        temp_value_types = ExpressionTypes{ expression = target, original_type = t }
-
-        error_template: byte[200]
-        strcpy(error_template, op_description)
-        strcat(error_template, " produced a value of type <from> which cannot be assigned back to <to>")
-        temp_value_types.do_implicit_cast(target_types->original_type, location, error_template)
+        snprintf(msg, sizeof msg, "%s produced a value of type <from> which cannot be assigned back to <to>", opname)
+        do_implicit_cast(ft->current_fom_types, &tempvalue_types, targettypes->type, stmt->location, msg)
 
         # I think it is currently impossible to cast target.
-        # If this assert fails, we probably need a new error message.
-        assert target_types->implicit_cast_type == NULL
+        # If this assert fails, we probably need to add another error message for it.
+        assert targettypes->implicit_cast_type == NULL
 
-    def do_statement(self, statement: AstStatement*) -> None:
-        if statement->kind == AstStatementKind::Assert:
-            self->do_expression_and_implicit_cast(
-                &statement->expression, &bool_type, "assertion must be a boolean, not <from>"
-            )
+    elif stmt->kind == AstStatementKind::Return:
+        if ft->current_fom_types->signature.is_noreturn:
+            snprintf(msg, sizeof(msg),
+                "function '%s' cannot return because it was defined with '-> noreturn'",
+                ft->current_fom_types->signature.name)
+            fail(stmt->location, msg)
 
-        elif statement->kind == AstStatementKind::ExpressionStatement:
-            self->do_expression_maybe_void(&statement->expression)
+        return_type = ft->current_fom_types->signature.returntype
 
-        elif statement->kind == AstStatementKind::Return:
-            sig = &self->current_function_or_method->signature
+        if stmt->return_value != NULL and return_type == NULL:
+            snprintf(msg, sizeof(msg), "function '%s' cannot return a value because it was defined with '-> None'",
+                ft->current_fom_types->signature.name)
+            fail(stmt->location, msg)
 
-            # TODO: check for noreturn functions
+        if return_type != NULL and stmt->return_value == NULL:
+            snprintf(msg, sizeof(msg),
+                "a return value is needed, because the return type of function '%s' is %s",
+                ft->current_fom_types->signature.name,
+                ft->current_fom_types->signature.returntype->name)
+            fail(stmt->location, msg)
 
-            msg: byte[500]
+        if stmt->return_value != NULL:
+            snprintf(msg, sizeof msg,
+                "attempting to return a value of type <from> from function '%s' defined with '-> <to>'",
+                ft->current_fom_types->signature.name)
+            typecheck_expression_with_implicit_cast(
+                ft, stmt->return_value, find_local_var(ft, "return")->type, msg)
 
-            if statement->return_value != NULL and sig->return_type == NULL:
-                snprintf(
-                    msg, sizeof msg,
-                    "%s '%s' cannot return a value because it was defined with '-> None'",
-                    sig->function_or_method(), sig->name,
-                )
-                fail(statement->location, msg)
-            if statement->return_value == NULL and sig->return_type != NULL:
-                snprintf(
-                    msg, sizeof msg,
-                    "%s '%s' must return a value because it was defined with '-> %s'",
-                    sig->function_or_method(), sig->name, sig->return_type->name,
-                )
-                fail(statement->location, msg)
+    elif stmt->kind == AstStatementKind::DeclareLocalVar:
+        if find_any_var(ft, stmt->var_declaration.name) != NULL:
+            snprintf(msg, sizeof(msg), "a variable named '%s' already exists", stmt->var_declaration.name)
+            fail(stmt->location, msg)
 
-            if statement->return_value != NULL:
-                cast_error_msg: byte[500]
-                snprintf(
-                    cast_error_msg, sizeof cast_error_msg,
-                    "attempting to return a value of type <from> from %s '%s' defined with '-> <to>'",
-                    sig->function_or_method(), sig->name,
-                )
-                self->do_expression_and_implicit_cast(
-                    statement->return_value, sig->return_type, cast_error_msg
-                )
+        type = type_from_ast(ft, &stmt->var_declaration.type)
+        add_variable(ft, type, stmt->var_declaration.name)
 
-        elif statement->kind == AstStatementKind::Assign:
-            target_expr = &statement->assignment.target
-            value_expr = &statement->assignment.value
-            ensure_can_take_address(target_expr, "cannot assign to %s")
+        if stmt->var_declaration.value != NULL:
+            typecheck_expression_with_implicit_cast(
+                ft, stmt->var_declaration.value, type,
+                "initial value for variable of type <to> cannot be of type <from>")
 
-            if (
-                target_expr->kind == AstExpressionKind::GetVariable
-                and self->find_var(target_expr->varname) == NULL
-            ):
-                # Making a new variable. Use the type of the value being assigned.
-                types = self->do_expression(value_expr)
-                self->add_local_var(target_expr->varname, types->original_type)
-            else:
-                # Convert value to the type of an existing variable or other assignment target.
-                # This tends to fail often, so try to produce a helpful error message.
-                error_template: byte[500]
-                if target_expr->kind == AstExpressionKind::Dereference:
-                    error_template = "cannot place a value of type <from> into a pointer of type <to>*"
-                else:
-                    target_description: byte[200] = short_expression_description(target_expr)
-                    snprintf(
-                        error_template, sizeof error_template,
-                        "cannot assign a value of type <from> to %s of type <to>",
-                        target_description,
-                    )
+    elif stmt->kind == AstStatementKind::ExpressionStatement:
+        typecheck_expression(ft, &stmt->expression)
 
-                target_types = self->do_expression(target_expr)
-                self->do_expression_and_implicit_cast(value_expr, target_types->original_type, error_template)
+    elif stmt->kind == AstStatementKind::Assert:
+        typecheck_expression_with_implicit_cast(ft, &stmt->expression, boolType, "assertion must be a boolean, not <from>")
 
-        elif statement->kind == AstStatementKind::DeclareLocalVar:
-            ntv: AstNameTypeValue* = &statement->var_declaration
-            if self->find_var(ntv->name) != NULL:
-                message: byte[200]
-                snprintf(message, sizeof message, "a variable named '%s' already exists", ntv->name)
-                fail(statement->location, message)
-
-            type = type_from_ast(self->file_types, &ntv->type)
-            self->add_local_var(ntv->name, type)
-            if ntv->value != NULL:
-                self->do_expression_and_implicit_cast(
-                    ntv->value, type,
-                    "initial value for variable of type <to> cannot be of type <from>",
-                )
-
-        elif statement->kind == AstStatementKind::If:
-            for i = 0; i < statement->if_statement.n_if_and_elifs; i++:
-                if i == 0:
-                    template = "'if' condition must be a boolean, not <from>"
-                else:
-                    template = "'elif' condition must be a boolean, not <from>"
-                self->do_expression_and_implicit_cast(
-                    &statement->if_statement.if_and_elifs[i].condition, &bool_type, template
-                )
-                self->do_body(&statement->if_statement.if_and_elifs[i].body)
-            self->do_body(&statement->if_statement.else_body)
-
-        elif statement->kind == AstStatementKind::WhileLoop:
-            self->do_expression_and_implicit_cast(
-                &statement->while_loop.condition, &bool_type,
-                "'while' condition must be a boolean, not <from>",
-            )
-            self->nested_loop_count++
-            self->do_body(&statement->while_loop.body)
-            self->nested_loop_count--
-
-        elif statement->kind == AstStatementKind::ForLoop:
-            self->do_statement(statement->for_loop.init)
-            self->do_expression_and_implicit_cast(
-                &statement->for_loop.cond, &bool_type,
-                "'for' condition must be a boolean, not <from>",
-            )
-            self->nested_loop_count++
-            self->do_body(&statement->for_loop.body)
-            self->nested_loop_count--
-            self->do_statement(statement->for_loop.incr)
-
-        elif statement->kind == AstStatementKind::Pass:
-            pass
-
-        elif statement->kind == AstStatementKind::Break:
-            if self->nested_loop_count == 0:
-                fail(statement->location, "'break' can only be used inside a loop")
-
-        elif statement->kind == AstStatementKind::Continue:
-            if self->nested_loop_count == 0:
-                fail(statement->location, "'continue' can only be used inside a loop")
-
-        elif statement->kind == AstStatementKind::InPlaceAdd:
-            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Add, "addition")
-        elif statement->kind == AstStatementKind::InPlaceSubtract:
-            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Subtract, "subtraction")
-        elif statement->kind == AstStatementKind::InPlaceMultiply:
-            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Multiply, "multiplication")
-        elif statement->kind == AstStatementKind::InPlaceDivide:
-            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Divide, "division")
-        elif statement->kind == AstStatementKind::InPlaceModulo:
-            self->do_in_place_operation(statement->location, &statement->assignment.target, &statement->assignment.value, AstExpressionKind::Modulo, "modulo")
-
-        else:
-            statement->print()
-            printf("*** typecheck: unknown statement kind %d\n", statement->kind)
-            assert False
-
-    def do_body(self, body: AstBody*) -> None:
-        for i = 0; i < body->nstatements; i++:
-            self->do_statement(&body->statements[i])
-
-    def define_function_or_method(self, signature: Signature*, body: AstBody*) -> None:
-        assert self->current_function_or_method == NULL
-        self->file_types->defined_functions = realloc(
-            self->file_types->defined_functions,
-            (self->file_types->n_defined_functions + 1) * sizeof self->file_types->defined_functions[0],
-        )
-        self->current_function_or_method = &self->file_types->defined_functions[self->file_types->n_defined_functions++]
-        *self->current_function_or_method = FunctionOrMethodTypes{signature = signature->copy()}
-
-        for k = 0; k < signature->nargs; k++:
-            self->add_local_var(signature->argnames[k], signature->argtypes[k])
-
-        self->do_body(body)
-        self->current_function_or_method = NULL
+    else:
+        assert False
 
 
-def typecheck_stage3_function_and_method_bodies(file_types: FileTypes*, ast_file: AstFile*) -> None:
-    checker = Stage3TypeChecker{file_types = file_types}
-    for i = 0; i < ast_file->body.nstatements; i++:
-        ts = &ast_file->body.statements[i]
-        if ts->kind == AstStatementKind::Function and ts->function.body.nstatements > 0:
-            signature = file_types->find_function(ts->function.signature.name)
-            assert signature != NULL
-            checker.define_function_or_method(signature, &ts->function.body)
-        elif ts->kind == AstStatementKind::Class:
-            class_type = file_types->find_type(ts->classdef.name)
-            assert class_type != NULL  # created in previous typecheck stage
-            assert class_type->kind == TypeKind::Class
-            for k = 0; k < ts->classdef.nmembers; k++:
-                if ts->classdef.members[k].kind == AstClassMemberKind::Method:
-                    signature = class_type->class_members.find_method(ts->classdef.members[k].method.signature.name)
-                    checker.define_function_or_method(signature, &ts->classdef.members[k].method.body)
+def typecheck_function_or_method_body(ft: FileTypes*, sig: Signature*, body: AstBody*) -> None:
+    assert ft->current_fom_types == NULL
+
+    ft->fomtypes = realloc(ft->fomtypes, sizeof(ft->fomtypes[0]) * (ft->nfomtypes + 1))
+    assert ft->fomtypes != NULL
+    ft->fomtypes[ft->nfomtypes++] = FunctionOrMethodTypes{}
+
+    ft->current_fom_types = &ft->fomtypes[ft->nfomtypes - 1]
+    ft->current_fom_types->signature = copy_signature(sig)
+
+    for i = 0; i < sig->nargs; i++:
+        v = add_variable(ft, sig->argtypes[i], sig->argnames[i])
+        v->is_argument = True
+
+    if sig->returntype != NULL:
+        add_variable(ft, sig->returntype, "return")
+
+    typecheck_body(ft, body)
+    ft->current_fom_types = NULL
+
+
+def typecheck_stage3_function_and_method_bodies(ft: FileTypes*, ast: AstFile*) -> None:
+    for i = 0; i < ast->body.nstatements; i++:
+        stmt = &ast->body.statements[i]
+        if stmt->kind == AstStatementKind::Function and stmt->function.body.nstatements > 0:
+            sig: Signature* = NULL
+            for f = ft->functions; f < &ft->functions[ft->nfunctions]; f++:
+                if strcmp(f->signature.name, stmt->function.signature.name) == 0:
+                    sig = &f->signature
+                    break
+            assert sig != NULL
+
+            typecheck_function_or_method_body(ft, sig, &stmt->function.body)
+
+        if stmt->kind == AstStatementKind::Class:
+            classtype: Type* = NULL
+            for t = ft->owned_types; t < &ft->owned_types[ft->n_owned_types]; t++:
+                if strcmp((*t)->name, stmt->classdef.name) == 0:
+                    classtype = *t
+                    break
+            assert classtype != NULL
+
+            for m = stmt->classdef.members; m < &stmt->classdef.members[stmt->classdef.nmembers]; m++:
+                if m->kind != AstClassMemberKind::Method:
+                    continue
+                method = &m->method
+
+                sig = NULL
+                for s = classtype->classdata.methods; s < &classtype->classdata.methods[classtype->classdata.nmethods]; s++:
+                    if strcmp(s->name, method->signature.name) == 0:
+                        sig = s
+                        break
+                assert sig != NULL
+                typecheck_function_or_method_body(ft, sig, &method->body)

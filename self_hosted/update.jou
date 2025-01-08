@@ -1,0 +1,63 @@
+# Self-update: "jou --update" updates the Jou compiler.
+
+import "stdlib/ascii.jou"
+import "stdlib/errno.jou"
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
+import "./paths.jou"
+
+# TODO: add some kind of chdir to standard library
+if WINDOWS:
+    declare _chdir(dirname: byte*) -> int
+
+    def chdir(dir: byte*) -> int:
+        return _chdir(dir)
+else:
+    declare chdir(path: byte*) -> int
+
+
+def fail_update() -> None:
+    puts("")
+    puts("Updating Jou failed. If you need help, please create an issue on GitHub:")
+    puts("   https://github.com/Akuli/jou/issues/new")
+    exit(1)
+
+def confirm(prompt: byte*) -> None:
+    printf("%s (y/n) ", prompt)
+    fflush(stdout)
+
+    line: byte[50]
+    fgets(line, sizeof(line) as int, stdin)
+    trim_ascii_whitespace(line)
+
+    yes = strcmp(line, "Y") == 0 or strcmp(line, "y") == 0
+    if not yes:
+        printf("Aborted.\n")
+        exit(1)
+
+def update_jou_compiler() -> None:
+    exe = find_current_executable()
+    exedir = dirname(exe)
+    printf("Installation directory: %s\n\n", exedir)
+
+    if chdir(exedir) == -1:
+        fprintf(stderr, "chdir(\"%s\") failed: %s\n", exedir, strerror(get_errno()))
+        fail_update()
+
+    if WINDOWS:
+        confirm("Download and install the latest version of Jou from GitHub releases?")
+        if system("powershell -ExecutionPolicy bypass -File update.ps1") != 0:
+            fail_update()
+    elif NETBSD:
+        confirm("Run \"git pull && gmake\"?")
+        if system("git pull && gmake") != 0:
+            fail_update()
+    else:
+        confirm("Run \"git pull && make\"?")
+        if system("git pull && make") != 0:
+            fail_update()
+
+    free(exe)
+    printf("\n\nYou now have the latest version of Jou :)\n")

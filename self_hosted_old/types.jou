@@ -1,0 +1,246 @@
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+enum TypeKind:
+    Bool
+    SignedInteger
+    UnsignedInteger
+    FloatingPoint
+    Pointer
+    VoidPointer
+    Class
+    OpaqueClass
+    Enum
+    Array
+
+class EnumMembers:
+    count: int
+    names: byte[100]*
+
+    # Returns -1 for not found
+    def find_index(self, name: byte*) -> int:
+        for i = 0; i < self->count; i++:
+            if strcmp(self->names[i], name) == 0:
+                return i
+        return -1
+
+class ClassField:
+    name: byte[100]
+    type: Type*
+    # If multiple fields have the same union_id, they belong to the same union.
+    # It means that only one of the fields can be used at a time.
+    union_id: int
+
+class ClassMembers:
+    fields: ClassField*
+    nfields: int
+    methods: Signature*
+    nmethods: int
+
+    def find_field(self, name: byte*) -> ClassField*:
+        for i = 0; i < self->nfields; i++:
+            if strcmp(self->fields[i].name, name) == 0:
+                return &self->fields[i]
+        return NULL
+
+    def find_method(self, name: byte*) -> Signature*:
+        for i = 0; i < self->nmethods; i++:
+            if strcmp(self->methods[i].name, name) == 0:
+                return &self->methods[i]
+        return NULL
+
+class ArrayInfo:
+    length: int
+    item_type: Type*
+
+class Type:
+    name: byte[100]
+    kind: TypeKind
+
+    union:
+        size_in_bits: int  # SignedInteger, UnsignedInteger, FloatingPoint
+        value_type: Type*  # Pointer (not used for VoidPointer)
+        enum_members: EnumMembers
+        class_members: ClassMembers
+        array: ArrayInfo
+
+    # Pointers and arrays of a given type live as long as the type itself.
+    # To make it possible, we just store them within the type.
+    # These are initially NULL and created dynamically as needed.
+    #
+    # Do not access these outside this file.
+    cached_pointer_type: Type*
+    cached_array_types: Type**
+    n_cached_array_types: int
+
+    def is_integer_type(self) -> bool:
+        return self->kind == TypeKind::SignedInteger or self->kind == TypeKind::UnsignedInteger
+
+    def is_number_type(self) -> bool:
+        return self->is_integer_type() or self->kind == TypeKind::FloatingPoint
+
+    def is_pointer_type(self) -> bool:
+        return self->kind == TypeKind::Pointer or self->kind == TypeKind::VoidPointer
+
+    def get_pointer_type(self) -> Type*:
+        if self->cached_pointer_type == NULL:
+            pointer_name: byte[100]
+            snprintf(pointer_name, sizeof pointer_name, "%s*", self->name)
+
+            self->cached_pointer_type = malloc(sizeof *self->cached_pointer_type)
+            *self->cached_pointer_type = Type{
+                name = pointer_name,
+                kind = TypeKind::Pointer,
+                value_type = self,
+            }
+
+        return self->cached_pointer_type
+
+    def get_array_type(self, length: int) -> Type*:
+        assert length > 0
+
+        for i = 0; i < self->n_cached_array_types; i++:
+            if self->cached_array_types[i]->array.length == length:
+                return self->cached_array_types[i]
+
+        array_name: byte[100]
+        snprintf(array_name, sizeof array_name, "%s[%d]", self->name, length)
+
+        t: Type* = malloc(sizeof *t)
+        *t = Type{
+            name = array_name,
+            kind = TypeKind::Array,
+            array = ArrayInfo{length = length, item_type = self},
+        }
+
+        self->cached_array_types = realloc(self->cached_array_types, sizeof self->cached_array_types[0] * (self->n_cached_array_types + 1))
+        self->cached_array_types[self->n_cached_array_types++] = t
+        return t
+
+# Typese are cached into global state, so you can use == between
+# pointers to compare them. Also, you don't usually need to copy a
+# type, you can just pass around a pointer to it.
+global signed_integers: Type[65]  # indexed by size in bits (8, 16, 32, 64)
+global unsigned_integers: Type[65]  # indexed by size in bits (8, 16, 32, 64)
+global bool_type: Type
+global void_ptr_type: Type
+global float_type: Type
+global double_type: Type
+
+# TODO: it seems weird in other files these are pointers but bool_type isn't
+global byte_type: Type*
+global short_type: Type*
+global int_type: Type*
+global long_type: Type*
+
+def init_types() -> None:
+    void_ptr_type = Type{name = "void*", kind = TypeKind::VoidPointer}
+    bool_type = Type{name = "bool", kind = TypeKind::Bool}
+    float_type = Type{name = "float", size_in_bits = 32, kind = TypeKind::FloatingPoint}
+    double_type = Type{name = "double", size_in_bits = 64, kind = TypeKind::FloatingPoint}
+
+    for size = 8; size <= 64; size *= 2:
+        sprintf(signed_integers[size].name, "<%d-bit signed integer>", size)
+        sprintf(unsigned_integers[size].name, "<%d-bit unsigned integer>", size)
+        signed_integers[size].kind = TypeKind::SignedInteger
+        unsigned_integers[size].kind = TypeKind::UnsignedInteger
+        signed_integers[size].size_in_bits = size
+        unsigned_integers[size].size_in_bits = size
+
+    byte_type = &unsigned_integers[8]
+    short_type = &signed_integers[16]
+    int_type = &signed_integers[32]
+    long_type = &signed_integers[64]
+
+    byte_type->name = "byte"
+    short_type->name = "short"
+    int_type->name = "int"
+    long_type->name = "long"
+
+def create_opaque_class(name: byte*) -> Type*:
+    result: Type* = malloc(sizeof *result)
+    *result = Type{kind = TypeKind::OpaqueClass}
+    assert strlen(name) < sizeof result->name
+    strcpy(result->name, name)
+    return result
+
+def create_enum(name: byte*, member_count: int, member_names: byte[100]*) -> Type*:
+    copied_member_names: byte[100]* = malloc(member_count * sizeof copied_member_names[0])
+    memcpy(copied_member_names, member_names, member_count * sizeof copied_member_names[0])
+
+    result: Type* = malloc(sizeof *result)
+    *result = Type{
+        kind = TypeKind::Enum,
+        enum_members = EnumMembers{count = member_count, names = copied_member_names},
+    }
+    assert strlen(name) < sizeof result->name
+    strcpy(result->name, name)
+    return result
+
+
+class Signature:
+    name: byte[100]  # name of function or method, after "def" keyword
+    nargs: int
+    argnames: byte[100]*
+    argtypes: Type**
+    takes_varargs: bool  # True for functions like printf()
+    return_type: Type*
+
+    def get_containing_class(self) -> Type*:
+        for i = 0; i < self->nargs; i++:
+            if strcmp(self->argnames[i], "self") == 0:
+                assert self->argtypes[i]->kind == TypeKind::Pointer
+                assert self->argtypes[i]->value_type->kind == TypeKind::Class
+                return self->argtypes[i]->value_type
+        return NULL
+
+    def is_method(self) -> bool:
+        return self->get_containing_class() != NULL
+
+    def function_or_method(self) -> byte*:
+        if self->is_method():
+            return "method"
+        else:
+            return "function"
+
+    def to_string(self, include_self: bool, include_return_type: bool) -> byte*:
+        result: byte* = malloc(500*(self->nargs + 1))
+        strcpy(result, self->name)
+
+        strcat(result, "(")
+
+        for i = 0; i < self->nargs; i++:
+            if strcmp(self->argnames[i], "self") == 0 and not include_self:
+                continue
+            strcat(result, self->argnames[i])
+            strcat(result, ": ")
+            strcat(result, self->argtypes[i]->name)
+            strcat(result, ", ")
+
+        if self->takes_varargs:
+            strcat(result, "...")
+        elif ends_with(result, ", "):
+            result[strlen(result)-2] = '\0'
+
+        strcat(result, ")")
+
+        if include_return_type:
+            if self->return_type == NULL:
+                strcat(result, " -> None")
+            else:
+                strcat(result, " -> ")
+                strcat(result, self->return_type->name)
+
+        return result
+
+    def copy(self) -> Signature:
+        result = *self
+        result.argnames = malloc(result.nargs * sizeof(result.argnames[0]))
+        result.argtypes = malloc(result.nargs * sizeof(result.argtypes[0]))
+        memcpy(result.argnames, self->argnames, result.nargs * sizeof(result.argnames[0]))
+        memcpy(result.argtypes, self->argtypes, result.nargs * sizeof(result.argtypes[0]))
+        return result
+
+    def free(self) -> None:
+        free(self->argnames)
+        free(self->argtypes)

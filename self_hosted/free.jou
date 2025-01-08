@@ -1,0 +1,71 @@
+# Boring boilerplate code to free up data structures used in compilation.
+
+import "./structs.jou"
+import "./types.jou"
+import "./token.jou"
+import "stdlib/mem.jou"
+
+def free_tokens(tokenlist: Token*) -> None:
+    for t = tokenlist; t->kind != TokenKind::EndOfFile; t++:
+        if t->kind == TokenKind::String:
+            free(t->long_string)
+    free(tokenlist)
+
+def free_constant(c: Constant*) -> None:
+    if c->kind == ConstantKind::String:
+        free(c->str)
+
+def free_signature(sig: Signature*) -> None:
+    free(sig->argnames)
+    free(sig->argtypes)
+
+def free_export_symbol(es: ExportSymbol*) -> None:
+    if es->kind == ExportSymbolKind::Function:
+        free_signature(&es->funcsignature)
+
+def free_file_types(ft: FileTypes*) -> None:
+    for t = ft->owned_types; t < &ft->owned_types[ft->n_owned_types]; t++:
+        free_type(*t)
+    for func = ft->functions; func < &ft->functions[ft->nfunctions]; func++:
+        free_signature(&func->signature)
+    for fom = ft->fomtypes; fom < &ft->fomtypes[ft->nfomtypes]; fom++:
+        for et = fom->expr_types; et < &fom->expr_types[fom->n_expr_types]; et++:
+            free(*et)
+        free(fom->expr_types)
+        free(fom->locals)  # Don't free individual locals because they're owned by CFG now
+        free_signature(&fom->signature)
+    free(ft->globals)
+    free(ft->types)
+    free(ft->owned_types)
+    free(ft->functions)
+    free(ft->fomtypes)
+
+def free_control_flow_graph_block(cfg: CfGraph*, b: CfBlock*) -> None:
+    for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
+        if ins->kind == CfInstructionKind::Constant:
+            free_constant(&ins->constant)
+        if ins->kind == CfInstructionKind::StringArray:
+            free(ins->strarray.str)
+        if ins->kind == CfInstructionKind::Call:
+            free_signature(&ins->signature)
+        free(ins->operands)
+    free(b->instructions)
+    if b != &cfg->start_block and b != &cfg->end_block:
+        free(b)
+
+def free_cfg(cfg: CfGraph*) -> None:
+    free_signature(&cfg->signature)
+
+    for b = cfg->all_blocks; b < &cfg->all_blocks[cfg->n_all_blocks]; b++:
+        free_control_flow_graph_block(cfg, *b)
+    for v = cfg->locals; v < &cfg->locals[cfg->nlocals]; v++:
+        free(*v)
+
+    free(cfg->all_blocks)
+    free(cfg->locals)
+    free(cfg)
+
+def free_control_flow_graphs(cfgfile: CfGraphFile*) -> None:
+    for cfg = cfgfile->graphs; cfg < &cfgfile->graphs[cfgfile->ngraphs]; cfg++:
+        free_cfg(*cfg)
+    free(cfgfile->graphs)

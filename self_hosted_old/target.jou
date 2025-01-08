@@ -21,6 +21,11 @@ class Target:
 
 global target: Target
 
+# TODO: run this with atexit() once we have function pointers
+#def cleanup() -> None:
+#    LLVMDisposeTargetMachine(target.target_machine)
+#    LLVMDisposeTargetData(target.target_data)
+
 def init_target() -> None:
     LLVMInitializeX86TargetInfo()
     LLVMInitializeX86Target()
@@ -63,7 +68,3 @@ def init_target() -> None:
     assert strlen(tmp) < sizeof target.data_layout
     strcpy(target.data_layout, tmp)
     LLVMDisposeMessage(tmp)
-
-def cleanup_target() -> None:
-    LLVMDisposeTargetMachine(target.target_machine)
-    LLVMDisposeTargetData(target.target_data)

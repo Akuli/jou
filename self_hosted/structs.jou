@@ -1,0 +1,252 @@
+# TODO: delete this file, merge into others
+
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+import "./llvm.jou"
+import "./ast.jou"
+import "./types.jou"
+import "./errors_and_warnings.jou"
+
+class CommandLineArgs:
+    argv0: byte*  # Program name
+    verbosity: int  # How much debug/progress info to print, how many times -v/--verbose passed
+    valgrind: bool  # true --> Use valgrind when runnning user's jou program
+    tokenize_only: bool  # If true, tokenize the file passed on command line and don't actually compile anything
+    parse_only: bool  # If true, parse the file passed on command line and don't actually compile anything
+    optlevel: int  # Optimization level (0 don't optimize, 3 optimize a lot)
+    infile: byte*  # The "main" Jou file (can import other files)
+    outfile: byte*  # If not NULL, where to output executable
+    linker_flags: byte*  # String that is appended to linking command
+
+# Command-line arguments are a global variable because I like it.
+global command_line_args: CommandLineArgs
+
+# Constants can appear in AST and also compilation steps after AST.
+enum ConstantKind:
+    EnumMember
+    Integer
+    Float
+    Double
+    String
+    Null
+    Bool
+
+class IntegerConstant:
+    size_in_bits: int
+    is_signed: bool
+    value: long
+
+class EnumMemberConstant:
+    enumtype: Type*
+    memberidx: int
+
+class Constant:
+    kind: ConstantKind
+    union:
+        integer: IntegerConstant
+        str: byte*
+        # TODO: rename double_or_float_text --> float_or_double_text to be consistent with AST
+        double_or_float_text: byte[100]  # convenient because LLVM wants a string anyway
+        boolean: bool
+        enum_member: EnumMemberConstant
+
+def copy_constant(c: Constant) -> Constant:
+    if c.kind == ConstantKind::String:
+        c.str = strdup(c.str)
+        assert c.str != NULL
+    return c
+
+def int_constant(type: Type*, value: long) -> Constant:
+    assert is_integer_type(type)
+    return Constant{
+        kind = ConstantKind::Integer,
+        integer = IntegerConstant{
+            size_in_bits = type->size_in_bits,
+            is_signed = type->kind == TypeKind::SignedInteger,
+            value = value
+        }
+    }
+
+class Signature:
+    name: byte[100]  # Function or method name. For methods it does not include the name of the class.
+    nargs: int
+    argtypes: Type**
+    argnames: byte[100]*
+    takes_varargs: bool  # true for functions like printf()
+    # TODO: rename to return_type
+    returntype: Type*    # NULL, if does not return a value
+    is_noreturn: bool
+    # TODO: rename to return_type_location
+    returntype_location: Location  # meaningful even if returntype is NULL
+
+
+class GlobalVariable:
+    name: byte[100]  # Same as in user's code, never empty
+    type: Type*
+    defined_in_current_file: bool  # not declare-only (e.g. stdout) or imported
+    usedptr: bool*  # If non-NULL, set to true when the variable is used. This is how we detect unused imports.
+
+class LocalVariable:
+    id: int  # Unique, but you can also compare pointers to Variable.
+    name: byte[100]  # Same name as in user's code, empty for temporary variables created by compiler
+    type: Type*
+    is_argument: bool    # First n variables are always the arguments
+
+class ExpressionTypes:
+    expr: AstExpression*  # not owned
+    type: Type*
+    implicit_cast_type: Type*  # NULL for no implicit cast
+
+    # Flags to indicate whether special kinds of implicit casts happened
+    implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
+    implicit_string_to_array_cast: bool     # "..." to byte[N]
+
+enum ExportSymbolKind:
+    Function
+    Type
+    GlobalVar
+
+class ExportSymbol:
+    kind: ExportSymbolKind
+    name: byte[100]  # TODO: maybe this should be 200 because it can be ClassName.method_name? or something else?
+    union:
+        funcsignature: Signature
+        type: Type*  # ExportSymbolKind::Type and ExportSymbolKind::GlobalVar
+
+# Type information about a function or method defined in the current file.
+class FunctionOrMethodTypes:
+    signature: Signature
+    expr_types: ExpressionTypes**
+    n_expr_types: int
+    locals: LocalVariable**
+    nlocals: int
+
+class TypeAndUsedPtr:
+    type: Type*
+    usedptr: bool*
+
+class SignatureAndUsedPtr:
+    signature: Signature
+    usedptr: bool*
+
+# Type information about a file.
+class FileTypes:
+    current_fom_types: FunctionOrMethodTypes*  # conceptually this is internal to typecheck.c
+    fomtypes: FunctionOrMethodTypes*
+    nfomtypes: int
+    globals: GlobalVariable*
+    nglobals: int
+    owned_types: Type**  # These will be freed later
+    n_owned_types: int
+    types: TypeAndUsedPtr*
+    ntypes: int
+    functions: SignatureAndUsedPtr*
+    nfunctions: int
+
+
+class CfStringArray:
+    str: byte*
+    len: int
+
+enum CfInstructionKind:
+    Constant
+    SpecialConstant  # e.g. "WINDOWS", unlike CF_Constant this doesn't trigger "this code will never run" warnings
+    StringArray
+    Call  # function or method call, depending on whether self_type is NULL (see below)
+    AddressOfLocalVar
+    AddressOfGlobalVar
+    SizeOf
+    PtrMemsetToZero  # takes one operand, a pointer: memset(ptr, 0, sizeof(*ptr))
+    PtrStore  # *op1 = op2 (does not use destvar, takes 2 operands)
+    PtrLoad  # aka dereference
+    PtrToInt64
+    Int64ToPtr
+    PtrClassField  # takes 1 operand (pointer), sets destvar to &op->fieldname
+    PtrCast
+    PtrAddInt
+    # Left and right side of number operations must be of the same type (except CfInstructionKind::NumCast).
+    NumAdd
+    NumSub
+    NumMul
+    NumDiv
+    NumMod
+    NumEq
+    NumLt
+    NumCast
+    EnumToInt32
+    Int32ToEnum
+    BoolNegate  # TODO: get rid of this?
+    VarCpy  # similar to assignment statements: var1 = var2
+
+# Control Flow Graph.
+# Struct names not prefixed with Cfg because it looks too much like "config" to me
+class CfInstruction:
+    location: Location
+    kind: CfInstructionKind
+    union:
+        constant: Constant       # CfInstructionKind::Constant
+        strarray: CfStringArray  # CfInstructionKind::StringArray
+        signature: Signature     # CfInstructionKind::Call
+        fieldname: byte[100]     # CfInstructionKind::PtrClassField
+        globalname: byte[100]    # CfInstructionKind::AddressOfGlobalVar
+        scname: byte[100]        # CfInstructionKind::SpecialConstant
+        type: Type*              # CfInstructionKind::SizeOf
+
+    operands: LocalVariable**  # e.g. numbers to add, function arguments
+    noperands: int
+    destvar: LocalVariable*  # NULL when it doesn't make sense, e.g. functions that return void
+    hide_unreachable_warning: bool # usually false, can be set to true to avoid unreachable warning false positives
+
+    # operands should be NULL-terminated array, or NULL for empty
+    # TODO: does it ever need to be NULL?
+    # TODO: do we need this method at all?
+    def set_operands(self, operands: LocalVariable**) -> None:
+        self->noperands = 0
+        while operands != NULL and operands[self->noperands] != NULL:
+            self->noperands++
+
+        nbytes = sizeof(self->operands[0]) * self->noperands
+        self->operands = malloc(nbytes)
+        assert self->operands != NULL
+        memcpy(self->operands, operands, nbytes)
+
+
+class CfBlock:
+    instructions: CfInstruction*
+    ninstructions: int
+    branchvar: LocalVariable*  # boolean value used to decide where to jump next
+
+    # iftrue and iffalse are NULL for special end block and after calling a noreturn function.
+    # When iftrue and iffalse are the same, the branchvar is not used and may be NULL.
+    iftrue: CfBlock*
+    iffalse: CfBlock*
+
+class CfGraph:
+    signature: Signature
+    start_block: CfBlock  # First block
+    end_block: CfBlock  # Always empty. Return statement jumps here.
+    all_blocks: CfBlock**
+    n_all_blocks: int
+    locals: LocalVariable**   # First n variables are the function arguments
+    nlocals: int
+
+class CfGraphFile:
+    filename: byte*
+    graphs: CfGraph**  # only for defined functions
+    ngraphs: int
+
+
+# LLVM makes a mess of how to define what kind of computer will run the
+# compiled programs. Sometimes it wants a target triple, sometimes a
+# data layout. Sometimes it wants a string, sometimes an object
+# representing the thing.
+#
+# This struct aims to provide everything you may ever need. Hopefully it
+# will make the mess slightly less miserable to you.
+class Target:
+    triple: byte[100]
+    data_layout: byte[500]
+    target_ref: LLVMTarget*
+    target_machine_ref: LLVMTargetMachine*
+    target_data_ref: LLVMTargetData*
