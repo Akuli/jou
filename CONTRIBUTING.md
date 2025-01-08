@@ -66,14 +66,19 @@ to help `clangd` find the LLVM header files.
 
 ## How does the compiler work?
 
-The compiler is currently written in C. At a high level, the compilation steps are:
-- Tokenize: split the source code into tokens
-- Parse: build an Abstract Syntax Tree from the tokens
-- Typecheck: errors for wrong number or type of function arguments etc, figure out the type of each expression in the AST
-- Build CFG: build Control Flow Graphs for each function from the AST
-- Simplify CFG: simplify and analyze the control flow graphs in various ways, emit warnings as needed
-- Codegen: convert the CFGs into LLVM IR
-- Invoke `clang` and pass it the generated LLVM IR
+There are two compilers. See [the README](README.md#compilers) for an explanation.
+The compilers work very similarly even though they are written in different languages.
+
+At a high level, the compilation steps are:
+- **Tokenize:** split the source code into tokens
+- **Parse:** build an abstract syntax tree (AST) from the tokens
+- **Typecheck:** errors for wrong number or type of function arguments etc, figure out the type of each expression in the AST
+- **Build CFG:** build Control Flow Graphs for each function from the AST
+- **Simplify CFG:** simplify and analyze the control flow graphs in various ways, generate warnings and errors based on them
+- **Codegen:** convert the CFGs into LLVM IR
+- **Emit objects:** create `.o` files from the LLVM IR
+- **Link:** run a linker that combines the `.o` files into an executable
+- **Run:** run the executable
 
 To get a good idea of how these steps work,
 you can run the compiler in verbose mode:
@@ -109,7 +114,7 @@ $ ./runtests.sh
 ```
 
 The `runtests.sh` script does a few things:
-- It compiles the Jou compiler if you have changed something in `src/` since the last time it was compiled.
+- It compiles the Jou compiler if you have changed the compiler since the last time it was compiled.
 - It runs all Jou files in `examples/` and `tests/`. To speed things up, it runs two files in parallel.
 - It ensures that the Jou files output what is expected.
 
@@ -161,7 +166,7 @@ This doesn't do anything with tests that are supposed to fail with an error, for
     This is fine because the operating system will free the memory anyway,
     but `valgrind` would see it as many memory leaks.
 - Valgrinding is slow. Most tests are about compiler errors,
-    and `make valgrind` would take several minutes if they weren't skipped.
+    and valgrinding would take several minutes if they weren't skipped.
 - Most problems in error message code are spotted by non-valgrinded tests.
 
 There are also a few other ways to run the tests.
