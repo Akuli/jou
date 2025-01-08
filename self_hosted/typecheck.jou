@@ -1,4 +1,5 @@
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
 
@@ -1225,6 +1226,11 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
             snprintf(msg, sizeof(msg), "no variable named '%s'", expr->varname)
             fail(expr->location, msg)
 
+    elif expr->kind == AstExpressionKind::Self:
+        selfvar = find_local_var(ft, "self")
+        assert selfvar != NULL
+        result = selfvar->type
+
     elif expr->kind == AstExpressionKind::Dereference:
         temptype = typecheck_expression_not_void(ft, &expr->operands[0])->type
         typecheck_dereferenced_pointer(expr->location, temptype)
@@ -1283,6 +1289,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
         do_explicit_cast(ft->current_fom_types, origtypes, result, expr->location)
 
     else:
+        printf("%d\n", expr->kind)
         assert False
 
     assert result != NULL

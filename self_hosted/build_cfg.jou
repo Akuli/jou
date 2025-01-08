@@ -3,7 +3,6 @@ import "stdlib/mem.jou"
 
 import "./structs.jou"
 import "./evaluate.jou"
-import "./typecheck.jou"
 import "./types.jou"
 import "./errors_and_warnings.jou"
 import "./ast.jou"
@@ -747,7 +746,14 @@ def build_expression(st: State*, expr: AstExpression*) -> LocalVariable*:
         result = add_local_var(st, types->type)
         add_unary_op(st, expr->location, CfInstructionKind::PtrLoad, temp, result)
     elif expr->kind == AstExpressionKind::Self:
-        assert False  # TODO: implement, and delete old implementation if any
+        selfvar = find_local_var_cf(st, "self")
+        assert selfvar != NULL
+        if types->implicit_cast_type == NULL or types->type == types->implicit_cast_type:
+            # Must take a "snapshot" of this variable, as it may change soon.
+            result = add_local_var(st, selfvar->type)
+            add_unary_op(st, expr->location, CfInstructionKind::VarCpy, selfvar, result)
+        else:
+            result = selfvar
     elif (
         expr->kind == AstExpressionKind::Bool
         or expr->kind == AstExpressionKind::Byte
