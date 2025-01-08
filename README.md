@@ -209,6 +209,34 @@ is not currently supported.
 Run `jou --update`.
 
 
+## Compilers
+
+The Jou compiler (in [jou_compiler/](./jou_compiler/) folder) is written in Jou.
+It can compile itself.
+However, this doesn't help you much if you have nothing that can compile Jou code.
+
+To solve this problem, there is another compiler, called the **bootstrap compiler**
+([bootstrap_compiler/](boostrap_compiler) folder),
+written in C.
+It is a Jou compiler that supports all of Jou's syntax,
+but whose error messages are not always as good as the error messages of the main Jou compiler.
+The bootstrap compiler exists only to compile the Jou compiler.
+
+Specifically, here's how the Jou compiler is compiled.
+This process is called [bootstrapping](https://en.wikipedia.org/wiki/Bootstrapping_(compilers)).
+- **Stage 1: Compile the bootstrap compiler with a C compiler.**
+    This produces an executable named `bootstrap/stage1`
+    (or `bootstrap/stage1.exe` if you use Windows).
+- **Stage 2: Compile the Jou compiler with the bootstrap compiler.**
+    This produces an executable named `bootstrap/stage2`.
+- **Stage 3: Compile the Jou compiler with the Jou compiler.**
+    The stage 2 compiler is used to compile the Jou compiler again.
+    This produces an executable named `jou`.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md)
+if you want to learn more about the Jou compiler or develop it.
+
+
 ## Editor support
 
 Tell your editor to syntax-highlight `.jou` files as if they were Python files.
@@ -240,4 +268,3 @@ To apply this configuration, copy/paste it to end of Porcupine's `filetypes.toml
 
 ## How does the compiler work?
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
