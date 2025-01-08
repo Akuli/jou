@@ -236,9 +236,9 @@ function run_test()
         fi
     else
         if [[ "$OS" =~ Windows ]]; then
-            command="bootstrap/stage$stage.exe"
+            command="stage$stage.exe"
         else
-            command="bootstrap/stage$stage"
+            command="stage$stage"
         fi
     fi
 
@@ -272,7 +272,7 @@ function run_test()
     if $DIFF --text -u $diff_color <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
-        export PATH="$PWD:$PATH"
+        export PATH="$PWD:$PWD/bootstrap:$PWD\bootstrap:$PATH"
         if [ $valgrind = no ]; then
             ulimit -v 500000 2>/dev/null
         fi
