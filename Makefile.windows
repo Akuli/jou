@@ -32,7 +32,8 @@ bootstrap/stage1.exe: $(BSRC:bootstrap_compiler/%.c=bootstrap/obj/%.o)
 	$(CC) $(CFLAGS) $^ -o bootstrap/stage1.exe $(LDFLAGS)
 
 # Stage 2 of bootstrapping: Compile the Jou compiler with the bootstrap compiler.
-bootstrap/stage2.exe: bootstrap/stage1.exe config.jou $(wildcard compiler/*.jou)
+# Don't depend on Jou files, so that only stage 3 recompiless if they're changed.
+bootstrap/stage2.exe: bootstrap/stage1.exe config.jou
 	rm -rf compiler/jou_compiled && bootstrap/stage1.exe -o bootstrap/stage2.exe --linker-flags "$(LDFLAGS)" compiler/main.jou
 
 # Stage 3 of bootstrapping: Compile the Jou compiler with the Jou compiler.
