@@ -268,17 +268,11 @@ function run_test()
     if $DIFF --text -u $diff_color <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
-        if [[ "$OS" =~ Windows ]]; then
-            pathsep=";"
-        else
-            pathsep=":"
-        fi
-
         if [ $stage == 3 ]; then
-            export PATH="$PWD$PATHSEP$PATH"
+            export PATH="$PWD:$PATH"
         else
             # stage1 and stage2 executables are in "bootstrap/" folder
-            export PATH="$PWD/bootstrap$PATHSEP$PATH"
+            export PATH="$PWD/bootstrap:$PATH"
         fi
 
         if [ $valgrind = no ]; then
