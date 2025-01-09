@@ -235,6 +235,13 @@ class CompileState:
     files: FileState*
     nfiles: int
 
+    def free(self) -> None:
+        for fs = self->files; fs < &self->files[self->nfiles]; fs++:
+            fs->ast.free()
+            free(fs->path)
+            free_file_types(&fs->types)
+        free(self->files)
+
     def find_file(self, path: byte*) -> FileState*:
         for fs = self->files; fs < &self->files[self->nfiles]; fs++:
             if strcmp(fs->path, path) == 0:
@@ -478,21 +485,14 @@ def main(argc: int, argv: byte**) -> int:
     mainfile = compst.find_file(command_line_args.infile)
     assert mainfile != NULL
     if not defines_main(&mainfile->ast):
-        fail(Location{path=mainfile->path, lineno=0}, "missing `main` function to execute the program")
+        fail(Location{path=mainfile->path}, "missing `main` function to execute the program")
 
-    for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:
-        fs->ast.free()
-        free(fs->path)
-        free_file_types(&fs->types)
-    free(compst.files)
+    compst.free()
     free(stdlib)
 
-    if command_line_args.outfile != NULL:
-        exepath = strdup(command_line_args.outfile)
-    else:
-        exepath = get_default_exe_path()
-
+    exepath = decide_exe_path()
     run_linker(objpaths, exepath)
+
     for i = 0; objpaths[i] != NULL; i++:
         free(objpaths[i])
     free(objpaths)
