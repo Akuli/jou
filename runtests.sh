@@ -217,11 +217,6 @@ function should_skip()
         return 0
     fi
 
-    # Corner case with Windows paths that I can't figure out.
-    if [ $stage != 3 ] && [[ "$OS" =~ Windows ]] && [[ $joufile =~ double_dotdot_import ]]; then
-        return 0
-    fi
-
     return 1  # false, don't skip
 }
 
@@ -234,19 +229,13 @@ function run_test()
     local command=""
 
     if [ $stage = 3 ]; then
-        if [[ "$OS" =~ Windows ]]; then
-            command="jou.exe"
-        else
-            command="jou"
-        fi
+        command="jou"
     else
-        if [[ "$OS" =~ Windows ]]; then
-            # I couldn't get PATH to work on windows, so this relies on current working directory
-            command="bootstrap\\stage$stage.exe"
-        else
-            # relies on PATH
-            command="stage$stage"
-        fi
+        command="stage$stage"  # in "bootstrap" folder, PATH is adjusted in other part of this script
+    fi
+
+    if [[ "$OS" =~ Windows ]]; then
+        command="$command.exe"
     fi
 
     if [ $valgrind = yes ] && [ $correct_exit_code == 0 ]; then
@@ -279,7 +268,13 @@ function run_test()
     if $DIFF --text -u $diff_color <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
-        export PATH="$PWD:$PWD/bootstrap:$PATH"
+        if [ $stage == 3 ]; then
+            export PATH="$PWD:$PATH"
+        else
+            # stage1 and stage2 executables are in "bootstrap/" folder
+            export PATH="$PWD/bootstrap:$PATH"
+        fi
+
         if [ $valgrind = no ]; then
             ulimit -v 500000 2>/dev/null
         fi
