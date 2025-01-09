@@ -7,8 +7,6 @@
 #include <llvm-c/TargetMachine.h>
 #include "util.h"
 
-void update_jou_compiler(void);
-
 // don't like repeating "struct" outside this header file
 typedef struct Location Location;
 typedef struct Token Token;

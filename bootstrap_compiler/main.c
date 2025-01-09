@@ -36,7 +36,6 @@ static const char help_fmt[] =
     "Usage:\n"
     "  <argv0> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags \"...\"] FILENAME\n"
     "  <argv0> --help       # This message\n"
-    "  <argv0> --update     # Download and install the latest Jou\n"
     "\n"
     "Options:\n"
     "  -o OUTFILE       output an executable file, don't run the code\n"
@@ -72,14 +71,9 @@ void parse_arguments(int argc, char **argv)
         exit(0);
     }
 
-    if (argc == 2 && !strcmp(argv[1], "--update")) {
-        update_jou_compiler();
-        exit(0);
-    }
-
     int i = 1;
     while (i < argc) {
-        if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "--update")) {
+        if (!strcmp(argv[i], "--help")) {
             fprintf(stderr, "%s: \"%s\" cannot be used with other arguments", argv[0], argv[i]);
             goto wrong_usage;
         } else if (!strcmp(argv[i], "--verbose")) {
