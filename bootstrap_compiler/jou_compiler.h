@@ -53,6 +53,7 @@ extern struct CommandLineArgs {
     bool valgrind;  // true --> Use valgrind when runnning user's jou program
     bool tokenize_only;  // If true, tokenize the file passed on command line and don't actually compile anything
     bool parse_only;  // If true, parse the file passed on command line and don't actually compile anything
+    int optlevel;  // Optimization level (0 don't optimize, 3 optimize a lot)
     const char *infile;  // The "main" Jou file (can import other files)
     const char *outfile;  // If not NULL, where to output executable
     const char *linker_flags;  // String that is appended to linking command
