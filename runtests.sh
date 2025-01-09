@@ -231,7 +231,7 @@ function run_test()
 
     if [ $valgrind = yes ] && [ $correct_exit_code == 0 ]; then
         # Valgrind the compiler process and the compiled executable
-        command="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions='$(pwd)/valgrind-suppressions.sup' $jouexe --valgrind"
+        command="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions='$(pwd)/valgrind-suppressions.sup' $command --valgrind"
     fi
 
     # jou flags start with space when non-empty
