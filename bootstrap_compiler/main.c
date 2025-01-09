@@ -316,37 +316,23 @@ static char *find_stdlib()
 #ifdef _WIN32
     simplify_path(exe);
 #endif
+    const char *exedir = dirname(exe);
 
-    // Look in the directory containing jou.exe and its parent.
-    // The parent directory thing is useful during bootstrapping.
-    char *temp1 = strdup(exe);
-    char *temp2 = strdup(exe);
-    char *dirs[2] = {
-        dirname(temp1),
-        dirname(dirname(temp2)),
-    };
-
+    char *path = malloc(strlen(exedir) + 10);
+    strcpy(path, exedir);
+    strcat(path, "/stdlib");
     free(exe);
 
-    for (int i = 0; i < 2; i++) {
-        char *p = malloc(strlen(dirs[i]) + 100);
-        sprintf(p, "%s/stdlib/io.jou", dirs[i]);
-
-        struct stat st;
-        bool exists = (stat(p, &st) == 0);
-        if (exists) {
-            free(temp1);
-            free(temp2);
-            *strrchr(p, '/') = '\0';  // don't put io.jou in returned string :)
-            return p;
-        }
-        free(p);
+    char *iojou = malloc(strlen(path) + 10);
+    sprintf(iojou, "%s/io.jou", path);
+    struct stat st;
+    if (stat(iojou, &st) != 0) {
+        fprintf(stderr, "error: cannot find the Jou standard library in %s\n", path);
+        exit(1);
     }
+    free(iojou);
 
-    fprintf(stderr, "error: cannot find the Jou standard library in any of the following locations:\n");
-    fprintf(stderr, "  %s\n", dirs[0]);
-    fprintf(stderr, "  %s\n", dirs[1]);
-    exit(1);
+    return path;
 }
 
 static bool statement_conflicts_with_an_import(const AstStatement *stmt, const ExportSymbol *import)

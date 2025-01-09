@@ -80,6 +80,18 @@ if [ $valgrind = yes ]; then
     esac
 fi
 
+if [ $run_make = yes ]; then
+    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
+        source activate
+        mingw32-make
+    elif [[ "$OS" =~ NetBSD ]]; then
+        gmake
+    else
+        make
+    fi
+
+fi
+
 DIFF=$(which gdiff || which diff)
 if $DIFF --help | grep -q -- --color; then
     diff_color="--color=always"
@@ -90,11 +102,7 @@ mkdir -p tmp/tests
 
 joudir="$(pwd)"
 if [[ "$OS" =~ Windows ]]; then
-    if [ $stage = 3 ]; then
-        jouexe="jou.exe"
-    else
-        jouexe="bootstrap/stage$stage.exe"
-    fi
+    jouexe="jou.exe"
     if [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
         # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
         letter=${joudir:1:1}
@@ -102,32 +110,8 @@ if [[ "$OS" =~ Windows ]]; then
         unset letter
     fi
 else
-    if [ $stage = 3 ]; then
-        jouexe="./jou"
-    else
-        jouexe="./bootstrap/stage$stage"
-    fi
+    jouexe="./jou"
 fi
-
-if [ $run_make = yes ]; then
-    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
-        source activate
-        mingw32-make $jouexe
-    elif [[ "$OS" =~ NetBSD ]]; then
-        gmake $jouexe
-    else
-        make $jouexe
-    fi
-fi
-
-if [[ "$OS" =~ Windows ]] && [ $stage != 3 ]; then
-    # I'm sure there's a better way, but this works.
-    # I've now spent many hours trying to get the tests to run successfully on Windows...
-    jouexe="stage$stage.exe"
-    cp -v bootstrap/stage$stage.exe .
-    trap "rm -vf stage$stage.exe" EXIT
-fi
-
 echo "<joudir> in expected output will be replaced with $joudir."
 echo "<jouexe> in expected output will be replaced with $jouexe."
 
@@ -293,9 +277,8 @@ for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou tests/s
 
     case $joufile in
         examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
-        *) correct_exit_code=1; ;;
+        *) correct_exit_code=1; ;;  # compiler or runtime error
     esac
-
     counter=$((counter + 1))
 
     if should_skip $joufile $correct_exit_code; then
