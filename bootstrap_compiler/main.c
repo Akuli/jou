@@ -13,10 +13,8 @@
 #include <llvm-c/Transforms/PassManagerBuilder.h>
 
 
-static void optimize(LLVMModuleRef module, int level)
+static void optimize(LLVMModuleRef module)
 {
-    assert(1 <= level && level <= 3);
-
     LLVMPassManagerRef pm = LLVMCreatePassManager();
 
     /*
@@ -24,7 +22,7 @@ static void optimize(LLVMModuleRef module, int level)
     C and C++, and Jou is quite similar to C.
     */
     LLVMPassManagerBuilderRef pmbuilder = LLVMPassManagerBuilderCreate();
-    LLVMPassManagerBuilderSetOptLevel(pmbuilder, level);
+    LLVMPassManagerBuilderSetOptLevel(pmbuilder, 1);  // this sets optimize level to -O1
     LLVMPassManagerBuilderPopulateModulePassManager(pmbuilder, pm);
     LLVMPassManagerBuilderDispose(pmbuilder);
 
@@ -34,12 +32,11 @@ static void optimize(LLVMModuleRef module, int level)
 
 static const char help_fmt[] =
     "Usage:\n"
-    "  <argv0> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags \"...\"] FILENAME\n"
+    "  <argv0> [-o OUTFILE] [--verbose] [--linker-flags \"...\"] FILENAME\n"
     "  <argv0> --help       # This message\n"
     "\n"
     "Options:\n"
     "  -o OUTFILE       output an executable file, don't run the code\n"
-    "  -O0/-O1/-O2/-O3  set optimization level (0 = no optimization, 1 = default, 3 = runs fastest)\n"
     "  -v / --verbose   display some progress information\n"
     "  -vv              display a lot of information about all compilation steps\n"
     "  --valgrind       use valgrind when running the code\n"
@@ -54,8 +51,6 @@ void parse_arguments(int argc, char **argv)
 {
     memset(&command_line_args, 0, sizeof command_line_args);
     command_line_args.argv0 = argv[0];
-    /* Set default optimize to O1, user sets optimize will overwrite the default flag*/
-    command_line_args.optlevel = 1;
 
     if (argc == 2 && !strcmp(argv[1], "--help")) {
         // Print help.
@@ -110,13 +105,6 @@ void parse_arguments(int argc, char **argv)
             }
             command_line_args.linker_flags = argv[i+1];
             i += 2;
-        } else if (strlen(argv[i]) == 3
-                && !strncmp(argv[i], "-O", 2)
-                && argv[i][2] >= '0'
-                && argv[i][2] <= '3')
-        {
-            command_line_args.optlevel = argv[i][2] - '0';
-            i++;
         } else if (!strcmp(argv[i], "-o")) {
             if (argc-i < 2) {
                 fprintf(stderr, "%s: there must be a file name after -o", argv[0]);
@@ -291,13 +279,11 @@ static char *compile_ast_to_object_file(struct FileState *fs)
     */
     LLVMVerifyModule(mod, LLVMAbortProcessAction, NULL);
 
-    if (command_line_args.optlevel) {
-        if (command_line_args.verbosity >= 1)
-            printf("Optimizing %s (level %d)\n", fs->path, command_line_args.optlevel);
-        optimize(mod, command_line_args.optlevel);
-        if(command_line_args.verbosity >= 2)
-            print_llvm_ir(mod, true);
-    }
+    if (command_line_args.verbosity >= 1)
+        printf("Optimizing %s\n", fs->path);
+    optimize(mod);
+    if(command_line_args.verbosity >= 2)
+        print_llvm_ir(mod, true);
 
     char *objpath = compile_to_object_file(mod);
     LLVMDisposeModule(mod);
