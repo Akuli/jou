@@ -93,10 +93,6 @@ if [[ "$OS" =~ Windows ]]; then
     if [ $stage = 3 ]; then
         jouexe="jou.exe"
     else
-        # I'm sure there's a better way, but this works.
-        # I've now spent many hours trying to get the tests to run properly on Windows...
-        cp -v bootstrap/stage$stage.exe .
-        trap "rm -vf stage$stage.exe" EXIT
         jouexe="stage$stage.exe"
     fi
     if [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
@@ -124,6 +120,13 @@ if [ $run_make = yes ]; then
     else
         make $jouexe
     fi
+fi
+
+if [[ "$OS" =~ Windows ]] && [ $stage != 3 ]; then
+    # I'm sure there's a better way, but this works.
+    # I've now spent many hours trying to get the tests to run properly on Windows...
+    cp -v bootstrap/stage$stage.exe .
+    trap "rm -vf stage$stage.exe" EXIT
 fi
 
 function generate_expected_output()
