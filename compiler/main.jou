@@ -24,22 +24,6 @@ import "./tokenizer.jou"
 import "./ast.jou"
 
 
-def optimize(module: LLVMModule*, level: int) -> None:
-    assert 1 <= level and level <= 3
-
-    pm = LLVMCreatePassManager()
-
-    # The default settings should be fine for Jou because they work well for
-    # C and C++, and Jou is quite similar to C.
-    pmbuilder = LLVMPassManagerBuilderCreate()
-    LLVMPassManagerBuilderSetOptLevel(pmbuilder, level)
-    LLVMPassManagerBuilderPopulateModulePassManager(pmbuilder, pm)
-    LLVMPassManagerBuilderDispose(pmbuilder)
-
-    LLVMRunPassManager(pm, module)
-    LLVMDisposePassManager(pm)
-
-
 def print_help(argv0: byte*) -> None:
     printf("Usage:\n")
     printf("  %s [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags \"...\"] FILENAME\n", argv0)
@@ -163,6 +147,37 @@ def defines_main(ast: AstFile*) -> bool:
     return False
 
 
+def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSymbol*) -> bool:
+    if stmt->kind == AstStatementKind::Function:
+        return (
+            importsym->kind == ExportSymbolKind::Function
+            and strcmp(importsym->name, stmt->function.signature.name) == 0
+        )
+
+    if (
+        stmt->kind == AstStatementKind::GlobalVariableDeclaration
+        or stmt->kind == AstStatementKind::GlobalVariableDefinition
+    ):
+        return (
+            importsym->kind == ExportSymbolKind::GlobalVar
+            and strcmp(importsym->name, stmt->var_declaration.name) == 0
+        )
+
+    if stmt->kind == AstStatementKind::Class:
+        return (
+            importsym->kind == ExportSymbolKind::Type
+            and strcmp(importsym->name, stmt->classdef.name) == 0
+        )
+
+    if stmt->kind == AstStatementKind::Enum:
+        return (
+            importsym->kind == ExportSymbolKind::Type
+            and strcmp(importsym->name, stmt->enumdef.name) == 0
+        )
+
+    assert False  # TODO
+
+
 class FileState:
     path: byte*
     ast: AstFile
@@ -213,11 +228,6 @@ class FileState:
             self->types.globals[self->types.nglobals++] = g
         else:
             assert False
-
-
-class ParseQueueItem:
-    filename: byte*
-    import_location: Location
 
 
 class CompileState:
@@ -353,6 +363,22 @@ class CompileState:
         free(pending_exports)
 
 
+def optimize(module: LLVMModule*, level: int) -> None:
+    assert 1 <= level and level <= 3
+
+    pm = LLVMCreatePassManager()
+
+    # The default settings should be fine for Jou because they work well for
+    # C and C++, and Jou is quite similar to C.
+    pmbuilder = LLVMPassManagerBuilderCreate()
+    LLVMPassManagerBuilderSetOptLevel(pmbuilder, level)
+    LLVMPassManagerBuilderPopulateModulePassManager(pmbuilder, pm)
+    LLVMPassManagerBuilderDispose(pmbuilder)
+
+    LLVMRunPassManager(pm, module)
+    LLVMDisposePassManager(pm)
+
+
 def compile_ast_to_object_file(fs: FileState*) -> byte*:
     if command_line_args.verbosity >= 1:
         printf("Building Control Flow Graphs: %s\n", fs->path)
@@ -399,36 +425,6 @@ def compile_ast_to_object_file(fs: FileState*) -> byte*:
     LLVMDisposeModule(mod)
     return objpath
 
-
-def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSymbol*) -> bool:
-    if stmt->kind == AstStatementKind::Function:
-        return (
-            importsym->kind == ExportSymbolKind::Function
-            and strcmp(importsym->name, stmt->function.signature.name) == 0
-        )
-
-    if (
-        stmt->kind == AstStatementKind::GlobalVariableDeclaration
-        or stmt->kind == AstStatementKind::GlobalVariableDefinition
-    ):
-        return (
-            importsym->kind == ExportSymbolKind::GlobalVar
-            and strcmp(importsym->name, stmt->var_declaration.name) == 0
-        )
-
-    if stmt->kind == AstStatementKind::Class:
-        return (
-            importsym->kind == ExportSymbolKind::Type
-            and strcmp(importsym->name, stmt->classdef.name) == 0
-        )
-
-    if stmt->kind == AstStatementKind::Enum:
-        return (
-            importsym->kind == ExportSymbolKind::Type
-            and strcmp(importsym->name, stmt->enumdef.name) == 0
-        )
-
-    assert False  # TODO
 
 def tokenize_only(path: byte*) -> None:
     tokens = tokenize(command_line_args.infile, NULL)
