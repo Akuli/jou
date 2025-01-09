@@ -56,6 +56,7 @@ def print_help(argv0: byte*) -> None:
     printf("  --parse-only     display only the AST (parse tree), don't do anything else\n")
     printf("  --linker-flags   appended to the linker command, so you can use external libraries\n")
 
+
 def parse_arguments(argc: int, argv: byte**) -> None:
     memset(&command_line_args, 0, sizeof command_line_args)
     command_line_args.argv0 = argv[0]
@@ -73,8 +74,7 @@ def parse_arguments(argc: int, argv: byte**) -> None:
     i = 1
     while i < argc:
         if strcmp(argv[i], "--help") == 0 or strcmp(argv[i], "--update") == 0:
-            fprintf(stderr, "%s: \"%s\" cannot be used with other arguments", argv[0], argv[i])
-            fprintf(stderr, " (try \"%s --help\")\n", argv[0])
+            fprintf(stderr, "%s: \"%s\" cannot be used with other arguments (try \"%s --help\")\n", argv[0], argv[i], argv[0])
             exit(2)
         elif strcmp(argv[i], "--verbose") == 0:
             command_line_args.verbosity++
@@ -142,30 +142,6 @@ def parse_arguments(argc: int, argv: byte**) -> None:
         exit(2)
 
 
-class FileState:
-    path: byte*
-    ast: AstFile
-    types: FileTypes
-    module: LLVMModule*
-    pending_exports: ExportSymbol*
-
-class ParseQueueItem:
-    filename: byte*
-    import_location: Location
-
-class CompileState:
-    stdlib_path: byte*
-    files: FileState*
-    nfiles: int
-    parse_queue: ParseQueueItem*
-    parse_queue_len: int
-
-def find_file(compst: CompileState*, path: byte*) -> FileState*:
-    for fs = compst->files; fs < &compst->files[compst->nfiles]; fs++:
-        if strcmp(fs->path, path) == 0:
-            return fs
-    return NULL
-
 def open_the_file(path: byte*, import_location: Location*) -> FILE*:
     f = fopen(path, "rb")
     if f == NULL:
@@ -178,6 +154,7 @@ def open_the_file(path: byte*, import_location: Location*) -> FILE*:
             fail(Location{path=path}, msg)
     return f
 
+
 def defines_main(ast: AstFile*) -> bool:
     for i = 0; i < ast->body.nstatements; i++:
         s = &ast->body.statements[i]
@@ -185,56 +162,138 @@ def defines_main(ast: AstFile*) -> bool:
             return True
     return False
 
-def parse_file(compst: CompileState*, filename: byte*, import_location: Location*) -> None:
-    if find_file(compst, filename) != NULL:
-        return
 
-    fs = FileState{path = strdup(filename)}
+class FileState:
+    path: byte*
+    ast: AstFile
+    types: FileTypes
+    module: LLVMModule*
+    pending_exports: ExportSymbol*
 
-    if command_line_args.verbosity >= 1:
-        printf("Tokenizing %s\n", filename)
-    tokens = tokenize(fs.path, import_location)
 
-    if command_line_args.verbosity >= 2:
-        print_tokens(tokens)
+class ParseQueueItem:
+    filename: byte*
+    import_location: Location
 
-    if command_line_args.verbosity >= 1:
-        printf("Parsing %s\n", filename)
-    fs.ast = parse(tokens, compst->stdlib_path)
-    free_tokens(tokens)
 
-    # TODO: enable this
-    if command_line_args.verbosity >= 1:
-        printf("Evaluating compile-time if statements in %s\n", filename)
-    evaluate_compile_time_if_statements(&fs.ast.body)
+class CompileState:
+    stdlib_path: byte*
+    files: FileState*
+    nfiles: int
+    parse_queue: ParseQueueItem*
+    parse_queue_len: int
 
-    if command_line_args.verbosity >= 2:
-        fs.ast.print()
+    def find_file(self, path: byte*) -> FileState*:
+        for fs = self->files; fs < &self->files[self->nfiles]; fs++:
+            if strcmp(fs->path, path) == 0:
+                return fs
+        return NULL
 
-    # If it's not the file passed on command line, it shouldn't define main()
-    if strcmp(filename, command_line_args.infile) != 0 and defines_main(&fs.ast):
-        # Set error location to import, so user immediately knows which file
-        # imports something that defines main().
-        assert import_location != NULL
-        fail(*import_location, "imported file should not have `main` function")
+    def parse_file(self, filename: byte*, import_location: Location*) -> None:
+        if self->find_file(filename) != NULL:
+            return
 
-    for imp = fs.ast.imports; imp < &fs.ast.imports[fs.ast.nimports]; imp++:
-        compst->parse_queue = realloc(compst->parse_queue, sizeof(compst->parse_queue[0]) * (compst->parse_queue_len + 1))
-        assert compst->parse_queue != NULL
-        compst->parse_queue[compst->parse_queue_len++] = ParseQueueItem{
-            filename = imp->resolved_path,
-            import_location = imp->location,
-        }
+        fs = FileState{path = strdup(filename)}
 
-    compst->files = realloc(compst->files, sizeof(compst->files[0]) * (compst->nfiles + 1))
-    assert compst->files != NULL
-    compst->files[compst->nfiles++] = fs
+        if command_line_args.verbosity >= 1:
+            printf("Tokenizing %s\n", filename)
+        tokens = tokenize(fs.path, import_location)
 
-def parse_all_pending_files(compst: CompileState*) -> None:
-    while compst->parse_queue_len > 0:
-        it = compst->parse_queue[--compst->parse_queue_len]
-        parse_file(compst, it.filename, &it.import_location)
-    free(compst->parse_queue)
+        if command_line_args.verbosity >= 2:
+            print_tokens(tokens)
+
+        if command_line_args.verbosity >= 1:
+            printf("Parsing %s\n", filename)
+        fs.ast = parse(tokens, self->stdlib_path)
+        free_tokens(tokens)
+
+        # TODO: enable this
+        if command_line_args.verbosity >= 1:
+            printf("Evaluating compile-time if statements in %s\n", filename)
+        evaluate_compile_time_if_statements(&fs.ast.body)
+
+        if command_line_args.verbosity >= 2:
+            fs.ast.print()
+
+        # If it's not the file passed on command line, it shouldn't define main()
+        if strcmp(filename, command_line_args.infile) != 0 and defines_main(&fs.ast):
+            # Set error location to import, so user immediately knows which file
+            # imports something that defines main().
+            assert import_location != NULL
+            fail(*import_location, "imported file should not have `main` function")
+
+        for imp = fs.ast.imports; imp < &fs.ast.imports[fs.ast.nimports]; imp++:
+            self->parse_queue = realloc(self->parse_queue, sizeof(self->parse_queue[0]) * (self->parse_queue_len + 1))
+            assert self->parse_queue != NULL
+            self->parse_queue[self->parse_queue_len++] = ParseQueueItem{
+                filename = imp->resolved_path,
+                import_location = imp->location,
+            }
+
+        self->files = realloc(self->files, sizeof(self->files[0]) * (self->nfiles + 1))
+        assert self->files != NULL
+        self->files[self->nfiles++] = fs
+
+    def parse_all_pending_files(self) -> None:
+        while self->parse_queue_len > 0:
+            it = self->parse_queue[--self->parse_queue_len]
+            self->parse_file(it.filename, &it.import_location)
+
+        free(self->parse_queue)
+        self->parse_queue = NULL
+
+    def include_special_stdlib_file(self, filename: byte*) -> None:
+        path = malloc(strlen(self->stdlib_path) + strlen(filename) + 123)
+        sprintf(path, "%s/%s", self->stdlib_path, filename)
+        self->parse_file(path, NULL)
+        free(path)
+
+    def add_imported_symbols(self) -> None:
+        for to = self->files; to < &self->files[self->nfiles]; to++:
+            seen_before: FileState** = NULL
+            seen_before_len = 0
+
+            for imp = to->ast.imports; imp < &to->ast.imports[to->ast.nimports]; imp++:
+                from = self->find_file(imp->resolved_path)
+                assert from != NULL
+
+                if from == to:
+                    fail(imp->location, "the file itself cannot be imported")
+
+                for i = 0; i < seen_before_len; i++:
+                    if seen_before[i] == from:
+                        msg: byte[500]
+                        snprintf(msg, sizeof msg, "file \"%s\" is imported twice", imp->specified_path)
+                        fail(imp->location, msg)
+
+                seen_before = realloc(seen_before, sizeof(seen_before[0]) * (seen_before_len + 1))
+                seen_before[seen_before_len++] = from
+
+                for es = from->pending_exports; es->name[0] != '\0'; es++:
+                    if command_line_args.verbosity >= 2:
+                        if es->kind == ExportSymbolKind::Function:
+                            kindstr = "function"
+                        elif es->kind == ExportSymbolKind::GlobalVar:
+                            kindstr = "global var"
+                        elif es->kind == ExportSymbolKind::Type:
+                            kindstr = "type"
+                        else:
+                            assert False
+
+                        printf("Adding imported %s %s: %s --> %s\n",
+                            kindstr, es->name, from->path, to->path)
+
+                    add_imported_symbol(to, es, imp)
+
+            free(seen_before)
+
+        # Mark all exports as no longer pending.
+        for fs = self->files; fs < &self->files[self->nfiles]; fs++:
+            for es = fs->pending_exports; es->name[0] != '\0'; es++:
+                free_export_symbol(es)
+            free(fs->pending_exports)
+            fs->pending_exports = NULL
+
 
 def compile_ast_to_object_file(fs: FileState*) -> byte*:
     if command_line_args.verbosity >= 1:
@@ -358,87 +417,48 @@ def add_imported_symbol(fs: FileState*, es: ExportSymbol*, imp: AstImport*) -> N
     else:
         assert False
 
-def add_imported_symbols(compst: CompileState*) -> None:
-    for to = compst->files; to < &compst->files[compst->nfiles]; to++:
-        seen_before: FileState** = NULL
-        seen_before_len = 0
 
-        for imp = to->ast.imports; imp < &to->ast.imports[to->ast.nimports]; imp++:
-            from = find_file(compst, imp->resolved_path)
-            assert from != NULL
+def tokenize_only(path: byte*) -> None:
+    tokens = tokenize(command_line_args.infile, NULL)
+    print_tokens(tokens)
+    free_tokens(tokens)
 
-            if from == to:
-                fail(imp->location, "the file itself cannot be imported")
 
-            for i = 0; i < seen_before_len; i++:
-                if seen_before[i] == from:
-                    msg: byte[500]
-                    snprintf(msg, sizeof msg, "file \"%s\" is imported twice", imp->specified_path)
-                    fail(imp->location, msg)
+def parse_only(path: byte*, stdlib_path: byte*) -> None:
+    tokens = tokenize(command_line_args.infile, NULL)
+    ast = parse(tokens, stdlib_path)
+    ast.print()
+    ast.free()
+    free_tokens(tokens)
 
-            seen_before = realloc(seen_before, sizeof(seen_before[0]) * (seen_before_len + 1))
-            seen_before[seen_before_len++] = from
-
-            for es = from->pending_exports; es->name[0] != '\0'; es++:
-                if command_line_args.verbosity >= 2:
-                    if es->kind == ExportSymbolKind::Function:
-                        kindstr = "function"
-                    elif es->kind == ExportSymbolKind::GlobalVar:
-                        kindstr = "global var"
-                    elif es->kind == ExportSymbolKind::Type:
-                        kindstr = "type"
-                    else:
-                        assert False
-
-                    printf("Adding imported %s %s: %s --> %s\n",
-                        kindstr, es->name, from->path, to->path)
-
-                add_imported_symbol(to, es, imp)
-
-        free(seen_before)
-
-    # Mark all exports as no longer pending.
-    for fs = compst->files; fs < &compst->files[compst->nfiles]; fs++:
-        for es = fs->pending_exports; es->name[0] != '\0'; es++:
-            free_export_symbol(es)
-        free(fs->pending_exports)
-        fs->pending_exports = NULL
-
-def include_special_stdlib_file(compst: CompileState*, filename: byte*) -> None:
-    path = malloc(strlen(compst->stdlib_path) + strlen(filename) + 123)
-    sprintf(path, "%s/%s", compst->stdlib_path, filename)
-    parse_file(compst, path, NULL)
-    free(path)
 
 def main(argc: int, argv: byte**) -> int:
     init_target()
     init_types()
     stdlib = find_stdlib()
+
     parse_arguments(argc, argv)
 
-    compst = CompileState{ stdlib_path = stdlib }
     if command_line_args.verbosity >= 2:
         printf("Target triple: %s\n", target.triple)
         printf("Data layout: %s\n", target.data_layout)
 
-    if command_line_args.tokenize_only or command_line_args.parse_only:
-        tokens = tokenize(command_line_args.infile, NULL)
-        if command_line_args.tokenize_only:
-            print_tokens(tokens)
-        else:
-            ast = parse(tokens, compst.stdlib_path)
-            ast.print()
-            ast.free()
-        free_tokens(tokens)
+    if command_line_args.tokenize_only:
+        tokenize_only(command_line_args.infile)
         return 0
 
-    include_special_stdlib_file(&compst, "_assert_fail.jou")
+    if command_line_args.parse_only:
+        parse_only(command_line_args.infile, stdlib)
+        return 0
 
+    compst = CompileState{ stdlib_path = stdlib }
+
+    compst.include_special_stdlib_file("_assert_fail.jou")
     if WINDOWS or MACOS or NETBSD:
-        include_special_stdlib_file(&compst, "_jou_startup.jou")
+        compst.include_special_stdlib_file("_jou_startup.jou")
 
-    parse_file(&compst, command_line_args.infile, NULL)
-    parse_all_pending_files(&compst)
+    compst.parse_file(command_line_args.infile, NULL)
+    compst.parse_all_pending_files()
 
     if command_line_args.verbosity >= 1:
         printf("Type-checking...\n")
@@ -448,13 +468,13 @@ def main(argc: int, argv: byte**) -> int:
             printf("  stage 1: %s\n", fs->path)
         fs->pending_exports = typecheck_stage1_create_types(&fs->types, &fs->ast)
 
-    add_imported_symbols(&compst)
+    compst.add_imported_symbols()
     for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:
         if command_line_args.verbosity >= 1:
             printf("  stage 2: %s\n", fs->path)
         fs->pending_exports = typecheck_stage2_populate_types(&fs->types, &fs->ast)
 
-    add_imported_symbols(&compst)
+    compst.add_imported_symbols()
     for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:
         if command_line_args.verbosity >= 1:
             printf("  stage 3: %s\n", fs->path)
@@ -466,7 +486,7 @@ def main(argc: int, argv: byte**) -> int:
 
     # Check for missing main() as late as possible, so that other errors come first.
     # This way Jou users can work on other functions before main() function is written.
-    mainfile = find_file(&compst, command_line_args.infile)
+    mainfile = compst.find_file(command_line_args.infile)
     assert mainfile != NULL
     if not defines_main(&mainfile->ast):
         fail(Location{path=mainfile->path, lineno=0}, "missing `main` function to execute the program")
