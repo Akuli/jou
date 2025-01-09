@@ -12,7 +12,11 @@ export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
 function usage() {
-    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
+    echo "Usage: $0 [--valgrind] [--verbose] [--stage1 | --stage2] [--dont-run-make] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
+    echo ""
+    echo "By default, this tests the stage 3 compiler (see bootstrapping in README). Use"
+    echo "--stage1 or --stage2 to test other stages as needed."
+    echo ""
     echo "If a FILE_FILTER is given, runs only test files whose path contains it."
     echo "For example, you can use \"$0 class\" to run class-related tests."
     exit 2
@@ -23,6 +27,7 @@ verbose=no
 run_make=yes
 jou_flags=""
 file_filter=""
+stage=3
 
 while [ $# != 0 ]; do
     case "$1" in
@@ -44,6 +49,14 @@ while [ $# != 0 ]; do
             fi
             jou_flags="$jou_flags $2"
             shift 2
+            ;;
+        --stage1)
+            stage=1
+            shift
+            ;;
+        --stage2)
+            stage=2
+            shift
             ;;
         -*)
             usage
@@ -67,14 +80,41 @@ if [ $valgrind = yes ]; then
     esac
 fi
 
+rm -rf tmp/tests
+mkdir -p tmp/tests
+
+joudir="$(pwd)"
+if [[ "$OS" =~ Windows ]]; then
+    if [ $stage = 3 ]; then
+        jouexe="jou.exe"
+    else
+        jouexe="jou_stage$stage.exe"
+    fi
+    if [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
+        # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
+        letter=${joudir:1:1}
+        joudir="${letter^^}:/${joudir:3}"
+        unset letter
+    fi
+else
+    if [ $stage = 3 ]; then
+        jouexe="./jou"
+    else
+        jouexe="./jou_stage$stage"
+    fi
+fi
+
+echo "<joudir> in expected output will be replaced with $joudir."
+echo "<jouexe> in expected output will be replaced with $jouexe."
+
 if [ $run_make = yes ]; then
     if [[ "${OS:=$(uname)}" =~ Windows ]]; then
         source activate
-        mingw32-make
+        mingw32-make $jouexe
     elif [[ "$OS" =~ NetBSD ]]; then
-        gmake
+        gmake $jouexe
     else
-        make
+        make $jouexe
     fi
 
 fi
@@ -83,24 +123,6 @@ DIFF=$(which gdiff || which diff)
 if $DIFF --help | grep -q -- --color; then
     diff_color="--color=always"
 fi
-
-rm -rf tmp/tests
-mkdir -p tmp/tests
-
-joudir="$(pwd)"
-if [[ "$OS" =~ Windows ]]; then
-    jouexe="jou.exe"
-    if [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
-        # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
-        letter=${joudir:1:1}
-        joudir="${letter^^}:/${joudir:3}"
-        unset letter
-    fi
-else
-    jouexe="./jou"
-fi
-echo "<joudir> in expected output will be replaced with $joudir."
-echo "<jouexe> in expected output will be replaced with $jouexe."
 
 function generate_expected_output()
 {
@@ -167,19 +189,37 @@ function should_skip()
     local joufile="$1"
     local correct_exit_code="$2"
 
-    # Skip tests when:
-    #   * the test is supposed to crash, but optimizations are enabled (unpredictable by design)
-    #   * the test is supposed to fail (crash or otherwise) and we use valgrind (see README)
-    #   * the "test" is actually a GUI program in examples/
-    if ( [[ $joufile =~ ^tests/crash/ ]] && ! [[ "$jou_flags" =~ -O0 ]] ) \
-        || ( [ $valgrind = yes ] && [ $correct_exit_code != 0 ] ) \
-        || [ $joufile = examples/x11_window.jou ] \
-        || [ $joufile = examples/memory_leak.jou ]
-    then
-        return 0  # true
-    else
-        return 1  # false
+    # For stages 1 and 2, error handling is not important (users won't see it),
+    # so only test that we support all features of Jou. Skip everything else.
+    if [ $stage != 3 ] && (grep -qE 'Warning:|Error:' $joufile || ! [[ $joufile =~ should_succeed ]]); then
+        return 0
     fi
+
+    # When optimizations are enabled, skip tests that are supposed to crash.
+    # Running them would be unpredictable by design.
+    if [[ $joufile =~ ^tests/crash/ ]] && ! [[ "$jou_flags" =~ -O0 ]]; then
+        return 0
+    fi
+
+    # When running valgrind, skip tests that are supposed to fail, because:
+    #   - error handling is easier if you don't free memory (OS will do it)
+    #   - in Jou compilers, error handling is simple and not very likely to contain UB
+    #   - valgrinding is slow, this means we valgrind a lot less
+    if [ $valgrind = yes ] && [ $correct_exit_code != 0 ]; then
+        return 0
+    fi
+
+    # compiler_cli.jou hard-codes ./jou or ./jou.exe, so it tests stage 3 anyway
+    if [ $stage != 3 ] && [[ $joufile =~ compiler_cli ]]; then
+        return 0
+    fi
+
+    # Skip special programs that don't interact nicely with automated tests
+    if [ $joufile = examples/x11_window.jou ] || [ $joufile = examples/memory_leak.jou ]; then
+        return 0
+    fi
+
+    return 1  # false, don't skip
 }
 
 function run_test()
@@ -188,15 +228,11 @@ function run_test()
     local correct_exit_code="$2"
     local counter="$3"
 
-    local command=""
+    local command="${jouexe#./}"
 
     if [ $valgrind = yes ] && [ $correct_exit_code == 0 ]; then
         # Valgrind the compiler process and the compiled executable
-        command="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions='$(pwd)/valgrind-suppressions.sup' jou --valgrind"
-    elif [[ "$OS" =~ Windows ]]; then
-        command="jou.exe"
-    else
-        command="jou"
+        command="valgrind -q --leak-check=full --show-leak-kinds=all --suppressions='$(pwd)/valgrind-suppressions.sup' $command --valgrind"
     fi
 
     # jou flags start with space when non-empty

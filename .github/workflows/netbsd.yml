@@ -23,8 +23,9 @@ jobs:
           run: |
             sudo pkgin -y install clang libLLVM gmake diffutils && \
             gmake && \
+            ./runtests.sh --verbose --stage1 && \
+            ./runtests.sh --verbose --stage2 && \
             ./runtests.sh --verbose && \
             ./runtests.sh --verbose --jou-flags "--verbose" && \
             gmake clean && \
-            ./doctest.sh && \
-            ./compare_compilers.sh
+            ./doctest.sh
