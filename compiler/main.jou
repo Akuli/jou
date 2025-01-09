@@ -179,10 +179,15 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
 
 
 class FileState:
-    path: byte*
+    path: byte*  # owned
     ast: AstFile
     types: FileTypes
     module: LLVMModule*
+
+    def free(self) -> None:
+        self->ast.free()
+        free(self->path)
+        free_file_types(&self->types)
 
     def add_imported_symbol(self, es: ExportSymbol*, imp: AstImport*) -> None:
         for i = 0; i < self->ast.body.nstatements; i++:
@@ -229,6 +234,13 @@ class FileState:
         else:
             assert False
 
+    def warn_about_unused_imports(self) -> None:
+        for imp = self->ast.imports; imp < &self->ast.imports[self->ast.nimports]; imp++:
+            if not imp->used:
+                msg: byte[500]
+                snprintf(msg, sizeof msg, "\"%s\" imported but not used", imp->specified_path)
+                show_warning(imp->location, msg)
+
 
 class CompileState:
     stdlib_path: byte*
@@ -237,9 +249,7 @@ class CompileState:
 
     def free(self) -> None:
         for fs = self->files; fs < &self->files[self->nfiles]; fs++:
-            fs->ast.free()
-            free(fs->path)
-            free_file_types(&fs->types)
+            fs->free()
         free(self->files)
 
     def find_file(self, path: byte*) -> FileState*:
@@ -267,7 +277,6 @@ class CompileState:
         fs.ast = parse(tokens, self->stdlib_path)
         free_tokens(tokens)
 
-        # TODO: enable this
         if command_line_args.verbosity >= 1:
             printf("Evaluating compile-time if statements in %s\n", filename)
         evaluate_compile_time_if_statements(&fs.ast.body)
@@ -386,16 +395,12 @@ def optimize(module: LLVMModule*, level: int) -> None:
     LLVMDisposePassManager(pm)
 
 
-def compile_ast_to_object_file(fs: FileState*) -> byte*:
+def ast_to_object_file(fs: FileState*) -> byte*:
     if command_line_args.verbosity >= 1:
         printf("Building Control Flow Graphs: %s\n", fs->path)
 
     cfgfile = build_control_flow_graphs(&fs->ast, &fs->types)
-    for imp = fs->ast.imports; imp < &fs->ast.imports[fs->ast.nimports]; imp++:
-        if not imp->used:
-            msg: byte[500]
-            snprintf(msg, sizeof msg, "\"%s\" imported but not used", imp->specified_path)
-            show_warning(imp->location, msg)
+    fs->warn_about_unused_imports()
 
     if command_line_args.verbosity >= 2:
         print_control_flow_graphs(&cfgfile)
@@ -478,7 +483,7 @@ def main(argc: int, argv: byte**) -> int:
 
     objpaths: byte** = calloc(sizeof objpaths[0], compst.nfiles + 1)
     for i = 0; i < compst.nfiles; i++:
-        objpaths[i] = compile_ast_to_object_file(&compst.files[i])
+        objpaths[i] = ast_to_object_file(&compst.files[i])
 
     # Check for missing main() as late as possible, so that other errors come first.
     # This way Jou users can work on other functions before main() function is written.
