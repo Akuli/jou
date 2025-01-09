@@ -93,7 +93,7 @@ if [[ "$OS" =~ Windows ]]; then
     if [ $stage = 3 ]; then
         jouexe="jou.exe"
     else
-        jouexe="stage$stage.exe"
+        jouexe="bootstrap/stage$stage.exe"
     fi
     if [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
         # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
@@ -108,8 +108,6 @@ else
         jouexe="./bootstrap/stage$stage"
     fi
 fi
-echo "<joudir> in expected output will be replaced with $joudir."
-echo "<jouexe> in expected output will be replaced with $jouexe."
 
 if [ $run_make = yes ]; then
     if [[ "${OS:=$(uname)}" =~ Windows ]]; then
@@ -124,10 +122,14 @@ fi
 
 if [[ "$OS" =~ Windows ]] && [ $stage != 3 ]; then
     # I'm sure there's a better way, but this works.
-    # I've now spent many hours trying to get the tests to run properly on Windows...
+    # I've now spent many hours trying to get the tests to run successfully on Windows...
+    jouexe="stage$stage.exe"
     cp -v bootstrap/stage$stage.exe .
     trap "rm -vf stage$stage.exe" EXIT
 fi
+
+echo "<joudir> in expected output will be replaced with $joudir."
+echo "<jouexe> in expected output will be replaced with $jouexe."
 
 function generate_expected_output()
 {
