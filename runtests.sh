@@ -242,7 +242,7 @@ function run_test()
     else
         if [[ "$OS" =~ Windows ]]; then
             # I couldn't get PATH to work on windows, so this relies on current working directory
-            command="bootstrap/stage$stage.exe"
+            command="bootstrap\stage$stage.exe"
         else
             # relies on PATH
             command="stage$stage"
