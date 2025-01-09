@@ -236,7 +236,7 @@ function run_test()
         fi
     else
         if [[ "$OS" =~ Windows ]]; then
-            command="bootstrap\\stage$stage.exe"
+            command="bootstrap\\\\stage$stage.exe"
         else
             command="bootstrap/stage$stage"
         fi
