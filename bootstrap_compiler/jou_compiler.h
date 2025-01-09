@@ -628,7 +628,6 @@ LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft);
 char *compile_to_object_file(LLVMModuleRef module);
 char *get_default_exe_path(void);
 void run_linker(const char *const *objpaths, const char *exepath);
-int run_exe(const char *exepath, bool valgrind);
 
 /*
 Use these to clean up return values of compiling functions.

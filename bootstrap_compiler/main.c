@@ -131,6 +131,10 @@ void parse_arguments(int argc, char **argv)
         fprintf(stderr, "%s: missing Jou file name", argv[0]);
         goto wrong_usage;
     }
+    if (!command_line_args.outfile) {
+        fprintf(stderr, "%s: missing -o option", argv[0]);
+        goto wrong_usage;
+    }
     return;
 
 wrong_usage:
@@ -516,14 +520,7 @@ int main(int argc, char **argv)
         free(objpaths[i]);
     free(objpaths);
 
-    int ret = 0;
-    if (!command_line_args.outfile) {
-        if(command_line_args.verbosity >= 1)
-            printf("Run: %s\n", exepath);
-        ret = run_exe(exepath, command_line_args.valgrind);
-    }
-
     free(exepath);
 
-    return ret;
+    return 0;
 }
