@@ -258,12 +258,6 @@ static char *compile_ast_to_object_file(struct FileState *fs)
     if(command_line_args.verbosity >= 2)
         print_control_flow_graphs(&cfgfile);
 
-    if(command_line_args.verbosity >= 1)
-        printf("Analyzing CFGs: %s\n", fs->path);
-    simplify_control_flow_graphs(&cfgfile);
-    if(command_line_args.verbosity >= 2)
-        print_control_flow_graphs(&cfgfile);
-
     if (command_line_args.verbosity >= 1)
         printf("Building LLVM IR: %s\n", fs->path);
 

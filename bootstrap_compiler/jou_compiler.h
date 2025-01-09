@@ -624,7 +624,6 @@ Token *tokenize(FILE *f, const char *filename);
 AstFile parse(const Token *tokens, const char *stdlib_path);
 // Type checking happens between parsing and building CFGs.
 CfGraphFile build_control_flow_graphs(const AstFile *ast, FileTypes *ft);
-void simplify_control_flow_graphs(const CfGraphFile *cfgfile);
 LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft);
 char *compile_to_object_file(LLVMModuleRef module);
 char *get_default_exe_path(void);
