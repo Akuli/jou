@@ -93,7 +93,11 @@ if [[ "$OS" =~ Windows ]]; then
     if [ $stage = 3 ]; then
         jouexe="jou.exe"
     else
-        jouexe="bootstrap/stage$stage.exe"
+        # I'm sure there's a better way, but this works.
+        # I've now spent many hours trying to get the tests to run properly on Windows...
+        cp -v bootstrap/stage$stage.exe .
+        trap "rm -vf stage$stage.exe" EXIT
+        jouexe="stage$stage.exe"
     fi
     if [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
         # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
@@ -226,17 +230,7 @@ function run_test()
     local correct_exit_code="$2"
     local counter="$3"
 
-    local command=""
-
-    if [ $stage = 3 ]; then
-        command="jou"
-    else
-        command="stage$stage"  # in "bootstrap" folder, PATH is adjusted in other part of this script
-    fi
-
-    if [[ "$OS" =~ Windows ]]; then
-        command="$command.exe"
-    fi
+    local command="${jouexe#./}"
 
     if [ $valgrind = yes ] && [ $correct_exit_code == 0 ]; then
         # Valgrind the compiler process and the compiled executable
@@ -268,13 +262,7 @@ function run_test()
     if $DIFF --text -u $diff_color <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
-        if [ $stage == 3 ]; then
-            export PATH="$PWD:$PATH"
-        else
-            # stage1 and stage2 executables are in "bootstrap/" folder
-            export PATH="$PWD/bootstrap:$PATH"
-        fi
-
+        export PATH="$PWD:$PATH"
         if [ $valgrind = no ]; then
             ulimit -v 500000 2>/dev/null
         fi
