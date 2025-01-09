@@ -80,23 +80,6 @@ if [ $valgrind = yes ]; then
     esac
 fi
 
-if [ $run_make = yes ]; then
-    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
-        source activate
-        mingw32-make
-    elif [[ "$OS" =~ NetBSD ]]; then
-        gmake
-    else
-        make
-    fi
-
-fi
-
-DIFF=$(which gdiff || which diff)
-if $DIFF --help | grep -q -- --color; then
-    diff_color="--color=always"
-fi
-
 rm -rf tmp/tests
 mkdir -p tmp/tests
 
@@ -120,8 +103,26 @@ else
         jouexe="./jou_stage$stage"
     fi
 fi
+
 echo "<joudir> in expected output will be replaced with $joudir."
 echo "<jouexe> in expected output will be replaced with $jouexe."
+
+if [ $run_make = yes ]; then
+    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
+        source activate
+        mingw32-make $jouexe
+    elif [[ "$OS" =~ NetBSD ]]; then
+        gmake $jouexe
+    else
+        make $jouexe
+    fi
+
+fi
+
+DIFF=$(which gdiff || which diff)
+if $DIFF --help | grep -q -- --color; then
+    diff_color="--color=always"
+fi
 
 function generate_expected_output()
 {
