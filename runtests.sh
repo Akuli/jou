@@ -102,7 +102,11 @@ mkdir -p tmp/tests
 
 joudir="$(pwd)"
 if [[ "$OS" =~ Windows ]]; then
-    jouexe="jou.exe"
+    if [ $stage = 3 ]; then
+        jouexe="jou.exe"
+    else
+        jouexe="jou_stage$stage.exe"
+    fi
     if [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
         # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
         letter=${joudir:1:1}
@@ -110,7 +114,11 @@ if [[ "$OS" =~ Windows ]]; then
         unset letter
     fi
 else
-    jouexe="./jou"
+    if [ $stage = 3 ]; then
+        jouexe="./jou"
+    else
+        jouexe="./jou_stage$stage"
+    fi
 fi
 echo "<joudir> in expected output will be replaced with $joudir."
 echo "<jouexe> in expected output will be replaced with $jouexe."

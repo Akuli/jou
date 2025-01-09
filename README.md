@@ -225,10 +225,10 @@ The bootstrap compiler exists only to compile the Jou compiler.
 Specifically, here's how the Jou compiler is compiled.
 This process is called [bootstrapping](https://en.wikipedia.org/wiki/Bootstrapping_(compilers)).
 - **Stage 1: Compile the bootstrap compiler with a C compiler.**
-    This produces an executable named `bootstrap/stage1`
-    (or `bootstrap/stage1.exe` if you use Windows).
+    This produces an executable named `jou_stage1`
+    (or `jou_stage1.exe` if you use Windows).
 - **Stage 2: Compile the Jou compiler with the bootstrap compiler.**
-    This produces an executable named `bootstrap/stage2`.
+    This produces an executable named `jou_stage2`.
 - **Stage 3: Compile the Jou compiler with the Jou compiler.**
     The stage 2 compiler is used to compile the Jou compiler again.
     This produces an executable named `jou`.

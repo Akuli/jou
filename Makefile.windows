@@ -26,21 +26,21 @@ config.jou:
 
 # Stage 1 of bootstrapping: Compile the bootstrap compiler with a C compiler.
 BSRC := $(wildcard bootstrap_compiler/*.c)
-bootstrap/obj/%.o: bootstrap_compiler/%.c $(wildcard bootstrap_compiler/*.h)
-	mkdir -p bootstrap/obj && $(CC) -c $(CFLAGS) $< -o $@
-bootstrap/stage1.exe: $(BSRC:bootstrap_compiler/%.c=bootstrap/obj/%.o)
-	$(CC) $(CFLAGS) $^ -o bootstrap/stage1.exe $(LDFLAGS)
+obj/%.o: bootstrap_compiler/%.c $(wildcard bootstrap_compiler/*.h)
+	mkdir -p obj && $(CC) -c $(CFLAGS) $< -o $@
+jou_stage1.exe: $(BSRC:bootstrap_compiler/%.c=obj/%.o)
+	$(CC) $(CFLAGS) $^ -o jou_stage1.exe $(LDFLAGS)
 
 # Stage 2 of bootstrapping: Compile the Jou compiler with the bootstrap compiler.
 # Don't depend on Jou files, so that only stage 3 recompiles if they're changed.
-bootstrap/stage2.exe: bootstrap/stage1.exe config.jou
-	rm -rf compiler/jou_compiled && bootstrap/stage1.exe -o bootstrap/stage2.exe --linker-flags "$(LDFLAGS)" compiler/main.jou
+jou_stage2.exe: jou_stage1.exe config.jou
+	rm -rf compiler/jou_compiled && jou_stage1.exe -o jou_stage2.exe --linker-flags "$(LDFLAGS)" compiler/main.jou
 
 # Stage 3 of bootstrapping: Compile the Jou compiler with the Jou compiler.
-jou.exe: bootstrap/stage2.exe config.jou $(wildcard compiler/*.jou)
-	rm -rf compiler/jou_compiled && bootstrap/stage2.exe -o jou.exe --linker-flags "$(LDFLAGS)" compiler/main.jou
+jou.exe: jou_stage2.exe config.jou $(wildcard compiler/*.jou)
+	rm -rf compiler/jou_compiled && jou_stage2.exe -o jou.exe --linker-flags "$(LDFLAGS)" compiler/main.jou
 
 .PHONY: clean
 clean:
-	rm -rvf obj jou.exe self_hosted_compiler.exe tmp config.jou compile_flags.txt
+	rm -rvf obj jou.exe jou_stage*.exe tmp compile_flags.txt config.jou
 	find -name jou_compiled -print -exec rm -rf '{}' +
