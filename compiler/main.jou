@@ -168,7 +168,51 @@ class FileState:
     ast: AstFile
     types: FileTypes
     module: LLVMModule*
-    pending_exports: ExportSymbol*
+
+    def add_imported_symbol(self, es: ExportSymbol*, imp: AstImport*) -> None:
+        for i = 0; i < self->ast.body.nstatements; i++:
+            if statement_conflicts_with_an_import(&self->ast.body.statements[i], es):
+                if es->kind == ExportSymbolKind::Function:
+                    wat = "function"
+                elif es->kind == ExportSymbolKind::GlobalVar:
+                    wat = "global variable"
+                elif es->kind == ExportSymbolKind::Type:
+                    wat = "type"
+                else:
+                    assert False
+
+                msg: byte[500]
+                snprintf(msg, sizeof msg, "a %s named '%s' already exists", wat, es->name)
+                fail(self->ast.body.statements[i].location, msg)
+
+        if es->kind == ExportSymbolKind::Function:
+            self->types.functions = realloc(self->types.functions, sizeof(self->types.functions[0]) * (self->types.nfunctions + 1))
+            assert self->types.functions != NULL
+            self->types.functions[self->types.nfunctions++] = SignatureAndUsedPtr{
+                signature = copy_signature(&es->funcsignature),
+                usedptr = &imp->used,
+            }
+        elif es->kind == ExportSymbolKind::Type:
+            self->types.types = realloc(self->types.types, sizeof(self->types.types[0]) * (self->types.ntypes + 1))
+            assert self->types.types != NULL
+            self->types.types[self->types.ntypes++] = TypeAndUsedPtr{
+                type = es->type,
+                usedptr = &imp->used,
+            }
+        elif es->kind == ExportSymbolKind::GlobalVar:
+            g = GlobalVariable{
+                type = es->type,
+                usedptr = &imp->used,
+            }
+
+            assert strlen(es->name) < sizeof g.name
+            strcpy(g.name, es->name)
+
+            self->types.globals = realloc(self->types.globals, sizeof(self->types.globals[0]) * (self->types.nglobals + 1))
+            assert self->types.globals != NULL
+            self->types.globals[self->types.nglobals++] = g
+        else:
+            assert False
 
 
 class ParseQueueItem:
@@ -180,8 +224,6 @@ class CompileState:
     stdlib_path: byte*
     files: FileState*
     nfiles: int
-    parse_queue: ParseQueueItem*
-    parse_queue_len: int
 
     def find_file(self, path: byte*) -> FileState*:
         for fs = self->files; fs < &self->files[self->nfiles]; fs++:
@@ -189,8 +231,9 @@ class CompileState:
                 return fs
         return NULL
 
-    def parse_file(self, filename: byte*, import_location: Location*) -> None:
+    def parse(self, filename: byte*, import_location: Location*) -> None:
         if self->find_file(filename) != NULL:
+            # already parsed
             return
 
         fs = FileState{path = strdup(filename)}
@@ -222,33 +265,22 @@ class CompileState:
             assert import_location != NULL
             fail(*import_location, "imported file should not have `main` function")
 
-        for imp = fs.ast.imports; imp < &fs.ast.imports[fs.ast.nimports]; imp++:
-            self->parse_queue = realloc(self->parse_queue, sizeof(self->parse_queue[0]) * (self->parse_queue_len + 1))
-            assert self->parse_queue != NULL
-            self->parse_queue[self->parse_queue_len++] = ParseQueueItem{
-                filename = imp->resolved_path,
-                import_location = imp->location,
-            }
-
         self->files = realloc(self->files, sizeof(self->files[0]) * (self->nfiles + 1))
         assert self->files != NULL
         self->files[self->nfiles++] = fs
 
-    def parse_all_pending_files(self) -> None:
-        while self->parse_queue_len > 0:
-            it = self->parse_queue[--self->parse_queue_len]
-            self->parse_file(it.filename, &it.import_location)
+        for imp = fs.ast.imports; imp < &fs.ast.imports[fs.ast.nimports]; imp++:
+            self->parse(imp->resolved_path, &imp->location)  # recursive call
 
-        free(self->parse_queue)
-        self->parse_queue = NULL
-
-    def include_special_stdlib_file(self, filename: byte*) -> None:
+    def parse_from_stdlib(self, filename: byte*) -> None:
         path = malloc(strlen(self->stdlib_path) + strlen(filename) + 123)
         sprintf(path, "%s/%s", self->stdlib_path, filename)
-        self->parse_file(path, NULL)
+        self->parse(path, NULL)
         free(path)
 
-    def add_imported_symbols(self) -> None:
+    # Each stage of type checking produces exported symbols that other files can import.
+    # This method hands them over to the importing files.
+    def exports_to_imports(self, pending_exports: ExportSymbol**) -> None:
         for to = self->files; to < &self->files[self->nfiles]; to++:
             seen_before: FileState** = NULL
             seen_before_len = 0
@@ -256,6 +288,7 @@ class CompileState:
             for imp = to->ast.imports; imp < &to->ast.imports[to->ast.nimports]; imp++:
                 from = self->find_file(imp->resolved_path)
                 assert from != NULL
+                from_index = ((from as long) - (self->files as long)) / sizeof(self->files[0])
 
                 if from == to:
                     fail(imp->location, "the file itself cannot be imported")
@@ -269,7 +302,7 @@ class CompileState:
                 seen_before = realloc(seen_before, sizeof(seen_before[0]) * (seen_before_len + 1))
                 seen_before[seen_before_len++] = from
 
-                for es = from->pending_exports; es->name[0] != '\0'; es++:
+                for es = pending_exports[from_index]; es->name[0] != '\0'; es++:
                     if command_line_args.verbosity >= 2:
                         if es->kind == ExportSymbolKind::Function:
                             kindstr = "function"
@@ -279,20 +312,45 @@ class CompileState:
                             kindstr = "type"
                         else:
                             assert False
-
                         printf("Adding imported %s %s: %s --> %s\n",
                             kindstr, es->name, from->path, to->path)
 
-                    add_imported_symbol(to, es, imp)
+                    to->add_imported_symbol(es, imp)
 
             free(seen_before)
 
-        # Mark all exports as no longer pending.
-        for fs = self->files; fs < &self->files[self->nfiles]; fs++:
-            for es = fs->pending_exports; es->name[0] != '\0'; es++:
+        for i = 0; i < self->nfiles; i++:
+            for es = pending_exports[i]; es->name[0] != '\0'; es++:
                 free_export_symbol(es)
-            free(fs->pending_exports)
-            fs->pending_exports = NULL
+            free(pending_exports[i])
+            pending_exports[i] = NULL
+
+    def typecheck_all_files(self) -> None:
+        if command_line_args.verbosity >= 1:
+            printf("Type-checking...\n")
+
+        pending_exports: ExportSymbol** = malloc(sizeof(pending_exports[0]) * self->nfiles)
+
+        for i = 0; i < self->nfiles; i++:
+            if command_line_args.verbosity >= 1:
+                printf("  stage 1: %s\n", self->files[i].path)
+            pending_exports[i] = typecheck_stage1_create_types(&self->files[i].types, &self->files[i].ast)
+
+        self->exports_to_imports(pending_exports)
+
+        for i = 0; i < self->nfiles; i++:
+            if command_line_args.verbosity >= 1:
+                printf("  stage 2: %s\n", self->files[i].path)
+            pending_exports[i] = typecheck_stage2_populate_types(&self->files[i].types, &self->files[i].ast)
+
+        self->exports_to_imports(pending_exports)
+
+        for i = 0; i < self->nfiles; i++:
+            if command_line_args.verbosity >= 1:
+                printf("  stage 3: %s\n", self->files[i].path)
+            typecheck_stage3_function_and_method_bodies(&self->files[i].types, &self->files[i].ast)
+
+        free(pending_exports)
 
 
 def compile_ast_to_object_file(fs: FileState*) -> byte*:
@@ -372,52 +430,6 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
 
     assert False  # TODO
 
-def add_imported_symbol(fs: FileState*, es: ExportSymbol*, imp: AstImport*) -> None:
-    for i = 0; i < fs->ast.body.nstatements; i++:
-        if statement_conflicts_with_an_import(&fs->ast.body.statements[i], es):
-            if es->kind == ExportSymbolKind::Function:
-                wat = "function"
-            elif es->kind == ExportSymbolKind::GlobalVar:
-                wat = "global variable"
-            elif es->kind == ExportSymbolKind::Type:
-                wat = "type"
-            else:
-                assert False
-
-            msg: byte[500]
-            snprintf(msg, sizeof msg, "a %s named '%s' already exists", wat, es->name)
-            fail(fs->ast.body.statements[i].location, msg)
-
-    if es->kind == ExportSymbolKind::Function:
-        fs->types.functions = realloc(fs->types.functions, sizeof(fs->types.functions[0]) * (fs->types.nfunctions + 1))
-        assert fs->types.functions != NULL
-        fs->types.functions[fs->types.nfunctions++] = SignatureAndUsedPtr{
-            signature = copy_signature(&es->funcsignature),
-            usedptr = &imp->used,
-        }
-    elif es->kind == ExportSymbolKind::Type:
-        fs->types.types = realloc(fs->types.types, sizeof(fs->types.types[0]) * (fs->types.ntypes + 1))
-        assert fs->types.types != NULL
-        fs->types.types[fs->types.ntypes++] = TypeAndUsedPtr{
-            type = es->type,
-            usedptr = &imp->used,
-        }
-    elif es->kind == ExportSymbolKind::GlobalVar:
-        g = GlobalVariable{
-            type = es->type,
-            usedptr = &imp->used,
-        }
-
-        assert strlen(es->name) < sizeof g.name
-        strcpy(g.name, es->name)
-
-        fs->types.globals = realloc(fs->types.globals, sizeof(fs->types.globals[0]) * (fs->types.nglobals + 1))
-        assert fs->types.globals != NULL
-        fs->types.globals[fs->types.nglobals++] = g
-    else:
-        assert False
-
-
 def tokenize_only(path: byte*) -> None:
     tokens = tokenize(command_line_args.infile, NULL)
     print_tokens(tokens)
@@ -453,32 +465,13 @@ def main(argc: int, argv: byte**) -> int:
 
     compst = CompileState{ stdlib_path = stdlib }
 
-    compst.include_special_stdlib_file("_assert_fail.jou")
+    # This part recursively finds and parses imported files.
+    compst.parse_from_stdlib("_assert_fail.jou")
     if WINDOWS or MACOS or NETBSD:
-        compst.include_special_stdlib_file("_jou_startup.jou")
+        compst.parse_from_stdlib("_jou_startup.jou")
+    compst.parse(command_line_args.infile, NULL)
 
-    compst.parse_file(command_line_args.infile, NULL)
-    compst.parse_all_pending_files()
-
-    if command_line_args.verbosity >= 1:
-        printf("Type-checking...\n")
-
-    for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:
-        if command_line_args.verbosity >= 1:
-            printf("  stage 1: %s\n", fs->path)
-        fs->pending_exports = typecheck_stage1_create_types(&fs->types, &fs->ast)
-
-    compst.add_imported_symbols()
-    for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:
-        if command_line_args.verbosity >= 1:
-            printf("  stage 2: %s\n", fs->path)
-        fs->pending_exports = typecheck_stage2_populate_types(&fs->types, &fs->ast)
-
-    compst.add_imported_symbols()
-    for fs = compst.files; fs < &compst.files[compst.nfiles]; fs++:
-        if command_line_args.verbosity >= 1:
-            printf("  stage 3: %s\n", fs->path)
-        typecheck_stage3_function_and_method_bodies(&fs->types, &fs->ast)
+    compst.typecheck_all_files()
 
     objpaths: byte** = calloc(sizeof objpaths[0], compst.nfiles + 1)
     for i = 0; i < compst.nfiles; i++:
