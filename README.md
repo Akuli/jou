@@ -216,7 +216,7 @@ It can compile itself.
 However, this doesn't help you much if you have nothing that can compile Jou code.
 
 To solve this problem, there is another compiler, called the **bootstrap compiler**
-([bootstrap_compiler/](boostrap_compiler) folder),
+([bootstrap_compiler/](bootstrap_compiler) folder),
 written in C.
 It is a Jou compiler that supports all of Jou's syntax,
 but whose error messages are not always as good as the error messages of the main Jou compiler.
