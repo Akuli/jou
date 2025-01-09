@@ -39,6 +39,7 @@ static const char help_fmt[] =
     "  -o OUTFILE       output an executable file, don't run the code\n"
     "  -v / --verbose   display some progress information\n"
     "  -vv              display a lot of information about all compilation steps\n"
+    "  --valgrind       use valgrind when running the code\n"
     "  --tokenize-only  display only the output of the tokenizer, don't do anything else\n"
     "  --parse-only     display only the AST (parse tree), don't do anything else\n"
     "  --linker-flags   appended to the linker command, so you can use external libraries\n"
@@ -75,6 +76,9 @@ void parse_arguments(int argc, char **argv)
             i++;
         } else if (strncmp(argv[i], "-v", 2) == 0 && strspn(argv[i] + 1, "v") == strlen(argv[i])-1) {
             command_line_args.verbosity += strlen(argv[i]) - 1;
+            i++;
+        } else if (!strcmp(argv[i], "--valgrind")) {
+            command_line_args.valgrind = true;
             i++;
         } else if (!strcmp(argv[i], "--tokenize-only")) {
             if (argc > 3) {
