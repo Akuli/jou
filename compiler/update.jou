@@ -18,24 +18,25 @@ else:
     declare chdir(path: byte*) -> int
 
 
-def fail_update() -> None:
+def fail_update() -> noreturn:
     puts("")
     puts("Updating Jou failed. If you need help, please create an issue on GitHub:")
     puts("   https://github.com/Akuli/jou/issues/new")
     exit(1)
 
+
 def confirm(prompt: byte*) -> None:
     printf("%s (y/n) ", prompt)
     fflush(stdout)
 
-    line: byte[50]
+    line: byte[50] = ""
     fgets(line, sizeof(line) as int, stdin)
     trim_ascii_whitespace(line)
 
-    yes = strcmp(line, "Y") == 0 or strcmp(line, "y") == 0
-    if not yes:
+    if strcmp(line, "Y") != 0 and strcmp(line, "y") != 0:
         printf("Aborted.\n")
         exit(1)
+
 
 def update_jou_compiler() -> None:
     exe = find_current_executable()
