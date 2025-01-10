@@ -12,7 +12,10 @@ import "./codegen.jou"
 import "./print.jou"
 import "./llvm.jou"
 import "./output.jou"
-import "./typecheck.jou"
+import "./typecheck/common.jou"
+import "./typecheck/step1_create_types.jou"
+import "./typecheck/step2_populate_types.jou"
+import "./typecheck/step3_function_and_method_bodies.jou"
 import "./target.jou"
 import "./types.jou"
 import "./free.jou"
@@ -344,7 +347,7 @@ class CompileState:
         self->parse(path, NULL)
         free(path)
 
-    # Each stage of type checking produces exported symbols that other files can import.
+    # Each step of type checking produces exported symbols that other files can import.
     # This method hands them over to the importing files.
     def exports_to_imports(self, pending_exports: ExportSymbol**) -> None:
         for to = self->files; to < &self->files[self->nfiles]; to++:
@@ -399,22 +402,22 @@ class CompileState:
 
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
-                printf("  stage 1: %s\n", self->files[i].path)
-            pending_exports[i] = typecheck_stage1_create_types(&self->files[i].types, &self->files[i].ast)
+                printf("  step 1: %s\n", self->files[i].path)
+            pending_exports[i] = typecheck_step1_create_types(&self->files[i].types, &self->files[i].ast)
 
         self->exports_to_imports(pending_exports)
 
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
-                printf("  stage 2: %s\n", self->files[i].path)
-            pending_exports[i] = typecheck_stage2_populate_types(&self->files[i].types, &self->files[i].ast)
+                printf("  step 2: %s\n", self->files[i].path)
+            pending_exports[i] = typecheck_step2_populate_types(&self->files[i].types, &self->files[i].ast)
 
         self->exports_to_imports(pending_exports)
 
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
-                printf("  stage 3: %s\n", self->files[i].path)
-            typecheck_stage3_function_and_method_bodies(&self->files[i].types, &self->files[i].ast)
+                printf("  step 3: %s\n", self->files[i].path)
+            typecheck_step3_function_and_method_bodies(&self->files[i].types, &self->files[i].ast)
 
         free(pending_exports)
 

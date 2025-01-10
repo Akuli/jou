@@ -1,10 +1,7 @@
 # TODO: delete this file, merge into others
 
 import "stdlib/str.jou"
-import "stdlib/math.jou"
-import "stdlib/io.jou"
 
-import "./ast.jou"
 import "./types.jou"
 
 
@@ -85,78 +82,3 @@ def int_constant(type: Type*, value: long) -> Constant:
             value = value
         }
     }
-
-
-class GlobalVariable:
-    name: byte[100]  # Same as in user's code, never empty
-    type: Type*
-    defined_in_current_file: bool  # not declare-only (e.g. stdout) or imported
-    usedptr: bool*  # If non-NULL, set to true when the variable is used. This is how we detect unused imports.
-
-
-class LocalVariable:
-    id: int  # Unique, but you can also compare pointers to LocalVariable.
-    name: byte[100]  # Same name as in user's code, empty for temporary variables created by compiler
-    type: Type*
-    is_argument: bool    # First n variables are always the arguments
-
-    def print_to_width(self, width: int) -> None:
-        if self->name[0] != '\0':
-            printf("%-*s", width, self->name)
-        else:
-            printf("$%-*d", max(width-1, 0), self->id)
-
-    def print(self) -> None:
-        self->print_to_width(0)
-
-
-class ExpressionTypes:
-    expr: AstExpression*  # not owned
-    type: Type*
-    implicit_cast_type: Type*  # NULL for no implicit cast
-
-    # Flags to indicate whether special kinds of implicit casts happened
-    implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
-    implicit_string_to_array_cast: bool     # "..." to byte[N]
-
-enum ExportSymbolKind:
-    Function
-    Type
-    GlobalVar
-
-class ExportSymbol:
-    kind: ExportSymbolKind
-    name: byte[100]  # TODO: maybe this should be 200 because it can be ClassName.method_name? or something else?
-    union:
-        funcsignature: Signature
-        type: Type*  # ExportSymbolKind::Type and ExportSymbolKind::GlobalVar
-
-# Type information about a function or method defined in the current file.
-class FunctionOrMethodTypes:
-    signature: Signature
-    expr_types: ExpressionTypes**
-    n_expr_types: int
-    locals: LocalVariable**
-    nlocals: int
-
-class TypeAndUsedPtr:
-    type: Type*
-    usedptr: bool*
-
-class SignatureAndUsedPtr:
-    signature: Signature
-    usedptr: bool*
-
-# Type information about a file.
-class FileTypes:
-    current_fom_types: FunctionOrMethodTypes*  # conceptually this is internal to typecheck.c
-    fomtypes: FunctionOrMethodTypes*
-    nfomtypes: int
-    globals: GlobalVariable*
-    nglobals: int
-    owned_types: Type**  # These will be freed later
-    n_owned_types: int
-    types: TypeAndUsedPtr*
-    ntypes: int
-    functions: SignatureAndUsedPtr*
-    nfunctions: int

@@ -54,7 +54,7 @@ jou_stage2: jou_stage1 config.jou
 	rm -rf compiler/jou_compiled && ./jou_stage1 -o jou_stage2 --linker-flags "$(LDFLAGS)" compiler/main.jou
 
 # Stage 3 of bootstrapping: Compile the Jou compiler with the Jou compiler.
-jou: jou_stage2 config.jou $(wildcard compiler/*.jou)
+jou: jou_stage2 config.jou $(wildcard compiler/*.jou compiler/*/*.jou)
 	rm -rf compiler/jou_compiled && ./jou_stage2 -o jou --linker-flags "$(LDFLAGS)" compiler/main.jou
 
 .PHONY: clean
