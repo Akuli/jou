@@ -10,7 +10,6 @@ import "./evaluate.jou"
 import "./run.jou"
 import "./codegen.jou"
 import "./llvm.jou"
-import "./output.jou"
 import "./typecheck/common.jou"
 import "./typecheck/step1_create_types.jou"
 import "./typecheck/step2_populate_types.jou"
@@ -450,6 +449,34 @@ def optimize(module: LLVMModule*, level: int) -> None:
 
     LLVMRunPassManager(pm, module)
     LLVMDisposePassManager(pm)
+
+
+def compile_to_object_file(module: LLVMModule*) -> byte*:
+    len = 0L
+    objname = get_filename_without_jou_suffix(LLVMGetSourceFileName(module, &len))
+
+    objname = realloc(objname, strlen(objname) + 10)
+    if WINDOWS:
+        strcat(objname, ".obj")
+    else:
+        strcat(objname, ".o")
+
+    path = get_path_to_file_in_jou_compiled(objname)
+    free(objname)
+
+    if command_line_args.verbosity >= 1:
+        printf("Emitting object file: %s\n", path)
+
+    tmppath = strdup(path)
+    error: byte* = NULL
+    if LLVMTargetMachineEmitToFile(target.target_machine, module, tmppath, LLVMCodeGenFileType::ObjectFile, &error) != 0:
+        assert error != NULL
+        fprintf(stderr, "failed to emit object file \"%s\": %s\n", path, error)
+        exit(1)
+    free(tmppath)
+
+    assert error == NULL
+    return path
 
 
 def tokenize_only(path: byte*) -> None:
