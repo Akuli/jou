@@ -58,7 +58,7 @@ def copy_constant(c: Constant) -> Constant:
     return c
 
 def int_constant(type: Type*, value: long) -> Constant:
-    assert is_integer_type(type)
+    assert type->is_integer_type()
     return Constant{
         kind = ConstantKind::Integer,
         integer = IntegerConstant{
@@ -67,6 +67,7 @@ def int_constant(type: Type*, value: long) -> Constant:
             value = value
         }
     }
+
 
 class Signature:
     name: byte[100]  # Function or method name. For methods it does not include the name of the class.
