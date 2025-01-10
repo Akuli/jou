@@ -118,6 +118,23 @@ class FileTypes:
     functions: SignatureAndUsedPtr*
     nfunctions: int
 
+    def free(self) -> None:
+        for t = self->owned_types; t < &self->owned_types[self->n_owned_types]; t++:
+            free_type(*t)
+        for func = self->functions; func < &self->functions[self->nfunctions]; func++:
+            func->signature.free()
+        for fom = self->fomtypes; fom < &self->fomtypes[self->nfomtypes]; fom++:
+            for et = fom->expr_types; et < &fom->expr_types[fom->n_expr_types]; et++:
+                free(*et)
+            free(fom->expr_types)
+            free(fom->locals)  # Don't free individual locals because they're owned by CFG now
+            fom->signature.free()
+        free(self->globals)
+        free(self->types)
+        free(self->owned_types)
+        free(self->functions)
+        free(self->fomtypes)
+
     def find_type(self, name: byte*) -> Type*:
         for t = self->types; t < &self->types[self->ntypes]; t++:
             if strcmp(t->type->name, name) == 0:
