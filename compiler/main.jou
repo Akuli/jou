@@ -4,7 +4,8 @@ import "stdlib/mem.jou"
 import "stdlib/errno.jou"
 import "stdlib/str.jou"
 
-import "./build_cfg.jou"
+import "./cf_graph.jou"
+import "./build_cf_graph.jou"
 import "./evaluate.jou"
 import "./run.jou"
 import "./codegen.jou"
@@ -482,8 +483,7 @@ def main(argc: int, argv: byte**) -> int:
         cf_graphs = compst.files[i].build_cf_graphs()
 
         llvm_ir = compst.files[i].build_llvm_ir(&cf_graphs)
-        # TODO: free the control flow graphs, this crashes for some reason
-        #free_control_flow_graphs(&cf_graphs)
+        cf_graphs.free()
 
         objpaths[i] = compile_to_object_file(llvm_ir)
         LLVMDisposeModule(llvm_ir)

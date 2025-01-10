@@ -39,33 +39,3 @@ def free_file_types(ft: FileTypes*) -> None:
     free(ft->owned_types)
     free(ft->functions)
     free(ft->fomtypes)
-
-def free_control_flow_graph_block(cfg: CfGraph*, b: CfBlock*) -> None:
-    for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
-        if ins->kind == CfInstructionKind::Constant:
-            free_constant(&ins->constant)
-        if ins->kind == CfInstructionKind::StringArray:
-            free(ins->strarray.str)
-        if ins->kind == CfInstructionKind::Call:
-            free_signature(&ins->signature)
-        free(ins->operands)
-    free(b->instructions)
-    if b != &cfg->start_block and b != &cfg->end_block:
-        free(b)
-
-def free_cfg(cfg: CfGraph*) -> None:
-    free_signature(&cfg->signature)
-
-    for b = cfg->all_blocks; b < &cfg->all_blocks[cfg->n_all_blocks]; b++:
-        free_control_flow_graph_block(cfg, *b)
-    for v = cfg->locals; v < &cfg->locals[cfg->nlocals]; v++:
-        free(*v)
-
-    free(cfg->all_blocks)
-    free(cfg->locals)
-    free(cfg)
-
-def free_control_flow_graphs(cfgfile: CfGraphFile*) -> None:
-    for cfg = cfgfile->graphs; cfg < &cfgfile->graphs[cfgfile->ngraphs]; cfg++:
-        free_cfg(*cfg)
-    free(cfgfile->graphs)
