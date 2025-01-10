@@ -208,7 +208,7 @@ class FileState:
             self->types.functions = realloc(self->types.functions, sizeof(self->types.functions[0]) * (self->types.nfunctions + 1))
             assert self->types.functions != NULL
             self->types.functions[self->types.nfunctions++] = SignatureAndUsedPtr{
-                signature = copy_signature(&es->funcsignature),
+                signature = es->funcsignature.copy(),
                 usedptr = &imp->used,
             }
         elif es->kind == ExportSymbolKind::Type:

@@ -6,7 +6,7 @@ import "stdlib/io.jou"
 
 import "./ast.jou"
 import "./types.jou"
-import "./errors_and_warnings.jou"
+
 
 class CommandLineArgs:
     argv0: byte*  # Program name
@@ -51,14 +51,32 @@ class Constant:
         boolean: bool
         enum_member: EnumMemberConstant
 
-def copy_constant(c: Constant) -> Constant:
-    if c.kind == ConstantKind::String:
-        c.str = strdup(c.str)
-        assert c.str != NULL
-    return c
+    def get_type(self) -> Type*:
+        if self->kind == ConstantKind::EnumMember:
+            return self->enum_member.enumtype
+        if self->kind == ConstantKind::Null:
+            return voidPtrType
+        if self->kind == ConstantKind::Double:
+            return doubleType
+        if self->kind == ConstantKind::Float:
+            return floatType
+        if self->kind == ConstantKind::Bool:
+            return boolType
+        if self->kind == ConstantKind::String:
+            return byteType->pointer_type()
+        if self->kind == ConstantKind::Integer:
+            return get_integer_type(self->integer.size_in_bits, self->integer.is_signed)
+        assert False
+
+    def copy(self: Constant) -> Constant:
+        if self.kind == ConstantKind::String:
+            self.str = strdup(self.str)
+            assert self.str != NULL
+        return self
+
 
 def int_constant(type: Type*, value: long) -> Constant:
-    assert is_integer_type(type)
+    assert type->is_integer_type()
     return Constant{
         kind = ConstantKind::Integer,
         integer = IntegerConstant{
@@ -67,18 +85,6 @@ def int_constant(type: Type*, value: long) -> Constant:
             value = value
         }
     }
-
-class Signature:
-    name: byte[100]  # Function or method name. For methods it does not include the name of the class.
-    nargs: int
-    argtypes: Type**
-    argnames: byte[100]*
-    takes_varargs: bool  # true for functions like printf()
-    # TODO: rename to return_type
-    returntype: Type*    # NULL, if does not return a value
-    is_noreturn: bool
-    # TODO: rename to return_type_location
-    returntype_location: Location  # meaningful even if returntype is NULL
 
 
 class GlobalVariable:

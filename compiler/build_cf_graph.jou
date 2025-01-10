@@ -132,7 +132,7 @@ def add_binary_op(
 
 
 def add_constant(st: State*, location: Location, c: Constant, target: LocalVariable*) -> CfInstruction*:
-    ins = CfInstruction{location = location, kind = CfInstructionKind::Constant, constant = copy_constant(c), destvar = target}
+    ins = CfInstruction{location = location, kind = CfInstructionKind::Constant, constant = c.copy(), destvar = target}
     return add_instruction(st, ins)
 
 
@@ -142,7 +142,7 @@ def build_bool_to_int_conversion(
     location: Location,
     t: Type*,
 ) -> LocalVariable*:
-    assert is_integer_type(t)
+    assert t->is_integer_type()
     result: LocalVariable* = add_local_var(st, t)
 
     set1 = add_block(st)
@@ -167,39 +167,39 @@ def build_cast(
     if obj->type == to:
         return obj
 
-    if is_pointer_type(obj->type) and is_pointer_type(to):
+    if obj->type->is_pointer_type() and to->is_pointer_type():
         result = add_local_var(st, to)
         add_unary_op(st, location, CfInstructionKind::PtrCast, obj, result)
         return result
 
-    if is_number_type(obj->type) and is_number_type(to):
+    if obj->type->is_number_type() and to->is_number_type():
         result = add_local_var(st, to)
         add_unary_op(st, location, CfInstructionKind::NumCast, obj, result)
         return result
 
-    if is_number_type(obj->type) and obj->type->size_in_bits == 64 and is_pointer_type(to):
+    if obj->type->is_number_type() and obj->type->size_in_bits == 64 and to->is_pointer_type():
         result = add_local_var(st, to)
         add_unary_op(st, location, CfInstructionKind::Int64ToPtr, obj, result)
         return result
 
-    if is_integer_type(obj->type) or to->kind == TypeKind::Enum:
+    if obj->type->is_integer_type() or to->kind == TypeKind::Enum:
         i32var = add_local_var(st, intType)
         result = add_local_var(st, to)
         add_unary_op(st, location, CfInstructionKind::NumCast, obj, i32var)
         add_unary_op(st, location, CfInstructionKind::Int32ToEnum, i32var, result)
         return result
 
-    if obj->type->kind == TypeKind::Enum and is_integer_type(to):
+    if obj->type->kind == TypeKind::Enum and to->is_integer_type():
         i32var = add_local_var(st, intType)
         result = add_local_var(st, to)
         add_unary_op(st, location, CfInstructionKind::EnumToInt32, obj, i32var)
         add_unary_op(st, location, CfInstructionKind::NumCast, i32var, result)
         return result
 
-    if obj->type == boolType and is_integer_type(to):
+    if obj->type == boolType and to->is_integer_type():
         return build_bool_to_int_conversion(st, obj, location, to)
 
-    if is_pointer_type(obj->type) and is_integer_type(to) and to->size_in_bits == 64:
+    if obj->type->is_pointer_type() and to->is_integer_type() and to->size_in_bits == 64:
         result = add_local_var(st, to)
         add_unary_op(st, location, CfInstructionKind::PtrToInt64, obj, result)
         return result
@@ -248,8 +248,8 @@ def build_binop(
     result_type: Type*,
 ) -> LocalVariable*:
     got_bools = lhs->type == boolType and rhs->type == boolType
-    got_numbers = is_number_type(lhs->type) and is_number_type(rhs->type)
-    got_pointers = is_pointer_type(lhs->type) and is_pointer_type(rhs->type)
+    got_numbers = lhs->type->is_number_type() and rhs->type->is_number_type()
+    got_pointers = lhs->type->is_pointer_type() and rhs->type->is_pointer_type()
     assert got_bools or got_numbers or got_pointers
 
     negate = False
@@ -316,7 +316,7 @@ def build_class_field_pointer(
 
     for f = class_type->classdata.fields; f < &class_type->classdata.fields[class_type->classdata.nfields]; f++:
         if strcmp(f->name, fieldname) == 0:
-            result = add_local_var(st, get_pointer_type(f->type))
+            result = add_local_var(st, f->type->pointer_type())
 
             ins = CfInstruction{
                 location = location,
@@ -340,7 +340,7 @@ def build_class_field(
     fieldname: byte*,
     location: Location,
 ) -> LocalVariable*:
-    ptr = add_local_var(st, get_pointer_type(instance->type))
+    ptr = add_local_var(st, instance->type->pointer_type())
     add_unary_op(st, location, CfInstructionKind::AddressOfLocalVar, instance, ptr)
     field_ptr = build_class_field_pointer(st, ptr, fieldname, location)
     field = add_local_var(st, field_ptr->type->value_type)
@@ -366,7 +366,7 @@ def build_increment_or_decrement(
     assert addr->type->kind == TypeKind::Pointer
     t = addr->type->value_type
 
-    if not is_integer_type(t) and not is_pointer_type(t):
+    if not t->is_integer_type() and not t->is_pointer_type():
         msg: byte[500]
         if diff == 1:
             snprintf(msg, sizeof(msg),  "cannot increment a value of type %s", t->name)
@@ -376,14 +376,14 @@ def build_increment_or_decrement(
 
     old_value = add_local_var(st, t)
     new_value = add_local_var(st, t)
-    if is_integer_type(t):
+    if t->is_integer_type():
         diffvar = add_local_var(st, t)
     else:
         diffvar = add_local_var(st, intType)
 
     add_constant(st, location, int_constant(diffvar->type, diff), diffvar)
     add_unary_op(st, location, CfInstructionKind::PtrLoad, addr, old_value)
-    if is_number_type(t):
+    if t->is_number_type():
         add_binary_op(st, location, CfInstructionKind::NumAdd, old_value, diffvar, new_value)
     else:
         add_binary_op(st, location, CfInstructionKind::PtrAddInt, old_value, diffvar, new_value)
@@ -464,7 +464,7 @@ def build_and_or(
 
 def build_address_of_expression(st: State*, address_of_what: AstExpression*) -> LocalVariable*:
     if address_of_what->kind == AstExpressionKind::GetVariable:
-        ptrtype = get_pointer_type(get_expr_types(st, address_of_what)->type)
+        ptrtype = get_expr_types(st, address_of_what)->type->pointer_type()
         addr = add_local_var(st, ptrtype)
 
         local_var = find_local_var_cf(st, address_of_what->varname)
@@ -483,7 +483,7 @@ def build_address_of_expression(st: State*, address_of_what: AstExpression*) -> 
         return addr
 
     if address_of_what->kind == AstExpressionKind::Self:
-        ptrtype = get_pointer_type(get_expr_types(st, address_of_what)->type)
+        ptrtype = get_expr_types(st, address_of_what)->type->pointer_type()
         addr = add_local_var(st, ptrtype)
 
         local_var = find_local_var_cf(st, "self")
@@ -512,7 +512,7 @@ def build_address_of_expression(st: State*, address_of_what: AstExpression*) -> 
         assert ptr->type->kind == TypeKind::Pointer
 
         index = build_expression(st, &address_of_what->operands[1])
-        assert is_integer_type(index->type)
+        assert index->type->is_integer_type()
 
         result = add_local_var(st, ptr->type)
         add_binary_op(st, address_of_what->location, CfInstructionKind::PtrAddInt, ptr, index, result)
@@ -536,7 +536,7 @@ def build_function_or_method_call(
         assert selfclass->kind == TypeKind::Class
 
         for s = selfclass->classdata.methods; s < &selfclass->classdata.methods[selfclass->classdata.nmethods]; s++:
-            assert get_self_class(s) == selfclass
+            assert s->get_self_class() == selfclass
             if strcmp(s->name, call->name) == 0:
                 sig = s
                 break
@@ -552,13 +552,13 @@ def build_function_or_method_call(
     ins = CfInstruction{
         location = location,
         kind = CfInstructionKind::Call,
-        signature = copy_signature(sig),
+        signature = sig->copy(),
     }
 
     if call->method_call_self != NULL:
-        if is_pointer_type(sig->argtypes[0]) and not call->uses_arrow_operator:
+        if sig->argtypes[0]->is_pointer_type() and not call->uses_arrow_operator:
             ins.add_operand(build_address_of_expression(st, call->method_call_self))
-        elif (not is_pointer_type(sig->argtypes[0])) and call->uses_arrow_operator:
+        elif (not sig->argtypes[0]->is_pointer_type()) and call->uses_arrow_operator:
             self_ptr = build_expression(st, call->method_call_self)
             assert self_ptr->type->kind == TypeKind::Pointer
 
@@ -586,7 +586,7 @@ def build_function_or_method_call(
 
 def build_instantiation(st: State*, type: Type*, inst: AstInstantiation*, location: Location) -> LocalVariable*:
     instance = add_local_var(st, type)
-    instanceptr = add_local_var(st, get_pointer_type(type))
+    instanceptr = add_local_var(st, type->pointer_type())
 
     add_unary_op(st, location, CfInstructionKind::AddressOfLocalVar, instance, instanceptr)
     add_unary_op(st, location, CfInstructionKind::PtrMemsetToZero, instanceptr, NULL)
@@ -603,9 +603,9 @@ def build_array(st: State*, type: Type*, items: AstExpression*, location: Locati
     assert type->kind == TypeKind::Array
 
     arr = add_local_var(st, type)
-    arrptr = add_local_var(st, get_pointer_type(type))
+    arrptr = add_local_var(st, type->pointer_type())
     add_unary_op(st, location, CfInstructionKind::AddressOfLocalVar, arr, arrptr)
-    first_item_ptr = add_local_var(st, get_pointer_type(type->array.item_type))
+    first_item_ptr = add_local_var(st, type->array.item_type->pointer_type())
     add_unary_op(st, location, CfInstructionKind::PtrCast, arrptr, first_item_ptr)
 
     for i = 0; i < type->array.len; i++:
@@ -896,8 +896,8 @@ def build_assert(st: State*, assert_location: Location, assertion: AstAssertion*
     strcpy(argnames[2], "lineno")
 
     argtypes: Type** = malloc(3 * sizeof(argtypes[0]))
-    argtypes[0] = get_pointer_type(byteType)
-    argtypes[1] = get_pointer_type(byteType)
+    argtypes[0] = byteType->pointer_type()
+    argtypes[1] = byteType->pointer_type()
     argtypes[2] = intType
 
     ins = CfInstruction{
@@ -1093,13 +1093,13 @@ def build_function_or_method(
 
     assert st->fomtypes == NULL
     for f = st->filetypes->fomtypes; f < &st->filetypes->fomtypes[st->filetypes->nfomtypes]; f++:
-        if strcmp(f->signature.name, name) == 0 and get_self_class(&f->signature) == selfclass:
+        if strcmp(f->signature.name, name) == 0 and f->signature.get_self_class() == selfclass:
             st->fomtypes = f
             break
     assert st->fomtypes != NULL
 
     st->cfg = calloc(1, sizeof *st->cfg)
-    st->cfg->signature = copy_signature(&st->fomtypes->signature)
+    st->cfg->signature = st->fomtypes->signature.copy()
 
     # Copy local variables over from type checking.
     # Ownership of the variables changes, they will be freed when graphs are freed.

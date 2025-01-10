@@ -91,8 +91,8 @@ class CfInstruction:
             printf("boolean negation of ")
             self->operands[0]->print()
         elif self->kind == CfInstructionKind::Call:
-            if get_self_class(&self->signature) != NULL:
-                printf("call method %s.", get_self_class(&self->signature)->name)
+            if self->signature.get_self_class() != NULL:
+                printf("call method %s.", self->signature.get_self_class()->name)
             else:
                 printf("call function ")
             printf("%s(", self->signature.name)
@@ -236,7 +236,7 @@ class CfGraph:
     def print(self) -> None:
         printed_varnames_idx = 0
 
-        sigstr: byte* = signature_to_string(&self->signature, True, True)
+        sigstr: byte* = self->signature.to_string(True, True)
         printf("Function %s\n", sigstr)
         free(sigstr)
 

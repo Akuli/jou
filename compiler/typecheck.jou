@@ -164,14 +164,14 @@ def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
     if asttype->kind == AstTypeKind::Pointer:
         if asttype->value_type->is_void():
             return voidPtrType
-        return get_pointer_type(type_from_ast(ft, asttype->value_type))
+        return type_from_ast(ft, asttype->value_type)->pointer_type()
 
     if asttype->kind == AstTypeKind::Array:
         tmp = type_from_ast(ft, asttype->value_type)
         len = evaluate_array_length(asttype->array.length)
         if len <= 0:
             fail(asttype->array.length->location, "array length must be positive")
-        return get_array_type(tmp, len)
+        return tmp->array_type(len)
 
     assert False
 
@@ -228,11 +228,11 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
             and astsig->args[i].type.name[0] == '\0'
         ):
             # just "self" without a type after it --> default to "self: Foo*" in class Foo
-            argtype = get_pointer_type(self_class)
+            argtype = self_class->pointer_type()
         else:
             argtype = type_from_ast(ft, &astsig->args[i].type)
 
-        if strcmp(sig.argnames[i], "self") == 0 and argtype != self_class and argtype != get_pointer_type(self_class):
+        if strcmp(sig.argnames[i], "self") == 0 and argtype != self_class and argtype != self_class->pointer_type():
             snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class->name, self_class->name)
             fail(astsig->args[i].type.location, msg)
 
@@ -255,7 +255,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
             and not (
                 sig.nargs == 2
                 and sig.argtypes[0] == intType
-                and sig.argtypes[1] == get_pointer_type(get_pointer_type(byteType))
+                and sig.argtypes[1] == byteType->pointer_type()->pointer_type()
             )
         ):
             fail(
@@ -269,7 +269,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
         ft->functions = realloc(ft->functions, sizeof(ft->functions[0]) * (ft->nfunctions + 1))
         assert ft->functions != NULL
         ft->functions[ft->nfunctions++] = SignatureAndUsedPtr{
-            signature = copy_signature(&sig),
+            signature = sig.copy(),
             usedptr = NULL,
         }
 
@@ -614,7 +614,7 @@ def do_implicit_cast(
 
     if (
         types->expr->kind == AstExpressionKind::String
-        and from == get_pointer_type(byteType)
+        and from == byteType->pointer_type()
         and to->kind == TypeKind::Array
         and to->array.item_type == byteType
     ):
@@ -629,7 +629,7 @@ def do_implicit_cast(
         fail_with_implicit_cast_error(location, errormsg_template, from, to)
 
     types->implicit_cast_type = to
-    types->implicit_array_to_pointer_cast = (from->kind == TypeKind::Array and is_pointer_type(to))
+    types->implicit_array_to_pointer_cast = (from->kind == TypeKind::Array and to->is_pointer_type())
 
     if types->implicit_array_to_pointer_cast:
         ensure_can_take_address(
@@ -640,7 +640,7 @@ def do_implicit_cast(
 
 def cast_array_to_pointer(fom: FunctionOrMethodTypes*, types: ExpressionTypes*) -> None:
     assert types->type->kind == TypeKind::Array
-    do_implicit_cast(fom, types, get_pointer_type(types->type->array.item_type), Location{}, NULL)
+    do_implicit_cast(fom, types, types->type->array.item_type->pointer_type(), Location{}, NULL)
 
 def do_explicit_cast(fom: FunctionOrMethodTypes*, types: ExpressionTypes*, to: Type*, location: Location) -> None:
     assert types->implicit_cast_type == NULL
@@ -656,7 +656,7 @@ def do_explicit_cast(fom: FunctionOrMethodTypes*, types: ExpressionTypes*, to: T
         snprintf(msg, sizeof(msg), "cannot cast from type %s to %s", from->name, to->name)
         fail(location, msg)
 
-    if from->kind == TypeKind::Array and is_pointer_type(to):
+    if from->kind == TypeKind::Array and to->is_pointer_type():
         cast_array_to_pointer(fom, types)
 
 def typecheck_expression_not_void(ft: FileTypes*, expr: AstExpression*) -> ExpressionTypes*:
@@ -714,12 +714,12 @@ def check_binop(
         assert False
 
     got_bools = lhstypes->type == boolType and rhstypes->type == boolType
-    got_integers = is_integer_type(lhstypes->type) and is_integer_type(rhstypes->type)
-    got_numbers = is_number_type(lhstypes->type) and is_number_type(rhstypes->type)
+    got_integers = lhstypes->type->is_integer_type() and rhstypes->type->is_integer_type()
+    got_numbers = lhstypes->type->is_number_type() and rhstypes->type->is_number_type()
     got_enums = lhstypes->type->kind == TypeKind::Enum and rhstypes->type->kind == TypeKind::Enum
     got_pointers = (
-        is_pointer_type(lhstypes->type)
-        and is_pointer_type(rhstypes->type)
+        lhstypes->type->is_pointer_type()
+        and rhstypes->type->is_pointer_type()
         and (
             # Ban comparisons like int* == byte*, unless one of the two types is void*
             lhstypes->type == rhstypes->type
@@ -811,7 +811,7 @@ def check_increment_or_decrement(ft: FileTypes*, expr: AstExpression*) -> Type*:
     ensure_can_take_address(ft->current_fom_types, &expr->operands[0], bad_expr_fmt)
 
     t = typecheck_expression_not_void(ft, &expr->operands[0])->type
-    if not is_integer_type(t) and not is_pointer_type(t):
+    if not t->is_integer_type() and not t->is_pointer_type():
         msg: byte[500]
         snprintf(msg, sizeof(msg), bad_type_fmt, t->name)
         fail(expr->location, msg)
@@ -847,7 +847,7 @@ def typecheck_indexing(
     assert ptrtype->kind == TypeKind::Pointer
 
     indextypes = typecheck_expression_not_void(ft, indexexpr)
-    if not is_integer_type(indextypes->type):
+    if not indextypes->type->is_integer_type():
         snprintf(msg, sizeof(msg), "the index inside [...] must be an integer, not %s", indextypes->type->name)
         fail(indexexpr->location, msg)
 
@@ -928,7 +928,7 @@ def typecheck_function_or_method_call(ft: FileTypes*, call: AstCall*, self_type:
     else:
         function_or_method = "method"
 
-    sigstr = signature_to_string(sig, False, False)
+    sigstr = sig->to_string(False, False)
 
     nargs = sig->nargs
     if self_type != NULL:
@@ -962,7 +962,7 @@ def typecheck_function_or_method_call(ft: FileTypes*, call: AstCall*, self_type:
         if types->type->kind == TypeKind::Array:
             cast_array_to_pointer(ft->current_fom_types, types)
         elif (
-            (is_integer_type(types->type) and types->type->size_in_bits < 32)
+            (types->type->is_integer_type() and types->type->size_in_bits < 32)
             or types->type == boolType
         ):
             # Add implicit cast to signed int, just like in C.
@@ -1120,7 +1120,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
     elif expr->kind == AstExpressionKind::Null:
         result = voidPtrType
     elif expr->kind == AstExpressionKind::String:
-        result = get_pointer_type(byteType)
+        result = byteType->pointer_type()
 
     elif expr->kind == AstExpressionKind::GetEnumMember:
         result = find_type(ft, expr->enum_member.enum_name)
@@ -1157,7 +1157,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
 
         membertype = cast_array_members_to_a_common_type(ft->current_fom_types, expr->location, exprtypes)
         free(exprtypes)
-        result = get_array_type(membertype, n)
+        result = membertype->array_type(n)
 
     elif expr->kind == AstExpressionKind::GetClassField:
         if expr->class_field.uses_arrow_operator:
@@ -1201,7 +1201,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
                 if strcmp(m->name, expr->call.name) != 0:
                     continue
 
-                if is_pointer_type(m->argtypes[0]):
+                if m->argtypes[0]->is_pointer_type():
                     assert strstr(expr->call.name, "%") == NULL
                     snprintf(
                         msg, sizeof msg,
@@ -1224,7 +1224,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
     elif expr->kind == AstExpressionKind::AddressOf:
         ensure_can_take_address(ft->current_fom_types, &expr->operands[0], "the '&' operator cannot be used with %s")
         temptype = typecheck_expression_not_void(ft, &expr->operands[0])->type
-        result = get_pointer_type(temptype)
+        result = temptype->pointer_type()
 
     elif expr->kind == AstExpressionKind::GetVariable:
         result = find_any_var(ft, expr->varname)
@@ -1482,7 +1482,7 @@ def typecheck_function_or_method_body(ft: FileTypes*, sig: Signature*, body: Ast
     ft->fomtypes[ft->nfomtypes++] = FunctionOrMethodTypes{}
 
     ft->current_fom_types = &ft->fomtypes[ft->nfomtypes - 1]
-    ft->current_fom_types->signature = copy_signature(sig)
+    ft->current_fom_types->signature = sig->copy()
 
     for i = 0; i < sig->nargs; i++:
         v = add_variable(ft, sig->argtypes[i], sig->argnames[i])
