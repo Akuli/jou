@@ -916,7 +916,7 @@ def build_assert(st: State*, assert_location: Location, assertion: AstAssertion*
 
     arg1 = add_local_var(st, argtypes[0])
     arg2 = add_local_var(st, argtypes[1])
-    arg3 = add_local_var(st, argtypes[1])
+    arg3 = add_local_var(st, argtypes[2])
 
     add_constant(st, assert_location, Constant{kind = ConstantKind::String, str = assertion->condition_str}, arg1)
     add_constant(st, assert_location, Constant{kind = ConstantKind::String, str = assertion->condition.location.path}, arg2)
