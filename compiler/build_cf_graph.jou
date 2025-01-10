@@ -316,7 +316,7 @@ def build_class_field_pointer(
 
     for f = class_type->classdata.fields; f < &class_type->classdata.fields[class_type->classdata.nfields]; f++:
         if strcmp(f->name, fieldname) == 0:
-            result = add_local_var(st, f->type->pointer())
+            result = add_local_var(st, f->type->pointer_type())
 
             ins = CfInstruction{
                 location = location,
@@ -340,7 +340,7 @@ def build_class_field(
     fieldname: byte*,
     location: Location,
 ) -> LocalVariable*:
-    ptr = add_local_var(st, instance->type->pointer())
+    ptr = add_local_var(st, instance->type->pointer_type())
     add_unary_op(st, location, CfInstructionKind::AddressOfLocalVar, instance, ptr)
     field_ptr = build_class_field_pointer(st, ptr, fieldname, location)
     field = add_local_var(st, field_ptr->type->value_type)
@@ -464,7 +464,7 @@ def build_and_or(
 
 def build_address_of_expression(st: State*, address_of_what: AstExpression*) -> LocalVariable*:
     if address_of_what->kind == AstExpressionKind::GetVariable:
-        ptrtype = get_expr_types(st, address_of_what)->type->pointer()
+        ptrtype = get_expr_types(st, address_of_what)->type->pointer_type()
         addr = add_local_var(st, ptrtype)
 
         local_var = find_local_var_cf(st, address_of_what->varname)
@@ -483,7 +483,7 @@ def build_address_of_expression(st: State*, address_of_what: AstExpression*) -> 
         return addr
 
     if address_of_what->kind == AstExpressionKind::Self:
-        ptrtype = get_expr_types(st, address_of_what)->type->pointer()
+        ptrtype = get_expr_types(st, address_of_what)->type->pointer_type()
         addr = add_local_var(st, ptrtype)
 
         local_var = find_local_var_cf(st, "self")
@@ -586,7 +586,7 @@ def build_function_or_method_call(
 
 def build_instantiation(st: State*, type: Type*, inst: AstInstantiation*, location: Location) -> LocalVariable*:
     instance = add_local_var(st, type)
-    instanceptr = add_local_var(st, type->pointer())
+    instanceptr = add_local_var(st, type->pointer_type())
 
     add_unary_op(st, location, CfInstructionKind::AddressOfLocalVar, instance, instanceptr)
     add_unary_op(st, location, CfInstructionKind::PtrMemsetToZero, instanceptr, NULL)
@@ -603,9 +603,9 @@ def build_array(st: State*, type: Type*, items: AstExpression*, location: Locati
     assert type->kind == TypeKind::Array
 
     arr = add_local_var(st, type)
-    arrptr = add_local_var(st, type->pointer())
+    arrptr = add_local_var(st, type->pointer_type())
     add_unary_op(st, location, CfInstructionKind::AddressOfLocalVar, arr, arrptr)
-    first_item_ptr = add_local_var(st, type->array.item_type->pointer())
+    first_item_ptr = add_local_var(st, type->array.item_type->pointer_type())
     add_unary_op(st, location, CfInstructionKind::PtrCast, arrptr, first_item_ptr)
 
     for i = 0; i < type->array.len; i++:
@@ -896,8 +896,8 @@ def build_assert(st: State*, assert_location: Location, assertion: AstAssertion*
     strcpy(argnames[2], "lineno")
 
     argtypes: Type** = malloc(3 * sizeof(argtypes[0]))
-    argtypes[0] = byteType->pointer()
-    argtypes[1] = byteType->pointer()
+    argtypes[0] = byteType->pointer_type()
+    argtypes[1] = byteType->pointer_type()
     argtypes[2] = intType
 
     ins = CfInstruction{

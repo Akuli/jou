@@ -58,7 +58,7 @@ class Type:
 
     # Returns a type that represents pointer to the original type.
     # Result is cached. Don't worry about freeing it.
-    def pointer(self) -> Type*:
+    def pointer_type(self) -> Type*:
         info = self as TypeInfo*
         assert self == &info->type  # the 'type' field is first member and has 0 bytes offset
 

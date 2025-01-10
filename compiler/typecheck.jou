@@ -164,7 +164,7 @@ def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
     if asttype->kind == AstTypeKind::Pointer:
         if asttype->value_type->is_void():
             return voidPtrType
-        return type_from_ast(ft, asttype->value_type)->pointer()
+        return type_from_ast(ft, asttype->value_type)->pointer_type()
 
     if asttype->kind == AstTypeKind::Array:
         tmp = type_from_ast(ft, asttype->value_type)
@@ -228,11 +228,11 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
             and astsig->args[i].type.name[0] == '\0'
         ):
             # just "self" without a type after it --> default to "self: Foo*" in class Foo
-            argtype = self_class->pointer()
+            argtype = self_class->pointer_type()
         else:
             argtype = type_from_ast(ft, &astsig->args[i].type)
 
-        if strcmp(sig.argnames[i], "self") == 0 and argtype != self_class and argtype != self_class->pointer():
+        if strcmp(sig.argnames[i], "self") == 0 and argtype != self_class and argtype != self_class->pointer_type():
             snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class->name, self_class->name)
             fail(astsig->args[i].type.location, msg)
 
@@ -255,7 +255,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
             and not (
                 sig.nargs == 2
                 and sig.argtypes[0] == intType
-                and sig.argtypes[1] == byteType->pointer()->pointer()
+                and sig.argtypes[1] == byteType->pointer_type()->pointer_type()
             )
         ):
             fail(
@@ -614,7 +614,7 @@ def do_implicit_cast(
 
     if (
         types->expr->kind == AstExpressionKind::String
-        and from == byteType->pointer()
+        and from == byteType->pointer_type()
         and to->kind == TypeKind::Array
         and to->array.item_type == byteType
     ):
@@ -640,7 +640,7 @@ def do_implicit_cast(
 
 def cast_array_to_pointer(fom: FunctionOrMethodTypes*, types: ExpressionTypes*) -> None:
     assert types->type->kind == TypeKind::Array
-    do_implicit_cast(fom, types, types->type->array.item_type->pointer(), Location{}, NULL)
+    do_implicit_cast(fom, types, types->type->array.item_type->pointer_type(), Location{}, NULL)
 
 def do_explicit_cast(fom: FunctionOrMethodTypes*, types: ExpressionTypes*, to: Type*, location: Location) -> None:
     assert types->implicit_cast_type == NULL
@@ -1120,7 +1120,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
     elif expr->kind == AstExpressionKind::Null:
         result = voidPtrType
     elif expr->kind == AstExpressionKind::String:
-        result = byteType->pointer()
+        result = byteType->pointer_type()
 
     elif expr->kind == AstExpressionKind::GetEnumMember:
         result = find_type(ft, expr->enum_member.enum_name)
@@ -1224,7 +1224,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
     elif expr->kind == AstExpressionKind::AddressOf:
         ensure_can_take_address(ft->current_fom_types, &expr->operands[0], "the '&' operator cannot be used with %s")
         temptype = typecheck_expression_not_void(ft, &expr->operands[0])->type
-        result = temptype->pointer()
+        result = temptype->pointer_type()
 
     elif expr->kind == AstExpressionKind::GetVariable:
         result = find_any_var(ft, expr->varname)
