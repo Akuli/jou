@@ -69,6 +69,28 @@ class FunctionOrMethodTypes:
     locals: LocalVariable**
     nlocals: int
 
+    def find_local_var(self, name: byte*) -> LocalVariable*:
+        for var = self->locals; var < &self->locals[self->nlocals]; var++:
+            if strcmp((*var)->name, name) == 0:
+                return *var
+        return NULL
+
+    def add_variable(self, t: Type*, name: byte*) -> LocalVariable*:
+        var: LocalVariable* = calloc(1, sizeof *var)
+        var->id = self->nlocals
+        var->type = t
+
+        assert name != NULL
+        assert self->find_local_var(name) == NULL
+        assert strlen(name) < sizeof(var->name)
+        strcpy(var->name, name)
+
+        self->locals = realloc(self->locals, sizeof(self->locals[0]) * (self->nlocals + 1))
+        assert self->locals != NULL
+        self->locals[self->nlocals++] = var
+
+        return var
+
 
 class TypeAndUsedPtr:
     type: Type*
@@ -115,12 +137,27 @@ class FileTypes:
             return self->find_function(name)
 
     def find_global_var(self, name: byte*) -> Type*:
-        for gvar = self->globals; gvar < &self->globals[self->nglobals]; gvar++:
-            if strcmp(gvar->name, name) == 0:
-                if gvar->usedptr != NULL:
-                    *gvar->usedptr = True
-                return gvar->type
+        for var = self->globals; var < &self->globals[self->nglobals]; var++:
+            if strcmp(var->name, name) == 0:
+                if var->usedptr != NULL:
+                    *var->usedptr = True
+                return var->type
         return NULL
+
+    def find_local_var(self, name: byte*) -> LocalVariable*:
+        if self->current_fom_types == NULL:
+            return NULL
+        return self->current_fom_types->find_local_var(name)
+
+    def find_any_var(self, name: byte*) -> Type*:
+        if get_special_constant(name) != -1:
+            return boolType
+
+        local = self->find_local_var(name)
+        if local != NULL:
+            return local->type
+
+        return self->find_global_var(name)
 
 
 def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
