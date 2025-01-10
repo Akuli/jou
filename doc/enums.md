@@ -19,8 +19,8 @@ def main() -> int:
     else:
         assert False  # never happens
 
-    printf("%d\n", Foo::Bar as int)  # Output: 0
-    printf("%d\n", Foo::Baz as int)  # Output: 1
+    printf("%d\n", Foo::Bar)  # Output: 0
+    printf("%d\n", Foo::Baz)  # Output: 1
 
     return 0
 ```
