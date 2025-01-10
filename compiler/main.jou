@@ -18,7 +18,7 @@ import "./typecheck/step2_populate_types.jou"
 import "./typecheck/step3_function_and_method_bodies.jou"
 import "./target.jou"
 import "./types.jou"
-import "./free.jou"
+import "./token.jou"
 import "./parser.jou"
 import "./paths.jou"
 import "./errors_and_warnings.jou"
@@ -189,7 +189,7 @@ class FileState:
     def free(self) -> None:
         self->ast.free()
         free(self->path)
-        free_file_types(&self->types)
+        self->types.free()
 
     def add_imported_symbol(self, es: ExportSymbol*, imp: AstImport*) -> None:
         for i = 0; i < self->ast.body.nstatements; i++:
@@ -390,7 +390,7 @@ class CompileState:
 
         for i = 0; i < self->nfiles; i++:
             for es = pending_exports[i]; es->name[0] != '\0'; es++:
-                free_export_symbol(es)
+                es->free()
             free(pending_exports[i])
             pending_exports[i] = NULL
 
