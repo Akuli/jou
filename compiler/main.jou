@@ -13,6 +13,8 @@ import "./print.jou"
 import "./llvm.jou"
 import "./output.jou"
 import "./typecheck.jou"
+import "./typecheck/common.jou"
+import "./typecheck/step1_create_types.jou"
 import "./target.jou"
 import "./types.jou"
 import "./free.jou"
@@ -400,7 +402,7 @@ class CompileState:
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
                 printf("  stage 1: %s\n", self->files[i].path)
-            pending_exports[i] = typecheck_stage1_create_types(&self->files[i].types, &self->files[i].ast)
+            pending_exports[i] = typecheck_step1_create_types(&self->files[i].types, &self->files[i].ast)
 
         self->exports_to_imports(pending_exports)
 

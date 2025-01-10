@@ -1,9 +1,11 @@
 # Boring boilerplate code to free up data structures used in compilation.
 
+import "stdlib/mem.jou"
+
 import "./structs.jou"
 import "./types.jou"
 import "./token.jou"
-import "stdlib/mem.jou"
+import "./typecheck/common.jou"
 
 def free_tokens(tokenlist: Token*) -> None:
     for t = tokenlist; t->kind != TokenKind::EndOfFile; t++:

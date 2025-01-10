@@ -3,27 +3,11 @@ import "stdlib/io.jou"
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
 
-import "./structs.jou"
+import "./typecheck/common.jou"
 import "./evaluate.jou"
 import "./types.jou"
 import "./ast.jou"
 import "./errors_and_warnings.jou"
-
-def find_type(ft: FileTypes*, name: byte*) -> Type*:
-    for t = ft->types; t < &ft->types[ft->ntypes]; t++:
-        if strcmp(t->type->name, name) == 0:
-            if t->usedptr != NULL:
-                *t->usedptr = True
-            return t->type
-    return NULL
-
-def find_function(ft: FileTypes*, name: byte*) -> Signature*:
-    for f = ft->functions; f < &ft->functions[ft->nfunctions]; f++:
-        if strcmp(f->signature.name, name) == 0:
-            if f->usedptr != NULL:
-                *f->usedptr = True
-            return &f->signature
-    return NULL
 
 def find_method(selfclass: Type*, name: byte*) -> Signature*:
     if selfclass->kind != TypeKind::Class:
@@ -37,7 +21,7 @@ def find_function_or_method(ft: FileTypes*, selfclass: Type*, name: byte*) -> Si
     if selfclass != NULL:
         return find_method(selfclass, name)
     else:
-        return find_function(ft, name)
+        return ft->find_function(name)
 
 def find_local_var(ft: FileTypes*, name: byte*) -> LocalVariable*:
     if ft->current_fom_types != NULL:
@@ -59,71 +43,6 @@ def find_any_var(ft: FileTypes*, name: byte*) -> Type*:
                 *gvar->usedptr = True
             return gvar->type
     return NULL
-
-def short_type_description(t: Type*) -> byte*:
-    if t->kind == TypeKind::OpaqueClass or t->kind == TypeKind::Class:
-        return "a class"
-    if t->kind == TypeKind::Enum:
-        return "an enum"
-    if t->kind == TypeKind::VoidPointer or t->kind == TypeKind::Pointer:
-        return "a pointer type"
-    if (
-        t->kind == TypeKind::SignedInteger
-        or t->kind == TypeKind::UnsignedInteger
-        or t->kind == TypeKind::FloatingPoint
-    ):
-        return "a number type"
-    if t->kind == TypeKind::Array:
-        return "an array type"
-    if t->kind == TypeKind::Bool:
-        return "the built-in bool type"
-    assert False
-
-def typecheck_stage1_create_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*:
-    exports: ExportSymbol* = NULL
-    nexports = 0
-
-    for i = 0; i < ast->body.nstatements; i++:
-        stmt = &ast->body.statements[i]
-
-        name: byte[100]
-        if stmt->kind == AstStatementKind::Class:
-            assert sizeof(name) == sizeof(stmt->classdef.name)
-            strcpy(name, stmt->classdef.name)
-            t = create_opaque_class(name)
-        elif stmt->kind == AstStatementKind::Enum:
-            assert sizeof(name) == sizeof(stmt->enumdef.name)
-            strcpy(name, stmt->enumdef.name)
-            t = create_enum(name, stmt->enumdef.member_count, stmt->enumdef.member_names)
-        else:
-            continue
-
-        existing = find_type(ft, name)
-        if existing != NULL:
-            msg: byte[500]
-            snprintf(msg, sizeof(msg), "%s named '%s' already exists", short_type_description(existing), name)
-            fail(stmt->location, msg)
-
-        ft->types = realloc(ft->types, sizeof(ft->types[0]) * (ft->ntypes + 1))
-        assert ft->types != NULL
-        ft->types[ft->ntypes++] = TypeAndUsedPtr{type=t, usedptr=NULL}
-
-        ft->owned_types = realloc(ft->owned_types, sizeof(ft->owned_types[0]) * (ft->n_owned_types + 1))
-        assert ft->owned_types != NULL
-        ft->owned_types[ft->n_owned_types++] = t
-
-        es = ExportSymbol{kind = ExportSymbolKind::Type, type = t}
-        assert sizeof(es.name) == sizeof(name)
-        strcpy(es.name, name)
-
-        exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
-        assert exports != NULL
-        exports[nexports++] = es
-
-    exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
-    assert exports != NULL
-    exports[nexports] = ExportSymbol{}  # list terminator
-    return exports
 
 def evaluate_array_length(expr: AstExpression*) -> int:
     if expr->kind == AstExpressionKind::Int:
@@ -154,7 +73,7 @@ def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
         if strcmp(asttype->name, "double") == 0:
             return doubleType
 
-        found = find_type(ft, asttype->name)
+        found = ft->find_type(asttype->name)
         if found != NULL:
             return found
 
@@ -1123,7 +1042,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
         result = byteType->pointer_type()
 
     elif expr->kind == AstExpressionKind::GetEnumMember:
-        result = find_type(ft, expr->enum_member.enum_name)
+        result = ft->find_type(expr->enum_member.enum_name)
         if result == NULL:
             snprintf(msg, sizeof(msg), "there is no type named '%s'", expr->enum_member.enum_name)
             fail(expr->location, msg)

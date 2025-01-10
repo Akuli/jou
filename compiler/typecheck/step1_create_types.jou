@@ -1,0 +1,65 @@
+# First step of type checking is to create types, so that they exist when later
+# stages reference the types.
+#
+# After the first step, classes defined in Jou exist, but they are all opaque
+# and contain no members. This way, when step 2 checks function signatures,
+# they can refer to classes that are defined anywhere in the project, e.g.
+# later in the same file.
+#
+# Enums are simple. The first step creates them and also fills in their members,
+# although it doesn't really matter whether that's done in step 1 or 2.
+
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+import "../ast.jou"
+import "../errors_and_warnings.jou"
+import "../types.jou"
+import "./common.jou"
+
+
+def typecheck_step1_create_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*:
+    exports: ExportSymbol* = NULL
+    nexports = 0
+
+    for i = 0; i < ast->body.nstatements; i++:
+        stmt = &ast->body.statements[i]
+
+        name: byte[100]
+        if stmt->kind == AstStatementKind::Class:
+            assert sizeof(name) == sizeof(stmt->classdef.name)
+            strcpy(name, stmt->classdef.name)
+            t = create_opaque_class(name)
+        elif stmt->kind == AstStatementKind::Enum:
+            assert sizeof(name) == sizeof(stmt->enumdef.name)
+            strcpy(name, stmt->enumdef.name)
+            t = create_enum(name, stmt->enumdef.member_count, stmt->enumdef.member_names)
+        else:
+            continue
+
+        existing = ft->find_type(name)
+        if existing != NULL:
+            msg: byte[500]
+            snprintf(msg, sizeof(msg), "%s named '%s' already exists", short_type_description(existing), name)
+            fail(stmt->location, msg)
+
+        ft->types = realloc(ft->types, sizeof(ft->types[0]) * (ft->ntypes + 1))
+        assert ft->types != NULL
+        ft->types[ft->ntypes++] = TypeAndUsedPtr{type=t, usedptr=NULL}
+
+        ft->owned_types = realloc(ft->owned_types, sizeof(ft->owned_types[0]) * (ft->n_owned_types + 1))
+        assert ft->owned_types != NULL
+        ft->owned_types[ft->n_owned_types++] = t
+
+        es = ExportSymbol{kind = ExportSymbolKind::Type, type = t}
+        assert sizeof(es.name) == sizeof(name)
+        strcpy(es.name, name)
+
+        exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+        assert exports != NULL
+        exports[nexports++] = es
+
+    exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+    assert exports != NULL
+    exports[nexports] = ExportSymbol{}  # list terminator
+    return exports
