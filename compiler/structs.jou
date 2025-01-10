@@ -1,6 +1,8 @@
 # TODO: delete this file, merge into others
 
 import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
 
 import "./utils.jou"
 import "./types.jou"
@@ -81,7 +83,7 @@ class Constant:
         else:
             assert False
 
-        def free(self) -> None:
+    def free(self) -> None:
         if self->kind == ConstantKind::String:
             free(self->str)
 
