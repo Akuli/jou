@@ -1,5 +1,3 @@
-# TODO: delete this file, merge into others
-
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
@@ -7,20 +5,6 @@ import "stdlib/mem.jou"
 import "./utils.jou"
 import "./types.jou"
 
-
-class CommandLineArgs:
-    argv0: byte*  # Program name
-    verbosity: int  # How much debug/progress info to print, how many times -v/--verbose passed
-    valgrind: bool  # true --> Use valgrind when runnning user's jou program
-    tokenize_only: bool  # If true, tokenize the file passed on command line and don't actually compile anything
-    parse_only: bool  # If true, parse the file passed on command line and don't actually compile anything
-    optlevel: int  # Optimization level (0 don't optimize, 3 optimize a lot)
-    infile: byte*  # The "main" Jou file (can import other files)
-    outfile: byte*  # If not NULL, where to output executable
-    linker_flags: byte*  # String that is appended to linking command
-
-# Command-line arguments are a global variable because I like it.
-global command_line_args: CommandLineArgs
 
 # Constants can appear in AST and also compilation steps after AST.
 enum ConstantKind:
