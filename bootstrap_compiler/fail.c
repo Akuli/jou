@@ -26,7 +26,7 @@ void show_warning(Location location, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    print_message(location, "compiler warning for file \"%s\"", fmt, ap);
+    print_message(location, "bootstrap compiler warning for file \"%s\"", fmt, ap);
     va_end(ap);
 }
 
@@ -34,7 +34,7 @@ noreturn void fail(Location location, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    print_message(location, "compiler error in file \"%s\"", fmt, ap);
+    print_message(location, "bootstrap compiler error in file \"%s\"", fmt, ap);
     va_end(ap);
     exit(1);
 }
