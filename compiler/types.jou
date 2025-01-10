@@ -2,7 +2,6 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 import "./errors_and_warnings.jou"
-import "./free.jou"
 
 class ClassField:
     name: byte[100]
@@ -186,7 +185,7 @@ def free_type(t: Type*) -> None:
     assert t != NULL
     if t->kind == TypeKind::Class:
         for m = t->classdata.methods; m < &t->classdata.methods[t->classdata.nmethods]; m++:
-            free_signature(m)
+            m->free()
         free(t->classdata.fields)
         free(t->classdata.methods)
 
@@ -245,6 +244,10 @@ class Signature:
     is_noreturn: bool
     # TODO: rename to return_type_location
     returntype_location: Location  # meaningful even if returntype is NULL
+
+    def free(self) -> None:
+        free(self->argnames)
+        free(self->argtypes)
 
     def get_self_class(self) -> Type*:
         if self->nargs > 0 and strcmp(self->argnames[0], "self") == 0:
