@@ -236,9 +236,9 @@ class CodeGen:
         if c->kind == ConstantKind::Bool:
             return LLVMConstInt(LLVMInt1Type(), c->boolean as long, False as int)
         if c->kind == ConstantKind::Integer:
-            return LLVMConstInt(codegen_type(type_of_constant(c)), c->integer.value, c->integer.is_signed as int)
+            return LLVMConstInt(codegen_type(c->get_type()), c->integer.value, c->integer.is_signed as int)
         if c->kind == ConstantKind::Float or c->kind == ConstantKind::Double:
-            return LLVMConstRealOfString(codegen_type(type_of_constant(c)), c->double_or_float_text)
+            return LLVMConstRealOfString(codegen_type(c->get_type()), c->double_or_float_text)
         if c->kind == ConstantKind::Null:
             return LLVMConstNull(codegen_type(voidPtrType))
         if c->kind == ConstantKind::String:

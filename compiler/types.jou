@@ -1,7 +1,6 @@
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
-import "./structs.jou"
 import "./errors_and_warnings.jou"
 import "./free.jou"
 
@@ -202,25 +201,6 @@ def free_global_type_state() -> None:
 def get_integer_type(size_in_bits: int, is_signed: bool) -> Type*:
     assert size_in_bits==8 or size_in_bits==16 or size_in_bits==32 or size_in_bits==64
     return &global_type_state.integers[size_in_bits][is_signed as int].type
-
-
-# TODO: move out
-def type_of_constant(c: Constant*) -> Type*:
-    if c->kind == ConstantKind::EnumMember:
-        return c->enum_member.enumtype
-    if c->kind == ConstantKind::Null:
-        return voidPtrType
-    if c->kind == ConstantKind::Double:
-        return doubleType
-    if c->kind == ConstantKind::Float:
-        return floatType
-    if c->kind == ConstantKind::Bool:
-        return boolType
-    if c->kind == ConstantKind::String:
-        return byteType->pointer()
-    if c->kind == ConstantKind::Integer:
-        return get_integer_type(c->integer.size_in_bits, c->integer.is_signed)
-    assert False
 
 
 def create_opaque_class(name: byte*) -> Type*:

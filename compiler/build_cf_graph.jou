@@ -132,7 +132,7 @@ def add_binary_op(
 
 
 def add_constant(st: State*, location: Location, c: Constant, target: LocalVariable*) -> CfInstruction*:
-    ins = CfInstruction{location = location, kind = CfInstructionKind::Constant, constant = copy_constant(c), destvar = target}
+    ins = CfInstruction{location = location, kind = CfInstructionKind::Constant, constant = c.copy(), destvar = target}
     return add_instruction(st, ins)
 
 

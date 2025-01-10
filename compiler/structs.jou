@@ -51,11 +51,29 @@ class Constant:
         boolean: bool
         enum_member: EnumMemberConstant
 
-def copy_constant(c: Constant) -> Constant:
-    if c.kind == ConstantKind::String:
-        c.str = strdup(c.str)
-        assert c.str != NULL
-    return c
+    def get_type(self) -> Type*:
+        if self->kind == ConstantKind::EnumMember:
+            return self->enum_member.enumtype
+        if self->kind == ConstantKind::Null:
+            return voidPtrType
+        if self->kind == ConstantKind::Double:
+            return doubleType
+        if self->kind == ConstantKind::Float:
+            return floatType
+        if self->kind == ConstantKind::Bool:
+            return boolType
+        if self->kind == ConstantKind::String:
+            return byteType->pointer()
+        if self->kind == ConstantKind::Integer:
+            return get_integer_type(self->integer.size_in_bits, self->integer.is_signed)
+        assert False
+
+    def copy(self: Constant) -> Constant:
+        if self.kind == ConstantKind::String:
+            self.str = strdup(self.str)
+            assert self.str != NULL
+        return self
+
 
 def int_constant(type: Type*, value: long) -> Constant:
     assert type->is_integer_type()
