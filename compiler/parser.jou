@@ -49,20 +49,20 @@ def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -
         result.kind = AstExpressionKind::Add
     elif t->is_operator("-"):
         if arity == 2:
-            result.kind = AstExpressionKind::Subtract
+            result.kind = AstExpressionKind::Sub
         else:
             result.kind = AstExpressionKind::Negate
     elif t->is_operator("*"):
         if arity == 2:
-            result.kind = AstExpressionKind::Multiply
+            result.kind = AstExpressionKind::Mul
         else:
             result.kind = AstExpressionKind::Dereference
     elif t->is_operator("/"):
         assert arity == 2
-        result.kind = AstExpressionKind::Divide
+        result.kind = AstExpressionKind::Div
     elif t->is_operator("%"):
         assert arity == 2
-        result.kind = AstExpressionKind::Modulo
+        result.kind = AstExpressionKind::Mod
     elif t->is_keyword("and"):
         assert arity == 2
         result.kind = AstExpressionKind::And
@@ -87,13 +87,13 @@ def determine_the_kind_of_a_statement_that_starts_with_an_expression(
     if this_token_is_after_that_initial_expression->is_operator("+="):
         return AstStatementKind::InPlaceAdd
     if this_token_is_after_that_initial_expression->is_operator("-="):
-        return AstStatementKind::InPlaceSubtract
+        return AstStatementKind::InPlaceSub
     if this_token_is_after_that_initial_expression->is_operator("*="):
-        return AstStatementKind::InPlaceMultiply
+        return AstStatementKind::InPlaceMul
     if this_token_is_after_that_initial_expression->is_operator("/="):
-        return AstStatementKind::InPlaceDivide
+        return AstStatementKind::InPlaceDiv
     if this_token_is_after_that_initial_expression->is_operator("%="):
-        return AstStatementKind::InPlaceModulo
+        return AstStatementKind::InPlaceMod
     return AstStatementKind::ExpressionStatement
 
 class MemberInfo:
@@ -690,8 +690,8 @@ class Parser:
         result = self->parse_expression_with_add()
         while self->tokens->is_keyword("as"):
             as_location = (self->tokens++)->location  # TODO: shouldn't need so many parentheses
-            p: AstAsExpression* = malloc(sizeof(*p))
-            *p = AstAsExpression{type = self->parse_type(), value = result}
+            p: AstAs* = malloc(sizeof(*p))
+            *p = AstAs{type = self->parse_type(), value = result}
             result = AstExpression{
                 location = as_location,
                 kind = AstExpressionKind::As,
@@ -781,7 +781,7 @@ class Parser:
             expr = self->parse_expression()
             result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(self->tokens)
             if result.kind == AstStatementKind::ExpressionStatement:
-                if not expr.can_have_side_effects():
+                if not expr.is_valid_as_a_statement():
                     fail(expr.location, "not a valid statement")
                 result.expression = expr
             else:
