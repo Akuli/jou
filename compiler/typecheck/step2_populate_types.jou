@@ -119,7 +119,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
     return sig
 
 
-def handle_class_members_step2(ft: FileTypes*, classdef: AstClassDef*) -> None:
+def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
     # Previous type-checking step created an opaque struct.
     type: Type* = NULL
     for s = ft->owned_types; s < &ft->owned_types[ft->n_owned_types]; s++:
@@ -194,7 +194,7 @@ def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbo
             strcpy(es.name, sig.name)
             exports[nexports++] = es
         elif stmt->kind == AstStatementKind::Class:
-            handle_class_members_step2(ft, &stmt->classdef)
+            handle_class_members(ft, &stmt->classdef)
         elif stmt->kind == AstStatementKind::Enum:
             pass  # Everything done in previous type-checking steps.
         else:
