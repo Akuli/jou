@@ -40,7 +40,7 @@ def typecheck_step1_create_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*
         existing = ft->find_type(name)
         if existing != NULL:
             msg: byte[500]
-            snprintf(msg, sizeof(msg), "%s named '%s' already exists", short_type_description(existing), name)
+            snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing->short_description(), name)
             fail(stmt->location, msg)
 
         ft->types = realloc(ft->types, sizeof(ft->types[0]) * (ft->ntypes + 1))

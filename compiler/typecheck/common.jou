@@ -224,23 +224,3 @@ def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
         return tmp->array_type(len)
 
     assert False
-
-
-def short_type_description(t: Type*) -> byte*:
-    if t->kind == TypeKind::OpaqueClass or t->kind == TypeKind::Class:
-        return "a class"
-    if t->kind == TypeKind::Enum:
-        return "an enum"
-    if t->kind == TypeKind::VoidPointer or t->kind == TypeKind::Pointer:
-        return "a pointer type"
-    if (
-        t->kind == TypeKind::SignedInteger
-        or t->kind == TypeKind::UnsignedInteger
-        or t->kind == TypeKind::FloatingPoint
-    ):
-        return "a number type"
-    if t->kind == TypeKind::Array:
-        return "an array type"
-    if t->kind == TypeKind::Bool:
-        return "the built-in bool type"
-    assert False
