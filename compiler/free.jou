@@ -4,14 +4,7 @@ import "stdlib/mem.jou"
 
 import "./structs.jou"
 import "./types.jou"
-import "./token.jou"
 import "./typecheck/common.jou"
-
-def free_tokens(tokenlist: Token*) -> None:
-    for t = tokenlist; t->kind != TokenKind::EndOfFile; t++:
-        if t->kind == TokenKind::String:
-            free(t->long_string)
-    free(tokenlist)
 
 def free_constant(c: Constant*) -> None:
     if c->kind == ConstantKind::String:

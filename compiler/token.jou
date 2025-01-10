@@ -137,3 +137,10 @@ class Token:
         message: byte* = malloc(strlen(what_was_expected_instead) + 500)
         sprintf(message, "expected %s, got %s", what_was_expected_instead, got)
         fail(self->location, message)
+
+
+def free_tokens(tokenlist: Token*) -> None:
+    for t = tokenlist; t->kind != TokenKind::EndOfFile; t++:
+        if t->kind == TokenKind::String:
+            free(t->long_string)
+    free(tokenlist)
