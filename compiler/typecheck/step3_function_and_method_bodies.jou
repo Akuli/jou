@@ -20,11 +20,9 @@ import "../types.jou"
 import "./common.jou"
 
 
-global short_expr_desc_result: byte[200]
-
 # Intended for errors. Returned string can be overwritten in next call.
 # Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
-def short_expression_description(expr: AstExpression*) -> byte*:
+def short_expression_description(expr: AstExpression*) -> byte[200]:
     if (
         expr->kind == AstExpressionKind::String
         or expr->kind == AstExpressionKind::Int
@@ -105,13 +103,16 @@ def short_expression_description(expr: AstExpression*) -> byte*:
     ):
         return "the result of decrementing a value"
 
+    result: byte[200]
+
     if expr->kind == AstExpressionKind::AddressOf:
-        snprintf(short_expr_desc_result, sizeof short_expr_desc_result, "address of %s", short_expression_description(&expr->operands[0]))
-        return short_expr_desc_result
+        inner = short_expression_description(&expr->operands[0])
+        snprintf(result, sizeof result, "address of %s", inner)
+        return result
 
     if expr->kind == AstExpressionKind::GetClassField:
-        snprintf(short_expr_desc_result, sizeof short_expr_desc_result, "field '%s'", expr->class_field.field_name)
-        return short_expr_desc_result
+        snprintf(result, sizeof result, "field '%s'", expr->class_field.field_name)
+        return result
 
     assert False
 
@@ -171,7 +172,8 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
         return
 
     msg: byte[500]
-    snprintf(msg, sizeof(msg), errmsg_template, short_expression_description(expr))
+    desc = short_expression_description(expr)
+    snprintf(msg, sizeof(msg), errmsg_template, desc)
     fail(expr->location, msg)
 
 
@@ -526,19 +528,17 @@ def typecheck_and_or(
     typecheck_expression_with_implicit_cast(ft, rhsexpr, boolType, errormsg)
 
 
-global nth_result_buffer: byte[100]
+def nth(n: int) -> byte[100]:
+    result: byte[100]
 
-
-# Be aware that return value may change as you call this many times.
-def nth(n: int) -> byte*:
     assert n >= 1
-
     first_few = [NULL, "first", "second", "third", "fourth", "fifth", "sixth"]
     if n < sizeof(first_few) / sizeof(first_few[0]):
-        return first_few[n]
+        strcpy(result, first_few[n])
+    else:
+        sprintf(result, "%dth", n)
 
-    sprintf(nth_result_buffer, "%dth", n)
-    return nth_result_buffer
+    return result
 
 
 def plural_s(n: int) -> byte*:
@@ -605,7 +605,11 @@ def typecheck_function_or_method_call(ft: FileTypes*, call: AstCall*, self_type:
         if strcmp(sig->argnames[i], "self") == 0:
             continue
         # This is a common error, so worth spending some effort to get a good error message.
-        snprintf(msg, sizeof msg, "%s argument of %s %s should have type <to>, not <from>", nth(i+1), function_or_method, sigstr)
+        which_arg = nth(i+1)
+        snprintf(
+            msg, sizeof msg,
+            "%s argument of %s %s should have type <to>, not <from>", which_arg, function_or_method, sigstr
+        )
         typecheck_expression_with_implicit_cast(ft, &call->args[k++], sig->argtypes[i], msg)
 
     for i = k; i < call->nargs; i++:
@@ -1028,9 +1032,8 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             if targetexpr->kind == AstExpressionKind::Dereference:
                 strcpy(msg, "cannot place a value of type <from> into a pointer of type <to>*")
             else:
-                snprintf(msg, sizeof msg,
-                    "cannot assign a value of type <from> to %s of type <to>",
-                    short_expression_description(targetexpr))
+                desc = short_expression_description(targetexpr)
+                snprintf(msg, sizeof msg, "cannot assign a value of type <from> to %s of type <to>", desc)
 
             targettypes = typecheck_expression_not_void(ft, targetexpr)
             typecheck_expression_with_implicit_cast(ft, valueexpr, targettypes->type, msg)
