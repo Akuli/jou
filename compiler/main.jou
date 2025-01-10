@@ -4,7 +4,8 @@ import "stdlib/mem.jou"
 import "stdlib/errno.jou"
 import "stdlib/str.jou"
 
-import "./build_cfg.jou"
+import "./cf_graph.jou"
+import "./build_cf_graph.jou"
 import "./evaluate.jou"
 import "./run.jou"
 import "./codegen.jou"
@@ -247,14 +248,14 @@ class FileState:
         self->warn_about_unused_imports()
 
         if command_line_args.verbosity >= 2:
-            print_control_flow_graphs(&cf_graphs)
+            cf_graphs.print()
 
         # TODO: implement this
         #if command_line_args.verbosity >= 1:
         #    printf("Analyzing CFGs: %s\n", self->path)
         #simplify_control_flow_graphs(&cf_graphs)
         #if command_line_args.verbosity >= 2:
-        #    print_control_flow_graphs(&cf_graphs)
+        #    cf_graphs.print()
 
         return cf_graphs
 
@@ -482,8 +483,7 @@ def main(argc: int, argv: byte**) -> int:
         cf_graphs = compst.files[i].build_cf_graphs()
 
         llvm_ir = compst.files[i].build_llvm_ir(&cf_graphs)
-        # TODO: free the control flow graphs, this crashes for some reason
-        #free_control_flow_graphs(&cf_graphs)
+        cf_graphs.free()
 
         objpaths[i] = compile_to_object_file(llvm_ir)
         LLVMDisposeModule(llvm_ir)

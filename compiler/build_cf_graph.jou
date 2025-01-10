@@ -1,6 +1,7 @@
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
+import "./cf_graph.jou"
 import "./structs.jou"
 import "./evaluate.jou"
 import "./types.jou"
@@ -104,7 +105,6 @@ def add_instruction(
     return &st->current_block->instructions[st->current_block->ninstructions - 1]
 
 
-# TODO: do we need this?
 def add_unary_op(
     st: State*,
     location: Location,
@@ -113,12 +113,10 @@ def add_unary_op(
     target: LocalVariable*,
 ) -> None:
     ins = CfInstruction{location = location, kind = op, destvar = target}
-    operands = [arg, NULL]
-    ins.set_operands(operands)
+    ins.add_operand(arg)
     add_instruction(st, ins)
 
 
-# TODO: do we need this?
 def add_binary_op(
     st: State*,
     location: Location,
@@ -128,12 +126,11 @@ def add_binary_op(
     target: LocalVariable*,
 ) -> None:
     ins = CfInstruction{location = location, kind = op, destvar = target}
-    operands = [lhs, rhs, NULL]
-    ins.set_operands(operands)
+    ins.add_operand(lhs)
+    ins.add_operand(rhs)
     add_instruction(st, ins)
 
 
-# TODO: do we need this?
 def add_constant(st: State*, location: Location, c: Constant, target: LocalVariable*) -> CfInstruction*:
     ins = CfInstruction{location = location, kind = CfInstructionKind::Constant, constant = copy_constant(c), destvar = target}
     return add_instruction(st, ins)
@@ -326,12 +323,10 @@ def build_class_field_pointer(
                 kind = CfInstructionKind::PtrClassField,
                 destvar = result,
             }
+            ins.add_operand(instance)
 
             assert sizeof(ins.fieldname) == sizeof(f->name)
             strcpy(ins.fieldname, f->name)
-
-            operands = [instance, NULL]
-            ins.set_operands(operands)
 
             add_instruction(st, ins)
             return result
@@ -554,12 +549,15 @@ def build_function_or_method_call(
 
     assert sig != NULL
 
-    args: LocalVariable** = calloc(call->nargs + 2, sizeof(args[0]))
-    k = 0
+    ins = CfInstruction{
+        location = location,
+        kind = CfInstructionKind::Call,
+        signature = copy_signature(sig),
+    }
 
     if call->method_call_self != NULL:
         if is_pointer_type(sig->argtypes[0]) and not call->uses_arrow_operator:
-            args[k++] = build_address_of_expression(st, call->method_call_self)
+            ins.add_operand(build_address_of_expression(st, call->method_call_self))
         elif (not is_pointer_type(sig->argtypes[0])) and call->uses_arrow_operator:
             self_ptr = build_expression(st, call->method_call_self)
             assert self_ptr->type->kind == TypeKind::Pointer
@@ -567,33 +565,23 @@ def build_function_or_method_call(
             # dereference the pointer
             val = add_local_var(st, self_ptr->type->value_type)
             add_unary_op(st, call->method_call_self->location, CfInstructionKind::PtrLoad, self_ptr, val)
-            args[k++] = val
+            ins.add_operand(val)
         else:
-            args[k++] = build_expression(st, call->method_call_self)
+            ins.add_operand(build_expression(st, call->method_call_self))
 
     for i = 0; i < call->nargs; i++:
-        args[k++] = build_expression(st, &call->args[i])
+        ins.add_operand(build_expression(st, &call->args[i]))
 
     if sig->returntype != NULL:
-        return_value = add_local_var(st, sig->returntype)
-    else:
-        return_value = NULL
+        ins.destvar = add_local_var(st, sig->returntype)
 
-    ins = CfInstruction{
-        location = location,
-        kind = CfInstructionKind::Call,
-        signature = copy_signature(sig),
-        destvar = return_value,
-    }
-    ins.set_operands(args)
     add_instruction(st, ins)
 
     if sig->is_noreturn:
         # Place the remaining code into an unreachable block, so you will get a warning if there is any
         add_jump(st, NULL, NULL, NULL, NULL)
 
-    free(args)
-    return return_value
+    return ins.destvar
 
 
 def build_instantiation(st: State*, type: Type*, inst: AstInstantiation*, location: Location) -> LocalVariable*:
@@ -912,19 +900,6 @@ def build_assert(st: State*, assert_location: Location, assertion: AstAssertion*
     argtypes[1] = get_pointer_type(byteType)
     argtypes[2] = intType
 
-    args = [
-        add_local_var(st, argtypes[0]),
-        add_local_var(st, argtypes[1]),
-        add_local_var(st, argtypes[2]),
-        NULL,
-    ]
-
-    add_constant(st, assert_location, Constant{kind = ConstantKind::String, str = assertion->condition_str}, args[0])
-    tmp = strdup(assertion->condition.location.path)
-    add_constant(st, assert_location, Constant{kind = ConstantKind::String, str = tmp}, args[1])
-    free(tmp)
-    add_constant(st, assert_location, int_constant(intType, assert_location.lineno), args[2])
-
     ins = CfInstruction{
         location = assert_location,
         kind = CfInstructionKind::Call,
@@ -936,9 +911,20 @@ def build_assert(st: State*, assert_location: Location, assertion: AstAssertion*
             takes_varargs = False,
             is_noreturn = True,
             returntype_location = assert_location,
-        },
+        }
     }
-    ins.set_operands(args)
+
+    arg1 = add_local_var(st, argtypes[0])
+    arg2 = add_local_var(st, argtypes[1])
+    arg3 = add_local_var(st, argtypes[2])
+
+    add_constant(st, assert_location, Constant{kind = ConstantKind::String, str = assertion->condition_str}, arg1)
+    add_constant(st, assert_location, Constant{kind = ConstantKind::String, str = assertion->condition.location.path}, arg2)
+    add_constant(st, assert_location, int_constant(intType, assert_location.lineno), arg3)
+
+    ins.add_operand(arg1)
+    ins.add_operand(arg2)
+    ins.add_operand(arg3)
     add_instruction(st, ins)
 
     st->current_block = trueblock
