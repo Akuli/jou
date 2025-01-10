@@ -102,8 +102,7 @@ def parse_arguments(argc: int, argv: byte**) -> None:
             i++
         elif strcmp(argv[i], "-o") == 0:
             if argc-i < 2:
-                fprintf(stderr, "%s: there must be a file name after -o", argv[0])
-                fprintf(stderr, " (try \"%s --help\")\n", argv[0])
+                fprintf(stderr, "%s: there must be a file name after -o (try \"%s --help\")\n", argv[0], argv[0])
                 exit(2)
 
             command_line_args.outfile = argv[i+1]
@@ -112,8 +111,7 @@ def parse_arguments(argc: int, argv: byte**) -> None:
                 exit(2)
             i += 2
         elif argv[i][0] == '-':
-            fprintf(stderr, "%s: unknown argument \"%s\"", argv[0], argv[i])
-            fprintf(stderr, " (try \"%s --help\")\n", argv[0])
+            fprintf(stderr, "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
             exit(2)
         elif command_line_args.infile != NULL:
             fprintf(stderr, "%s: you can only pass one Jou file (try \"%s --help\")\n", argv[0], argv[0])
@@ -175,7 +173,7 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
             and strcmp(importsym->name, stmt->enumdef.name) == 0
         )
 
-    assert False  # TODO
+    assert False
 
 
 class FileState:
@@ -240,6 +238,47 @@ class FileState:
                 msg: byte[500]
                 snprintf(msg, sizeof msg, "\"%s\" imported but not used", imp->specified_path)
                 show_warning(imp->location, msg)
+
+    def build_cf_graphs(self) -> CfGraphFile:
+        if command_line_args.verbosity >= 1:
+            printf("Building Control Flow Graphs: %s\n", self->path)
+
+        cf_graphs = build_control_flow_graphs(&self->ast, &self->types)
+        self->warn_about_unused_imports()
+
+        if command_line_args.verbosity >= 2:
+            print_control_flow_graphs(&cf_graphs)
+
+        # TODO: implement this
+        #if command_line_args.verbosity >= 1:
+        #    printf("Analyzing CFGs: %s\n", self->path)
+        #simplify_control_flow_graphs(&cf_graphs)
+        #if command_line_args.verbosity >= 2:
+        #    print_control_flow_graphs(&cf_graphs)
+
+        return cf_graphs
+
+    def build_llvm_ir(self, cf_graphs: CfGraphFile*) -> LLVMModule*:
+        if command_line_args.verbosity >= 1:
+            printf("Building LLVM IR: %s\n", self->path)
+
+        mod = codegen(cf_graphs, &self->types)
+
+        if command_line_args.verbosity >= 2:
+            print_llvm_ir(mod, False)
+
+        # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
+        # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
+        LLVMVerifyModule(mod, LLVMVerifierFailureAction::AbortProcess, NULL)
+
+        if command_line_args.optlevel != 0:
+            if command_line_args.verbosity >= 1:
+                printf("Optimizing %s (level %d)\n", self->path, command_line_args.optlevel)
+            optimize(mod, command_line_args.optlevel)
+            if command_line_args.verbosity >= 2:
+                print_llvm_ir(mod, True)
+
+        return mod
 
 
 class CompileState:
@@ -395,49 +434,6 @@ def optimize(module: LLVMModule*, level: int) -> None:
     LLVMDisposePassManager(pm)
 
 
-def ast_to_object_file(fs: FileState*) -> byte*:
-    if command_line_args.verbosity >= 1:
-        printf("Building Control Flow Graphs: %s\n", fs->path)
-
-    cfgfile = build_control_flow_graphs(&fs->ast, &fs->types)
-    fs->warn_about_unused_imports()
-
-    if command_line_args.verbosity >= 2:
-        print_control_flow_graphs(&cfgfile)
-
-    # TODO: implement this
-#    if command_line_args.verbosity >= 1:
-#        printf("Analyzing CFGs: %s\n", fs->path)
-#    simplify_control_flow_graphs(&cfgfile)
-#    if command_line_args.verbosity >= 2:
-#        print_control_flow_graphs(&cfgfile)
-
-    if command_line_args.verbosity >= 1:
-        printf("Building LLVM IR: %s\n", fs->path)
-
-    mod = codegen(&cfgfile, &fs->types)
-    # TODO: free the control flow graphs, this crashes for some reason
-    #free_control_flow_graphs(&cfgfil
-
-    if command_line_args.verbosity >= 2:
-        print_llvm_ir(mod, False)
-
-    # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
-    # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
-    LLVMVerifyModule(mod, LLVMVerifierFailureAction::AbortProcess, NULL)
-
-    if command_line_args.optlevel != 0:
-        if command_line_args.verbosity >= 1:
-            printf("Optimizing %s (level %d)\n", fs->path, command_line_args.optlevel)
-        optimize(mod, command_line_args.optlevel)
-        if command_line_args.verbosity >= 2:
-            print_llvm_ir(mod, True)
-
-    objpath = compile_to_object_file(mod)
-    LLVMDisposeModule(mod)
-    return objpath
-
-
 def tokenize_only(path: byte*) -> None:
     tokens = tokenize(command_line_args.infile, NULL)
     print_tokens(tokens)
@@ -483,7 +479,14 @@ def main(argc: int, argv: byte**) -> int:
 
     objpaths: byte** = calloc(sizeof objpaths[0], compst.nfiles + 1)
     for i = 0; i < compst.nfiles; i++:
-        objpaths[i] = ast_to_object_file(&compst.files[i])
+        cf_graphs = compst.files[i].build_cf_graphs()
+
+        llvm_ir = compst.files[i].build_llvm_ir(&cf_graphs)
+        # TODO: free the control flow graphs, this crashes for some reason
+        #free_control_flow_graphs(&cf_graphs)
+
+        objpaths[i] = compile_to_object_file(llvm_ir)
+        LLVMDisposeModule(llvm_ir)
 
     # Check for missing main() as late as possible, so that other errors come first.
     # This way Jou users can work on other functions before main() function is written.
