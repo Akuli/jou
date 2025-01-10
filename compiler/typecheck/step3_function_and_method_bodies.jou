@@ -464,7 +464,7 @@ def check_increment_or_decrement(ft: FileTypes*, expr: AstExpression*) -> Type*:
     ensure_can_take_address(ft->current_fom_types, &expr->operands[0], bad_expr_fmt)
 
     t = typecheck_expression_not_void(ft, &expr->operands[0])->type
-    if not t->is_integer_type() and not t->is_pointer_type():
+    if not t->is_integer_type() and t->kind != TypeKind::Pointer:
         msg: byte[500]
         snprintf(msg, sizeof(msg), bad_type_fmt, t->name)
         fail(expr->location, msg)
