@@ -251,11 +251,7 @@ class CfGraph:
         printf("  Variables:\n")
         for var = self->locals; var < &self->locals[self->nlocals]; var++:
             printf("    ")
-            (*var)->print()
-            # Pad variable names with spaces to align them.
-            for i = (*var)->print_width(); i < 20; i++:
-                putchar(' ')
-            # If variable name is very long, put two spaces even in that case.
+            (*var)->print_to_width(20)
             printf("  %s\n", (*var)->type->name)
 
         for blockidx = 0; blockidx < self->n_all_blocks; blockidx++:

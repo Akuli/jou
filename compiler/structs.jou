@@ -1,6 +1,7 @@
 # TODO: delete this file, merge into others
 
 import "stdlib/str.jou"
+import "stdlib/math.jou"
 import "stdlib/io.jou"
 
 import "./ast.jou"
@@ -93,20 +94,14 @@ class LocalVariable:
     type: Type*
     is_argument: bool    # First n variables are always the arguments
 
-    def print(self) -> int:
+    def print_to_width(self, width: int) -> None:
         if self->name[0] != '\0':
-            printf("%s", self->name)
+            printf("%-*s", width, self->name)
         else:
-            # Anonymous temporary variable created by compiler.
-            printf("$%d", self->id)
+            printf("$%-*d", max(width-1, 0), self->id)
 
-    # Return how many characters print() outputs.
-    def print_width(self) -> int:
-        if self->name[0] != '\0':
-            return strlen(self->name) as int
-        temp: byte[100]
-        sprintf(temp, "%d", self->id)
-        return 1 + (strlen(temp) as int)
+    def print(self) -> None:
+        self->print_to_width(0)
 
 
 class ExpressionTypes:
