@@ -120,7 +120,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
 
 
 def handle_class_members_step2(ft: FileTypes*, classdef: AstClassDef*) -> None:
-    # Previous type-checking stage created an opaque struct.
+    # Previous type-checking step created an opaque struct.
     type: Type* = NULL
     for s = ft->owned_types; s < &ft->owned_types[ft->n_owned_types]; s++:
         if strcmp((*s)->name, classdef->name) == 0:
@@ -162,7 +162,7 @@ def handle_class_members_step2(ft: FileTypes*, classdef: AstClassDef*) -> None:
                 type->classdata.fields[type->classdata.nfields++] = f
 
         elif m->kind == AstClassMemberKind::Method:
-            # Don't handle the method body yet: that is a part of stage 3, not stage 2
+            # Don't handle the method body yet: that is a part of step 3, not step 2
             sig = handle_signature(ft, &m->method.signature, type)
 
             type->classdata.methods = realloc(type->classdata.methods, sizeof(type->classdata.methods[0]) * (type->classdata.nmethods + 1))

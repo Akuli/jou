@@ -347,7 +347,7 @@ class CompileState:
         self->parse(path, NULL)
         free(path)
 
-    # Each stage of type checking produces exported symbols that other files can import.
+    # Each step of type checking produces exported symbols that other files can import.
     # This method hands them over to the importing files.
     def exports_to_imports(self, pending_exports: ExportSymbol**) -> None:
         for to = self->files; to < &self->files[self->nfiles]; to++:
@@ -402,21 +402,21 @@ class CompileState:
 
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
-                printf("  stage 1: %s\n", self->files[i].path)
+                printf("  step 1: %s\n", self->files[i].path)
             pending_exports[i] = typecheck_step1_create_types(&self->files[i].types, &self->files[i].ast)
 
         self->exports_to_imports(pending_exports)
 
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
-                printf("  stage 2: %s\n", self->files[i].path)
+                printf("  step 2: %s\n", self->files[i].path)
             pending_exports[i] = typecheck_step2_populate_types(&self->files[i].types, &self->files[i].ast)
 
         self->exports_to_imports(pending_exports)
 
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
-                printf("  stage 3: %s\n", self->files[i].path)
+                printf("  step 3: %s\n", self->files[i].path)
             typecheck_step3_function_and_method_bodies(&self->files[i].types, &self->files[i].ast)
 
         free(pending_exports)
