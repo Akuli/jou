@@ -1,6 +1,8 @@
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
+
 import "./structs.jou"
+import "./errors_and_warnings.jou"
 import "./free.jou"
 
 class ClassField:
@@ -243,71 +245,80 @@ def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*
     return &result->type
 
 
-# TODO: move out
-def get_self_class(sig: Signature*) -> Type*:
-    if sig->nargs > 0 and strcmp(sig->argnames[0], "self") == 0:
-        if sig->argtypes[0]->kind == TypeKind::Pointer:
-            return sig->argtypes[0]->value_type
-        if sig->argtypes[0]->kind == TypeKind::Class:
-            return sig->argtypes[0]
-        assert False
-    return NULL
+class Signature:
+    name: byte[100]  # Function or method name. For methods it does not include the name of the class.
+    nargs: int
+    argtypes: Type**
+    argnames: byte[100]*
+    takes_varargs: bool  # true for functions like printf()
+    # TODO: rename to return_type
+    returntype: Type*    # NULL, if does not return a value
+    is_noreturn: bool
+    # TODO: rename to return_type_location
+    returntype_location: Location  # meaningful even if returntype is NULL
 
-# TODO: move out
-def signature_to_string(sig: Signature*, include_return_type: bool, include_self: bool) -> byte*:
-    result = strdup(sig->name)
-    assert result != NULL
+    def get_self_class(self) -> Type*:
+        if self->nargs > 0 and strcmp(self->argnames[0], "self") == 0:
+            if self->argtypes[0]->kind == TypeKind::Pointer:
+                return self->argtypes[0]->value_type
+            if self->argtypes[0]->kind == TypeKind::Class:
+                return self->argtypes[0]
+            assert False
+        return NULL
 
-    result = realloc(result, strlen(result) + 2)
-    assert result != NULL
-    strcat(result, "(")
-
-    for i = 0; i < sig->nargs; i++:
-        if strcmp(sig->argnames[i], "self") == 0 and not include_self:
-            continue
-
-        assert sizeof sig->argnames[i] == 100
-        assert sizeof sig->argtypes[i]->name == 500
-        result = realloc(result, strlen(result) + 1000)
-        assert result != NULL
-        strcat(result, sig->argnames[i])
-        strcat(result, ": ")
-        strcat(result, sig->argtypes[i]->name)
-        if i < sig->nargs - 1:
-            strcat(result, ", ")
-
-    result = realloc(result, strlen(result) + 100)
-    assert result != NULL
-
-    if sig->takes_varargs:
-        if sig->nargs != 0:
-            strcat(result, ", ")
-        strcat(result, "...")
-    strcat(result, ")")
-
-    if include_return_type:
-        assert sizeof(sig->returntype->name) == 500
-        result = realloc(result, strlen(result) + 600)
+    def to_string(self, include_return_type: bool, include_self: bool) -> byte*:
+        result = strdup(self->name)
         assert result != NULL
 
-        strcat(result, " -> ")
-        if sig->is_noreturn:
-            strcat(result, "noreturn")
-        elif sig->returntype == NULL:
-            strcat(result, "void")
-        else:
-            strcat(result, sig->returntype->name)
+        result = realloc(result, strlen(result) + 2)
+        assert result != NULL
+        strcat(result, "(")
 
-    return result
+        for i = 0; i < self->nargs; i++:
+            if strcmp(self->argnames[i], "self") == 0 and not include_self:
+                continue
 
-# TODO: move out
-def copy_signature(sig: Signature*) -> Signature:
-    result = *sig
+            assert sizeof self->argnames[i] == 100
+            assert sizeof self->argtypes[i]->name == 500
+            result = realloc(result, strlen(result) + 1000)
+            assert result != NULL
+            strcat(result, self->argnames[i])
+            strcat(result, ": ")
+            strcat(result, self->argtypes[i]->name)
+            if i < self->nargs - 1:
+                strcat(result, ", ")
 
-    result.argtypes = malloc(sizeof(result.argtypes[0]) * result.nargs)
-    memcpy(result.argtypes, sig->argtypes, sizeof(result.argtypes[0]) * result.nargs)
+        result = realloc(result, strlen(result) + 100)
+        assert result != NULL
 
-    result.argnames = malloc(sizeof(result.argnames[0]) * result.nargs)
-    memcpy(result.argnames, sig->argnames, sizeof(result.argnames[0]) * result.nargs)
+        if self->takes_varargs:
+            if self->nargs != 0:
+                strcat(result, ", ")
+            strcat(result, "...")
+        strcat(result, ")")
 
-    return result
+        if include_return_type:
+            assert sizeof(self->returntype->name) == 500
+            result = realloc(result, strlen(result) + 600)
+            assert result != NULL
+
+            strcat(result, " -> ")
+            if self->is_noreturn:
+                strcat(result, "noreturn")
+            elif self->returntype == NULL:
+                strcat(result, "void")
+            else:
+                strcat(result, self->returntype->name)
+
+        return result
+
+    def copy(self) -> Signature:
+        result = *self
+
+        result.argtypes = malloc(sizeof(result.argtypes[0]) * result.nargs)
+        memcpy(result.argtypes, self->argtypes, sizeof(result.argtypes[0]) * result.nargs)
+
+        result.argnames = malloc(sizeof(result.argnames[0]) * result.nargs)
+        memcpy(result.argnames, self->argnames, sizeof(result.argnames[0]) * result.nargs)
+
+        return result

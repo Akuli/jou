@@ -6,7 +6,7 @@ import "stdlib/io.jou"
 
 import "./ast.jou"
 import "./types.jou"
-import "./errors_and_warnings.jou"
+
 
 class CommandLineArgs:
     argv0: byte*  # Program name
@@ -67,19 +67,6 @@ def int_constant(type: Type*, value: long) -> Constant:
             value = value
         }
     }
-
-
-class Signature:
-    name: byte[100]  # Function or method name. For methods it does not include the name of the class.
-    nargs: int
-    argtypes: Type**
-    argnames: byte[100]*
-    takes_varargs: bool  # true for functions like printf()
-    # TODO: rename to return_type
-    returntype: Type*    # NULL, if does not return a value
-    is_noreturn: bool
-    # TODO: rename to return_type_location
-    returntype_location: Location  # meaningful even if returntype is NULL
 
 
 class GlobalVariable:

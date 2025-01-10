@@ -536,7 +536,7 @@ def build_function_or_method_call(
         assert selfclass->kind == TypeKind::Class
 
         for s = selfclass->classdata.methods; s < &selfclass->classdata.methods[selfclass->classdata.nmethods]; s++:
-            assert get_self_class(s) == selfclass
+            assert s->get_self_class() == selfclass
             if strcmp(s->name, call->name) == 0:
                 sig = s
                 break
@@ -552,7 +552,7 @@ def build_function_or_method_call(
     ins = CfInstruction{
         location = location,
         kind = CfInstructionKind::Call,
-        signature = copy_signature(sig),
+        signature = sig->copy(),
     }
 
     if call->method_call_self != NULL:
@@ -1093,13 +1093,13 @@ def build_function_or_method(
 
     assert st->fomtypes == NULL
     for f = st->filetypes->fomtypes; f < &st->filetypes->fomtypes[st->filetypes->nfomtypes]; f++:
-        if strcmp(f->signature.name, name) == 0 and get_self_class(&f->signature) == selfclass:
+        if strcmp(f->signature.name, name) == 0 and f->signature.get_self_class() == selfclass:
             st->fomtypes = f
             break
     assert st->fomtypes != NULL
 
     st->cfg = calloc(1, sizeof *st->cfg)
-    st->cfg->signature = copy_signature(&st->fomtypes->signature)
+    st->cfg->signature = st->fomtypes->signature.copy()
 
     # Copy local variables over from type checking.
     # Ownership of the variables changes, they will be freed when graphs are freed.

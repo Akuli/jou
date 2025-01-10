@@ -181,8 +181,8 @@ class CodeGen:
 
     def do_function_or_method_decl(self, sig: Signature*) -> LLVMValue*:
         fullname: byte[200]
-        if get_self_class(sig) != NULL:
-            snprintf(fullname, sizeof fullname, "%s.%s", get_self_class(sig)->name, sig->name)
+        if sig->get_self_class() != NULL:
+            snprintf(fullname, sizeof fullname, "%s.%s", sig->get_self_class()->name, sig->name)
         else:
             assert sizeof(fullname) >= sizeof(sig->name)
             assert sizeof(sig->name) > 50  # this is an array, not a pointer to dynamic length string
@@ -419,7 +419,7 @@ class CodeGen:
         assert cfg->all_blocks[0] == &cfg->start_block
         LLVMPositionBuilderAtEnd(self->builder, blocks[0])
 
-        if get_self_class(&cfg->signature) == NULL and strcmp(cfg->signature.name, "main") == 0:
+        if cfg->signature.get_self_class() == NULL and strcmp(cfg->signature.name, "main") == 0:
             # Insert special code at start of main()
             self->do_call_of_special_startup_func()
 

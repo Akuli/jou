@@ -269,7 +269,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
         ft->functions = realloc(ft->functions, sizeof(ft->functions[0]) * (ft->nfunctions + 1))
         assert ft->functions != NULL
         ft->functions[ft->nfunctions++] = SignatureAndUsedPtr{
-            signature = copy_signature(&sig),
+            signature = sig.copy(),
             usedptr = NULL,
         }
 
@@ -928,7 +928,7 @@ def typecheck_function_or_method_call(ft: FileTypes*, call: AstCall*, self_type:
     else:
         function_or_method = "method"
 
-    sigstr = signature_to_string(sig, False, False)
+    sigstr = sig->to_string(False, False)
 
     nargs = sig->nargs
     if self_type != NULL:
@@ -1482,7 +1482,7 @@ def typecheck_function_or_method_body(ft: FileTypes*, sig: Signature*, body: Ast
     ft->fomtypes[ft->nfomtypes++] = FunctionOrMethodTypes{}
 
     ft->current_fom_types = &ft->fomtypes[ft->nfomtypes - 1]
-    ft->current_fom_types->signature = copy_signature(sig)
+    ft->current_fom_types->signature = sig->copy()
 
     for i = 0; i < sig->nargs; i++:
         v = add_variable(ft, sig->argtypes[i], sig->argnames[i])
