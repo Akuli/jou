@@ -106,8 +106,9 @@ Please create an issue on GitHub if you would prefer `.` syntax instead.
 
 ## Integer conversions
 
-Jou enums are actually just fancy integers.
-You can use `as` to convert them to integers and back:
+When the program runs, enums are actually just `int`s.
+The first enum member is `0`, the second is `1`, and so on.
+You can use `as` to convert between enums and `int`s:
 
 ```python
 import "stdlib/io.jou"
@@ -162,19 +163,14 @@ def main() -> int:
     elif wat == Operation::Multiply:
         printf("Multiply\n")
     else:
-        printf("something else %d\n", wat)
+        printf("something else %d\n", wat as int)
 
     return 0
 ```
 
-Note that the `printf()` function sees the enum as if it was an integer,
-so you don't need to do `wat as int` when printing the integer value with `%d`.
-
 
 ## Debugging
 
-Unfortunately, it is not possible to print the name of an enum member at runtime.
-You can however print its numeric value with printf's `%d` specifier (see above).
+Unfortunately, it is not possible to print the name of an enum member at runtime,
+and you sometimes need to convert the enum to `int` and print the result (see above).
 Please create an issue on GitHub to discuss this if this annoys you.
-
-
