@@ -350,7 +350,7 @@ def optimize(module: LLVMModule*, level: int) -> None:
     LLVMDisposePassManager(pm)
 
 
-def compile_to_object_file(module: LLVMModule*) -> byte*:
+def compile_llvm_ir_to_object_file(module: LLVMModule*) -> byte*:
     len = 0L
     objname = get_filename_without_jou_suffix(LLVMGetSourceFileName(module, &len))
 
@@ -428,7 +428,7 @@ def main(argc: int, argv: byte**) -> int:
         llvm_ir = compst.files[i].build_llvm_ir(&cf_graphs)
         cf_graphs.free()
 
-        objpaths[i] = compile_to_object_file(llvm_ir)
+        objpaths[i] = compile_llvm_ir_to_object_file(llvm_ir)
         LLVMDisposeModule(llvm_ir)
 
     # Check for missing main() as late as possible, so that other errors come first.
