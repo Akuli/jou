@@ -5,10 +5,6 @@ import "stdlib/mem.jou"
 import "./types.jou"
 import "./typecheck/common.jou"
 
-def free_export_symbol(es: ExportSymbol*) -> None:
-    if es->kind == ExportSymbolKind::Function:
-        es->funcsignature.free()
-
 def free_file_types(ft: FileTypes*) -> None:
     for t = ft->owned_types; t < &ft->owned_types[ft->n_owned_types]; t++:
         free_type(*t)

@@ -391,7 +391,7 @@ class CompileState:
 
         for i = 0; i < self->nfiles; i++:
             for es = pending_exports[i]; es->name[0] != '\0'; es++:
-                free_export_symbol(es)
+                es->free()
             free(pending_exports[i])
             pending_exports[i] = NULL
 

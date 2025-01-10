@@ -59,6 +59,10 @@ class ExportSymbol:
         funcsignature: Signature
         type: Type*  # ExportSymbolKind::Type and ExportSymbolKind::GlobalVar
 
+    def free(self) -> None:
+        if self->kind == ExportSymbolKind::Function:
+            self->funcsignature.free()
+
 
 # Type information about a function or method defined in the current file.
 # Not created for anything imported from another file.
