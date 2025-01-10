@@ -105,7 +105,6 @@ def add_instruction(
     return &st->current_block->instructions[st->current_block->ninstructions - 1]
 
 
-# TODO: do we need this?
 def add_unary_op(
     st: State*,
     location: Location,
@@ -118,7 +117,6 @@ def add_unary_op(
     add_instruction(st, ins)
 
 
-# TODO: do we need this?
 def add_binary_op(
     st: State*,
     location: Location,
@@ -133,7 +131,6 @@ def add_binary_op(
     add_instruction(st, ins)
 
 
-# TODO: do we need this?
 def add_constant(st: State*, location: Location, c: Constant, target: LocalVariable*) -> CfInstruction*:
     ins = CfInstruction{location = location, kind = CfInstructionKind::Constant, constant = copy_constant(c), destvar = target}
     return add_instruction(st, ins)
