@@ -114,7 +114,7 @@ def add_unary_op(
     target: LocalVariable*,
 ) -> None:
     ins = CfInstruction{location = location, kind = op, destvar = target}
-    ins.set_1_operand(arg)
+    ins.add_operand(arg)
     add_instruction(st, ins)
 
 
@@ -128,7 +128,8 @@ def add_binary_op(
     target: LocalVariable*,
 ) -> None:
     ins = CfInstruction{location = location, kind = op, destvar = target}
-    ins.set_2_operands(lhs, rhs)
+    ins.add_operand(lhs)
+    ins.add_operand(rhs)
     add_instruction(st, ins)
 
 
@@ -325,7 +326,7 @@ def build_class_field_pointer(
                 kind = CfInstructionKind::PtrClassField,
                 destvar = result,
             }
-            ins.set_1_operand(instance)
+            ins.add_operand(instance)
 
             assert sizeof(ins.fieldname) == sizeof(f->name)
             strcpy(ins.fieldname, f->name)

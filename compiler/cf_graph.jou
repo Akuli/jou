@@ -202,18 +202,10 @@ class CfInstruction:
             free_signature(&self->signature)
         free(self->operands)
 
-    def set_1_operand(self, operand: LocalVariable*) -> None:
-        self->noperands = 1
-        self->operands = malloc(sizeof(self->operands[0]))
+    def add_operand(self, operand: LocalVariable*) -> None:
+        self->operands = realloc(self->operands, sizeof(self->operands[0]) * (self->noperands + 1))
         assert self->operands != NULL
-        self->operands[0] = operand
-
-    def set_2_operands(self, operand1: LocalVariable*, operand2: LocalVariable*) -> None:
-        self->noperands = 2
-        self->operands = malloc(2 * sizeof(self->operands[0]))
-        assert self->operands != NULL
-        self->operands[0] = operand1
-        self->operands[1] = operand2
+        self->operands[self->noperands++] = operand
 
 
 class CfBlock:
