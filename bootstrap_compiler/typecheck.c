@@ -1014,6 +1014,16 @@ static const Type *cast_array_members_to_a_common_type(const FunctionOrMethodTyp
             Append(&compatible_with_all, *t);
     }
 
+    if (compatible_with_all.len > 1) {
+        // Remove void* if exists, so that type of ["hello", NULL] becomes byte*[2]
+        for (int i = 0; i < compatible_with_all.len; i++) {
+            if (compatible_with_all.ptr[i] == voidPtrType) {
+                compatible_with_all.ptr[i] = compatible_with_all.ptr[--compatible_with_all.len];
+                break;
+            }
+        }
+    }
+
     if (compatible_with_all.len != 1) {
         List(char) namestr = {0};
         for (const Type **t = distinct.ptr; t < End(distinct); t++) {

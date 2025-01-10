@@ -880,7 +880,7 @@ global nth_result_buffer: byte[100]
 def nth(n: int) -> byte*:
     assert n >= 1
 
-    first_few = [NULL as byte*, "first", "second", "third", "fourth", "fifth", "sixth"]
+    first_few = [NULL, "first", "second", "third", "fourth", "fifth", "sixth"]
     if n < sizeof(first_few) / sizeof(first_few[0]):
         return first_few[n]
 
@@ -1066,6 +1066,13 @@ def cast_array_members_to_a_common_type(fom: FunctionOrMethodTypes*, error_locat
             compatible_with_all = realloc(compatible_with_all, sizeof(compatible_with_all[0]) * (n_compatible_with_all + 1))
             assert compatible_with_all != NULL
             compatible_with_all[n_compatible_with_all++] = *t
+
+    if n_compatible_with_all > 1:
+        # Remove void* if exists, so that type of ["hello", NULL] becomes byte*[2]
+        for i = 0; i < n_compatible_with_all; i++:
+            if compatible_with_all[i] == voidPtrType:
+                compatible_with_all[i] = compatible_with_all[--n_compatible_with_all]
+                break
 
     if n_compatible_with_all != 1:
         size = 500L
