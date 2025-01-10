@@ -1,10 +1,10 @@
 import "stdlib/io.jou"
-import "stdlib/process.jou"
 import "stdlib/mem.jou"
 import "stdlib/errno.jou"
 import "stdlib/str.jou"
 
 import "./cf_graph.jou"
+import "./command_line_args.jou"
 import "./build_cf_graph.jou"
 import "./evaluate.jou"
 import "./run.jou"
@@ -21,110 +21,8 @@ import "./token.jou"
 import "./parser.jou"
 import "./paths.jou"
 import "./errors_and_warnings.jou"
-import "./structs.jou"
-import "./update.jou"
 import "./tokenizer.jou"
 import "./ast.jou"
-
-
-def print_help(argv0: byte*) -> None:
-    printf("Usage:\n")
-    printf("  %s [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags \"...\"] FILENAME\n", argv0)
-    printf("  %s --help       # This message\n", argv0)
-    printf("  %s --update     # Download and install the latest Jou\n", argv0)
-    printf("\n")
-    printf("Options:\n")
-    printf("  -o OUTFILE       output an executable file, don't run the code\n")
-    printf("  -O0/-O1/-O2/-O3  set optimization level (0 = no optimization, 1 = default, 3 = runs fastest)\n")
-    printf("  -v / --verbose   display some progress information\n")
-    printf("  -vv              display a lot of information about all compilation steps\n")
-    printf("  --valgrind       use valgrind when running the code\n")
-    printf("  --tokenize-only  display only the output of the tokenizer, don't do anything else\n")
-    printf("  --parse-only     display only the AST (parse tree), don't do anything else\n")
-    printf("  --linker-flags   appended to the linker command, so you can use external libraries\n")
-
-
-def parse_arguments(argc: int, argv: byte**) -> None:
-    memset(&command_line_args, 0, sizeof command_line_args)
-    command_line_args.argv0 = argv[0]
-    # Set default optimize to O1, user sets optimize will overwrite the default flag
-    command_line_args.optlevel = 1
-
-    if argc == 2 and strcmp(argv[1], "--help") == 0:
-        print_help(argv[0])
-        exit(0)
-
-    if argc == 2 and strcmp(argv[1], "--update") == 0:
-        update_jou_compiler()
-        exit(0)
-
-    i = 1
-    while i < argc:
-        if strcmp(argv[i], "--help") == 0 or strcmp(argv[i], "--update") == 0:
-            fprintf(stderr, "%s: \"%s\" cannot be used with other arguments (try \"%s --help\")\n", argv[0], argv[i], argv[0])
-            exit(2)
-        elif strcmp(argv[i], "--verbose") == 0:
-            command_line_args.verbosity++
-            i++
-        elif starts_with(argv[i], "-v") and strspn(&argv[i][1], "v") == strlen(argv[i])-1:
-            command_line_args.verbosity += (strlen(argv[i]) as int) - 1
-            i++
-        elif strcmp(argv[i], "--valgrind") == 0:
-            command_line_args.valgrind = True
-            i++
-        elif strcmp(argv[i], "--tokenize-only") == 0:
-            if argc > 3:
-                fprintf(stderr, "%s: --tokenize-only cannot be used together with other flags (try \"%s --help\")\n", argv[0], argv[0])
-                exit(2)
-            command_line_args.tokenize_only = True
-            i++
-        elif strcmp(argv[i], "--parse-only") == 0:
-            if argc > 3:
-                fprintf(stderr, "%s: --parse-only cannot be used together with other flags (try \"%s --help\")", argv[0], argv[0])
-                exit(2)
-            command_line_args.parse_only = True
-            i++
-        elif strcmp(argv[i], "--linker-flags") == 0:
-            if command_line_args.linker_flags != NULL:
-                fprintf(stderr, "%s: --linker-flags cannot be given multiple times (try \"%s --help\")\n", argv[0], argv[0])
-                exit(2)
-
-            if argc-i < 2:
-                fprintf(stderr, "%s: there must be a string of flags after --linker-flags (try \"%s --help\")\n", argv[0], argv[0])
-                exit(2)
-
-            command_line_args.linker_flags = argv[i+1]
-            i += 2
-        elif (
-            strlen(argv[i]) == 3
-            and starts_with(argv[i], "-O")
-            and argv[i][2] >= '0'
-            and argv[i][2] <= '3'
-        ):
-            command_line_args.optlevel = argv[i][2] - '0'
-            i++
-        elif strcmp(argv[i], "-o") == 0:
-            if argc-i < 2:
-                fprintf(stderr, "%s: there must be a file name after -o (try \"%s --help\")\n", argv[0], argv[0])
-                exit(2)
-
-            command_line_args.outfile = argv[i+1]
-            if strlen(command_line_args.outfile) > 4 and ends_with(command_line_args.outfile, ".jou"):
-                fprintf(stderr, "%s: the filename after -o should be an executable, not a Jou file (try \"%s --help\")\n", argv[0], argv[0])
-                exit(2)
-            i += 2
-        elif argv[i][0] == '-':
-            fprintf(stderr, "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
-            exit(2)
-        elif command_line_args.infile != NULL:
-            fprintf(stderr, "%s: you can only pass one Jou file (try \"%s --help\")\n", argv[0], argv[0])
-            exit(2)
-        else:
-            command_line_args.infile = argv[i++]
-
-    if command_line_args.infile == NULL:
-        fprintf(stderr, "%s: missing Jou file name (try \"%s --help\")\n", argv[0], argv[0])
-        exit(2)
 
 
 def open_the_file(path: byte*, import_location: Location*) -> FILE*:
@@ -471,7 +369,7 @@ def main(argc: int, argv: byte**) -> int:
     init_types()
     stdlib = find_stdlib()
 
-    parse_arguments(argc, argv)
+    parse_command_line_args(argc, argv)
 
     if command_line_args.verbosity >= 2:
         printf("Target triple: %s\n", target.triple)
