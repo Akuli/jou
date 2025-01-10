@@ -130,19 +130,11 @@ def evaluate_array_length(expr: AstExpression*) -> int:
         return expr->int_value
     fail(expr->location, "cannot evaluate array length at compile time")
 
-def is_void(t: AstType*) -> bool:
-    return t->kind == AstTypeKind::Named and strcmp(t->name, "void") == 0
-
-def is_none(t: AstType*) -> bool:
-    return t->kind == AstTypeKind::Named and strcmp(t->name, "None") == 0
-
-def is_noreturn(t: AstType*) -> bool:
-    return t->kind == AstTypeKind::Named and strcmp(t->name, "noreturn") == 0
 
 def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
     msg: byte[500]
 
-    if is_void(asttype) or is_none(asttype) or is_noreturn(asttype):
+    if asttype->is_void() or asttype->is_none() or asttype->is_noreturn():
         snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype->name)
         fail(asttype->location, msg)
 
@@ -170,7 +162,7 @@ def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
         fail(asttype->location, msg)
 
     if asttype->kind == AstTypeKind::Pointer:
-        if is_void(asttype->value_type):
+        if asttype->value_type->is_void():
             return voidPtrType
         return get_pointer_type(type_from_ast(ft, asttype->value_type))
 
@@ -246,10 +238,10 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
 
         sig.argtypes[i] = argtype
 
-    sig.is_noreturn = is_noreturn(&astsig->return_type)
-    if is_none(&astsig->return_type) or is_noreturn(&astsig->return_type):
+    sig.is_noreturn = astsig->return_type.is_noreturn()
+    if astsig->return_type.is_none() or astsig->return_type.is_noreturn():
         sig.returntype = NULL
-    elif is_void(&astsig->return_type):
+    elif astsig->return_type.is_void():
         fail(astsig->return_type.location, "void is not a valid return type, use '-> None' if the function does not return a value")
     else:
         sig.returntype = type_from_ast(ft, &astsig->return_type)
@@ -440,10 +432,10 @@ def short_expression_description(expr: AstExpression*) -> byte*:
 
     if (
         expr->kind == AstExpressionKind::Add
-        or expr->kind == AstExpressionKind::Subtract
-        or expr->kind == AstExpressionKind::Multiply
-        or expr->kind == AstExpressionKind::Divide
-        or expr->kind == AstExpressionKind::Modulo
+        or expr->kind == AstExpressionKind::Sub
+        or expr->kind == AstExpressionKind::Mul
+        or expr->kind == AstExpressionKind::Div
+        or expr->kind == AstExpressionKind::Mod
         or expr->kind == AstExpressionKind::Negate
     ):
         return "the result of a calculation"
@@ -701,13 +693,13 @@ def check_binop(
     do_what: byte*
     if op == AstExpressionKind::Add:
         do_what = "add"
-    elif op == AstExpressionKind::Subtract:
+    elif op == AstExpressionKind::Sub:
         do_what = "subtract"
-    elif op == AstExpressionKind::Multiply:
+    elif op == AstExpressionKind::Mul:
         do_what = "multiply"
-    elif op == AstExpressionKind::Divide:
+    elif op == AstExpressionKind::Div:
         do_what = "divide"
-    elif op == AstExpressionKind::Modulo:
+    elif op == AstExpressionKind::Mod:
         do_what = "take remainder with"
     elif (
         op == AstExpressionKind::Eq
@@ -784,10 +776,10 @@ def check_binop(
 
     if (
         op == AstExpressionKind::Add
-        or op == AstExpressionKind::Subtract
-        or op == AstExpressionKind::Multiply
-        or op == AstExpressionKind::Divide
-        or op == AstExpressionKind::Modulo
+        or op == AstExpressionKind::Sub
+        or op == AstExpressionKind::Mul
+        or op == AstExpressionKind::Div
+        or op == AstExpressionKind::Mod
     ):
         return cast_type
 
@@ -1267,10 +1259,10 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
 
     elif (
         expr->kind == AstExpressionKind::Add
-        or expr->kind == AstExpressionKind::Subtract
-        or expr->kind == AstExpressionKind::Multiply
-        or expr->kind == AstExpressionKind::Divide
-        or expr->kind == AstExpressionKind::Modulo
+        or expr->kind == AstExpressionKind::Sub
+        or expr->kind == AstExpressionKind::Mul
+        or expr->kind == AstExpressionKind::Div
+        or expr->kind == AstExpressionKind::Mod
         or expr->kind == AstExpressionKind::Eq
         or expr->kind == AstExpressionKind::Ne
         or expr->kind == AstExpressionKind::Gt
@@ -1384,10 +1376,10 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
 
     elif (
         stmt->kind == AstStatementKind::InPlaceAdd
-        or stmt->kind == AstStatementKind::InPlaceSubtract
-        or stmt->kind == AstStatementKind::InPlaceMultiply
-        or stmt->kind == AstStatementKind::InPlaceDivide
-        or stmt->kind == AstStatementKind::InPlaceModulo
+        or stmt->kind == AstStatementKind::InPlaceSub
+        or stmt->kind == AstStatementKind::InPlaceMul
+        or stmt->kind == AstStatementKind::InPlaceDiv
+        or stmt->kind == AstStatementKind::InPlaceMod
     ):
         targetexpr = &stmt->assignment.target
         valueexpr = &stmt->assignment.value
@@ -1399,17 +1391,17 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
         if stmt->kind == AstStatementKind::InPlaceAdd:
             op = AstExpressionKind::Add
             opname = "addition"
-        elif stmt->kind == AstStatementKind::InPlaceSubtract:
-            op = AstExpressionKind::Subtract
+        elif stmt->kind == AstStatementKind::InPlaceSub:
+            op = AstExpressionKind::Sub
             opname = "subtraction"
-        elif stmt->kind == AstStatementKind::InPlaceMultiply:
-            op = AstExpressionKind::Multiply
+        elif stmt->kind == AstStatementKind::InPlaceMul:
+            op = AstExpressionKind::Mul
             opname = "multiplication"
-        elif stmt->kind == AstStatementKind::InPlaceDivide:
-            op = AstExpressionKind::Divide
+        elif stmt->kind == AstStatementKind::InPlaceDiv:
+            op = AstExpressionKind::Div
             opname = "division"
-        elif stmt->kind == AstStatementKind::InPlaceModulo:
-            op = AstExpressionKind::Modulo
+        elif stmt->kind == AstStatementKind::InPlaceMod:
+            op = AstExpressionKind::Mod
             opname = "modulo"
         else:
             assert False

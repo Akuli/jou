@@ -269,13 +269,13 @@ def build_binop(
         k: CfInstructionKind
         if op == AstExpressionKind::Add:
             k = CfInstructionKind::NumAdd
-        elif op == AstExpressionKind::Subtract:
+        elif op == AstExpressionKind::Sub:
             k = CfInstructionKind::NumSub
-        elif op == AstExpressionKind::Multiply:
+        elif op == AstExpressionKind::Mul:
             k = CfInstructionKind::NumMul
-        elif op == AstExpressionKind::Divide:
+        elif op == AstExpressionKind::Div:
             k = CfInstructionKind::NumDiv
-        elif op == AstExpressionKind::Modulo:
+        elif op == AstExpressionKind::Mod:
             k = CfInstructionKind::NumMod
         elif op == AstExpressionKind::Eq:
             k = CfInstructionKind::NumEq
@@ -826,10 +826,10 @@ def build_expression(st: State*, expr: AstExpression*) -> LocalVariable*:
         add_binary_op(st, expr->location, CfInstructionKind::NumSub, zero, temp, result)
     elif (
         expr->kind == AstExpressionKind::Add
-        or expr->kind == AstExpressionKind::Subtract
-        or expr->kind == AstExpressionKind::Multiply
-        or expr->kind == AstExpressionKind::Divide
-        or expr->kind == AstExpressionKind::Modulo
+        or expr->kind == AstExpressionKind::Sub
+        or expr->kind == AstExpressionKind::Mul
+        or expr->kind == AstExpressionKind::Div
+        or expr->kind == AstExpressionKind::Mod
         or expr->kind == AstExpressionKind::Eq
         or expr->kind == AstExpressionKind::Ne
         or expr->kind == AstExpressionKind::Gt
@@ -1036,10 +1036,10 @@ def build_statement(st: State*, stmt: AstStatement*) -> None:
 
     elif (
         stmt->kind == AstStatementKind::InPlaceAdd
-        or stmt->kind == AstStatementKind::InPlaceSubtract
-        or stmt->kind == AstStatementKind::InPlaceMultiply
-        or stmt->kind == AstStatementKind::InPlaceDivide
-        or stmt->kind == AstStatementKind::InPlaceModulo
+        or stmt->kind == AstStatementKind::InPlaceSub
+        or stmt->kind == AstStatementKind::InPlaceMul
+        or stmt->kind == AstStatementKind::InPlaceDiv
+        or stmt->kind == AstStatementKind::InPlaceMod
     ):
         targetexpr = &stmt->assignment.target
         rhsexpr = &stmt->assignment.value
@@ -1052,14 +1052,14 @@ def build_statement(st: State*, stmt: AstStatement*) -> None:
 
         if stmt->kind == AstStatementKind::InPlaceAdd:
             op = AstExpressionKind::Add
-        elif stmt->kind == AstStatementKind::InPlaceSubtract:
-            op = AstExpressionKind::Subtract
-        elif stmt->kind == AstStatementKind::InPlaceMultiply:
-            op = AstExpressionKind::Multiply
-        elif stmt->kind == AstStatementKind::InPlaceDivide:
-            op = AstExpressionKind::Divide
-        elif stmt->kind == AstStatementKind::InPlaceModulo:
-            op = AstExpressionKind::Modulo
+        elif stmt->kind == AstStatementKind::InPlaceSub:
+            op = AstExpressionKind::Sub
+        elif stmt->kind == AstStatementKind::InPlaceMul:
+            op = AstExpressionKind::Mul
+        elif stmt->kind == AstStatementKind::InPlaceDiv:
+            op = AstExpressionKind::Div
+        elif stmt->kind == AstStatementKind::InPlaceMod:
+            op = AstExpressionKind::Mod
         else:
             assert False
 
