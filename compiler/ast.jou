@@ -92,6 +92,48 @@ class TreePrinter:
         return subprinter
 
 
+# Foo::Bar
+class AstEnumMember:
+    enum_name: byte[100]
+    member_name: byte[100]
+
+
+# foo.bar, foo->bar
+class AstClassField:
+    instance: AstExpression*
+    uses_arrow_operator: bool  # distinguishes foo.bar and foo->bar
+    field_name: byte[100]
+
+    def free(self) -> None:
+        self->instance->free()
+        free(self->instance)
+
+
+# Foo{bar = 1, baz = 2}
+class AstInstantiation:
+    class_name_location: Location  # TODO: probably not necessary, can use location of the instantiate expression
+    class_name: byte[100]
+    nfields: int
+    field_names: byte[100]*
+    field_values: AstExpression*
+
+    def print(self) -> None:
+        self->print_with_tree_printer(TreePrinter{})
+
+    def print_with_tree_printer(self, tp: TreePrinter) -> None:
+        printf("instantiate \"%s\"\n", self->class_name)
+        for i = 0; i < self->nfields; i++:
+            sub = tp.print_prefix(i == self->nfields - 1)
+            printf("field \"%s\": ", self->field_names[i])
+            self->field_values[i].print_with_tree_printer(sub)
+
+    def free(self) -> None:
+        for i = 0; i < self->nfields; i++:
+            self->field_values[i].free()
+        free(self->field_names)
+        free(self->field_values)
+
+
 enum AstExpressionKind:
     String
     Int
@@ -329,6 +371,7 @@ class AstExpression:
         )
 
 
+# [foo, bar, baz]
 class AstArray:
     length: int
     items: AstExpression*
@@ -339,21 +382,7 @@ class AstArray:
         free(self->items)
 
 
-class AstEnumMember:
-    enum_name: byte[100]
-    member_name: byte[100]
-
-
-class AstClassField:
-    instance: AstExpression*
-    uses_arrow_operator: bool  # distinguishes foo.bar and foo->bar
-    field_name: byte[100]
-
-    def free(self) -> None:
-        self->instance->free()
-        free(self->instance)
-
-
+# foo as bar
 class AstAs:
     value: AstExpression
     type: AstType
@@ -372,6 +401,9 @@ class AstAs:
         self->type.free()
 
 
+# foo(arg1, arg2, arg3)
+# foo.bar(arg1, arg2, arg3)
+# foo->bar(arg1, arg2, arg3)
 class AstCall:
     location: Location
     name: byte[100]  # name of function or method
@@ -413,30 +445,7 @@ class AstCall:
             return "method"
 
 
-class AstInstantiation:
-    class_name_location: Location  # TODO: probably not necessary, can use location of the instantiate expression
-    class_name: byte[100]
-    nfields: int
-    field_names: byte[100]*
-    field_values: AstExpression*
-
-    def print(self) -> None:
-        self->print_with_tree_printer(TreePrinter{})
-
-    def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("instantiate \"%s\"\n", self->class_name)
-        for i = 0; i < self->nfields; i++:
-            sub = tp.print_prefix(i == self->nfields - 1)
-            printf("field \"%s\": ", self->field_names[i])
-            self->field_values[i].print_with_tree_printer(sub)
-
-    def free(self) -> None:
-        for i = 0; i < self->nfields; i++:
-            self->field_values[i].free()
-        free(self->field_names)
-        free(self->field_values)
-
-
+# assert foo
 class AstAssertion:
     condition: AstExpression
     condition_str: byte*
@@ -591,6 +600,7 @@ class AstConditionAndBody:
         self->body.free()
 
 
+# foo = bar
 class AstAssignment:
     target: AstExpression
     value: AstExpression
@@ -603,6 +613,14 @@ class AstAssignment:
         self->value.print_with_tree_printer(tp.print_prefix(True))
 
 
+# if foo:
+#     ...
+# elif bar:
+#     ...
+# elif baz:
+#     ...
+# else:
+#     ...
 class AstIfStatement:
     if_and_elifs: AstConditionAndBody*
     n_if_and_elifs: int  # At least 1 (the if statement). The rest, if any, are elifs.
@@ -628,10 +646,9 @@ class AstIfStatement:
         self->else_body.free()
 
 
+# for init; cond; incr:
+#     ...body...
 class AstForLoop:
-    # for init; cond; incr:
-    #     ...body...
-    #
     # init and incr must be pointers because this struct goes inside AstStatement.
     init: AstStatement*
     cond: AstExpression
@@ -669,8 +686,8 @@ class AstForLoop:
         self->body.free()
 
 
+# name: type = value
 class AstNameTypeValue:
-    # name: type = value
     name: byte[100]
     name_location: Location
     type: AstType
@@ -699,6 +716,7 @@ class AstNameTypeValue:
         free(self->value)
 
 
+# typically multiple indented lines after a ":" at end of line
 class AstBody:
     statements: AstStatement*
     nstatements: int
@@ -716,6 +734,7 @@ class AstBody:
         free(self->statements)
 
 
+# function name and parameters in "def" or "declare"
 class AstSignature:
     name_location: Location
     name: byte[100]  # name of function or method, after "def" keyword
@@ -756,6 +775,7 @@ class AstSignature:
         self->return_type.free()
 
 
+# import "./foo.jou"
 class AstImport:
     location: Location
     specified_path: byte*  # Path in jou code e.g. "stdlib/io.jou"
@@ -773,6 +793,7 @@ class AstImport:
         free(self->resolved_path)
 
 
+# Represents the AST of one Jou file.
 class AstFile:
     path: byte*  # not owned
     imports: AstImport*
@@ -793,6 +814,8 @@ class AstFile:
         self->body.free()
 
 
+# def foo() -> bar:
+#     ...
 class AstFunctionOrMethod:
     signature: AstSignature
     body: AstBody  # empty body means declaration, otherwise it's a definition
@@ -809,6 +832,9 @@ class AstFunctionOrMethod:
         self->body.free()
 
 
+# union:
+#     foo: type1
+#     bar: type2
 class AstUnionFields:
     fields: AstNameTypeValue*
     nfields: int
@@ -832,6 +858,7 @@ enum AstClassMemberKind:
     Union
     Method
 
+# Anything that goes inside "class"
 class AstClassMember:
     kind: AstClassMemberKind
     union:
@@ -865,6 +892,8 @@ class AstClassMember:
             assert False
 
 
+# class Foo:
+#     ...members...
 class AstClassDef:
     name: byte[100]
     name_location: Location
@@ -885,6 +914,10 @@ class AstClassDef:
         free(self->members)
 
 
+# enum Foo:
+#     Member1
+#     Member2
+#     Member3
 class AstEnumDef:
     name: byte[100]
     name_location: Location
