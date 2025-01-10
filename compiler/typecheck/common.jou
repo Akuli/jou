@@ -4,8 +4,11 @@
 import "stdlib/io.jou"
 import "stdlib/math.jou"
 import "stdlib/str.jou"
+import "stdlib/mem.jou"
 
 import "../ast.jou"
+import "../evaluate.jou"
+import "../errors_and_warnings.jou"
 import "../types.jou"
 
 
@@ -104,6 +107,65 @@ class FileTypes:
                     *f->usedptr = True
                 return &f->signature
         return NULL
+
+    def find_function_or_method(self, selfclass: Type*, name: byte*) -> Signature*:
+        if selfclass != NULL:
+            return selfclass->find_method(name)
+        else:
+            return self->find_function(name)
+
+    def find_global_var(self, name: byte*) -> Type*:
+        for gvar = self->globals; gvar < &self->globals[self->nglobals]; gvar++:
+            if strcmp(gvar->name, name) == 0:
+                if gvar->usedptr != NULL:
+                    *gvar->usedptr = True
+                return gvar->type
+        return NULL
+
+
+def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
+    msg: byte[500]
+
+    if asttype->is_void() or asttype->is_none() or asttype->is_noreturn():
+        snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype->name)
+        fail(asttype->location, msg)
+
+    if asttype->kind == AstTypeKind::Named:
+        if strcmp(asttype->name, "short") == 0:
+            return shortType
+        if strcmp(asttype->name, "int") == 0:
+            return intType
+        if strcmp(asttype->name, "long") == 0:
+            return longType
+        if strcmp(asttype->name, "byte") == 0:
+            return byteType
+        if strcmp(asttype->name, "bool") == 0:
+            return boolType
+        if strcmp(asttype->name, "float") == 0:
+            return floatType
+        if strcmp(asttype->name, "double") == 0:
+            return doubleType
+
+        found = ft->find_type(asttype->name)
+        if found != NULL:
+            return found
+
+        snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype->name)
+        fail(asttype->location, msg)
+
+    if asttype->kind == AstTypeKind::Pointer:
+        if asttype->value_type->is_void():
+            return voidPtrType
+        return type_from_ast(ft, asttype->value_type)->pointer_type()
+
+    if asttype->kind == AstTypeKind::Array:
+        tmp = type_from_ast(ft, asttype->value_type)
+        len = evaluate_array_length(asttype->array.length)
+        if len <= 0:
+            fail(asttype->array.length->location, "array length must be positive")
+        return tmp->array_type(len)
+
+    assert False
 
 
 def short_type_description(t: Type*) -> byte*:

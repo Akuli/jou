@@ -89,6 +89,16 @@ class Type:
         info->arrays[info->narrays++] = arr
         return &arr->type
 
+    # TODO: Make sure this is used in all places where it would be useful.
+    def find_method(self, name: byte*) -> Signature*:
+        if self->kind != TypeKind::Class:
+            return NULL
+
+        for m = self->classdata.methods; m < &self->classdata.methods[self->classdata.nmethods]; m++:
+            if strcmp(m->name, name) == 0:
+                return m
+        return NULL
+
 
 # The TypeInfo for type T contains the type T* (if it has been used)
 # and all array and pointer types with element type T.
