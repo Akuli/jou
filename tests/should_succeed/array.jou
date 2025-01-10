@@ -42,4 +42,13 @@ def main() -> int:
     increment(foo as int*)  # same cast explicitly
     printf("%d %d %d\n", foo[0], foo[1], foo[2])  # Output: 7 5 6
 
+    # corner case: byte* <--> void* can be converted both ways, use byte*
+    strings = ["hello", NULL, "world", NULL]
+    printf("%s %s\n", strings[0], strings[2])  # Output: hello world
+    # Output: strings[1] is NULL
+    # Output: strings[3] is NULL
+    for i = 0; i < 4; i++:
+        if strings[i] == NULL:
+            printf("strings[%d] is NULL\n", i)
+
     return 0

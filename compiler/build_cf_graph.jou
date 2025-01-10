@@ -114,7 +114,7 @@ def add_unary_op(
     target: LocalVariable*,
 ) -> None:
     ins = CfInstruction{location = location, kind = op, destvar = target}
-    operands = [arg, NULL as LocalVariable*]
+    operands = [arg, NULL]
     ins.set_operands(operands)
     add_instruction(st, ins)
 
@@ -129,7 +129,7 @@ def add_binary_op(
     target: LocalVariable*,
 ) -> None:
     ins = CfInstruction{location = location, kind = op, destvar = target}
-    operands = [lhs, rhs, NULL as LocalVariable*]
+    operands = [lhs, rhs, NULL]
     ins.set_operands(operands)
     add_instruction(st, ins)
 
@@ -331,7 +331,7 @@ def build_class_field_pointer(
             assert sizeof(ins.fieldname) == sizeof(f->name)
             strcpy(ins.fieldname, f->name)
 
-            operands = [instance, NULL as LocalVariable*]
+            operands = [instance, NULL]
             ins.set_operands(operands)
 
             add_instruction(st, ins)
@@ -917,7 +917,7 @@ def build_assert(st: State*, assert_location: Location, assertion: AstAssertion*
         add_local_var(st, argtypes[0]),
         add_local_var(st, argtypes[1]),
         add_local_var(st, argtypes[2]),
-        NULL as LocalVariable*,
+        NULL,
     ]
 
     add_constant(st, assert_location, Constant{kind = ConstantKind::String, str = assertion->condition_str}, args[0])
