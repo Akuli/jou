@@ -130,19 +130,11 @@ def evaluate_array_length(expr: AstExpression*) -> int:
         return expr->int_value
     fail(expr->location, "cannot evaluate array length at compile time")
 
-def is_void(t: AstType*) -> bool:
-    return t->kind == AstTypeKind::Named and strcmp(t->name, "void") == 0
-
-def is_none(t: AstType*) -> bool:
-    return t->kind == AstTypeKind::Named and strcmp(t->name, "None") == 0
-
-def is_noreturn(t: AstType*) -> bool:
-    return t->kind == AstTypeKind::Named and strcmp(t->name, "noreturn") == 0
 
 def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
     msg: byte[500]
 
-    if is_void(asttype) or is_none(asttype) or is_noreturn(asttype):
+    if asttype->is_void() or asttype->is_none() or asttype->is_noreturn():
         snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype->name)
         fail(asttype->location, msg)
 
@@ -170,7 +162,7 @@ def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
         fail(asttype->location, msg)
 
     if asttype->kind == AstTypeKind::Pointer:
-        if is_void(asttype->value_type):
+        if asttype->value_type->is_void():
             return voidPtrType
         return get_pointer_type(type_from_ast(ft, asttype->value_type))
 
@@ -246,10 +238,10 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
 
         sig.argtypes[i] = argtype
 
-    sig.is_noreturn = is_noreturn(&astsig->return_type)
-    if is_none(&astsig->return_type) or is_noreturn(&astsig->return_type):
+    sig.is_noreturn = astsig->return_type.is_noreturn()
+    if astsig->return_type.is_none() or astsig->return_type.is_noreturn():
         sig.returntype = NULL
-    elif is_void(&astsig->return_type):
+    elif astsig->return_type.is_void():
         fail(astsig->return_type.location, "void is not a valid return type, use '-> None' if the function does not return a value")
     else:
         sig.returntype = type_from_ast(ft, &astsig->return_type)
