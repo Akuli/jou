@@ -1,6 +1,5 @@
 import "stdlib/mem.jou"
 import "stdlib/io.jou"
-import "stdlib/str.jou"
 
 import "./errors_and_warnings.jou"
 import "./structs.jou"
@@ -144,40 +143,24 @@ def very_short_number_type_description(t: Type*) -> byte*:
     assert False
 
 
-
-
-global printed_varnames: byte[10][10]
-global printed_varnames_idx: int
-
-
-def varname_for_printing(var: LocalVariable*) -> byte*:
-    if var->name[0] != '\0':
-        # it is named, not a dummy
-        return var->name
-
-    # Cycle through enough space for a few variables, so that you
-    # can call this several times inside the same printf().
-    s: byte* = printed_varnames[printed_varnames_idx++]
-    printed_varnames_idx %= (sizeof(printed_varnames) / sizeof(printed_varnames[0])) as int
-
-    sprintf(s, "$%d", var->id)
-    return s
-
-
 def print_cf_instruction(ins: CfInstruction*) -> None:
     printf("    line %-4d  ", ins->location.lineno)
 
     if ins->destvar != NULL:
-        printf("%s = ", varname_for_printing(ins->destvar))
+        ins->destvar->print()
+        printf(" = ")
 
     if ins->kind == CfInstructionKind::AddressOfLocalVar:
-        printf("address of %s (local variable)", varname_for_printing(ins->operands[0]))
+        printf("address of ")
+        ins->operands[0]->print()
+        printf(" (local variable)")
     elif ins->kind == CfInstructionKind::AddressOfGlobalVar:
         printf("address of %s (global variable)", ins->globalname)
     elif ins->kind == CfInstructionKind::SizeOf:
         printf("sizeof %s", ins->type->name)
     elif ins->kind == CfInstructionKind::BoolNegate:
-        printf("boolean negation of %s", varname_for_printing(ins->operands[0]))
+        printf("boolean negation of ")
+        ins->operands[0]->print()
     elif ins->kind == CfInstructionKind::Call:
         if get_self_class(&ins->signature) != NULL:
             printf("call method %s.", get_self_class(&ins->signature)->name)
@@ -187,24 +170,34 @@ def print_cf_instruction(ins: CfInstruction*) -> None:
         for i = 0; i < ins->noperands; i++:
             if i != 0:
                 printf(", ")
-            printf("%s", varname_for_printing(ins->operands[i]))
+            ins->operands[i]->print()
         printf(")")
     elif ins->kind == CfInstructionKind::NumCast:
+        printf("number cast ")
+        ins->operands[0]->print()
         printf(
-            "number cast %s (%d-bit %s --> %d-bit %s)",
-            varname_for_printing(ins->operands[0]),
+            " (%d-bit %s --> %d-bit %s)",
             ins->operands[0]->type->size_in_bits,
             very_short_number_type_description(ins->operands[0]->type),
             ins->destvar->type->size_in_bits,
-            very_short_number_type_description(ins->destvar->type))
+            very_short_number_type_description(ins->destvar->type),
+        )
     elif ins->kind == CfInstructionKind::EnumToInt32:
-        printf("cast %s from enum to 32-bit signed int", varname_for_printing(ins->operands[0]))
+        printf("cast ")
+        ins->operands[0]->print()
+        printf(" from enum to 32-bit signed int")
     elif ins->kind == CfInstructionKind::Int32ToEnum:
-        printf("cast %s from 32-bit signed int to enum", varname_for_printing(ins->operands[0]))
+        printf("cast ")
+        ins->operands[0]->print()
+        printf(" from 32-bit signed int to enum")
     elif ins->kind == CfInstructionKind::PtrToInt64:
-        printf("cast %s to 64-bit integer", varname_for_printing(ins->operands[0]))
+        printf("cast ")
+        ins->operands[0]->print()
+        printf(" to 64-bit integer")
     elif ins->kind == CfInstructionKind::Int64ToPtr:
-        printf("cast %s from 64-bit integer to pointer", varname_for_printing(ins->operands[0]))
+        printf("cast ")
+        ins->operands[0]->print()
+        printf(" from 64-bit integer to pointer")
     elif ins->kind == CfInstructionKind::Constant:
         print_constant(&ins->constant)
     elif ins->kind == CfInstructionKind::SpecialConstant:
@@ -237,22 +230,36 @@ def print_cf_instruction(ins: CfInstruction*) -> None:
             printf("num lt ")
         else:
             assert False
-        printf("%s, %s", varname_for_printing(ins->operands[0]), varname_for_printing(ins->operands[1]))
+        ins->operands[0]->print()
+        printf(", ")
+        ins->operands[1]->print()
     elif ins->kind == CfInstructionKind::PtrLoad:
         # Extra parentheses to make these stand out a bit.
-        printf("*(%s)", varname_for_printing(ins->operands[0]))
+        printf("*(")
+        ins->operands[0]->print()
+        printf(")")
     elif ins->kind == CfInstructionKind::PtrStore:
-        printf("*(%s) = %s", varname_for_printing(ins->operands[0]), varname_for_printing(ins->operands[1]))
+        printf("*(")
+        ins->operands[0]->print()
+        printf(") = ")
+        ins->operands[1]->print()
     elif ins->kind == CfInstructionKind::PtrAddInt:
-        printf("ptr %s + integer %s", varname_for_printing(ins->operands[0]), varname_for_printing(ins->operands[1]))
+        printf("ptr ")
+        ins->operands[0]->print()
+        printf(" + integer ")
+        ins->operands[1]->print()
     elif ins->kind == CfInstructionKind::PtrClassField:
-        printf("%s + offset of field \"%s\"", varname_for_printing(ins->operands[0]), ins->fieldname)
+        ins->operands[0]->print()
+        printf(" + offset of field \"%s\"", ins->fieldname)
     elif ins->kind == CfInstructionKind::PtrCast:
-        printf("pointer cast %s", varname_for_printing(ins->operands[0]))
+        printf("pointer cast ")
+        ins->operands[0]->print()
     elif ins->kind == CfInstructionKind::PtrMemsetToZero:
-        printf("set value of pointer %s to zero bytes", varname_for_printing(ins->operands[0]))
+        printf("set value of pointer ")
+        ins->operands[0]->print()
+        printf(" to zero bytes")
     elif ins->kind == CfInstructionKind::VarCpy:
-        printf("%s", varname_for_printing(ins->operands[0]))
+        ins->operands[0]->print()
     else:
         assert False
     printf("\n")
@@ -267,7 +274,13 @@ def print_control_flow_graph(cfg: CfGraph*) -> None:
 
     printf("  Variables:\n")
     for var = cfg->locals; var < &cfg->locals[cfg->nlocals]; var++:
-        printf("    %-20s  %s\n", varname_for_printing(*var), (*var)->type->name)
+        printf("    ")
+        (*var)->print()
+        # Pad variable names with spaces to align them.
+        for i = (*var)->print_width(); i < 20; i++:
+            putchar(' ')
+        # If variable name is very long, put two spaces even in that case.
+        printf("  %s\n", (*var)->type->name)
 
     for blockidx = 0; blockidx < cfg->n_all_blocks; blockidx++:
         b = cfg->all_blocks[blockidx]
@@ -306,8 +319,9 @@ def print_control_flow_graph(cfg: CfGraph*) -> None:
                 printf("    Jump to block %d.\n", trueidx)
             else:
                 assert b->branchvar != NULL
-                printf("    If %s is True jump to block %d, otherwise block %d.\n",
-                    varname_for_printing(b->branchvar), trueidx, falseidx)
+                printf("    If ")
+                b->branchvar->print()
+                printf(" is True jump to block %d, otherwise block %d.\n", trueidx, falseidx)
 
     printf("\n")
 

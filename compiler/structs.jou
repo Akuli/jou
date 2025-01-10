@@ -1,6 +1,7 @@
 # TODO: delete this file, merge into others
 
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 
 import "./ast.jou"
 import "./types.jou"
@@ -85,11 +86,28 @@ class GlobalVariable:
     defined_in_current_file: bool  # not declare-only (e.g. stdout) or imported
     usedptr: bool*  # If non-NULL, set to true when the variable is used. This is how we detect unused imports.
 
+
 class LocalVariable:
-    id: int  # Unique, but you can also compare pointers to Variable.
+    id: int  # Unique, but you can also compare pointers to LocalVariable.
     name: byte[100]  # Same name as in user's code, empty for temporary variables created by compiler
     type: Type*
     is_argument: bool    # First n variables are always the arguments
+
+    def print(self) -> int:
+        if self->name[0] != '\0':
+            printf("%s", self->name)
+        else:
+            # Anonymous temporary variable created by compiler.
+            printf("$%d", self->id)
+
+    # Return how many characters print() outputs.
+    def print_width(self) -> int:
+        if self->name[0] != '\0':
+            return strlen(self->name) as int
+        temp: byte[100]
+        sprintf(temp, "%d", self->id)
+        return 1 + (strlen(temp) as int)
+
 
 class ExpressionTypes:
     expr: AstExpression*  # not owned
