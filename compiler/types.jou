@@ -89,7 +89,6 @@ class Type:
         info->arrays[info->narrays++] = arr
         return &arr->type
 
-    # TODO: Make sure this is used in all places where it would be useful.
     def find_method(self, name: byte*) -> Signature*:
         if self->kind != TypeKind::Class:
             return NULL

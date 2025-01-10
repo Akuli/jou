@@ -852,24 +852,16 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
             result = typecheck_function_or_method_call(ft, &expr->call, temptype, expr->location)
 
             # If self argument is passed by pointer, make sure we can create that pointer
-            found = False
             assert temptype->kind == TypeKind::Class
-            for m = temptype->classdata.methods; m < &temptype->classdata.methods[temptype->classdata.nmethods]; m++:
-                if strcmp(m->name, expr->call.name) != 0:
-                    continue
-
-                if m->argtypes[0]->is_pointer_type():
-                    assert strstr(expr->call.name, "%") == NULL
-                    snprintf(
-                        msg, sizeof msg,
-                        "cannot take address of %%s, needed for calling the %s() method",
-                        expr->call.name)
-                    ensure_can_take_address(ft->current_fom_types, expr->call.method_call_self, msg)
-
-                found = True
-                break
-
-            assert found
+            signature = temptype->find_method(expr->call.name)
+            assert signature != NULL
+            if signature->argtypes[0]->is_pointer_type():
+                assert strstr(expr->call.name, "%") == NULL
+                snprintf(
+                    msg, sizeof msg,
+                    "cannot take address of %%s, needed for calling the %s() method",
+                    expr->call.name)
+                ensure_can_take_address(ft->current_fom_types, expr->call.method_call_self, msg)
 
         if result == NULL:
             # no return value produced
@@ -1178,10 +1170,6 @@ def typecheck_step3_function_and_method_bodies(ft: FileTypes*, ast: AstFile*) ->
                     continue
                 method = &m->method
 
-                sig = NULL
-                for s = classtype->classdata.methods; s < &classtype->classdata.methods[classtype->classdata.nmethods]; s++:
-                    if strcmp(s->name, method->signature.name) == 0:
-                        sig = s
-                        break
+                sig = classtype->find_method(method->signature.name)
                 assert sig != NULL
                 typecheck_function_or_method_body(ft, sig, &method->body)
