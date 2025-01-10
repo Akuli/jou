@@ -195,7 +195,10 @@ def get_filename_without_jou_suffix(path: byte*) -> byte*:
     return result
 
 
-def get_default_exe_path() -> byte*:
+def decide_exe_path() -> byte*:
+    if command_line_args.outfile != NULL:
+        return strdup(command_line_args.outfile)
+
     name = get_filename_without_jou_suffix(command_line_args.infile)
     if WINDOWS:
         name = realloc(name, strlen(name) + 10)
