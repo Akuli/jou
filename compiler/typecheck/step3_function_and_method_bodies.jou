@@ -572,7 +572,7 @@ def typecheck_function_or_method_call(ft: FileTypes*, call: AstCall*, self_type:
             snprintf(
                 msg, sizeof(msg),
                 "type %s does not have any methods because it is %s, not a class",
-                self_type->name, short_type_description(self_type))
+                self_type->name, self_type->short_description())
 
         fail(location, msg)
 
@@ -658,7 +658,7 @@ def typecheck_instantiation(ft: FileTypes*, inst: AstInstantiation*, location: L
         snprintf(
             msg, sizeof(msg),
             "the %s{...} syntax is only for classes, but %s is %s",
-            t->name, t->name, short_type_description(t))
+            t->name, t->name, t->short_description())
         fail(location, msg)
 
     specified_fields: ClassField** = malloc(sizeof(specified_fields[0]) * inst->nfields)
@@ -789,7 +789,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
                 msg, sizeof(msg),
                 "the '::' syntax is only for enums, but %s is %s",
                 expr->enum_member.enum_name,
-                short_type_description(result),
+                result->short_description(),
             )
             fail(expr->location, msg)
         if not enum_member_exists(result, expr->enum_member.member_name):

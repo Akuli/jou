@@ -61,8 +61,8 @@ def codegen_class_type(type: Type*) -> LLVMType*:
 
     flat_elems: LLVMType** = malloc(sizeof(flat_elems[0]) * n)
     for i = 0; i < n; i++:
-        # Treat all pointers inside structs as if they were void*.
-        # This allows structs to contain pointers to themselves.
+        # Treat all pointers inside classes as if they were void*.
+        # This allows classes to contain pointers to themselves.
         if type->classdata.fields[i].type->kind == TypeKind::Pointer:
             flat_elems[i] = codegen_type(voidPtrType)
         else:

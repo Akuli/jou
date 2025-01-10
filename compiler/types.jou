@@ -33,7 +33,7 @@ enum TypeKind:
     VoidPointer
     Array
     Class
-    OpaqueClass  # class with unknown members. TODO when used?
+    OpaqueClass  # class with unknown members, used temporarily during type checking
     Enum
 
 class Type:
@@ -87,6 +87,25 @@ class Type:
         assert info->arrays != NULL
         info->arrays[info->narrays++] = arr
         return &arr->type
+
+    def short_description(self) -> byte*:
+        if self->kind == TypeKind::OpaqueClass or self->kind == TypeKind::Class:
+            return "a class"
+        if self->kind == TypeKind::Enum:
+            return "an enum"
+        if self->kind == TypeKind::VoidPointer or self->kind == TypeKind::Pointer:
+            return "a pointer type"
+        if (
+            self->kind == TypeKind::SignedInteger
+            or self->kind == TypeKind::UnsignedInteger
+            or self->kind == TypeKind::FloatingPoint
+        ):
+            return "a number type"
+        if self->kind == TypeKind::Array:
+            return "an array type"
+        if self->kind == TypeKind::Bool:
+            return "the built-in bool type"
+        assert False
 
     def find_method(self, name: byte*) -> Signature*:
         if self->kind != TypeKind::Class:
