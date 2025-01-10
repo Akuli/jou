@@ -1,8 +1,10 @@
 # TODO: delete this file, merge into others
 
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
+import "./utils.jou"
 import "./types.jou"
 
 
@@ -48,6 +50,38 @@ class Constant:
         double_or_float_text: byte[100]  # convenient because LLVM wants a string anyway
         boolean: bool
         enum_member: EnumMemberConstant
+
+    def print(self) -> None:
+        if self->kind == ConstantKind::EnumMember:
+            printf("enum member %d of %s", self->enum_member.memberidx, self->enum_member.enumtype->name)
+        elif self->kind == ConstantKind::Bool:
+            if self->boolean:
+                printf("True")
+            else:
+                printf("False")
+        elif self->kind == ConstantKind::Float:
+            printf("float %s", self->double_or_float_text)
+        elif self->kind == ConstantKind::Double:
+            printf("double %s", self->double_or_float_text)
+        elif self->kind == ConstantKind::Integer:
+            if self->integer.is_signed:
+                signed_or_unsigned = "signed"
+            else:
+                signed_or_unsigned = "unsigned"
+            printf(
+                "%lld (%d-bit %s)",
+                self->integer.value,
+                self->integer.size_in_bits,
+                signed_or_unsigned,
+            )
+        elif self->kind == ConstantKind::Null:
+            printf("NULL")
+        elif self->kind == ConstantKind::String:
+            printf("string ")
+            print_string(self->str, strlen(self->str))
+            printf("\n")
+        else:
+            assert False
 
     def free(self) -> None:
         if self->kind == ConstantKind::String:

@@ -9,7 +9,6 @@ import "./build_cf_graph.jou"
 import "./evaluate.jou"
 import "./run.jou"
 import "./codegen.jou"
-import "./print.jou"
 import "./llvm.jou"
 import "./output.jou"
 import "./typecheck/common.jou"
@@ -178,6 +177,21 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
         )
 
     assert False
+
+
+def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
+    if is_optimized:
+        opt_or_unopt = "Optimized"
+    else:
+        opt_or_unopt = "Unoptimized"
+
+    len = 0L
+    filename = LLVMGetSourceFileName(module, &len)
+    printf("===== %s LLVM IR for file \"%.*s\" =====\n", opt_or_unopt, len as int, filename)
+
+    s = LLVMPrintModuleToString(module)
+    puts(s)
+    LLVMDisposeMessage(s)
 
 
 class FileState:
