@@ -114,8 +114,7 @@ def add_unary_op(
     target: LocalVariable*,
 ) -> None:
     ins = CfInstruction{location = location, kind = op, destvar = target}
-    operands = [arg, NULL]
-    ins.set_operands(operands)
+    ins.set_1_operand(arg)
     add_instruction(st, ins)
 
 
@@ -129,8 +128,7 @@ def add_binary_op(
     target: LocalVariable*,
 ) -> None:
     ins = CfInstruction{location = location, kind = op, destvar = target}
-    operands = [lhs, rhs, NULL]
-    ins.set_operands(operands)
+    ins.set_2_operands(lhs, rhs)
     add_instruction(st, ins)
 
 
@@ -327,12 +325,10 @@ def build_class_field_pointer(
                 kind = CfInstructionKind::PtrClassField,
                 destvar = result,
             }
+            ins.set_1_operand(instance)
 
             assert sizeof(ins.fieldname) == sizeof(f->name)
             strcpy(ins.fieldname, f->name)
-
-            operands = [instance, NULL]
-            ins.set_operands(operands)
 
             add_instruction(st, ins)
             return result
@@ -555,12 +551,12 @@ def build_function_or_method_call(
 
     assert sig != NULL
 
-    args: LocalVariable** = calloc(call->nargs + 2, sizeof(args[0]))
-    k = 0
+    args: LocalVariable** = malloc(sizeof(args[0]) * (call->nargs + 2))  # +1 for self, another because why not
+    nargs = 0
 
     if call->method_call_self != NULL:
         if is_pointer_type(sig->argtypes[0]) and not call->uses_arrow_operator:
-            args[k++] = build_address_of_expression(st, call->method_call_self)
+            args[nargs++] = build_address_of_expression(st, call->method_call_self)
         elif (not is_pointer_type(sig->argtypes[0])) and call->uses_arrow_operator:
             self_ptr = build_expression(st, call->method_call_self)
             assert self_ptr->type->kind == TypeKind::Pointer
@@ -568,12 +564,12 @@ def build_function_or_method_call(
             # dereference the pointer
             val = add_local_var(st, self_ptr->type->value_type)
             add_unary_op(st, call->method_call_self->location, CfInstructionKind::PtrLoad, self_ptr, val)
-            args[k++] = val
+            args[nargs++] = val
         else:
-            args[k++] = build_expression(st, call->method_call_self)
+            args[nargs++] = build_expression(st, call->method_call_self)
 
     for i = 0; i < call->nargs; i++:
-        args[k++] = build_expression(st, &call->args[i])
+        args[nargs++] = build_expression(st, &call->args[i])
 
     if sig->returntype != NULL:
         return_value = add_local_var(st, sig->returntype)
@@ -585,15 +581,15 @@ def build_function_or_method_call(
         kind = CfInstructionKind::Call,
         signature = copy_signature(sig),
         destvar = return_value,
+        operands = args,
+        noperands = nargs,
     }
-    ins.set_operands(args)
     add_instruction(st, ins)
 
     if sig->is_noreturn:
         # Place the remaining code into an unreachable block, so you will get a warning if there is any
         add_jump(st, NULL, NULL, NULL, NULL)
 
-    free(args)
     return return_value
 
 
@@ -913,12 +909,11 @@ def build_assert(st: State*, assert_location: Location, assertion: AstAssertion*
     argtypes[1] = get_pointer_type(byteType)
     argtypes[2] = intType
 
-    args = [
-        add_local_var(st, argtypes[0]),
-        add_local_var(st, argtypes[1]),
-        add_local_var(st, argtypes[2]),
-        NULL,
-    ]
+    args: LocalVariable** = malloc(sizeof(args[0]) * 3)
+    assert args != NULL
+    args[0] = add_local_var(st, argtypes[0])
+    args[1] = add_local_var(st, argtypes[1])
+    args[2] = add_local_var(st, argtypes[2])
 
     add_constant(st, assert_location, Constant{kind = ConstantKind::String, str = assertion->condition_str}, args[0])
     tmp = strdup(assertion->condition.location.path)
@@ -938,8 +933,9 @@ def build_assert(st: State*, assert_location: Location, assertion: AstAssertion*
             is_noreturn = True,
             returntype_location = assert_location,
         },
+        operands = args,
+        noperands = 3,
     }
-    ins.set_operands(args)
     add_instruction(st, ins)
 
     st->current_block = trueblock

@@ -202,18 +202,18 @@ class CfInstruction:
             free_signature(&self->signature)
         free(self->operands)
 
-    # operands should be NULL-terminated array, or NULL for empty
-    # TODO: does it ever need to be NULL?
-    # TODO: do we need this method at all?
-    def set_operands(self, operands: LocalVariable**) -> None:
-        self->noperands = 0
-        while operands != NULL and operands[self->noperands] != NULL:
-            self->noperands++
-
-        nbytes = sizeof(self->operands[0]) * self->noperands
-        self->operands = malloc(nbytes)
+    def set_1_operand(self, operand: LocalVariable*) -> None:
+        self->noperands = 1
+        self->operands = malloc(sizeof(self->operands[0]))
         assert self->operands != NULL
-        memcpy(self->operands, operands, nbytes)
+        self->operands[0] = operand
+
+    def set_2_operands(self, operand1: LocalVariable*, operand2: LocalVariable*) -> None:
+        self->noperands = 2
+        self->operands = malloc(2 * sizeof(self->operands[0]))
+        assert self->operands != NULL
+        self->operands[0] = operand1
+        self->operands[1] = operand2
 
 
 class CfBlock:
