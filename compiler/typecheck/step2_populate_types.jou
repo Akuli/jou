@@ -120,7 +120,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
 
 
 def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
-    # Previous type-checking step created an opaque struct.
+    # Previous type-checking step created an opaque class.
     type: Type* = NULL
     for s = ft->owned_types; s < &ft->owned_types[ft->n_owned_types]; s++:
         if strcmp((*s)->name, classdef->name) == 0:
