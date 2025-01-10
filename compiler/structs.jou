@@ -1,6 +1,7 @@
 # TODO: delete this file, merge into others
 
 import "stdlib/str.jou"
+import "stdlib/mem.jou"
 
 import "./types.jou"
 
@@ -48,6 +49,16 @@ class Constant:
         boolean: bool
         enum_member: EnumMemberConstant
 
+    def free(self) -> None:
+        if self->kind == ConstantKind::String:
+            free(self->str)
+
+    def copy(self: Constant) -> Constant:
+        if self.kind == ConstantKind::String:
+            self.str = strdup(self.str)
+            assert self.str != NULL
+        return self
+
     def get_type(self) -> Type*:
         if self->kind == ConstantKind::EnumMember:
             return self->enum_member.enumtype
@@ -64,12 +75,6 @@ class Constant:
         if self->kind == ConstantKind::Integer:
             return get_integer_type(self->integer.size_in_bits, self->integer.is_signed)
         assert False
-
-    def copy(self: Constant) -> Constant:
-        if self.kind == ConstantKind::String:
-            self.str = strdup(self.str)
-            assert self.str != NULL
-        return self
 
 
 def int_constant(type: Type*, value: long) -> Constant:

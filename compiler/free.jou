@@ -2,13 +2,8 @@
 
 import "stdlib/mem.jou"
 
-import "./structs.jou"
 import "./types.jou"
 import "./typecheck/common.jou"
-
-def free_constant(c: Constant*) -> None:
-    if c->kind == ConstantKind::String:
-        free(c->str)
 
 def free_signature(sig: Signature*) -> None:
     free(sig->argnames)

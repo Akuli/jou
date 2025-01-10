@@ -196,7 +196,7 @@ class CfInstruction:
 
     def free(self) -> None:
         if self->kind == CfInstructionKind::Constant:
-            free_constant(&self->constant)
+            self->constant.free()
         if self->kind == CfInstructionKind::StringArray:
             free(self->strarray.str)
         if self->kind == CfInstructionKind::Call:
