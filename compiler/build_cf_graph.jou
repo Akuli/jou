@@ -531,19 +531,13 @@ def build_function_or_method_call(
 
     if call->method_call_self != NULL:
         selfclass = get_expr_types(st, call->method_call_self)->type
-
         if call->uses_arrow_operator:
             assert selfclass->kind == TypeKind::Pointer
             selfclass = selfclass->value_type
-
         assert selfclass->kind == TypeKind::Class
         sig = selfclass->find_method(call->name)
-
     else:
-        for f = st->filetypes->functions; f < &st->filetypes->functions[st->filetypes->nfunctions]; f++:
-            if strcmp(f->signature.name, call->name) == 0:
-                sig = &f->signature
-                break
+        sig = st->filetypes->find_function(call->name)
 
     assert sig != NULL
 

@@ -1148,13 +1148,8 @@ def typecheck_step3_function_and_method_bodies(ft: FileTypes*, ast: AstFile*) ->
     for i = 0; i < ast->body.nstatements; i++:
         stmt = &ast->body.statements[i]
         if stmt->kind == AstStatementKind::Function and stmt->function.body.nstatements > 0:
-            sig: Signature* = NULL
-            for f = ft->functions; f < &ft->functions[ft->nfunctions]; f++:
-                if strcmp(f->signature.name, stmt->function.signature.name) == 0:
-                    sig = &f->signature
-                    break
+            sig = ft->find_function(stmt->function.signature.name)
             assert sig != NULL
-
             typecheck_function_or_method_body(ft, sig, &stmt->function.body)
 
         if stmt->kind == AstStatementKind::Class:
