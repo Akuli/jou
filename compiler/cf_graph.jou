@@ -5,9 +5,9 @@ import "stdlib/mem.jou"
 import "stdlib/io.jou"
 
 import "./errors_and_warnings.jou"
+import "./utils.jou"
 import "./structs.jou"
 import "./typecheck/common.jou"
-import "./print.jou"
 import "./free.jou"
 import "./types.jou"
 
@@ -129,7 +129,7 @@ class CfInstruction:
             self->operands[0]->print()
             printf(" from 64-bit integer to pointer")
         elif self->kind == CfInstructionKind::Constant:
-            print_constant(&self->constant)
+            self->constant.print()
         elif self->kind == CfInstructionKind::SpecialConstant:
             printf("special constant \"%s\"", self->scname)
         elif self->kind == CfInstructionKind::StringArray:

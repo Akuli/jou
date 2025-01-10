@@ -8,10 +8,9 @@
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
-import "./errors_and_warnings.jou"
 
-# TODO: move to stdlib
-declare isprint(b: int) -> int
+import "./errors_and_warnings.jou"
+import "./utils.jou"
 
 
 enum AstTypeKind:
@@ -202,15 +201,9 @@ class AstExpression:
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("[line %d] ", self->location.lineno)
         if self->kind == AstExpressionKind::String:
-            printf("string \"")
-            for s = self->string; *s != 0; s++:
-                if isprint(*s) != 0:
-                    putchar(*s)
-                elif *s == '\n':
-                    printf("\\n")
-                else:
-                    printf("\\x%02x", *s)
-            printf("\"\n")
+            printf("string ")
+            print_string(self->string, strlen(self->string))
+            printf("\n")
         elif self->kind == AstExpressionKind::Short:
             printf("short %hd\n", self->short_value)
         elif self->kind == AstExpressionKind::Int:

@@ -1,0 +1,14 @@
+import "stdlib/io.jou"
+
+
+def print_string(s: byte*, len: long) -> None:
+    putchar('"')
+    for i = 0; i < len; i++:
+        if 32 <= s[i] and s[i] <= 126:
+            # printable ascii character
+            putchar(s[i])
+        elif s[i] == '\n':
+            printf("\\n")
+        else:
+            printf("\\x%02x", s[i])     # TODO: \x is not yet recognized by the tokenizer
+    putchar('"')
