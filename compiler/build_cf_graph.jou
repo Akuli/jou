@@ -5,6 +5,7 @@ import "./cf_graph.jou"
 import "./structs.jou"
 import "./evaluate.jou"
 import "./types.jou"
+import "./typecheck/common.jou"
 import "./errors_and_warnings.jou"
 import "./ast.jou"
 
@@ -534,18 +535,9 @@ def build_function_or_method_call(
             assert selfclass->kind == TypeKind::Pointer
             selfclass = selfclass->value_type
         assert selfclass->kind == TypeKind::Class
-
-        for s = selfclass->classdata.methods; s < &selfclass->classdata.methods[selfclass->classdata.nmethods]; s++:
-            assert s->get_self_class() == selfclass
-            if strcmp(s->name, call->name) == 0:
-                sig = s
-                break
-
+        sig = selfclass->find_method(call->name)
     else:
-        for f = st->filetypes->functions; f < &st->filetypes->functions[st->filetypes->nfunctions]; f++:
-            if strcmp(f->signature.name, call->name) == 0:
-                sig = &f->signature
-                break
+        sig = st->filetypes->find_function(call->name)
 
     assert sig != NULL
 

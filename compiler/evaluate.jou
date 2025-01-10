@@ -5,6 +5,12 @@ import "./ast.jou"
 import "./errors_and_warnings.jou"
 
 
+def evaluate_array_length(expr: AstExpression*) -> int:
+    if expr->kind == AstExpressionKind::Int:
+        return expr->int_value
+    fail(expr->location, "cannot evaluate array length at compile time")
+
+
 def get_special_constant(name: byte*) -> int:
     if strcmp(name, "WINDOWS") == 0:
         return WINDOWS as int

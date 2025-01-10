@@ -1,0 +1,206 @@
+# Second step of type checking is to check function/method signatures, global
+# variables, and bodies of classes. However, we don't look into function or
+# method bodies yet, because they reference other functions and methods which
+# might not exist.
+#
+# After the second step, all types, functions, and global variables are ready.
+#
+# This step assumes that all types exist, but doesn't need to know what fields
+# and methods each class has.
+
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+import "../ast.jou"
+import "../types.jou"
+import "../errors_and_warnings.jou"
+import "./common.jou"
+
+
+def handle_global_var(ft: FileTypes*, vardecl: AstNameTypeValue*, defined_here: bool) -> ExportSymbol:
+    assert ft->current_fom_types == NULL  # find_any_var() only finds global vars
+    if ft->find_global_var(vardecl->name) != NULL:
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "a global variable named '%s' already exists", vardecl->name)
+        fail(vardecl->name_location, msg)
+
+    assert vardecl->value == NULL
+    g = GlobalVariable{
+        type = type_from_ast(ft, &vardecl->type),
+        defined_in_current_file = defined_here,
+    }
+
+    assert sizeof(g.name) == sizeof(vardecl->name)
+    strcpy(g.name, vardecl->name)
+
+    ft->globals = realloc(ft->globals, sizeof(ft->globals[0]) * (ft->nglobals + 1))
+    assert ft->globals != NULL
+    ft->globals[ft->nglobals++] = g
+
+    es = ExportSymbol{kind = ExportSymbolKind::GlobalVar, type = g.type}
+    assert sizeof(es.name) == sizeof(g.name)
+    strcpy(es.name, g.name)
+    return es
+
+
+def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -> Signature:
+    msg: byte[500]
+
+    if ft->find_function_or_method(self_class, astsig->name) != NULL:
+        if self_class != NULL:
+            snprintf(msg, sizeof(msg), "a method named '%s' already exists", astsig->name)
+        else:
+            snprintf(msg, sizeof(msg), "a function named '%s' already exists", astsig->name)
+        fail(astsig->name_location, msg)
+
+    sig = Signature{nargs = astsig->nargs, takes_varargs = astsig->takes_varargs}
+    assert sizeof(sig.name) == sizeof(astsig->name)
+    strcpy(sig.name, astsig->name)
+
+    size = sizeof(sig.argnames[0]) * sig.nargs
+    sig.argnames = malloc(size)
+    for i = 0; i < sig.nargs; i++:
+        assert sizeof(sig.argnames[i]) == sizeof(astsig->args[i].name)
+        strcpy(sig.argnames[i], astsig->args[i].name)
+
+    sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs)
+    for i = 0; i < sig.nargs; i++:
+        if (
+            strcmp(sig.argnames[i], "self") == 0
+            and astsig->args[i].type.kind == AstTypeKind::Named
+            and astsig->args[i].type.name[0] == '\0'
+        ):
+            # just "self" without a type after it --> default to "self: Foo*" in class Foo
+            argtype = self_class->pointer_type()
+        else:
+            argtype = type_from_ast(ft, &astsig->args[i].type)
+
+        if strcmp(sig.argnames[i], "self") == 0 and argtype != self_class and argtype != self_class->pointer_type():
+            snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class->name, self_class->name)
+            fail(astsig->args[i].type.location, msg)
+
+        sig.argtypes[i] = argtype
+
+    sig.is_noreturn = astsig->return_type.is_noreturn()
+    if astsig->return_type.is_none() or astsig->return_type.is_noreturn():
+        sig.returntype = NULL
+    elif astsig->return_type.is_void():
+        fail(astsig->return_type.location, "void is not a valid return type, use '-> None' if the function does not return a value")
+    else:
+        sig.returntype = type_from_ast(ft, &astsig->return_type)
+
+    if self_class == NULL and strcmp(sig.name, "main") == 0:
+        # special main() function checks
+        if sig.returntype != intType:
+            fail(astsig->return_type.location, "the main() function must return int")
+        if (
+            sig.nargs != 0
+            and not (
+                sig.nargs == 2
+                and sig.argtypes[0] == intType
+                and sig.argtypes[1] == byteType->pointer_type()->pointer_type()
+            )
+        ):
+            fail(
+                astsig->args[0].type.location,
+                "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
+            )
+
+    sig.returntype_location = astsig->return_type.location
+
+    if self_class == NULL:
+        ft->functions = realloc(ft->functions, sizeof(ft->functions[0]) * (ft->nfunctions + 1))
+        assert ft->functions != NULL
+        ft->functions[ft->nfunctions++] = SignatureAndUsedPtr{
+            signature = sig.copy(),
+            usedptr = NULL,
+        }
+
+    return sig
+
+
+def handle_class_members_step2(ft: FileTypes*, classdef: AstClassDef*) -> None:
+    # Previous type-checking step created an opaque struct.
+    type: Type* = NULL
+    for s = ft->owned_types; s < &ft->owned_types[ft->n_owned_types]; s++:
+        if strcmp((*s)->name, classdef->name) == 0:
+            type = *s
+            break
+
+    assert type != NULL
+    assert type->kind == TypeKind::OpaqueClass
+    type->kind = TypeKind::Class
+
+    memset(&type->classdata, 0, sizeof type->classdata)
+
+    union_id = 0
+    for m = classdef->members; m < &classdef->members[classdef->nmembers]; m++:
+        if m->kind == AstClassMemberKind::Field:
+            f = ClassField{
+                type = type_from_ast(ft, &m->field.type),
+                union_id = union_id++,
+            }
+            assert sizeof(f.name) == sizeof(m->field.name)
+            strcpy(f.name, m->field.name)
+
+            type->classdata.fields = realloc(type->classdata.fields, sizeof(type->classdata.fields[0]) * (type->classdata.nfields + 1))
+            assert type->classdata.fields != NULL
+            type->classdata.fields[type->classdata.nfields++] = f
+
+        elif m->kind == AstClassMemberKind::Union:
+            uid = union_id++
+            for ntv = m->union_fields.fields; ntv < &m->union_fields.fields[m->union_fields.nfields]; ntv++:
+                f = ClassField{
+                    type = type_from_ast(ft, &ntv->type),
+                    union_id = uid,
+                }
+                assert sizeof(f.name) == sizeof(ntv->name)
+                strcpy(f.name, ntv->name)
+
+                type->classdata.fields = realloc(type->classdata.fields, sizeof(type->classdata.fields[0]) * (type->classdata.nfields + 1))
+                assert type->classdata.fields != NULL
+                type->classdata.fields[type->classdata.nfields++] = f
+
+        elif m->kind == AstClassMemberKind::Method:
+            # Don't handle the method body yet: that is a part of step 3, not step 2
+            sig = handle_signature(ft, &m->method.signature, type)
+
+            type->classdata.methods = realloc(type->classdata.methods, sizeof(type->classdata.methods[0]) * (type->classdata.nmethods + 1))
+            assert type->classdata.methods != NULL
+            type->classdata.methods[type->classdata.nmethods++] = sig
+
+        else:
+            assert False
+
+
+def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*:
+    exports: ExportSymbol* = NULL
+    nexports = 0
+
+    for i = 0; i < ast->body.nstatements; i++:
+        stmt = &ast->body.statements[i]
+
+        exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+        assert exports != NULL
+
+        if stmt->kind == AstStatementKind::GlobalVariableDeclaration:
+            exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, False)
+        elif stmt->kind == AstStatementKind::GlobalVariableDefinition:
+            exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, True)
+        elif stmt->kind == AstStatementKind::Function:
+            sig = handle_signature(ft, &stmt->function.signature, NULL)
+            es = ExportSymbol{kind = ExportSymbolKind::Function, funcsignature = sig}
+            assert sizeof(es.name) == sizeof(sig.name)
+            strcpy(es.name, sig.name)
+            exports[nexports++] = es
+        elif stmt->kind == AstStatementKind::Class:
+            handle_class_members_step2(ft, &stmt->classdef)
+        elif stmt->kind == AstStatementKind::Enum:
+            pass  # Everything done in previous type-checking steps.
+        else:
+            assert False
+
+    exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
+    assert exports != NULL
+    exports[nexports] = ExportSymbol{}
+    return exports
