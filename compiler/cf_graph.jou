@@ -8,7 +8,6 @@ import "./errors_and_warnings.jou"
 import "./utils.jou"
 import "./structs.jou"
 import "./typecheck/common.jou"
-import "./free.jou"
 import "./types.jou"
 
 
@@ -196,11 +195,11 @@ class CfInstruction:
 
     def free(self) -> None:
         if self->kind == CfInstructionKind::Constant:
-            free_constant(&self->constant)
+            self->constant.free()
         if self->kind == CfInstructionKind::StringArray:
             free(self->strarray.str)
         if self->kind == CfInstructionKind::Call:
-            free_signature(&self->signature)
+            self->signature.free()
         free(self->operands)
 
     def add_operand(self, operand: LocalVariable*) -> None:
@@ -291,7 +290,7 @@ class CfGraph:
         printf("\n")
 
     def free(self) -> None:
-        free_signature(&self->signature)
+        self->signature.free()
         for b = self->all_blocks; b < &self->all_blocks[self->n_all_blocks]; b++:
             (*b)->free()
             if *b != &self->start_block and *b != &self->end_block:
