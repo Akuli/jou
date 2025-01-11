@@ -53,14 +53,6 @@ class CfBuilder:
 
         return var
 
-    def get_expr_types(self, expr: AstExpression*) -> ExpressionTypes*:
-        # TODO: a fancy binary search algorithm? (need to add sorting)
-        assert self->fomtypes != NULL
-        for i = 0; i < self->fomtypes->n_expr_types; i++:
-            if self->fomtypes->expr_types[i]->expr == expr:
-                return self->fomtypes->expr_types[i]
-        return NULL
-
     def add_block(self) -> CfBlock*:
         block: CfBlock* = calloc(1, sizeof *block)
 
@@ -436,7 +428,7 @@ class CfBuilder:
 
     def build_address_of_expression(self, address_of_what: AstExpression*) -> LocalVariable*:
         if address_of_what->kind == AstExpressionKind::GetVariable:
-            ptrtype = self->get_expr_types(address_of_what)->type->pointer_type()
+            ptrtype = address_of_what->types.type->pointer_type()
             addr = self->add_var(ptrtype)
 
             local_var = self->find_var(address_of_what->varname)
@@ -455,7 +447,7 @@ class CfBuilder:
             return addr
 
         if address_of_what->kind == AstExpressionKind::Self:
-            ptrtype = self->get_expr_types(address_of_what)->type->pointer_type()
+            ptrtype = address_of_what->types.type->pointer_type()
             addr = self->add_var(ptrtype)
 
             local_var = self->find_var("self")
@@ -500,7 +492,7 @@ class CfBuilder:
         sig: Signature* = NULL
 
         if call->method_call_self != NULL:
-            selfclass = self->get_expr_types(call->method_call_self)->type
+            selfclass = call->method_call_self->types.type
             if call->uses_arrow_operator:
                 assert selfclass->kind == TypeKind::Pointer
                 selfclass = selfclass->value_type
@@ -581,26 +573,24 @@ class CfBuilder:
         return arr
 
     def build_expression(self, expr: AstExpression*) -> LocalVariable*:
-        types = self->get_expr_types(expr)
-
-        if types != NULL and types->implicit_array_to_pointer_cast:
+        if expr->types.implicit_array_to_pointer_cast:
             arrptr = self->build_address_of_expression(expr)
-            memberptr = self->add_var(types->implicit_cast_type)
+            memberptr = self->add_var(expr->types.implicit_cast_type)
             self->unary_op(expr->location, CfInstructionKind::PtrCast, arrptr, memberptr)
             return memberptr
 
-        if types != NULL and types->implicit_string_to_array_cast:
-            assert types->implicit_cast_type != NULL
-            assert types->implicit_cast_type->kind == TypeKind::Array
+        if expr->types.implicit_string_to_array_cast:
+            assert expr->types.implicit_cast_type != NULL
+            assert expr->types.implicit_cast_type->kind == TypeKind::Array
             assert expr->kind == AstExpressionKind::String
 
-            array_size = types->implicit_cast_type->array.len
+            array_size = expr->types.implicit_cast_type->array.len
             assert strlen(expr->string) < array_size
             padded: byte* = calloc(1, array_size)
             assert padded != NULL
             strcpy(padded, expr->string)
 
-            result = self->add_var(types->implicit_cast_type)
+            result = self->add_var(expr->types.implicit_cast_type)
             ins = CfInstruction{
                 location = expr->location,
                 kind = CfInstructionKind::StringArray,
@@ -613,24 +603,29 @@ class CfBuilder:
             self->add_instruction(ins)
             return result
 
+        t = expr->types.type
+        if expr->kind != AstExpressionKind::Call:
+            # Calls do not necessary return anything, all other expressions do.
+            assert t != NULL
+
         if expr->kind == AstExpressionKind::Call:
             result = self->build_call(expr->location, &expr->call)
             if result == NULL:
                 # called function/method has no return value
                 return NULL
         elif expr->kind == AstExpressionKind::Instantiate:
-            result = self->build_instantiation(types->type, &expr->instantiation, expr->location)
+            result = self->build_instantiation(t, &expr->instantiation, expr->location)
         elif expr->kind == AstExpressionKind::Array:
-            assert types->type->kind == TypeKind::Array
-            assert types->type->array.len == expr->array.length
-            result = self->build_array(types->type, expr->array.items, expr->location)
+            assert t->kind == TypeKind::Array
+            assert t->array.len == expr->array.length
+            result = self->build_array(t, expr->array.items, expr->location)
         elif expr->kind == AstExpressionKind::GetEnumMember:
-            result = self->add_var(types->type)
+            result = self->add_var(t)
             c = Constant{
                 kind = ConstantKind::EnumMember,
                 enum_member = EnumMemberConstant{
-                    enumtype = types->type,
-                    memberidx = find_enum_member(types->type, expr->enum_member.member_name),
+                    enumtype = t,
+                    memberidx = find_enum_member(t, expr->enum_member.member_name),
                 }
             }
             self->constant(expr->location, c, result)
@@ -648,7 +643,7 @@ class CfBuilder:
             else:
                 temp = self->find_var(expr->varname)
                 if temp != NULL:
-                    if types->implicit_cast_type == NULL or types->type == types->implicit_cast_type:
+                    if expr->types.implicit_cast_type == NULL or t == expr->types.implicit_cast_type:
                         # Must take a "snapshot" of this variable, as it may change soon.
                         result = self->add_var(temp->type)
                         self->unary_op(expr->location, CfInstructionKind::VarCpy, temp, result)
@@ -658,7 +653,7 @@ class CfBuilder:
                     # For other than local variables we can evaluate as &*variable.
                     # Would also work for locals, but it would confuse simplify_cfg.
                     temp = self->build_address_of_expression(expr)
-                    result = self->add_var(types->type)
+                    result = self->add_var(t)
                     self->unary_op(expr->location, CfInstructionKind::PtrLoad, temp, result)
         elif (
             expr->kind == AstExpressionKind::GetClassField
@@ -681,7 +676,7 @@ class CfBuilder:
             # But &foo->bar and &foo[bar] always work, because foo is already a pointer
             # and we only add a memory offset to it.
             temp = self->build_address_of_expression(expr)
-            result = self->add_var(types->type)
+            result = self->add_var(t)
             self->unary_op(expr->location, CfInstructionKind::PtrLoad, temp, result)
         elif expr->kind == AstExpressionKind::AddressOf:
             result = self->build_address_of_expression(&expr->operands[0])
@@ -690,18 +685,18 @@ class CfBuilder:
             ins = CfInstruction{
                 location = expr->location,
                 kind = CfInstructionKind::SizeOf,
-                type = self->get_expr_types(&expr->operands[0])->type,
+                type = expr->operands[0].types.type,
                 destvar = result,
             }
             self->add_instruction(ins)
         elif expr->kind == AstExpressionKind::Dereference:
             temp = self->build_expression(&expr->operands[0])
-            result = self->add_var(types->type)
+            result = self->add_var(t)
             self->unary_op(expr->location, CfInstructionKind::PtrLoad, temp, result)
         elif expr->kind == AstExpressionKind::Self:
             selfvar = self->find_var("self")
             assert selfvar != NULL
-            if types->implicit_cast_type == NULL or types->type == types->implicit_cast_type:
+            if expr->types.implicit_cast_type == NULL or t == expr->types.implicit_cast_type:
                 # Must take a "snapshot" of this variable, as it may change soon.
                 result = self->add_var(selfvar->type)
                 self->unary_op(expr->location, CfInstructionKind::VarCpy, selfvar, result)
@@ -742,7 +737,7 @@ class CfBuilder:
                 c = Constant{kind = ConstantKind::String, str = strdup(expr->string)}
             else:
                 assert False
-            result = self->add_var(types->type)
+            result = self->add_var(t)
             self->constant(expr->location, c, result)
         elif expr->kind == AstExpressionKind::And:
             result = self->build_and_or(&expr->operands[0], &expr->operands[1], AndOr::And)
@@ -781,7 +776,7 @@ class CfBuilder:
             # evaluate lhs first. C doesn't guarantee evaluation order of function arguments.
             lhs = self->build_expression(&expr->operands[0])
             rhs = self->build_expression(&expr->operands[1])
-            result = self->build_binop(expr->kind, expr->location, lhs, rhs, types->type)
+            result = self->build_binop(expr->kind, expr->location, lhs, rhs, t)
         elif (
             expr->kind == AstExpressionKind::PreIncr
             or expr->kind == AstExpressionKind::PreDecr
@@ -805,15 +800,14 @@ class CfBuilder:
             result = self->build_increment_or_decrement(expr->location, &expr->operands[0], pop, diff)
         elif expr->kind == AstExpressionKind::As:
             temp = self->build_expression(&expr->as_->value)
-            result = self->build_cast(temp, types->type, expr->location)
+            result = self->build_cast(temp, t, expr->location)
         else:
             assert False
 
-        assert types != NULL
-        assert result->type == types->type
-        if types->implicit_cast_type == NULL:
+        assert result->type == t
+        if expr->types.implicit_cast_type == NULL:
             return result
-        return self->build_cast(result, types->implicit_cast_type, expr->location)
+        return self->build_cast(result, expr->types.implicit_cast_type, expr->location)
 
     def build_if_statement(self, ifstmt: AstIfStatement*) -> None:
         assert ifstmt->n_if_and_elifs >= 1

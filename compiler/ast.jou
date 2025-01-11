@@ -10,6 +10,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./errors_and_warnings.jou"
+import "./types.jou"
 import "./utils.jou"
 
 
@@ -133,6 +134,19 @@ class AstInstantiation:
         free(self->field_values)
 
 
+class ExpressionTypes:
+    # Type of value that the expression evaluates to, or NULL if the expression
+    # is calling '-> None' function/method.
+    type: Type*
+
+    # NULL if there's no implicit cast.
+    implicit_cast_type: Type*
+
+    # Flags to indicate whether special kinds of implicit casts happened
+    implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
+    implicit_string_to_array_cast: bool     # "..." to byte[N]
+
+
 enum AstExpressionKind:
     String
     Int
@@ -181,6 +195,10 @@ class AstExpression:
     location: Location
     kind: AstExpressionKind
 
+    # Populated during type checking. Before that, all fields are zeroed
+    # (e.g. NULL or false).
+    types: ExpressionTypes
+
     union:
         enum_member: AstEnumMember
         class_field: AstClassField
@@ -199,7 +217,12 @@ class AstExpression:
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("[line %d] ", self->location.lineno)
+        printf("[line %d", self->location.lineno)
+        if self->types.type != NULL:
+            printf(", type %s", self->types.type->name)
+            # TODO: print casts and other stuff under self->types?
+        printf("] ")
+
         if self->kind == AstExpressionKind::String:
             printf("string ")
             print_string(self->string, strlen(self->string))

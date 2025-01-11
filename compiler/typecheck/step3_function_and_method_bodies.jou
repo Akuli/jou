@@ -249,52 +249,56 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
 
 def do_implicit_cast(
     fom: FunctionOrMethodTypes*,
-    types: ExpressionTypes*,
+    expr: AstExpression*,
     to: Type*,
     location: Location,
     errormsg_template: byte*,
 ) -> None:
-    assert types->implicit_cast_type == NULL
-    assert not types->implicit_array_to_pointer_cast
-    from = types->type
+    assert expr->types.type != NULL
+    assert expr->types.implicit_cast_type == NULL
+    assert not expr->types.implicit_array_to_pointer_cast
+
+    from = expr->types.type
     if from == to:
         return
 
     if (
-        types->expr->kind == AstExpressionKind::String
+        expr->kind == AstExpressionKind::String
         and from == byteType->pointer_type()
         and to->kind == TypeKind::Array
         and to->array.item_type == byteType
     ):
-        string_size = strlen(types->expr->string) + 1
+        string_size = strlen(expr->string) + 1
         if to->array.len < string_size:
             msg: byte[500]
             snprintf(msg, sizeof(msg), "a string of %d bytes (including '\\0') does not fit into %s", string_size, to->name)
             fail(location, msg)
-        types->implicit_string_to_array_cast = True
+        expr->types.implicit_string_to_array_cast = True
     # Passing in NULL for errormsg_template can be used to "force" a cast to happen.
     elif errormsg_template != NULL and not can_cast_implicitly(from, to):
         fail_with_implicit_cast_error(location, errormsg_template, from, to)
 
-    types->implicit_cast_type = to
-    types->implicit_array_to_pointer_cast = (from->kind == TypeKind::Array and to->is_pointer_type())
+    expr->types.implicit_cast_type = to
+    expr->types.implicit_array_to_pointer_cast = (from->kind == TypeKind::Array and to->is_pointer_type())
 
-    if types->implicit_array_to_pointer_cast:
+    if expr->types.implicit_array_to_pointer_cast:
         ensure_can_take_address(
             fom,
-            types->expr,
+            expr,
             "cannot create a pointer into an array that comes from %s (try storing it to a local variable first)"
         )
 
 
-def cast_array_to_pointer(fom: FunctionOrMethodTypes*, types: ExpressionTypes*) -> None:
-    assert types->type->kind == TypeKind::Array
-    do_implicit_cast(fom, types, types->type->array.item_type->pointer_type(), Location{}, NULL)
+def cast_array_to_pointer(fom: FunctionOrMethodTypes*, expr: AstExpression*) -> None:
+    assert expr->types.type != NULL
+    assert expr->types.type->kind == TypeKind::Array
+    do_implicit_cast(fom, expr, expr->types.type->array.item_type->pointer_type(), Location{}, NULL)
 
 
-def do_explicit_cast(fom: FunctionOrMethodTypes*, types: ExpressionTypes*, to: Type*, location: Location) -> None:
-    assert types->implicit_cast_type == NULL
-    from = types->type
+def do_explicit_cast(fom: FunctionOrMethodTypes*, expr: AstExpression*, to: Type*, location: Location) -> None:
+    assert expr->types.type != NULL
+    assert expr->types.implicit_cast_type == NULL
+    from = expr->types.type
 
     msg: byte[500]
 
@@ -307,15 +311,16 @@ def do_explicit_cast(fom: FunctionOrMethodTypes*, types: ExpressionTypes*, to: T
         fail(location, msg)
 
     if from->kind == TypeKind::Array and to->is_pointer_type():
-        cast_array_to_pointer(fom, types)
+        cast_array_to_pointer(fom, expr)
 
 
-def typecheck_expression_not_void(ft: FileTypes*, expr: AstExpression*) -> ExpressionTypes*:
-    types: ExpressionTypes* = typecheck_expression(ft, expr)
-    if types != NULL:
-        return types
+def typecheck_expression_not_void(ft: FileTypes*, expr: AstExpression*) -> Type*:
+    typecheck_expression(ft, expr)
+    if expr->types.type != NULL:
+        # The happy path. Evaluating the expression results in a value.
+        return expr->types.type
 
-    # Should be function/method call that returns void
+    # Should be function/method call that returns None
     assert expr->kind == AstExpressionKind::Call
 
     msg: byte[500]
@@ -332,17 +337,20 @@ def typecheck_expression_with_implicit_cast(
     casttype: Type*,
     errormsg_template: byte*,
 ) -> None:
-    types = typecheck_expression_not_void(ft, expr)
-    do_implicit_cast(ft->current_fom_types, types, casttype, expr->location, errormsg_template)
+    typecheck_expression_not_void(ft, expr)
+    do_implicit_cast(ft->current_fom_types, expr, casttype, expr->location, errormsg_template)
 
 
 def check_binop(
     fom: FunctionOrMethodTypes*,
     op: AstExpressionKind,
     location: Location,
-    lhstypes: ExpressionTypes*,
-    rhstypes: ExpressionTypes*,
+    lhs: AstExpression*,
+    rhs: AstExpression*,
 ) -> Type*:
+    assert lhs->types.type != NULL
+    assert rhs->types.type != NULL
+
     do_what: byte*
     if op == AstExpressionKind::Add:
         do_what = "add"
@@ -366,18 +374,18 @@ def check_binop(
     else:
         assert False
 
-    got_bools = lhstypes->type == boolType and rhstypes->type == boolType
-    got_integers = lhstypes->type->is_integer_type() and rhstypes->type->is_integer_type()
-    got_numbers = lhstypes->type->is_number_type() and rhstypes->type->is_number_type()
-    got_enums = lhstypes->type->kind == TypeKind::Enum and rhstypes->type->kind == TypeKind::Enum
+    got_bools = lhs->types.type == boolType and rhs->types.type == boolType
+    got_integers = lhs->types.type->is_integer_type() and rhs->types.type->is_integer_type()
+    got_numbers = lhs->types.type->is_number_type() and rhs->types.type->is_number_type()
+    got_enums = lhs->types.type->kind == TypeKind::Enum and rhs->types.type->kind == TypeKind::Enum
     got_pointers = (
-        lhstypes->type->is_pointer_type()
-        and rhstypes->type->is_pointer_type()
+        lhs->types.type->is_pointer_type()
+        and rhs->types.type->is_pointer_type()
         and (
             # Ban comparisons like int* == byte*, unless one of the two types is void*
-            lhstypes->type == rhstypes->type
-            or lhstypes->type == voidPtrType
-            or rhstypes->type == voidPtrType
+            lhs->types.type == rhs->types.type
+            or lhs->types.type == voidPtrType
+            or rhs->types.type == voidPtrType
         )
     )
 
@@ -402,7 +410,7 @@ def check_binop(
         )
     ):
         msg: byte[500]
-        snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name)
+        snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, lhs->types.type->name, rhs->types.type->name)
         fail(location, msg)
 
     cast_type: Type* = NULL
@@ -410,11 +418,11 @@ def check_binop(
         cast_type = boolType
     if got_integers:
         cast_type = get_integer_type(
-            max(lhstypes->type->size_in_bits, rhstypes->type->size_in_bits),
-            lhstypes->type->kind == TypeKind::SignedInteger or rhstypes->type->kind == TypeKind::SignedInteger
+            max(lhs->types.type->size_in_bits, rhs->types.type->size_in_bits),
+            lhs->types.type->kind == TypeKind::SignedInteger or rhs->types.type->kind == TypeKind::SignedInteger
         )
     if got_numbers and not got_integers:
-        if lhstypes->type == doubleType or rhstypes->type == doubleType:
+        if lhs->types.type == doubleType or rhs->types.type == doubleType:
             cast_type = doubleType
         else:
             cast_type = floatType
@@ -424,8 +432,8 @@ def check_binop(
         cast_type = intType
     assert cast_type != NULL
 
-    do_implicit_cast(fom, lhstypes, cast_type, Location{}, NULL)
-    do_implicit_cast(fom, rhstypes, cast_type, Location{}, NULL)
+    do_implicit_cast(fom, lhs, cast_type, Location{}, NULL)
+    do_implicit_cast(fom, rhs, cast_type, Location{}, NULL)
 
     if (
         op == AstExpressionKind::Add
@@ -463,7 +471,7 @@ def check_increment_or_decrement(ft: FileTypes*, expr: AstExpression*) -> Type*:
 
     ensure_can_take_address(ft->current_fom_types, &expr->operands[0], bad_expr_fmt)
 
-    t = typecheck_expression_not_void(ft, &expr->operands[0])->type
+    t = typecheck_expression_not_void(ft, &expr->operands[0])
     if not t->is_integer_type() and t->kind != TypeKind::Pointer:
         msg: byte[500]
         snprintf(msg, sizeof(msg), bad_type_fmt, t->name)
@@ -487,28 +495,27 @@ def typecheck_indexing(
 ) -> Type*:
     msg: byte[500]
 
-    types = typecheck_expression_not_void(ft, ptrexpr)
-
-    if types->type->kind == TypeKind::Array:
-        cast_array_to_pointer(ft->current_fom_types, types)
-        ptrtype = types->implicit_cast_type
+    ptrtype = typecheck_expression_not_void(ft, ptrexpr)
+    if ptrtype->kind == TypeKind::Array:
+        cast_array_to_pointer(ft->current_fom_types, ptrexpr)
+        ptrtype = ptrexpr->types.implicit_cast_type
     else:
-        if types->type->kind != TypeKind::Pointer:
-            snprintf(msg, sizeof(msg), "value of type %s cannot be indexed", types->type->name)
+        if ptrtype->kind != TypeKind::Pointer:
+            snprintf(msg, sizeof(msg), "value of type %s cannot be indexed", ptrtype->name)
             fail(ptrexpr->location, msg)
-        ptrtype = types->type
 
     assert ptrtype != NULL
     assert ptrtype->kind == TypeKind::Pointer
 
-    indextypes = typecheck_expression_not_void(ft, indexexpr)
-    if not indextypes->type->is_integer_type():
-        snprintf(msg, sizeof(msg), "the index inside [...] must be an integer, not %s", indextypes->type->name)
+    indextype = typecheck_expression_not_void(ft, indexexpr)
+    assert indextype != NULL
+    if not indextype->is_integer_type():
+        snprintf(msg, sizeof(msg), "the index inside [...] must be an integer, not %s", indextype->name)
         fail(indexexpr->location, msg)
 
     # LLVM assumes that indexes smaller than 64 bits are signed.
     # https://github.com/Akuli/jou/issues/48
-    do_implicit_cast(ft->current_fom_types, indextypes, longType, Location{}, NULL)
+    do_implicit_cast(ft->current_fom_types, indexexpr, longType, Location{}, NULL)
 
     return ptrtype->value_type
 
@@ -614,18 +621,14 @@ def typecheck_function_or_method_call(ft: FileTypes*, call: AstCall*, self_type:
 
     for i = k; i < call->nargs; i++:
         # This code runs for varargs, e.g. the things to format in printf().
-        types = typecheck_expression_not_void(ft, &call->args[i])
-
-        if types->type->kind == TypeKind::Array:
-            cast_array_to_pointer(ft->current_fom_types, types)
-        elif (
-            (types->type->is_integer_type() and types->type->size_in_bits < 32)
-            or types->type == boolType
-        ):
+        t = typecheck_expression_not_void(ft, &call->args[i])
+        if t->kind == TypeKind::Array:
+            cast_array_to_pointer(ft->current_fom_types, &call->args[i])
+        elif (t->is_integer_type() and t->size_in_bits < 32) or t == boolType:
             # Add implicit cast to signed int, just like in C.
-            do_implicit_cast(ft->current_fom_types, types, intType, Location{}, NULL)
-        elif types->type == floatType:
-            do_implicit_cast(ft->current_fom_types, types, doubleType, Location{}, NULL)
+            do_implicit_cast(ft->current_fom_types, &call->args[i], intType, Location{}, NULL)
+        elif t == floatType:
+            do_implicit_cast(ft->current_fom_types, &call->args[i], doubleType, Location{}, NULL)
 
     free(sigstr)
     return sig->returntype
@@ -692,22 +695,25 @@ def enum_member_exists(t: Type*, name: byte*) -> bool:
     return False
 
 
-def cast_array_members_to_a_common_type(fom: FunctionOrMethodTypes*, error_location: Location, exprtypes: ExpressionTypes**) -> Type*:
+def cast_array_members_to_a_common_type(fom: FunctionOrMethodTypes*, error_location: Location, array: AstArray) -> Type*:
     # Avoid O(ntypes^2) code in a long array where all or almost all items have the same type.
     # This is at most O(ntypes*k) where k is the number of distinct types.
     distinct: Type** = NULL
     ndistinct = 0
 
-    for et = exprtypes; *et != NULL; et++:
+    for i = 0; i < array.length; i++:
+        itemtype = array.items[i].types.type
+        assert itemtype != NULL
+
         found = False
         for t = distinct; t < &distinct[ndistinct]; t++:
-            if (*et)->type == *t:
+            if itemtype == *t:
                 found = True
                 break
         if not found:
             distinct = realloc(distinct, sizeof(distinct[0]) * (ndistinct + 1))
             assert distinct != NULL
-            distinct[ndistinct++] = (*et)->type
+            distinct[ndistinct++] = itemtype
 
     compatible_with_all: Type** = NULL
     n_compatible_with_all = 0
@@ -751,12 +757,12 @@ def cast_array_members_to_a_common_type(fom: FunctionOrMethodTypes*, error_locat
     free(distinct)
     free(compatible_with_all)
 
-    for et = exprtypes; *et != NULL; et++:
-        do_implicit_cast(fom, *et, elemtype, error_location, NULL)
+    for i = 0; i < array.length; i++:
+        do_implicit_cast(fom, &array.items[i], elemtype, error_location, NULL)
     return elemtype
 
 
-def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionTypes*:
+def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
     msg: byte[500]
     result: Type* = NULL
 
@@ -808,17 +814,14 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
 
     elif expr->kind == AstExpressionKind::Array:
         n = expr->array.length
-        exprtypes: ExpressionTypes** = calloc(sizeof(exprtypes[0]), n+1)
         for i = 0; i < n; i++:
-            exprtypes[i] = typecheck_expression_not_void(ft, &expr->array.items[i])
-
-        membertype = cast_array_members_to_a_common_type(ft->current_fom_types, expr->location, exprtypes)
-        free(exprtypes)
+            typecheck_expression_not_void(ft, &expr->array.items[i])
+        membertype = cast_array_members_to_a_common_type(ft->current_fom_types, expr->location, expr->array)
         result = membertype->array_type(n)
 
     elif expr->kind == AstExpressionKind::GetClassField:
         if expr->class_field.uses_arrow_operator:
-            temptype = typecheck_expression_not_void(ft, expr->class_field.instance)->type
+            temptype = typecheck_expression_not_void(ft, expr->class_field.instance)
             if temptype->kind != TypeKind::Pointer or temptype->value_type->kind != TypeKind::Class:
                 snprintf(
                     msg, sizeof(msg),
@@ -827,7 +830,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
                 fail(expr->location, msg)
             result = typecheck_class_field(temptype->value_type, expr->class_field.field_name, expr->location)->type
         else:
-            temptype = typecheck_expression_not_void(ft, expr->class_field.instance)->type
+            temptype = typecheck_expression_not_void(ft, expr->class_field.instance)
             if temptype->kind != TypeKind::Class:
                 snprintf(
                     msg, sizeof(msg),
@@ -840,7 +843,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
         if expr->call.method_call_self == NULL:
             result = typecheck_function_or_method_call(ft, &expr->call, NULL, expr->location)
         elif expr->call.uses_arrow_operator:
-            temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)->type
+            temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)
             if temptype->kind != TypeKind::Pointer:
                 snprintf(msg, sizeof(msg),
                     "left side of the '->' operator must be a pointer, not %s",
@@ -848,7 +851,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
                 fail(expr->location, msg)
             result = typecheck_function_or_method_call(ft, &expr->call, temptype->value_type, expr->location)
         else:
-            temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)->type
+            temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)
             result = typecheck_function_or_method_call(ft, &expr->call, temptype, expr->location)
 
             # If self argument is passed by pointer, make sure we can create that pointer
@@ -865,14 +868,14 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
 
         if result == NULL:
             # no return value produced
-            return NULL
+            return
 
     elif expr->kind == AstExpressionKind::Indexing:
         result = typecheck_indexing(ft, &expr->operands[0], &expr->operands[1])
 
     elif expr->kind == AstExpressionKind::AddressOf:
         ensure_can_take_address(ft->current_fom_types, &expr->operands[0], "the '&' operator cannot be used with %s")
-        temptype = typecheck_expression_not_void(ft, &expr->operands[0])->type
+        temptype = typecheck_expression_not_void(ft, &expr->operands[0])
         result = temptype->pointer_type()
 
     elif expr->kind == AstExpressionKind::GetVariable:
@@ -887,7 +890,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
         result = selfvar->type
 
     elif expr->kind == AstExpressionKind::Dereference:
-        temptype = typecheck_expression_not_void(ft, &expr->operands[0])->type
+        temptype = typecheck_expression_not_void(ft, &expr->operands[0])
         typecheck_dereferenced_pointer(expr->location, temptype)
         result = temptype->value_type
 
@@ -906,7 +909,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
         result = boolType
 
     elif expr->kind == AstExpressionKind::Negate:
-        result = typecheck_expression_not_void(ft, &expr->operands[0])->type
+        result = typecheck_expression_not_void(ft, &expr->operands[0])
         if result->kind != TypeKind::SignedInteger and result->kind != TypeKind::FloatingPoint:
             snprintf(msg, sizeof(msg),
                 "value after '-' must be a float or double or a signed integer, not %s",
@@ -926,9 +929,9 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
         or expr->kind == AstExpressionKind::Lt
         or expr->kind == AstExpressionKind::Le
     ):
-        lhstypes = typecheck_expression_not_void(ft, &expr->operands[0])
-        rhstypes = typecheck_expression_not_void(ft, &expr->operands[1])
-        result = check_binop(ft->current_fom_types, expr->kind, expr->location, lhstypes, rhstypes)
+        typecheck_expression_not_void(ft, &expr->operands[0])
+        typecheck_expression_not_void(ft, &expr->operands[1])
+        result = check_binop(ft->current_fom_types, expr->kind, expr->location, &expr->operands[0], &expr->operands[1])
 
     elif (
         expr->kind == AstExpressionKind::PreIncr
@@ -939,25 +942,16 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> ExpressionType
         result = check_increment_or_decrement(ft, expr)
 
     elif expr->kind == AstExpressionKind::As:
-        origtypes = typecheck_expression_not_void(ft, &expr->as_->value)
+        typecheck_expression_not_void(ft, &expr->as_->value)
         result = type_from_ast(ft, &expr->as_->type)
-        do_explicit_cast(ft->current_fom_types, origtypes, result, expr->location)
+        do_explicit_cast(ft->current_fom_types, &expr->as_->value, result, expr->location)
 
     else:
         printf("%d\n", expr->kind)
         assert False
 
     assert result != NULL
-
-    types: ExpressionTypes* = calloc(1, sizeof *types)
-    types->expr = expr
-    types->type = result
-
-    ft->current_fom_types->expr_types = realloc(ft->current_fom_types->expr_types, sizeof(ft->current_fom_types->expr_types[0]) * (ft->current_fom_types->n_expr_types + 1))
-    assert ft->current_fom_types->expr_types != NULL
-    ft->current_fom_types->expr_types[ft->current_fom_types->n_expr_types++] = types
-
-    return types
+    expr->types.type = result
 
 
 def typecheck_body(ft: FileTypes*, body: AstBody*) -> None:
@@ -1015,8 +1009,8 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             and ft->find_any_var(targetexpr->varname) == NULL
         ):
             # Making a new variable. Use the type of the value being assigned.
-            types = typecheck_expression_not_void(ft, valueexpr)
-            ft->current_fom_types->add_variable(types->type, targetexpr->varname)
+            type = typecheck_expression_not_void(ft, valueexpr)
+            ft->current_fom_types->add_variable(type, targetexpr->varname)
         else:
             # Convert value to the type of an existing variable or other assignment target.
             ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
@@ -1027,8 +1021,8 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
                 desc = short_expression_description(targetexpr)
                 snprintf(msg, sizeof msg, "cannot assign a value of type <from> to %s of type <to>", desc)
 
-            targettypes = typecheck_expression_not_void(ft, targetexpr)
-            typecheck_expression_with_implicit_cast(ft, valueexpr, targettypes->type, msg)
+            targettype = typecheck_expression_not_void(ft, targetexpr)
+            typecheck_expression_with_implicit_cast(ft, valueexpr, targettype, msg)
 
     elif (
         stmt->kind == AstStatementKind::InPlaceAdd
@@ -1041,8 +1035,8 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
         valueexpr = &stmt->assignment.value
 
         ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
-        targettypes = typecheck_expression_not_void(ft, targetexpr)
-        value_types = typecheck_expression_not_void(ft, valueexpr)
+        targettype = typecheck_expression_not_void(ft, targetexpr)
+        value_type = typecheck_expression_not_void(ft, valueexpr)
 
         if stmt->kind == AstStatementKind::InPlaceAdd:
             op = AstExpressionKind::Add
@@ -1062,15 +1056,15 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
         else:
             assert False
 
-        t = check_binop(ft->current_fom_types, op, stmt->location, targettypes, value_types)
-        tempvalue_types = ExpressionTypes{expr = targetexpr, type = t}
+        t = check_binop(ft->current_fom_types, op, stmt->location, targetexpr, valueexpr)
+        targetexpr->types = ExpressionTypes{type = t}
 
         snprintf(msg, sizeof msg, "%s produced a value of type <from> which cannot be assigned back to <to>", opname)
-        do_implicit_cast(ft->current_fom_types, &tempvalue_types, targettypes->type, stmt->location, msg)
+        do_implicit_cast(ft->current_fom_types, targetexpr, targettype, stmt->location, msg)
 
         # I think it is currently impossible to cast target.
         # If this assert fails, we probably need to add another error message for it.
-        assert targettypes->implicit_cast_type == NULL
+        assert targetexpr->types.implicit_cast_type == NULL
 
     elif stmt->kind == AstStatementKind::Return:
         if ft->current_fom_types->signature.is_noreturn:
