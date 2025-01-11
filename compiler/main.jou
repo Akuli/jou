@@ -330,6 +330,9 @@ class CompileState:
             if command_line_args.verbosity >= 1:
                 printf("  step 3: %s\n", self->files[i].path)
             typecheck_step3_function_and_method_bodies(&self->files[i].types, &self->files[i].ast)
+            if command_line_args.verbosity >= 3:
+                # AST now contains types. If very verbose, print them.
+                self->files[i].ast.print()
 
         free(pending_exports)
 
