@@ -207,7 +207,7 @@ class Person:
         if self->name == NULL:
             printf("I'm an anonymous person from '%s'\n", self->country)
         else:
-            printf("I'm %s person from '%s'\n", self->name, self->country)
+            printf("I'm %s from '%s'\n", self->name, self->country)
 
 
 def main() -> int:
@@ -230,6 +230,7 @@ To calculate the correct `n`, you can use the `sizeof` operator (TODO: document 
 
 ```python
 import "stdlib/io.jou"
+import "stdlib/mem.jou"
 
 
 class Person:
@@ -240,7 +241,7 @@ class Person:
         if self->name == NULL:
             printf("I'm an anonymous person from '%s'\n", self->country)
         else:
-            printf("I'm %s person from '%s'\n", self->name, self->country)
+            printf("I'm %s from '%s'\n", self->name, self->country)
 
 
 def main() -> int:
@@ -265,7 +266,7 @@ class Person:
         if self->name == NULL:
             printf("I'm an anonymous person from '%s'\n", self->country)
         else:
-            printf("I'm %s person from '%s'\n", self->name, self->country)
+            printf("I'm %s from '%s'\n", self->name, self->country)
 
 def main() -> int:
     contributors = [
