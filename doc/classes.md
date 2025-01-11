@@ -255,9 +255,8 @@ def main() -> int:
     return 0
 ```
 
-This may be easier if you have multiple instances next to each other
-(that is, **contiguously**) in memory,
-such as in an array, and you want to reset all of them:
+This works the same way if you have multiple instances next to each other in memory,
+such as in an array, and you want to zero-initialize all of them:
 
 ```python
 import "stdlib/io.jou"
