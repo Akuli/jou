@@ -166,25 +166,17 @@ def main() -> int:
 ```
 
 If, for some reason, you want to pass the instance by value instead of a pointer,
+so that the method gets a copy of it,
 you can specify the type of `self` like this:
 
 ```python
-import "stdlib/io.jou"
-
 class Point:
-    x: int
-    y: int
-
-    def increment_y(self: Point) -> None:  # pass self by value
-        self.y++
-        printf("incremented to %d\n", self.y)
-
-def main() -> int:
-    p = Point{x=12, y=34}
-    p.increment_y()             # Output: incremented to 35
-    printf("still %d\n", p.y)   # Output: still 34
-    return 0
+    def do_something(self: Point) -> None:
+        ...
 ```
+
+This means that the type of `self` is `Point`, not `Point*` (the default),
+so `self` is not a pointer.
 
 
 ## Instantiating
