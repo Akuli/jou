@@ -20,7 +20,7 @@ def main() -> int:
 
 ## Fields
 
-A Jou class is a chunk of memory that is large enough to store multiple values.
+An instance of a Jou class is a chunk of memory that is large enough to store multiple values.
 For example, the following class has two integers:
 
 ```python
@@ -138,7 +138,7 @@ By default, methods take the instance as a pointer.
 In the above example, the type of `self` is `Point*`,
 which means that `self` is a pointer to an instance of `Point`.
 
-To call a method on a pointer (such as `self` by default),
+To call a method on a pointer (such as `self`),
 use `->`, just like with accessing fields:
 
 ```python
@@ -188,6 +188,9 @@ def main() -> int:
 
 
 ## Instantiating
+
+As we have seen, the instantiating syntax is `ClassName{field=value}`.
+The curly braces are used to distinguish instantiating from function calls.
 
 If you omit some class fields, they will be initialized to zero.
 Specifically, the memory used for the instance will be all zero bytes.
