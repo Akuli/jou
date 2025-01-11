@@ -16,6 +16,25 @@ def main() -> int:
     return 0
 ```
 
+Jou has classes. They can have methods, but that's about it:
+otherwise Jou classes are just like structs in C.
+
+```python
+import "stdlib/io.jou"
+
+
+class Greeting:
+    target: byte*
+
+    def show(self) -> None:
+        printf("Hello %s\n", self->target)
+
+
+def main() -> int:
+    g = Greeting{target="World"}
+    g.show()    # Output: Hello World
+```
+
 See the [examples](./examples/) and [tests](./tests/) directories for more example programs
 or read [the Jou tutorial](./doc/tutorial.md).
 
