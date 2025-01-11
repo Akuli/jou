@@ -1057,14 +1057,13 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             assert False
 
         t = check_binop(ft->current_fom_types, op, stmt->location, targetexpr, valueexpr)
-        targetexpr->types = ExpressionTypes{type = t}
-
-        snprintf(msg, sizeof msg, "%s produced a value of type <from> which cannot be assigned back to <to>", opname)
-        do_implicit_cast(ft->current_fom_types, targetexpr, targettype, stmt->location, msg)
-
-        # I think it is currently impossible to cast target.
-        # If this assert fails, we probably need to add another error message for it.
-        assert targetexpr->types.implicit_cast_type == NULL
+        if t != targetexpr->types.type:
+            snprintf(
+                msg, sizeof msg,
+                "%s produced a value of type %s which cannot be assigned back to %s",
+                opname, t->name, targetexpr->types.type->name
+            )
+            fail(stmt->location, msg)
 
     elif stmt->kind == AstStatementKind::Return:
         if ft->current_fom_types->signature.is_noreturn:
