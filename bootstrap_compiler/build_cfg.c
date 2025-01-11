@@ -26,14 +26,11 @@ static LocalVariable *add_local_var(struct State *st, const Type *t)
     return var;
 }
 
+// TODO: get rid of this
 static const ExpressionTypes *get_expr_types(const struct State *st, const AstExpression *expr)
 {
-    // TODO: a fancy binary search algorithm (need to add sorting)
-    assert(st->fomtypes);
-    for (int i = 0; i < st->fomtypes->expr_types.len; i++)
-        if (st->fomtypes->expr_types.ptr[i]->expr == expr)
-            return st->fomtypes->expr_types.ptr[i];
-    return NULL;
+    (void)st;
+    return &expr->types;
 }
 
 static CfBlock *add_block(const struct State *st)

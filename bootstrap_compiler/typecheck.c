@@ -568,11 +568,12 @@ static bool can_cast_implicitly(const Type *from, const Type *to)
 
 static void do_implicit_cast(
     const FunctionOrMethodTypes *fom,
-    ExpressionTypes *types,
+    AstExpression *expr,
     const Type *to,
     Location location,
     const char *errormsg_template)
 {
+    ExpressionTypes *types = &expr->types;
     assert(!types->implicit_cast_type);
     assert(!types->implicit_array_to_pointer_cast);
     const Type *from = types->type;
@@ -580,14 +581,14 @@ static void do_implicit_cast(
         return;
 
     if (
-        types->expr->kind == AST_EXPR_CONSTANT
-        && types->expr->data.constant.kind == CONSTANT_STRING
+        expr->kind == AST_EXPR_CONSTANT
+        && expr->data.constant.kind == CONSTANT_STRING
         && from == get_pointer_type(byteType)
         && to->kind == TYPE_ARRAY
         && to->data.array.membertype == byteType
     )
     {
-        int string_size = strlen(types->expr->data.constant.data.str) + 1;
+        int string_size = strlen(expr->data.constant.data.str) + 1;
         if (to->data.array.len < string_size) {
             fail(location, "a string of %d bytes (including '\\0') does not fit into %s", string_size, to->name);
         }
@@ -602,19 +603,20 @@ static void do_implicit_cast(
     if (types->implicit_array_to_pointer_cast)
         ensure_can_take_address(
             fom,
-            types->expr,
+            expr,
             "cannot create a pointer into an array that comes from %s (try storing it to a local variable first)"
         );
 }
 
-static void cast_array_to_pointer(const FunctionOrMethodTypes *fom, ExpressionTypes *types)
+static void cast_array_to_pointer(const FunctionOrMethodTypes *fom, AstExpression *expr)
 {
-    assert(types->type->kind == TYPE_ARRAY);
-    do_implicit_cast(fom, types, get_pointer_type(types->type->data.array.membertype), (Location){0}, NULL);
+    assert(expr->types.type->kind == TYPE_ARRAY);
+    do_implicit_cast(fom, expr, get_pointer_type(expr->types.type->data.array.membertype), (Location){0}, NULL);
 }
 
-static void do_explicit_cast(const FunctionOrMethodTypes *fom, ExpressionTypes *types, const Type *to, Location location)
+static void do_explicit_cast(const FunctionOrMethodTypes *fom, AstExpression *expr, const Type *to, Location location)
 {
+    ExpressionTypes *types = &expr->types;
     assert(!types->implicit_cast_type);
     const Type *from = types->type;
 
@@ -638,12 +640,12 @@ static void do_explicit_cast(const FunctionOrMethodTypes *fom, ExpressionTypes *
     }
 
     if (from->kind == TYPE_ARRAY && is_pointer_type(to))
-        cast_array_to_pointer(fom, types);
+        cast_array_to_pointer(fom, expr);
 }
 
-static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression *expr);
+static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr);
 
-static ExpressionTypes *typecheck_expression_not_void(FileTypes *ft, const AstExpression *expr)
+static ExpressionTypes *typecheck_expression_not_void(FileTypes *ft, AstExpression *expr)
 {
     ExpressionTypes *types = typecheck_expression(ft, expr);
     if (!types) {
@@ -665,21 +667,24 @@ static ExpressionTypes *typecheck_expression_not_void(FileTypes *ft, const AstEx
 
 static void typecheck_expression_with_implicit_cast(
     FileTypes *ft,
-    const AstExpression *expr,
+    AstExpression *expr,
     const Type *casttype,
     const char *errormsg_template)
 {
-    ExpressionTypes *types = typecheck_expression_not_void(ft, expr);
-    do_implicit_cast(ft->current_fom_types, types, casttype, expr->location, errormsg_template);
+    typecheck_expression_not_void(ft, expr);
+    do_implicit_cast(ft->current_fom_types, expr, casttype, expr->location, errormsg_template);
 }
 
 static const Type *check_binop(
     const FunctionOrMethodTypes *fom,
     enum AstExpressionKind op,
     Location location,
-    ExpressionTypes *lhstypes,
-    ExpressionTypes *rhstypes)
+    AstExpression *lhs,
+    AstExpression *rhs)
 {
+    ExpressionTypes *lhstypes = &lhs->types;
+    ExpressionTypes *rhstypes = &rhs->types;
+
     const char *do_what;
     switch(op) {
     case AST_EXPR_ADD: do_what = "add"; break;
@@ -740,8 +745,8 @@ static const Type *check_binop(
         cast_type = intType;
     assert(cast_type);
 
-    do_implicit_cast(fom, lhstypes, cast_type, (Location){0}, NULL);
-    do_implicit_cast(fom, rhstypes, cast_type, (Location){0}, NULL);
+    do_implicit_cast(fom, lhs, cast_type, (Location){0}, NULL);
+    do_implicit_cast(fom, rhs, cast_type, (Location){0}, NULL);
 
     switch(op) {
         case AST_EXPR_ADD:
@@ -795,14 +800,13 @@ static void typecheck_dereferenced_pointer(Location location, const Type *t)
 }
 
 // ptr[index]
-static const Type *typecheck_indexing(
-    FileTypes *ft, const AstExpression *ptrexpr, const AstExpression *indexexpr)
+static const Type *typecheck_indexing(FileTypes *ft, AstExpression *ptrexpr, AstExpression *indexexpr)
 {
     ExpressionTypes *types = typecheck_expression_not_void(ft, ptrexpr);
 
     const Type *ptrtype;
     if (types->type->kind == TYPE_ARRAY) {
-        cast_array_to_pointer(ft->current_fom_types, types);
+        cast_array_to_pointer(ft->current_fom_types, ptrexpr);
         ptrtype = types->implicit_cast_type;
     } else {
         if (types->type->kind != TYPE_POINTER)
@@ -821,13 +825,13 @@ static const Type *typecheck_indexing(
 
     // LLVM assumes that indexes smaller than 64 bits are signed.
     // https://github.com/Akuli/jou/issues/48
-    do_implicit_cast(ft->current_fom_types, indextypes, longType, (Location){0}, NULL);
+    do_implicit_cast(ft->current_fom_types, indexexpr, longType, (Location){0}, NULL);
 
     return ptrtype->data.valuetype;
 }
 
 static void typecheck_and_or(
-    FileTypes *ft, const AstExpression *lhsexpr, const AstExpression *rhsexpr, const char *and_or)
+    FileTypes *ft, AstExpression *lhsexpr, AstExpression *rhsexpr, const char *and_or)
 {
     assert(!strcmp(and_or, "and") || !strcmp(and_or, "or"));
     char errormsg[100];
@@ -910,16 +914,16 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
         ExpressionTypes *types = typecheck_expression_not_void(ft, &call->args[i]);
 
         if (types->type->kind == TYPE_ARRAY)
-            cast_array_to_pointer(ft->current_fom_types, types);
+            cast_array_to_pointer(ft->current_fom_types, &call->args[i]);
         else if (
             (is_integer_type(types->type) && types->type->data.width_in_bits < 32)
             || types->type == boolType)
         {
             // Add implicit cast to signed int, just like in C.
-            do_implicit_cast(ft->current_fom_types, types, intType, (Location){0}, NULL);
+            do_implicit_cast(ft->current_fom_types, &call->args[i], intType, (Location){0}, NULL);
         }
         else if (types->type == floatType)
-            do_implicit_cast(ft->current_fom_types, types, doubleType, (Location){0}, NULL);
+            do_implicit_cast(ft->current_fom_types, &call->args[i], doubleType, (Location){0}, NULL);
     }
 
     free(sigstr);
@@ -984,21 +988,21 @@ static bool enum_member_exists(const Type *t, const char *name)
     return false;
 }
 
-static const Type *cast_array_members_to_a_common_type(const FunctionOrMethodTypes *fom, Location error_location, ExpressionTypes **exprtypes)
+static const Type *cast_array_members_to_a_common_type(const FunctionOrMethodTypes *fom, Location error_location, AstExpression *items, int nitems)
 {
     // Avoid O(ntypes^2) code in a long array where all or almost all items have the same type.
     // This is at most O(ntypes*k) where k is the number of distinct types.
     List(const Type *) distinct = {0};
-    for (ExpressionTypes **et = exprtypes; *et; et++) {
+    for (int i = 0; i < nitems; i++) {
         bool found = false;
         for (const Type **t = distinct.ptr; t < End(distinct); t++) {
-            if ((*et)->type == *t) {
+            if (*t == items[i].types.type) {
                 found = true;
                 break;
             }
         }
         if (!found)
-            Append(&distinct, (*et)->type);
+            Append(&distinct, items[i].types.type);
     }
 
     List(const Type *) compatible_with_all = {0};
@@ -1038,12 +1042,12 @@ static const Type *cast_array_members_to_a_common_type(const FunctionOrMethodTyp
     free(distinct.ptr);
     free(compatible_with_all.ptr);
 
-    for (ExpressionTypes **et = exprtypes; *et; et++)
-        do_implicit_cast(fom, *et, elemtype, error_location, NULL);
+    for (int i = 0; i < nitems; i++)
+        do_implicit_cast(fom, &items[i], elemtype, error_location, NULL);
     return elemtype;
 }
 
-static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression *expr)
+static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr)
 {
     const Type *temptype;
     const Type *result;
@@ -1081,7 +1085,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
             for (int i = 0; i < n; i++)
                 exprtypes[i] = typecheck_expression_not_void(ft, &expr->data.array.items[i]);
 
-            const Type *membertype = cast_array_members_to_a_common_type(ft->current_fom_types, expr->location, exprtypes);
+            const Type *membertype = cast_array_members_to_a_common_type(ft->current_fom_types, expr->location, expr->data.array.items, expr->data.array.count);
             free(exprtypes);
             result = get_array_type(membertype, n);
         }
@@ -1193,12 +1197,10 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
     case AST_EXPR_GE:
     case AST_EXPR_LT:
     case AST_EXPR_LE:
-        {
-            ExpressionTypes *lhstypes = typecheck_expression_not_void(ft, &expr->data.operands[0]);
-            ExpressionTypes *rhstypes = typecheck_expression_not_void(ft, &expr->data.operands[1]);
-            result = check_binop(ft->current_fom_types, expr->kind, expr->location, lhstypes, rhstypes);
-            break;
-        }
+        typecheck_expression_not_void(ft, &expr->data.operands[0]);
+        typecheck_expression_not_void(ft, &expr->data.operands[1]);
+        result = check_binop(ft->current_fom_types, expr->kind, expr->location, &expr->data.operands[0], &expr->data.operands[1]);
+        break;
     case AST_EXPR_PRE_INCREMENT:
     case AST_EXPR_PRE_DECREMENT:
     case AST_EXPR_POST_INCREMENT:
@@ -1206,22 +1208,17 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, const AstExpression 
         result = check_increment_or_decrement(ft, expr);
         break;
     case AST_EXPR_AS:
-        {
-            ExpressionTypes *origtypes = typecheck_expression_not_void(ft, expr->data.as.obj);
-            result = type_from_ast(ft, &expr->data.as.type);
-            do_explicit_cast(ft->current_fom_types, origtypes, result, expr->location);
-        }
+        typecheck_expression_not_void(ft, expr->data.as.obj);
+        result = type_from_ast(ft, &expr->data.as.type);
+        do_explicit_cast(ft->current_fom_types, expr->data.as.obj, result, expr->location);
         break;
     }
 
-    ExpressionTypes *types = calloc(1, sizeof *types);
-    types->expr = expr;
-    types->type = result;
-    Append(&ft->current_fom_types->expr_types, types);
-    return types;
+    expr->types = (ExpressionTypes){ .type = result };
+    return &expr->types;
 }
 
-static void typecheck_statement(FileTypes *ft, const AstStatement *stmt);
+static void typecheck_statement(FileTypes *ft, AstStatement *stmt);
 
 static void typecheck_body(FileTypes *ft, const AstBody *body)
 {
@@ -1245,7 +1242,7 @@ static void typecheck_if_statement(FileTypes *ft, const AstIfStatement *ifstmt)
     typecheck_body(ft, &ifstmt->elsebody);
 }
 
-static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
+static void typecheck_statement(FileTypes *ft, AstStatement *stmt)
 {
     switch(stmt->kind) {
     case AST_STMT_IF:
@@ -1276,8 +1273,8 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
 
     case AST_STMT_ASSIGN:
         {
-            const AstExpression *targetexpr = &stmt->data.assignment.target;
-            const AstExpression *valueexpr = &stmt->data.assignment.value;
+            AstExpression *targetexpr = &stmt->data.assignment.target;
+            AstExpression *valueexpr = &stmt->data.assignment.value;
             if (targetexpr->kind == AST_EXPR_GET_VARIABLE
                 && !find_any_var(ft, targetexpr->data.varname))
             {
@@ -1308,8 +1305,8 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
     case AST_STMT_INPLACE_DIV:
     case AST_STMT_INPLACE_MOD:
     {
-        const AstExpression *targetexpr = &stmt->data.assignment.target;
-        const AstExpression *valueexpr = &stmt->data.assignment.value;
+        AstExpression *targetexpr = &stmt->data.assignment.target;
+        AstExpression *valueexpr = &stmt->data.assignment.value;
 
         enum AstExpressionKind op;
         const char *opname;
@@ -1325,18 +1322,15 @@ static void typecheck_statement(FileTypes *ft, const AstStatement *stmt)
 
         ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s");
         ExpressionTypes *targettypes = typecheck_expression_not_void(ft, targetexpr);
-        ExpressionTypes *valuetypes = typecheck_expression_not_void(ft, valueexpr);
+        typecheck_expression_not_void(ft, valueexpr);
 
-        const Type *t = check_binop(ft->current_fom_types, op, stmt->location, targettypes, valuetypes);
-        ExpressionTypes tempvalue_types = { .expr = targetexpr, .type = t };
-
-        char msg[500];
-        snprintf(msg, sizeof msg, "%s produced a value of type FROM which cannot be assigned back to TO", opname);
-        do_implicit_cast(ft->current_fom_types, &tempvalue_types, targettypes->type, stmt->location, msg);
-
-        // I think it is currently impossible to cast target.
-        // If this assert fails, we probably need to add another error message for it.
-        assert(!targettypes->implicit_cast_type);
+        const Type *t = check_binop(ft->current_fom_types, op, stmt->location, targetexpr, valueexpr);
+        if (t != targettypes->type) {
+            fail(
+                stmt->location,
+                "%s produced a value of type %s which cannot be assigned back to %s",
+                opname, t->name, targettypes->type->name);
+        }
         break;
     }
 

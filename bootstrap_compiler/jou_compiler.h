@@ -169,8 +169,21 @@ struct AstCall {
     int nargs;
 };
 
+struct ExpressionTypes {
+    const Type *type;
+    const Type *implicit_cast_type;  // NULL for no implicit cast
+
+    // Flags to indicate whether special kinds of implicit casts happened
+    bool implicit_array_to_pointer_cast;    // Foo[N] to Foo*
+    bool implicit_string_to_array_cast;     // "..." to byte[N]
+};
+
 struct AstExpression {
     Location location;
+
+    // Populated during type checking. Before that, all fields are zeroed
+    // (e.g. NULL or false).
+    ExpressionTypes types;
 
     enum AstExpressionKind {
         AST_EXPR_CONSTANT,
@@ -461,16 +474,6 @@ struct LocalVariable {
     bool is_argument;    // First n variables are always the arguments
 };
 
-struct ExpressionTypes {
-    const AstExpression *expr;
-    const Type *type;
-    const Type *implicit_cast_type;  // NULL for no implicit cast
-
-    // Flags to indicate whether special kinds of implicit casts happened
-    bool implicit_array_to_pointer_cast;    // Foo[N] to Foo*
-    bool implicit_string_to_array_cast;     // "..." to byte[N]
-};
-
 struct ExportSymbol {
     enum ExportSymbolKind { EXPSYM_FUNCTION, EXPSYM_TYPE, EXPSYM_GLOBAL_VAR } kind;
     char name[200];
@@ -483,7 +486,6 @@ struct ExportSymbol {
 // Type information about a function or method defined in the current file.
 struct FunctionOrMethodTypes {
     Signature signature;
-    List(ExpressionTypes *) expr_types;
     List(LocalVariable *) locals;
 };
 
