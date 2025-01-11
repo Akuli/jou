@@ -193,9 +193,10 @@ As we have seen, the instantiating syntax is `ClassName{field=value}`.
 The curly braces are used to distinguish instantiating from function calls.
 
 If you omit some class fields, they will be initialized to zero.
-Specifically, the memory used for the instance will be all zero bytes.
+Specifically, the memory used for the fields will be all zero bytes.
 This means that boolean fields are set to `False`,
-pointer fields are `NULL`,
+numbers are set to zero,
+pointer fields become `NULL`,
 and fixed size strings appear as empty:
 
 ```python
@@ -254,7 +255,8 @@ def main() -> int:
     return 0
 ```
 
-This may be easier if you have multiple instances next to each other (**contiguously**) in memory,
+This may be easier if you have multiple instances next to each other
+(that is, **contiguously**) in memory,
 such as in an array, and you want to reset all of them:
 
 ```python
