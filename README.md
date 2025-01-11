@@ -22,13 +22,11 @@ otherwise Jou classes are just like structs in C.
 ```python
 import "stdlib/io.jou"
 
-
 class Greeting:
     target: byte*
 
     def show(self) -> None:
         printf("Hello %s\n", self->target)
-
 
 def main() -> int:
     g = Greeting{target="World"}
