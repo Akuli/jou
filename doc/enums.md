@@ -155,7 +155,6 @@ enum Operation:
 def main() -> int:
     wat = 7 as Operation
 
-    # Output: something else 7
     if wat == Operation::Add:
         printf("Add\n")
     elif wat == Operation::Subtract:
@@ -163,6 +162,7 @@ def main() -> int:
     elif wat == Operation::Multiply:
         printf("Multiply\n")
     else:
+        # Output: something else 7
         printf("something else %d\n", wat as int)
 
     return 0
@@ -173,4 +173,4 @@ def main() -> int:
 
 Unfortunately, it is not possible to print the name of an enum member at runtime,
 and you sometimes need to convert the enum to `int` and print the result (see above).
-Please create an issue on GitHub to discuss this if this annoys you.
+Please create an issue on GitHub to discuss this if it annoys you.
