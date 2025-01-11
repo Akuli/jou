@@ -31,9 +31,9 @@ class Point:
 
 Now every instance of `Point` will be at least 64 bits in size:
 32 bits for `x`, and 32 bits for `y`.
-(In reality, instances may be bigger than expected due to
+In reality, instances may be bigger than expected due to
 [padding](https://stackoverflow.com/questions/4306186/structure-padding-and-packing),
-but this can be almost always ignored.)
+but this can be almost always ignored.
 
 You can use e.g. `Point{x=12, y=34}` to instantiate the class,
 and the usual `.` syntax to access its fields:
@@ -47,9 +47,9 @@ class Point:
 
 def main() -> int:
     p = Point{x=12, y=34}
-    printf("%d,%d\n", p.x, p.y)  # Output: 12,34
+    printf("%d, %d\n", p.x, p.y)  # Output: 12, 34
     p.y++
-    printf("%d,%d\n", p.x, p.y)  # Output: 12,35
+    printf("%d, %d\n", p.x, p.y)  # Output: 12, 35
     return 0
 ```
 
@@ -62,7 +62,7 @@ import "stdlib/io.jou"
 def main() -> int:
     x = 12
     y = 34
-    printf("%d,%d\n", x, y)  # Output: 12,34
+    printf("%d, %d\n", x, y)  # Output: 12, 34
     return 0
 ```
 
@@ -138,29 +138,8 @@ By default, methods take the instance as a pointer.
 In the above example, the type of `self` is `Point*`,
 which means that `self` is a pointer to an instance of `Point`.
 
-If, for some reason, you want to pass the instance by value instead of a pointer,
-you can use an explicit type annotation:
-
-```python
-import "stdlib/io.jou"
-
-class Point:
-    x: int
-    y: int
-
-    def increment_y(self: Point) -> None:  # pass self by value
-        self.y++
-        printf("incremented to %d\n", self.y)
-
-def main() -> int:
-    p = Point{x=12, y=34}
-    p.increment_y()             # Output: incremented to 35
-    printf("still %d\n", p.y)   # Output: still 34
-    return 0
-```
-
 To call a method on a pointer (such as `self` by default),
-use `->`, just like with accessing attributes:
+use `->`, just like with accessing fields:
 
 ```python
 import "stdlib/io.jou"
@@ -183,6 +162,27 @@ def main() -> int:
     p = Point{x=12, y=34}
     p.increment_both()
     printf("%d %d\n", p.x, p.y)  # Output: 13 35
+    return 0
+```
+
+If, for some reason, you want to pass the instance by value instead of a pointer,
+you can specify the type of `self` like this:
+
+```python
+import "stdlib/io.jou"
+
+class Point:
+    x: int
+    y: int
+
+    def increment_y(self: Point) -> None:  # pass self by value
+        self.y++
+        printf("incremented to %d\n", self.y)
+
+def main() -> int:
+    p = Point{x=12, y=34}
+    p.increment_y()             # Output: incremented to 35
+    printf("still %d\n", p.y)   # Output: still 34
     return 0
 ```
 
