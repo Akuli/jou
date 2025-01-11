@@ -26,16 +26,6 @@ static LocalVariable *add_local_var(struct State *st, const Type *t)
     return var;
 }
 
-static const ExpressionTypes *get_expr_types(const struct State *st, const AstExpression *expr)
-{
-    // TODO: a fancy binary search algorithm (need to add sorting)
-    assert(st->fomtypes);
-    for (int i = 0; i < st->fomtypes->expr_types.len; i++)
-        if (st->fomtypes->expr_types.ptr[i]->expr == expr)
-            return st->fomtypes->expr_types.ptr[i];
-    return NULL;
-}
-
 static CfBlock *add_block(const struct State *st)
 {
     CfBlock *block = calloc(1, sizeof *block);
@@ -395,7 +385,7 @@ static const LocalVariable *build_address_of_expression(struct State *st, const 
     switch(address_of_what->kind) {
     case AST_EXPR_GET_VARIABLE:
     {
-        const Type *ptrtype = get_pointer_type(get_expr_types(st, address_of_what)->type);
+        const Type *ptrtype = get_pointer_type(address_of_what->types.type);
         const LocalVariable *addr = add_local_var(st, ptrtype);
 
         const LocalVariable *local_var = find_local_var(st, address_of_what->data.varname);
@@ -460,7 +450,7 @@ static const LocalVariable *build_function_or_method_call(
     const Signature *sig = NULL;
 
     if(self) {
-        const Type *selfclass = get_expr_types(st, self)->type;
+        const Type *selfclass = self->types.type;
         if (self_is_a_pointer) {
             assert(selfclass->kind == TYPE_POINTER);
             selfclass = selfclass->data.valuetype;
@@ -575,26 +565,26 @@ static int find_enum_member(const Type *enumtype, const char *name)
 
 static const LocalVariable *build_expression(struct State *st, const AstExpression *expr)
 {
-    const ExpressionTypes *types = get_expr_types(st, expr);
-    if (types && types->implicit_array_to_pointer_cast) {
+    const Type *t = expr->types.type;
+    if (expr->types.implicit_array_to_pointer_cast) {
         const LocalVariable *arrptr = build_address_of_expression(st, expr);
-        const LocalVariable *memberptr = add_local_var(st, types->implicit_cast_type);
+        const LocalVariable *memberptr = add_local_var(st, expr->types.implicit_cast_type);
         add_unary_op(st, expr->location, CF_PTR_CAST, arrptr, memberptr);
         return memberptr;
     }
 
-    if (types && types->implicit_string_to_array_cast) {
-        assert(types->implicit_cast_type);
-        assert(types->implicit_cast_type->kind == TYPE_ARRAY);
+    if (expr->types.implicit_string_to_array_cast) {
+        assert(expr->types.implicit_cast_type);
+        assert(expr->types.implicit_cast_type->kind == TYPE_ARRAY);
         assert(expr->kind == AST_EXPR_CONSTANT);
         assert(expr->data.constant.kind == CONSTANT_STRING);
 
-        char *padded = calloc(1, types->implicit_cast_type->data.array.len);
+        char *padded = calloc(1, expr->types.implicit_cast_type->data.array.len);
         strcpy(padded, expr->data.constant.data.str);
 
-        const LocalVariable *result = add_local_var(st, types->implicit_cast_type);
+        const LocalVariable *result = add_local_var(st, expr->types.implicit_cast_type);
         union CfInstructionData data = { .strarray = {
-            .len = types->implicit_cast_type->data.array.len,
+            .len = expr->types.implicit_cast_type->data.array.len,
             .str = padded,
         }};
         add_instruction(st, expr->location, CF_STRING_ARRAY, &data, NULL, result);
@@ -620,22 +610,22 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
             return NULL;
         break;
     case AST_EXPR_BRACE_INIT:
-        result = build_struct_init(st, types->type, &expr->data.call, expr->location);
+        result = build_struct_init(st, t, &expr->data.call, expr->location);
         break;
     case AST_EXPR_ARRAY:
-        assert(types->type->kind == TYPE_ARRAY);
-        assert(types->type->data.array.len == expr->data.array.count);
-        result = build_array(st, types->type, expr->data.array.items, expr->location);
+        assert(t->kind == TYPE_ARRAY);
+        assert(t->data.array.len == expr->data.array.count);
+        result = build_array(st, t, expr->data.array.items, expr->location);
         break;
     case AST_EXPR_GET_FIELD:
         temp = build_expression(st, expr->data.classfield.obj);
         result = build_class_field(st, temp, expr->data.classfield.fieldname, expr->location);
         break;
     case AST_EXPR_GET_ENUM_MEMBER:
-        result = add_local_var(st, types->type);
+        result = add_local_var(st, t);
         Constant c = { CONSTANT_ENUM_MEMBER, {
-            .enum_member.enumtype = types->type,
-            .enum_member.memberidx = find_enum_member(types->type, expr->data.enummember.membername),
+            .enum_member.enumtype = t,
+            .enum_member.memberidx = find_enum_member(t, expr->data.enummember.membername),
         }};
         add_constant(st, expr->location, c, result);
         break;
@@ -648,7 +638,7 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
             break;
         }
         if ((temp = find_local_var(st, expr->data.varname))) {
-            if (types->implicit_cast_type == NULL || types->type == types->implicit_cast_type) {
+            if (expr->types.implicit_cast_type == NULL || t == expr->types.implicit_cast_type) {
                 // Must take a "snapshot" of this variable, as it may change soon.
                 result = add_local_var(st, temp->type);
                 add_unary_op(st, expr->location, CF_VARCPY, temp, result);
@@ -672,7 +662,7 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
         and we only add a memory offset to it.
         */
         temp = build_address_of_expression(st, expr);
-        result = add_local_var(st, types->type);
+        result = add_local_var(st, t);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_ADDRESS_OF:
@@ -681,17 +671,17 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
     case AST_EXPR_SIZEOF:
         {
             result = add_local_var(st, longType);
-            union CfInstructionData data = { .type = get_expr_types(st, &expr->data.operands[0])->type };
+            union CfInstructionData data = { .type = expr->data.operands[0].types.type };
             add_instruction(st, expr->location, CF_SIZEOF, &data, NULL, result);
         }
         break;
     case AST_EXPR_DEREFERENCE:
         temp = build_expression(st, &expr->data.operands[0]);
-        result = add_local_var(st, types->type);
+        result = add_local_var(st, t);
         add_unary_op(st, expr->location, CF_PTR_LOAD, temp, result);
         break;
     case AST_EXPR_CONSTANT:
-        result = add_local_var(st, types->type);
+        result = add_local_var(st, t);
         add_constant(st, expr->location, expr->data.constant, result);
         break;
     case AST_EXPR_AND:
@@ -733,7 +723,7 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
             // order of function arguments.
             const LocalVariable *lhs = build_expression(st, &expr->data.operands[0]);
             const LocalVariable *rhs = build_expression(st, &expr->data.operands[1]);
-            result = build_binop(st, expr->kind, expr->location, lhs, rhs, types->type);
+            result = build_binop(st, expr->kind, expr->location, lhs, rhs, t);
             break;
         }
     case AST_EXPR_PRE_INCREMENT:
@@ -756,14 +746,13 @@ static const LocalVariable *build_expression(struct State *st, const AstExpressi
         }
     case AST_EXPR_AS:
         temp = build_expression(st, expr->data.as.obj);
-        result = build_cast(st, temp, types->type, expr->location);
+        result = build_cast(st, temp, t, expr->location);
         break;
     }
 
-    assert(types);
-    assert(result->type == types->type);
-    if (types->implicit_cast_type)
-        return build_cast(st, result, types->implicit_cast_type, expr->location);
+    assert(result->type == t);
+    if (expr->types.implicit_cast_type)
+        return build_cast(st, result, expr->types.implicit_cast_type, expr->location);
     else
         return result;
 }

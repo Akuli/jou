@@ -35,16 +35,6 @@ class LocalVariable:
         self->print_to_width(0)
 
 
-class ExpressionTypes:
-    expr: AstExpression*  # not owned
-    type: Type*
-    implicit_cast_type: Type*  # NULL for no implicit cast
-
-    # Flags to indicate whether special kinds of implicit casts happened
-    implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
-    implicit_string_to_array_cast: bool     # "..." to byte[N]
-
-
 # Type checking steps 1 and 2 return export symbols to be passed on to the next
 # step. That's how the next step accesses the results of the previous step.
 enum ExportSymbolKind:
@@ -68,8 +58,6 @@ class ExportSymbol:
 # Not created for anything imported from another file.
 class FunctionOrMethodTypes:
     signature: Signature
-    expr_types: ExpressionTypes**
-    n_expr_types: int
     locals: LocalVariable**
     nlocals: int
 
@@ -124,9 +112,6 @@ class FileTypes:
         for func = self->functions; func < &self->functions[self->nfunctions]; func++:
             func->signature.free()
         for fom = self->fomtypes; fom < &self->fomtypes[self->nfomtypes]; fom++:
-            for et = fom->expr_types; et < &fom->expr_types[fom->n_expr_types]; et++:
-                free(*et)
-            free(fom->expr_types)
             free(fom->locals)  # Don't free individual locals because they're owned by CFG now
             fom->signature.free()
         free(self->globals)
