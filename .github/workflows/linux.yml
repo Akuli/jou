@@ -23,6 +23,17 @@ jobs:
           version: 2.7.0
       - run: editorconfig-checker
 
+  markdownlink-checker:
+    timeout-minutes: 1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+            python-version: '3.13'
+      - run: pip install requests
+      - name: "Check the links in the markdown files"
+        run: python check-markdown-links.py
+
   test:
     timeout-minutes: 5
     runs-on: ubuntu-22.04
@@ -59,15 +70,8 @@ jobs:
       - uses: actions/checkout@v3
       - run: sudo apt update
       - run: sudo apt install -y llvm-{11,13,14}-dev clang-{11,13,14} make
-
       - run: LLVM_CONFIG=llvm-config-11 ./doctest.sh
       - run: make clean
       - run: LLVM_CONFIG=llvm-config-13 ./doctest.sh
       - run: make clean
       - run: LLVM_CONFIG=llvm-config-14 ./doctest.sh
-      - uses: actions/setup-python@v5
-        with:
-            python-version: '3.13'
-      - run: pip install requests
-      - name: "Check the links in the markdown files"
-        run: python check-markdown-links.py
