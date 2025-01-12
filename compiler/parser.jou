@@ -536,15 +536,6 @@ class Parser:
             elif self->tokens[1].is_operator("{"):
                 expr.kind = AstExpressionKind.Instantiate
                 expr.instantiation = self->parse_instantiation()
-            elif self->tokens[1].is_operator("::") and self->tokens[2].kind == TokenKind.Name:
-                expr.kind = AstExpressionKind.GetEnumMember
-                expr.enum_member = AstEnumMember{
-                    enum_name = self->tokens->short_string,
-                    member_name = self->tokens[2].short_string,
-                }
-                self->tokens++
-                self->tokens++
-                self->tokens++
             else:
                 expr.kind = AstExpressionKind.GetVariable
                 expr.varname = self->tokens->short_string
