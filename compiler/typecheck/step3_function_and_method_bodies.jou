@@ -127,6 +127,16 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
 def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, errmsg_template: byte*) -> None:
     assert fom != NULL
 
+    # If this assertion fails, it means you called ensure_can_take_address()
+    # before type-checking the expression. That's bad because this depends on
+    # the results of type checking.
+    #
+    # The dependency is a bit surprising. Jou code "foo.bar" can be either an
+    # enum member, or a field on an instance of a class. That is determined
+    # when type checking. Members of instances can be (usually) assigned to,
+    # but enum members cannot.
+    assert expr->types.type != NULL
+
     if (
         expr->kind == AstExpressionKind::Dereference
         or expr->kind == AstExpressionKind::Indexing  # &foo[bar]
@@ -469,13 +479,13 @@ def check_increment_or_decrement(ft: FileTypes*, expr: AstExpression*) -> Type*:
     else:
         assert False
 
-    ensure_can_take_address(ft->current_fom_types, &expr->operands[0], bad_expr_fmt)
-
     t = typecheck_expression_not_void(ft, &expr->operands[0])
     if not t->is_integer_type() and t->kind != TypeKind::Pointer:
         msg: byte[500]
         snprintf(msg, sizeof(msg), bad_type_fmt, t->name)
         fail(expr->location, msg)
+
+    ensure_can_take_address(ft->current_fom_types, &expr->operands[0], bad_expr_fmt)
     return t
 
 
@@ -762,9 +772,70 @@ def cast_array_members_to_a_common_type(fom: FunctionOrMethodTypes*, error_locat
     return elemtype
 
 
+# The AST "foo.bar" may be:
+#   - field "bar" of an instance of some class stored to variable "foo"
+#   - member "bar" of enum "foo"
+#
+# The parser assumes it is always a field on an instance, because it's more
+# general: "foo" can be any expression, not necessarily enum name.
+#
+# This function modifies the AST so that it sometimes changes from accessing
+# class fields to accessing enum members. This cannot be done in the parser
+# because it doesn't know what enums exist (they may be e.g. imported from
+# other files). Feels like a hack, but works great :)
+def handle_conflicting_class_field_and_enum_member_syntax(ft: FileTypes*, expr: AstExpression*) -> None:
+    if expr->kind != AstExpressionKind::GetClassField:
+        # not foo.bar
+        return
+
+    if expr->class_field.instance->kind != AstExpressionKind::GetVariable:
+        # the "foo" part is something more complicated than a variable name
+        return
+
+    enum_name: byte[100] = expr->class_field.instance->varname
+    member_name: byte[100] = expr->class_field.field_name
+
+    if ft->find_any_var(enum_name) != NULL:
+        # there is a variable named "foo", use that
+        # TODO: test this
+        return
+
+    t = ft->find_type(expr->class_field.instance->varname)
+    if t == NULL:
+        # no enum or variable, show variable not found error
+        return
+
+    if t->kind != TypeKind::Enum:
+        # attempting to do Foo.bar, where Foo is a type but not enum type
+        if t->kind == TypeKind::Class:
+            fail(expr->location, "class members cannot be accessed directly on the class, they only exist on instances")
+        else:
+            # TODO: Currently this cannot happen. Built-in types like "int" are
+            # keywords so that they cannot appear as expressions. A test should
+            # be added if this becomes possible in the future.
+            msg: byte[500]
+            snprintf(
+                msg, sizeof(msg),
+                "type '%s' has no members because it is not a class or an enum",
+                enum_name,
+            )
+            fail(expr->location, msg)
+
+    if expr->class_field.uses_arrow_operator:
+        fail(expr->location, "the '->' operator cannot be used to look up enum members")
+
+    expr->kind = AstExpressionKind::GetEnumMember
+    expr->enum_member = AstEnumMember{
+        enum_name = enum_name,
+        member_name = member_name,
+    }
+
+
 def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
     msg: byte[500]
     result: Type* = NULL
+
+    handle_conflicting_class_field_and_enum_member_syntax(ft, expr)
 
     if expr->kind == AstExpressionKind::Bool:
         result = boolType
@@ -874,9 +945,8 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
         result = typecheck_indexing(ft, &expr->operands[0], &expr->operands[1])
 
     elif expr->kind == AstExpressionKind::AddressOf:
+        result = typecheck_expression_not_void(ft, &expr->operands[0])->pointer_type()
         ensure_can_take_address(ft->current_fom_types, &expr->operands[0], "the '&' operator cannot be used with %s")
-        temptype = typecheck_expression_not_void(ft, &expr->operands[0])
-        result = temptype->pointer_type()
 
     elif expr->kind == AstExpressionKind::GetVariable:
         result = ft->find_any_var(expr->varname)
@@ -1013,6 +1083,7 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             ft->current_fom_types->add_variable(type, targetexpr->varname)
         else:
             # Convert value to the type of an existing variable or other assignment target.
+            targettype = typecheck_expression_not_void(ft, targetexpr)
             ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
 
             if targetexpr->kind == AstExpressionKind::Dereference:
@@ -1020,8 +1091,6 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             else:
                 desc = short_expression_description(targetexpr)
                 snprintf(msg, sizeof msg, "cannot assign a value of type <from> to %s of type <to>", desc)
-
-            targettype = typecheck_expression_not_void(ft, targetexpr)
             typecheck_expression_with_implicit_cast(ft, valueexpr, targettype, msg)
 
     elif (
@@ -1034,9 +1103,9 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
         targetexpr = &stmt->assignment.target
         valueexpr = &stmt->assignment.value
 
-        ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
         targettype = typecheck_expression_not_void(ft, targetexpr)
         value_type = typecheck_expression_not_void(ft, valueexpr)
+        ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
 
         if stmt->kind == AstStatementKind::InPlaceAdd:
             op = AstExpressionKind::Add

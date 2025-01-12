@@ -1047,8 +1047,56 @@ static const Type *cast_array_members_to_a_common_type(const FunctionOrMethodTyp
     return elemtype;
 }
 
+/*
+The AST "foo.bar" may be:
+    - field "bar" of an instance of some class stored to variable "foo"
+    - member "bar" of enum "foo"
+
+The parser assumes it is always a field on an instance, because it's more
+general: "foo" can be any expression, not necessarily enum name.
+
+This function modifies the AST so that it sometimes changes from accessing
+class fields to accessing enum members. This cannot be done in the parser
+because it doesn't know what enums exist (they may be e.g. imported from
+other files). Feels like a hack, but works great :)
+*/
+static void handle_conflicting_class_field_and_enum_member_syntax(const FileTypes *ft, AstExpression *expr)
+{
+    if (expr->kind != AST_EXPR_GET_FIELD) {
+        // not foo.bar
+        return;
+    }
+
+    if (expr->data.classfield.obj->kind != AST_EXPR_GET_VARIABLE) {
+        // the "foo" part is something more complicated than a variable name
+        return;
+    }
+
+    char enum_name[100];
+    char member_name[100];
+    safe_strcpy(enum_name, expr->data.classfield.obj->data.varname);
+    safe_strcpy(member_name, expr->data.classfield.fieldname);
+
+    if (find_any_var(ft, enum_name) != NULL) {
+        // there is a variable named "foo", use that
+        return;
+    }
+
+    const Type *t = find_type(ft, expr->data.classfield.obj->data.varname);
+    if (t == NULL || t->kind != TYPE_ENUM) {
+        return;
+    }
+
+    expr->kind = AST_EXPR_GET_ENUM_MEMBER;
+    memset(&expr->data, 0, sizeof(expr->data));
+    safe_strcpy(expr->data.enummember.enumname, enum_name);
+    safe_strcpy(expr->data.enummember.membername, member_name);
+}
+
 static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr)
 {
+    handle_conflicting_class_field_and_enum_member_syntax(ft, expr);
+
     const Type *temptype;
     const Type *result;
 
