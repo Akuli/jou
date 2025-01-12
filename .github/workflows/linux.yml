@@ -65,3 +65,9 @@ jobs:
       - run: LLVM_CONFIG=llvm-config-13 ./doctest.sh
       - run: make clean
       - run: LLVM_CONFIG=llvm-config-14 ./doctest.sh
+      - uses: actions/setup-python@v5
+        with:
+            python-version: '3.13'
+      - run: pip install requests
+      - name: "Check the links in the markdown files"
+        run: python check-markdown-links.py
