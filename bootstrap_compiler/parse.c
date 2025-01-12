@@ -438,11 +438,6 @@ static AstExpression parse_elementary_expression(ParserState *ps)
         } else if (is_operator(&ps->tokens[1], "{")) {
             expr.kind = AST_EXPR_BRACE_INIT;
             expr.data.call = parse_call(ps, '{', '}', true);
-        } else if (is_operator(&ps->tokens[1], "::") && ps->tokens[2].type == TOKEN_NAME) {
-            expr.kind = AST_EXPR_GET_ENUM_MEMBER;
-            safe_strcpy(expr.data.enummember.enumname, ps->tokens[0].data.name);
-            safe_strcpy(expr.data.enummember.membername, ps->tokens[2].data.name);
-            ps->tokens += 3;
         } else {
             expr.kind = AST_EXPR_GET_VARIABLE;
             safe_strcpy(expr.data.varname, ps->tokens->data.name);

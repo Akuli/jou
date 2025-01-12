@@ -858,17 +858,9 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
 
     elif expr->kind == AstExpressionKind.GetEnumMember:
         result = ft->find_type(expr->enum_member.enum_name)
-        if result == NULL:
-            snprintf(msg, sizeof(msg), "there is no type named '%s'", expr->enum_member.enum_name)
-            fail(expr->location, msg)
-        if result->kind != TypeKind.Enum:
-            snprintf(
-                msg, sizeof(msg),
-                "the '::' syntax is only for enums, but %s is %s",
-                expr->enum_member.enum_name,
-                result->short_description(),
-            )
-            fail(expr->location, msg)
+        # AstExpressionKind.GetEnumMember is only created if the enum exists
+        assert result != NULL
+        assert result->kind == TypeKind.Enum
         if not enum_member_exists(result, expr->enum_member.member_name):
             snprintf(
                 msg, sizeof(msg),

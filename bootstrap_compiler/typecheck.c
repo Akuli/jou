@@ -1103,13 +1103,9 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr)
     switch(expr->kind) {
     case AST_EXPR_GET_ENUM_MEMBER:
         result = find_type(ft, expr->data.enummember.enumname);
-        if (!result)
-            fail(
-                expr->location, "there is no type named '%s'", expr->data.enummember.enumname);
-        if (result->kind != TYPE_ENUM)
-            fail(
-                expr->location, "the '::' syntax is only for enums, but %s is %s",
-                expr->data.enummember.enumname, short_type_description(result));
+        // AST_EXPR_GET_ENUM_MEMBER is only created if the enum exists
+        assert(result);
+        assert(result->kind == TYPE_ENUM);
         if (!enum_member_exists(result, expr->data.enummember.membername))
             fail(expr->location, "enum %s has no member named '%s'",
                 expr->data.enummember.enumname, expr->data.enummember.membername);
