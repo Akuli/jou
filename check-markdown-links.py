@@ -12,7 +12,7 @@ from pathlib import Path
 
 import requests
 
-PROJECT_ROOT = Path(__file__).absolute().parent.parent
+PROJECT_ROOT = Path(__file__).absolute().parent
 assert (PROJECT_ROOT / "README.md").is_file()
 os.chdir(PROJECT_ROOT)
 
