@@ -151,6 +151,8 @@ def check_class_for_duplicate_names(classdef: AstClassDef*) -> None:
                 )
                 fail(p2->name_location, message)
 
+    free(infos)
+
 
 # TODO: this function is just bad...
 def read_assertion_from_file(start: Location, end: Location) -> byte*:
