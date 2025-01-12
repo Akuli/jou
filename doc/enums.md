@@ -10,17 +10,17 @@ enum Foo:
     Baz
 
 def main() -> int:
-    thing = Foo::Bar
+    thing = Foo.Bar
 
-    if thing == Foo::Bar:
+    if thing == Foo.Bar:
         printf("It's bar\n")  # Output: It's bar
-    elif thing == Foo::Baz:
+    elif thing == Foo.Baz:
         printf("It's baz\n")
     else:
         assert False  # never happens
 
-    printf("%d\n", Foo::Bar)  # Output: 0
-    printf("%d\n", Foo::Baz)  # Output: 1
+    printf("%d\n", Foo.Bar)  # Output: 0
+    printf("%d\n", Foo.Baz)  # Output: 1
 
     return 0
 ```
@@ -77,31 +77,27 @@ enum Operation:
     FloorDivide     # 7 / 3 produces 2
 
 def calculate(a: double, b: double, op: Operation) -> double:
-    if op == Operation::Add:
+    if op == Operation.Add:
         return a + b
-    if op == Operation::Subtract:
+    if op == Operation.Subtract:
         return a - b
-    if op == Operation::Multiply:
+    if op == Operation.Multiply:
         return a * b
-    if op == Operation::Divide:
+    if op == Operation.Divide:
         return a / b
-    if op == Operation::FloorDivide:
+    if op == Operation.FloorDivide:
         return floor(a / b)
     else:
         assert False  # not possible
 
 def main() -> int:
-    printf("%f\n", calculate(7, 3, Operation::Divide))        # Output: 2.333333
-    printf("%f\n", calculate(7, 3, Operation::FloorDivide))   # Output: 2.000000
+    printf("%f\n", calculate(7, 3, Operation.Divide))        # Output: 2.333333
+    printf("%f\n", calculate(7, 3, Operation.FloorDivide))   # Output: 2.000000
     return 0
 ```
 
 Here `enum Operation` defines a new enum, which has 5 possible values.
 You can then use `if` statements to check which value an instance of `Operation` is.
-
-Enums members are accessed with `::` instead of `.`,
-because it was easier to implement in the Jou compiler.
-Please create an issue on GitHub if you would prefer `.` syntax instead.
 
 
 ## Integer conversions
@@ -119,9 +115,9 @@ enum Operation:
     Multiply
 
 def main() -> int:
-    printf("%d\n", Operation::Add as int)       # Output: 0
-    printf("%d\n", Operation::Subtract as int)  # Output: 1
-    printf("%d\n", Operation::Multiply as int)  # Output: 2
+    printf("%d\n", Operation.Add as int)       # Output: 0
+    printf("%d\n", Operation.Subtract as int)  # Output: 1
+    printf("%d\n", Operation.Multiply as int)  # Output: 2
     return 0
 ```
 
@@ -137,7 +133,7 @@ enum Operation:
 
 def main() -> int:
     descriptions = ["Add numbers", "Subtract numbers", "Multiply numbers"]
-    printf("%s\n", descriptions[Operation::Subtract as int])  # Output: Subtract numbers
+    printf("%s\n", descriptions[Operation.Subtract as int])  # Output: Subtract numbers
     return 0
 ```
 
@@ -155,11 +151,11 @@ enum Operation:
 def main() -> int:
     wat = 7 as Operation
 
-    if wat == Operation::Add:
+    if wat == Operation.Add:
         printf("Add\n")
-    elif wat == Operation::Subtract:
+    elif wat == Operation.Subtract:
         printf("Subtract\n")
-    elif wat == Operation::Multiply:
+    elif wat == Operation.Multiply:
         printf("Multiply\n")
     else:
         # Output: something else 7
