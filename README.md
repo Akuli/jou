@@ -70,12 +70,12 @@ I will try my best to **keep Jou simple**,
 and not turn it into yet another big language that doesn't feel like C,
 such as C++, Zig, Rust, and many others.
 For example, the recommended way to print things will be C's `printf()` function,
-as explained in [the Jou tutorial](./doc/tutorial.md#cs-standard-library-libc).
+as explained in [the Jou tutorial](./doc/tutorial.md#c-s-standard-library-libc).
 This also means that I reject many feature requests.
 
 Jou is not intended to be memory safe, because it would make Jou more difficult to use.
 See [Jou's UB documentation](./doc/ub.md) for more discussion,
-including [thoughts on Rust](./doc/ub.md#rusts-approach-to-ub).
+including [thoughts on Rust](./doc/ub.md#rust-s-approach-to-ub).
 
 
 ## Setup
