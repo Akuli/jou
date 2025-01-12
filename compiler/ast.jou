@@ -454,6 +454,9 @@ class AstCall:
         for i = 0; i < self->nargs; i++:
             self->args[i].free()
         free(self->args)
+        if self->method_call_self != NULL:
+            self->method_call_self->free()
+            free(self->method_call_self)
 
     # Useful for formatting error messages, but not much else.
     # TODO: use this
