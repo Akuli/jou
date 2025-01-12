@@ -599,7 +599,11 @@ class AstStatement:
             self->while_loop.free()
         if self->kind == AstStatementKind.ForLoop:
             self->for_loop.free()
-        if self->kind == AstStatementKind.DeclareLocalVar:
+        if (
+            self->kind == AstStatementKind.DeclareLocalVar
+            or self->kind == AstStatementKind.GlobalVariableDeclaration
+            or self->kind == AstStatementKind.GlobalVariableDefinition
+        ):
             self->var_declaration.free()
         if (
             self->kind == AstStatementKind.Assign
@@ -616,8 +620,6 @@ class AstStatement:
             self->classdef.free()
         if self->kind == AstStatementKind.Enum:
             self->enumdef.free()
-        # TODO: GlobalVariableDeclaration
-        # TODO: GlobalVariableDefinition
 
 
 # Useful for e.g. "while condition: body", "if condition: body"
