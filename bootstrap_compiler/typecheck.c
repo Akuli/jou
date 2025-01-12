@@ -1049,8 +1049,8 @@ static const Type *cast_array_members_to_a_common_type(const FunctionOrMethodTyp
 
 /*
 The AST "foo.bar" may be:
-  - field "bar" of an instance of some class stored to variable "foo"
-  - member "bar" of enum "foo"
+    - field "bar" of an instance of some class stored to variable "foo"
+    - member "bar" of enum "foo"
 
 The parser assumes it is always a field on an instance, because it's more
 general: "foo" can be any expression, not necessarily enum name.
