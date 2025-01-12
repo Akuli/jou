@@ -47,13 +47,13 @@ class Type:
         enummembers: EnumType
 
     def is_integer_type(self) -> bool:
-        return self->kind == TypeKind::SignedInteger or self->kind == TypeKind::UnsignedInteger
+        return self->kind == TypeKind.SignedInteger or self->kind == TypeKind.UnsignedInteger
 
     def is_number_type(self) -> bool:
-        return self->is_integer_type() or self->kind == TypeKind::FloatingPoint
+        return self->is_integer_type() or self->kind == TypeKind.FloatingPoint
 
     def is_pointer_type(self) -> bool:
-        return self->kind == TypeKind::Pointer or self->kind == TypeKind::VoidPointer
+        return self->kind == TypeKind.Pointer or self->kind == TypeKind.VoidPointer
 
     # Returns a type that represents pointer to the original type.
     # Result is cached. Don't worry about freeing it.
@@ -63,7 +63,7 @@ class Type:
 
         if info->pointer == NULL:
             ptr: TypeInfo* = calloc(1, sizeof *ptr)
-            ptr->type = Type{kind=TypeKind::Pointer, value_type=self}
+            ptr->type = Type{kind=TypeKind.Pointer, value_type=self}
             snprintf(ptr->type.name, sizeof ptr->type.name, "%s*", self->name)
             info->pointer = ptr
 
@@ -81,7 +81,7 @@ class Type:
                 return &(*existing)->type
 
         arr: TypeInfo* = calloc(1, sizeof *arr)
-        arr->type = Type{kind = TypeKind::Array, array = ArrayType{item_type = self, len = len}}
+        arr->type = Type{kind = TypeKind.Array, array = ArrayType{item_type = self, len = len}}
         snprintf(arr->type.name, sizeof arr->type.name, "%s[%d]", self->name, len)
         info->arrays = realloc(info->arrays, sizeof(info->arrays[0]) * (info->narrays + 1))
         assert info->arrays != NULL
@@ -89,26 +89,26 @@ class Type:
         return &arr->type
 
     def short_description(self) -> byte*:
-        if self->kind == TypeKind::OpaqueClass or self->kind == TypeKind::Class:
+        if self->kind == TypeKind.OpaqueClass or self->kind == TypeKind.Class:
             return "a class"
-        if self->kind == TypeKind::Enum:
+        if self->kind == TypeKind.Enum:
             return "an enum"
-        if self->kind == TypeKind::VoidPointer or self->kind == TypeKind::Pointer:
+        if self->kind == TypeKind.VoidPointer or self->kind == TypeKind.Pointer:
             return "a pointer type"
         if (
-            self->kind == TypeKind::SignedInteger
-            or self->kind == TypeKind::UnsignedInteger
-            or self->kind == TypeKind::FloatingPoint
+            self->kind == TypeKind.SignedInteger
+            or self->kind == TypeKind.UnsignedInteger
+            or self->kind == TypeKind.FloatingPoint
         ):
             return "a number type"
-        if self->kind == TypeKind::Array:
+        if self->kind == TypeKind.Array:
             return "an array type"
-        if self->kind == TypeKind::Bool:
+        if self->kind == TypeKind.Bool:
             return "the built-in bool type"
         assert False
 
     def find_method(self, name: byte*) -> Signature*:
-        if self->kind != TypeKind::Class:
+        if self->kind != TypeKind.Class:
             return NULL
 
         for m = self->classdata.methods; m < &self->classdata.methods[self->classdata.nmethods]; m++:
@@ -177,14 +177,14 @@ def init_types() -> None:
     doubleType = &global_type_state.doublelele.type
     voidPtrType = &global_type_state.voidptr.type
 
-    global_type_state.boolean.type = Type{name = "bool", kind = TypeKind::Bool }
-    global_type_state.voidptr.type = Type{name = "void*", kind = TypeKind::VoidPointer }
-    global_type_state.floater.type = Type{name = "float", kind = TypeKind::FloatingPoint, size_in_bits = 32 }
-    global_type_state.doublelele.type = Type{name = "double", kind = TypeKind::FloatingPoint, size_in_bits = 64 }
+    global_type_state.boolean.type = Type{name = "bool", kind = TypeKind.Bool }
+    global_type_state.voidptr.type = Type{name = "void*", kind = TypeKind.VoidPointer }
+    global_type_state.floater.type = Type{name = "float", kind = TypeKind.FloatingPoint, size_in_bits = 32 }
+    global_type_state.doublelele.type = Type{name = "double", kind = TypeKind.FloatingPoint, size_in_bits = 64 }
 
     for size = 8; size <= 64; size *= 2:
-        global_type_state.integers[size][0].type.kind = TypeKind::UnsignedInteger
-        global_type_state.integers[size][1].type.kind = TypeKind::SignedInteger
+        global_type_state.integers[size][0].type.kind = TypeKind.UnsignedInteger
+        global_type_state.integers[size][1].type.kind = TypeKind.SignedInteger
 
         global_type_state.integers[size][0].type.size_in_bits = size
         global_type_state.integers[size][1].type.size_in_bits = size
@@ -202,7 +202,7 @@ def init_types() -> None:
 # think twice about it.
 def free_type(t: Type*) -> None:
     assert t != NULL
-    if t->kind == TypeKind::Class:
+    if t->kind == TypeKind.Class:
         for m = t->classdata.methods; m < &t->classdata.methods[t->classdata.nmethods]; m++:
             m->free()
         free(t->classdata.fields)
@@ -232,7 +232,7 @@ def get_integer_type(size_in_bits: int, is_signed: bool) -> Type*:
 
 def create_opaque_class(name: byte*) -> Type*:
     result: TypeInfo* = calloc(1, sizeof *result)
-    result->type = Type{kind = TypeKind::OpaqueClass}
+    result->type = Type{kind = TypeKind.OpaqueClass}
 
     assert strlen(name) < sizeof result->type.name
     strcpy(result->type.name, name)
@@ -242,7 +242,7 @@ def create_opaque_class(name: byte*) -> Type*:
 def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*:
     result: TypeInfo* = calloc(1, sizeof *result)
     result->type = Type{
-        kind = TypeKind::Enum,
+        kind = TypeKind.Enum,
         enummembers = EnumType{count=membercount, names=membernames},
     }
 
@@ -270,9 +270,9 @@ class Signature:
 
     def get_self_class(self) -> Type*:
         if self->nargs > 0 and strcmp(self->argnames[0], "self") == 0:
-            if self->argtypes[0]->kind == TypeKind::Pointer:
+            if self->argtypes[0]->kind == TypeKind.Pointer:
                 return self->argtypes[0]->value_type
-            if self->argtypes[0]->kind == TypeKind::Class:
+            if self->argtypes[0]->kind == TypeKind.Class:
                 return self->argtypes[0]
             assert False
         return NULL

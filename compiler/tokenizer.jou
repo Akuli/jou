@@ -424,7 +424,7 @@ class Tokenizer:
         fail(self->location, message)
 
     def handle_parentheses(self, token: Token*) -> None:
-        if token->kind == TokenKind::EndOfFile and self->open_parens_len > 0:
+        if token->kind == TokenKind.EndOfFile and self->open_parens_len > 0:
             open_token = self->open_parens[0]
             actual_open = open_token.short_string[0]
             expected_close = flip_paren(actual_open)
@@ -460,45 +460,45 @@ class Tokenizer:
             if b == '\n':
                 if self->open_parens_len > 0:
                     continue
-                token.kind = TokenKind::Newline
+                token.kind = TokenKind.Newline
                 token.indentation_level = self->read_newline_token()
             elif b == '"':
-                token.kind = TokenKind::String
+                token.kind = TokenKind.String
                 token.long_string = self->read_string()
             elif b == '\'':
-                token.kind = TokenKind::Byte
+                token.kind = TokenKind.Byte
                 token.byte_value = self->read_byte_literal()
             elif is_identifier_or_number_byte(b):
                 token.short_string = self->read_identifier_or_number(b)
                 if is_keyword(token.short_string):
-                    token.kind = TokenKind::Keyword
+                    token.kind = TokenKind.Keyword
                 elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
                     if is_valid_double(token.short_string):
-                        token.kind = TokenKind::Double
+                        token.kind = TokenKind.Double
                     elif is_valid_float(token.short_string):
                         token.short_string[strlen(token.short_string) - 1] = '\0'  # delete trailing 'f' or 'F'
-                        token.kind = TokenKind::Float
+                        token.kind = TokenKind.Float
                     elif token.short_string[strlen(token.short_string) - 1] == 'L':
                         token.short_string[strlen(token.short_string) - 1] = '\0'
-                        token.kind = TokenKind::Long
+                        token.kind = TokenKind.Long
                         token.long_value = parse_integer(token.short_string, token.location, 64)
                     elif token.short_string[strlen(token.short_string) - 1] == 'S':
                         token.short_string[strlen(token.short_string) - 1] = '\0'
-                        token.kind = TokenKind::Short
+                        token.kind = TokenKind.Short
                         token.short_value = parse_integer(token.short_string, token.location, 16) as short
                     else:
-                        token.kind = TokenKind::Int
+                        token.kind = TokenKind.Int
                         token.int_value = parse_integer(token.short_string, token.location, 32) as int
                 else:
-                    token.kind = TokenKind::Name
+                    token.kind = TokenKind.Name
             elif is_operator_byte(b):
                 self->unread_byte(b)
-                token.kind = TokenKind::Operator
+                token.kind = TokenKind.Operator
                 token.short_string = self->read_operator()
             elif b == '\t':
                 fail(self->location, "Jou files cannot contain tab characters (use 4 spaces for indentation)")
             elif b == '\0':
-                token.kind = TokenKind::EndOfFile
+                token.kind = TokenKind.EndOfFile
             else:
                 message: byte[100]
                 if b < 0x80 and isprint(b) != 0:
@@ -529,7 +529,7 @@ def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
 
     tokens: Token* = NULL
     len = 0
-    while len == 0 or tokens[len-1].kind != TokenKind::EndOfFile:
+    while len == 0 or tokens[len-1].kind != TokenKind.EndOfFile:
         tokens = realloc(tokens, sizeof(tokens[0]) * (len+1))
         tokens[len++] = tokenizer.read_token()
 
@@ -545,13 +545,13 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
     level = 0
 
     for t = raw_tokens; True; t++:
-        if t->kind == TokenKind::EndOfFile:
+        if t->kind == TokenKind.EndOfFile:
             # Add an extra newline token at end of file and the dedents after it.
             # This makes it similar to how other newline and dedent tokens work:
             # the dedents always come after a newline token.
             tokens = realloc(tokens, sizeof tokens[0] * (ntokens + level/4 + 1))
             while level != 0:
-                tokens[ntokens++] = Token{location = t->location, kind = TokenKind::Dedent}
+                tokens[ntokens++] = Token{location = t->location, kind = TokenKind.Dedent}
                 level -= 4
             tokens[ntokens++] = *t
             break
@@ -559,7 +559,7 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
         tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
         tokens[ntokens++] = *t
 
-        if t->kind == TokenKind::Newline:
+        if t->kind == TokenKind.Newline:
             after_newline = t->location
             after_newline.lineno++
 
@@ -568,12 +568,12 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
 
             while level < t->indentation_level:
                 tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
-                tokens[ntokens++] = Token{location = after_newline, kind = TokenKind::Indent}
+                tokens[ntokens++] = Token{location = after_newline, kind = TokenKind.Indent}
                 level += 4
 
             while level > t->indentation_level:
                 tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
-                tokens[ntokens++] = Token{location = after_newline, kind = TokenKind::Dedent}
+                tokens[ntokens++] = Token{location = after_newline, kind = TokenKind.Dedent}
                 level -= 4
 
     # Delete the newline token in the beginning.
@@ -581,7 +581,7 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
     # If the file has indentations after it, they are now represented by separate
     # indent tokens and parsing will fail. If the file doesn't have any blank/comment
     # lines in the beginning, it has a newline token anyway to avoid special casing.
-    assert tokens[0].kind == TokenKind::Newline
+    assert tokens[0].kind == TokenKind.Newline
     memmove(&tokens[0], &tokens[1], sizeof tokens[0] * (ntokens - 1))
 
     return tokens
@@ -617,7 +617,7 @@ def print_tokens(tokens: Token*) -> None:
         printf("  ")
         t->print()
 
-        if t->kind == TokenKind::EndOfFile:
+        if t->kind == TokenKind.EndOfFile:
             break
         t++
 

@@ -21,11 +21,11 @@ class LogicGate:
         i1 = (*self->inputs[0] == 1)
         i2 = (*self->inputs[1] == 1)
 
-        if self->op == LogicOp::And:
+        if self->op == LogicOp.And:
             *self->output = (i1 and i2) as int
-        elif self->op == LogicOp::Or:
+        elif self->op == LogicOp.Or:
             *self->output = (i1 or i2) as int
-        elif self->op == LogicOp::Xor:
+        elif self->op == LogicOp.Xor:
             *self->output = (i1 != i2) as int
         else:
             assert False
@@ -105,11 +105,11 @@ def main() -> int:
     input1, op, input2, output: byte[4]
     while fscanf(f, "%3s %3s %3s -> %3s\n", input1, op, input2, output) == 4:
         if strcmp(op, "AND") == 0:
-            op_enum = LogicOp::And
+            op_enum = LogicOp.And
         elif strcmp(op, "OR") == 0:
-            op_enum = LogicOp::Or
+            op_enum = LogicOp.Or
         elif strcmp(op, "XOR") == 0:
-            op_enum = LogicOp::Xor
+            op_enum = LogicOp.Xor
         else:
             assert False
 

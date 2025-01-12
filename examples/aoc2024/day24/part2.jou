@@ -173,17 +173,17 @@ def count_errors(orig_gates: Gate*, ngates: int, mark_sus: bool) -> int:
     # With real input, there are 45 adders, but the first adder is simpler than others.
     # It only has two gates: InputXor for output, InputAnd for overflow/carry.
     num_adders = ngates/5 + 1
-    assert counts[GateType::InputXor as int] == num_adders
-    assert counts[GateType::InputAnd as int] == num_adders
-    assert counts[GateType::OutputXor as int] == num_adders - 1
-    assert counts[GateType::OverflowAnd as int] == num_adders - 1
-    assert counts[GateType::OverflowOr as int] == num_adders - 1
+    assert counts[GateType.InputXor as int] == num_adders
+    assert counts[GateType.InputAnd as int] == num_adders
+    assert counts[GateType.OutputXor as int] == num_adders - 1
+    assert counts[GateType.OverflowAnd as int] == num_adders - 1
+    assert counts[GateType.OverflowOr as int] == num_adders - 1
 
-    ixors: Gate** = gate_arrays[GateType::InputXor as int]
-    iands: Gate** = gate_arrays[GateType::InputAnd as int]
-    oxors: Gate** = gate_arrays[GateType::OutputXor as int]
-    oands: Gate** = gate_arrays[GateType::OverflowAnd as int]
-    oors: Gate** = gate_arrays[GateType::OverflowOr as int]
+    ixors: Gate** = gate_arrays[GateType.InputXor as int]
+    iands: Gate** = gate_arrays[GateType.InputAnd as int]
+    oxors: Gate** = gate_arrays[GateType.OutputXor as int]
+    oands: Gate** = gate_arrays[GateType.OverflowAnd as int]
+    oors: Gate** = gate_arrays[GateType.OverflowOr as int]
 
     error_count = 0
 
@@ -257,18 +257,18 @@ def read_gates(filename: byte*, ngates: int*) -> Gate[250]:
         ):
             # Handles input directly, so it must be InputXor or InputAnd
             if strcmp(op, "XOR") == 0:
-                g.gtype = GateType::InputXor
+                g.gtype = GateType.InputXor
             elif strcmp(op, "AND") == 0:
-                g.gtype = GateType::InputAnd
+                g.gtype = GateType.InputAnd
             else:
                 assert False
         else:
             if strcmp(op, "XOR") == 0:
-                g.gtype = GateType::OutputXor
+                g.gtype = GateType.OutputXor
             elif strcmp(op, "AND") == 0:
-                g.gtype = GateType::OverflowAnd
+                g.gtype = GateType.OverflowAnd
             elif strcmp(op, "OR") == 0:
-                g.gtype = GateType::OverflowOr
+                g.gtype = GateType.OverflowOr
             else:
                 assert False
 

@@ -47,10 +47,10 @@ class ExportSymbol:
     name: byte[100]  # TODO: maybe this should be 200 because it can be ClassName.method_name? or something else?
     union:
         funcsignature: Signature
-        type: Type*  # ExportSymbolKind::Type and ExportSymbolKind::GlobalVar
+        type: Type*  # ExportSymbolKind.Type and ExportSymbolKind.GlobalVar
 
     def free(self) -> None:
-        if self->kind == ExportSymbolKind::Function:
+        if self->kind == ExportSymbolKind.Function:
             self->funcsignature.free()
 
 
@@ -173,7 +173,7 @@ def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
         snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype->name)
         fail(asttype->location, msg)
 
-    if asttype->kind == AstTypeKind::Named:
+    if asttype->kind == AstTypeKind.Named:
         if strcmp(asttype->name, "short") == 0:
             return shortType
         if strcmp(asttype->name, "int") == 0:
@@ -196,12 +196,12 @@ def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
         snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype->name)
         fail(asttype->location, msg)
 
-    if asttype->kind == AstTypeKind::Pointer:
+    if asttype->kind == AstTypeKind.Pointer:
         if asttype->value_type->is_void():
             return voidPtrType
         return type_from_ast(ft, asttype->value_type)->pointer_type()
 
-    if asttype->kind == AstTypeKind::Array:
+    if asttype->kind == AstTypeKind.Array:
         tmp = type_from_ast(ft, asttype->value_type)
         len = evaluate_array_length(asttype->array.length)
         if len <= 0:

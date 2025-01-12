@@ -38,7 +38,7 @@ class ModuleList:
             if strcmp(self->modules[i].name, name) == 0:
                 return
 
-        m = Module{kind = ModuleKind::FlipFlop}  # will be changed later
+        m = Module{kind = ModuleKind.FlipFlop}  # will be changed later
         assert strlen(name) < sizeof(m.name)
         strcpy(m.name, name)
 
@@ -119,7 +119,7 @@ class TodoList:
 # Repeatedly sends lows to start_flip_flop.
 # Returns the first 5 iterations where end module receives high.
 def run_part_of_input(start_flip_flop: Module*, end: Module*) -> int[5]:
-    assert start_flip_flop->kind == ModuleKind::FlipFlop  # needed for sending signals with NULL source
+    assert start_flip_flop->kind == ModuleKind.FlipFlop  # needed for sending signals with NULL source
 
     relevant_modules = find_affected_modules(start_flip_flop)
 
@@ -141,17 +141,17 @@ def run_part_of_input(start_flip_flop: Module*, end: Module*) -> int[5]:
                     free(todo.ptr)
                     return result
 
-            if item.to->kind == ModuleKind::Broadcaster:
+            if item.to->kind == ModuleKind.Broadcaster:
                 for i = 0; i < item.to->ndestinations; i++:
                     todo.send_later(item.to, item.to->destinations[i], item.value)
 
-            elif item.to->kind == ModuleKind::FlipFlop:
+            elif item.to->kind == ModuleKind.FlipFlop:
                 if not item.value:
                     item.to->flip_flop_state = not item.to->flip_flop_state
                     for i = 0; i < item.to->ndestinations; i++:
                         todo.send_later(item.to, item.to->destinations[i], item.to->flip_flop_state)
 
-            elif item.to->kind == ModuleKind::Conjunction:
+            elif item.to->kind == ModuleKind.Conjunction:
                 i = 0
                 while item.to->sources[i] != item.from:
                     i++
@@ -209,13 +209,13 @@ def main() -> int:
         name = words[0]
         if name[0] == '%':
             name++
-            kind = ModuleKind::FlipFlop
+            kind = ModuleKind.FlipFlop
         elif name[0] == '&':
             name++
-            kind = ModuleKind::Conjunction
+            kind = ModuleKind.Conjunction
         else:
             assert strcmp(name, "broadcaster") == 0
-            kind = ModuleKind::Broadcaster
+            kind = ModuleKind.Broadcaster
 
         modules->create_if_doesnt_exist(name)
         source = modules->find_module(name)
@@ -258,13 +258,13 @@ def main() -> int:
 
     for i = 0; i < broadcaster->ndestinations; i++:
         flip_flop: Module* = broadcaster->destinations[i]
-        assert flip_flop->kind == ModuleKind::FlipFlop
+        assert flip_flop->kind == ModuleKind.FlipFlop
         flip_flop_leads_to = find_affected_modules(flip_flop)
 
         conjunction: Module* = NULL
         for p = &flip_flop_leads_to[0]; *p != NULL; p++:
             if (
-                (*p)->kind == ModuleKind::Conjunction
+                (*p)->kind == ModuleKind.Conjunction
                 and (*p)->ndestinations == 1
                 and (*p)->destinations[0] == output_conjunction
             ):
