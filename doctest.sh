@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 #
-# This file runs code snippets in doc/*.md files.
+# This file runs code snippets in markdown files.
 
 set -e -o pipefail
 
 for arg in "$@"; do
     if [[ "$arg" =~ ^- ]]; then
-        echo "Usage: $0 [doc/file1.md doc/file2.md ...]" >&2
+        echo "Usage: $0 [file1.md file2.md ...]" >&2
         exit 2
     fi
 done
 
 if [ $# == 0 ]; then
-    files=(doc/*.md)
+    files=(README.md doc/*.md)
 else
     files=("$@")
 fi
