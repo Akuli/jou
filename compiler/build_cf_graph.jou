@@ -734,7 +734,7 @@ class CfBuilder:
                 assert sizeof(c.double_or_float_text) == sizeof(expr->float_or_double_text)
                 strcpy(c.double_or_float_text, expr->float_or_double_text)
             elif expr->kind == AstExpressionKind.String:
-                c = Constant{kind = ConstantKind.String, str = strdup(expr->string)}
+                c = Constant{kind = ConstantKind.String, str = expr->string}
             else:
                 assert False
             result = self->add_var(t)
