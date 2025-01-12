@@ -600,6 +600,8 @@ def tokenize(path: byte*, import_location: Location*) -> Token*:
             fail(*import_location, message)
 
     raw_tokens = tokenize_without_indent_dedent_tokens(file, path)
+    fclose(file)
+
     better_tokens = handle_indentations(raw_tokens)
     free(raw_tokens)
     return better_tokens

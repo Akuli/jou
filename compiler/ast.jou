@@ -328,19 +328,19 @@ class AstExpression:
             self->operands[i].print_with_tree_printer(tp.print_prefix(i == self->get_arity()-1))
 
     def free(self) -> None:
-        if self->kind == AstExpressionKind.Call:
-            self->call.free()
-        elif self->kind == AstExpressionKind.As:
-            self->as_->free()
-            free(self->as_)
-        elif self->kind == AstExpressionKind.String:
+        if self->kind == AstExpressionKind.String:
             free(self->string)
         elif self->kind == AstExpressionKind.Array:
             self->array.free()
+        elif self->kind == AstExpressionKind.Call:
+            self->call.free()
         elif self->kind == AstExpressionKind.Instantiate:
             self->instantiation.free()
         elif self->kind == AstExpressionKind.GetClassField:
             self->class_field.free()
+        elif self->kind == AstExpressionKind.As:
+            self->as_->free()
+            free(self->as_)
 
         if self->get_arity() != 0:
             for i = 0; i < self->get_arity(); i++:
@@ -454,6 +454,9 @@ class AstCall:
         for i = 0; i < self->nargs; i++:
             self->args[i].free()
         free(self->args)
+        if self->method_call_self != NULL:
+            self->method_call_self->free()
+            free(self->method_call_self)
 
     # Useful for formatting error messages, but not much else.
     # TODO: use this
@@ -468,6 +471,10 @@ class AstCall:
 class AstAssertion:
     condition: AstExpression
     condition_str: byte*
+
+    def free(self) -> None:
+        self->condition.free()
+        free(self->condition_str)
 
 
 enum AstStatementKind:
@@ -502,8 +509,8 @@ class AstStatement:
         if_statement: AstIfStatement
         while_loop: AstConditionAndBody
         for_loop: AstForLoop
-        return_value: AstExpression*     # can be NULL
-        assignment: AstAssignment
+        return_value: AstExpression*       # can be NULL
+        assignment: AstAssignment          # also used for +=, -= etc
         var_declaration: AstNameTypeValue  # DeclareLocalVar
         function: AstFunctionOrMethod
         classdef: AstClassDef
@@ -582,19 +589,40 @@ class AstStatement:
             printf("??????\n")
 
     def free(self) -> None:
-        if self->kind == AstStatementKind.Enum:
-            self->enumdef.free()
         if self->kind == AstStatementKind.ExpressionStatement:
             self->expression.free()
+        if self->kind == AstStatementKind.Assert:
+            self->assertion.free()
         if self->kind == AstStatementKind.Return and self->return_value != NULL:
             self->return_value->free()
             free(self->return_value)
         if self->kind == AstStatementKind.If:
             self->if_statement.free()
+        if self->kind == AstStatementKind.WhileLoop:
+            self->while_loop.free()
         if self->kind == AstStatementKind.ForLoop:
             self->for_loop.free()
+        if (
+            self->kind == AstStatementKind.DeclareLocalVar
+            or self->kind == AstStatementKind.GlobalVariableDeclaration
+            or self->kind == AstStatementKind.GlobalVariableDefinition
+        ):
+            self->var_declaration.free()
+        if (
+            self->kind == AstStatementKind.Assign
+            or self->kind == AstStatementKind.InPlaceAdd
+            or self->kind == AstStatementKind.InPlaceSub
+            or self->kind == AstStatementKind.InPlaceMul
+            or self->kind == AstStatementKind.InPlaceDiv
+            or self->kind == AstStatementKind.InPlaceMod
+        ):
+            self->assignment.free()
+        if self->kind == AstStatementKind.Function:
+            self->function.free()
         if self->kind == AstStatementKind.Class:
             self->classdef.free()
+        if self->kind == AstStatementKind.Enum:
+            self->enumdef.free()
 
 
 # Useful for e.g. "while condition: body", "if condition: body"
@@ -630,6 +658,10 @@ class AstAssignment:
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         self->target.print_with_tree_printer(tp.print_prefix(False))
         self->value.print_with_tree_printer(tp.print_prefix(True))
+
+    def free(self) -> None:
+        self->target.free()
+        self->value.free()
 
 
 # if foo:
@@ -730,9 +762,10 @@ class AstNameTypeValue:
                 self->value->print_with_tree_printer(sub)
 
     def free(self) -> None:
+        self->type.free()
         if self->value != NULL:
             self->value->free()
-        free(self->value)
+            free(self->value)
 
 
 # typically multiple indented lines after a ":" at end of line

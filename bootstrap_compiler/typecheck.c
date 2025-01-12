@@ -1087,6 +1087,7 @@ static void handle_conflicting_class_field_and_enum_member_syntax(const FileType
         return;
     }
 
+    free(expr->data.classfield.obj);
     expr->kind = AST_EXPR_GET_ENUM_MEMBER;
     memset(&expr->data, 0, sizeof(expr->data));
     safe_strcpy(expr->data.enummember.enumname, enum_name);

@@ -824,6 +824,7 @@ def handle_conflicting_class_field_and_enum_member_syntax(ft: FileTypes*, expr: 
     if expr->class_field.uses_arrow_operator:
         fail(expr->location, "the '->' operator cannot be used to look up enum members")
 
+    free(expr->class_field.instance)
     expr->kind = AstExpressionKind.GetEnumMember
     expr->enum_member = AstEnumMember{
         enum_name = enum_name,
