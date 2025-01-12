@@ -12,11 +12,11 @@ import "./types.jou"
 
 
 def very_short_number_type_description(t: Type*) -> byte*:
-    if t->kind == TypeKind::FloatingPoint:
+    if t->kind == TypeKind.FloatingPoint:
         return "floating"
-    if t->kind == TypeKind::SignedInteger:
+    if t->kind == TypeKind.SignedInteger:
         return "signed"
-    if t->kind == TypeKind::UnsignedInteger:
+    if t->kind == TypeKind.UnsignedInteger:
         return "unsigned"
     assert False
 
@@ -41,7 +41,7 @@ enum CfInstructionKind:
     PtrClassField  # takes 1 operand (pointer), sets destvar to &op->fieldname
     PtrCast
     PtrAddInt
-    # Left and right side of number operations must be of the same type (except CfInstructionKind::NumCast).
+    # Left and right side of number operations must be of the same type (except CfInstructionKind.NumCast).
     NumAdd
     NumSub
     NumMul
@@ -59,13 +59,13 @@ class CfInstruction:
     location: Location
     kind: CfInstructionKind
     union:
-        constant: Constant       # CfInstructionKind::Constant
-        strarray: CfStringArray  # CfInstructionKind::StringArray
-        signature: Signature     # CfInstructionKind::Call
-        fieldname: byte[100]     # CfInstructionKind::PtrClassField
-        globalname: byte[100]    # CfInstructionKind::AddressOfGlobalVar
-        scname: byte[100]        # CfInstructionKind::SpecialConstant
-        type: Type*              # CfInstructionKind::SizeOf
+        constant: Constant       # CfInstructionKind.Constant
+        strarray: CfStringArray  # CfInstructionKind.StringArray
+        signature: Signature     # CfInstructionKind.Call
+        fieldname: byte[100]     # CfInstructionKind.PtrClassField
+        globalname: byte[100]    # CfInstructionKind.AddressOfGlobalVar
+        scname: byte[100]        # CfInstructionKind.SpecialConstant
+        type: Type*              # CfInstructionKind.SizeOf
 
     operands: LocalVariable**  # e.g. numbers to add, function arguments
     noperands: int
@@ -79,18 +79,18 @@ class CfInstruction:
             self->destvar->print()
             printf(" = ")
 
-        if self->kind == CfInstructionKind::AddressOfLocalVar:
+        if self->kind == CfInstructionKind.AddressOfLocalVar:
             printf("address of ")
             self->operands[0]->print()
             printf(" (local variable)")
-        elif self->kind == CfInstructionKind::AddressOfGlobalVar:
+        elif self->kind == CfInstructionKind.AddressOfGlobalVar:
             printf("address of %s (global variable)", self->globalname)
-        elif self->kind == CfInstructionKind::SizeOf:
+        elif self->kind == CfInstructionKind.SizeOf:
             printf("sizeof %s", self->type->name)
-        elif self->kind == CfInstructionKind::BoolNegate:
+        elif self->kind == CfInstructionKind.BoolNegate:
             printf("boolean negation of ")
             self->operands[0]->print()
-        elif self->kind == CfInstructionKind::Call:
+        elif self->kind == CfInstructionKind.Call:
             if self->signature.get_self_class() != NULL:
                 printf("call method %s.", self->signature.get_self_class()->name)
             else:
@@ -101,7 +101,7 @@ class CfInstruction:
                     printf(", ")
                 self->operands[i]->print()
             printf(")")
-        elif self->kind == CfInstructionKind::NumCast:
+        elif self->kind == CfInstructionKind.NumCast:
             printf("number cast ")
             self->operands[0]->print()
             printf(
@@ -111,94 +111,94 @@ class CfInstruction:
                 self->destvar->type->size_in_bits,
                 very_short_number_type_description(self->destvar->type),
             )
-        elif self->kind == CfInstructionKind::EnumToInt32:
+        elif self->kind == CfInstructionKind.EnumToInt32:
             printf("cast ")
             self->operands[0]->print()
             printf(" from enum to 32-bit signed int")
-        elif self->kind == CfInstructionKind::Int32ToEnum:
+        elif self->kind == CfInstructionKind.Int32ToEnum:
             printf("cast ")
             self->operands[0]->print()
             printf(" from 32-bit signed int to enum")
-        elif self->kind == CfInstructionKind::PtrToInt64:
+        elif self->kind == CfInstructionKind.PtrToInt64:
             printf("cast ")
             self->operands[0]->print()
             printf(" to 64-bit integer")
-        elif self->kind == CfInstructionKind::Int64ToPtr:
+        elif self->kind == CfInstructionKind.Int64ToPtr:
             printf("cast ")
             self->operands[0]->print()
             printf(" from 64-bit integer to pointer")
-        elif self->kind == CfInstructionKind::Constant:
+        elif self->kind == CfInstructionKind.Constant:
             self->constant.print()
-        elif self->kind == CfInstructionKind::SpecialConstant:
+        elif self->kind == CfInstructionKind.SpecialConstant:
             printf("special constant \"%s\"", self->scname)
-        elif self->kind == CfInstructionKind::StringArray:
+        elif self->kind == CfInstructionKind.StringArray:
             printf("string array ")
             print_string(self->strarray.str, self->strarray.len)
         elif (
-            self->kind == CfInstructionKind::NumAdd
-            or self->kind == CfInstructionKind::NumSub
-            or self->kind == CfInstructionKind::NumMul
-            or self->kind == CfInstructionKind::NumDiv
-            or self->kind == CfInstructionKind::NumMod
-            or self->kind == CfInstructionKind::NumEq
-            or self->kind == CfInstructionKind::NumLt
+            self->kind == CfInstructionKind.NumAdd
+            or self->kind == CfInstructionKind.NumSub
+            or self->kind == CfInstructionKind.NumMul
+            or self->kind == CfInstructionKind.NumDiv
+            or self->kind == CfInstructionKind.NumMod
+            or self->kind == CfInstructionKind.NumEq
+            or self->kind == CfInstructionKind.NumLt
         ):
-            if self->kind == CfInstructionKind::NumAdd:
+            if self->kind == CfInstructionKind.NumAdd:
                 printf("num add ")
-            elif self->kind == CfInstructionKind::NumSub:
+            elif self->kind == CfInstructionKind.NumSub:
                 printf("num sub ")
-            elif self->kind == CfInstructionKind::NumMul:
+            elif self->kind == CfInstructionKind.NumMul:
                 printf("num mul ")
-            elif self->kind == CfInstructionKind::NumDiv:
+            elif self->kind == CfInstructionKind.NumDiv:
                 printf("num div ")
-            elif self->kind == CfInstructionKind::NumMod:
+            elif self->kind == CfInstructionKind.NumMod:
                 printf("num mod ")
-            elif self->kind == CfInstructionKind::NumEq:
+            elif self->kind == CfInstructionKind.NumEq:
                 printf("num eq ")
-            elif self->kind == CfInstructionKind::NumLt:
+            elif self->kind == CfInstructionKind.NumLt:
                 printf("num lt ")
             else:
                 assert False
             self->operands[0]->print()
             printf(", ")
             self->operands[1]->print()
-        elif self->kind == CfInstructionKind::PtrLoad:
+        elif self->kind == CfInstructionKind.PtrLoad:
             # Extra parentheses to make these stand out a bit.
             printf("*(")
             self->operands[0]->print()
             printf(")")
-        elif self->kind == CfInstructionKind::PtrStore:
+        elif self->kind == CfInstructionKind.PtrStore:
             printf("*(")
             self->operands[0]->print()
             printf(") = ")
             self->operands[1]->print()
-        elif self->kind == CfInstructionKind::PtrAddInt:
+        elif self->kind == CfInstructionKind.PtrAddInt:
             printf("ptr ")
             self->operands[0]->print()
             printf(" + integer ")
             self->operands[1]->print()
-        elif self->kind == CfInstructionKind::PtrClassField:
+        elif self->kind == CfInstructionKind.PtrClassField:
             self->operands[0]->print()
             printf(" + offset of field \"%s\"", self->fieldname)
-        elif self->kind == CfInstructionKind::PtrCast:
+        elif self->kind == CfInstructionKind.PtrCast:
             printf("pointer cast ")
             self->operands[0]->print()
-        elif self->kind == CfInstructionKind::PtrMemsetToZero:
+        elif self->kind == CfInstructionKind.PtrMemsetToZero:
             printf("set value of pointer ")
             self->operands[0]->print()
             printf(" to zero bytes")
-        elif self->kind == CfInstructionKind::VarCpy:
+        elif self->kind == CfInstructionKind.VarCpy:
             self->operands[0]->print()
         else:
             assert False
         printf("\n")
 
     def free(self) -> None:
-        if self->kind == CfInstructionKind::Constant:
+        if self->kind == CfInstructionKind.Constant:
             self->constant.free()
-        if self->kind == CfInstructionKind::StringArray:
+        if self->kind == CfInstructionKind.StringArray:
             free(self->strarray.str)
-        if self->kind == CfInstructionKind::Call:
+        if self->kind == CfInstructionKind.Call:
             self->signature.free()
         free(self->operands)
 

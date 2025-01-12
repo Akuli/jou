@@ -6,7 +6,7 @@ import "./errors_and_warnings.jou"
 
 
 def evaluate_array_length(expr: AstExpression*) -> int:
-    if expr->kind == AstExpressionKind::Int:
+    if expr->kind == AstExpressionKind.Int:
         return expr->int_value
     fail(expr->location, "cannot evaluate array length at compile time")
 
@@ -22,18 +22,18 @@ def get_special_constant(name: byte*) -> int:
 
 
 def evaluate_condition(expr: AstExpression*) -> bool:
-    if expr->kind == AstExpressionKind::GetVariable:
+    if expr->kind == AstExpressionKind.GetVariable:
         v = get_special_constant(expr->varname)
         if v == 0:
             return False
         if v == 1:
             return True
 
-    if expr->kind == AstExpressionKind::And:
+    if expr->kind == AstExpressionKind.And:
         return evaluate_condition(&expr->operands[0]) and evaluate_condition(&expr->operands[1])
-    if expr->kind == AstExpressionKind::Or:
+    if expr->kind == AstExpressionKind.Or:
         return evaluate_condition(&expr->operands[0]) or evaluate_condition(&expr->operands[1])
-    if expr->kind == AstExpressionKind::Not:
+    if expr->kind == AstExpressionKind.Not:
         return not evaluate_condition(&expr->operands[0])
 
     fail(expr->location, "cannot evaluate condition at compile time")
@@ -70,7 +70,7 @@ def replace(body: AstBody*, i: int, new: AstBody) -> None:
 def evaluate_compile_time_if_statements(body: AstBody*) -> None:
     i = 0
     while i < body->nstatements:
-        if body->statements[i].kind == AstStatementKind::If:
+        if body->statements[i].kind == AstStatementKind.If:
             replace(body, i, evaluate_compile_time_if_statement(&body->statements[i].if_statement))
         else:
             i++

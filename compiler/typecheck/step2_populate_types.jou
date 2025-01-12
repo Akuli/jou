@@ -37,7 +37,7 @@ def handle_global_var(ft: FileTypes*, vardecl: AstNameTypeValue*, defined_here: 
     assert ft->globals != NULL
     ft->globals[ft->nglobals++] = g
 
-    es = ExportSymbol{kind = ExportSymbolKind::GlobalVar, type = g.type}
+    es = ExportSymbol{kind = ExportSymbolKind.GlobalVar, type = g.type}
     assert sizeof(es.name) == sizeof(g.name)
     strcpy(es.name, g.name)
     return es
@@ -67,7 +67,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
     for i = 0; i < sig.nargs; i++:
         if (
             strcmp(sig.argnames[i], "self") == 0
-            and astsig->args[i].type.kind == AstTypeKind::Named
+            and astsig->args[i].type.kind == AstTypeKind.Named
             and astsig->args[i].type.name[0] == '\0'
         ):
             # just "self" without a type after it --> default to "self: Foo*" in class Foo
@@ -128,14 +128,14 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
             break
 
     assert type != NULL
-    assert type->kind == TypeKind::OpaqueClass
-    type->kind = TypeKind::Class
+    assert type->kind == TypeKind.OpaqueClass
+    type->kind = TypeKind.Class
 
     memset(&type->classdata, 0, sizeof type->classdata)
 
     union_id = 0
     for m = classdef->members; m < &classdef->members[classdef->nmembers]; m++:
-        if m->kind == AstClassMemberKind::Field:
+        if m->kind == AstClassMemberKind.Field:
             f = ClassField{
                 type = type_from_ast(ft, &m->field.type),
                 union_id = union_id++,
@@ -147,7 +147,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
             assert type->classdata.fields != NULL
             type->classdata.fields[type->classdata.nfields++] = f
 
-        elif m->kind == AstClassMemberKind::Union:
+        elif m->kind == AstClassMemberKind.Union:
             uid = union_id++
             for ntv = m->union_fields.fields; ntv < &m->union_fields.fields[m->union_fields.nfields]; ntv++:
                 f = ClassField{
@@ -161,7 +161,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                 assert type->classdata.fields != NULL
                 type->classdata.fields[type->classdata.nfields++] = f
 
-        elif m->kind == AstClassMemberKind::Method:
+        elif m->kind == AstClassMemberKind.Method:
             # Don't handle the method body yet: that is a part of step 3, not step 2
             sig = handle_signature(ft, &m->method.signature, type)
 
@@ -183,19 +183,19 @@ def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbo
         exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
         assert exports != NULL
 
-        if stmt->kind == AstStatementKind::GlobalVariableDeclaration:
+        if stmt->kind == AstStatementKind.GlobalVariableDeclaration:
             exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, False)
-        elif stmt->kind == AstStatementKind::GlobalVariableDefinition:
+        elif stmt->kind == AstStatementKind.GlobalVariableDefinition:
             exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, True)
-        elif stmt->kind == AstStatementKind::Function:
+        elif stmt->kind == AstStatementKind.Function:
             sig = handle_signature(ft, &stmt->function.signature, NULL)
-            es = ExportSymbol{kind = ExportSymbolKind::Function, funcsignature = sig}
+            es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig}
             assert sizeof(es.name) == sizeof(sig.name)
             strcpy(es.name, sig.name)
             exports[nexports++] = es
-        elif stmt->kind == AstStatementKind::Class:
+        elif stmt->kind == AstStatementKind.Class:
             handle_class_members(ft, &stmt->classdef)
-        elif stmt->kind == AstStatementKind::Enum:
+        elif stmt->kind == AstStatementKind.Enum:
             pass  # Everything done in previous type-checking steps.
         else:
             assert False

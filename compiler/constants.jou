@@ -36,18 +36,18 @@ class Constant:
         enum_member: EnumMemberConstant
 
     def print(self) -> None:
-        if self->kind == ConstantKind::EnumMember:
+        if self->kind == ConstantKind.EnumMember:
             printf("enum member %d of %s", self->enum_member.memberidx, self->enum_member.enumtype->name)
-        elif self->kind == ConstantKind::Bool:
+        elif self->kind == ConstantKind.Bool:
             if self->boolean:
                 printf("True")
             else:
                 printf("False")
-        elif self->kind == ConstantKind::Float:
+        elif self->kind == ConstantKind.Float:
             printf("float %s", self->double_or_float_text)
-        elif self->kind == ConstantKind::Double:
+        elif self->kind == ConstantKind.Double:
             printf("double %s", self->double_or_float_text)
-        elif self->kind == ConstantKind::Integer:
+        elif self->kind == ConstantKind.Integer:
             if self->integer.is_signed:
                 signed_or_unsigned = "signed"
             else:
@@ -58,9 +58,9 @@ class Constant:
                 self->integer.size_in_bits,
                 signed_or_unsigned,
             )
-        elif self->kind == ConstantKind::Null:
+        elif self->kind == ConstantKind.Null:
             printf("NULL")
-        elif self->kind == ConstantKind::String:
+        elif self->kind == ConstantKind.String:
             printf("string ")
             print_string(self->str, strlen(self->str))
             printf("\n")
@@ -68,29 +68,29 @@ class Constant:
             assert False
 
     def free(self) -> None:
-        if self->kind == ConstantKind::String:
+        if self->kind == ConstantKind.String:
             free(self->str)
 
     def copy(self: Constant) -> Constant:
-        if self.kind == ConstantKind::String:
+        if self.kind == ConstantKind.String:
             self.str = strdup(self.str)
             assert self.str != NULL
         return self
 
     def get_type(self) -> Type*:
-        if self->kind == ConstantKind::EnumMember:
+        if self->kind == ConstantKind.EnumMember:
             return self->enum_member.enumtype
-        if self->kind == ConstantKind::Null:
+        if self->kind == ConstantKind.Null:
             return voidPtrType
-        if self->kind == ConstantKind::Double:
+        if self->kind == ConstantKind.Double:
             return doubleType
-        if self->kind == ConstantKind::Float:
+        if self->kind == ConstantKind.Float:
             return floatType
-        if self->kind == ConstantKind::Bool:
+        if self->kind == ConstantKind.Bool:
             return boolType
-        if self->kind == ConstantKind::String:
+        if self->kind == ConstantKind.String:
             return byteType->pointer_type()
-        if self->kind == ConstantKind::Integer:
+        if self->kind == ConstantKind.Integer:
             return get_integer_type(self->integer.size_in_bits, self->integer.is_signed)
         assert False
 
@@ -98,10 +98,10 @@ class Constant:
 def int_constant(type: Type*, value: long) -> Constant:
     assert type->is_integer_type()
     return Constant{
-        kind = ConstantKind::Integer,
+        kind = ConstantKind.Integer,
         integer = IntegerConstant{
             size_in_bits = type->size_in_bits,
-            is_signed = type->kind == TypeKind::SignedInteger,
+            is_signed = type->kind == TypeKind.SignedInteger,
             value = value
         }
     }

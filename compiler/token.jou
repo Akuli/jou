@@ -37,32 +37,32 @@ class Token:
         long_string: byte*      # String
 
     def print(self) -> None:
-        if self->kind == TokenKind::Byte:
+        if self->kind == TokenKind.Byte:
             printf("byte %#02x", self->byte_value)
             if isprint(self->byte_value) != 0:
                 printf(" '%c'", self->byte_value)
             printf("\n")
-        elif self->kind == TokenKind::Short:
+        elif self->kind == TokenKind.Short:
             printf("short %hd\n", self->short_value)
-        elif self->kind == TokenKind::Int:
+        elif self->kind == TokenKind.Int:
             printf("integer %d\n", self->int_value)
-        elif self->kind == TokenKind::Long:
+        elif self->kind == TokenKind.Long:
             printf("long %lld\n", self->long_value)
-        elif self->kind == TokenKind::Float:
+        elif self->kind == TokenKind.Float:
             printf("float %s\n", self->short_string)
-        elif self->kind == TokenKind::Double:
+        elif self->kind == TokenKind.Double:
             printf("double %s\n", self->short_string)
-        elif self->kind == TokenKind::EndOfFile:
+        elif self->kind == TokenKind.EndOfFile:
             printf("end of file\n")
-        elif self->kind == TokenKind::Operator:
+        elif self->kind == TokenKind.Operator:
             printf("operator '%s'\n", self->short_string)
-        elif self->kind == TokenKind::Name:
+        elif self->kind == TokenKind.Name:
             printf("name \"%s\"\n", self->short_string)
-        elif self->kind == TokenKind::Keyword:
+        elif self->kind == TokenKind.Keyword:
             printf("keyword \"%s\"\n", self->short_string)
-        elif self->kind == TokenKind::Newline:
+        elif self->kind == TokenKind.Newline:
             printf("newline token (next line has %d spaces of indentation)\n", self->indentation_level)
-        elif self->kind == TokenKind::String:
+        elif self->kind == TokenKind.String:
             printf("string \"")
             for s = self->long_string; *s != 0; s++:
                 if isprint(*s) != 0:
@@ -72,18 +72,18 @@ class Token:
                 else:
                     printf("\\x%02x", *s)
             printf("\"\n")
-        elif self->kind == TokenKind::Indent:
+        elif self->kind == TokenKind.Indent:
             printf("indent (+4 spaces)\n")
-        elif self->kind == TokenKind::Dedent:
+        elif self->kind == TokenKind.Dedent:
             printf("dedent (-4 spaces)\n")
         else:
             printf("????\n")
 
     def is_keyword(self, kw: byte*) -> bool:
-        return self->kind == TokenKind::Keyword and strcmp(self->short_string, kw) == 0
+        return self->kind == TokenKind.Keyword and strcmp(self->short_string, kw) == 0
 
     def is_operator(self, op: byte*) -> bool:
-        return self->kind == TokenKind::Operator and strcmp(self->short_string, op) == 0
+        return self->kind == TokenKind.Operator and strcmp(self->short_string, op) == 0
 
     def is_comparison(self) -> bool:
         return (
@@ -103,33 +103,33 @@ class Token:
 
     def fail_expected_got(self, what_was_expected_instead: byte*) -> None:
         got: byte[100]
-        if self->kind == TokenKind::Short:
+        if self->kind == TokenKind.Short:
             got = "a short"
-        elif self->kind == TokenKind::Int:
+        elif self->kind == TokenKind.Int:
             got = "an integer"
-        elif self->kind == TokenKind::Long:
+        elif self->kind == TokenKind.Long:
             got = "a long integer"
-        elif self->kind == TokenKind::Float:
+        elif self->kind == TokenKind.Float:
             got = "a float constant"
-        elif self->kind == TokenKind::Double:
+        elif self->kind == TokenKind.Double:
             got = "a double constant"
-        elif self->kind == TokenKind::Byte:
+        elif self->kind == TokenKind.Byte:
             got = "a byte literal"
-        elif self->kind == TokenKind::String:
+        elif self->kind == TokenKind.String:
             got = "a string"
-        elif self->kind == TokenKind::Name:
+        elif self->kind == TokenKind.Name:
             snprintf(got, sizeof got, "a variable name '%s'", self->short_string)
-        elif self->kind == TokenKind::Keyword:
+        elif self->kind == TokenKind.Keyword:
             snprintf(got, sizeof got, "the '%s' keyword", self->short_string)
-        elif self->kind == TokenKind::Newline:
+        elif self->kind == TokenKind.Newline:
             got = "end of line"
-        elif self->kind == TokenKind::Indent:
+        elif self->kind == TokenKind.Indent:
             got = "more indentation"
-        elif self->kind == TokenKind::Dedent:
+        elif self->kind == TokenKind.Dedent:
             got = "less indentation"
-        elif self->kind == TokenKind::Operator:
+        elif self->kind == TokenKind.Operator:
             snprintf(got, sizeof got, "'%s'", self->short_string)
-        elif self->kind == TokenKind::EndOfFile:
+        elif self->kind == TokenKind.EndOfFile:
             got = "end of file"
         else:
             assert False
@@ -140,7 +140,7 @@ class Token:
 
 
 def free_tokens(tokenlist: Token*) -> None:
-    for t = tokenlist; t->kind != TokenKind::EndOfFile; t++:
-        if t->kind == TokenKind::String:
+    for t = tokenlist; t->kind != TokenKind.EndOfFile; t++:
+        if t->kind == TokenKind.String:
             free(t->long_string)
     free(tokenlist)
