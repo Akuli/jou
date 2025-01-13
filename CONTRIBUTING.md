@@ -7,7 +7,7 @@ If you have any trouble with this, please create an issue!
 
 <details> <summary>Linux</summary>
 
-Following the [instructions in the README](README.md#setup-linux) is enough.
+Following the [instructions in the README](README.md#setup) is enough.
 
 To edit the C code, you can use any editor that uses `clangd`.
 The `make` command creates a file `compile_flags.txt`
