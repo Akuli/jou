@@ -62,7 +62,7 @@ def check_https_url(url):
 def get_all_refs(path):
     result = []
     for title in re.findall(r"\n#+ (.*)", path.read_text()):
-        words = re.findall(r"[a-z0-9]+", title.lower())
+        words = re.findall(r"[a-z0-9]+", title.lower().replace("'", ""))
         result.append("#" + "-".join(words))
     return result
 
