@@ -36,9 +36,9 @@ In reality, instances may be bigger than expected due to
 but this can be almost always ignored.
 
 To create an instance of `Point`,
-we simply need enough memory to hold the two `int`s,
-and we need to tell the compiler to treat it as a `Point` instance.
-In other words, we simply create a variable whose type is `Point`:
+we simply need to take enough memory to hold the two `int`s,
+and we need to tell the compiler to treat that memory as a `Point` instance.
+In other words, we create a variable whose type is `Point`:
 
 ```python
 p: Point
@@ -60,6 +60,7 @@ def main() -> int:
     p.x = 12
     p.y = 34
     printf("%d, %d\n", p.x, p.y)  # Output: 12, 34
+
     p.y++
     printf("%d, %d\n", p.x, p.y)  # Output: 12, 35
     return 0
@@ -73,9 +74,9 @@ This syntax is explained in detail [below](#instantiating).
 
 Instances of classes are often passed around as pointers.
 To understand why, let's try to make a function
-that increments the `x` coordinate of a `Point`:
+that increments the `y` coordinate of a `Point`:
 
- ```python
+```python
 import "stdlib/io.jou"
 
 class Point:
@@ -92,8 +93,8 @@ def main() -> int:
     return 0
 ```
 
-The problem is that when we do `increment_y()`,
-we simply pass the 64 (or more) bytes of the struct to the `increment_y()` method.
+The problem is that when we do `increment_y(p)`,
+we simply pass the 64 (or more) bytes of the instance `p` to the `increment_y()` function.
 This is very similar to creating two variables `x` and `y` in the `main()` function:
 
 ```python
@@ -209,7 +210,7 @@ This means that the type of `self` is `Point`, not `Point*` (the default),
 so `self` is not a pointer.
 
 
-## Instantiating
+## Instantiating Syntax
 
 As we have seen, "instantiating" simply means taking a chunk of memory of the correct size,
 but it's often done with the `ClassName{field=value}` syntax.
