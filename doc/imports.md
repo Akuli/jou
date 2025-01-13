@@ -28,6 +28,10 @@ Practically, here's what you need to know:
 - Importing does not affect other files, only the file that contains the import.
     This means that if `utils.jou` defines `a_really_useful_function()`,
     then you need to `import "./utils.jou"` in all files that use `a_really_useful_function()`.
+- The order of `import` statements in a file doesn't matter.
+    Feel free to arrange them into whichever order you prefer.
+    There is no such thing as "the code doesn't compile if I swap these imports"
+    (or if there is, please [create an issue](https://github.com/Akuli/jou/issues/new)).
 
 
 ## Conflicting Names
@@ -46,7 +50,7 @@ However, it's fine to have multiple methods with the same name in different clas
 as long as the class names are different.
 For example, [the `ast.jou` file in the Jou compiler](../compiler/ast.jou)
 has many classes whose name starts with `Ast` to prevent conflicts with other files,
-and most of the classes have a method named `free()`.
+and most of them have methods named `print()` and `free()`.
 
 Let me explain why Jou has this limitation.
 When the Jou compiler has compiled all Jou files individually,
