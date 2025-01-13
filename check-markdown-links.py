@@ -119,6 +119,7 @@ def main():
     bad_links = 0
 
     for path in paths:
+        print("Checking", path)
         for lineno, link_target in find_links(path):
             if link_target.startswith("https://") and args.offline:
                 continue
