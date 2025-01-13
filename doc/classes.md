@@ -67,7 +67,7 @@ def main() -> int:
 ```
 
 Alternatively, we could create the instance in one line with `p = Point{x = 12, y = 34}`.
-This syntax is explained in detail [below](#instantiating).
+This syntax is explained in detail [below](#instantiating-syntax).
 
 
 ## Pointers
