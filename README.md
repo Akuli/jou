@@ -75,7 +75,7 @@ This also means that I reject many feature requests.
 
 Jou is not intended to be memory safe, because it would make Jou more difficult to use.
 See [Jou's UB documentation](./doc/ub.md) for more discussion,
-including [thoughts on Rust](./doc/ub.md#rust-s-approach-to-ub).
+including [thoughts on Rust](./doc/ub.md#rusts-approach-to-ub).
 
 
 ## Setup
