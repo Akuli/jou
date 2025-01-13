@@ -92,5 +92,5 @@ a Jou function named `foo()` is actually named `foo()`.
 Methods are entirely a Jou concept, and they become plain old functions when the Jou code is compiled.
 If you have a Jou method `bark()` in Jou class `Dog`,
 the compiler generates a function named `Dog.bark`.
-This means that debugging tools (e.g. [valgrind](doc.md#crashing-and-valgrind))
+This means that debugging tools (e.g. [valgrind](doc/ub.md#crashing-and-valgrind))
 show `Dog.bark` as the function name when they tell you something about the Jou method.
