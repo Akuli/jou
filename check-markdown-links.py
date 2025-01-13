@@ -25,13 +25,6 @@ def find_markdown_files():
 def find_links(markdown_file_path):
     content = markdown_file_path.read_text(encoding="utf-8")
 
-    # TODO: do we have changelog.md in jou?
-    if markdown_file_path.name == "CHANGELOG.md":
-        # Ignore changelogs of old versions. Editing them doesn't make sense.
-        header_matches = list(re.finditer("^## ", content, flags=re.MULTILINE))
-        end_of_current_version = header_matches[1].start()
-        content = content[:end_of_current_version]
-
     for lineno, line in enumerate(content.splitlines(), start=1):
         link_regexes = [
             # [text](target)
