@@ -218,7 +218,7 @@ Let's look at this syntax in more detail.
 
 The curly braces are used to distinguish instantiating syntax from function calls.
 This makes the Jou compiler simpler, but if you don't like this syntax,
-feel free to [create an issue](https://github,com/Akuli/jou/issues/new) to discuss it.
+feel free to [create an issue](https://github.com/Akuli/jou/issues/new) to discuss it.
 
 If you omit some class fields, they will be initialized to zero.
 Specifically, the memory used for the fields will be all zero bytes.
