@@ -340,9 +340,9 @@ class CfBuilder:
         if not t->is_integer_type() and not t->is_pointer_type():
             msg: byte[500]
             if diff == 1:
-                snprintf(msg, sizeof(msg),  "cannot increment a value of type %s", t->name)
+                snprintf(msg, sizeof(msg), "cannot increment a value of type %s", t->name)
             else:
-                snprintf(msg, sizeof(msg),  "cannot decrement a value of type %s", t->name)
+                snprintf(msg, sizeof(msg), "cannot decrement a value of type %s", t->name)
             fail(location, msg)
 
         old_value = self->add_var(t)
@@ -814,7 +814,7 @@ class CfBuilder:
 
         done = self->add_block()
         for i = 0; i < ifstmt->n_if_and_elifs; i++:
-            cond: LocalVariable* = self->build_expression(&ifstmt->if_and_elifs[i].condition)
+            cond = self->build_expression(&ifstmt->if_and_elifs[i].condition)
             then = self->add_block()
             otherwise = self->add_block()
 
@@ -823,6 +823,30 @@ class CfBuilder:
             self->jump(NULL, done, done, otherwise)
 
         self->build_body(&ifstmt->else_body)
+        self->jump(NULL, done, done, done)
+
+    def build_match_statement(self, match_stmt: AstMatchStatement*) -> None:
+        # TODO: test evaluation order
+        match_obj_enum = self->build_expression(&match_stmt->match_obj)
+        match_obj_int = self->add_var(intType)
+        self->unary_op(match_stmt->match_obj.location, CfInstructionKind.EnumToInt32, match_obj_enum, match_obj_int)
+
+        done = self->add_block()
+        for i = 0; i < match_stmt->ncases; i++:
+            case_obj_enum = self->build_expression(&match_stmt->cases[i].case_obj)
+            case_obj_int = self->add_var(intType)
+            self->unary_op(match_stmt->cases[i].case_obj.location, CfInstructionKind.EnumToInt32, case_obj_enum, case_obj_int)
+
+            cond = self->build_binop(AstExpressionKind.Eq, match_stmt->cases[i].case_obj.location, match_obj_int, case_obj_int, boolType)
+            then = self->add_block()
+            otherwise = self->add_block()
+
+            self->jump(cond, then, otherwise, then)
+            self->build_body(&match_stmt->cases[i].body)
+            self->jump(NULL, done, done, otherwise)
+
+        if match_stmt->case_underscore != NULL:
+            self->build_body(match_stmt->case_underscore)
         self->jump(NULL, done, done, done)
 
     def build_assert(self, assert_location: Location, assertion: AstAssertion*) -> None:
@@ -934,6 +958,8 @@ class CfBuilder:
             self->build_loop(
                 stmt->for_loop.init, &stmt->for_loop.cond, stmt->for_loop.incr,
                 &stmt->for_loop.body)
+        elif stmt->kind == AstStatementKind.Match:
+            self->build_match_statement(&stmt->match_statement)
         elif stmt->kind == AstStatementKind.Break:
             if self->nloops == 0:
                 fail(stmt->location, "'break' can only be used inside a loop")

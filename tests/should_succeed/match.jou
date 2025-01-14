@@ -1,0 +1,33 @@
+import "stdlib/io.jou"
+
+enum Foo:
+    Bar
+    Baz
+    Lol
+    Wut
+
+
+def main() -> int:
+    f = Foo.Bar
+    match f:
+        case Foo.Bar:
+            printf("Bar\n")  # Output: Bar
+        case Foo.Baz:
+            printf("Baz\n")
+        case _:
+            printf("Other\n")
+
+    f = 69 as Foo
+    match f:
+        case Foo.Bar:
+            printf("nope\n")
+        case Foo.Baz:
+            printf("nope\n")
+        case Foo.Lol:
+            printf("nope\n")
+        case Foo.Wut:
+            printf("nope\n")
+        case _:
+            printf("Other!!!! %d\n", f as int)  # Output: Other!!!! 69
+
+    return 0

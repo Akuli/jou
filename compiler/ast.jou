@@ -711,17 +711,27 @@ class AstMatchStatement:
     match_obj: AstExpression
     cases: AstCase*
     ncases: int
+    case_underscore: AstBody*  # body of "case _" (always last), NULL if no "case _"
+    case_underscore_location: Location  # not meaningful if case_underscore == NULL
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("match\n")
         for i = 0; i < self->ncases; i++:
-            self->cases[i].print_with_tree_printer(tp, i == self->ncases - 1)
+            self->cases[i].print_with_tree_printer(tp, i == self->ncases - 1 and self->case_underscore == NULL)
+
+        if self->case_underscore != NULL:
+            sub = tp.print_prefix(True)
+            printf("[line %d] body of case _:\n", self->case_underscore_location.lineno)
+            self->case_underscore->print_with_tree_printer(sub)
 
     def free(self) -> None:
         self->match_obj.free()
         for i = 0; i < self->ncases; i++:
             self->cases[i].free()
         free(self->cases)
+        if self->case_underscore != NULL:
+            self->case_underscore->free()
+            free(self->case_underscore)
 
 
 # case case_obj:

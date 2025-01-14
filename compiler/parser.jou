@@ -859,28 +859,40 @@ class Parser:
     def parse_match_statement(self) -> AstMatchStatement:
         assert self->tokens->is_keyword("match")
         self->tokens++
-        match_obj = self->parse_expression()
-        self->parse_start_of_body()
 
-        cases: AstCase* = NULL
-        ncases = 0
+        result = AstMatchStatement{match_obj = self->parse_expression()}
+        self->parse_start_of_body()
 
         while self->tokens->kind != TokenKind.Dedent:
             if not self->tokens->is_keyword("case"):
                 self->tokens->fail_expected_got("the 'case' keyword")
+            if result.case_underscore != NULL:
+                # TODO: test this
+                fail(
+                    self->tokens->location,
+                    "this case will never run, because 'case _:' above matches anything",
+                )
             self->tokens++
-            cases = realloc(cases, sizeof cases[0] * (ncases+1))
-            cases[ncases++] = AstCase{
-                case_obj = self->parse_expression(),
-                body = self->parse_body(),
-            }
+
+            if (
+                self->tokens->kind == TokenKind.Name
+                and strcmp(self->tokens->short_string, "_") == 0
+                and self->tokens[1].is_operator(":")
+            ):
+                # case _:
+                result.case_underscore_location = (self->tokens++)->location
+                result.case_underscore = malloc(sizeof(*result.case_underscore))
+                assert result.case_underscore != NULL
+                *result.case_underscore = self->parse_body()
+            else:
+                result.cases = realloc(result.cases, sizeof result.cases[0] * (result.ncases + 1))
+                result.cases[result.ncases++] = AstCase{
+                    case_obj = self->parse_expression(),
+                    body = self->parse_body(),
+                }
         self->tokens++
 
-        return AstMatchStatement{
-            match_obj = match_obj,
-            cases = cases,
-            ncases = ncases,
-        }
+        return result
 
     # Parses the "x: int" part of "x, y, z: int", leaving "y, z: int" to be parsed later.
     def parse_first_of_multiple_local_var_declares(self) -> AstNameTypeValue:
