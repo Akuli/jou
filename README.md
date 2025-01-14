@@ -87,7 +87,7 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 1. Install the dependencies:
     ```
-    $ sudo apt install git llvm-15-dev clang-15 make
+    $ sudo apt install git llvm-16-dev clang-16 make
     ```
     Let me know if you use a distro that doesn't have `apt`,
     and you need help with this step.
@@ -121,6 +121,7 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
 These LLVM/clang versions are supported:
 - LLVM 14 with clang 14
 - LLVM 15 with clang 15
+- LLVM 16 with clang 16
 
 By default, the `make` command picks the latest available version.
 You can also specify the version manually by setting the `LLVM_CONFIG` variable:

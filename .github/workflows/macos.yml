@@ -10,7 +10,7 @@ jobs:
     timeout-minutes: 5
     strategy:
       matrix:
-        llvm-version: [14, 15]
+        llvm-version: [14, 15, 16]
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
