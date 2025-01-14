@@ -169,8 +169,14 @@ class CodeGen:
 
     # Returns the value of a local variable. Short name, because it's used a lot.
     def getlocal(self, cfvar: LocalVariable*) -> LLVMValue*:
-        varptr = self->get_pointer_to_local_var(cfvar)
-        return LLVMBuildLoad(self->builder, varptr, cfvar->name)
+        assert cfvar != NULL
+
+        for i = 0; &self->cfvars[i] < self->cfvars_end; i++:
+            if self->cfvars[i] == cfvar:
+                var_ptr = self->llvm_locals[i]
+                var_type = codegen_type(self->cfvars[i]->type)
+                return LLVMBuildLoad2(self->builder, var_type, var_ptr, cfvar->name)
+        assert False
 
     def setlocal(self, cfvar: LocalVariable*, value: LLVMValue*) -> None:
         assert cfvar != NULL
@@ -323,7 +329,7 @@ class CodeGen:
         elif ins->kind == CfInstructionKind.AddressOfGlobalVar:
             self->setlocal(ins->destvar, LLVMGetNamedGlobal(self->module, ins->globalname))
         elif ins->kind == CfInstructionKind.PtrLoad:
-            self->setlocal(ins->destvar, LLVMBuildLoad(self->builder, self->getlocal(ins->operands[0]), "ptr_load"))
+            self->setlocal(ins->destvar, LLVMBuildLoad2(self->builder, codegen_type(ins->operands[0]->type->value_type), self->getlocal(ins->operands[0]), "ptr_load"))
         elif ins->kind == CfInstructionKind.PtrStore:
             LLVMBuildStore(self->builder, self->getlocal(ins->operands[1]), self->getlocal(ins->operands[0]))
         elif ins->kind == CfInstructionKind.PtrToInt64:
@@ -348,8 +354,9 @@ class CodeGen:
             LLVMBuildMemSet(self->builder, self->getlocal(ins->operands[0]), LLVMConstInt(LLVMInt8Type(), 0, False as int), size, 0)
         elif ins->kind == CfInstructionKind.PtrAddInt:
             ptr_var = self->getlocal(ins->operands[0])
+            value_type = codegen_type(ins->operands[0]->type->value_type)
             int_var = self->getlocal(ins->operands[1])
-            self->setlocal(ins->destvar, LLVMBuildGEP(self->builder, ptr_var, &int_var, 1, "ptr_add_int"))
+            self->setlocal(ins->destvar, LLVMBuildGEP2(self->builder, value_type, ptr_var, &int_var, 1, "ptr_add_int"))
         elif ins->kind == CfInstructionKind.NumCast:
             from = ins->operands[0]->type
             to = ins->destvar->type
@@ -448,7 +455,8 @@ class CodeGen:
                 # The "return" variable may have been deleted as unused.
                 # In that case return_value is NULL but signature.returntype isn't.
                 if return_value != NULL:
-                    LLVMBuildRet(self->builder, LLVMBuildLoad(self->builder, return_value, "return_value"))
+                    return_type = codegen_type(cfg->signature.returntype)
+                    LLVMBuildRet(self->builder, LLVMBuildLoad2(self->builder, return_type, return_value, "return_value"))
                 elif cfg->signature.returntype != NULL or cfg->signature.is_noreturn:
                     LLVMBuildUnreachable(self->builder)
                 else:
