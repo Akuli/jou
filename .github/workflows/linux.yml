@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        llvm-version: [11, 13, 14, 15]
+        llvm-version: [13, 14, 15]
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
@@ -70,9 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: sudo apt update
-      - run: sudo apt install -y llvm-{11,13,14,15}-dev clang-{11,13,14,15} make
-      - run: LLVM_CONFIG=llvm-config-11 ./doctest.sh
-      - run: make clean
+      - run: sudo apt install -y llvm-{13,14,15}-dev clang-{13,14,15} make
       - run: LLVM_CONFIG=llvm-config-13 ./doctest.sh
       - run: make clean
       - run: LLVM_CONFIG=llvm-config-14 ./doctest.sh
