@@ -5,7 +5,7 @@ import "stdlib/io.jou"
 
 class Computer:
     name: byte[3]
-    connections: void*[100]  # TODO: should be Computer*[100], can't be due to compiler bug
+    connections: Computer*[100]
 
     def connect(self, other: Computer*) -> None:
         assert other != NULL

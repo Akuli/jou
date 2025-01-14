@@ -55,16 +55,15 @@ static LLVMTypeRef codegen_type(const Type *type)
     case TYPE_ARRAY:
         return LLVMArrayType(codegen_type(type->data.array.membertype), type->data.array.len);
     case TYPE_POINTER:
-        return LLVMPointerType(codegen_type(type->data.valuetype), 0);
+    case TYPE_VOID_POINTER:
+        // Element type is ignored in new LLVM versions.
+        return LLVMPointerType(LLVMInt8Type(), 0);
     case TYPE_FLOATING_POINT:
         switch(type->data.width_in_bits) {
             case 32: return LLVMFloatType();
             case 64: return LLVMDoubleType();
             default: assert(0);
         }
-    case TYPE_VOID_POINTER:
-        // just use i8* as here https://stackoverflow.com/q/36724399
-        return LLVMPointerType(LLVMInt8Type(), 0);
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
         return LLVMIntType(type->data.width_in_bits);
@@ -157,7 +156,10 @@ static void set_local_var(const struct State *st, const LocalVariable *cfvar, LL
     assert(cfvar);
     for (LocalVariable **v = st->cfvars; v < st->cfvars_end; v++) {
         if (*v == cfvar) {
-            LLVMBuildStore(st->builder, value, st->llvm_locals[v - st->cfvars]);
+            LLVMValueRef ptr = st->llvm_locals[v - st->cfvars];
+            // TODO: The following line can be removed once we drop LLVM 14 support.
+            ptr = LLVMBuildBitCast(st->builder, ptr, LLVMPointerType(LLVMTypeOf(value), 0), "legacy_llvm14_cast");
+            LLVMBuildStore(st->builder, value, ptr);
             return;
         }
     }
@@ -342,7 +344,14 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
         case CF_PTR_LOAD: setdest(LLVMBuildLoad2(st->builder, codegen_type(ins->operands[0]->type->data.valuetype), getop(0), "ptr_load")); break;
-        case CF_PTR_STORE: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
+        case CF_PTR_STORE:
+        {
+            LLVMValueRef ptr = getop(0);
+            // TODO: The following line can be removed once we drop LLVM 14 support.
+            ptr = LLVMBuildBitCast(st->builder, ptr, LLVMPointerType(LLVMTypeOf(getop(1)), 0), "legacy_llvm14_cast");
+            LLVMBuildStore(st->builder, getop(1), ptr);
+            break;
+        }
         case CF_PTR_TO_INT64: setdest(LLVMBuildPtrToInt(st->builder, getop(0), LLVMInt64Type(), "ptr_as_long")); break;
         case CF_INT64_TO_PTR: setdest(LLVMBuildIntToPtr(st->builder, getop(0), codegen_type(ins->destvar->type), "long_as_ptr")); break;
         case CF_PTR_CLASS_FIELD:
@@ -353,10 +362,6 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                     f++;
 
                 LLVMValueRef val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), f->union_id, ins->data.fieldname);
-                // This cast is needed in two cases:
-                //  * All pointers are i8* in structs so we can do self-referencing classes.
-                //  * This is how unions work.
-                val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(f->type),0), "struct_member_cast");
                 setdest(val);
             }
             break;
@@ -400,10 +405,10 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             break;
 
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate")); break;
-        case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(ins->destvar->type), "ptr_cast")); break;
 
         // various no-ops
         case CF_VARCPY:
+        case CF_PTR_CAST:
         case CF_INT32_TO_ENUM:
         case CF_ENUM_TO_INT32:
             setdest(getop(0));
