@@ -14,7 +14,7 @@ jobs:
         opt-level: ['-O0', '-O1', '-O2', '-O3']
         llvm-version: ['14', '15']
     env:
-      LLVM_CONFIG: "/usr/local/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config"
+      LLVM_CONFIG: "/opt/homebrew/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config"
     steps:
       - uses: actions/checkout@v3
       - run: brew install bash diffutils llvm@${{ matrix.llvm-version }}
