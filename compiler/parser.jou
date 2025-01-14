@@ -1,4 +1,4 @@
-import "stdlib/ascii.jou"
+wimport "stdlib/ascii.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
@@ -867,7 +867,6 @@ class Parser:
             if not self->tokens->is_keyword("case"):
                 self->tokens->fail_expected_got("the 'case' keyword")
             if result.case_underscore != NULL:
-                # TODO: test this
                 fail(
                     self->tokens->location,
                     "this case will never run, because 'case _:' above matches anything",

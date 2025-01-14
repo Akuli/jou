@@ -1080,14 +1080,12 @@ def typecheck_match_statement(ft: FileTypes*, match_stmt: AstMatchStatement*) ->
     # complain if handling for enum members is missing.
     if nremaining > 0 and match_stmt->case_underscore == NULL:
         if nremaining == 1:
-            # TODO: test this
             snprintf(
                 msg, sizeof(msg),
                 "enum member %s.%s not handled in match statement",
                 mtype->name, remaining[0],
             )
         else:
-            # TODO: test this
             snprintf(
                 msg, sizeof(msg) - 20,
                 "the following %d members of enum %s were not handled in match statement: ",
@@ -1099,7 +1097,6 @@ def typecheck_match_statement(ft: FileTypes*, match_stmt: AstMatchStatement*) ->
                     strcat(msg, remaining[i])
                     strcat(msg, ", ")
                 else:
-                    # TODO: test this
                     strcat(msg, "...")
                     break
             if ends_with(msg, ", "):
