@@ -431,7 +431,7 @@ extern const Type *byteType;      // byte (8-bit unsigned)
 extern const Type *floatType;     // float (32-bit)
 extern const Type *doubleType;    // double (64-bit)
 extern const Type *voidPtrType;   // void*
-void init_types();  // Called once when compiler starts
+void init_types(void);  // Called once when compiler starts
 const Type *get_integer_type(int size_in_bits, bool is_signed);
 const Type *get_pointer_type(const Type *t);  // result lives as long as t
 const Type *get_array_type(const Type *t, int len);  // result lives as long as t

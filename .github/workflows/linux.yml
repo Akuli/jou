@@ -37,10 +37,10 @@ jobs:
 
   test:
     timeout-minutes: 5
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm-version: [14, 15]
+        llvm-version: [14, 15, 16]
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
@@ -65,12 +65,14 @@ jobs:
           fi
 
   doctest:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v3
       - run: sudo apt update
-      - run: sudo apt install -y llvm-{14,15}-dev clang-{14,15} make
+      - run: sudo apt install -y llvm-{14,15,16}-dev clang-{14,15,16} make
       - run: LLVM_CONFIG=llvm-config-14 ./doctest.sh
       - run: make clean
       - run: LLVM_CONFIG=llvm-config-15 ./doctest.sh
+      - run: make clean
+      - run: LLVM_CONFIG=llvm-config-16 ./doctest.sh
