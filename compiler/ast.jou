@@ -605,6 +605,8 @@ class AstStatement:
             self->while_loop.free()
         if self->kind == AstStatementKind.ForLoop:
             self->for_loop.free()
+        if self->kind == AstStatementKind.Match:
+            self->match_statement.free()
         if (
             self->kind == AstStatementKind.DeclareLocalVar
             or self->kind == AstStatementKind.GlobalVariableDeclaration
@@ -715,6 +717,12 @@ class AstMatchStatement:
         for i = 0; i < self->ncases; i++:
             self->cases[i].print_with_tree_printer(tp, i == self->ncases - 1)
 
+    def free(self) -> None:
+        self->match_obj.free()
+        for i = 0; i < self->ncases; i++:
+            self->cases[i].free()
+        free(self->cases)
+
 
 # case case_obj:
 #     body
@@ -730,6 +738,10 @@ class AstCase:
         sub = tp.print_prefix(is_last_case)
         printf("body:\n")
         self->body.print_with_tree_printer(sub)
+
+    def free(self) -> None:
+        self->case_obj.free()
+        self->body.free()
 
 
 # for init; cond; incr:
