@@ -1050,7 +1050,6 @@ def typecheck_match_statement(ft: FileTypes*, match_stmt: AstMatchStatement*) ->
         remaining[i] = mtype->enummembers.names[i]
 
     for i = 0; i < match_stmt->ncases; i++:
-        # TODO: test this
         typecheck_expression_with_implicit_cast(
             ft, &match_stmt->cases[i].case_obj, mtype,
             "case value of type <from> cannot be matched against <to>",
@@ -1071,16 +1070,14 @@ def typecheck_match_statement(ft: FileTypes*, match_stmt: AstMatchStatement*) ->
                     break
 
             if not found:
-                # TODO: test this
                 snprintf(msg, sizeof(msg), "enum member %s is handled twice", member)
                 fail(match_stmt->cases[i].case_obj.location, msg)
 
         typecheck_body(ft, &match_stmt->cases[i].body)
 
     # Do not complain if there is a seemingly unnecessary 'case _', because it
-    # may be ran by casting an integer to enum with 'as'.
-    # TODO: test that
-
+    # may be ran by casting an integer to enum with 'as'. However, we can
+    # complain if handling for enum members is missing.
     if nremaining > 0 and match_stmt->case_underscore == NULL:
         if nremaining == 1:
             # TODO: test this
@@ -1093,11 +1090,12 @@ def typecheck_match_statement(ft: FileTypes*, match_stmt: AstMatchStatement*) ->
             # TODO: test this
             snprintf(
                 msg, sizeof(msg) - 20,
-                "the following members of enum %s were not handled in match statement: ",
-                mtype->name,
+                "the following %d members of enum %s were not handled in match statement: ",
+                nremaining, mtype->name,
             )
             for i = 0; i < nremaining; i++:
-                if strlen(msg) + strlen(remaining[i]) + 20 < sizeof(msg):
+                assert sizeof(msg) > 300
+                if strlen(msg) + strlen(remaining[i]) < 200:
                     strcat(msg, remaining[i])
                     strcat(msg, ", ")
                 else:

@@ -1,0 +1,15 @@
+enum Foo:
+    One
+    Two
+    Three
+
+def blah() -> None:
+    match Foo.One:
+        case Foo.One:
+            pass
+        case Foo.Two:
+            pass
+        case Foo.Three:
+            pass
+        case Foo.Two:  # Error: enum member Two is handled twice
+            pass

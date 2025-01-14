@@ -27,7 +27,32 @@ def main() -> int:
             printf("nope\n")
         case Foo.Wut:
             printf("nope\n")
+        # There's no compiler warning for this "case _", because as you can
+        # see it's not as unnecessary as you think :)
         case _:
             printf("Other!!!! %d\n", f as int)  # Output: Other!!!! 69
+
+    # "case _" is not needed, will do nothing if enum is outside allowed range
+    f = Foo.Lol
+    match f:
+        case Foo.Bar:
+            printf("nope\n")
+        case Foo.Baz:
+            printf("nope\n")
+        case Foo.Lol:
+            printf("Hey! :)\n")  # Output: Hey! :)
+        case Foo.Wut:
+            printf("nope\n")
+
+    f = 12345 as Foo
+    match f:
+        case Foo.Bar:
+            printf("nope\n")
+        case Foo.Baz:
+            printf("nope\n")
+        case Foo.Lol:
+            printf("nope\n")
+        case Foo.Wut:
+            printf("nope\n")
 
     return 0
