@@ -81,7 +81,11 @@ def check_link(markdown_file_path, link_target, offline_mode=False):
     if "\\" in link_target:
         return "use forward slashes instead of backslashes"
 
-    path = markdown_file_path.parent / link_target.split("#")[0]
+    if link_target.startswith('#'):
+        # Link to within same file
+        path = markdown_file_path
+    else:
+        path = markdown_file_path.parent / link_target.split("#")[0]
 
     if PROJECT_ROOT not in path.resolve().parents:
         return "link points outside of the Jou project folder"
