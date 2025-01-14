@@ -164,6 +164,22 @@ static void set_local_var(const struct State *st, const LocalVariable *cfvar, LL
     assert(0);
 }
 
+static LLVMTypeRef codegen_function_type(const Signature *sig)
+{
+    LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
+    for (int i = 0; i < sig->nargs; i++)
+        argtypes[i] = codegen_type(sig->argtypes[i]);
+
+    LLVMTypeRef returntype;
+    // TODO: tell llvm, if we know a function is noreturn ?
+    if (sig->returntype == NULL)  // "-> noreturn" or "-> None"
+        returntype = LLVMVoidType();
+    else
+        returntype = codegen_type(sig->returntype);
+
+    return LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
+}
+
 static LLVMValueRef codegen_function_or_method_decl(const struct State *st, const Signature *sig)
 {
     char fullname[200];
@@ -177,35 +193,18 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
     if (func)
         return func;
 
-    LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
-    for (int i = 0; i < sig->nargs; i++)
-        argtypes[i] = codegen_type(sig->argtypes[i]);
-
-    LLVMTypeRef returntype;
-    // TODO: tell llvm, if we know a function is noreturn ?
-    if (sig->returntype == NULL)  // "-> noreturn" or "-> None"
-        returntype = LLVMVoidType();
-    else
-        returntype = codegen_type(sig->returntype);
-
-    LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
-    free(argtypes);
-
+    LLVMTypeRef functype = codegen_function_type(sig);
     return LLVMAddFunction(st->module, fullname, functype);
 }
 
 static LLVMValueRef codegen_call(const struct State *st, const Signature *sig, LLVMValueRef *args, int nargs)
 {
-    LLVMValueRef function = codegen_function_or_method_decl(st, sig);
-    assert(function);
-    assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMPointerTypeKind);
-    LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(function));
-    assert(LLVMGetTypeKind(function_type) == LLVMFunctionTypeKind);
-
     char debug_name[100] = {0};
-    if (LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMVoidTypeKind)
+    if (sig->returntype != NULL)
         snprintf(debug_name, sizeof debug_name, "%s_return_value", sig->name);
 
+    LLVMValueRef function = codegen_function_or_method_decl(st, sig);
+    LLVMTypeRef function_type = codegen_function_type(sig);
     return LLVMBuildCall2(st->builder, function_type, function, args, nargs, debug_name);
 }
 
