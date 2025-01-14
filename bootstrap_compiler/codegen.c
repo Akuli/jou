@@ -55,16 +55,15 @@ static LLVMTypeRef codegen_type(const Type *type)
     case TYPE_ARRAY:
         return LLVMArrayType(codegen_type(type->data.array.membertype), type->data.array.len);
     case TYPE_POINTER:
-        return LLVMPointerType(codegen_type(type->data.valuetype), 0);
+    case TYPE_VOID_POINTER:
+        // Element type doesn't matter in new LLVM versions.
+        return LLVMPointerType(LLVMInt8Type(), 0);
     case TYPE_FLOATING_POINT:
         switch(type->data.width_in_bits) {
             case 32: return LLVMFloatType();
             case 64: return LLVMDoubleType();
             default: assert(0);
         }
-    case TYPE_VOID_POINTER:
-        // just use i8* as here https://stackoverflow.com/q/36724399
-        return LLVMPointerType(LLVMInt8Type(), 0);
     case TYPE_SIGNED_INTEGER:
     case TYPE_UNSIGNED_INTEGER:
         return LLVMIntType(type->data.width_in_bits);
@@ -400,10 +399,10 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             break;
 
         case CF_BOOL_NEGATE: setdest(LLVMBuildXor(st->builder, getop(0), LLVMConstInt(LLVMInt1Type(), 1, false), "bool_negate")); break;
-        case CF_PTR_CAST: setdest(LLVMBuildBitCast(st->builder, getop(0), codegen_type(ins->destvar->type), "ptr_cast")); break;
 
         // various no-ops
         case CF_VARCPY:
+        case CF_PTR_CAST:
         case CF_INT32_TO_ENUM:
         case CF_ENUM_TO_INT32:
             setdest(getop(0));

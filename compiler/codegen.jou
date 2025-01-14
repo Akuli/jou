@@ -86,17 +86,15 @@ def codegen_class_type(type: Type*) -> LLVMType*:
 def codegen_type(type: Type*) -> LLVMType*:
     if type->kind == TypeKind.Array:
         return LLVMArrayType(codegen_type(type->array.item_type), type->array.len)
-    if type->kind == TypeKind.Pointer:
-        return LLVMPointerType(codegen_type(type->value_type), 0)
+    if type->is_pointer_type():
+        # Element type doesn't matter in new LLVM versions.
+        return LLVMPointerType(LLVMInt8Type(), 0)
     if type->kind == TypeKind.FloatingPoint:
         if type->size_in_bits == 32:
             return LLVMFloatType()
         if type->size_in_bits == 64:
             return LLVMDoubleType()
         assert False
-    if type->kind == TypeKind.VoidPointer:
-        # just use i8* as here https://stackoverflow.com/q/36724399
-        return LLVMPointerType(LLVMInt8Type(), 0)
     if (
         type->kind == TypeKind.SignedInteger
         or type->kind == TypeKind.UnsignedInteger
@@ -343,10 +341,6 @@ class CodeGen:
                 f++
                 assert f < &classtype->classdata.fields[classtype->classdata.nfields]
             val = LLVMBuildStructGEP2(self->builder, codegen_type(classtype), self->getlocal(ins->operands[0]), f->union_id, ins->fieldname)
-            # This cast is needed in two cases:
-            #  * All pointers are i8* in structs so we can do self-referencing classes.
-            #  * This is how unions work.
-            val = LLVMBuildBitCast(self->builder, val, LLVMPointerType(codegen_type(f->type), 0), "struct_member_cast")
             self->setlocal(ins->destvar, val)
         elif ins->kind == CfInstructionKind.PtrMemsetToZero:
             size = LLVMSizeOf(codegen_type(ins->operands[0]->type->value_type))
@@ -383,9 +377,12 @@ class CodeGen:
                 assert False
         elif ins->kind == CfInstructionKind.BoolNegate:
             self->setlocal(ins->destvar, LLVMBuildXor(self->builder, self->getlocal(ins->operands[0]), LLVMConstInt(LLVMInt1Type(), 1, False as int), "bool_negate"))
-        elif ins->kind == CfInstructionKind.PtrCast:
-            self->setlocal(ins->destvar, LLVMBuildBitCast(self->builder, self->getlocal(ins->operands[0]), codegen_type(ins->destvar->type), "ptr_cast"))
-        elif ins->kind == CfInstructionKind.VarCpy or ins->kind == CfInstructionKind.Int32ToEnum or ins->kind == CfInstructionKind.EnumToInt32:
+        elif (
+            ins->kind == CfInstructionKind.VarCpy
+            or ins->kind == CfInstructionKind.PtrCast
+            or ins->kind == CfInstructionKind.Int32ToEnum
+            or ins->kind == CfInstructionKind.EnumToInt32
+        ):
             self->setlocal(ins->destvar, self->getlocal(ins->operands[0]))
         elif ins->kind == CfInstructionKind.NumAdd or ins->kind == CfInstructionKind.NumSub or ins->kind == CfInstructionKind.NumMul or ins->kind == CfInstructionKind.NumDiv or ins->kind == CfInstructionKind.NumMod:
             self->do_arithmetic_instruction(ins)
