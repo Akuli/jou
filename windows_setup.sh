@@ -31,7 +31,7 @@ if [ -d mingw64 ]; then
     echo "mingw64 has already been downloaded and extracted."
     echo "If you want to download it again, delete the mingw64 folder."
 else
-    # The WinLibs version we use ships with LLVM 14, which is latest LLVM that Jou can use.
+    # The WinLibs version we use ships with LLVM 14, which was latest LLVM that Jou can use when I set this up.
     # This is due to opaque pointer types. Scroll down to "Version Support" here: https://llvm.org/docs/OpaquePointers.html
     # All WinLibs versions and download links: https://winlibs.com/
     if [ $small = yes ]; then

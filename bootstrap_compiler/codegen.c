@@ -141,8 +141,15 @@ static LLVMValueRef get_pointer_to_local_var(const struct State *st, const Local
 
 static LLVMValueRef get_local_var(const struct State *st, const LocalVariable *cfvar)
 {
-    LLVMValueRef varptr = get_pointer_to_local_var(st, cfvar);
-    return LLVMBuildLoad(st->builder, varptr, cfvar->name);
+    assert(cfvar);
+    for (LocalVariable **v = st->cfvars; v < st->cfvars_end; v++) {
+        if (*v == cfvar) {
+            LLVMValueRef varptr = st->llvm_locals[v - st->cfvars];
+            LLVMTypeRef vartype = codegen_type((*v)->type);
+            return LLVMBuildLoad2(st->builder, vartype, varptr, cfvar->name);
+        }
+    }
+    assert(0);
 }
 
 static void set_local_var(const struct State *st, const LocalVariable *cfvar, LLVMValueRef value)
@@ -155,6 +162,21 @@ static void set_local_var(const struct State *st, const LocalVariable *cfvar, LL
         }
     }
     assert(0);
+}
+
+static LLVMTypeRef codegen_function_type(const Signature *sig)
+{
+    LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
+    for (int i = 0; i < sig->nargs; i++)
+        argtypes[i] = codegen_type(sig->argtypes[i]);
+
+    LLVMTypeRef returntype;
+    if (sig->returntype == NULL)
+        returntype = LLVMVoidType();
+    else
+        returntype = codegen_type(sig->returntype);
+
+    return LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
 }
 
 static LLVMValueRef codegen_function_or_method_decl(const struct State *st, const Signature *sig)
@@ -170,35 +192,18 @@ static LLVMValueRef codegen_function_or_method_decl(const struct State *st, cons
     if (func)
         return func;
 
-    LLVMTypeRef *argtypes = malloc(sig->nargs * sizeof(argtypes[0]));  // NOLINT
-    for (int i = 0; i < sig->nargs; i++)
-        argtypes[i] = codegen_type(sig->argtypes[i]);
-
-    LLVMTypeRef returntype;
-    // TODO: tell llvm, if we know a function is noreturn ?
-    if (sig->returntype == NULL)  // "-> noreturn" or "-> None"
-        returntype = LLVMVoidType();
-    else
-        returntype = codegen_type(sig->returntype);
-
-    LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
-    free(argtypes);
-
+    LLVMTypeRef functype = codegen_function_type(sig);
     return LLVMAddFunction(st->module, fullname, functype);
 }
 
 static LLVMValueRef codegen_call(const struct State *st, const Signature *sig, LLVMValueRef *args, int nargs)
 {
-    LLVMValueRef function = codegen_function_or_method_decl(st, sig);
-    assert(function);
-    assert(LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMPointerTypeKind);
-    LLVMTypeRef function_type = LLVMGetElementType(LLVMTypeOf(function));
-    assert(LLVMGetTypeKind(function_type) == LLVMFunctionTypeKind);
-
     char debug_name[100] = {0};
-    if (LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMVoidTypeKind)
+    if (sig->returntype != NULL)
         snprintf(debug_name, sizeof debug_name, "%s_return_value", sig->name);
 
+    LLVMValueRef function = codegen_function_or_method_decl(st, sig);
+    LLVMTypeRef function_type = codegen_function_type(sig);
     return LLVMBuildCall2(st->builder, function_type, function, args, nargs, debug_name);
 }
 
@@ -336,7 +341,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CF_SIZEOF: setdest(LLVMSizeOf(codegen_type(ins->data.type))); break;
         case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
-        case CF_PTR_LOAD: setdest(LLVMBuildLoad(st->builder, getop(0), "ptr_load")); break;
+        case CF_PTR_LOAD: setdest(LLVMBuildLoad2(st->builder, codegen_type(ins->operands[0]->type->data.valuetype), getop(0), "ptr_load")); break;
         case CF_PTR_STORE: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
         case CF_PTR_TO_INT64: setdest(LLVMBuildPtrToInt(st->builder, getop(0), LLVMInt64Type(), "ptr_as_long")); break;
         case CF_INT64_TO_PTR: setdest(LLVMBuildIntToPtr(st->builder, getop(0), codegen_type(ins->destvar->type), "long_as_ptr")); break;
@@ -362,7 +367,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             }
             break;
         case CF_PTR_ADD_INT:
-            setdest(LLVMBuildGEP(st->builder, getop(0), (LLVMValueRef[]){getop(1)}, 1, "ptr_add_int"));
+            setdest(LLVMBuildGEP2(st->builder, codegen_type(ins->operands[0]->type->data.valuetype), getop(0), (LLVMValueRef[]){getop(1)}, 1, "ptr_add_int"));
             break;
         case CF_NUM_CAST:
             {
@@ -497,7 +502,7 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
             // The "return" variable may have been deleted as unused.
             // In that case return_value is NULL but signature.returntype isn't.
             if (return_value)
-                LLVMBuildRet(st->builder, LLVMBuildLoad(st->builder, return_value, "return_value"));
+                LLVMBuildRet(st->builder, LLVMBuildLoad2(st->builder, codegen_type(cfg->signature.returntype), return_value, "return_value"));
             else if (cfg->signature.returntype || cfg->signature.is_noreturn)
                 LLVMBuildUnreachable(st->builder);
             else

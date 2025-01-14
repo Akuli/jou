@@ -87,7 +87,7 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 1. Install the dependencies:
     ```
-    $ sudo apt install git llvm-14-dev clang-14 make
+    $ sudo apt install git llvm-15-dev clang-15 make
     ```
     Let me know if you use a distro that doesn't have `apt`,
     and you need help with this step.
@@ -122,14 +122,15 @@ These LLVM/clang versions are supported:
 - LLVM 11 with clang 11
 - LLVM 13 with clang 13
 - LLVM 14 with clang 14
+- LLVM 15 with clang 15
 
 By default, the `make` command picks the latest available version.
 You can also specify the version manually by setting the `LLVM_CONFIG` variable:
 
 ```
-$ sudo apt install llvm-11-dev clang-11
+$ sudo apt install llvm-14-dev clang-14
 $ make clean    # Delete files that were compiled with previous LLVM version
-$ LLVM_CONFIG=llvm-config-11 make
+$ LLVM_CONFIG=llvm-config-14 make
 ```
 
 </details>
@@ -138,12 +139,12 @@ $ LLVM_CONFIG=llvm-config-11 make
 
 MacOS support is new. Please create an issue if something doesn't work.
 
-1. Install Git, make and LLVM 14.
+1. Install Git, make and LLVM 15.
     If you do software development on MacOS, you probably already have Git and make,
     because they come with Xcode Command Line Tools.
-    You can use [brew](https://brew.sh/) to install LLVM 14:
+    You can use [brew](https://brew.sh/) to install LLVM:
     ```
-    $ brew install llvm@14
+    $ brew install llvm@15
     ```
 2. Download and compile Jou.
     ```

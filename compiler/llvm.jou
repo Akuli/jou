@@ -261,9 +261,9 @@ declare LLVMBuildNeg(Builder: LLVMBuilder*, V: LLVMValue*, Name: byte*) -> LLVMV
 declare LLVMBuildFNeg(Builder: LLVMBuilder*, V: LLVMValue*, Name: byte*) -> LLVMValue*
 declare LLVMBuildMemSet(Builder: LLVMBuilder*, Ptr: LLVMValue*, Val: LLVMValue*, Len: LLVMValue*, Align: int) -> LLVMValue*
 declare LLVMBuildAlloca(Builder: LLVMBuilder*, Ty: LLVMType*, Name: byte*) -> LLVMValue*
-declare LLVMBuildLoad(Builder: LLVMBuilder*, PointerVal: LLVMValue*, Name: byte*) -> LLVMValue*
+declare LLVMBuildLoad2(Builder: LLVMBuilder*, Ty: LLVMType*, PointerVal: LLVMValue*, Name: byte*) -> LLVMValue*
 declare LLVMBuildStore(Builder: LLVMBuilder*, Val: LLVMValue*, Ptr: LLVMValue*) -> LLVMValue*
-declare LLVMBuildGEP(Builder: LLVMBuilder*, Pointer: LLVMValue*, Indices: LLVMValue**, NumIndices: int, Name: byte*) -> LLVMValue*
+declare LLVMBuildGEP2(Builder: LLVMBuilder*, Ty: LLVMType*, Pointer: LLVMValue*, Indices: LLVMValue**, NumIndices: int, Name: byte*) -> LLVMValue*
 declare LLVMBuildStructGEP2(Builder: LLVMBuilder*, Ty: LLVMType*, Pointer: LLVMValue*, Idx: int, Name: byte*) -> LLVMValue*
 declare LLVMBuildTrunc(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType*, Name: byte*) -> LLVMValue*
 declare LLVMBuildZExt(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType*, Name: byte*) -> LLVMValue*
