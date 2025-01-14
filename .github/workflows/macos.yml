@@ -12,11 +12,15 @@ jobs:
       matrix:
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         opt-level: ['-O0', '-O1', '-O2', '-O3']
+        llvm-version: ['14', '15']
+    env:
+      LLVM_CONFIG: "/usr/local/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config"
     steps:
       - uses: actions/checkout@v3
-      - run: brew install bash diffutils llvm@14
-
-      - run: make
+      - run: brew install bash diffutils llvm@${{ matrix.llvm-version }}
+      - name: "Select LLVM version"
+        run: |
+          echo "LLVM_CONFIG=/usr/local/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config" >> $GITHUB_ENV
       - name: "Compile and test stage 1 compiler"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}" --stage1
       - name: "Compile and test stage 2 compiler"
@@ -40,5 +44,5 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v3
-      - run: brew install bash diffutils llvm@14
+      - run: brew install bash diffutils llvm@15
       - run: ./doctest.sh
