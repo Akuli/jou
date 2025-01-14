@@ -13,11 +13,9 @@ enum ModuleKind:
 class Module:
     name: byte[15]
 
-    # TODO: use Module* instead of void*
-    # https://github.com/Akuli/jou/issues/473
-    sources: void*[10]
+    sources: Module*[10]
     nsources: int
-    destinations: void*[10]
+    destinations: Module*[10]
     ndestinations: int
 
     kind: ModuleKind
