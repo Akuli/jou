@@ -277,6 +277,13 @@ class Signature:
             assert False
         return NULL
 
+    # Useful for error messages, not much else.
+    def function_or_method(self) -> byte*:
+        if self->get_self_class() == NULL:
+            return "function"
+        else:
+            return "method"
+
     def to_string(self, include_return_type: bool, include_self: bool) -> byte*:
         result = strdup(self->name)
         assert result != NULL

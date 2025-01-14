@@ -334,10 +334,7 @@ def typecheck_expression_not_void(ft: FileTypes*, expr: AstExpression*) -> Type*
     assert expr->kind == AstExpressionKind.Call
 
     msg: byte[500]
-    if expr->call.method_call_self == NULL:
-        snprintf(msg, sizeof(msg), "function '%s' does not return a value", expr->call.name)
-    else:
-        snprintf(msg, sizeof(msg), "method '%s' does not return a value", expr->call.name)
+    snprintf(msg, sizeof(msg), "%s '%s' does not return a value", expr->call.function_or_method(), expr->call.name)
     fail(expr->location, msg)
 
 
@@ -1128,30 +1125,37 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             fail(stmt->location, msg)
 
     elif stmt->kind == AstStatementKind.Return:
+        function_or_method = ft->current_fom_types->signature.function_or_method()
+
         if ft->current_fom_types->signature.is_noreturn:
-            snprintf(msg, sizeof(msg),
-                "function '%s' cannot return because it was defined with '-> noreturn'",
-                ft->current_fom_types->signature.name)
+            snprintf(
+                msg, sizeof(msg),
+                "%s '%s' cannot return because it was defined with '-> noreturn'",
+                function_or_method, ft->current_fom_types->signature.name,
+            )
             fail(stmt->location, msg)
 
         return_type = ft->current_fom_types->signature.returntype
 
         if stmt->return_value != NULL and return_type == NULL:
-            snprintf(msg, sizeof(msg), "function '%s' cannot return a value because it was defined with '-> None'",
-                ft->current_fom_types->signature.name)
+            snprintf(
+                msg, sizeof(msg), "%s '%s' cannot return a value because it was defined with '-> None'",
+                function_or_method, ft->current_fom_types->signature.name,
+            )
             fail(stmt->location, msg)
 
         if return_type != NULL and stmt->return_value == NULL:
             snprintf(msg, sizeof(msg),
-                "a return value is needed, because the return type of function '%s' is %s",
+                "a return value is needed, because the return type of %s '%s' is %s",
+                function_or_method,
                 ft->current_fom_types->signature.name,
                 ft->current_fom_types->signature.returntype->name)
             fail(stmt->location, msg)
 
         if stmt->return_value != NULL:
             snprintf(msg, sizeof msg,
-                "attempting to return a value of type <from> from function '%s' defined with '-> <to>'",
-                ft->current_fom_types->signature.name)
+                "attempting to return a value of type <from> from %s '%s' defined with '-> <to>'",
+                function_or_method, ft->current_fom_types->signature.name)
             typecheck_expression_with_implicit_cast(
                 ft, stmt->return_value, ft->find_local_var("return")->type, msg)
 
