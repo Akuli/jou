@@ -156,7 +156,10 @@ static void set_local_var(const struct State *st, const LocalVariable *cfvar, LL
     assert(cfvar);
     for (LocalVariable **v = st->cfvars; v < st->cfvars_end; v++) {
         if (*v == cfvar) {
-            LLVMBuildStore(st->builder, value, st->llvm_locals[v - st->cfvars]);
+            LLVMValueRef ptr = st->llvm_locals[v - st->cfvars];
+            // TODO: The following line can be removed once we drop LLVM 14 support.
+            ptr = LLVMBuildBitCast(st->builder, ptr, LLVMPointerType(LLVMTypeOf(value), 0), "legacy_llvm14_cast");
+            LLVMBuildStore(st->builder, value, ptr);
             return;
         }
     }
@@ -341,7 +344,14 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
         case CF_ADDRESS_OF_LOCAL_VAR: setdest(get_pointer_to_local_var(st, ins->operands[0])); break;
         case CF_ADDRESS_OF_GLOBAL_VAR: setdest(LLVMGetNamedGlobal(st->module, ins->data.globalname)); break;
         case CF_PTR_LOAD: setdest(LLVMBuildLoad2(st->builder, codegen_type(ins->operands[0]->type->data.valuetype), getop(0), "ptr_load")); break;
-        case CF_PTR_STORE: LLVMBuildStore(st->builder, getop(1), getop(0)); break;
+        case CF_PTR_STORE:
+        {
+            LLVMValueRef ptr = getop(0);
+            // TODO: The following line can be removed once we drop LLVM 14 support.
+            ptr = LLVMBuildBitCast(st->builder, ptr, LLVMPointerType(LLVMTypeOf(getop(1)), 0), "legacy_llvm14_cast");
+            LLVMBuildStore(st->builder, getop(1), ptr);
+            break;
+        }
         case CF_PTR_TO_INT64: setdest(LLVMBuildPtrToInt(st->builder, getop(0), LLVMInt64Type(), "ptr_as_long")); break;
         case CF_INT64_TO_PTR: setdest(LLVMBuildIntToPtr(st->builder, getop(0), codegen_type(ins->destvar->type), "long_as_ptr")); break;
         case CF_PTR_CLASS_FIELD:
