@@ -16,11 +16,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: brew install bash diffutils llvm@${{ matrix.llvm-version }}
-      - name: TEMPORARY DEBUG THING
-        run: |
-          if [ ${{ matrix.llvm-version }} == 15 ]; then
-            brew reinstall llvm@15
-          fi
       - name: "Select LLVM version"
         run: |
           echo "LLVM_CONFIG=/opt/homebrew/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config" >> $GITHUB_ENV
