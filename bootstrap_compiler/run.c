@@ -8,6 +8,7 @@ int run_exe(const char *exepath, bool valgrind)
 {
     char *command = malloc(strlen(exepath) + 1000);
 #ifdef _WIN32
+    assert(!valgrind);
     sprintf(command, "\"%s\"", exepath);
     char *p;
     while ((p = strchr(command, '/')))
