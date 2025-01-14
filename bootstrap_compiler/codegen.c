@@ -149,6 +149,7 @@ static LLVMValueRef get_local_var(const struct State *st, const LocalVariable *c
             return LLVMBuildLoad2(st->builder, vartype, varptr, cfvar->name);
         }
     }
+    assert(0);
 }
 
 static void set_local_var(const struct State *st, const LocalVariable *cfvar, LLVMValueRef value)
@@ -368,7 +369,7 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
             }
             break;
         case CF_PTR_ADD_INT:
-            setdest(LLVMBuildGEP(st->builder, getop(0), (LLVMValueRef[]){getop(1)}, 1, "ptr_add_int"));
+            setdest(LLVMBuildGEP2(st->builder, codegen_type(ins->operands[0]->type->data.valuetype), getop(0), (LLVMValueRef[]){getop(1)}, 1, "ptr_add_int"));
             break;
         case CF_NUM_CAST:
             {
