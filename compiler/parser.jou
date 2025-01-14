@@ -318,10 +318,11 @@ class Parser:
         return result
 
     def parse_function_or_method_signature(self, is_method: bool) -> AstSignature:
-        # TODO: change error messages to say method, when it is a method (#243)
-        used_self: bool = False
         if self->tokens->kind != TokenKind.Name:
-            self->tokens->fail_expected_got("a function name")
+            if is_method:
+                self->tokens->fail_expected_got("a method name")
+            else:
+                self->tokens->fail_expected_got("a function name")
 
         result = AstSignature{
             name_location = self->tokens->location,
@@ -330,9 +331,10 @@ class Parser:
         self->tokens++
 
         if not self->tokens->is_operator("("):
-            self->tokens->fail_expected_got("a '(' to denote the start of function arguments")
+            self->tokens->fail_expected_got("a '(' to denote the start of arguments")
         self->tokens++
 
+        used_self = False
         while not self->tokens->is_operator(")"):
             if result.takes_varargs:
                 fail(self->tokens->location, "if '...' is used, it must be the last parameter")
@@ -389,7 +391,10 @@ class Parser:
 
         # Special case for common typo:   def foo():
         if self->tokens->is_operator(":"):
-            fail(self->tokens->location, "return type must be specified with '->', or with '-> None' if the function doesn't return anything")
+            if is_method:
+                fail(self->tokens->location, "return type must be specified with '->', or with '-> None' if the method doesn't return anything")
+            else:
+                fail(self->tokens->location, "return type must be specified with '->', or with '-> None' if the function doesn't return anything")
         if not self->tokens->is_operator("->"):
             self->tokens->fail_expected_got("a '->'")
         self->tokens++
@@ -423,7 +428,7 @@ class Parser:
         return result
 
     def parse_instantiation(self) -> AstInstantiation:
-        assert self->tokens->kind == TokenKind.Name  # must be checked when calling this function
+        assert self->tokens->kind == TokenKind.Name
         result = AstInstantiation{class_name_location = self->tokens->location, class_name = self->tokens->short_string}
         self->tokens++
         assert self->tokens->is_operator("{")

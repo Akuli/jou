@@ -44,13 +44,15 @@ def handle_global_var(ft: FileTypes*, vardecl: AstNameTypeValue*, defined_here: 
 
 
 def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -> Signature:
+    if self_class == NULL:
+        function_or_method = "function"
+    else:
+        function_or_method = "method"
+
     msg: byte[500]
 
     if ft->find_function_or_method(self_class, astsig->name) != NULL:
-        if self_class != NULL:
-            snprintf(msg, sizeof(msg), "a method named '%s' already exists", astsig->name)
-        else:
-            snprintf(msg, sizeof(msg), "a function named '%s' already exists", astsig->name)
+        snprintf(msg, sizeof(msg), "a %s named '%s' already exists", function_or_method, astsig->name)
         fail(astsig->name_location, msg)
 
     sig = Signature{nargs = astsig->nargs, takes_varargs = astsig->takes_varargs}
@@ -85,7 +87,12 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
     if astsig->return_type.is_none() or astsig->return_type.is_noreturn():
         sig.returntype = NULL
     elif astsig->return_type.is_void():
-        fail(astsig->return_type.location, "void is not a valid return type, use '-> None' if the function does not return a value")
+        snprintf(
+            msg, sizeof(msg),
+            "void is not a valid return type, use '-> None' if the %s does not return a value",
+            function_or_method,
+        )
+        fail(astsig->return_type.location, msg)
     else:
         sig.returntype = type_from_ast(ft, &astsig->return_type)
 
