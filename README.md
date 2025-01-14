@@ -119,8 +119,6 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
     so you need to use a full path (or `$HOME`) instead.
 
 These LLVM/clang versions are supported:
-- LLVM 11 with clang 11
-- LLVM 13 with clang 13
 - LLVM 14 with clang 14
 - LLVM 15 with clang 15
 
