@@ -482,6 +482,7 @@ enum AstStatementKind:
     Pass
     Return
     If
+    Match
     WhileLoop
     ForLoop
     Break
@@ -515,6 +516,7 @@ class AstStatement:
         classdef: AstClassDef
         enumdef: AstEnumDef
         assertion: AstAssertion
+        match_statement: AstMatchStatement
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -537,6 +539,8 @@ class AstStatement:
             self->if_statement.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind.ForLoop:
             self->for_loop.print_with_tree_printer(tp)
+        elif self->kind == AstStatementKind.Match:
+            self->match_statement.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind.WhileLoop:
             printf("while loop\n")
             self->while_loop.print_with_tree_printer(tp, True)
@@ -694,6 +698,38 @@ class AstIfStatement:
             self->if_and_elifs[i].free()
         free(self->if_and_elifs)
         self->else_body.free()
+
+
+# match match_obj:
+#     case ...:
+#         ...
+#     case ...:
+#         ...
+class AstMatchStatement:
+    match_obj: AstExpression
+    cases: AstCase*
+    ncases: int
+
+    def print_with_tree_printer(self, tp: TreePrinter) -> None:
+        printf("match\n")
+        for i = 0; i < self->ncases; i++:
+            self->cases[i].print_with_tree_printer(tp, i == self->ncases - 1)
+
+
+# case case_obj:
+#     body
+class AstCase:
+    case_obj: AstExpression
+    body: AstBody
+
+    def print_with_tree_printer(self, tp: TreePrinter, is_last_case: bool) -> None:
+        sub = tp.print_prefix(False)
+        printf("case_obj: ")
+        self->case_obj.print_with_tree_printer(sub)
+
+        sub = tp.print_prefix(is_last_case)
+        printf("body:\n")
+        self->body.print_with_tree_printer(sub)
 
 
 # for init; cond; incr:

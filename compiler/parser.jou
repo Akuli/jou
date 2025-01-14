@@ -856,6 +856,32 @@ class Parser:
             body = self->parse_body(),
         }
 
+    def parse_match_statement(self) -> AstMatchStatement:
+        assert self->tokens->is_keyword("match")
+        self->tokens++
+        match_obj = self->parse_expression()
+        self->parse_start_of_body()
+
+        cases: AstCase* = NULL
+        ncases = 0
+
+        while self->tokens->kind != TokenKind.Dedent:
+            if not self->tokens->is_keyword("case"):
+                self->tokens->fail_expected_got("the 'case' keyword")
+            self->tokens++
+            cases = realloc(cases, sizeof cases[0] * (ncases+1))
+            cases[ncases++] = AstCase{
+                case_obj = self->parse_expression(),
+                body = self->parse_body(),
+            }
+        self->tokens++
+
+        return AstMatchStatement{
+            match_obj = match_obj,
+            cases = cases,
+            ncases = ncases,
+        }
+
     # Parses the "x: int" part of "x, y, z: int", leaving "y, z: int" to be parsed later.
     def parse_first_of_multiple_local_var_declares(self) -> AstNameTypeValue:
         assert self->tokens->kind == TokenKind.Name
@@ -974,6 +1000,13 @@ class Parser:
                 location = self->tokens->location,
                 kind = AstStatementKind.WhileLoop,
                 while_loop = self->parse_while_loop(),
+            }
+
+        if self->tokens->is_keyword("match"):
+            return AstStatement{
+                location = self->tokens->location,
+                kind = AstStatementKind.Match,
+                match_statement = self->parse_match_statement(),
             }
 
         if (
