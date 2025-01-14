@@ -352,10 +352,6 @@ static void codegen_instruction(const struct State *st, const CfInstruction *ins
                     f++;
 
                 LLVMValueRef val = LLVMBuildStructGEP2(st->builder, codegen_type(classtype), getop(0), f->union_id, ins->data.fieldname);
-                // This cast is needed in two cases:
-                //  * All pointers are i8* in structs so we can do self-referencing classes.
-                //  * This is how unions work.
-                val = LLVMBuildBitCast(st->builder, val, LLVMPointerType(codegen_type(f->type),0), "struct_member_cast");
                 setdest(val);
             }
             break;
