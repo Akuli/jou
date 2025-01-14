@@ -114,6 +114,22 @@ def codegen_type(type: Type*) -> LLVMType*:
     assert False
 
 
+def codegen_function_type(sig: Signature*) -> LLVMType*:
+    argtypes: LLVMType** = malloc(sig->nargs * sizeof(argtypes[0]))
+    for i = 0; i < sig->nargs; i++:
+        argtypes[i] = codegen_type(sig->argtypes[i])
+
+    # TODO: tell llvm, if we know a function is noreturn ?
+    if sig->returntype == NULL:  # "-> noreturn" or "-> None"
+        returntype = LLVMVoidType()
+    else:
+        returntype = codegen_type(sig->returntype)
+
+    functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs as int)
+    free(argtypes)
+    return functype
+
+
 def special_constant_to_llvm(name: byte*) -> LLVMValue*:
     v = get_special_constant(name)
     assert v != -1
@@ -200,33 +216,16 @@ class CodeGen:
         if func != NULL:
             return func
 
-        argtypes: LLVMType** = malloc(sig->nargs * sizeof(argtypes[0]))
-        for i = 0; i < sig->nargs; i++:
-            argtypes[i] = codegen_type(sig->argtypes[i])
-
-        returntype: LLVMType*
-        # TODO: tell llvm, if we know a function is noreturn ?
-        if sig->returntype == NULL:  # "-> noreturn" or "-> None"
-            returntype = LLVMVoidType()
-        else:
-            returntype = codegen_type(sig->returntype)
-
-        functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs as int)
-        free(argtypes)
-
+        functype = codegen_function_type(sig)
         return LLVMAddFunction(self->module, fullname, functype)
 
     def do_call(self, sig: Signature*, args: LLVMValue**, nargs: int) -> LLVMValue*:
-        function: LLVMValue* = self->do_function_or_method_decl(sig)
-        assert function != NULL
-        assert LLVMGetTypeKind(LLVMTypeOf(function)) == LLVMTypeKind.Pointer
-        function_type = LLVMGetElementType(LLVMTypeOf(function))
-        assert LLVMGetTypeKind(function_type) == LLVMTypeKind.Function
-
         debug_name: byte[100] = ""
-        if LLVMGetTypeKind(LLVMGetReturnType(function_type)) != LLVMTypeKind.Void:
+        if sig->returntype != NULL:
             snprintf(debug_name, sizeof debug_name, "%s_return_value", sig->name)
 
+        function: LLVMValue* = self->do_function_or_method_decl(sig)
+        function_type = codegen_function_type(sig)
         return LLVMBuildCall2(self->builder, function_type, function, args, nargs, debug_name)
 
     def do_string(self, s: byte*) -> LLVMValue*:

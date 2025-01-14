@@ -171,8 +171,7 @@ static LLVMTypeRef codegen_function_type(const Signature *sig)
         argtypes[i] = codegen_type(sig->argtypes[i]);
 
     LLVMTypeRef returntype;
-    // TODO: tell llvm, if we know a function is noreturn ?
-    if (sig->returntype == NULL)  // "-> noreturn" or "-> None"
+    if (sig->returntype == NULL)
         returntype = LLVMVoidType();
     else
         returntype = codegen_type(sig->returntype);
