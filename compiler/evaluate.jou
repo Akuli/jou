@@ -22,21 +22,21 @@ def get_special_constant(name: byte*) -> int:
 
 
 def evaluate_condition(expr: AstExpression*) -> bool:
-    if expr->kind == AstExpressionKind.GetVariable:
-        v = get_special_constant(expr->varname)
-        if v == 0:
-            return False
-        if v == 1:
-            return True
-
-    if expr->kind == AstExpressionKind.And:
-        return evaluate_condition(&expr->operands[0]) and evaluate_condition(&expr->operands[1])
-    if expr->kind == AstExpressionKind.Or:
-        return evaluate_condition(&expr->operands[0]) or evaluate_condition(&expr->operands[1])
-    if expr->kind == AstExpressionKind.Not:
-        return not evaluate_condition(&expr->operands[0])
-
-    fail(expr->location, "cannot evaluate condition at compile time")
+    match expr->kind:
+        case AstExpressionKind.GetVariable:
+            v = get_special_constant(expr->varname)
+            if v == 0:
+                return False
+            if v == 1:
+                return True
+        case AstExpressionKind.And:
+            return evaluate_condition(&expr->operands[0]) and evaluate_condition(&expr->operands[1])
+        case AstExpressionKind.Or:
+            return evaluate_condition(&expr->operands[0]) or evaluate_condition(&expr->operands[1])
+        case AstExpressionKind.Not:
+            return not evaluate_condition(&expr->operands[0])
+        case _:
+            fail(expr->location, "cannot evaluate condition at compile time")
 
 
 # returns the statements to replace if statement with

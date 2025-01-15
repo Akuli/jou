@@ -497,13 +497,15 @@ def typecheck_indexing(
 ) -> Type*:
     msg: byte[500]
 
-    ptrtype = typecheck_expression_not_void(ft, ptrexpr)
-    if ptrtype->kind == TypeKind.Array:
-        cast_array_to_pointer(ft->current_fom_types, ptrexpr)
-        ptrtype = ptrexpr->types.implicit_cast_type
-    else:
-        if ptrtype->kind != TypeKind.Pointer:
-            snprintf(msg, sizeof(msg), "value of type %s cannot be indexed", ptrtype->name)
+    orig_type = typecheck_expression_not_void(ft, ptrexpr)
+    match orig_type->kind:
+        case TypeKind.Pointer:
+            ptrtype = orig_type
+        case TypeKind.Array:
+            cast_array_to_pointer(ft->current_fom_types, ptrexpr)
+            ptrtype = ptrexpr->types.implicit_cast_type
+        case _:
+            snprintf(msg, sizeof(msg), "value of type %s cannot be indexed", orig_type->name)
             fail(ptrexpr->location, msg)
 
     assert ptrtype != NULL
@@ -1152,7 +1154,7 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
                 ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
 
                 if targetexpr->kind == AstExpressionKind.Dereference:
-                    strcpy(msg, "cannot place a value of type <from> into a pointer of type <to>*")
+                    msg = "cannot place a value of type <from> into a pointer of type <to>*"
                 else:
                     desc = short_expression_description(targetexpr)
                     snprintf(msg, sizeof msg, "cannot assign a value of type <from> to %s of type <to>", desc)
@@ -1289,24 +1291,27 @@ def typecheck_function_or_method_body(ft: FileTypes*, sig: Signature*, body: Ast
 def typecheck_step3_function_and_method_bodies(ft: FileTypes*, ast: AstFile*) -> None:
     for i = 0; i < ast->body.nstatements; i++:
         stmt = &ast->body.statements[i]
-        if stmt->kind == AstStatementKind.Function and stmt->function.body.nstatements > 0:
-            sig = ft->find_function(stmt->function.signature.name)
-            assert sig != NULL
-            typecheck_function_or_method_body(ft, sig, &stmt->function.body)
+        match stmt->kind:
+            case AstStatementKind.Function:
+                if stmt->function.body.nstatements > 0:
+                    sig = ft->find_function(stmt->function.signature.name)
+                    assert sig != NULL
+                    typecheck_function_or_method_body(ft, sig, &stmt->function.body)
+            case AstStatementKind.Class:
+                classtype: Type* = NULL
+                for t = ft->owned_types; t < &ft->owned_types[ft->n_owned_types]; t++:
+                    if strcmp((*t)->name, stmt->classdef.name) == 0:
+                        classtype = *t
+                        break
+                assert classtype != NULL
 
-        if stmt->kind == AstStatementKind.Class:
-            classtype: Type* = NULL
-            for t = ft->owned_types; t < &ft->owned_types[ft->n_owned_types]; t++:
-                if strcmp((*t)->name, stmt->classdef.name) == 0:
-                    classtype = *t
-                    break
-            assert classtype != NULL
+                for m = stmt->classdef.members; m < &stmt->classdef.members[stmt->classdef.nmembers]; m++:
+                    if m->kind != AstClassMemberKind.Method:
+                        continue
+                    method = &m->method
 
-            for m = stmt->classdef.members; m < &stmt->classdef.members[stmt->classdef.nmembers]; m++:
-                if m->kind != AstClassMemberKind.Method:
-                    continue
-                method = &m->method
-
-                sig = classtype->find_method(method->signature.name)
-                assert sig != NULL
-                typecheck_function_or_method_body(ft, sig, &method->body)
+                    sig = classtype->find_method(method->signature.name)
+                    assert sig != NULL
+                    typecheck_function_or_method_body(ft, sig, &method->body)
+            case _:
+                pass

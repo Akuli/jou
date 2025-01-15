@@ -89,23 +89,19 @@ class Type:
         return &arr->type
 
     def short_description(self) -> byte*:
-        if self->kind == TypeKind.OpaqueClass or self->kind == TypeKind.Class:
-            return "a class"
-        if self->kind == TypeKind.Enum:
-            return "an enum"
-        if self->kind == TypeKind.VoidPointer or self->kind == TypeKind.Pointer:
-            return "a pointer type"
-        if (
-            self->kind == TypeKind.SignedInteger
-            or self->kind == TypeKind.UnsignedInteger
-            or self->kind == TypeKind.FloatingPoint
-        ):
-            return "a number type"
-        if self->kind == TypeKind.Array:
-            return "an array type"
-        if self->kind == TypeKind.Bool:
-            return "the built-in bool type"
-        assert False
+        match self->kind:
+            case TypeKind.OpaqueClass | TypeKind.Class:
+                return "a class"
+            case TypeKind.Enum:
+                return "an enum"
+            case TypeKind.Pointer | TypeKind.VoidPointer:
+                return "a pointer type"
+            case TypeKind.SignedInteger | TypeKind.UnsignedInteger | TypeKind.FloatingPoint:
+                return "a number type"
+            case TypeKind.Array:
+                return "an array type"
+            case TypeKind.Bool:
+                return "the built-in bool type"
 
     def find_method(self, name: byte*) -> Signature*:
         if self->kind != TypeKind.Class:
@@ -270,11 +266,13 @@ class Signature:
 
     def get_self_class(self) -> Type*:
         if self->nargs > 0 and strcmp(self->argnames[0], "self") == 0:
-            if self->argtypes[0]->kind == TypeKind.Pointer:
-                return self->argtypes[0]->value_type
-            if self->argtypes[0]->kind == TypeKind.Class:
-                return self->argtypes[0]
-            assert False
+            match self->argtypes[0]->kind:
+                case TypeKind.Pointer:
+                    return self->argtypes[0]->value_type
+                case TypeKind.Class:
+                    return self->argtypes[0]
+                case _:
+                    assert False
         return NULL
 
     # Useful for error messages, not much else.

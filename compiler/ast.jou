@@ -595,42 +595,46 @@ class AstStatement:
                 printf("\n")
 
     def free(self) -> None:
-        if self->kind == AstStatementKind.ExpressionStatement:
-            self->expression.free()
-        if self->kind == AstStatementKind.Assert:
-            self->assertion.free()
-        if self->kind == AstStatementKind.Return and self->return_value != NULL:
-            self->return_value->free()
-            free(self->return_value)
-        if self->kind == AstStatementKind.If:
-            self->if_statement.free()
-        if self->kind == AstStatementKind.WhileLoop:
-            self->while_loop.free()
-        if self->kind == AstStatementKind.ForLoop:
-            self->for_loop.free()
-        if self->kind == AstStatementKind.Match:
-            self->match_statement.free()
-        if (
-            self->kind == AstStatementKind.DeclareLocalVar
-            or self->kind == AstStatementKind.GlobalVariableDeclaration
-            or self->kind == AstStatementKind.GlobalVariableDefinition
-        ):
-            self->var_declaration.free()
-        if (
-            self->kind == AstStatementKind.Assign
-            or self->kind == AstStatementKind.InPlaceAdd
-            or self->kind == AstStatementKind.InPlaceSub
-            or self->kind == AstStatementKind.InPlaceMul
-            or self->kind == AstStatementKind.InPlaceDiv
-            or self->kind == AstStatementKind.InPlaceMod
-        ):
-            self->assignment.free()
-        if self->kind == AstStatementKind.Function:
-            self->function.free()
-        if self->kind == AstStatementKind.Class:
-            self->classdef.free()
-        if self->kind == AstStatementKind.Enum:
-            self->enumdef.free()
+        match self->kind:
+            case AstStatementKind.ExpressionStatement:
+                self->expression.free()
+            case AstStatementKind.Assert:
+                self->assertion.free()
+            case AstStatementKind.Return:
+                if self->return_value != NULL:
+                    self->return_value->free()
+                    free(self->return_value)
+            case AstStatementKind.If:
+                self->if_statement.free()
+            case AstStatementKind.WhileLoop:
+                self->while_loop.free()
+            case AstStatementKind.ForLoop:
+                self->for_loop.free()
+            case AstStatementKind.Match:
+                self->match_statement.free()
+            case (
+                AstStatementKind.DeclareLocalVar
+                | AstStatementKind.GlobalVariableDeclaration
+                | AstStatementKind.GlobalVariableDefinition
+            ):
+                self->var_declaration.free()
+            case (
+                AstStatementKind.Assign
+                | AstStatementKind.InPlaceAdd
+                | AstStatementKind.InPlaceSub
+                | AstStatementKind.InPlaceMul
+                | AstStatementKind.InPlaceDiv
+                | AstStatementKind.InPlaceMod
+            ):
+                self->assignment.free()
+            case AstStatementKind.Function:
+                self->function.free()
+            case AstStatementKind.Class:
+                self->classdef.free()
+            case AstStatementKind.Enum:
+                self->enumdef.free()
+            case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
+                pass
 
 
 # Useful for e.g. "while condition: body", "if condition: body"

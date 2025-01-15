@@ -47,34 +47,29 @@ def defines_main(ast: AstFile*) -> bool:
 
 
 def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSymbol*) -> bool:
-    if stmt->kind == AstStatementKind.Function:
-        return (
-            importsym->kind == ExportSymbolKind.Function
-            and strcmp(importsym->name, stmt->function.signature.name) == 0
-        )
-
-    if (
-        stmt->kind == AstStatementKind.GlobalVariableDeclaration
-        or stmt->kind == AstStatementKind.GlobalVariableDefinition
-    ):
-        return (
-            importsym->kind == ExportSymbolKind.GlobalVar
-            and strcmp(importsym->name, stmt->var_declaration.name) == 0
-        )
-
-    if stmt->kind == AstStatementKind.Class:
-        return (
-            importsym->kind == ExportSymbolKind.Type
-            and strcmp(importsym->name, stmt->classdef.name) == 0
-        )
-
-    if stmt->kind == AstStatementKind.Enum:
-        return (
-            importsym->kind == ExportSymbolKind.Type
-            and strcmp(importsym->name, stmt->enumdef.name) == 0
-        )
-
-    assert False
+    match stmt->kind:
+        case AstStatementKind.Function:
+            return (
+                importsym->kind == ExportSymbolKind.Function
+                and strcmp(importsym->name, stmt->function.signature.name) == 0
+            )
+        case AstStatementKind.GlobalVariableDeclaration | AstStatementKind.GlobalVariableDefinition:
+            return (
+                importsym->kind == ExportSymbolKind.GlobalVar
+                and strcmp(importsym->name, stmt->var_declaration.name) == 0
+            )
+        case AstStatementKind.Class:
+            return (
+                importsym->kind == ExportSymbolKind.Type
+                and strcmp(importsym->name, stmt->classdef.name) == 0
+            )
+        case AstStatementKind.Enum:
+            return (
+                importsym->kind == ExportSymbolKind.Type
+                and strcmp(importsym->name, stmt->enumdef.name) == 0
+            )
+        case _:
+            assert False
 
 
 def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
