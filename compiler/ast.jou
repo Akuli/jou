@@ -482,6 +482,7 @@ enum AstStatementKind:
     Pass
     Return
     If
+    Match
     WhileLoop
     ForLoop
     Break
@@ -515,6 +516,7 @@ class AstStatement:
         classdef: AstClassDef
         enumdef: AstEnumDef
         assertion: AstAssertion
+        match_statement: AstMatchStatement
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -537,6 +539,8 @@ class AstStatement:
             self->if_statement.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind.ForLoop:
             self->for_loop.print_with_tree_printer(tp)
+        elif self->kind == AstStatementKind.Match:
+            self->match_statement.print_with_tree_printer(tp)
         elif self->kind == AstStatementKind.WhileLoop:
             printf("while loop\n")
             self->while_loop.print_with_tree_printer(tp, True)
@@ -601,6 +605,8 @@ class AstStatement:
             self->while_loop.free()
         if self->kind == AstStatementKind.ForLoop:
             self->for_loop.free()
+        if self->kind == AstStatementKind.Match:
+            self->match_statement.free()
         if (
             self->kind == AstStatementKind.DeclareLocalVar
             or self->kind == AstStatementKind.GlobalVariableDeclaration
@@ -694,6 +700,62 @@ class AstIfStatement:
             self->if_and_elifs[i].free()
         free(self->if_and_elifs)
         self->else_body.free()
+
+
+# match match_obj:
+#     case ...:
+#         ...
+#     case ...:
+#         ...
+class AstMatchStatement:
+    match_obj: AstExpression
+    cases: AstCase*
+    ncases: int
+    case_underscore: AstBody*  # body of "case _" (always last), NULL if no "case _"
+    case_underscore_location: Location  # not meaningful if case_underscore == NULL
+
+    def print_with_tree_printer(self, tp: TreePrinter) -> None:
+        printf("match\n")
+        for i = 0; i < self->ncases; i++:
+            self->cases[i].print_with_tree_printer(tp, i == self->ncases - 1 and self->case_underscore == NULL)
+
+        if self->case_underscore != NULL:
+            sub = tp.print_prefix(True)
+            printf("[line %d] body of case _:\n", self->case_underscore_location.lineno)
+            self->case_underscore->print_with_tree_printer(sub)
+
+    def free(self) -> None:
+        self->match_obj.free()
+        for i = 0; i < self->ncases; i++:
+            self->cases[i].free()
+        free(self->cases)
+        if self->case_underscore != NULL:
+            self->case_underscore->free()
+            free(self->case_underscore)
+
+
+# case case_obj1 | case_obj2 | case_obj3:
+#     body
+class AstCase:
+    case_objs: AstExpression*
+    n_case_objs: int
+    body: AstBody
+
+    def print_with_tree_printer(self, tp: TreePrinter, is_last_case: bool) -> None:
+        for i = 0; i < self->n_case_objs; i++:
+            sub = tp.print_prefix(False)
+            printf("case_obj: ")
+            self->case_objs[i].print_with_tree_printer(sub)
+
+        sub = tp.print_prefix(is_last_case)
+        printf("body:\n")
+        self->body.print_with_tree_printer(sub)
+
+    def free(self) -> None:
+        for i = 0; i < self->n_case_objs; i++:
+            self->case_objs[i].free()
+        free(self->case_objs)
+        self->body.free()
 
 
 # for init; cond; incr:

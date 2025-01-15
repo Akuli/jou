@@ -1,0 +1,103 @@
+import "stdlib/io.jou"
+
+enum Foo:
+    Bar
+    Baz
+    Lol
+    Wut
+
+
+def show_evaluation(foo: Foo, msg: byte*) -> Foo:
+    puts(msg)
+    return foo
+
+
+def main() -> int:
+    f = Foo.Bar
+    match f:
+        case Foo.Bar:
+            printf("Bar\n")  # Output: Bar
+        case Foo.Baz:
+            printf("Baz\n")
+        case _:
+            printf("Other\n")
+
+    match Foo.Bar:
+        case Foo.Bar | Foo.Baz:
+            printf("yay\n")  # Output: yay
+        case _:
+            printf("nope\n")
+
+    match Foo.Baz:
+        case Foo.Bar | Foo.Baz:
+            printf("yay\n")  # Output: yay
+        case _:
+            printf("nope\n")
+
+    f = 69 as Foo
+    match f:
+        case Foo.Bar:
+            printf("nope\n")
+        case Foo.Baz:
+            printf("nope\n")
+        case Foo.Lol:
+            printf("nope\n")
+        case Foo.Wut:
+            printf("nope\n")
+        # There's no compiler warning for this "case _", because as you can
+        # see it's not as unnecessary as you think :)
+        case _:
+            printf("Other!!!! %d\n", f as int)  # Output: Other!!!! 69
+
+    # "case _" is not needed, will do nothing if enum is outside allowed range
+    f = Foo.Lol
+    match f:
+        case Foo.Bar:
+            printf("nope\n")
+        case Foo.Baz:
+            printf("nope\n")
+        case Foo.Lol:
+            printf("Hey! :)\n")  # Output: Hey! :)
+        case Foo.Wut:
+            printf("nope\n")
+
+    f = 12345 as Foo
+    match f:
+        case Foo.Bar:
+            printf("nope\n")
+        case Foo.Baz:
+            printf("nope\n")
+        case Foo.Lol:
+            printf("nope\n")
+        case Foo.Wut:
+            printf("nope\n")
+
+    # Test evaluation order.
+    #
+    # Output: match obj
+    # Output: case 1
+    # Output: case 2
+    # Output: case 3
+    # Output: ye
+    match show_evaluation(Foo.Lol, "match obj"):
+        case show_evaluation(Foo.Bar, "case 1"):
+            printf("nope\n")
+        case show_evaluation(Foo.Baz, "case 2"):
+            printf("nope\n")
+        case show_evaluation(Foo.Lol, "case 3"):
+            printf("ye\n")
+        case show_evaluation(Foo.Wut, "case 4"):
+            printf("nope\n")
+
+    # Output: match obj
+    # Output: case 1
+    # Output: case 2
+    # Output: case 3
+    # Output: ye
+    match show_evaluation(Foo.Lol, "match obj"):
+        case show_evaluation(Foo.Bar, "case 1") | show_evaluation(Foo.Baz, "case 2"):
+            printf("nope\n")
+        case show_evaluation(Foo.Lol, "case 3") | show_evaluation(Foo.Wut, "case 4"):
+            printf("ye\n")
+
+    return 0

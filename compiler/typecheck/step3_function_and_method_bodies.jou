@@ -1033,6 +1033,85 @@ def typecheck_if_statement(ft: FileTypes*, ifstmt: AstIfStatement*) -> None:
     typecheck_body(ft, &ifstmt->else_body)
 
 
+def typecheck_match_statement(ft: FileTypes*, match_stmt: AstMatchStatement*) -> None:
+    msg: byte[500]
+
+    mtype = typecheck_expression_not_void(ft, &match_stmt->match_obj)
+    if mtype->kind != TypeKind.Enum:
+        # TODO: extend match statements to other equals-comparable values
+        snprintf(msg, sizeof(msg), "match statements can only be used with enums, not %s", mtype->name)
+        fail(match_stmt->match_obj.location, msg)
+
+    # Ensure user checks all possible enum values
+    nremaining = mtype->enummembers.count
+    remaining: byte** = malloc(sizeof(remaining[0]) * nremaining)
+    assert remaining != NULL
+    for i = 0; i < nremaining; i++:
+        remaining[i] = mtype->enummembers.names[i]
+
+    for i = 0; i < match_stmt->ncases; i++:
+        for j = 0; j < match_stmt->cases[i].n_case_objs; j++:
+            case_obj = &match_stmt->cases[i].case_objs[j]
+            typecheck_expression_with_implicit_cast(
+                ft, case_obj, mtype,
+                "case value of type <from> cannot be matched against <to>",
+            )
+
+            # The special casing only applies to simple enum member lookups (TheEnum.TheMember syntax)
+            if case_obj->kind != AstExpressionKind.GetEnumMember:
+                nremaining = -1
+
+            if nremaining != -1:
+                # We are matching against TheEnum.member. Try to find and remove it from remaining members.
+                member = case_obj->enum_member.member_name
+                found = False
+                for k = 0; k < nremaining; k++:
+                    if strcmp(remaining[k], member) == 0:
+                        memmove(&remaining[k], &remaining[k+1], sizeof(remaining[0]) * (--nremaining - k))
+                        found = True
+                        break
+
+                if not found:
+                    snprintf(msg, sizeof(msg), "enum member %s is handled twice", member)
+                    fail(case_obj->location, msg)
+
+        typecheck_body(ft, &match_stmt->cases[i].body)
+
+    # Do not complain if there is a seemingly unnecessary 'case _', because it
+    # may be ran by casting an integer to enum with 'as'. However, we can
+    # complain if handling for enum members is missing.
+    if nremaining > 0 and match_stmt->case_underscore == NULL:
+        if nremaining == 1:
+            snprintf(
+                msg, sizeof(msg),
+                "enum member %s.%s not handled in match statement",
+                mtype->name, remaining[0],
+            )
+        else:
+            snprintf(
+                msg, sizeof(msg) - 20,
+                "the following %d members of enum %s are not handled in match statement: ",
+                nremaining, mtype->name,
+            )
+            for i = 0; i < nremaining; i++:
+                assert sizeof(msg) > 300
+                if strlen(msg) + strlen(remaining[i]) < 200:
+                    strcat(msg, remaining[i])
+                    strcat(msg, ", ")
+                else:
+                    strcat(msg, "...")
+                    break
+            if ends_with(msg, ", "):
+                msg[strlen(msg) - 2] = '\0'
+
+        fail(match_stmt->match_obj.location, msg)
+
+    free(remaining)
+
+    if match_stmt->case_underscore != NULL:
+        typecheck_body(ft, match_stmt->case_underscore)
+
+
 def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
     msg: byte[500]
 
@@ -1052,6 +1131,9 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             "'for' condition must be a boolean, not <from>")
         typecheck_body(ft, &stmt->for_loop.body)
         typecheck_statement(ft, stmt->for_loop.incr)
+
+    elif stmt->kind == AstStatementKind.Match:
+        typecheck_match_statement(ft, &stmt->match_statement)
 
     elif (
         stmt->kind == AstStatementKind.Break

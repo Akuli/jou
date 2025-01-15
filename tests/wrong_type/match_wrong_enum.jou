@@ -1,0 +1,13 @@
+enum Foo:
+    One
+    Two
+
+enum Bar:
+    Three
+    Four
+    Five
+
+def bruh() -> None:
+    match Foo.One:
+        case Bar.Three:  # Error: case value of type Bar cannot be matched against Foo
+            printf("hi\n")

@@ -26,7 +26,7 @@ def is_keyword(word: byte*) -> bool:
         "return", "if", "elif", "else", "while", "for", "pass", "break", "continue",
         "True", "False", "None", "NULL", "void", "noreturn",
         "and", "or", "not", "self", "as", "sizeof", "assert",
-        "bool", "byte", "short", "int", "long", "float", "double",
+        "bool", "byte", "short", "int", "long", "float", "double", "match", "case",
     ]
 
     for i = 0; i < sizeof keywords / sizeof keywords[0]; i++:
@@ -382,7 +382,7 @@ class Tokenizer:
             # Longer operators are first, so that '==' does not tokenize as '=' '='
             "...", "===", "!==",
             "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "&&", "||",
-            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">", "!",
+            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">", "!", "|",
         ]
 
         operator: byte[100]

@@ -794,7 +794,6 @@ static const Type *check_increment_or_decrement(FileTypes *ft, const AstExpressi
 
 static void typecheck_dereferenced_pointer(Location location, const Type *t)
 {
-    // TODO: improved error message for dereferencing void*
     if (t->kind != TYPE_POINTER)
         fail(location, "the dereference operator '*' is only for pointers, not for %s", t->name);
 }
@@ -1287,6 +1286,23 @@ static void typecheck_if_statement(FileTypes *ft, const AstIfStatement *ifstmt)
     typecheck_body(ft, &ifstmt->elsebody);
 }
 
+static void typecheck_match_statement(FileTypes *ft, AstMatchStatement *match_stmt)
+{
+    const Type *mtype = typecheck_expression_not_void(ft, &match_stmt->match_obj)->type;
+    assert(mtype->kind == TYPE_ENUM);
+
+    for (int i = 0; i < match_stmt->ncases; i++) {
+        for (int k = 0; k < match_stmt->cases[i].n_case_objs; k++) {
+            typecheck_expression_with_implicit_cast(
+                ft, &match_stmt->cases[i].case_objs[k], mtype,
+                "case value of type FROM cannot be matched against TO"
+            );
+        }
+        typecheck_body(ft, &match_stmt->cases[i].body);
+    }
+    typecheck_body(ft, &match_stmt->case_underscore);
+}
+
 static void typecheck_statement(FileTypes *ft, AstStatement *stmt)
 {
     switch(stmt->kind) {
@@ -1308,6 +1324,10 @@ static void typecheck_statement(FileTypes *ft, AstStatement *stmt)
             "'for' condition must be a boolean, not FROM");
         typecheck_body(ft, &stmt->data.forloop.body);
         typecheck_statement(ft, stmt->data.forloop.incr);
+        break;
+
+    case AST_STMT_MATCH:
+        typecheck_match_statement(ft, &stmt->data.match);
         break;
 
     case AST_STMT_BREAK:

@@ -1,0 +1,9 @@
+enum Foo:
+    One
+    Two
+    Three
+
+def blah(f: Foo) -> None:
+    match f:
+        Foo.One:  # Error: expected the 'case' keyword, got a variable name 'Foo'
+            printf("hi\n")

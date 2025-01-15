@@ -1,0 +1,12 @@
+enum Foo:
+    One
+    Two
+    Three
+    Four
+
+def blah() -> None:
+    match Foo.One:  # Error: enum member Foo.Four not handled in match statement
+        case Foo.One | Foo.Two:
+            pass
+        case Foo.Three:
+            pass

@@ -155,6 +155,18 @@ void free_ast_statement(const AstStatement *stmt)
         free(stmt->data.forloop.incr);
         free_ast_body(&stmt->data.forloop.body);
         break;
+    case AST_STMT_MATCH:
+        free_expression(&stmt->data.match.match_obj);
+        for (int i = 0; i < stmt->data.match.ncases; i++) {
+            for (AstExpression *caseobj = stmt->data.match.cases[i].case_objs; caseobj < &stmt->data.match.cases[i].case_objs[stmt->data.match.cases[i].n_case_objs]; caseobj++) {
+                free_expression(caseobj);
+            }
+            free(stmt->data.match.cases[i].case_objs);
+            free_ast_body(&stmt->data.match.cases[i].body);
+        }
+        free(stmt->data.match.cases);
+        free_ast_body(&stmt->data.match.case_underscore);
+        break;
     case AST_STMT_ASSERT:
         free_expression(&stmt->data.assertion.condition);
         free(stmt->data.assertion.condition_str);

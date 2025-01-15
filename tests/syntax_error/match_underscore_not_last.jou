@@ -1,0 +1,13 @@
+enum Foo:
+    One
+    Two
+    Three
+
+def blah() -> None:
+    match Foo.One:
+        case Foo.One:
+            pass
+        case _:
+            pass
+        case Foo.Two:  # Error: this case will never run, because 'case _:' above matches anything
+            pass

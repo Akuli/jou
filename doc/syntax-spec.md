@@ -106,6 +106,8 @@ Jou has a few different kinds of tokens:
     - `long`
     - `float`
     - `double`
+    - `match`
+    - `case`
 - **Newline tokens** occur at the end of a line of code.
     Lines that only contain spaces and comments do not produce a newline token;
     this ensures that blank lines are ignored as they should be.
@@ -114,7 +116,7 @@ Jou has a few different kinds of tokens:
     Indent tokens always occur just after newline tokens.
     It is an error if the code is indented with tabs or with some indentation size other than 4 spaces.
 - **Dedent tokens** are added whenever the amount of indentation decreases by 4 spaces.
-- **Operator tokens** are any of the following: `... == != -> <= >= ++ -- += -= *= /= %= . , : ; = ( ) { } [ ] & % * / + - < >`
+- **Operator tokens** are any of the following: `... == != -> <= >= ++ -- += -= *= /= %= . , : ; = ( ) { } [ ] & % * / + - < > |`
     Note that `a = = b` and `a == b` do different things:
     `a = = b` tokenizes as 4 tokens (and the parser errors when it sees the tokens)
     while `a == b` tokenizes as 3 tokens.

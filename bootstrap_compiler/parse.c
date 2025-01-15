@@ -674,6 +674,7 @@ static void validate_expression_statement(const AstExpression *expr)
     }
 }
 
+static void parse_start_of_body(ParserState *ps);
 static AstBody parse_body(ParserState *ps);
 
 static AstIfStatement parse_if_statement(ParserState *ps)
@@ -700,6 +701,49 @@ static AstIfStatement parse_if_statement(ParserState *ps)
         .elsebody = elsebody,
     };
 }
+
+static AstMatchStatement parse_match_statement(ParserState *ps)
+{
+    assert(is_keyword(ps->tokens, "match"));
+    ps->tokens++;
+
+    AstMatchStatement result = {.match_obj = parse_expression(ps)};
+    parse_start_of_body(ps);
+
+    while (ps->tokens->type != TOKEN_DEDENT) {
+        assert(is_keyword(ps->tokens, "case"));
+        ps->tokens++;
+
+        if (ps->tokens->type == TOKEN_NAME
+            && strcmp(ps->tokens->data.name, "_") == 0
+            && is_operator(&ps->tokens[1], ":"))
+        {
+            // case _:
+            ps->tokens++;
+            result.case_underscore = parse_body(ps);
+        } else {
+            List(AstExpression) case_objs = {0};
+            while(1){
+                Append(&case_objs, parse_expression(ps));
+                if (is_operator(ps->tokens, "|"))
+                    ps->tokens++;
+                else if (is_operator(ps->tokens, ":"))
+                    break;
+                else
+                    fail_with_parse_error(ps->tokens, "'|' or ':'");
+            }
+            result.cases = realloc(result.cases, sizeof result.cases[0] * (result.ncases + 1));
+            result.cases[result.ncases++] = (AstCase){
+                .case_objs = case_objs.ptr,
+                .n_case_objs = case_objs.len,
+                .body = parse_body(ps),
+            };
+        }
+    }
+    ps->tokens++;
+    return result;
+}
+
 
 // reverse code golfing: https://xkcd.com/1960/
 static enum AstStatementKind determine_the_kind_of_a_statement_that_starts_with_an_expression(
@@ -1041,6 +1085,9 @@ static AstStatement parse_statement(ParserState *ps)
     } else if (is_keyword(ps->tokens, "if")) {
         result.kind = AST_STMT_IF;
         result.data.ifstatement = parse_if_statement(ps);
+    } else if (is_keyword(ps->tokens, "match")) {
+        result.kind = AST_STMT_MATCH;
+        result.data.match = parse_match_statement(ps);
     } else if (is_keyword(ps->tokens, "while")) {
         ps->tokens++;
         result.kind = AST_STMT_WHILE;
