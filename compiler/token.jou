@@ -37,47 +37,46 @@ class Token:
         long_string: byte*      # String
 
     def print(self) -> None:
-        if self->kind == TokenKind.Byte:
-            printf("byte %#02x", self->byte_value)
-            if isprint(self->byte_value) != 0:
-                printf(" '%c'", self->byte_value)
-            printf("\n")
-        elif self->kind == TokenKind.Short:
-            printf("short %hd\n", self->short_value)
-        elif self->kind == TokenKind.Int:
-            printf("integer %d\n", self->int_value)
-        elif self->kind == TokenKind.Long:
-            printf("long %lld\n", self->long_value)
-        elif self->kind == TokenKind.Float:
-            printf("float %s\n", self->short_string)
-        elif self->kind == TokenKind.Double:
-            printf("double %s\n", self->short_string)
-        elif self->kind == TokenKind.EndOfFile:
-            printf("end of file\n")
-        elif self->kind == TokenKind.Operator:
-            printf("operator '%s'\n", self->short_string)
-        elif self->kind == TokenKind.Name:
-            printf("name \"%s\"\n", self->short_string)
-        elif self->kind == TokenKind.Keyword:
-            printf("keyword \"%s\"\n", self->short_string)
-        elif self->kind == TokenKind.Newline:
-            printf("newline token (next line has %d spaces of indentation)\n", self->indentation_level)
-        elif self->kind == TokenKind.String:
-            printf("string \"")
-            for s = self->long_string; *s != 0; s++:
-                if isprint(*s) != 0:
-                    putchar(*s)
-                elif *s == '\n':
-                    printf("\\n")
-                else:
-                    printf("\\x%02x", *s)
-            printf("\"\n")
-        elif self->kind == TokenKind.Indent:
-            printf("indent (+4 spaces)\n")
-        elif self->kind == TokenKind.Dedent:
-            printf("dedent (-4 spaces)\n")
-        else:
-            printf("????\n")
+        match self->kind:
+            case TokenKind.Byte:
+                printf("byte %#02x", self->byte_value)
+                if isprint(self->byte_value) != 0:
+                    printf(" '%c'", self->byte_value)
+                printf("\n")
+            case TokenKind.Short:
+                printf("short %hd\n", self->short_value)
+            case TokenKind.Int:
+                printf("integer %d\n", self->int_value)
+            case TokenKind.Long:
+                printf("long %lld\n", self->long_value)
+            case TokenKind.Float:
+                printf("float %s\n", self->short_string)
+            case TokenKind.Double:
+                printf("double %s\n", self->short_string)
+            case TokenKind.EndOfFile:
+                printf("end of file\n")
+            case TokenKind.Operator:
+                printf("operator '%s'\n", self->short_string)
+            case TokenKind.Name:
+                printf("name \"%s\"\n", self->short_string)
+            case TokenKind.Keyword:
+                printf("keyword \"%s\"\n", self->short_string)
+            case TokenKind.Newline:
+                printf("newline token (next line has %d spaces of indentation)\n", self->indentation_level)
+            case TokenKind.String:
+                printf("string \"")
+                for s = self->long_string; *s != 0; s++:
+                    if isprint(*s) != 0:
+                        putchar(*s)
+                    elif *s == '\n':
+                        printf("\\n")
+                    else:
+                        printf("\\x%02x", *s)
+                printf("\"\n")
+            case TokenKind.Indent:
+                printf("indent (+4 spaces)\n")
+            case TokenKind.Dedent:
+                printf("dedent (-4 spaces)\n")
 
     def is_keyword(self, kw: byte*) -> bool:
         return self->kind == TokenKind.Keyword and strcmp(self->short_string, kw) == 0
@@ -103,36 +102,35 @@ class Token:
 
     def fail_expected_got(self, what_was_expected_instead: byte*) -> None:
         got: byte[100]
-        if self->kind == TokenKind.Short:
-            got = "a short"
-        elif self->kind == TokenKind.Int:
-            got = "an integer"
-        elif self->kind == TokenKind.Long:
-            got = "a long integer"
-        elif self->kind == TokenKind.Float:
-            got = "a float constant"
-        elif self->kind == TokenKind.Double:
-            got = "a double constant"
-        elif self->kind == TokenKind.Byte:
-            got = "a byte literal"
-        elif self->kind == TokenKind.String:
-            got = "a string"
-        elif self->kind == TokenKind.Name:
-            snprintf(got, sizeof got, "a variable name '%s'", self->short_string)
-        elif self->kind == TokenKind.Keyword:
-            snprintf(got, sizeof got, "the '%s' keyword", self->short_string)
-        elif self->kind == TokenKind.Newline:
-            got = "end of line"
-        elif self->kind == TokenKind.Indent:
-            got = "more indentation"
-        elif self->kind == TokenKind.Dedent:
-            got = "less indentation"
-        elif self->kind == TokenKind.Operator:
-            snprintf(got, sizeof got, "'%s'", self->short_string)
-        elif self->kind == TokenKind.EndOfFile:
-            got = "end of file"
-        else:
-            assert False
+        match self->kind:
+            case TokenKind.Short:
+                got = "a short"
+            case TokenKind.Int:
+                got = "an integer"
+            case TokenKind.Long:
+                got = "a long integer"
+            case TokenKind.Float:
+                got = "a float constant"
+            case TokenKind.Double:
+                got = "a double constant"
+            case TokenKind.Byte:
+                got = "a byte literal"
+            case TokenKind.String:
+                got = "a string"
+            case TokenKind.Name:
+                snprintf(got, sizeof got, "a variable name '%s'", self->short_string)
+            case TokenKind.Keyword:
+                snprintf(got, sizeof got, "the '%s' keyword", self->short_string)
+            case TokenKind.Newline:
+                got = "end of line"
+            case TokenKind.Indent:
+                got = "more indentation"
+            case TokenKind.Dedent:
+                got = "less indentation"
+            case TokenKind.Operator:
+                snprintf(got, sizeof got, "'%s'", self->short_string)
+            case TokenKind.EndOfFile:
+                got = "end of file"
 
         message: byte* = malloc(strlen(what_was_expected_instead) + 500)
         sprintf(message, "expected %s, got %s", what_was_expected_instead, got)

@@ -23,96 +23,89 @@ import "./common.jou"
 # Intended for errors. Returned string can be overwritten in next call.
 # Imagine "cannot assign to" in front of these, e.g. "cannot assign to a constant"
 def short_expression_description(expr: AstExpression*) -> byte[200]:
-    if (
-        expr->kind == AstExpressionKind.String
-        or expr->kind == AstExpressionKind.Int
-        or expr->kind == AstExpressionKind.Short
-        or expr->kind == AstExpressionKind.Long
-        or expr->kind == AstExpressionKind.Byte
-        or expr->kind == AstExpressionKind.Float
-        or expr->kind == AstExpressionKind.Double
-        or expr->kind == AstExpressionKind.Bool
-    ):
-        return "a constant"
-
-    if expr->kind == AstExpressionKind.Null:
-        return "NULL"
-    if expr->kind == AstExpressionKind.GetEnumMember:
-        return "an enum member"
-    if expr->kind == AstExpressionKind.SizeOf:
-        return "a sizeof expression"
-    if expr->kind == AstExpressionKind.Instantiate:
-        return "a newly created instance"
-    if expr->kind == AstExpressionKind.Array:
-        return "an array literal"
-    if expr->kind == AstExpressionKind.Indexing:
-        return "an indexed value"
-    if expr->kind == AstExpressionKind.As:
-        return "the result of a cast"
-    if expr->kind == AstExpressionKind.Dereference:
-        return "the value of a pointer"
-    if expr->kind == AstExpressionKind.And:
-        return "the result of 'and'"
-    if expr->kind == AstExpressionKind.Or:
-        return "the result of 'or'"
-    if expr->kind == AstExpressionKind.Not:
-        return "the result of 'not'"
-    if expr->kind == AstExpressionKind.Self:
-        return "self"
-
-    if expr->kind == AstExpressionKind.Call:
-        if expr->call.method_call_self == NULL:
-            return "a function call"
-        else:
-            return "a method call"
-
-    if expr->kind == AstExpressionKind.GetVariable:
-        if get_special_constant(expr->varname) != -1:
-            return "a special constant"
-        return "a variable"
-
-    if (
-        expr->kind == AstExpressionKind.Add
-        or expr->kind == AstExpressionKind.Sub
-        or expr->kind == AstExpressionKind.Mul
-        or expr->kind == AstExpressionKind.Div
-        or expr->kind == AstExpressionKind.Mod
-        or expr->kind == AstExpressionKind.Negate
-    ):
-        return "the result of a calculation"
-
-    if (
-        expr->kind == AstExpressionKind.Eq
-        or expr->kind == AstExpressionKind.Ne
-        or expr->kind == AstExpressionKind.Gt
-        or expr->kind == AstExpressionKind.Ge
-        or expr->kind == AstExpressionKind.Lt
-        or expr->kind == AstExpressionKind.Le
-    ):
-        return "the result of a comparison"
-
-    if (
-        expr->kind == AstExpressionKind.PreIncr
-        or expr->kind == AstExpressionKind.PostIncr
-    ):
-        return "the result of incrementing a value"
-
-    if (
-        expr->kind == AstExpressionKind.PreDecr
-        or expr->kind == AstExpressionKind.PostDecr
-    ):
-        return "the result of decrementing a value"
-
     result: byte[200]
 
-    if expr->kind == AstExpressionKind.AddressOf:
-        inner = short_expression_description(&expr->operands[0])
-        snprintf(result, sizeof result, "address of %s", inner)
-        return result
+    match expr->kind:
+        case (
+            AstExpressionKind.String
+            | AstExpressionKind.Int
+            | AstExpressionKind.Short
+            | AstExpressionKind.Long
+            | AstExpressionKind.Byte
+            | AstExpressionKind.Float
+            | AstExpressionKind.Double
+            | AstExpressionKind.Bool
+        ):
+            return "a constant"
+        case AstExpressionKind.Null:
+            return "NULL"
+        case AstExpressionKind.GetEnumMember:
+            return "an enum member"
+        case AstExpressionKind.SizeOf:
+            return "a sizeof expression"
+        case AstExpressionKind.Instantiate:
+            return "a newly created instance"
+        case AstExpressionKind.Array:
+            return "an array literal"
+        case AstExpressionKind.Indexing:
+            return "an indexed value"
+        case AstExpressionKind.As:
+            return "the result of a cast"
+        case AstExpressionKind.Dereference:
+            return "the value of a pointer"
+        case AstExpressionKind.And:
+            return "the result of 'and'"
+        case AstExpressionKind.Or:
+            return "the result of 'or'"
+        case AstExpressionKind.Not:
+            return "the result of 'not'"
+        case AstExpressionKind.Self:
+            return "self"
 
-    if expr->kind == AstExpressionKind.GetClassField:
-        snprintf(result, sizeof result, "field '%s'", expr->class_field.field_name)
-        return result
+        case AstExpressionKind.Call:
+            if expr->call.method_call_self == NULL:
+                return "a function call"
+            else:
+                return "a method call"
+
+        case AstExpressionKind.GetVariable:
+            if get_special_constant(expr->varname) != -1:
+                return "a special constant"
+            return "a variable"
+
+        case (
+            AstExpressionKind.Add
+            | AstExpressionKind.Sub
+            | AstExpressionKind.Mul
+            | AstExpressionKind.Div
+            | AstExpressionKind.Mod
+            | AstExpressionKind.Negate
+        ):
+            return "the result of a calculation"
+
+        case (
+            AstExpressionKind.Eq
+            | AstExpressionKind.Ne
+            | AstExpressionKind.Gt
+            | AstExpressionKind.Ge
+            | AstExpressionKind.Lt
+            | AstExpressionKind.Le
+        ):
+            return "the result of a comparison"
+
+        case AstExpressionKind.PreIncr | AstExpressionKind.PostIncr:
+            return "the result of incrementing a value"
+        case AstExpressionKind.PreDecr | AstExpressionKind.PostDecr:
+            return "the result of decrementing a value"
+
+        case AstExpressionKind.AddressOf:
+            inner = short_expression_description(&expr->operands[0])
+            snprintf(result, sizeof result, "address of %s", inner)
+            return result
+
+        case AstExpressionKind.GetClassField:
+            snprintf(result, sizeof result, "field '%s'", expr->class_field.field_name)
+            return result
 
     assert False
 
@@ -359,27 +352,28 @@ def check_binop(
     assert rhs->types.type != NULL
 
     do_what: byte*
-    if op == AstExpressionKind.Add:
-        do_what = "add"
-    elif op == AstExpressionKind.Sub:
-        do_what = "subtract"
-    elif op == AstExpressionKind.Mul:
-        do_what = "multiply"
-    elif op == AstExpressionKind.Div:
-        do_what = "divide"
-    elif op == AstExpressionKind.Mod:
-        do_what = "take remainder with"
-    elif (
-        op == AstExpressionKind.Eq
-        or op == AstExpressionKind.Ne
-        or op == AstExpressionKind.Gt
-        or op == AstExpressionKind.Ge
-        or op == AstExpressionKind.Lt
-        or op == AstExpressionKind.Le
-    ):
-        do_what = "compare"
-    else:
-        assert False
+    match op:
+        case AstExpressionKind.Add:
+            do_what = "add"
+        case AstExpressionKind.Sub:
+            do_what = "subtract"
+        case AstExpressionKind.Mul:
+            do_what = "multiply"
+        case AstExpressionKind.Div:
+            do_what = "divide"
+        case AstExpressionKind.Mod:
+            do_what = "take remainder with"
+        case (
+            AstExpressionKind.Eq
+            | AstExpressionKind.Ne
+            | AstExpressionKind.Gt
+            | AstExpressionKind.Ge
+            | AstExpressionKind.Lt
+            | AstExpressionKind.Le
+        ):
+            do_what = "compare"
+        case _:
+            assert False
 
     got_bools = lhs->types.type == boolType and rhs->types.type == boolType
     got_integers = lhs->types.type->is_integer_type() and rhs->types.type->is_integer_type()
@@ -442,39 +436,40 @@ def check_binop(
     do_implicit_cast(fom, lhs, cast_type, Location{}, NULL)
     do_implicit_cast(fom, rhs, cast_type, Location{}, NULL)
 
-    if (
-        op == AstExpressionKind.Add
-        or op == AstExpressionKind.Sub
-        or op == AstExpressionKind.Mul
-        or op == AstExpressionKind.Div
-        or op == AstExpressionKind.Mod
-    ):
-        return cast_type
-
-    if (
-        op == AstExpressionKind.Eq
-        or op == AstExpressionKind.Ne
-        or op == AstExpressionKind.Gt
-        or op == AstExpressionKind.Ge
-        or op == AstExpressionKind.Lt
-        or op == AstExpressionKind.Le
-    ):
-        return boolType
-
-    assert False
+    match op:
+        case (
+            AstExpressionKind.Add
+            | AstExpressionKind.Sub
+            | AstExpressionKind.Mul
+            | AstExpressionKind.Div
+            | AstExpressionKind.Mod
+        ):
+            return cast_type
+        case (
+            AstExpressionKind.Eq
+            | AstExpressionKind.Ne
+            | AstExpressionKind.Gt
+            | AstExpressionKind.Ge
+            | AstExpressionKind.Lt
+            | AstExpressionKind.Le
+        ):
+            return boolType
+        case _:
+            assert False
 
 
 def check_increment_or_decrement(ft: FileTypes*, expr: AstExpression*) -> Type*:
     bad_type_fmt, bad_expr_fmt: byte*
 
-    if expr->kind == AstExpressionKind.PreIncr or expr->kind == AstExpressionKind.PostIncr:
-        bad_type_fmt = "cannot increment a value of type %s"
-        bad_expr_fmt = "cannot increment %s"
-    elif expr->kind == AstExpressionKind.PreDecr or expr->kind == AstExpressionKind.PostDecr:
-        bad_type_fmt = "cannot decrement a value of type %s"
-        bad_expr_fmt = "cannot decrement %s"
-    else:
-        assert False
+    match expr->kind:
+        case AstExpressionKind.PreIncr | AstExpressionKind.PostIncr:
+            bad_type_fmt = "cannot increment a value of type %s"
+            bad_expr_fmt = "cannot increment %s"
+        case AstExpressionKind.PreDecr | AstExpressionKind.PostDecr:
+            bad_type_fmt = "cannot decrement a value of type %s"
+            bad_expr_fmt = "cannot decrement %s"
+        case _:
+            assert False
 
     t = typecheck_expression_not_void(ft, &expr->operands[0])
     if not t->is_integer_type() and t->kind != TypeKind.Pointer:
@@ -835,180 +830,181 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
 
     handle_conflicting_class_field_and_enum_member_syntax(ft, expr)
 
-    if expr->kind == AstExpressionKind.Bool:
-        result = boolType
-    elif expr->kind == AstExpressionKind.Byte:
-        result = byteType
-    elif expr->kind == AstExpressionKind.Double:
-        result = doubleType
-    elif expr->kind == AstExpressionKind.Float:
-        result = floatType
-    elif expr->kind == AstExpressionKind.Short:
-        result = shortType
-    elif expr->kind == AstExpressionKind.Int:
-        result = intType
-    elif expr->kind == AstExpressionKind.Long:
-        result = longType
-    elif expr->kind == AstExpressionKind.Null:
-        result = voidPtrType
-    elif expr->kind == AstExpressionKind.String:
-        result = byteType->pointer_type()
+    match expr->kind:
+        case AstExpressionKind.Bool:
+            result = boolType
+        case AstExpressionKind.Byte:
+            result = byteType
+        case AstExpressionKind.Double:
+            result = doubleType
+        case AstExpressionKind.Float:
+            result = floatType
+        case AstExpressionKind.Short:
+            result = shortType
+        case AstExpressionKind.Int:
+            result = intType
+        case AstExpressionKind.Long:
+            result = longType
+        case AstExpressionKind.Null:
+            result = voidPtrType
+        case AstExpressionKind.String:
+            result = byteType->pointer_type()
 
-    elif expr->kind == AstExpressionKind.GetEnumMember:
-        result = ft->find_type(expr->enum_member.enum_name)
-        # AstExpressionKind.GetEnumMember is only created if the enum exists
-        assert result != NULL
-        assert result->kind == TypeKind.Enum
-        if not enum_member_exists(result, expr->enum_member.member_name):
-            snprintf(
-                msg, sizeof(msg),
-                "enum %s has no member named '%s'",
-                expr->enum_member.enum_name, expr->enum_member.member_name)
-            fail(expr->location, msg)
-
-    elif expr->kind == AstExpressionKind.SizeOf:
-        typecheck_expression_not_void(ft, &expr->operands[0])
-        result = longType
-
-    elif expr->kind == AstExpressionKind.Instantiate:
-        result = typecheck_instantiation(ft, &expr->instantiation, expr->location)
-
-    elif expr->kind == AstExpressionKind.Array:
-        n = expr->array.length
-        for i = 0; i < n; i++:
-            typecheck_expression_not_void(ft, &expr->array.items[i])
-        membertype = cast_array_members_to_a_common_type(ft->current_fom_types, expr->location, expr->array)
-        result = membertype->array_type(n)
-
-    elif expr->kind == AstExpressionKind.GetClassField:
-        if expr->class_field.uses_arrow_operator:
-            temptype = typecheck_expression_not_void(ft, expr->class_field.instance)
-            if temptype->kind != TypeKind.Pointer or temptype->value_type->kind != TypeKind.Class:
+        case AstExpressionKind.GetEnumMember:
+            result = ft->find_type(expr->enum_member.enum_name)
+            # AstExpressionKind.GetEnumMember is only created if the enum exists
+            assert result != NULL
+            assert result->kind == TypeKind.Enum
+            if not enum_member_exists(result, expr->enum_member.member_name):
                 snprintf(
                     msg, sizeof(msg),
-                    "left side of the '->' operator must be a pointer to a class, not %s",
-                    temptype->name)
+                    "enum %s has no member named '%s'",
+                    expr->enum_member.enum_name, expr->enum_member.member_name)
                 fail(expr->location, msg)
-            result = typecheck_class_field(temptype->value_type, expr->class_field.field_name, expr->location)->type
-        else:
-            temptype = typecheck_expression_not_void(ft, expr->class_field.instance)
-            if temptype->kind != TypeKind.Class:
-                snprintf(
-                    msg, sizeof(msg),
-                    "left side of the '.' operator must be an instance of a class, not %s",
-                    temptype->name)
-                fail(expr->location, msg)
-            result = typecheck_class_field(temptype, expr->class_field.field_name, expr->location)->type
 
-    elif expr->kind == AstExpressionKind.Call:
-        if expr->call.method_call_self == NULL:
-            result = typecheck_function_or_method_call(ft, &expr->call, NULL, expr->location)
-        elif expr->call.uses_arrow_operator:
-            temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)
-            if temptype->kind != TypeKind.Pointer:
+        case AstExpressionKind.SizeOf:
+            typecheck_expression_not_void(ft, &expr->operands[0])
+            result = longType
+
+        case AstExpressionKind.Instantiate:
+            result = typecheck_instantiation(ft, &expr->instantiation, expr->location)
+
+        case AstExpressionKind.Array:
+            n = expr->array.length
+            for i = 0; i < n; i++:
+                typecheck_expression_not_void(ft, &expr->array.items[i])
+            membertype = cast_array_members_to_a_common_type(ft->current_fom_types, expr->location, expr->array)
+            result = membertype->array_type(n)
+
+        case AstExpressionKind.GetClassField:
+            if expr->class_field.uses_arrow_operator:
+                temptype = typecheck_expression_not_void(ft, expr->class_field.instance)
+                if temptype->kind != TypeKind.Pointer or temptype->value_type->kind != TypeKind.Class:
+                    snprintf(
+                        msg, sizeof(msg),
+                        "left side of the '->' operator must be a pointer to a class, not %s",
+                        temptype->name)
+                    fail(expr->location, msg)
+                result = typecheck_class_field(temptype->value_type, expr->class_field.field_name, expr->location)->type
+            else:
+                temptype = typecheck_expression_not_void(ft, expr->class_field.instance)
+                if temptype->kind != TypeKind.Class:
+                    snprintf(
+                        msg, sizeof(msg),
+                        "left side of the '.' operator must be an instance of a class, not %s",
+                        temptype->name)
+                    fail(expr->location, msg)
+                result = typecheck_class_field(temptype, expr->class_field.field_name, expr->location)->type
+
+        case AstExpressionKind.Call:
+            if expr->call.method_call_self == NULL:
+                result = typecheck_function_or_method_call(ft, &expr->call, NULL, expr->location)
+            elif expr->call.uses_arrow_operator:
+                temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)
+                if temptype->kind != TypeKind.Pointer:
+                    snprintf(msg, sizeof(msg),
+                        "left side of the '->' operator must be a pointer, not %s",
+                        temptype->name)
+                    fail(expr->location, msg)
+                result = typecheck_function_or_method_call(ft, &expr->call, temptype->value_type, expr->location)
+            else:
+                temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)
+                result = typecheck_function_or_method_call(ft, &expr->call, temptype, expr->location)
+
+                # If self argument is passed by pointer, make sure we can create that pointer
+                assert temptype->kind == TypeKind.Class
+                signature = temptype->find_method(expr->call.name)
+                assert signature != NULL
+                if signature->argtypes[0]->is_pointer_type():
+                    assert strstr(expr->call.name, "%") == NULL
+                    snprintf(
+                        msg, sizeof msg,
+                        "cannot take address of %%s, needed for calling the %s() method",
+                        expr->call.name)
+                    ensure_can_take_address(ft->current_fom_types, expr->call.method_call_self, msg)
+
+            if result == NULL:
+                # no return value produced
+                return
+
+        case AstExpressionKind.Indexing:
+            result = typecheck_indexing(ft, &expr->operands[0], &expr->operands[1])
+
+        case AstExpressionKind.AddressOf:
+            result = typecheck_expression_not_void(ft, &expr->operands[0])->pointer_type()
+            ensure_can_take_address(ft->current_fom_types, &expr->operands[0], "the '&' operator cannot be used with %s")
+
+        case AstExpressionKind.GetVariable:
+            result = ft->find_any_var(expr->varname)
+            if result == NULL:
+                snprintf(msg, sizeof(msg), "no variable named '%s'", expr->varname)
+                fail(expr->location, msg)
+
+        case AstExpressionKind.Self:
+            selfvar = ft->find_local_var("self")
+            assert selfvar != NULL
+            result = selfvar->type
+
+        case AstExpressionKind.Dereference:
+            temptype = typecheck_expression_not_void(ft, &expr->operands[0])
+            typecheck_dereferenced_pointer(expr->location, temptype)
+            result = temptype->value_type
+
+        case AstExpressionKind.And:
+            typecheck_and_or(ft, &expr->operands[0], &expr->operands[1], "and")
+            result = boolType
+
+        case AstExpressionKind.Or:
+            typecheck_and_or(ft, &expr->operands[0], &expr->operands[1], "or")
+            result = boolType
+
+        case AstExpressionKind.Not:
+            typecheck_expression_with_implicit_cast(
+                ft, &expr->operands[0], boolType,
+                "value after 'not' must be a boolean, not <from>")
+            result = boolType
+
+        case AstExpressionKind.Negate:
+            result = typecheck_expression_not_void(ft, &expr->operands[0])
+            if result->kind != TypeKind.SignedInteger and result->kind != TypeKind.FloatingPoint:
                 snprintf(msg, sizeof(msg),
-                    "left side of the '->' operator must be a pointer, not %s",
-                    temptype->name)
+                    "value after '-' must be a float or double or a signed integer, not %s",
+                    result->name)
                 fail(expr->location, msg)
-            result = typecheck_function_or_method_call(ft, &expr->call, temptype->value_type, expr->location)
-        else:
-            temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)
-            result = typecheck_function_or_method_call(ft, &expr->call, temptype, expr->location)
 
-            # If self argument is passed by pointer, make sure we can create that pointer
-            assert temptype->kind == TypeKind.Class
-            signature = temptype->find_method(expr->call.name)
-            assert signature != NULL
-            if signature->argtypes[0]->is_pointer_type():
-                assert strstr(expr->call.name, "%") == NULL
-                snprintf(
-                    msg, sizeof msg,
-                    "cannot take address of %%s, needed for calling the %s() method",
-                    expr->call.name)
-                ensure_can_take_address(ft->current_fom_types, expr->call.method_call_self, msg)
+        case (
+            AstExpressionKind.Add
+            | AstExpressionKind.Sub
+            | AstExpressionKind.Mul
+            | AstExpressionKind.Div
+            | AstExpressionKind.Mod
+            | AstExpressionKind.Eq
+            | AstExpressionKind.Ne
+            | AstExpressionKind.Gt
+            | AstExpressionKind.Ge
+            | AstExpressionKind.Lt
+            | AstExpressionKind.Le
+        ):
+            typecheck_expression_not_void(ft, &expr->operands[0])
+            typecheck_expression_not_void(ft, &expr->operands[1])
+            result = check_binop(ft->current_fom_types, expr->kind, expr->location, &expr->operands[0], &expr->operands[1])
 
-        if result == NULL:
-            # no return value produced
-            return
+        case (
+            AstExpressionKind.PreIncr
+            | AstExpressionKind.PreDecr
+            | AstExpressionKind.PostIncr
+            | AstExpressionKind.PostDecr
+        ):
+            result = check_increment_or_decrement(ft, expr)
 
-    elif expr->kind == AstExpressionKind.Indexing:
-        result = typecheck_indexing(ft, &expr->operands[0], &expr->operands[1])
+        case AstExpressionKind.As:
+            typecheck_expression_not_void(ft, &expr->as_->value)
+            result = type_from_ast(ft, &expr->as_->type)
+            do_explicit_cast(ft->current_fom_types, &expr->as_->value, result, expr->location)
 
-    elif expr->kind == AstExpressionKind.AddressOf:
-        result = typecheck_expression_not_void(ft, &expr->operands[0])->pointer_type()
-        ensure_can_take_address(ft->current_fom_types, &expr->operands[0], "the '&' operator cannot be used with %s")
-
-    elif expr->kind == AstExpressionKind.GetVariable:
-        result = ft->find_any_var(expr->varname)
-        if result == NULL:
-            snprintf(msg, sizeof(msg), "no variable named '%s'", expr->varname)
-            fail(expr->location, msg)
-
-    elif expr->kind == AstExpressionKind.Self:
-        selfvar = ft->find_local_var("self")
-        assert selfvar != NULL
-        result = selfvar->type
-
-    elif expr->kind == AstExpressionKind.Dereference:
-        temptype = typecheck_expression_not_void(ft, &expr->operands[0])
-        typecheck_dereferenced_pointer(expr->location, temptype)
-        result = temptype->value_type
-
-    elif expr->kind == AstExpressionKind.And:
-        typecheck_and_or(ft, &expr->operands[0], &expr->operands[1], "and")
-        result = boolType
-
-    elif expr->kind == AstExpressionKind.Or:
-        typecheck_and_or(ft, &expr->operands[0], &expr->operands[1], "or")
-        result = boolType
-
-    elif expr->kind == AstExpressionKind.Not:
-        typecheck_expression_with_implicit_cast(
-            ft, &expr->operands[0], boolType,
-            "value after 'not' must be a boolean, not <from>")
-        result = boolType
-
-    elif expr->kind == AstExpressionKind.Negate:
-        result = typecheck_expression_not_void(ft, &expr->operands[0])
-        if result->kind != TypeKind.SignedInteger and result->kind != TypeKind.FloatingPoint:
-            snprintf(msg, sizeof(msg),
-                "value after '-' must be a float or double or a signed integer, not %s",
-                result->name)
-            fail(expr->location, msg)
-
-    elif (
-        expr->kind == AstExpressionKind.Add
-        or expr->kind == AstExpressionKind.Sub
-        or expr->kind == AstExpressionKind.Mul
-        or expr->kind == AstExpressionKind.Div
-        or expr->kind == AstExpressionKind.Mod
-        or expr->kind == AstExpressionKind.Eq
-        or expr->kind == AstExpressionKind.Ne
-        or expr->kind == AstExpressionKind.Gt
-        or expr->kind == AstExpressionKind.Ge
-        or expr->kind == AstExpressionKind.Lt
-        or expr->kind == AstExpressionKind.Le
-    ):
-        typecheck_expression_not_void(ft, &expr->operands[0])
-        typecheck_expression_not_void(ft, &expr->operands[1])
-        result = check_binop(ft->current_fom_types, expr->kind, expr->location, &expr->operands[0], &expr->operands[1])
-
-    elif (
-        expr->kind == AstExpressionKind.PreIncr
-        or expr->kind == AstExpressionKind.PreDecr
-        or expr->kind == AstExpressionKind.PostIncr
-        or expr->kind == AstExpressionKind.PostDecr
-    ):
-        result = check_increment_or_decrement(ft, expr)
-
-    elif expr->kind == AstExpressionKind.As:
-        typecheck_expression_not_void(ft, &expr->as_->value)
-        result = type_from_ast(ft, &expr->as_->type)
-        do_explicit_cast(ft->current_fom_types, &expr->as_->value, result, expr->location)
-
-    else:
-        printf("%d\n", expr->kind)
-        assert False
+        case _:
+            printf("%d\n", expr->kind)
+            assert False
 
     assert result != NULL
     expr->types.type = result
@@ -1115,153 +1111,158 @@ def typecheck_match_statement(ft: FileTypes*, match_stmt: AstMatchStatement*) ->
 def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
     msg: byte[500]
 
-    if stmt->kind == AstStatementKind.If:
-        typecheck_if_statement(ft, &stmt->if_statement)
+    match stmt->kind:
+        case AstStatementKind.If:
+            typecheck_if_statement(ft, &stmt->if_statement)
 
-    elif stmt->kind == AstStatementKind.WhileLoop:
-        typecheck_expression_with_implicit_cast(
-            ft, &stmt->while_loop.condition, boolType,
-            "'while' condition must be a boolean, not <from>")
-        typecheck_body(ft, &stmt->while_loop.body)
+        case AstStatementKind.WhileLoop:
+            typecheck_expression_with_implicit_cast(
+                ft, &stmt->while_loop.condition, boolType,
+                "'while' condition must be a boolean, not <from>")
+            typecheck_body(ft, &stmt->while_loop.body)
 
-    elif stmt->kind == AstStatementKind.ForLoop:
-        typecheck_statement(ft, stmt->for_loop.init)
-        typecheck_expression_with_implicit_cast(
-            ft, &stmt->for_loop.cond, boolType,
-            "'for' condition must be a boolean, not <from>")
-        typecheck_body(ft, &stmt->for_loop.body)
-        typecheck_statement(ft, stmt->for_loop.incr)
+        case AstStatementKind.ForLoop:
+            typecheck_statement(ft, stmt->for_loop.init)
+            typecheck_expression_with_implicit_cast(
+                ft, &stmt->for_loop.cond, boolType,
+                "'for' condition must be a boolean, not <from>")
+            typecheck_body(ft, &stmt->for_loop.body)
+            typecheck_statement(ft, stmt->for_loop.incr)
 
-    elif stmt->kind == AstStatementKind.Match:
-        typecheck_match_statement(ft, &stmt->match_statement)
+        case AstStatementKind.Match:
+            typecheck_match_statement(ft, &stmt->match_statement)
 
-    elif (
-        stmt->kind == AstStatementKind.Break
-        or stmt->kind == AstStatementKind.Continue
-        or stmt->kind == AstStatementKind.Pass
-    ):
-        pass
+        case AstStatementKind.Break | AstStatementKind.Continue | AstStatementKind.Pass:
+            pass
 
-    elif stmt->kind == AstStatementKind.Assign:
-        targetexpr = &stmt->assignment.target
-        valueexpr = &stmt->assignment.value
+        case AstStatementKind.Assign:
+            targetexpr = &stmt->assignment.target
+            valueexpr = &stmt->assignment.value
 
-        if (
-            targetexpr->kind == AstExpressionKind.GetVariable
-            and ft->find_any_var(targetexpr->varname) == NULL
+            if (
+                targetexpr->kind == AstExpressionKind.GetVariable
+                and ft->find_any_var(targetexpr->varname) == NULL
+            ):
+                # Making a new variable. Use the type of the value being assigned.
+                type = typecheck_expression_not_void(ft, valueexpr)
+                ft->current_fom_types->add_variable(type, targetexpr->varname)
+            else:
+                # Convert value to the type of an existing variable or other assignment target.
+                targettype = typecheck_expression_not_void(ft, targetexpr)
+                ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
+
+                if targetexpr->kind == AstExpressionKind.Dereference:
+                    strcpy(msg, "cannot place a value of type <from> into a pointer of type <to>*")
+                else:
+                    desc = short_expression_description(targetexpr)
+                    snprintf(msg, sizeof msg, "cannot assign a value of type <from> to %s of type <to>", desc)
+                typecheck_expression_with_implicit_cast(ft, valueexpr, targettype, msg)
+
+        case (
+            AstStatementKind.InPlaceAdd
+            | AstStatementKind.InPlaceSub
+            | AstStatementKind.InPlaceMul
+            | AstStatementKind.InPlaceDiv
+            | AstStatementKind.InPlaceMod
         ):
-            # Making a new variable. Use the type of the value being assigned.
-            type = typecheck_expression_not_void(ft, valueexpr)
-            ft->current_fom_types->add_variable(type, targetexpr->varname)
-        else:
-            # Convert value to the type of an existing variable or other assignment target.
+            targetexpr = &stmt->assignment.target
+            valueexpr = &stmt->assignment.value
+
             targettype = typecheck_expression_not_void(ft, targetexpr)
+            value_type = typecheck_expression_not_void(ft, valueexpr)
             ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
 
-            if targetexpr->kind == AstExpressionKind.Dereference:
-                strcpy(msg, "cannot place a value of type <from> into a pointer of type <to>*")
-            else:
-                desc = short_expression_description(targetexpr)
-                snprintf(msg, sizeof msg, "cannot assign a value of type <from> to %s of type <to>", desc)
-            typecheck_expression_with_implicit_cast(ft, valueexpr, targettype, msg)
+            match stmt->kind:
+                case AstStatementKind.InPlaceAdd:
+                    op = AstExpressionKind.Add
+                    opname = "addition"
+                case AstStatementKind.InPlaceSub:
+                    op = AstExpressionKind.Sub
+                    opname = "subtraction"
+                case AstStatementKind.InPlaceMul:
+                    op = AstExpressionKind.Mul
+                    opname = "multiplication"
+                case AstStatementKind.InPlaceDiv:
+                    op = AstExpressionKind.Div
+                    opname = "division"
+                case AstStatementKind.InPlaceMod:
+                    op = AstExpressionKind.Mod
+                    opname = "modulo"
+                case _:
+                    assert False
 
-    elif (
-        stmt->kind == AstStatementKind.InPlaceAdd
-        or stmt->kind == AstStatementKind.InPlaceSub
-        or stmt->kind == AstStatementKind.InPlaceMul
-        or stmt->kind == AstStatementKind.InPlaceDiv
-        or stmt->kind == AstStatementKind.InPlaceMod
-    ):
-        targetexpr = &stmt->assignment.target
-        valueexpr = &stmt->assignment.value
+            t = check_binop(ft->current_fom_types, op, stmt->location, targetexpr, valueexpr)
+            if t != targetexpr->types.type:
+                snprintf(
+                    msg, sizeof msg,
+                    "%s produced a value of type %s which cannot be assigned back to %s",
+                    opname, t->name, targetexpr->types.type->name
+                )
+                fail(stmt->location, msg)
 
-        targettype = typecheck_expression_not_void(ft, targetexpr)
-        value_type = typecheck_expression_not_void(ft, valueexpr)
-        ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s")
+        case AstStatementKind.Return:
+            function_or_method = ft->current_fom_types->signature.function_or_method()
 
-        if stmt->kind == AstStatementKind.InPlaceAdd:
-            op = AstExpressionKind.Add
-            opname = "addition"
-        elif stmt->kind == AstStatementKind.InPlaceSub:
-            op = AstExpressionKind.Sub
-            opname = "subtraction"
-        elif stmt->kind == AstStatementKind.InPlaceMul:
-            op = AstExpressionKind.Mul
-            opname = "multiplication"
-        elif stmt->kind == AstStatementKind.InPlaceDiv:
-            op = AstExpressionKind.Div
-            opname = "division"
-        elif stmt->kind == AstStatementKind.InPlaceMod:
-            op = AstExpressionKind.Mod
-            opname = "modulo"
-        else:
+            if ft->current_fom_types->signature.is_noreturn:
+                snprintf(
+                    msg, sizeof(msg),
+                    "%s '%s' cannot return because it was defined with '-> noreturn'",
+                    function_or_method, ft->current_fom_types->signature.name,
+                )
+                fail(stmt->location, msg)
+
+            return_type = ft->current_fom_types->signature.returntype
+
+            if stmt->return_value != NULL and return_type == NULL:
+                snprintf(
+                    msg, sizeof(msg), "%s '%s' cannot return a value because it was defined with '-> None'",
+                    function_or_method, ft->current_fom_types->signature.name,
+                )
+                fail(stmt->location, msg)
+
+            if return_type != NULL and stmt->return_value == NULL:
+                snprintf(msg, sizeof(msg),
+                    "a return value is needed, because the return type of %s '%s' is %s",
+                    function_or_method,
+                    ft->current_fom_types->signature.name,
+                    ft->current_fom_types->signature.returntype->name)
+                fail(stmt->location, msg)
+
+            if stmt->return_value != NULL:
+                snprintf(msg, sizeof msg,
+                    "attempting to return a value of type <from> from %s '%s' defined with '-> <to>'",
+                    function_or_method, ft->current_fom_types->signature.name)
+                typecheck_expression_with_implicit_cast(
+                    ft, stmt->return_value, ft->find_local_var("return")->type, msg)
+
+        case AstStatementKind.DeclareLocalVar:
+            if ft->find_any_var(stmt->var_declaration.name) != NULL:
+                snprintf(msg, sizeof(msg), "a variable named '%s' already exists", stmt->var_declaration.name)
+                fail(stmt->location, msg)
+
+            type = type_from_ast(ft, &stmt->var_declaration.type)
+            ft->current_fom_types->add_variable(type, stmt->var_declaration.name)
+
+            if stmt->var_declaration.value != NULL:
+                typecheck_expression_with_implicit_cast(
+                    ft, stmt->var_declaration.value, type,
+                    "initial value for variable of type <to> cannot be of type <from>")
+
+        case AstStatementKind.ExpressionStatement:
+            typecheck_expression(ft, &stmt->expression)
+
+        case AstStatementKind.Assert:
+            typecheck_expression_with_implicit_cast(ft, &stmt->expression, boolType, "assertion must be a boolean, not <from>")
+
+        case (
+            AstStatementKind.Function
+            | AstStatementKind.Class
+            | AstStatementKind.Enum
+            | AstStatementKind.GlobalVariableDeclaration
+            | AstStatementKind.GlobalVariableDefinition
+        ):
+            # TODO: what happens if you try to create these? are error messages good?
             assert False
-
-        t = check_binop(ft->current_fom_types, op, stmt->location, targetexpr, valueexpr)
-        if t != targetexpr->types.type:
-            snprintf(
-                msg, sizeof msg,
-                "%s produced a value of type %s which cannot be assigned back to %s",
-                opname, t->name, targetexpr->types.type->name
-            )
-            fail(stmt->location, msg)
-
-    elif stmt->kind == AstStatementKind.Return:
-        function_or_method = ft->current_fom_types->signature.function_or_method()
-
-        if ft->current_fom_types->signature.is_noreturn:
-            snprintf(
-                msg, sizeof(msg),
-                "%s '%s' cannot return because it was defined with '-> noreturn'",
-                function_or_method, ft->current_fom_types->signature.name,
-            )
-            fail(stmt->location, msg)
-
-        return_type = ft->current_fom_types->signature.returntype
-
-        if stmt->return_value != NULL and return_type == NULL:
-            snprintf(
-                msg, sizeof(msg), "%s '%s' cannot return a value because it was defined with '-> None'",
-                function_or_method, ft->current_fom_types->signature.name,
-            )
-            fail(stmt->location, msg)
-
-        if return_type != NULL and stmt->return_value == NULL:
-            snprintf(msg, sizeof(msg),
-                "a return value is needed, because the return type of %s '%s' is %s",
-                function_or_method,
-                ft->current_fom_types->signature.name,
-                ft->current_fom_types->signature.returntype->name)
-            fail(stmt->location, msg)
-
-        if stmt->return_value != NULL:
-            snprintf(msg, sizeof msg,
-                "attempting to return a value of type <from> from %s '%s' defined with '-> <to>'",
-                function_or_method, ft->current_fom_types->signature.name)
-            typecheck_expression_with_implicit_cast(
-                ft, stmt->return_value, ft->find_local_var("return")->type, msg)
-
-    elif stmt->kind == AstStatementKind.DeclareLocalVar:
-        if ft->find_any_var(stmt->var_declaration.name) != NULL:
-            snprintf(msg, sizeof(msg), "a variable named '%s' already exists", stmt->var_declaration.name)
-            fail(stmt->location, msg)
-
-        type = type_from_ast(ft, &stmt->var_declaration.type)
-        ft->current_fom_types->add_variable(type, stmt->var_declaration.name)
-
-        if stmt->var_declaration.value != NULL:
-            typecheck_expression_with_implicit_cast(
-                ft, stmt->var_declaration.value, type,
-                "initial value for variable of type <to> cannot be of type <from>")
-
-    elif stmt->kind == AstStatementKind.ExpressionStatement:
-        typecheck_expression(ft, &stmt->expression)
-
-    elif stmt->kind == AstStatementKind.Assert:
-        typecheck_expression_with_implicit_cast(ft, &stmt->expression, boolType, "assertion must be a boolean, not <from>")
-
-    else:
-        assert False
 
 
 def typecheck_function_or_method_body(ft: FileTypes*, sig: Signature*, body: AstBody*) -> None:

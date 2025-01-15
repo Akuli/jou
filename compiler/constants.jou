@@ -36,36 +36,35 @@ class Constant:
         enum_member: EnumMemberConstant
 
     def print(self) -> None:
-        if self->kind == ConstantKind.EnumMember:
-            printf("enum member %d of %s", self->enum_member.memberidx, self->enum_member.enumtype->name)
-        elif self->kind == ConstantKind.Bool:
-            if self->boolean:
-                printf("True")
-            else:
-                printf("False")
-        elif self->kind == ConstantKind.Float:
-            printf("float %s", self->double_or_float_text)
-        elif self->kind == ConstantKind.Double:
-            printf("double %s", self->double_or_float_text)
-        elif self->kind == ConstantKind.Integer:
-            if self->integer.is_signed:
-                signed_or_unsigned = "signed"
-            else:
-                signed_or_unsigned = "unsigned"
-            printf(
-                "%lld (%d-bit %s)",
-                self->integer.value,
-                self->integer.size_in_bits,
-                signed_or_unsigned,
-            )
-        elif self->kind == ConstantKind.Null:
-            printf("NULL")
-        elif self->kind == ConstantKind.String:
-            printf("string ")
-            print_string(self->str, strlen(self->str))
-            printf("\n")
-        else:
-            assert False
+        match self->kind:
+            case ConstantKind.EnumMember:
+                printf("enum member %d of %s", self->enum_member.memberidx, self->enum_member.enumtype->name)
+            case ConstantKind.Bool:
+                if self->boolean:
+                    printf("True")
+                else:
+                    printf("False")
+            case ConstantKind.Float:
+                printf("float %s", self->double_or_float_text)
+            case ConstantKind.Double:
+                printf("double %s", self->double_or_float_text)
+            case ConstantKind.Integer:
+                if self->integer.is_signed:
+                    signed_or_unsigned = "signed"
+                else:
+                    signed_or_unsigned = "unsigned"
+                printf(
+                    "%lld (%d-bit %s)",
+                    self->integer.value,
+                    self->integer.size_in_bits,
+                    signed_or_unsigned,
+                )
+            case ConstantKind.Null:
+                printf("NULL")
+            case ConstantKind.String:
+                printf("string ")
+                print_string(self->str, strlen(self->str))
+                printf("\n")
 
     def free(self) -> None:
         if self->kind == ConstantKind.String:
@@ -78,20 +77,21 @@ class Constant:
         return self
 
     def get_type(self) -> Type*:
-        if self->kind == ConstantKind.EnumMember:
-            return self->enum_member.enumtype
-        if self->kind == ConstantKind.Null:
-            return voidPtrType
-        if self->kind == ConstantKind.Double:
-            return doubleType
-        if self->kind == ConstantKind.Float:
-            return floatType
-        if self->kind == ConstantKind.Bool:
-            return boolType
-        if self->kind == ConstantKind.String:
-            return byteType->pointer_type()
-        if self->kind == ConstantKind.Integer:
-            return get_integer_type(self->integer.size_in_bits, self->integer.is_signed)
+        match self->kind:
+            case ConstantKind.EnumMember:
+                return self->enum_member.enumtype
+            case ConstantKind.Null:
+                return voidPtrType
+            case ConstantKind.Double:
+                return doubleType
+            case ConstantKind.Float:
+                return floatType
+            case ConstantKind.Bool:
+                return boolType
+            case ConstantKind.String:
+                return byteType->pointer_type()
+            case ConstantKind.Integer:
+                return get_integer_type(self->integer.size_in_bits, self->integer.is_signed)
         assert False
 
 

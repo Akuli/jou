@@ -21,14 +21,13 @@ class LogicGate:
         i1 = (*self->inputs[0] == 1)
         i2 = (*self->inputs[1] == 1)
 
-        if self->op == LogicOp.And:
-            *self->output = (i1 and i2) as int
-        elif self->op == LogicOp.Or:
-            *self->output = (i1 or i2) as int
-        elif self->op == LogicOp.Xor:
-            *self->output = (i1 != i2) as int
-        else:
-            assert False
+        match self->op:
+            case LogicOp.And:
+                *self->output = (i1 and i2) as int
+            case LogicOp.Or:
+                *self->output = (i1 or i2) as int
+            case LogicOp.Xor:
+                *self->output = (i1 != i2) as int
 
 
 class VariableManager:

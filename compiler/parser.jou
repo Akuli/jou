@@ -116,27 +116,26 @@ def check_class_for_duplicate_names(classdef: AstClassDef*) -> None:
 
     for i = 0; i < classdef->nmembers; i++:
         member = &classdef->members[i]
-        if member->kind == AstClassMemberKind.Field:
-            *destptr++ = MemberInfo{
-                kind = "a field",
-                name = member->field.name,
-                name_location = member->field.name_location,
-            }
-        elif member->kind == AstClassMemberKind.Union:
-            for k = 0; k < member->union_fields.nfields; k++:
+        match member->kind:
+            case AstClassMemberKind.Field:
                 *destptr++ = MemberInfo{
-                    kind = "a union member",
-                    name = member->union_fields.fields[k].name,
-                    name_location = member->union_fields.fields[k].name_location,
+                    kind = "a field",
+                    name = member->field.name,
+                    name_location = member->field.name_location,
                 }
-        elif member->kind == AstClassMemberKind.Method:
-            *destptr++ = MemberInfo{
-                kind = "a method",
-                name = member->method.signature.name,
-                name_location = member->method.signature.name_location,
-            }
-        else:
-            assert False
+            case AstClassMemberKind.Union:
+                for k = 0; k < member->union_fields.nfields; k++:
+                    *destptr++ = MemberInfo{
+                        kind = "a union member",
+                        name = member->union_fields.fields[k].name,
+                        name_location = member->union_fields.fields[k].name_location,
+                    }
+            case AstClassMemberKind.Method:
+                *destptr++ = MemberInfo{
+                    kind = "a method",
+                    name = member->method.signature.name,
+                    name_location = member->method.signature.name_location,
+                }
 
     assert destptr == &infos[n]
 
@@ -490,74 +489,76 @@ class Parser:
     def parse_elementary_expression(self) -> AstExpression:
         expr = AstExpression{location = self->tokens->location}
 
-        if self->tokens->kind == TokenKind.Short:
-            expr.kind = AstExpressionKind.Short
-            expr.short_value = self->tokens->short_value
-            self->tokens++
-        elif self->tokens->kind == TokenKind.Int:
-            expr.kind = AstExpressionKind.Int
-            expr.int_value = self->tokens->int_value
-            self->tokens++
-        elif self->tokens->kind == TokenKind.Long:
-            expr.kind = AstExpressionKind.Long
-            expr.long_value = self->tokens->long_value
-            self->tokens++
-        elif self->tokens->kind == TokenKind.Byte:
-            expr.kind = AstExpressionKind.Byte
-            expr.byte_value = self->tokens->byte_value
-            self->tokens++
-        elif self->tokens->kind == TokenKind.String:
-            expr.kind = AstExpressionKind.String
-            expr.string = strdup(self->tokens->long_string)
-            self->tokens++
-        elif self->tokens->kind == TokenKind.Float:
-            expr.kind = AstExpressionKind.Float
-            expr.float_or_double_text = self->tokens->short_string
-            self->tokens++
-        elif self->tokens->kind == TokenKind.Double:
-            expr.kind = AstExpressionKind.Double
-            expr.float_or_double_text = self->tokens->short_string
-            self->tokens++
-        elif self->tokens->is_keyword("True"):
-            expr.kind = AstExpressionKind.Bool
-            expr.bool_value = True
-            self->tokens++
-        elif self->tokens->is_keyword("False"):
-            expr.kind = AstExpressionKind.Bool
-            expr.bool_value = False
-            self->tokens++
-        elif self->tokens->is_keyword("NULL"):
-            expr.kind = AstExpressionKind.Null
-            self->tokens++
-        elif self->tokens->is_keyword("None"):
-            fail(self->tokens->location, "None is not a value in Jou, use e.g. -1 for numbers or NULL for pointers")
-        elif self->tokens->is_keyword("self"):
-            if not self->is_parsing_method_body:
-                fail(self->tokens->location, "'self' cannot be used here")
-            expr.kind = AstExpressionKind.Self
-            self->tokens++
-        elif self->tokens->kind == TokenKind.Name:
-            if self->tokens[1].is_operator("("):
-                expr.kind = AstExpressionKind.Call
-                expr.call = self->parse_call()
-            elif self->tokens[1].is_operator("{"):
-                expr.kind = AstExpressionKind.Instantiate
-                expr.instantiation = self->parse_instantiation()
-            else:
-                expr.kind = AstExpressionKind.GetVariable
-                expr.varname = self->tokens->short_string
+        match self->tokens->kind:
+            case TokenKind.Short:
+                expr.kind = AstExpressionKind.Short
+                expr.short_value = self->tokens->short_value
                 self->tokens++
-        elif self->tokens->is_operator("("):
-            self->tokens++
-            expr = self->parse_expression()
-            if not self->tokens->is_operator(")"):
-                self->tokens->fail_expected_got("a ')'")
-            self->tokens++
-        elif self->tokens->is_operator("["):
-            expr.kind = AstExpressionKind.Array
-            expr.array = self->parse_array()
-        else:
-            self->tokens->fail_expected_got("an expression")
+            case TokenKind.Int:
+                expr.kind = AstExpressionKind.Int
+                expr.int_value = self->tokens->int_value
+                self->tokens++
+            case TokenKind.Long:
+                expr.kind = AstExpressionKind.Long
+                expr.long_value = self->tokens->long_value
+                self->tokens++
+            case TokenKind.Byte:
+                expr.kind = AstExpressionKind.Byte
+                expr.byte_value = self->tokens->byte_value
+                self->tokens++
+            case TokenKind.String:
+                expr.kind = AstExpressionKind.String
+                expr.string = strdup(self->tokens->long_string)
+                self->tokens++
+            case TokenKind.Float:
+                expr.kind = AstExpressionKind.Float
+                expr.float_or_double_text = self->tokens->short_string
+                self->tokens++
+            case TokenKind.Double:
+                expr.kind = AstExpressionKind.Double
+                expr.float_or_double_text = self->tokens->short_string
+                self->tokens++
+            case TokenKind.Name:
+                if self->tokens[1].is_operator("("):
+                    expr.kind = AstExpressionKind.Call
+                    expr.call = self->parse_call()
+                elif self->tokens[1].is_operator("{"):
+                    expr.kind = AstExpressionKind.Instantiate
+                    expr.instantiation = self->parse_instantiation()
+                else:
+                    expr.kind = AstExpressionKind.GetVariable
+                    expr.varname = self->tokens->short_string
+                    self->tokens++
+            case _:
+                if self->tokens->is_keyword("True"):
+                    expr.kind = AstExpressionKind.Bool
+                    expr.bool_value = True
+                    self->tokens++
+                elif self->tokens->is_keyword("False"):
+                    expr.kind = AstExpressionKind.Bool
+                    expr.bool_value = False
+                    self->tokens++
+                elif self->tokens->is_keyword("NULL"):
+                    expr.kind = AstExpressionKind.Null
+                    self->tokens++
+                elif self->tokens->is_keyword("None"):
+                    fail(self->tokens->location, "None is not a value in Jou, use e.g. -1 for numbers or NULL for pointers")
+                elif self->tokens->is_keyword("self"):
+                    if not self->is_parsing_method_body:
+                        fail(self->tokens->location, "'self' cannot be used here")
+                    expr.kind = AstExpressionKind.Self
+                    self->tokens++
+                elif self->tokens->is_operator("("):
+                    self->tokens++
+                    expr = self->parse_expression()
+                    if not self->tokens->is_operator(")"):
+                        self->tokens->fail_expected_got("a ')'")
+                    self->tokens++
+                elif self->tokens->is_operator("["):
+                    expr.kind = AstExpressionKind.Array
+                    expr.array = self->parse_array()
+                else:
+                    self->tokens->fail_expected_got("an expression")
 
         return expr
 
@@ -884,6 +885,9 @@ class Parser:
                 assert result.case_underscore != NULL
                 *result.case_underscore = self->parse_body()
             else:
+                parens = self->tokens->is_operator("(")
+                if parens:
+                    self->tokens++
                 case_objs: AstExpression* = NULL
                 n_case_objs = 0
                 while True:
@@ -891,10 +895,16 @@ class Parser:
                     case_objs[n_case_objs++] = self->parse_expression()
                     if self->tokens->is_operator("|"):
                         self->tokens++
-                    elif self->tokens->is_operator(":"):
+                    elif (not parens) and self->tokens->is_operator(":"):
+                        break
+                    elif parens and self->tokens->is_operator(")") and self->tokens[1].is_operator(":"):
+                        self->tokens++  # skip ')'
                         break
                     else:
-                        self->tokens->fail_expected_got("'|' or ':'")
+                        if parens:
+                            self->tokens->fail_expected_got("'|' or '):'")
+                        else:
+                            self->tokens->fail_expected_got("'|' or ':'")
                 result.cases = realloc(result.cases, sizeof result.cases[0] * (result.ncases + 1))
                 result.cases[result.ncases++] = AstCase{
                     case_objs = case_objs,

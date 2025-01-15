@@ -142,42 +142,40 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
     union_id = 0
     for m = classdef->members; m < &classdef->members[classdef->nmembers]; m++:
-        if m->kind == AstClassMemberKind.Field:
-            f = ClassField{
-                type = type_from_ast(ft, &m->field.type),
-                union_id = union_id++,
-            }
-            assert sizeof(f.name) == sizeof(m->field.name)
-            strcpy(f.name, m->field.name)
-
-            type->classdata.fields = realloc(type->classdata.fields, sizeof(type->classdata.fields[0]) * (type->classdata.nfields + 1))
-            assert type->classdata.fields != NULL
-            type->classdata.fields[type->classdata.nfields++] = f
-
-        elif m->kind == AstClassMemberKind.Union:
-            uid = union_id++
-            for ntv = m->union_fields.fields; ntv < &m->union_fields.fields[m->union_fields.nfields]; ntv++:
+        match m->kind:
+            case AstClassMemberKind.Field:
                 f = ClassField{
-                    type = type_from_ast(ft, &ntv->type),
-                    union_id = uid,
+                    type = type_from_ast(ft, &m->field.type),
+                    union_id = union_id++,
                 }
-                assert sizeof(f.name) == sizeof(ntv->name)
-                strcpy(f.name, ntv->name)
+                assert sizeof(f.name) == sizeof(m->field.name)
+                strcpy(f.name, m->field.name)
 
                 type->classdata.fields = realloc(type->classdata.fields, sizeof(type->classdata.fields[0]) * (type->classdata.nfields + 1))
                 assert type->classdata.fields != NULL
                 type->classdata.fields[type->classdata.nfields++] = f
 
-        elif m->kind == AstClassMemberKind.Method:
-            # Don't handle the method body yet: that is a part of step 3, not step 2
-            sig = handle_signature(ft, &m->method.signature, type)
+            case AstClassMemberKind.Union:
+                uid = union_id++
+                for ntv = m->union_fields.fields; ntv < &m->union_fields.fields[m->union_fields.nfields]; ntv++:
+                    f = ClassField{
+                        type = type_from_ast(ft, &ntv->type),
+                        union_id = uid,
+                    }
+                    assert sizeof(f.name) == sizeof(ntv->name)
+                    strcpy(f.name, ntv->name)
 
-            type->classdata.methods = realloc(type->classdata.methods, sizeof(type->classdata.methods[0]) * (type->classdata.nmethods + 1))
-            assert type->classdata.methods != NULL
-            type->classdata.methods[type->classdata.nmethods++] = sig
+                    type->classdata.fields = realloc(type->classdata.fields, sizeof(type->classdata.fields[0]) * (type->classdata.nfields + 1))
+                    assert type->classdata.fields != NULL
+                    type->classdata.fields[type->classdata.nfields++] = f
 
-        else:
-            assert False
+            case AstClassMemberKind.Method:
+                # Don't handle the method body yet: that is a part of step 3, not step 2
+                sig = handle_signature(ft, &m->method.signature, type)
+
+                type->classdata.methods = realloc(type->classdata.methods, sizeof(type->classdata.methods[0]) * (type->classdata.nmethods + 1))
+                assert type->classdata.methods != NULL
+                type->classdata.methods[type->classdata.nmethods++] = sig
 
 
 def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*:
@@ -190,22 +188,23 @@ def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbo
         exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
         assert exports != NULL
 
-        if stmt->kind == AstStatementKind.GlobalVariableDeclaration:
-            exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, False)
-        elif stmt->kind == AstStatementKind.GlobalVariableDefinition:
-            exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, True)
-        elif stmt->kind == AstStatementKind.Function:
-            sig = handle_signature(ft, &stmt->function.signature, NULL)
-            es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig}
-            assert sizeof(es.name) == sizeof(sig.name)
-            strcpy(es.name, sig.name)
-            exports[nexports++] = es
-        elif stmt->kind == AstStatementKind.Class:
-            handle_class_members(ft, &stmt->classdef)
-        elif stmt->kind == AstStatementKind.Enum:
-            pass  # Everything done in previous type-checking steps.
-        else:
-            assert False
+        match stmt->kind:
+            case AstStatementKind.GlobalVariableDeclaration:
+                exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, False)
+            case AstStatementKind.GlobalVariableDefinition:
+                exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, True)
+            case AstStatementKind.Function:
+                sig = handle_signature(ft, &stmt->function.signature, NULL)
+                es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig}
+                assert sizeof(es.name) == sizeof(sig.name)
+                strcpy(es.name, sig.name)
+                exports[nexports++] = es
+            case AstStatementKind.Class:
+                handle_class_members(ft, &stmt->classdef)
+            case AstStatementKind.Enum:
+                pass  # Everything done in previous type-checking steps.
+            case _:
+                assert False
 
     exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
     assert exports != NULL

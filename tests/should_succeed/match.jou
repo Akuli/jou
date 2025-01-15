@@ -34,6 +34,16 @@ def main() -> int:
         case _:
             printf("nope\n")
 
+    match Foo.Baz:
+        # This syntax is useful if you have many values in the same case.
+        case (
+            Foo.Bar
+            | Foo.Baz
+        ):
+            printf("yay\n")  # Output: yay
+        case _:
+            printf("nope\n")
+
     f = 69 as Foo
     match f:
         case Foo.Bar:

@@ -242,36 +242,36 @@ class CfBuilder:
             negate = (op == AstExpressionKind.Ne)
         else:
             destvar = self->add_var(result_type)
-            k: CfInstructionKind
-            if op == AstExpressionKind.Add:
-                k = CfInstructionKind.NumAdd
-            elif op == AstExpressionKind.Sub:
-                k = CfInstructionKind.NumSub
-            elif op == AstExpressionKind.Mul:
-                k = CfInstructionKind.NumMul
-            elif op == AstExpressionKind.Div:
-                k = CfInstructionKind.NumDiv
-            elif op == AstExpressionKind.Mod:
-                k = CfInstructionKind.NumMod
-            elif op == AstExpressionKind.Eq:
-                k = CfInstructionKind.NumEq
-            elif op == AstExpressionKind.Ne:
-                k = CfInstructionKind.NumEq
-                negate = True
-            elif op == AstExpressionKind.Lt:
-                k = CfInstructionKind.NumLt
-            elif op == AstExpressionKind.Gt:
-                k = CfInstructionKind.NumLt
-                swap = True
-            elif op == AstExpressionKind.Le:
-                k = CfInstructionKind.NumLt
-                negate = True
-                swap = True
-            elif op == AstExpressionKind.Ge:
-                k = CfInstructionKind.NumLt
-                negate = True
-            else:
-                assert False
+            match op:
+                case AstExpressionKind.Add:
+                    k = CfInstructionKind.NumAdd
+                case AstExpressionKind.Sub:
+                    k = CfInstructionKind.NumSub
+                case AstExpressionKind.Mul:
+                    k = CfInstructionKind.NumMul
+                case AstExpressionKind.Div:
+                    k = CfInstructionKind.NumDiv
+                case AstExpressionKind.Mod:
+                    k = CfInstructionKind.NumMod
+                case AstExpressionKind.Eq:
+                    k = CfInstructionKind.NumEq
+                case AstExpressionKind.Ne:
+                    k = CfInstructionKind.NumEq
+                    negate = True
+                case AstExpressionKind.Lt:
+                    k = CfInstructionKind.NumLt
+                case AstExpressionKind.Gt:
+                    k = CfInstructionKind.NumLt
+                    swap = True
+                case AstExpressionKind.Le:
+                    k = CfInstructionKind.NumLt
+                    negate = True
+                    swap = True
+                case AstExpressionKind.Ge:
+                    k = CfInstructionKind.NumLt
+                    negate = True
+                case _:
+                    assert False
 
             if swap:
                 self->binary_op(location, k, rhs, lhs, destvar)
@@ -360,12 +360,12 @@ class CfBuilder:
             self->binary_op(location, CfInstructionKind.PtrAddInt, old_value, diffvar, new_value)
         self->binary_op(location, CfInstructionKind.PtrStore, addr, new_value, NULL)
 
-        if pop == PreOrPost.Pre:
-            return new_value
-        elif pop == PreOrPost.Post:
-            return old_value
-        else:
-            assert False
+        match pop:
+            case PreOrPost.Pre:
+                return new_value
+            case PreOrPost.Post:
+                return old_value
+        assert False
 
     def build_and_or(
         self,
@@ -398,30 +398,28 @@ class CfBuilder:
         # if lhs:
         self->jump(lhs, lhstrue, lhsfalse, lhstrue)
 
-        if andor == AndOr.And:
-            # result = rhs
-            rhs = self->build_expression(rhsexpr)
-            self->unary_op(rhsexpr->location, CfInstructionKind.VarCpy, rhs, result)
-        elif andor == AndOr.Or:
-            # result = True
-            ins = self->constant(lhsexpr->location, Constant{kind = ConstantKind.Bool, boolean = True}, result)
-            ins->hide_unreachable_warning = True
-        else:
-            assert False
+        match andor:
+            case AndOr.And:
+                # result = rhs
+                rhs = self->build_expression(rhsexpr)
+                self->unary_op(rhsexpr->location, CfInstructionKind.VarCpy, rhs, result)
+            case AndOr.Or:
+                # result = True
+                ins = self->constant(lhsexpr->location, Constant{kind = ConstantKind.Bool, boolean = True}, result)
+                ins->hide_unreachable_warning = True
 
         # else:
         self->jump(NULL, done, done, lhsfalse)
 
-        if andor == AndOr.And:
-            # result = False
-            ins = self->constant(lhsexpr->location, Constant{kind = ConstantKind.Bool, boolean = False}, result)
-            ins->hide_unreachable_warning = True
-        elif andor == AndOr.Or:
-            # result = rhs
-            rhs = self->build_expression(rhsexpr)
-            self->unary_op(rhsexpr->location, CfInstructionKind.VarCpy, rhs, result)
-        else:
-            assert False
+        match andor:
+            case AndOr.And:
+                # result = False
+                ins = self->constant(lhsexpr->location, Constant{kind = ConstantKind.Bool, boolean = False}, result)
+                ins->hide_unreachable_warning = True
+            case AndOr.Or:
+                # result = rhs
+                rhs = self->build_expression(rhsexpr)
+                self->unary_op(rhsexpr->location, CfInstructionKind.VarCpy, rhs, result)
 
         self->jump(NULL, done, done, done)
         return result
@@ -608,201 +606,197 @@ class CfBuilder:
             # Calls do not necessary return anything, all other expressions do.
             assert t != NULL
 
-        if expr->kind == AstExpressionKind.Call:
-            result = self->build_call(expr->location, &expr->call)
-            if result == NULL:
-                # called function/method has no return value
-                return NULL
-        elif expr->kind == AstExpressionKind.Instantiate:
-            result = self->build_instantiation(t, &expr->instantiation, expr->location)
-        elif expr->kind == AstExpressionKind.Array:
-            assert t->kind == TypeKind.Array
-            assert t->array.len == expr->array.length
-            result = self->build_array(t, expr->array.items, expr->location)
-        elif expr->kind == AstExpressionKind.GetEnumMember:
-            result = self->add_var(t)
-            c = Constant{
-                kind = ConstantKind.EnumMember,
-                enum_member = EnumMemberConstant{
-                    enumtype = t,
-                    memberidx = find_enum_member(t, expr->enum_member.member_name),
+        match expr->kind:
+            case AstExpressionKind.Call:
+                result = self->build_call(expr->location, &expr->call)
+                if result == NULL:
+                    # called function/method has no return value
+                    return NULL
+            case AstExpressionKind.Instantiate:
+                result = self->build_instantiation(t, &expr->instantiation, expr->location)
+            case AstExpressionKind.Array:
+                assert t->kind == TypeKind.Array
+                assert t->array.len == expr->array.length
+                result = self->build_array(t, expr->array.items, expr->location)
+            case AstExpressionKind.GetEnumMember:
+                result = self->add_var(t)
+                c = Constant{
+                    kind = ConstantKind.EnumMember,
+                    enum_member = EnumMemberConstant{
+                        enumtype = t,
+                        memberidx = find_enum_member(t, expr->enum_member.member_name),
+                    }
                 }
-            }
-            self->constant(expr->location, c, result)
-        elif expr->kind == AstExpressionKind.GetVariable:
-            if get_special_constant(expr->varname) != -1:
-                result = self->add_var(boolType)
-                ins = CfInstruction{
-                    location = expr->location,
-                    kind = CfInstructionKind.SpecialConstant,
-                    destvar = result,
-                }
-                assert sizeof(ins.scname) == sizeof(expr->varname)
-                strcpy(ins.scname, expr->varname)
-                self->add_instruction(ins)
-            else:
-                temp = self->find_var(expr->varname)
-                if temp != NULL:
-                    if expr->types.implicit_cast_type == NULL or t == expr->types.implicit_cast_type:
-                        # Must take a "snapshot" of this variable, as it may change soon.
-                        result = self->add_var(temp->type)
-                        self->unary_op(expr->location, CfInstructionKind.VarCpy, temp, result)
-                    else:
-                        result = temp
+                self->constant(expr->location, c, result)
+            case AstExpressionKind.GetVariable:
+                if get_special_constant(expr->varname) != -1:
+                    result = self->add_var(boolType)
+                    ins = CfInstruction{
+                        location = expr->location,
+                        kind = CfInstructionKind.SpecialConstant,
+                        destvar = result,
+                    }
+                    assert sizeof(ins.scname) == sizeof(expr->varname)
+                    strcpy(ins.scname, expr->varname)
+                    self->add_instruction(ins)
                 else:
-                    # For other than local variables we can evaluate as &*variable.
-                    # Would also work for locals, but it would confuse simplify_cfg.
+                    temp = self->find_var(expr->varname)
+                    if temp != NULL:
+                        if expr->types.implicit_cast_type == NULL or t == expr->types.implicit_cast_type:
+                            # Must take a "snapshot" of this variable, as it may change soon.
+                            result = self->add_var(temp->type)
+                            self->unary_op(expr->location, CfInstructionKind.VarCpy, temp, result)
+                        else:
+                            result = temp
+                    else:
+                        # For other than local variables we can evaluate as &*variable.
+                        # Would also work for locals, but it would confuse simplify_cfg.
+                        temp = self->build_address_of_expression(expr)
+                        result = self->add_var(t)
+                        self->unary_op(expr->location, CfInstructionKind.PtrLoad, temp, result)
+            case AstExpressionKind.GetClassField:
+                if expr->class_field.uses_arrow_operator:
+                    # Evaluate foo->bar as *(&(foo->bar)). This works even if we can't
+                    # take the address of foo, because foo is already a pointer and we
+                    # only add a memory offset to it.
                     temp = self->build_address_of_expression(expr)
                     result = self->add_var(t)
                     self->unary_op(expr->location, CfInstructionKind.PtrLoad, temp, result)
-        elif (
-            expr->kind == AstExpressionKind.GetClassField
-            and not expr->class_field.uses_arrow_operator
-        ):
-            temp = self->build_expression(expr->class_field.instance)
-            result = self->build_class_field(temp, expr->class_field.field_name, expr->location)
-        elif (
-            (
-                expr->kind == AstExpressionKind.GetClassField
-                and expr->class_field.uses_arrow_operator
-            )
-            or expr->kind == AstExpressionKind.Indexing
-        ):
-            # To evaluate foo->bar, we first evaluate &foo->bar and then dereference.
-            # We can similarly evaluate &foo[bar].
-            #
-            # This technique cannot be used with all expressions. For example, &(1+2)
-            # doesn't work, and &foo.bar doesn't work either whenever &foo doesn't work.
-            # But &foo->bar and &foo[bar] always work, because foo is already a pointer
-            # and we only add a memory offset to it.
-            temp = self->build_address_of_expression(expr)
-            result = self->add_var(t)
-            self->unary_op(expr->location, CfInstructionKind.PtrLoad, temp, result)
-        elif expr->kind == AstExpressionKind.AddressOf:
-            result = self->build_address_of_expression(&expr->operands[0])
-        elif expr->kind == AstExpressionKind.SizeOf:
-            result = self->add_var(longType)
-            ins = CfInstruction{
-                location = expr->location,
-                kind = CfInstructionKind.SizeOf,
-                type = expr->operands[0].types.type,
-                destvar = result,
-            }
-            self->add_instruction(ins)
-        elif expr->kind == AstExpressionKind.Dereference:
-            temp = self->build_expression(&expr->operands[0])
-            result = self->add_var(t)
-            self->unary_op(expr->location, CfInstructionKind.PtrLoad, temp, result)
-        elif expr->kind == AstExpressionKind.Self:
-            selfvar = self->find_var("self")
-            assert selfvar != NULL
-            if expr->types.implicit_cast_type == NULL or t == expr->types.implicit_cast_type:
-                # Must take a "snapshot" of this variable, as it may change soon.
-                result = self->add_var(selfvar->type)
-                self->unary_op(expr->location, CfInstructionKind.VarCpy, selfvar, result)
-            else:
-                result = selfvar
-        elif (
-            expr->kind == AstExpressionKind.Bool
-            or expr->kind == AstExpressionKind.Byte
-            or expr->kind == AstExpressionKind.Float
-            or expr->kind == AstExpressionKind.Double
-            or expr->kind == AstExpressionKind.Short
-            or expr->kind == AstExpressionKind.Int
-            or expr->kind == AstExpressionKind.Long
-            or expr->kind == AstExpressionKind.Null
-            or expr->kind == AstExpressionKind.String
-        ):
-            if expr->kind == AstExpressionKind.Bool:
-                c = Constant{kind = ConstantKind.Bool, boolean = expr->bool_value}
-            elif expr->kind == AstExpressionKind.Byte:
-                c = int_constant(byteType, expr->byte_value)
-            elif expr->kind == AstExpressionKind.Short:
-                c = int_constant(shortType, expr->short_value)
-            elif expr->kind == AstExpressionKind.Int:
-                c = int_constant(intType, expr->int_value)
-            elif expr->kind == AstExpressionKind.Long:
-                c = int_constant(longType, expr->long_value)
-            elif expr->kind == AstExpressionKind.Null:
-                c = Constant{kind = ConstantKind.Null}
-            elif expr->kind == AstExpressionKind.Float:
-                c = Constant{kind = ConstantKind.Float}
-                assert sizeof(c.double_or_float_text) == sizeof(expr->float_or_double_text)
-                strcpy(c.double_or_float_text, expr->float_or_double_text)
-            elif expr->kind == AstExpressionKind.Double:
-                c = Constant{kind = ConstantKind.Double}
-                assert sizeof(c.double_or_float_text) == sizeof(expr->float_or_double_text)
-                strcpy(c.double_or_float_text, expr->float_or_double_text)
-            elif expr->kind == AstExpressionKind.String:
-                c = Constant{kind = ConstantKind.String, str = expr->string}
-            else:
-                assert False
-            result = self->add_var(t)
-            self->constant(expr->location, c, result)
-        elif expr->kind == AstExpressionKind.And:
-            result = self->build_and_or(&expr->operands[0], &expr->operands[1], AndOr.And)
-        elif expr->kind == AstExpressionKind.Or:
-            result = self->build_and_or(&expr->operands[0], &expr->operands[1], AndOr.Or)
-        elif expr->kind == AstExpressionKind.Not:
-            temp = self->build_expression(&expr->operands[0])
-            result = self->add_var(boolType)
-            self->unary_op(expr->location, CfInstructionKind.BoolNegate, temp, result)
-        elif expr->kind == AstExpressionKind.Negate:
-            temp = self->build_expression(&expr->operands[0])
-            zero = self->add_var(temp->type)
-            result = self->add_var(temp->type)
-            if temp->type == doubleType:
-                c = Constant{kind = ConstantKind.Double, double_or_float_text = "0"}
-            elif temp->type == floatType:
-                c = Constant{kind = ConstantKind.Float, double_or_float_text = "0"}
-            else:
-                c = int_constant(temp->type, 0)
-            self->constant(expr->location, c, zero)
-            self->binary_op(expr->location, CfInstructionKind.NumSub, zero, temp, result)
-        elif (
-            expr->kind == AstExpressionKind.Add
-            or expr->kind == AstExpressionKind.Sub
-            or expr->kind == AstExpressionKind.Mul
-            or expr->kind == AstExpressionKind.Div
-            or expr->kind == AstExpressionKind.Mod
-            or expr->kind == AstExpressionKind.Eq
-            or expr->kind == AstExpressionKind.Ne
-            or expr->kind == AstExpressionKind.Gt
-            or expr->kind == AstExpressionKind.Ge
-            or expr->kind == AstExpressionKind.Lt
-            or expr->kind == AstExpressionKind.Le
-        ):
-            # Refactoring note: If you rewrite this in another language, like C, make sure to
-            # evaluate lhs first. C doesn't guarantee evaluation order of function arguments.
-            lhs = self->build_expression(&expr->operands[0])
-            rhs = self->build_expression(&expr->operands[1])
-            result = self->build_binop(expr->kind, expr->location, lhs, rhs, t)
-        elif (
-            expr->kind == AstExpressionKind.PreIncr
-            or expr->kind == AstExpressionKind.PreDecr
-            or expr->kind == AstExpressionKind.PostIncr
-            or expr->kind == AstExpressionKind.PostDecr
-        ):
-            if expr->kind == AstExpressionKind.PreIncr:
-                pop = PreOrPost.Pre
-                diff = 1
-            elif expr->kind == AstExpressionKind.PreDecr:
-                pop = PreOrPost.Pre
-                diff = -1
-            elif expr->kind == AstExpressionKind.PostIncr:
-                pop = PreOrPost.Post
-                diff = 1
-            elif expr->kind == AstExpressionKind.PostDecr:
-                pop = PreOrPost.Post
-                diff = -1
-            else:
-                assert False
-            result = self->build_increment_or_decrement(expr->location, &expr->operands[0], pop, diff)
-        elif expr->kind == AstExpressionKind.As:
-            temp = self->build_expression(&expr->as_->value)
-            result = self->build_cast(temp, t, expr->location)
-        else:
-            assert False
+                else:
+                    temp = self->build_expression(expr->class_field.instance)
+                    result = self->build_class_field(temp, expr->class_field.field_name, expr->location)
+            case AstExpressionKind.Indexing:
+                # Evaluate foo[bar] as *(&(foo[bar])). This works even if we can't take
+                # the address of foo, because foo is already a pointer and we only add a
+                # memory offset to it.
+                temp = self->build_address_of_expression(expr)
+                result = self->add_var(t)
+                self->unary_op(expr->location, CfInstructionKind.PtrLoad, temp, result)
+            case AstExpressionKind.AddressOf:
+                result = self->build_address_of_expression(&expr->operands[0])
+            case AstExpressionKind.SizeOf:
+                result = self->add_var(longType)
+                ins = CfInstruction{
+                    location = expr->location,
+                    kind = CfInstructionKind.SizeOf,
+                    type = expr->operands[0].types.type,
+                    destvar = result,
+                }
+                self->add_instruction(ins)
+            case AstExpressionKind.Dereference:
+                temp = self->build_expression(&expr->operands[0])
+                result = self->add_var(t)
+                self->unary_op(expr->location, CfInstructionKind.PtrLoad, temp, result)
+            case AstExpressionKind.Self:
+                selfvar = self->find_var("self")
+                assert selfvar != NULL
+                if expr->types.implicit_cast_type == NULL or t == expr->types.implicit_cast_type:
+                    # Must take a "snapshot" of this variable, as it may change soon.
+                    result = self->add_var(selfvar->type)
+                    self->unary_op(expr->location, CfInstructionKind.VarCpy, selfvar, result)
+                else:
+                    result = selfvar
+            case (
+                AstExpressionKind.Bool
+                | AstExpressionKind.Byte
+                | AstExpressionKind.Float
+                | AstExpressionKind.Double
+                | AstExpressionKind.Short
+                | AstExpressionKind.Int
+                | AstExpressionKind.Long
+                | AstExpressionKind.Null
+                | AstExpressionKind.String
+            ):
+                match expr->kind:
+                    case AstExpressionKind.Bool:
+                        c = Constant{kind = ConstantKind.Bool, boolean = expr->bool_value}
+                    case AstExpressionKind.Byte:
+                        c = int_constant(byteType, expr->byte_value)
+                    case AstExpressionKind.Short:
+                        c = int_constant(shortType, expr->short_value)
+                    case AstExpressionKind.Int:
+                        c = int_constant(intType, expr->int_value)
+                    case AstExpressionKind.Long:
+                        c = int_constant(longType, expr->long_value)
+                    case AstExpressionKind.Null:
+                        c = Constant{kind = ConstantKind.Null}
+                    case AstExpressionKind.Float:
+                        c = Constant{kind = ConstantKind.Float}
+                        assert sizeof(c.double_or_float_text) == sizeof(expr->float_or_double_text)
+                        strcpy(c.double_or_float_text, expr->float_or_double_text)
+                    case AstExpressionKind.Double:
+                        c = Constant{kind = ConstantKind.Double}
+                        assert sizeof(c.double_or_float_text) == sizeof(expr->float_or_double_text)
+                        strcpy(c.double_or_float_text, expr->float_or_double_text)
+                    case AstExpressionKind.String:
+                        c = Constant{kind = ConstantKind.String, str = expr->string}
+                    case _:
+                        assert False
+                result = self->add_var(t)
+                self->constant(expr->location, c, result)
+            case AstExpressionKind.And:
+                result = self->build_and_or(&expr->operands[0], &expr->operands[1], AndOr.And)
+            case AstExpressionKind.Or:
+                result = self->build_and_or(&expr->operands[0], &expr->operands[1], AndOr.Or)
+            case AstExpressionKind.Not:
+                temp = self->build_expression(&expr->operands[0])
+                result = self->add_var(boolType)
+                self->unary_op(expr->location, CfInstructionKind.BoolNegate, temp, result)
+            case AstExpressionKind.Negate:
+                temp = self->build_expression(&expr->operands[0])
+                zero = self->add_var(temp->type)
+                result = self->add_var(temp->type)
+                if temp->type == doubleType:
+                    c = Constant{kind = ConstantKind.Double, double_or_float_text = "0"}
+                elif temp->type == floatType:
+                    c = Constant{kind = ConstantKind.Float, double_or_float_text = "0"}
+                else:
+                    c = int_constant(temp->type, 0)
+                self->constant(expr->location, c, zero)
+                self->binary_op(expr->location, CfInstructionKind.NumSub, zero, temp, result)
+            case (
+                AstExpressionKind.Add
+                | AstExpressionKind.Sub
+                | AstExpressionKind.Mul
+                | AstExpressionKind.Div
+                | AstExpressionKind.Mod
+                | AstExpressionKind.Eq
+                | AstExpressionKind.Ne
+                | AstExpressionKind.Gt
+                | AstExpressionKind.Ge
+                | AstExpressionKind.Lt
+                | AstExpressionKind.Le
+            ):
+                # Refactoring note: If you rewrite this in another language, like C, make sure to
+                # evaluate lhs first. C doesn't guarantee evaluation order of function arguments.
+                lhs = self->build_expression(&expr->operands[0])
+                rhs = self->build_expression(&expr->operands[1])
+                result = self->build_binop(expr->kind, expr->location, lhs, rhs, t)
+            case (
+                AstExpressionKind.PreIncr
+                | AstExpressionKind.PreDecr
+                | AstExpressionKind.PostIncr
+                | AstExpressionKind.PostDecr
+            ):
+                match expr->kind:
+                    case AstExpressionKind.PreIncr:
+                        pop = PreOrPost.Pre
+                        diff = 1
+                    case AstExpressionKind.PreDecr:
+                        pop = PreOrPost.Pre
+                        diff = -1
+                    case AstExpressionKind.PostIncr:
+                        pop = PreOrPost.Post
+                        diff = 1
+                    case AstExpressionKind.PostDecr:
+                        pop = PreOrPost.Post
+                        diff = -1
+                    case _:
+                        assert False
+                result = self->build_increment_or_decrement(expr->location, &expr->operands[0], pop, diff)
+            case AstExpressionKind.As:
+                temp = self->build_expression(&expr->as_->value)
+                result = self->build_cast(temp, t, expr->location)
 
         assert result->type == t
         if expr->types.implicit_cast_type == NULL:
@@ -949,105 +943,107 @@ class CfBuilder:
         self->jump(NULL, condblock, condblock, doneblock)
 
     def build_statement(self, stmt: AstStatement*) -> None:
-        if stmt->kind == AstStatementKind.If:
-            self->build_if_statement(&stmt->if_statement)
-        elif stmt->kind == AstStatementKind.Assert:
-            self->build_assert(stmt->location, &stmt->assertion)
-        elif stmt->kind == AstStatementKind.Pass:
-            pass
-        elif stmt->kind == AstStatementKind.WhileLoop:
-            self->build_loop(
-                NULL, &stmt->while_loop.condition, NULL,
-                &stmt->while_loop.body)
-        elif stmt->kind == AstStatementKind.ForLoop:
-            self->build_loop(
-                stmt->for_loop.init, &stmt->for_loop.cond, stmt->for_loop.incr,
-                &stmt->for_loop.body)
-        elif stmt->kind == AstStatementKind.Match:
-            self->build_match_statement(&stmt->match_statement)
-        elif stmt->kind == AstStatementKind.Break:
-            if self->nloops == 0:
-                fail(stmt->location, "'break' can only be used inside a loop")
-            self->jump(NULL, self->breakstack[self->nloops - 1], self->breakstack[self->nloops - 1], NULL)
-        elif stmt->kind == AstStatementKind.Continue:
-            if self->nloops == 0:
-                fail(stmt->location, "'continue' can only be used inside a loop")
-            self->jump(NULL, self->continuestack[self->nloops - 1], self->continuestack[self->nloops - 1], NULL)
-        elif stmt->kind == AstStatementKind.Assign:
-            targetexpr = &stmt->assignment.target
-            valueexpr = &stmt->assignment.value
+        match stmt->kind:
+            case AstStatementKind.If:
+                self->build_if_statement(&stmt->if_statement)
+            case AstStatementKind.Assert:
+                self->build_assert(stmt->location, &stmt->assertion)
+            case AstStatementKind.Pass:
+                pass
+            case AstStatementKind.WhileLoop:
+                self->build_loop(
+                    NULL, &stmt->while_loop.condition, NULL,
+                    &stmt->while_loop.body)
+            case AstStatementKind.ForLoop:
+                self->build_loop(
+                    stmt->for_loop.init, &stmt->for_loop.cond, stmt->for_loop.incr,
+                    &stmt->for_loop.body)
+            case AstStatementKind.Match:
+                self->build_match_statement(&stmt->match_statement)
+            case AstStatementKind.Break:
+                if self->nloops == 0:
+                    fail(stmt->location, "'break' can only be used inside a loop")
+                self->jump(NULL, self->breakstack[self->nloops - 1], self->breakstack[self->nloops - 1], NULL)
+            case AstStatementKind.Continue:
+                if self->nloops == 0:
+                    fail(stmt->location, "'continue' can only be used inside a loop")
+                self->jump(NULL, self->continuestack[self->nloops - 1], self->continuestack[self->nloops - 1], NULL)
+            case AstStatementKind.Assign:
+                targetexpr = &stmt->assignment.target
+                valueexpr = &stmt->assignment.value
 
-            targetvar: LocalVariable* = NULL
-            if targetexpr->kind == AstExpressionKind.GetVariable:
-                targetvar = self->find_var(targetexpr->varname)
+                targetvar: LocalVariable* = NULL
+                if targetexpr->kind == AstExpressionKind.GetVariable:
+                    targetvar = self->find_var(targetexpr->varname)
 
-            if targetvar != NULL:
-                # avoid pointers to help simplify_cfg
-                value = self->build_expression(valueexpr)
-                self->unary_op(stmt->location, CfInstructionKind.VarCpy, value, targetvar)
-            else:
-                # TODO: is this evaluation order good?
-                target = self->build_address_of_expression(targetexpr)
-                value = self->build_expression(valueexpr)
-                assert target->type->kind == TypeKind.Pointer
-                self->binary_op(stmt->location, CfInstructionKind.PtrStore, target, value, NULL)
+                if targetvar != NULL:
+                    # avoid pointers to help simplify_cfg
+                    value = self->build_expression(valueexpr)
+                    self->unary_op(stmt->location, CfInstructionKind.VarCpy, value, targetvar)
+                else:
+                    # TODO: is this evaluation order good?
+                    target = self->build_address_of_expression(targetexpr)
+                    value = self->build_expression(valueexpr)
+                    assert target->type->kind == TypeKind.Pointer
+                    self->binary_op(stmt->location, CfInstructionKind.PtrStore, target, value, NULL)
 
-        elif (
-            stmt->kind == AstStatementKind.InPlaceAdd
-            or stmt->kind == AstStatementKind.InPlaceSub
-            or stmt->kind == AstStatementKind.InPlaceMul
-            or stmt->kind == AstStatementKind.InPlaceDiv
-            or stmt->kind == AstStatementKind.InPlaceMod
-        ):
-            targetexpr = &stmt->assignment.target
-            rhsexpr = &stmt->assignment.value
+            case (
+                AstStatementKind.InPlaceAdd
+                | AstStatementKind.InPlaceSub
+                | AstStatementKind.InPlaceMul
+                | AstStatementKind.InPlaceDiv
+                | AstStatementKind.InPlaceMod
+            ):
+                targetexpr = &stmt->assignment.target
+                rhsexpr = &stmt->assignment.value
 
-            targetptr = self->build_address_of_expression(targetexpr)
-            rhs = self->build_expression(rhsexpr)
-            assert targetptr->type->kind == TypeKind.Pointer
-            oldvalue = self->add_var(targetptr->type->value_type)
-            self->unary_op(stmt->location, CfInstructionKind.PtrLoad, targetptr, oldvalue)
+                targetptr = self->build_address_of_expression(targetexpr)
+                rhs = self->build_expression(rhsexpr)
+                assert targetptr->type->kind == TypeKind.Pointer
+                oldvalue = self->add_var(targetptr->type->value_type)
+                self->unary_op(stmt->location, CfInstructionKind.PtrLoad, targetptr, oldvalue)
 
-            if stmt->kind == AstStatementKind.InPlaceAdd:
-                op = AstExpressionKind.Add
-            elif stmt->kind == AstStatementKind.InPlaceSub:
-                op = AstExpressionKind.Sub
-            elif stmt->kind == AstStatementKind.InPlaceMul:
-                op = AstExpressionKind.Mul
-            elif stmt->kind == AstStatementKind.InPlaceDiv:
-                op = AstExpressionKind.Div
-            elif stmt->kind == AstStatementKind.InPlaceMod:
-                op = AstExpressionKind.Mod
-            else:
+                match stmt->kind:
+                    case AstStatementKind.InPlaceAdd:
+                        op = AstExpressionKind.Add
+                    case AstStatementKind.InPlaceSub:
+                        op = AstExpressionKind.Sub
+                    case AstStatementKind.InPlaceMul:
+                        op = AstExpressionKind.Mul
+                    case AstStatementKind.InPlaceDiv:
+                        op = AstExpressionKind.Div
+                    case AstStatementKind.InPlaceMod:
+                        op = AstExpressionKind.Mod
+                    case _:
+                        assert False
+
+                newvalue = self->build_binop(op, stmt->location, oldvalue, rhs, targetptr->type->value_type)
+                self->binary_op(stmt->location, CfInstructionKind.PtrStore, targetptr, newvalue, NULL)
+
+            case AstStatementKind.Return:
+                if stmt->return_value != NULL:
+                    retvalue = self->build_expression(stmt->return_value)
+                    retvariable = self->find_var("return")
+                    assert retvariable != NULL
+                    self->unary_op(stmt->location, CfInstructionKind.VarCpy, retvalue, retvariable)
+
+                self->current_block->iftrue = &self->cfg->end_block
+                self->current_block->iffalse = &self->cfg->end_block
+                self->current_block = self->add_block()  # an unreachable block
+
+            case AstStatementKind.DeclareLocalVar:
+                if stmt->var_declaration.value != NULL:
+                    v = self->find_var(stmt->var_declaration.name)
+                    assert v != NULL
+                    cfvar = self->build_expression(stmt->var_declaration.value)
+                    self->unary_op(stmt->location, CfInstructionKind.VarCpy, cfvar, v)
+
+            case AstStatementKind.ExpressionStatement:
+                self->build_expression(&stmt->expression)
+
+            case _:
+                # other statements shouldn't occur inside functions/methods
                 assert False
-
-            newvalue = self->build_binop(op, stmt->location, oldvalue, rhs, targetptr->type->value_type)
-            self->binary_op(stmt->location, CfInstructionKind.PtrStore, targetptr, newvalue, NULL)
-
-        elif stmt->kind == AstStatementKind.Return:
-            if stmt->return_value != NULL:
-                retvalue = self->build_expression(stmt->return_value)
-                retvariable = self->find_var("return")
-                assert retvariable != NULL
-                self->unary_op(stmt->location, CfInstructionKind.VarCpy, retvalue, retvariable)
-
-            self->current_block->iftrue = &self->cfg->end_block
-            self->current_block->iffalse = &self->cfg->end_block
-            self->current_block = self->add_block()  # an unreachable block
-
-        elif stmt->kind == AstStatementKind.DeclareLocalVar:
-            if stmt->var_declaration.value != NULL:
-                v = self->find_var(stmt->var_declaration.name)
-                assert v != NULL
-                cfvar = self->build_expression(stmt->var_declaration.value)
-                self->unary_op(stmt->location, CfInstructionKind.VarCpy, cfvar, v)
-
-        elif stmt->kind == AstStatementKind.ExpressionStatement:
-            self->build_expression(&stmt->expression)
-
-        else:
-            # other statements shouldn't occur inside functions/methods
-            assert False
 
     def build_body(self, body: AstBody*) -> None:
         for i = 0; i < body->nstatements; i++:
@@ -1109,28 +1105,30 @@ def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFi
     for i = 0; i < ast->body.nstatements; i++:
         stmt = &ast->body.statements[i]
 
-        if stmt->kind == AstStatementKind.Function and stmt->function.body.nstatements > 0:
-            g = builder.build_function_or_method(NULL, stmt->function.signature.name, &stmt->function.body)
-
-            result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
-            assert result.graphs != NULL
-            result.graphs[result.ngraphs++] = g
-
-        if stmt->kind == AstStatementKind.Class:
-            class_type: Type* = NULL
-            for t = filetypes->owned_types; t < &filetypes->owned_types[filetypes->n_owned_types]; t++:
-                if strcmp((*t)->name, stmt->classdef.name) == 0:
-                    class_type = *t
-                    break
-            assert class_type != NULL
-
-            for m = stmt->classdef.members; m < &stmt->classdef.members[stmt->classdef.nmembers]; m++:
-                if m->kind == AstClassMemberKind.Method:
-                    g = builder.build_function_or_method(class_type, m->method.signature.name, &m->method.body)
-
+        match stmt->kind:
+            case AstStatementKind.Function:
+                if stmt->function.body.nstatements > 0:
+                    g = builder.build_function_or_method(NULL, stmt->function.signature.name, &stmt->function.body)
                     result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
                     assert result.graphs != NULL
                     result.graphs[result.ngraphs++] = g
+
+            case AstStatementKind.Class:
+                class_type: Type* = NULL
+                for t = filetypes->owned_types; t < &filetypes->owned_types[filetypes->n_owned_types]; t++:
+                    if strcmp((*t)->name, stmt->classdef.name) == 0:
+                        class_type = *t
+                        break
+                assert class_type != NULL
+                for m = stmt->classdef.members; m < &stmt->classdef.members[stmt->classdef.nmembers]; m++:
+                    if m->kind == AstClassMemberKind.Method:
+                        g = builder.build_function_or_method(class_type, m->method.signature.name, &m->method.body)
+                        result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
+                        assert result.graphs != NULL
+                        result.graphs[result.ngraphs++] = g
+
+            case _:
+                pass
 
     free(builder.breakstack)
     free(builder.continuestack)
