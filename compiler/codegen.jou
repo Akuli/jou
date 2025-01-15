@@ -61,12 +61,7 @@ def codegen_class_type(type: Type*) -> LLVMType*:
 
     flat_elems: LLVMType** = malloc(sizeof(flat_elems[0]) * n)
     for i = 0; i < n; i++:
-        # Treat all pointers inside classes as if they were void*.
-        # This allows classes to contain pointers to themselves.
-        if type->classdata.fields[i].type->kind == TypeKind.Pointer:
-            flat_elems[i] = codegen_type(voidPtrType)
-        else:
-            flat_elems[i] = codegen_type(type->classdata.fields[i].type)
+        flat_elems[i] = codegen_type(type->classdata.fields[i].type)
 
     # Combine together fields of the same union.
     combined: LLVMType** = malloc(sizeof(combined[0]) * n)

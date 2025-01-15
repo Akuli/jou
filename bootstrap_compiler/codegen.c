@@ -76,14 +76,8 @@ static LLVMTypeRef codegen_type(const Type *type)
             int n = type->data.classdata.fields.len;
 
             LLVMTypeRef *flat_elems = malloc(sizeof(flat_elems[0]) * n);  // NOLINT
-            for (int i = 0; i < n; i++) {
-                // Treat all pointers inside structs as if they were void*.
-                // This allows structs to contain pointers to themselves.
-                if (type->data.classdata.fields.ptr[i].type->kind == TYPE_POINTER)
-                    flat_elems[i] = codegen_type(voidPtrType);
-                else
-                    flat_elems[i] = codegen_type(type->data.classdata.fields.ptr[i].type);
-            }
+            for (int i = 0; i < n; i++)
+                flat_elems[i] = codegen_type(type->data.classdata.fields.ptr[i].type);
 
             // Combine together fields of the same union.
             LLVMTypeRef *combined = malloc(sizeof(combined[0]) * n);  // NOLINT
