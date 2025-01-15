@@ -106,47 +106,45 @@ class FileState:
     def add_imported_symbol(self, es: ExportSymbol*, imp: AstImport*) -> None:
         for i = 0; i < self->ast.body.nstatements; i++:
             if statement_conflicts_with_an_import(&self->ast.body.statements[i], es):
-                if es->kind == ExportSymbolKind.Function:
-                    wat = "function"
-                elif es->kind == ExportSymbolKind.GlobalVar:
-                    wat = "global variable"
-                elif es->kind == ExportSymbolKind.Type:
-                    wat = "type"
-                else:
-                    assert False
+                match es->kind:
+                    case ExportSymbolKind.Function:
+                        wat = "function"
+                    case ExportSymbolKind.GlobalVar:
+                        wat = "global variable"
+                    case ExportSymbolKind.Type:
+                        wat = "type"
 
                 msg: byte[500]
                 snprintf(msg, sizeof msg, "a %s named '%s' already exists", wat, es->name)
                 fail(self->ast.body.statements[i].location, msg)
 
-        if es->kind == ExportSymbolKind.Function:
-            self->types.functions = realloc(self->types.functions, sizeof(self->types.functions[0]) * (self->types.nfunctions + 1))
-            assert self->types.functions != NULL
-            self->types.functions[self->types.nfunctions++] = SignatureAndUsedPtr{
-                signature = es->funcsignature.copy(),
-                usedptr = &imp->used,
-            }
-        elif es->kind == ExportSymbolKind.Type:
-            self->types.types = realloc(self->types.types, sizeof(self->types.types[0]) * (self->types.ntypes + 1))
-            assert self->types.types != NULL
-            self->types.types[self->types.ntypes++] = TypeAndUsedPtr{
-                type = es->type,
-                usedptr = &imp->used,
-            }
-        elif es->kind == ExportSymbolKind.GlobalVar:
-            g = GlobalVariable{
-                type = es->type,
-                usedptr = &imp->used,
-            }
+        match es->kind:
+            case ExportSymbolKind.Function:
+                self->types.functions = realloc(self->types.functions, sizeof(self->types.functions[0]) * (self->types.nfunctions + 1))
+                assert self->types.functions != NULL
+                self->types.functions[self->types.nfunctions++] = SignatureAndUsedPtr{
+                    signature = es->funcsignature.copy(),
+                    usedptr = &imp->used,
+                }
+            case ExportSymbolKind.Type:
+                self->types.types = realloc(self->types.types, sizeof(self->types.types[0]) * (self->types.ntypes + 1))
+                assert self->types.types != NULL
+                self->types.types[self->types.ntypes++] = TypeAndUsedPtr{
+                    type = es->type,
+                    usedptr = &imp->used,
+                }
+            case ExportSymbolKind.GlobalVar:
+                g = GlobalVariable{
+                    type = es->type,
+                    usedptr = &imp->used,
+                }
 
-            assert strlen(es->name) < sizeof g.name
-            strcpy(g.name, es->name)
+                assert strlen(es->name) < sizeof g.name
+                strcpy(g.name, es->name)
 
-            self->types.globals = realloc(self->types.globals, sizeof(self->types.globals[0]) * (self->types.nglobals + 1))
-            assert self->types.globals != NULL
-            self->types.globals[self->types.nglobals++] = g
-        else:
-            assert False
+                self->types.globals = realloc(self->types.globals, sizeof(self->types.globals[0]) * (self->types.nglobals + 1))
+                assert self->types.globals != NULL
+                self->types.globals[self->types.nglobals++] = g
 
     def warn_about_unused_imports(self) -> None:
         for imp = self->ast.imports; imp < &self->ast.imports[self->ast.nimports]; imp++:
@@ -285,14 +283,13 @@ class CompileState:
 
                 for es = pending_exports[from_index]; es->name[0] != '\0'; es++:
                     if command_line_args.verbosity >= 2:
-                        if es->kind == ExportSymbolKind.Function:
-                            kindstr = "function"
-                        elif es->kind == ExportSymbolKind.GlobalVar:
-                            kindstr = "global var"
-                        elif es->kind == ExportSymbolKind.Type:
-                            kindstr = "type"
-                        else:
-                            assert False
+                        match es->kind:
+                            case ExportSymbolKind.Function:
+                                kindstr = "function"
+                            case ExportSymbolKind.GlobalVar:
+                                kindstr = "global var"
+                            case ExportSymbolKind.Type:
+                                kindstr = "type"
                         printf("Adding imported %s %s: %s --> %s\n",
                             kindstr, es->name, from->path, to->path)
 

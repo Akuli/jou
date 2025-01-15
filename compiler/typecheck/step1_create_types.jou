@@ -26,16 +26,17 @@ def typecheck_step1_create_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*
         stmt = &ast->body.statements[i]
 
         name: byte[100]
-        if stmt->kind == AstStatementKind.Class:
-            assert sizeof(name) == sizeof(stmt->classdef.name)
-            strcpy(name, stmt->classdef.name)
-            t = create_opaque_class(name)
-        elif stmt->kind == AstStatementKind.Enum:
-            assert sizeof(name) == sizeof(stmt->enumdef.name)
-            strcpy(name, stmt->enumdef.name)
-            t = create_enum(name, stmt->enumdef.member_count, stmt->enumdef.member_names)
-        else:
-            continue
+        match stmt->kind:
+            case AstStatementKind.Class:
+                assert sizeof(name) == sizeof(stmt->classdef.name)
+                strcpy(name, stmt->classdef.name)
+                t = create_opaque_class(name)
+            case AstStatementKind.Enum:
+                assert sizeof(name) == sizeof(stmt->enumdef.name)
+                strcpy(name, stmt->enumdef.name)
+                t = create_enum(name, stmt->enumdef.member_count, stmt->enumdef.member_names)
+            case _:
+                continue
 
         existing = ft->find_type(name)
         if existing != NULL:

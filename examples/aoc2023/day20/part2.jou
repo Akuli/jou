@@ -139,34 +139,30 @@ def run_part_of_input(start_flip_flop: Module*, end: Module*) -> int[5]:
                     free(todo.ptr)
                     return result
 
-            if item.to->kind == ModuleKind.Broadcaster:
-                for i = 0; i < item.to->ndestinations; i++:
-                    todo.send_later(item.to, item.to->destinations[i], item.value)
-
-            elif item.to->kind == ModuleKind.FlipFlop:
-                if not item.value:
-                    item.to->flip_flop_state = not item.to->flip_flop_state
+            match item.to->kind:
+                case ModuleKind.Broadcaster:
                     for i = 0; i < item.to->ndestinations; i++:
-                        todo.send_later(item.to, item.to->destinations[i], item.to->flip_flop_state)
+                        todo.send_later(item.to, item.to->destinations[i], item.value)
+                case ModuleKind.FlipFlop:
+                    if not item.value:
+                        item.to->flip_flop_state = not item.to->flip_flop_state
+                        for i = 0; i < item.to->ndestinations; i++:
+                            todo.send_later(item.to, item.to->destinations[i], item.to->flip_flop_state)
+                case ModuleKind.Conjunction:
+                    i = 0
+                    while item.to->sources[i] != item.from:
+                        i++
+                        assert i < item.to->nsources
+                    item.to->conjunction_state[i] = item.value
 
-            elif item.to->kind == ModuleKind.Conjunction:
-                i = 0
-                while item.to->sources[i] != item.from:
-                    i++
-                    assert i < item.to->nsources
-                item.to->conjunction_state[i] = item.value
+                    all_high = True
+                    for i = 0; i < item.to->nsources; i++:
+                        if not item.to->conjunction_state[i]:
+                            all_high = False
+                            break
 
-                all_high = True
-                for i = 0; i < item.to->nsources; i++:
-                    if not item.to->conjunction_state[i]:
-                        all_high = False
-                        break
-
-                for i = 0; i < item.to->ndestinations; i++:
-                    todo.send_later(item.to, item.to->destinations[i], not all_high)
-
-            else:
-                assert False
+                    for i = 0; i < item.to->ndestinations; i++:
+                        todo.send_later(item.to, item.to->destinations[i], not all_high)
 
 
 def gcd(a: long, b: long) -> long:

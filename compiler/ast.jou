@@ -50,26 +50,28 @@ class AstType:
         return self->kind == AstTypeKind.Named and strcmp(self->name, "noreturn") == 0
 
     def print(self, show_lineno: bool) -> None:
-        if self->kind == AstTypeKind.Named:
-            printf("%s", self->name)
-        elif self->kind == AstTypeKind.Pointer:
-            self->value_type->print(False)
-            printf("*")
-        elif self->kind == AstTypeKind.Array:
-            self->array.member_type->print(False)
-            printf("[<size>]")  # TODO: show the size expression better?
-        else:
-            assert False
+        match self->kind:
+            case AstTypeKind.Named:
+                printf("%s", self->name)
+            case AstTypeKind.Pointer:
+                self->value_type->print(False)
+                printf("*")
+            case AstTypeKind.Array:
+                self->array.member_type->print(False)
+                printf("[<size>]")  # TODO: show the size expression better?
 
         if show_lineno:
             printf(" [line %d]", self->location.lineno)
 
     def free(self) -> None:
-        if self->kind == AstTypeKind.Pointer:
-            self->value_type->free()
-            free(self->value_type)
-        if self->kind == AstTypeKind.Array:
-            self->array.free()
+        match self->kind:
+            case AstTypeKind.Pointer:
+                self->value_type->free()
+                free(self->value_type)
+            case AstTypeKind.Array:
+                self->array.free()
+            case AstTypeKind.Named:
+                pass
 
 
 # Statements and expressions can be printed in a tree.
@@ -226,159 +228,161 @@ class AstExpression:
             # TODO: print casts and other stuff under self->types?
         printf("] ")
 
-        if self->kind == AstExpressionKind.String:
-            printf("string ")
-            print_string(self->string, strlen(self->string))
-            printf("\n")
-        elif self->kind == AstExpressionKind.Short:
-            printf("short %hd\n", self->short_value)
-        elif self->kind == AstExpressionKind.Int:
-            printf("int %d\n", self->int_value)
-        elif self->kind == AstExpressionKind.Long:
-            printf("long %lld\n", self->long_value)
-        elif self->kind == AstExpressionKind.Byte:
-            printf("byte %d\n", self->byte_value)
-        elif self->kind == AstExpressionKind.Float:
-            printf("float %s\n", self->float_or_double_text)
-        elif self->kind == AstExpressionKind.Double:
-            printf("double %s\n", self->float_or_double_text)
-        elif self->kind == AstExpressionKind.Bool:
-            if self->bool_value:
-                printf("True\n")
-            else:
-                printf("False\n")
-        elif self->kind == AstExpressionKind.Null:
-            printf("NULL\n")
-        elif self->kind == AstExpressionKind.Indexing:
-            printf("indexing\n")
-        elif self->kind == AstExpressionKind.Array:
-            printf("array\n")
-            for i = 0; i < self->array.length; i++:
-                self->array.items[i].print_with_tree_printer(tp.print_prefix(i == self->array.length-1))
-        elif self->kind == AstExpressionKind.Call:
-            self->call.print_with_tree_printer(tp)
-        elif self->kind == AstExpressionKind.Instantiate:
-            self->instantiation.print_with_tree_printer(tp)
-        elif self->kind == AstExpressionKind.Self:
-            printf("self\n")
-        elif self->kind == AstExpressionKind.GetVariable:
-            printf("get variable \"%s\"\n", self->varname)
-        elif self->kind == AstExpressionKind.GetEnumMember:
-            printf(
-                "get member \"%s\" from enum \"%s\"\n",
-                self->enum_member.member_name,
-                self->enum_member.enum_name,
-            )
-        elif self->kind == AstExpressionKind.GetClassField:
-            printf("get class field \"%s\"", self->class_field.field_name)
-            if self->class_field.uses_arrow_operator:
-                printf(" with the arrow operator")
-            printf("\n")
-            self->class_field.instance->print_with_tree_printer(tp.print_prefix(True))
-        elif self->kind == AstExpressionKind.As:
-            self->as_->print_with_tree_printer(tp)
-        elif self->kind == AstExpressionKind.SizeOf:
-            printf("sizeof\n")
-        elif self->kind == AstExpressionKind.AddressOf:
-            printf("address of\n")
-        elif self->kind == AstExpressionKind.Dereference:
-            printf("dereference\n")
-        elif self->kind == AstExpressionKind.Negate:
-            printf("negate\n")
-        elif self->kind == AstExpressionKind.Not:
-            printf("not\n")
-        elif self->kind == AstExpressionKind.PreIncr:
-            printf("pre-increment\n")
-        elif self->kind == AstExpressionKind.PostIncr:
-            printf("post-increment\n")
-        elif self->kind == AstExpressionKind.PreDecr:
-            printf("pre-decrement\n")
-        elif self->kind == AstExpressionKind.PostDecr:
-            printf("post-decrement\n")
-        elif self->kind == AstExpressionKind.Add:
-            printf("add\n")
-        elif self->kind == AstExpressionKind.Sub:
-            printf("sub\n")
-        elif self->kind == AstExpressionKind.Mul:
-            printf("mul\n")
-        elif self->kind == AstExpressionKind.Div:
-            printf("div\n")
-        elif self->kind == AstExpressionKind.Mod:
-            printf("mod\n")
-        elif self->kind == AstExpressionKind.Eq:
-            printf("eq\n")
-        elif self->kind == AstExpressionKind.Ne:
-            printf("ne\n")
-        elif self->kind == AstExpressionKind.Gt:
-            printf("gt\n")
-        elif self->kind == AstExpressionKind.Ge:
-            printf("ge\n")
-        elif self->kind == AstExpressionKind.Lt:
-            printf("lt\n")
-        elif self->kind == AstExpressionKind.Le:
-            printf("le\n")
-        elif self->kind == AstExpressionKind.And:
-            printf("and\n")
-        elif self->kind == AstExpressionKind.Or:
-            printf("or\n")
-        else:
-            printf("????? (kind=%d)\n", self->kind as int)
+        match self->kind:
+            case AstExpressionKind.String:
+                printf("string ")
+                print_string(self->string, strlen(self->string))
+                printf("\n")
+            case AstExpressionKind.Short:
+                printf("short %hd\n", self->short_value)
+            case AstExpressionKind.Int:
+                printf("int %d\n", self->int_value)
+            case AstExpressionKind.Long:
+                printf("long %lld\n", self->long_value)
+            case AstExpressionKind.Byte:
+                printf("byte %d\n", self->byte_value)
+            case AstExpressionKind.Float:
+                printf("float %s\n", self->float_or_double_text)
+            case AstExpressionKind.Double:
+                printf("double %s\n", self->float_or_double_text)
+            case AstExpressionKind.Bool:
+                if self->bool_value:
+                    printf("True\n")
+                else:
+                    printf("False\n")
+            case AstExpressionKind.Null:
+                printf("NULL\n")
+            case AstExpressionKind.Indexing:
+                printf("indexing\n")
+            case AstExpressionKind.Array:
+                printf("array\n")
+                for i = 0; i < self->array.length; i++:
+                    self->array.items[i].print_with_tree_printer(tp.print_prefix(i == self->array.length-1))
+            case AstExpressionKind.Call:
+                self->call.print_with_tree_printer(tp)
+            case AstExpressionKind.Instantiate:
+                self->instantiation.print_with_tree_printer(tp)
+            case AstExpressionKind.Self:
+                printf("self\n")
+            case AstExpressionKind.GetVariable:
+                printf("get variable \"%s\"\n", self->varname)
+            case AstExpressionKind.GetEnumMember:
+                printf(
+                    "get member \"%s\" from enum \"%s\"\n",
+                    self->enum_member.member_name,
+                    self->enum_member.enum_name,
+                )
+            case AstExpressionKind.GetClassField:
+                printf("get class field \"%s\"", self->class_field.field_name)
+                if self->class_field.uses_arrow_operator:
+                    printf(" with the arrow operator")
+                printf("\n")
+                self->class_field.instance->print_with_tree_printer(tp.print_prefix(True))
+            case AstExpressionKind.As:
+                self->as_->print_with_tree_printer(tp)
+            case AstExpressionKind.SizeOf:
+                printf("sizeof\n")
+            case AstExpressionKind.AddressOf:
+                printf("address of\n")
+            case AstExpressionKind.Dereference:
+                printf("dereference\n")
+            case AstExpressionKind.Negate:
+                printf("negate\n")
+            case AstExpressionKind.Not:
+                printf("not\n")
+            case AstExpressionKind.PreIncr:
+                printf("pre-increment\n")
+            case AstExpressionKind.PostIncr:
+                printf("post-increment\n")
+            case AstExpressionKind.PreDecr:
+                printf("pre-decrement\n")
+            case AstExpressionKind.PostDecr:
+                printf("post-decrement\n")
+            case AstExpressionKind.Add:
+                printf("add\n")
+            case AstExpressionKind.Sub:
+                printf("sub\n")
+            case AstExpressionKind.Mul:
+                printf("mul\n")
+            case AstExpressionKind.Div:
+                printf("div\n")
+            case AstExpressionKind.Mod:
+                printf("mod\n")
+            case AstExpressionKind.Eq:
+                printf("eq\n")
+            case AstExpressionKind.Ne:
+                printf("ne\n")
+            case AstExpressionKind.Gt:
+                printf("gt\n")
+            case AstExpressionKind.Ge:
+                printf("ge\n")
+            case AstExpressionKind.Lt:
+                printf("lt\n")
+            case AstExpressionKind.Le:
+                printf("le\n")
+            case AstExpressionKind.And:
+                printf("and\n")
+            case AstExpressionKind.Or:
+                printf("or\n")
 
         for i = 0; i < self->get_arity(); i++:
             self->operands[i].print_with_tree_printer(tp.print_prefix(i == self->get_arity()-1))
 
     def free(self) -> None:
-        if self->kind == AstExpressionKind.String:
-            free(self->string)
-        elif self->kind == AstExpressionKind.Array:
-            self->array.free()
-        elif self->kind == AstExpressionKind.Call:
-            self->call.free()
-        elif self->kind == AstExpressionKind.Instantiate:
-            self->instantiation.free()
-        elif self->kind == AstExpressionKind.GetClassField:
-            self->class_field.free()
-        elif self->kind == AstExpressionKind.As:
-            self->as_->free()
-            free(self->as_)
-
-        if self->get_arity() != 0:
-            for i = 0; i < self->get_arity(); i++:
-                self->operands[i].free()
-            free(self->operands)
+        match self->kind:
+            case AstExpressionKind.String:
+                free(self->string)
+            case AstExpressionKind.Array:
+                self->array.free()
+            case AstExpressionKind.Call:
+                self->call.free()
+            case AstExpressionKind.Instantiate:
+                self->instantiation.free()
+            case AstExpressionKind.GetClassField:
+                self->class_field.free()
+            case AstExpressionKind.As:
+                self->as_->free()
+                free(self->as_)
+            case _:
+                if self->get_arity() != 0:
+                    for i = 0; i < self->get_arity(); i++:
+                        self->operands[i].free()
+                    free(self->operands)
 
     # arity = number of operands, e.g. 2 for a binary operator such as "+"
     def get_arity(self) -> int:
-        if (
-            self->kind == AstExpressionKind.SizeOf
-            or self->kind == AstExpressionKind.AddressOf
-            or self->kind == AstExpressionKind.Dereference
-            or self->kind == AstExpressionKind.Negate
-            or self->kind == AstExpressionKind.Not
-            or self->kind == AstExpressionKind.PreIncr
-            or self->kind == AstExpressionKind.PreDecr
-            or self->kind == AstExpressionKind.PostIncr
-            or self->kind == AstExpressionKind.PostDecr
-        ):
-            return 1
-        if (
-            self->kind == AstExpressionKind.Add
-            or self->kind == AstExpressionKind.Sub
-            or self->kind == AstExpressionKind.Mul
-            or self->kind == AstExpressionKind.Div
-            or self->kind == AstExpressionKind.Indexing
-            or self->kind == AstExpressionKind.Mod
-            or self->kind == AstExpressionKind.Eq
-            or self->kind == AstExpressionKind.Ne
-            or self->kind == AstExpressionKind.Gt
-            or self->kind == AstExpressionKind.Lt
-            or self->kind == AstExpressionKind.Ge
-            or self->kind == AstExpressionKind.Le
-            or self->kind == AstExpressionKind.And
-            or self->kind == AstExpressionKind.Or
-        ):
-            return 2
-        return 0
+        match self->kind:
+            case (
+                AstExpressionKind.SizeOf
+                | AstExpressionKind.AddressOf
+                | AstExpressionKind.Dereference
+                | AstExpressionKind.Negate
+                | AstExpressionKind.Not
+                | AstExpressionKind.PreIncr
+                | AstExpressionKind.PreDecr
+                | AstExpressionKind.PostIncr
+                | AstExpressionKind.PostDecr
+            ):
+                return 1
+            case (
+                AstExpressionKind.Add
+                | AstExpressionKind.Sub
+                | AstExpressionKind.Mul
+                | AstExpressionKind.Div
+                | AstExpressionKind.Indexing
+                | AstExpressionKind.Mod
+                | AstExpressionKind.Eq
+                | AstExpressionKind.Ne
+                | AstExpressionKind.Gt
+                | AstExpressionKind.Lt
+                | AstExpressionKind.Ge
+                | AstExpressionKind.Le
+                | AstExpressionKind.And
+                | AstExpressionKind.Or
+            ):
+                return 2
+            case _:
+                return 0
 
     def is_valid_as_a_statement(self) -> bool:
         return (
@@ -523,73 +527,72 @@ class AstStatement:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("[line %d] ", self->location.lineno)
-        if self->kind == AstStatementKind.ExpressionStatement:
-            printf("expression statement\n")
-            self->expression.print_with_tree_printer(tp.print_prefix(True))
-        elif self->kind == AstStatementKind.Assert:
-            printf("assert \"%s\"\n", self->assertion.condition_str)
-            self->assertion.condition.print_with_tree_printer(tp.print_prefix(True))
-        elif self->kind == AstStatementKind.Pass:
-            printf("pass\n")
-        elif self->kind == AstStatementKind.Return:
-            printf("return\n")
-            if self->return_value != NULL:
-                self->return_value->print_with_tree_printer(tp.print_prefix(True))
-        elif self->kind == AstStatementKind.If:
-            self->if_statement.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.ForLoop:
-            self->for_loop.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.Match:
-            self->match_statement.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.WhileLoop:
-            printf("while loop\n")
-            self->while_loop.print_with_tree_printer(tp, True)
-        elif self->kind == AstStatementKind.Break:
-            printf("break\n")
-        elif self->kind == AstStatementKind.Continue:
-            printf("continue\n")
-        elif self->kind == AstStatementKind.DeclareLocalVar:
-            printf("declare local var ")
-            self->var_declaration.print_with_tree_printer(&tp)
-        elif self->kind == AstStatementKind.Assign:
-            printf("assign\n")
-            self->assignment.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.InPlaceAdd:
-            printf("in-place add\n")
-            self->assignment.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.InPlaceSub:
-            printf("in-place sub\n")
-            self->assignment.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.InPlaceMul:
-            printf("in-place mul\n")
-            self->assignment.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.InPlaceDiv:
-            printf("in-place div\n")
-            self->assignment.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.InPlaceMod:
-            printf("in-place mod\n")
-            self->assignment.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.Function:
-            # TODO: this sucks, see #514
-            if self->function.body.nstatements == 0:
-                printf("declare a function: ")
-            else:
-                printf("define a function: ")
-            self->function.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.Class:
-            self->classdef.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.Enum:
-            self->enumdef.print_with_tree_printer(tp)
-        elif self->kind == AstStatementKind.GlobalVariableDeclaration:
-            printf("declare global var ")
-            self->var_declaration.print_with_tree_printer(NULL)
-            printf("\n")
-        elif self->kind == AstStatementKind.GlobalVariableDefinition:
-            printf("define global var ")
-            self->var_declaration.print_with_tree_printer(NULL)
-            printf("\n")
-        else:
-            printf("??????\n")
+        match self->kind:
+            case AstStatementKind.ExpressionStatement:
+                printf("expression statement\n")
+                self->expression.print_with_tree_printer(tp.print_prefix(True))
+            case AstStatementKind.Assert:
+                printf("assert \"%s\"\n", self->assertion.condition_str)
+                self->assertion.condition.print_with_tree_printer(tp.print_prefix(True))
+            case AstStatementKind.Pass:
+                printf("pass\n")
+            case AstStatementKind.Return:
+                printf("return\n")
+                if self->return_value != NULL:
+                    self->return_value->print_with_tree_printer(tp.print_prefix(True))
+            case AstStatementKind.If:
+                self->if_statement.print_with_tree_printer(tp)
+            case AstStatementKind.ForLoop:
+                self->for_loop.print_with_tree_printer(tp)
+            case AstStatementKind.Match:
+                self->match_statement.print_with_tree_printer(tp)
+            case AstStatementKind.WhileLoop:
+                printf("while loop\n")
+                self->while_loop.print_with_tree_printer(tp, True)
+            case AstStatementKind.Break:
+                printf("break\n")
+            case AstStatementKind.Continue:
+                printf("continue\n")
+            case AstStatementKind.DeclareLocalVar:
+                printf("declare local var ")
+                self->var_declaration.print_with_tree_printer(&tp)
+            case AstStatementKind.Assign:
+                printf("assign\n")
+                self->assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceAdd:
+                printf("in-place add\n")
+                self->assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceSub:
+                printf("in-place sub\n")
+                self->assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceMul:
+                printf("in-place mul\n")
+                self->assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceDiv:
+                printf("in-place div\n")
+                self->assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceMod:
+                printf("in-place mod\n")
+                self->assignment.print_with_tree_printer(tp)
+            case AstStatementKind.Function:
+                # TODO: this sucks, see #514
+                if self->function.body.nstatements == 0:
+                    printf("declare a function: ")
+                else:
+                    printf("define a function: ")
+                self->function.print_with_tree_printer(tp)
+            case AstStatementKind.Class:
+                self->classdef.print_with_tree_printer(tp)
+            case AstStatementKind.Enum:
+                self->enumdef.print_with_tree_printer(tp)
+            case AstStatementKind.GlobalVariableDeclaration:
+                printf("declare global var ")
+                self->var_declaration.print_with_tree_printer(NULL)
+                printf("\n")
+            case AstStatementKind.GlobalVariableDefinition:
+                printf("define global var ")
+                self->var_declaration.print_with_tree_printer(NULL)
+                printf("\n")
 
     def free(self) -> None:
         if self->kind == AstStatementKind.ExpressionStatement:
@@ -980,29 +983,27 @@ class AstClassMember:
         method: AstFunctionOrMethod
 
     def print(self, tp: TreePrinter) -> None:
-        if self->kind == AstClassMemberKind.Field:
-            printf("field ")
-            self->field.print_with_tree_printer(NULL)
-            printf("\n")
-        elif self->kind == AstClassMemberKind.Union:
-            printf("union:\n")
-            self->union_fields.print_with_tree_printer(tp)
-        elif self->kind == AstClassMemberKind.Method:
-            printf("method ")
-            self->method.signature.print()
-            self->method.body.print_with_tree_printer(tp)
-        else:
-            assert False
+        match self->kind:
+            case AstClassMemberKind.Field:
+                printf("field ")
+                self->field.print_with_tree_printer(NULL)
+                printf("\n")
+            case AstClassMemberKind.Union:
+                printf("union:\n")
+                self->union_fields.print_with_tree_printer(tp)
+            case AstClassMemberKind.Method:
+                printf("method ")
+                self->method.signature.print()
+                self->method.body.print_with_tree_printer(tp)
 
     def free(self) -> None:
-        if self->kind == AstClassMemberKind.Field:
-            self->field.free()
-        elif self->kind == AstClassMemberKind.Union:
-            self->union_fields.free()
-        elif self->kind == AstClassMemberKind.Method:
-            self->method.free()
-        else:
-            assert False
+        match self->kind:
+            case AstClassMemberKind.Field:
+                self->field.free()
+            case AstClassMemberKind.Union:
+                self->union_fields.free()
+            case AstClassMemberKind.Method:
+                self->method.free()
 
 
 # class Foo:
