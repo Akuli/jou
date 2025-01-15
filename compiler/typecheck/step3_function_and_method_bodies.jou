@@ -623,6 +623,13 @@ def typecheck_function_or_method_call(ft: FileTypes*, call: AstCall*, self_type:
             do_implicit_cast(ft->current_fom_types, &call->args[i], intType, Location{}, NULL)
         elif t == floatType:
             do_implicit_cast(ft->current_fom_types, &call->args[i], doubleType, Location{}, NULL)
+        elif t->kind == TypeKind.Enum:
+            snprintf(
+                msg, sizeof(msg),
+                "enums cannot be passed to functions that take variadic arguments, such as %s",
+                sig->name,
+            )
+            fail(call->args[i].location, msg)
 
     free(sigstr)
     return sig->returntype

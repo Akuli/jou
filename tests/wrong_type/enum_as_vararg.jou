@@ -1,0 +1,9 @@
+import "stdlib/io.jou"
+
+enum Foo:
+    Bar
+    Baz
+
+def main() -> int:
+    printf("%d\n", Foo.Bar)  # Error: enums cannot be passed to functions that take variadic arguments, such as printf
+    return 0
