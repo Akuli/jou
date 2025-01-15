@@ -869,59 +869,29 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
         case AstExpressionKind.GetClassField:
             if expr->class_field.uses_arrow_operator:
                 temptype = typecheck_expression_not_void(ft, expr->class_field.instance)
-                match temptype->kind:
-                    case TypeKind.Class:
-                        snprintf(
-                            msg, sizeof(msg),
-                            "left side of '.' operator must be a pointer to an instance of a class, not %s (try . instead of ->)",
-                            temptype->name)
-                        fail(expr->location, msg)
-                    case TypeKind.Pointer:
-                        if temptype->value_type->kind != TypeKind.Class:
-                            snprintf(
-                                msg, sizeof(msg),
-                                "left side of the '->' operator must be a pointer to an instance of a class, not %s",
-                                temptype->name)
-                            fail(expr->location, msg)
-                    case _:
-                        snprintf(
-                            msg, sizeof(msg),
-                            "left side of the '->' operator must be a pointer to an instance of a class, not %s",
-                            temptype->name)
-                        fail(expr->location, msg)
-#                    if temptype->kind == TypeKind.Class and strlen(msg) + 50 < sizeof(msg):
-#                        strcat(msg, " (try . instead of ->)")
+                if temptype->kind != TypeKind.Pointer or temptype->value_type->kind != TypeKind.Class:
+                    snprintf(
+                        msg, sizeof(msg),
+                        "left side of '->' operator must be a pointer to an instance of a class, not %s",
+                        temptype->name)
+                    if temptype->kind == TypeKind.Class and strlen(msg) + 50 < sizeof(msg):
+                        strcat(msg, " (try . instead of ->)")
+                    fail(expr->location, msg)
                 result = typecheck_class_field(temptype->value_type, expr->class_field.field_name, expr->location)->type
             else:
                 temptype = typecheck_expression_not_void(ft, expr->class_field.instance)
-                match temptype->kind:
-                    case TypeKind.Class:
-                        pass
-                    case TypeKind.Pointer:
-                        if temptype->value_type->kind == TypeKind.Class:
-                            snprintf(
-                                msg, sizeof(msg),
-                                "left side of '.' operator must be an instance of a class, not %s (try -> instead of .)",
-                                temptype->name)
-                            fail(expr->location, msg)
-                        else:
-                            snprintf(
-                                msg, sizeof(msg),
-                                "left side of the '.' operator must be an instance of a class, not %s",
-                                temptype->name)
-                            fail(expr->location, msg)
-                    case _:
-                        snprintf(
-                            msg, sizeof(msg),
-                            "left side of the '.' operator must be an instance of a class, not %s",
-                            temptype->name)
-                        fail(expr->location, msg)
-#                    if (
-#                        temptype->kind == TypeKind.Pointer
-#                        and temptype->value_type->kind == TypeKind.Class
-#                        and strlen(msg) + 50 < sizeof(msg)
-#                    ):
-#                        strcat(msg, " (try -> instead of .)")
+                if temptype->kind != TypeKind.Class:
+                    snprintf(
+                        msg, sizeof(msg),
+                        "left side of '.' operator must be an instance of a class, not %s",
+                        temptype->name)
+                    if (
+                        temptype->kind == TypeKind.Pointer
+                        and temptype->value_type->kind == TypeKind.Class
+                        and strlen(msg) + 50 < sizeof(msg)
+                    ):
+                        strcat(msg, " (try -> instead of .)")
+                    fail(expr->location, msg)
                 result = typecheck_class_field(temptype, expr->class_field.field_name, expr->location)->type
 
         case AstExpressionKind.Call:
@@ -929,48 +899,27 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
                 result = typecheck_function_or_method_call(ft, &expr->call, NULL, expr->location)
             elif expr->call.uses_arrow_operator:
                 temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)
-                match temptype->kind:
-                    case TypeKind.Pointer:
-                        if temptype->value_type->kind != TypeKind.Class:
-                            snprintf(msg, sizeof(msg),
-                                "left side of the '->' operator must be a pointer to an instance of a class, not %s",
-                                temptype->name)
-                            fail(expr->location, msg)
-                    case TypeKind.Class:
-                        snprintf(msg, sizeof(msg),
-                            "left side of '.' operator must be a pointer to an instance of a class, not %s (try . instead of ->)",
-                            temptype->name)
-                        fail(expr->location, msg)
-                    case _:
-                        snprintf(msg, sizeof(msg),
-                            "left side of the '->' operator must be a pointer to an instance of a class, not %s",
-                            temptype->name)
-                        fail(expr->location, msg)
-#                    if temptype->kind == TypeKind.Class and strlen(msg) + 50 < sizeof(msg):
-#                        strcat(msg, " (try . instead of ->)")
-#                    fail(expr->location, msg)
+                if temptype->kind != TypeKind.Pointer or temptype->value_type->kind != TypeKind.Class:
+                    snprintf(msg, sizeof(msg),
+                        "left side of '->' operator must be a pointer to an instance of a class, not %s",
+                        temptype->name)
+                    if temptype->kind == TypeKind.Class and strlen(msg) + 50 < sizeof(msg):
+                        strcat(msg, " (try . instead of ->)")
+                    fail(expr->location, msg)
                 result = typecheck_function_or_method_call(ft, &expr->call, temptype->value_type, expr->location)
             else:
                 temptype = typecheck_expression_not_void(ft, expr->call.method_call_self)
-                match temptype->kind:
-                    case TypeKind.Pointer:
-                        if temptype->value_type->kind == TypeKind.Class:
-                            snprintf(msg, sizeof(msg),
-                                "left side of the '.' operator must be an instance of a class, not %s (try -> instead of .)",
-                                temptype->name)
-                            fail(expr->location, msg)
-                        else:
-                            snprintf(msg, sizeof(msg),
-                                "left side of the '.' operator must be an instance of a class, not %s",
-                                temptype->name)
-                            fail(expr->location, msg)
-                    case TypeKind.Class:
-                        pass
-                    case _:
-                        snprintf(msg, sizeof(msg),
-                            "left side of the '.' operator must be an instance of a class, not %s",
-                            temptype->name)
-                        fail(expr->location, msg)
+                if temptype->kind != TypeKind.Class:
+                    snprintf(msg, sizeof(msg),
+                        "left side of '.' operator must be an instance of a class, not %s",
+                        temptype->name)
+                    if (
+                        temptype->kind == TypeKind.Pointer
+                        and temptype->value_type->kind == TypeKind.Class
+                        and strlen(msg) + 50 < sizeof(msg)
+                    ):
+                        strcat(msg, " (try -> instead of .)")
+                    fail(expr->location, msg)
 
                 result = typecheck_function_or_method_call(ft, &expr->call, temptype, expr->location)
 
