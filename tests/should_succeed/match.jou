@@ -7,6 +7,11 @@ enum Foo:
     Wut
 
 
+def show_evaluation(foo: Foo, msg: byte*) -> Foo:
+    puts(msg)
+    return foo
+
+
 def main() -> int:
     f = Foo.Bar
     match f:
@@ -54,5 +59,23 @@ def main() -> int:
             printf("nope\n")
         case Foo.Wut:
             printf("nope\n")
+
+    # Test evaluation order.
+    #
+    # Output: match obj
+    # Output: case 1
+    # Output: case 2
+    # Output: case 3
+    # Output: ye
+    match show_evaluation(Foo.Lol, "match obj"):
+        case show_evaluation(Foo.Bar, "case 1"):
+            printf("nope\n")
+        case show_evaluation(Foo.Baz, "case 2"):
+            printf("nope\n")
+        case show_evaluation(Foo.Lol, "case 3"):
+            printf("ye\n")
+        case show_evaluation(Foo.Wut, "case 4"):
+            printf("nope\n")
+
 
     return 0
