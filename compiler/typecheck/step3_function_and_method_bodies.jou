@@ -884,6 +884,8 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
                         msg, sizeof(msg),
                         "left side of the '->' operator must be a pointer to a class, not %s",
                         temptype->name)
+                    if temptype->kind == TypeKind.Class and strlen(msg) + 50 < sizeof(msg):
+                        strcat(msg, " (try . instead of ->)")
                     fail(expr->location, msg)
                 result = typecheck_class_field(temptype->value_type, expr->class_field.field_name, expr->location)->type
             else:
@@ -893,6 +895,12 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
                         msg, sizeof(msg),
                         "left side of the '.' operator must be an instance of a class, not %s",
                         temptype->name)
+                    if (
+                        temptype->kind == TypeKind.Pointer
+                        and temptype->value_type->kind == TypeKind.Class
+                        and strlen(msg) + 50 < sizeof(msg)
+                    ):
+                        strcat(msg, " (try -> instead of .)")
                     fail(expr->location, msg)
                 result = typecheck_class_field(temptype, expr->class_field.field_name, expr->location)->type
 
@@ -905,6 +913,8 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
                     snprintf(msg, sizeof(msg),
                         "left side of the '->' operator must be a pointer, not %s",
                         temptype->name)
+                    if temptype->kind == TypeKind.Class and strlen(msg) + 50 < sizeof(msg):
+                        strcat(msg, " (try . instead of ->)")
                     fail(expr->location, msg)
                 result = typecheck_function_or_method_call(ft, &expr->call, temptype->value_type, expr->location)
             else:
