@@ -722,9 +722,20 @@ static AstMatchStatement parse_match_statement(ParserState *ps)
             ps->tokens++;
             result.case_underscore = parse_body(ps);
         } else {
+            List(AstExpression) case_objs = {0};
+            while(1){
+                Append(&case_objs, parse_expression(ps));
+                if (is_operator(ps->tokens, "|"))
+                    ps->tokens++;
+                else if (is_operator(ps->tokens, ":"))
+                    break;
+                else
+                    fail_with_parse_error(ps->tokens, "'|' or ':'");
+            }
             result.cases = realloc(result.cases, sizeof result.cases[0] * (result.ncases + 1));
             result.cases[result.ncases++] = (AstCase){
-                .case_obj = parse_expression(ps),
+                .case_objs = case_objs.ptr,
+                .n_case_objs = case_objs.len,
                 .body = parse_body(ps),
             };
         }

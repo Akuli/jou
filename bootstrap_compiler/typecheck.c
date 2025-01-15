@@ -1292,10 +1292,12 @@ static void typecheck_match_statement(FileTypes *ft, AstMatchStatement *match_st
     assert(mtype->kind == TYPE_ENUM);
 
     for (int i = 0; i < match_stmt->ncases; i++) {
-        typecheck_expression_with_implicit_cast(
-            ft, &match_stmt->cases[i].case_obj, mtype,
-            "case value of type FROM cannot be matched against TO"
-        );
+        for (int k = 0; k < match_stmt->cases[i].n_case_objs; k++) {
+            typecheck_expression_with_implicit_cast(
+                ft, &match_stmt->cases[i].case_objs[k], mtype,
+                "case value of type FROM cannot be matched against TO"
+            );
+        }
         typecheck_body(ft, &match_stmt->cases[i].body);
     }
     typecheck_body(ft, &match_stmt->case_underscore);

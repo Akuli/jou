@@ -873,17 +873,19 @@ static void build_match_statament(struct State *st, const AstMatchStatement *mat
 
     CfBlock *done = add_block(st);
     for (int i = 0; i < match_stmt->ncases; i++) {
-        const LocalVariable *case_obj_enum = build_expression(st, &match_stmt->cases[i].case_obj);
+    for (AstExpression *caseobj = match_stmt->cases[i].case_objs; caseobj < &match_stmt->cases[i].case_objs[match_stmt->cases[i].n_case_objs]; caseobj++) {
+        const LocalVariable *case_obj_enum = build_expression(st, caseobj);
         LocalVariable *case_obj_int = add_local_var(st, intType);
-        add_unary_op(st, match_stmt->cases[i].case_obj.location, CF_ENUM_TO_INT32, case_obj_enum, case_obj_int);
+        add_unary_op(st, caseobj->location, CF_ENUM_TO_INT32, case_obj_enum, case_obj_int);
 
-        const LocalVariable *cond = build_binop(st, AST_EXPR_EQ, match_stmt->cases[i].case_obj.location, match_obj_int, case_obj_int, boolType);
+        const LocalVariable *cond = build_binop(st, AST_EXPR_EQ, caseobj->location, match_obj_int, case_obj_int, boolType);
         CfBlock *then = add_block(st);
         CfBlock *otherwise = add_block(st);
 
         add_jump(st, cond, then, otherwise, then);
         build_body(st, &match_stmt->cases[i].body);
         add_jump(st, NULL, done, done, otherwise);
+    }
     }
 
     build_body(st, &match_stmt->case_underscore);

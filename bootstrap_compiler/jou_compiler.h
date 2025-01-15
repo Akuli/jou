@@ -267,7 +267,8 @@ struct AstForLoop {
     AstBody body;
 };
 struct AstCase {
-    AstExpression case_obj;
+    AstExpression *case_objs;
+    int n_case_objs;
     AstBody body;
 };
 struct AstMatchStatement {
