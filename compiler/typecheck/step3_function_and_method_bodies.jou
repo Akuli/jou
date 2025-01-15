@@ -1024,7 +1024,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
             do_explicit_cast(ft->current_fom_types, &expr->as_->value, result, expr->location)
 
         case _:
-            printf("%d\n", expr->kind)
+            printf("%d\n", expr->kind as int)
             assert False
 
     assert result != NULL
