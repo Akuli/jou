@@ -178,7 +178,9 @@ static LLVMTypeRef codegen_function_type(const Signature *sig)
     else
         returntype = codegen_type(sig->returntype);
 
-    return LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
+    LLVMTypeRef functype = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
+    free(argtypes);
+    return functype;
 }
 
 static LLVMValueRef codegen_function_or_method_decl(const struct State *st, const Signature *sig)
