@@ -1,0 +1,9 @@
+enum Foo:
+    One
+    Two
+    Three
+
+def blah(f: Foo) -> None:
+    match f:
+        case (Foo.One Foo.Two):  # Error: expected '|' or '):', got a variable name 'Foo'
+            printf("hi\n")
