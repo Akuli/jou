@@ -674,6 +674,7 @@ static void validate_expression_statement(const AstExpression *expr)
     }
 }
 
+static void parse_start_of_body(ParserState *ps);
 static AstBody parse_body(ParserState *ps);
 
 static AstIfStatement parse_if_statement(ParserState *ps)
@@ -709,35 +710,28 @@ static AstMatchStatement parse_match_statement(ParserState *ps)
     AstMatchStatement result = {.match_obj = parse_expression(ps)};
     parse_start_of_body(ps);
 
-    while (ps->tokens->kind != TOKEN_DEDENT) {
-        if (!is_keyword(ps->tokens, "case")) {
-            fail_expected_got ps->tokens->("the 'case' keyword")
-        if result.case_underscore != NULL:
-            fail(
-                ps->tokens->location,
-                "this case will never run, because 'case _:' above matches anything",
-            )
-        ps->tokens++
+    while (ps->tokens->type != TOKEN_DEDENT) {
+        assert(is_keyword(ps->tokens, "case"));
+        ps->tokens++;
 
-        if (
-            ps->tokens->kind == TokenKind.Name
-            and strcmp(ps->tokens->short_string, "_") == 0
-            and ps->tokens[1].is_operator(":")
-        ):
-            # case _:
-            result.case_underscore_location = (ps->tokens++)->location
-            result.case_underscore = malloc(sizeof(*result.case_underscore))
-            assert result.case_underscore != NULL
-            *result.case_underscore = ps->parse_body()
-        else:
-            result.cases = realloc(result.cases, sizeof result.cases[0] * (result.ncases + 1))
-            result.cases[result.ncases++] = AstCase{
-                case_obj = ps->parse_expression(),
-                body = ps->parse_body(),
-            }
-    ps->tokens++
-
-    return result
+        if (ps->tokens->type == TOKEN_NAME
+            && strcmp(ps->tokens->data.name, "_") == 0
+            && is_operator(&ps->tokens[1], ":"))
+        {
+            // case _:
+            ps->tokens++;
+            result.case_underscore = parse_body(ps);
+        } else {
+            result.cases = realloc(result.cases, sizeof result.cases[0] * (result.ncases + 1));
+            result.cases[result.ncases++] = (AstCase){
+                .case_obj = parse_expression(ps),
+                .body = parse_body(ps),
+            };
+        }
+    }
+    ps->tokens++;
+    return result;
+}
 
 
 // reverse code golfing: https://xkcd.com/1960/

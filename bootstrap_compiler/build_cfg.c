@@ -865,6 +865,31 @@ static void build_loop(
     add_jump(st, NULL, condblock, condblock, doneblock);
 }
 
+static void build_match_statament(struct State *st, const AstMatchStatement *match_stmt)
+{
+    const LocalVariable *match_obj_enum = build_expression(st, &match_stmt->match_obj);
+    LocalVariable *match_obj_int = add_local_var(st, intType);
+    add_unary_op(st, match_stmt->match_obj.location, CF_ENUM_TO_INT32, match_obj_enum, match_obj_int);
+
+    CfBlock *done = add_block(st);
+    for (int i = 0; i < match_stmt->ncases; i++) {
+        const LocalVariable *case_obj_enum = build_expression(st, &match_stmt->cases[i].case_obj);
+        LocalVariable *case_obj_int = add_local_var(st, intType);
+        add_unary_op(st, match_stmt->cases[i].case_obj.location, CF_ENUM_TO_INT32, case_obj_enum, case_obj_int);
+
+        const LocalVariable *cond = build_binop(st, AST_EXPR_EQ, match_stmt->cases[i].case_obj.location, match_obj_int, case_obj_int, boolType);
+        CfBlock *then = add_block(st);
+        CfBlock *otherwise = add_block(st);
+
+        add_jump(st, cond, then, otherwise, then);
+        build_body(st, &match_stmt->cases[i].body);
+        add_jump(st, NULL, done, done, otherwise);
+    }
+
+    build_body(st, &match_stmt->case_underscore);
+    add_jump(st, NULL, done, done, done);
+}
+
 static void build_statement(struct State *st, const AstStatement *stmt)
 {
     switch(stmt->kind) {
@@ -892,7 +917,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         break;
 
     case AST_STMT_MATCH:
-        assert(0);  // TODO
+        build_match_statament(st, &stmt->data.match);
         break;
 
     case AST_STMT_BREAK:
