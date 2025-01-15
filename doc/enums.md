@@ -5,22 +5,29 @@ TL;DR:
 ```python
 import "stdlib/io.jou"
 
-enum Foo:
+enum Thingy:
+    Foo
     Bar
     Baz
 
 def main() -> int:
-    thing = Foo.Bar
+    thing = Thingy.Bar
 
-    if thing == Foo.Bar:
-        printf("It's bar\n")  # Output: It's bar
-    elif thing == Foo.Baz:
-        printf("It's baz\n")
-    else:
-        assert False  # never happens
+    match thing:
+        case Thingy.Foo:
+            printf("It's foo\n")
+        case Thingy.Bar | Thingy.Baz:
+            printf("It's bar or baz\n")  # Output: It's bar or baz
 
-    printf("%d\n", Foo.Bar)  # Output: 0
-    printf("%d\n", Foo.Baz)  # Output: 1
+    match thing:
+        case Thingy.Foo:
+            printf("It's foo\n")
+        case _:
+            printf("It's not foo\n")  # Output: It's not foo
+
+    printf("%d\n", Thingy.Foo as int)  # Output: 0
+    printf("%d\n", Thingy.Bar as int)  # Output: 1
+    printf("%d\n", Thingy.Baz as int)  # Output: 2
 
     return 0
 ```
@@ -77,18 +84,17 @@ enum Operation:
     FloorDivide     # 7 / 3 produces 2
 
 def calculate(a: double, b: double, op: Operation) -> double:
-    if op == Operation.Add:
-        return a + b
-    if op == Operation.Subtract:
-        return a - b
-    if op == Operation.Multiply:
-        return a * b
-    if op == Operation.Divide:
-        return a / b
-    if op == Operation.FloorDivide:
-        return floor(a / b)
-    else:
-        assert False  # not possible
+    match op:
+        case Operation.Add:
+            return a + b
+        case Operation.Subtract:
+            return a - b
+        case Operation.Multiply:
+            return a * b
+        case Operation.Divide:
+            return a / b
+        case Operation.FloorDivide:
+            return floor(a / b)
 
 def main() -> int:
     printf("%f\n", calculate(7, 3, Operation.Divide))        # Output: 2.333333
@@ -96,8 +102,66 @@ def main() -> int:
     return 0
 ```
 
-Here `enum Operation` defines a new enum, which has 5 possible values.
-You can then use `if` statements to check which value an instance of `Operation` is.
+Here `enum Operation` defines a new enum, which has 5 members.
+You will get a compiler error if you don't handle all 5 members in the `match` statement.
+This is useful especially when adding a new feature to a large existing program.
+Instead of a `match` statement, you can also use `if` and `elif` with enums,
+but then the compiler won't complain if you don't handle all enum members.
+
+Sometimes you don't want to list all enum members in a `match` statement.
+You can use `case _:` to catch all remaining enum members:
+
+```python
+import "stdlib/io.jou"
+
+enum Operation:
+    Add
+    Subtract
+    Multiply
+    Divide
+    FloorDivide
+
+def main() -> int:
+    op = Operation.Divide
+
+    match op:
+        case Operation.Add:
+            printf("It's adding\n")
+        case Operation.Subtract:
+            printf("It's subtracting\n")
+        case _:
+            printf("Not adding or subtracting\n")  # Output: Not adding or subtracting
+
+    return 0
+```
+
+You can also combine multiple cases with `|`.
+Read the `|` operator as "or" when it's used in match statements.
+
+```python
+import "stdlib/io.jou"
+
+enum Operation:
+    Add
+    Subtract
+    Multiply
+    Divide
+    FloorDivide
+
+def main() -> int:
+    op = Operation.FloorDivide
+
+    match op:
+        case Operation.Divide | Operation.FloorDivide:
+            printf("It's dividing\n")  # Output: It's dividing
+        case _:
+            pass
+
+    return 0
+```
+
+Here `case _: pass` is needed to ignore the enum members that were not mentioned,
+because without it, you will get a compiler error saying that you didn't handle all possible values.
 
 
 ## Integer conversions
@@ -138,7 +202,8 @@ def main() -> int:
 ```
 
 You can also convert integers to enums,
-but note that the result might not correspond with any member of the enum:
+but note that the result might not correspond with any member of the enum.
+In a `match` statements, only `case _:` matches these values.
 
 ```python
 import "stdlib/io.jou"
@@ -149,17 +214,18 @@ enum Operation:
     Multiply
 
 def main() -> int:
-    wat = 7 as Operation
+    wat = 42 as Operation
 
-    if wat == Operation.Add:
-        printf("Add\n")
-    elif wat == Operation.Subtract:
-        printf("Subtract\n")
-    elif wat == Operation.Multiply:
-        printf("Multiply\n")
-    else:
-        # Output: something else 7
-        printf("something else %d\n", wat as int)
+    match wat:
+        case Operation.Add:
+            printf("Add\n")
+        case Operation.Subtract:
+            printf("Subtract\n")
+        case Operation.Multiply:
+            printf("Multiply\n")
+        case _:
+            # Output: something else 42
+            printf("something else %d\n", wat as int)
 
     return 0
 ```
