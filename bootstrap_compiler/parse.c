@@ -722,13 +722,20 @@ static AstMatchStatement parse_match_statement(ParserState *ps)
             ps->tokens++;
             result.case_underscore = parse_body(ps);
         } else {
+            bool parens = is_operator(ps->tokens, "(");
+            if (parens)
+                ps->tokens++;
             List(AstExpression) case_objs = {0};
             while(1){
                 Append(&case_objs, parse_expression(ps));
                 if (is_operator(ps->tokens, "|"))
                     ps->tokens++;
-                else if (is_operator(ps->tokens, ":"))
+                else if (!parens && is_operator(ps->tokens, ":"))
                     break;
+                else if (parens && is_operator(ps->tokens, ")") && is_operator(&ps->tokens[1], ":")) {
+                    ps->tokens++;
+                    break;
+                }
                 else
                     fail_with_parse_error(ps->tokens, "'|' or ':'");
             }
