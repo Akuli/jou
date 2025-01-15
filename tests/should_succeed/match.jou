@@ -22,6 +22,18 @@ def main() -> int:
         case _:
             printf("Other\n")
 
+    match Foo.Bar:
+        case Foo.Bar | Foo.Baz:
+            printf("yay\n")  # Output: yay
+        case _:
+            printf("nope\n")
+
+    match Foo.Baz:
+        case Foo.Bar | Foo.Baz:
+            printf("yay\n")  # Output: yay
+        case _:
+            printf("nope\n")
+
     f = 69 as Foo
     match f:
         case Foo.Bar:
@@ -77,5 +89,15 @@ def main() -> int:
         case show_evaluation(Foo.Wut, "case 4"):
             printf("nope\n")
 
+    # Output: match obj
+    # Output: case 1
+    # Output: case 2
+    # Output: case 3
+    # Output: ye
+    match show_evaluation(Foo.Lol, "match obj"):
+        case show_evaluation(Foo.Bar, "case 1") | show_evaluation(Foo.Baz, "case 2"):
+            printf("nope\n")
+        case show_evaluation(Foo.Lol, "case 3") | show_evaluation(Foo.Wut, "case 4"):
+            printf("ye\n")
 
     return 0

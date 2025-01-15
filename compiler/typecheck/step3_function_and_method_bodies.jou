@@ -1050,28 +1050,30 @@ def typecheck_match_statement(ft: FileTypes*, match_stmt: AstMatchStatement*) ->
         remaining[i] = mtype->enummembers.names[i]
 
     for i = 0; i < match_stmt->ncases; i++:
-        typecheck_expression_with_implicit_cast(
-            ft, &match_stmt->cases[i].case_obj, mtype,
-            "case value of type <from> cannot be matched against <to>",
-        )
+        for j = 0; j < match_stmt->cases[i].n_case_objs; j++:
+            case_obj = &match_stmt->cases[i].case_objs[j]
+            typecheck_expression_with_implicit_cast(
+                ft, case_obj, mtype,
+                "case value of type <from> cannot be matched against <to>",
+            )
 
-        # The special casing only applies to simple enum member lookups (TheEnum.TheMember syntax)
-        if match_stmt->cases[i].case_obj.kind != AstExpressionKind.GetEnumMember:
-            nremaining = -1
+            # The special casing only applies to simple enum member lookups (TheEnum.TheMember syntax)
+            if case_obj->kind != AstExpressionKind.GetEnumMember:
+                nremaining = -1
 
-        if nremaining != -1:
-            # We are matching against TheEnum.member. Try to find and remove it from remaining members.
-            member = match_stmt->cases[i].case_obj.enum_member.member_name
-            found = False
-            for k = 0; k < nremaining; k++:
-                if strcmp(remaining[k], member) == 0:
-                    memmove(&remaining[k], &remaining[k+1], sizeof(remaining[0]) * (--nremaining - k))
-                    found = True
-                    break
+            if nremaining != -1:
+                # We are matching against TheEnum.member. Try to find and remove it from remaining members.
+                member = case_obj->enum_member.member_name
+                found = False
+                for k = 0; k < nremaining; k++:
+                    if strcmp(remaining[k], member) == 0:
+                        memmove(&remaining[k], &remaining[k+1], sizeof(remaining[0]) * (--nremaining - k))
+                        found = True
+                        break
 
-            if not found:
-                snprintf(msg, sizeof(msg), "enum member %s is handled twice", member)
-                fail(match_stmt->cases[i].case_obj.location, msg)
+                if not found:
+                    snprintf(msg, sizeof(msg), "enum member %s is handled twice", member)
+                    fail(case_obj->location, msg)
 
         typecheck_body(ft, &match_stmt->cases[i].body)
 

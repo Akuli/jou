@@ -884,9 +884,21 @@ class Parser:
                 assert result.case_underscore != NULL
                 *result.case_underscore = self->parse_body()
             else:
+                case_objs: AstExpression* = NULL
+                n_case_objs = 0
+                while True:
+                    case_objs = realloc(case_objs, sizeof(case_objs[0]) * (n_case_objs + 1))
+                    case_objs[n_case_objs++] = self->parse_expression()
+                    if self->tokens->is_operator("|"):
+                        self->tokens++
+                    elif self->tokens->is_operator(":"):
+                        break
+                    else:
+                        self->tokens->fail_expected_got("'|' or ':'")
                 result.cases = realloc(result.cases, sizeof result.cases[0] * (result.ncases + 1))
                 result.cases[result.ncases++] = AstCase{
-                    case_obj = self->parse_expression(),
+                    case_objs = case_objs,
+                    n_case_objs = n_case_objs,
                     body = self->parse_body(),
                 }
         self->tokens++

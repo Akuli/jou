@@ -734,23 +734,27 @@ class AstMatchStatement:
             free(self->case_underscore)
 
 
-# case case_obj:
+# case case_obj1 | case_obj2 | case_obj3:
 #     body
 class AstCase:
-    case_obj: AstExpression
+    case_objs: AstExpression*
+    n_case_objs: int
     body: AstBody
 
     def print_with_tree_printer(self, tp: TreePrinter, is_last_case: bool) -> None:
-        sub = tp.print_prefix(False)
-        printf("case_obj: ")
-        self->case_obj.print_with_tree_printer(sub)
+        for i = 0; i < self->n_case_objs; i++:
+            sub = tp.print_prefix(False)
+            printf("case_obj: ")
+            self->case_objs[i].print_with_tree_printer(sub)
 
         sub = tp.print_prefix(is_last_case)
         printf("body:\n")
         self->body.print_with_tree_printer(sub)
 
     def free(self) -> None:
-        self->case_obj.free()
+        for i = 0; i < self->n_case_objs; i++:
+            self->case_objs[i].free()
+        free(self->case_objs)
         self->body.free()
 
 

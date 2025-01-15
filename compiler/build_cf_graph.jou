@@ -826,22 +826,27 @@ class CfBuilder:
         self->jump(NULL, done, done, done)
 
     def build_match_statement(self, match_stmt: AstMatchStatement*) -> None:
-        # TODO: test evaluation order
         match_obj_enum = self->build_expression(&match_stmt->match_obj)
         match_obj_int = self->add_var(intType)
         self->unary_op(match_stmt->match_obj.location, CfInstructionKind.EnumToInt32, match_obj_enum, match_obj_int)
 
         done = self->add_block()
         for i = 0; i < match_stmt->ncases; i++:
-            case_obj_enum = self->build_expression(&match_stmt->cases[i].case_obj)
-            case_obj_int = self->add_var(intType)
-            self->unary_op(match_stmt->cases[i].case_obj.location, CfInstructionKind.EnumToInt32, case_obj_enum, case_obj_int)
-
-            cond = self->build_binop(AstExpressionKind.Eq, match_stmt->cases[i].case_obj.location, match_obj_int, case_obj_int, boolType)
             then = self->add_block()
-            otherwise = self->add_block()
+            otherwise: CfBlock* = NULL
+            for k = 0; k < match_stmt->cases[i].n_case_objs; k++:
+                case_obj_ast = &match_stmt->cases[i].case_objs[k]
+                case_obj_enum = self->build_expression(case_obj_ast)
+                case_obj_int = self->add_var(intType)
+                self->unary_op(case_obj_ast->location, CfInstructionKind.EnumToInt32, case_obj_enum, case_obj_int)
+                cond = self->build_binop(AstExpressionKind.Eq, case_obj_ast->location, match_obj_int, case_obj_int, boolType)
 
-            self->jump(cond, then, otherwise, then)
+                otherwise = self->add_block()
+                self->jump(cond, then, otherwise, otherwise)
+
+            assert otherwise != NULL
+
+            self->current_block = then
             self->build_body(&match_stmt->cases[i].body)
             self->jump(NULL, done, done, otherwise)
 
