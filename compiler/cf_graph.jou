@@ -12,13 +12,15 @@ import "./types.jou"
 
 
 def very_short_number_type_description(t: Type*) -> byte*:
-    if t->kind == TypeKind.FloatingPoint:
-        return "floating"
-    if t->kind == TypeKind.SignedInteger:
-        return "signed"
-    if t->kind == TypeKind.UnsignedInteger:
-        return "unsigned"
-    assert False
+    match t->kind:
+        case TypeKind.FloatingPoint:
+            return "floating"
+        case TypeKind.SignedInteger:
+            return "signed"
+        case TypeKind.UnsignedInteger:
+            return "unsigned"
+        case _:
+            assert False
 
 
 class CfStringArray:

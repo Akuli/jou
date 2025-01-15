@@ -425,62 +425,64 @@ class CfBuilder:
         return result
 
     def build_address_of_expression(self, address_of_what: AstExpression*) -> LocalVariable*:
-        if address_of_what->kind == AstExpressionKind.GetVariable:
-            ptrtype = address_of_what->types.type->pointer_type()
-            addr = self->add_var(ptrtype)
+        match address_of_what->kind:
+            case AstExpressionKind.GetVariable:
+                ptrtype = address_of_what->types.type->pointer_type()
+                addr = self->add_var(ptrtype)
 
-            local_var = self->find_var(address_of_what->varname)
-            if local_var == NULL:
-                # Global variable (possibly imported from another file)
-                ins = CfInstruction {
-                    location = address_of_what->location,
-                    kind = CfInstructionKind.AddressOfGlobalVar,
-                    destvar = addr,
-                }
-                assert sizeof(ins.globalname) == sizeof(address_of_what->varname)
-                strcpy(ins.globalname, address_of_what->varname)
-                self->add_instruction(ins)
-            else:
+                local_var = self->find_var(address_of_what->varname)
+                if local_var == NULL:
+                    # Global variable (possibly imported from another file)
+                    ins = CfInstruction {
+                        location = address_of_what->location,
+                        kind = CfInstructionKind.AddressOfGlobalVar,
+                        destvar = addr,
+                    }
+                    assert sizeof(ins.globalname) == sizeof(address_of_what->varname)
+                    strcpy(ins.globalname, address_of_what->varname)
+                    self->add_instruction(ins)
+                else:
+                    self->unary_op(address_of_what->location, CfInstructionKind.AddressOfLocalVar, local_var, addr)
+                return addr
+
+            case AstExpressionKind.Self:
+                ptrtype = address_of_what->types.type->pointer_type()
+                addr = self->add_var(ptrtype)
+
+                local_var = self->find_var("self")
+                assert local_var != NULL
                 self->unary_op(address_of_what->location, CfInstructionKind.AddressOfLocalVar, local_var, addr)
-            return addr
+                return addr
 
-        if address_of_what->kind == AstExpressionKind.Self:
-            ptrtype = address_of_what->types.type->pointer_type()
-            addr = self->add_var(ptrtype)
+            case AstExpressionKind.Dereference:
+                # &*foo --> just evaluate foo
+                return self->build_expression(&address_of_what->operands[0])
 
-            local_var = self->find_var("self")
-            assert local_var != NULL
-            self->unary_op(address_of_what->location, CfInstructionKind.AddressOfLocalVar, local_var, addr)
-            return addr
+            case AstExpressionKind.GetClassField:
+                if address_of_what->class_field.uses_arrow_operator:
+                    # &obj->field aka &(obj->field)
+                    obj = self->build_expression(address_of_what->class_field.instance)
+                else:
+                    # &obj.field aka &(obj.field), evaluate as &(&obj)->field
+                    obj = self->build_address_of_expression(address_of_what->class_field.instance)
 
-        if address_of_what->kind == AstExpressionKind.Dereference:
-            # &*foo --> just evaluate foo
-            return self->build_expression(&address_of_what->operands[0])
+                assert obj->type->kind == TypeKind.Pointer
+                assert obj->type->value_type->kind == TypeKind.Class
+                return self->build_class_field_pointer(obj, address_of_what->class_field.field_name, address_of_what->location)
 
-        if address_of_what->kind == AstExpressionKind.GetClassField:
-            if address_of_what->class_field.uses_arrow_operator:
-                # &obj->field aka &(obj->field)
-                obj = self->build_expression(address_of_what->class_field.instance)
-            else:
-                # &obj.field aka &(obj.field), evaluate as &(&obj)->field
-                obj = self->build_address_of_expression(address_of_what->class_field.instance)
+            case AstExpressionKind.Indexing:
+                ptr = self->build_expression(&address_of_what->operands[0])
+                assert ptr->type->kind == TypeKind.Pointer
 
-            assert obj->type->kind == TypeKind.Pointer
-            assert obj->type->value_type->kind == TypeKind.Class
-            return self->build_class_field_pointer(obj, address_of_what->class_field.field_name, address_of_what->location)
+                index = self->build_expression(&address_of_what->operands[1])
+                assert index->type->is_integer_type()
 
-        if address_of_what->kind == AstExpressionKind.Indexing:
-            ptr = self->build_expression(&address_of_what->operands[0])
-            assert ptr->type->kind == TypeKind.Pointer
+                result = self->add_var(ptr->type)
+                self->binary_op(address_of_what->location, CfInstructionKind.PtrAddInt, ptr, index, result)
+                return result
 
-            index = self->build_expression(&address_of_what->operands[1])
-            assert index->type->is_integer_type()
-
-            result = self->add_var(ptr->type)
-            self->binary_op(address_of_what->location, CfInstructionKind.PtrAddInt, ptr, index, result)
-            return result
-
-        assert False
+            case _:
+                assert False
 
     def build_call(
         self,

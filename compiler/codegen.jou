@@ -84,32 +84,29 @@ def codegen_class_type(type: Type*) -> LLVMType*:
 
 
 def codegen_type(type: Type*) -> LLVMType*:
-    if type->kind == TypeKind.Array:
-        return LLVMArrayType(codegen_type(type->array.item_type), type->array.len)
-    if type->is_pointer_type():
-        # Element type doesn't matter in new LLVM versions.
-        return LLVMPointerType(LLVMInt8Type(), 0)
-    if type->kind == TypeKind.FloatingPoint:
-        if type->size_in_bits == 32:
-            return LLVMFloatType()
-        if type->size_in_bits == 64:
-            return LLVMDoubleType()
-        assert False
-    if (
-        type->kind == TypeKind.SignedInteger
-        or type->kind == TypeKind.UnsignedInteger
-    ):
-        return LLVMIntType(type->size_in_bits)
-    if type->kind == TypeKind.Bool:
-        return LLVMInt1Type()
-    if type->kind == TypeKind.OpaqueClass:
-        # this is compiler internal/temporary thing and should never end up here
-        assert False
-    if type->kind == TypeKind.Class:
-        return codegen_class_type(type)
-    if type->kind == TypeKind.Enum:
-        return LLVMInt32Type()
-    assert False
+    match type->kind:
+        case TypeKind.Array:
+            return LLVMArrayType(codegen_type(type->array.item_type), type->array.len)
+        case TypeKind.Pointer | TypeKind.VoidPointer:
+            # Element type doesn't matter in new LLVM versions.
+            return LLVMPointerType(LLVMInt8Type(), 0)
+        case TypeKind.FloatingPoint:
+            if type->size_in_bits == 32:
+                return LLVMFloatType()
+            if type->size_in_bits == 64:
+                return LLVMDoubleType()
+            assert False
+        case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+            return LLVMIntType(type->size_in_bits)
+        case TypeKind.Bool:
+            return LLVMInt1Type()
+        case TypeKind.OpaqueClass:
+            # this is compiler internal/temporary thing and should never end up here
+            assert False
+        case TypeKind.Class:
+            return codegen_class_type(type)
+        case TypeKind.Enum:
+            return LLVMInt32Type()
 
 
 def codegen_function_type(sig: Signature*) -> LLVMType*:
@@ -240,19 +237,19 @@ class CodeGen:
 
 
     def do_constant(self, c: Constant*) -> LLVMValue*:
-        if c->kind == ConstantKind.Bool:
-            return LLVMConstInt(LLVMInt1Type(), c->boolean as long, False as int)
-        if c->kind == ConstantKind.Integer:
-            return LLVMConstInt(codegen_type(c->get_type()), c->integer.value, c->integer.is_signed as int)
-        if c->kind == ConstantKind.Float or c->kind == ConstantKind.Double:
-            return LLVMConstRealOfString(codegen_type(c->get_type()), c->double_or_float_text)
-        if c->kind == ConstantKind.Null:
-            return LLVMConstNull(codegen_type(voidPtrType))
-        if c->kind == ConstantKind.String:
-            return self->do_string(c->str)
-        if c->kind == ConstantKind.EnumMember:
-            return LLVMConstInt(LLVMInt32Type(), c->enum_member.memberidx, False as int)
-        assert False
+        match c->kind:
+            case ConstantKind.Bool:
+                return LLVMConstInt(LLVMInt1Type(), c->boolean as long, False as int)
+            case ConstantKind.Integer:
+                return LLVMConstInt(codegen_type(c->get_type()), c->integer.value, c->integer.is_signed as int)
+            case ConstantKind.Float | ConstantKind.Double:
+                return LLVMConstRealOfString(codegen_type(c->get_type()), c->double_or_float_text)
+            case ConstantKind.Null:
+                return LLVMConstNull(codegen_type(voidPtrType))
+            case ConstantKind.String:
+                return self->do_string(c->str)
+            case ConstantKind.EnumMember:
+                return LLVMConstInt(LLVMInt32Type(), c->enum_member.memberidx, False as int)
 
     def do_arithmetic_instruction(self, ins: CfInstruction*) -> None:
         lhs = self->getlocal(ins->operands[0])
