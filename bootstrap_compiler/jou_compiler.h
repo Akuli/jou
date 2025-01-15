@@ -23,6 +23,8 @@ typedef struct AstConditionAndBody AstConditionAndBody;
 typedef struct AstExpression AstExpression;
 typedef struct AstAssignment AstAssignment;
 typedef struct AstForLoop AstForLoop;
+typedef struct AstCase AstCase;
+typedef struct AstMatchStatement AstMatchStatement;
 typedef struct AstNameTypeValue AstNameTypeValue;
 typedef struct AstIfStatement AstIfStatement;
 typedef struct AstStatement AstStatement;
@@ -264,6 +266,16 @@ struct AstForLoop {
     AstStatement *incr;
     AstBody body;
 };
+struct AstCase {
+    AstExpression case_obj;
+    AstBody body;
+};
+struct AstMatchStatement {
+    AstExpression match_obj;
+    AstCase *cases;
+    int ncases;
+    AstBody case_underscore;
+};
 struct AstIfStatement {
     AstConditionAndBody *if_and_elifs;
     int n_if_and_elifs;  // Always >= 1 for the initial "if"
@@ -327,6 +339,7 @@ struct AstStatement {
         AST_STMT_IF,
         AST_STMT_WHILE,
         AST_STMT_FOR,
+        AST_STMT_MATCH,
         AST_STMT_BREAK,
         AST_STMT_CONTINUE,
         AST_STMT_DECLARE_LOCAL_VAR,
@@ -350,6 +363,7 @@ struct AstStatement {
         AstConditionAndBody whileloop;
         AstIfStatement ifstatement;
         AstForLoop forloop;
+        AstMatchStatement match;
         AstNameTypeValue vardecl;
         AstAssignment assignment;  // also used for inplace operations
         AstFunction function;

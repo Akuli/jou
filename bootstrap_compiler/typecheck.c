@@ -1310,6 +1310,10 @@ static void typecheck_statement(FileTypes *ft, AstStatement *stmt)
         typecheck_statement(ft, stmt->data.forloop.incr);
         break;
 
+    case AST_STMT_MATCH:
+        assert(0);  // TODO
+        break;
+
     case AST_STMT_BREAK:
         break;
 

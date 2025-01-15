@@ -891,6 +891,10 @@ static void build_statement(struct State *st, const AstStatement *stmt)
             &stmt->data.forloop.body);
         break;
 
+    case AST_STMT_MATCH:
+        assert(0);  // TODO
+        break;
+
     case AST_STMT_BREAK:
         if (!st->breakstack.len)
             fail(stmt->location, "'break' can only be used inside a loop");

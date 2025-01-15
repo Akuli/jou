@@ -364,6 +364,10 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             printf("body:\n");
             print_ast_body(&stmt->data.forloop.body, sub);
             break;
+        case AST_STMT_MATCH:
+            printf("match (printing not implemented)\n");
+            // TODO: implement printing match statement, if needed for debugging
+            break;
         case AST_STMT_BREAK:
             printf("break\n");
             break;
