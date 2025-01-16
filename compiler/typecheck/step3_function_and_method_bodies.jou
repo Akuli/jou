@@ -378,7 +378,7 @@ def check_binop(
     got_bools = lhs->types.type == boolType and rhs->types.type == boolType
     got_integers = lhs->types.type->is_integer_type() and rhs->types.type->is_integer_type()
     got_numbers = lhs->types.type->is_number_type() and rhs->types.type->is_number_type()
-    got_enums = lhs->types.type->kind == TypeKind.Enum and rhs->types.type->kind == TypeKind.Enum
+    got_enums = lhs->types.type->kind == TypeKind.Enum and lhs->types.type == rhs->types.type
     got_pointers = (
         lhs->types.type->is_pointer_type()
         and rhs->types.type->is_pointer_type()
