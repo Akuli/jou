@@ -34,16 +34,24 @@ Practically, here's what you need to know:
     (or if there is, please [create an issue](https://github.com/Akuli/jou/issues/new)).
 
 
+## Public
+
+If you want a function to be importable, mark it with `@public`.
+Functions not marked with `@public` are "private within file":
+they can only be used within the file that defines the function.
+
+Currently this only applies to functions, including `declare`,
+but extending it to other things is planned.
+See [issue #84](https://github.com/Akuli/jou/issues/84).
+
+
 ## Conflicting Names
 
-TODO: This will need to be updated once [#84](https://github.com/Akuli/jou/issues/84) is implemented.
-
 **You cannot have multiple public things with the same name, even if they are in different Jou files.**
-
-This means that if `bar.jou` defines a function `foo()`
-and `baz.jou` also defines a function `foo()`,
+This means that if `bar.jou` defines a function `foo()` with `@public`,
+and `baz.jou` also defines a function `foo()` with `@public`,
 then you cannot use `bar.jou` and `baz.jou` in the same project.
-To work around this, rename the functions.
+To work around this, rename the functions or don't use `@public`.
 
 The same applies to basically anything public (that is, accessible from other files).
 However, it's fine to have multiple methods with the same name in different classes

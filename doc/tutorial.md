@@ -112,10 +112,13 @@ If you look at [stdlib/io.jou](../stdlib/io.jou),
 there is only one line of code related to `printf()`:
 
 ```python
+@public
 declare printf(pattern: byte*, ...) -> int  # Example: printf("%s %d\n", "hi", 123)
 ```
 
-How in the world can this one line of code define a function that does so many different things?
+Here the `@public` decorator means that it is possible to import `printf` into another file.
+The other line is more interesting:
+how in the world can one line of code define a function that does so many different things?
 
 This doesn't actually define the `printf()` function, it only **declares** it.
 This line of code tells the Jou compiler
