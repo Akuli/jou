@@ -17,6 +17,7 @@ enum TokenKind:
     String
     Name
     Keyword
+    Decorator
     Newline
     Indent
     Dedent
@@ -57,6 +58,8 @@ class Token:
                 printf("end of file\n")
             case TokenKind.Operator:
                 printf("operator '%s'\n", self->short_string)
+            case TokenKind.Decorator:
+                printf("decorator %s\n", self->short_string)
             case TokenKind.Name:
                 printf("name \"%s\"\n", self->short_string)
             case TokenKind.Keyword:
@@ -117,6 +120,8 @@ class Token:
                 got = "a byte literal"
             case TokenKind.String:
                 got = "a string"
+            case TokenKind.Decorator:
+                got = "a decorator"
             case TokenKind.Name:
                 snprintf(got, sizeof got, "a variable name '%s'", self->short_string)
             case TokenKind.Keyword:

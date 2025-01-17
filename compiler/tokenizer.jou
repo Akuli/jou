@@ -203,7 +203,7 @@ class Tokenizer:
         memset(&dest, 0, sizeof dest)
         destlen = 0
 
-        assert is_identifier_or_number_byte(first_byte)
+        assert is_identifier_or_number_byte(first_byte) or first_byte == '@'
         dest[destlen++] = first_byte
         is_number = '0' <= first_byte and first_byte <= '9'
 
@@ -468,6 +468,9 @@ class Tokenizer:
             elif b == '\'':
                 token.kind = TokenKind.Byte
                 token.byte_value = self->read_byte_literal()
+            elif b == '@':
+                token.kind = TokenKind.Decorator
+                token.short_string = self->read_identifier_or_number(b)
             elif is_identifier_or_number_byte(b):
                 token.short_string = self->read_identifier_or_number(b)
                 if is_keyword(token.short_string):
