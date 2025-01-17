@@ -153,6 +153,7 @@ wrong_usage:
 
 struct FileState {
     char *path;
+    bool is_main_file;
     AstFile ast;
     FileTypes types;
     LLVMModuleRef module;
@@ -200,12 +201,12 @@ static bool defines_main(const AstFile *ast)
     return false;
 }
 
-static void parse_file(struct CompileState *compst, const char *filename, const Location *import_location)
+static void parse_file(struct CompileState *compst, const char *filename, const Location *import_location, bool is_main_file)
 {
     if (find_file(compst, filename))
         return;  // already parsed this file
 
-    struct FileState fs = { .path = strdup(filename) };
+    struct FileState fs = { .path = strdup(filename), .is_main_file = is_main_file };
 
     if(command_line_args.verbosity >= 1)
         printf("Tokenizing %s\n", filename);
@@ -252,7 +253,7 @@ static void parse_all_pending_files(struct CompileState *compst)
 {
     while (compst->parse_queue.len > 0) {
         struct ParseQueueItem it = Pop(&compst->parse_queue);
-        parse_file(compst, it.filename, &it.import_location);
+        parse_file(compst, it.filename, &it.import_location, false);
     }
     free(compst->parse_queue.ptr);
 }
@@ -273,7 +274,7 @@ static char *compile_ast_to_object_file(struct FileState *fs)
     if (command_line_args.verbosity >= 1)
         printf("Building LLVM IR: %s\n", fs->path);
 
-    LLVMModuleRef mod = codegen(&cfgfile, &fs->types);
+    LLVMModuleRef mod = codegen(&cfgfile, &fs->types, fs->is_main_file);
     free_control_flow_graphs(&cfgfile);
 
     if (command_line_args.verbosity >= 2)
@@ -433,7 +434,7 @@ static void include_special_stdlib_file(struct CompileState *compst, const char 
 {
     char *path = malloc(strlen(compst->stdlib_path) + strlen(filename) + 123);
     sprintf(path, "%s/%s", compst->stdlib_path, filename);
-    parse_file(compst, path, NULL);
+    parse_file(compst, path, NULL, false);
     free(path);
 }
 
@@ -475,7 +476,7 @@ int main(int argc, char **argv)
     include_special_stdlib_file(&compst, "_jou_startup.jou");
 #endif
 
-    parse_file(&compst, command_line_args.infile, NULL);
+    parse_file(&compst, command_line_args.infile, NULL, true);
     parse_all_pending_files(&compst);
 
     if (command_line_args.verbosity >= 1)

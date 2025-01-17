@@ -603,6 +603,7 @@ struct CfBlock {
 
 struct CfGraph {
     Signature signature;
+    bool public;
     CfBlock start_block;  // First block
     CfBlock end_block;  // Always empty. Return statement jumps here.
     List(CfBlock *) all_blocks;
@@ -645,7 +646,7 @@ Token *tokenize(FILE *f, const char *filename);
 AstFile parse(const Token *tokens, const char *stdlib_path);
 // Type checking happens between parsing and building CFGs.
 CfGraphFile build_control_flow_graphs(const AstFile *ast, FileTypes *ft);
-LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft);
+LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft, bool is_main_file);
 char *compile_to_object_file(LLVMModuleRef module);
 char *get_default_exe_path(void);
 void run_linker(const char *const *objpaths, const char *exepath);
