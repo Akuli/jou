@@ -195,10 +195,11 @@ def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbo
                 exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, True)
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 sig = handle_signature(ft, &stmt->function.signature, NULL)
-                es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig}
-                assert sizeof(es.name) == sizeof(sig.name)
-                strcpy(es.name, sig.name)
-                exports[nexports++] = es
+                if stmt->function.public:
+                    es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig}
+                    assert sizeof(es.name) == sizeof(sig.name)
+                    strcpy(es.name, sig.name)
+                    exports[nexports++] = es
             case AstStatementKind.Class:
                 handle_class_members(ft, &stmt->classdef)
             case AstStatementKind.Enum:
