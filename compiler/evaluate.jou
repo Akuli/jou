@@ -29,6 +29,7 @@ def evaluate_condition(expr: AstExpression*) -> bool:
                 return False
             if v == 1:
                 return True
+            fail(expr->location, "cannot evaluate condition at compile time")
         case AstExpressionKind.And:
             return evaluate_condition(&expr->operands[0]) and evaluate_condition(&expr->operands[1])
         case AstExpressionKind.Or:
