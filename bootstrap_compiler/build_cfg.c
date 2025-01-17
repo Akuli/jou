@@ -1009,7 +1009,8 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         build_expression(st, &stmt->data.expression);
         break;
 
-    case AST_STMT_FUNCTION:
+    case AST_STMT_FUNCTION_DECLARE:
+    case AST_STMT_FUNCTION_DEF:
     case AST_STMT_DECLARE_GLOBAL_VAR:
     case AST_STMT_DEFINE_GLOBAL_VAR:
     case AST_STMT_DEFINE_CLASS:
@@ -1068,7 +1069,7 @@ CfGraphFile build_control_flow_graphs(const AstFile *ast, FileTypes *filetypes)
 
     for (int i = 0; i < ast->body.nstatements; i++) {
         const AstStatement *stmt = &ast->body.statements[i];
-        if(stmt->kind == AST_STMT_FUNCTION && stmt->data.function.body.nstatements > 0) {
+        if(stmt->kind == AST_STMT_FUNCTION_DEF) {
             CfGraph *g = build_function_or_method(&st, NULL, stmt->data.function.signature.name, &stmt->data.function.body);
             Append(&result.graphs, g);
         }

@@ -198,7 +198,8 @@ void free_ast_statement(const AstStatement *stmt)
     case AST_STMT_CONTINUE:
     case AST_STMT_PASS:
         break;
-    case AST_STMT_FUNCTION:
+    case AST_STMT_FUNCTION_DECLARE:
+    case AST_STMT_FUNCTION_DEF:
         free_ast_signature(&stmt->data.function.signature);
         free_ast_body(&stmt->data.function.body);
         break;

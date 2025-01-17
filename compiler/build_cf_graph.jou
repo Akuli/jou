@@ -1108,12 +1108,11 @@ def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFi
         stmt = &ast->body.statements[i]
 
         match stmt->kind:
-            case AstStatementKind.Function:
-                if stmt->function.body.nstatements > 0:
-                    g = builder.build_function_or_method(NULL, stmt->function.signature.name, &stmt->function.body)
-                    result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
-                    assert result.graphs != NULL
-                    result.graphs[result.ngraphs++] = g
+            case AstStatementKind.FunctionDef:
+                g = builder.build_function_or_method(NULL, stmt->function.signature.name, &stmt->function.body)
+                result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
+                assert result.graphs != NULL
+                result.graphs[result.ngraphs++] = g
 
             case AstStatementKind.Class:
                 class_type: Type* = NULL

@@ -959,7 +959,7 @@ class Parser:
         if self->tokens->is_keyword("def"):
             return AstStatement{
                 location = self->tokens->location,
-                kind = AstStatementKind.Function,
+                kind = AstStatementKind.FunctionDef,
                 function = self->parse_function_or_method(False),
             }
 
@@ -969,7 +969,7 @@ class Parser:
                 self->tokens++
                 result = AstStatement{
                     location = location,
-                    kind = AstStatementKind.GlobalVariableDeclaration,
+                    kind = AstStatementKind.GlobalVariableDeclare,
                     var_declaration = self->parse_name_type_value("a variable name"),
                 }
                 if result.var_declaration.value != NULL:
@@ -980,7 +980,7 @@ class Parser:
             else:
                 result = AstStatement{
                     location = location,
-                    kind = AstStatementKind.Function,
+                    kind = AstStatementKind.FunctionDeclare,
                     function = AstFunctionOrMethod{signature = self->parse_function_or_method_signature(False)},
                 }
             self->eat_newline()
@@ -989,7 +989,7 @@ class Parser:
         if self->tokens->is_keyword("global"):
             result = AstStatement{
                 location = (self->tokens++)->location,
-                kind = AstStatementKind.GlobalVariableDefinition,
+                kind = AstStatementKind.GlobalVariableDef,
                 var_declaration = self->parse_name_type_value("a variable name"),
             }
             if result.var_declaration.value != NULL:

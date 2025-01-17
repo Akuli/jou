@@ -351,7 +351,8 @@ struct AstStatement {
         AST_STMT_INPLACE_DIV,
         AST_STMT_INPLACE_MOD,
         AST_STMT_EXPRESSION_STATEMENT,  // Evaluate an expression and discard the result.
-        AST_STMT_FUNCTION,
+        AST_STMT_FUNCTION_DECLARE,
+        AST_STMT_FUNCTION_DEF,
         AST_STMT_DECLARE_GLOBAL_VAR,
         AST_STMT_DEFINE_GLOBAL_VAR,
         AST_STMT_DEFINE_CLASS,

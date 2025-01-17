@@ -194,7 +194,7 @@ static bool defines_main(const AstFile *ast)
 {
     for (int i = 0; i < ast->body.nstatements; i++) {
         const AstStatement *s = &ast->body.statements[i];
-        if (s->kind == AST_STMT_FUNCTION && !strcmp(s->data.function.signature.name, "main"))
+        if (s->kind == AST_STMT_FUNCTION_DEF && !strcmp(s->data.function.signature.name, "main"))
             return true;
     }
     return false;
@@ -326,7 +326,8 @@ static char *find_stdlib()
 static bool statement_conflicts_with_an_import(const AstStatement *stmt, const ExportSymbol *import)
 {
     switch(stmt->kind) {
-    case AST_STMT_FUNCTION:
+    case AST_STMT_FUNCTION_DECLARE:
+    case AST_STMT_FUNCTION_DEF:
         return import->kind == EXPSYM_FUNCTION && !strcmp(import->name, stmt->data.function.signature.name);
     case AST_STMT_DECLARE_GLOBAL_VAR:
     case AST_STMT_DEFINE_GLOBAL_VAR:
