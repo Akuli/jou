@@ -206,7 +206,9 @@ class CfInstruction:
             case CfInstructionKind.Call:
                 self->signature.free()
             case _:
-                free(self->operands)
+                pass
+
+        free(self->operands)
 
     def add_operand(self, operand: LocalVariable*) -> None:
         self->operands = realloc(self->operands, sizeof(self->operands[0]) * (self->noperands + 1))
