@@ -2,9 +2,13 @@
 
 # Heap allocations
 # TODO: write a tutorial about using these and add a link
+@public
 declare malloc(size: long) -> void*  # allocate memory
+@public
 declare calloc(a: long, b: long) -> void*  # allocate a*b bytes of memory and zero it
+@public
 declare realloc(ptr: void*, new_size: long) -> void*  # grow/shrink allocated memory
+@public
 declare free(ptr: void*) -> None  # release allocated memory so it can be reused
 
 # This function fills a memory region with the given byte.
@@ -12,6 +16,7 @@ declare free(ptr: void*) -> None  # release allocated memory so it can be reused
 #
 #   memset(&foo, 0, sizeof(foo))
 #
+@public
 declare memset(dest: void*, fill_byte: int, size: long) -> void*
 
 # These functions copy memory from one place to another. Source and destination
@@ -22,12 +27,15 @@ declare memset(dest: void*, fill_byte: int, size: long) -> void*
 # and destination will never overlap, use memcpy(), because
 #   - it is a hint to people reading the code that there will be no overlap
 #   - it may be slightly faster.
+@public
 declare memcpy(dest: void*, source: void*, size: long) -> void*  # copy memory, overlaps are UB
+@public
 declare memmove(dest: void*, source: void*, size: long) -> void*  # copy memory, overlaps are ok
 
 # Swaps the contents of two memory regions of the same size.
 # This does nothing if the same memory region is passed twice.
 # This probably doesn't do what you want if the memory regions overlap in some other way.
+@public
 def memswap(a: void*, b: void*, size: long) -> None:
     a_bytes: byte* = a
     b_bytes: byte* = b

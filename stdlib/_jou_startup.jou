@@ -24,6 +24,7 @@ if WINDOWS or MACOS or NETBSD:
 if WINDOWS:
     declare __acrt_iob_func(index: int) -> void*
 
+    @public
     def _jou_startup() -> None:
         stdin = __acrt_iob_func(0)
         stdout = __acrt_iob_func(1)
@@ -34,6 +35,7 @@ if MACOS:
     declare global __stdoutp: void*
     declare global __stderrp: void*
 
+    @public
     def _jou_startup() -> None:
         stdin = __stdinp
         stdout = __stdoutp
@@ -42,6 +44,7 @@ if MACOS:
 if NETBSD:
     declare global __sF: byte[152][3] # sizeof(FILE) == 152
 
+    @public
     def _jou_startup() -> None:
         stdin = &__sF[0]
         stdout = &__sF[1]

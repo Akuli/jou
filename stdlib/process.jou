@@ -4,13 +4,17 @@
 # processes as subprocesses of the current process.
 
 # Run a command in a new subprocess. Return value 0 means it succeeded.
+@public
 declare system(command: byte*) -> int
 
 # Exit the current process.
+@public
 declare exit(status: int) -> noreturn  # Clean exit. Status 0 is success, other status (usually 1) means fail.
+@public
 declare abort() -> noreturn  # Hard exit. Similar to a crash.
 
 # Each process has a list of environment variables, and each child
 # process inherits its parent's variables. These functions access
 # the environment variables of the current process.
+@public
 declare getenv(varname: byte*) -> byte*  # Returns NULL if not found.
