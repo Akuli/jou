@@ -78,7 +78,7 @@ static void read_identifier_or_number(struct State *st, char firstbyte, char (*d
     memset(*dest, 0, sizeof *dest);
     int destlen = 0;
 
-    assert(is_identifier_or_number_byte(firstbyte));
+    assert(is_identifier_or_number_byte(firstbyte) || firstbyte == '@');
     (*dest)[destlen++] = firstbyte;
     bool is_number = '0'<=firstbyte && firstbyte<='9';
 
@@ -443,6 +443,10 @@ static Token read_token(struct State *st)
         case '"': t.type = TOKEN_STRING; t.data.string_value = read_string(st, '"', NULL); break;
         case '\t':
             fail(st->location, "Jou files cannot contain tab characters (use 4 spaces for indentation)");
+        case '@':
+            t.type = TOKEN_DECORATOR;
+            read_identifier_or_number(st, '@', &t.data.name);
+            break;
         default:
             if(is_identifier_or_number_byte(c)) {
                 read_identifier_or_number(st, c, &t.data.name);

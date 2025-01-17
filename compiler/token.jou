@@ -142,6 +142,28 @@ class Token:
         fail(self->location, message)
 
 
+@public
+def print_tokens(tokens: Token*) -> None:
+    printf("===== Tokens for file \"%s\" =====\n", tokens->location.path)
+    t = tokens
+    current_lineno = -1
+
+    while True:
+        if t->location.lineno != current_lineno:
+            current_lineno = t->location.lineno
+            printf("\nLine %d:\n", current_lineno)
+
+        printf("  ")
+        t->print()
+
+        if t->kind == TokenKind.EndOfFile:
+            break
+        t++
+
+    printf("\n")
+
+
+@public
 def free_tokens(tokenlist: Token*) -> None:
     for t = tokenlist; t->kind != TokenKind.EndOfFile; t++:
         if t->kind == TokenKind.String:

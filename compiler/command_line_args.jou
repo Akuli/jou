@@ -39,6 +39,7 @@ def print_help(argv0: byte*) -> None:
     printf("  --linker-flags   appended to the linker command, so you can use external libraries\n")
 
 
+@public
 def parse_command_line_args(argc: int, argv: byte**) -> None:
     memset(&command_line_args, 0, sizeof command_line_args)
     command_line_args.argv0 = argv[0]

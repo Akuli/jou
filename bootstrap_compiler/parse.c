@@ -34,6 +34,7 @@ static noreturn void fail_with_parse_error(const Token *token, const char *what_
         case TOKEN_INDENT: strcpy(got, "more indentation"); break;
         case TOKEN_DEDENT: strcpy(got, "less indentation"); break;
         case TOKEN_KEYWORD: snprintf(got, sizeof got, "the '%s' keyword", token->data.name); break;
+        case TOKEN_DECORATOR: strcpy(got, "a decorator"); break;
     }
     fail(token->location, "expected %s, got %s", what_was_expected_instead, got);
 }
@@ -1039,8 +1040,30 @@ static AstNameTypeValue parse_first_of_multiple_local_var_declares(ParserState *
     return ntv;
 }
 
+static void decorate(AstStatement *stmt, const char *decorator, Location location)
+{
+    if (strcmp(decorator, "@public") != 0)
+        fail(location, "bad decorator");
+
+    switch(stmt->kind) {
+        case AST_STMT_FUNCTION_DECLARE:
+        case AST_STMT_FUNCTION_DEF:
+            stmt->data.function.public = true;
+            break;
+        default:
+            fail(location, "cannot use @public here");
+    }
+}
+
 static AstStatement parse_statement(ParserState *ps)
 {
+    const Token *decors_start = ps->tokens;
+    while (ps->tokens->type == TOKEN_DECORATOR) {
+        ps->tokens++;
+        eat_newline(ps);
+    }
+    const Token *decors_end = ps->tokens;
+
     AstStatement result = { .location = ps->tokens->location };
 
     if (is_keyword(ps->tokens, "import")) {
@@ -1132,6 +1155,12 @@ static AstStatement parse_statement(ParserState *ps)
         result = parse_oneline_statement(ps);
         eat_newline(ps);
     }
+
+    for (const Token *t = decors_start; t < decors_end; t++) {
+        if (t->type == TOKEN_DECORATOR)
+            decorate(&result, t->data.name, t->location);
+    }
+
     return result;
 }
 

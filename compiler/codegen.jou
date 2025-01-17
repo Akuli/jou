@@ -469,6 +469,7 @@ class CodeGen:
         free(self->llvm_locals)
 
 
+@public
 def codegen(cfgfile: CfGraphFile*, ft: FileTypes*) -> LLVMModule*:
     gen = CodeGen{
         module = LLVMModuleCreateWithName(cfgfile->filename),

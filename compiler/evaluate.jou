@@ -5,12 +5,14 @@ import "./ast.jou"
 import "./errors_and_warnings.jou"
 
 
+@public
 def evaluate_array_length(expr: AstExpression*) -> int:
     if expr->kind == AstExpressionKind.Int:
         return expr->int_value
     fail(expr->location, "cannot evaluate array length at compile time")
 
 
+@public
 def get_special_constant(name: byte*) -> int:
     if strcmp(name, "WINDOWS") == 0:
         return WINDOWS as int
@@ -41,6 +43,7 @@ def evaluate_condition(expr: AstExpression*) -> bool:
 
 
 # returns the statements to replace if statement with
+@public
 def evaluate_compile_time_if_statement(if_stmt: AstIfStatement*) -> AstBody:
     result = &if_stmt->else_body
     for i = 0; i < if_stmt->n_if_and_elifs; i++:
@@ -68,6 +71,7 @@ def replace(body: AstBody*, i: int, new: AstBody) -> None:
 
 
 # This handles nested if statements.
+@public
 def evaluate_compile_time_if_statements(body: AstBody*) -> None:
     i = 0
     while i < body->nstatements:

@@ -89,6 +89,9 @@ void print_token(const Token *token)
     case TOKEN_KEYWORD:
         printf("keyword \"%s\"\n", token->data.name);
         break;
+    case TOKEN_DECORATOR:
+        printf("decorator '%s'\n", token->data.name);
+        break;
     case TOKEN_NEWLINE:
         printf("newline token (next line has %d spaces of indentation)\n", token->data.indentation_level);
         break;

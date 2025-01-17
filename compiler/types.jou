@@ -161,6 +161,7 @@ global doubleType: Type*    # double (64-bit)
 global voidPtrType: Type*   # void*
 
 
+@public
 def init_types() -> None:
     memset(&global_type_state, 0, sizeof(global_type_state))
 
@@ -196,6 +197,7 @@ def init_types() -> None:
 
 # Usually you don't need to free a type. This is in a function to make you
 # think twice about it.
+@public
 def free_type(t: Type*) -> None:
     assert t != NULL
     if t->kind == TypeKind.Class:
@@ -211,6 +213,7 @@ def free_type(t: Type*) -> None:
     free(t)
 
 
+@public
 def free_global_type_state() -> None:
     global_type_state.boolean.free_pointer_and_array_types()
     global_type_state.floater.free_pointer_and_array_types()
@@ -221,11 +224,13 @@ def free_global_type_state() -> None:
             global_type_state.integers[size][is_signed].free_pointer_and_array_types()
 
 
+@public
 def get_integer_type(size_in_bits: int, is_signed: bool) -> Type*:
     assert size_in_bits==8 or size_in_bits==16 or size_in_bits==32 or size_in_bits==64
     return &global_type_state.integers[size_in_bits][is_signed as int].type
 
 
+@public
 def create_opaque_class(name: byte*) -> Type*:
     result: TypeInfo* = calloc(1, sizeof *result)
     result->type = Type{kind = TypeKind.OpaqueClass}
@@ -235,6 +240,7 @@ def create_opaque_class(name: byte*) -> Type*:
 
     return &result->type
 
+@public
 def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*:
     result: TypeInfo* = calloc(1, sizeof *result)
     result->type = Type{

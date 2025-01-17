@@ -5,6 +5,9 @@ import "stdlib/errno.jou"
 import "./errors_and_warnings.jou"
 import "./token.jou"
 
+# TODO: move to stdlib?
+declare isprint(b: int) -> int
+
 def is_identifier_or_number_byte(b: byte) -> bool:
     return (
         ('A' <= b and b <= 'Z')
@@ -590,6 +593,7 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
     return tokens
 
 
+@public
 def tokenize(path: byte*, import_location: Location*) -> Token*:
     file = fopen(path, "rb")
     if file == NULL:
@@ -608,22 +612,3 @@ def tokenize(path: byte*, import_location: Location*) -> Token*:
     better_tokens = handle_indentations(raw_tokens)
     free(raw_tokens)
     return better_tokens
-
-def print_tokens(tokens: Token*) -> None:
-    printf("===== Tokens for file \"%s\" =====\n", tokens->location.path)
-    t = tokens
-    current_lineno = -1
-
-    while True:
-        if t->location.lineno != current_lineno:
-            current_lineno = t->location.lineno
-            printf("\nLine %d:\n", current_lineno)
-
-        printf("  ")
-        t->print()
-
-        if t->kind == TokenKind.EndOfFile:
-            break
-        t++
-
-    printf("\n")

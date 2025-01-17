@@ -1100,6 +1100,7 @@ class CfBuilder:
 
 # TODO: passing a type context here doesn't really make sense.
 # It would be better to pass only the public symbols that have been imported.
+@public
 def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFile:
     result = CfGraphFile{filename = ast->path}
     builder = CfBuilder{filetypes = filetypes}

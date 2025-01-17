@@ -85,6 +85,7 @@ struct Token {
         TOKEN_STRING,
         TOKEN_NAME,
         TOKEN_KEYWORD,
+        TOKEN_DECORATOR,
         TOKEN_NEWLINE,
         TOKEN_INDENT,
         TOKEN_DEDENT,
@@ -99,7 +100,7 @@ struct Token {
         char char_value;  // TOKEN_CHAR
         char *string_value;  // TOKEN_STRING
         int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
-        char name[100];  // TOKEN_NAME and TOKEN_KEYWORD. Also TOKEN_DOUBLE & TOKEN_FLOAT (LLVM wants a string anyway)
+        char name[100];  // TOKEN_NAME, TOKEN_KEYWORD, TOKEN_DOUBLE, TOKEN_FLOAT, TOKEN_DECORATOR
         char operator[4];  // TOKEN_OPERATOR
     } data;
 };
@@ -300,6 +301,7 @@ struct AstAssert {
 };
 
 struct AstFunction {
+    bool public;  // is it decorated with @public
     AstSignature signature;
     AstBody body;  // empty body means declaration, otherwise it's definition
 };

@@ -1213,6 +1213,7 @@ class Parser:
         self->tokens++
         return result
 
+@public
 def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
     parser = Parser{tokens = tokens, stdlib_path = stdlib_path}
     result = AstFile{path = tokens[0].location.path}
