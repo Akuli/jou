@@ -194,6 +194,8 @@ def read_assertion_from_file(start: Location, end: Location) -> byte*:
 
 
 def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
+    assert decor[0] == '@'
+
     if strcmp(decor, "@public") == 0:
         match stmt->kind:
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
@@ -1069,8 +1071,8 @@ class Parser:
             self->eat_newline()
 
         for t = decors_start; t < decors_end; t++:
-            assert t->kind == TokenKind.Decorator
-            decorate(&result, t->short_string, t->location)
+            if t->kind == TokenKind.Decorator:
+                decorate(&result, t->short_string, t->location)
 
         return result
 
