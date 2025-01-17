@@ -40,6 +40,17 @@ If you want a function to be importable, mark it with `@public`.
 Functions not marked with `@public` are "private within file":
 they can only be used within the file that defines the function.
 
+For example:
+
+```python
+def only_for_this_file() -> None:
+    ...
+
+@public
+def visible_in_files_that_import_this_file() -> None:
+    ...
+```
+
 Currently this only applies to functions, including `declare`,
 but extending it to other things is planned.
 See [issue #84](https://github.com/Akuli/jou/issues/84).
