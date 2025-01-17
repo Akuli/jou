@@ -498,11 +498,12 @@ enum AstStatementKind:
     InPlaceMul      # x *= y
     InPlaceDiv      # x /= y
     InPlaceMod      # x %= y
-    Function
+    FunctionDeclare
+    FunctionDef
     Class
     Enum
-    GlobalVariableDeclaration
-    GlobalVariableDefinition
+    GlobalVariableDeclare
+    GlobalVariableDef
 
 class AstStatement:
     location: Location
@@ -574,22 +575,21 @@ class AstStatement:
             case AstStatementKind.InPlaceMod:
                 printf("in-place mod\n")
                 self->assignment.print_with_tree_printer(tp)
-            case AstStatementKind.Function:
-                # TODO: this sucks, see #514
-                if self->function.body.nstatements == 0:
-                    printf("declare a function: ")
-                else:
-                    printf("define a function: ")
+            case AstStatementKind.FunctionDeclare:
+                printf("declare a function: ")
+                self->function.print_with_tree_printer(tp)
+            case AstStatementKind.FunctionDef:
+                printf("define a function: ")
                 self->function.print_with_tree_printer(tp)
             case AstStatementKind.Class:
                 self->classdef.print_with_tree_printer(tp)
             case AstStatementKind.Enum:
                 self->enumdef.print_with_tree_printer(tp)
-            case AstStatementKind.GlobalVariableDeclaration:
+            case AstStatementKind.GlobalVariableDeclare:
                 printf("declare global var ")
                 self->var_declaration.print_with_tree_printer(NULL)
                 printf("\n")
-            case AstStatementKind.GlobalVariableDefinition:
+            case AstStatementKind.GlobalVariableDef:
                 printf("define global var ")
                 self->var_declaration.print_with_tree_printer(NULL)
                 printf("\n")
@@ -614,8 +614,8 @@ class AstStatement:
                 self->match_statement.free()
             case (
                 AstStatementKind.DeclareLocalVar
-                | AstStatementKind.GlobalVariableDeclaration
-                | AstStatementKind.GlobalVariableDefinition
+                | AstStatementKind.GlobalVariableDeclare
+                | AstStatementKind.GlobalVariableDef
             ):
                 self->var_declaration.free()
             case (
@@ -627,7 +627,7 @@ class AstStatement:
                 | AstStatementKind.InPlaceMod
             ):
                 self->assignment.free()
-            case AstStatementKind.Function:
+            case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 self->function.free()
             case AstStatementKind.Class:
                 self->classdef.free()

@@ -41,19 +41,19 @@ def open_the_file(path: byte*, import_location: Location*) -> FILE*:
 def defines_main(ast: AstFile*) -> bool:
     for i = 0; i < ast->body.nstatements; i++:
         s = &ast->body.statements[i]
-        if s->kind == AstStatementKind.Function and strcmp(s->function.signature.name, "main") == 0:
+        if s->kind == AstStatementKind.FunctionDef and strcmp(s->function.signature.name, "main") == 0:
             return True
     return False
 
 
 def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSymbol*) -> bool:
     match stmt->kind:
-        case AstStatementKind.Function:
+        case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
             return (
                 importsym->kind == ExportSymbolKind.Function
                 and strcmp(importsym->name, stmt->function.signature.name) == 0
             )
-        case AstStatementKind.GlobalVariableDeclaration | AstStatementKind.GlobalVariableDefinition:
+        case AstStatementKind.GlobalVariableDeclare | AstStatementKind.GlobalVariableDef:
             return (
                 importsym->kind == ExportSymbolKind.GlobalVar
                 and strcmp(importsym->name, stmt->var_declaration.name) == 0

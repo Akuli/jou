@@ -1047,7 +1047,7 @@ static AstStatement parse_statement(ParserState *ps)
         fail(ps->tokens->location, "imports must be in the beginning of the file");
     } else if (is_keyword(ps->tokens, "def")) {
         ps->tokens++;  // skip 'def' keyword
-        result.kind = AST_STMT_FUNCTION;
+        result.kind = AST_STMT_FUNCTION_DEF;
         result.data.function.signature = parse_function_signature(ps, false);
         if (result.data.function.signature.takes_varargs) {
             // TODO: support "def foo(x: str, ...)" in some way
@@ -1066,7 +1066,7 @@ static AstStatement parse_statement(ParserState *ps)
                     "a value cannot be given when declaring a global variable");
             }
         } else {
-            result.kind = AST_STMT_FUNCTION;
+            result.kind = AST_STMT_FUNCTION_DECLARE;
             result.data.function.signature = parse_function_signature(ps, false);
         }
         eat_newline(ps);

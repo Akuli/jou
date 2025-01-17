@@ -1276,11 +1276,12 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             typecheck_expression_with_implicit_cast(ft, &stmt->expression, boolType, "assertion must be a boolean, not <from>")
 
         case (
-            AstStatementKind.Function
+            AstStatementKind.FunctionDeclare
+            | AstStatementKind.FunctionDef
             | AstStatementKind.Class
             | AstStatementKind.Enum
-            | AstStatementKind.GlobalVariableDeclaration
-            | AstStatementKind.GlobalVariableDefinition
+            | AstStatementKind.GlobalVariableDeclare
+            | AstStatementKind.GlobalVariableDef
         ):
             # TODO: what happens if you try to create these? are error messages good?
             assert False
@@ -1311,11 +1312,10 @@ def typecheck_step3_function_and_method_bodies(ft: FileTypes*, ast: AstFile*) ->
     for i = 0; i < ast->body.nstatements; i++:
         stmt = &ast->body.statements[i]
         match stmt->kind:
-            case AstStatementKind.Function:
-                if stmt->function.body.nstatements > 0:
-                    sig = ft->find_function(stmt->function.signature.name)
-                    assert sig != NULL
-                    typecheck_function_or_method_body(ft, sig, &stmt->function.body)
+            case AstStatementKind.FunctionDef:
+                sig = ft->find_function(stmt->function.signature.name)
+                assert sig != NULL
+                typecheck_function_or_method_body(ft, sig, &stmt->function.body)
             case AstStatementKind.Class:
                 classtype: Type* = NULL
                 for t = ft->owned_types; t < &ft->owned_types[ft->n_owned_types]; t++:

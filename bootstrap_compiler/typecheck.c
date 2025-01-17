@@ -350,7 +350,8 @@ ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstFile *ast)
         case AST_STMT_DEFINE_GLOBAL_VAR:
             Append(&exports, handle_global_var(ft, &stmt->data.vardecl, true));
             break;
-        case AST_STMT_FUNCTION:
+        case AST_STMT_FUNCTION_DECLARE:
+        case AST_STMT_FUNCTION_DEF:
             {
                 Signature sig = handle_signature(ft, &stmt->data.function.signature, NULL);
                 ExportSymbol es = { .kind = EXPSYM_FUNCTION, .data.funcsignature = sig };
@@ -1460,7 +1461,8 @@ static void typecheck_statement(FileTypes *ft, AstStatement *stmt)
     case AST_STMT_DEFINE_CLASS:
     case AST_STMT_DEFINE_ENUM:
     case AST_STMT_DEFINE_GLOBAL_VAR:
-    case AST_STMT_FUNCTION:
+    case AST_STMT_FUNCTION_DECLARE:
+    case AST_STMT_FUNCTION_DEF:
         assert(0);
     }
 }
@@ -1487,7 +1489,7 @@ void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstFile *a
 {
     for (int i = 0; i < ast->body.nstatements; i++) {
         const AstStatement *stmt = &ast->body.statements[i];
-        if (stmt->kind == AST_STMT_FUNCTION && stmt->data.function.body.nstatements > 0) {
+        if (stmt->kind == AST_STMT_FUNCTION_DEF) {
             const Signature *sig = NULL;
             for (struct SignatureAndUsedPtr *f = ft->functions.ptr; f < End(ft->functions); f++) {
                 if (!strcmp(f->signature.name, stmt->data.function.signature.name)) {

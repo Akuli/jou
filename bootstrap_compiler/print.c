@@ -399,8 +399,12 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             print_ast_type(&stmt->data.vardecl.type);
             printf("\n");
             break;
-        case AST_STMT_FUNCTION:
-            printf("%s a function: ", stmt->data.function.body.nstatements == 0 ? "declare" : "define");
+        case AST_STMT_FUNCTION_DECLARE:
+            printf("declare a function: ");
+            print_ast_function_signature(&stmt->data.function.signature);
+            break;
+        case AST_STMT_FUNCTION_DEF:
+            printf("define a function: ");
             print_ast_function_signature(&stmt->data.function.signature);
             print_ast_body(&stmt->data.function.body, tp);
             break;
