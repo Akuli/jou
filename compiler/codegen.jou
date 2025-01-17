@@ -153,6 +153,7 @@ class CodeGen:
     # All local variables are represented as pointers to stack space, even
     # if they are never reassigned. LLVM will optimize the mess.
     llvm_locals: LLVMValue**
+    is_main_file: bool
 
     def get_pointer_to_local_var(self, cfvar: LocalVariable*) -> LLVMValue*:
         assert cfvar != NULL
@@ -401,11 +402,20 @@ class CodeGen:
             LLVMBuildCall2(self->builder, functype, func, NULL, 0, "")
 
     def do_function_or_method_def(self, cfg: CfGraph*) -> None:
+        # Main function of main file implicitly becomes public, so that OS can call it.
+        implicitly_public = self->is_main_file and cfg->signature.is_main_function()
+
         self->cfvars = cfg->locals
         self->cfvars_end = &cfg->locals[cfg->nlocals]
         self->llvm_locals = malloc(sizeof(self->llvm_locals[0]) * cfg->nlocals)
 
         llvm_func = self->do_function_or_method_decl(&cfg->signature)
+        if not (cfg->public or implicitly_public):
+            # Not @public, do not expose it to other files (also known as static function).
+            #
+            # Without this, the linker complains if two files define functions with the
+            # same name, even if they are not public.
+            LLVMSetLinkage(llvm_func, LLVMLinkage.Private)
 
         blocks: LLVMBasicBlock** = malloc(sizeof(blocks[0]) * cfg->n_all_blocks)
         for i = 0; i < cfg->n_all_blocks; i++:
@@ -470,10 +480,11 @@ class CodeGen:
 
 
 @public
-def codegen(cfgfile: CfGraphFile*, ft: FileTypes*) -> LLVMModule*:
+def codegen(cfgfile: CfGraphFile*, ft: FileTypes*, is_main_file: bool) -> LLVMModule*:
     gen = CodeGen{
         module = LLVMModuleCreateWithName(cfgfile->filename),
         builder = LLVMCreateBuilder(),
+        is_main_file = is_main_file,
     }
 
     LLVMSetTarget(gen.module, target.triple)

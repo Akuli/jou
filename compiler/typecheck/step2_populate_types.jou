@@ -96,8 +96,17 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
     else:
         sig.returntype = type_from_ast(ft, &astsig->return_type)
 
-    if self_class == NULL and strcmp(sig.name, "main") == 0:
-        # special main() function checks
+    sig.returntype_location = astsig->return_type.location
+
+    if self_class == NULL:
+        ft->functions = realloc(ft->functions, sizeof(ft->functions[0]) * (ft->nfunctions + 1))
+        assert ft->functions != NULL
+        ft->functions[ft->nfunctions++] = SignatureAndUsedPtr{
+            signature = sig.copy(),
+            usedptr = NULL,
+        }
+
+    if sig.is_main_function():
         if sig.returntype != intType:
             fail(astsig->return_type.location, "the main() function must return int")
         if (
@@ -112,16 +121,6 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
                 astsig->args[0].type.location,
                 "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
             )
-
-    sig.returntype_location = astsig->return_type.location
-
-    if self_class == NULL:
-        ft->functions = realloc(ft->functions, sizeof(ft->functions[0]) * (ft->nfunctions + 1))
-        assert ft->functions != NULL
-        ft->functions[ft->nfunctions++] = SignatureAndUsedPtr{
-            signature = sig.copy(),
-            usedptr = NULL,
-        }
 
     return sig
 
