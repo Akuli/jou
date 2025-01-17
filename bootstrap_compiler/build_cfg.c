@@ -1025,7 +1025,12 @@ static void build_body(struct State *st, const AstBody *body)
         build_statement(st, &body->statements[i]);
 }
 
-static CfGraph *build_function_or_method(struct State *st, const Type *selfclass, const char *name, const AstBody *body)
+static CfGraph *build_function_or_method(
+    struct State *st,
+    const Type *selfclass,
+    const char *name,
+    const AstBody *body,
+    bool public)
 {
     assert(!st->fomtypes);
     assert(!st->cfg);
@@ -1039,6 +1044,7 @@ static CfGraph *build_function_or_method(struct State *st, const Type *selfclass
     assert(st->fomtypes);
 
     st->cfg = calloc(1, sizeof *st->cfg);
+    st->cfg->public = public;
     st->cfg->signature = copy_signature(&st->fomtypes->signature);
     for (LocalVariable **v = st->fomtypes->locals.ptr; v < End(st->fomtypes->locals); v++)
         Append(&st->cfg->locals, *v);
@@ -1070,7 +1076,7 @@ CfGraphFile build_control_flow_graphs(const AstFile *ast, FileTypes *filetypes)
     for (int i = 0; i < ast->body.nstatements; i++) {
         const AstStatement *stmt = &ast->body.statements[i];
         if(stmt->kind == AST_STMT_FUNCTION_DEF) {
-            CfGraph *g = build_function_or_method(&st, NULL, stmt->data.function.signature.name, &stmt->data.function.body);
+            CfGraph *g = build_function_or_method(&st, NULL, stmt->data.function.signature.name, &stmt->data.function.body, stmt->data.function.public);
             Append(&result.graphs, g);
         }
 
@@ -1086,7 +1092,7 @@ CfGraphFile build_control_flow_graphs(const AstFile *ast, FileTypes *filetypes)
 
             for (AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++) {
                 if (m->kind == AST_CLASSMEMBER_METHOD) {
-                    CfGraph *g = build_function_or_method(&st, classtype, m->data.method.signature.name, &m->data.method.body);
+                    CfGraph *g = build_function_or_method(&st, classtype, m->data.method.signature.name, &m->data.method.body, true);
                     Append(&result.graphs, g);
                 }
             }

@@ -11,25 +11,34 @@ else:
 
 # TODO: Ideally we would be able to place the if statements inside the functions.
 if WINDOWS:
+    @public
     def set_errno(value: int) -> None:
         *_errno() = value
+    @public
     def get_errno() -> int:
         return *_errno()
 elif MACOS:
+    @public
     def set_errno(value: int) -> None:
         *__error() = value
+    @public
     def get_errno() -> int:
         return *__error()
 elif NETBSD:
+    @public
     def set_errno(value: int) -> None:
         *__errno() = value
+    @public
     def get_errno() -> int:
         return *__errno()
 else:
+    @public
     def set_errno(value: int) -> None:
         *__errno_location() = value
+    @public
     def get_errno() -> int:
         return *__errno_location()
 
 # Convert an error code into a string. Do not modify or free() the returned string.
+@public
 declare strerror(errno_value: int) -> byte*

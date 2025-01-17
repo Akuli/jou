@@ -1,59 +1,77 @@
 # Functions for working with strings (byte* pointers).
 
 # Parsing. See also scanf() in io.jou.
+@public
 declare sscanf(s: byte*, pattern: byte*, ...) -> int  # Parse a string. See sscanf() in io.jou.
 
 # Formatting. See also printf() in io.jou.
 #   sprintf() assumes that the result fits in dest (UB happens, if it overflows)
 #   snprintf() truncates the string so that the string and its '\0' fit into a total of n bytes of space
+@public
 declare sprintf(dest: byte*, pattern: byte*, ...) -> int
+@public
 declare snprintf(dest: byte*, n: long, pattern: byte*, ...) -> int
 
 # Find a substring. Return a pointer to the first occurrence in haystack, or NULL if not found.
+@public
 declare strstr(haystack: byte*, needle: byte*) -> byte*
 
 # Find a byte from a string. Return a pointer to the occurrence, or NULL if not found.
+@public
 declare strchr(haystack: byte*, needle: byte) -> byte*  # finds first occurrence
+@public
 declare strrchr(haystack: byte*, needle: byte) -> byte*  # finds last occurrence
 
 # Calculate the length of a string in bytes. Note that strlen("ö") == 2, for example.
+@public
 declare strlen(s: byte*) -> long
 
 # Compare the strings. Return 0 for equal, or nonzero for not equal.
+@public
 declare strcmp(s1: byte*, s2: byte*) -> int
 
 # Similar to strcmp(), but imagines the strings are at most n bytes long.
 # In other words, if s1 or s2 is more than n bytes long, the rest is not compared.
+@public
 declare strncmp(s1: byte*, s2: byte*, n: long) -> int
 
 # Returns true if the string s starts with the given prefix.
+@public
 def starts_with(s: byte*, prefix: byte*) -> bool:
     return strncmp(s, prefix, strlen(prefix)) == 0
 
 # Returns true if the string s ends with the given prefix.
+@public
 def ends_with(s: byte*, suffix: byte*) -> bool:
     offset = strlen(s) - strlen(suffix)
     return offset >= 0 and strcmp(&s[offset], suffix) == 0
 
 # Return how many bytes at start of s appear in the accept string.
 # For example, you can use strspn(s, " \t") to get the amount of indentation.
+@public
 declare strspn(s: byte*, accept: byte*) -> long
 
 # Return how many bytes at start of s do not appear in the reject string.
 # For example, you can use strcspn(s, "\n") to get the length of the first line.
+@public
 declare strcspn(s: byte*, accept: byte*) -> long
 
 # Copy a string. Assumes it fits. Returned value is dest.
+@public
 declare strcpy(dest: byte*, source: byte*) -> byte*
 
 # Append source to end of dest. Assumes it fits. Returned value is dest.
 # Can be slow if dest is long, because it needs to find the end of dest.
+@public
 declare strcat(dest: byte*, source: byte*) -> byte*
 
 # Return a newly allocated (as in malloc()) copy of the string.
+@public
 declare strdup(s: byte*) -> byte*
 
 # Convert a string to an int.
 # Returns 0 on error, and ignores junk at end: atoi("123foo") == 123
+@public
 declare atoi(s: byte*) -> int
+@public
 declare atoll(s: byte*) -> long

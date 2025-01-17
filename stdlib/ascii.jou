@@ -2,6 +2,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 # Test if a string is ASCII only.
+@public
 def is_ascii(s: byte*) -> bool:
     for p = s; *p != '\0'; p++:
         if *p >= 128:
@@ -9,23 +10,28 @@ def is_ascii(s: byte*) -> bool:
     return True
 
 # Check for '0', '1', ..., '9'.
+@public
 def is_ascii_digit(b: byte) -> bool:
     return '0' <= b and b <= '9'
 
 # Check for 'a-z' 'A-Z'
+@public
 def is_ascii_letter(b: byte) -> bool:
     return ('A' <= b and b <= 'Z') or ('a' <= b and b <= 'z')
 
 # Checks if the given byte is an ASCII punctuation character, such as '*' or '_' or '"'.
+@public
 def is_ascii_punctuation(b: byte) -> bool:
     return b != '\0' and strchr("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", b) != NULL
 
 # Checks if the given byte is an ASCII whitespace character, such as ' ' or '\n'.
+@public
 def is_ascii_whitespace(b: byte) -> bool:
     return b != '\0' and strchr("\t\n\x0b\x0c\r\x1c\x1d\x1e\x1f ", b) != NULL
 
 # Removes ASCII whitespace from both ends of a string in-place.
 # Similar to .strip() in Python or .trim() in JavaScript.
+@public
 def trim_ascii_whitespace(s: byte*) -> None:
     start = s
     while *start != '\0' and is_ascii_whitespace(*start):
@@ -56,6 +62,7 @@ def trim_ascii_whitespace(s: byte*) -> None:
 # Modifies s in-place to put '\0' bytes where words end.
 # Returns an array of byte*, using NULL to mark last word.
 # Return value (and perhaps s) must be free()d, but individual strings don't.
+@public
 def split_by_ascii_whitespace(s: byte*) -> byte**:
     # Count how many non-whitespace sections we have.
     count = 0

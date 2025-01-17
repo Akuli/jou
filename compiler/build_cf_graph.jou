@@ -1056,7 +1056,12 @@ class CfBuilder:
         selfclass: Type*,
         name: byte*,
         body: AstBody*,
+        public: bool,  # was the @public decorator used
     ) -> CfGraph*:
+        if selfclass != NULL:
+            # Methods are always public, so that you can call them whenever you have an instance
+            assert public
+
         assert self->cfg == NULL
 
         assert self->fomtypes == NULL
@@ -1067,6 +1072,7 @@ class CfBuilder:
         assert self->fomtypes != NULL
 
         self->cfg = calloc(1, sizeof *self->cfg)
+        self->cfg->public = public
         self->cfg->signature = self->fomtypes->signature.copy()
 
         # Copy local variables over from type checking.
@@ -1100,6 +1106,7 @@ class CfBuilder:
 
 # TODO: passing a type context here doesn't really make sense.
 # It would be better to pass only the public symbols that have been imported.
+@public
 def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFile:
     result = CfGraphFile{filename = ast->path}
     builder = CfBuilder{filetypes = filetypes}
@@ -1109,7 +1116,7 @@ def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFi
 
         match stmt->kind:
             case AstStatementKind.FunctionDef:
-                g = builder.build_function_or_method(NULL, stmt->function.signature.name, &stmt->function.body)
+                g = builder.build_function_or_method(NULL, stmt->function.signature.name, &stmt->function.body, stmt->function.public)
                 result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
                 assert result.graphs != NULL
                 result.graphs[result.ngraphs++] = g
@@ -1123,7 +1130,7 @@ def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFi
                 assert class_type != NULL
                 for m = stmt->classdef.members; m < &stmt->classdef.members[stmt->classdef.nmembers]; m++:
                     if m->kind == AstClassMemberKind.Method:
-                        g = builder.build_function_or_method(class_type, m->method.signature.name, &m->method.body)
+                        g = builder.build_function_or_method(class_type, m->method.signature.name, &m->method.body, True)
                         result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
                         assert result.graphs != NULL
                         result.graphs[result.ngraphs++] = g

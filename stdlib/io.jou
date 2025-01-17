@@ -8,13 +8,17 @@
 # check whether printing failed.
 #
 # See also printf() manual page: https://linux.die.net/man/3/printf
+@public
 declare putchar(a_byte: int) -> int  # Print a byte (parameter type is "int" for historical reasons)
+@public
 declare puts(string: byte*) -> int  # Print a string followed by "\n"
+@public
 declare printf(pattern: byte*, ...) -> int  # Example: printf("%s %d\n", "hi", 123)
 
 # Keyboard input
 # TODO: add EOF and errno, explain here how to use them
 # TODO: add stdin and explain how to use fgets(..., stdin)
+@public
 declare getchar() -> int
 
 # Parsing input. For example, this expects the user to type two
@@ -29,6 +33,7 @@ declare getchar() -> int
 # example above, return value 2 means success.
 #
 # See also scanf() manual page: https://linux.die.net/man/3/scanf
+@public
 declare scanf(pattern: byte*, ...) -> int  # Parse keyboard input (stdin)
 
 class FILE:
@@ -50,22 +55,31 @@ declare global stderr: FILE*
 # Text files on Windows typically use two bytes "\r\n" for newlines,
 # even though Jou code typically uses "\n". Without "b", the file will
 # convert between "\n" and "\r\n" automatically.
+@public
 declare fopen(path: byte*, mode: byte*) -> FILE*
+@public
 declare fclose(file: FILE*) -> int  # Call this when done with the file. Return value is not meaningful.
 
 # Similar to other functions, but these read/write a file.
+@public
 declare fputc(a_byte: int, file: FILE*) -> int  # see putchar()
+@public
 declare fputs(string: byte*, file: FILE*) -> int  # does NOT add '\n' like puts() does
+@public
 declare fprintf(file: FILE *, pattern: byte*, ...) -> int
+@public
 declare fgetc(file: FILE*) -> int  # see getchar()
+@public
 declare fscanf(file: FILE*, pattern: byte*, ...) -> int
 
 # Reads at most n items of data, each of size "itemsize". Returns number of items read.
 # Usually this is used with itemsize 1, so return value is number of bytes.
+@public
 declare fread(destination: byte*, itemsize: long, n: long, file: FILE*) -> long
 
 # Ensure that output is actually written. It may remain buffered
 # if this function isn't called.
+@public
 declare fflush(file: FILE*) -> int
 
 # Read a line of text from file into a string starting at the given
@@ -74,11 +88,15 @@ declare fflush(file: FILE*) -> int
 # within n bytes.
 #
 # Return value: NULL on error, same as destination on success.
+@public
 declare fgets(destination: byte*, n: int, file: FILE*) -> byte*
 
 # TODO: document
+@public
 declare feof(file: FILE*) -> int
+@public
 declare ferror(file: FILE*) -> int
 
 # Move back to beginning of file.
+@public
 declare rewind(file: FILE*) -> None

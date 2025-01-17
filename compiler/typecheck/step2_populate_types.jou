@@ -96,8 +96,17 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
     else:
         sig.returntype = type_from_ast(ft, &astsig->return_type)
 
-    if self_class == NULL and strcmp(sig.name, "main") == 0:
-        # special main() function checks
+    sig.returntype_location = astsig->return_type.location
+
+    if self_class == NULL:
+        ft->functions = realloc(ft->functions, sizeof(ft->functions[0]) * (ft->nfunctions + 1))
+        assert ft->functions != NULL
+        ft->functions[ft->nfunctions++] = SignatureAndUsedPtr{
+            signature = sig.copy(),
+            usedptr = NULL,
+        }
+
+    if sig.is_main_function():
         if sig.returntype != intType:
             fail(astsig->return_type.location, "the main() function must return int")
         if (
@@ -112,16 +121,6 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
                 astsig->args[0].type.location,
                 "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
             )
-
-    sig.returntype_location = astsig->return_type.location
-
-    if self_class == NULL:
-        ft->functions = realloc(ft->functions, sizeof(ft->functions[0]) * (ft->nfunctions + 1))
-        assert ft->functions != NULL
-        ft->functions[ft->nfunctions++] = SignatureAndUsedPtr{
-            signature = sig.copy(),
-            usedptr = NULL,
-        }
 
     return sig
 
@@ -178,6 +177,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                 type->classdata.methods[type->classdata.nmethods++] = sig
 
 
+@public
 def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
     nexports = 0
@@ -195,10 +195,11 @@ def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbo
                 exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, True)
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 sig = handle_signature(ft, &stmt->function.signature, NULL)
-                es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig}
-                assert sizeof(es.name) == sizeof(sig.name)
-                strcpy(es.name, sig.name)
-                exports[nexports++] = es
+                if stmt->function.public:
+                    es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig}
+                    assert sizeof(es.name) == sizeof(sig.name)
+                    strcpy(es.name, sig.name)
+                    exports[nexports++] = es
             case AstStatementKind.Class:
                 handle_class_members(ft, &stmt->classdef)
             case AstStatementKind.Enum:

@@ -13,6 +13,7 @@ def flush_streams() -> None:
     fflush(stderr)
 
 
+@public
 def show_warning(location: Location, message: byte*) -> None:
     flush_streams()
 
@@ -22,6 +23,7 @@ def show_warning(location: Location, message: byte*) -> None:
     fprintf(stderr, ": %s\n", message)
 
 
+@public
 def fail(location: Location, message: byte*) -> noreturn:
     flush_streams()
 

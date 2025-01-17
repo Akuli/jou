@@ -8,6 +8,7 @@ import "./command_line_args.jou"
 import "./paths.jou"
 
 
+@public
 def run_linker(objpaths: byte**, exepath: byte*) -> None:
     jou_exe = find_current_executable()
     instdir = dirname(jou_exe)
@@ -65,6 +66,7 @@ def run_linker(objpaths: byte**, exepath: byte*) -> None:
     free(command)
 
 
+@public
 def run_exe(exepath: byte*, valgrind: bool) -> int:
     command = malloc(strlen(exepath) + 1000)
     if WINDOWS:

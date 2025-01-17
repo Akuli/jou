@@ -193,6 +193,25 @@ def read_assertion_from_file(start: Location, end: Location) -> byte*:
     return result
 
 
+def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
+    assert decor[0] == '@'
+
+    if strcmp(decor, "@public") == 0:
+        match stmt->kind:
+            case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
+                if strcmp(stmt->function.signature.name, "main") == 0:
+                    # TODO: test this
+                    fail(location, "do not decorate the main() function with @public")
+                stmt->function.public = True
+                return
+            case _:
+                fail(location, "the @public decorator cannot be used here")
+    else:
+        msg: byte[200]
+        snprintf(msg, sizeof(msg), "there is no decorator named '%s'", decor)
+        fail(location, msg)
+
+
 class Parser:
     tokens: Token*
     stdlib_path: byte*
@@ -954,16 +973,21 @@ class Parser:
         return ntv
 
     def parse_statement(self) -> AstStatement:
+        decors_start = self->tokens
+        while self->tokens->kind == TokenKind.Decorator:
+            self->tokens++
+            self->eat_newline()
+        decors_end = self->tokens
+
         if self->tokens->is_keyword("import"):
             fail(self->tokens->location, "imports must be in the beginning of the file")
-        if self->tokens->is_keyword("def"):
-            return AstStatement{
+        elif self->tokens->is_keyword("def"):
+            result = AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind.FunctionDef,
                 function = self->parse_function_or_method(False),
             }
-
-        if self->tokens->is_keyword("declare"):
+        elif self->tokens->is_keyword("declare"):
             location = (self->tokens++)->location
             if self->tokens->is_keyword("global"):
                 self->tokens++
@@ -984,9 +1008,7 @@ class Parser:
                     function = AstFunctionOrMethod{signature = self->parse_function_or_method_signature(False)},
                 }
             self->eat_newline()
-            return result
-
-        if self->tokens->is_keyword("global"):
+        elif self->tokens->is_keyword("global"):
             result = AstStatement{
                 location = (self->tokens++)->location,
                 kind = AstStatementKind.GlobalVariableDef,
@@ -998,63 +1020,60 @@ class Parser:
                     "specifying a value for a global variable is not supported yet",
                 )
             self->eat_newline()
-            return result
-
-        if self->tokens->is_keyword("class"):
-            return AstStatement{
+        elif self->tokens->is_keyword("class"):
+            result = AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind.Class,
                 classdef = self->parse_class(),
             }
-
-        if self->tokens->is_keyword("enum"):
-            return AstStatement{
+        elif self->tokens->is_keyword("enum"):
+            result = AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind.Enum,
                 enumdef = self->parse_enum(),
             }
-
-        if self->tokens->is_keyword("if"):
-            return AstStatement{
+        elif self->tokens->is_keyword("if"):
+            result = AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind.If,
                 if_statement = self->parse_if_statement(),
             }
-
-        if self->tokens->is_keyword("for"):
-            return AstStatement{
+        elif self->tokens->is_keyword("for"):
+            result = AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind.ForLoop,
                 for_loop = self->parse_for_loop(),
             }
-
-        if self->tokens->is_keyword("while"):
-            return AstStatement{
+        elif self->tokens->is_keyword("while"):
+            result = AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind.WhileLoop,
                 while_loop = self->parse_while_loop(),
             }
-
-        if self->tokens->is_keyword("match"):
-            return AstStatement{
+        elif self->tokens->is_keyword("match"):
+            result = AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind.Match,
                 match_statement = self->parse_match_statement(),
             }
-
-        if (
+        elif (
             self->tokens[0].kind == TokenKind.Name
             and self->tokens[1].is_operator(",")
             and self->tokens[2].kind == TokenKind.Name
         ):
-            return AstStatement{
+            result = AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind.DeclareLocalVar,
                 var_declaration = self->parse_first_of_multiple_local_var_declares(),
             }
+        else:
+            result = self->parse_oneline_statement()
+            self->eat_newline()
 
-        result = self->parse_oneline_statement()
-        self->eat_newline()
+        for t = decors_start; t < decors_end; t++:
+            if t->kind == TokenKind.Decorator:
+                decorate(&result, t->short_string, t->location)
+
         return result
 
     def parse_start_of_body(self) -> None:
@@ -1194,6 +1213,7 @@ class Parser:
         self->tokens++
         return result
 
+@public
 def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
     parser = Parser{tokens = tokens, stdlib_path = stdlib_path}
     result = AstFile{path = tokens[0].location.path}

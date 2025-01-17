@@ -108,6 +108,7 @@ struct State {
     // All local variables are represented as pointers to stack space, even
     // if they are never reassigned. LLVM will optimize the mess.
     LLVMValueRef *llvm_locals;
+    bool is_main_file;
 };
 
 static LLVMValueRef get_pointer_to_local_var(const struct State *st, const LocalVariable *cfvar)
@@ -458,11 +459,23 @@ static void codegen_call_to_the_special_startup_function(const struct State *st)
 
 static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
 {
+    // Main function of main file implicitly becomes public, so that OS can call it.
+    bool implicitly_public = st->is_main_file && !strcmp(cfg->signature.name, "main");
+
     st->cfvars = cfg->locals.ptr;
     st->cfvars_end = End(cfg->locals);
     st->llvm_locals = malloc(sizeof(st->llvm_locals[0]) * cfg->locals.len); // NOLINT
 
     LLVMValueRef llvm_func = codegen_function_or_method_decl(st, &cfg->signature);
+    if (!(cfg->public || implicitly_public)) {
+        /*
+        Not @public, do not expose it to other files (also known as static function).
+
+        Without this, the linker complains if two files define functions with the
+        same name, even if they are not public.
+        */
+        LLVMSetLinkage(llvm_func, LLVMPrivateLinkage);
+    }
 
     LLVMBasicBlockRef *blocks = malloc(sizeof(blocks[0]) * cfg->all_blocks.len); // NOLINT
     for (int i = 0; i < cfg->all_blocks.len; i++) {
@@ -530,11 +543,12 @@ static void codegen_function_or_method_def(struct State *st, const CfGraph *cfg)
     free(st->llvm_locals);
 }
 
-LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft)
+LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft, bool is_main_file)
 {
     struct State st = {
         .module = LLVMModuleCreateWithName(cfgfile->filename),
         .builder = LLVMCreateBuilder(),
+        .is_main_file = is_main_file,
     };
 
     LLVMSetTarget(st.module, get_target()->triple);

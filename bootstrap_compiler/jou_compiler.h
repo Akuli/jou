@@ -85,6 +85,7 @@ struct Token {
         TOKEN_STRING,
         TOKEN_NAME,
         TOKEN_KEYWORD,
+        TOKEN_DECORATOR,
         TOKEN_NEWLINE,
         TOKEN_INDENT,
         TOKEN_DEDENT,
@@ -99,7 +100,7 @@ struct Token {
         char char_value;  // TOKEN_CHAR
         char *string_value;  // TOKEN_STRING
         int indentation_level;  // TOKEN_NEWLINE, indicates how many spaces after newline
-        char name[100];  // TOKEN_NAME and TOKEN_KEYWORD. Also TOKEN_DOUBLE & TOKEN_FLOAT (LLVM wants a string anyway)
+        char name[100];  // TOKEN_NAME, TOKEN_KEYWORD, TOKEN_DOUBLE, TOKEN_FLOAT, TOKEN_DECORATOR
         char operator[4];  // TOKEN_OPERATOR
     } data;
 };
@@ -300,6 +301,7 @@ struct AstAssert {
 };
 
 struct AstFunction {
+    bool public;  // is it decorated with @public
     AstSignature signature;
     AstBody body;  // empty body means declaration, otherwise it's definition
 };
@@ -601,6 +603,7 @@ struct CfBlock {
 
 struct CfGraph {
     Signature signature;
+    bool public;
     CfBlock start_block;  // First block
     CfBlock end_block;  // Always empty. Return statement jumps here.
     List(CfBlock *) all_blocks;
@@ -643,7 +646,7 @@ Token *tokenize(FILE *f, const char *filename);
 AstFile parse(const Token *tokens, const char *stdlib_path);
 // Type checking happens between parsing and building CFGs.
 CfGraphFile build_control_flow_graphs(const AstFile *ast, FileTypes *ft);
-LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft);
+LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft, bool is_main_file);
 char *compile_to_object_file(LLVMModuleRef module);
 char *get_default_exe_path(void);
 void run_linker(const char *const *objpaths, const char *exepath);

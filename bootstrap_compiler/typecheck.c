@@ -354,9 +354,11 @@ ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstFile *ast)
         case AST_STMT_FUNCTION_DEF:
             {
                 Signature sig = handle_signature(ft, &stmt->data.function.signature, NULL);
-                ExportSymbol es = { .kind = EXPSYM_FUNCTION, .data.funcsignature = sig };
-                safe_strcpy(es.name, sig.name);
-                Append(&exports, es);
+                if (stmt->data.function.public) {
+                    ExportSymbol es = { .kind = EXPSYM_FUNCTION, .data.funcsignature = sig };
+                    safe_strcpy(es.name, sig.name);
+                    Append(&exports, es);
+                }
             }
             break;
         case AST_STMT_DEFINE_CLASS:

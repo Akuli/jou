@@ -1,0 +1,7 @@
+# Tests two files with non-public functions that have same name.
+def internal() -> int:
+    return 1
+
+@public
+def public_func_1() -> int:
+    return 10 * internal()
