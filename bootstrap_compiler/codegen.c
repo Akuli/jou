@@ -339,6 +339,54 @@ static void store(LLVMBuilderRef b, LLVMValueRef value, LLVMValueRef ptr)
     LLVMBuildStore(b, value, ptr);
 }
 
+static LLVMValueRef build_address_of_expression(struct State *st, const AstExpression *expr)
+{
+    switch(expr->kind) {
+    case AST_EXPR_DEREF_AND_GET_FIELD:
+        assert(0); // TODO
+        break;
+    case AST_EXPR_GET_FIELD:
+        assert(0); // TODO
+        break;
+    case AST_EXPR_GET_VARIABLE:
+        return get_local_var(st, expr->data.varname)->ptr;
+    case AST_EXPR_INDEXING:
+        assert(0); // TODO
+        break;
+    case AST_EXPR_CALL_METHOD:
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+    case AST_EXPR_SIZEOF:
+    case AST_EXPR_ADDRESS_OF:
+    case AST_EXPR_DEREFERENCE:
+    case AST_EXPR_AND:
+    case AST_EXPR_OR:
+    case AST_EXPR_NOT:
+    case AST_EXPR_ADD:
+    case AST_EXPR_SUB:
+    case AST_EXPR_MUL:
+    case AST_EXPR_DIV:
+    case AST_EXPR_MOD:
+    case AST_EXPR_NEG:
+    case AST_EXPR_EQ:
+    case AST_EXPR_NE:
+    case AST_EXPR_GT:
+    case AST_EXPR_GE:
+    case AST_EXPR_LT:
+    case AST_EXPR_LE:
+    case AST_EXPR_PRE_INCREMENT:
+    case AST_EXPR_PRE_DECREMENT:
+    case AST_EXPR_POST_INCREMENT:
+    case AST_EXPR_POST_DECREMENT:
+    case AST_EXPR_AS:
+    case AST_EXPR_CONSTANT:
+    case AST_EXPR_GET_ENUM_MEMBER:
+    case AST_EXPR_FUNCTION_CALL:
+    case AST_EXPR_BRACE_INIT:
+    case AST_EXPR_ARRAY:
+        assert(0);
+    }
+    assert(0);
+}
 
 static void build_if_statement(struct State *st, const AstIfStatement *ifst)
 {
@@ -396,8 +444,14 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         assert(0); // TODO
         break;
     case AST_STMT_ASSIGN:
-        assert(0); // TODO
+    {
+        // Refactoring note: Needs separate variables because evaluation order
+        // of arguments is not guaranteed in C.
+        LLVMValueRef destptr = build_address_of_expression(st, &stmt->data.assignment.target);
+        LLVMValueRef value = build_expression(st, &stmt->data.assignment.value);
+        store(st->builder, value, destptr);
         break;
+    }
     case AST_STMT_INPLACE_ADD:
         assert(0); // TODO
         break;
