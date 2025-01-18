@@ -201,13 +201,13 @@ static void codegen_call_to_the_special_startup_function(const struct State *st)
 static void build_function_or_method(
     struct State *st, const Signature *sig, const AstBody *body, bool public)
 {
-    bool implicitly_public = !get_self_class(sig) && !strcmp(sig->name, "main");
-
     // Methods are always public for now
     if (get_self_class(sig))
         assert(public);
 
     LLVMValueRef func = declare_function_or_method(st, sig);
+
+    bool implicitly_public = !get_self_class(sig) && !strcmp(sig->name, "main") && st->is_main_file;
     if (!(public || implicitly_public))
         LLVMSetLinkage(func, LLVMPrivateLinkage);
 
