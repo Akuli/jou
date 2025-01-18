@@ -472,8 +472,18 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
         assert(0); // TODO
         break;
     case AST_EXPR_GET_FIELD:
-        assert(0); // TODO
-        break;
+        {
+            // Evaluate foo.bar as (&temp)->bar, where temp is a temporary copy of foo.
+            // We need to copy, because it's not always possible to evaluate &foo.
+            // For example, consider evaluating some_function().foo
+            const Type *t = type_of_expr(expr->data.classfield.obj);
+            assert(t->kind == TYPE_CLASS);
+            LLVMValueRef obj = build_expression(st, expr->data.classfield.obj);
+            LLVMValueRef ptr = LLVMBuildAlloca(st->builder, type_to_llvm(t), "temp_copy");
+            store(st->builder, obj, ptr);
+            LLVMValueRef fieldptr = build_class_field_pointer(st, t, ptr, expr->data.classfield.fieldname);
+            return LLVMBuildLoad2(st->builder, type_to_llvm(t), fieldptr, "field");
+        }
     case AST_EXPR_DEREF_AND_GET_FIELD:
         return LLVMBuildLoad2(
             st->builder,
