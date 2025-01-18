@@ -113,17 +113,22 @@ struct LocalVar {
 struct State {
     LLVMModuleRef module;
     LLVMBuilderRef builder;
+    const FileTypes *filetypes;
+    bool is_main_file;
+
     struct LocalVar locals[500];
     int nlocals;
-    bool is_main_file;
-    const FileTypes *filetypes;
-    //const FunctionOrMethodTypes *fomtypes;
     LLVMValueRef llvm_func;
     const Signature *signature;
+
+    unsigned nloops;
+    LLVMBasicBlockRef breaks[20];
+    LLVMBasicBlockRef continues[20];
 };
 
 static LLVMValueRef build_expression(struct State *st, const AstExpression *expr);
 static LLVMValueRef build_address_of_expression(struct State *st, const AstExpression *expr);
+static void build_statement(struct State *st, const AstStatement *stmt);
 static void build_body(struct State *st, const AstBody *body);
 
 // TODO: This function can be replaced with LLVMBuildStore() once we drop LLVM 14 support.
@@ -166,8 +171,6 @@ static const Type *type_of_expr(const AstExpression *expr)
         return expr->types.type;
 }
 
-//static LLVMValueRef build_expression(struct State *st, const AstExpression *expr);
-//static LLVMValueRef build_address_of_expression(struct State *st, const AstExpression *address_of_what);
 
 static LLVMTypeRef signature_to_llvm(const Signature *sig)
 {
@@ -657,6 +660,55 @@ static void build_if_statement(struct State *st, const AstIfStatement *ifst)
     LLVMPositionBuilderAtEnd(st->builder, done);
 }
 
+static void build_loop(
+    struct State *st,
+    const AstStatement *init,
+    const AstExpression *cond,
+    const AstStatement *incr,
+    const AstBody *body)
+{
+    LLVMBasicBlockRef condblock, bodyblock, incrblock, doneblock;
+
+    condblock = LLVMAppendBasicBlock(st->llvm_func, "cond");  // evaluate condition and go to bodyblock or doneblock
+    bodyblock = LLVMAppendBasicBlock(st->llvm_func, "body");  // run loop body and go to incrblock
+    incrblock = LLVMAppendBasicBlock(st->llvm_func, "incr");  // run incr and go to condblock
+    doneblock = LLVMAppendBasicBlock(st->llvm_func, "done");  // rest of the code goes here
+
+    // When entering loop, start with init and then jump to condition
+    if (init)
+        build_statement(st, init);
+    LLVMBuildBr(st->builder, condblock);
+
+    // Evaluate condition and then jump to loop body or skip to after loop.
+    LLVMPositionBuilderAtEnd(st->builder, condblock);
+    LLVMBuildCondBr(st->builder, build_expression(st, cond), bodyblock, doneblock);
+
+    // Within loop body, 'break' skips to after loop, 'continue' goes to incr.
+    assert(st->nloops < sizeof(st->breaks)/sizeof(st->breaks[0]));
+    assert(st->nloops < sizeof(st->continues)/sizeof(st->continues[0]));
+    st->breaks[st->nloops] = doneblock;
+    st->continues[st->nloops] = incrblock;
+    st->nloops++;
+
+    // Run loop body. When done, go to incr.
+    LLVMPositionBuilderAtEnd(st->builder, bodyblock);
+    build_body(st, body);
+    LLVMBuildBr(st->builder, incrblock);
+
+    // 'break' and 'continue' are not allowed after the loop body.
+    assert(st->nloops > 0);
+    st->nloops--;
+
+    // Run incr and jump back to condition.
+    LLVMPositionBuilderAtEnd(st->builder, incrblock);
+    if (incr)
+        build_statement(st, incr);
+    LLVMBuildBr(st->builder, condblock);
+
+    // Code after the loop goes to "loop done" part.
+    LLVMPositionBuilderAtEnd(st->builder, doneblock);
+}
+
 static void build_statement(struct State *st, const AstStatement *stmt)
 {
     switch(stmt->kind) {
@@ -675,10 +727,14 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         build_if_statement(st, &stmt->data.ifstatement);
         break;
     case AST_STMT_WHILE:
-        assert(0); // TODO
+        build_loop(
+            st, NULL, &stmt->data.whileloop.condition, NULL,
+            &stmt->data.whileloop.body);
         break;
     case AST_STMT_FOR:
-        assert(0); // TODO
+        build_loop(
+            st, stmt->data.forloop.init, &stmt->data.forloop.cond, stmt->data.forloop.incr,
+            &stmt->data.forloop.body);
         break;
     case AST_STMT_MATCH:
         assert(0); // TODO
