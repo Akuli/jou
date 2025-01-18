@@ -443,6 +443,7 @@ static LLVMValueRef build_cast(struct State *st, LLVMValueRef obj, const Type *f
     if (from == boolType && is_integer_type(to))
         return LLVMBuildIntCast2(st->builder, obj, type_to_llvm(to), false, "cast");
 
+    printf("unimpl cast %s --> %s\n", from->name, to->name);
     assert(0);
 }
 
@@ -511,8 +512,7 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
     case AST_EXPR_ADDRESS_OF:
         return build_address_of_expression(st, &expr->data.operands[0]);
     case AST_EXPR_SIZEOF:
-        assert(0); // TODO
-        break;
+        return LLVMSizeOf(type_to_llvm(type_of_expr(&expr->data.operands[0])));
     case AST_EXPR_DEREFERENCE:
         return LLVMBuildLoad2(
             st->builder,
@@ -554,6 +554,26 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
 
 static LLVMValueRef build_expression(struct State *st, const AstExpression *expr)
 {
+    if (expr->types.implicit_array_to_pointer_cast)
+        return build_address_of_expression(st, expr);
+
+    if (expr->types.implicit_string_to_array_cast) {
+        assert(expr->types.implicit_cast_type == get_pointer_type(byteType));
+        assert(expr->kind == AST_EXPR_CONSTANT);
+        assert(expr->data.constant.kind == CONSTANT_STRING);
+
+        size_t arrlen = expr->types.implicit_cast_type->data.array.len;
+        const char *str = expr->data.constant.data.str;
+
+        assert(strlen(str) < arrlen);
+        char *padded = calloc(1, arrlen);
+        strcpy(padded, str);
+
+        LLVMValueRef result = LLVMConstString(padded, arrlen, true);
+        free(padded);
+        return result;
+    }
+
     LLVMValueRef before_cast = build_expression_without_implicit_cast(st, expr);
     if (expr->types.implicit_cast_type == NULL)
         return before_cast;
@@ -670,7 +690,11 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         assert(0); // TODO
         break;
     case AST_STMT_DECLARE_LOCAL_VAR:
-        assert(0); // TODO
+        if (stmt->data.vardecl.value) {
+            const struct LocalVar *var = get_local_var(st, stmt->data.vardecl.name);
+            LLVMValueRef value = build_expression(st, stmt->data.vardecl.value);
+            store(st->builder, value, var->ptr);
+        }
         break;
     case AST_STMT_ASSIGN:
     {
