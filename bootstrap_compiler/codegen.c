@@ -475,7 +475,11 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
         assert(0); // TODO
         break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        assert(0); // TODO
+        return LLVMBuildLoad2(
+            st->builder,
+            type_to_llvm(expr->types.type),
+            build_address_of_expression(st, expr),
+            "deref_field");
         break;
     case AST_EXPR_CALL_METHOD:
         assert(0); // TODO
@@ -550,8 +554,14 @@ static LLVMValueRef build_address_of_expression(struct State *st, const AstExpre
 {
     switch(expr->kind) {
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        assert(0); // TODO
-        break;
+    {
+        // &obj->field = obj + memory offset, first evaluate obj
+        LLVMValueRef obj = build_expression(st, expr->data.classfield.obj);
+        const Type *t = type_of_expr(expr->data.classfield.obj);
+        assert(t->kind == TYPE_POINTER);
+        assert(t->data.valuetype->kind == TYPE_CLASS);
+        return build_class_field_pointer(st, t->data.valuetype, obj, expr->data.classfield.fieldname);
+    }
     case AST_EXPR_GET_FIELD:
         assert(0); // TODO
         break;
@@ -560,11 +570,13 @@ static LLVMValueRef build_address_of_expression(struct State *st, const AstExpre
     case AST_EXPR_INDEXING:
         assert(0); // TODO
         break;
+    case AST_EXPR_DEREFERENCE:
+        // &*foo = foo
+        return build_expression(st, &expr->data.operands[0]);
     case AST_EXPR_CALL_METHOD:
     case AST_EXPR_DEREF_AND_CALL_METHOD:
     case AST_EXPR_SIZEOF:
     case AST_EXPR_ADDRESS_OF:
-    case AST_EXPR_DEREFERENCE:
     case AST_EXPR_AND:
     case AST_EXPR_OR:
     case AST_EXPR_NOT:
