@@ -413,8 +413,10 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
         assert(0); // TODO
         break;
     case AST_EXPR_NEG:
-        assert(0); // TODO
-        break;
+        if (type_of_expr(&expr->data.operands[0])->kind == TYPE_FLOATING_POINT)
+            return LLVMBuildFNeg(st->builder, build_expression(st, &expr->data.operands[0]), "fneg");
+        else
+            return LLVMBuildNeg(st->builder, build_expression(st, &expr->data.operands[0]), "ineg");
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
     case AST_EXPR_MUL:
