@@ -189,25 +189,45 @@ static LLVMValueRef declare_function_or_method(const struct State *st, const Sig
     return LLVMAddFunction(st->module, fullname, signature_to_llvm(sig));
 }
 
-static void build_function_or_method(
-    struct State *st,
-    const Type *self_type,
-    const Signature *sig,
-    const AstBody *body,
-    bool public)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
+static void codegen_call_to_the_special_startup_function(const struct State *st)
 {
+    LLVMTypeRef functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
+    LLVMValueRef func = LLVMAddFunction(st->module, "_jou_startup", functype);
+    LLVMBuildCall2(st->builder, functype, func, NULL, 0, "");
+}
+#endif
+
+static void build_function_or_method(
+    struct State *st, const Signature *sig, const AstBody *body, bool public)
+{
+    bool implicitly_public = !get_self_class(sig) && !strcmp(sig->name, "main");
+
     // Methods are always public for now
-    if (self_type)
+    if (get_self_class(sig))
         assert(public);
 
     LLVMValueRef func = declare_function_or_method(st, sig);
-    if (!public)
+    if (!(public || implicitly_public))
         LLVMSetLinkage(func, LLVMPrivateLinkage);
 
     assert(st->llvm_func == NULL);
     st->llvm_func = func;
 
-    // TODO: body
+    LLVMBasicBlockRef start = LLVMAppendBasicBlock(func, "start");
+    LLVMPositionBuilderAtEnd(st->builder, start);
+
+#if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
+    if (!get_self_class(sig) && !strcmp(sig->name, "main"))
+        codegen_call_to_the_special_startup_function(st);
+#endif
+
+    // TODO: build function body
+
+    if (sig->returntype)
+        LLVMBuildUnreachable(st->builder);
+    else
+        LLVMBuildRetVoid(st->builder);
 
     assert(st->llvm_func == func);
     st->llvm_func = NULL;
@@ -243,7 +263,7 @@ LLVMModuleRef codegen(const AstFile *ast, const FileTypes *ft, bool is_main_file
                 }
             }
             assert(sig);
-            build_function_or_method(&st, NULL, sig, &stmt->data.function.body, stmt->data.function.public);
+            build_function_or_method(&st, sig, &stmt->data.function.body, stmt->data.function.public);
         }
 
         if (stmt->kind == AST_STMT_DEFINE_CLASS) {
@@ -266,7 +286,7 @@ LLVMModuleRef codegen(const AstFile *ast, const FileTypes *ft, bool is_main_file
                         }
                     }
                     assert(sig);
-                    build_function_or_method(&st, classtype, sig, &m->data.method.body, true);
+                    build_function_or_method(&st, sig, &m->data.method.body, true);
                 }
             }
         }
