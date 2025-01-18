@@ -51,6 +51,8 @@ static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
 
 static LLVMTypeRef type_to_llvm(const Type *type)
 {
+    assert(type);
+
     switch(type->kind) {
     case TYPE_ARRAY:
         return LLVMArrayType(type_to_llvm(type->data.array.membertype), type->data.array.len);
@@ -120,9 +122,16 @@ struct State {
     const Signature *signature;
 };
 
-// forward declarations
 static LLVMValueRef build_expression(struct State *st, const AstExpression *expr);
+static LLVMValueRef build_address_of_expression(struct State *st, const AstExpression *expr);
 static void build_body(struct State *st, const AstBody *body);
+
+// TODO: This function can be replaced with LLVMBuildStore() once we drop LLVM 14 support.
+static void store(LLVMBuilderRef b, LLVMValueRef value, LLVMValueRef ptr)
+{
+    ptr = LLVMBuildBitCast(b, ptr, LLVMPointerType(LLVMTypeOf(value), 0), "legacy_llvm14_cast");
+    LLVMBuildStore(b, value, ptr);
+}
 
 // Return value may become invalid when adding more local vars.
 static const struct LocalVar *get_local_var(const struct State *st, const char *name)
@@ -343,6 +352,42 @@ static LLVMValueRef build_binop(
     assert(0);
 }
 
+static LLVMValueRef build_class_field_pointer(struct State *st, const Type *classtype, LLVMValueRef instanceptr, const char *fieldname)
+{
+    for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++)
+        if (!strcmp(f->name, fieldname))
+            return LLVMBuildStructGEP2(st->builder, type_to_llvm(classtype), instanceptr, f->union_id, fieldname);
+
+    assert(0);
+}
+
+static LLVMValueRef build_brace_init(struct State *st, const AstCall *call)
+{
+    const Type *classtype = NULL;
+    for (const Type **t = st->filetypes->types.ptr; t < End(st->filetypes->types); t++) {
+        if (!strcmp((*t)->name, call->calledname)) {
+            classtype = *t;
+            break;
+        }
+    }
+
+    assert(classtype != NULL);
+    assert(classtype->kind == TYPE_CLASS);
+
+    LLVMValueRef ptr = LLVMBuildAlloca(st->builder, type_to_llvm(classtype), "new_instance_ptr");
+
+    LLVMValueRef size = LLVMSizeOf(type_to_llvm(classtype));
+    LLVMBuildMemSet(st->builder, ptr, LLVMConstInt(LLVMInt8Type(), 0, false), size, 0);
+
+    for (int i = 0; i < call->nargs; i++) {
+        LLVMValueRef fieldptr = build_class_field_pointer(st, classtype, ptr, call->argnames[i]);
+        LLVMValueRef fieldval = build_expression(st, &call->args[i]);
+        store(st->builder, fieldval, fieldptr);
+    }
+
+    return LLVMBuildLoad2(st->builder, type_to_llvm(classtype), ptr, "new_instance");
+}
+
 static LLVMValueRef build_cast(struct State *st, LLVMValueRef obj, const Type *from, const Type *to)
 {
     assert(from != NULL);
@@ -422,8 +467,7 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
             return build_call(st, &expr->data.call, sig);
         }
     case AST_EXPR_BRACE_INIT:
-        assert(0); // TODO
-        break;
+        return build_brace_init(st, &expr->data.call);
     case AST_EXPR_ARRAY:
         assert(0); // TODO
         break;
@@ -447,17 +491,20 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
     case AST_EXPR_GET_VARIABLE:
         return LLVMBuildLoad2(
             st->builder,
-            type_to_llvm(type_of_expr(expr)),
+            type_to_llvm(expr->types.type),
             get_local_var(st, expr->data.varname)->ptr,
             expr->data.varname);
     case AST_EXPR_ADDRESS_OF:
-        assert(0); // TODO
-        break;
+        return build_address_of_expression(st, &expr->data.operands[0]);
     case AST_EXPR_SIZEOF:
         assert(0); // TODO
         break;
     case AST_EXPR_DEREFERENCE:
-        assert(0); // TODO
+        return LLVMBuildLoad2(
+            st->builder,
+            type_to_llvm(expr->types.type),
+            build_expression(st, &expr->data.operands[0]),
+            "dereference");
         break;
     case AST_EXPR_AND:
     case AST_EXPR_OR:
@@ -497,13 +544,6 @@ static LLVMValueRef build_expression(struct State *st, const AstExpression *expr
     if (expr->types.implicit_cast_type == NULL)
         return before_cast;
     return build_cast(st, before_cast, expr->types.type, expr->types.implicit_cast_type);
-}
-
-// TODO: This function can be replaced with LLVMBuildStore() once we drop LLVM 14 support.
-static void store(LLVMBuilderRef b, LLVMValueRef value, LLVMValueRef ptr)
-{
-    ptr = LLVMBuildBitCast(b, ptr, LLVMPointerType(LLVMTypeOf(value), 0), "legacy_llvm14_cast");
-    LLVMBuildStore(b, value, ptr);
 }
 
 static LLVMValueRef build_address_of_expression(struct State *st, const AstExpression *expr)
