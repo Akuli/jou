@@ -588,12 +588,12 @@ static LLVMValueRef build_address_of_expression(struct State *st, const AstExpre
     switch(expr->kind) {
     case AST_EXPR_DEREF_AND_GET_FIELD:
     {
-        // &obj->field = obj + memory offset, first evaluate obj
-        LLVMValueRef obj = build_expression(st, expr->data.classfield.obj);
+        // &ptr->field = ptr + memory offset, first evaluate ptr
+        LLVMValueRef ptr = build_expression(st, expr->data.classfield.obj);
         const Type *t = type_of_expr(expr->data.classfield.obj);
         assert(t->kind == TYPE_POINTER);
         assert(t->data.valuetype->kind == TYPE_CLASS);
-        return build_class_field_pointer(st, t->data.valuetype, obj, expr->data.classfield.fieldname);
+        return build_class_field_pointer(st, t->data.valuetype, ptr, expr->data.classfield.fieldname);
     }
     case AST_EXPR_GET_FIELD:
         assert(0); // TODO
@@ -601,8 +601,14 @@ static LLVMValueRef build_address_of_expression(struct State *st, const AstExpre
     case AST_EXPR_GET_VARIABLE:
         return get_local_var(st, expr->data.varname)->ptr;
     case AST_EXPR_INDEXING:
-        assert(0); // TODO
-        break;
+    {
+        // &ptr[index] = ptr + memory offset
+        LLVMValueRef ptr = build_expression(st, &expr->data.operands[0]);
+        LLVMValueRef index = build_expression(st, &expr->data.operands[1]);
+        const Type *t = type_of_expr(&expr->data.operands[0]);
+        assert(t->kind == TYPE_POINTER);
+        return LLVMBuildGEP2(st->builder, type_to_llvm(t->data.valuetype), ptr, &index, 1, "indexing");
+    }
     case AST_EXPR_DEREFERENCE:
         // &*foo = foo
         return build_expression(st, &expr->data.operands[0]);
