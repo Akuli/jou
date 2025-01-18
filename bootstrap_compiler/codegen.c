@@ -242,7 +242,113 @@ static LLVMValueRef build_constant(const struct State *st, const Constant *c)
     assert(0);
 }
 
-static LLVMValueRef build_expression(struct State *st, const AstExpression *expr)
+static LLVMValueRef build_signed_mod(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
+{
+    // Jou's % operator ensures that a%b has same sign as b:
+    // jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
+    LLVMValueRef llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp");
+    LLVMValueRef sum = LLVMBuildAdd(builder, llmod, rhs, "smod_tmp");
+    return LLVMBuildSRem(builder, sum, rhs, "smod");
+}
+
+static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs)
+{
+    /*
+    LLVM's provides two divisions. One truncates, the other is an "exact div"
+    that requires there is no remainder. Jou uses floor division which is
+    neither of the two, but is quite easy to implement:
+
+        floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
+    */
+    LLVMValueRef top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp");
+    return LLVMBuildExactSDiv(builder, top, rhs, "sdiv");
+}
+
+static LLVMValueRef build_binop(
+    struct State *st,
+    enum AstExpressionKind op,
+    const AstExpression *lhs_expr,
+    const AstExpression *rhs_expr)
+{
+    LLVMValueRef lhs = build_expression(st, lhs_expr);
+    LLVMValueRef rhs = build_expression(st, rhs_expr);
+    const Type *lhstype = type_of_expr(lhs_expr);
+    const Type *rhstype = type_of_expr(rhs_expr);
+
+    bool got_bools = lhstype == boolType && rhstype == boolType;
+    bool got_numbers = is_number_type(lhstype) && is_number_type(rhstype);
+    bool got_ints = is_integer_type(lhstype) && is_integer_type(rhstype);
+    bool got_uints = lhstype->kind == TYPE_UNSIGNED_INTEGER && rhstype->kind == TYPE_UNSIGNED_INTEGER;
+    bool got_pointers = is_pointer_type(lhstype) && is_pointer_type(rhstype);
+
+    assert(got_bools || got_numbers || got_pointers);
+    if (got_uints)
+        assert(got_ints);
+    if (got_ints)
+        assert(got_numbers);
+
+    if (got_uints || got_bools) {
+        switch(op) {
+            case AST_EXPR_EQ: return LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "ueq");
+            case AST_EXPR_NE: return LLVMBuildICmp(st->builder, LLVMIntNE, lhs, rhs, "une");
+            case AST_EXPR_GT: return LLVMBuildICmp(st->builder, LLVMIntSGT, lhs, rhs, "ugt");
+            case AST_EXPR_GE: return LLVMBuildICmp(st->builder, LLVMIntSGE, lhs, rhs, "uge");
+            case AST_EXPR_LT: return LLVMBuildICmp(st->builder, LLVMIntSLT, lhs, rhs, "ult");
+            case AST_EXPR_LE: return LLVMBuildICmp(st->builder, LLVMIntSLE, lhs, rhs, "ule");
+            case AST_EXPR_ADD: return LLVMBuildAdd(st->builder, lhs, rhs, "uadd");
+            case AST_EXPR_SUB: return LLVMBuildSub(st->builder, lhs, rhs, "usub");
+            case AST_EXPR_MUL: return LLVMBuildMul(st->builder, lhs, rhs, "umul");
+            case AST_EXPR_DIV: return LLVMBuildUDiv(st->builder, lhs, rhs, "udiv");
+            case AST_EXPR_MOD: return LLVMBuildURem(st->builder, lhs, rhs, "urem");
+            default: assert(0);
+        }
+    }
+
+    if (got_ints) {
+        assert(!got_uints);
+        switch(op) {
+            case AST_EXPR_EQ: return LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "ieq");
+            case AST_EXPR_NE: return LLVMBuildICmp(st->builder, LLVMIntNE, lhs, rhs, "ine");
+            case AST_EXPR_GT: return LLVMBuildICmp(st->builder, LLVMIntUGT, lhs, rhs, "igt");
+            case AST_EXPR_GE: return LLVMBuildICmp(st->builder, LLVMIntUGE, lhs, rhs, "ige");
+            case AST_EXPR_LT: return LLVMBuildICmp(st->builder, LLVMIntULT, lhs, rhs, "ilt");
+            case AST_EXPR_LE: return LLVMBuildICmp(st->builder, LLVMIntULE, lhs, rhs, "ile");
+            case AST_EXPR_ADD: return LLVMBuildAdd(st->builder, lhs, rhs, "iadd");
+            case AST_EXPR_SUB: return LLVMBuildSub(st->builder, lhs, rhs, "isub");
+            case AST_EXPR_MUL: return LLVMBuildMul(st->builder, lhs, rhs, "imul");
+            case AST_EXPR_DIV: return build_signed_div(st->builder, lhs, rhs);
+            case AST_EXPR_MOD: return build_signed_mod(st->builder, lhs, rhs);
+            default: assert(0);
+        }
+    }
+
+    if (got_numbers) {
+        assert(!got_ints);
+        switch(op) {
+            case AST_EXPR_EQ: return LLVMBuildFCmp(st->builder, LLVMRealOEQ, lhs, rhs, "feq");
+            case AST_EXPR_NE: return LLVMBuildFCmp(st->builder, LLVMRealONE, lhs, rhs, "fne");
+            case AST_EXPR_GT: return LLVMBuildFCmp(st->builder, LLVMRealOGT, lhs, rhs, "fgt");
+            case AST_EXPR_GE: return LLVMBuildFCmp(st->builder, LLVMRealOGE, lhs, rhs, "fge");
+            case AST_EXPR_LT: return LLVMBuildFCmp(st->builder, LLVMRealOLT, lhs, rhs, "flt");
+            case AST_EXPR_LE: return LLVMBuildFCmp(st->builder, LLVMRealOLE, lhs, rhs, "fle");
+            case AST_EXPR_ADD: return LLVMBuildFAdd(st->builder, lhs, rhs, "fadd");
+            case AST_EXPR_SUB: return LLVMBuildFSub(st->builder, lhs, rhs, "fsub");
+            case AST_EXPR_MUL: return LLVMBuildFMul(st->builder, lhs, rhs, "fmul");
+            case AST_EXPR_DIV: return LLVMBuildFDiv(st->builder, lhs, rhs, "fdiv");
+            case AST_EXPR_MOD: return LLVMBuildFRem(st->builder, lhs, rhs, "fmod");
+            default: assert(0);
+        }
+    }
+
+    assert(0);
+}
+
+static LLVMValueRef build_cast(struct State *st, LLVMValueRef obj, const Type *from, const Type *to)
+{
+    assert(0);
+}
+
+static LLVMValueRef build_expression_without_implicit_cast(struct State *st, const AstExpression *expr)
 {
     switch(expr->kind) {
     case AST_EXPR_CONSTANT:
@@ -287,11 +393,11 @@ static LLVMValueRef build_expression(struct State *st, const AstExpression *expr
         assert(0); // TODO
         break;
     case AST_EXPR_GET_VARIABLE:
-    {
-        const struct LocalVar *var = get_local_var(st, expr->data.varname);
-        assert(var);
-        return LLVMBuildLoad2(st->builder, type_to_llvm(type_of_expr(expr)), var->ptr, expr->data.varname);
-    }
+        return LLVMBuildLoad2(
+            st->builder,
+            type_to_llvm(type_of_expr(expr)),
+            get_local_var(st, expr->data.varname)->ptr,
+            expr->data.varname);
     case AST_EXPR_ADDRESS_OF:
         assert(0); // TODO
         break;
@@ -306,22 +412,21 @@ static LLVMValueRef build_expression(struct State *st, const AstExpression *expr
     case AST_EXPR_NOT:
         assert(0); // TODO
         break;
+    case AST_EXPR_NEG:
+        assert(0); // TODO
+        break;
     case AST_EXPR_ADD:
     case AST_EXPR_SUB:
-    case AST_EXPR_NEG:
     case AST_EXPR_MUL:
     case AST_EXPR_DIV:
     case AST_EXPR_MOD:
-        assert(0); // TODO
-        break;
     case AST_EXPR_EQ:
     case AST_EXPR_NE:
     case AST_EXPR_GT:
     case AST_EXPR_GE:
     case AST_EXPR_LT:
     case AST_EXPR_LE:
-        assert(0); // TODO
-        break;
+        return build_binop(st, expr->kind, &expr->data.operands[0], &expr->data.operands[1]);
     case AST_EXPR_PRE_INCREMENT:
     case AST_EXPR_PRE_DECREMENT:
     case AST_EXPR_POST_INCREMENT:
@@ -330,6 +435,14 @@ static LLVMValueRef build_expression(struct State *st, const AstExpression *expr
         break;
     }
     assert(0);
+}
+
+static LLVMValueRef build_expression(struct State *st, const AstExpression *expr)
+{
+    LLVMValueRef before_cast = build_expression_without_implicit_cast(st, expr);
+    if (expr->types.implicit_cast_type == NULL)
+        return before_cast;
+    return build_cast(st, before_cast, expr->types.type, expr->types.implicit_cast_type);
 }
 
 // TODO: This function can be replaced with LLVMBuildStore() once we drop LLVM 14 support.
