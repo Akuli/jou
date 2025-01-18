@@ -262,8 +262,8 @@ void free_file_types(const FileTypes *ft)
 {
     for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++)
         free_type(*t);
-    for (struct SignatureAndUsedPtr *f = ft->functions.ptr; f < End(ft->functions); f++)
-        free_signature(&f->signature);
+    for (Signature *s = ft->functions.ptr; s < End(ft->functions); s++)
+        free_signature(s);
     for (FunctionOrMethodTypes *f = ft->fomtypes.ptr; f < End(ft->fomtypes); f++) {
         free(f->locals.ptr);  // Don't free individual locals because they're owned by CFG now
         free_signature(&f->signature);

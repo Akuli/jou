@@ -329,7 +329,7 @@ static bool statement_conflicts_with_an_import(const AstStatement *stmt, const E
     }
 }
 
-static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, AstImport *imp)
+static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es)
 {
     for (int i = 0; i < fs->ast.body.nstatements; i++) {
         if (statement_conflicts_with_an_import(&fs->ast.body.statements[i], es)) {
@@ -347,21 +347,14 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
 
     switch(es->kind) {
     case EXPSYM_FUNCTION:
-        Append(&fs->types.functions, (struct SignatureAndUsedPtr){
-            .signature = copy_signature(&es->data.funcsignature),
-            .usedptr = &imp->used,
-        });
+        Append(&fs->types.functions, copy_signature(&es->data.funcsignature));
         break;
     case EXPSYM_TYPE:
-        Append(&fs->types.types, (struct TypeAndUsedPtr){
-            .type=es->data.type,
-            .usedptr=&imp->used,
-        });
+        Append(&fs->types.types, es->data.type);
         break;
     case EXPSYM_GLOBAL_VAR:
         g = (GlobalVariable){
             .type = es->data.type,
-            .usedptr = &imp->used,
         };
 
         assert(strlen(es->name) < sizeof g.name);
@@ -401,7 +394,7 @@ static void add_imported_symbols(struct CompileState *compst)
                     printf("Adding imported %s %s: %s --> %s\n",
                         kindstr, es->name, from->path, to->path);
                 }
-                add_imported_symbol(to, es, imp);
+                add_imported_symbol(to, es);
             }
         }
 
