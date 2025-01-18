@@ -120,6 +120,10 @@ struct State {
     const Signature *signature;
 };
 
+// forward declarations
+static LLVMValueRef build_expression(struct State *st, const AstExpression *expr);
+static void build_body(struct State *st, const AstBody *body);
+
 // Return value may become invalid when adding more local vars.
 static const struct LocalVar *get_local_var(const struct State *st, const char *name)
 {
@@ -188,8 +192,6 @@ static LLVMValueRef declare_function_or_method(const struct State *st, const Sig
 
     return LLVMAddFunction(st->module, fullname, signature_to_llvm(sig));
 }
-
-static LLVMValueRef build_expression(struct State *st, const AstExpression *expr);
 
 static LLVMValueRef build_call(struct State *st, const AstCall *call, const Signature *sig)
 {
@@ -337,6 +339,27 @@ static void store(LLVMBuilderRef b, LLVMValueRef value, LLVMValueRef ptr)
     LLVMBuildStore(b, value, ptr);
 }
 
+
+static void build_if_statement(struct State *st, const AstIfStatement *ifst)
+{
+    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
+    for (int i = 0; i < ifst->n_if_and_elifs; i++) {
+        LLVMValueRef cond = build_expression(st, &ifst->if_and_elifs[i].condition);
+        LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->llvm_func, "then");
+        LLVMBasicBlockRef otherwise = LLVMAppendBasicBlock(st->llvm_func, "otherwise");
+
+        LLVMBuildCondBr(st->builder, cond, then, otherwise);
+        LLVMPositionBuilderAtEnd(st->builder, then);
+        build_body(st, &ifst->if_and_elifs[i].body);
+        LLVMBuildBr(st->builder, done);
+        LLVMPositionBuilderAtEnd(st->builder, otherwise);
+    }
+
+    build_body(st, &ifst->elsebody);
+    LLVMBuildBr(st->builder, done);
+    LLVMPositionBuilderAtEnd(st->builder, done);
+}
+
 static void build_statement(struct State *st, const AstStatement *stmt)
 {
     switch(stmt->kind) {
@@ -352,7 +375,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_return"));
         break;
     case AST_STMT_IF:
-        assert(0); // TODO
+        build_if_statement(st, &stmt->data.ifstatement);
         break;
     case AST_STMT_WHILE:
         assert(0); // TODO
