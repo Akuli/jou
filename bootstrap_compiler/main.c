@@ -261,22 +261,9 @@ static void parse_all_pending_files(struct CompileState *compst)
 static char *compile_ast_to_object_file(struct FileState *fs)
 {
     if (command_line_args.verbosity >= 1)
-        printf("Building Control Flow Graphs: %s\n", fs->path);
-
-    CfGraphFile cfgfile = build_control_flow_graphs(&fs->ast, &fs->types);
-    for (const AstImport *imp = fs->ast.imports.ptr; imp < End(fs->ast.imports); imp++)
-        if (!imp->used)
-            show_warning(imp->location, "\"%s\" imported but not used", imp->specified_path);
-
-    if(command_line_args.verbosity >= 2)
-        print_control_flow_graphs(&cfgfile);
-
-    if (command_line_args.verbosity >= 1)
         printf("Building LLVM IR: %s\n", fs->path);
 
-    LLVMModuleRef mod = codegen(&cfgfile, &fs->types, fs->is_main_file);
-    free_control_flow_graphs(&cfgfile);
-
+    LLVMModuleRef mod = codegen(&fs->ast, &fs->types, fs->is_main_file);
     if (command_line_args.verbosity >= 2)
         print_llvm_ir(mod, false);
 

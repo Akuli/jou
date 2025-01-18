@@ -42,11 +42,6 @@ typedef struct ExportSymbol ExportSymbol;
 typedef struct FileTypes FileTypes;
 typedef struct FunctionOrMethodTypes FunctionOrMethodTypes;
 
-typedef struct CfBlock CfBlock;
-typedef struct CfGraph CfGraph;
-typedef struct CfGraphFile CfGraphFile;
-typedef struct CfInstruction CfInstruction;
-
 
 // Command-line arguments are a global variable because I like it.
 extern struct CommandLineArgs {
@@ -542,80 +537,6 @@ ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstFile *ast)
 void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstFile *ast);
 
 
-// Control Flow Graph.
-// Struct names not prefixed with Cfg because it looks too much like "config" to me
-struct CfInstruction {
-    Location location;
-    enum CfInstructionKind {
-        CF_CONSTANT,
-        CF_SPECIAL_CONSTANT,  // e.g. "WINDOWS", unlike CF_CONSTANT this doesn't trigger "this code will never run" warnings
-        CF_STRING_ARRAY,
-        CF_CALL,  // function or method call, depending on whether self_type is NULL (see below)
-        CF_ADDRESS_OF_LOCAL_VAR,
-        CF_ADDRESS_OF_GLOBAL_VAR,
-        CF_SIZEOF,
-        CF_PTR_MEMSET_TO_ZERO,  // takes one operand, a pointer: memset(ptr, 0, sizeof(*ptr))
-        CF_PTR_STORE,  // *op1 = op2 (does not use destvar, takes 2 operands)
-        CF_PTR_LOAD,  // aka dereference
-        CF_PTR_TO_INT64,
-        CF_INT64_TO_PTR,
-        CF_PTR_CLASS_FIELD,  // takes 1 operand (pointer), sets destvar to &op->fieldname
-        CF_PTR_CAST,
-        CF_PTR_ADD_INT,
-        // Left and right side of number operations must be of the same type (except CF_NUM_CAST).
-        CF_NUM_ADD,
-        CF_NUM_SUB,
-        CF_NUM_MUL,
-        CF_NUM_DIV,
-        CF_NUM_MOD,
-        CF_NUM_EQ,
-        CF_NUM_LT,
-        CF_NUM_CAST,
-        CF_ENUM_TO_INT32,
-        CF_INT32_TO_ENUM,
-        CF_BOOL_NEGATE,  // TODO: get rid of this?
-        CF_VARCPY, // similar to assignment statements: var1 = var2
-    } kind;
-    union CfInstructionData {
-        Constant constant;      // CF_CONSTANT
-        struct { char *str; int len; } strarray;  // CF_STRING_ARRAY
-        Signature signature;    // CF_CALL
-        char fieldname[100];    // CF_PTR_CLASS_FIELD
-        char globalname[100];   // CF_ADDRESS_OF_GLOBAL_VAR
-        char scname[100];       // CF_SPECIAL_CONSTANT
-        const Type *type;       // CF_SIZEOF
-    } data;
-    const LocalVariable **operands;  // e.g. numbers to add, function arguments
-    int noperands;
-    const LocalVariable *destvar;  // NULL when it doesn't make sense, e.g. functions that return void
-    bool hide_unreachable_warning; // usually false, can be set to true to avoid unreachable warning false positives
-};
-
-struct CfBlock {
-    List(CfInstruction) instructions;
-    const LocalVariable *branchvar;  // boolean value used to decide where to jump next
-
-    // iftrue and iffalse are NULL for special end block and after calling a noreturn function.
-    // When iftrue and iffalse are the same, the branchvar is not used and may be NULL.
-    CfBlock *iftrue;
-    CfBlock *iffalse;
-};
-
-struct CfGraph {
-    Signature signature;
-    bool public;
-    CfBlock start_block;  // First block
-    CfBlock end_block;  // Always empty. Return statement jumps here.
-    List(CfBlock *) all_blocks;
-    List(LocalVariable *) locals;   // First n variables are the function arguments
-};
-
-struct CfGraphFile {
-    const char *filename;
-    List(CfGraph*) graphs;  // only for defined functions
-};
-
-
 /*
 LLVM makes a mess of how to define what kind of computer will run the
 compiled programs. Sometimes it wants a target triple, sometimes a
@@ -644,9 +565,8 @@ entire compilation. It is used in error messages.
 */
 Token *tokenize(FILE *f, const char *filename);
 AstFile parse(const Token *tokens, const char *stdlib_path);
-// Type checking happens between parsing and building CFGs.
-CfGraphFile build_control_flow_graphs(const AstFile *ast, FileTypes *ft);
-LLVMModuleRef codegen(const CfGraphFile *cfgfile, const FileTypes *ft, bool is_main_file);
+// Type checking happens between parsing and codegen.
+LLVMModuleRef codegen(const AstFile *ast, const FileTypes *ft, bool is_main_file);
 char *compile_to_object_file(LLVMModuleRef module);
 char *get_default_exe_path(void);
 void run_linker(const char *const *objpaths, const char *exepath);
@@ -665,8 +585,6 @@ void free_ast(const AstFile *ast);
 void free_ast_statement(const AstStatement *stmt);
 void free_file_types(const FileTypes *ft);
 void free_export_symbol(const ExportSymbol *es);
-void free_control_flow_graphs(const CfGraphFile *cfgfile);
-void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b);
 
 /*
 Functions for printing intermediate data for debugging and exploring the compiler.
@@ -675,8 +593,6 @@ Most of these take the data for an entire program.
 void print_token(const Token *token);
 void print_tokens(const Token *tokenlist);
 void print_ast(const AstFile *ast);
-void print_control_flow_graph(const CfGraph *cfg);
-void print_control_flow_graphs(const CfGraphFile *cfgfile);
 void print_llvm_ir(LLVMModuleRef module, bool is_optimized);
 
 #endif
