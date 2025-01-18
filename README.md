@@ -1,6 +1,6 @@
 # Jou programming language
 
-Jou is a programming language that **looks like Python but behaves like C**.
+ Jou is a programming language that **looks like Python but behaves like C**.
 For example:
 
 ```python
