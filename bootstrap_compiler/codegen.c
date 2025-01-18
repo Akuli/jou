@@ -345,6 +345,59 @@ static LLVMValueRef build_binop(
 
 static LLVMValueRef build_cast(struct State *st, LLVMValueRef obj, const Type *from, const Type *to)
 {
+    assert(from != NULL);
+    assert(to != NULL);
+
+    // Always treat enums as ints
+    if (from->kind == TYPE_ENUM)
+        from = intType;
+    if (to->kind == TYPE_ENUM)
+        to = intType;
+
+    if (from == to)
+        return obj;
+
+    if (is_pointer_type(from) && is_pointer_type(to)) {
+        // All pointers are the same type in LLVM
+        return obj;
+    }
+
+    if (is_number_type(from) && is_number_type(to)) {
+        if (is_integer_type(from) && is_integer_type(to)) {
+            // Examples:
+            //  signed 8-bit 0xFF (-1) --> 16-bit 0xFFFF (-1 or max value)
+            //  unsigned 8-bit 0xFF (255) --> 16-bit 0x00FF (255)
+            return LLVMBuildIntCast2(st->builder, obj, type_to_llvm(to), from->kind == TYPE_SIGNED_INTEGER, "cast");
+        }
+        if (is_integer_type(from) && to->kind == TYPE_FLOATING_POINT) {
+            // integer --> double/float
+            if (from->kind == TYPE_SIGNED_INTEGER)
+                return LLVMBuildSIToFP(st->builder, obj, type_to_llvm(to), "cast");
+            else
+                return LLVMBuildUIToFP(st->builder, obj, type_to_llvm(to), "cast");
+        }
+        if (from->kind == TYPE_FLOATING_POINT && is_integer_type(to)) {
+            // double/float --> integer
+            if (to->kind == TYPE_SIGNED_INTEGER)
+                return LLVMBuildFPToSI(st->builder, obj, type_to_llvm(to), "cast");
+            else
+                return LLVMBuildFPToUI(st->builder, obj, type_to_llvm(to), "cast");
+        }
+        if (from->kind == TYPE_FLOATING_POINT && to->kind == TYPE_FLOATING_POINT) {
+            // double/float --> double/float
+            return LLVMBuildFPCast(st->builder, obj, type_to_llvm(to), "cast");
+        }
+        assert(0);
+    }
+
+    if (is_integer_type(from) && is_pointer_type(to))
+        return LLVMBuildIntToPtr(st->builder, obj, type_to_llvm(to), "cast");
+    if (is_pointer_type(from) && is_integer_type(to))
+        return LLVMBuildPtrToInt(st->builder, obj, type_to_llvm(to), "cast");
+
+    if (from == boolType && is_integer_type(to))
+        return LLVMBuildIntCast2(st->builder, obj, type_to_llvm(to), false, "cast");
+
     assert(0);
 }
 
