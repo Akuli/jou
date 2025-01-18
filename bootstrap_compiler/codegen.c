@@ -291,10 +291,10 @@ static LLVMValueRef build_binop(
         switch(op) {
             case AST_EXPR_EQ: return LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "ueq");
             case AST_EXPR_NE: return LLVMBuildICmp(st->builder, LLVMIntNE, lhs, rhs, "une");
-            case AST_EXPR_GT: return LLVMBuildICmp(st->builder, LLVMIntSGT, lhs, rhs, "ugt");
-            case AST_EXPR_GE: return LLVMBuildICmp(st->builder, LLVMIntSGE, lhs, rhs, "uge");
-            case AST_EXPR_LT: return LLVMBuildICmp(st->builder, LLVMIntSLT, lhs, rhs, "ult");
-            case AST_EXPR_LE: return LLVMBuildICmp(st->builder, LLVMIntSLE, lhs, rhs, "ule");
+            case AST_EXPR_GT: return LLVMBuildICmp(st->builder, LLVMIntUGT, lhs, rhs, "ugt");
+            case AST_EXPR_GE: return LLVMBuildICmp(st->builder, LLVMIntUGE, lhs, rhs, "uge");
+            case AST_EXPR_LT: return LLVMBuildICmp(st->builder, LLVMIntULT, lhs, rhs, "ult");
+            case AST_EXPR_LE: return LLVMBuildICmp(st->builder, LLVMIntULE, lhs, rhs, "ule");
             case AST_EXPR_ADD: return LLVMBuildAdd(st->builder, lhs, rhs, "uadd");
             case AST_EXPR_SUB: return LLVMBuildSub(st->builder, lhs, rhs, "usub");
             case AST_EXPR_MUL: return LLVMBuildMul(st->builder, lhs, rhs, "umul");
@@ -309,10 +309,10 @@ static LLVMValueRef build_binop(
         switch(op) {
             case AST_EXPR_EQ: return LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "ieq");
             case AST_EXPR_NE: return LLVMBuildICmp(st->builder, LLVMIntNE, lhs, rhs, "ine");
-            case AST_EXPR_GT: return LLVMBuildICmp(st->builder, LLVMIntUGT, lhs, rhs, "igt");
-            case AST_EXPR_GE: return LLVMBuildICmp(st->builder, LLVMIntUGE, lhs, rhs, "ige");
-            case AST_EXPR_LT: return LLVMBuildICmp(st->builder, LLVMIntULT, lhs, rhs, "ilt");
-            case AST_EXPR_LE: return LLVMBuildICmp(st->builder, LLVMIntULE, lhs, rhs, "ile");
+            case AST_EXPR_GT: return LLVMBuildICmp(st->builder, LLVMIntSGT, lhs, rhs, "igt");
+            case AST_EXPR_GE: return LLVMBuildICmp(st->builder, LLVMIntSGE, lhs, rhs, "ige");
+            case AST_EXPR_LT: return LLVMBuildICmp(st->builder, LLVMIntSLT, lhs, rhs, "ilt");
+            case AST_EXPR_LE: return LLVMBuildICmp(st->builder, LLVMIntSLE, lhs, rhs, "ile");
             case AST_EXPR_ADD: return LLVMBuildAdd(st->builder, lhs, rhs, "iadd");
             case AST_EXPR_SUB: return LLVMBuildSub(st->builder, lhs, rhs, "isub");
             case AST_EXPR_MUL: return LLVMBuildMul(st->builder, lhs, rhs, "imul");
@@ -443,8 +443,7 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
         assert(0); // TODO
         break;
     case AST_EXPR_AS:
-        assert(0); // TODO
-        break;
+        return build_cast(st, build_expression(st, expr->data.as.obj), type_of_expr(expr->data.as.obj), expr->types.type);
     case AST_EXPR_GET_VARIABLE:
         return LLVMBuildLoad2(
             st->builder,
