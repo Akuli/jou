@@ -154,6 +154,11 @@ static LLVMValueRef struct_gep(LLVMBuilderRef b, LLVMTypeRef type, LLVMValueRef 
     LLVMValueRef result = LLVMBuildStructGEP2(b, type, ptr, idx, name);
     return LLVMBuildBitCast(b, result, type_to_llvm(voidPtrType), "legacy_llvm14_cast");  // TODO: is this needed?
 }
+static LLVMValueRef getglobal(LLVMBuilderRef b, LLVMModuleRef mod, const char *name)
+{
+    LLVMValueRef result = LLVMGetNamedGlobal(mod, name);
+    return LLVMBuildBitCast(b, result, type_to_llvm(voidPtrType), "legacy_llvm14_cast");
+}
 
 static bool local_var_exists(const struct State *st, const char *name)
 {
@@ -169,21 +174,6 @@ static const struct LocalVar *get_local_var(const struct State *st, const char *
         if (!strcmp(st->locals[i].name, name))
             return &st->locals[i];
     assert(false);
-}
-
-static struct LocalVar *add_local_var(struct State *st, const Type *t, const char *name)
-{
-    assert(name && name[0]);
-    for (int i = 0; i < st->nlocals; i++)
-        assert(strcmp(st->locals[i].name, name) != 0);
-
-    assert(st->nlocals < (int)(sizeof(st->locals) / sizeof(st->locals[0])));
-    struct LocalVar *v = &st->locals[st->nlocals++];
-
-    assert(strlen(name) < sizeof(v->name));
-    strcpy(v->name, name);
-    v->ptr = stack_alloc(st->builder, type_to_llvm(t), name);
-    return v;
 }
 
 static const Type *type_of_expr(const AstExpression *expr)
@@ -838,7 +828,7 @@ static LLVMValueRef build_address_of_expression(struct State *st, const AstExpre
         if (local_var_exists(st, expr->data.varname))
             return get_local_var(st, expr->data.varname)->ptr;
         else
-            return LLVMGetNamedGlobal(st->module, expr->data.varname);
+            return getglobal(st->builder, st->module, expr->data.varname);
     case AST_EXPR_INDEXING:
     {
         // &ptr[index] = ptr + memory offset
@@ -1141,7 +1131,6 @@ static void build_function_or_method(
     LLVMBasicBlockRef start = LLVMAppendBasicBlock(st->llvm_func, "start");
     LLVMPositionBuilderAtEnd(st->builder, start);
 
-    // Allocate local variables
     const FunctionOrMethodTypes *fomtypes = NULL;
     for (FunctionOrMethodTypes *f = st->filetypes->fomtypes.ptr; f < End(st->filetypes->fomtypes); f++) {
         if (!strcmp(f->signature.name, sig->name) && get_self_class(&f->signature) == get_self_class(sig)) {
@@ -1150,9 +1139,18 @@ static void build_function_or_method(
         }
     }
     assert(fomtypes);
+
+    // Allocate local variables on stack
     assert(st->nlocals == 0);
-    for (LocalVariable **lv = fomtypes->locals.ptr; lv < End(fomtypes->locals); lv++) {
-        add_local_var(st, (*lv)->type, (*lv)->name);
+    assert((int)(sizeof(st->locals)/sizeof(st->locals[0])) >= fomtypes->locals.len);
+    st->nlocals = fomtypes->locals.len;
+    for (int i = 0; i < st->nlocals; i++) {
+        const char *name = fomtypes->locals.ptr[i]->name;
+        const Type *type = fomtypes->locals.ptr[i]->type;
+        assert(name && name[0]);
+        assert(strlen(name) < sizeof(st->locals[i].name));
+        strcpy(st->locals[i].name, fomtypes->locals.ptr[i]->name);
+        st->locals[i].ptr = stack_alloc(st->builder, type_to_llvm(type), name);
     }
 
     // Place arguments into the first n local variables.
