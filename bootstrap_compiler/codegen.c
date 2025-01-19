@@ -138,6 +138,13 @@ static void store(LLVMBuilderRef b, LLVMValueRef value, LLVMValueRef ptr)
     LLVMBuildStore(b, value, ptr);
 }
 
+// TODO: This function can be replaced with LLVMBuildStore() once we drop LLVM 14 support.
+static LLVMValueRef stack_alloc(LLVMBuilderRef b, LLVMTypeRef type, const char *name)
+{
+    LLVMValueRef ptr = LLVMBuildAlloca(b, type, name);
+    return LLVMBuildBitCast(b, ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast");
+}
+
 // Return value may become invalid when adding more local vars.
 static const struct LocalVar *get_local_var(const struct State *st, const char *name)
 {
@@ -158,7 +165,7 @@ static struct LocalVar *add_local_var(struct State *st, const Type *t, const cha
 
     assert(strlen(name) < sizeof(v->name));
     strcpy(v->name, name);
-    v->ptr = LLVMBuildAlloca(st->builder, type_to_llvm(t), name);
+    v->ptr = stack_alloc(st->builder, type_to_llvm(t), name);
     return v;
 }
 
@@ -205,8 +212,17 @@ static LLVMValueRef declare_function_or_method(const struct State *st, const Sig
     return LLVMAddFunction(st->module, fullname, signature_to_llvm(sig));
 }
 
-static LLVMValueRef build_call(struct State *st, const AstCall *call, const Signature *sig)
+static LLVMValueRef build_function_call(struct State *st, const AstCall *call)
 {
+    const Signature *sig = NULL;
+    for (const Signature *s = st->filetypes->functions.ptr; s < End(st->filetypes->functions); s++) {
+        if (!strcmp(s->name, call->calledname)) {
+            sig = s;
+            break;
+        }
+    }
+    assert(sig);
+
     assert(call->nargs < 100);
     LLVMValueRef args[100];
     for (int i = 0; i < call->nargs; i++) {
@@ -221,6 +237,57 @@ static LLVMValueRef build_call(struct State *st, const AstCall *call, const Sign
     LLVMTypeRef functype = signature_to_llvm(sig);
 
     return LLVMBuildCall2(st->builder, functype, func, args, call->nargs, debug_name);
+}
+
+static LLVMValueRef build_method_call(struct State *st, const AstCall *call, const AstExpression *self)
+{
+    assert(self);
+
+    const Type *selfclass = type_of_expr(self);
+    bool self_is_a_pointer = selfclass->kind == TYPE_POINTER;
+    if (self_is_a_pointer)
+        selfclass = selfclass->data.valuetype;
+    assert(selfclass->kind == TYPE_CLASS);
+
+    const Signature *sig = NULL;
+    for (const Signature *s = selfclass->data.classdata.methods.ptr; s < End(selfclass->data.classdata.methods); s++) {
+        assert(get_self_class(s) == selfclass);
+        if (!strcmp(s->name, call->calledname)) {
+            sig = s;
+            break;
+        }
+    }
+    assert(sig);
+
+    // leave room for self
+    assert(call->nargs <= 45);
+    LLVMValueRef args[50];
+
+    int k = 0;
+
+    if (sig->argtypes[0] == get_pointer_type(selfclass) && type_of_expr(self) == selfclass) {
+        // take address to pass self as pointer
+        args[k++] = build_address_of_expression(st, self);
+    } else if (sig->argtypes[0] == selfclass && type_of_expr(self) == get_pointer_type(selfclass)) {
+        // dereference to pass self by value
+        LLVMValueRef self_ptr = build_expression(st, self);
+        args[k++] = LLVMBuildLoad2(st->builder, type_to_llvm(selfclass), self_ptr, "self");
+    } else {
+        assert(sig->argtypes[0] == type_of_expr(self));
+        args[k++] = build_expression(st, self);
+    }
+
+    for (int i = 0; i < call->nargs; i++)
+        args[k++] = build_expression(st, &call->args[i]);
+
+    char debug_name[100] = "";
+    if (sig->returntype != NULL)
+        snprintf(debug_name, sizeof(debug_name), "%s_return_value", sig->name);
+
+    LLVMValueRef func = declare_function_or_method(st, sig);
+    LLVMTypeRef functype = signature_to_llvm(sig);
+
+    return LLVMBuildCall2(st->builder, functype, func, args, k, debug_name);
 }
 
 static LLVMValueRef build_string_constant(const struct State *st, const char *s)
@@ -377,7 +444,7 @@ static LLVMValueRef build_brace_init(struct State *st, const AstCall *call)
     assert(classtype != NULL);
     assert(classtype->kind == TYPE_CLASS);
 
-    LLVMValueRef ptr = LLVMBuildAlloca(st->builder, type_to_llvm(classtype), "new_instance_ptr");
+    LLVMValueRef ptr = stack_alloc(st->builder, type_to_llvm(classtype), "new_instance_ptr");
 
     LLVMValueRef size = LLVMSizeOf(type_to_llvm(classtype));
     LLVMBuildMemSet(st->builder, ptr, LLVMConstInt(LLVMInt8Type(), 0, false), size, 0);
@@ -465,7 +532,7 @@ static LLVMValueRef build_and(struct State *st, const AstExpression *lhsexpr, co
     LLVMBasicBlockRef lhsfalse = LLVMAppendBasicBlock(st->llvm_func, "lhsfalse");
     LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
 
-    LLVMValueRef resultptr = LLVMBuildAlloca(st->builder, type_to_llvm(boolType), "and_ptr");
+    LLVMValueRef resultptr = stack_alloc(st->builder, type_to_llvm(boolType), "and_ptr");
 
     // if lhs:
     LLVMBuildCondBr(st->builder, build_expression(st, lhsexpr), lhstrue, lhsfalse);
@@ -500,7 +567,7 @@ static LLVMValueRef build_or(struct State *st, const AstExpression *lhsexpr, con
     LLVMBasicBlockRef lhsfalse = LLVMAppendBasicBlock(st->llvm_func, "lhsfalse");
     LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
 
-    LLVMValueRef resultptr = LLVMBuildAlloca(st->builder, type_to_llvm(boolType), "or_ptr");
+    LLVMValueRef resultptr = stack_alloc(st->builder, type_to_llvm(boolType), "or_ptr");
 
     // if lhs:
     LLVMBuildCondBr(st->builder, build_expression(st, lhsexpr), lhstrue, lhsfalse);
@@ -529,17 +596,10 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
         assert(0); // TODO
         break;
     case AST_EXPR_FUNCTION_CALL:
-        {
-            const Signature *sig = NULL;
-            for (const Signature *s = st->filetypes->functions.ptr; s < End(st->filetypes->functions); s++) {
-                if (!strcmp(s->name, expr->data.call.calledname)) {
-                    sig = s;
-                    break;
-                }
-            }
-            assert(sig);
-            return build_call(st, &expr->data.call, sig);
-        }
+        return build_function_call(st, &expr->data.call);
+    case AST_EXPR_CALL_METHOD:
+    case AST_EXPR_DEREF_AND_CALL_METHOD:
+        return build_method_call(st, &expr->data.methodcall.call, expr->data.methodcall.obj);
     case AST_EXPR_BRACE_INIT:
         return build_brace_init(st, &expr->data.call);
     case AST_EXPR_ARRAY:
@@ -553,7 +613,7 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
             const Type *t = type_of_expr(expr->data.classfield.obj);
             assert(t->kind == TYPE_CLASS);
             LLVMValueRef obj = build_expression(st, expr->data.classfield.obj);
-            LLVMValueRef ptr = LLVMBuildAlloca(st->builder, type_to_llvm(t), "temp_copy");
+            LLVMValueRef ptr = stack_alloc(st->builder, type_to_llvm(t), "temp_copy");
             store(st->builder, obj, ptr);
             LLVMValueRef fieldptr = build_class_field_pointer(st, t, ptr, expr->data.classfield.fieldname);
             return LLVMBuildLoad2(st->builder, type_to_llvm(t), fieldptr, "field");
@@ -564,13 +624,6 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
             type_to_llvm(expr->types.type),
             build_address_of_expression(st, expr),
             "deref_field");
-        break;
-    case AST_EXPR_CALL_METHOD:
-        assert(0); // TODO
-        break;
-    case AST_EXPR_DEREF_AND_CALL_METHOD:
-        assert(0); // TODO
-        break;
     case AST_EXPR_INDEXING:
         assert(0); // TODO
         break;
@@ -668,8 +721,13 @@ static LLVMValueRef build_address_of_expression(struct State *st, const AstExpre
         return build_class_field_pointer(st, t->data.valuetype, ptr, expr->data.classfield.fieldname);
     }
     case AST_EXPR_GET_FIELD:
-        assert(0); // TODO
-        break;
+    {
+        // &obj.field = &obj + memory offset
+        LLVMValueRef ptr = build_address_of_expression(st, expr->data.classfield.obj);
+        const Type *t = type_of_expr(expr->data.classfield.obj);
+        assert(t->kind == TYPE_CLASS);
+        return build_class_field_pointer(st, t, ptr, expr->data.classfield.fieldname);
+    }
     case AST_EXPR_GET_VARIABLE:
         return get_local_var(st, expr->data.varname)->ptr;
     case AST_EXPR_INDEXING:
