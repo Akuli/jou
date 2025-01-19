@@ -353,14 +353,11 @@ static LLVMValueRef build_signed_div(LLVMBuilderRef builder, LLVMValueRef lhs, L
 static LLVMValueRef build_binop(
     struct State *st,
     enum AstExpressionKind op,
-    const AstExpression *lhs_expr,
-    const AstExpression *rhs_expr)
+    LLVMValueRef lhs,
+    const Type *lhstype,
+    LLVMValueRef rhs,
+    const Type *rhstype)
 {
-    LLVMValueRef lhs = build_expression(st, lhs_expr);
-    LLVMValueRef rhs = build_expression(st, rhs_expr);
-    const Type *lhstype = type_of_expr(lhs_expr);
-    const Type *rhstype = type_of_expr(rhs_expr);
-
     bool got_bools = lhstype == boolType && rhstype == boolType;
     bool got_numbers = is_number_type(lhstype) && is_number_type(rhstype);
     bool got_ints = is_integer_type(lhstype) && is_integer_type(rhstype);
@@ -427,6 +424,20 @@ static LLVMValueRef build_binop(
     }
 
     assert(0);
+}
+
+static void build_inplace_binop(
+    struct State *st,
+    enum AstExpressionKind op,
+    const AstExpression *lhs,
+    const AstExpression *rhs)
+{
+    LLVMValueRef lhsptr = build_address_of_expression(st, lhs);
+    LLVMValueRef rhsvalue = build_expression(st, rhs);
+
+    LLVMValueRef old_value = LLVMBuildLoad2(st->builder, type_to_llvm(type_of_expr(lhs)), lhsptr, "old_value");
+    LLVMValueRef new_value = build_binop(st, op, old_value, type_of_expr(lhs), rhsvalue, type_of_expr(rhs));
+    store(st->builder, new_value, lhsptr);
 }
 
 static LLVMValueRef build_class_field_pointer(struct State *st, const Type *classtype, LLVMValueRef instanceptr, const char *fieldname)
@@ -719,7 +730,15 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
     case AST_EXPR_GE:
     case AST_EXPR_LT:
     case AST_EXPR_LE:
-        return build_binop(st, expr->kind, &expr->data.operands[0], &expr->data.operands[1]);
+    {
+        // Evaluation order of arguments isn't guaranteed in C, but is in Jou.
+        // Make sure to evaluate lhs first.
+        LLVMValueRef lhs = build_expression(st, &expr->data.operands[0]);
+        LLVMValueRef rhs = build_expression(st, &expr->data.operands[1]);
+        const Type *lhstype = type_of_expr(&expr->data.operands[0]);
+        const Type *rhstype = type_of_expr(&expr->data.operands[1]);
+        return build_binop(st, expr->kind, lhs, lhstype, rhs, rhstype);
+    }
     case AST_EXPR_PRE_INCREMENT:
         return build_increment_or_decrement(st, &expr->data.operands[0], true, 1);
     case AST_EXPR_PRE_DECREMENT:
@@ -948,33 +967,31 @@ static void build_statement(struct State *st, const AstStatement *stmt)
     {
         // Refactoring note: Needs separate variables because evaluation order
         // of arguments is not guaranteed in C.
-        LLVMValueRef destptr = build_address_of_expression(st, &stmt->data.assignment.target);
-        LLVMValueRef value = build_expression(st, &stmt->data.assignment.value);
-        store(st->builder, value, destptr);
+        LLVMValueRef lhsptr = build_address_of_expression(st, &stmt->data.assignment.target);
+        LLVMValueRef rhs = build_expression(st, &stmt->data.assignment.value);
+        store(st->builder, rhs, lhsptr);
         break;
     }
     case AST_STMT_INPLACE_ADD:
-        assert(0); // TODO
+        build_inplace_binop(st, AST_EXPR_ADD, &stmt->data.assignment.target, &stmt->data.assignment.value);
         break;
     case AST_STMT_INPLACE_SUB:
-        assert(0); // TODO
+        build_inplace_binop(st, AST_EXPR_SUB, &stmt->data.assignment.target, &stmt->data.assignment.value);
         break;
     case AST_STMT_INPLACE_MUL:
-        assert(0); // TODO
+        build_inplace_binop(st, AST_EXPR_MUL, &stmt->data.assignment.target, &stmt->data.assignment.value);
         break;
     case AST_STMT_INPLACE_DIV:
-        assert(0); // TODO
+        build_inplace_binop(st, AST_EXPR_DIV, &stmt->data.assignment.target, &stmt->data.assignment.value);
         break;
     case AST_STMT_INPLACE_MOD:
-        assert(0); // TODO
+        build_inplace_binop(st, AST_EXPR_MOD, &stmt->data.assignment.target, &stmt->data.assignment.value);
         break;
     case AST_STMT_EXPRESSION_STATEMENT:
         build_expression(st, &stmt->data.expression);
         break;
-
     case AST_STMT_PASS:
         break; // nothing to do
-
     case AST_STMT_DEFINE_CLASS:
     case AST_STMT_DEFINE_ENUM:
     case AST_STMT_DECLARE_GLOBAL_VAR:
