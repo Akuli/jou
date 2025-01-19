@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [valgrind]
-    if: ${{ github.repository == 'Akuli/jou' && always() && github.event_name == 'schedule' && needs.valgrind.result == 'failure' }}
+    if: ${{ github.repository == 'Akuli/jou' && always() && needs.valgrind.result == 'failure' }}
     permissions:
       issues: write
     steps:
