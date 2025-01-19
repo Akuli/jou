@@ -480,6 +480,7 @@ static LLVMValueRef build_and(struct State *st, const AstExpression *lhsexpr, co
     store(st->builder, LLVMConstInt(LLVMInt1Type(), false, false), resultptr);
     // end else
     LLVMBuildBr(st->builder, done);
+    LLVMPositionBuilderAtEnd(st->builder, done);
 
     return LLVMBuildLoad2(st->builder, LLVMInt1Type(), resultptr, "and");
 }
@@ -514,6 +515,7 @@ static LLVMValueRef build_or(struct State *st, const AstExpression *lhsexpr, con
     store(st->builder, build_expression(st, rhsexpr), resultptr);
     // end else
     LLVMBuildBr(st->builder, done);
+    LLVMPositionBuilderAtEnd(st->builder, done);
 
     return LLVMBuildLoad2(st->builder, LLVMInt1Type(), resultptr, "or");
 }
