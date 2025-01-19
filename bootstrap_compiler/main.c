@@ -263,7 +263,7 @@ static char *compile_ast_to_object_file(struct FileState *fs)
     if (command_line_args.verbosity >= 1)
         printf("Building LLVM IR: %s\n", fs->path);
 
-    LLVMModuleRef mod = codegen(&fs->ast, &fs->types, fs->is_main_file);
+    LLVMModuleRef mod = build_llvm_ir(&fs->ast, &fs->types, fs->is_main_file);
     if (command_line_args.verbosity >= 2)
         print_llvm_ir(mod, false);
 

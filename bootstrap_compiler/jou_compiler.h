@@ -564,8 +564,8 @@ entire compilation. It is used in error messages.
 */
 Token *tokenize(FILE *f, const char *filename);
 AstFile parse(const Token *tokens, const char *stdlib_path);
-// Type checking happens between parsing and codegen.
-LLVMModuleRef codegen(const AstFile *ast, const FileTypes *ft, bool is_main_file);
+// Type checking happens between parsing and building LLVM IR.
+LLVMModuleRef build_llvm_ir(const AstFile *ast, const FileTypes *ft, bool is_main_file);
 char *compile_to_object_file(LLVMModuleRef module);
 char *get_default_exe_path(void);
 void run_linker(const char *const *objpaths, const char *exepath);

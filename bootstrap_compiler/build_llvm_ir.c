@@ -29,7 +29,7 @@ But for some reason that didn't work either.
 
 As a "last resort" I just use an array of i64 large enough and hope it's aligned as needed.
 */
-static LLVMTypeRef codegen_union_type(const LLVMTypeRef *types, int ntypes)
+static LLVMTypeRef union_type_to_llvm(const LLVMTypeRef *types, int ntypes)
 {
     // For some reason uncommenting this makes stuff compile almost 2x slower...
     //if (ntypes == 1)
@@ -89,7 +89,7 @@ static LLVMTypeRef type_to_llvm(const Type *type)
                 end = start+1;
                 while (end < n && type->data.classdata.fields.ptr[start].union_id == type->data.classdata.fields.ptr[end].union_id)
                     end++;
-                combined[combinedlen++] = codegen_union_type(&flat_elems[start], end-start);
+                combined[combinedlen++] = union_type_to_llvm(&flat_elems[start], end-start);
             }
 
             LLVMTypeRef result = LLVMStructType(combined, combinedlen, false);
@@ -1113,7 +1113,7 @@ static void build_body(struct State *st, const AstBody *body)
 }
 
 #if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
-static void codegen_call_to_the_special_startup_function(const struct State *st)
+static void call_the_special_startup_function(const struct State *st)
 {
     LLVMTypeRef functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
     LLVMValueRef func = LLVMAddFunction(st->module, "_jou_startup", functype);
@@ -1162,7 +1162,7 @@ static void build_function_or_method(
 
 #if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
     if (!get_self_class(sig) && !strcmp(sig->name, "main"))
-        codegen_call_to_the_special_startup_function(st);
+        call_the_special_startup_function(st);
 #endif
 
     build_body(st, body);
@@ -1179,7 +1179,7 @@ static void build_function_or_method(
     st->nlocals = 0;
 }
 
-LLVMModuleRef codegen(const AstFile *ast, const FileTypes *ft, bool is_main_file)
+LLVMModuleRef build_llvm_ir(const AstFile *ast, const FileTypes *ft, bool is_main_file)
 {
     struct State st = {
         .filetypes = ft,
