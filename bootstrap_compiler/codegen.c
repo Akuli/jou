@@ -970,11 +970,47 @@ static void build_match_statament(struct State *st, const AstMatchStatement *mat
     LLVMPositionBuilderAtEnd(st->builder, done);
 }
 
+static void build_assert(struct State *st, Location assert_location, const AstAssert *assertion)
+{
+    LLVMValueRef cond = build_expression(st, &assertion->condition);
+
+    // If the condition is true, we jump to a block where the rest of the code goes.
+    // If the condition is false, we jump to a block that calls _jou_assert_fail().
+    LLVMBasicBlockRef trueblock = LLVMAppendBasicBlock(st->llvm_func, "assert_true");
+    LLVMBasicBlockRef falseblock = LLVMAppendBasicBlock(st->llvm_func, "assert_false");
+    LLVMBuildCondBr(st->builder, cond, trueblock, falseblock);
+
+    LLVMPositionBuilderAtEnd(st->builder, falseblock);
+
+    LLVMValueRef args[] = {
+        build_string_constant(st, assertion->condition_str),
+        build_string_constant(st, assert_location.filename),
+        LLVMConstInt(LLVMInt32Type(), assert_location.lineno, false),
+    };
+    LLVMTypeRef argtypes[] = {
+        LLVMTypeOf(args[0]),
+        LLVMTypeOf(args[1]),
+        LLVMTypeOf(args[2]),
+    };
+    LLVMTypeRef functype = LLVMFunctionType(LLVMVoidType(), argtypes, 3, false);
+
+    // Make it so that this can be called many times without issue
+    LLVMValueRef func = LLVMGetNamedFunction(st->module, "_jou_assert_fail");
+    if (!func)
+        func = LLVMAddFunction(st->module, "_jou_assert_fail", functype);
+    assert(func);
+
+    LLVMBuildCall2(st->builder, functype, func, args, 3, "");
+    LLVMBuildUnreachable(st->builder);
+
+    LLVMPositionBuilderAtEnd(st->builder, trueblock);
+}
+
 static void build_statement(struct State *st, const AstStatement *stmt)
 {
     switch(stmt->kind) {
     case AST_STMT_ASSERT:
-        assert(0); // TODO
+        build_assert(st, stmt->location, &stmt->data.assertion);
         break;
     case AST_STMT_RETURN:
         if (stmt->data.returnvalue)
