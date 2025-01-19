@@ -1,4 +1,4 @@
-# Undefined Value Graphs are used to determine whether values are undefined
+# Undefined Value Graphs are used to determine which values may be undefined
 # when the code runs.
 #
 # For example, consider the following Jou code (5 lines):
@@ -11,7 +11,7 @@
 #
 # For this code, we create the following UVG:
 #
-#    start:
+#    block 0 (start):
 #        [line 1]   set a
 #        [line 2]   use a
 #        [line 2]   set $1
@@ -54,12 +54,12 @@
 #            x = 7
 #        printf("%d\n", x)
 #
-# We handle branching very similarly to LLVM IR. Here's the UVG for bar():
+# We handle this very similarly to LLVM IR. Here's the UVG for bar():
 #
-#    start:
+#    block 0 (start):
 #        [line 1]   set cond
 #        [line 3]   use cond
-#        If cond, then jump to block 1, else jump to block 2.
+#        If cond is True, jump to block 1. Otherwise jump to block 2.
 #
 #    block 1:
 #        [line 4]   set $1
@@ -75,14 +75,6 @@
 #        [line 5]   use $2
 #        [line 5]   use x
 #        [line 5]   set $3
-#        [line 5]   return
-#        [line 4]   set z
-#        [line 5]   set $3
-#        [line 5]   use $3
-#        [line 5]   use x
-#        [line 5]   use y
-#        [line 5]   use z
-#        [line 5]   set $4
 #        Return from function.
 #
 # Here:
@@ -90,3 +82,123 @@
 #   - $2 is an anonymous value that represents "%d\n"
 #   - $3 is an anonymous value that represents the return value of printf(...)
 #   - $0 does not appear at all, because this is a '-> None' function (no return value)
+#   - block 2 is basically empty, because it represents the "else" which is missing
+
+
+# Prints variable name or e.g. "$6"
+def print_value_id(names: byte**, value_id: int) -> None:
+    assert value_id >= 0
+    if names == NULL or names[value_id] == NULL:
+        printf("$%d", value_id)
+    else:
+        printf("%s", names[value_id])
+
+
+enum UvgInstructionKind:
+    Set
+    Use
+
+class UvgInstruction:
+    location: Location
+    kind: UvgInstructionKind
+    value_id: int
+
+    def print(self, names: byte**) -> None:
+        printf("    [line %d]   ", self->location.lineno)
+        match self->kind:
+            case UvgInstructionKind.Set:
+                printf("set")
+            case UvgInstructionKind.Use:
+                printf("use")
+        printf(" ")
+        print_value_id(names, self->value_id)
+        printf("\n")
+
+
+enum UvgTerminatorKind:
+    Jump
+    Branch
+    Return
+
+class UvgBranch:
+    cond_value_id: int  # which value is the branch true/false condition
+    then: UvgBlock*
+    otherwise: UvgBlock*
+
+class UvgTerminator:
+    kind: UvgTerminatorKind
+    union:
+        jump: UvgBlock*     # UvgTerminatorKind.Jump
+        branch: UvgBranch   # UvgTerminatorKind.Branch
+        # nothing for UvgTerminatorKind.Return
+
+    def print(self, first_block: UvgBlock*, names: byte**) -> None:
+        match self->kind:
+            case UvgTerminatorKind.Jump:
+                assert False   # TODO
+            case UvgTerminatorKind.Branch:
+                printf("    If ")
+                print_value_id(names, self->)
+                printf(" is True, jump to block %d. Otherwise jump to block %d.\n", self->
+
+
+
+class UvgBlock:
+    instructions: UvgInstruction*
+    ninstructions: int
+
+    # To terminate the block, you specify the indexes of next blocks:
+    #
+    #   [-1, -1]    return from function
+    #   [12, -1]    always jump to block 12
+    #   [12, 34]    jump to either block 12 or block 34 depending on some condition
+    terminator: int[2]
+
+    def print(self) -> None:
+        for i = 0; i < self->ninstructions; i++:
+            self->instructions[i].print()
+
+        if self->terminator[0] != -1 and self->terminator[1] != -1:
+            printf("Dynamically jump to either block %d or block %d.\n", self->terminator[0], self->terminator[1])
+
+            printf("    Return from function.\n")
+        elif self->terminator[1] == -1:
+            printf("    Jump to block Return from function.\n")
+        elif 
+
+    def free(self) -> None:
+        free(self->instructions)
+
+
+# We build one UVG for each function.
+class Uvg:
+    signature: Signature  # won't be .free()d
+
+    # Each block is allocated separately so that we can pass them around as pointers.
+    blocks: UvgBlock**
+    nblocks: int
+
+    # Each variable name points to something within the AST. We won't free() them.
+    varnames: byte**
+    nvars: int
+
+    def print(self) -> None:
+        assert self->nblocks > 0
+
+        for i = 0; i < self->nblocks; i++:
+            if i != 0:
+                printf("\nblock %d:\n", i)
+            else:
+                printf("block %d (start):\n", i)
+
+            b = &self->blocks[i]
+
+            for k = 0; k < b->ninstructions; k++:
+                
+
+        printf("start:\n")
+        self->blocks[0]->print()
+
+        for i = 1; i < self->nblocks; i++:
+            printf("\nblock %d:\n", i)
+            self->blocks[i]->print()
