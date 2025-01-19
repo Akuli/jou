@@ -587,6 +587,35 @@ static LLVMValueRef build_or(struct State *st, const AstExpression *lhsexpr, con
     return LLVMBuildLoad2(st->builder, LLVMInt1Type(), resultptr, "or");
 }
 
+static LLVMValueRef build_increment_or_decrement(struct State *st, const AstExpression *inner, bool pre, int diff)
+{
+    assert(diff==1 || diff==-1);  // 1=increment, -1=decrement
+
+    const Type *t = type_of_expr(inner);
+    assert(is_integer_type(t) || is_pointer_type(t));
+
+    LLVMValueRef ptr = build_address_of_expression(st, inner);
+    LLVMValueRef old_value = LLVMBuildLoad2(st->builder, type_to_llvm(t), ptr, "old_value");
+
+    LLVMValueRef new_value;
+    if (is_integer_type(t)) {
+        LLVMValueRef diff_llvm = LLVMConstInt(LLVMInt32Type(), diff, true);
+        new_value = LLVMBuildAdd(st->builder, old_value, diff_llvm, "new_value");
+    } else if (is_number_type(t)) {
+        assert(t == floatType || t == doubleType);
+        LLVMValueRef diff_llvm = LLVMConstRealOfString(type_to_llvm(t), diff>0 ? "1" : "-1");
+        new_value = LLVMBuildFAdd(st->builder, old_value, diff_llvm, "new_value");
+    } else if (t->kind == TYPE_POINTER) {
+        LLVMValueRef diff_llvm = LLVMConstInt(LLVMInt64Type(), diff, true);
+        new_value = LLVMBuildGEP2(st->builder, type_to_llvm(t->data.valuetype), old_value, &diff_llvm, 1, "new_value");
+    } else {
+        assert(false);
+    }
+
+    store(st->builder, new_value, ptr);
+    return pre ? new_value : old_value;
+}
+
 static LLVMValueRef build_expression_without_implicit_cast(struct State *st, const AstExpression *expr)
 {
     switch(expr->kind) {
@@ -672,11 +701,13 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
     case AST_EXPR_LE:
         return build_binop(st, expr->kind, &expr->data.operands[0], &expr->data.operands[1]);
     case AST_EXPR_PRE_INCREMENT:
+        return build_increment_or_decrement(st, &expr->data.operands[0], true, 1);
     case AST_EXPR_PRE_DECREMENT:
+        return build_increment_or_decrement(st, &expr->data.operands[0], true, -1);
     case AST_EXPR_POST_INCREMENT:
+        return build_increment_or_decrement(st, &expr->data.operands[0], false, 1);
     case AST_EXPR_POST_DECREMENT:
-        assert(0); // TODO
-        break;
+        return build_increment_or_decrement(st, &expr->data.operands[0], false, -1);
     }
     assert(0);
 }
@@ -687,7 +718,8 @@ static LLVMValueRef build_expression(struct State *st, const AstExpression *expr
         return build_address_of_expression(st, expr);
 
     if (expr->types.implicit_string_to_array_cast) {
-        assert(expr->types.implicit_cast_type == get_pointer_type(byteType));
+        assert(expr->types.implicit_cast_type->kind == TYPE_ARRAY);
+        assert(expr->types.implicit_cast_type->data.array.membertype == byteType);
         assert(expr->kind == AST_EXPR_CONSTANT);
         assert(expr->data.constant.kind == CONSTANT_STRING);
 
