@@ -664,7 +664,7 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
     case AST_EXPR_CONSTANT:
         return build_constant(st, &expr->data.constant);
     case AST_EXPR_GET_ENUM_MEMBER:
-        return LLVMConstInt(LLVMInt32Type(), find_enum_member(type_of_expr(expr), expr->data.enummember.membername), false);
+        return LLVMConstInt(LLVMInt32Type(), find_enum_member(expr->types.type, expr->data.enummember.membername), false);
     case AST_EXPR_FUNCTION_CALL:
         return build_function_call(st, &expr->data.call);
     case AST_EXPR_CALL_METHOD:
