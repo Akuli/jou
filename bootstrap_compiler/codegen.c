@@ -131,18 +131,28 @@ static LLVMValueRef build_address_of_expression(struct State *st, const AstExpre
 static void build_statement(struct State *st, const AstStatement *stmt);
 static void build_body(struct State *st, const AstBody *body);
 
-// TODO: This function can be replaced with LLVMBuildStore() once we drop LLVM 14 support.
+// TODO: Casts are unnecessary and these can be removed once we drop LLVM 14 support.
 static void store(LLVMBuilderRef b, LLVMValueRef value, LLVMValueRef ptr)
 {
     ptr = LLVMBuildBitCast(b, ptr, LLVMPointerType(LLVMTypeOf(value), 0), "legacy_llvm14_cast");
     LLVMBuildStore(b, value, ptr);
 }
-
-// TODO: This function can be replaced with LLVMBuildStore() once we drop LLVM 14 support.
 static LLVMValueRef stack_alloc(LLVMBuilderRef b, LLVMTypeRef type, const char *name)
 {
     LLVMValueRef ptr = LLVMBuildAlloca(b, type, name);
     return LLVMBuildBitCast(b, ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast");
+}
+static LLVMValueRef gep(LLVMBuilderRef b, LLVMTypeRef type, LLVMValueRef ptr, LLVMValueRef *indices, unsigned num_indices, const char *name)
+{
+    ptr = LLVMBuildBitCast(b, ptr, LLVMPointerType(type, 0), "legacy_llvm14_cast");
+    LLVMValueRef result = LLVMBuildGEP2(b, type, ptr, indices, num_indices, name);
+    return LLVMBuildBitCast(b, result, type_to_llvm(voidPtrType), "legacy_llvm14_cast");
+}
+static LLVMValueRef struct_gep(LLVMBuilderRef b, LLVMTypeRef type, LLVMValueRef ptr, unsigned idx, const char *name)
+{
+    ptr = LLVMBuildBitCast(b, ptr, LLVMPointerType(type, 0), "legacy_llvm14_cast");
+    LLVMValueRef result = LLVMBuildStructGEP2(b, type, ptr, idx, name);
+    return LLVMBuildBitCast(b, result, type_to_llvm(voidPtrType), "legacy_llvm14_cast");
 }
 
 static bool local_var_exists(const struct State *st, const char *name)
@@ -444,7 +454,7 @@ static LLVMValueRef build_class_field_pointer(struct State *st, const Type *clas
 {
     for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++)
         if (!strcmp(f->name, fieldname))
-            return LLVMBuildStructGEP2(st->builder, type_to_llvm(classtype), instanceptr, f->union_id, fieldname);
+            return struct_gep(st->builder, type_to_llvm(classtype), instanceptr, f->union_id, fieldname);
 
     assert(0);
 }
@@ -625,7 +635,7 @@ static LLVMValueRef build_increment_or_decrement(struct State *st, const AstExpr
         new_value = LLVMBuildFAdd(st->builder, old_value, diff_llvm, "new_value");
     } else if (t->kind == TYPE_POINTER) {
         LLVMValueRef diff_llvm = LLVMConstInt(LLVMInt64Type(), diff, true);
-        new_value = LLVMBuildGEP2(st->builder, type_to_llvm(t->data.valuetype), old_value, &diff_llvm, 1, "new_value");
+        new_value = gep(st->builder, type_to_llvm(t->data.valuetype), old_value, &diff_llvm, 1, "new_value");
     } else {
         assert(false);
     }
@@ -634,14 +644,21 @@ static LLVMValueRef build_increment_or_decrement(struct State *st, const AstExpr
     return pre ? new_value : old_value;
 }
 
+static int find_enum_member(const Type *enumtype, const char *name)
+{
+    for (int i = 0; i < enumtype->data.enummembers.count; i++)
+        if (!strcmp(enumtype->data.enummembers.names[i], name))
+            return i;
+    assert(0);
+}
+
 static LLVMValueRef build_expression_without_implicit_cast(struct State *st, const AstExpression *expr)
 {
     switch(expr->kind) {
     case AST_EXPR_CONSTANT:
         return build_constant(st, &expr->data.constant);
     case AST_EXPR_GET_ENUM_MEMBER:
-        assert(0); // TODO
-        break;
+        return LLVMConstInt(LLVMInt32Type(), find_enum_member(type_of_expr(expr), expr->data.enummember.membername), false);
     case AST_EXPR_FUNCTION_CALL:
         return build_function_call(st, &expr->data.call);
     case AST_EXPR_CALL_METHOD:
@@ -663,7 +680,7 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
             LLVMValueRef ptr = stack_alloc(st->builder, type_to_llvm(t), "temp_copy");
             store(st->builder, obj, ptr);
             LLVMValueRef fieldptr = build_class_field_pointer(st, t, ptr, expr->data.classfield.fieldname);
-            return LLVMBuildLoad2(st->builder, type_to_llvm(t), fieldptr, "field");
+            return LLVMBuildLoad2(st->builder, type_to_llvm(type_of_expr(expr)), fieldptr, "field");
         }
     case AST_EXPR_DEREF_AND_GET_FIELD:
     case AST_EXPR_INDEXING:
@@ -812,7 +829,7 @@ static LLVMValueRef build_address_of_expression(struct State *st, const AstExpre
         LLVMValueRef index = build_expression(st, &expr->data.operands[1]);
         const Type *t = type_of_expr(&expr->data.operands[0]);
         assert(t->kind == TYPE_POINTER);
-        return LLVMBuildGEP2(st->builder, type_to_llvm(t->data.valuetype), ptr, &index, 1, "indexing");
+        return gep(st->builder, type_to_llvm(t->data.valuetype), ptr, &index, 1, "indexing");
     }
     case AST_EXPR_DEREFERENCE:
         // &*foo = foo
