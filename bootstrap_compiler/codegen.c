@@ -619,14 +619,15 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
             return LLVMBuildLoad2(st->builder, type_to_llvm(t), fieldptr, "field");
         }
     case AST_EXPR_DEREF_AND_GET_FIELD:
+    case AST_EXPR_INDEXING:
+        // ptr->foo and ptr[foo] can always be evaluated as *(&ptr->foo) and *(&ptr[foo]).
+        // Doesn't work for e.g. some_function().foo because it's not possible to
+        // evaluate &some_function().
         return LLVMBuildLoad2(
             st->builder,
             type_to_llvm(expr->types.type),
             build_address_of_expression(st, expr),
-            "deref_field");
-    case AST_EXPR_INDEXING:
-        assert(0); // TODO
-        break;
+            "dereffed");
     case AST_EXPR_AS:
         return build_cast(st, build_expression(st, expr->data.as.obj), type_of_expr(expr->data.as.obj), expr->types.type);
     case AST_EXPR_GET_VARIABLE:
