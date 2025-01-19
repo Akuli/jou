@@ -1037,10 +1037,16 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         build_match_statament(st, &stmt->data.match);
         break;
     case AST_STMT_BREAK:
-        assert(0); // TODO
+        assert(st->nloops > 0);
+        LLVMBuildBr(st->builder, st->breaks[st->nloops-1]);
+        // Place code after break into a new (unreachable) block so that LLVM doesn't complain about it
+        LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_break"));
         break;
     case AST_STMT_CONTINUE:
-        assert(0); // TODO
+        assert(st->nloops > 0);
+        LLVMBuildBr(st->builder, st->continues[st->nloops-1]);
+        // Place code after continue into a new (unreachable) block so that LLVM doesn't complain about it
+        LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_continue"));
         break;
     case AST_STMT_DECLARE_LOCAL_VAR:
         if (stmt->data.vardecl.value) {
