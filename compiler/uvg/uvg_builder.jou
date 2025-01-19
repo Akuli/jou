@@ -1,0 +1,164 @@
+import "stdlib/mem.jou"
+
+import "./uvg.jou"
+import "../ast.jou"
+import "../errors_and_warnings.jou"
+
+
+class UvgBuilder:
+    uvg: Uvg
+    current_block: UvgBlock*
+    expr_to_id: AstExpression** 
+    expr_to_id_len: int
+
+    def free(self) -> None:
+        free(self->expr_to_id)
+
+    # Return the value ID associated with the expression. Creates a new one if not exist.
+    def expr_value_id(self, expr: AstExpression*) -> int:
+        match expr->kind:
+            # For variables, return a named ID
+            case AstExpressionKind.Self:
+                return self->uvg.value_id_for_varname("self")
+            case AstExpressionKind.GetVariable:
+                return self->uvg.value_id_for_varname(expr->varname)
+            # For anything else, make it anonymous, but be sure to return same id every time.
+            case _:
+                for i = 0; i < self->expr_to_id_len; i++:
+                    if self->expr_to_id[i] == expr:
+                        # return same id as before
+                        return i
+
+                # add new
+                result = self->uvg.add_value_id(NULL)
+
+                # store to cache so it's same every time
+                old_len = self->expr_to_id_len
+                new_len = result + 1
+                assert new_len > old_len
+                self->expr_to_id = realloc(self->expr_to_id, sizeof(self->expr_to_id[0]) * new_len)
+                assert self->expr_to_id != NULL
+                self->expr_to_id_len = new_len
+                memset(&self->expr_to_id[old_len], 0, sizeof(self->expr_to_id[0]) * (new_len - old_len))
+                self->expr_to_id[result] = expr
+
+                return result
+
+    # If setting is True, we're setting the value of expr, as in:  expr = ...
+    # If setting is False, we're using the value of expr.
+    def visit_expression(self, expr: AstExpression*, how: UvgInstructionKind) -> int:
+        value_id = self->expr_value_id(expr)
+
+        match expr->kind:
+            case (
+                AstExpressionKind.String
+                | AstExpressionKind.Int
+                | AstExpressionKind.Short
+                | AstExpressionKind.Long
+                | AstExpressionKind.Byte
+                | AstExpressionKind.Float
+                | AstExpressionKind.Double
+                | AstExpressionKind.Bool
+                | AstExpressionKind.Null
+                | AstExpressionKind.GetEnumMember
+                | AstExpressionKind.SizeOf
+            ):
+                # Simple expression. Result is usable immediately. Does not
+                # contain other expressions that could use undefined values.
+                assert how == UvgInstructionKind.Use  # not e.g. "hello" = foo
+
+            case AstExpressionKind.GetVariable | AstExpressionKind.Self:
+                # Not as simple, but currently requires no special handling.
+                pass
+
+            case AstExpressionKind.Array:
+                assert how == UvgInstructionKind.Use  # not e.g. [1, 2, 3] = foo
+                for i = 0; i < expr->array.length; i++:
+                    self->visit_expression(&expr->array.items[i], UvgInstructionKind.Use)
+
+            case AstExpressionKind.Call:
+                # Pretend it always has a return value. If it doesn't actually
+                # return anything, we end up with one unused anonymous variable.
+                # Doesn't matter.
+                assert how == UvgInstructionKind.Use
+                if expr->call.method_call_self != NULL:
+                    self->visit_expression(expr->call.method_call_self, UvgInstructionKind.Use)
+                for i = 0; i < expr->call.nargs; i++:
+                    self->visit_expression(&expr->call.args[i], UvgInstructionKind.Use)
+
+            case AstExpressionKind.Instantiate:
+                assert how == UvgInstructionKind.Use
+                for i = 0; i < expr->instantiation.nfields; i++:
+                    self->visit_expression(&expr->instantiation.field_values[i], UvgInstructionKind.Use)
+
+            case AstExpressionKind.Dereference:
+                # *foo may set value of pointer foo, but not the pointer itself.
+                # However, if foo is an array, it accesses the memory of the array directly.
+                # TODO: test this
+                if expr->operands[0].types.implicit_array_to_pointer_cast:
+                    self->visit_expression(&expr->operands[0], how)
+                else:
+                    self->visit_expression(&expr->operands[0], UvgInstructionKind.Use)
+
+            case AstExpressionKind.Indexing:
+                # Treat foo[idx] similarly to *foo, but also evaluate the index.
+                # TODO: test this
+                if expr->operands[0].types.implicit_array_to_pointer_cast:
+                    self->visit_expression(&expr->operands[0], how)
+                else:
+                    self->visit_expression(&expr->operands[0], UvgInstructionKind.Use)
+                self->visit_expression(&expr->operands[1], UvgInstructionKind.Use)
+
+            case AstExpressionKind.GetClassField:
+                if expr->class_field.uses_arrow_operator:
+                    # Treat foo->blah similarly to *foo.
+                    # TODO: test this
+                    if expr->operands[0].types.implicit_array_to_pointer_cast:
+                        self->visit_expression(expr->class_field.instance, how)
+                    else:
+                        self->visit_expression(expr->class_field.instance, UvgInstructionKind.Use)
+                else:
+                    self->visit_expression(expr->class_field.instance, how)
+
+            case AstExpressionKind.Negate | AstExpressionKind.Not | AstExpressionKind.As:
+                assert how == UvgInstructionKind.Use
+                assert expr->get_arity() == 1
+                self->visit_expression(&expr->operands[0], UvgInstructionKind.Use)
+
+            case (
+                AstExpressionKind.Add
+                | AstExpressionKind.Sub
+                | AstExpressionKind.Mul
+                | AstExpressionKind.Div
+                | AstExpressionKind.Mod
+                | AstExpressionKind.Eq
+                | AstExpressionKind.Ne
+                | AstExpressionKind.Gt
+                | AstExpressionKind.Lt
+                | AstExpressionKind.Ge
+                | AstExpressionKind.Le
+                | AstExpressionKind.And  # TODO: lazy evaluation!!!
+                | AstExpressionKind.Or  # TODO: lazy evaluation!!!
+            ):
+                assert how == UvgInstructionKind.Use
+                assert expr->get_arity() == 2
+                self->visit_expression(&expr->operands[0], UvgInstructionKind.Use)
+                self->visit_expression(&expr->operands[1], UvgInstructionKind.Use)
+
+            case (
+                AstExpressionKind.PreIncr
+                | AstExpressionKind.PreDecr
+                | AstExpressionKind.PostIncr
+                | AstExpressionKind.PostDecr
+            ):
+                assert how == UvgInstructionKind.Use
+                assert expr->get_arity() == 1
+                self->visit_expression(&expr->operands[0], UvgInstructionKind.Use)  # first read current value
+                self->visit_expression(&expr->operands[0], UvgInstructionKind.Set)  # then set it
+
+            case AstExpressionKind.AddressOf:
+                assert how == UvgInstructionKind.Use
+                self->visit_expression(&expr->operands[0], UvgInstructionKind.UseAddress)
+
+        self->current_block->add_instruction(how, value_id, expr->location)
+        return value_id
