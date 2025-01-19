@@ -606,7 +606,7 @@ static LLVMValueRef build_increment_or_decrement(struct State *st, const AstExpr
 
     LLVMValueRef new_value;
     if (is_integer_type(t)) {
-        LLVMValueRef diff_llvm = LLVMConstInt(LLVMInt32Type(), diff, true);
+        LLVMValueRef diff_llvm = LLVMConstInt(type_to_llvm(t), diff, true);
         new_value = LLVMBuildAdd(st->builder, old_value, diff_llvm, "new_value");
     } else if (is_number_type(t)) {
         assert(t == floatType || t == doubleType);
