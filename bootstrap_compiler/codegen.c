@@ -450,6 +450,74 @@ static LLVMValueRef build_cast(struct State *st, LLVMValueRef obj, const Type *f
     assert(0);
 }
 
+static LLVMValueRef build_and(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr)
+{
+    /*
+    Must be careful with side effects.
+
+        # lhs returning False means we don't evaluate rhs
+        if lhs:
+            result = rhs
+        else:
+            result = False
+    */
+    LLVMBasicBlockRef lhstrue = LLVMAppendBasicBlock(st->llvm_func, "lhstrue");
+    LLVMBasicBlockRef lhsfalse = LLVMAppendBasicBlock(st->llvm_func, "lhsfalse");
+    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
+
+    LLVMValueRef resultptr = LLVMBuildAlloca(st->builder, type_to_llvm(boolType), "and_ptr");
+
+    // if lhs:
+    LLVMBuildCondBr(st->builder, build_expression(st, lhsexpr), lhstrue, lhsfalse);
+    LLVMPositionBuilderAtEnd(st->builder, lhstrue);
+    // result = rhs
+    store(st->builder, build_expression(st, rhsexpr), resultptr);
+    // end if
+    LLVMBuildBr(st->builder, done);
+    // else:
+    LLVMPositionBuilderAtEnd(st->builder, lhsfalse);
+    // result = False
+    store(st->builder, LLVMConstInt(LLVMInt1Type(), false, false), resultptr);
+    // end else
+    LLVMBuildBr(st->builder, done);
+
+    return LLVMBuildLoad2(st->builder, LLVMInt1Type(), resultptr, "and");
+}
+
+static LLVMValueRef build_or(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr)
+{
+    /*
+    Must be careful with side effects.
+
+        # lhs returning True means we don't evaluate rhs
+        if lhs:
+            result = True
+        else:
+            result = rhs
+    */
+    LLVMBasicBlockRef lhstrue = LLVMAppendBasicBlock(st->llvm_func, "lhstrue");
+    LLVMBasicBlockRef lhsfalse = LLVMAppendBasicBlock(st->llvm_func, "lhsfalse");
+    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
+
+    LLVMValueRef resultptr = LLVMBuildAlloca(st->builder, type_to_llvm(boolType), "or_ptr");
+
+    // if lhs:
+    LLVMBuildCondBr(st->builder, build_expression(st, lhsexpr), lhstrue, lhsfalse);
+    LLVMPositionBuilderAtEnd(st->builder, lhstrue);
+    // result = True
+    store(st->builder, LLVMConstInt(LLVMInt1Type(), true, false), resultptr);
+    // end if
+    LLVMBuildBr(st->builder, done);
+    // else:
+    LLVMPositionBuilderAtEnd(st->builder, lhsfalse);
+    // result = rhs
+    store(st->builder, build_expression(st, rhsexpr), resultptr);
+    // end else
+    LLVMBuildBr(st->builder, done);
+
+    return LLVMBuildLoad2(st->builder, LLVMInt1Type(), resultptr, "or");
+}
+
 static LLVMValueRef build_expression_without_implicit_cast(struct State *st, const AstExpression *expr)
 {
     switch(expr->kind) {
@@ -524,7 +592,9 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
             "dereference");
         break;
     case AST_EXPR_AND:
+        return build_and(st, &expr->data.operands[0], &expr->data.operands[1]);
     case AST_EXPR_OR:
+        return build_or(st, &expr->data.operands[0], &expr->data.operands[1]);
     case AST_EXPR_NOT:
         assert(0); // TODO
         break;
