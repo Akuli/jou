@@ -743,8 +743,11 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
     case AST_EXPR_OR:
         return build_or(st, &expr->data.operands[0], &expr->data.operands[1]);
     case AST_EXPR_NOT:
-        assert(0); // TODO
-        break;
+        return LLVMBuildXor(
+            st->builder,
+            build_expression(st, &expr->data.operands[0]),
+            LLVMConstInt(LLVMInt1Type(), 1, false),
+            "not");
     case AST_EXPR_NEG:
         if (type_of_expr(&expr->data.operands[0])->kind == TYPE_FLOATING_POINT)
             return LLVMBuildFNeg(st->builder, build_expression(st, &expr->data.operands[0]), "fneg");
