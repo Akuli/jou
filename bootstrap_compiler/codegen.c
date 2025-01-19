@@ -140,19 +140,19 @@ static void store(LLVMBuilderRef b, LLVMValueRef value, LLVMValueRef ptr)
 static LLVMValueRef stack_alloc(LLVMBuilderRef b, LLVMTypeRef type, const char *name)
 {
     LLVMValueRef ptr = LLVMBuildAlloca(b, type, name);
-    return LLVMBuildBitCast(b, ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast");
+    return LLVMBuildBitCast(b, ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast");  // TODO: is this needed?
 }
 static LLVMValueRef gep(LLVMBuilderRef b, LLVMTypeRef type, LLVMValueRef ptr, LLVMValueRef *indices, unsigned num_indices, const char *name)
 {
-    ptr = LLVMBuildBitCast(b, ptr, LLVMPointerType(type, 0), "legacy_llvm14_cast");
+    ptr = LLVMBuildBitCast(b, ptr, LLVMPointerType(type, 0), "legacy_llvm14_cast");  // TODO: is this needed?
     LLVMValueRef result = LLVMBuildGEP2(b, type, ptr, indices, num_indices, name);
-    return LLVMBuildBitCast(b, result, type_to_llvm(voidPtrType), "legacy_llvm14_cast");
+    return LLVMBuildBitCast(b, result, type_to_llvm(voidPtrType), "legacy_llvm14_cast");  // TODO: is this needed?
 }
 static LLVMValueRef struct_gep(LLVMBuilderRef b, LLVMTypeRef type, LLVMValueRef ptr, unsigned idx, const char *name)
 {
-    ptr = LLVMBuildBitCast(b, ptr, LLVMPointerType(type, 0), "legacy_llvm14_cast");
+    ptr = LLVMBuildBitCast(b, ptr, LLVMPointerType(type, 0), "legacy_llvm14_cast");  // TODO: is this needed?
     LLVMValueRef result = LLVMBuildStructGEP2(b, type, ptr, idx, name);
-    return LLVMBuildBitCast(b, result, type_to_llvm(voidPtrType), "legacy_llvm14_cast");
+    return LLVMBuildBitCast(b, result, type_to_llvm(voidPtrType), "legacy_llvm14_cast");  // TODO: is this needed?
 }
 
 static bool local_var_exists(const struct State *st, const char *name)
@@ -368,6 +368,12 @@ static LLVMValueRef build_binop(
     LLVMValueRef rhs,
     const Type *rhstype)
 {
+    // Always treat enums as integers
+    if (lhstype->kind == TYPE_ENUM)
+        lhstype = intType;
+    if (rhstype->kind == TYPE_ENUM)
+        rhstype = intType;
+
     bool got_bools = lhstype == boolType && rhstype == boolType;
     bool got_numbers = is_number_type(lhstype) && is_number_type(rhstype);
     bool got_ints = is_integer_type(lhstype) && is_integer_type(rhstype);
@@ -937,6 +943,32 @@ static void build_loop(
     LLVMPositionBuilderAtEnd(st->builder, doneblock);
 }
 
+static void build_match_statament(struct State *st, const AstMatchStatement *match_stmt)
+{
+    const AstExpression *matchobj_ast = &match_stmt->match_obj;
+    LLVMValueRef matchobj = build_expression(st, matchobj_ast);
+    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
+
+    for (int i = 0; i < match_stmt->ncases; i++) {
+    for (AstExpression *caseobj_ast = match_stmt->cases[i].case_objs; caseobj_ast < &match_stmt->cases[i].case_objs[match_stmt->cases[i].n_case_objs]; caseobj_ast++) {
+        LLVMValueRef caseobj = build_expression(st, caseobj_ast);
+        LLVMValueRef cond = build_binop(st, AST_EXPR_EQ, matchobj, type_of_expr(matchobj_ast), caseobj, type_of_expr(caseobj_ast));
+
+        LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->llvm_func, "then");
+        LLVMBasicBlockRef otherwise = LLVMAppendBasicBlock(st->llvm_func, "otherwise");
+        LLVMBuildCondBr(st->builder, cond, then, otherwise);
+
+        LLVMPositionBuilderAtEnd(st->builder, then);
+        build_body(st, &match_stmt->cases[i].body);
+        LLVMBuildBr(st->builder, done);
+        LLVMPositionBuilderAtEnd(st->builder, otherwise);
+    }
+    }
+
+    build_body(st, &match_stmt->case_underscore);
+    LLVMPositionBuilderAtEnd(st->builder, done);
+}
+
 static void build_statement(struct State *st, const AstStatement *stmt)
 {
     switch(stmt->kind) {
@@ -965,7 +997,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
             &stmt->data.forloop.body);
         break;
     case AST_STMT_MATCH:
-        assert(0); // TODO
+        build_match_statament(st, &stmt->data.match);
         break;
     case AST_STMT_BREAK:
         assert(0); // TODO
