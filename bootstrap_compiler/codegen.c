@@ -145,7 +145,14 @@ static LLVMValueRef stack_alloc(LLVMBuilderRef b, LLVMTypeRef type, const char *
     return LLVMBuildBitCast(b, ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast");
 }
 
-// Return value may become invalid when adding more local vars.
+static bool local_var_exists(const struct State *st, const char *name)
+{
+    for (int i = 0; i < st->nlocals; i++)
+        if (!strcmp(st->locals[i].name, name))
+            return true;
+    return false;
+}
+
 static const struct LocalVar *get_local_var(const struct State *st, const char *name)
 {
     for (int i = 0; i < st->nlocals; i++)
@@ -649,9 +656,23 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
         }
     case AST_EXPR_DEREF_AND_GET_FIELD:
     case AST_EXPR_INDEXING:
-        // ptr->foo and ptr[foo] can always be evaluated as *(&ptr->foo) and *(&ptr[foo]).
-        // Doesn't work for e.g. some_function().foo because it's not possible to
-        // evaluate &some_function().
+        /*
+        ptr->foo can always be evaluated as *(&ptr->foo).
+
+        We can't always do this. For example, this doesn't work with the '.' operator.
+        When evaluating some_function().foo, we can't evaluate &some_function().
+        */
+        return LLVMBuildLoad2(
+            st->builder,
+            type_to_llvm(expr->types.type),
+            build_address_of_expression(st, expr),
+            "dereffed");
+    case AST_EXPR_GET_VARIABLE:
+        {
+            int c = get_special_constant(expr->data.varname);
+            if (c == 0 || c == 1)
+                return LLVMConstInt(LLVMInt1Type(), c, false);
+        }
         return LLVMBuildLoad2(
             st->builder,
             type_to_llvm(expr->types.type),
@@ -659,7 +680,6 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
             "dereffed");
     case AST_EXPR_AS:
         return build_cast(st, build_expression(st, expr->data.as.obj), type_of_expr(expr->data.as.obj), expr->types.type);
-    case AST_EXPR_GET_VARIABLE:
         return LLVMBuildLoad2(
             st->builder,
             type_to_llvm(expr->types.type),
@@ -762,7 +782,10 @@ static LLVMValueRef build_address_of_expression(struct State *st, const AstExpre
         return build_class_field_pointer(st, t, ptr, expr->data.classfield.fieldname);
     }
     case AST_EXPR_GET_VARIABLE:
-        return get_local_var(st, expr->data.varname)->ptr;
+        if (local_var_exists(st, expr->data.varname))
+            return get_local_var(st, expr->data.varname)->ptr;
+        else
+            return LLVMGetNamedGlobal(st->module, expr->data.varname);
     case AST_EXPR_INDEXING:
     {
         // &ptr[index] = ptr + memory offset
