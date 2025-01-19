@@ -966,6 +966,7 @@ static void build_match_statament(struct State *st, const AstMatchStatement *mat
     }
 
     build_body(st, &match_stmt->case_underscore);
+    LLVMBuildBr(st->builder, done);
     LLVMPositionBuilderAtEnd(st->builder, done);
 }
 
