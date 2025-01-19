@@ -261,22 +261,9 @@ static void parse_all_pending_files(struct CompileState *compst)
 static char *compile_ast_to_object_file(struct FileState *fs)
 {
     if (command_line_args.verbosity >= 1)
-        printf("Building Control Flow Graphs: %s\n", fs->path);
-
-    CfGraphFile cfgfile = build_control_flow_graphs(&fs->ast, &fs->types);
-    for (const AstImport *imp = fs->ast.imports.ptr; imp < End(fs->ast.imports); imp++)
-        if (!imp->used)
-            show_warning(imp->location, "\"%s\" imported but not used", imp->specified_path);
-
-    if(command_line_args.verbosity >= 2)
-        print_control_flow_graphs(&cfgfile);
-
-    if (command_line_args.verbosity >= 1)
         printf("Building LLVM IR: %s\n", fs->path);
 
-    LLVMModuleRef mod = codegen(&cfgfile, &fs->types, fs->is_main_file);
-    free_control_flow_graphs(&cfgfile);
-
+    LLVMModuleRef mod = build_llvm_ir(&fs->ast, &fs->types, fs->is_main_file);
     if (command_line_args.verbosity >= 2)
         print_llvm_ir(mod, false);
 
@@ -342,7 +329,7 @@ static bool statement_conflicts_with_an_import(const AstStatement *stmt, const E
     }
 }
 
-static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, AstImport *imp)
+static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es)
 {
     for (int i = 0; i < fs->ast.body.nstatements; i++) {
         if (statement_conflicts_with_an_import(&fs->ast.body.statements[i], es)) {
@@ -360,21 +347,14 @@ static void add_imported_symbol(struct FileState *fs, const ExportSymbol *es, As
 
     switch(es->kind) {
     case EXPSYM_FUNCTION:
-        Append(&fs->types.functions, (struct SignatureAndUsedPtr){
-            .signature = copy_signature(&es->data.funcsignature),
-            .usedptr = &imp->used,
-        });
+        Append(&fs->types.functions, copy_signature(&es->data.funcsignature));
         break;
     case EXPSYM_TYPE:
-        Append(&fs->types.types, (struct TypeAndUsedPtr){
-            .type=es->data.type,
-            .usedptr=&imp->used,
-        });
+        Append(&fs->types.types, es->data.type);
         break;
     case EXPSYM_GLOBAL_VAR:
         g = (GlobalVariable){
             .type = es->data.type,
-            .usedptr = &imp->used,
         };
 
         assert(strlen(es->name) < sizeof g.name);
@@ -414,7 +394,7 @@ static void add_imported_symbols(struct CompileState *compst)
                     printf("Adding imported %s %s: %s --> %s\n",
                         kindstr, es->name, from->path, to->path);
                 }
-                add_imported_symbol(to, es, imp);
+                add_imported_symbol(to, es);
             }
         }
 

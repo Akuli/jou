@@ -262,8 +262,8 @@ void free_file_types(const FileTypes *ft)
 {
     for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++)
         free_type(*t);
-    for (struct SignatureAndUsedPtr *f = ft->functions.ptr; f < End(ft->functions); f++)
-        free_signature(&f->signature);
+    for (Signature *s = ft->functions.ptr; s < End(ft->functions); s++)
+        free_signature(s);
     for (FunctionOrMethodTypes *f = ft->fomtypes.ptr; f < End(ft->fomtypes); f++) {
         free(f->locals.ptr);  // Don't free individual locals because they're owned by CFG now
         free_signature(&f->signature);
@@ -273,42 +273,4 @@ void free_file_types(const FileTypes *ft)
     free(ft->owned_types.ptr);
     free(ft->functions.ptr);
     free(ft->fomtypes.ptr);
-}
-
-
-void free_control_flow_graph_block(const CfGraph *cfg, CfBlock *b)
-{
-    for (const CfInstruction *ins = b->instructions.ptr; ins < End(b->instructions); ins++) {
-        if (ins->kind == CF_CONSTANT)
-            free_constant(&ins->data.constant);
-        if (ins->kind == CF_STRING_ARRAY)
-            free(ins->data.strarray.str);
-        if (ins->kind == CF_CALL)
-            free_signature(&ins->data.signature);
-        free(ins->operands);
-    }
-    free(b->instructions.ptr);
-    if (b != &cfg->start_block && b != &cfg->end_block)
-        free(b);
-}
-
-static void free_cfg(CfGraph *cfg)
-{
-    free_signature(&cfg->signature);
-
-    for (CfBlock **b = cfg->all_blocks.ptr; b < End(cfg->all_blocks); b++)
-        free_control_flow_graph_block(cfg, *b);
-    for (LocalVariable **v = cfg->locals.ptr; v < End(cfg->locals); v++)
-        free(*v);
-
-    free(cfg->all_blocks.ptr);
-    free(cfg->locals.ptr);
-    free(cfg);
-}
-
-void free_control_flow_graphs(const CfGraphFile *cfgfile)
-{
-    for (CfGraph **cfg = cfgfile->graphs.ptr; cfg < End(cfgfile->graphs); cfg++)
-        free_cfg(*cfg);
-    free(cfgfile->graphs.ptr);
 }

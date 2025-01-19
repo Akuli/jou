@@ -3,11 +3,9 @@
 
 static const Type *find_type(const FileTypes *ft, const char *name)
 {
-    for (struct TypeAndUsedPtr *t = ft->types.ptr; t < End(ft->types); t++) {
-        if (!strcmp(t->type->name, name)) {
-            if (t->usedptr)
-                *t->usedptr = true;
-            return t->type;
+    for (const Type **t = ft->types.ptr; t < End(ft->types); t++) {
+        if (!strcmp((*t)->name, name)) {
+            return *t;
         }
     }
     return NULL;
@@ -15,11 +13,9 @@ static const Type *find_type(const FileTypes *ft, const char *name)
 
 static const Signature *find_function(const FileTypes *ft, const char *name)
 {
-    for (struct SignatureAndUsedPtr *f = ft->functions.ptr; f < End(ft->functions); f++) {
-        if (!strcmp(f->signature.name, name)) {
-            if (f->usedptr)
-                *f->usedptr = true;
-            return &f->signature;
+    for (Signature *s = ft->functions.ptr; s < End(ft->functions); s++) {
+        if (!strcmp(s->name, name)) {
+            return s;
         }
     }
     return NULL;
@@ -61,11 +57,8 @@ static const Type *find_any_var(const FileTypes *ft, const char *name)
             if (!strcmp((*var)->name, name))
                 return (*var)->type;
     for (GlobalVariable *var = ft->globals.ptr; var < End(ft->globals); var++)
-        if (!strcmp(var->name, name)) {
-            if (var->usedptr)
-                *var->usedptr = true;
+        if (!strcmp(var->name, name))
             return var->type;
-        }
     return NULL;
 }
 
@@ -117,7 +110,7 @@ ExportSymbol *typecheck_stage1_create_types(FileTypes *ft, const AstFile *ast)
         if (existing)
             fail(stmt->location, "%s named '%s' already exists", short_type_description(existing), name);
 
-        Append(&ft->types, (struct TypeAndUsedPtr){ .type=t, .usedptr=NULL });
+        Append(&ft->types, t);
         Append(&ft->owned_types, t);
 
         struct ExportSymbol es = { .kind = EXPSYM_TYPE, .data.type = t };
@@ -279,7 +272,7 @@ static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, con
     sig.returntype_location = astsig->returntype.location;
 
     if (!self_class)
-        Append(&ft->functions, (struct SignatureAndUsedPtr){ .signature=copy_signature(&sig), .usedptr=NULL });
+        Append(&ft->functions, copy_signature(&sig));
 
     return sig;
 }
@@ -1493,9 +1486,9 @@ void typecheck_stage3_function_and_method_bodies(FileTypes *ft, const AstFile *a
         const AstStatement *stmt = &ast->body.statements[i];
         if (stmt->kind == AST_STMT_FUNCTION_DEF) {
             const Signature *sig = NULL;
-            for (struct SignatureAndUsedPtr *f = ft->functions.ptr; f < End(ft->functions); f++) {
-                if (!strcmp(f->signature.name, stmt->data.function.signature.name)) {
-                    sig = &f->signature;
+            for (const Signature *s = ft->functions.ptr; s < End(ft->functions); s++) {
+                if (!strcmp(s->name, stmt->data.function.signature.name)) {
+                    sig = s;
                     break;
                 }
             }
