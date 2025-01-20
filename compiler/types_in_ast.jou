@@ -94,9 +94,6 @@ class SignatureAndUsedPtr:
 class FileTypes:
     globals: GlobalVariable*
     nglobals: int
-    # TODO: do we need owned_types?
-    owned_types: Type**  # These will be freed later
-    n_owned_types: int
     available_types: TypeAndUsedPtr*
     n_available_types: int
     functions: SignatureAndUsedPtr*
@@ -124,13 +121,10 @@ class FileTypes:
 
     # This is safe to call if self has been zero-initialized.
     def free(self) -> None:
-        for t = self->owned_types; t < &self->owned_types[self->n_owned_types]; t++:
-            free_type(*t)
         for func = self->functions; func < &self->functions[self->nfunctions]; func++:
             func->signature.free()
         free(self->globals)
         free(self->available_types)
-        free(self->owned_types)
         free(self->functions)
 
     def find_type(self, name: byte*) -> Type*:

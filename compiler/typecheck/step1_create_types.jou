@@ -18,18 +18,6 @@ import "../types.jou"
 import "./common.jou"
 
 
-# TODO: we really need generics....
-def append2(list: Type***, len: int*, item: Type*) -> None:
-    *list = realloc(*list, sizeof((*list)[0]) * (*len+1))
-    assert *list != NULL
-    (*list)[(*len)++] = item
-
-def append3(list: ExportSymbol**, len: int*, item: ExportSymbol) -> None:
-    *list = realloc(*list, sizeof((*list)[0]) * (*len+1))
-    assert *list != NULL
-    (*list)[(*len)++] = item
-
-
 @public
 def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
@@ -44,10 +32,12 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
                 assert sizeof(name) == sizeof(stmt->classdef.name)
                 strcpy(name, stmt->classdef.name)
                 t = create_opaque_class(name)
+                stmt->classdef.type = t
             case AstStatementKind.Enum:
                 assert sizeof(name) == sizeof(stmt->enumdef.name)
                 strcpy(name, stmt->enumdef.name)
                 t = create_enum(name, stmt->enumdef.member_count, stmt->enumdef.member_names)
+                stmt->enumdef.type = t
             case _:
                 continue
 
@@ -58,12 +48,14 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
             fail(stmt->location, msg)
 
         ast->types.add_type(t, NULL)
-        append2(&ast->types.owned_types, &ast->types.n_owned_types, t)
 
         es = ExportSymbol{kind = ExportSymbolKind.Type, type = t}
         assert sizeof(es.name) == sizeof(name)
         strcpy(es.name, name)
-        append3(&exports, &nexports, es)
+
+        exports = realloc(exports, sizeof(exports[0]) * (nexports+1))
+        assert exports != NULL
+        exports[nexports++] = es
 
     exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
     assert exports != NULL

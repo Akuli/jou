@@ -113,17 +113,12 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
 
 def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
     # Previous type-checking step created an opaque class.
-    type: Type* = NULL
-    for s = ft->owned_types; s < &ft->owned_types[ft->n_owned_types]; s++:
-        if strcmp((*s)->name, classdef->name) == 0:
-            type = *s
-            break
+    t = classdef->type
+    assert t != NULL
+    assert t->kind == TypeKind.OpaqueClass
+    t->kind = TypeKind.Class
 
-    assert type != NULL
-    assert type->kind == TypeKind.OpaqueClass
-    type->kind = TypeKind.Class
-
-    memset(&type->classdata, 0, sizeof type->classdata)
+    memset(&t->classdata, 0, sizeof t->classdata)
 
     union_id = 0
     for m = classdef->members; m < &classdef->members[classdef->nmembers]; m++:
@@ -136,9 +131,9 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                 assert sizeof(f.name) == sizeof(m->field.name)
                 strcpy(f.name, m->field.name)
 
-                type->classdata.fields = realloc(type->classdata.fields, sizeof(type->classdata.fields[0]) * (type->classdata.nfields + 1))
-                assert type->classdata.fields != NULL
-                type->classdata.fields[type->classdata.nfields++] = f
+                t->classdata.fields = realloc(t->classdata.fields, sizeof(t->classdata.fields[0]) * (t->classdata.nfields + 1))
+                assert t->classdata.fields != NULL
+                t->classdata.fields[t->classdata.nfields++] = f
 
             case AstClassMemberKind.Union:
                 uid = union_id++
@@ -150,17 +145,17 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                     assert sizeof(f.name) == sizeof(ntv->name)
                     strcpy(f.name, ntv->name)
 
-                    type->classdata.fields = realloc(type->classdata.fields, sizeof(type->classdata.fields[0]) * (type->classdata.nfields + 1))
-                    assert type->classdata.fields != NULL
-                    type->classdata.fields[type->classdata.nfields++] = f
+                    t->classdata.fields = realloc(t->classdata.fields, sizeof(t->classdata.fields[0]) * (t->classdata.nfields + 1))
+                    assert t->classdata.fields != NULL
+                    t->classdata.fields[t->classdata.nfields++] = f
 
             case AstClassMemberKind.Method:
                 # Don't handle the method body yet: that is a part of step 3, not step 2
-                sig = handle_signature(ft, &m->method.ast_signature, type)
+                sig = handle_signature(ft, &m->method.ast_signature, t)
 
-                type->classdata.methods = realloc(type->classdata.methods, sizeof(type->classdata.methods[0]) * (type->classdata.nmethods + 1))
-                assert type->classdata.methods != NULL
-                type->classdata.methods[type->classdata.nmethods++] = sig
+                t->classdata.methods = realloc(t->classdata.methods, sizeof(t->classdata.methods[0]) * (t->classdata.nmethods + 1))
+                assert t->classdata.methods != NULL
+                t->classdata.methods[t->classdata.nmethods++] = sig
 
 
 @public

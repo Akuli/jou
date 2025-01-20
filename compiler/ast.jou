@@ -10,6 +10,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./errors_and_warnings.jou"
+import "./types.jou"
 import "./types_in_ast.jou"
 import "./utils.jou"
 
@@ -1008,6 +1009,7 @@ class AstClassDef:
     name_location: Location
     members: AstClassMember*
     nmembers: int
+    type: Type*  # populated in typecheck, NULL before typecheck runs
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -1021,6 +1023,7 @@ class AstClassDef:
         for i = 0; i < self->nmembers; i++:
             self->members[i].free()
         free(self->members)
+        # TODO: the type is currently leaked! fix that
 
 
 # enum Foo:
@@ -1032,6 +1035,7 @@ class AstEnumDef:
     name_location: Location
     member_count: int
     member_names: byte[100]*
+    type: Type*  # populated in typecheck, NULL before typecheck runs
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})

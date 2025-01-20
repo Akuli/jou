@@ -1107,16 +1107,10 @@ def build_control_flow_graphs(ast: AstFile*) -> CfGraphFile:
                 result.graphs[result.ngraphs++] = g
 
             case AstStatementKind.Class:
-                class_type: Type* = NULL
-                for t = ast->types.owned_types; t < &ast->types.owned_types[ast->types.n_owned_types]; t++:
-                    if strcmp((*t)->name, stmt->classdef.name) == 0:
-                        class_type = *t
-                        break
-                assert class_type != NULL
+                assert stmt->classdef.type != NULL
                 for m = stmt->classdef.members; m < &stmt->classdef.members[stmt->classdef.nmembers]; m++:
                     if m->kind == AstClassMemberKind.Method:
-                        # TODO: pass in the whole m->method
-                        g = builder.build_function_or_method(class_type, &m->method)
+                        g = builder.build_function_or_method(stmt->classdef.type, &m->method)
                         result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
                         assert result.graphs != NULL
                         result.graphs[result.ngraphs++] = g
