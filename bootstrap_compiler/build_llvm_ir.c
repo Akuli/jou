@@ -914,7 +914,10 @@ static void build_loop(
 
     // Evaluate condition and then jump to loop body or skip to after loop.
     LLVMPositionBuilderAtEnd(st->builder, condblock);
-    LLVMBuildCondBr(st->builder, build_expression(st, cond), bodyblock, doneblock);
+    if(cond)
+        LLVMBuildCondBr(st->builder, build_expression(st, cond), bodyblock, doneblock);
+    else
+        LLVMBuildBr(st->builder, bodyblock);
 
     // Within loop body, 'break' skips to after loop, 'continue' goes to incr.
     assert(st->nloops < sizeof(st->breaks)/sizeof(st->breaks[0]));
@@ -1029,7 +1032,7 @@ static void build_statement(struct State *st, const AstStatement *stmt)
         break;
     case AST_STMT_FOR:
         build_loop(
-            st, stmt->data.forloop.init, &stmt->data.forloop.cond, stmt->data.forloop.incr,
+            st, stmt->data.forloop.init, stmt->data.forloop.cond, stmt->data.forloop.incr,
             &stmt->data.forloop.body);
         break;
     case AST_STMT_MATCH:
