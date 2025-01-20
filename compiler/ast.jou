@@ -11,6 +11,7 @@ import "stdlib/mem.jou"
 
 import "./errors_and_warnings.jou"
 import "./types.jou"
+import "./types_in_ast.jou"
 import "./utils.jou"
 
 
@@ -134,20 +135,6 @@ class AstInstantiation:
             self->field_values[i].free()
         free(self->field_names)
         free(self->field_values)
-
-
-class ExpressionTypes:
-    # Type of value that the expression evaluates to, before implicit casts are applied.
-    # This is NULL before type checking, and if the expression  calling '-> None' function/method.
-    orig_type: Type*
-
-    # Type after applying implicit cast, if any. If there's no implicit cast, same as original_type.
-    # This is NULL before type checking, and if the expression  calling '-> None' function/method.
-    implicit_cast_type: Type*
-
-    # Flags to indicate whether special kinds of implicit casts happened
-    implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
-    implicit_string_to_array_cast: bool     # "..." to byte[N]
 
 
 enum AstExpressionKind:
