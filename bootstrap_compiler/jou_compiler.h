@@ -168,8 +168,8 @@ struct AstCall {
 };
 
 struct ExpressionTypes {
-    const Type *type;
-    const Type *implicit_cast_type;  // NULL for no implicit cast
+    const Type *orig_type;  // before implicit cast
+    const Type *implicit_cast_type;  // after implicit cast
 
     // Flags to indicate whether special kinds of implicit casts happened
     bool implicit_array_to_pointer_cast;    // Foo[N] to Foo*

@@ -137,11 +137,12 @@ class AstInstantiation:
 
 
 class ExpressionTypes:
-    # Type of value that the expression evaluates to, or NULL if the expression
-    # is calling '-> None' function/method.
-    type: Type*
+    # Type of value that the expression evaluates to, before implicit casts are applied.
+    # This is NULL before type checking, and if the expression  calling '-> None' function/method.
+    orig_type: Type*
 
-    # NULL if there's no implicit cast.
+    # Type after applying implicit cast, if any. If there's no implicit cast, same as original_type.
+    # This is NULL before type checking, and if the expression  calling '-> None' function/method.
     implicit_cast_type: Type*
 
     # Flags to indicate whether special kinds of implicit casts happened
@@ -223,8 +224,8 @@ class AstExpression:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("[line %d", self->location.lineno)
-        if self->types.type != NULL:
-            printf(", type %s", self->types.type->name)
+        if self->types.orig_type != NULL:
+            printf(", type %s", self->types.orig_type->name)
             # TODO: print casts and other stuff under self->types?
         printf("] ")
 

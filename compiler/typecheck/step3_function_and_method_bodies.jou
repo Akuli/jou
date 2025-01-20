@@ -128,7 +128,7 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
     # enum member, or a field on an instance of a class. That is determined
     # when type checking. Members of instances can be (usually) assigned to,
     # but enum members cannot.
-    assert expr->types.type != NULL
+    assert expr->types.orig_type != NULL
 
     if (
         expr->kind == AstExpressionKind.Dereference
@@ -257,11 +257,11 @@ def do_implicit_cast(
     location: Location,
     errormsg_template: byte*,
 ) -> None:
-    assert expr->types.type != NULL
-    assert expr->types.implicit_cast_type == NULL
+    assert expr->types.orig_type != NULL
+    assert expr->types.implicit_cast_type == expr->types.orig_type
     assert not expr->types.implicit_array_to_pointer_cast
 
-    from = expr->types.type
+    from = expr->types.orig_type
     if from == to:
         return
 
@@ -293,15 +293,15 @@ def do_implicit_cast(
 
 
 def cast_array_to_pointer(fom: FunctionOrMethodTypes*, expr: AstExpression*) -> None:
-    assert expr->types.type != NULL
-    assert expr->types.type->kind == TypeKind.Array
-    do_implicit_cast(fom, expr, expr->types.type->array.item_type->pointer_type(), Location{}, NULL)
+    assert expr->types.orig_type != NULL
+    assert expr->types.orig_type->kind == TypeKind.Array
+    do_implicit_cast(fom, expr, expr->types.orig_type->array.item_type->pointer_type(), Location{}, NULL)
 
 
 def do_explicit_cast(fom: FunctionOrMethodTypes*, expr: AstExpression*, to: Type*, location: Location) -> None:
-    assert expr->types.type != NULL
-    assert expr->types.implicit_cast_type == NULL
-    from = expr->types.type
+    assert expr->types.orig_type != NULL
+    assert expr->types.implicit_cast_type == expr->types.orig_type
+    from = expr->types.orig_type
 
     msg: byte[500]
 
@@ -319,9 +319,9 @@ def do_explicit_cast(fom: FunctionOrMethodTypes*, expr: AstExpression*, to: Type
 
 def typecheck_expression_not_void(ft: FileTypes*, expr: AstExpression*) -> Type*:
     typecheck_expression(ft, expr)
-    if expr->types.type != NULL:
+    if expr->types.orig_type != NULL:
         # The happy path. Evaluating the expression results in a value.
-        return expr->types.type
+        return expr->types.orig_type
 
     # Should be function/method call that returns None
     assert expr->kind == AstExpressionKind.Call
@@ -348,8 +348,8 @@ def check_binop(
     lhs: AstExpression*,
     rhs: AstExpression*,
 ) -> Type*:
-    assert lhs->types.type != NULL
-    assert rhs->types.type != NULL
+    assert lhs->types.orig_type != NULL
+    assert rhs->types.orig_type != NULL
 
     do_what: byte*
     match op:
@@ -375,18 +375,18 @@ def check_binop(
         case _:
             assert False
 
-    got_bools = lhs->types.type == boolType and rhs->types.type == boolType
-    got_integers = lhs->types.type->is_integer_type() and rhs->types.type->is_integer_type()
-    got_numbers = lhs->types.type->is_number_type() and rhs->types.type->is_number_type()
-    got_enums = lhs->types.type->kind == TypeKind.Enum and lhs->types.type == rhs->types.type
+    got_bools = lhs->types.orig_type == boolType and rhs->types.orig_type == boolType
+    got_integers = lhs->types.orig_type->is_integer_type() and rhs->types.orig_type->is_integer_type()
+    got_numbers = lhs->types.orig_type->is_number_type() and rhs->types.orig_type->is_number_type()
+    got_enums = lhs->types.orig_type->kind == TypeKind.Enum and lhs->types.orig_type == rhs->types.orig_type
     got_pointers = (
-        lhs->types.type->is_pointer_type()
-        and rhs->types.type->is_pointer_type()
+        lhs->types.orig_type->is_pointer_type()
+        and rhs->types.orig_type->is_pointer_type()
         and (
             # Ban comparisons like int* == byte*, unless one of the two types is void*
-            lhs->types.type == rhs->types.type
-            or lhs->types.type == voidPtrType
-            or rhs->types.type == voidPtrType
+            lhs->types.orig_type == rhs->types.orig_type
+            or lhs->types.orig_type == voidPtrType
+            or rhs->types.orig_type == voidPtrType
         )
     )
 
@@ -411,7 +411,7 @@ def check_binop(
         )
     ):
         msg: byte[500]
-        snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, lhs->types.type->name, rhs->types.type->name)
+        snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, lhs->types.orig_type->name, rhs->types.orig_type->name)
         fail(location, msg)
 
     cast_type: Type* = NULL
@@ -419,11 +419,11 @@ def check_binop(
         cast_type = boolType
     if got_integers:
         cast_type = get_integer_type(
-            max(lhs->types.type->size_in_bits, rhs->types.type->size_in_bits),
-            lhs->types.type->kind == TypeKind.SignedInteger or rhs->types.type->kind == TypeKind.SignedInteger
+            max(lhs->types.orig_type->size_in_bits, rhs->types.orig_type->size_in_bits),
+            lhs->types.orig_type->kind == TypeKind.SignedInteger or rhs->types.orig_type->kind == TypeKind.SignedInteger
         )
     if got_numbers and not got_integers:
-        if lhs->types.type == doubleType or rhs->types.type == doubleType:
+        if lhs->types.orig_type == doubleType or rhs->types.orig_type == doubleType:
             cast_type = doubleType
         else:
             cast_type = floatType
@@ -703,7 +703,7 @@ def cast_array_members_to_a_common_type(fom: FunctionOrMethodTypes*, error_locat
     ndistinct = 0
 
     for i = 0; i < array.length; i++:
-        itemtype = array.items[i].types.type
+        itemtype = array.items[i].types.orig_type
         assert itemtype != NULL
 
         found = False
@@ -1028,7 +1028,8 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
             assert False
 
     assert result != NULL
-    expr->types.type = result
+    expr->types.orig_type = result
+    expr->types.implicit_cast_type = result  # by default, no implicit cast
 
 
 def typecheck_body(ft: FileTypes*, body: AstBody*) -> None:
@@ -1213,11 +1214,11 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
                     assert False
 
             t = check_binop(ft->current_fom_types, op, stmt->location, targetexpr, valueexpr)
-            if t != targetexpr->types.type:
+            if t != targetexpr->types.orig_type:
                 snprintf(
                     msg, sizeof msg,
                     "%s produced a value of type %s which cannot be assigned back to %s",
-                    opname, t->name, targetexpr->types.type->name
+                    opname, t->name, targetexpr->types.orig_type->name
                 )
                 fail(stmt->location, msg)
 

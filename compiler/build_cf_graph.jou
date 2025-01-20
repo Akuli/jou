@@ -421,7 +421,7 @@ class CfBuilder:
     def build_address_of_expression(self, address_of_what: AstExpression*) -> LocalVariable*:
         match address_of_what->kind:
             case AstExpressionKind.GetVariable:
-                ptrtype = address_of_what->types.type->pointer_type()
+                ptrtype = address_of_what->types.orig_type->pointer_type()
                 addr = self->add_var(ptrtype)
 
                 local_var = self->find_var(address_of_what->varname)
@@ -440,7 +440,7 @@ class CfBuilder:
                 return addr
 
             case AstExpressionKind.Self:
-                ptrtype = address_of_what->types.type->pointer_type()
+                ptrtype = address_of_what->types.orig_type->pointer_type()
                 addr = self->add_var(ptrtype)
 
                 local_var = self->find_var("self")
@@ -486,7 +486,7 @@ class CfBuilder:
         sig: Signature* = NULL
 
         if call->method_call_self != NULL:
-            selfclass = call->method_call_self->types.type
+            selfclass = call->method_call_self->types.orig_type
             if call->uses_arrow_operator:
                 assert selfclass->kind == TypeKind.Pointer
                 selfclass = selfclass->value_type
@@ -597,7 +597,7 @@ class CfBuilder:
             self->add_instruction(ins)
             return result
 
-        t = expr->types.type
+        t = expr->types.orig_type
         if expr->kind != AstExpressionKind.Call:
             # Calls do not necessary return anything, all other expressions do.
             assert t != NULL
@@ -675,7 +675,7 @@ class CfBuilder:
                 ins = CfInstruction{
                     location = expr->location,
                     kind = CfInstructionKind.SizeOf,
-                    type = expr->operands[0].types.type,
+                    type = expr->operands[0].types.orig_type,
                     destvar = result,
                 }
                 self->add_instruction(ins)
@@ -686,7 +686,7 @@ class CfBuilder:
             case AstExpressionKind.Self:
                 selfvar = self->find_var("self")
                 assert selfvar != NULL
-                if expr->types.implicit_cast_type == NULL or t == expr->types.implicit_cast_type:
+                if expr->types.orig_type == expr->types.implicit_cast_type or t == expr->types.implicit_cast_type:
                     # Must take a "snapshot" of this variable, as it may change soon.
                     result = self->add_var(selfvar->type)
                     self->unary_op(expr->location, CfInstructionKind.VarCpy, selfvar, result)
@@ -795,7 +795,7 @@ class CfBuilder:
                 result = self->build_cast(temp, t, expr->location)
 
         assert result->type == t
-        if expr->types.implicit_cast_type == NULL:
+        if expr->types.implicit_cast_type == expr->types.orig_type:
             return result
         return self->build_cast(result, expr->types.implicit_cast_type, expr->location)
 
