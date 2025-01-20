@@ -91,8 +91,8 @@ class UnionOfBoxes:
                 splits = [box.mins[coord_idx], box.maxs[coord_idx] + 1]
                 for s = &splits[0]; s < &splits[2]; s++:
                     # Split
-                    have = realloc(have, 2*nhave*sizeof(have[0]))
-                    assert have != NULL or nhave == 0
+                    have = realloc(have, 2*nhave*sizeof(have[0]) + 1)
+                    assert have != NULL
                     for i = nhave - 1; i >= 0; i--:
                         if have[i].can_split(*s, coord_idx):
                             split = have[i].split(*s, coord_idx)
@@ -107,7 +107,7 @@ class UnionOfBoxes:
 
             # Replace self->boxes[k] with "have"
             self->boxes[k] = self->boxes[--self->nboxes]
-            self->boxes = realloc(self->boxes, (self->nboxes + nhave) * sizeof(self->boxes[0]))
+            self->boxes = realloc(self->boxes, (self->nboxes + nhave) * sizeof(self->boxes[0]) + 1)
             for i = 0; i < nhave; i++:
                 self->boxes[self->nboxes++] = have[i]
             free(have)
