@@ -1316,7 +1316,6 @@ def typecheck_function_or_method_body(state: State*, sig: Signature*, body: AstB
 
     for i = 0; i < sig->nargs; i++:
         v = state->fom_types->add_variable(sig->argtypes[i], sig->argnames[i])
-        v->is_argument = True
 
     if sig->returntype != NULL:
         state->fom_types->add_variable(sig->returntype, "return")
