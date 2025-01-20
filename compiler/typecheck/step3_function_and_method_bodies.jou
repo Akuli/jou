@@ -1333,7 +1333,7 @@ def typecheck_step3_function_and_method_bodies(file_types: FileTypes*, ast: AstF
         stmt = &ast->body.statements[i]
         match stmt->kind:
             case AstStatementKind.FunctionDef:
-                sig = file_types->find_function(stmt->function.signature.name)
+                sig = file_types->find_function(stmt->function.ast_signature.name)
                 assert sig != NULL
                 typecheck_function_or_method_body(&state, sig, &stmt->function.body)
             case AstStatementKind.Class:
@@ -1349,7 +1349,7 @@ def typecheck_step3_function_and_method_bodies(file_types: FileTypes*, ast: AstF
                         continue
                     method = &m->method
 
-                    sig = classtype->find_method(method->signature.name)
+                    sig = classtype->find_method(method->ast_signature.name)
                     assert sig != NULL
                     typecheck_function_or_method_body(&state, sig, &method->body)
             case _:

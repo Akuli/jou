@@ -10,7 +10,6 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./errors_and_warnings.jou"
-import "./types.jou"
 import "./types_in_ast.jou"
 import "./utils.jou"
 
@@ -926,18 +925,18 @@ class AstFile:
 #     ...
 class AstFunctionOrMethod:
     public: bool  # is it decorated with @public
-    signature: AstSignature
+    ast_signature: AstSignature
     body: AstBody  # empty body means declaration, otherwise it's a definition
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        self->signature.print()
+        self->ast_signature.print()
         self->body.print_with_tree_printer(tp)
 
     def free(self) -> None:
-        self->signature.free()
+        self->ast_signature.free()
         self->body.free()
 
 
@@ -986,7 +985,7 @@ class AstClassMember:
                 self->union_fields.print_with_tree_printer(tp)
             case AstClassMemberKind.Method:
                 printf("method ")
-                self->method.signature.print()
+                self->method.ast_signature.print()
                 self->method.body.print_with_tree_printer(tp)
 
     def free(self) -> None:

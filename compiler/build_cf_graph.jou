@@ -1108,7 +1108,7 @@ def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFi
 
         match stmt->kind:
             case AstStatementKind.FunctionDef:
-                g = builder.build_function_or_method(NULL, stmt->function.signature.name, &stmt->function.body, stmt->function.public)
+                g = builder.build_function_or_method(NULL, stmt->function.ast_signature.name, &stmt->function.body, stmt->function.public)
                 result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
                 assert result.graphs != NULL
                 result.graphs[result.ngraphs++] = g
@@ -1122,7 +1122,7 @@ def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFi
                 assert class_type != NULL
                 for m = stmt->classdef.members; m < &stmt->classdef.members[stmt->classdef.nmembers]; m++:
                     if m->kind == AstClassMemberKind.Method:
-                        g = builder.build_function_or_method(class_type, m->method.signature.name, &m->method.body, True)
+                        g = builder.build_function_or_method(class_type, m->method.ast_signature.name, &m->method.body, True)
                         result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
                         assert result.graphs != NULL
                         result.graphs[result.ngraphs++] = g

@@ -133,8 +133,8 @@ def check_class_for_duplicate_names(classdef: AstClassDef*) -> None:
             case AstClassMemberKind.Method:
                 *destptr++ = MemberInfo{
                     kind = "a method",
-                    name = member->method.signature.name,
-                    name_location = member->method.signature.name_location,
+                    name = member->method.ast_signature.name,
+                    name_location = member->method.ast_signature.name_location,
                 }
 
     assert destptr == &infos[n]
@@ -199,7 +199,7 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
     if strcmp(decor, "@public") == 0:
         match stmt->kind:
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
-                if strcmp(stmt->function.signature.name, "main") == 0:
+                if strcmp(stmt->function.ast_signature.name, "main") == 0:
                     # TODO: test this
                     fail(location, "do not decorate the main() function with @public")
                 stmt->function.public = True
@@ -1011,7 +1011,7 @@ class Parser:
                 result = AstStatement{
                     location = location,
                     kind = AstStatementKind.FunctionDeclare,
-                    function = AstFunctionOrMethod{signature = self->parse_function_or_method_signature(False)},
+                    function = AstFunctionOrMethod{ast_signature = self->parse_function_or_method_signature(False)},
                 }
             self->eat_newline()
         elif self->tokens->is_keyword("global"):
@@ -1122,7 +1122,7 @@ class Parser:
         body = self->parse_body()
         self->is_parsing_method_body = False
 
-        return AstFunctionOrMethod{signature = signature, body = body}
+        return AstFunctionOrMethod{ast_signature = signature, body = body}
 
     def parse_class(self) -> AstClassDef:
         assert self->tokens->is_keyword("class")
