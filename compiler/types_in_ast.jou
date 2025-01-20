@@ -143,6 +143,7 @@ class FileTypes:
                 return &f->signature
         return NULL
 
+    # TODO: delete this?
     def find_function_or_method(self, selfclass: Type*, name: byte*) -> Signature*:
         if selfclass != NULL:
             return selfclass->find_method(name)

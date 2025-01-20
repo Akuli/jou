@@ -152,10 +152,11 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
             case AstClassMemberKind.Method:
                 # Don't handle the method body yet: that is a part of step 3, not step 2
                 sig = handle_signature(ft, &m->method.ast_signature, t)
+                m->method.types.signature = sig
 
                 t->classdata.methods = realloc(t->classdata.methods, sizeof(t->classdata.methods[0]) * (t->classdata.nmethods + 1))
                 assert t->classdata.methods != NULL
-                t->classdata.methods[t->classdata.nmethods++] = sig
+                t->classdata.methods[t->classdata.nmethods++] = sig.copy()
 
 
 @public
@@ -177,13 +178,12 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 # TODO: what does this code do? can it be simplified?
                 sig = handle_signature(&ast->types, &stmt->function.ast_signature, NULL)
+                stmt->function.types.signature = sig
                 if stmt->function.public:
-                    es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig}
+                    es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig.copy()}
                     assert sizeof(es.name) == sizeof(sig.name)
                     strcpy(es.name, sig.name)
                     exports[nexports++] = es
-                else:
-                    sig.free()
             case AstStatementKind.Class:
                 handle_class_members(&ast->types, &stmt->classdef)
             case AstStatementKind.Enum:
