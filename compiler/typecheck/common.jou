@@ -94,7 +94,6 @@ class SignatureAndUsedPtr:
 
 
 class FileTypes:
-    current_fom_types: FunctionOrMethodTypes*  # conceptually this is internal to typecheck.c
     fomtypes: FunctionOrMethodTypes*
     nfomtypes: int
     globals: GlobalVariable*
@@ -149,21 +148,6 @@ class FileTypes:
                     *var->usedptr = True
                 return var->type
         return NULL
-
-    def find_local_var(self, name: byte*) -> LocalVariable*:
-        if self->current_fom_types == NULL:
-            return NULL
-        return self->current_fom_types->find_local_var(name)
-
-    def find_any_var(self, name: byte*) -> Type*:
-        if get_special_constant(name) != -1:
-            return boolType
-
-        local = self->find_local_var(name)
-        if local != NULL:
-            return local->type
-
-        return self->find_global_var(name)
 
 
 @public

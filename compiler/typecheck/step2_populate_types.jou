@@ -18,7 +18,6 @@ import "./common.jou"
 
 
 def handle_global_var(ft: FileTypes*, vardecl: AstNameTypeValue*, defined_here: bool) -> ExportSymbol:
-    assert ft->current_fom_types == NULL  # find_any_var() only finds global vars
     if ft->find_global_var(vardecl->name) != NULL:
         msg: byte[500]
         snprintf(msg, sizeof(msg), "a global variable named '%s' already exists", vardecl->name)
