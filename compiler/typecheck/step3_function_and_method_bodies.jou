@@ -533,7 +533,7 @@ def typecheck_and_or(
     assert strcmp(and_or, "and") == 0 or strcmp(and_or, "or") == 0
 
     errormsg: byte[100]
-    snprintf(errormsg, sizeof(errormsg), "'%s' only works with booleans, not <from>", and_or)
+    snprintf(errormsg, sizeof(errormsg), "'%s' only works with bools, not <from>", and_or)
 
     typecheck_expression_with_implicit_cast(ft, lhsexpr, boolType, errormsg)
     typecheck_expression_with_implicit_cast(ft, rhsexpr, boolType, errormsg)
@@ -982,7 +982,7 @@ def typecheck_expression(ft: FileTypes*, expr: AstExpression*) -> None:
         case AstExpressionKind.Not:
             typecheck_expression_with_implicit_cast(
                 ft, &expr->operands[0], boolType,
-                "value after 'not' must be a boolean, not <from>")
+                "value after 'not' must be a bool, not <from>")
             result = boolType
 
         case AstExpressionKind.Negate:
@@ -1040,9 +1040,9 @@ def typecheck_body(ft: FileTypes*, body: AstBody*) -> None:
 def typecheck_if_statement(ft: FileTypes*, ifstmt: AstIfStatement*) -> None:
     for i = 0; i < ifstmt->n_if_and_elifs; i++:
         if i == 0:
-            errmsg = "'if' condition must be a boolean, not <from>"
+            errmsg = "'if' condition must be a bool, not <from>"
         else:
-            errmsg = "'elif' condition must be a boolean, not <from>"
+            errmsg = "'elif' condition must be a bool, not <from>"
 
         typecheck_expression_with_implicit_cast(
             ft, &ifstmt->if_and_elifs[i].condition, boolType, errmsg)
@@ -1140,7 +1140,7 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
         case AstStatementKind.WhileLoop:
             typecheck_expression_with_implicit_cast(
                 ft, &stmt->while_loop.condition, boolType,
-                "'while' condition must be a boolean, not <from>")
+                "'while' condition must be a bool, not <from>")
             typecheck_body(ft, &stmt->while_loop.body)
 
         case AstStatementKind.ForLoop:
@@ -1149,7 +1149,7 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             if stmt->for_loop.cond != NULL:
                 typecheck_expression_with_implicit_cast(
                     ft, stmt->for_loop.cond, boolType,
-                    "'for' condition must be a boolean, not <from>")
+                    "'for' condition must be a bool, not <from>")
             typecheck_body(ft, &stmt->for_loop.body)
             if stmt->for_loop.incr != NULL:
                 typecheck_statement(ft, stmt->for_loop.incr)
@@ -1277,7 +1277,7 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             typecheck_expression(ft, &stmt->expression)
 
         case AstStatementKind.Assert:
-            typecheck_expression_with_implicit_cast(ft, &stmt->expression, boolType, "assertion must be a boolean, not <from>")
+            typecheck_expression_with_implicit_cast(ft, &stmt->expression, boolType, "assertion must be a bool, not <from>")
 
         case (
             AstStatementKind.FunctionDeclare
