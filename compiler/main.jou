@@ -17,6 +17,7 @@ import "./typecheck/step2_populate_types.jou"
 import "./typecheck/step3_function_and_method_bodies.jou"
 import "./target.jou"
 import "./types.jou"
+import "./types_in_ast.jou"
 import "./token.jou"
 import "./parser.jou"
 import "./paths.jou"
@@ -91,13 +92,11 @@ class FileState:
     path: byte*  # owned
     is_main_file: bool
     ast: AstFile
-    types: FileTypes
     module: LLVMModule*
 
     def free(self) -> None:
         self->ast.free()
         free(self->path)
-        self->types.free()
 
     def add_imported_symbol(self, es: ExportSymbol*, imp: AstImport*) -> None:
         for i = 0; i < self->ast.body.nstatements; i++:
@@ -116,16 +115,17 @@ class FileState:
 
         match es->kind:
             case ExportSymbolKind.Function:
-                self->types.functions = realloc(self->types.functions, sizeof(self->types.functions[0]) * (self->types.nfunctions + 1))
-                assert self->types.functions != NULL
-                self->types.functions[self->types.nfunctions++] = SignatureAndUsedPtr{
+                # TODO: this seems a bit barbaric, abstract it away with nice methods?
+                self->ast.types.functions = realloc(self->ast.types.functions, sizeof(self->ast.types.functions[0]) * (self->ast.types.nfunctions + 1))
+                assert self->ast.types.functions != NULL
+                self->ast.types.functions[self->ast.types.nfunctions++] = SignatureAndUsedPtr{
                     signature = es->funcsignature.copy(),
                     usedptr = &imp->used,
                 }
             case ExportSymbolKind.Type:
-                self->types.types = realloc(self->types.types, sizeof(self->types.types[0]) * (self->types.ntypes + 1))
-                assert self->types.types != NULL
-                self->types.types[self->types.ntypes++] = TypeAndUsedPtr{
+                self->ast.types.types = realloc(self->ast.types.types, sizeof(self->ast.types.types[0]) * (self->ast.types.ntypes + 1))
+                assert self->ast.types.types != NULL
+                self->ast.types.types[self->ast.types.ntypes++] = TypeAndUsedPtr{
                     type = es->type,
                     usedptr = &imp->used,
                 }
@@ -138,9 +138,9 @@ class FileState:
                 assert strlen(es->name) < sizeof g.name
                 strcpy(g.name, es->name)
 
-                self->types.globals = realloc(self->types.globals, sizeof(self->types.globals[0]) * (self->types.nglobals + 1))
-                assert self->types.globals != NULL
-                self->types.globals[self->types.nglobals++] = g
+                self->ast.types.globals = realloc(self->ast.types.globals, sizeof(self->ast.types.globals[0]) * (self->ast.types.nglobals + 1))
+                assert self->ast.types.globals != NULL
+                self->ast.types.globals[self->ast.types.nglobals++] = g
 
     def warn_about_unused_imports(self) -> None:
         for imp = self->ast.imports; imp < &self->ast.imports[self->ast.nimports]; imp++:
@@ -153,7 +153,7 @@ class FileState:
         if command_line_args.verbosity >= 1:
             printf("Building Control Flow Graphs: %s\n", self->path)
 
-        cf_graphs = build_control_flow_graphs(&self->ast, &self->types)
+        cf_graphs = build_control_flow_graphs(&self->ast)
         self->warn_about_unused_imports()
 
         if command_line_args.verbosity >= 2:
@@ -172,7 +172,7 @@ class FileState:
         if command_line_args.verbosity >= 1:
             printf("Building LLVM IR: %s\n", self->path)
 
-        mod = codegen(cf_graphs, &self->types, self->is_main_file)
+        mod = codegen(cf_graphs, &self->ast.types, self->is_main_file)
 
         if command_line_args.verbosity >= 2:
             print_llvm_ir(mod, False)
@@ -308,21 +308,21 @@ class CompileState:
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
                 printf("  step 1: %s\n", self->files[i].path)
-            pending_exports[i] = typecheck_step1_create_types(&self->files[i].types, &self->files[i].ast)
+            pending_exports[i] = typecheck_step1_create_types(&self->files[i].ast)
 
         self->exports_to_imports(pending_exports)
 
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
                 printf("  step 2: %s\n", self->files[i].path)
-            pending_exports[i] = typecheck_step2_populate_types(&self->files[i].types, &self->files[i].ast)
+            pending_exports[i] = typecheck_step2_populate_types(&self->files[i].ast)
 
         self->exports_to_imports(pending_exports)
 
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
                 printf("  step 3: %s\n", self->files[i].path)
-            typecheck_step3_function_and_method_bodies(&self->files[i].types, &self->files[i].ast)
+            typecheck_step3_function_and_method_bodies(&self->files[i].ast)
             if command_line_args.verbosity >= 3:
                 # AST now contains types. If very verbose, print them.
                 self->files[i].ast.print()

@@ -74,3 +74,70 @@ class FunctionOrMethodTypes:
     def free(self) -> None:
         free(self->locals)  # Don't free individual locals because they're owned by CFG now
         self->signature.free()
+
+
+class GlobalVariable:
+    name: byte[100]  # Same as in user's code, never empty
+    type: Type*
+    defined_in_current_file: bool  # not declare-only (e.g. stdout) or imported
+    usedptr: bool*  # If non-NULL, set to true when the variable is used. This is how we detect unused imports.
+
+class TypeAndUsedPtr:
+    type: Type*
+    usedptr: bool*  # used to detect unused imports
+
+class SignatureAndUsedPtr:
+    signature: Signature
+    usedptr: bool*  # used to detect unused imports
+
+
+class FileTypes:
+    globals: GlobalVariable*
+    nglobals: int
+    owned_types: Type**  # These will be freed later
+    n_owned_types: int
+    types: TypeAndUsedPtr*  # TODO: rename to available_types
+    ntypes: int
+    functions: SignatureAndUsedPtr*
+    nfunctions: int
+
+    # This is safe to call if self has been zero-initialized.
+    def free(self) -> None:
+        for t = self->owned_types; t < &self->owned_types[self->n_owned_types]; t++:
+            free_type(*t)
+        for func = self->functions; func < &self->functions[self->nfunctions]; func++:
+            func->signature.free()
+        free(self->globals)
+        free(self->types)
+        free(self->owned_types)
+        free(self->functions)
+
+    def find_type(self, name: byte*) -> Type*:
+        for t = self->types; t < &self->types[self->ntypes]; t++:
+            if strcmp(t->type->name, name) == 0:
+                if t->usedptr != NULL:
+                    *t->usedptr = True
+                return t->type
+        return NULL
+
+    def find_function(self, name: byte*) -> Signature*:
+        for f = self->functions; f < &self->functions[self->nfunctions]; f++:
+            if strcmp(f->signature.name, name) == 0:
+                if f->usedptr != NULL:
+                    *f->usedptr = True
+                return &f->signature
+        return NULL
+
+    def find_function_or_method(self, selfclass: Type*, name: byte*) -> Signature*:
+        if selfclass != NULL:
+            return selfclass->find_method(name)
+        else:
+            return self->find_function(name)
+
+    def find_global_var(self, name: byte*) -> Type*:
+        for var = self->globals; var < &self->globals[self->nglobals]; var++:
+            if strcmp(var->name, name) == 0:
+                if var->usedptr != NULL:
+                    *var->usedptr = True
+                return var->type
+        return NULL

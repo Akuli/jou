@@ -13,6 +13,7 @@ import "stdlib/str.jou"
 
 import "../ast.jou"
 import "../types.jou"
+import "../types_in_ast.jou"
 import "../errors_and_warnings.jou"
 import "./common.jou"
 
@@ -177,7 +178,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
 
 @public
-def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*:
+def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
     nexports = 0
 
@@ -189,11 +190,12 @@ def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbo
 
         match stmt->kind:
             case AstStatementKind.GlobalVariableDeclare:
-                exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, False)
+                exports[nexports++] = handle_global_var(&ast->types, &stmt->var_declaration, False)
             case AstStatementKind.GlobalVariableDef:
-                exports[nexports++] = handle_global_var(ft, &stmt->var_declaration, True)
+                exports[nexports++] = handle_global_var(&ast->types, &stmt->var_declaration, True)
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
-                sig = handle_signature(ft, &stmt->function.ast_signature, NULL)
+                # TODO: what does this code do? can it be simplified?
+                sig = handle_signature(&ast->types, &stmt->function.ast_signature, NULL)
                 if stmt->function.public:
                     es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig}
                     assert sizeof(es.name) == sizeof(sig.name)
@@ -202,7 +204,7 @@ def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbo
                 else:
                     sig.free()
             case AstStatementKind.Class:
-                handle_class_members(ft, &stmt->classdef)
+                handle_class_members(&ast->types, &stmt->classdef)
             case AstStatementKind.Enum:
                 pass  # Everything done in previous type-checking steps.
             case _:

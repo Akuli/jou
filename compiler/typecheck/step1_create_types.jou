@@ -15,11 +15,12 @@ import "stdlib/mem.jou"
 import "../ast.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
+import "../types_in_ast.jou"
 import "./common.jou"
 
 
 @public
-def typecheck_step1_create_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*:
+def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
     nexports = 0
 
@@ -39,19 +40,19 @@ def typecheck_step1_create_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*
             case _:
                 continue
 
-        existing = ft->find_type(name)
+        existing = ast->types.find_type(name)
         if existing != NULL:
             msg: byte[500]
             snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing->short_description(), name)
             fail(stmt->location, msg)
 
-        ft->types = realloc(ft->types, sizeof(ft->types[0]) * (ft->ntypes + 1))
-        assert ft->types != NULL
-        ft->types[ft->ntypes++] = TypeAndUsedPtr{type=t, usedptr=NULL}
+        ast->types.types = realloc(ast->types.types, sizeof(ast->types.types[0]) * (ast->types.ntypes + 1))
+        assert ast->types.types != NULL
+        ast->types.types[ast->types.ntypes++] = TypeAndUsedPtr{type=t, usedptr=NULL}
 
-        ft->owned_types = realloc(ft->owned_types, sizeof(ft->owned_types[0]) * (ft->n_owned_types + 1))
-        assert ft->owned_types != NULL
-        ft->owned_types[ft->n_owned_types++] = t
+        ast->types.owned_types = realloc(ast->types.owned_types, sizeof(ast->types.owned_types[0]) * (ast->types.n_owned_types + 1))
+        assert ast->types.owned_types != NULL
+        ast->types.owned_types[ast->types.n_owned_types++] = t
 
         es = ExportSymbol{kind = ExportSymbolKind.Type, type = t}
         assert sizeof(es.name) == sizeof(name)

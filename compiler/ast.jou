@@ -906,6 +906,7 @@ class AstFile:
     imports: AstImport*
     nimports: int
     body: AstBody
+    types: FileTypes
 
     def print(self) -> None:
         printf("===== AST for file \"%s\" =====\n", self->path)
@@ -919,6 +920,7 @@ class AstFile:
             self->imports[i].free()
         free(self->imports)
         self->body.free()
+        self->types.free()  # also works if self->types is zero-initialized
 
 
 # def foo() -> bar:

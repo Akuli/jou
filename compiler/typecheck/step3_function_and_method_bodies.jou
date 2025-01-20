@@ -1321,19 +1321,21 @@ def typecheck_function_or_method_body(state: State*, sig: Signature*, body: AstB
 
 
 @public
-def typecheck_step3_function_and_method_bodies(file_types: FileTypes*, ast: AstFile*) -> None:
-    state = State{file_types = file_types}
+def typecheck_step3_function_and_method_bodies(ast: AstFile*) -> None:
+    state = State{file_types = &ast->types}
 
     for i = 0; i < ast->body.nstatements; i++:
         stmt = &ast->body.statements[i]
         match stmt->kind:
             case AstStatementKind.FunctionDef:
-                sig = file_types->find_function(stmt->function.ast_signature.name)
+                # TODO: can this be simplified?
+                sig = ast->types.find_function(stmt->function.ast_signature.name)
                 assert sig != NULL
                 typecheck_function_or_method_body(&state, sig, &stmt->function.body, &stmt->function.types)
             case AstStatementKind.Class:
+                # TODO: can this be simplified?
                 classtype: Type* = NULL
-                for t = file_types->owned_types; t < &file_types->owned_types[file_types->n_owned_types]; t++:
+                for t = ast->types.owned_types; t < &ast->types.owned_types[ast->types.n_owned_types]; t++:
                     if strcmp((*t)->name, stmt->classdef.name) == 0:
                         classtype = *t
                         break

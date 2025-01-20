@@ -1047,7 +1047,9 @@ class CfBuilder:
     def build_function_or_method(self, selfclass: Type*, astfom: AstFunctionOrMethod*) -> CfGraph*:
         # Methods are always public, so that you can call them whenever you have an instance
         if selfclass != NULL:
-            assert astfom->public
+            public = True
+        else:
+            public = astfom->public
 
         assert self->cfg == NULL
 
@@ -1055,7 +1057,7 @@ class CfBuilder:
         self->fomtypes = &astfom->types
 
         self->cfg = calloc(1, sizeof *self->cfg)
-        self->cfg->public = astfom->public
+        self->cfg->public = public
         self->cfg->signature = self->fomtypes->signature.copy()
 
         # Copy local variables over from type checking.
@@ -1090,9 +1092,9 @@ class CfBuilder:
 # TODO: passing a type context here doesn't really make sense.
 # It would be better to pass only the public symbols that have been imported.
 @public
-def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFile:
+def build_control_flow_graphs(ast: AstFile*) -> CfGraphFile:
     result = CfGraphFile{filename = ast->path}
-    builder = CfBuilder{filetypes = filetypes}
+    builder = CfBuilder{filetypes = &ast->types}
 
     for i = 0; i < ast->body.nstatements; i++:
         stmt = &ast->body.statements[i]
@@ -1107,7 +1109,7 @@ def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFi
 
             case AstStatementKind.Class:
                 class_type: Type* = NULL
-                for t = filetypes->owned_types; t < &filetypes->owned_types[filetypes->n_owned_types]; t++:
+                for t = ast->types.owned_types; t < &ast->types.owned_types[ast->types.n_owned_types]; t++:
                     if strcmp((*t)->name, stmt->classdef.name) == 0:
                         class_type = *t
                         break
