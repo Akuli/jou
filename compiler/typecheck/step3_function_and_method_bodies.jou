@@ -1299,9 +1299,7 @@ def typecheck_function_or_method_body(ft: FileTypes*, sig: Signature*, body: Ast
     ft->current_fom_types->signature = sig->copy()
 
     for i = 0; i < sig->nargs; i++:
-        v = ft->current_fom_types->add_variable(sig->argtypes[i], sig->argnames[i])
-        v->is_argument = True
-
+        ft->current_fom_types->add_variable(sig->argtypes[i], sig->argnames[i])
     if sig->returntype != NULL:
         ft->current_fom_types->add_variable(sig->returntype, "return")
 

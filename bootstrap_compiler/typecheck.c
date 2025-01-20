@@ -1472,10 +1472,8 @@ static void typecheck_function_or_method_body(FileTypes *ft, const Signature *si
     ft->current_fom_types = End(ft->fomtypes) - 1;
     ft->current_fom_types->signature = copy_signature(sig);
 
-    for (int i = 0; i < sig->nargs; i++) {
-        LocalVariable *v = add_variable(ft, sig->argtypes[i], sig->argnames[i]);
-        v->is_argument = true;
-    }
+    for (int i = 0; i < sig->nargs; i++)
+        add_variable(ft, sig->argtypes[i], sig->argnames[i]);
     if (sig->returntype)
         add_variable(ft, sig->returntype, "return");
 

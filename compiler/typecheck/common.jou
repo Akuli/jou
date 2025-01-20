@@ -23,7 +23,6 @@ class LocalVariable:
     id: int  # Unique, but you can also compare pointers to LocalVariable.
     name: byte[100]  # Same name as in user's code, empty for temporary variables created by compiler
     type: Type*
-    is_argument: bool    # First n variables are always the arguments
 
     def print_to_width(self, width: int) -> None:
         if self->name[0] != '\0':
