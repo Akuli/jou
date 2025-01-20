@@ -97,7 +97,7 @@ enum UvgInstructionKind:
     UseAddress  # this means that &foo is used, so don't even try to figure out when and how foo changes
 
 class UvgInstruction:
-    location: Location
+    #location: Location
     kind: UvgInstructionKind
     value_id: int
 
@@ -130,13 +130,24 @@ class UvgBlock:
     def free(self) -> None:
         free(self->instructions)
 
-    def add_instruction(self, kind: UvgInstructionKind, value_id: int, location: Location) -> None:
+    def add_instruction(self, kind: UvgInstructionKind, value_id: int) -> None:
         assert value_id >= 0
-        ins = UvgInstruction{location = location, kind = kind, value_id = value_id}
+        #ins = UvgInstruction{location = location, kind = kind, value_id = value_id}
+        ins = UvgInstruction{kind = kind, value_id = value_id}
 
         self->instructions = realloc(self->instructions, sizeof(self->instructions[0]) * (self->ninstructions + 1))
         assert self->instructions != NULL
         self->instructions[self->ninstructions++] = ins
+
+    def set(self, value_id: int) -> None:
+        self->add_instruction(UvgInstructionKind.Set, value_id)
+
+    def use(self, value_id: int) -> None:
+        self->add_instruction(UvgInstructionKind.Use, value_id)
+
+    def set_and_use(self, value_id: int) -> None:
+        self->set(value_id)
+        self->use(value_id)
 
     def jump(self, next_block: UvgBlock*) -> None:
         self->terminator = UvgTerminator{kind = UvgTerminatorKind.Jump, jump_block = next_block}
@@ -199,7 +210,8 @@ class Uvg:
             b = self->blocks[i]
 
             for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
-                printf("    [line %d]   ", ins->location.lineno)
+                #printf("    [line %d]   ", ins->location.lineno)
+                printf("    [line ???]   ")
                 match ins->kind:
                     case UvgInstructionKind.Set:
                         printf("set")
@@ -212,24 +224,23 @@ class Uvg:
                 printf("\n")
 
             printf("    ")
-            if b->terminated:
-                match b->terminator.kind:
-                    case UvgTerminatorKind.Jump:
-                        printf("Jump to block %d.\n", self->index_of_block(b->terminator.jump_block))
-                    case UvgTerminatorKind.Branch:
-                        printf("If ")
-                        self->print_value_id(b->terminator.branch.cond_value_id)
-                        printf(
-                            " is True, jump to block %d. Otherwise jump to block %d.\n",
-                            self->index_of_block(b->terminator.branch.then),
-                            self->index_of_block(b->terminator.branch.otherwise),
-                        )
-                    case UvgTerminatorKind.Return:
-                        printf("Return from function.\n")
-                    case UvgTerminatorKind.ExitProgram:
-                        printf("The program will exit/crash/fail if we get here.\n")
-                    case UvgTerminatorKind.NotSet:
-                        printf("(terminator not set)\n")
+            match b->terminator.kind:
+                case UvgTerminatorKind.Jump:
+                    printf("Jump to block %d.\n", self->index_of_block(b->terminator.jump_block))
+                case UvgTerminatorKind.Branch:
+                    printf("If ")
+                    self->print_value_id(b->terminator.branch.cond_value_id)
+                    printf(
+                        " is True, jump to block %d. Otherwise jump to block %d.\n",
+                        self->index_of_block(b->terminator.branch.then),
+                        self->index_of_block(b->terminator.branch.otherwise),
+                    )
+                case UvgTerminatorKind.Return:
+                    printf("Return from function.\n")
+                case UvgTerminatorKind.ExitProgram:
+                    printf("The program will exit/crash/fail if we get here.\n")
+                case UvgTerminatorKind.NotSet:
+                    printf("(terminator not set)\n")
 
     def add_block(self) -> UvgBlock*:
         b: UvgBlock* = malloc(sizeof(*b))

@@ -1,0 +1,130 @@
+# This file takes in type-checked AST and builds two things out of it:
+#
+# - Undefined Value Graph (UVG), which is needed to determine which values may
+#   be undefined when the program runs, and show compiler warnings about them
+# - LLVM IR, used to run the code
+#
+# These are combined to the same file, because otherwise we need to repeat the
+# same building logic in two places, which is buggy and difficult to maintain.
+#
+# The name "double builder" refers to building two different representations
+# of the code, not to Jou's `double` data type.
+
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+
+import "./llvm.jou"
+import "./types.jou"
+import "./errors_and_warnings.jou"
+import "./uvg/uvg.jou"
+import "./target.jou"
+
+
+# LLVM doesn't have a built-in union type, and you're supposed to abuse other types for that:
+# https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/basic-constructs/unions.html
+#
+# My first idea was to use an array of bytes that is big enough to fit anything.
+# However, that might not be aligned properly.
+#
+# Then I tried choosing the member type that has the biggest align, and making a large enough array of it.
+# Because the align is always a power of two, the memory will be suitably aligned for all member types.
+# But it didn't work for some reason I still don't understand.
+#
+# Then I figured out how clang does it and did it the same way.
+# We make a struct that contains:
+# - the most aligned type as chosen before
+# - array of i8 as padding to make it the right size.
+# But for some reason that didn't work either.
+#
+# As a "last resort" I just use an array of i64 large enough and hope it's aligned as needed.
+def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
+    # For some reason uncommenting this makes stuff compile almost 2x slower...
+    #if ntypes == 1:
+    #    return types[0]
+
+    sizeneeded = 0L
+    for i = 0; i < ntypes; i++:
+        size1 = LLVMABISizeOfType(target.target_data, types[i])
+        size2 = LLVMStoreSizeOfType(target.target_data, types[i])
+
+        # If this assert fails, you need to figure out which of the size functions should be used.
+        # I don't know what their difference is.
+        # And if you need the alignment, there's 3 different functions for that...
+        assert size1 == size2
+        sizeneeded = llmax(sizeneeded, size1)
+
+    return LLVMArrayType(LLVMInt64Type(), ((sizeneeded+7)/8) as int)
+
+
+def class_type_to_llvm(type: Type*) -> LLVMType*:
+    assert type->kind == TypeKind.Class
+
+    n = type->classdata.nfields
+
+    flat_elems: LLVMType** = malloc(sizeof(flat_elems[0]) * n)
+    for i = 0; i < n; i++:
+        flat_elems[i] = type_to_llvm(type->classdata.fields[i].type)
+
+    # Combine together fields of the same union.
+    combined: LLVMType** = malloc(sizeof(combined[0]) * n)
+    combinedlen = 0
+    for start = 0; start < n; start = end:
+        end = start + 1
+        while end < n and type->classdata.fields[start].union_id == type->classdata.fields[end].union_id:
+            end++
+        combined[combinedlen++] = union_type_to_llvm(&flat_elems[start], end-start)
+
+    result = LLVMStructType(combined, combinedlen, False as int)
+    free(flat_elems)
+    free(combined)
+    return result
+
+
+def type_to_llvm(type: Type*) -> LLVMType*:
+    match type->kind:
+        case TypeKind.Array:
+            return LLVMArrayType(type_to_llvm(type->array.item_type), type->array.len)
+        case TypeKind.Pointer | TypeKind.VoidPointer:
+            # Element type doesn't matter in new LLVM versions.
+            return LLVMPointerType(LLVMInt8Type(), 0)
+        case TypeKind.FloatingPoint:
+            if type->size_in_bits == 32:
+                return LLVMFloatType()
+            if type->size_in_bits == 64:
+                return LLVMDoubleType()
+            assert False
+        case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+            return LLVMIntType(type->size_in_bits)
+        case TypeKind.Bool:
+            return LLVMInt1Type()
+        case TypeKind.OpaqueClass:
+            # this is compiler internal/temporary thing and should never end up here
+            assert False
+        case TypeKind.Class:
+            return class_type_to_llvm(type)
+        case TypeKind.Enum:
+            return LLVMInt32Type()
+
+
+class IRValue:
+    llvm_value: LLVMValue*
+    uvg_value_id: int
+
+
+class IRBuilder:
+    llvm_builder: LLVMBuilder*
+    llvm_module: LLVMModule*
+    uvg: Uvg*
+    uvg_block: UvgBlock*
+
+    def size_of(self, t: Type*) -> IRValue:
+        value_id = self->uvg->add_value_id(NULL)
+        self->uvg_block->set_and_use(value_id)
+        return IRValue{
+            llvm_value = LLVMSizeOf(type_to_llvm(t)),
+            uvg_value_id = value_id,
+        }
+
+
+def build_ir() -> None:
+    pass
