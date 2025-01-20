@@ -963,12 +963,10 @@ class CfBuilder:
             case AstStatementKind.Match:
                 self->build_match_statement(&stmt->match_statement)
             case AstStatementKind.Break:
-                if self->nloops == 0:
-                    fail(stmt->location, "'break' can only be used inside a loop")
+                assert self->nloops > 0
                 self->jump(NULL, self->breakstack[self->nloops - 1], self->breakstack[self->nloops - 1], NULL)
             case AstStatementKind.Continue:
-                if self->nloops == 0:
-                    fail(stmt->location, "'continue' can only be used inside a loop")
+                assert self->nloops > 0
                 self->jump(NULL, self->continuestack[self->nloops - 1], self->continuestack[self->nloops - 1], NULL)
             case AstStatementKind.Assign:
                 targetexpr = &stmt->assignment.target
