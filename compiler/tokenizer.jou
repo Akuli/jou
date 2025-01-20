@@ -50,15 +50,15 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
     if starts_with(string, "0b"):
         base = 2
         digits = &string[2]
-        valid_digits = "01"
+        valid_digits = "01_"
     elif starts_with(string, "0o"):
         base = 8
         digits = &string[2]
-        valid_digits = "01234567"
+        valid_digits = "01234567_"
     elif starts_with(string, "0x"):
         base = 16
         digits = &string[2]
-        valid_digits = "0123456789ABCDEFabcdef"
+        valid_digits = "0123456789ABCDEFabcdef_"
     elif starts_with(string, "0") and strlen(string) >= 2:
         # wrong syntax like 0777
         fail(location, "unnecessary zero at start of number")
@@ -66,9 +66,14 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
         # default decimal number
         base = 10
         digits = string
-        valid_digits = "0123456789"
+        valid_digits = "0123456789_"
 
-    if strlen(digits) == 0 or strspn(digits, valid_digits) != strlen(digits):
+    if (
+        strlen(digits) == 0
+        or digits[0] == '_'
+        or digits[strlen(digits) - 1] == '_'
+        or strspn(digits, valid_digits) != strlen(digits)
+    ):
         message = malloc(strlen(string) + 100)
         sprintf(message, "invalid number or variable name \"%s\"", string)
         fail(location, message)
@@ -79,6 +84,9 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
     overflow = False
 
     for i = 0; i < strlen(digits); i++:
+        if digits[i] == '_':
+            continue
+
         # Overflow isn't UB in Jou
         if (result * base) / base != result:
             overflow = True
