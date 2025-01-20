@@ -137,39 +137,46 @@ static int read_indentation_level_for_newline_token(struct State *st)
 static long long parse_integer(const char *str, Location location, int nbits)
 {
     int base;
-    const char *digits, *valid_digits;
+    char *digits;
+    const char *valid_digits;
     if (str[0] == '0' && str[1] == 'x') {
         // 0x123 = hexadecimal number
         base = 16;
-        digits = &str[2];
-        valid_digits = "0123456789ABCDEFabcdef";
+        digits = strdup(&str[2]);
+        valid_digits = "0123456789ABCDEFabcdef_";
     } else if (str[0] == '0' && str[1] == 'b') {
         // 0b1101 = binary number
         base = 2;
-        digits = &str[2];
-        valid_digits = "01";
+        digits = strdup(&str[2]);
+        valid_digits = "01_";
     } else if (str[0] == '0' && str[1] == 'o') {
         // 0o777 = octal number
         base = 8;
-        digits = &str[2];
-        valid_digits = "01234567";
+        digits = strdup(&str[2]);
+        valid_digits = "01234567_";
     } else if (str[0] == '0' && str[1] != '\0') {
         // wrong syntax like 0777
         fail(location, "unnecessary zero at start of number");
     } else {
         // default decimal umber
         base = 10;
-        digits = &str[0];
-        valid_digits = "0123456789";
+        digits = strdup(str);
+        valid_digits = "0123456789_";
     }
 
     if (!*digits || strspn(digits, valid_digits) != strlen(digits))
         fail(location, "invalid number or variable name \"%s\"", str);
 
+    // Remove underscores
+    while (strstr(digits,"_"))
+        memmove(strstr(digits,"_"), strstr(digits,"_")+1, strlen(strstr(digits,"_")));
+
     errno = 0;
     long long result = strtoll(digits, NULL, base);
     if (errno == ERANGE || result >> (nbits-1) != 0)
         fail(location, "value does not fit in a signed %d-bit integer", nbits);
+
+    free(digits);
     return result;
 }
 
