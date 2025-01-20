@@ -582,17 +582,19 @@ def plural_s(n: int) -> byte*:
 def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: Type*, location: Location) -> Type*:
     msg: byte[500]
 
-    sig = state->file_types->find_function_or_method(self_type, call->name)
-    if sig == NULL:
-        if self_type == NULL:
+    if self_type == NULL:
+        sig = state->file_types->find_function(call->name)
+        if sig == NULL:
             snprintf(msg, sizeof(msg), "function '%s' not found", call->name)
-        else:
-            assert self_type->kind == TypeKind.Class
+            fail(location, msg)
+    else:
+        assert self_type->kind == TypeKind.Class
+        sig = self_type->find_method(call->name)
+        if sig == NULL:
             snprintf(
                 msg, sizeof(msg),
-                "class %s does not have a method named '%s'",
-                self_type->name, call->name)
-        fail(location, msg)
+                "class %s does not have a method named '%s'", self_type->name, call->name)
+            fail(location, msg)
 
     if self_type == NULL:
         function_or_method = "function"
