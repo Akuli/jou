@@ -1305,9 +1305,9 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             assert False
 
 
-def typecheck_function_or_method_body(state: State*, sig: Signature*, body: AstBody*, fom_types: FunctionOrMethodTypes*) -> None:
+def typecheck_function_or_method_body(state: State*, sig: Signature*, fom: AstFunctionOrMethod*) -> None:
     assert state->fom_types == NULL
-    state->fom_types = fom_types
+    state->fom_types = &fom->types
     state->fom_types->signature = sig->copy()
 
     for i = 0; i < sig->nargs; i++:
@@ -1316,7 +1316,7 @@ def typecheck_function_or_method_body(state: State*, sig: Signature*, body: AstB
     if sig->returntype != NULL:
         state->fom_types->add_variable(sig->returntype, "return")
 
-    typecheck_body(state, body)
+    typecheck_body(state, &fom->body)
     state->fom_types = NULL
 
 
@@ -1331,7 +1331,7 @@ def typecheck_step3_function_and_method_bodies(ast: AstFile*) -> None:
                 # TODO: do we need to find the signature or is it saved within AST?
                 sig = ast->types.find_function(stmt->function.ast_signature.name)
                 assert sig != NULL
-                typecheck_function_or_method_body(&state, sig, &stmt->function.body, &stmt->function.types)
+                typecheck_function_or_method_body(&state, sig, &stmt->function)
             case AstStatementKind.Class:
                 classtype = stmt->classdef.type
                 assert classtype != NULL
@@ -1340,6 +1340,6 @@ def typecheck_step3_function_and_method_bodies(ast: AstFile*) -> None:
                         # TODO: do we need to find the signature or is it saved within AST?
                         sig = classtype->find_method(m->method.ast_signature.name)
                         assert sig != NULL
-                        typecheck_function_or_method_body(&state, sig, &m->method.body, &m->method.types)
+                        typecheck_function_or_method_body(&state, sig, &m->method)
             case _:
                 pass
