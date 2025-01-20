@@ -570,9 +570,10 @@ static void do_implicit_cast(
     const char *errormsg_template)
 {
     ExpressionTypes *types = &expr->types;
-    assert(!types->implicit_cast_type);
+    assert(types->orig_type != NULL);
+    assert(types->implicit_cast_type == types->orig_type);
     assert(!types->implicit_array_to_pointer_cast);
-    const Type *from = types->type;
+    const Type *from = types->orig_type;
     if (from == to)
         return;
 
@@ -606,15 +607,15 @@ static void do_implicit_cast(
 
 static void cast_array_to_pointer(const FunctionOrMethodTypes *fom, AstExpression *expr)
 {
-    assert(expr->types.type->kind == TYPE_ARRAY);
-    do_implicit_cast(fom, expr, get_pointer_type(expr->types.type->data.array.membertype), (Location){0}, NULL);
+    assert(expr->types.orig_type->kind == TYPE_ARRAY);
+    do_implicit_cast(fom, expr, get_pointer_type(expr->types.orig_type->data.array.membertype), (Location){0}, NULL);
 }
 
 static void do_explicit_cast(const FunctionOrMethodTypes *fom, AstExpression *expr, const Type *to, Location location)
 {
     ExpressionTypes *types = &expr->types;
-    assert(!types->implicit_cast_type);
-    const Type *from = types->type;
+    assert(types->implicit_cast_type == types->orig_type);
+    const Type *from = types->orig_type;
 
     if (from == to)
         show_warning(location, "unnecessary cast from %s to %s", from->name, to->name);
@@ -702,18 +703,18 @@ static const Type *check_binop(
         assert(0);
     }
 
-    bool got_bools = lhstypes->type == boolType && rhstypes->type == boolType;
-    bool got_integers = is_integer_type(lhstypes->type) && is_integer_type(rhstypes->type);
-    bool got_numbers = is_number_type(lhstypes->type) && is_number_type(rhstypes->type);
-    bool got_enums = lhstypes->type->kind == TYPE_ENUM && rhstypes->type->kind == TYPE_ENUM;
+    bool got_bools = lhstypes->orig_type == boolType && rhstypes->orig_type == boolType;
+    bool got_integers = is_integer_type(lhstypes->orig_type) && is_integer_type(rhstypes->orig_type);
+    bool got_numbers = is_number_type(lhstypes->orig_type) && is_number_type(rhstypes->orig_type);
+    bool got_enums = lhstypes->orig_type->kind == TYPE_ENUM && rhstypes->orig_type->kind == TYPE_ENUM;
     bool got_pointers = (
-        is_pointer_type(lhstypes->type)
-        && is_pointer_type(rhstypes->type)
+        is_pointer_type(lhstypes->orig_type)
+        && is_pointer_type(rhstypes->orig_type)
         && (
             // Ban comparisons like int* == byte*, unless one of the two types is void*
-            lhstypes->type == rhstypes->type
-            || lhstypes->type == voidPtrType
-            || rhstypes->type == voidPtrType
+            lhstypes->orig_type == rhstypes->orig_type
+            || lhstypes->orig_type == voidPtrType
+            || rhstypes->orig_type == voidPtrType
         )
     );
 
@@ -722,19 +723,19 @@ static const Type *check_binop(
         || ((got_bools || got_enums) && op != AST_EXPR_EQ && op != AST_EXPR_NE)
         || (got_pointers && op != AST_EXPR_EQ && op != AST_EXPR_NE && op != AST_EXPR_GT && op != AST_EXPR_GE && op != AST_EXPR_LT && op != AST_EXPR_LE)
     )
-        fail(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->type->name, rhstypes->type->name);
+        fail(location, "wrong types: cannot %s %s and %s", do_what, lhstypes->orig_type->name, rhstypes->orig_type->name);
 
     const Type *cast_type = NULL;
     if (got_bools)
         cast_type = boolType;
     if (got_integers) {
         cast_type = get_integer_type(
-            max(lhstypes->type->data.width_in_bits, rhstypes->type->data.width_in_bits),
-            lhstypes->type->kind == TYPE_SIGNED_INTEGER || rhstypes->type->kind == TYPE_SIGNED_INTEGER
+            max(lhstypes->orig_type->data.width_in_bits, rhstypes->orig_type->data.width_in_bits),
+            lhstypes->orig_type->kind == TYPE_SIGNED_INTEGER || rhstypes->orig_type->kind == TYPE_SIGNED_INTEGER
         );
     }
     if (got_numbers && !got_integers)
-        cast_type = (lhstypes->type == doubleType || rhstypes->type == doubleType) ? doubleType : floatType;
+        cast_type = (lhstypes->orig_type == doubleType || rhstypes->orig_type == doubleType) ? doubleType : floatType;
     if (got_pointers)
         cast_type = get_integer_type(64, false);  // unsigned long
     if (got_enums)
@@ -782,7 +783,7 @@ static const Type *check_increment_or_decrement(FileTypes *ft, const AstExpressi
     }
 
     ensure_can_take_address(ft->current_fom_types, &expr->data.operands[0], bad_expr_fmt);
-    const Type *t = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
+    const Type *t = typecheck_expression_not_void(ft, &expr->data.operands[0])->orig_type;
     if (!is_integer_type(t) && !is_pointer_type(t))
         fail(expr->location, bad_type_fmt, t->name);
     return t;
@@ -800,22 +801,22 @@ static const Type *typecheck_indexing(FileTypes *ft, AstExpression *ptrexpr, Ast
     ExpressionTypes *types = typecheck_expression_not_void(ft, ptrexpr);
 
     const Type *ptrtype;
-    if (types->type->kind == TYPE_ARRAY) {
+    if (types->orig_type->kind == TYPE_ARRAY) {
         cast_array_to_pointer(ft->current_fom_types, ptrexpr);
         ptrtype = types->implicit_cast_type;
     } else {
-        if (types->type->kind != TYPE_POINTER)
-            fail(ptrexpr->location, "value of type %s cannot be indexed", types->type->name);
-        ptrtype = types->type;
+        if (types->orig_type->kind != TYPE_POINTER)
+            fail(ptrexpr->location, "value of type %s cannot be indexed", types->orig_type->name);
+        ptrtype = types->orig_type;
     }
     assert(ptrtype->kind == TYPE_POINTER);
 
     ExpressionTypes *indextypes = typecheck_expression_not_void(ft, indexexpr);
-    if (!is_integer_type(indextypes->type)) {
+    if (!is_integer_type(indextypes->orig_type)) {
         fail(
             indexexpr->location,
             "the index inside [...] must be an integer, not %s",
-            indextypes->type->name);
+            indextypes->orig_type->name);
     }
 
     // LLVM assumes that indexes smaller than 64 bits are signed.
@@ -908,16 +909,16 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
         // This code runs for varargs, e.g. the things to format in printf().
         ExpressionTypes *types = typecheck_expression_not_void(ft, &call->args[i]);
 
-        if (types->type->kind == TYPE_ARRAY)
+        if (types->orig_type->kind == TYPE_ARRAY)
             cast_array_to_pointer(ft->current_fom_types, &call->args[i]);
         else if (
-            (is_integer_type(types->type) && types->type->data.width_in_bits < 32)
-            || types->type == boolType)
+            (is_integer_type(types->orig_type) && types->orig_type->data.width_in_bits < 32)
+            || types->orig_type == boolType)
         {
             // Add implicit cast to signed int, just like in C.
             do_implicit_cast(ft->current_fom_types, &call->args[i], intType, (Location){0}, NULL);
         }
-        else if (types->type == floatType)
+        else if (types->orig_type == floatType)
             do_implicit_cast(ft->current_fom_types, &call->args[i], doubleType, (Location){0}, NULL);
     }
 
@@ -991,13 +992,13 @@ static const Type *cast_array_members_to_a_common_type(const FunctionOrMethodTyp
     for (int i = 0; i < nitems; i++) {
         bool found = false;
         for (const Type **t = distinct.ptr; t < End(distinct); t++) {
-            if (*t == items[i].types.type) {
+            if (*t == items[i].types.orig_type) {
                 found = true;
                 break;
             }
         }
         if (!found)
-            Append(&distinct, items[i].types.type);
+            Append(&distinct, items[i].types.orig_type);
     }
 
     List(const Type *) compatible_with_all = {0};
@@ -1131,7 +1132,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr)
         }
         break;
     case AST_EXPR_GET_FIELD:
-        temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
+        temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->orig_type;
         if (temptype->kind != TYPE_CLASS)
             fail(
                 expr->location,
@@ -1140,7 +1141,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr)
         result = typecheck_class_field(temptype, expr->data.classfield.fieldname, expr->location)->type;
         break;
     case AST_EXPR_DEREF_AND_GET_FIELD:
-        temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
+        temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->orig_type;
         if (temptype->kind != TYPE_POINTER || temptype->data.valuetype->kind != TYPE_CLASS)
             fail(
                 expr->location,
@@ -1149,7 +1150,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr)
         result = typecheck_class_field(temptype->data.valuetype, expr->data.classfield.fieldname, expr->location)->type;
         break;
     case AST_EXPR_DEREF_AND_CALL_METHOD:
-        temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->type;
+        temptype = typecheck_expression_not_void(ft, expr->data.classfield.obj)->orig_type;
         if (temptype->kind != TYPE_POINTER)
             fail(
                 expr->location,
@@ -1158,7 +1159,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr)
         result = typecheck_function_or_method_call(ft, &expr->data.methodcall.call, temptype->data.valuetype, expr->location);
         break;
     case AST_EXPR_CALL_METHOD:
-        temptype = typecheck_expression_not_void(ft, expr->data.methodcall.obj)->type;
+        temptype = typecheck_expression_not_void(ft, expr->data.methodcall.obj)->orig_type;
         result = typecheck_function_or_method_call(ft, &expr->data.methodcall.call, temptype, expr->location);
 
         // If self argument is passed by pointer, make sure we can create that pointer
@@ -1188,7 +1189,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr)
         break;
     case AST_EXPR_ADDRESS_OF:
         ensure_can_take_address(ft->current_fom_types, &expr->data.operands[0], "the '&' operator cannot be used with %s");
-        temptype = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
+        temptype = typecheck_expression_not_void(ft, &expr->data.operands[0])->orig_type;
         result = get_pointer_type(temptype);
         break;
     case AST_EXPR_GET_VARIABLE:
@@ -1197,7 +1198,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr)
             fail(expr->location, "no variable named '%s'", expr->data.varname);
         break;
     case AST_EXPR_DEREFERENCE:
-        temptype = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
+        temptype = typecheck_expression_not_void(ft, &expr->data.operands[0])->orig_type;
         typecheck_dereferenced_pointer(expr->location, temptype);
         result = temptype->data.valuetype;
         break;
@@ -1219,7 +1220,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr)
         result = boolType;
         break;
     case AST_EXPR_NEG:
-        result = typecheck_expression_not_void(ft, &expr->data.operands[0])->type;
+        result = typecheck_expression_not_void(ft, &expr->data.operands[0])->orig_type;
         if (result->kind != TYPE_SIGNED_INTEGER && result->kind != TYPE_FLOATING_POINT)
             fail(
                 expr->location,
@@ -1254,7 +1255,7 @@ static ExpressionTypes *typecheck_expression(FileTypes *ft, AstExpression *expr)
         break;
     }
 
-    expr->types = (ExpressionTypes){ .type = result };
+    expr->types = (ExpressionTypes){ .orig_type = result, .implicit_cast_type = result };
     return &expr->types;
 }
 
@@ -1284,7 +1285,7 @@ static void typecheck_if_statement(FileTypes *ft, const AstIfStatement *ifstmt)
 
 static void typecheck_match_statement(FileTypes *ft, AstMatchStatement *match_stmt)
 {
-    const Type *mtype = typecheck_expression_not_void(ft, &match_stmt->match_obj)->type;
+    const Type *mtype = typecheck_expression_not_void(ft, &match_stmt->match_obj)->orig_type;
     assert(mtype->kind == TYPE_ENUM);
 
     for (int i = 0; i < match_stmt->ncases; i++) {
@@ -1341,7 +1342,7 @@ static void typecheck_statement(FileTypes *ft, AstStatement *stmt)
             {
                 // Making a new variable. Use the type of the value being assigned.
                 const ExpressionTypes *types = typecheck_expression_not_void(ft, valueexpr);
-                add_variable(ft, types->type, targetexpr->data.varname);
+                add_variable(ft, types->orig_type, targetexpr->data.varname);
             } else {
                 // Convert value to the type of an existing variable or other assignment target.
                 ensure_can_take_address(ft->current_fom_types, targetexpr, "cannot assign to %s");
@@ -1355,7 +1356,7 @@ static void typecheck_statement(FileTypes *ft, AstStatement *stmt)
                         short_expression_description(targetexpr));
                 }
                 const ExpressionTypes *targettypes = typecheck_expression_not_void(ft, targetexpr);
-                typecheck_expression_with_implicit_cast(ft, valueexpr, targettypes->type, errmsg);
+                typecheck_expression_with_implicit_cast(ft, valueexpr, targettypes->orig_type, errmsg);
             }
             break;
         }
@@ -1386,11 +1387,11 @@ static void typecheck_statement(FileTypes *ft, AstStatement *stmt)
         typecheck_expression_not_void(ft, valueexpr);
 
         const Type *t = check_binop(ft->current_fom_types, op, stmt->location, targetexpr, valueexpr);
-        if (t != targettypes->type) {
+        if (t != targettypes->orig_type) {
             fail(
                 stmt->location,
                 "%s produced a value of type %s which cannot be assigned back to %s",
-                opname, t->name, targettypes->type->name);
+                opname, t->name, targettypes->orig_type->name);
         }
         break;
     }

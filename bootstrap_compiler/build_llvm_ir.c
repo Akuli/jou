@@ -176,13 +176,11 @@ static const struct LocalVar *get_local_var(const struct State *st, const char *
     assert(false);
 }
 
+// TODO: delete this function
 static const Type *type_of_expr(const AstExpression *expr)
 {
-    assert(expr->types.type);
-    if (expr->types.implicit_cast_type)
-        return expr->types.implicit_cast_type;
-    else
-        return expr->types.type;
+    assert(expr->types.implicit_cast_type);
+    return expr->types.implicit_cast_type;
 }
 
 
@@ -669,7 +667,7 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
     case AST_EXPR_CONSTANT:
         return build_constant(st, &expr->data.constant);
     case AST_EXPR_GET_ENUM_MEMBER:
-        return LLVMConstInt(LLVMInt32Type(), find_enum_member(expr->types.type, expr->data.enummember.membername), false);
+        return LLVMConstInt(LLVMInt32Type(), find_enum_member(expr->types.orig_type, expr->data.enummember.membername), false);
     case AST_EXPR_FUNCTION_CALL:
         return build_function_call(st, &expr->data.call);
     case AST_EXPR_CALL_METHOD:
@@ -678,7 +676,7 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
     case AST_EXPR_BRACE_INIT:
         return build_brace_init(st, &expr->data.call);
     case AST_EXPR_ARRAY:
-        return build_array(st, expr->types.type, expr->data.array.items, expr->data.array.count);
+        return build_array(st, expr->types.orig_type, expr->data.array.items, expr->data.array.count);
     case AST_EXPR_GET_FIELD:
         {
             // Evaluate foo.bar as (&temp)->bar, where temp is a temporary copy of foo.
@@ -702,7 +700,7 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
         */
         return LLVMBuildLoad2(
             st->builder,
-            type_to_llvm(expr->types.type),
+            type_to_llvm(expr->types.orig_type),
             build_address_of_expression(st, expr),
             "dereffed");
     case AST_EXPR_GET_VARIABLE:
@@ -713,11 +711,11 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
         }
         return LLVMBuildLoad2(
             st->builder,
-            type_to_llvm(expr->types.type),
+            type_to_llvm(expr->types.orig_type),
             build_address_of_expression(st, expr),
             "dereffed");
     case AST_EXPR_AS:
-        return build_cast(st, build_expression(st, expr->data.as.obj), type_of_expr(expr->data.as.obj), expr->types.type);
+        return build_cast(st, build_expression(st, expr->data.as.obj), type_of_expr(expr->data.as.obj), expr->types.orig_type);
     case AST_EXPR_ADDRESS_OF:
         return build_address_of_expression(st, &expr->data.operands[0]);
     case AST_EXPR_SIZEOF:
@@ -725,7 +723,7 @@ static LLVMValueRef build_expression_without_implicit_cast(struct State *st, con
     case AST_EXPR_DEREFERENCE:
         return LLVMBuildLoad2(
             st->builder,
-            type_to_llvm(expr->types.type),
+            type_to_llvm(expr->types.orig_type),
             build_expression(st, &expr->data.operands[0]),
             "dereference");
     case AST_EXPR_AND:
@@ -801,7 +799,7 @@ static LLVMValueRef build_expression(struct State *st, const AstExpression *expr
     LLVMValueRef before_cast = build_expression_without_implicit_cast(st, expr);
     if (expr->types.implicit_cast_type == NULL)
         return before_cast;
-    return build_cast(st, before_cast, expr->types.type, expr->types.implicit_cast_type);
+    return build_cast(st, before_cast, expr->types.orig_type, expr->types.implicit_cast_type);
 }
 
 static LLVMValueRef build_address_of_expression(struct State *st, const AstExpression *expr)
