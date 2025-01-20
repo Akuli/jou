@@ -351,6 +351,8 @@ ExportSymbol *typecheck_stage2_populate_types(FileTypes *ft, const AstFile *ast)
                     ExportSymbol es = { .kind = EXPSYM_FUNCTION, .data.funcsignature = sig };
                     safe_strcpy(es.name, sig.name);
                     Append(&exports, es);
+                } else {
+                    free_signature(&sig);
                 }
             }
             break;
