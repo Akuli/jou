@@ -1144,12 +1144,15 @@ def typecheck_statement(ft: FileTypes*, stmt: AstStatement*) -> None:
             typecheck_body(ft, &stmt->while_loop.body)
 
         case AstStatementKind.ForLoop:
-            typecheck_statement(ft, stmt->for_loop.init)
-            typecheck_expression_with_implicit_cast(
-                ft, &stmt->for_loop.cond, boolType,
-                "'for' condition must be a boolean, not <from>")
+            if stmt->for_loop.init != NULL:
+                typecheck_statement(ft, stmt->for_loop.init)
+            if stmt->for_loop.cond != NULL:
+                typecheck_expression_with_implicit_cast(
+                    ft, stmt->for_loop.cond, boolType,
+                    "'for' condition must be a boolean, not <from>")
             typecheck_body(ft, &stmt->for_loop.body)
-            typecheck_statement(ft, stmt->for_loop.incr)
+            if stmt->for_loop.incr != NULL:
+                typecheck_statement(ft, stmt->for_loop.incr)
 
         case AstStatementKind.Match:
             typecheck_match_statement(ft, &stmt->match_statement)
