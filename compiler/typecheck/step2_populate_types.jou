@@ -200,6 +200,8 @@ def typecheck_step2_populate_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbo
                     assert sizeof(es.name) == sizeof(sig.name)
                     strcpy(es.name, sig.name)
                     exports[nexports++] = es
+                else:
+                    sig.free()
             case AstStatementKind.Class:
                 handle_class_members(ft, &stmt->classdef)
             case AstStatementKind.Enum:
