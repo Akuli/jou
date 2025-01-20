@@ -19,6 +19,23 @@ import "../types_in_ast.jou"
 import "./common.jou"
 
 
+# TODO: we really need generics....
+def append1(list: TypeAndUsedPtr**, len: int*, item: TypeAndUsedPtr) -> None:
+    *list = realloc(*list, sizeof((*list)[0]) * (*len+1))
+    assert *list != NULL
+    (*list)[(*len)++] = item
+
+def append2(list: Type***, len: int*, item: Type*) -> None:
+    *list = realloc(*list, sizeof((*list)[0]) * (*len+1))
+    assert *list != NULL
+    (*list)[(*len)++] = item
+
+def append3(list: ExportSymbol**, len: int*, item: ExportSymbol) -> None:
+    *list = realloc(*list, sizeof((*list)[0]) * (*len+1))
+    assert *list != NULL
+    (*list)[(*len)++] = item
+
+
 @public
 def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
@@ -46,21 +63,13 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
             snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing->short_description(), name)
             fail(stmt->location, msg)
 
-        ast->types.types = realloc(ast->types.types, sizeof(ast->types.types[0]) * (ast->types.ntypes + 1))
-        assert ast->types.types != NULL
-        ast->types.types[ast->types.ntypes++] = TypeAndUsedPtr{type=t, usedptr=NULL}
-
-        ast->types.owned_types = realloc(ast->types.owned_types, sizeof(ast->types.owned_types[0]) * (ast->types.n_owned_types + 1))
-        assert ast->types.owned_types != NULL
-        ast->types.owned_types[ast->types.n_owned_types++] = t
+        append1(&ast->types.available_types, &ast->types.n_available_types, TypeAndUsedPtr{type=t, usedptr=NULL})
+        append2(&ast->types.owned_types, &ast->types.n_owned_types, t)
 
         es = ExportSymbol{kind = ExportSymbolKind.Type, type = t}
         assert sizeof(es.name) == sizeof(name)
         strcpy(es.name, name)
-
-        exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
-        assert exports != NULL
-        exports[nexports++] = es
+        append3(&exports, &nexports, es)
 
     exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
     assert exports != NULL

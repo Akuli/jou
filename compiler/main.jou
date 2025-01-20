@@ -17,7 +17,6 @@ import "./typecheck/step2_populate_types.jou"
 import "./typecheck/step3_function_and_method_bodies.jou"
 import "./target.jou"
 import "./types.jou"
-import "./types_in_ast.jou"
 import "./token.jou"
 import "./parser.jou"
 import "./paths.jou"
@@ -113,34 +112,7 @@ class FileState:
                 snprintf(msg, sizeof msg, "a %s named '%s' already exists", wat, es->name)
                 fail(self->ast.body.statements[i].location, msg)
 
-        match es->kind:
-            case ExportSymbolKind.Function:
-                # TODO: this seems a bit barbaric, abstract it away with nice methods?
-                self->ast.types.functions = realloc(self->ast.types.functions, sizeof(self->ast.types.functions[0]) * (self->ast.types.nfunctions + 1))
-                assert self->ast.types.functions != NULL
-                self->ast.types.functions[self->ast.types.nfunctions++] = SignatureAndUsedPtr{
-                    signature = es->funcsignature.copy(),
-                    usedptr = &imp->used,
-                }
-            case ExportSymbolKind.Type:
-                self->ast.types.types = realloc(self->ast.types.types, sizeof(self->ast.types.types[0]) * (self->ast.types.ntypes + 1))
-                assert self->ast.types.types != NULL
-                self->ast.types.types[self->ast.types.ntypes++] = TypeAndUsedPtr{
-                    type = es->type,
-                    usedptr = &imp->used,
-                }
-            case ExportSymbolKind.GlobalVar:
-                g = GlobalVariable{
-                    type = es->type,
-                    usedptr = &imp->used,
-                }
-
-                assert strlen(es->name) < sizeof g.name
-                strcpy(g.name, es->name)
-
-                self->ast.types.globals = realloc(self->ast.types.globals, sizeof(self->ast.types.globals[0]) * (self->ast.types.nglobals + 1))
-                assert self->ast.types.globals != NULL
-                self->ast.types.globals[self->ast.types.nglobals++] = g
+        self->ast.types.add_symbol_imported_from_other_file(es, &imp->used)
 
     def warn_about_unused_imports(self) -> None:
         for imp = self->ast.imports; imp < &self->ast.imports[self->ast.nimports]; imp++:
