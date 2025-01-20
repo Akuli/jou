@@ -216,6 +216,7 @@ class Parser:
     tokens: Token*
     stdlib_path: byte*
     is_parsing_method_body: bool
+    loop_counter: int
 
     def eat_newline(self) -> None:
         if self->tokens->kind != TokenKind.Newline:
@@ -786,9 +787,13 @@ class Parser:
             self->tokens++
             result.kind = AstStatementKind.Pass
         elif self->tokens->is_keyword("break"):
+            if self->loop_counter == 0:
+                fail(self->tokens->location, "'break' can only be used inside a loop")
             self->tokens++
             result.kind = AstStatementKind.Break
         elif self->tokens->is_keyword("continue"):
+            if self->loop_counter == 0:
+                fail(self->tokens->location, "'continue' can only be used inside a loop")
             self->tokens++
             result.kind = AstStatementKind.Continue
         elif self->tokens->kind == TokenKind.Name and self->tokens[1].is_operator(":"):
@@ -841,7 +846,9 @@ class Parser:
         assert self->tokens->is_keyword("while")
         self->tokens++
         cond = self->parse_expression()
+        self->loop_counter++
         body = self->parse_body()
+        self->loop_counter--
         return AstConditionAndBody{condition = cond, body = body}
 
     def parse_for_loop(self) -> AstForLoop:
@@ -869,12 +876,11 @@ class Parser:
         self->tokens++
         *incr = self->parse_oneline_statement()
 
-        return AstForLoop{
-            init = init,
-            cond = cond,
-            incr = incr,
-            body = self->parse_body(),
-        }
+        self->loop_counter++
+        body = self->parse_body()
+        self->loop_counter--
+
+        return AstForLoop{init = init, cond = cond, incr = incr, body = body}
 
     def parse_match_statement(self) -> AstMatchStatement:
         assert self->tokens->is_keyword("match")
@@ -1226,4 +1232,5 @@ def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
         result.body.statements = realloc(result.body.statements, sizeof result.body.statements[0] * (result.body.nstatements + 1))
         result.body.statements[result.body.nstatements++] = parser.parse_statement()
 
+    assert parser.loop_counter == 0
     return result
