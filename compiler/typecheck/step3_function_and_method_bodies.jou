@@ -17,6 +17,7 @@ import "../ast.jou"
 import "../errors_and_warnings.jou"
 import "../evaluate.jou"
 import "../types.jou"
+import "../types_in_ast.jou"
 import "./common.jou"
 
 
@@ -1304,14 +1305,9 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             assert False
 
 
-def typecheck_function_or_method_body(state: State*, sig: Signature*, body: AstBody*) -> None:
+def typecheck_function_or_method_body(state: State*, sig: Signature*, body: AstBody*, fom_types: FunctionOrMethodTypes*) -> None:
     assert state->fom_types == NULL
-
-    state->file_types->fomtypes = realloc(state->file_types->fomtypes, sizeof(state->file_types->fomtypes[0]) * (state->file_types->nfomtypes + 1))
-    assert state->file_types->fomtypes != NULL
-    state->file_types->fomtypes[state->file_types->nfomtypes++] = FunctionOrMethodTypes{}
-
-    state->fom_types = &state->file_types->fomtypes[state->file_types->nfomtypes - 1]
+    state->fom_types = fom_types
     state->fom_types->signature = sig->copy()
 
     for i = 0; i < sig->nargs; i++:
@@ -1334,7 +1330,7 @@ def typecheck_step3_function_and_method_bodies(file_types: FileTypes*, ast: AstF
             case AstStatementKind.FunctionDef:
                 sig = file_types->find_function(stmt->function.ast_signature.name)
                 assert sig != NULL
-                typecheck_function_or_method_body(&state, sig, &stmt->function.body)
+                typecheck_function_or_method_body(&state, sig, &stmt->function.body, &stmt->function.types)
             case AstStatementKind.Class:
                 classtype: Type* = NULL
                 for t = file_types->owned_types; t < &file_types->owned_types[file_types->n_owned_types]; t++:
@@ -1350,6 +1346,6 @@ def typecheck_step3_function_and_method_bodies(file_types: FileTypes*, ast: AstF
 
                     sig = classtype->find_method(method->ast_signature.name)
                     assert sig != NULL
-                    typecheck_function_or_method_body(&state, sig, &method->body)
+                    typecheck_function_or_method_body(&state, sig, &method->body, &method->types)
             case _:
                 pass

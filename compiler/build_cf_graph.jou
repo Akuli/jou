@@ -5,6 +5,7 @@ import "./cf_graph.jou"
 import "./constants.jou"
 import "./evaluate.jou"
 import "./types.jou"
+import "./types_in_ast.jou"
 import "./typecheck/common.jou"
 import "./errors_and_warnings.jou"
 import "./ast.jou"
@@ -1043,28 +1044,18 @@ class CfBuilder:
         for i = 0; i < body->nstatements; i++:
             self->build_statement(&body->statements[i])
 
-    def build_function_or_method(
-        self,
-        selfclass: Type*,
-        name: byte*,
-        body: AstBody*,
-        public: bool,  # was the @public decorator used
-    ) -> CfGraph*:
+    def build_function_or_method(self, selfclass: Type*, astfom: AstFunctionOrMethod*) -> CfGraph*:
+        # Methods are always public, so that you can call them whenever you have an instance
         if selfclass != NULL:
-            # Methods are always public, so that you can call them whenever you have an instance
-            assert public
+            assert astfom->public
 
         assert self->cfg == NULL
 
         assert self->fomtypes == NULL
-        for f = self->filetypes->fomtypes; f < &self->filetypes->fomtypes[self->filetypes->nfomtypes]; f++:
-            if strcmp(f->signature.name, name) == 0 and f->signature.get_self_class() == selfclass:
-                self->fomtypes = f
-                break
-        assert self->fomtypes != NULL
+        self->fomtypes = &astfom->types
 
         self->cfg = calloc(1, sizeof *self->cfg)
-        self->cfg->public = public
+        self->cfg->public = astfom->public
         self->cfg->signature = self->fomtypes->signature.copy()
 
         # Copy local variables over from type checking.
@@ -1083,7 +1074,7 @@ class CfBuilder:
         self->current_block = &self->cfg->start_block
 
         assert self->nloops == 0
-        self->build_body(body)
+        self->build_body(&astfom->body)
         assert self->nloops == 0
 
         # Implicit return at the end of the function
@@ -1108,7 +1099,8 @@ def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFi
 
         match stmt->kind:
             case AstStatementKind.FunctionDef:
-                g = builder.build_function_or_method(NULL, stmt->function.ast_signature.name, &stmt->function.body, stmt->function.public)
+                # TODO: pass in the whole stmt->function
+                g = builder.build_function_or_method(NULL, &stmt->function)
                 result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
                 assert result.graphs != NULL
                 result.graphs[result.ngraphs++] = g
@@ -1122,7 +1114,8 @@ def build_control_flow_graphs(ast: AstFile*, filetypes: FileTypes*) -> CfGraphFi
                 assert class_type != NULL
                 for m = stmt->classdef.members; m < &stmt->classdef.members[stmt->classdef.nmembers]; m++:
                     if m->kind == AstClassMemberKind.Method:
-                        g = builder.build_function_or_method(class_type, m->method.ast_signature.name, &m->method.body, True)
+                        # TODO: pass in the whole m->method
+                        g = builder.build_function_or_method(class_type, &m->method)
                         result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
                         assert result.graphs != NULL
                         result.graphs[result.ngraphs++] = g

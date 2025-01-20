@@ -5,6 +5,11 @@
 # Previously I passed around the results of type checking with return values,
 # but it was not as convenient as this is.
 
+import "stdlib/io.jou"
+import "stdlib/math.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
 import "./types.jou"
 
 
@@ -20,3 +25,52 @@ class ExpressionTypes:
     # Flags to indicate whether special kinds of implicit casts happened
     implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
     implicit_string_to_array_cast: bool     # "..." to byte[N]
+
+
+class LocalVariable:
+    id: int  # Unique, but you can also compare pointers to LocalVariable.
+    name: byte[100]  # Same name as in user's code, empty for temporary variables created by compiler
+    type: Type*
+
+    def print_to_width(self, width: int) -> None:
+        if self->name[0] != '\0':
+            printf("%-*s", width, self->name)
+        else:
+            printf("$%-*d", max(width-1, 0), self->id)
+
+    def print(self) -> None:
+        self->print_to_width(0)
+
+
+# Type information about a function or method defined in the current file.
+# Not created for anything imported from another file.
+class FunctionOrMethodTypes:
+    signature: Signature
+    locals: LocalVariable**
+    nlocals: int
+
+    def find_local_var(self, name: byte*) -> LocalVariable*:
+        for var = self->locals; var < &self->locals[self->nlocals]; var++:
+            if strcmp((*var)->name, name) == 0:
+                return *var
+        return NULL
+
+    def add_variable(self, t: Type*, name: byte*) -> LocalVariable*:
+        var: LocalVariable* = calloc(1, sizeof *var)
+        var->id = self->nlocals
+        var->type = t
+
+        assert name != NULL
+        assert self->find_local_var(name) == NULL
+        assert strlen(name) < sizeof(var->name)
+        strcpy(var->name, name)
+
+        self->locals = realloc(self->locals, sizeof(self->locals[0]) * (self->nlocals + 1))
+        assert self->locals != NULL
+        self->locals[self->nlocals++] = var
+
+        return var
+
+    def free(self) -> None:
+        free(self->locals)  # Don't free individual locals because they're owned by CFG now
+        self->signature.free()

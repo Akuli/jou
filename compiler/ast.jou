@@ -927,6 +927,7 @@ class AstFunctionOrMethod:
     public: bool  # is it decorated with @public
     ast_signature: AstSignature
     body: AstBody  # empty body means declaration, otherwise it's a definition
+    types: FunctionOrMethodTypes
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -938,6 +939,9 @@ class AstFunctionOrMethod:
     def free(self) -> None:
         self->ast_signature.free()
         self->body.free()
+        if self->types.signature.name[0] != '\0':
+            # type-checking ran, the types are set and they need freeing
+            self->types.free()
 
 
 # union:
