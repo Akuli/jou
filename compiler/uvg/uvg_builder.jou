@@ -10,6 +10,9 @@ class UvgBuilder:
     current_block: UvgBlock*
     expr_to_id: AstExpression** 
     expr_to_id_len: int
+    breakstack: UvgBlock**
+    continuestack: UvgBlock**
+    nloops: int
 
     def free(self) -> None:
         free(self->expr_to_id)
@@ -162,3 +165,142 @@ class UvgBuilder:
 
         self->current_block->add_instruction(how, value_id, expr->location)
         return value_id
+
+    def visit_if_statement(self, if_stmt: AstIfStatement*) -> None:
+        done = self->uvg.add_block()
+        for i = 0; i < if_stmt->n_if_and_elifs; i++:
+            cond_value_id = self->visit_expression(&if_stmt->if_and_elifs[i].condition, UvgInstructionKind.Use)
+            then = self->uvg.add_block()
+            otherwise = self->uvg.add_block()
+
+            self->current_block->branch(cond_value_id, then, otherwise)
+            self->current_block = then
+            self->visit_body(&if_stmt->if_and_elifs[i].body)
+            self->current_block->jump(done)
+            self->current_block = otherwise
+
+        self->visit_body(&if_stmt->else_body)
+        self->current_block->jump(done)
+        self->current_block = done
+
+    def visit_match_statement(self, match_stmt: AstMatchStatement*) -> None:
+        self->visit_expression(&match_stmt->match_obj, UvgInstructionKind.Use)
+
+        done = self->uvg.add_block()
+        for i = 0; i < match_stmt->ncases; i++:
+            then = self->uvg.add_block()
+            otherwise: UvgBlock* = NULL
+            for k = 0; k < match_stmt->cases[i].n_case_objs; k++:
+                case_obj_ast = &match_stmt->cases[i].case_objs[k]
+                self->visit_expression(case_obj_ast, UvgInstructionKind.Use)
+
+                # Do not try to analyze the condition, create a dummy variable for it
+                cond = self->uvg.add_value_id(NULL)
+                self->current_block->add_instruction(UvgInstructionKind.Set, cond, case_obj_ast->location)
+
+                otherwise = self->uvg.add_block()
+                self->current_block->branch(cond, then, otherwise)
+                self->current_block = otherwise
+
+            assert otherwise != NULL
+
+            self->current_block = then
+            self->visit_body(&match_stmt->cases[i].body)
+            self->current_block->jump(done)
+            self->current_block = otherwise
+
+        if match_stmt->case_underscore != NULL:
+            self->visit_body(match_stmt->case_underscore)
+        self->current_block->jump(done)
+        self->current_block = done
+
+    def visit_loop(
+        self,
+        init: AstStatement*,
+        cond: AstExpression*,
+        incr: AstStatement*,
+        body: AstBody*,
+    ) -> None:
+        condblock = self->uvg.add_block()  # evaluate condition and go to bodyblock or doneblock
+        bodyblock = self->uvg.add_block()  # run loop body and go to incrblock
+        incrblock = self->uvg.add_block()  # run incr and go to condblock
+        doneblock = self->uvg.add_block()  # rest of the code goes here
+
+        if init != NULL:
+            self->visit_statement(init)
+
+        # Evaluate condition. Jump to loop body or skip to after loop.
+        self->current_block->jump(condblock)
+        self->current_block = condblock
+        cond_value_id = self->visit_expression(cond, UvgInstructionKind.Use)
+        self->current_block->branch(cond_value_id, bodyblock, doneblock)
+        self->current_block = bodyblock
+
+        # 'break' skips to after loop, 'continue' goes to incr.
+        self->breakstack = realloc(self->breakstack, sizeof(self->breakstack[0]) * (self->nloops + 1))
+        self->continuestack = realloc(self->continuestack, sizeof(self->continuestack[0]) * (self->nloops + 1))
+        assert self->breakstack != NULL
+        assert self->continuestack != NULL
+        self->breakstack[self->nloops] = doneblock
+        self->continuestack[self->nloops] = incrblock
+        self->nloops++
+
+        # Run loop body
+        self->visit_body(body)
+
+        self->nloops--
+        assert self->breakstack[self->nloops] == doneblock
+        assert self->continuestack[self->nloops] == incrblock
+
+        # Run incr and jump back to condition.
+        self->current_block->jump(incrblock)
+        self->current_block = incrblock
+        if incr != NULL:
+            self->visit_statement(incr)
+        self->current_block->jump(condblock)
+        self->current_block = doneblock
+
+    def visit_statement(self, stmt: AstStatement*) -> None:
+        match stmt->kind:
+            case AstStatementKind.ExpressionStatement:
+                # Currently not possible to visit expression so that you do
+                # nothing with the result. Let's pretend we use it for something.
+                self->visit_expression(&stmt->expression, UvgInstructionKind.Use)
+            case AstStatementKind.Assert:
+                cond = self->visit_expression(&stmt->assertion.condition, UvgInstructionKind.Use)
+                assert_true = self->uvg.add_block()
+                assert_false = self->uvg.add_block()  # will be left empty, actually throws error message
+                assert_false->exit_program()
+                self->current_block->branch(cond, assert_true, assert_false)
+                self->current_block = assert_true
+            case AstStatementKind.Pass:
+                pass
+            case AstStatementKind.Return:
+                if stmt->return_value != NULL:
+                    self->visit_expression(stmt->return_value, UvgInstructionKind.Use)
+                    retval = self->uvg.value_id_for_varname("return")
+                    self->current_block->add_instruction(UvgInstructionKind.Set, retval, stmt->location)
+            case AstStatementKind.If:
+                self->visit_if_statement(&stmt->if_statement)
+            case AstStatementKind.Match:
+                self->visit_match_statement(&stmt->match_statement)
+            case AstStatementKind.WhileLoop:
+                self->visit_loop(
+                    NULL, &stmt->while_loop.condition, NULL,
+                    &stmt->while_loop.body)
+            case AstStatementKind.ForLoop:
+                self->visit_loop(
+                    stmt->for_loop.init, &stmt->for_loop.cond, stmt->for_loop.incr,
+                    &stmt->for_loop.body)
+            case AstStatementKind.Break:
+                assert self->nloops != 0
+                self->current_block->jump(self->breakstack[self->nloops - 1])
+                self->current_block = self->uvg.add_block()
+            case AstStatementKind.Continue:
+                assert self->nloops != 0
+                self->current_block->jump(self->continuestack[self->nloops - 1])
+                self->current_block = self->uvg.add_block()
+
+    def visit_body(self, body: AstBody*) -> None:
+        for i = 0; i < body->nstatements; i++:
+            self->visit_statement(&body->statements[i])
