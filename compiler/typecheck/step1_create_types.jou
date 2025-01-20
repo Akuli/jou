@@ -15,16 +15,10 @@ import "stdlib/mem.jou"
 import "../ast.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
-import "../types_in_ast.jou"
 import "./common.jou"
 
 
 # TODO: we really need generics....
-def append1(list: TypeAndUsedPtr**, len: int*, item: TypeAndUsedPtr) -> None:
-    *list = realloc(*list, sizeof((*list)[0]) * (*len+1))
-    assert *list != NULL
-    (*list)[(*len)++] = item
-
 def append2(list: Type***, len: int*, item: Type*) -> None:
     *list = realloc(*list, sizeof((*list)[0]) * (*len+1))
     assert *list != NULL
@@ -63,7 +57,7 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
             snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing->short_description(), name)
             fail(stmt->location, msg)
 
-        append1(&ast->types.available_types, &ast->types.n_available_types, TypeAndUsedPtr{type=t, usedptr=NULL})
+        ast->types.add_type(t, NULL)
         append2(&ast->types.owned_types, &ast->types.n_owned_types, t)
 
         es = ExportSymbol{kind = ExportSymbolKind.Type, type = t}

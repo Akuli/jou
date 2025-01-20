@@ -183,10 +183,7 @@ enum AstExpressionKind:
 class AstExpression:
     location: Location
     kind: AstExpressionKind
-
-    # Populated during type checking. Before that, all fields are zeroed
-    # (e.g. NULL or false).
-    types: ExpressionTypes
+    types: ExpressionTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     union:
         enum_member: AstEnumMember
@@ -906,7 +903,7 @@ class AstFile:
     imports: AstImport*
     nimports: int
     body: AstBody
-    types: FileTypes
+    types: FileTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     def print(self) -> None:
         printf("===== AST for file \"%s\" =====\n", self->path)
@@ -929,7 +926,7 @@ class AstFunctionOrMethod:
     public: bool  # is it decorated with @public
     ast_signature: AstSignature
     body: AstBody  # empty body means declaration, otherwise it's a definition
-    types: FunctionOrMethodTypes
+    types: FunctionOrMethodTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})

@@ -11,7 +11,6 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./types.jou"
-import "./typecheck/common.jou"
 
 
 class ExpressionTypes:
@@ -95,6 +94,7 @@ class SignatureAndUsedPtr:
 class FileTypes:
     globals: GlobalVariable*
     nglobals: int
+    # TODO: do we need owned_types?
     owned_types: Type**  # These will be freed later
     n_owned_types: int
     available_types: TypeAndUsedPtr*
@@ -102,34 +102,24 @@ class FileTypes:
     functions: SignatureAndUsedPtr*
     nfunctions: int
 
-    def add_symbol_imported_from_other_file(self, es: ExportSymbol*, usedptr: bool*) -> None:
-        match es->kind:
-            case ExportSymbolKind.Function:
-                self->functions = realloc(self->functions, sizeof(self->functions[0]) * (self->nfunctions + 1))
-                assert self->functions != NULL
-                self->functions[self->nfunctions++] = SignatureAndUsedPtr{
-                    signature = es->funcsignature.copy(),
-                    usedptr = usedptr,
-                }
-            case ExportSymbolKind.Type:
-                self->available_types = realloc(self->available_types, sizeof(self->available_types[0]) * (self->n_available_types + 1))
-                assert self->available_types != NULL
-                self->available_types[self->n_available_types++] = TypeAndUsedPtr{
-                    type = es->type,
-                    usedptr = usedptr,
-                }
-            case ExportSymbolKind.GlobalVar:
-                g = GlobalVariable{
-                    type = es->type,
-                    usedptr = usedptr,
-                }
+    def add_function(self, signature: Signature*, usedptr: bool*) -> None:
+        self->functions = realloc(self->functions, sizeof(self->functions[0]) * (self->nfunctions + 1))
+        assert self->functions != NULL
+        self->functions[self->nfunctions++] = SignatureAndUsedPtr{signature = signature->copy(), usedptr = usedptr}
 
-                assert strlen(es->name) < sizeof g.name
-                strcpy(g.name, es->name)
+    def add_type(self, t: Type*, usedptr: bool*) -> None:
+        self->available_types = realloc(self->available_types, sizeof(self->available_types[0]) * (self->n_available_types + 1))
+        assert self->available_types != NULL
+        self->available_types[self->n_available_types++] = TypeAndUsedPtr{type = t, usedptr = usedptr}
 
-                self->globals = realloc(self->globals, sizeof(self->globals[0]) * (self->nglobals + 1))
-                assert self->globals != NULL
-                self->globals[self->nglobals++] = g
+    def add_global_var(self, name: byte*, type: Type*, usedptr: bool*) -> None:
+        g = GlobalVariable{type = type, usedptr = usedptr}
+        assert strlen(name) < sizeof g.name
+        strcpy(g.name, name)
+
+        self->globals = realloc(self->globals, sizeof(self->globals[0]) * (self->nglobals + 1))
+        assert self->globals != NULL
+        self->globals[self->nglobals++] = g
 
     # This is safe to call if self has been zero-initialized.
     def free(self) -> None:
