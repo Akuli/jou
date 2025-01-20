@@ -12,10 +12,12 @@
 
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
+import "stdlib/str.jou"
 
+import "./ast.jou"
 import "./llvm.jou"
 import "./types.jou"
-import "./errors_and_warnings.jou"
+import "./typecheck/common.jou"
 import "./uvg/uvg.jou"
 import "./target.jou"
 
@@ -80,6 +82,8 @@ def class_type_to_llvm(type: Type*) -> LLVMType*:
     return result
 
 
+# TODO: shouldn't be public
+@public
 def type_to_llvm(type: Type*) -> LLVMType*:
     match type->kind:
         case TypeKind.Array:
@@ -112,10 +116,19 @@ class IRValue:
 
 
 class IRBuilder:
+    file_types: FileTypes*
     llvm_builder: LLVMBuilder*
     llvm_module: LLVMModule*
     uvg: Uvg*
     uvg_block: UvgBlock*
+
+    # This is used to map expressions to UVG value ids.
+    # Each visited expression has an associated UVG value ID.
+    #
+    # uvg_exprs[value ID of expression in uvg] == expression
+    # uvg_exprs[value ID of something that isn't an expression] == NULL
+    uvg_exprs: AstExpression**
+    uvg_exprs_len: int
 
     def size_of(self, t: Type*) -> IRValue:
         value_id = self->uvg->add_value_id(NULL)
@@ -126,5 +139,72 @@ class IRBuilder:
         }
 
 
-def build_ir() -> None:
-    pass
+def build_ir_for_function_or_method(ast: AstFunctionOrMethod*, file_types: FileTypes*, llvm_module: LLVMModule*, uvg: Uvg*) -> None:
+    builder = IRBuilder{
+        file_types = file_types,
+        llvm_builder = LLVMCreateBuilder(),
+        llvm_module = llvm_module,
+        uvg = uvg,
+    }
+
+    LLVMDisposeBuilder(builder.llvm_builder)
+
+
+@public
+def build_ir(ast: AstFile*, file_types: FileTypes*, llvm_module: LLVMModule**, uvgs: Uvg**, nuvgs: int*) -> None:
+    *llvm_module = LLVMModuleCreateWithName(ast->path)
+    LLVMSetTarget(*llvm_module, target.triple)
+    LLVMSetDataLayout(*llvm_module, target.data_layout)
+
+    for v = file_types->globals; v < &file_types->globals[file_types->nglobals]; v++:
+        t = type_to_llvm(v->type)
+        globalptr = LLVMAddGlobal(*llvm_module, t, v->name)
+        if v->defined_in_current_file:
+            LLVMSetInitializer(globalptr, LLVMConstNull(t))
+
+    *uvgs = NULL
+    *nuvgs = 0
+
+    for i = 0; i < ast->body.nstatements; i++:
+        stmt = &ast->body.statements[i]
+        if stmt->kind == AstStatementKind.FunctionDef:
+            sig: Signature* = NULL
+            for f = file_types->functions; f < &file_types->functions[file_types->nfunctions]; f++:
+                if strcmp(f->signature.name, stmt->function.signature.name) == 0:
+                    sig = &f->signature
+                    break
+            assert sig != NULL
+
+            *uvgs = realloc(*uvgs, sizeof((*uvgs)[0]) * (*nuvgs + 1))
+            assert *uvgs != NULL
+            build_ir_for_function_or_method(&stmt->function, file_types, *llvm_module, &(*uvgs)[(*nuvgs)++])
+#            build_function_or_method(&st, sig, &stmt->data.function.body, stmt->data.function.public)
+#        }
+#
+#        if (stmt->kind == AST_STMT_DEFINE_CLASS) {
+#            const Type *classtype = NULL;
+#            for (Type **t = file_types->owned_types.ptr; t < End(file_types->owned_types); t++) {
+#                if (!strcmp((*t)->name, stmt->data.classdef.name)) {
+#                    classtype = *t;
+#                    break;
+#                }
+#            }
+#            assert(classtype);
+#
+#            for (AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++) {
+#                if (m->kind == AST_CLASSMEMBER_METHOD) {
+#                    const Signature *sig = NULL;
+#                    for (const Signature *s = classtype->data.classdata.methods.ptr; s < End(classtype->data.classdata.methods); s++) {
+#                        if (!strcmp(s->name, m->data.method.signature.name)) {
+#                            sig = s;
+#                            break;
+#                        }
+#                    }
+#                    assert(sig);
+#                    build_function_or_method(&st, sig, &m->data.method.body, true);
+#                }
+#            }
+#        }
+#    }
+#
+#    assert False
