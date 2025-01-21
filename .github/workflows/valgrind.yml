@@ -55,7 +55,7 @@ jobs:
     name: Create an issue if valgrind failed
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [valgrind]
+    needs: valgrind
     if: ${{ github.repository == 'Akuli/jou' && always() && needs.valgrind.result == 'failure' }}
     permissions:
       issues: write

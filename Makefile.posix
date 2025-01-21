@@ -48,8 +48,9 @@ jou_bootstrap:
 jou: jou_bootstrap config.jou $(wildcard compiler/*.jou compiler/*/*.jou)
 	rm -rf compiler/jou_compiled && ./jou_bootstrap -o jou --linker-flags "$(LDFLAGS)" compiler/main.jou
 
+# Does not delete jou_bootstrap executable because bootstrapping is slow.
+# Bootstrap folder is deleted without -v (verbose) because it contains many files.
 .PHONY: clean
 clean:
-	# Do not delete jou_bootstrap because bootstrapping is slow.
-	rm -rvf obj jou jou.exe jou_stage* tmp compile_flags.txt config.jou config.h
+	rm -rf tmp/bootstrap && rm -rvf obj jou jou.exe jou_stage* tmp compile_flags.txt config.jou config.h
 	find . -name jou_compiled -print -exec rm -rf '{}' +
