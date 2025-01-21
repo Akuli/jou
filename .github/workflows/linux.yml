@@ -5,7 +5,26 @@ on:
   pull_request:
 
 jobs:
+  bootstrap:
+    # Please keep in sync with valgrind.yml
+    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch the whole Git history
+      - run: sudo apt update
+      - run: sudo apt install -y llvm-16-dev clang-16 make
+      - name: "Select LLVM version"
+        run: echo "LLVM_CONFIG=llvm-config-16" >> $GITHUB_ENV
+      - run: ./bootstrap.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bootstrapped
+          path: jou_bootstrap
+
   test:
+    needs: bootstrap
     timeout-minutes: 10
     runs-on: ubuntu-latest
     strategy:
@@ -14,31 +33,28 @@ jobs:
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bootstrapped
+      - run: chmod +x jou_bootstrap
       - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make
-      - run: echo "LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }}" >> $GITHUB_ENV
-      - name: "Compile and test stage 1 compiler"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}" --stage1
-      - name: "Compile and test stage 2 compiler"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}" --stage2
-      - name: "Compile and test stage 3 compiler"
+      - name: "Select LLVM version"
+        run: echo "LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }}" >> $GITHUB_ENV
+      - name: "Compile and test"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
-      - name: "Test stage 3 compiler with the compiler's --verbose flag"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }} --verbose"
-      - run: make clean
-      - name: Check that "make clean" deleted all files not committed to Git
-        run: |
-          if [ "$(git status --porcelain --ignored)" != "" ]; then
-            git status --ignored
-            exit 1
-          fi
 
   doctest:
+    needs: bootstrap
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bootstrapped
+      - run: chmod +x jou_bootstrap
       - run: sudo apt update
       - run: sudo apt install -y llvm-{14,15,16}-dev clang-{14,15,16} make
       - run: LLVM_CONFIG=llvm-config-14 ./doctest.sh

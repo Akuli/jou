@@ -226,29 +226,23 @@ is not currently supported.
 Run `jou --update`.
 
 
-## Compilers
+## Bootstrapping
 
 The Jou compiler (in [compiler/](./compiler/) folder) is written in Jou.
 It can compile itself.
 However, this doesn't help you much if you have nothing that can compile Jou code.
 
-To solve this problem, there is another compiler, called the **bootstrap compiler**
-([bootstrap_compiler/](bootstrap_compiler) folder),
-written in C.
-It is a Jou compiler that supports all of Jou's syntax,
-but whose error messages are not always as good as the error messages of the main Jou compiler.
-The bootstrap compiler exists only to compile the Jou compiler.
+To solve this problem, there was Jou another compiler written in C.
+It was a Jou compiler that supported all of Jou's syntax,
+and it existed only to compile the main Jou compiler.
+[Source code for the last version of the compiler written in C is here.](https://github.com/Akuli/jou/tree/1c7ce74933aea8a8862fd1d4409735b9fb7a1d7e/bootstrap_compiler)
 
-Specifically, here's how the Jou compiler is compiled.
-This process is called [bootstrapping](https://en.wikipedia.org/wiki/Bootstrapping_(compilers)).
-- **Stage 1: Compile the bootstrap compiler with a C compiler.**
-    This produces an executable named `jou_stage1`
-    (or `jou_stage1.exe` if you use Windows).
-- **Stage 2: Compile the Jou compiler with the bootstrap compiler.**
-    This produces an executable named `jou_stage2`.
-- **Stage 3: Compile the Jou compiler with the Jou compiler.**
-    The stage 2 compiler is used to compile the Jou compiler again.
-    This produces an executable named `jou`.
+The compiler written in C was deleted, because maintaining it was painful.
+Instead, there is [a script named bootstrap.sh](./bootstrap.sh).
+It takes old versions of Jou from Git history,
+starting with the last commit that came with the bootstrap compiler.
+It then uses the previous version of Jou to compile the next version of Jou
+until it gets a Jou compiler that supports the latest Jou syntax.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md)
 if you want to learn more about the Jou compiler or develop it.

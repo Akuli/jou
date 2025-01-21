@@ -12,10 +12,7 @@ export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
 function usage() {
-    echo "Usage: $0 [--valgrind] [--verbose] [--stage1 | --stage2] [--dont-run-make] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
-    echo ""
-    echo "By default, this tests the stage 3 compiler (see bootstrapping in README). Use"
-    echo "--stage1 or --stage2 to test other stages as needed."
+    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
     echo ""
     echo "If a FILE_FILTER is given, runs only test files whose path contains it."
     echo "For example, you can use \"$0 class\" to run class-related tests."
@@ -27,7 +24,6 @@ verbose=no
 run_make=yes
 jou_flags=""
 file_filter=""
-stage=3
 
 while [ $# != 0 ]; do
     case "$1" in
@@ -49,14 +45,6 @@ while [ $# != 0 ]; do
             fi
             jou_flags="$jou_flags $2"
             shift 2
-            ;;
-        --stage1)
-            stage=1
-            shift
-            ;;
-        --stage2)
-            stage=2
-            shift
             ;;
         -*)
             usage
@@ -85,11 +73,7 @@ mkdir -p tmp/tests
 
 joudir="$(pwd)"
 if [[ "$OS" =~ Windows ]]; then
-    if [ $stage = 3 ]; then
-        jouexe="jou.exe"
-    else
-        jouexe="jou_stage$stage.exe"
-    fi
+    jouexe="jou.exe"
     if [[ "$joudir" =~ ^/[A-Za-z]/ ]]; then
         # Rewrite funny mingw path: /d/a/jou/jou --> D:/a/jou/jou
         letter=${joudir:1:1}
@@ -97,11 +81,7 @@ if [[ "$OS" =~ Windows ]]; then
         unset letter
     fi
 else
-    if [ $stage = 3 ]; then
-        jouexe="./jou"
-    else
-        jouexe="./jou_stage$stage"
-    fi
+    jouexe="./jou"
 fi
 
 echo "<joudir> in expected output will be replaced with $joudir."
@@ -189,12 +169,6 @@ function should_skip()
     local joufile="$1"
     local correct_exit_code="$2"
 
-    # For stages 1 and 2, error handling is not important (users won't see it),
-    # so only test that we support all features of Jou. Skip everything else.
-    if [ $stage != 3 ] && (grep -qE 'Warning:|Error:' $joufile || ! [[ $joufile =~ should_succeed ]]); then
-        return 0
-    fi
-
     # When optimizations are enabled, skip tests that are supposed to crash.
     # Running them would be unpredictable by design.
     if [[ $joufile =~ ^tests/crash/ ]] && ! [[ "$jou_flags" =~ -O0 ]]; then
@@ -206,11 +180,6 @@ function should_skip()
     #   - in Jou compilers, error handling is simple and not very likely to contain UB
     #   - valgrinding is slow, this means we valgrind a lot less
     if [ $valgrind = yes ] && [ $correct_exit_code != 0 ]; then
-        return 0
-    fi
-
-    # compiler_cli.jou hard-codes ./jou or ./jou.exe, so it tests stage 3 anyway
-    if [ $stage != 3 ] && [[ $joufile =~ compiler_cli ]]; then
         return 0
     fi
 
