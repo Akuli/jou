@@ -90,12 +90,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      # TODO: figure out why --small doesn't work here
-      - run: source activate && ./windows_setup.sh
-        shell: bash
       - uses: actions/download-artifact@v4
         with:
           name: bootstrapped
+      # TODO: figure out why --small doesn't work here
+      - run: source activate && ./windows_setup.sh
+        shell: bash
       - run: source activate && mingw32-make
         shell: bash
       # We don't need to copy all of mingw64. We only need the GNU linker.
