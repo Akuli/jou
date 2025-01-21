@@ -20,10 +20,7 @@ def is_operator_byte(c: byte) -> bool:
     return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|", c) != NULL
 
 def is_keyword(word: byte*) -> bool:
-    # This keyword list is in 3 places. Please keep them in sync:
-    #   - the Jou compiler written in C
-    #   - self-hosted compiler
-    #   - syntax documentation
+    # Please update the syntax documentation if you add keywords
     keywords = [
         "import", "def", "declare", "class", "union", "enum", "global",
         "return", "if", "elif", "else", "while", "for", "pass", "break", "continue",
@@ -385,11 +382,7 @@ class Tokenizer:
 
     def read_operator(self) -> byte[100]:
         operators = [
-            # This list of operators is in 3 places. Please keep them in sync:
-            #   - the Jou compiler written in C
-            #   - self-hosted compiler
-            #   - syntax documentation
-            #
+            # Please update the syntax documentation if you add new operators.
             # Longer operators are first, so that '==' does not tokenize as '=' '='
             "...", "===", "!==",
             "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "&&", "||",
