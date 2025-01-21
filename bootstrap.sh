@@ -20,14 +20,14 @@ commits=(
 
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate
-    make=mingw32-make
-    exe_suffix=.exe
+    make="mingw32-make"
+    exe_suffix=".exe"
 elif [[ "$OS" =~ NetBSD ]]; then
-    make=gmake
-    exe_suffix=
+    make="gmake"
+    exe_suffix=""
 else
-    make=make
-    exe_suffix=
+    make="make"
+    exe_suffix=""
 fi
 
 function show_message {
