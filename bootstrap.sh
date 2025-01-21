@@ -28,28 +28,29 @@ fi
 #$make clean
 #trap '($make clean >/dev/null || true) && git checkout $original_branch' EXIT
 
-# Create a separate working directory to avoid touching user's files.
-rm -rf bootstrap
-git clone . bootstrap
-cd bootstrap
+echo "====== $0: creating temporary working directory ======"
+mkdir -vp tmp
+rm -rf tmp/bootstrap
+git clone . tmp/bootstrap
+cd tmp/bootstrap
 
 commits=(
     5a9722ab4235fd9b081613dd37c9666d2193413f  # last commit on main that contains the compiler written in C
     7f6367c7a1ef89a723e165f41321da1a394fb048  # TODO: this is a test, remove
-    20c1ce021d7d7ac69b715de315149b1c25fec208  # TODO: this is a test, remove
+    80afddef78ef55364c6d6f413a0c921a41c69e1d  # TODO: this is a test, remove
 )
 
 for i in ${!commits[@]}; do
     commit=${commits[$i]}
-    printf "\n\n====== Checking out commit %s and compiling it... ======\n\n" ${commit:0:10}
+    echo "====== $0: checking out and compiling commit ${commit:0:10} ($((i+1))/${#commits[@]}) ======"
     git checkout -q $commit
     $make jou$exe_suffix
     mv -v jou$exe_suffix jou_bootstrap$exe_suffix
     $make clean
 done
 
-cd ..
-cp -v bootstrap/jou_bootstrap$exe_suffix .
+cd ../..  # go out of tmp/bootstrap
+cp -v tmp/bootstrap/jou_bootstrap$exe_suffix .
 
 echo "
 
