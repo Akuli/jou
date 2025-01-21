@@ -11,6 +11,7 @@ import "stdlib/mem.jou"
 
 import "./errors_and_warnings.jou"
 import "./types.jou"
+import "./types_in_ast.jou"
 import "./utils.jou"
 
 
@@ -136,20 +137,6 @@ class AstInstantiation:
         free(self->field_values)
 
 
-class ExpressionTypes:
-    # Type of value that the expression evaluates to, before implicit casts are applied.
-    # This is NULL before type checking, and if the expression  calling '-> None' function/method.
-    orig_type: Type*
-
-    # Type after applying implicit cast, if any. If there's no implicit cast, same as original_type.
-    # This is NULL before type checking, and if the expression  calling '-> None' function/method.
-    implicit_cast_type: Type*
-
-    # Flags to indicate whether special kinds of implicit casts happened
-    implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
-    implicit_string_to_array_cast: bool     # "..." to byte[N]
-
-
 enum AstExpressionKind:
     String
     Int
@@ -197,10 +184,7 @@ enum AstExpressionKind:
 class AstExpression:
     location: Location
     kind: AstExpressionKind
-
-    # Populated during type checking. Before that, all fields are zeroed
-    # (e.g. NULL or false).
-    types: ExpressionTypes
+    types: ExpressionTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     union:
         enum_member: AstEnumMember
@@ -926,6 +910,7 @@ class AstFile:
     imports: AstImport*
     nimports: int
     body: AstBody
+    types: FileTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     def print(self) -> None:
         printf("===== AST for file \"%s\" =====\n", self->path)
@@ -939,25 +924,30 @@ class AstFile:
             self->imports[i].free()
         free(self->imports)
         self->body.free()
+        self->types.free()  # also works if self->types is zero-initialized
 
 
 # def foo() -> bar:
 #     ...
 class AstFunctionOrMethod:
     public: bool  # is it decorated with @public
-    signature: AstSignature
+    ast_signature: AstSignature
     body: AstBody  # empty body means declaration, otherwise it's a definition
+    types: FunctionOrMethodTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        self->signature.print()
+        self->ast_signature.print()
         self->body.print_with_tree_printer(tp)
 
     def free(self) -> None:
-        self->signature.free()
+        self->ast_signature.free()
         self->body.free()
+        if self->types.signature.name[0] != '\0':
+            # type-checking ran, the types are set and they need freeing
+            self->types.free()
 
 
 # union:
@@ -1005,7 +995,7 @@ class AstClassMember:
                 self->union_fields.print_with_tree_printer(tp)
             case AstClassMemberKind.Method:
                 printf("method ")
-                self->method.signature.print()
+                self->method.ast_signature.print()
                 self->method.body.print_with_tree_printer(tp)
 
     def free(self) -> None:
@@ -1025,6 +1015,7 @@ class AstClassDef:
     name_location: Location
     members: AstClassMember*
     nmembers: int
+    type: Type*  # populated in typecheck, NULL before typecheck runs
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -1049,6 +1040,7 @@ class AstEnumDef:
     name_location: Location
     member_count: int
     member_names: byte[100]*
+    type: Type*  # populated in typecheck, NULL before typecheck runs
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})

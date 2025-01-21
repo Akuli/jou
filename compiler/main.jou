@@ -41,7 +41,7 @@ def open_the_file(path: byte*, import_location: Location*) -> FILE*:
 def defines_main(ast: AstFile*) -> bool:
     for i = 0; i < ast->body.nstatements; i++:
         s = &ast->body.statements[i]
-        if s->kind == AstStatementKind.FunctionDef and strcmp(s->function.signature.name, "main") == 0:
+        if s->kind == AstStatementKind.FunctionDef and strcmp(s->function.ast_signature.name, "main") == 0:
             return True
     return False
 
@@ -51,7 +51,7 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
         case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
             return (
                 importsym->kind == ExportSymbolKind.Function
-                and strcmp(importsym->name, stmt->function.signature.name) == 0
+                and strcmp(importsym->name, stmt->function.ast_signature.name) == 0
             )
         case AstStatementKind.GlobalVariableDeclare | AstStatementKind.GlobalVariableDef:
             return (
@@ -91,13 +91,11 @@ class FileState:
     path: byte*  # owned
     is_main_file: bool
     ast: AstFile
-    types: FileTypes
     module: LLVMModule*
 
     def free(self) -> None:
         self->ast.free()
         free(self->path)
-        self->types.free()
 
     def add_imported_symbol(self, es: ExportSymbol*, imp: AstImport*) -> None:
         for i = 0; i < self->ast.body.nstatements; i++:
@@ -116,11 +114,11 @@ class FileState:
 
         match es->kind:
             case ExportSymbolKind.Function:
-                self->types.add_function(&es->funcsignature, &imp->used)
+                self->ast.types.add_function(&es->funcsignature, &imp->used)
             case ExportSymbolKind.Type:
-                self->types.add_type(es->type, &imp->used)
+                self->ast.types.add_type(es->type, &imp->used)
             case ExportSymbolKind.GlobalVar:
-                self->types.add_global_var(es->name, es->type, &imp->used)
+                self->ast.types.add_global_var(es->name, es->type, &imp->used)
 
     def warn_about_unused_imports(self) -> None:
         for imp = self->ast.imports; imp < &self->ast.imports[self->ast.nimports]; imp++:
@@ -133,7 +131,7 @@ class FileState:
         if command_line_args.verbosity >= 1:
             printf("Building Control Flow Graphs: %s\n", self->path)
 
-        cf_graphs = build_control_flow_graphs(&self->ast, &self->types)
+        cf_graphs = build_control_flow_graphs(&self->ast)
         self->warn_about_unused_imports()
 
         if command_line_args.verbosity >= 2:
@@ -152,7 +150,7 @@ class FileState:
         if command_line_args.verbosity >= 1:
             printf("Building LLVM IR: %s\n", self->path)
 
-        mod = codegen(cf_graphs, &self->types, self->is_main_file)
+        mod = codegen(cf_graphs, &self->ast.types, self->is_main_file)
 
         if command_line_args.verbosity >= 2:
             print_llvm_ir(mod, False)
@@ -288,21 +286,21 @@ class CompileState:
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
                 printf("  step 1: %s\n", self->files[i].path)
-            pending_exports[i] = typecheck_step1_create_types(&self->files[i].types, &self->files[i].ast)
+            pending_exports[i] = typecheck_step1_create_types(&self->files[i].ast)
 
         self->exports_to_imports(pending_exports)
 
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
                 printf("  step 2: %s\n", self->files[i].path)
-            pending_exports[i] = typecheck_step2_populate_types(&self->files[i].types, &self->files[i].ast)
+            pending_exports[i] = typecheck_step2_populate_types(&self->files[i].ast)
 
         self->exports_to_imports(pending_exports)
 
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
                 printf("  step 3: %s\n", self->files[i].path)
-            typecheck_step3_function_and_method_bodies(&self->files[i].types, &self->files[i].ast)
+            typecheck_step3_function_and_method_bodies(&self->files[i].ast)
             if command_line_args.verbosity >= 3:
                 # AST now contains types. If very verbose, print them.
                 self->files[i].ast.print()

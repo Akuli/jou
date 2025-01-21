@@ -1,37 +1,13 @@
 # Contains data structures and functions that are shared among multiple type
 # checking steps.
 
-import "stdlib/io.jou"
-import "stdlib/math.jou"
 import "stdlib/str.jou"
-import "stdlib/mem.jou"
 
 import "../ast.jou"
 import "../evaluate.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
-
-
-class GlobalVariable:
-    name: byte[100]  # Same as in user's code, never empty
-    type: Type*
-    defined_in_current_file: bool  # not declare-only (e.g. stdout) or imported
-    usedptr: bool*  # If non-NULL, set to true when the variable is used. This is how we detect unused imports.
-
-
-class LocalVariable:
-    id: int  # Unique, but you can also compare pointers to LocalVariable.
-    name: byte[100]  # Same name as in user's code, empty for temporary variables created by compiler
-    type: Type*
-
-    def print_to_width(self, width: int) -> None:
-        if self->name[0] != '\0':
-            printf("%-*s", width, self->name)
-        else:
-            printf("$%-*d", max(width-1, 0), self->id)
-
-    def print(self) -> None:
-        self->print_to_width(0)
+import "../types_in_ast.jou"
 
 
 # Type checking steps 1 and 2 return export symbols to be passed on to the next
@@ -51,137 +27,6 @@ class ExportSymbol:
     def free(self) -> None:
         if self->kind == ExportSymbolKind.Function:
             self->funcsignature.free()
-
-
-# Type information about a function or method defined in the current file.
-# Not created for anything imported from another file.
-class FunctionOrMethodTypes:
-    signature: Signature
-    locals: LocalVariable**
-    nlocals: int
-
-    def find_local_var(self, name: byte*) -> LocalVariable*:
-        for var = self->locals; var < &self->locals[self->nlocals]; var++:
-            if strcmp((*var)->name, name) == 0:
-                return *var
-        return NULL
-
-    def add_variable(self, t: Type*, name: byte*) -> LocalVariable*:
-        var: LocalVariable* = calloc(1, sizeof *var)
-        var->id = self->nlocals
-        var->type = t
-
-        assert name != NULL
-        assert self->find_local_var(name) == NULL
-        assert strlen(name) < sizeof(var->name)
-        strcpy(var->name, name)
-
-        self->locals = realloc(self->locals, sizeof(self->locals[0]) * (self->nlocals + 1))
-        assert self->locals != NULL
-        self->locals[self->nlocals++] = var
-
-        return var
-
-
-class TypeAndUsedPtr:
-    type: Type*
-    usedptr: bool*  # used to detect unused imports
-
-class SignatureAndUsedPtr:
-    signature: Signature
-    usedptr: bool*  # used to detect unused imports
-
-
-class FileTypes:
-    current_fom_types: FunctionOrMethodTypes*  # conceptually this is internal to typecheck.c
-    fomtypes: FunctionOrMethodTypes*
-    nfomtypes: int
-    globals: GlobalVariable*
-    nglobals: int
-    owned_types: Type**  # These will be freed later
-    n_owned_types: int
-    types: TypeAndUsedPtr*
-    ntypes: int
-    functions: SignatureAndUsedPtr*
-    nfunctions: int
-
-    def free(self) -> None:
-        for t = self->owned_types; t < &self->owned_types[self->n_owned_types]; t++:
-            free_type(*t)
-        for func = self->functions; func < &self->functions[self->nfunctions]; func++:
-            func->signature.free()
-        for fom = self->fomtypes; fom < &self->fomtypes[self->nfomtypes]; fom++:
-            free(fom->locals)  # Don't free individual locals because they're owned by CFG now
-            fom->signature.free()
-        free(self->globals)
-        free(self->types)
-        free(self->owned_types)
-        free(self->functions)
-        free(self->fomtypes)
-
-    def add_function(self, signature: Signature*, usedptr: bool*) -> None:
-        self->functions = realloc(self->functions, sizeof(self->functions[0]) * (self->nfunctions + 1))
-        assert self->functions != NULL
-        self->functions[self->nfunctions++] = SignatureAndUsedPtr{signature = signature->copy(), usedptr = usedptr}
-
-    def add_type(self, t: Type*, usedptr: bool*) -> None:
-        self->types = realloc(self->types, sizeof(self->types[0]) * (self->ntypes + 1))
-        assert self->types != NULL
-        self->types[self->ntypes++] = TypeAndUsedPtr{type = t, usedptr = usedptr}
-
-    def add_owned_type(self, t: Type*) -> None:
-        self->owned_types = realloc(self->owned_types, sizeof(self->owned_types[0]) * (self->n_owned_types + 1))
-        assert self->owned_types != NULL
-        self->owned_types[self->n_owned_types++] = t
-
-    def add_global_var(self, name: byte*, type: Type*, usedptr: bool*) -> GlobalVariable*:
-        g = GlobalVariable{type = type, usedptr = usedptr}
-        assert strlen(name) < sizeof g.name
-        strcpy(g.name, name)
-
-        self->globals = realloc(self->globals, sizeof(self->globals[0]) * (self->nglobals + 1))
-        assert self->globals != NULL
-        self->globals[self->nglobals++] = g
-        return &self->globals[self->nglobals - 1]
-
-    def find_type(self, name: byte*) -> Type*:
-        for t = self->types; t < &self->types[self->ntypes]; t++:
-            if strcmp(t->type->name, name) == 0:
-                if t->usedptr != NULL:
-                    *t->usedptr = True
-                return t->type
-        return NULL
-
-    def find_function(self, name: byte*) -> Signature*:
-        for f = self->functions; f < &self->functions[self->nfunctions]; f++:
-            if strcmp(f->signature.name, name) == 0:
-                if f->usedptr != NULL:
-                    *f->usedptr = True
-                return &f->signature
-        return NULL
-
-    def find_global_var(self, name: byte*) -> Type*:
-        for var = self->globals; var < &self->globals[self->nglobals]; var++:
-            if strcmp(var->name, name) == 0:
-                if var->usedptr != NULL:
-                    *var->usedptr = True
-                return var->type
-        return NULL
-
-    def find_local_var(self, name: byte*) -> LocalVariable*:
-        if self->current_fom_types == NULL:
-            return NULL
-        return self->current_fom_types->find_local_var(name)
-
-    def find_any_var(self, name: byte*) -> Type*:
-        if get_special_constant(name) != -1:
-            return boolType
-
-        local = self->find_local_var(name)
-        if local != NULL:
-            return local->type
-
-        return self->find_global_var(name)
 
 
 @public
