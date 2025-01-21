@@ -160,12 +160,6 @@ class FileTypes:
                 return &f->signature
         return NULL
 
-    def find_function_or_method(self, selfclass: Type*, name: byte*) -> Signature*:
-        if selfclass != NULL:
-            return selfclass->find_method(name)
-        else:
-            return self->find_function(name)
-
     def find_global_var(self, name: byte*) -> Type*:
         for var = self->globals; var < &self->globals[self->nglobals]; var++:
             if strcmp(var->name, name) == 0:
