@@ -148,6 +148,8 @@ class GlobalTypeState:
     doublelele: TypeInfo
     floater: TypeInfo
     voidptr: TypeInfo
+    other_types: TypeInfo**
+    n_other_types: int
 
 global global_type_state: GlobalTypeState
 
@@ -222,12 +224,28 @@ def free_global_type_state() -> None:
     for size = 8; size <= 64; size *= 2:
         for is_signed = 0; is_signed <= 1; is_signed++:
             global_type_state.integers[size][is_signed].free_pointer_and_array_types()
+    for i = 0; i < global_type_state.n_other_types; i++:
+        free_type(&global_type_state.other_types[i]->type)
+    free(global_type_state.other_types)
 
 
 @public
 def get_integer_type(size_in_bits: int, is_signed: bool) -> Type*:
     assert size_in_bits==8 or size_in_bits==16 or size_in_bits==32 or size_in_bits==64
     return &global_type_state.integers[size_in_bits][is_signed as int].type
+
+
+# Ensures that the type is freed when compiler is done. Operating system would
+# do it anyway, but communicating this to valgrind is complicated because of
+# how pointers and arrays work.
+def satisfy_valgrind(ti: TypeInfo*) -> None:
+    arr = &global_type_state.other_types
+    global_type_state.other_types = realloc(
+        global_type_state.other_types,
+        sizeof(global_type_state.other_types[0]) * (global_type_state.n_other_types + 1),
+    )
+    assert global_type_state.other_types != NULL
+    global_type_state.other_types[global_type_state.n_other_types++] = ti
 
 
 @public
@@ -238,6 +256,7 @@ def create_opaque_class(name: byte*) -> Type*:
     assert strlen(name) < sizeof result->type.name
     strcpy(result->type.name, name)
 
+    satisfy_valgrind(result)
     return &result->type
 
 @public
@@ -251,6 +270,7 @@ def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*
     assert strlen(name) < sizeof result->type.name
     strcpy(result->type.name, name)
 
+    satisfy_valgrind(result)
     return &result->type
 
 
