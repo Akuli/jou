@@ -855,7 +855,7 @@ static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCal
     if (self_type) {
         sig = find_method(self_type, call->calledname);
         if (!sig)
-            fail(location, "method '%s' not found", call->calledname);
+            fail(location, "method '%s' not found on %s", call->calledname, self_type->name);
     } else {
         sig = find_function(ft, call->calledname);
         if (!sig)
