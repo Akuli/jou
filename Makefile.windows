@@ -25,7 +25,7 @@ config.jou:
 	echo "def get_jou_clang_path() -> byte*:" >> config.jou
 	echo "    return NULL" >> config.jou
 
-jou_bootstrap.exe:
+jou_bootstrap.exe: bootstrap.sh
 	./bootstrap.sh
 
 jou.exe: jou_bootstrap.exe config.jou $(wildcard compiler/*.jou compiler/*/*.jou)
