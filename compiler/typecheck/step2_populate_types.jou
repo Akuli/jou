@@ -25,22 +25,9 @@ def handle_global_var(ft: FileTypes*, vardecl: AstNameTypeValue*, defined_here: 
         fail(vardecl->name_location, msg)
 
     assert vardecl->value == NULL
-    g = GlobalVariable{
-        type = type_from_ast(ft, &vardecl->type),
-        defined_in_current_file = defined_here,
-    }
-
-    assert sizeof(g.name) == sizeof(vardecl->name)
-    strcpy(g.name, vardecl->name)
-
-    ft->globals = realloc(ft->globals, sizeof(ft->globals[0]) * (ft->nglobals + 1))
-    assert ft->globals != NULL
-    ft->globals[ft->nglobals++] = g
-
-    es = ExportSymbol{kind = ExportSymbolKind.GlobalVar, type = g.type}
-    assert sizeof(es.name) == sizeof(g.name)
-    strcpy(es.name, g.name)
-    return es
+    g = ft->add_global_var(vardecl->name, type_from_ast(ft, &vardecl->type), NULL)
+    g->defined_in_current_file = defined_here
+    return ExportSymbol{kind = ExportSymbolKind.GlobalVar, type = g->type, name = g->name}
 
 
 def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -> Signature:
@@ -99,12 +86,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
     sig.returntype_location = astsig->return_type.location
 
     if self_class == NULL:
-        ft->functions = realloc(ft->functions, sizeof(ft->functions[0]) * (ft->nfunctions + 1))
-        assert ft->functions != NULL
-        ft->functions[ft->nfunctions++] = SignatureAndUsedPtr{
-            signature = sig.copy(),
-            usedptr = NULL,
-        }
+        ft->add_function(&sig, NULL)
 
     if sig.is_main_function():
         if sig.returntype != intType:
