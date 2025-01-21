@@ -784,9 +784,21 @@ class Parser:
             and end->is_operator(")")
             and start->location.lineno == end->location.lineno
         ):
-            msg: byte[500]
-            snprintf(msg, sizeof(msg), "parentheses around %s are unnecessary", description_of_expr)
-            show_warning(start->location, msg)
+            # Check if starting '(' is closed with a ')' before the end
+            depth = 1
+            closed_early = False
+            for p = &start[1]; p < end; p++:
+                if p->is_operator("("):
+                    depth++
+                if p->is_operator(")"):
+                    depth--
+                    if depth == 0:
+                        closed_early = True
+                        break
+            if not closed_early:
+                msg: byte[500]
+                snprintf(msg, sizeof(msg), "parentheses around %s are unnecessary", description_of_expr)
+                show_warning(start->location, msg)
 
         return result
 
