@@ -38,6 +38,9 @@ show_message "Creating temporary working directory"
 mkdir -vp tmp
 rm -rf tmp/bootstrap
 git clone . tmp/bootstrap
+if [[ "$OS" =~ Windows ]]; then
+    cp -r libs llvm llvm-c mingw64 tmp/bootstrap
+fi
 cd tmp/bootstrap
 
 for i in ${!commits[@]}; do
