@@ -71,13 +71,6 @@ else:
                 return buf
 
 
-def find_installation_directory() -> byte*:
-    exe = find_current_executable()
-    result = strdup(dirname(exe))
-    free(exe)
-    return result
-
-
 @public
 def find_stdlib() -> byte*:
     checked: byte*[3]

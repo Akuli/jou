@@ -30,7 +30,7 @@ def handle_global_var(ft: FileTypes*, vardecl: AstNameTypeValue*, defined_here: 
     return ExportSymbol{kind = ExportSymbolKind.GlobalVar, type = g->type, name = g->name}
 
 
-def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -> Signature:
+def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, usedptr: bool*) -> Signature:
     if self_class == NULL:
         function_or_method = "function"
     else:
@@ -89,7 +89,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -
     sig.returntype_location = astsig->return_type.location
 
     if self_class == NULL:
-        ft->add_function(&sig, NULL)
+        ft->add_function(&sig, usedptr)
 
     if sig.is_main_function():
         if sig.returntype != intType:
@@ -150,7 +150,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
             case AstClassMemberKind.Method:
                 # Don't handle the method body yet: that is a part of step 3, not step 2
-                sig = handle_signature(ft, &m->method.ast_signature, t)
+                sig = handle_signature(ft, &m->method.ast_signature, t, NULL)
                 m->method.types.signature = sig
 
                 t->classdata.methods = realloc(t->classdata.methods, sizeof(t->classdata.methods[0]) * (t->classdata.nmethods + 1))
@@ -175,7 +175,7 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
             case AstStatementKind.GlobalVariableDef:
                 exports[nexports++] = handle_global_var(&ast->types, &stmt->var_declaration, True)
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
-                sig = handle_signature(&ast->types, &stmt->function.ast_signature, NULL)
+                sig = handle_signature(&ast->types, &stmt->function.ast_signature, NULL, &stmt->function.used)
                 stmt->function.types.signature = sig
                 if stmt->function.public:
                     es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig.copy()}
