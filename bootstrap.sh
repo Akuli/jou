@@ -14,6 +14,8 @@
 
 set -e -o pipefail
 
+# Add the latest commit on main branch to the end of the list if this script
+# produces a compiler that is too old.
 commits=(
     1c7ce74933aea8a8862fd1d4409735b9fb7a1d7e  # last commit on main that contains the compiler written in C
 )
