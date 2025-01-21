@@ -31,14 +31,6 @@ static const Signature *find_method(const Type *selfclass, const char *name)
     return NULL;
 }
 
-static const Signature *find_function_or_method(const FileTypes *ft, const Type *selfclass, const char *name)
-{
-    if (selfclass)
-        return find_method(selfclass, name);
-    else
-        return find_function(ft, name);
-}
-
 static const LocalVariable *find_local_var(const FileTypes *ft, const char *name)
 {
     if (ft->current_fom_types)
@@ -212,8 +204,12 @@ static ExportSymbol handle_global_var(FileTypes *ft, const AstNameTypeValue *var
 
 static Signature handle_signature(FileTypes *ft, const AstSignature *astsig, const Type *self_class)
 {
-    if (find_function_or_method(ft, self_class, astsig->name))
+    if (
+        (self_class && find_method(self_class, astsig->name))
+        || (!self_class && find_function(ft, astsig->name)))
+    {
         fail(astsig->name_location, "a %s named '%s' already exists", self_class ? "method" : "function", astsig->name);
+    }
 
     Signature sig = { .nargs = astsig->args.len, .takes_varargs = astsig->takes_varargs };
     safe_strcpy(sig.name, astsig->name);
@@ -855,28 +851,15 @@ static const char *nth(int n)
 // returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
 static const Type *typecheck_function_or_method_call(FileTypes *ft, const AstCall *call, const Type *self_type, Location location)
 {
-    const Signature *sig = find_function_or_method(ft, self_type, call->calledname);
-    if (!sig) {
-        if (!self_type)
+    const Signature *sig;
+    if (self_type) {
+        sig = find_method(self_type, call->calledname);
+        if (!sig)
+            fail(location, "method '%s' not found on %s", call->calledname, self_type->name);
+    } else {
+        sig = find_function(ft, call->calledname);
+        if (!sig)
             fail(location, "function '%s' not found", call->calledname);
-
-        // If self type is a pointer to a struct that has the method, mention it in the error message
-        if (self_type->kind == TYPE_POINTER && find_method(self_type->data.valuetype, call->calledname)) {
-            fail(
-                location,
-                "the method '%s' is defined on class %s, not on the pointer type %s,"
-                " so you need to dereference the pointer first (e.g. by using '->' instead of '.')",
-                call->calledname, self_type->data.valuetype->name, self_type->name);
-        }
-        // If it is not a class, explain to the user that there are no methods
-        if (self_type->kind != TYPE_CLASS) {
-            fail(
-                location,
-                "type %s does not have any methods because it is %s, not a class",
-                self_type->name, short_type_description(self_type));
-        }
-        fail(location, "class %s does not have a method named '%s'",
-            self_type->name, call->calledname);
     }
 
     char *sigstr = signature_to_string(sig, false, false);
@@ -1475,10 +1458,8 @@ static void typecheck_function_or_method_body(FileTypes *ft, const Signature *si
     ft->current_fom_types = End(ft->fomtypes) - 1;
     ft->current_fom_types->signature = copy_signature(sig);
 
-    for (int i = 0; i < sig->nargs; i++) {
-        LocalVariable *v = add_variable(ft, sig->argtypes[i], sig->argnames[i]);
-        v->is_argument = true;
-    }
+    for (int i = 0; i < sig->nargs; i++)
+        add_variable(ft, sig->argtypes[i], sig->argnames[i]);
     if (sig->returntype)
         add_variable(ft, sig->returntype, "return");
 

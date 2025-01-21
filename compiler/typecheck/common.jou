@@ -23,7 +23,6 @@ class LocalVariable:
     id: int  # Unique, but you can also compare pointers to LocalVariable.
     name: byte[100]  # Same name as in user's code, empty for temporary variables created by compiler
     type: Type*
-    is_argument: bool    # First n variables are always the arguments
 
     def print_to_width(self, width: int) -> None:
         if self->name[0] != '\0':
@@ -120,6 +119,31 @@ class FileTypes:
         free(self->functions)
         free(self->fomtypes)
 
+    def add_function(self, signature: Signature*, usedptr: bool*) -> None:
+        self->functions = realloc(self->functions, sizeof(self->functions[0]) * (self->nfunctions + 1))
+        assert self->functions != NULL
+        self->functions[self->nfunctions++] = SignatureAndUsedPtr{signature = signature->copy(), usedptr = usedptr}
+
+    def add_type(self, t: Type*, usedptr: bool*) -> None:
+        self->types = realloc(self->types, sizeof(self->types[0]) * (self->ntypes + 1))
+        assert self->types != NULL
+        self->types[self->ntypes++] = TypeAndUsedPtr{type = t, usedptr = usedptr}
+
+    def add_owned_type(self, t: Type*) -> None:
+        self->owned_types = realloc(self->owned_types, sizeof(self->owned_types[0]) * (self->n_owned_types + 1))
+        assert self->owned_types != NULL
+        self->owned_types[self->n_owned_types++] = t
+
+    def add_global_var(self, name: byte*, type: Type*, usedptr: bool*) -> GlobalVariable*:
+        g = GlobalVariable{type = type, usedptr = usedptr}
+        assert strlen(name) < sizeof g.name
+        strcpy(g.name, name)
+
+        self->globals = realloc(self->globals, sizeof(self->globals[0]) * (self->nglobals + 1))
+        assert self->globals != NULL
+        self->globals[self->nglobals++] = g
+        return &self->globals[self->nglobals - 1]
+
     def find_type(self, name: byte*) -> Type*:
         for t = self->types; t < &self->types[self->ntypes]; t++:
             if strcmp(t->type->name, name) == 0:
@@ -135,12 +159,6 @@ class FileTypes:
                     *f->usedptr = True
                 return &f->signature
         return NULL
-
-    def find_function_or_method(self, selfclass: Type*, name: byte*) -> Signature*:
-        if selfclass != NULL:
-            return selfclass->find_method(name)
-        else:
-            return self->find_function(name)
 
     def find_global_var(self, name: byte*) -> Type*:
         for var = self->globals; var < &self->globals[self->nglobals]; var++:

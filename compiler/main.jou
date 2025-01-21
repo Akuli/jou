@@ -116,31 +116,11 @@ class FileState:
 
         match es->kind:
             case ExportSymbolKind.Function:
-                self->types.functions = realloc(self->types.functions, sizeof(self->types.functions[0]) * (self->types.nfunctions + 1))
-                assert self->types.functions != NULL
-                self->types.functions[self->types.nfunctions++] = SignatureAndUsedPtr{
-                    signature = es->funcsignature.copy(),
-                    usedptr = &imp->used,
-                }
+                self->types.add_function(&es->funcsignature, &imp->used)
             case ExportSymbolKind.Type:
-                self->types.types = realloc(self->types.types, sizeof(self->types.types[0]) * (self->types.ntypes + 1))
-                assert self->types.types != NULL
-                self->types.types[self->types.ntypes++] = TypeAndUsedPtr{
-                    type = es->type,
-                    usedptr = &imp->used,
-                }
+                self->types.add_type(es->type, &imp->used)
             case ExportSymbolKind.GlobalVar:
-                g = GlobalVariable{
-                    type = es->type,
-                    usedptr = &imp->used,
-                }
-
-                assert strlen(es->name) < sizeof g.name
-                strcpy(g.name, es->name)
-
-                self->types.globals = realloc(self->types.globals, sizeof(self->types.globals[0]) * (self->types.nglobals + 1))
-                assert self->types.globals != NULL
-                self->types.globals[self->types.nglobals++] = g
+                self->types.add_global_var(es->name, es->type, &imp->used)
 
     def warn_about_unused_imports(self) -> None:
         for imp = self->ast.imports; imp < &self->ast.imports[self->ast.nimports]; imp++:
