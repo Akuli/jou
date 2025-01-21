@@ -1,0 +1,18 @@
+import "stdlib/io.jou"
+
+def main() -> int:
+    foo = 1
+    bar = 3
+
+    # Both of these say "if statement", but IMO it's fine
+    if (foo == bar):  # Warning: parentheses around if statement condition are unnecessary
+        printf("One\n")
+    elif (foo < bar):  # Warning: parentheses around if statement condition are unnecessary
+        printf("Two\n")  # Output: Two
+
+    while (foo != bar):  # Warning: parentheses around while loop condition are unnecessary
+        printf("Three")  # Output: ThreeThree
+        foo++
+    printf("\n")
+
+    return 0
