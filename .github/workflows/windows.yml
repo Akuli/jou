@@ -65,7 +65,24 @@ jobs:
             exit 1
           fi
 
+  bootstrap:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4  # TODO: upgrade to v4 in other places
+        with:
+          fetch-depth: 0  # Fetch the whole Git history
+      - run: ./windows_setup.sh
+        shell: bash
+      - run: ./bootstrap.sh
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bootstrapped
+          path: jou_bootstrap.exe
+
   build-zip:
+    needs: bootstrap
     runs-on: windows-latest
     timeout-minutes: 5
     steps:
@@ -73,6 +90,9 @@ jobs:
       # TODO: figure out why --small doesn't work here
       - run: source activate && ./windows_setup.sh
         shell: bash
+      - uses: actions/download-artifact@v4
+        with:
+          name: bootstrapped
       - run: source activate && mingw32-make
         shell: bash
       # We don't need to copy all of mingw64. We only need the GNU linker.
@@ -148,6 +168,7 @@ jobs:
           path: jou.zip
 
   test:
+    needs: bootstrap
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -155,26 +176,13 @@ jobs:
         with:
           # Add a space in the folder name to trigger bugs like #165
           path: "test dir"
+      - uses: actions/download-artifact@v4
+        with:
+          name: bootstrapped
+          path: "test dir"
       - run: cd "test dir" && ./windows_setup.sh --small
         shell: bash
-      - name: "Compile and test stage 1 compiler"
-        run: cd "test dir" && source activate && ./runtests.sh --verbose --stage1
-        shell: bash
-      - name: "Compile and test stage 2 compiler"
-        run: cd "test dir" && source activate && ./runtests.sh --verbose --stage2
-        shell: bash
-      - name: "Compile and test stage 3 compiler"
-        run: cd "test dir" && source activate && ./runtests.sh --verbose
-        shell: bash
-
-  doctest:
-    runs-on: windows-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - run: ./windows_setup.sh --small
-        shell: bash
-      - run: source activate && ./doctest.sh
+      - run: cd "test dir" && source activate && ./runtests.sh --verbose
         shell: bash
 
   test-zip:
@@ -194,4 +202,18 @@ jobs:
       - run: cd jou && ./jou.exe --verbose examples/hello.jou
         shell: bash
       - run: cd jou && ./runtests.sh --dont-run-make --verbose
+        shell: bash
+
+  doctest:
+    needs: bootstrap
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bootstrapped
+      - run: ./windows_setup.sh --small
+        shell: bash
+      - run: source activate && ./doctest.sh
         shell: bash

@@ -48,6 +48,7 @@ to help `clangd` find the LLVM header files.
     where `C:\Users\YourName\Desktop` is the folder where you cloned Jou.
     If you don't want to run it every time you open a Git Bash window to work on Jou,
     you can instead add it to your PATH permanently with Control Panel.
+    When you run `mingw32-make` for the first time, it [bootstraps Jou from Git history](README.md#bootstrapping).
 6. Compile and run hello world:
     ```
     ./jou.exe examples/hello.jou
@@ -65,9 +66,6 @@ to help `clangd` find the LLVM header files.
 
 
 ## How does the compiler work?
-
-There are two compilers. See [the README](README.md#compilers) for an explanation.
-The compilers work very similarly even though they are written in different languages.
 
 At a high level, the compilation steps are:
 - **Tokenize:** split the source code into tokens
@@ -94,9 +92,6 @@ The control flow graphs are shown twice, before and after simplifying them.
 Similarly, LLVM IR is shown before and after optimizing.
 
 After making changes to the compiler, run `make` to recompile it.
-To make recompiling faster, only the stage 3 compiler (`./jou` or `jou.exe`)
-will be recompiled.
-All stages of bootstrapping are recompiled if any file in `bootstrap_compiler` is modified (or `touch`ed).
 
 
 ## Tests
