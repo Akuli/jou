@@ -58,6 +58,10 @@ Pointers and arrays can be combined with each other.
 For example, `byte[100]*` means a pointer to an array of 100 bytes,
 and `int**` means a pointer to a pointer to an integer.
 
+Note that indexes and array sizes are reversed.
+For example, `array: int[10][100]` means 100 rows of 10 ints each,
+so `array[99][9]` is the bottom right corner, and `array[9][99]` is [UB](ub.md).
+
 A void pointer (`void*`) is used when you don't want the compiler to know
 the type of the object being pointed at.
 You can use void pointers whenever a different pointer type is expected.
