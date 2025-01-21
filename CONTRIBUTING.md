@@ -48,6 +48,7 @@ to help `clangd` find the LLVM header files.
     where `C:\Users\YourName\Desktop` is the folder where you cloned Jou.
     If you don't want to run it every time you open a Git Bash window to work on Jou,
     you can instead add it to your PATH permanently with Control Panel.
+    When you run `mingw32-make` for the first time, it [bootstraps Jou from Git history](README.md#bootstrapping).
 6. Compile and run hello world:
     ```
     ./jou.exe examples/hello.jou
