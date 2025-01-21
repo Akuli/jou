@@ -64,7 +64,7 @@ so `array[99][9]` is the bottom right corner, and `array[9][99]` is [UB](ub.md).
 
 A void pointer (`void*`) is used when you don't want the compiler to know
 the type of the object being pointed at.
-You can use void pointers whenever a different pointer type is expected.
+You can use void pointers whenever a pointer is expected.
 However, you can't do e.g. `pointer++` or `*pointer` or `pointer[index]` with a void pointer,
 because to do that, the compiler would need to know the size of the underlying value.
 
