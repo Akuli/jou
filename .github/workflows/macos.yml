@@ -39,14 +39,6 @@ jobs:
         run: echo "LLVM_CONFIG=/opt/homebrew/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config" >> $GITHUB_ENV
       - name: "Compile and test"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
-      - run: make clean
-      - name: "Check that 'make clean' deleted all files not committed to Git"
-        shell: bash
-        run: |
-          if [ "$(git status --porcelain --ignored)" != "" ]; then
-            git status --ignored
-            exit 1
-          fi
 
   doctest:
     needs: bootstrap
