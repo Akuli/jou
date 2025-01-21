@@ -45,13 +45,8 @@ def typecheck_step1_create_types(ft: FileTypes*, ast: AstFile*) -> ExportSymbol*
             snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing->short_description(), name)
             fail(stmt->location, msg)
 
-        ft->types = realloc(ft->types, sizeof(ft->types[0]) * (ft->ntypes + 1))
-        assert ft->types != NULL
-        ft->types[ft->ntypes++] = TypeAndUsedPtr{type=t, usedptr=NULL}
-
-        ft->owned_types = realloc(ft->owned_types, sizeof(ft->owned_types[0]) * (ft->n_owned_types + 1))
-        assert ft->owned_types != NULL
-        ft->owned_types[ft->n_owned_types++] = t
+        ft->add_type(t, NULL)
+        ft->add_owned_type(t)
 
         es = ExportSymbol{kind = ExportSymbolKind.Type, type = t}
         assert sizeof(es.name) == sizeof(name)

@@ -481,7 +481,6 @@ struct LocalVariable {
     int id;  // Unique, but you can also compare pointers to Variable.
     char name[100];  // Same name as in user's code, empty for temporary variables created by compiler
     const Type *type;
-    bool is_argument;    // First n variables are always the arguments
 };
 
 struct ExportSymbol {
