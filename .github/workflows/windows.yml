@@ -84,7 +84,7 @@ jobs:
     timeout-minutes: 5
     needs: bootstrap
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       # TODO: figure out why --small doesn't work here
       - run: source activate && ./windows_setup.sh
         shell: bash
@@ -170,7 +170,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           path: repo
       - uses: actions/download-artifact@v4

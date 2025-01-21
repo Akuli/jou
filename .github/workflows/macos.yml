@@ -28,7 +28,7 @@ jobs:
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: brew install bash diffutils llvm@${{ matrix.llvm-version }}
       - name: "Select LLVM version"
         run: |
@@ -48,6 +48,6 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: brew install bash diffutils llvm@15
       - run: ./doctest.sh
