@@ -92,9 +92,6 @@ The control flow graphs are shown twice, before and after simplifying them.
 Similarly, LLVM IR is shown before and after optimizing.
 
 After making changes to the compiler, run `make` to recompile it.
-To make recompiling faster, only the stage 3 compiler (`./jou` or `jou.exe`)
-will be recompiled.
-All stages of bootstrapping are recompiled if any file in `bootstrap_compiler` is modified (or `touch`ed).
 
 
 ## Tests

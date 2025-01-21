@@ -53,7 +53,9 @@ for i in ${!commits[@]}; do
     $make clean
 done
 
+show_message "Copying ./jou_bootstrap$exe_suffix from temporary directory"
+
 cd ../..  # go out of tmp/bootstrap
 cp -v tmp/bootstrap/jou_bootstrap$exe_suffix .
 
-show_message "Bootstrapping done, you now have an executable ./jou_bootstrap$exe_suffix"
+show_message "Done!"
