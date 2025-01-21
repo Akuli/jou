@@ -36,6 +36,7 @@ cd bootstrap
 commits=(
     5a9722ab4235fd9b081613dd37c9666d2193413f  # last commit on main that contains the compiler written in C
     7f6367c7a1ef89a723e165f41321da1a394fb048  # TODO: this is a test, remove
+    20c1ce021d7d7ac69b715de315149b1c25fec208  # TODO: this is a test, remove
 )
 
 for i in ${!commits[@]}; do
