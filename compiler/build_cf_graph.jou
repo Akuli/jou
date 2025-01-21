@@ -902,6 +902,7 @@ class CfBuilder:
         cond: AstExpression*,
         incr: AstStatement*,
         body: AstBody*,
+        fallback_location: Location*
     ) -> None:
         condblock = self->add_block()  # evaluate condition and go to bodyblock or doneblock
         bodyblock = self->add_block()  # run loop body and go to incrblock
@@ -913,7 +914,12 @@ class CfBuilder:
 
         # Evaluate condition. Jump to loop body or skip to after loop.
         self->jump(NULL, condblock, condblock, condblock)
-        condvar = self->build_expression(cond)
+        if cond == NULL:
+            assert fallback_location != NULL
+            condvar = self->add_var(boolType)
+            self->constant(*fallback_location, Constant{kind = ConstantKind.Bool, boolean = True}, condvar)
+        else:
+            condvar = self->build_expression(cond)
         self->jump(condvar, bodyblock, doneblock, bodyblock)
 
         # 'break' skips to after loop, 'continue' goes to incr.
@@ -949,11 +955,11 @@ class CfBuilder:
             case AstStatementKind.WhileLoop:
                 self->build_loop(
                     NULL, &stmt->while_loop.condition, NULL,
-                    &stmt->while_loop.body)
+                    &stmt->while_loop.body, NULL)
             case AstStatementKind.ForLoop:
                 self->build_loop(
-                    stmt->for_loop.init, &stmt->for_loop.cond, stmt->for_loop.incr,
-                    &stmt->for_loop.body)
+                    stmt->for_loop.init, stmt->for_loop.cond, stmt->for_loop.incr,
+                    &stmt->for_loop.body, &stmt->location)
             case AstStatementKind.Match:
                 self->build_match_statement(&stmt->match_statement)
             case AstStatementKind.Break:

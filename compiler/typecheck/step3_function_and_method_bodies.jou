@@ -1163,12 +1163,15 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             typecheck_body(state, &stmt->while_loop.body)
 
         case AstStatementKind.ForLoop:
-            typecheck_statement(state, stmt->for_loop.init)
-            typecheck_expression_with_implicit_cast(
-                state, &stmt->for_loop.cond, boolType,
-                "'for' condition must be a bool, not <from>")
+            if stmt->for_loop.init != NULL:
+                typecheck_statement(state, stmt->for_loop.init)
+            if stmt->for_loop.cond != NULL:
+                typecheck_expression_with_implicit_cast(
+                    state, stmt->for_loop.cond, boolType,
+                    "'for' condition must be a bool, not <from>")
             typecheck_body(state, &stmt->for_loop.body)
-            typecheck_statement(state, stmt->for_loop.incr)
+            if stmt->for_loop.incr != NULL:
+                typecheck_statement(state, stmt->for_loop.incr)
 
         case AstStatementKind.Match:
             typecheck_match_statement(state, &stmt->match_statement)

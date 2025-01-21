@@ -1,0 +1,55 @@
+import "stdlib/io.jou"
+
+
+def main() -> int:
+    # Output: while 1
+    # Output: while 2
+    # Output: while 3
+    i = 0
+    while i < 3:
+        printf("while %d\n", ++i)
+
+    # Output: while 1
+    # Output: while 3
+    i = 0
+    while True:
+        if i == 1:
+            i++
+            continue
+        printf("while %d\n", ++i)
+        if i == 3:
+            break
+
+    # Output: for 1
+    # Output: for 2
+    # Output: for 3
+    for i = 1; i <= 3; i++:
+        printf("for %d\n", i)
+
+    # Output: for 1
+    # Output: for 3
+    for i = 1; i <= 3; i++:
+        if i == 2:
+            continue
+        printf("for %d\n", i)
+
+    # Output: forever 1
+    # Output: forever 3
+    i = 1
+    for ;; i++:
+        if i == 2:
+            continue
+        if i == 4:
+            break
+        printf("forever %d\n", i)
+
+    # Output: forever 1
+    # Output: forever 2
+    # Output: forever 3
+    i = 1
+    for ;;:
+        printf("forever %d\n", i++)
+        if i == 4:
+            break
+
+    return 0

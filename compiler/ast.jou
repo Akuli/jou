@@ -753,10 +753,9 @@ class AstCase:
 # for init; cond; incr:
 #     ...body...
 class AstForLoop:
-    # init and incr must be pointers because this goes inside AstStatement.
-    init: AstStatement*
-    cond: AstExpression
-    incr: AstStatement*
+    init: AstStatement*   # may be NULL
+    cond: AstExpression*  # may be NULL
+    incr: AstStatement*   # may be NULL
     body: AstBody
 
     def print(self) -> None:
@@ -765,28 +764,35 @@ class AstForLoop:
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("for loop\n")
 
-        sub = tp.print_prefix(False)
-        printf("init: ")
-        self->init->print_with_tree_printer(sub)
+        if self->init != NULL:
+            sub = tp.print_prefix(False)
+            printf("init: ")
+            self->init->print_with_tree_printer(sub)
 
-        sub = tp.print_prefix(False)
-        printf("cond: ")
-        self->cond.print_with_tree_printer(sub)
+        if self->cond != NULL:
+            sub = tp.print_prefix(False)
+            printf("cond: ")
+            self->cond->print_with_tree_printer(sub)
 
-        sub = tp.print_prefix(False)
-        printf("incr: ")
-        self->incr->print_with_tree_printer(sub)
+        if self->incr != NULL:
+            sub = tp.print_prefix(False)
+            printf("incr: ")
+            self->incr->print_with_tree_printer(sub)
 
         sub = tp.print_prefix(True)
         printf("body:\n")
         self->body.print_with_tree_printer(sub)
 
     def free(self) -> None:
-        self->init->free()
-        free(self->init)
-        self->cond.free()
-        self->incr->free()
-        free(self->incr)
+        if self->init != NULL:
+            self->init->free()
+            free(self->init)
+        if self->cond != NULL:
+            self->cond->free()
+            free(self->cond)
+        if self->incr != NULL:
+            self->incr->free()
+            free(self->incr)
         self->body.free()
 
 

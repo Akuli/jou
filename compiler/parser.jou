@@ -863,18 +863,34 @@ class Parser:
         ):
             fail(self->tokens[1].location, "Python-style for loops aren't supported. Use e.g. 'for i = 0; i < 10; i++'")
 
-        init: AstStatement* = malloc(sizeof *init)
-        incr: AstStatement* = malloc(sizeof *incr)
+        init: AstStatement*
+        if self->tokens->is_operator(";"):
+            init = NULL
+        else:
+            init = malloc(sizeof *init)
+            *init = self->parse_oneline_statement()
 
-        *init = self->parse_oneline_statement()
         if not self->tokens->is_operator(";"):
             self->tokens->fail_expected_got("a ';'")
         self->tokens++
-        cond = self->parse_expression()
+
+        cond: AstExpression*
+        if self->tokens->is_operator(";"):
+            cond = NULL
+        else:
+            cond = malloc(sizeof *cond)
+            *cond = self->parse_expression()
+
         if not self->tokens->is_operator(";"):
             self->tokens->fail_expected_got("a ';'")
         self->tokens++
-        *incr = self->parse_oneline_statement()
+
+        incr: AstStatement*
+        if self->tokens->is_operator(":"):
+            incr = NULL
+        else:
+            incr = malloc(sizeof *incr)
+            *incr = self->parse_oneline_statement()
 
         self->loop_counter++
         body = self->parse_body()
