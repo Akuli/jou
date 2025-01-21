@@ -1,0 +1,13 @@
+import "stdlib/io.jou"
+
+declare usleep(us: int) -> int  # Warning: function usleep(us: int) declared but not used
+
+def foo(stuff: byte*) -> None:  # Warning: function foo(stuff: byte*) defined but not used
+    bar(stuff)
+
+def bar(stuff: byte*) -> None:
+    printf("it doesn't run %s\n", stuff)
+
+def main() -> int:
+    printf("it runs\n")  # Output: it runs
+    return 0

@@ -934,6 +934,7 @@ class AstFunctionOrMethod:
     ast_signature: AstSignature
     body: AstBody  # empty body means declaration, otherwise it's a definition
     types: FunctionOrMethodTypes  # populated in typecheck, zero-initialized before typecheck runs
+    used: bool  # used to detect unused functions
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})

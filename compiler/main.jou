@@ -1,6 +1,5 @@
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
-import "stdlib/errno.jou"
 import "stdlib/str.jou"
 import "stdlib/process.jou"
 
@@ -23,19 +22,6 @@ import "./paths.jou"
 import "./errors_and_warnings.jou"
 import "./tokenizer.jou"
 import "./ast.jou"
-
-
-def open_the_file(path: byte*, import_location: Location*) -> FILE*:
-    f = fopen(path, "rb")
-    if f == NULL:
-        msg: byte[500]
-        if import_location != NULL:
-            snprintf(msg, sizeof(msg), "cannot import from \"%s\": %s", path, strerror(get_errno()))
-            fail(*import_location, msg)
-        else:
-            snprintf(msg, sizeof(msg), "cannot open file: %s", strerror(get_errno()))
-            fail(Location{path=path}, msg)
-    return f
 
 
 def defines_main(ast: AstFile*) -> bool:
@@ -120,19 +106,37 @@ class FileState:
             case ExportSymbolKind.GlobalVar:
                 self->ast.types.add_global_var(es->name, es->type, &imp->used)
 
-    def warn_about_unused_imports(self) -> None:
+    def warn_about_unused(self) -> None:
+        msg: byte[500]
+
         for imp = self->ast.imports; imp < &self->ast.imports[self->ast.nimports]; imp++:
             if not imp->used:
-                msg: byte[500]
                 snprintf(msg, sizeof msg, "\"%s\" imported but not used", imp->specified_path)
                 show_warning(imp->location, msg)
+
+        for stmt = self->ast.body.statements; stmt < &self->ast.body.statements[self->ast.body.nstatements]; stmt++:
+            match stmt->kind:
+                case AstStatementKind.FunctionDef | AstStatementKind.FunctionDeclare:
+                    if stmt->kind == AstStatementKind.FunctionDeclare:
+                        did_what = "declared"
+                    else:
+                        did_what = "defined"
+
+                    f = &stmt->function
+                    if not f->public and not f->used and not f->types.signature.is_main_function():
+                        sigstr = f->types.signature.to_string(False, False)
+                        snprintf(msg, sizeof msg, "function %s %s but not used", sigstr, did_what)
+                        free(sigstr)
+                        show_warning(stmt->location, msg)
+                case _:
+                    pass
 
     def build_cf_graphs(self) -> CfGraphFile:
         if command_line_args.verbosity >= 1:
             printf("Building Control Flow Graphs: %s\n", self->path)
 
         cf_graphs = build_control_flow_graphs(&self->ast)
-        self->warn_about_unused_imports()
+        self->warn_about_unused()
 
         if command_line_args.verbosity >= 2:
             cf_graphs.print()
