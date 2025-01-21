@@ -38,7 +38,7 @@ config.jou:
 	echo "def get_jou_clang_path() -> byte*:" >> config.jou
 	echo "    return \"$(CC)\"" >> config.jou
 
-jou_bootstrap:
+jou_bootstrap: bootstrap.sh
 	./bootstrap.sh
 
 jou: jou_bootstrap config.jou $(wildcard compiler/*.jou compiler/*/*.jou)

@@ -182,7 +182,14 @@ jobs:
           path: "test dir"
       - run: cd "test dir" && ./windows_setup.sh --small
         shell: bash
-      - run: cd "test dir" && source activate && ./runtests.sh --verbose
+      - name: "Compile and test"
+        run: cd "test dir" && source activate && ./runtests.sh --verbose
+        shell: bash
+      - name: "Compile the compiler with itself"
+        run: cd "test dir" && source activate && mv jou.exe jou_bootstrap.exe && mingw32-make
+        shell: bash
+      - name: "Compile and test again"
+        run: cd "test dir" && source activate && ./runtests.sh --verbose
         shell: bash
 
   test-zip:

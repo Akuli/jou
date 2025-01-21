@@ -24,7 +24,7 @@ jobs:
       - run: editorconfig-checker
 
   markdownlink-checker:
-    timeout-minutes: 1
+    timeout-minutes: 2
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,5 +32,4 @@ jobs:
         with:
             python-version: '3.13'
       - run: pip install requests
-      - name: "Check the links in the markdown files"
-        run: python check-markdown-links.py
+      - run: python check-markdown-links.py --retry=5
