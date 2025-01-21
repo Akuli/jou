@@ -53,7 +53,7 @@ for i in ${!commits[@]}; do
     $make clean
 done
 
-show_message "Copying ./jou_bootstrap$exe_suffix from temporary directory"
+show_message "Copying the bootstrapped compiler from temporary directory"
 
 cd ../..  # go out of tmp/bootstrap
 cp -v tmp/bootstrap/jou_bootstrap$exe_suffix .
