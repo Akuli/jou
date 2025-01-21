@@ -27,11 +27,7 @@ def handle_global_var(ft: FileTypes*, vardecl: AstNameTypeValue*, defined_here: 
     assert vardecl->value == NULL
     g = ft->add_global_var(vardecl->name, type_from_ast(ft, &vardecl->type), NULL)
     g->defined_in_current_file = defined_here
-
-    es = ExportSymbol{kind = ExportSymbolKind.GlobalVar, type = g->type}
-    assert sizeof(es.name) == sizeof(g->name)
-    strcpy(es.name, g->name)
-    return es
+    return ExportSymbol{kind = ExportSymbolKind.GlobalVar, type = g->type, name = g->name}
 
 
 def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*) -> Signature:

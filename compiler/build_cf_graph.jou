@@ -1043,17 +1043,17 @@ class CfBuilder:
         for i = 0; i < body->nstatements; i++:
             self->build_statement(&body->statements[i])
 
-    def build_function_or_method(self, selfclass: Type*, astfom: AstFunctionOrMethod*) -> CfGraph*:
-        # Methods are always public, so that you can call them whenever you have an instance
-        if selfclass != NULL:
+    def build_function_or_method(self, astfom: AstFunctionOrMethod*) -> CfGraph*:
+        assert self->fomtypes == NULL
+        self->fomtypes = &astfom->types
+
+        if self->fomtypes->signature.get_self_class() != NULL:
+            # Methods are always public, so that you can call them whenever you have an instance
             public = True
         else:
             public = astfom->public
 
         assert self->cfg == NULL
-
-        assert self->fomtypes == NULL
-        self->fomtypes = &astfom->types
 
         self->cfg = calloc(1, sizeof *self->cfg)
         self->cfg->public = public
@@ -1100,7 +1100,7 @@ def build_control_flow_graphs(ast: AstFile*) -> CfGraphFile:
 
         match stmt->kind:
             case AstStatementKind.FunctionDef:
-                g = builder.build_function_or_method(NULL, &stmt->function)
+                g = builder.build_function_or_method(&stmt->function)
                 result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
                 assert result.graphs != NULL
                 result.graphs[result.ngraphs++] = g
@@ -1109,7 +1109,7 @@ def build_control_flow_graphs(ast: AstFile*) -> CfGraphFile:
                 assert stmt->classdef.type != NULL
                 for m = stmt->classdef.members; m < &stmt->classdef.members[stmt->classdef.nmembers]; m++:
                     if m->kind == AstClassMemberKind.Method:
-                        g = builder.build_function_or_method(stmt->classdef.type, &m->method)
+                        g = builder.build_function_or_method(&m->method)
                         result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
                         assert result.graphs != NULL
                         result.graphs[result.ngraphs++] = g
