@@ -80,9 +80,9 @@ jobs:
           path: jou_bootstrap.exe
 
   build-zip:
+    needs: bootstrap
     runs-on: windows-latest
     timeout-minutes: 5
-    needs: bootstrap
     steps:
       - uses: actions/checkout@v4
       # TODO: figure out why --small doesn't work here
@@ -165,6 +165,24 @@ jobs:
           name: windows-zip
           path: jou.zip
 
+  test:
+    needs: bootstrap
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Add a space in the folder name to trigger bugs like #165
+          path: "test dir"
+      - uses: actions/download-artifact@v4
+        with:
+          name: bootstrapped
+          path: "test dir"
+      - run: cd "test dir" && ./windows_setup.sh --small
+        shell: bash
+      - run: cd "test dir" && source activate && ./runtests.sh --verbose
+        shell: bash
+
   test-zip:
     needs: build-zip
     runs-on: windows-latest
@@ -184,25 +202,8 @@ jobs:
       - run: cd jou && ./runtests.sh --dont-run-make --verbose
         shell: bash
 
-  test:
-    runs-on: windows-latest
-    timeout-minutes: 10
-    needs: bootstrap
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # Add a space in the folder name to trigger bugs like #165
-          path: "test dir"
-      - uses: actions/download-artifact@v4
-        with:
-          name: bootstrapped
-          path: "test dir"
-      - run: cd "test dir" && ./windows_setup.sh --small
-        shell: bash
-      - run: cd "test dir" && source activate && ./runtests.sh --verbose
-        shell: bash
-
   doctest:
+    needs: bootstrap
     runs-on: windows-latest
     timeout-minutes: 5
     steps:

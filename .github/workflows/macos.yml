@@ -9,7 +9,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 10
     strategy:
-      - uses: actions/checkout@v4  # TODO: upgrade to v4 in other places
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history
       - run: ./bootstrap.sh
@@ -20,6 +20,7 @@ jobs:
           path: jou_bootstrap.exe
 
   test:
+    needs: bootstrap
     runs-on: macos-latest
     timeout-minutes: 10
     strategy:
@@ -29,13 +30,16 @@ jobs:
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bootstrapped
       - run: brew install bash diffutils llvm@${{ matrix.llvm-version }}
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=/opt/homebrew/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config" >> $GITHUB_ENV
-      - run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
+      - name: "Compile and test"
+        run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
       - run: make clean
-
-      - name: Check that "make clean" deleted all files not committed to Git
+      - name: "Check that 'make clean' deleted all files not committed to Git"
         shell: bash
         run: |
           if [ "$(git status --porcelain --ignored)" != "" ]; then
@@ -44,9 +48,13 @@ jobs:
           fi
 
   doctest:
+    needs: bootstrap
     runs-on: macos-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bootstrapped
       - run: brew install bash diffutils llvm@15
       - run: ./doctest.sh
