@@ -30,8 +30,8 @@ See [issue #164](https://github.com/Akuli/jou/issues/164).
 
 | Name      | Example   | Size              | How to print  |
 |-----------|-----------|-------------------|---------------|
-| `float`   | `1.2f`    | 4 bytes (32 bits) | `%f`          |
-| `double`  | `1234S`   | 8 bytes (64 bits) | `%f`          |
+| `float`   | `12.34f`  | 4 bytes (32 bits) | `%f`          |
+| `double`  | `12.34`   | 8 bytes (64 bits) | `%f`          |
 
 When printing, floats are converted to doubles automatically,
 so the same `%f` works for both floating-point types.
@@ -77,11 +77,10 @@ because to do that, the compiler would need to know the size of the underlying v
 | an enum   | see [enums.md](enums.md)      | 4 bytes (32 bits)                 |
 | `bool`    | `True`, `False`               | 1 byte (8 bits)                   |
 
-Internally, enums are just `int`s.
-This means that if you cannot have more than `2147483647` members in the same enum,
-but if this ever becomes a problem, you're probably doing something wrong :)
+Once the program is compiled, enums basically become `int`s,
+and `bool`s become `byte`s (zero for `False`, one for `True`).
 
-Internally, a `bool` is one byte (zero or one),
+The size of a `bool` is one byte,
 because byte is the smallest unit that computers like to work with.
 This doesn't matter as much as you might think, but as usual,
 please create an issue if this becomes a problem for you.
