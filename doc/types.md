@@ -10,7 +10,14 @@ This page documents all types in the Jou programming language.
 | `byte`    | `'a'`     | 1 byte (8 bits)   | unsigned  | `%d`          | `0`                           | `255`                         |
 | `short`   | `1234S`   | 2 bytes (16 bits) | signed    | `%d`          | `-32_768`                     | `32_767`                      |
 | `int`     | `1234`    | 4 bytes (32 bits) | signed    | `%d`          | `-2_147_483_648`              | `2_147_483_647`               |
-| `long`    | `1234L`   | 8 bytes (64 bits) | signed    | `%ll`         | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
+| `long`    | `1234L`   | 8 bytes (64 bits) | signed    | `%lld`        | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
+
+Integers in Jou code may contain underscores.
+They are ignored, but they often make large numbers much more readable.
+
+Integers wrap around if you exceed their minimum/maximum values.
+For example, `(0 as byte) - (1 as byte)` produces `255 as byte`.
+It is not possible to invoke [UB](ub.md) by overflowing integers.
 
 When printing, `%d` can be used for anything smaller than `int`,
 because numbers smaller than `int` are automatically converted to `int`.
@@ -26,8 +33,8 @@ See [issue #164](https://github.com/Akuli/jou/issues/164).
 | `float`   | `1.2f`    | 4 bytes (32 bits) | `%f`          |
 | `double`  | `1234S`   | 8 bytes (64 bits) | `%f`          |
 
-Support for other combinations of sizes and signed/unsigned is planned, but not implemented.
-See [issue #164](https://github.com/Akuli/jou/issues/164).
+When printing, floats are converted to doubles automatically,
+so the same `%f` works for both floating-point types.
 
 
 ## Pointers and Arrays
@@ -72,4 +79,5 @@ but if this ever becomes a problem, you're probably doing something wrong :)
 
 Internally, a `bool` is one byte (zero or one),
 because byte is the smallest unit that computers like to work with.
-This doesn't matter as much as you might think it does.
+This doesn't matter as much as you might think, but as usual,
+please create an issue if this becomes a problem for you.
