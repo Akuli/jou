@@ -1100,7 +1100,6 @@ def build_control_flow_graphs(ast: AstFile*) -> CfGraphFile:
 
         match stmt->kind:
             case AstStatementKind.FunctionDef:
-                # TODO: pass in the whole stmt->function
                 g = builder.build_function_or_method(NULL, &stmt->function)
                 result.graphs = realloc(result.graphs, sizeof(result.graphs[0]) * (result.ngraphs + 1))
                 assert result.graphs != NULL

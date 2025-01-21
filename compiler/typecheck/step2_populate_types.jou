@@ -179,7 +179,6 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
             case AstStatementKind.GlobalVariableDef:
                 exports[nexports++] = handle_global_var(&ast->types, &stmt->var_declaration, True)
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
-                # TODO: what does this code do? can it be simplified?
                 sig = handle_signature(&ast->types, &stmt->function.ast_signature, NULL)
                 stmt->function.types.signature = sig
                 if stmt->function.public:
