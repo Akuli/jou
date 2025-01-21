@@ -1,0 +1,10 @@
+import "stdlib/io.jou"
+
+def main() -> int:
+    a = 1
+    b = 2
+    if not a != b:  # Warning: use 'foo == bar' instead of 'not foo != bar'
+        printf("Same\n")
+    if not a == b:  # Warning: use 'foo != bar' instead of 'not foo == bar'
+        printf("Different\n")  # Output: Different
+    return 0

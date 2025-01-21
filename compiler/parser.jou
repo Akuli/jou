@@ -740,6 +740,13 @@ class Parser:
 
         result = self->parse_expression_with_comparisons()
         if not_token != NULL:
+            match result.kind:
+                case AstExpressionKind.Eq:
+                    show_warning(result.location, "use 'foo != bar' instead of 'not foo == bar'")
+                case AstExpressionKind.Ne:
+                    show_warning(result.location, "use 'foo == bar' instead of 'not foo != bar'")
+                case _:
+                    pass
             result = build_operator_expression(not_token, 1, &result)
         return result
 
