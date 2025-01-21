@@ -69,7 +69,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       # TODO: figure out why --small doesn't work here
       - run: source activate && ./windows_setup.sh
         shell: bash
@@ -142,7 +142,7 @@ jobs:
       - name: Display size of jou.zip
         run: ls -lh jou.zip
         shell: bash
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: windows-zip
           path: jou.zip
@@ -151,7 +151,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           # Add a space in the folder name to trigger bugs like #165
           path: "test dir"
@@ -171,7 +171,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: ./windows_setup.sh --small
         shell: bash
       - run: source activate && ./doctest.sh
@@ -182,10 +182,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           path: repo
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: windows-zip
       - run: unzip jou.zip
