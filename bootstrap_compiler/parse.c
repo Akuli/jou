@@ -1125,28 +1125,26 @@ static AstStatement parse_statement(ParserState *ps)
         result.data.whileloop.body = parse_body(ps);
     } else if (is_keyword(ps->tokens, "for")) {
         ps->tokens++;
-
-        // Check if it's "for i in ..." loop, those are not supported
-        if (ps->tokens[0].type == TOKEN_NAME
-            && ps->tokens[1].type == TOKEN_NAME
-            && !strcmp(ps->tokens[1].data.name, "in"))
-        {
-            fail(ps->tokens[1].location, "Python-style for loops aren't supported. Use e.g. 'for i = 0; i < 10; i++'");
-        }
-
         result.kind = AST_STMT_FOR;
-        result.data.forloop.init = malloc(sizeof *result.data.forloop.init);
-        result.data.forloop.incr = malloc(sizeof *result.data.forloop.incr);
-        // TODO: improve error messages
-        *result.data.forloop.init = parse_oneline_statement(ps);
-        if (!is_operator(ps->tokens, ";"))
-            fail_with_parse_error(ps->tokens, "a ';'");
+        memset(&result.data.forloop, 0, sizeof(result.data.forloop));
+        if (!is_operator(ps->tokens, ";")){
+            result.data.forloop.init = malloc(sizeof *result.data.forloop.init);
+            *result.data.forloop.init = parse_oneline_statement(ps);
+            if (!is_operator(ps->tokens, ";"))
+                fail_with_parse_error(ps->tokens, "a ';'");
+        }
         ps->tokens++;
-        result.data.forloop.cond = parse_expression(ps);
-        if (!is_operator(ps->tokens, ";"))
-            fail_with_parse_error(ps->tokens, "a ';'");
+        if (!is_operator(ps->tokens, ";")) {
+            result.data.forloop.cond = malloc(sizeof *result.data.forloop.cond);
+            *result.data.forloop.cond = parse_expression(ps);
+            if (!is_operator(ps->tokens, ";"))
+                fail_with_parse_error(ps->tokens, "a ';'");
+        }
         ps->tokens++;
-        *result.data.forloop.incr = parse_oneline_statement(ps);
+        if (!is_operator(ps->tokens, ":")) {
+            result.data.forloop.incr = malloc(sizeof *result.data.forloop.incr);
+            *result.data.forloop.incr = parse_oneline_statement(ps);
+        }
         result.data.forloop.body = parse_body(ps);
     } else if (ps->tokens->type == TOKEN_NAME && is_operator(&ps->tokens[1], ",") && ps->tokens[2].type == TOKEN_NAME) {
         result.kind = AST_STMT_DECLARE_LOCAL_VAR;

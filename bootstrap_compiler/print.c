@@ -354,15 +354,21 @@ static void print_ast_statement(const AstStatement *stmt, struct TreePrinter tp)
             break;
         case AST_STMT_FOR:
             printf("for loop\n");
-            sub = print_tree_prefix(tp, false);
-            printf("init: ");
-            print_ast_statement(stmt->data.forloop.init, sub);
-            sub = print_tree_prefix(tp, false);
-            printf("cond: ");
-            print_ast_expression(&stmt->data.forloop.cond, sub);
-            sub = print_tree_prefix(tp, false);
-            printf("incr: ");
-            print_ast_statement(stmt->data.forloop.incr, sub);
+            if (stmt->data.forloop.init) {
+                sub = print_tree_prefix(tp, false);
+                printf("init: ");
+                print_ast_statement(stmt->data.forloop.init, sub);
+            }
+            if (stmt->data.forloop.cond) {
+                sub = print_tree_prefix(tp, false);
+                printf("cond: ");
+                print_ast_expression(stmt->data.forloop.cond, sub);
+            }
+            if (stmt->data.forloop.incr) {
+                sub = print_tree_prefix(tp, false);
+                printf("incr: ");
+                print_ast_statement(stmt->data.forloop.incr, sub);
+            }
             sub = print_tree_prefix(tp, true);
             printf("body:\n");
             print_ast_body(&stmt->data.forloop.body, sub);

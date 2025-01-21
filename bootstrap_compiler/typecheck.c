@@ -1317,12 +1317,15 @@ static void typecheck_statement(FileTypes *ft, AstStatement *stmt)
         break;
 
     case AST_STMT_FOR:
-        typecheck_statement(ft, stmt->data.forloop.init);
-        typecheck_expression_with_implicit_cast(
-            ft, &stmt->data.forloop.cond, boolType,
-            "'for' condition must be a boolean, not FROM");
+        if (stmt->data.forloop.init)
+            typecheck_statement(ft, stmt->data.forloop.init);
+        if (stmt->data.forloop.cond)
+            typecheck_expression_with_implicit_cast(
+                ft, stmt->data.forloop.cond, boolType,
+                "'for' condition must be a boolean, not FROM");
         typecheck_body(ft, &stmt->data.forloop.body);
-        typecheck_statement(ft, stmt->data.forloop.incr);
+        if (stmt->data.forloop.incr)
+            typecheck_statement(ft, stmt->data.forloop.incr);
         break;
 
     case AST_STMT_MATCH:

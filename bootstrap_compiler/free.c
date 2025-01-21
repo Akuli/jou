@@ -148,11 +148,18 @@ void free_ast_statement(const AstStatement *stmt)
         free_ast_body(&stmt->data.whileloop.body);
         break;
     case AST_STMT_FOR:
-        free_ast_statement(stmt->data.forloop.init);
-        free_expression(&stmt->data.forloop.cond);
-        free_ast_statement(stmt->data.forloop.incr);
-        free(stmt->data.forloop.init);
-        free(stmt->data.forloop.incr);
+        if (stmt->data.forloop.init) {
+            free_ast_statement(stmt->data.forloop.init);
+            free(stmt->data.forloop.init);
+        }
+        if (stmt->data.forloop.cond) {
+            free_expression(stmt->data.forloop.cond);
+            free(stmt->data.forloop.cond);
+        }
+        if (stmt->data.forloop.incr) {
+            free_ast_statement(stmt->data.forloop.incr);
+            free(stmt->data.forloop.incr);
+        }
         free_ast_body(&stmt->data.forloop.body);
         break;
     case AST_STMT_MATCH:

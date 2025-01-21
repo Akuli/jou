@@ -254,11 +254,9 @@ struct AstForLoop {
     /*
     for init; cond; incr:
         ...body...
-
-    init and incr must be pointers because this struct goes inside AstStatement.
     */
     AstStatement *init;
-    AstExpression cond;
+    AstExpression *cond;
     AstStatement *incr;
     AstBody body;
 };
