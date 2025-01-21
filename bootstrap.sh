@@ -15,9 +15,7 @@
 set -e -o pipefail
 
 commits=(
-    5a9722ab4235fd9b081613dd37c9666d2193413f  # last commit on main that contains the compiler written in C
-    7f6367c7a1ef89a723e165f41321da1a394fb048  # TODO: this is a test, remove
-    80afddef78ef55364c6d6f413a0c921a41c69e1d  # TODO: this is a test, remove
+    1c7ce74933aea8a8862fd1d4409735b9fb7a1d7e  # last commit on main that contains the compiler written in C
 )
 
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
