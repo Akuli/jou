@@ -286,7 +286,7 @@ static char *compile_ast_to_object_file(struct FileState *fs)
     return objpath;
 }
 
-static char *find_stdlib()
+static char *find_stdlib(void)
 {
     char *exe = find_current_executable();
 #ifdef _WIN32
