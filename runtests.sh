@@ -177,7 +177,7 @@ function should_skip()
 
     # When running valgrind, skip tests that are supposed to fail, because:
     #   - error handling is easier if you don't free memory (OS will do it)
-    #   - in Jou compilers, error handling is simple and not very likely to contain UB
+    #   - in the Jou compiler, error handling is simple and not very likely to contain UB
     #   - valgrinding is slow, this means we valgrind a lot less
     if [ $valgrind = yes ] && [ $correct_exit_code != 0 ]; then
         return 0
