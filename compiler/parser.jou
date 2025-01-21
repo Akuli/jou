@@ -774,6 +774,34 @@ class Parser:
     def parse_expression(self) -> AstExpression:
         return self->parse_expression_with_and_or()
 
+    def parse_expression_with_unnecessary_parens_warning(self, description_of_expr: byte*) -> AstExpression:
+        start = self->tokens
+        result = self->parse_expression_with_and_or()
+        end = &self->tokens[-1]
+
+        if (
+            start->is_operator("(")
+            and end->is_operator(")")
+            and start->location.lineno == end->location.lineno
+        ):
+            # Check if starting '(' is closed with a ')' before the end
+            depth = 1
+            closed_early = False
+            for p = &start[1]; p < end; p++:
+                if p->is_operator("("):
+                    depth++
+                if p->is_operator(")"):
+                    depth--
+                    if depth == 0:
+                        closed_early = True
+                        break
+            if not closed_early:
+                msg: byte[500]
+                snprintf(msg, sizeof(msg), "parentheses around %s are unnecessary", description_of_expr)
+                show_warning(start->location, msg)
+
+        return result
+
     # does not eat a trailing newline
     def parse_oneline_statement(self) -> AstStatement:
         result = AstStatement{ location = self->tokens->location }
@@ -830,7 +858,7 @@ class Parser:
         assert self->tokens->is_keyword("if")
         while True:
             self->tokens++
-            cond = self->parse_expression()
+            cond = self->parse_expression_with_unnecessary_parens_warning("if statement condition")
             body = self->parse_body()
             ifs_and_elifs = realloc(ifs_and_elifs, sizeof ifs_and_elifs[0] * (n+1))
             ifs_and_elifs[n++] = AstConditionAndBody{condition = cond, body = body}
@@ -852,7 +880,7 @@ class Parser:
     def parse_while_loop(self) -> AstConditionAndBody:
         assert self->tokens->is_keyword("while")
         self->tokens++
-        cond = self->parse_expression()
+        cond = self->parse_expression_with_unnecessary_parens_warning("while loop condition")
         self->loop_counter++
         body = self->parse_body()
         self->loop_counter--
