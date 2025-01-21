@@ -72,6 +72,8 @@ jobs:
       - uses: actions/checkout@v4  # TODO: upgrade to v4 in other places
         with:
           fetch-depth: 0  # Fetch the whole Git history
+      - run: ./windows_setup.sh
+        shell: bash
       - run: ./bootstrap.sh
         shell: bash
       - uses: actions/upload-artifact@v4
