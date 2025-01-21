@@ -67,9 +67,6 @@ to help `clangd` find the LLVM header files.
 
 ## How does the compiler work?
 
-There are two compilers. See [the README](README.md#compilers) for an explanation.
-The compilers work very similarly even though they are written in different languages.
-
 At a high level, the compilation steps are:
 - **Tokenize:** split the source code into tokens
 - **Parse:** build an abstract syntax tree (AST) from the tokens
