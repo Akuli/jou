@@ -1,0 +1,135 @@
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+import "./evaluate.jou"
+import "./cf_graph.jou"
+import "./llvm.jou"
+import "./target.jou"
+import "./types.jou"
+import "./types_in_ast.jou"
+import "./constants.jou"
+
+
+# LLVM doesn't have a built-in union type, and you're supposed to abuse other types for that:
+# https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/basic-constructs/unions.html
+#
+# My first idea was to use an array of bytes that is big enough to fit anything.
+# However, that might not be aligned properly.
+#
+# Then I tried choosing the member type that has the biggest align, and making a large enough array of it.
+# Because the align is always a power of two, the memory will be suitably aligned for all member types.
+# But it didn't work for some reason I still don't understand.
+#
+# Then I figured out how clang does it and did it the same way.
+# We make a struct that contains:
+# - the most aligned type as chosen before
+# - array of i8 as padding to make it the right size.
+# But for some reason that didn't work either.
+#
+# As a "last resort" I just use an array of i64 large enough and hope it's aligned as needed.
+def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
+    # For some reason uncommenting this makes stuff compile almost 2x slower...
+    #if ntypes == 1:
+    #    return types[0]
+
+    sizeneeded = 0L
+    for i = 0; i < ntypes; i++:
+        size1 = LLVMABISizeOfType(target.target_data, types[i])
+        size2 = LLVMStoreSizeOfType(target.target_data, types[i])
+
+        # If this assert fails, you need to figure out which of the size functions should be used.
+        # I don't know what their difference is.
+        # And if you need the alignment, there's 3 different functions for that...
+        assert size1 == size2
+        sizeneeded = llmax(sizeneeded, size1)
+
+    return LLVMArrayType(LLVMInt64Type(), ((sizeneeded+7)/8) as int)
+
+
+def class_type_to_llvm(type: Type*) -> LLVMType*:
+    assert type->kind == TypeKind.Class
+
+    n = type->classdata.nfields
+
+    flat_elems: LLVMType** = malloc(sizeof(flat_elems[0]) * n)
+    for i = 0; i < n; i++:
+        flat_elems[i] = codegen_type(type->classdata.fields[i].type)
+
+    # Combine together fields of the same union.
+    combined: LLVMType** = malloc(sizeof(combined[0]) * n)
+    combinedlen = 0
+    for start = 0; start < n; start = end:
+        end = start + 1
+        while end < n and type->classdata.fields[start].union_id == type->classdata.fields[end].union_id:
+            end++
+        combined[combinedlen++] = union_type_to_llvm(&flat_elems[start], end-start)
+
+    result = LLVMStructType(combined, combinedlen, False as int)
+    free(flat_elems)
+    free(combined)
+    return result
+
+
+@public
+def type_to_llvm(type: Type*) -> LLVMType*:
+    match type->kind:
+        case TypeKind.Array:
+            return LLVMArrayType(type_to_llvm(type->array.item_type), type->array.len)
+        case TypeKind.Pointer | TypeKind.VoidPointer:
+            # Element type doesn't matter in new LLVM versions.
+            return LLVMPointerType(LLVMInt8Type(), 0)
+        case TypeKind.FloatingPoint:
+            if type->size_in_bits == 32:
+                return LLVMFloatType()
+            if type->size_in_bits == 64:
+                return LLVMDoubleType()
+            assert False
+        case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+            return LLVMIntType(type->size_in_bits)
+        case TypeKind.Bool:
+            return LLVMInt1Type()
+        case TypeKind.OpaqueClass:
+            # this is compiler internal/temporary thing and should never end up here
+            assert False
+        case TypeKind.Class:
+            return class_type_to_llvm(type)
+        case TypeKind.Enum:
+            return LLVMInt32Type()
+
+
+@public
+def signature_to_llvm(sig: Signature*) -> LLVMType*:
+    assert sig->nargs <= 100
+    argtypes: LLVMType*[100]
+    for i = 0; i < sig->nargs; i++:
+        argtypes[i] = codegen_type(sig->argtypes[i])
+
+    # TODO: tell llvm, if we know a function is noreturn ?
+    if sig->returntype == NULL:  # "-> noreturn" or "-> None"
+        returntype = LLVMVoidType()
+    else:
+        returntype = codegen_type(sig->returntype)
+
+    return LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs as int)
+
+
+@public
+def build_llvm_signed_mod(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*) -> LLVMValue*:
+    # Jou's % operator ensures that a%b has same sign as b:
+    # jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
+    llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp")
+    sum = LLVMBuildAdd(builder, llmod, rhs, "smod_tmp")
+    return LLVMBuildSRem(builder, sum, rhs, "smod")
+
+
+@public
+def build_llvm_signed_div(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*) -> LLVMValue*:
+    # LLVM's provides two divisions. One truncates, the other is an "exact div"
+    # that requires there is no remainder. Jou uses floor division which is
+    # neither of the two, but is quite easy to implement:
+    #
+    #    floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
+    #
+    top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp")
+    return LLVMBuildExactSDiv(builder, top, rhs, "sdiv")
