@@ -240,3 +240,13 @@ class Builder:
             case _:
                 assert False
         return BuilderValue{type = a->type, llvm_value = llvm_mod}
+
+    def memset_to_zero(self, ptr: BuilderValue) -> None:
+        assert ptr->type->kind == TypeKind.Pointer
+        size = LLVMSizeOf(type_to_llvm(ptr->type->value_type))
+        zero_byte = LLVMConstInt(LLVMInt8Type(), 0, False as int)
+        LLVMBuildMemSet(self->builder, ptr.llvm_value, zero_byte, size, 0)
+
+    def cast(self, value: BuilderValue, to: Type*) -> BuilderValue:
+        llvm_result = build_llvm_cast(self->llvm_builder, value, value->type, to)
+        return BuilderValue{type = to, llvm_value = llvm_result}
