@@ -36,7 +36,6 @@ class Builder:
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
     llvm_func: LLVMValue*
-    signature: Signature*
 
     # TODO: Everything named legacy_llvm14_cast can be removed once we drop LLVM 14 support
     #       Needed due to LLVM opaque pointer types transition
@@ -315,3 +314,15 @@ class Builder:
     # set_current_block() before the builder is usable again.
     def jump(self, next_block: BuilderBlock) -> None:
         LLVMBuildBr(self->llvm_builder, next_block.llvm_block)
+
+    # Add an instruction that should never run.
+    # May be used by optimizer, but also tells LLVM that the block ends here.
+    def unreachable(self) -> None:
+        LLVMBuildUnreachable(self->llvm_builder)
+
+    # Return from function/method. Value should be NULL if the function is '-> None'.
+    def ret(self, value: BuilderValue*) -> None:
+        if value == NULL:
+            LLVMBuildRetVoid(self->llvm_builder)
+        else:
+            LLVMBuildRet(self->llvm_builder, value->llvm_value)
