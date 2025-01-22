@@ -17,7 +17,14 @@ class LocalVar:
     # if they are never reassigned. LLVM will optimize the mess.
     ptr: BuilderValue
 
-class State:
+
+# TODO: delete this function
+def type_of_expr(expr: AstExpression*) -> Type*:
+    assert expr->types.implicit_cast_type != NULL
+    return expr->types.implicit_cast_type
+
+
+class AstToIR:
     builder: Builder
     filetypes: FileTypes*
     is_main_file: bool  # TODO: do we need this?
@@ -29,440 +36,193 @@ class State:
     breaks: BuilderBlock*[20]
     continues: BuilderBlock*[20]
 
-#static BuilderValue build_expression(struct State *st, const AstExpression *expr);
-#static BuilderValue build_address_of_expression(struct State *st, const AstExpression *expr);
-#static void build_statement(struct State *st, const AstStatement *stmt);
-#static void build_body(struct State *st, const AstBody *body);
+    def local_var_exists(self, name: byte*) -> bool:
+        for i = 0; i < self->nlocals; i++:
+            if strcmp(self->locals[i].name, name) == 0:
+                return True
+        return False
 
-static bool local_var_exists(const struct State *st, const char *name)
-{
-    for (int i = 0; i < st->nlocals; i++)
-        if (!strcmp(st->locals[i].name, name))
-            return true;
-    return false;
-}
+    def local_var_ptr(self, name: byte*) -> BuilderValue:
+        for i = 0; i < self->nlocals; i++:
+            if strcmp(self->locals[i].name, name) == 0:
+                return self->locals[i].ptr
+        assert False
 
-static const struct LocalVar *get_local_var(const struct State *st, const char *name)
-{
-    for (int i = 0; i < st->nlocals; i++)
-        if (!strcmp(st->locals[i].name, name))
-            return &st->locals[i];
-    assert(false);
-}
+    def build_function_call(self, call: AstCall*) -> BuilderValue:
+        assert call->nargs <= 100
+        args: BuilderValue[100]
+        for i = 0; i < call->nargs; i++:
+            args[i] = self->build_expression(&call->args[i])
+        return self->builder.call(call->types.signature, args, call->nargs)
 
-// TODO: delete this function
-static const Type *type_of_expr(const AstExpression *expr)
-{
-    assert(expr->types.implicit_cast_type);
-    return expr->types.implicit_cast_type;
-}
+    def build_method_call(self, call: AstCall*, self_expr: AstExpression*) -> BuilderValue:
+        assert self_expr != NULL
 
+        selfclass = type_of_expr(self_expr)
+        self_is_a_pointer = selfclass->kind == TypeKind.Pointer
+        if self_is_a_pointer:
+            selfclass = selfclass->value_type
+        assert selfclass->kind == TypeKind.Class
 
-static Type* signature_to_llvm(const Signature *sig)
-{
-    Type* *argtypes = malloc(sizeof(argtypes[0]) * sig->nargs);
-    for (int i = 0; i < sig->nargs; i++)
-        argtypes[i] = type_to_llvm(sig->argtypes[i]);
+        # TODO: can we get signature from the AST `call`?
+        sig: Signature* = NULL
+        for s = selfclass->classdata.methods; s < &selfclass->classdata.methods[selfclass->classdata.nmethods]; s++:
+            assert s->get_self_class() == selfclass
+            if strcmp(s->name, call->calledname) == 0:
+                sig = s
+                break
+        assert sig != NULL
 
-    Type* returntype;
-    if (sig->returntype == NULL)
-        returntype = LLVMVoidType();
-    else
-        returntype = type_to_llvm(sig->returntype);
+        # leave room for self
+        assert call->nargs <= 99
+        args: BuilderValue[100]
 
-    Type* result = LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs);
-    free(argtypes);
-    return result;
-}
+        k = 0
 
-static BuilderValue declare_function_or_method(const struct State *st, const Signature *sig)
-{
-    char fullname[200];
-    if (get_self_class(sig))
-        snprintf(fullname, sizeof fullname, "%s.%s", get_self_class(sig)->name, sig->name);
-    else
-        safe_strcpy(fullname, sig->name);
-
-    // Make it so that this can be called many times without issue
-    BuilderValue func = LLVMGetNamedFunction(st->module, fullname);
-    if (func)
-        return func;
-
-    return LLVMAddFunction(st->module, fullname, signature_to_llvm(sig));
-}
-
-def build_function_call(st: State*, call: AstCall*) -> BuilderValue:
-    assert(call->nargs <= 100)
-    args: BuilderValue[100]
-    for i = 0; i < call->nargs; i++:
-        args[i] = build_expression(st, &call->args[i])
-    return st->builder.call(call->types.signature, args)
-
-
-static BuilderValue build_method_call(struct State *st, const AstCall *call, const AstExpression *self)
-{
-    assert(self);
-
-    const Type *selfclass = type_of_expr(self);
-    bool self_is_a_pointer = selfclass->kind == TYPE_POINTER;
-    if (self_is_a_pointer)
-        selfclass = selfclass->data.valuetype;
-    assert(selfclass->kind == TYPE_CLASS);
-
-    const Signature *sig = NULL;
-    for (const Signature *s = selfclass->data.classdata.methods.ptr; s < End(selfclass->data.classdata.methods); s++) {
-        assert(get_self_class(s) == selfclass);
-        if (!strcmp(s->name, call->calledname)) {
-            sig = s;
-            break;
-        }
-    }
-    assert(sig);
-
-    // leave room for self
-    assert(call->nargs <= 45);
-    BuilderValue args[50];
-
-    int k = 0;
-
-    if (sig->argtypes[0] == get_pointer_type(selfclass) && type_of_expr(self) == selfclass) {
-        // take address to pass self as pointer
-        args[k++] = build_address_of_expression(st, self);
-    } else if (sig->argtypes[0] == selfclass && type_of_expr(self) == get_pointer_type(selfclass)) {
-        // dereference to pass self by value
-        BuilderValue self_ptr = build_expression(st, self);
-        args[k++] = LLVMBuildLoad2(st->builder, type_to_llvm(selfclass), self_ptr, "self");
-    } else {
-        assert(sig->argtypes[0] == type_of_expr(self));
-        args[k++] = build_expression(st, self);
-    }
-
-    for (int i = 0; i < call->nargs; i++)
-        args[k++] = build_expression(st, &call->args[i]);
-
-    char debug_name[100] = "";
-    if (sig->returntype != NULL)
-        snprintf(debug_name, sizeof(debug_name), "%s_return_value", sig->name);
-
-    BuilderValue func = declare_function_or_method(st, sig);
-    Type* functype = signature_to_llvm(sig);
-
-    return LLVMBuildCall2(st->builder, functype, func, args, k, debug_name);
-}
-
-static BuilderValue build_string_constant(const struct State *st, const char *s)
-{
-    BuilderValue array = LLVMConstString(s, strlen(s), false);
-    BuilderValue global_var = LLVMAddGlobal(st->module, LLVMTypeOf(array), "string_literal");
-    LLVMSetLinkage(global_var, LLVMPrivateLinkage);  // This makes it a static global variable
-    LLVMSetInitializer(global_var, array);
-
-    Type* string_type = LLVMPointerType(LLVMInt8Type(), 0);
-    return LLVMBuildBitCast(st->builder, global_var, string_type, "string_ptr");
-}
-
-static BuilderValue build_constant(const struct State *st, const Constant *c)
-{
-    switch(c->kind) {
-    case CONSTANT_BOOL:
-        return LLVMConstInt(LLVMInt1Type(), c->data.boolean, false);
-    case CONSTANT_INTEGER:
-        return LLVMConstInt(type_to_llvm(type_of_constant(c)), c->data.integer.value, c->data.integer.is_signed);
-    case CONSTANT_FLOAT:
-    case CONSTANT_DOUBLE:
-        return LLVMConstRealOfString(type_to_llvm(type_of_constant(c)), c->data.double_or_float_text);
-    case CONSTANT_NULL:
-        return LLVMConstNull(type_to_llvm(voidPtrType));
-    case CONSTANT_STRING:
-        return build_string_constant(st, c->data.str);
-    case CONSTANT_ENUM_MEMBER:
-        return LLVMConstInt(LLVMInt32Type(), c->data.enum_member.memberidx, false);
-    }
-    assert(0);
-}
-
-static BuilderValue build_signed_mod(LLVMBuilderRef builder, BuilderValue lhs, BuilderValue rhs)
-{
-    // Jou's % operator ensures that a%b has same sign as b:
-    // jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
-    BuilderValue llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp");
-    BuilderValue sum = LLVMBuildAdd(builder, llmod, rhs, "smod_tmp");
-    return LLVMBuildSRem(builder, sum, rhs, "smod");
-}
-
-static BuilderValue build_signed_div(LLVMBuilderRef builder, BuilderValue lhs, BuilderValue rhs)
-{
-    /*
-    LLVM's provides two divisions. One truncates, the other is an "exact div"
-    that requires there is no remainder. Jou uses floor division which is
-    neither of the two, but is quite easy to implement:
-
-        floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
-    */
-    BuilderValue top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp");
-    return LLVMBuildExactSDiv(builder, top, rhs, "sdiv");
-}
-
-static BuilderValue build_binop(
-    struct State *st,
-    enum AstExpressionKind op,
-    BuilderValue lhs,
-    const Type *lhstype,
-    BuilderValue rhs,
-    const Type *rhstype)
-{
-    // Always treat enums as integers
-    if (lhstype->kind == TYPE_ENUM)
-        lhstype = intType;
-    if (rhstype->kind == TYPE_ENUM)
-        rhstype = intType;
-
-    bool got_bools = lhstype == boolType && rhstype == boolType;
-    bool got_numbers = is_number_type(lhstype) && is_number_type(rhstype);
-    bool got_ints = is_integer_type(lhstype) && is_integer_type(rhstype);
-    bool got_uints = lhstype->kind == TYPE_UNSIGNED_INTEGER && rhstype->kind == TYPE_UNSIGNED_INTEGER;
-    bool got_pointers = is_pointer_type(lhstype) && is_pointer_type(rhstype);
-
-    assert(got_bools || got_numbers || got_pointers);
-    if (got_uints)
-        assert(got_ints);
-    if (got_ints)
-        assert(got_numbers);
-
-    if (got_uints || got_bools) {
-        switch(op) {
-            case AST_EXPR_EQ: return LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "ueq");
-            case AST_EXPR_NE: return LLVMBuildICmp(st->builder, LLVMIntNE, lhs, rhs, "une");
-            case AST_EXPR_GT: return LLVMBuildICmp(st->builder, LLVMIntUGT, lhs, rhs, "ugt");
-            case AST_EXPR_GE: return LLVMBuildICmp(st->builder, LLVMIntUGE, lhs, rhs, "uge");
-            case AST_EXPR_LT: return LLVMBuildICmp(st->builder, LLVMIntULT, lhs, rhs, "ult");
-            case AST_EXPR_LE: return LLVMBuildICmp(st->builder, LLVMIntULE, lhs, rhs, "ule");
-            case AST_EXPR_ADD: return LLVMBuildAdd(st->builder, lhs, rhs, "uadd");
-            case AST_EXPR_SUB: return LLVMBuildSub(st->builder, lhs, rhs, "usub");
-            case AST_EXPR_MUL: return LLVMBuildMul(st->builder, lhs, rhs, "umul");
-            case AST_EXPR_DIV: return LLVMBuildUDiv(st->builder, lhs, rhs, "udiv");
-            case AST_EXPR_MOD: return LLVMBuildURem(st->builder, lhs, rhs, "urem");
-            default: assert(0);
-        }
-    }
-
-    if (got_ints) {
-        assert(!got_uints);
-        switch(op) {
-            case AST_EXPR_EQ: return LLVMBuildICmp(st->builder, LLVMIntEQ, lhs, rhs, "ieq");
-            case AST_EXPR_NE: return LLVMBuildICmp(st->builder, LLVMIntNE, lhs, rhs, "ine");
-            case AST_EXPR_GT: return LLVMBuildICmp(st->builder, LLVMIntSGT, lhs, rhs, "igt");
-            case AST_EXPR_GE: return LLVMBuildICmp(st->builder, LLVMIntSGE, lhs, rhs, "ige");
-            case AST_EXPR_LT: return LLVMBuildICmp(st->builder, LLVMIntSLT, lhs, rhs, "ilt");
-            case AST_EXPR_LE: return LLVMBuildICmp(st->builder, LLVMIntSLE, lhs, rhs, "ile");
-            case AST_EXPR_ADD: return LLVMBuildAdd(st->builder, lhs, rhs, "iadd");
-            case AST_EXPR_SUB: return LLVMBuildSub(st->builder, lhs, rhs, "isub");
-            case AST_EXPR_MUL: return LLVMBuildMul(st->builder, lhs, rhs, "imul");
-            case AST_EXPR_DIV: return build_signed_div(st->builder, lhs, rhs);
-            case AST_EXPR_MOD: return build_signed_mod(st->builder, lhs, rhs);
-            default: assert(0);
-        }
-    }
-
-    if (got_numbers) {
-        assert(!got_ints);
-        switch(op) {
-            case AST_EXPR_EQ: return LLVMBuildFCmp(st->builder, LLVMRealOEQ, lhs, rhs, "feq");
-            case AST_EXPR_NE: return LLVMBuildFCmp(st->builder, LLVMRealONE, lhs, rhs, "fne");
-            case AST_EXPR_GT: return LLVMBuildFCmp(st->builder, LLVMRealOGT, lhs, rhs, "fgt");
-            case AST_EXPR_GE: return LLVMBuildFCmp(st->builder, LLVMRealOGE, lhs, rhs, "fge");
-            case AST_EXPR_LT: return LLVMBuildFCmp(st->builder, LLVMRealOLT, lhs, rhs, "flt");
-            case AST_EXPR_LE: return LLVMBuildFCmp(st->builder, LLVMRealOLE, lhs, rhs, "fle");
-            case AST_EXPR_ADD: return LLVMBuildFAdd(st->builder, lhs, rhs, "fadd");
-            case AST_EXPR_SUB: return LLVMBuildFSub(st->builder, lhs, rhs, "fsub");
-            case AST_EXPR_MUL: return LLVMBuildFMul(st->builder, lhs, rhs, "fmul");
-            case AST_EXPR_DIV: return LLVMBuildFDiv(st->builder, lhs, rhs, "fdiv");
-            case AST_EXPR_MOD: return LLVMBuildFRem(st->builder, lhs, rhs, "fmod");
-            default: assert(0);
-        }
-    }
-
-    assert(0);
-}
-
-static void build_inplace_binop(
-    struct State *st,
-    enum AstExpressionKind op,
-    const AstExpression *lhs,
-    const AstExpression *rhs)
-{
-    BuilderValue lhsptr = build_address_of_expression(st, lhs);
-    BuilderValue rhsvalue = build_expression(st, rhs);
-
-    BuilderValue old_value = LLVMBuildLoad2(st->builder, type_to_llvm(type_of_expr(lhs)), lhsptr, "old_value");
-    BuilderValue new_value = build_binop(st, op, old_value, type_of_expr(lhs), rhsvalue, type_of_expr(rhs));
-    store(st->builder, new_value, lhsptr);
-}
-
-static BuilderValue build_class_field_pointer(struct State *st, const Type *classtype, BuilderValue instanceptr, const char *fieldname)
-{
-    for (struct ClassField *f = classtype->data.classdata.fields.ptr; f < End(classtype->data.classdata.fields); f++)
-        if (!strcmp(f->name, fieldname))
-            return struct_gep(st->builder, type_to_llvm(classtype), instanceptr, f->union_id, fieldname);
-
-    assert(0);
-}
-
-static BuilderValue build_brace_init(struct State *st, const AstCall *call)
-{
-    const Type *classtype = NULL;
-    for (const Type **t = st->filetypes->types.ptr; t < End(st->filetypes->types); t++) {
-        if (!strcmp((*t)->name, call->calledname)) {
-            classtype = *t;
-            break;
-        }
-    }
-
-    assert(classtype != NULL);
-    assert(classtype->kind == TYPE_CLASS);
-
-    BuilderValue ptr = stack_alloc(st->builder, type_to_llvm(classtype), "new_instance_ptr");
-
-    BuilderValue size = LLVMSizeOf(type_to_llvm(classtype));
-    LLVMBuildMemSet(st->builder, ptr, LLVMConstInt(LLVMInt8Type(), 0, false), size, 0);
-
-    for (int i = 0; i < call->nargs; i++) {
-        BuilderValue fieldptr = build_class_field_pointer(st, classtype, ptr, call->argnames[i]);
-        BuilderValue fieldval = build_expression(st, &call->args[i]);
-        store(st->builder, fieldval, fieldptr);
-    }
-
-    return LLVMBuildLoad2(st->builder, type_to_llvm(classtype), ptr, "new_instance");
-}
-
-static BuilderValue build_cast(struct State *st, BuilderValue obj, const Type *from, const Type *to)
-{
-    assert(from != NULL);
-    assert(to != NULL);
-
-    // Always treat enums as ints
-    if (from->kind == TYPE_ENUM)
-        from = intType;
-    if (to->kind == TYPE_ENUM)
-        to = intType;
-
-    if (from == to)
-        return obj;
-
-    if (is_pointer_type(from) && is_pointer_type(to)) {
-        // All pointers are the same type in LLVM
-        return obj;
-    }
-
-    if (is_number_type(from) && is_number_type(to)) {
-        if (is_integer_type(from) && is_integer_type(to)) {
-            // Examples:
-            //  signed 8-bit 0xFF (-1) --> 16-bit 0xFFFF (-1 or max value)
-            //  unsigned 8-bit 0xFF (255) --> 16-bit 0x00FF (255)
-            return LLVMBuildIntCast2(st->builder, obj, type_to_llvm(to), from->kind == TYPE_SIGNED_INTEGER, "cast");
-        }
-        if (is_integer_type(from) && to->kind == TYPE_FLOATING_POINT) {
-            // integer --> double/float
-            if (from->kind == TYPE_SIGNED_INTEGER)
-                return LLVMBuildSIToFP(st->builder, obj, type_to_llvm(to), "cast");
-            else
-                return LLVMBuildUIToFP(st->builder, obj, type_to_llvm(to), "cast");
-        }
-        if (from->kind == TYPE_FLOATING_POINT && is_integer_type(to)) {
-            // double/float --> integer
-            if (to->kind == TYPE_SIGNED_INTEGER)
-                return LLVMBuildFPToSI(st->builder, obj, type_to_llvm(to), "cast");
-            else
-                return LLVMBuildFPToUI(st->builder, obj, type_to_llvm(to), "cast");
-        }
-        if (from->kind == TYPE_FLOATING_POINT && to->kind == TYPE_FLOATING_POINT) {
-            // double/float --> double/float
-            return LLVMBuildFPCast(st->builder, obj, type_to_llvm(to), "cast");
-        }
-        assert(0);
-    }
-
-    if (is_integer_type(from) && is_pointer_type(to))
-        return LLVMBuildIntToPtr(st->builder, obj, type_to_llvm(to), "cast");
-    if (is_pointer_type(from) && is_integer_type(to))
-        return LLVMBuildPtrToInt(st->builder, obj, type_to_llvm(to), "cast");
-
-    if (from == boolType && is_integer_type(to))
-        return LLVMBuildIntCast2(st->builder, obj, type_to_llvm(to), false, "cast");
-
-    printf("unimpl cast %s --> %s\n", from->name, to->name);
-    assert(0);
-}
-
-static BuilderValue build_and(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr)
-{
-    /*
-    Must be careful with side effects.
-
-        # lhs returning False means we don't evaluate rhs
-        if lhs:
-            result = rhs
+        if sig->argtypes[0] == selfclass->pointer_type() and type_of_expr(self_expr) == selfclass:
+            # take address to pass self_expr as pointer
+            args[k++] = self->build_address_of_expression(self_expr)
+        elif sig->argtypes[0] == selfclass and type_of_expr(self_expr) == get_pointer_type(selfclass):
+            # dereference to pass self_expr by value
+            args[k++] = self->builder.dereference(self->build_expression(self_expr))
         else:
-            result = False
-    */
-    LLVMBasicBlockRef lhstrue = LLVMAppendBasicBlock(st->llvm_func, "lhstrue");
-    LLVMBasicBlockRef lhsfalse = LLVMAppendBasicBlock(st->llvm_func, "lhsfalse");
-    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
+            assert sig->argtypes[0] == type_of_expr(self_expr)
+            args[k++] = self->build_expression(self_expr)
 
-    BuilderValue resultptr = stack_alloc(st->builder, type_to_llvm(boolType), "and_ptr");
+        for i = 0; i < call->nargs; i++:
+            args[k++] = self->build_expression(&call->args[i])
 
-    // if lhs:
-    LLVMBuildCondBr(st->builder, build_expression(st, lhsexpr), lhstrue, lhsfalse);
-    LLVMPositionBuilderAtEnd(st->builder, lhstrue);
-    // result = rhs
-    store(st->builder, build_expression(st, rhsexpr), resultptr);
-    // end if
-    LLVMBuildBr(st->builder, done);
-    // else:
-    LLVMPositionBuilderAtEnd(st->builder, lhsfalse);
-    // result = False
-    store(st->builder, LLVMConstInt(LLVMInt1Type(), false, false), resultptr);
-    // end else
-    LLVMBuildBr(st->builder, done);
-    LLVMPositionBuilderAtEnd(st->builder, done);
+        return self->builder.call(sig, args, k)
 
-    return LLVMBuildLoad2(st->builder, LLVMInt1Type(), resultptr, "and");
-}
+    def build_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
+        match op:
+            case AstExpressionKind.Eq:
+                return self->builder.eq(lhs, rhs)
+            case AstExpressionKind.Ne:
+                return self->builder.not_(self->builder.eq(lhs, rhs))
+            case AstExpressionKind.Lt:
+                return self->builder.lt(lhs, rhs)
+            case AstExpressionKind.Gt:
+                return self->builder.lt(rhs, lhs)
+            case AstExpressionKind.Le:
+                return self->builder.not_(self->builder.lt(rhs, lhs))
+            case AstExpressionKind.Ge:
+                return self->builder.not_(self->builder.lt(lhs, rhs))
+            case AstExpressionKind.Add:
+                return self->builder.add(lhs, rhs)
+            case AstExpressionKind.Sub:
+                return self->builder.sub(lhs, rhs)
+            case AstExpressionKind.Mul:
+                return self->builder.mul(lhs, rhs)
+            case AstExpressionKind.Div:
+                return self->builder.div(lhs, rhs)
+            case AstExpressionKind.Mod:
+                return self->builder.mod(lhs, rhs)
+            case _:
+                assert False
 
-static BuilderValue build_or(struct State *st, const AstExpression *lhsexpr, const AstExpression *rhsexpr)
-{
-    /*
-    Must be careful with side effects.
+    def build_inplace_binop(self, op: AstExpressionKind, lhs: AstExpression*, rhs: AstExpression*) -> None:
+        lhs_ptr = self->build_address_of_expression(lhs)
+        rhs_value = self->build_expression(rhs)
+        old_value = self->builder.dereference(lhs_ptr)
+        new_value = self->build_binop(old_value, rhs_value)
+        self->builder.set_ptr(lhs_ptr, new_value)
 
-        # lhs returning True means we don't evaluate rhs
-        if lhs:
-            result = True
-        else:
-            result = rhs
-    */
-    LLVMBasicBlockRef lhstrue = LLVMAppendBasicBlock(st->llvm_func, "lhstrue");
-    LLVMBasicBlockRef lhsfalse = LLVMAppendBasicBlock(st->llvm_func, "lhsfalse");
-    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
+    # TODO: delete this method
+    def build_class_field_pointer(self, instanceptr: BuilderValue, fieldname: byte*) -> BuilderValue:
+        return self->builder->struct_gep(instanceptr, fieldname)
 
-    BuilderValue resultptr = stack_alloc(st->builder, type_to_llvm(boolType), "or_ptr");
+    def build_brace_init(self, inst: AstInstantiation*) -> BuilderValue:
+        # TODO: need some way to access the type being instantiated
+        assert False
+        #        classtype = NULL
+        #        for t = self->filetypes->types.ptr; t < End(st->filetypes->types); t++) {
+        #        if (!strcmp((*t)->name, call->calledname)) {
+        #            classtype = *t;
+        #            break;
+        #        }
+        #    }
+        #
+        #    assert(classtype != NULL);
+        #    assert(classtype->kind == TYPE_CLASS);
+        #
+        #    BuilderValue ptr = stack_alloc(st->builder, type_to_llvm(classtype), "new_instance_ptr");
+        #
+        #    BuilderValue size = LLVMSizeOf(type_to_llvm(classtype));
+        #    LLVMBuildMemSet(st->builder, ptr, LLVMConstInt(LLVMInt8Type(), 0, false), size, 0);
+        #
+        #    for (int i = 0; i < call->nargs; i++) {
+        #        BuilderValue fieldptr = build_class_field_pointer(st, classtype, ptr, call->argnames[i]);
+        #        BuilderValue fieldval = build_expression(st, &call->args[i]);
+        #        store(st->builder, fieldval, fieldptr);
+        #    }
+        #
+        #    return LLVMBuildLoad2(st->builder, type_to_llvm(classtype), ptr, "new_instance");
+        #}
 
-    // if lhs:
-    LLVMBuildCondBr(st->builder, build_expression(st, lhsexpr), lhstrue, lhsfalse);
-    LLVMPositionBuilderAtEnd(st->builder, lhstrue);
-    // result = True
-    store(st->builder, LLVMConstInt(LLVMInt1Type(), true, false), resultptr);
-    // end if
-    LLVMBuildBr(st->builder, done);
-    // else:
-    LLVMPositionBuilderAtEnd(st->builder, lhsfalse);
-    // result = rhs
-    store(st->builder, build_expression(st, rhsexpr), resultptr);
-    // end else
-    LLVMBuildBr(st->builder, done);
-    LLVMPositionBuilderAtEnd(st->builder, done);
+    # TODO: delete this method
+    def build_cast(self, obj: BuilderValue, to: Type*) -> None:
+        return self->builder.cast(obj, to)
 
-    return LLVMBuildLoad2(st->builder, LLVMInt1Type(), resultptr, "or");
-}
+    def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> None:
+        # Must be careful with side effects.
+        #
+        #    # lhs returning False means we don't evaluate rhs
+        #    if lhs:
+        #        result = rhs
+        #    else:
+        #        result = False
+        lhstrue = self->builder.add_block()
+        lhsfalse = self->builder.add_block()
+        done = self->builder.add_block()
+        resultptr = self->builder.stack_alloc(boolType)
+
+        # if lhs:
+        self->builder.branch(self->build_expression(lhsexpr), lhstrue, lhsfalse)
+        self->builder.set_current_block(lhstrue)
+        # result = rhs
+        self->builder.set_ptr(resultptr, self->build_expression(rhsexpr))
+        # end if
+        self->builder.jump(done)
+        # else:
+        self->builder.set_current_block(lhsfalse)
+        # result = False
+        self->builder.set_ptr(resultptr, self->builder.boolean(False))
+        # end else
+        self->builder.jump(done)
+        self->builder.set_current_block(done)
+
+        return self->builder.dereference(resultptr)
+
+    def build_or(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> None:
+        # Must be careful with side effects.
+        #
+        #    # lhs returning True means we don't evaluate rhs
+        #    if lhs:
+        #        result = True
+        #    else:
+        #        result = rhs
+        lhstrue = self->builder.add_block()
+        lhsfalse = self->builder.add_block()
+        done = self->builder.add_block()
+        resultptr = self->builder.stack_alloc(boolType)
+
+        # if lhs:
+        self->builder.branch(self->build_expression(lhsexpr), lhstrue, lhsfalse)
+        self->builder.set_current_block(lhstrue)
+        # result = True
+        self->builder.set_ptr(resultptr, self->builder.boolean(True))
+        # end if
+        self->builder.jump(done)
+        # else:
+        self->builder.set_current_block(lhsfalse)
+        # result = rhs
+        self->builder.set_ptr(resultptr, self->build_expression(rhsexpr))
+        # end else
+        self->builder.jump(done)
+        self->builder.set_current_block(done)
+
+        return self->builder.dereference(resultptr)
 
 static BuilderValue build_increment_or_decrement(struct State *st, const AstExpression *inner, bool pre, int diff)
 {

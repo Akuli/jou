@@ -64,6 +64,7 @@ class Builder:
 
     # GEP = Get Element Pointer https://llvm.org/docs/GetElementPtr.html
     # With num_indices = 3, returns &ptr[i1][i2][i3]
+    # TODO: is this ever called with more than 1 index?
     def gep(self, ptr: BuilderValue, indices: BuilderValue*, num_indices: int) -> BuilderValue:
         result_type_inner = ptr.type->value_type
         for i = 0; i < num_indices; i++:
@@ -92,15 +93,24 @@ class Builder:
         )
         return BuilderValue{type = result_type, llvm_value = llvm_result}
 
-    # Returns &ptr->field, idx defines which field.
-    # Field type is given as parameter because idx is same for all members of a union field.
-    def struct_gep(self, ptr: BuilderValue, idx: int, fieldtype: Type*) -> BuilderValue:
+    # Returns &ptr->field
+    def struct_gep(self, ptr: BuilderValue, field_name: byte*) -> BuilderValue:
         assert ptr.type->kind == TypeKind.Pointer
-        llvm_struct_type = type_to_llvm(ptr.type->value_type)
+        classtype = ptr.type->value_type
+        assert classtype->kind == TypeKind.Class
+
+        field = NULL
+        for f = classtype->classdata.fields; f < &classtype->classdata.fields[classtype->classdata.nfields]; f++:
+            if strcmp(f->name, field_name) == 0:
+                field = f
+                break
+        assert field != NULL
+
+        llvm_struct_type = type_to_llvm(classtype)
         llvm_ptr = LLVMBuildBitCast(self->llvm_builder, ptr.llvm_value, LLVMPointerType(llvm_struct_type, 0), "legacy_llvm14_cast")
-        llvm_result = LLVMBuildStructGEP2(self->llvm_builder, llvm_struct_type, llvm_ptr, idx, "field_ptr")
+        llvm_result = LLVMBuildStructGEP2(self->llvm_builder, llvm_struct_type, llvm_ptr, field->union_id, field->name)
         llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
-        return BuilderValue{type = fieldtype->pointer_type(), llvm_value = llvm_result}
+        return BuilderValue{type = field->type->pointer_type(), llvm_value = llvm_result}
 
     # Returns &llvm_stringiable. Type needs to be passed in because a new builder
     # unaware of global variables is created for each function.
@@ -128,8 +138,11 @@ class Builder:
         return BuilderFunctionOrMethod{llvm_funcptr = llvm_func}
 
     # Function or method call. If method, self with the correct type must be included in args.
-    def call(self, sig: Signature*, args: BuilderValue*) -> BuilderValue:
-        nargs = sig->nargs
+    def call(self, sig: Signature*, args: BuilderValue*, nargs: int) -> BuilderValue:
+        assert nargs >= sig->nargs
+        if nargs > sig->nargs:
+            assert sig->uses_varargs
+
         assert nargs <= 100
         llvm_args: LLVMValue*[100]
         for i = 0; i < nargs; i++:
@@ -158,11 +171,17 @@ class Builder:
         llvm_string = LLVMBuildBitCast(self->llvm_builder, llvm_string, type_to_llvm(byteType->pointer_type()), "legacy_llvm14_cast")
         return BuilderValue{type = byteType->pointer_type(), llvm_value = llvm_string}
 
+    def boolean(self, b: bool) -> BuilderValue:
+        return BuilderValue{
+            type = boolType,
+            llvm_value = LLVMConstInt(LLVMInt1Type(), b as long, False as int),
+        }
+
     def constant(self, c: Constant*) -> BuilderValue:
         llvm_constant: LLVMValue* = NULL
         match c->kind:
             case ConstantKind.Bool:
-                llvm_constant = LLVMConstInt(LLVMInt1Type(), c->boolean as long, False as int)
+                return self->boolean(c->boolean)
             case ConstantKind.Integer:
                 llvm_constant = LLVMConstInt(type_to_llvm(c->get_type()), c->integer.value, c->integer.is_signed as int)
             case ConstantKind.Float | ConstantKind.Double:
