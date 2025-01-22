@@ -328,8 +328,6 @@ class AstToIR:
                     self->builder.zero_of_type(expr->operands[0].types.implicit_cast_type),
                     self->build_expression(&expr->operands[0]),
                 )
-            case AstExpressionKind.Not:
-                return self->builder.not_(self->build_expression(&expr->operands[0]))
             case AstExpressionKind.PreIncr:
                 return build_increment_or_decrement(st, &expr->data.operands[0], True, 1)
             case AstExpressionKind.PreDecr:
@@ -338,133 +336,33 @@ class AstToIR:
                 return build_increment_or_decrement(st, &expr->data.operands[0], False, 1)
             case AstExpressionKind.PostDecr:
                 return build_increment_or_decrement(st, &expr->data.operands[0], False, -1)
-    case AST_EXPR_ADD:
-    case AST_EXPR_SUB:
-    case AST_EXPR_MUL:
-    case AST_EXPR_DIV:
-    case AST_EXPR_MOD:
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
-            
-    Add         # x+y
-    Sub         # x-y
-    Mul         # x*y
-    Div         # x/y
-    Indexing    # x[y]
-    Mod         # x % y
-    Eq          # x == y
-    Ne          # x != y
-    Gt          # x > y
-    Lt          # x < y
-    Ge          # x >= y
-    Le          # x <= y
-    And         # x and y
-    Or          # x or y
-
-            case AstExpressionKind.GetEnumMember:
-                
-    case AST_EXPR_GET_ENUM_MEMBER:
-        return LLVMConstInt(LLVMInt32Type(), find_enum_member(expr->types.orig_type, expr->data.enummember.membername), false);
-    case AST_EXPR_FUNCTION_CALL:
-        return build_function_call(st, &expr->data.call);
-    case AST_EXPR_CALL_METHOD:
-    case AST_EXPR_DEREF_AND_CALL_METHOD:
-        return build_method_call(st, &expr->data.methodcall.call, expr->data.methodcall.obj);
-    case AST_EXPR_BRACE_INIT:
-        return build_brace_init(st, &expr->data.call);
-    case AST_EXPR_ARRAY:
-        return build_array(st, expr->types.orig_type, expr->data.array.items, expr->data.array.count);
-    case AST_EXPR_GET_FIELD:
-        {
-            // Evaluate foo.bar as (&temp)->bar, where temp is a temporary copy of foo.
-            // We need to copy, because it's not always possible to evaluate &foo.
-            // For example, consider evaluating some_function().foo
-            const Type *t = type_of_expr(expr->data.classfield.obj);
-            assert(t->kind == TYPE_CLASS);
-            BuilderValue obj = build_expression(st, expr->data.classfield.obj);
-            BuilderValue ptr = stack_alloc(st->builder, type_to_llvm(t), "temp_copy");
-            store(st->builder, obj, ptr);
-            BuilderValue fieldptr = build_class_field_pointer(st, t, ptr, expr->data.classfield.fieldname);
-            return LLVMBuildLoad2(st->builder, type_to_llvm(type_of_expr(expr)), fieldptr, "field");
-        }
-    case AST_EXPR_DEREF_AND_GET_FIELD:
-    case AST_EXPR_INDEXING:
-        /*
-        ptr->foo can always be evaluated as *(&ptr->foo).
-
-        We can't always do this. For example, this doesn't work with the '.' operator.
-        When evaluating some_function().foo, we can't evaluate &some_function().
-        */
-        return LLVMBuildLoad2(
-            st->builder,
-            type_to_llvm(expr->types.orig_type),
-            build_address_of_expression(st, expr),
-            "dereffed");
-    case AST_EXPR_GET_VARIABLE:
-        {
-            int c = get_special_constant(expr->data.varname);
-            if (c == 0 || c == 1)
-                return LLVMConstInt(LLVMInt1Type(), c, false);
-        }
-        return LLVMBuildLoad2(
-            st->builder,
-            type_to_llvm(expr->types.orig_type),
-            build_address_of_expression(st, expr),
-            "dereffed");
-    case AST_EXPR_AS:
-        return build_cast(st, build_expression(st, expr->data.as.obj), type_of_expr(expr->data.as.obj), expr->types.orig_type);
-    case AST_EXPR_ADDRESS_OF:
-        return build_address_of_expression(st, &expr->data.operands[0]);
-    case AST_EXPR_SIZEOF:
-        return LLVMSizeOf(type_to_llvm(type_of_expr(&expr->data.operands[0])));
-    case AST_EXPR_DEREFERENCE:
-        return LLVMBuildLoad2(
-            st->builder,
-            type_to_llvm(expr->types.orig_type),
-            build_expression(st, &expr->data.operands[0]),
-            "dereference");
-    case AST_EXPR_AND:
-        return build_and(st, &expr->data.operands[0], &expr->data.operands[1]);
-    case AST_EXPR_OR:
-        return build_or(st, &expr->data.operands[0], &expr->data.operands[1]);
-    case AST_EXPR_NOT:
-        return LLVMBuildXor(
-            st->builder,
-            build_expression(st, &expr->data.operands[0]),
-            LLVMConstInt(LLVMInt1Type(), 1, false),
-            "not");
-    case AST_EXPR_NEG:
-        if (type_of_expr(&expr->data.operands[0])->kind == TYPE_FLOATING_POINT)
-            return LLVMBuildFNeg(st->builder, build_expression(st, &expr->data.operands[0]), "fneg");
-        else
-            return LLVMBuildNeg(st->builder, build_expression(st, &expr->data.operands[0]), "ineg");
-    case AST_EXPR_ADD:
-    case AST_EXPR_SUB:
-    case AST_EXPR_MUL:
-    case AST_EXPR_DIV:
-    case AST_EXPR_MOD:
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
-    {
-        // Evaluation order of arguments isn't guaranteed in C, but is in Jou.
-        // Make sure to evaluate lhs first.
-        BuilderValue lhs = build_expression(st, &expr->data.operands[0]);
-        BuilderValue rhs = build_expression(st, &expr->data.operands[1]);
-        const Type *lhstype = type_of_expr(&expr->data.operands[0]);
-        const Type *rhstype = type_of_expr(&expr->data.operands[1]);
-        return build_binop(st, expr->kind, lhs, lhstype, rhs, rhstype);
-    }
-    }
-    assert(0);
-}
+            case (
+                AstExpressionKind.Add
+                | AstExpressionKind.Sub
+                | AstExpressionKind.Mul
+                | AstExpressionKind.Div
+                | AstExpressionKind.Mod
+                | AstExpressionKind.Eq
+                | AstExpressionKind.Ne
+                | AstExpressionKind.Gt
+                | AstExpressionKind.Ge
+                | AstExpressionKind.Lt
+                | AstExpressionKind.Le
+            ):
+                # Note: If you port this code to another programming language, make sure
+                # to evaluate the operands in the correct order. C does not guarantee
+                # evaluation order of function arguments, but Jou does.
+                self->build_binop(expr->kind, &expr->data.operands[0], &expr->data.operands[1])
+            case AstExpressionKind.Indexing:
+                # ptr[foo] can always be evaluated as *(&ptr[foo]).
+                # We can't do this for all expressions, because e.g. &some_function() is error.
+                return self->builder.dereference(self->build_address_of_expression(&expr->operands[0]))
+            case AstExpressionKind.And:
+                return self->build_and(&expr->data.operands[0], &expr->data.operands[1])
+            case AstExpressionKind.Or:
+                return self->build_or(&expr->data.operands[0], &expr->data.operands[1])
+            case AstExpressionKind.Not:
+                return self->builder.not_(self->build_expression(&expr->operands[0]))
 
 static BuilderValue build_expression(struct State *st, const AstExpression *expr)
 {
