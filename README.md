@@ -232,15 +232,14 @@ The Jou compiler (in [compiler/](./compiler/) folder) is written in Jou.
 It can compile itself.
 However, this doesn't help you much if you have nothing that can compile Jou code.
 
-To solve this problem, there was Jou another compiler written in C.
-It was a Jou compiler that supported all of Jou's syntax,
-and it existed only to compile the main Jou compiler.
+To solve this problem, there was another Jou compiler written in C.
+It existed only to compile the main Jou compiler.
 [Source code for the last version of the compiler written in C is here.](https://github.com/Akuli/jou/tree/1c7ce74933aea8a8862fd1d4409735b9fb7a1d7e/bootstrap_compiler)
 
-The compiler written in C was deleted, because maintaining it was painful.
+The compiler written in C was deleted, because it is easier to maintain one compiler than two compilers.
 Instead, there is [a script named bootstrap.sh](./bootstrap.sh).
 It takes old versions of Jou from Git history,
-starting with the last commit that came with the bootstrap compiler.
+starting with the last commit that came with the compiler written in C.
 It then uses the previous version of Jou to compile the next version of Jou
 until it gets a Jou compiler that supports the latest Jou syntax.
 
