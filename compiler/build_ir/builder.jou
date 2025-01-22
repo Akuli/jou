@@ -28,6 +28,10 @@ class BuilderFunctionOrMethod:
         LLVMSetLinkage(self->llvm_funcptr, LLVMLinkage.Private)
 
 
+class BuilderBlock:
+    llvm_block: LLVMBasicBlock*
+
+
 class Builder:
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
@@ -280,3 +284,28 @@ class Builder:
     def cast(self, value: BuilderValue, to: Type*) -> BuilderValue:
         llvm_result = build_llvm_cast(self->llvm_builder, value.llvm_value, value.type, to)
         return BuilderValue{type = to, llvm_value = llvm_result}
+
+    # Decide which block will contain the resulting instructions
+    def set_current_block(self, block: BuilderBlock) -> None:
+        LLVMPositionBuilderAtEnd(self->llvm_builder, block.llvm_block)
+
+    # Conditional branch:
+    #
+    #   if cond:
+    #       then
+    #   else:
+    #       otherwise
+    #
+    # This leaves the builder in a "no current block" state, i.e. you must call
+    # set_current_block() before the builder is usable again.
+    def branch(self, cond: BuilderValue, then: BuilderBlock, otherwise: BuilderBlock) -> None:
+        LLVMBuildCondBr(self->llvm_builder, cond.llvm_value, then.llvm_block, otherwise.llvm_block)
+
+    # Go to the block. Similar to branch() but no condition. LLVM calls this
+    # "unconditional branch", which IMO doesn't make sense because it always
+    # jumps and hence doesn't branch.
+    #
+    # This leaves the builder in a "no current block" state, i.e. you must call
+    # set_current_block() before the builder is usable again.
+    def jump(self, next_block: BuilderBlock) -> None:
+        LLVMBuildBr(self->llvm_builder, next_block.llvm_block)
