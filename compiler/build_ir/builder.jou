@@ -285,7 +285,13 @@ class Builder:
         llvm_result = build_llvm_cast(self->llvm_builder, value.llvm_value, value.type, to)
         return BuilderValue{type = to, llvm_value = llvm_result}
 
-    # Decide which block will contain the resulting instructions
+    # Blocks are used to implement e.g. if statements and loops.
+    def add_block(self) -> BuilderBlock:
+        llvm_block = LLVMAppendBasicBlock(self->llvm_func, "block")
+        return BuilderBlock{llvm_block = llvm_block}
+
+    # Decide which block will contain the resulting instructions.
+    # This must be called after creating a new builder!!!
     def set_current_block(self, block: BuilderBlock) -> None:
         LLVMPositionBuilderAtEnd(self->llvm_builder, block.llvm_block)
 
