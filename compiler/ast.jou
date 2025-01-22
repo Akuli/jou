@@ -139,10 +139,10 @@ class AstInstantiation:
 
 enum AstExpressionKind:
     String
-    Int
-    Short
-    Long
     Byte
+    Short
+    Int
+    Long
     Float
     Double
     Bool
@@ -187,13 +187,13 @@ class AstExpression:
     types: ExpressionTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     union:
+        string: byte*
+        byte_value: byte
+        short_value: short
+        int_value: int
+        long_value: long
         enum_member: AstEnumMember
         class_field: AstClassField
-        string: byte*
-        int_value: int
-        short_value: short
-        long_value: long
-        byte_value: byte
         bool_value: bool
         call: AstCall
         instantiation: AstInstantiation
