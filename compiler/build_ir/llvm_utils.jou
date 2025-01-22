@@ -1,14 +1,9 @@
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
-import "stdlib/str.jou"
 
-import "./evaluate.jou"
-import "./cf_graph.jou"
-import "./llvm.jou"
-import "./target.jou"
-import "./types.jou"
-import "./types_in_ast.jou"
-import "./constants.jou"
+import "../llvm.jou"
+import "../target.jou"
+import "../types.jou"
 
 
 # LLVM doesn't have a built-in union type, and you're supposed to abuse other types for that:
@@ -54,7 +49,7 @@ def class_type_to_llvm(type: Type*) -> LLVMType*:
 
     flat_elems: LLVMType** = malloc(sizeof(flat_elems[0]) * n)
     for i = 0; i < n; i++:
-        flat_elems[i] = codegen_type(type->classdata.fields[i].type)
+        flat_elems[i] = type_to_llvm(type->classdata.fields[i].type)
 
     # Combine together fields of the same union.
     combined: LLVMType** = malloc(sizeof(combined[0]) * n)
@@ -103,13 +98,13 @@ def signature_to_llvm(sig: Signature*) -> LLVMType*:
     assert sig->nargs <= 100
     argtypes: LLVMType*[100]
     for i = 0; i < sig->nargs; i++:
-        argtypes[i] = codegen_type(sig->argtypes[i])
+        argtypes[i] = type_to_llvm(sig->argtypes[i])
 
     # TODO: tell llvm, if we know a function is noreturn ?
     if sig->returntype == NULL:  # "-> noreturn" or "-> None"
         returntype = LLVMVoidType()
     else:
-        returntype = codegen_type(sig->returntype)
+        returntype = type_to_llvm(sig->returntype)
 
     return LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs as int)
 
@@ -131,7 +126,7 @@ def build_llvm_signed_div(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue
     #
     #    floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
     #
-    top = LLVMBuildSub(builder, lhs, build_signed_mod(builder, lhs, rhs), "sdiv_tmp")
+    top = LLVMBuildSub(builder, lhs, build_llvm_signed_mod(builder, lhs, rhs), "sdiv_tmp")
     return LLVMBuildExactSDiv(builder, top, rhs, "sdiv")
 
 
@@ -141,15 +136,15 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
     assert to != NULL
 
     # Always treat enums as ints
-    if from->kind == TYPE_ENUM:
+    if from->kind == TypeKind.Enum:
         from = intType
-    if to->kind == TYPE_ENUM:
+    if to->kind == TypeKind.Enum:
         to = intType
 
     if from == to:
         return obj
 
-    if is_pointer_type(from) and is_pointer_type(to):
+    if from->is_pointer_type() and to->is_pointer_type():
         # All pointers are the same type in LLVM
         return obj
 
@@ -168,20 +163,20 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
         if from->kind == TypeKind.FloatingPoint and to->is_integer_type():
             # double/float --> integer
             if to->kind == TypeKind.SignedInteger:
-                return LLVMBuildFPToSI(st->builder, obj, type_to_llvm(to), "cast")
-            else
-                return LLVMBuildFPToUI(st->builder, obj, type_to_llvm(to), "cast")
+                return LLVMBuildFPToSI(builder, obj, type_to_llvm(to), "cast")
+            else:
+                return LLVMBuildFPToUI(builder, obj, type_to_llvm(to), "cast")
         if from->kind == TypeKind.FloatingPoint and to->kind == TypeKind.FloatingPoint:
             # double/float --> double/float
-            return LLVMBuildFPCast(st->builder, obj, type_to_llvm(to), "cast")
+            return LLVMBuildFPCast(builder, obj, type_to_llvm(to), "cast")
         assert False
 
     if from->is_integer_type() and to->is_pointer_type():
-        return LLVMBuildIntToPtr(st->builder, obj, type_to_llvm(to), "cast")
+        return LLVMBuildIntToPtr(builder, obj, type_to_llvm(to), "cast")
     if from->is_pointer_type() and to->is_integer_type():
-        return LLVMBuildPtrToInt(st->builder, obj, type_to_llvm(to), "cast")
+        return LLVMBuildPtrToInt(builder, obj, type_to_llvm(to), "cast")
 
     if from == boolType and to->is_integer_type():
-        return LLVMBuildIntCast2(st->builder, obj, type_to_llvm(to), False as int, "cast")
+        return LLVMBuildIntCast2(builder, obj, type_to_llvm(to), False as int, "cast")
 
     assert False

@@ -8,8 +8,12 @@
 #
 # Currently this is used only to build LLVM IR, but more uses are planned.
 
-import "../types.jou"
+import "stdlib/str.jou"
+
+import "../constants.jou"
 import "../llvm.jou"
+import "../types.jou"
+import "./llvm_utils.jou"
 
 
 class BuilderValue:
@@ -21,7 +25,7 @@ class BuilderFunctionOrMethod:
     llvm_funcptr: LLVMValue*
 
     def make_private(self) -> None:
-        LLVMSetLinkage(self->llvm_funcptr, LLVMPrivateLinkage)
+        LLVMSetLinkage(self->llvm_funcptr, LLVMLinkage.Private)
 
 
 class Builder:
@@ -36,16 +40,17 @@ class Builder:
     # TODO: which casts are necessary on LLVM 14 and which are not?
 
     # *ptr = value
-    def store(self, value: BuilderValue, ptr: BuilderValue) -> None:
-        assert value->type == ptr->type->pointer_type()
-        ptr_type = LLVMPointerType(type_to_llvm(value->type), 0)
+    def set_ptr(self, ptr: BuilderValue, value: BuilderValue) -> None:
+        assert value.type == ptr.type->pointer_type()
+        ptr_type = LLVMPointerType(type_to_llvm(value.type), 0)
         llvm_ptr = LLVMBuildBitCast(self->llvm_builder, ptr.llvm_value, ptr_type, "legacy_llvm14_cast")
         LLVMBuildStore(self->llvm_builder, value.llvm_value, llvm_ptr)
 
     # *ptr
-    def load(self, ptr: BuilderValue) -> BuilderValue:
-        assert ptr->type->kind == TypeKind.Pointer
-        return LLVMBuildLoad2(st->builder, type_to_llvm(ptr->type->value_type), self_ptr, "load")
+    def dereference(self, ptr: BuilderValue) -> BuilderValue:
+        assert ptr.type->kind == TypeKind.Pointer
+        llvm_result = LLVMBuildLoad2(self->llvm_builder, type_to_llvm(ptr.type->value_type), ptr.llvm_value, "dereference")
+        return BuilderValue{type = ptr.type->value_type, llvm_value = llvm_result}
 
     # Allocates enough stack space in the function to hold a value of given type.
     # Returns a pointer to the stack space.
@@ -57,7 +62,7 @@ class Builder:
     # GEP = Get Element Pointer https://llvm.org/docs/GetElementPtr.html
     # With num_indices = 3, returns &ptr[i1][i2][i3]
     def gep(self, ptr: BuilderValue, indices: BuilderValue*, num_indices: int) -> BuilderValue:
-        result_type_inner = ptr->type->value_type
+        result_type_inner = ptr.type->value_type
         for i = 0; i < num_indices; i++:
             match result_type_inner->kind:
                 case TypeKind.Array:
@@ -73,41 +78,33 @@ class Builder:
         for i = 0; i < num_indices; i++:
             llvm_indices[i] = indices[i].llvm_value
 
-        assert ptr->type->kind == TypeKind.Pointer
-        llvm_sum = LLVMBuildGEP2(
+        assert ptr.type->kind == TypeKind.Pointer
+        llvm_result = LLVMBuildGEP2(
             self->llvm_builder,
-            type_to_llvm(ptr->type->value_type),
-            ptr->llvm_value,
+            type_to_llvm(ptr.type->value_type),
+            ptr.llvm_value,
             llvm_indices,
             num_indices,
             "gep",
         )
-        return BuilderValue{type = result_type, llvm_value = llvm_sum}
+        return BuilderValue{type = result_type, llvm_value = llvm_result}
 
-    # Returns &ptr->field, idx defines which field
-    def struct_gep(self, ptr: BuilderValue, idx: int) -> None:
+    # Returns &ptr->field, idx defines which field.
+    # Field type is given as parameter because idx is same for all members of a union field.
+    def struct_gep(self, ptr: BuilderValue, idx: int, fieldtype: Type*) -> BuilderValue:
         assert ptr.type->kind == TypeKind.Pointer
-        assert ptr.type->value_type->kind == TypeKind.Class
-        field_name = ptr.type->value_type->classdata.fields[idx].name
-        field_type = ptr.type->value_type->classdata.fields[idx].type
-
         llvm_struct_type = type_to_llvm(ptr.type->value_type)
-        llvm_ptr = LLVMBuildBitCast(
-            self->llvm_builder,
-            ptr.llvm_value,
-            LLVMPointerType(llvm_struct_type, 0),
-            "legacy_llvm14_cast",
-        )
-        llvm_sum = LLVMBuildStructGEP2(self->llvm_builder, llvm_struct_type, llvm_ptr, idx, field_name)
-        llvm_sum = LLVMBuildBitCast(self->llvm_builder, llvm_sum, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
-        return BuilderValue{type = field_type.pointer_type(), llvm_value = llvm_sum}
+        llvm_ptr = LLVMBuildBitCast(self->llvm_builder, ptr.llvm_value, LLVMPointerType(llvm_struct_type, 0), "legacy_llvm14_cast")
+        llvm_result = LLVMBuildStructGEP2(self->llvm_builder, llvm_struct_type, llvm_ptr, idx, "field_ptr")
+        llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
+        return BuilderValue{type = fieldtype->pointer_type(), llvm_value = llvm_result}
 
     # Returns &llvm_stringiable. Type needs to be passed in because a new builder
     # unaware of global variables is created for each function.
     def llvm_string_ptr(self, name: byte*, var_type: Type*) -> BuilderValue:
-        llvm_sum = LLVMGetNamedGlobal(self->llvm_module, name)
-        llvm_sum = LLVMBuildBitCast(self->llvm_builder, llvm_sum, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
-        return BuilderValue{type = var_type.pointer_type(), llvm_value = llvm_sum}
+        llvm_result = LLVMGetNamedGlobal(self->llvm_module, name)
+        llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
+        return BuilderValue{type = var_type->pointer_type(), llvm_value = llvm_result}
 
     # TODO: does this need to be accessed outside this file? probably not? if not can inline to other method below?
     def declare_function_or_method(self, sig: Signature*) -> BuilderFunctionOrMethod:
@@ -123,7 +120,7 @@ class Builder:
         # Make it so that this can be called many times without issue
         llvm_func = LLVMGetNamedFunction(self->llvm_module, fullname)
         if llvm_func == NULL:
-            llvm_func = LLVMAddFunction(st->module, fullname, signature_to_llvm(sig))
+            llvm_func = LLVMAddFunction(self->llvm_module, fullname, signature_to_llvm(sig))
 
         return BuilderFunctionOrMethod{llvm_funcptr = llvm_func}
 
@@ -140,23 +137,23 @@ class Builder:
         if sig->returntype != NULL:
             snprintf(debug_name, sizeof(debug_name), "%s_return_value", sig->name)
 
-        llvm_func = self->declare_function_or_method(sig).llvm_func
-        llvm_return_value = LLVMBuildCall2(st->builder, signature_to_llvm(sig), llvm_func, args, call->nargs, debug_name)
+        llvm_func = self->declare_function_or_method(sig).llvm_funcptr
+        llvm_return_value = LLVMBuildCall2(self->llvm_builder, signature_to_llvm(sig), llvm_func, llvm_args, nargs, debug_name)
 
         if sig->returntype == NULL:
-            assert llvm_sum == NULL
+            assert llvm_return_value == NULL
             return BuilderValue{}
         else:
-            assert llvm_sum != NULL
+            assert llvm_return_value != NULL
             return BuilderValue{type = sig->returntype, llvm_value = llvm_return_value}
 
     def string(self, s: byte*) -> BuilderValue:
-        llvm_array = LLVMConstString(s, strlen(s), False)
-        llvm_string = LLVMAddGlobal(st->module, LLVMTypeOf(llvm_array), "string_literal")
-        LLVMSetLinkage(llvm_string, LLVMPrivateLinkage)  # This makes it a static global variable
+        llvm_array = LLVMConstString(s, strlen(s) as int, False as int)
+        llvm_string = LLVMAddGlobal(self->llvm_module, LLVMTypeOf(llvm_array), "string_literal")
+        LLVMSetLinkage(llvm_string, LLVMLinkage.Private)  # This makes it a static global variable
         LLVMSetInitializer(llvm_string, llvm_array)
-        llvm_string = LLVMBuildBitCast(st->builder, llvm_string, type_to_llvm(byteType.pointer_type()), "legacy_llvm14_cast")
-        return BuilderValue{type = byteType.pointer_type(), llvm_value = llvm_string}
+        llvm_string = LLVMBuildBitCast(self->llvm_builder, llvm_string, type_to_llvm(byteType->pointer_type()), "legacy_llvm14_cast")
+        return BuilderValue{type = byteType->pointer_type(), llvm_value = llvm_string}
 
     def constant(self, c: Constant*) -> BuilderValue:
         llvm_constant: LLVMValue* = NULL
@@ -164,11 +161,11 @@ class Builder:
             case ConstantKind.Bool:
                 llvm_constant = LLVMConstInt(LLVMInt1Type(), c->boolean as long, False as int)
             case ConstantKind.Integer:
-                llvm_constant = LLVMConstInt(codegen_type(c->get_type()), c->integer.value, c->integer.is_signed as int)
+                llvm_constant = LLVMConstInt(type_to_llvm(c->get_type()), c->integer.value, c->integer.is_signed as int)
             case ConstantKind.Float | ConstantKind.Double:
-                llvm_constant = LLVMConstRealOfString(codegen_type(c->get_type()), c->double_or_float_text)
+                llvm_constant = LLVMConstRealOfString(type_to_llvm(c->get_type()), c->double_or_float_text)
             case ConstantKind.Null:
-                llvm_constant = LLVMConstNull(codegen_type(voidPtrType))
+                llvm_constant = LLVMConstNull(type_to_llvm(voidPtrType))
             case ConstantKind.String:
                 return self->string(c->str)
             case ConstantKind.EnumMember:
@@ -179,74 +176,74 @@ class Builder:
 
     # a + b
     def add(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
-        assert a->type == b->type
-        match a->type->kind:
+        assert a.type == b.type
+        match a.type->kind:
             case TypeKind.FloatingPoint:
-                llvm_sum = LLVMBuildFAdd(self->llvm_builder, a->llvm_value, b->llvm_value, "float_sum")
+                llvm_sum = LLVMBuildFAdd(self->llvm_builder, a.llvm_value, b.llvm_value, "float_sum")
             case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
-                llvm_sum = LLVMBuildAdd(self->llvm_builder, a->llvm_value, b->llvm_value, "int_sum")
+                llvm_sum = LLVMBuildAdd(self->llvm_builder, a.llvm_value, b.llvm_value, "int_sum")
             case _:
                 assert False
-        return BuilderValue{type = a->type, llvm_value = llvm_sum}
+        return BuilderValue{type = a.type, llvm_value = llvm_sum}
 
     # a - b
     def sub(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
-        assert a->type == b->type
-        match a->type->kind:
+        assert a.type == b.type
+        match a.type->kind:
             case TypeKind.FloatingPoint:
-                llvm_diff = LLVMBuildFSub(self->llvm_builder, a->llvm_value, b->llvm_value, "float_diff")
+                llvm_diff = LLVMBuildFSub(self->llvm_builder, a.llvm_value, b.llvm_value, "float_diff")
             case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
-                llvm_diff = LLVMBuildSub(self->llvm_builder, a->llvm_value, b->llvm_value, "int_diff")
+                llvm_diff = LLVMBuildSub(self->llvm_builder, a.llvm_value, b.llvm_value, "int_diff")
             case _:
                 assert False
-        return BuilderValue{type = a->type, llvm_value = llvm_diff}
+        return BuilderValue{type = a.type, llvm_value = llvm_diff}
 
     # a * b
     def mul(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
-        assert a->type == b->type
-        match a->type->kind:
+        assert a.type == b.type
+        match a.type->kind:
             case TypeKind.FloatingPoint:
-                llvm_prod = LLVMBuildFMul(self->llvm_builder, a->llvm_value, b->llvm_value, "float_prod")
+                llvm_prod = LLVMBuildFMul(self->llvm_builder, a.llvm_value, b.llvm_value, "float_prod")
             case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
-                llvm_prod = LLVMBuildMul(self->llvm_builder, a->llvm_value, b->llvm_value, "int_prod")
+                llvm_prod = LLVMBuildMul(self->llvm_builder, a.llvm_value, b.llvm_value, "int_prod")
             case _:
                 assert False
-        return BuilderValue{type = a->type, llvm_value = llvm_prod}
+        return BuilderValue{type = a.type, llvm_value = llvm_prod}
 
     # a / b
     def div(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
-        assert a->type == b->type
-        match a->type->kind:
+        assert a.type == b.type
+        match a.type->kind:
             case TypeKind.FloatingPoint:
-                llvm_quot = LLVMBuildFDiv(self->llvm_builder, lhs, rhs, "float_quot")
+                llvm_quot = LLVMBuildFDiv(self->llvm_builder, a.llvm_value, b.llvm_value, "float_quot")
             case TypeKind.SignedInteger:
-                llvm_quot = build_llvm_signed_div(self->llvm_builder, lhs, rhs)
+                llvm_quot = build_llvm_signed_div(self->llvm_builder, a.llvm_value, b.llvm_value)
             case TypeKind.UnsignedInteger:
-                llvm_quot = LLVMBuildUDiv(self->llvm_builder, lhs, rhs, "uint_quot")
+                llvm_quot = LLVMBuildUDiv(self->llvm_builder, a.llvm_value, b.llvm_value, "uint_quot")
             case _:
                 assert False
-        return BuilderValue{type = a->type, llvm_value = llvm_quot}
+        return BuilderValue{type = a.type, llvm_value = llvm_quot}
 
     # a % b
     def mod(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
-        assert a->type == b->type
-        match a->type->kind:
+        assert a.type == b.type
+        match a.type->kind:
             case TypeKind.FloatingPoint:
-                llvm_mod = LLVMBuildFRem(self->llvm_builder, lhs, rhs, "float_mod")
+                llvm_mod = LLVMBuildFRem(self->llvm_builder, a.llvm_value, b.llvm_value, "float_mod")
             case TypeKind.SignedInteger:
-                llvm_mod = build_llvm_signed_mod(self->llvm_builder, lhs, rhs)
+                llvm_mod = build_llvm_signed_mod(self->llvm_builder, a.llvm_value, b.llvm_value)
             case TypeKind.UnsignedInteger:
-                llvm_mod = LLVMBuildURem(self->llvm_builder, lhs, rhs, "uint_mod")
+                llvm_mod = LLVMBuildURem(self->llvm_builder, a.llvm_value, b.llvm_value, "uint_mod")
             case _:
                 assert False
-        return BuilderValue{type = a->type, llvm_value = llvm_mod}
+        return BuilderValue{type = a.type, llvm_value = llvm_mod}
 
     def memset_to_zero(self, ptr: BuilderValue) -> None:
-        assert ptr->type->kind == TypeKind.Pointer
-        size = LLVMSizeOf(type_to_llvm(ptr->type->value_type))
+        assert ptr.type->kind == TypeKind.Pointer
+        size = LLVMSizeOf(type_to_llvm(ptr.type->value_type))
         zero_byte = LLVMConstInt(LLVMInt8Type(), 0, False as int)
-        LLVMBuildMemSet(self->builder, ptr.llvm_value, zero_byte, size, 0)
+        LLVMBuildMemSet(self->llvm_builder, ptr.llvm_value, zero_byte, size, 0)
 
     def cast(self, value: BuilderValue, to: Type*) -> BuilderValue:
-        llvm_result = build_llvm_cast(self->llvm_builder, value, value->type, to)
+        llvm_result = build_llvm_cast(self->llvm_builder, value.llvm_value, value.type, to)
         return BuilderValue{type = to, llvm_value = llvm_result}
