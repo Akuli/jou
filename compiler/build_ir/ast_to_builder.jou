@@ -19,14 +19,6 @@ def type_of_expr(expr: AstExpression*) -> Type*:
     return expr->types.implicit_cast_type
 
 
-# TODO: useful, but doesn't belong here
-def find_enum_member(enumtype: Type*, name: byte*) -> int:
-    for i = 0; i < enumtype->enummembers.count; i++:
-        if strcmp(enumtype->enummembers.names[i], name) == 0:
-            return i
-    assert False
-
-
 class AstToIR:
     builder: Builder
     filetypes: FileTypes*
@@ -393,233 +385,227 @@ class AstToIR:
             case _:
                 assert False
 
-#static void build_if_statement(struct State *st, const AstIfStatement *ifst)
-#{
-#    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
-#    for (int i = 0; i < ifst->n_if_and_elifs; i++) {
-#        BuilderValue cond = build_expression(st, &ifst->if_and_elifs[i].condition);
-#        LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->llvm_func, "then");
-#        LLVMBasicBlockRef otherwise = LLVMAppendBasicBlock(st->llvm_func, "otherwise");
+    def build_if_statement(self, ifst: AstIfStatement*) -> None:
+        done = self->builder.add_block()
+        for i = 0; i < ifst->n_if_and_elifs; i++:
+            cond = self->build_expression(&ifst->if_and_elifs[i].condition)
+            then = self->builder.add_block()
+            otherwise = self->builder.add_block()
+            self->builder.branch(cond, then, otherwise)
+            self->builder.set_current_block(then)
+            build_body(st, &ifst->if_and_elifs[i].body)
+            self->builder.jump(done)
+            self->builder.set_current_block(otherwise)
+
+    self->build_body(&ifst->elsebody)
+    self->builder.jump(done)
+    self->builder.set_current_block(done)
+
+    def build_loop(self, cond: AstExpression*, incr: AstStatement*, body: AstBody*) -> None:
+        condblock = self->builder.add_block()  # evaluate condition and go to bodyblock or doneblock
+        bodyblock = self->builder.add_block()  # run loop body and go to incrblock
+        incrblock = self->builder.add_block()  # run incr and go to condblock
+        doneblock = self->builder.add_block()  # rest of the code goes here
+
+        # Start loop from condition
+        self->builder.jump(condblock)
+
+        # Evaluate condition and then jump to loop body or skip to after loop.
+        self->builder.set_current_block(condblock)
+        self->builder.branch(self->build_expression(cond), bodyblock, doneblock)
+
+        # Within loop body, 'break' skips to after loop, 'continue' goes to incr.
+        # TODO: add error message for this?
+        assert self->nloops < sizeof(self->breaks)/sizeof(self->breaks[0])
+        self->breaks[st->nloops] = doneblock
+        self->continues[st->nloops] = incrblock
+        self->nloops++
+
+        # Run loop body. When done, go to incr.
+        self->builder.set_current_block(bodyblock)
+        self->build_body(body)
+        self->jump(incrblock)
+
+        # 'break' and 'continue' are not allowed after the loop body.
+        assert self->nloops > 0
+        self->nloops--
+
+        # Run incr and jump back to condition.
+        self->builder.set_current_block(incrblock)
+        if incr != NULL:
+            self->build_statement(incr)
+        self->builder.jump(condblock)
+
+        # Code after the loop goes to "loop done" part.
+        self->set_current_block(doneblock)
+
+    def build_match_statement(self, match_stmt: AstMatchStatement*) -> None:
+        match_obj = self->build_expression(&match_stmt->match_obj)
+
+        done = self->add_block()
+        for i = 0; i < match_stmt->ncases; i++:
+            then = self->add_block()
+            otherwise = BuilderBlock{}  # will be replaced by loop below
+            for k = 0; k < match_stmt->cases[i].n_case_objs; k++:
+                case_obj = self->build_expression(&match_stmt->cases[i].case_objs[k])
+                cond = self->builder.eq(match_obj, case_obj)
+                otherwise = self->builder.add_block()
+                self->builder.jump(cond, then, otherwise)
+                self->builder.set_current_block(otherwise)
+
+            self->builder.set_current_block(then)
+            self->build_body(&match_stmt->cases[i].body)
+            self->builder.jump(done)
+            self->builder.set_current_block(otherwise)
+
+        if match_stmt->case_underscore != NULL:
+            self->build_body(match_stmt->case_underscore)
+        self->builder.jump(done)
+        self->builder.set_current_block(done)
+
+    def build_assert(self, assert_location: Location, assertion: AstAssertion*) -> None:
+        condvar = self->build_expression(&assertion->condition)
+
+        # If the condition is true, we jump to a block where the rest of the code goes.
+        # If the condition is false, we jump to a block that calls _jou_assert_fail().
+        trueblock = self->builder.add_block()
+        falseblock = self->builder.add_block()
+        self->builder.branch(condvar, trueblock, falseblock)
+
+        self->builder.set_current_block(trueblock)
+        argnames: byte[100][3] = ["assertion", "path", "lineno"]
+        argtypes: Type*[3] = [byteType->pointer_type(), byteType->pointer_type(), intType]
+        sig = Signature{
+            name = "_jou_assert_fail",
+            nargs = 3,
+            argtypes = argtypes,
+            argnames = argnames,
+            takes_varargs = False,
+            is_noreturn = True,
+            returntype_location = assert_location,
+        }
+        args = [
+            self->builder.string(assertion->condition_str),
+            self->builder.string(assert_location.path),
+            self->builder.integer(intType, assert_location.lineno),
+        ]
+        self->builder.call(&sig, args, 3)
+        self->builder.unreachable()
+
+        self->builder.set_current_block(falseblock)
+
+    def build_statement(self, stmt: AstStatement*) -> None:
+        match stmt->kind:
+            case AstStatementKind.If:
+                self->build_if_statement(&stmt->if_statement)
+            case AstStatementKind.Assert:
+                self->build_assert(stmt->location, &stmt->assertion)
+            case AstStatementKind.Pass:
+                pass
+            case AstStatementKind.WhileLoop:
+                self->build_loop(&stmt->while_loop.condition, NULL, &stmt->while_loop.body)
+            case AstStatementKind.ForLoop:
+                if stmt->for_loop.init != NULL:
+                    self->build_statement(stmt->for_loop.init)
+                self->build_loop(
+                    stmt->for_loop.cond, stmt->for_loop.incr, &stmt->for_loop.body)
+            case AstStatementKind.Match:
+                self->build_match_statement(&stmt->match_statement)
+            case AstStatementKind.Break:
+                assert self->nloops > 0
+                self->builder.jump(self->breakstack[self->nloops - 1])
+                self->builder.set_current_block(self->builder.add_block())  # for code after 'break', if any
+            case AstStatementKind.Continue:
+                assert self->nloops > 0
+                self->builder.jump(self->continuestack[self->nloops - 1])
+                self->builder.set_current_block(self->builder.add_block())  # for code after 'continue', if any
+            case AstStatementKind.Assign:
+                lhs_ptr = self->build_address_of_expression(&stmt->assignment.target)
+                rhs = self->build_expression(&stmt->assignment.value)
+                self->builder.set_ptr(lhs_ptr, rhs)
+            case AstStatementKind.InPlaceAdd:
+                self->build_inplace_binop(AstExpressionKind.Add, &stmt->data.assignment.target, &stmt->data.assignment.value)
+            case AstStatementKind.InPlaceSub:
+                self->build_inplace_binop(AstExpressionKind.Sub, &stmt->data.assignment.target, &stmt->data.assignment.value)
+            case AstStatementKind.InPlaceMul:
+                self->build_inplace_binop(AstExpressionKind.Mul, &stmt->data.assignment.target, &stmt->data.assignment.value)
+            case AstStatementKind.InPlaceDiv:
+                self->build_inplace_binop(AstExpressionKind.Div, &stmt->data.assignment.target, &stmt->data.assignment.value)
+            case AstStatementKind.InPlaceMod:
+                self->build_inplace_binop(AstExpressionKind.Mod, &stmt->data.assignment.target, &stmt->data.assignment.value)
+            case AstStatementKind.Return:
+                if stmt->return_value != NULL:
+                    self->builder.ret(self->build_expression(stmt->return_value))
+                else:
+                    self->builder.ret(NULL)
+                self->builder.set_current_block(self->builder.add_block())  # for code after 'return', if any
+            case AstStatementKind.DeclareLocalVar:
+                if stmt->var_declaration.value != NULL:
+                    var_ptr = self->local_var_ptr(stmt->var_declaration.name)
+                    value = self->build_expression(stmt->var_declaration.value)
+                    self->builder.set_ptr(var_ptr, value)
+            case AstStatementKind.ExpressionStatement:
+                self->build_expression(&stmt->expression)
+            case _:
+                # other statements shouldn't occur inside functions/methods
+                assert False
+
+    def build_body(self, body: AstBody*) -> None:
+        for i = 0; i < body->nstatements; i++:
+            self->build_statement(&body->statements[i])
+
+
 #
-#        LLVMBuildCondBr(st->builder, cond, then, otherwise);
-#        LLVMPositionBuilderAtEnd(st->builder, then);
-#        build_body(st, &ifst->if_and_elifs[i].body);
-#        LLVMBuildBr(st->builder, done);
-#        LLVMPositionBuilderAtEnd(st->builder, otherwise);
-#    }
 #
-#    build_body(st, &ifst->elsebody);
-#    LLVMBuildBr(st->builder, done);
-#    LLVMPositionBuilderAtEnd(st->builder, done);
-#}
+#    def build_function_or_method(self, astfom: AstFunctionOrMethod*) -> CfGraph*:
+#        if astfom->types.signature.get_self_class() != NULL:
+#            # Methods are always public, so that you can call them whenever you have an instance
+#            public = True
+#        else:
+#            public = astfom->public
 #
-#static void build_loop(
-#    struct State *st,
-#    const AstStatement *init,
-#    const AstExpression *cond,
-#    const AstStatement *incr,
-#    const AstBody *body)
-#{
-#    LLVMBasicBlockRef condblock, bodyblock, incrblock, doneblock;
+#        assert self->cfg == NULL
 #
-#    condblock = LLVMAppendBasicBlock(st->llvm_func, "cond");  // evaluate condition and go to bodyblock or doneblock
-#    bodyblock = LLVMAppendBasicBlock(st->llvm_func, "body");  // run loop body and go to incrblock
-#    incrblock = LLVMAppendBasicBlock(st->llvm_func, "incr");  // run incr and go to condblock
-#    doneblock = LLVMAppendBasicBlock(st->llvm_func, "done");  // rest of the code goes here
+#        self->cfg = calloc(1, sizeof *self->cfg)
+#        self->cfg->public = public
+#        self->cfg->signature = astfom->types.signature.copy()
 #
-#    // When entering loop, start with init and then jump to condition
-#    if (init)
-#        build_statement(st, init);
-#    LLVMBuildBr(st->builder, condblock);
+#        # Copy local variables over from type checking.
+#        # Ownership of the variables changes, they will be freed when graphs are freed.
+#        self->cfg->nlocals = astfom->types.nlocals
+#        self->cfg->locals = malloc(self->cfg->nlocals * sizeof(self->cfg->locals[0]))
+#        assert self->cfg->locals != NULL
+#        memcpy(self->cfg->locals, astfom->types.locals, self->cfg->nlocals * sizeof(self->cfg->locals[0]))
 #
-#    // Evaluate condition and then jump to loop body or skip to after loop.
-#    LLVMPositionBuilderAtEnd(st->builder, condblock);
-#    LLVMBuildCondBr(st->builder, build_expression(st, cond), bodyblock, doneblock);
+#        self->cfg->all_blocks = malloc(2 * sizeof(self->cfg->all_blocks[0]))
+#        assert self->cfg->all_blocks != NULL
+#        self->cfg->all_blocks[0] = &self->cfg->start_block
+#        self->cfg->all_blocks[1] = &self->cfg->end_block
+#        self->cfg->n_all_blocks = 2
 #
-#    // Within loop body, 'break' skips to after loop, 'continue' goes to incr.
-#    assert(st->nloops < sizeof(st->breaks)/sizeof(st->breaks[0]));
-#    assert(st->nloops < sizeof(st->continues)/sizeof(st->continues[0]));
-#    st->breaks[st->nloops] = doneblock;
-#    st->continues[st->nloops] = incrblock;
-#    st->nloops++;
+#        self->current_block = &self->cfg->start_block
 #
-#    // Run loop body. When done, go to incr.
-#    LLVMPositionBuilderAtEnd(st->builder, bodyblock);
-#    build_body(st, body);
-#    LLVMBuildBr(st->builder, incrblock);
+#        assert self->nloops == 0
+#        self->build_body(&astfom->body)
+#        assert self->nloops == 0
 #
-#    // 'break' and 'continue' are not allowed after the loop body.
-#    assert(st->nloops > 0);
-#    st->nloops--;
+#        # Implicit return at the end of the function
+#        self->current_block->iftrue = &self->cfg->end_block
+#        self->current_block->iffalse = &self->cfg->end_block
 #
-#    // Run incr and jump back to condition.
-#    LLVMPositionBuilderAtEnd(st->builder, incrblock);
-#    if (incr)
-#        build_statement(st, incr);
-#    LLVMBuildBr(st->builder, condblock);
-#
-#    // Code after the loop goes to "loop done" part.
-#    LLVMPositionBuilderAtEnd(st->builder, doneblock);
-#}
-#
-#static void build_match_statament(struct State *st, const AstMatchStatement *match_stmt)
-#{
-#    const AstExpression *matchobj_ast = &match_stmt->match_obj;
-#    BuilderValue matchobj = build_expression(st, matchobj_ast);
-#    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
-#
-#    for (int i = 0; i < match_stmt->ncases; i++) {
-#    for (AstExpression *caseobj_ast = match_stmt->cases[i].case_objs; caseobj_ast < &match_stmt->cases[i].case_objs[match_stmt->cases[i].n_case_objs]; caseobj_ast++) {
-#        BuilderValue caseobj = build_expression(st, caseobj_ast);
-#        BuilderValue cond = build_binop(st, AST_EXPR_EQ, matchobj, type_of_expr(matchobj_ast), caseobj, type_of_expr(caseobj_ast));
-#
-#        LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->llvm_func, "then");
-#        LLVMBasicBlockRef otherwise = LLVMAppendBasicBlock(st->llvm_func, "otherwise");
-#        LLVMBuildCondBr(st->builder, cond, then, otherwise);
-#
-#        LLVMPositionBuilderAtEnd(st->builder, then);
-#        build_body(st, &match_stmt->cases[i].body);
-#        LLVMBuildBr(st->builder, done);
-#        LLVMPositionBuilderAtEnd(st->builder, otherwise);
-#    }
-#    }
-#
-#    build_body(st, &match_stmt->case_underscore);
-#    LLVMBuildBr(st->builder, done);
-#    LLVMPositionBuilderAtEnd(st->builder, done);
-#}
-#
-#static void build_assert(struct State *st, Location assert_location, const AstAssert *assertion)
-#{
-#    BuilderValue cond = build_expression(st, &assertion->condition);
-#
-#    // If the condition is true, we jump to a block where the rest of the code goes.
-#    // If the condition is false, we jump to a block that calls _jou_assert_fail().
-#    LLVMBasicBlockRef trueblock = LLVMAppendBasicBlock(st->llvm_func, "assert_true");
-#    LLVMBasicBlockRef falseblock = LLVMAppendBasicBlock(st->llvm_func, "assert_false");
-#    LLVMBuildCondBr(st->builder, cond, trueblock, falseblock);
-#
-#    LLVMPositionBuilderAtEnd(st->builder, falseblock);
-#
-#    BuilderValue args[] = {
-#        build_string_constant(st, assertion->condition_str),
-#        build_string_constant(st, assert_location.filename),
-#        LLVMConstInt(LLVMInt32Type(), assert_location.lineno, false),
-#    };
-#    Type* argtypes[] = {
-#        LLVMTypeOf(args[0]),
-#        LLVMTypeOf(args[1]),
-#        LLVMTypeOf(args[2]),
-#    };
-#    Type* functype = LLVMFunctionType(LLVMVoidType(), argtypes, 3, false);
-#
-#    // Make it so that this can be called many times without issue
-#    BuilderValue func = LLVMGetNamedFunction(st->module, "_jou_assert_fail");
-#    if (!func)
-#        func = LLVMAddFunction(st->module, "_jou_assert_fail", functype);
-#    assert(func);
-#
-#    LLVMBuildCall2(st->builder, functype, func, args, 3, "");
-#    LLVMBuildUnreachable(st->builder);
-#
-#    LLVMPositionBuilderAtEnd(st->builder, trueblock);
-#}
-#
-#static void build_statement(struct State *st, const AstStatement *stmt)
-#{
-#    switch(stmt->kind) {
-#    case AST_STMT_ASSERT:
-#        build_assert(st, stmt->location, &stmt->data.assertion);
-#        break;
-#    case AST_STMT_RETURN:
-#        if (stmt->data.returnvalue)
-#            LLVMBuildRet(st->builder, build_expression(st, stmt->data.returnvalue));
-#        else
-#            LLVMBuildRetVoid(st->builder);
-#        // Put the rest of the code into an unreachable block
-#        LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_return"));
-#        break;
-#    case AST_STMT_IF:
-#        build_if_statement(st, &stmt->data.ifstatement);
-#        break;
-#    case AST_STMT_WHILE:
-#        build_loop(
-#            st, NULL, &stmt->data.whileloop.condition, NULL,
-#            &stmt->data.whileloop.body);
-#        break;
-#    case AST_STMT_FOR:
-#        build_loop(
-#            st, stmt->data.forloop.init, &stmt->data.forloop.cond, stmt->data.forloop.incr,
-#            &stmt->data.forloop.body);
-#        break;
-#    case AST_STMT_MATCH:
-#        build_match_statament(st, &stmt->data.match);
-#        break;
-#    case AST_STMT_BREAK:
-#        assert(st->nloops > 0);
-#        LLVMBuildBr(st->builder, st->breaks[st->nloops-1]);
-#        // Place code after break into a new (unreachable) block so that LLVM doesn't complain about it
-#        LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_break"));
-#        break;
-#    case AST_STMT_CONTINUE:
-#        assert(st->nloops > 0);
-#        LLVMBuildBr(st->builder, st->continues[st->nloops-1]);
-#        // Place code after continue into a new (unreachable) block so that LLVM doesn't complain about it
-#        LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_continue"));
-#        break;
-#    case AST_STMT_DECLARE_LOCAL_VAR:
-#        if (stmt->data.vardecl.value) {
-#            const struct LocalVar *var = get_local_var(st, stmt->data.vardecl.name);
-#            BuilderValue value = build_expression(st, stmt->data.vardecl.value);
-#            store(st->builder, value, var->ptr);
-#        }
-#        break;
-#    case AST_STMT_ASSIGN:
-#    {
-#        // Refactoring note: Needs separate variables because evaluation order
-#        // of arguments is not guaranteed in C.
-#        BuilderValue lhsptr = build_address_of_expression(st, &stmt->data.assignment.target);
-#        BuilderValue rhs = build_expression(st, &stmt->data.assignment.value);
-#        store(st->builder, rhs, lhsptr);
-#        break;
-#    }
-#    case AST_STMT_INPLACE_ADD:
-#        build_inplace_binop(st, AST_EXPR_ADD, &stmt->data.assignment.target, &stmt->data.assignment.value);
-#        break;
-#    case AST_STMT_INPLACE_SUB:
-#        build_inplace_binop(st, AST_EXPR_SUB, &stmt->data.assignment.target, &stmt->data.assignment.value);
-#        break;
-#    case AST_STMT_INPLACE_MUL:
-#        build_inplace_binop(st, AST_EXPR_MUL, &stmt->data.assignment.target, &stmt->data.assignment.value);
-#        break;
-#    case AST_STMT_INPLACE_DIV:
-#        build_inplace_binop(st, AST_EXPR_DIV, &stmt->data.assignment.target, &stmt->data.assignment.value);
-#        break;
-#    case AST_STMT_INPLACE_MOD:
-#        build_inplace_binop(st, AST_EXPR_MOD, &stmt->data.assignment.target, &stmt->data.assignment.value);
-#        break;
-#    case AST_STMT_EXPRESSION_STATEMENT:
-#        build_expression(st, &stmt->data.expression);
-#        break;
-#    case AST_STMT_PASS:
-#        break; // nothing to do
-#    case AST_STMT_DEFINE_CLASS:
-#    case AST_STMT_DEFINE_ENUM:
-#    case AST_STMT_DECLARE_GLOBAL_VAR:
-#    case AST_STMT_DEFINE_GLOBAL_VAR:
-#    case AST_STMT_FUNCTION_DEF:
-#    case AST_STMT_FUNCTION_DECLARE:
-#        assert(0); // should never occur inside a function
-#        break;
-#    }
-#}
-#
-#static void build_body(struct State *st, const AstBody *body)
-#{
-#    for (int i = 0; i < body->nstatements; i++)
-#        build_statement(st, &body->statements[i]);
-#}
-#
+
+@public
+def build_llvm_ir_for_function_or_method(
+    llvm_module: LLVMModule*,
+    llvm_builder: LLVMBuilder*
+    llvm_func: LLVMValue*
+) -> None:
+    builder = Builder{
+        llvm_module = llvm_module,
+        llvm_builder = LLVMCreateBuilder(),
+        llvm_func = 
+
+
 #if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
 #static void call_the_special_startup_function(const struct State *st)
 #{
