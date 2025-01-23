@@ -9,6 +9,7 @@
 # Currently this is used only to build LLVM IR, but more uses are planned.
 
 import "stdlib/str.jou"
+import "stdlib/mem.jou"
 
 import "../constants.jou"
 import "../llvm.jou"
@@ -74,6 +75,7 @@ class Builder:
     # GEP = Get Element Pointer https://llvm.org/docs/GetElementPtr.html
     # With num_indices = 3, returns &ptr[i1][i2][i3]
     # TODO: is this ever called with more than 1 index?
+    # TODO: rename
     def gep(self, ptr: BuilderValue, indices: BuilderValue*, num_indices: int) -> BuilderValue:
         result_type_inner = ptr.type->value_type
         for i = 0; i < num_indices; i++:
@@ -104,12 +106,13 @@ class Builder:
         return BuilderValue{type = result_type, llvm_value = llvm_result}
 
     # Returns &ptr->field
+    # TODO: rename
     def struct_gep(self, ptr: BuilderValue, field_name: byte*) -> BuilderValue:
         assert ptr.type->kind == TypeKind.Pointer
         classtype = ptr.type->value_type
         assert classtype->kind == TypeKind.Class
 
-        field = NULL
+        field: ClassField* = NULL
         for f = classtype->classdata.fields; f < &classtype->classdata.fields[classtype->classdata.nfields]; f++:
             if strcmp(f->name, field_name) == 0:
                 field = f
@@ -124,7 +127,7 @@ class Builder:
 
     # Returns &llvm_stringiable. Type needs to be passed in because a new builder
     # unaware of global variables is created for each function.
-    def llvm_string_ptr(self, name: byte*, var_type: Type*) -> BuilderValue:
+    def global_var_ptr(self, name: byte*, var_type: Type*) -> BuilderValue:
         llvm_result = LLVMGetNamedGlobal(self->llvm_module, name)
         llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
         return BuilderValue{type = var_type->pointer_type(), llvm_value = llvm_result}
@@ -151,7 +154,7 @@ class Builder:
     def call(self, sig: Signature*, args: BuilderValue*, nargs: int) -> BuilderValue:
         assert nargs >= sig->nargs
         if nargs > sig->nargs:
-            assert sig->uses_varargs
+            assert sig->takes_varargs
 
         assert nargs <= 100
         llvm_args: LLVMValue*[100]
@@ -173,8 +176,19 @@ class Builder:
             assert llvm_return_value != NULL
             return BuilderValue{type = sig->returntype, llvm_value = llvm_return_value}
 
+    # string as array of bytes
+    def string_array(self, s: byte*, array_size: int) -> BuilderValue:
+        assert strlen(s) < array_size
+        padded: byte* = malloc(array_size)
+        memset(padded, 0, array_size)
+        strcpy(padded, s)
+        llvm_array = LLVMConstString(s, array_size, True as int)
+        free(padded)
+        return BuilderValue{type = byteType->array_type(array_size), llvm_value = llvm_array}
+
+    # string as '\0' terminated pointer
     def string(self, s: byte*) -> BuilderValue:
-        llvm_array = LLVMConstString(s, strlen(s) as int, False as int)
+        llvm_array = self->string_array(s, (strlen(s) + 1) as int).llvm_value
         llvm_string = LLVMAddGlobal(self->llvm_module, LLVMTypeOf(llvm_array), "string_literal")
         LLVMSetLinkage(llvm_string, LLVMLinkage.Private)  # This makes it a static global variable
         LLVMSetInitializer(llvm_string, llvm_array)

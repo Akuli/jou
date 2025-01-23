@@ -1,14 +1,9 @@
-import "stdlib/math.jou"
-import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
-import "./evaluate.jou"
-import "./cf_graph.jou"
-import "./llvm.jou"
-import "./target.jou"
-import "./types.jou"
-import "./types_in_ast.jou"
-import "./constants.jou"
+import "../ast.jou"
+import "../types.jou"
+import "../types_in_ast.jou"
+import "./builder.jou"
 
 
 class LocalVar:
@@ -63,7 +58,9 @@ class AstToIR:
         args: BuilderValue[100]
         for i = 0; i < call->nargs; i++:
             args[i] = self->build_expression(&call->args[i])
-        return self->builder.call(call->types.signature, args, call->nargs)
+        # TODO: attach signature to the AST
+        #return self->builder.call(call->types.signature, args, call->nargs)
+        assert False
 
     def build_method_call(self, call: AstCall*) -> BuilderValue:
         assert call->method_call_self != NULL
@@ -76,7 +73,7 @@ class AstToIR:
         sig: Signature* = NULL
         for s = selfclass->classdata.methods; s < &selfclass->classdata.methods[selfclass->classdata.nmethods]; s++:
             assert s->get_self_class() == selfclass
-            if strcmp(s->name, call->calledname) == 0:
+            if strcmp(s->name, call->name) == 0:
                 sig = s
                 break
         assert sig != NULL
@@ -133,12 +130,8 @@ class AstToIR:
         lhs_ptr = self->build_address_of_expression(lhs)
         rhs_value = self->build_expression(rhs)
         old_value = self->builder.dereference(lhs_ptr)
-        new_value = self->build_binop(old_value, rhs_value)
+        new_value = self->build_binop(op, old_value, rhs_value)
         self->builder.set_ptr(lhs_ptr, new_value)
-
-    # TODO: delete this method
-    def build_class_field_pointer(self, instanceptr: BuilderValue, fieldname: byte*) -> BuilderValue:
-        return self->builder->struct_gep(instanceptr, fieldname)
 
     def build_instantiation(self, inst: AstInstantiation*) -> BuilderValue:
         # TODO: need some way to access the type being instantiated
@@ -168,11 +161,7 @@ class AstToIR:
         #    return LLVMBuildLoad2(st->builder, type_to_llvm(classtype), ptr, "new_instance");
         #}
 
-    # TODO: delete this method
-    def build_cast(self, obj: BuilderValue, to: Type*) -> None:
-        return self->builder.cast(obj, to)
-
-    def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> None:
+    def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> BuilderValue:
         # Must be careful with side effects.
         #
         #    # lhs returning False means we don't evaluate rhs
@@ -202,7 +191,7 @@ class AstToIR:
 
         return self->builder.dereference(resultptr)
 
-    def build_or(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> None:
+    def build_or(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> BuilderValue:
         # Must be careful with side effects.
         #
         #    # lhs returning True means we don't evaluate rhs
@@ -232,7 +221,7 @@ class AstToIR:
 
         return self->builder.dereference(resultptr)
 
-    def build_increment_or_decrement(self, inner: AstExpression*, pre: bool, diff: int) -> None:
+    def build_increment_or_decrement(self, inner: AstExpression*, pre: bool, diff: int) -> BuilderValue:
         assert diff==1 or diff==-1  # 1=increment, -1=decrement
 
         ptr = self->build_address_of_expression(inner)
@@ -260,7 +249,7 @@ class AstToIR:
         assert t->array.len == nitems
 
         arr_ptr = self->builder.stack_alloc(t)
-        first_item_ptr = self->builder.cast(arr_ptr, t->array.itemtype.pointer_type())
+        first_item_ptr = self->builder.cast(arr_ptr, t->array.item_type->pointer_type())
 
         for i = 0; i < nitems; i++:
             i_built = self->builder.integer(longType, i)
@@ -282,12 +271,14 @@ class AstToIR:
                 return self->builder.integer(intType, expr->int_value)
             case AstExpressionKind.Long:
                 return self->builder.integer(longType, expr->long_value)
-            case AstExpressionKind.FloatingPoint:
-                return self->builder.float_or_double(expr->types.orig_type, expr->float_or_double_text)
+            case AstExpressionKind.Float:
+                return self->builder.float_or_double(floatType, expr->float_or_double_text)
+            case AstExpressionKind.Double:
+                return self->builder.float_or_double(doubleType, expr->float_or_double_text)
             case AstExpressionKind.Bool:
                 return self->builder.boolean(expr->bool_value)
             case AstExpressionKind.Null:
-                return self->builder.null()
+                return self->builder.zero_of_type(voidPtrType)
             case AstExpressionKind.Array:
                 return self->build_array(expr->types.orig_type, expr->array.items, expr->array.length)
             case AstExpressionKind.Call:
@@ -307,12 +298,10 @@ class AstToIR:
                 # Evaluate foo.bar as (&temp)->bar, where temp is a temporary copy of foo.
                 # We need to copy, because it's not always possible to evaluate &foo.
                 # For example, consider evaluating some_function().foo.
-                t = expr->class_field.instance.types.implicit_cast_type
-                assert t->kind == TypeKind.Class
                 instance = self->build_expression(expr->class_field.instance)
-                ptr = self->builder.stack_alloc(t)
+                ptr = self->builder.stack_alloc(instance.type)
                 self->builder.set_ptr(ptr, instance)
-                fieldptr = self->build_class_field_pointer(ptr, expr->class_field.field_name)
+                fieldptr = self->builder.struct_gep(ptr, expr->class_field.field_name)
                 return self->builder.dereference(ptr)
             case AstExpressionKind.As:
                 return self->builder.cast(self->build_expression(&expr->as_->value), expr->types.orig_type)
@@ -329,13 +318,13 @@ class AstToIR:
                     self->build_expression(&expr->operands[0]),
                 )
             case AstExpressionKind.PreIncr:
-                return build_increment_or_decrement(st, &expr->data.operands[0], True, 1)
+                return self->build_increment_or_decrement(&expr->operands[0], True, 1)
             case AstExpressionKind.PreDecr:
-                return build_increment_or_decrement(st, &expr->data.operands[0], True, -1)
+                return self->build_increment_or_decrement(&expr->operands[0], True, -1)
             case AstExpressionKind.PostIncr:
-                return build_increment_or_decrement(st, &expr->data.operands[0], False, 1)
+                return self->build_increment_or_decrement(&expr->operands[0], False, 1)
             case AstExpressionKind.PostDecr:
-                return build_increment_or_decrement(st, &expr->data.operands[0], False, -1)
+                return self->build_increment_or_decrement(&expr->operands[0], False, -1)
             case (
                 AstExpressionKind.Add
                 | AstExpressionKind.Sub
@@ -352,479 +341,420 @@ class AstToIR:
                 # Note: If you port this code to another programming language, make sure
                 # to evaluate the operands in the correct order. C does not guarantee
                 # evaluation order of function arguments, but Jou does.
-                self->build_binop(expr->kind, &expr->data.operands[0], &expr->data.operands[1])
+                self->build_binop(expr->kind, self->build_expression(&expr->operands[0]), self->build_expression(&expr->operands[1]))
             case AstExpressionKind.Indexing:
                 # ptr[foo] can always be evaluated as *(&ptr[foo]).
                 # We can't do this for all expressions, because e.g. &some_function() is error.
                 return self->builder.dereference(self->build_address_of_expression(&expr->operands[0]))
             case AstExpressionKind.And:
-                return self->build_and(&expr->data.operands[0], &expr->data.operands[1])
+                return self->build_and(&expr->operands[0], &expr->operands[1])
             case AstExpressionKind.Or:
-                return self->build_or(&expr->data.operands[0], &expr->data.operands[1])
+                return self->build_or(&expr->operands[0], &expr->operands[1])
             case AstExpressionKind.Not:
                 return self->builder.not_(self->build_expression(&expr->operands[0]))
 
-static BuilderValue build_expression(struct State *st, const AstExpression *expr)
-{
-    if (expr->types.implicit_array_to_pointer_cast)
-        return build_address_of_expression(st, expr);
+    def build_expression(self, expr: AstExpression*) -> BuilderValue:
+        if expr->types.implicit_array_to_pointer_cast:
+            return self->builder.cast(self->build_address_of_expression(expr), expr->types.implicit_cast_type)
 
-    if (expr->types.implicit_string_to_array_cast) {
-        assert(expr->types.implicit_cast_type->kind == TYPE_ARRAY);
-        assert(expr->types.implicit_cast_type->data.array.itemtype == byteType);
-        assert(expr->kind == AST_EXPR_CONSTANT);
-        assert(expr->data.constant.kind == CONSTANT_STRING);
+        if expr->types.implicit_string_to_array_cast:
+            assert expr->types.implicit_cast_type != NULL
+            assert expr->types.implicit_cast_type->kind == TypeKind.Array
+            assert expr->kind == AstExpressionKind.String
+            return self->builder.string_array(expr->string, expr->types.implicit_cast_type->array.len)
 
-        size_t arrlen = expr->types.implicit_cast_type->data.array.len;
-        const char *str = expr->data.constant.data.str;
+        raw = self->build_expression_without_implicit_cast(expr)
+        return self->builder.cast(raw, expr->types.implicit_cast_type)
 
-        assert(strlen(str) < arrlen);
-        char *padded = calloc(1, arrlen);
-        strcpy(padded, str);
+    def build_address_of_expression(self, expr: AstExpression*) -> BuilderValue:
+        match expr->kind:
+            case AstExpressionKind.GetClassField:
+                if expr->class_field.uses_arrow_operator:
+                    # &ptr->field = ptr + memory offset
+                    ptr = self->build_expression(expr->class_field.instance)
+                    return self->builder.struct_gep(ptr, expr->class_field.field_name)
+                else:
+                    # &obj.field = &obj + memory offset
+                    ptr = self->build_address_of_expression(expr->class_field.instance)
+                    return self->builder.struct_gep(ptr, expr->class_field.field_name)
+            case AstExpressionKind.GetVariable:
+                if self->local_var_exists(expr->varname):
+                    return self->local_var_ptr(expr->varname)
+                else:
+                    return self->builder.global_var_ptr(expr->varname, expr->types.orig_type)
+            case AstExpressionKind.Indexing:
+                # &ptr[index] = ptr + memory offset
+                ptr = self->build_expression(&expr->operands[0])
+                index = self->build_expression(&expr->operands[1])
+                return self->builder.gep(ptr, &index, 1)
+            case AstExpressionKind.Dereference:
+                # &*ptr = ptr
+                return self->build_expression(&expr->operands[0])
+            case _:
+                assert False
 
-        BuilderValue result = LLVMConstString(padded, arrlen, true);
-        free(padded);
-        return result;
-    }
-
-    BuilderValue before_cast = build_expression_without_implicit_cast(st, expr);
-    if (expr->types.implicit_cast_type == NULL)
-        return before_cast;
-    return build_cast(st, before_cast, expr->types.orig_type, expr->types.implicit_cast_type);
-}
-
-static BuilderValue build_address_of_expression(struct State *st, const AstExpression *expr)
-{
-    switch(expr->kind) {
-    case AST_EXPR_DEREF_AND_GET_FIELD:
-    {
-        // &ptr->field = ptr + memory offset, first evaluate ptr
-        BuilderValue ptr = build_expression(st, expr->data.classfield.obj);
-        const Type *t = type_of_expr(expr->data.classfield.obj);
-        assert(t->kind == TYPE_POINTER);
-        assert(t->data.valuetype->kind == TYPE_CLASS);
-        return build_class_field_pointer(st, t->data.valuetype, ptr, expr->data.classfield.fieldname);
-    }
-    case AST_EXPR_GET_FIELD:
-    {
-        // &obj.field = &obj + memory offset
-        BuilderValue ptr = build_address_of_expression(st, expr->data.classfield.obj);
-        const Type *t = type_of_expr(expr->data.classfield.obj);
-        assert(t->kind == TYPE_CLASS);
-        return build_class_field_pointer(st, t, ptr, expr->data.classfield.fieldname);
-    }
-    case AST_EXPR_GET_VARIABLE:
-        if (local_var_exists(st, expr->data.varname))
-            return get_local_var(st, expr->data.varname)->ptr;
-        else
-            return getglobal(st->builder, st->module, expr->data.varname);
-    case AST_EXPR_INDEXING:
-    {
-        // &ptr[index] = ptr + memory offset
-        BuilderValue ptr = build_expression(st, &expr->data.operands[0]);
-        BuilderValue index = build_expression(st, &expr->data.operands[1]);
-        const Type *t = type_of_expr(&expr->data.operands[0]);
-        assert(t->kind == TYPE_POINTER);
-        return gep(st->builder, type_to_llvm(t->data.valuetype), ptr, &index, 1, "indexing");
-    }
-    case AST_EXPR_DEREFERENCE:
-        // &*foo = foo
-        return build_expression(st, &expr->data.operands[0]);
-    case AST_EXPR_CALL_METHOD:
-    case AST_EXPR_DEREF_AND_CALL_METHOD:
-    case AST_EXPR_SIZEOF:
-    case AST_EXPR_ADDRESS_OF:
-    case AST_EXPR_AND:
-    case AST_EXPR_OR:
-    case AST_EXPR_NOT:
-    case AST_EXPR_ADD:
-    case AST_EXPR_SUB:
-    case AST_EXPR_MUL:
-    case AST_EXPR_DIV:
-    case AST_EXPR_MOD:
-    case AST_EXPR_NEG:
-    case AST_EXPR_EQ:
-    case AST_EXPR_NE:
-    case AST_EXPR_GT:
-    case AST_EXPR_GE:
-    case AST_EXPR_LT:
-    case AST_EXPR_LE:
-    case AST_EXPR_PRE_INCREMENT:
-    case AST_EXPR_PRE_DECREMENT:
-    case AST_EXPR_POST_INCREMENT:
-    case AST_EXPR_POST_DECREMENT:
-    case AST_EXPR_AS:
-    case AST_EXPR_CONSTANT:
-    case AST_EXPR_GET_ENUM_MEMBER:
-    case AST_EXPR_FUNCTION_CALL:
-    case AST_EXPR_BRACE_INIT:
-    case AST_EXPR_ARRAY:
-        assert(0);
-    }
-    assert(0);
-}
-
-static void build_if_statement(struct State *st, const AstIfStatement *ifst)
-{
-    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
-    for (int i = 0; i < ifst->n_if_and_elifs; i++) {
-        BuilderValue cond = build_expression(st, &ifst->if_and_elifs[i].condition);
-        LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->llvm_func, "then");
-        LLVMBasicBlockRef otherwise = LLVMAppendBasicBlock(st->llvm_func, "otherwise");
-
-        LLVMBuildCondBr(st->builder, cond, then, otherwise);
-        LLVMPositionBuilderAtEnd(st->builder, then);
-        build_body(st, &ifst->if_and_elifs[i].body);
-        LLVMBuildBr(st->builder, done);
-        LLVMPositionBuilderAtEnd(st->builder, otherwise);
-    }
-
-    build_body(st, &ifst->elsebody);
-    LLVMBuildBr(st->builder, done);
-    LLVMPositionBuilderAtEnd(st->builder, done);
-}
-
-static void build_loop(
-    struct State *st,
-    const AstStatement *init,
-    const AstExpression *cond,
-    const AstStatement *incr,
-    const AstBody *body)
-{
-    LLVMBasicBlockRef condblock, bodyblock, incrblock, doneblock;
-
-    condblock = LLVMAppendBasicBlock(st->llvm_func, "cond");  // evaluate condition and go to bodyblock or doneblock
-    bodyblock = LLVMAppendBasicBlock(st->llvm_func, "body");  // run loop body and go to incrblock
-    incrblock = LLVMAppendBasicBlock(st->llvm_func, "incr");  // run incr and go to condblock
-    doneblock = LLVMAppendBasicBlock(st->llvm_func, "done");  // rest of the code goes here
-
-    // When entering loop, start with init and then jump to condition
-    if (init)
-        build_statement(st, init);
-    LLVMBuildBr(st->builder, condblock);
-
-    // Evaluate condition and then jump to loop body or skip to after loop.
-    LLVMPositionBuilderAtEnd(st->builder, condblock);
-    LLVMBuildCondBr(st->builder, build_expression(st, cond), bodyblock, doneblock);
-
-    // Within loop body, 'break' skips to after loop, 'continue' goes to incr.
-    assert(st->nloops < sizeof(st->breaks)/sizeof(st->breaks[0]));
-    assert(st->nloops < sizeof(st->continues)/sizeof(st->continues[0]));
-    st->breaks[st->nloops] = doneblock;
-    st->continues[st->nloops] = incrblock;
-    st->nloops++;
-
-    // Run loop body. When done, go to incr.
-    LLVMPositionBuilderAtEnd(st->builder, bodyblock);
-    build_body(st, body);
-    LLVMBuildBr(st->builder, incrblock);
-
-    // 'break' and 'continue' are not allowed after the loop body.
-    assert(st->nloops > 0);
-    st->nloops--;
-
-    // Run incr and jump back to condition.
-    LLVMPositionBuilderAtEnd(st->builder, incrblock);
-    if (incr)
-        build_statement(st, incr);
-    LLVMBuildBr(st->builder, condblock);
-
-    // Code after the loop goes to "loop done" part.
-    LLVMPositionBuilderAtEnd(st->builder, doneblock);
-}
-
-static void build_match_statament(struct State *st, const AstMatchStatement *match_stmt)
-{
-    const AstExpression *matchobj_ast = &match_stmt->match_obj;
-    BuilderValue matchobj = build_expression(st, matchobj_ast);
-    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
-
-    for (int i = 0; i < match_stmt->ncases; i++) {
-    for (AstExpression *caseobj_ast = match_stmt->cases[i].case_objs; caseobj_ast < &match_stmt->cases[i].case_objs[match_stmt->cases[i].n_case_objs]; caseobj_ast++) {
-        BuilderValue caseobj = build_expression(st, caseobj_ast);
-        BuilderValue cond = build_binop(st, AST_EXPR_EQ, matchobj, type_of_expr(matchobj_ast), caseobj, type_of_expr(caseobj_ast));
-
-        LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->llvm_func, "then");
-        LLVMBasicBlockRef otherwise = LLVMAppendBasicBlock(st->llvm_func, "otherwise");
-        LLVMBuildCondBr(st->builder, cond, then, otherwise);
-
-        LLVMPositionBuilderAtEnd(st->builder, then);
-        build_body(st, &match_stmt->cases[i].body);
-        LLVMBuildBr(st->builder, done);
-        LLVMPositionBuilderAtEnd(st->builder, otherwise);
-    }
-    }
-
-    build_body(st, &match_stmt->case_underscore);
-    LLVMBuildBr(st->builder, done);
-    LLVMPositionBuilderAtEnd(st->builder, done);
-}
-
-static void build_assert(struct State *st, Location assert_location, const AstAssert *assertion)
-{
-    BuilderValue cond = build_expression(st, &assertion->condition);
-
-    // If the condition is true, we jump to a block where the rest of the code goes.
-    // If the condition is false, we jump to a block that calls _jou_assert_fail().
-    LLVMBasicBlockRef trueblock = LLVMAppendBasicBlock(st->llvm_func, "assert_true");
-    LLVMBasicBlockRef falseblock = LLVMAppendBasicBlock(st->llvm_func, "assert_false");
-    LLVMBuildCondBr(st->builder, cond, trueblock, falseblock);
-
-    LLVMPositionBuilderAtEnd(st->builder, falseblock);
-
-    BuilderValue args[] = {
-        build_string_constant(st, assertion->condition_str),
-        build_string_constant(st, assert_location.filename),
-        LLVMConstInt(LLVMInt32Type(), assert_location.lineno, false),
-    };
-    Type* argtypes[] = {
-        LLVMTypeOf(args[0]),
-        LLVMTypeOf(args[1]),
-        LLVMTypeOf(args[2]),
-    };
-    Type* functype = LLVMFunctionType(LLVMVoidType(), argtypes, 3, false);
-
-    // Make it so that this can be called many times without issue
-    BuilderValue func = LLVMGetNamedFunction(st->module, "_jou_assert_fail");
-    if (!func)
-        func = LLVMAddFunction(st->module, "_jou_assert_fail", functype);
-    assert(func);
-
-    LLVMBuildCall2(st->builder, functype, func, args, 3, "");
-    LLVMBuildUnreachable(st->builder);
-
-    LLVMPositionBuilderAtEnd(st->builder, trueblock);
-}
-
-static void build_statement(struct State *st, const AstStatement *stmt)
-{
-    switch(stmt->kind) {
-    case AST_STMT_ASSERT:
-        build_assert(st, stmt->location, &stmt->data.assertion);
-        break;
-    case AST_STMT_RETURN:
-        if (stmt->data.returnvalue)
-            LLVMBuildRet(st->builder, build_expression(st, stmt->data.returnvalue));
-        else
-            LLVMBuildRetVoid(st->builder);
-        // Put the rest of the code into an unreachable block
-        LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_return"));
-        break;
-    case AST_STMT_IF:
-        build_if_statement(st, &stmt->data.ifstatement);
-        break;
-    case AST_STMT_WHILE:
-        build_loop(
-            st, NULL, &stmt->data.whileloop.condition, NULL,
-            &stmt->data.whileloop.body);
-        break;
-    case AST_STMT_FOR:
-        build_loop(
-            st, stmt->data.forloop.init, &stmt->data.forloop.cond, stmt->data.forloop.incr,
-            &stmt->data.forloop.body);
-        break;
-    case AST_STMT_MATCH:
-        build_match_statament(st, &stmt->data.match);
-        break;
-    case AST_STMT_BREAK:
-        assert(st->nloops > 0);
-        LLVMBuildBr(st->builder, st->breaks[st->nloops-1]);
-        // Place code after break into a new (unreachable) block so that LLVM doesn't complain about it
-        LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_break"));
-        break;
-    case AST_STMT_CONTINUE:
-        assert(st->nloops > 0);
-        LLVMBuildBr(st->builder, st->continues[st->nloops-1]);
-        // Place code after continue into a new (unreachable) block so that LLVM doesn't complain about it
-        LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_continue"));
-        break;
-    case AST_STMT_DECLARE_LOCAL_VAR:
-        if (stmt->data.vardecl.value) {
-            const struct LocalVar *var = get_local_var(st, stmt->data.vardecl.name);
-            BuilderValue value = build_expression(st, stmt->data.vardecl.value);
-            store(st->builder, value, var->ptr);
-        }
-        break;
-    case AST_STMT_ASSIGN:
-    {
-        // Refactoring note: Needs separate variables because evaluation order
-        // of arguments is not guaranteed in C.
-        BuilderValue lhsptr = build_address_of_expression(st, &stmt->data.assignment.target);
-        BuilderValue rhs = build_expression(st, &stmt->data.assignment.value);
-        store(st->builder, rhs, lhsptr);
-        break;
-    }
-    case AST_STMT_INPLACE_ADD:
-        build_inplace_binop(st, AST_EXPR_ADD, &stmt->data.assignment.target, &stmt->data.assignment.value);
-        break;
-    case AST_STMT_INPLACE_SUB:
-        build_inplace_binop(st, AST_EXPR_SUB, &stmt->data.assignment.target, &stmt->data.assignment.value);
-        break;
-    case AST_STMT_INPLACE_MUL:
-        build_inplace_binop(st, AST_EXPR_MUL, &stmt->data.assignment.target, &stmt->data.assignment.value);
-        break;
-    case AST_STMT_INPLACE_DIV:
-        build_inplace_binop(st, AST_EXPR_DIV, &stmt->data.assignment.target, &stmt->data.assignment.value);
-        break;
-    case AST_STMT_INPLACE_MOD:
-        build_inplace_binop(st, AST_EXPR_MOD, &stmt->data.assignment.target, &stmt->data.assignment.value);
-        break;
-    case AST_STMT_EXPRESSION_STATEMENT:
-        build_expression(st, &stmt->data.expression);
-        break;
-    case AST_STMT_PASS:
-        break; // nothing to do
-    case AST_STMT_DEFINE_CLASS:
-    case AST_STMT_DEFINE_ENUM:
-    case AST_STMT_DECLARE_GLOBAL_VAR:
-    case AST_STMT_DEFINE_GLOBAL_VAR:
-    case AST_STMT_FUNCTION_DEF:
-    case AST_STMT_FUNCTION_DECLARE:
-        assert(0); // should never occur inside a function
-        break;
-    }
-}
-
-static void build_body(struct State *st, const AstBody *body)
-{
-    for (int i = 0; i < body->nstatements; i++)
-        build_statement(st, &body->statements[i]);
-}
-
+#static void build_if_statement(struct State *st, const AstIfStatement *ifst)
+#{
+#    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
+#    for (int i = 0; i < ifst->n_if_and_elifs; i++) {
+#        BuilderValue cond = build_expression(st, &ifst->if_and_elifs[i].condition);
+#        LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->llvm_func, "then");
+#        LLVMBasicBlockRef otherwise = LLVMAppendBasicBlock(st->llvm_func, "otherwise");
+#
+#        LLVMBuildCondBr(st->builder, cond, then, otherwise);
+#        LLVMPositionBuilderAtEnd(st->builder, then);
+#        build_body(st, &ifst->if_and_elifs[i].body);
+#        LLVMBuildBr(st->builder, done);
+#        LLVMPositionBuilderAtEnd(st->builder, otherwise);
+#    }
+#
+#    build_body(st, &ifst->elsebody);
+#    LLVMBuildBr(st->builder, done);
+#    LLVMPositionBuilderAtEnd(st->builder, done);
+#}
+#
+#static void build_loop(
+#    struct State *st,
+#    const AstStatement *init,
+#    const AstExpression *cond,
+#    const AstStatement *incr,
+#    const AstBody *body)
+#{
+#    LLVMBasicBlockRef condblock, bodyblock, incrblock, doneblock;
+#
+#    condblock = LLVMAppendBasicBlock(st->llvm_func, "cond");  // evaluate condition and go to bodyblock or doneblock
+#    bodyblock = LLVMAppendBasicBlock(st->llvm_func, "body");  // run loop body and go to incrblock
+#    incrblock = LLVMAppendBasicBlock(st->llvm_func, "incr");  // run incr and go to condblock
+#    doneblock = LLVMAppendBasicBlock(st->llvm_func, "done");  // rest of the code goes here
+#
+#    // When entering loop, start with init and then jump to condition
+#    if (init)
+#        build_statement(st, init);
+#    LLVMBuildBr(st->builder, condblock);
+#
+#    // Evaluate condition and then jump to loop body or skip to after loop.
+#    LLVMPositionBuilderAtEnd(st->builder, condblock);
+#    LLVMBuildCondBr(st->builder, build_expression(st, cond), bodyblock, doneblock);
+#
+#    // Within loop body, 'break' skips to after loop, 'continue' goes to incr.
+#    assert(st->nloops < sizeof(st->breaks)/sizeof(st->breaks[0]));
+#    assert(st->nloops < sizeof(st->continues)/sizeof(st->continues[0]));
+#    st->breaks[st->nloops] = doneblock;
+#    st->continues[st->nloops] = incrblock;
+#    st->nloops++;
+#
+#    // Run loop body. When done, go to incr.
+#    LLVMPositionBuilderAtEnd(st->builder, bodyblock);
+#    build_body(st, body);
+#    LLVMBuildBr(st->builder, incrblock);
+#
+#    // 'break' and 'continue' are not allowed after the loop body.
+#    assert(st->nloops > 0);
+#    st->nloops--;
+#
+#    // Run incr and jump back to condition.
+#    LLVMPositionBuilderAtEnd(st->builder, incrblock);
+#    if (incr)
+#        build_statement(st, incr);
+#    LLVMBuildBr(st->builder, condblock);
+#
+#    // Code after the loop goes to "loop done" part.
+#    LLVMPositionBuilderAtEnd(st->builder, doneblock);
+#}
+#
+#static void build_match_statament(struct State *st, const AstMatchStatement *match_stmt)
+#{
+#    const AstExpression *matchobj_ast = &match_stmt->match_obj;
+#    BuilderValue matchobj = build_expression(st, matchobj_ast);
+#    LLVMBasicBlockRef done = LLVMAppendBasicBlock(st->llvm_func, "done");
+#
+#    for (int i = 0; i < match_stmt->ncases; i++) {
+#    for (AstExpression *caseobj_ast = match_stmt->cases[i].case_objs; caseobj_ast < &match_stmt->cases[i].case_objs[match_stmt->cases[i].n_case_objs]; caseobj_ast++) {
+#        BuilderValue caseobj = build_expression(st, caseobj_ast);
+#        BuilderValue cond = build_binop(st, AST_EXPR_EQ, matchobj, type_of_expr(matchobj_ast), caseobj, type_of_expr(caseobj_ast));
+#
+#        LLVMBasicBlockRef then = LLVMAppendBasicBlock(st->llvm_func, "then");
+#        LLVMBasicBlockRef otherwise = LLVMAppendBasicBlock(st->llvm_func, "otherwise");
+#        LLVMBuildCondBr(st->builder, cond, then, otherwise);
+#
+#        LLVMPositionBuilderAtEnd(st->builder, then);
+#        build_body(st, &match_stmt->cases[i].body);
+#        LLVMBuildBr(st->builder, done);
+#        LLVMPositionBuilderAtEnd(st->builder, otherwise);
+#    }
+#    }
+#
+#    build_body(st, &match_stmt->case_underscore);
+#    LLVMBuildBr(st->builder, done);
+#    LLVMPositionBuilderAtEnd(st->builder, done);
+#}
+#
+#static void build_assert(struct State *st, Location assert_location, const AstAssert *assertion)
+#{
+#    BuilderValue cond = build_expression(st, &assertion->condition);
+#
+#    // If the condition is true, we jump to a block where the rest of the code goes.
+#    // If the condition is false, we jump to a block that calls _jou_assert_fail().
+#    LLVMBasicBlockRef trueblock = LLVMAppendBasicBlock(st->llvm_func, "assert_true");
+#    LLVMBasicBlockRef falseblock = LLVMAppendBasicBlock(st->llvm_func, "assert_false");
+#    LLVMBuildCondBr(st->builder, cond, trueblock, falseblock);
+#
+#    LLVMPositionBuilderAtEnd(st->builder, falseblock);
+#
+#    BuilderValue args[] = {
+#        build_string_constant(st, assertion->condition_str),
+#        build_string_constant(st, assert_location.filename),
+#        LLVMConstInt(LLVMInt32Type(), assert_location.lineno, false),
+#    };
+#    Type* argtypes[] = {
+#        LLVMTypeOf(args[0]),
+#        LLVMTypeOf(args[1]),
+#        LLVMTypeOf(args[2]),
+#    };
+#    Type* functype = LLVMFunctionType(LLVMVoidType(), argtypes, 3, false);
+#
+#    // Make it so that this can be called many times without issue
+#    BuilderValue func = LLVMGetNamedFunction(st->module, "_jou_assert_fail");
+#    if (!func)
+#        func = LLVMAddFunction(st->module, "_jou_assert_fail", functype);
+#    assert(func);
+#
+#    LLVMBuildCall2(st->builder, functype, func, args, 3, "");
+#    LLVMBuildUnreachable(st->builder);
+#
+#    LLVMPositionBuilderAtEnd(st->builder, trueblock);
+#}
+#
+#static void build_statement(struct State *st, const AstStatement *stmt)
+#{
+#    switch(stmt->kind) {
+#    case AST_STMT_ASSERT:
+#        build_assert(st, stmt->location, &stmt->data.assertion);
+#        break;
+#    case AST_STMT_RETURN:
+#        if (stmt->data.returnvalue)
+#            LLVMBuildRet(st->builder, build_expression(st, stmt->data.returnvalue));
+#        else
+#            LLVMBuildRetVoid(st->builder);
+#        // Put the rest of the code into an unreachable block
+#        LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_return"));
+#        break;
+#    case AST_STMT_IF:
+#        build_if_statement(st, &stmt->data.ifstatement);
+#        break;
+#    case AST_STMT_WHILE:
+#        build_loop(
+#            st, NULL, &stmt->data.whileloop.condition, NULL,
+#            &stmt->data.whileloop.body);
+#        break;
+#    case AST_STMT_FOR:
+#        build_loop(
+#            st, stmt->data.forloop.init, &stmt->data.forloop.cond, stmt->data.forloop.incr,
+#            &stmt->data.forloop.body);
+#        break;
+#    case AST_STMT_MATCH:
+#        build_match_statament(st, &stmt->data.match);
+#        break;
+#    case AST_STMT_BREAK:
+#        assert(st->nloops > 0);
+#        LLVMBuildBr(st->builder, st->breaks[st->nloops-1]);
+#        // Place code after break into a new (unreachable) block so that LLVM doesn't complain about it
+#        LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_break"));
+#        break;
+#    case AST_STMT_CONTINUE:
+#        assert(st->nloops > 0);
+#        LLVMBuildBr(st->builder, st->continues[st->nloops-1]);
+#        // Place code after continue into a new (unreachable) block so that LLVM doesn't complain about it
+#        LLVMPositionBuilderAtEnd(st->builder, LLVMAppendBasicBlock(st->llvm_func, "after_continue"));
+#        break;
+#    case AST_STMT_DECLARE_LOCAL_VAR:
+#        if (stmt->data.vardecl.value) {
+#            const struct LocalVar *var = get_local_var(st, stmt->data.vardecl.name);
+#            BuilderValue value = build_expression(st, stmt->data.vardecl.value);
+#            store(st->builder, value, var->ptr);
+#        }
+#        break;
+#    case AST_STMT_ASSIGN:
+#    {
+#        // Refactoring note: Needs separate variables because evaluation order
+#        // of arguments is not guaranteed in C.
+#        BuilderValue lhsptr = build_address_of_expression(st, &stmt->data.assignment.target);
+#        BuilderValue rhs = build_expression(st, &stmt->data.assignment.value);
+#        store(st->builder, rhs, lhsptr);
+#        break;
+#    }
+#    case AST_STMT_INPLACE_ADD:
+#        build_inplace_binop(st, AST_EXPR_ADD, &stmt->data.assignment.target, &stmt->data.assignment.value);
+#        break;
+#    case AST_STMT_INPLACE_SUB:
+#        build_inplace_binop(st, AST_EXPR_SUB, &stmt->data.assignment.target, &stmt->data.assignment.value);
+#        break;
+#    case AST_STMT_INPLACE_MUL:
+#        build_inplace_binop(st, AST_EXPR_MUL, &stmt->data.assignment.target, &stmt->data.assignment.value);
+#        break;
+#    case AST_STMT_INPLACE_DIV:
+#        build_inplace_binop(st, AST_EXPR_DIV, &stmt->data.assignment.target, &stmt->data.assignment.value);
+#        break;
+#    case AST_STMT_INPLACE_MOD:
+#        build_inplace_binop(st, AST_EXPR_MOD, &stmt->data.assignment.target, &stmt->data.assignment.value);
+#        break;
+#    case AST_STMT_EXPRESSION_STATEMENT:
+#        build_expression(st, &stmt->data.expression);
+#        break;
+#    case AST_STMT_PASS:
+#        break; // nothing to do
+#    case AST_STMT_DEFINE_CLASS:
+#    case AST_STMT_DEFINE_ENUM:
+#    case AST_STMT_DECLARE_GLOBAL_VAR:
+#    case AST_STMT_DEFINE_GLOBAL_VAR:
+#    case AST_STMT_FUNCTION_DEF:
+#    case AST_STMT_FUNCTION_DECLARE:
+#        assert(0); // should never occur inside a function
+#        break;
+#    }
+#}
+#
+#static void build_body(struct State *st, const AstBody *body)
+#{
+#    for (int i = 0; i < body->nstatements; i++)
+#        build_statement(st, &body->statements[i]);
+#}
+#
 #if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
-static void call_the_special_startup_function(const struct State *st)
-{
-    Type* functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
-    BuilderValue func = LLVMAddFunction(st->module, "_jou_startup", functype);
-    LLVMBuildCall2(st->builder, functype, func, NULL, 0, "");
-}
+#static void call_the_special_startup_function(const struct State *st)
+#{
+#    Type* functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
+#    BuilderValue func = LLVMAddFunction(st->module, "_jou_startup", functype);
+#    LLVMBuildCall2(st->builder, functype, func, NULL, 0, "");
+#}
 #endif
-
-static void build_function_or_method(
-    struct State *st, const Signature *sig, const AstBody *body, bool public)
-{
-    // Methods are always public for now
-    if (get_self_class(sig))
-        assert(public);
-
-    assert(st->signature == NULL);
-    assert(st->llvm_func == NULL);
-    st->signature = sig;
-    st->llvm_func = declare_function_or_method(st, sig);
-    assert(st->llvm_func != NULL);
-
-    bool implicitly_public = !get_self_class(sig) && !strcmp(sig->name, "main") && st->is_main_file;
-    if (!(public || implicitly_public))
-        LLVMSetLinkage(st->llvm_func, LLVMPrivateLinkage);
-
-    LLVMBasicBlockRef start = LLVMAppendBasicBlock(st->llvm_func, "start");
-    LLVMPositionBuilderAtEnd(st->builder, start);
-
-    const FunctionOrMethodTypes *fomtypes = NULL;
-    for (FunctionOrMethodTypes *f = st->filetypes->fomtypes.ptr; f < End(st->filetypes->fomtypes); f++) {
-        if (!strcmp(f->signature.name, sig->name) && get_self_class(&f->signature) == get_self_class(sig)) {
-            fomtypes = f;
-            break;
-        }
-    }
-    assert(fomtypes);
-
-    // Allocate local variables on stack
-    assert(st->nlocals == 0);
-    assert((int)(sizeof(st->locals)/sizeof(st->locals[0])) >= fomtypes->locals.len);
-    st->nlocals = fomtypes->locals.len;
-    for (int i = 0; i < st->nlocals; i++) {
-        const char *name = fomtypes->locals.ptr[i]->name;
-        const Type *type = fomtypes->locals.ptr[i]->type;
-        assert(name && name[0]);
-        assert(strlen(name) < sizeof(st->locals[i].name));
-        strcpy(st->locals[i].name, fomtypes->locals.ptr[i]->name);
-        st->locals[i].ptr = stack_alloc(st->builder, type_to_llvm(type), name);
-    }
-
-    // Place arguments into the first n local variables.
-    assert(st->nlocals >= sig->nargs);
-    for (int i = 0; i < sig->nargs; i++)
-        store(st->builder, LLVMGetParam(st->llvm_func, i), st->locals[i].ptr);
-
+#
+#static void build_function_or_method(
+#    struct State *st, const Signature *sig, const AstBody *body, bool public)
+#{
+#    // Methods are always public for now
+#    if (get_self_class(sig))
+#        assert(public);
+#
+#    assert(st->signature == NULL);
+#    assert(st->llvm_func == NULL);
+#    st->signature = sig;
+#    st->llvm_func = declare_function_or_method(st, sig);
+#    assert(st->llvm_func != NULL);
+#
+#    bool implicitly_public = !get_self_class(sig) && !strcmp(sig->name, "main") && st->is_main_file;
+#    if (!(public || implicitly_public))
+#        LLVMSetLinkage(st->llvm_func, LLVMPrivateLinkage);
+#
+#    LLVMBasicBlockRef start = LLVMAppendBasicBlock(st->llvm_func, "start");
+#    LLVMPositionBuilderAtEnd(st->builder, start);
+#
+#    const FunctionOrMethodTypes *fomtypes = NULL;
+#    for (FunctionOrMethodTypes *f = st->filetypes->fomtypes.ptr; f < End(st->filetypes->fomtypes); f++) {
+#        if (!strcmp(f->signature.name, sig->name) && get_self_class(&f->signature) == get_self_class(sig)) {
+#            fomtypes = f;
+#            break;
+#        }
+#    }
+#    assert(fomtypes);
+#
+#    // Allocate local variables on stack
+#    assert(st->nlocals == 0);
+#    assert((int)(sizeof(st->locals)/sizeof(st->locals[0])) >= fomtypes->locals.len);
+#    st->nlocals = fomtypes->locals.len;
+#    for (int i = 0; i < st->nlocals; i++) {
+#        const char *name = fomtypes->locals.ptr[i]->name;
+#        const Type *type = fomtypes->locals.ptr[i]->type;
+#        assert(name && name[0]);
+#        assert(strlen(name) < sizeof(st->locals[i].name));
+#        strcpy(st->locals[i].name, fomtypes->locals.ptr[i]->name);
+#        st->locals[i].ptr = stack_alloc(st->builder, type_to_llvm(type), name);
+#    }
+#
+#    // Place arguments into the first n local variables.
+#    assert(st->nlocals >= sig->nargs);
+#    for (int i = 0; i < sig->nargs; i++)
+#        store(st->builder, LLVMGetParam(st->llvm_func, i), st->locals[i].ptr);
+#
 #if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
-    if (!get_self_class(sig) && !strcmp(sig->name, "main"))
-        call_the_special_startup_function(st);
+#    if (!get_self_class(sig) && !strcmp(sig->name, "main"))
+#        call_the_special_startup_function(st);
 #endif
-
-    build_body(st, body);
-
-    if (sig->returntype)
-        LLVMBuildUnreachable(st->builder);
-    else
-        LLVMBuildRetVoid(st->builder);
-
-    assert(st->signature != NULL);
-    assert(st->llvm_func != NULL);
-    st->signature = NULL;
-    st->llvm_func = NULL;
-    st->nlocals = 0;
-}
-
-LLVMModuleRef build_llvm_ir(const AstFile *ast, const FileTypes *ft, bool is_main_file)
-{
-    struct State st = {
-        .filetypes = ft,
-        .module = LLVMModuleCreateWithName(ast->path),
-        .builder = LLVMCreateBuilder(),
-        .is_main_file = is_main_file,
-    };
-
-    LLVMSetTarget(st.module, get_target()->triple);
-    LLVMSetDataLayout(st.module, get_target()->data_layout);
-
-    for (GlobalVariable *v = ft->globals.ptr; v < End(ft->globals); v++) {
-        Type* t = type_to_llvm(v->type);
-        BuilderValue globalptr = LLVMAddGlobal(st.module, t, v->name);
-        if (v->defined_in_current_file)
-            LLVMSetInitializer(globalptr, LLVMConstNull(t));
-    }
-
-    for (int i = 0; i < ast->body.nstatements; i++) {
-        const AstStatement *stmt = &ast->body.statements[i];
-        if(stmt->kind == AST_STMT_FUNCTION_DEF) {
-            const Signature *sig = NULL;
-            for (const Signature *s = ft->functions.ptr; s < End(ft->functions); s++) {
-                if (!strcmp(s->name, stmt->data.function.signature.name)) {
-                    sig = s;
-                    break;
-                }
-            }
-            assert(sig);
-            build_function_or_method(&st, sig, &stmt->data.function.body, stmt->data.function.public);
-        }
-
-        if (stmt->kind == AST_STMT_DEFINE_CLASS) {
-            const Type *classtype = NULL;
-            for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++) {
-                if (!strcmp((*t)->name, stmt->data.classdef.name)) {
-                    classtype = *t;
-                    break;
-                }
-            }
-            assert(classtype);
-
-            for (AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++) {
-                if (m->kind == AST_CLASSMEMBER_METHOD) {
-                    const Signature *sig = NULL;
-                    for (const Signature *s = classtype->data.classdata.methods.ptr; s < End(classtype->data.classdata.methods); s++) {
-                        if (!strcmp(s->name, m->data.method.signature.name)) {
-                            sig = s;
-                            break;
-                        }
-                    }
-                    assert(sig);
-                    build_function_or_method(&st, sig, &m->data.method.body, true);
-                }
-            }
-        }
-    }
-
-    LLVMDisposeBuilder(st.builder);
-    return st.module;
-}
+#
+#    build_body(st, body);
+#
+#    if (sig->returntype)
+#        LLVMBuildUnreachable(st->builder);
+#    else
+#        LLVMBuildRetVoid(st->builder);
+#
+#    assert(st->signature != NULL);
+#    assert(st->llvm_func != NULL);
+#    st->signature = NULL;
+#    st->llvm_func = NULL;
+#    st->nlocals = 0;
+#}
+#
+#LLVMModuleRef build_llvm_ir(const AstFile *ast, const FileTypes *ft, bool is_main_file)
+#{
+#    struct State st = {
+#        .filetypes = ft,
+#        .module = LLVMModuleCreateWithName(ast->path),
+#        .builder = LLVMCreateBuilder(),
+#        .is_main_file = is_main_file,
+#    };
+#
+#    LLVMSetTarget(st.module, get_target()->triple);
+#    LLVMSetDataLayout(st.module, get_target()->data_layout);
+#
+#    for (GlobalVariable *v = ft->globals.ptr; v < End(ft->globals); v++) {
+#        Type* t = type_to_llvm(v->type);
+#        BuilderValue globalptr = LLVMAddGlobal(st.module, t, v->name);
+#        if (v->defined_in_current_file)
+#            LLVMSetInitializer(globalptr, LLVMConstNull(t));
+#    }
+#
+#    for (int i = 0; i < ast->body.nstatements; i++) {
+#        const AstStatement *stmt = &ast->body.statements[i];
+#        if(stmt->kind == AST_STMT_FUNCTION_DEF) {
+#            const Signature *sig = NULL;
+#            for (const Signature *s = ft->functions.ptr; s < End(ft->functions); s++) {
+#                if (!strcmp(s->name, stmt->data.function.signature.name)) {
+#                    sig = s;
+#                    break;
+#                }
+#            }
+#            assert(sig);
+#            build_function_or_method(&st, sig, &stmt->data.function.body, stmt->data.function.public);
+#        }
+#
+#        if (stmt->kind == AST_STMT_DEFINE_CLASS) {
+#            const Type *classtype = NULL;
+#            for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++) {
+#                if (!strcmp((*t)->name, stmt->data.classdef.name)) {
+#                    classtype = *t;
+#                    break;
+#                }
+#            }
+#            assert(classtype);
+#
+#            for (AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++) {
+#                if (m->kind == AST_CLASSMEMBER_METHOD) {
+#                    const Signature *sig = NULL;
+#                    for (const Signature *s = classtype->data.classdata.methods.ptr; s < End(classtype->data.classdata.methods); s++) {
+#                        if (!strcmp(s->name, m->data.method.signature.name)) {
+#                            sig = s;
+#                            break;
+#                        }
+#                    }
+#                    assert(sig);
+#                    build_function_or_method(&st, sig, &m->data.method.body, true);
+#                }
+#            }
+#        }
+#    }
+#
+#    LLVMDisposeBuilder(st.builder);
+#    return st.module;
+#}
+#
