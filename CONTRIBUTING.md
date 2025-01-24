@@ -136,9 +136,10 @@ and runs only tests whose path contains that substring.
 For example, `./runtests.sh aoc` finds files like `examples/aoc2023/day03/part2.jou`.
 
 ```
-$ ./runtests.sh aoc         # run Advent of Code solutions
-$ ./runtests.sh class       # run tests related to defining classes
-$ ./runtests.sh ascii_test  # run tests for the "stdlib/ascii.jou" module
+$ ./runtests.sh succ    # run tests/should_succeed/*, useful as a fast sanity check
+$ ./runtests.sh aoc     # run Advent of Code solutions
+$ ./runtests.sh class   # run tests related to defining classes
+$ ./runtests.sh ascii   # run tests for the "stdlib/ascii.jou" module
 ```
 
 You can use `--verbose` to see what test files get selected:
