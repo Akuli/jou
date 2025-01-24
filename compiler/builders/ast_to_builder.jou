@@ -29,7 +29,7 @@ class AstToBuilder:
     nloops: int
     returns_a_value: bool
 
-    def begin_function(self, sig: Signature*, locals: LocalVariable**, nlocals: int, public: bool) -> None:
+    def begin_function(self, sig: Signature*, locals: LocalVariable*, nlocals: int, public: bool) -> None:
         # First n local variables are the arguments
         assert sig->nargs >= 0
         assert sig->nargs <= nlocals
@@ -43,8 +43,8 @@ class AstToBuilder:
         self->nlocals = nlocals
 
         for i = 0; i < nlocals; i++:
-            var_name = locals[i]->name
-            var_type = locals[i]->type
+            var_name = locals[i].name
+            var_type = locals[i].type
             var_ptr = self->builder->stack_alloc(var_type)
             self->locals[i] = LocalVar{name = var_name, ptr = var_ptr}
             if i < sig->nargs:
