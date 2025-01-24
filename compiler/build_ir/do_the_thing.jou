@@ -32,7 +32,10 @@ def build_llvm_ir_for_function_or_method(llvm_module: LLVMModule*, ast: AstFunct
             ast2ir.builder.set_ptr(var_ptr, ast2ir.builder.get_argument(i, var_type))
 
     ast2ir.build_body(&ast->body)
-    ast2ir.builder.unreachable()
+    if ast->types.signature.returntype == NULL:
+        ast2ir.builder.ret(NULL)  # implicit "return" when falling off end of function
+    else:
+        ast2ir.builder.unreachable()
     LLVMDisposeBuilder(ast2ir.builder.llvm_builder)
     free(ast2ir.locals)
 
