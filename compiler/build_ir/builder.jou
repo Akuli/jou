@@ -149,7 +149,9 @@ class Builder:
         assert nargs <= 100
         llvm_args: LLVMValue*[100]
         for i = 0; i < nargs; i++:
-            assert args[i].type == sig->argtypes[i]
+            if i < sig->nargs:
+                # not a vararg
+                assert args[i].type == sig->argtypes[i]
             llvm_args[i] = args[i].llvm_value
 
         debug_name: byte[100] = ""
@@ -160,7 +162,6 @@ class Builder:
         llvm_return_value = LLVMBuildCall2(self->llvm_builder, signature_to_llvm(sig), llvm_func, llvm_args, nargs, debug_name)
 
         if sig->returntype == NULL:
-            assert llvm_return_value == NULL
             return BuilderValue{}
         else:
             assert llvm_return_value != NULL

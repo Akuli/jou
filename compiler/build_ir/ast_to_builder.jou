@@ -13,12 +13,6 @@ class LocalVar:
     ptr: BuilderValue
 
 
-# TODO: delete this function
-def type_of_expr(expr: AstExpression*) -> Type*:
-    assert expr->types.implicit_cast_type != NULL
-    return expr->types.implicit_cast_type
-
-
 class AstToIR:
     builder: Builder
 
@@ -108,33 +102,18 @@ class AstToIR:
         new_value = self->build_binop(op, old_value, rhs_value)
         self->builder.set_ptr(lhs_ptr, new_value)
 
-    def build_instantiation(self, inst: AstInstantiation*) -> BuilderValue:
-        # TODO: need some way to access the type being instantiated
-        assert False
-        #        classtype = NULL
-        #        for t = self->filetypes->types.ptr; t < End(st->filetypes->types); t++) {
-        #        if (!strcmp((*t)->name, call->calledname)) {
-        #            classtype = *t;
-        #            break;
-        #        }
-        #    }
-        #
-        #    assert(classtype != NULL);
-        #    assert(classtype->kind == TYPE_CLASS);
-        #
-        #    BuilderValue ptr = stack_alloc(st->builder, type_to_llvm(classtype), "new_instance_ptr");
-        #
-        #    BuilderValue size = LLVMSizeOf(type_to_llvm(classtype));
-        #    LLVMBuildMemSet(st->builder, ptr, LLVMConstInt(LLVMInt8Type(), 0, false), size, 0);
-        #
-        #    for (int i = 0; i < call->nargs; i++) {
-        #        BuilderValue fieldptr = build_class_field_pointer(st, classtype, ptr, call->argnames[i]);
-        #        BuilderValue fieldval = build_expression(st, &call->args[i]);
-        #        store(st->builder, fieldval, fieldptr);
-        #    }
-        #
-        #    return LLVMBuildLoad2(st->builder, type_to_llvm(classtype), ptr, "new_instance");
-        #}
+    def build_instantiation(self, class_type: Type*, inst: AstInstantiation*) -> BuilderValue:
+        assert class_type != NULL
+        assert class_type->kind == TypeKind.Class
+
+        inst_ptr = self->builder.stack_alloc(class_type)
+        self->builder.memset_to_zero(inst_ptr)
+        for i = 0; i < inst->nfields; i++:
+            field_ptr = self->builder.struct_gep(inst_ptr, inst->field_names[i])
+            field_value = self->build_expression(&inst->field_values[i])
+            self->builder.set_ptr(field_ptr, field_value)
+
+        return self->builder.dereference(inst_ptr)
 
     def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> BuilderValue:
         # Must be careful with side effects.
@@ -202,7 +181,7 @@ class AstToIR:
         ptr = self->build_address_of_expression(inner)
         old_value = self->builder.dereference(ptr)
 
-        t = type_of_expr(inner)
+        t = inner->types.implicit_cast_type
         match t->kind:
             case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
                 new_value = self->builder.add(old_value, self->builder.integer(t, diff))
@@ -262,11 +241,14 @@ class AstToIR:
                 else:
                     return self->build_method_call(&expr->call)
             case AstExpressionKind.Instantiate:
-                self->build_instantiation(&expr->instantiation)
+                self->build_instantiation(expr->types.orig_type, &expr->instantiation)
             case AstExpressionKind.Self:
                 return self->builder.dereference(self->local_var_ptr("self"))
-            case AstExpressionKind.GetVariable:
-                return self->builder.dereference(self->local_var_ptr(expr->varname))
+            case AstExpressionKind.GetVariable | AstExpressionKind.Indexing:
+                # With these expressions, it is always possible to evaluate address of the expression.
+                # For example, ptr[foo] can always be evaluated as *(&ptr[foo]).
+                # We can't do this for all expressions, because e.g. &some_function() is error.
+                return self->builder.dereference(self->build_address_of_expression(expr))
             case AstExpressionKind.GetEnumMember:
                 return self->builder.enum_member(expr->types.orig_type, expr->enum_member.member_name)
             case AstExpressionKind.GetClassField:
@@ -317,10 +299,6 @@ class AstToIR:
                 # to evaluate the operands in the correct order. C does not guarantee
                 # evaluation order of function arguments, but Jou does.
                 self->build_binop(expr->kind, self->build_expression(&expr->operands[0]), self->build_expression(&expr->operands[1]))
-            case AstExpressionKind.Indexing:
-                # ptr[foo] can always be evaluated as *(&ptr[foo]).
-                # We can't do this for all expressions, because e.g. &some_function() is error.
-                return self->builder.dereference(self->build_address_of_expression(&expr->operands[0]))
             case AstExpressionKind.And:
                 return self->build_and(&expr->operands[0], &expr->operands[1])
             case AstExpressionKind.Or:
@@ -339,7 +317,14 @@ class AstToIR:
             return self->builder.string_array(expr->string, expr->types.implicit_cast_type->array.len)
 
         raw = self->build_expression_without_implicit_cast(expr)
-        return self->builder.cast(raw, expr->types.implicit_cast_type)
+        if expr->types.orig_type == NULL and expr->types.implicit_cast_type == NULL:
+            # Function/method call that returns no value
+            assert expr->kind == AstExpressionKind.Call
+            return BuilderValue{}
+        else:
+            assert expr->types.orig_type != NULL
+            assert expr->types.implicit_cast_type != NULL
+            return self->builder.cast(raw, expr->types.implicit_cast_type)
 
     def build_address_of_expression(self, expr: AstExpression*) -> BuilderValue:
         match expr->kind:
