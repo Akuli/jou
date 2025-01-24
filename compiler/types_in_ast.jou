@@ -5,8 +5,6 @@
 # Previously I passed around the results of type checking with return values,
 # but it was not as convenient as this is.
 
-import "stdlib/io.jou"
-import "stdlib/math.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
@@ -28,19 +26,8 @@ class ExpressionTypes:
 
 
 class LocalVariable:
-    # TODO: delete id
-    id: int  # Unique, but you can also compare pointers to LocalVariable.
     name: byte[100]  # Same name as in user's code, empty for temporary variables created by compiler
     type: Type*
-
-    def print_to_width(self, width: int) -> None:
-        if self->name[0] != '\0':
-            printf("%-*s", width, self->name)
-        else:
-            printf("$%-*d", max(width-1, 0), self->id)
-
-    def print(self) -> None:
-        self->print_to_width(0)
 
 
 # Type information about a function or method defined in the current file.
@@ -58,7 +45,6 @@ class FunctionOrMethodTypes:
 
     def add_variable(self, t: Type*, name: byte*) -> LocalVariable*:
         var: LocalVariable* = calloc(1, sizeof *var)
-        var->id = self->nlocals
         var->type = t
 
         assert name != NULL
@@ -73,6 +59,8 @@ class FunctionOrMethodTypes:
         return var
 
     def free(self) -> None:
+        for i = 0; i < self->nlocals; i++:
+            free(self->locals[i])
         free(self->locals)  # Don't free individual locals because they're owned by CFG now
         self->signature.free()
 
