@@ -266,7 +266,7 @@ class AstToIR:
             case AstExpressionKind.As:
                 return self->builder.cast(self->build_expression(&expr->as_->value), expr->types.orig_type)
             case AstExpressionKind.SizeOf:
-                return self->builder.size_of(expr->types.implicit_cast_type)
+                return self->builder.size_of(expr->operands[0].types.implicit_cast_type)
             case AstExpressionKind.AddressOf:
                 return self->build_address_of_expression(&expr->operands[0])
             case AstExpressionKind.Dereference:
