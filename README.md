@@ -31,6 +31,7 @@ class Greeting:
 def main() -> int:
     g = Greeting{target="World"}
     g.show()    # Output: Hello World
+    return 0
 ```
 
 See the [examples](./examples/) and [tests](./tests/) directories for more example programs
