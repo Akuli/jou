@@ -45,6 +45,14 @@ def build_llvm_ir_for_function_or_method(llvm_module: LLVMModule*, ast: AstFunct
     LLVMDisposeBuilder(ast2ir.builder.llvm_builder)
     free(ast2ir.locals)
 
+    if (
+        ast->types.signature.get_self_class() == NULL
+        and not ast->public
+        and not ast->types.signature.is_main_function()
+    ):
+        # private function
+        LLVMSetLinkage(ast2ir.builder.llvm_func, LLVMLinkage.Private)
+
 
 @public
 def build_llvm_ir(ast: AstFile*) -> LLVMModule*:

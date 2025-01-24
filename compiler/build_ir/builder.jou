@@ -32,13 +32,6 @@ class BuilderValue:
     llvm_value: LLVMValue*
 
 
-class BuilderFunctionOrMethod:
-    llvm_funcptr: LLVMValue*
-
-    def make_private(self) -> None:
-        LLVMSetLinkage(self->llvm_funcptr, LLVMLinkage.Private)
-
-
 class BuilderBlock:
     llvm_block: LLVMBasicBlock*
 
