@@ -364,7 +364,7 @@ class AstToBuilder:
                 # Note: If you port this code to another programming language, make sure
                 # to evaluate the operands in the correct order. C does not guarantee
                 # evaluation order of function arguments, but Jou does.
-                self->build_binop(expr->kind, self->build_expression(&expr->operands[0]), self->build_expression(&expr->operands[1]))
+                return self->build_binop(expr->kind, self->build_expression(&expr->operands[0]), self->build_expression(&expr->operands[1]))
             case AstExpressionKind.And:
                 return self->build_and(&expr->operands[0], &expr->operands[1])
             case AstExpressionKind.Or:
