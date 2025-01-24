@@ -16,20 +16,20 @@ class LocalVar:
     ptr: BuilderValue
 
 
+class Loop:
+    on_break: BuilderBlock
+    on_continue: BuilderBlock
+
+
 class AstToBuilder:
     builder: Builder*
-
     locals: LocalVar*
     nlocals: int
-
+    loops: Loop*
     nloops: int
-    breaks: BuilderBlock[20]
-    continues: BuilderBlock[20]
-
     returns_a_value: bool
 
     def begin_function(self, sig: Signature*, locals: LocalVariable**, nlocals: int, public: bool) -> None:
-        printf("begin_function: self = %p\n", self)
         # First n local variables are the arguments
         assert sig->nargs >= 0
         assert sig->nargs <= nlocals
@@ -57,7 +57,6 @@ class AstToBuilder:
             self->builder->call(&jou_startup_sig, NULL, 0)
 
     def end_function(self) -> None:
-        printf("end_function: self = %p\n", self)
         if self->returns_a_value:
             self->builder->unreachable()
         else:
@@ -65,21 +64,18 @@ class AstToBuilder:
         self->builder->end_function()
 
     def local_var_exists(self, name: byte*) -> bool:
-        printf("local_var_exists: self = %p\n", self)
         for i = 0; i < self->nlocals; i++:
             if strcmp(self->locals[i].name, name) == 0:
                 return True
         return False
 
     def local_var_ptr(self, name: byte*) -> BuilderValue:
-        printf("local_var_ptr: self = %p\n", self)
         for i = 0; i < self->nlocals; i++:
             if strcmp(self->locals[i].name, name) == 0:
                 return self->locals[i].ptr
         assert False
 
     def build_function_call(self, call: AstCall*) -> BuilderValue:
-        printf("build_function_call: self = %p\n", self)
         assert call->method_call_self == NULL
 
         assert call->nargs <= 100
@@ -89,7 +85,6 @@ class AstToBuilder:
         return self->builder->call(call->called_signature, args, call->nargs)
 
     def build_method_call(self, call: AstCall*) -> BuilderValue:
-        printf("build_method_call: self = %p\n", self)
         assert call->method_call_self != NULL
 
         # leave room for self
@@ -114,7 +109,6 @@ class AstToBuilder:
         return self->builder->call(call->called_signature, args, k)
 
     def build_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
-        printf("build_binop: self = %p\n", self)
         match op:
             case AstExpressionKind.Eq:
                 return self->builder->eq(lhs, rhs)
@@ -142,7 +136,6 @@ class AstToBuilder:
                 assert False
 
     def build_inplace_binop(self, op: AstExpressionKind, lhs: AstExpression*, rhs: AstExpression*) -> None:
-        printf("build_inplace_binop: self = %p\n", self)
         lhs_ptr = self->build_address_of_expression(lhs)
         rhs_value = self->build_expression(rhs)
         old_value = self->builder->dereference(lhs_ptr)
@@ -150,7 +143,6 @@ class AstToBuilder:
         self->builder->set_ptr(lhs_ptr, new_value)
 
     def build_instantiation(self, class_type: Type*, inst: AstInstantiation*) -> BuilderValue:
-        printf("build_instantiation: self = %p\n", self)
         assert class_type != NULL
         assert class_type->kind == TypeKind.Class
 
@@ -164,7 +156,6 @@ class AstToBuilder:
         return self->builder->dereference(inst_ptr)
 
     def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> BuilderValue:
-        printf("build_and: self = %p\n", self)
         # Must be careful with side effects.
         #
         #    # lhs returning False means we don't evaluate rhs
@@ -195,7 +186,6 @@ class AstToBuilder:
         return self->builder->dereference(resultptr)
 
     def build_or(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> BuilderValue:
-        printf("build_or: self = %p\n", self)
         # Must be careful with side effects.
         #
         #    # lhs returning True means we don't evaluate rhs
@@ -226,7 +216,6 @@ class AstToBuilder:
         return self->builder->dereference(resultptr)
 
     def build_increment_or_decrement(self, inner: AstExpression*, pre: bool, diff: int) -> BuilderValue:
-        printf("build_increment_or_decrement: self = %p\n", self)
         assert diff == 1 or diff == -1  # 1=increment, -1=decrement
 
         ptr = self->build_address_of_expression(inner)
@@ -250,7 +239,6 @@ class AstToBuilder:
             return old_value
 
     def build_array(self, t: Type*, items: AstExpression*, nitems: int) -> BuilderValue:
-        printf("build_array: self = %p\n", self)
         assert t->kind == TypeKind.Array
         assert t->array.len == nitems
 
@@ -266,7 +254,6 @@ class AstToBuilder:
         return self->builder->dereference(arr_ptr)
 
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> BuilderValue:
-        printf("build_expression_without_implicit_cast: self = %p\n", self)
         match expr->kind:
             case AstExpressionKind.String:
                 return self->builder->string(expr->string)
@@ -373,7 +360,6 @@ class AstToBuilder:
         assert False
 
     def build_expression(self, expr: AstExpression*) -> BuilderValue:
-        printf("build_expression: self = %p\n", self)
         if expr->types.implicit_array_to_pointer_cast:
             return self->builder->cast(self->build_address_of_expression(expr), expr->types.implicit_cast_type)
 
@@ -394,7 +380,6 @@ class AstToBuilder:
             return self->builder->cast(raw, expr->types.implicit_cast_type)
 
     def build_address_of_expression(self, expr: AstExpression*) -> BuilderValue:
-        printf("build_address_of_expression: self = %p\n", self)
         match expr->kind:
             case AstExpressionKind.GetClassField:
                 if expr->class_field.uses_arrow_operator:
@@ -423,7 +408,6 @@ class AstToBuilder:
                 assert False
 
     def build_if_statement(self, ifst: AstIfStatement*) -> None:
-        printf("build_if_statement: self = %p, self->builder = %p\n", self, self->builder)
         done = self->builder->add_block()
         for i = 0; i < ifst->n_if_and_elifs; i++:
             cond = self->build_expression(&ifst->if_and_elifs[i].condition)
@@ -440,7 +424,6 @@ class AstToBuilder:
         self->builder->set_current_block(done)
 
     def build_loop(self, cond: AstExpression*, incr: AstStatement*, body: AstBody*) -> None:
-        printf("build_loop: self = %p\n", self)
         condblock = self->builder->add_block()  # evaluate condition and go to bodyblock or doneblock
         bodyblock = self->builder->add_block()  # run loop body and go to incrblock
         incrblock = self->builder->add_block()  # run incr and go to condblock
@@ -458,11 +441,9 @@ class AstToBuilder:
             self->builder->branch(self->build_expression(cond), bodyblock, doneblock)
 
         # Within loop body, 'break' skips to after loop, 'continue' goes to incr.
-        # TODO: add error message for this, or dynamic size?
-        assert self->nloops < sizeof(self->breaks)/sizeof(self->breaks[0])
-        self->breaks[self->nloops] = doneblock
-        self->continues[self->nloops] = incrblock
-        self->nloops++
+        self->loops = realloc(self->loops, (self->nloops + 1) * sizeof(self->loops[0]))
+        assert self->loops != NULL
+        self->loops[self->nloops++] = Loop{on_break = doneblock, on_continue = incrblock}
 
         # Run loop body. When done, go to incr.
         self->builder->set_current_block(bodyblock)
@@ -483,7 +464,6 @@ class AstToBuilder:
         self->builder->set_current_block(doneblock)
 
     def build_match_statement(self, match_stmt: AstMatchStatement*) -> None:
-        printf("build_match_statement: self = %p\n", self)
         match_obj = self->build_expression(&match_stmt->match_obj)
 
         done = self->builder->add_block()
@@ -508,7 +488,6 @@ class AstToBuilder:
         self->builder->set_current_block(done)
 
     def build_assert(self, assert_location: Location, assertion: AstAssertion*) -> None:
-        printf("build_assert: self = %p\n", self)
         condvar = self->build_expression(&assertion->condition)
 
         ok_block = self->builder->add_block()
@@ -544,7 +523,6 @@ class AstToBuilder:
         self->builder->set_current_block(ok_block)
 
     def build_statement(self, stmt: AstStatement*) -> None:
-        printf("build_statement: self = %p\n", self)
         match stmt->kind:
             case AstStatementKind.If:
                 self->build_if_statement(&stmt->if_statement)
@@ -563,11 +541,11 @@ class AstToBuilder:
                 self->build_match_statement(&stmt->match_statement)
             case AstStatementKind.Break:
                 assert self->nloops > 0
-                self->builder->jump(self->breaks[self->nloops - 1])
+                self->builder->jump(self->loops[self->nloops - 1].on_break)
                 self->builder->set_current_block(self->builder->add_block())  # for code after 'break', if any
             case AstStatementKind.Continue:
                 assert self->nloops > 0
-                self->builder->jump(self->continues[self->nloops - 1])
+                self->builder->jump(self->loops[self->nloops - 1].on_continue)
                 self->builder->set_current_block(self->builder->add_block())  # for code after 'continue', if any
             case AstStatementKind.Assign:
                 lhs_ptr = self->build_address_of_expression(&stmt->assignment.target)
@@ -602,21 +580,18 @@ class AstToBuilder:
                 assert False
 
     def build_body(self, body: AstBody*) -> None:
-        printf("build_body: self = %p\n", self)
         for i = 0; i < body->nstatements; i++:
             self->build_statement(&body->statements[i])
 
 
 @public
 def feed_ast_to_builder(ast: AstFunctionOrMethod*, builder: Builder*) -> None:
-    printf("feed_ast_to_builder %p,%p\n", ast, builder)
     public = (
         ast->public
         or ast->types.signature.is_main_function()
         or ast->types.signature.get_self_class() != NULL
     )
     ast2ir = AstToBuilder{builder = builder}
-    printf("  ast2ir = %p\n", &ast2ir)
     ast2ir.begin_function(&ast->types.signature, ast->types.locals, ast->types.nlocals, public)
     ast2ir.build_body(&ast->body)
     ast2ir.end_function()
