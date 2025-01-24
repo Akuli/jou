@@ -1,4 +1,5 @@
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
@@ -408,14 +409,35 @@ class AstToBuilder:
     def build_if_statement(self, ifst: AstIfStatement*) -> None:
         done = self->builder->add_block()
         for i = 0; i < ifst->n_if_and_elifs; i++:
-            cond = self->build_expression(&ifst->if_and_elifs[i].condition)
+#            printf("A1\n")
+#            fflush(stdout)
+            p = &ifst->if_and_elifs[i].condition
+#            printf("A2 %p\n", p)
+#            fflush(stdout)
+            cond = self->build_expression(p)
+#            printf("B\n")
+#            fflush(stdout)
             then = self->builder->add_block()
+#            printf("C\n")
+#            fflush(stdout)
             otherwise = self->builder->add_block()
+#            printf("D\n")
+#            fflush(stdout)
             self->builder->branch(cond, then, otherwise)
+#            printf("E\n")
+#            fflush(stdout)
             self->builder->set_current_block(then)
+#            printf("F\n")
+#            fflush(stdout)
             self->build_body(&ifst->if_and_elifs[i].body)
+#            printf("G\n")
+#            fflush(stdout)
             self->builder->jump(done)
+#            printf("H\n")
+#            fflush(stdout)
             self->builder->set_current_block(otherwise)
+#            printf("I\n")
+#            fflush(stdout)
 
         self->build_body(&ifst->else_body)
         self->builder->jump(done)

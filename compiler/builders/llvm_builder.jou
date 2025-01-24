@@ -234,15 +234,33 @@ class Builder:
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
     llvm_func: LLVMValue*
+    alloca_block: LLVMBasicBlock*  # local variables created here before code of function runs
+    code_start_block: LLVMBasicBlock*
+    current_block: LLVMBasicBlock*
 
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self->llvm_func = declare_in_llvm(sig, self->llvm_module)
-        self->set_current_block(self->add_block())
+
+        self->alloca_block = LLVMAppendBasicBlock(self->llvm_func, "alloca")
+        self->code_start_block = LLVMAppendBasicBlock(self->llvm_func, "code_start")
+        LLVMPositionBuilderAtEnd(self->llvm_builder, self->code_start_block)
+        self->current_block = self->code_start_block
+
         if not public:
             LLVMSetLinkage(self->llvm_func, LLVMLinkage.Private)
 
     def end_function(self) -> None:
-        pass
+        LLVMPositionBuilderAtEnd(self->llvm_builder, self->alloca_block)
+        LLVMBuildBr(self->llvm_builder, self->code_start_block)
+
+    # Allocates enough stack space in the function to hold a value of given type.
+    # Returns a pointer to the stack space.
+    def stack_alloc(self, t: Type*) -> BuilderValue:
+        LLVMPositionBuilderAtEnd(self->llvm_builder, self->alloca_block)
+        llvm_ptr = LLVMBuildAlloca(self->llvm_builder, type_to_llvm(t), "stack_alloc")
+        LLVMPositionBuilderAtEnd(self->llvm_builder, self->current_block)
+        llvm_ptr = LLVMBuildBitCast(self->llvm_builder, llvm_ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
+        return BuilderValue{type = t->pointer_type(), llvm_value = llvm_ptr}
 
     # TODO: Everything named legacy_llvm14_cast can be removed once we drop LLVM 14 support
     #       Needed due to LLVM opaque pointer types transition
@@ -263,13 +281,6 @@ class Builder:
         assert ptr.type->kind == TypeKind.Pointer
         llvm_result = LLVMBuildLoad2(self->llvm_builder, type_to_llvm(ptr.type->value_type), ptr.llvm_value, "dereference")
         return BuilderValue{type = ptr.type->value_type, llvm_value = llvm_result}
-
-    # Allocates enough stack space in the function to hold a value of given type.
-    # Returns a pointer to the stack space.
-    def stack_alloc(self, t: Type*) -> BuilderValue:
-        llvm_ptr = LLVMBuildAlloca(self->llvm_builder, type_to_llvm(t), "stack_alloc")
-        llvm_ptr = LLVMBuildBitCast(self->llvm_builder, llvm_ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
-        return BuilderValue{type = t->pointer_type(), llvm_value = llvm_ptr}
 
     # Returns &ptr[index]
     def indexed_pointer(self, ptr: BuilderValue, index: BuilderValue) -> BuilderValue:
@@ -535,9 +546,9 @@ class Builder:
         return BuilderBlock{llvm_block = llvm_block}
 
     # Decide which block will contain the resulting instructions.
-    # This must be called after creating a new builder!!!
     def set_current_block(self, block: BuilderBlock) -> None:
         LLVMPositionBuilderAtEnd(self->llvm_builder, block.llvm_block)
+        self->current_block = block.llvm_block
 
     # Conditional branch:
     #
