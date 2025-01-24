@@ -86,19 +86,6 @@ do
     fi
 done
 
-# These headers are a bit of a hack. They have been taken from a different
-# LLVM version, specifically, LLVM 13 compiled for Linux. We really only
-# need the headers to declare the functions and structs and enums we use.
-#
-# But still, committing a zip file to Git just doesn't seem great...
-if [ -d llvm ] && [ -d llvm-c ]; then
-    echo "LLVM headers have already been extracted."
-else
-    echo "Extracting LLVM headers..."
-    rm -rf llvm llvm-c
-    unzip -q llvm_headers.zip
-fi
-
 echo ""
 echo ""
 echo ""
