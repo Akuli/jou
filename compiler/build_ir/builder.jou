@@ -154,7 +154,7 @@ class Builder:
         padded: byte* = malloc(array_size)
         memset(padded, 0, array_size)
         strcpy(padded, s)
-        llvm_array = LLVMConstString(s, array_size, True as int)
+        llvm_array = LLVMConstString(padded, array_size, True as int)
         free(padded)
         return BuilderValue{type = byteType->array_type(array_size), llvm_value = llvm_array}
 
