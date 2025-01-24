@@ -1,5 +1,6 @@
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
+import "stdlib/str.jou"
 
 import "../llvm.jou"
 import "../target.jou"
@@ -107,6 +108,26 @@ def signature_to_llvm(sig: Signature*) -> LLVMType*:
         returntype = type_to_llvm(sig->returntype)
 
     return LLVMFunctionType(returntype, argtypes, sig->nargs, sig->takes_varargs as int)
+
+
+@public
+def declare_in_llvm(sig: Signature*, mod: LLVMModule*) -> LLVMValue*:
+    fullname: byte[500]
+    self_class = sig->get_self_class()
+    if self_class == NULL:
+        # function
+        snprintf(fullname, sizeof(fullname), "%s", sig->name)
+    else:
+        # method
+        snprintf(fullname, sizeof(fullname), "%s.%s", self_class->name, sig->name)
+
+    # Make it so that this can be called many times without issue
+    llvm_func = LLVMGetNamedFunction(mod, fullname)
+    if llvm_func == NULL:
+        llvm_func = LLVMAddFunction(mod, fullname, signature_to_llvm(sig))
+
+    assert llvm_func != NULL
+    return llvm_func
 
 
 @public

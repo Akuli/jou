@@ -132,23 +132,9 @@ class Builder:
         llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
         return BuilderValue{type = var_type->pointer_type(), llvm_value = llvm_result}
 
-    # TODO: does this need to be accessed outside this file? probably not? if not can inline to other method below?
-    def declare_function_or_method(self, sig: Signature*) -> BuilderFunctionOrMethod:
-        fullname: byte[500]
-        self_class = sig->get_self_class()
-        if self_class == NULL:
-            # function
-            snprintf(fullname, sizeof(fullname), "%s", sig->name)
-        else:
-            # method
-            snprintf(fullname, sizeof(fullname), "%s.%s", self_class->name, sig->name)
-
-        # Make it so that this can be called many times without issue
-        llvm_func = LLVMGetNamedFunction(self->llvm_module, fullname)
-        if llvm_func == NULL:
-            llvm_func = LLVMAddFunction(self->llvm_module, fullname, signature_to_llvm(sig))
-
-        return BuilderFunctionOrMethod{llvm_funcptr = llvm_func}
+    # Returns the i'th argument given to function
+    def get_argument(self, i: int, argtype: Type*) -> BuilderValue:
+        assert False  # TODO
 
     # Function or method call. If method, self with the correct type must be included in args.
     def call(self, sig: Signature*, args: BuilderValue*, nargs: int) -> BuilderValue:
@@ -166,7 +152,7 @@ class Builder:
         if sig->returntype != NULL:
             snprintf(debug_name, sizeof(debug_name), "%s_return_value", sig->name)
 
-        llvm_func = self->declare_function_or_method(sig).llvm_funcptr
+        llvm_func = declare_in_llvm(sig, self->llvm_module)
         llvm_return_value = LLVMBuildCall2(self->llvm_builder, signature_to_llvm(sig), llvm_func, llvm_args, nargs, debug_name)
 
         if sig->returntype == NULL:

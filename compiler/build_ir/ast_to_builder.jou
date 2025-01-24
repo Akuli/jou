@@ -1,8 +1,8 @@
 import "stdlib/str.jou"
 
 import "../ast.jou"
+import "../errors_and_warnings.jou"
 import "../types.jou"
-import "../types_in_ast.jou"
 import "./builder.jou"
 
 
@@ -21,15 +21,13 @@ def type_of_expr(expr: AstExpression*) -> Type*:
 
 class AstToIR:
     builder: Builder
-    filetypes: FileTypes*
-    is_main_file: bool  # TODO: do we need this?
 
     locals: LocalVar*
     nlocals: int
 
     nloops: int
-    breaks: BuilderBlock*[20]
-    continues: BuilderBlock*[20]
+    breaks: BuilderBlock[20]
+    continues: BuilderBlock[20]
 
     def local_var_exists(self, name: byte*) -> bool:
         for i = 0; i < self->nlocals; i++:
@@ -393,13 +391,13 @@ class AstToIR:
             otherwise = self->builder.add_block()
             self->builder.branch(cond, then, otherwise)
             self->builder.set_current_block(then)
-            build_body(st, &ifst->if_and_elifs[i].body)
+            self->build_body(&ifst->if_and_elifs[i].body)
             self->builder.jump(done)
             self->builder.set_current_block(otherwise)
 
-    self->build_body(&ifst->elsebody)
-    self->builder.jump(done)
-    self->builder.set_current_block(done)
+        self->build_body(&ifst->else_body)
+        self->builder.jump(done)
+        self->builder.set_current_block(done)
 
     def build_loop(self, cond: AstExpression*, incr: AstStatement*, body: AstBody*) -> None:
         condblock = self->builder.add_block()  # evaluate condition and go to bodyblock or doneblock
@@ -415,16 +413,16 @@ class AstToIR:
         self->builder.branch(self->build_expression(cond), bodyblock, doneblock)
 
         # Within loop body, 'break' skips to after loop, 'continue' goes to incr.
-        # TODO: add error message for this?
+        # TODO: add error message for this, or dynamic size?
         assert self->nloops < sizeof(self->breaks)/sizeof(self->breaks[0])
-        self->breaks[st->nloops] = doneblock
-        self->continues[st->nloops] = incrblock
+        self->breaks[self->nloops] = doneblock
+        self->continues[self->nloops] = incrblock
         self->nloops++
 
         # Run loop body. When done, go to incr.
         self->builder.set_current_block(bodyblock)
         self->build_body(body)
-        self->jump(incrblock)
+        self->builder.jump(incrblock)
 
         # 'break' and 'continue' are not allowed after the loop body.
         assert self->nloops > 0
@@ -437,20 +435,20 @@ class AstToIR:
         self->builder.jump(condblock)
 
         # Code after the loop goes to "loop done" part.
-        self->set_current_block(doneblock)
+        self->builder.set_current_block(doneblock)
 
     def build_match_statement(self, match_stmt: AstMatchStatement*) -> None:
         match_obj = self->build_expression(&match_stmt->match_obj)
 
-        done = self->add_block()
+        done = self->builder.add_block()
         for i = 0; i < match_stmt->ncases; i++:
-            then = self->add_block()
+            then = self->builder.add_block()
             otherwise = BuilderBlock{}  # will be replaced by loop below
             for k = 0; k < match_stmt->cases[i].n_case_objs; k++:
                 case_obj = self->build_expression(&match_stmt->cases[i].case_objs[k])
                 cond = self->builder.eq(match_obj, case_obj)
                 otherwise = self->builder.add_block()
-                self->builder.jump(cond, then, otherwise)
+                self->builder.branch(cond, then, otherwise)
                 self->builder.set_current_block(otherwise)
 
             self->builder.set_current_block(then)
@@ -473,7 +471,13 @@ class AstToIR:
         self->builder.branch(condvar, trueblock, falseblock)
 
         self->builder.set_current_block(trueblock)
-        argnames: byte[100][3] = ["assertion", "path", "lineno"]
+
+        # TODO: https://github.com/Akuli/jou/issues/683
+        argnames: byte[100][3]
+        strcpy(argnames[0], "assertion")
+        strcpy(argnames[1], "path")
+        strcpy(argnames[2], "lineno")
+
         argtypes: Type*[3] = [byteType->pointer_type(), byteType->pointer_type(), intType]
         sig = Signature{
             name = "_jou_assert_fail",
@@ -513,29 +517,30 @@ class AstToIR:
                 self->build_match_statement(&stmt->match_statement)
             case AstStatementKind.Break:
                 assert self->nloops > 0
-                self->builder.jump(self->breakstack[self->nloops - 1])
+                self->builder.jump(self->breaks[self->nloops - 1])
                 self->builder.set_current_block(self->builder.add_block())  # for code after 'break', if any
             case AstStatementKind.Continue:
                 assert self->nloops > 0
-                self->builder.jump(self->continuestack[self->nloops - 1])
+                self->builder.jump(self->continues[self->nloops - 1])
                 self->builder.set_current_block(self->builder.add_block())  # for code after 'continue', if any
             case AstStatementKind.Assign:
                 lhs_ptr = self->build_address_of_expression(&stmt->assignment.target)
                 rhs = self->build_expression(&stmt->assignment.value)
                 self->builder.set_ptr(lhs_ptr, rhs)
             case AstStatementKind.InPlaceAdd:
-                self->build_inplace_binop(AstExpressionKind.Add, &stmt->data.assignment.target, &stmt->data.assignment.value)
+                self->build_inplace_binop(AstExpressionKind.Add, &stmt->assignment.target, &stmt->assignment.value)
             case AstStatementKind.InPlaceSub:
-                self->build_inplace_binop(AstExpressionKind.Sub, &stmt->data.assignment.target, &stmt->data.assignment.value)
+                self->build_inplace_binop(AstExpressionKind.Sub, &stmt->assignment.target, &stmt->assignment.value)
             case AstStatementKind.InPlaceMul:
-                self->build_inplace_binop(AstExpressionKind.Mul, &stmt->data.assignment.target, &stmt->data.assignment.value)
+                self->build_inplace_binop(AstExpressionKind.Mul, &stmt->assignment.target, &stmt->assignment.value)
             case AstStatementKind.InPlaceDiv:
-                self->build_inplace_binop(AstExpressionKind.Div, &stmt->data.assignment.target, &stmt->data.assignment.value)
+                self->build_inplace_binop(AstExpressionKind.Div, &stmt->assignment.target, &stmt->assignment.value)
             case AstStatementKind.InPlaceMod:
-                self->build_inplace_binop(AstExpressionKind.Mod, &stmt->data.assignment.target, &stmt->data.assignment.value)
+                self->build_inplace_binop(AstExpressionKind.Mod, &stmt->assignment.target, &stmt->assignment.value)
             case AstStatementKind.Return:
                 if stmt->return_value != NULL:
-                    self->builder.ret(self->build_expression(stmt->return_value))
+                    r = self->build_expression(stmt->return_value)
+                    self->builder.ret(&r)
                 else:
                     self->builder.ret(NULL)
                 self->builder.set_current_block(self->builder.add_block())  # for code after 'return', if any
@@ -553,194 +558,3 @@ class AstToIR:
     def build_body(self, body: AstBody*) -> None:
         for i = 0; i < body->nstatements; i++:
             self->build_statement(&body->statements[i])
-
-
-#
-#
-#    def build_function_or_method(self, astfom: AstFunctionOrMethod*) -> CfGraph*:
-#        if astfom->types.signature.get_self_class() != NULL:
-#            # Methods are always public, so that you can call them whenever you have an instance
-#            public = True
-#        else:
-#            public = astfom->public
-#
-#        assert self->cfg == NULL
-#
-#        self->cfg = calloc(1, sizeof *self->cfg)
-#        self->cfg->public = public
-#        self->cfg->signature = astfom->types.signature.copy()
-#
-#        # Copy local variables over from type checking.
-#        # Ownership of the variables changes, they will be freed when graphs are freed.
-#        self->cfg->nlocals = astfom->types.nlocals
-#        self->cfg->locals = malloc(self->cfg->nlocals * sizeof(self->cfg->locals[0]))
-#        assert self->cfg->locals != NULL
-#        memcpy(self->cfg->locals, astfom->types.locals, self->cfg->nlocals * sizeof(self->cfg->locals[0]))
-#
-#        self->cfg->all_blocks = malloc(2 * sizeof(self->cfg->all_blocks[0]))
-#        assert self->cfg->all_blocks != NULL
-#        self->cfg->all_blocks[0] = &self->cfg->start_block
-#        self->cfg->all_blocks[1] = &self->cfg->end_block
-#        self->cfg->n_all_blocks = 2
-#
-#        self->current_block = &self->cfg->start_block
-#
-#        assert self->nloops == 0
-#        self->build_body(&astfom->body)
-#        assert self->nloops == 0
-#
-#        # Implicit return at the end of the function
-#        self->current_block->iftrue = &self->cfg->end_block
-#        self->current_block->iffalse = &self->cfg->end_block
-#
-
-@public
-def build_llvm_ir_for_function_or_method(
-    llvm_module: LLVMModule*,
-    llvm_builder: LLVMBuilder*
-    llvm_func: LLVMValue*
-) -> None:
-    builder = Builder{
-        llvm_module = llvm_module,
-        llvm_builder = LLVMCreateBuilder(),
-        llvm_func = 
-
-
-#if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
-#static void call_the_special_startup_function(const struct State *st)
-#{
-#    Type* functype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
-#    BuilderValue func = LLVMAddFunction(st->module, "_jou_startup", functype);
-#    LLVMBuildCall2(st->builder, functype, func, NULL, 0, "");
-#}
-#endif
-#
-#static void build_function_or_method(
-#    struct State *st, const Signature *sig, const AstBody *body, bool public)
-#{
-#    // Methods are always public for now
-#    if (get_self_class(sig))
-#        assert(public);
-#
-#    assert(st->signature == NULL);
-#    assert(st->llvm_func == NULL);
-#    st->signature = sig;
-#    st->llvm_func = declare_function_or_method(st, sig);
-#    assert(st->llvm_func != NULL);
-#
-#    bool implicitly_public = !get_self_class(sig) && !strcmp(sig->name, "main") && st->is_main_file;
-#    if (!(public || implicitly_public))
-#        LLVMSetLinkage(st->llvm_func, LLVMPrivateLinkage);
-#
-#    LLVMBasicBlockRef start = LLVMAppendBasicBlock(st->llvm_func, "start");
-#    LLVMPositionBuilderAtEnd(st->builder, start);
-#
-#    const FunctionOrMethodTypes *fomtypes = NULL;
-#    for (FunctionOrMethodTypes *f = st->filetypes->fomtypes.ptr; f < End(st->filetypes->fomtypes); f++) {
-#        if (!strcmp(f->signature.name, sig->name) && get_self_class(&f->signature) == get_self_class(sig)) {
-#            fomtypes = f;
-#            break;
-#        }
-#    }
-#    assert(fomtypes);
-#
-#    // Allocate local variables on stack
-#    assert(st->nlocals == 0);
-#    assert((int)(sizeof(st->locals)/sizeof(st->locals[0])) >= fomtypes->locals.len);
-#    st->nlocals = fomtypes->locals.len;
-#    for (int i = 0; i < st->nlocals; i++) {
-#        const char *name = fomtypes->locals.ptr[i]->name;
-#        const Type *type = fomtypes->locals.ptr[i]->type;
-#        assert(name && name[0]);
-#        assert(strlen(name) < sizeof(st->locals[i].name));
-#        strcpy(st->locals[i].name, fomtypes->locals.ptr[i]->name);
-#        st->locals[i].ptr = stack_alloc(st->builder, type_to_llvm(type), name);
-#    }
-#
-#    // Place arguments into the first n local variables.
-#    assert(st->nlocals >= sig->nargs);
-#    for (int i = 0; i < sig->nargs; i++)
-#        store(st->builder, LLVMGetParam(st->llvm_func, i), st->locals[i].ptr);
-#
-#if defined(_WIN32) || defined(__APPLE__) || defined(__NetBSD__)
-#    if (!get_self_class(sig) && !strcmp(sig->name, "main"))
-#        call_the_special_startup_function(st);
-#endif
-#
-#    build_body(st, body);
-#
-#    if (sig->returntype)
-#        LLVMBuildUnreachable(st->builder);
-#    else
-#        LLVMBuildRetVoid(st->builder);
-#
-#    assert(st->signature != NULL);
-#    assert(st->llvm_func != NULL);
-#    st->signature = NULL;
-#    st->llvm_func = NULL;
-#    st->nlocals = 0;
-#}
-#
-#LLVMModuleRef build_llvm_ir(const AstFile *ast, const FileTypes *ft, bool is_main_file)
-#{
-#    struct State st = {
-#        .filetypes = ft,
-#        .module = LLVMModuleCreateWithName(ast->path),
-#        .builder = LLVMCreateBuilder(),
-#        .is_main_file = is_main_file,
-#    };
-#
-#    LLVMSetTarget(st.module, get_target()->triple);
-#    LLVMSetDataLayout(st.module, get_target()->data_layout);
-#
-#    for (GlobalVariable *v = ft->globals.ptr; v < End(ft->globals); v++) {
-#        Type* t = type_to_llvm(v->type);
-#        BuilderValue globalptr = LLVMAddGlobal(st.module, t, v->name);
-#        if (v->defined_in_current_file)
-#            LLVMSetInitializer(globalptr, LLVMConstNull(t));
-#    }
-#
-#    for (int i = 0; i < ast->body.nstatements; i++) {
-#        const AstStatement *stmt = &ast->body.statements[i];
-#        if(stmt->kind == AST_STMT_FUNCTION_DEF) {
-#            const Signature *sig = NULL;
-#            for (const Signature *s = ft->functions.ptr; s < End(ft->functions); s++) {
-#                if (!strcmp(s->name, stmt->data.function.signature.name)) {
-#                    sig = s;
-#                    break;
-#                }
-#            }
-#            assert(sig);
-#            build_function_or_method(&st, sig, &stmt->data.function.body, stmt->data.function.public);
-#        }
-#
-#        if (stmt->kind == AST_STMT_DEFINE_CLASS) {
-#            const Type *classtype = NULL;
-#            for (Type **t = ft->owned_types.ptr; t < End(ft->owned_types); t++) {
-#                if (!strcmp((*t)->name, stmt->data.classdef.name)) {
-#                    classtype = *t;
-#                    break;
-#                }
-#            }
-#            assert(classtype);
-#
-#            for (AstClassMember *m = stmt->data.classdef.members.ptr; m < End(stmt->data.classdef.members); m++) {
-#                if (m->kind == AST_CLASSMEMBER_METHOD) {
-#                    const Signature *sig = NULL;
-#                    for (const Signature *s = classtype->data.classdata.methods.ptr; s < End(classtype->data.classdata.methods); s++) {
-#                        if (!strcmp(s->name, m->data.method.signature.name)) {
-#                            sig = s;
-#                            break;
-#                        }
-#                    }
-#                    assert(sig);
-#                    build_function_or_method(&st, sig, &m->data.method.body, true);
-#                }
-#            }
-#        }
-#    }
-#
-#    LLVMDisposeBuilder(st.builder);
-#    return st.module;
-#}
-#
