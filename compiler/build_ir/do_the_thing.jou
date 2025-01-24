@@ -1,8 +1,9 @@
 import "stdlib/mem.jou"
 
 import "../ast.jou"
-import "../target.jou"
 import "../llvm.jou"
+import "../target.jou"
+import "../types.jou"
 import "./ast_to_builder.jou"
 import "./builder.jou"
 import "./llvm_utils.jou"
@@ -19,6 +20,11 @@ def build_llvm_ir_for_function_or_method(llvm_module: LLVMModule*, ast: AstFunct
     }
 
     ast2ir.builder.set_current_block(ast2ir.builder.add_block())
+
+    if (WINDOWS or MACOS or NETBSD) and ast->types.signature.is_main_function():
+        # Insert a call to the special startup function into main()
+        sig = Signature{name = "_jou_startup"}
+        ast2ir.builder.call(&sig, NULL, 0)
 
     ast2ir.locals = malloc(sizeof(ast2ir.locals[0]) * ast2ir.nlocals)
     assert ast2ir.locals != NULL

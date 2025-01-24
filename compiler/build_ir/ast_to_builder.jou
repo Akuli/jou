@@ -436,13 +436,11 @@ class AstToIR:
     def build_assert(self, assert_location: Location, assertion: AstAssertion*) -> None:
         condvar = self->build_expression(&assertion->condition)
 
-        # If the condition is true, we jump to a block where the rest of the code goes.
-        # If the condition is false, we jump to a block that calls _jou_assert_fail().
-        trueblock = self->builder.add_block()
-        falseblock = self->builder.add_block()
-        self->builder.branch(condvar, trueblock, falseblock)
+        ok_block = self->builder.add_block()
+        error_block = self->builder.add_block()
+        self->builder.branch(condvar, ok_block, error_block)
 
-        self->builder.set_current_block(trueblock)
+        self->builder.set_current_block(error_block)
 
         # TODO: https://github.com/Akuli/jou/issues/683
         argnames: byte[100][3]
@@ -468,7 +466,7 @@ class AstToIR:
         self->builder.call(&sig, args, 3)
         self->builder.unreachable()
 
-        self->builder.set_current_block(falseblock)
+        self->builder.set_current_block(ok_block)
 
     def build_statement(self, stmt: AstStatement*) -> None:
         match stmt->kind:
