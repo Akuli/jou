@@ -535,7 +535,6 @@ class Builder:
         return BuilderBlock{llvm_block = llvm_block}
 
     # Decide which block will contain the resulting instructions.
-    # This must be called after creating a new builder!!!
     def set_current_block(self, block: BuilderBlock) -> None:
         LLVMPositionBuilderAtEnd(self->llvm_builder, block.llvm_block)
 
