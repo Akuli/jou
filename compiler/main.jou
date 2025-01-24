@@ -73,7 +73,6 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
 
 class FileState:
     path: byte*  # owned
-    is_main_file: bool
     ast: AstFile
     module: LLVMModule*
 
@@ -133,8 +132,6 @@ class FileState:
         if command_line_args.verbosity >= 1:
             printf("Building LLVM IR: %s\n", self->path)
 
-        # TODO: do we need is_main_file?
-        #mod = build_llvm_ir(&self->ast, self->is_main_file)
         mod = build_llvm_ir(&self->ast)
         self->warn_about_unused()
 
@@ -171,12 +168,12 @@ class CompileState:
                 return fs
         return NULL
 
-    def parse(self, filename: byte*, import_location: Location*, is_main_file: bool) -> None:
+    def parse(self, filename: byte*, import_location: Location*) -> None:
         if self->find_file(filename) != NULL:
             # already parsed
             return
 
-        fs = FileState{path = strdup(filename), is_main_file = is_main_file}
+        fs = FileState{path = strdup(filename)}
 
         if command_line_args.verbosity >= 1:
             printf("Tokenizing %s\n", filename)
@@ -209,12 +206,12 @@ class CompileState:
         self->files[self->nfiles++] = fs
 
         for imp = fs.ast.imports; imp < &fs.ast.imports[fs.ast.nimports]; imp++:
-            self->parse(imp->resolved_path, &imp->location, False)  # recursive call
+            self->parse(imp->resolved_path, &imp->location)  # recursive call
 
     def parse_from_stdlib(self, filename: byte*) -> None:
         path = malloc(strlen(self->stdlib_path) + strlen(filename) + 123)
         sprintf(path, "%s/%s", self->stdlib_path, filename)
-        self->parse(path, NULL, False)
+        self->parse(path, NULL)
         free(path)
 
     # Each step of type checking produces exported symbols that other files can import.
@@ -377,7 +374,7 @@ def main(argc: int, argv: byte**) -> int:
     compst.parse_from_stdlib("_assert_fail.jou")
     if WINDOWS or MACOS or NETBSD:
         compst.parse_from_stdlib("_jou_startup.jou")
-    compst.parse(command_line_args.infile, NULL, True)
+    compst.parse(command_line_args.infile, NULL)
 
     compst.typecheck_all_files()
 
