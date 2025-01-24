@@ -18,6 +18,8 @@ def build_llvm_ir_for_function_or_method(llvm_module: LLVMModule*, ast: AstFunct
         nlocals = ast->types.nlocals,
     }
 
+    ast2ir.builder.set_current_block(ast2ir.builder.add_block())
+
     ast2ir.locals = malloc(sizeof(ast2ir.locals[0]) * ast2ir.nlocals)
     assert ast2ir.locals != NULL
     for i = 0; i < ast2ir.nlocals; i++:

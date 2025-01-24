@@ -134,7 +134,8 @@ class Builder:
 
     # Returns the i'th argument given to function
     def get_argument(self, i: int, argtype: Type*) -> BuilderValue:
-        assert False  # TODO
+        llvm_result = LLVMGetParam(self->llvm_func, i)
+        return BuilderValue{type = argtype, llvm_value = llvm_result}
 
     # Function or method call. If method, self with the correct type must be included in args.
     def call(self, sig: Signature*, args: BuilderValue*, nargs: int) -> BuilderValue:
