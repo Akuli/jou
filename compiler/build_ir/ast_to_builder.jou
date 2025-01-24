@@ -177,7 +177,7 @@ class AstToIR:
         return self->builder.dereference(resultptr)
 
     def build_increment_or_decrement(self, inner: AstExpression*, pre: bool, diff: int) -> BuilderValue:
-        assert diff==1 or diff==-1  # 1=increment, -1=decrement
+        assert diff == 1 or diff == -1  # 1=increment, -1=decrement
 
         ptr = self->build_address_of_expression(inner)
         old_value = self->builder.dereference(ptr)
@@ -188,7 +188,7 @@ class AstToIR:
                 new_value = self->builder.add(old_value, self->builder.integer(t, diff))
             case TypeKind.Pointer:
                 idx = self->builder.integer(longType, diff)
-                new_value = self->builder.indexed_pointer(ptr, idx)
+                new_value = self->builder.indexed_pointer(old_value, idx)
             case _:
                 assert False
 
