@@ -41,7 +41,7 @@ mkdir -vp tmp
 rm -rf tmp/bootstrap
 git clone . tmp/bootstrap
 if [[ "$OS" =~ Windows ]]; then
-    cp -r libs llvm llvm-c mingw64 tmp/bootstrap
+    cp -r libs mingw64 tmp/bootstrap
 fi
 cd tmp/bootstrap
 
@@ -50,6 +50,9 @@ for i in ${!commits[@]}; do
     show_message "Checking out and compiling commit ${commit:0:10} ($((i+1))/${#commits[@]})"
 
     git checkout -q $commit
+    if [ "$OS" == "Windows" ] && [ $i == 1 ]; then
+        unzip llvm-headers.zip
+    fi
     $make jou$exe_suffix
     mv -v jou$exe_suffix jou_bootstrap$exe_suffix
     $make clean
