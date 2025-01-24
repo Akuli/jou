@@ -1,5 +1,4 @@
 import "stdlib/mem.jou"
-import "stdlib/io.jou"
 
 import "../ast.jou"
 import "../target.jou"
@@ -30,9 +29,7 @@ def build_llvm_ir_for_function_or_method(llvm_module: LLVMModule*, ast: AstFunct
         ast2ir.locals[i] = LocalVar{name = var_name, ptr = var_ptr}
         if i < ast->types.signature.nargs:
             # First n local variables are the function arguments
-            printf("Before %s\n", var_ptr.type->name)
             ast2ir.builder.set_ptr(var_ptr, ast2ir.builder.get_argument(i, var_type))
-            printf("After\n")
 
     ast2ir.build_body(&ast->body)
     ast2ir.builder.unreachable()

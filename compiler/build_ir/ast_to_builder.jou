@@ -1,5 +1,4 @@
 import "stdlib/str.jou"
-import "stdlib/io.jou"
 
 import "../ast.jou"
 import "../errors_and_warnings.jou"
@@ -43,8 +42,6 @@ class AstToIR:
         assert False
 
     def build_function_call(self, call: AstCall*) -> BuilderValue:
-        printf("call->nargs = %d\n", call->nargs)
-        printf("%s\n", call->called_signature->to_string(True,True))
         assert call->method_call_self == NULL
 
         assert call->nargs <= 100
