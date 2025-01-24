@@ -373,7 +373,7 @@ def main(argc: int, argv: byte**) -> int:
     compst = CompileState{ stdlib_path = stdlib }
 
     # This part recursively finds and parses imported files.
-    compst.parse_from_stdlib("_assert_fail.jou")
+#    compst.parse_from_stdlib("_assert_fail.jou")
     if WINDOWS or MACOS or NETBSD:
         compst.parse_from_stdlib("_jou_startup.jou")
     compst.parse(command_line_args.infile, NULL, True)

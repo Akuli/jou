@@ -142,6 +142,7 @@ class Builder:
 
     # Function or method call. If method, self with the correct type must be included in args.
     def call(self, sig: Signature*, args: BuilderValue*, nargs: int) -> BuilderValue:
+        printf("call with %d args\n", nargs)
         assert nargs >= sig->nargs
         if nargs > sig->nargs:
             assert sig->takes_varargs
@@ -149,6 +150,7 @@ class Builder:
         assert nargs <= 100
         llvm_args: LLVMValue*[100]
         for i = 0; i < nargs; i++:
+            printf("arg type: value %s, signature %s\n", args[i].type->name, sig->argtypes[i]->name)
             assert args[i].type == sig->argtypes[i]
             llvm_args[i] = args[i].llvm_value
 

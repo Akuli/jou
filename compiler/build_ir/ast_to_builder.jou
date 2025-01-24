@@ -1,4 +1,5 @@
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 
 import "../ast.jou"
 import "../errors_and_warnings.jou"
@@ -42,31 +43,18 @@ class AstToIR:
         assert False
 
     def build_function_call(self, call: AstCall*) -> BuilderValue:
+        printf("call->nargs = %d\n", call->nargs)
+        printf("%s\n", call->called_signature->to_string(True,True))
         assert call->method_call_self == NULL
 
         assert call->nargs <= 100
         args: BuilderValue[100]
         for i = 0; i < call->nargs; i++:
             args[i] = self->build_expression(&call->args[i])
-        # TODO: attach signature to the AST
-        #return self->builder.call(call->types.signature, args, call->nargs)
-        assert False
+        return self->builder.call(call->called_signature, args, call->nargs)
 
     def build_method_call(self, call: AstCall*) -> BuilderValue:
         assert call->method_call_self != NULL
-
-        # TODO: can we get signature from the AST `call`?
-        selfclass = type_of_expr(call->method_call_self)
-        if selfclass->kind == TypeKind.Pointer:
-            selfclass = selfclass->value_type
-        assert selfclass->kind == TypeKind.Class
-        sig: Signature* = NULL
-        for s = selfclass->classdata.methods; s < &selfclass->classdata.methods[selfclass->classdata.nmethods]; s++:
-            assert s->get_self_class() == selfclass
-            if strcmp(s->name, call->name) == 0:
-                sig = s
-                break
-        assert sig != NULL
 
         # leave room for self
         assert call->nargs <= 99
@@ -74,7 +62,7 @@ class AstToIR:
 
         k = 0
 
-        want_pointer = sig->argtypes[0]->is_pointer_type()
+        want_pointer = call->called_signature->argtypes[0]->is_pointer_type()
         got_pointer = call->uses_arrow_operator
 
         if want_pointer and not got_pointer:
@@ -87,7 +75,7 @@ class AstToIR:
         for i = 0; i < call->nargs; i++:
             args[k++] = self->build_expression(&call->args[i])
 
-        return self->builder.call(sig, args, k)
+        return self->builder.call(call->called_signature, args, k)
 
     def build_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
         match op:
