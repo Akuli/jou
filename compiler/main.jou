@@ -136,6 +136,7 @@ class FileState:
         # TODO: do we need is_main_file?
         #mod = build_llvm_ir(&self->ast, self->is_main_file)
         mod = build_llvm_ir(&self->ast)
+        self->warn_about_unused()
 
         if command_line_args.verbosity >= 2:
             print_llvm_ir(mod, False)
