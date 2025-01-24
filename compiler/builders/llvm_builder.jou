@@ -283,6 +283,7 @@ class Builder:
             1,
             "indexed_pointer",
         )
+        llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
         return BuilderValue{type = ptr.type, llvm_value = llvm_result}
 
     # Returns &ptr->field
