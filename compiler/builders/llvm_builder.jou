@@ -590,7 +590,9 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
     LLVMSetTarget(module, target.triple)
     LLVMSetDataLayout(module, target.data_layout)
 
+    printf("LLVMCreateBuilder returns %p\n", LLVMCreateBuilder())
     builder = Builder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
+    printf("builder.llvm_builder = %p\n")
 
     for g = ast->types.globals; g < &ast->types.globals[ast->types.nglobals]; g++:
         t = type_to_llvm(g->type)
