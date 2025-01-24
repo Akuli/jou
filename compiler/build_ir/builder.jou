@@ -9,6 +9,7 @@
 # Currently this is used only to build LLVM IR, but more uses are planned.
 
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
 import "../constants.jou"
@@ -54,7 +55,9 @@ class Builder:
 
     # *ptr = value
     def set_ptr(self, ptr: BuilderValue, value: BuilderValue) -> None:
-        assert value.type == ptr.type->pointer_type()
+        if ptr.type != value.type->pointer_type():
+            printf("Cannot set value of %s to %s\n", ptr.type->name, value.type->name)
+        assert ptr.type == value.type->pointer_type()
         ptr_type = LLVMPointerType(type_to_llvm(value.type), 0)
         llvm_ptr = LLVMBuildBitCast(self->llvm_builder, ptr.llvm_value, ptr_type, "legacy_llvm14_cast")
         LLVMBuildStore(self->llvm_builder, value.llvm_value, llvm_ptr)
@@ -70,7 +73,7 @@ class Builder:
     def stack_alloc(self, t: Type*) -> BuilderValue:
         llvm_ptr = LLVMBuildAlloca(self->llvm_builder, type_to_llvm(t), "stack_alloc")
         llvm_ptr = LLVMBuildBitCast(self->llvm_builder, llvm_ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
-        return BuilderValue{type = t, llvm_value = llvm_ptr}
+        return BuilderValue{type = t->pointer_type(), llvm_value = llvm_ptr}
 
     # GEP = Get Element Pointer https://llvm.org/docs/GetElementPtr.html
     # With num_indices = 3, returns &ptr[i1][i2][i3]
