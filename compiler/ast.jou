@@ -419,6 +419,7 @@ class AstCall:
     uses_arrow_operator: bool  # distinguishes foo->bar() and foo.bar()
     nargs: int
     args: AstExpression*
+    called_signature: Signature*  # populated in typecheck, NULL before typecheck runs, not owned
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
