@@ -1,4 +1,5 @@
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 
 import "../ast.jou"
 import "../errors_and_warnings.jou"
@@ -259,7 +260,7 @@ class AstToIR:
                 ptr = self->builder.stack_alloc(instance.type)
                 self->builder.set_ptr(ptr, instance)
                 fieldptr = self->builder.struct_gep(ptr, expr->class_field.field_name)
-                return self->builder.dereference(ptr)
+                return self->builder.dereference(fieldptr)
             case AstExpressionKind.As:
                 return self->builder.cast(self->build_expression(&expr->as_->value), expr->types.orig_type)
             case AstExpressionKind.SizeOf:

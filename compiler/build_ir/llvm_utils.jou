@@ -1,6 +1,7 @@
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 
 import "../llvm.jou"
 import "../target.jou"
@@ -200,4 +201,5 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
     if from == boolType and to->is_integer_type():
         return LLVMBuildIntCast2(builder, obj, type_to_llvm(to), False as int, "cast")
 
+    printf("cast failed: %s --> %s\n", from->name, to->name)  # TODO: temp debug
     assert False
