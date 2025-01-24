@@ -75,38 +75,19 @@ class Builder:
         llvm_ptr = LLVMBuildBitCast(self->llvm_builder, llvm_ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
         return BuilderValue{type = t->pointer_type(), llvm_value = llvm_ptr}
 
-    # GEP = Get Element Pointer https://llvm.org/docs/GetElementPtr.html
-    # With num_indices = 3, returns &ptr[i1][i2][i3]
-    # TODO: is this ever called with more than 1 index?
-    # TODO: rename
-    def gep(self, ptr: BuilderValue, indices: BuilderValue*, num_indices: int) -> BuilderValue:
-        result_type_inner = ptr.type->value_type
-        for i = 0; i < num_indices; i++:
-            assert indices[i].type == longType
-            match result_type_inner->kind:
-                case TypeKind.Array:
-                    result_type_inner = result_type_inner->array.item_type
-                case TypeKind.Pointer:
-                    result_type_inner = result_type_inner->value_type
-                case _:
-                    assert False
-        result_type = result_type_inner->pointer_type()
-
-        assert num_indices < 10
-        llvm_indices: LLVMValue*[10]
-        for i = 0; i < num_indices; i++:
-            llvm_indices[i] = indices[i].llvm_value
-
+    # Returns &ptr[index]
+    def indexed_pointer(self, ptr: BuilderValue, index: BuilderValue) -> BuilderValue:
         assert ptr.type->kind == TypeKind.Pointer
+        assert index.type == longType  # doesn't work right if it's other type
         llvm_result = LLVMBuildGEP2(
             self->llvm_builder,
             type_to_llvm(ptr.type->value_type),
             ptr.llvm_value,
-            llvm_indices,
-            num_indices,
-            "gep",
+            &index.llvm_value,
+            1,
+            "indexed_pointer",
         )
-        return BuilderValue{type = result_type, llvm_value = llvm_result}
+        return BuilderValue{type = ptr.type, llvm_value = llvm_result}
 
     # Returns &ptr->field
     # TODO: rename

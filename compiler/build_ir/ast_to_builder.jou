@@ -187,7 +187,7 @@ class AstToIR:
                 new_value = self->builder.add(old_value, self->builder.integer(t, diff))
             case TypeKind.Pointer:
                 idx = self->builder.integer(longType, diff)
-                new_value = self->builder.gep(ptr, &idx, 1)
+                new_value = self->builder.indexed_pointer(ptr, idx)
             case _:
                 assert False
 
@@ -207,7 +207,7 @@ class AstToIR:
 
         for i = 0; i < nitems; i++:
             i_built = self->builder.integer(longType, i)
-            item_ptr = self->builder.gep(first_item_ptr, &i_built, 1)
+            item_ptr = self->builder.indexed_pointer(first_item_ptr, i_built)
             item_value = self->build_expression(&items[i])
             self->builder.set_ptr(item_ptr, item_value)
 
@@ -346,7 +346,7 @@ class AstToIR:
                 # &ptr[index] = ptr + memory offset
                 ptr = self->build_expression(&expr->operands[0])
                 index = self->build_expression(&expr->operands[1])
-                return self->builder.gep(ptr, &index, 1)
+                return self->builder.indexed_pointer(ptr, index)
             case AstExpressionKind.Dereference:
                 # &*ptr = ptr
                 return self->build_expression(&expr->operands[0])
