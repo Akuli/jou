@@ -90,12 +90,12 @@ class Builder:
         return BuilderValue{type = ptr.type, llvm_value = llvm_result}
 
     # Returns &ptr->field
-    # TODO: rename
-    def struct_gep(self, ptr: BuilderValue, field_name: byte*) -> BuilderValue:
+    def class_field_pointer(self, ptr: BuilderValue, field_name: byte*) -> BuilderValue:
         assert ptr.type->kind == TypeKind.Pointer
         classtype = ptr.type->value_type
         assert classtype->kind == TypeKind.Class
 
+        # TODO: method to find field
         field: ClassField* = NULL
         for f = classtype->classdata.fields; f < &classtype->classdata.fields[classtype->classdata.nfields]; f++:
             if strcmp(f->name, field_name) == 0:

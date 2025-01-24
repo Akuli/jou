@@ -1,4 +1,5 @@
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 
 import "../ast.jou"
 import "../errors_and_warnings.jou"
@@ -109,7 +110,7 @@ class AstToIR:
         inst_ptr = self->builder.stack_alloc(class_type)
         self->builder.memset_to_zero(inst_ptr)
         for i = 0; i < inst->nfields; i++:
-            field_ptr = self->builder.struct_gep(inst_ptr, inst->field_names[i])
+            field_ptr = self->builder.class_field_pointer(inst_ptr, inst->field_names[i])
             field_value = self->build_expression(&inst->field_values[i])
             self->builder.set_ptr(field_ptr, field_value)
 
@@ -252,13 +253,16 @@ class AstToIR:
             case AstExpressionKind.GetEnumMember:
                 return self->builder.enum_member(expr->types.orig_type, expr->enum_member.member_name)
             case AstExpressionKind.GetClassField:
-                # Evaluate foo.bar as (&temp)->bar, where temp is a temporary copy of foo.
-                # We need to copy, because it's not always possible to evaluate &foo.
-                # For example, consider evaluating some_function().foo.
-                instance = self->build_expression(expr->class_field.instance)
-                ptr = self->builder.stack_alloc(instance.type)
-                self->builder.set_ptr(ptr, instance)
-                fieldptr = self->builder.struct_gep(ptr, expr->class_field.field_name)
+                if expr->class_field.uses_arrow_operator:
+                    ptr = self->build_expression(expr->class_field.instance)
+                else:
+                    # Evaluate foo.bar as (&temp)->bar, where temp is a temporary copy of foo.
+                    # We need to copy, because it's not always possible to evaluate &foo.
+                    # For example, consider evaluating some_function().some_field.
+                    instance = self->build_expression(expr->class_field.instance)
+                    ptr = self->builder.stack_alloc(instance.type)
+                    self->builder.set_ptr(ptr, instance)
+                fieldptr = self->builder.class_field_pointer(ptr, expr->class_field.field_name)
                 return self->builder.dereference(fieldptr)
             case AstExpressionKind.As:
                 return self->builder.cast(self->build_expression(&expr->as_->value), expr->types.orig_type)
@@ -332,11 +336,10 @@ class AstToIR:
                 if expr->class_field.uses_arrow_operator:
                     # &ptr->field = ptr + memory offset
                     ptr = self->build_expression(expr->class_field.instance)
-                    return self->builder.struct_gep(ptr, expr->class_field.field_name)
                 else:
                     # &obj.field = &obj + memory offset
                     ptr = self->build_address_of_expression(expr->class_field.instance)
-                    return self->builder.struct_gep(ptr, expr->class_field.field_name)
+                return self->builder.class_field_pointer(ptr, expr->class_field.field_name)
             case AstExpressionKind.GetVariable:
                 if self->local_var_exists(expr->varname):
                     return self->local_var_ptr(expr->varname)
