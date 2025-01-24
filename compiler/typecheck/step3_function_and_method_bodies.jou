@@ -596,6 +596,8 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
                 "class %s does not have a method named '%s'", self_type->name, call->name)
             fail(location, msg)
 
+    call->called_signature = sig
+
     if self_type == NULL:
         function_or_method = "function"
     else:

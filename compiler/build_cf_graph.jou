@@ -483,18 +483,7 @@ class CfBuilder:
         location: Location,
         call: AstCall*,
     ) -> LocalVariable*:
-        sig: Signature* = NULL
-
-        if call->method_call_self != NULL:
-            selfclass = call->method_call_self->types.orig_type
-            if call->uses_arrow_operator:
-                assert selfclass->kind == TypeKind.Pointer
-                selfclass = selfclass->value_type
-            assert selfclass->kind == TypeKind.Class
-            sig = selfclass->find_method(call->name)
-        else:
-            sig = self->filetypes->find_function(call->name)
-
+        sig = call->called_signature
         assert sig != NULL
 
         ins = CfInstruction{
