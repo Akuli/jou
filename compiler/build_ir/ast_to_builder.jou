@@ -382,7 +382,11 @@ class AstToIR:
 
         # Evaluate condition and then jump to loop body or skip to after loop.
         self->builder.set_current_block(condblock)
-        self->builder.branch(self->build_expression(cond), bodyblock, doneblock)
+        if cond == NULL:
+            # assume True
+            self->builder.jump(bodyblock)
+        else:
+            self->builder.branch(self->build_expression(cond), bodyblock, doneblock)
 
         # Within loop body, 'break' skips to after loop, 'continue' goes to incr.
         # TODO: add error message for this, or dynamic size?
