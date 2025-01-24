@@ -349,6 +349,8 @@ class AstToIR:
                     # &obj.field = &obj + memory offset
                     ptr = self->build_address_of_expression(expr->class_field.instance)
                 return self->builder.class_field_pointer(ptr, expr->class_field.field_name)
+            case AstExpressionKind.Self:
+                return self->local_var_ptr("self")
             case AstExpressionKind.GetVariable:
                 if self->local_var_exists(expr->varname):
                     return self->local_var_ptr(expr->varname)
