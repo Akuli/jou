@@ -1,6 +1,7 @@
 import "stdlib/str.jou"
 
 import "../ast.jou"
+import "../evaluate.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
 import "./builder.jou"
@@ -244,9 +245,18 @@ class AstToIR:
                 self->build_instantiation(expr->types.orig_type, &expr->instantiation)
             case AstExpressionKind.Self:
                 return self->builder.dereference(self->local_var_ptr("self"))
-            case AstExpressionKind.GetVariable | AstExpressionKind.Indexing:
-                # With these expressions, it is always possible to evaluate address of the expression.
-                # For example, ptr[foo] can always be evaluated as *(&ptr[foo]).
+            case AstExpressionKind.GetVariable:
+                special = get_special_constant(expr->varname)
+                if special == 0:
+                    return self->builder.boolean(False)
+                elif special == 1:
+                    return self->builder.boolean(True)
+                elif self->local_var_exists(expr->varname):
+                    return self->builder.dereference(self->local_var_ptr(expr->varname))
+                else:
+                    return self->builder.dereference(self->builder.global_var_ptr(expr->varname, expr->types.orig_type))
+            case AstExpressionKind.Indexing:
+                # ptr[foo] can always be evaluated as &ptr[foo], because ptr is already a pointer.
                 # We can't do this for all expressions, because e.g. &some_function() is error.
                 return self->builder.dereference(self->build_address_of_expression(expr))
             case AstExpressionKind.GetEnumMember:

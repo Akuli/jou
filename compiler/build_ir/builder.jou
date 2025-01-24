@@ -113,6 +113,7 @@ class Builder:
     # unaware of global variables is created for each function.
     def global_var_ptr(self, name: byte*, var_type: Type*) -> BuilderValue:
         llvm_result = LLVMGetNamedGlobal(self->llvm_module, name)
+        assert llvm_result != NULL
         llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
         return BuilderValue{type = var_type->pointer_type(), llvm_value = llvm_result}
 
