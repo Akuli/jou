@@ -41,6 +41,13 @@ class Builder:
     llvm_builder: LLVMBuilder*
     llvm_func: LLVMValue*
 
+    def begin_function(self, sig: Signature*, public: bool) -> None:
+        self->llvm_func = declare_in_llvm(sig, self->llvm_module)
+        self->set_current_block(self->add_block())
+
+    def end_function(self) -> None:
+        pass
+
     # TODO: Everything named legacy_llvm14_cast can be removed once we drop LLVM 14 support
     #       Needed due to LLVM opaque pointer types transition
     #

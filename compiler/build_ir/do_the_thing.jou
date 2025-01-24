@@ -5,44 +5,34 @@ import "../llvm.jou"
 import "../target.jou"
 import "../types.jou"
 import "./ast_to_builder.jou"
-import "./builder.jou"
+import "./llvm_builder.jou"
 import "./llvm_utils.jou"
 
 
 def build_llvm_ir_for_function_or_method(llvm_module: LLVMModule*, ast: AstFunctionOrMethod*) -> None:
-    ast2ir = AstToIR{
-        builder = Builder{
-            llvm_module = llvm_module,
-            llvm_builder = LLVMCreateBuilder(),
-            llvm_func = declare_in_llvm(&ast->types.signature, llvm_module),
-        },
-        nlocals = ast->types.nlocals,
+    builder = Builder{
+        llvm_module = llvm_module,
+        llvm_builder = LLVMCreateBuilder(),
     }
 
-    ast2ir.builder.set_current_block(ast2ir.builder.add_block())
+    public = (
+        ast->public
+        or ast->types.signature.is_main_function()
+        or ast->types.signature.get_self_class() != NULL
+    )
+
+    ast2ir = AstToIR{builder = &builder}
+    ast2ir.begin_function(&ast->types.signature, ast->types.locals, ast->types.nlocals, public)
 
     if (WINDOWS or MACOS or NETBSD) and ast->types.signature.is_main_function():
         # Insert a call to the special startup function into main()
         sig = Signature{name = "_jou_startup"}
-        ast2ir.builder.call(&sig, NULL, 0)
-
-    ast2ir.locals = malloc(sizeof(ast2ir.locals[0]) * ast2ir.nlocals)
-    assert ast2ir.locals != NULL
-    for i = 0; i < ast2ir.nlocals; i++:
-        var_name = ast->types.locals[i]->name
-        var_type = ast->types.locals[i]->type
-        var_ptr = ast2ir.builder.stack_alloc(var_type)
-        ast2ir.locals[i] = LocalVar{name = var_name, ptr = var_ptr}
-        if i < ast->types.signature.nargs:
-            # First n local variables are the function arguments
-            ast2ir.builder.set_ptr(var_ptr, ast2ir.builder.get_argument(i, var_type))
+        builder.call(&sig, NULL, 0)
 
     ast2ir.build_body(&ast->body)
-    if ast->types.signature.returntype == NULL:
-        ast2ir.builder.ret(NULL)  # implicit "return" when falling off end of function
-    else:
-        ast2ir.builder.unreachable()
-    LLVMDisposeBuilder(ast2ir.builder.llvm_builder)
+    ast2ir.end_function()
+
+    LLVMDisposeBuilder(builder.llvm_builder)
     free(ast2ir.locals)
 
     if (
@@ -51,7 +41,7 @@ def build_llvm_ir_for_function_or_method(llvm_module: LLVMModule*, ast: AstFunct
         and not ast->types.signature.is_main_function()
     ):
         # private function
-        LLVMSetLinkage(ast2ir.builder.llvm_func, LLVMLinkage.Private)
+        LLVMSetLinkage(builder.llvm_func, LLVMLinkage.Private)
 
 
 @public

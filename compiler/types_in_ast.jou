@@ -28,6 +28,7 @@ class ExpressionTypes:
 
 
 class LocalVariable:
+    # TODO: delete id
     id: int  # Unique, but you can also compare pointers to LocalVariable.
     name: byte[100]  # Same name as in user's code, empty for temporary variables created by compiler
     type: Type*
@@ -46,7 +47,7 @@ class LocalVariable:
 # Not created for anything imported from another file.
 class FunctionOrMethodTypes:
     signature: Signature
-    locals: LocalVariable**
+    locals: LocalVariable**  # TODO: delete double pointer
     nlocals: int
 
     def find_local_var(self, name: byte*) -> LocalVariable*:
