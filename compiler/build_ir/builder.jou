@@ -306,7 +306,7 @@ class Builder:
         assert a.type == b.type
         match a.type->kind:
             case TypeKind.SignedInteger | TypeKind.UnsignedInteger | TypeKind.Enum | TypeKind.Bool:
-                llvm_result = LLVMBuildICmp(self->llvm_builder, LLVMIntPredicate.EQ, a.llvm_value, a.llvm_value, "eq")
+                llvm_result = LLVMBuildICmp(self->llvm_builder, LLVMIntPredicate.EQ, a.llvm_value, b.llvm_value, "eq")
             case TypeKind.FloatingPoint:
                 llvm_result = LLVMBuildFCmp(self->llvm_builder, LLVMRealPredicate.OEQ, a.llvm_value, b.llvm_value, "eq")
             case _:
@@ -318,9 +318,9 @@ class Builder:
         assert a.type == b.type
         match a.type->kind:
             case TypeKind.SignedInteger:
-                llvm_result = LLVMBuildICmp(self->llvm_builder, LLVMIntPredicate.SLT, a.llvm_value, a.llvm_value, "lt")
+                llvm_result = LLVMBuildICmp(self->llvm_builder, LLVMIntPredicate.SLT, a.llvm_value, b.llvm_value, "lt")
             case TypeKind.UnsignedInteger:
-                llvm_result = LLVMBuildICmp(self->llvm_builder, LLVMIntPredicate.ULT, a.llvm_value, a.llvm_value, "lt")
+                llvm_result = LLVMBuildICmp(self->llvm_builder, LLVMIntPredicate.ULT, a.llvm_value, b.llvm_value, "lt")
             case TypeKind.FloatingPoint:
                 llvm_result = LLVMBuildFCmp(self->llvm_builder, LLVMRealPredicate.OLT, a.llvm_value, b.llvm_value, "lt")
             case _:
