@@ -50,11 +50,11 @@ for i in ${!commits[@]}; do
     show_message "Checking out and compiling commit ${commit:0:10} ($((i+1))/${#commits[@]})"
 
     git checkout -q $commit
-    if [ "$OS" == "Windows" ] && [ $i == 0 ]; then
+    if [[ "$OS" =~ "Windows" ]] && [ $i == 0 ]; then
         # The compiler written in C needed LLVM headers, and getting them on
         # Windows turned out to be more difficult than expected, so I included
         # them in the repository as a zip file.
-        unzip llvm-headers.zip
+        unzip llvm_headers.zip
     fi
     $make jou$exe_suffix
     mv -v jou$exe_suffix jou_bootstrap$exe_suffix
