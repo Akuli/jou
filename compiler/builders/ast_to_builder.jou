@@ -583,3 +583,17 @@ class AstToIR:
     def build_body(self, body: AstBody*) -> None:
         for i = 0; i < body->nstatements; i++:
             self->build_statement(&body->statements[i])
+
+
+@public
+def feed_ast_to_builder(ast: AstFunctionOrMethod*, builder: Builder*) -> None:
+    public = (
+        ast->public
+        or ast->types.signature.is_main_function()
+        or ast->types.signature.get_self_class() != NULL
+    )
+    ast2ir = AstToIR{builder = builder}
+    ast2ir.begin_function(&ast->types.signature, ast->types.locals, ast->types.nlocals, public)
+    ast2ir.build_body(&ast->body)
+    ast2ir.end_function()
+    free(ast2ir.locals)
