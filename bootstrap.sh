@@ -41,7 +41,7 @@ mkdir -vp tmp
 rm -rf tmp/bootstrap
 git clone . tmp/bootstrap
 if [[ "$OS" =~ Windows ]]; then
-    cp -r libs llvm llvm-c mingw64 tmp/bootstrap
+    cp -r libs mingw64 tmp/bootstrap
 fi
 cd tmp/bootstrap
 
@@ -50,6 +50,12 @@ for i in ${!commits[@]}; do
     show_message "Checking out and compiling commit ${commit:0:10} ($((i+1))/${#commits[@]})"
 
     git checkout -q $commit
+    if [[ "$OS" =~ "Windows" ]] && [ $i == 0 ]; then
+        # The compiler written in C needed LLVM headers, and getting them on
+        # Windows turned out to be more difficult than expected, so I included
+        # them in the repository as a zip file.
+        unzip llvm_headers.zip
+    fi
     $make jou$exe_suffix
     mv -v jou$exe_suffix jou_bootstrap$exe_suffix
     $make clean
