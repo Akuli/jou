@@ -3,12 +3,10 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/process.jou"
 
-import "./cf_graph.jou"
+import "./builders/llvm_builder.jou"
 import "./command_line_args.jou"
-import "./build_cf_graph.jou"
 import "./evaluate.jou"
 import "./run.jou"
-import "./codegen.jou"
 import "./llvm.jou"
 import "./typecheck/common.jou"
 import "./typecheck/step1_create_types.jou"
@@ -75,7 +73,6 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
 
 class FileState:
     path: byte*  # owned
-    is_main_file: bool
     ast: AstFile
     module: LLVMModule*
 
@@ -131,30 +128,12 @@ class FileState:
                 case _:
                     pass
 
-    def build_cf_graphs(self) -> CfGraphFile:
-        if command_line_args.verbosity >= 1:
-            printf("Building Control Flow Graphs: %s\n", self->path)
-
-        cf_graphs = build_control_flow_graphs(&self->ast)
-        self->warn_about_unused()
-
-        if command_line_args.verbosity >= 2:
-            cf_graphs.print()
-
-        # TODO: implement this
-        #if command_line_args.verbosity >= 1:
-        #    printf("Analyzing CFGs: %s\n", self->path)
-        #simplify_control_flow_graphs(&cf_graphs)
-        #if command_line_args.verbosity >= 2:
-        #    cf_graphs.print()
-
-        return cf_graphs
-
-    def build_llvm_ir(self, cf_graphs: CfGraphFile*) -> LLVMModule*:
+    def build_llvm_ir(self) -> LLVMModule*:
         if command_line_args.verbosity >= 1:
             printf("Building LLVM IR: %s\n", self->path)
 
-        mod = codegen(cf_graphs, &self->ast.types, self->is_main_file)
+        mod = build_llvm_ir(&self->ast)
+        self->warn_about_unused()
 
         if command_line_args.verbosity >= 2:
             print_llvm_ir(mod, False)
@@ -189,12 +168,12 @@ class CompileState:
                 return fs
         return NULL
 
-    def parse(self, filename: byte*, import_location: Location*, is_main_file: bool) -> None:
+    def parse(self, filename: byte*, import_location: Location*) -> None:
         if self->find_file(filename) != NULL:
             # already parsed
             return
 
-        fs = FileState{path = strdup(filename), is_main_file = is_main_file}
+        fs = FileState{path = strdup(filename)}
 
         if command_line_args.verbosity >= 1:
             printf("Tokenizing %s\n", filename)
@@ -227,12 +206,12 @@ class CompileState:
         self->files[self->nfiles++] = fs
 
         for imp = fs.ast.imports; imp < &fs.ast.imports[fs.ast.nimports]; imp++:
-            self->parse(imp->resolved_path, &imp->location, False)  # recursive call
+            self->parse(imp->resolved_path, &imp->location)  # recursive call
 
     def parse_from_stdlib(self, filename: byte*) -> None:
         path = malloc(strlen(self->stdlib_path) + strlen(filename) + 123)
         sprintf(path, "%s/%s", self->stdlib_path, filename)
-        self->parse(path, NULL, False)
+        self->parse(path, NULL)
         free(path)
 
     # Each step of type checking produces exported symbols that other files can import.
@@ -395,17 +374,13 @@ def main(argc: int, argv: byte**) -> int:
     compst.parse_from_stdlib("_assert_fail.jou")
     if WINDOWS or MACOS or NETBSD:
         compst.parse_from_stdlib("_jou_startup.jou")
-    compst.parse(command_line_args.infile, NULL, True)
+    compst.parse(command_line_args.infile, NULL)
 
     compst.typecheck_all_files()
 
     objpaths: byte** = calloc(sizeof objpaths[0], compst.nfiles + 1)
     for i = 0; i < compst.nfiles; i++:
-        cf_graphs = compst.files[i].build_cf_graphs()
-
-        llvm_ir = compst.files[i].build_llvm_ir(&cf_graphs)
-        cf_graphs.free()
-
+        llvm_ir = compst.files[i].build_llvm_ir()
         objpaths[i] = compile_llvm_ir_to_object_file(llvm_ir)
         LLVMDisposeModule(llvm_ir)
 

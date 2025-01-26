@@ -1278,8 +1278,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 snprintf(msg, sizeof msg,
                     "attempting to return a value of type <from> from %s '%s' defined with '-> <to>'",
                     function_or_method, state->fom_types->signature.name)
-                typecheck_expression_with_implicit_cast(
-                    state, stmt->return_value, state->fom_types->find_local_var("return")->type, msg)
+                typecheck_expression_with_implicit_cast(state, stmt->return_value, return_type, msg)
 
         case AstStatementKind.DeclareLocalVar:
             if state->find_any_var(stmt->var_declaration.name) != NULL:
@@ -1318,10 +1317,7 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
 
     sig = &fom->types.signature
     for i = 0; i < sig->nargs; i++:
-        v = state->fom_types->add_variable(sig->argtypes[i], sig->argnames[i])
-
-    if sig->returntype != NULL:
-        state->fom_types->add_variable(sig->returntype, "return")
+        state->fom_types->add_variable(sig->argtypes[i], sig->argnames[i])
 
     typecheck_body(state, &fom->body)
     state->fom_types = NULL

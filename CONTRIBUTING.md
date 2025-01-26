@@ -67,9 +67,7 @@ At a high level, the compilation steps are:
 - **Tokenize:** split the source code into tokens
 - **Parse:** build an abstract syntax tree (AST) from the tokens
 - **Typecheck:** errors for wrong number or type of function arguments etc, figure out the type of each expression in the AST
-- **Build CFG:** build Control Flow Graphs for each function from the AST
-- **Simplify CFG:** simplify and analyze the control flow graphs in various ways, generate warnings and errors based on them
-- **Codegen:** convert the CFGs into LLVM IR
+- **Build LLVM IR:** walk the AST and call methods on a builder that builds LLVM IR (see [compiler/builders/](compiler/builders/))
 - **Emit objects:** create `.o` files from the LLVM IR
 - **Link:** run a linker that combines the `.o` files into an executable
 - **Run:** run the executable
@@ -83,9 +81,8 @@ $ ./jou -vv examples/hello.jou  # Show all details
 ```
 
 With `-vv` (or `--verbose --verbose`), the compiler shows
-the tokens, AST, CFGs and LLVM IR generated.
-The control flow graphs are shown twice, before and after simplifying them.
-Similarly, LLVM IR is shown before and after optimizing.
+the tokens, AST and LLVM IR generated.
+LLVM IR is shown twice, before and after optimizing.
 
 After making changes to the compiler, run `make` to recompile it.
 

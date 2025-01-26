@@ -1,0 +1,599 @@
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+import "../ast.jou"
+import "../errors_and_warnings.jou"
+import "../evaluate.jou"
+import "../types.jou"
+import "../types_in_ast.jou"
+import "./llvm_builder.jou"
+
+
+class LocalVar:
+    name: byte[100]
+    # All local variables are represented as pointers to stack space, even
+    # if they are never reassigned. LLVM will optimize the mess.
+    ptr: BuilderValue
+
+
+class Loop:
+    on_break: BuilderBlock
+    on_continue: BuilderBlock
+
+
+class AstToBuilder:
+    builder: Builder*
+    locals: LocalVar*
+    nlocals: int
+    loops: Loop*
+    nloops: int
+    returns_a_value: bool
+
+    def begin_function(self, sig: Signature*, locals: LocalVariable*, nlocals: int, public: bool) -> None:
+        # First n local variables are the arguments
+        assert sig->nargs >= 0
+        assert sig->nargs <= nlocals
+
+        self->builder->begin_function(sig, public)
+        self->returns_a_value = (sig->returntype != NULL)
+
+        if nlocals > self->nlocals:
+            self->locals = realloc(self->locals, sizeof(self->locals[0]) * nlocals)
+            assert self->locals != NULL
+        self->nlocals = nlocals
+
+        for i = 0; i < nlocals; i++:
+            var_name = locals[i].name
+            var_type = locals[i].type
+            var_ptr = self->builder->stack_alloc(var_type)
+            self->locals[i] = LocalVar{name = var_name, ptr = var_ptr}
+            if i < sig->nargs:
+                # First n local variables are the function arguments
+                self->builder->set_ptr(var_ptr, self->builder->get_argument(i, var_type))
+
+        if (WINDOWS or MACOS or NETBSD) and sig->is_main_function():
+            # Insert a call to the special startup function into main()
+            jou_startup_sig = Signature{name = "_jou_startup"}
+            self->builder->call(&jou_startup_sig, NULL, 0)
+
+    def end_function(self) -> None:
+        if self->returns_a_value:
+            self->builder->unreachable()
+        else:
+            self->builder->ret(NULL)  # implicit "return" when falling off end of function
+        self->builder->end_function()
+
+    def local_var_exists(self, name: byte*) -> bool:
+        for i = 0; i < self->nlocals; i++:
+            if strcmp(self->locals[i].name, name) == 0:
+                return True
+        return False
+
+    def local_var_ptr(self, name: byte*) -> BuilderValue:
+        for i = 0; i < self->nlocals; i++:
+            if strcmp(self->locals[i].name, name) == 0:
+                return self->locals[i].ptr
+        assert False
+
+    def build_function_call(self, call: AstCall*) -> BuilderValue:
+        assert call->method_call_self == NULL
+
+        assert call->nargs <= 100
+        args: BuilderValue[100]
+        for i = 0; i < call->nargs; i++:
+            args[i] = self->build_expression(&call->args[i])
+        return self->builder->call(call->called_signature, args, call->nargs)
+
+    def build_method_call(self, call: AstCall*) -> BuilderValue:
+        assert call->method_call_self != NULL
+
+        # leave room for self
+        assert call->nargs <= 99
+        args: BuilderValue[100]
+
+        k = 0
+
+        want_pointer = call->called_signature->argtypes[0]->is_pointer_type()
+        got_pointer = call->uses_arrow_operator
+
+        if want_pointer and not got_pointer:
+            args[k++] = self->build_address_of_expression(call->method_call_self)
+        elif got_pointer and not want_pointer:
+            args[k++] = self->builder->dereference(self->build_expression(call->method_call_self))
+        else:
+            args[k++] = self->build_expression(call->method_call_self)
+
+        for i = 0; i < call->nargs; i++:
+            args[k++] = self->build_expression(&call->args[i])
+
+        return self->builder->call(call->called_signature, args, k)
+
+    def build_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
+        match op:
+            case AstExpressionKind.Eq:
+                return self->builder->eq(lhs, rhs)
+            case AstExpressionKind.Ne:
+                return self->builder->not_(self->builder->eq(lhs, rhs))
+            case AstExpressionKind.Lt:
+                return self->builder->lt(lhs, rhs)
+            case AstExpressionKind.Gt:
+                return self->builder->lt(rhs, lhs)
+            case AstExpressionKind.Le:
+                return self->builder->not_(self->builder->lt(rhs, lhs))
+            case AstExpressionKind.Ge:
+                return self->builder->not_(self->builder->lt(lhs, rhs))
+            case AstExpressionKind.Add:
+                return self->builder->add(lhs, rhs)
+            case AstExpressionKind.Sub:
+                return self->builder->sub(lhs, rhs)
+            case AstExpressionKind.Mul:
+                return self->builder->mul(lhs, rhs)
+            case AstExpressionKind.Div:
+                return self->builder->div(lhs, rhs)
+            case AstExpressionKind.Mod:
+                return self->builder->mod(lhs, rhs)
+            case _:
+                assert False
+
+    def build_inplace_binop(self, op: AstExpressionKind, lhs: AstExpression*, rhs: AstExpression*) -> None:
+        lhs_ptr = self->build_address_of_expression(lhs)
+        rhs_value = self->build_expression(rhs)
+        old_value = self->builder->dereference(lhs_ptr)
+        new_value = self->build_binop(op, old_value, rhs_value)
+        self->builder->set_ptr(lhs_ptr, new_value)
+
+    def build_instantiation(self, class_type: Type*, inst: AstInstantiation*) -> BuilderValue:
+        assert class_type != NULL
+        assert class_type->kind == TypeKind.Class
+
+        inst_ptr = self->builder->stack_alloc(class_type)
+        self->builder->memset_to_zero(inst_ptr)
+        for i = 0; i < inst->nfields; i++:
+            field_ptr = self->builder->class_field_pointer(inst_ptr, inst->field_names[i])
+            field_value = self->build_expression(&inst->field_values[i])
+            self->builder->set_ptr(field_ptr, field_value)
+
+        return self->builder->dereference(inst_ptr)
+
+    def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> BuilderValue:
+        # Must be careful with side effects.
+        #
+        #    # lhs returning False means we don't evaluate rhs
+        #    if lhs:
+        #        result = rhs
+        #    else:
+        #        result = False
+        lhstrue = self->builder->add_block()
+        lhsfalse = self->builder->add_block()
+        done = self->builder->add_block()
+        resultptr = self->builder->stack_alloc(boolType)
+
+        # if lhs:
+        self->builder->branch(self->build_expression(lhsexpr), lhstrue, lhsfalse)
+        self->builder->set_current_block(lhstrue)
+        # result = rhs
+        self->builder->set_ptr(resultptr, self->build_expression(rhsexpr))
+        # end if
+        self->builder->jump(done)
+        # else:
+        self->builder->set_current_block(lhsfalse)
+        # result = False
+        self->builder->set_ptr(resultptr, self->builder->boolean(False))
+        # end else
+        self->builder->jump(done)
+        self->builder->set_current_block(done)
+
+        return self->builder->dereference(resultptr)
+
+    def build_or(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> BuilderValue:
+        # Must be careful with side effects.
+        #
+        #    # lhs returning True means we don't evaluate rhs
+        #    if lhs:
+        #        result = True
+        #    else:
+        #        result = rhs
+        lhstrue = self->builder->add_block()
+        lhsfalse = self->builder->add_block()
+        done = self->builder->add_block()
+        resultptr = self->builder->stack_alloc(boolType)
+
+        # if lhs:
+        self->builder->branch(self->build_expression(lhsexpr), lhstrue, lhsfalse)
+        self->builder->set_current_block(lhstrue)
+        # result = True
+        self->builder->set_ptr(resultptr, self->builder->boolean(True))
+        # end if
+        self->builder->jump(done)
+        # else:
+        self->builder->set_current_block(lhsfalse)
+        # result = rhs
+        self->builder->set_ptr(resultptr, self->build_expression(rhsexpr))
+        # end else
+        self->builder->jump(done)
+        self->builder->set_current_block(done)
+
+        return self->builder->dereference(resultptr)
+
+    def build_increment_or_decrement(self, inner: AstExpression*, pre: bool, diff: int) -> BuilderValue:
+        assert diff == 1 or diff == -1  # 1=increment, -1=decrement
+
+        ptr = self->build_address_of_expression(inner)
+        old_value = self->builder->dereference(ptr)
+
+        t = inner->types.implicit_cast_type
+        match t->kind:
+            case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+                new_value = self->builder->add(old_value, self->builder->integer(t, diff))
+            case TypeKind.Pointer:
+                idx = self->builder->integer(longType, diff)
+                new_value = self->builder->indexed_pointer(old_value, idx)
+            case _:
+                assert False
+
+        self->builder->set_ptr(ptr, new_value)
+
+        if pre:
+            return new_value
+        else:
+            return old_value
+
+    def build_array(self, t: Type*, items: AstExpression*, nitems: int) -> BuilderValue:
+        assert t->kind == TypeKind.Array
+        assert t->array.len == nitems
+
+        arr_ptr = self->builder->stack_alloc(t)
+        first_item_ptr = self->builder->cast(arr_ptr, t->array.item_type->pointer_type())
+
+        for i = 0; i < nitems; i++:
+            i_built = self->builder->integer(longType, i)
+            item_ptr = self->builder->indexed_pointer(first_item_ptr, i_built)
+            item_value = self->build_expression(&items[i])
+            self->builder->set_ptr(item_ptr, item_value)
+
+        return self->builder->dereference(arr_ptr)
+
+    def build_expression_without_implicit_cast(self, expr: AstExpression*) -> BuilderValue:
+        match expr->kind:
+            case AstExpressionKind.String:
+                return self->builder->string(expr->string)
+            case AstExpressionKind.Byte:
+                return self->builder->integer(byteType, expr->byte_value)
+            case AstExpressionKind.Short:
+                return self->builder->integer(shortType, expr->short_value)
+            case AstExpressionKind.Int:
+                return self->builder->integer(intType, expr->int_value)
+            case AstExpressionKind.Long:
+                return self->builder->integer(longType, expr->long_value)
+            case AstExpressionKind.Float:
+                return self->builder->float_or_double(floatType, expr->float_or_double_text)
+            case AstExpressionKind.Double:
+                return self->builder->float_or_double(doubleType, expr->float_or_double_text)
+            case AstExpressionKind.Bool:
+                return self->builder->boolean(expr->bool_value)
+            case AstExpressionKind.Null:
+                return self->builder->zero_of_type(voidPtrType)
+            case AstExpressionKind.Array:
+                return self->build_array(expr->types.orig_type, expr->array.items, expr->array.length)
+            case AstExpressionKind.Call:
+                if expr->call.method_call_self == NULL:
+                    return self->build_function_call(&expr->call)
+                else:
+                    return self->build_method_call(&expr->call)
+            case AstExpressionKind.Instantiate:
+                return self->build_instantiation(expr->types.orig_type, &expr->instantiation)
+            case AstExpressionKind.Self:
+                return self->builder->dereference(self->local_var_ptr("self"))
+            case AstExpressionKind.GetVariable:
+                special = get_special_constant(expr->varname)
+                if special == 0:
+                    return self->builder->boolean(False)
+                elif special == 1:
+                    return self->builder->boolean(True)
+                elif self->local_var_exists(expr->varname):
+                    return self->builder->dereference(self->local_var_ptr(expr->varname))
+                else:
+                    return self->builder->dereference(self->builder->global_var_ptr(expr->varname, expr->types.orig_type))
+            case AstExpressionKind.Indexing:
+                # ptr[foo] can always be evaluated as &ptr[foo], because ptr is already a pointer.
+                # We can't do this for all expressions, because e.g. &some_function() is error.
+                return self->builder->dereference(self->build_address_of_expression(expr))
+            case AstExpressionKind.GetEnumMember:
+                return self->builder->enum_member(expr->types.orig_type, expr->enum_member.member_name)
+            case AstExpressionKind.GetClassField:
+                if expr->class_field.uses_arrow_operator:
+                    ptr = self->build_expression(expr->class_field.instance)
+                else:
+                    # Evaluate foo.bar as (&temp)->bar, where temp is a temporary copy of foo.
+                    # We need to copy, because it's not always possible to evaluate &foo.
+                    # For example, consider evaluating some_function().some_field.
+                    instance = self->build_expression(expr->class_field.instance)
+                    ptr = self->builder->stack_alloc(instance.type)
+                    self->builder->set_ptr(ptr, instance)
+                fieldptr = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
+                return self->builder->dereference(fieldptr)
+            case AstExpressionKind.As:
+                return self->builder->cast(self->build_expression(&expr->as_->value), expr->types.orig_type)
+            case AstExpressionKind.SizeOf:
+                return self->builder->size_of(expr->operands[0].types.implicit_cast_type)
+            case AstExpressionKind.AddressOf:
+                return self->build_address_of_expression(&expr->operands[0])
+            case AstExpressionKind.Dereference:
+                return self->builder->dereference(self->build_expression(&expr->operands[0]))
+            case AstExpressionKind.Negate:  # -x
+                # compute -x as 0-x
+                return self->builder->sub(
+                    self->builder->zero_of_type(expr->operands[0].types.implicit_cast_type),
+                    self->build_expression(&expr->operands[0]),
+                )
+            case AstExpressionKind.PreIncr:
+                return self->build_increment_or_decrement(&expr->operands[0], True, 1)
+            case AstExpressionKind.PreDecr:
+                return self->build_increment_or_decrement(&expr->operands[0], True, -1)
+            case AstExpressionKind.PostIncr:
+                return self->build_increment_or_decrement(&expr->operands[0], False, 1)
+            case AstExpressionKind.PostDecr:
+                return self->build_increment_or_decrement(&expr->operands[0], False, -1)
+            case (
+                AstExpressionKind.Add
+                | AstExpressionKind.Sub
+                | AstExpressionKind.Mul
+                | AstExpressionKind.Div
+                | AstExpressionKind.Mod
+                | AstExpressionKind.Eq
+                | AstExpressionKind.Ne
+                | AstExpressionKind.Gt
+                | AstExpressionKind.Ge
+                | AstExpressionKind.Lt
+                | AstExpressionKind.Le
+            ):
+                # Note: If you port this code to another programming language, make sure
+                # to evaluate the operands in the correct order. C does not guarantee
+                # evaluation order of function arguments, but Jou does.
+                return self->build_binop(expr->kind, self->build_expression(&expr->operands[0]), self->build_expression(&expr->operands[1]))
+            case AstExpressionKind.And:
+                return self->build_and(&expr->operands[0], &expr->operands[1])
+            case AstExpressionKind.Or:
+                return self->build_or(&expr->operands[0], &expr->operands[1])
+            case AstExpressionKind.Not:
+                return self->builder->not_(self->build_expression(&expr->operands[0]))
+        assert False
+
+    def build_expression(self, expr: AstExpression*) -> BuilderValue:
+        if expr->types.implicit_array_to_pointer_cast:
+            return self->builder->cast(self->build_address_of_expression(expr), expr->types.implicit_cast_type)
+
+        if expr->types.implicit_string_to_array_cast:
+            assert expr->types.implicit_cast_type != NULL
+            assert expr->types.implicit_cast_type->kind == TypeKind.Array
+            assert expr->kind == AstExpressionKind.String
+            return self->builder->string_array(expr->string, expr->types.implicit_cast_type->array.len)
+
+        raw = self->build_expression_without_implicit_cast(expr)
+        if expr->types.orig_type == NULL and expr->types.implicit_cast_type == NULL:
+            # Function/method call that returns no value
+            assert expr->kind == AstExpressionKind.Call
+            return BuilderValue{}
+        else:
+            assert expr->types.orig_type != NULL
+            assert expr->types.implicit_cast_type != NULL
+            return self->builder->cast(raw, expr->types.implicit_cast_type)
+
+    def build_address_of_expression(self, expr: AstExpression*) -> BuilderValue:
+        match expr->kind:
+            case AstExpressionKind.GetClassField:
+                if expr->class_field.uses_arrow_operator:
+                    # &ptr->field = ptr + memory offset
+                    ptr = self->build_expression(expr->class_field.instance)
+                else:
+                    # &obj.field = &obj + memory offset
+                    ptr = self->build_address_of_expression(expr->class_field.instance)
+                return self->builder->class_field_pointer(ptr, expr->class_field.field_name)
+            case AstExpressionKind.Self:
+                return self->local_var_ptr("self")
+            case AstExpressionKind.GetVariable:
+                if self->local_var_exists(expr->varname):
+                    return self->local_var_ptr(expr->varname)
+                else:
+                    return self->builder->global_var_ptr(expr->varname, expr->types.orig_type)
+            case AstExpressionKind.Indexing:
+                # &ptr[index] = ptr + memory offset
+                ptr = self->build_expression(&expr->operands[0])
+                index = self->build_expression(&expr->operands[1])
+                return self->builder->indexed_pointer(ptr, index)
+            case AstExpressionKind.Dereference:
+                # &*ptr = ptr
+                return self->build_expression(&expr->operands[0])
+            case _:
+                assert False
+
+    def build_if_statement(self, ifst: AstIfStatement*) -> None:
+        done = self->builder->add_block()
+        for i = 0; i < ifst->n_if_and_elifs; i++:
+            cond = self->build_expression(&ifst->if_and_elifs[i].condition)
+            then = self->builder->add_block()
+            otherwise = self->builder->add_block()
+            self->builder->branch(cond, then, otherwise)
+            self->builder->set_current_block(then)
+            self->build_body(&ifst->if_and_elifs[i].body)
+            self->builder->jump(done)
+            self->builder->set_current_block(otherwise)
+
+        self->build_body(&ifst->else_body)
+        self->builder->jump(done)
+        self->builder->set_current_block(done)
+
+    def build_loop(self, cond: AstExpression*, incr: AstStatement*, body: AstBody*) -> None:
+        condblock = self->builder->add_block()  # evaluate condition and go to bodyblock or doneblock
+        bodyblock = self->builder->add_block()  # run loop body and go to incrblock
+        incrblock = self->builder->add_block()  # run incr and go to condblock
+        doneblock = self->builder->add_block()  # rest of the code goes here
+
+        # Start loop from condition
+        self->builder->jump(condblock)
+
+        # Evaluate condition and then jump to loop body or skip to after loop.
+        self->builder->set_current_block(condblock)
+        if cond == NULL:
+            # assume True
+            self->builder->jump(bodyblock)
+        else:
+            self->builder->branch(self->build_expression(cond), bodyblock, doneblock)
+
+        # Within loop body, 'break' skips to after loop, 'continue' goes to incr.
+        self->loops = realloc(self->loops, (self->nloops + 1) * sizeof(self->loops[0]))
+        assert self->loops != NULL
+        self->loops[self->nloops++] = Loop{on_break = doneblock, on_continue = incrblock}
+
+        # Run loop body. When done, go to incr.
+        self->builder->set_current_block(bodyblock)
+        self->build_body(body)
+        self->builder->jump(incrblock)
+
+        # 'break' and 'continue' are not allowed after the loop body.
+        assert self->nloops > 0
+        self->nloops--
+
+        # Run incr and jump back to condition.
+        self->builder->set_current_block(incrblock)
+        if incr != NULL:
+            self->build_statement(incr)
+        self->builder->jump(condblock)
+
+        # Code after the loop goes to "loop done" part.
+        self->builder->set_current_block(doneblock)
+
+    def build_match_statement(self, match_stmt: AstMatchStatement*) -> None:
+        match_obj = self->build_expression(&match_stmt->match_obj)
+
+        done = self->builder->add_block()
+        for i = 0; i < match_stmt->ncases; i++:
+            then = self->builder->add_block()
+            otherwise = BuilderBlock{}  # will be replaced by loop below
+            for k = 0; k < match_stmt->cases[i].n_case_objs; k++:
+                case_obj = self->build_expression(&match_stmt->cases[i].case_objs[k])
+                cond = self->builder->eq(match_obj, case_obj)
+                otherwise = self->builder->add_block()
+                self->builder->branch(cond, then, otherwise)
+                self->builder->set_current_block(otherwise)
+
+            self->builder->set_current_block(then)
+            self->build_body(&match_stmt->cases[i].body)
+            self->builder->jump(done)
+            self->builder->set_current_block(otherwise)
+
+        if match_stmt->case_underscore != NULL:
+            self->build_body(match_stmt->case_underscore)
+        self->builder->jump(done)
+        self->builder->set_current_block(done)
+
+    def build_assert(self, assert_location: Location, assertion: AstAssertion*) -> None:
+        condvar = self->build_expression(&assertion->condition)
+
+        ok_block = self->builder->add_block()
+        error_block = self->builder->add_block()
+        self->builder->branch(condvar, ok_block, error_block)
+
+        self->builder->set_current_block(error_block)
+
+        # TODO: https://github.com/Akuli/jou/issues/683
+        argnames: byte[100][3]
+        strcpy(argnames[0], "assertion")
+        strcpy(argnames[1], "path")
+        strcpy(argnames[2], "lineno")
+
+        argtypes: Type*[3] = [byteType->pointer_type(), byteType->pointer_type(), intType]
+        sig = Signature{
+            name = "_jou_assert_fail",
+            nargs = 3,
+            argtypes = argtypes,
+            argnames = argnames,
+            takes_varargs = False,
+            is_noreturn = True,
+            returntype_location = assert_location,
+        }
+        args = [
+            self->builder->string(assertion->condition_str),
+            self->builder->string(assert_location.path),
+            self->builder->integer(intType, assert_location.lineno),
+        ]
+        self->builder->call(&sig, args, 3)
+        self->builder->unreachable()
+
+        self->builder->set_current_block(ok_block)
+
+    def build_statement(self, stmt: AstStatement*) -> None:
+        match stmt->kind:
+            case AstStatementKind.If:
+                self->build_if_statement(&stmt->if_statement)
+            case AstStatementKind.Assert:
+                self->build_assert(stmt->location, &stmt->assertion)
+            case AstStatementKind.Pass:
+                pass
+            case AstStatementKind.WhileLoop:
+                self->build_loop(&stmt->while_loop.condition, NULL, &stmt->while_loop.body)
+            case AstStatementKind.ForLoop:
+                if stmt->for_loop.init != NULL:
+                    self->build_statement(stmt->for_loop.init)
+                self->build_loop(
+                    stmt->for_loop.cond, stmt->for_loop.incr, &stmt->for_loop.body)
+            case AstStatementKind.Match:
+                self->build_match_statement(&stmt->match_statement)
+            case AstStatementKind.Break:
+                assert self->nloops > 0
+                self->builder->jump(self->loops[self->nloops - 1].on_break)
+                self->builder->set_current_block(self->builder->add_block())  # for code after 'break', if any
+            case AstStatementKind.Continue:
+                assert self->nloops > 0
+                self->builder->jump(self->loops[self->nloops - 1].on_continue)
+                self->builder->set_current_block(self->builder->add_block())  # for code after 'continue', if any
+            case AstStatementKind.Assign:
+                lhs_ptr = self->build_address_of_expression(&stmt->assignment.target)
+                rhs = self->build_expression(&stmt->assignment.value)
+                self->builder->set_ptr(lhs_ptr, rhs)
+            case AstStatementKind.InPlaceAdd:
+                self->build_inplace_binop(AstExpressionKind.Add, &stmt->assignment.target, &stmt->assignment.value)
+            case AstStatementKind.InPlaceSub:
+                self->build_inplace_binop(AstExpressionKind.Sub, &stmt->assignment.target, &stmt->assignment.value)
+            case AstStatementKind.InPlaceMul:
+                self->build_inplace_binop(AstExpressionKind.Mul, &stmt->assignment.target, &stmt->assignment.value)
+            case AstStatementKind.InPlaceDiv:
+                self->build_inplace_binop(AstExpressionKind.Div, &stmt->assignment.target, &stmt->assignment.value)
+            case AstStatementKind.InPlaceMod:
+                self->build_inplace_binop(AstExpressionKind.Mod, &stmt->assignment.target, &stmt->assignment.value)
+            case AstStatementKind.Return:
+                if stmt->return_value != NULL:
+                    r = self->build_expression(stmt->return_value)
+                    self->builder->ret(&r)
+                else:
+                    self->builder->ret(NULL)
+                self->builder->set_current_block(self->builder->add_block())  # for code after 'return', if any
+            case AstStatementKind.DeclareLocalVar:
+                if stmt->var_declaration.value != NULL:
+                    var_ptr = self->local_var_ptr(stmt->var_declaration.name)
+                    value = self->build_expression(stmt->var_declaration.value)
+                    self->builder->set_ptr(var_ptr, value)
+            case AstStatementKind.ExpressionStatement:
+                self->build_expression(&stmt->expression)
+            case _:
+                # other statements shouldn't occur inside functions/methods
+                assert False
+
+    def build_body(self, body: AstBody*) -> None:
+        for i = 0; i < body->nstatements; i++:
+            self->build_statement(&body->statements[i])
+
+
+@public
+def feed_ast_to_builder(ast: AstFunctionOrMethod*, builder: Builder*) -> None:
+    public = (
+        ast->public
+        or ast->types.signature.is_main_function()
+        or ast->types.signature.get_self_class() != NULL
+    )
+    ast2ir = AstToBuilder{builder = builder}
+    ast2ir.begin_function(&ast->types.signature, ast->types.locals, ast->types.nlocals, public)
+    ast2ir.build_body(&ast->body)
+    ast2ir.end_function()
+    free(ast2ir.locals)
+    free(ast2ir.loops)
