@@ -59,7 +59,7 @@ for i in ${!commits[@]}; do
         unzip llvm_headers.zip
     fi
 
-    # Convince make that jou_bootstrap.exe is usable as is, and does not need
+    # Convince make that jou_bootstrap(.exe) is usable as is, and does not need
     # to be recompiled. We don't want bootstrap inside bootstrap.
     if [ $i != 0 ]; then
         touch jou_bootstrap$exe_suffix
