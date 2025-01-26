@@ -290,7 +290,9 @@ class Tokenizer:
         if c == '\\':
             after_backslash = self->read_byte()
             match after_backslash with bytecmp:
-                case '\0' | '\n':
+                case '\0':
+                    fail(self->location, "missing ' to end the byte literal")
+                case '\n':
                     self->location.lineno--
                     fail(self->location, "missing ' to end the byte literal")
                 case 'n':
