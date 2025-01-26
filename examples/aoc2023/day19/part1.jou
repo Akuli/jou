@@ -109,10 +109,11 @@ def run(workflows: Workflow*, nworkflows: int, xmas: XMAS) -> bool:
 
     while True:
         result = find_workflow(workflows, nworkflows, result)->run(xmas)
-        if strcmp(result, "A") == 0:
-            return True
-        if strcmp(result, "R") == 0:
-            return False
+        match result with strcmp:
+            case "A":
+                return True
+            case "R":
+                return False
 
 
 def main() -> int:

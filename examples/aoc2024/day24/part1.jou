@@ -103,14 +103,15 @@ def main() -> int:
 
     input1, op, input2, output: byte[4]
     while fscanf(f, "%3s %3s %3s -> %3s\n", input1, op, input2, output) == 4:
-        if strcmp(op, "AND") == 0:
-            op_enum = LogicOp.And
-        elif strcmp(op, "OR") == 0:
-            op_enum = LogicOp.Or
-        elif strcmp(op, "XOR") == 0:
-            op_enum = LogicOp.Xor
-        else:
-            assert False
+        match op with strcmp:
+            case "AND":
+                op_enum = LogicOp.And
+            case "OR":
+                op_enum = LogicOp.Or
+            case "XOR":
+                op_enum = LogicOp.Xor
+            case _:
+                assert False
 
         assert ngates < sizeof(gates)/sizeof(gates[0])
         gates[ngates++] = LogicGate{
