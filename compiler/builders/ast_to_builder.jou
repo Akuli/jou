@@ -225,6 +225,8 @@ class AstToBuilder:
         match t->kind:
             case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
                 new_value = self->builder->add(old_value, self->builder->integer(t, diff))
+            case TypeKind.FloatingPoint:
+                new_value = self->builder->add(old_value, self->builder->cast(self->builder->integer(intType, diff), t))
             case TypeKind.Pointer:
                 idx = self->builder->integer(longType, diff)
                 new_value = self->builder->indexed_pointer(old_value, idx)
