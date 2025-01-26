@@ -96,12 +96,15 @@ if [ $run_make = yes ]; then
     else
         make $jouexe
     fi
-
 fi
 
-DIFF=$(which gdiff || which diff)
-if $DIFF --help | grep -q -- --color; then
-    diff_color="--color=always"
+if [[ "${OS:=$(uname)}" =~ NetBSD ]] && which gdiff >/dev/null; then
+    diff="gdiff"
+else
+    diff="diff"
+fi
+if $diff --help | grep -q -- --color; then
+    diff="$diff --color=always"
 fi
 
 function generate_expected_output()
@@ -226,7 +229,7 @@ function run_test()
 
     printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
 
-    if $DIFF --text -u $diff_color <(
+    if $diff --text -u <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
     ) <(
         export PATH="$PWD:$PATH"
