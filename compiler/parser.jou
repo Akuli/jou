@@ -943,7 +943,7 @@ class Parser:
             self->tokens++
             if self->tokens->kind != TokenKind.Name:
                 self->tokens->fail_expected_got("function name")
-            result.with_func_name = (self->tokens++)->short_string
+            result.func_name = (self->tokens++)->short_string
 
         self->parse_start_of_body()
 
