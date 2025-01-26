@@ -30,9 +30,13 @@ else
 fi
 
 
-DIFF=$(which gdiff || which diff)
-if $DIFF --help | grep -q -- --color; then
-    diff_color="--color=always"
+if [[ "${OS:=$(uname)}" =~ NetBSD ]] && which gdiff >/dev/null; then
+    diff="gdiff"
+else
+    diff="diff"
+fi
+if $diff --help | grep -q -- --color; then
+    diff="$diff --color=always"
 fi
 
 function generate_expected_output()
@@ -73,7 +77,7 @@ for file in */*.jou; do
     echo -n "$(basename "$(dirname "$file")" | tr -d '\n' | base64 -d):$(basename "$file" | cut -d'.' -f1): "
 
     cp "$file" test.jou
-    if $DIFF --text -u $diff_color <(generate_expected_output test.jou | tr -d '\r') <( ("$jou" test.jou 2>&1 || true) | tr -d '\r'); then
+    if $diff --text -u <(generate_expected_output test.jou | tr -d '\r') <( ("$jou" test.jou 2>&1 || true) | tr -d '\r'); then
         echo "ok"
     else
         ((nfail++)) || true
