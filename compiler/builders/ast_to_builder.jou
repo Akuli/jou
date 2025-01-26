@@ -6,23 +6,23 @@ import "../errors_and_warnings.jou"
 import "../evaluate.jou"
 import "../types.jou"
 import "../types_in_ast.jou"
-import "./llvm_builder.jou"
+import "./either_builder.jou"
 
 
 class LocalVar:
     name: byte[100]
     # All local variables are represented as pointers to stack space, even
     # if they are never reassigned. LLVM will optimize the mess.
-    ptr: BuilderValue
+    ptr: EitherBuilderValue
 
 
 class Loop:
-    on_break: BuilderBlock
-    on_continue: BuilderBlock
+    on_break: EitherBuilderBlock
+    on_continue: EitherBuilderBlock
 
 
 class AstToBuilder:
-    builder: Builder*
+    builder: EitherBuilder*
     locals: LocalVar*
     nlocals: int
     loops: Loop*
@@ -69,27 +69,27 @@ class AstToBuilder:
                 return True
         return False
 
-    def local_var_ptr(self, name: byte*) -> BuilderValue:
+    def local_var_ptr(self, name: byte*) -> EitherBuilderValue:
         for i = 0; i < self->nlocals; i++:
             if strcmp(self->locals[i].name, name) == 0:
                 return self->locals[i].ptr
         assert False
 
-    def build_function_call(self, call: AstCall*) -> BuilderValue:
+    def build_function_call(self, call: AstCall*) -> EitherBuilderValue:
         assert call->method_call_self == NULL
 
         assert call->nargs <= 100
-        args: BuilderValue[100]
+        args: EitherBuilderValue[100]
         for i = 0; i < call->nargs; i++:
             args[i] = self->build_expression(&call->args[i])
         return self->builder->call(call->called_signature, args, call->nargs)
 
-    def build_method_call(self, call: AstCall*) -> BuilderValue:
+    def build_method_call(self, call: AstCall*) -> EitherBuilderValue:
         assert call->method_call_self != NULL
 
         # leave room for self
         assert call->nargs <= 99
-        args: BuilderValue[100]
+        args: EitherBuilderValue[100]
 
         k = 0
 
@@ -108,7 +108,7 @@ class AstToBuilder:
 
         return self->builder->call(call->called_signature, args, k)
 
-    def build_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
+    def build_binop(self, op: AstExpressionKind, lhs: EitherBuilderValue, rhs: EitherBuilderValue) -> EitherBuilderValue:
         match op:
             case AstExpressionKind.Eq:
                 return self->builder->eq(lhs, rhs)
@@ -142,7 +142,7 @@ class AstToBuilder:
         new_value = self->build_binop(op, old_value, rhs_value)
         self->builder->set_ptr(lhs_ptr, new_value)
 
-    def build_instantiation(self, class_type: Type*, inst: AstInstantiation*) -> BuilderValue:
+    def build_instantiation(self, class_type: Type*, inst: AstInstantiation*) -> EitherBuilderValue:
         assert class_type != NULL
         assert class_type->kind == TypeKind.Class
 
@@ -155,7 +155,7 @@ class AstToBuilder:
 
         return self->builder->dereference(inst_ptr)
 
-    def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> BuilderValue:
+    def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> EitherBuilderValue:
         # Must be careful with side effects.
         #
         #    # lhs returning False means we don't evaluate rhs
@@ -185,7 +185,7 @@ class AstToBuilder:
 
         return self->builder->dereference(resultptr)
 
-    def build_or(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> BuilderValue:
+    def build_or(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> EitherBuilderValue:
         # Must be careful with side effects.
         #
         #    # lhs returning True means we don't evaluate rhs
@@ -215,7 +215,7 @@ class AstToBuilder:
 
         return self->builder->dereference(resultptr)
 
-    def build_increment_or_decrement(self, inner: AstExpression*, pre: bool, diff: int) -> BuilderValue:
+    def build_increment_or_decrement(self, inner: AstExpression*, pre: bool, diff: int) -> EitherBuilderValue:
         assert diff == 1 or diff == -1  # 1=increment, -1=decrement
 
         ptr = self->build_address_of_expression(inner)
@@ -234,7 +234,7 @@ class AstToBuilder:
         else:
             return old_value
 
-    def build_array(self, t: Type*, items: AstExpression*, nitems: int) -> BuilderValue:
+    def build_array(self, t: Type*, items: AstExpression*, nitems: int) -> EitherBuilderValue:
         assert t->kind == TypeKind.Array
         assert t->array.len == nitems
 
@@ -249,7 +249,7 @@ class AstToBuilder:
 
         return self->builder->dereference(arr_ptr)
 
-    def build_expression_without_implicit_cast(self, expr: AstExpression*) -> BuilderValue:
+    def build_expression_without_implicit_cast(self, expr: AstExpression*) -> EitherBuilderValue:
         match expr->kind:
             case AstExpressionKind.String:
                 if expr->types.orig_type == byteType->pointer_type():
@@ -309,7 +309,7 @@ class AstToBuilder:
                     # We need to copy, because it's not always possible to evaluate &foo.
                     # For example, consider evaluating some_function().some_field.
                     instance = self->build_expression(expr->class_field.instance)
-                    ptr = self->builder->stack_alloc(instance.type)
+                    ptr = self->builder->stack_alloc(expr->class_field.instance->types.implicit_cast_type)
                     self->builder->set_ptr(ptr, instance)
                 fieldptr = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
                 return self->builder->dereference(fieldptr)
@@ -360,7 +360,7 @@ class AstToBuilder:
                 return self->builder->not_(self->build_expression(&expr->operands[0]))
         assert False
 
-    def build_expression(self, expr: AstExpression*) -> BuilderValue:
+    def build_expression(self, expr: AstExpression*) -> EitherBuilderValue:
         if expr->types.implicit_array_to_pointer_cast:
             return self->builder->cast(self->build_address_of_expression(expr), expr->types.implicit_cast_type)
 
@@ -368,13 +368,13 @@ class AstToBuilder:
         if expr->types.orig_type == NULL and expr->types.implicit_cast_type == NULL:
             # Function/method call that returns no value
             assert expr->kind == AstExpressionKind.Call
-            return BuilderValue{}
+            return EitherBuilderValue{}
         else:
             assert expr->types.orig_type != NULL
             assert expr->types.implicit_cast_type != NULL
             return self->builder->cast(raw, expr->types.implicit_cast_type)
 
-    def build_address_of_expression(self, expr: AstExpression*) -> BuilderValue:
+    def build_address_of_expression(self, expr: AstExpression*) -> EitherBuilderValue:
         match expr->kind:
             case AstExpressionKind.GetClassField:
                 if expr->class_field.uses_arrow_operator:
@@ -464,7 +464,7 @@ class AstToBuilder:
         done = self->builder->add_block()
         for i = 0; i < match_stmt->ncases; i++:
             then = self->builder->add_block()
-            otherwise = BuilderBlock{}  # will be replaced by loop below
+            otherwise = EitherBuilderBlock{}  # will be replaced by loop below
             for k = 0; k < match_stmt->cases[i].n_case_objs; k++:
                 case_obj = self->build_expression(&match_stmt->cases[i].case_objs[k])
                 if match_stmt->func_name[0] == '\0':
@@ -472,7 +472,7 @@ class AstToBuilder:
                 else:
                     args = [match_obj, case_obj]
                     func_ret = self->builder->call(&match_stmt->func_signature, args, 2)
-                    zero = self->builder->integer(func_ret.type, 0)
+                    zero = self->builder->integer(match_stmt->func_signature.returntype, 0)
                     cond = self->builder->eq(func_ret, zero)
                 otherwise = self->builder->add_block()
                 self->builder->branch(cond, then, otherwise)
@@ -581,7 +581,7 @@ class AstToBuilder:
 
 
 @public
-def feed_ast_to_builder(ast: AstFunctionOrMethod*, builder: Builder*) -> None:
+def feed_ast_to_builder(ast: AstFunctionOrMethod*, builder: EitherBuilder*) -> None:
     public = (
         ast->public
         or ast->types.signature.is_main_function()
