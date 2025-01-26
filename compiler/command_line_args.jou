@@ -46,77 +46,72 @@ def parse_command_line_args(argc: int, argv: byte**) -> None:
     # Set default optimize to O1, user sets optimize will overwrite the default flag
     command_line_args.optlevel = 1
 
-    if argc == 2 and strcmp(argv[1], "--help") == 0:
-        print_help(argv[0])
-        exit(0)
-
-    if argc == 2 and strcmp(argv[1], "--update") == 0:
-        update_jou_compiler()
-        exit(0)
+    if argc == 2:
+        match argv[1] with strcmp:
+            case "--help":
+                print_help(argv[0])
+                exit(0)
+            case "--update":
+                update_jou_compiler()
+                exit(0)
 
     i = 1
     while i < argc:
-        if strcmp(argv[i], "--help") == 0 or strcmp(argv[i], "--update") == 0:
-            fprintf(stderr, "%s: \"%s\" cannot be used with other arguments (try \"%s --help\")\n", argv[0], argv[i], argv[0])
-            exit(2)
-        elif strcmp(argv[i], "--verbose") == 0:
-            command_line_args.verbosity++
-            i++
-        elif starts_with(argv[i], "-v") and strspn(&argv[i][1], "v") == strlen(argv[i])-1:
-            command_line_args.verbosity += (strlen(argv[i]) as int) - 1
-            i++
-        elif strcmp(argv[i], "--valgrind") == 0:
-            command_line_args.valgrind = True
-            i++
-        elif strcmp(argv[i], "--tokenize-only") == 0:
-            if argc > 3:
-                fprintf(stderr, "%s: --tokenize-only cannot be used together with other flags (try \"%s --help\")\n", argv[0], argv[0])
+        match argv[i] with strcmp:
+            case "--help" | "--update":
+                fprintf(stderr, "%s: \"%s\" cannot be used with other arguments (try \"%s --help\")\n", argv[0], argv[i], argv[0])
                 exit(2)
-            command_line_args.tokenize_only = True
-            i++
-        elif strcmp(argv[i], "--parse-only") == 0:
-            if argc > 3:
-                fprintf(stderr, "%s: --parse-only cannot be used together with other flags (try \"%s --help\")", argv[0], argv[0])
-                exit(2)
-            command_line_args.parse_only = True
-            i++
-        elif strcmp(argv[i], "--linker-flags") == 0:
-            if command_line_args.linker_flags != NULL:
-                fprintf(stderr, "%s: --linker-flags cannot be given multiple times (try \"%s --help\")\n", argv[0], argv[0])
-                exit(2)
+            case "--verbose":
+                command_line_args.verbosity++
+                i++
+            case "--valgrind":
+                command_line_args.valgrind = True
+                i++
+            case "--tokenize-only":
+                if argc > 3:
+                    fprintf(stderr, "%s: --tokenize-only cannot be used together with other flags (try \"%s --help\")\n", argv[0], argv[0])
+                    exit(2)
+                command_line_args.tokenize_only = True
+                i++
+            case "--parse-only":
+                if argc > 3:
+                    fprintf(stderr, "%s: --parse-only cannot be used together with other flags (try \"%s --help\")", argv[0], argv[0])
+                    exit(2)
+                command_line_args.parse_only = True
+                i++
+            case "--linker-flags":
+                if command_line_args.linker_flags != NULL:
+                    fprintf(stderr, "%s: --linker-flags cannot be given multiple times (try \"%s --help\")\n", argv[0], argv[0])
+                    exit(2)
+                if argc-i < 2:
+                    fprintf(stderr, "%s: there must be a string of flags after --linker-flags (try \"%s --help\")\n", argv[0], argv[0])
+                    exit(2)
+                command_line_args.linker_flags = argv[i+1]
+                i += 2
+            case "-O0" | "-O1" | "-O2" | "-O3":
+                command_line_args.optlevel = argv[i][2] - '0'
+                i++
+            case "-o":
+                if argc-i < 2:
+                    fprintf(stderr, "%s: there must be a file name after -o (try \"%s --help\")\n", argv[0], argv[0])
+                    exit(2)
 
-            if argc-i < 2:
-                fprintf(stderr, "%s: there must be a string of flags after --linker-flags (try \"%s --help\")\n", argv[0], argv[0])
-                exit(2)
-
-            command_line_args.linker_flags = argv[i+1]
-            i += 2
-        elif (
-            strlen(argv[i]) == 3
-            and starts_with(argv[i], "-O")
-            and argv[i][2] >= '0'
-            and argv[i][2] <= '3'
-        ):
-            command_line_args.optlevel = argv[i][2] - '0'
-            i++
-        elif strcmp(argv[i], "-o") == 0:
-            if argc-i < 2:
-                fprintf(stderr, "%s: there must be a file name after -o (try \"%s --help\")\n", argv[0], argv[0])
-                exit(2)
-
-            command_line_args.outfile = argv[i+1]
-            if strlen(command_line_args.outfile) > 4 and ends_with(command_line_args.outfile, ".jou"):
-                fprintf(stderr, "%s: the filename after -o should be an executable, not a Jou file (try \"%s --help\")\n", argv[0], argv[0])
-                exit(2)
-            i += 2
-        elif argv[i][0] == '-':
-            fprintf(stderr, "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
-            exit(2)
-        elif command_line_args.infile != NULL:
-            fprintf(stderr, "%s: you can only pass one Jou file (try \"%s --help\")\n", argv[0], argv[0])
-            exit(2)
-        else:
-            command_line_args.infile = argv[i++]
+                command_line_args.outfile = argv[i+1]
+                if strlen(command_line_args.outfile) > 4 and ends_with(command_line_args.outfile, ".jou"):
+                    fprintf(stderr, "%s: the filename after -o should be an executable, not a Jou file (try \"%s --help\")\n", argv[0], argv[0])
+                    exit(2)
+                i += 2
+            case _:
+                if starts_with(argv[i], "-v") and strspn(&argv[i][1], "v") == strlen(argv[i])-1:
+                    command_line_args.verbosity += (strlen(argv[i++]) as int) - 1
+                elif argv[i][0] == '-':
+                    fprintf(stderr, "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
+                    exit(2)
+                elif command_line_args.infile != NULL:
+                    fprintf(stderr, "%s: you can only pass one Jou file (try \"%s --help\")\n", argv[0], argv[0])
+                    exit(2)
+                else:
+                    command_line_args.infile = argv[i++]
 
     if command_line_args.infile == NULL:
         fprintf(stderr, "%s: missing Jou file name (try \"%s --help\")\n", argv[0], argv[0])

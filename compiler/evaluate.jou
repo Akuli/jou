@@ -14,13 +14,15 @@ def evaluate_array_length(expr: AstExpression*) -> int:
 
 @public
 def get_special_constant(name: byte*) -> int:
-    if strcmp(name, "WINDOWS") == 0:
-        return WINDOWS as int
-    if strcmp(name, "MACOS") == 0:
-        return MACOS as int
-    if strcmp(name, "NETBSD") == 0:
-        return NETBSD as int
-    return -1
+    match name with strcmp:
+        case "WINDOWS":
+            return WINDOWS as int
+        case "MACOS":
+            return MACOS as int
+        case "NETBSD":
+            return NETBSD as int
+        case _:
+            return -1
 
 
 def evaluate_condition(expr: AstExpression*) -> bool:

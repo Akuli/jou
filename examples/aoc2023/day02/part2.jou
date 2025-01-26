@@ -14,12 +14,13 @@ class Game:
         color: byte[10]
         assert sscanf(text, "%d %9s", &n, color) == 2
 
-        if strcmp(color, "red") == 0:
-            self->red = max(self->red, n)
-        if strcmp(color, "green") == 0:
-            self->green = max(self->green, n)
-        if strcmp(color, "blue") == 0:
-            self->blue = max(self->blue, n)
+        match color with strcmp:
+            case "red":
+                self->red = max(self->red, n)
+            case "green":
+                self->green = max(self->green, n)
+            case "blue":
+                self->blue = max(self->blue, n)
 
     def get_power(self) -> int:
         return self->red * self->green * self->blue

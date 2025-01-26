@@ -18,6 +18,7 @@ set -e -o pipefail
 # produces a compiler that is too old.
 commits=(
     1c7ce74933aea8a8862fd1d4409735b9fb7a1d7e  # last commit on main that contains the compiler written in C
+    b339b1b300ba98a2245b493a58dd7fab4c465020  # "match ... with ..." syntax
 )
 
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
@@ -50,12 +51,20 @@ for i in ${!commits[@]}; do
     show_message "Checking out and compiling commit ${commit:0:10} ($((i+1))/${#commits[@]})"
 
     git checkout -q $commit
+
     if [[ "$OS" =~ "Windows" ]] && [ $i == 0 ]; then
         # The compiler written in C needed LLVM headers, and getting them on
         # Windows turned out to be more difficult than expected, so I included
         # them in the repository as a zip file.
         unzip llvm_headers.zip
     fi
+
+    # Convince make that jou_bootstrap(.exe) is usable as is, and does not need
+    # to be recompiled. We don't want bootstrap inside bootstrap.
+    if [ $i != 0 ]; then
+        touch jou_bootstrap$exe_suffix
+    fi
+
     $make jou$exe_suffix
     mv -v jou$exe_suffix jou_bootstrap$exe_suffix
     $make clean

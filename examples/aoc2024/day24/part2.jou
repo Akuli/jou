@@ -256,21 +256,23 @@ def read_gates(filename: byte*, ngates: int*) -> Gate[250]:
             or (g.inputs[0][0] == 'y' and g.inputs[1][0] == 'x')
         ):
             # Handles input directly, so it must be InputXor or InputAnd
-            if strcmp(op, "XOR") == 0:
-                g.gtype = GateType.InputXor
-            elif strcmp(op, "AND") == 0:
-                g.gtype = GateType.InputAnd
-            else:
-                assert False
+            match op with strcmp:
+                case "XOR":
+                    g.gtype = GateType.InputXor
+                case "AND":
+                    g.gtype = GateType.InputAnd
+                case _:
+                    assert False
         else:
-            if strcmp(op, "XOR") == 0:
-                g.gtype = GateType.OutputXor
-            elif strcmp(op, "AND") == 0:
-                g.gtype = GateType.OverflowAnd
-            elif strcmp(op, "OR") == 0:
-                g.gtype = GateType.OverflowOr
-            else:
-                assert False
+            match op with strcmp:
+                case "XOR":
+                    g.gtype = GateType.OutputXor
+                case "AND":
+                    g.gtype = GateType.OverflowAnd
+                case "OR":
+                    g.gtype = GateType.OverflowOr
+                case _:
+                    assert False
 
         assert *ngates < sizeof(gates)/sizeof(gates[0])
         gates[(*ngates)++] = g

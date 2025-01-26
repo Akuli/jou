@@ -39,27 +39,27 @@ def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
 
     match asttype->kind:
         case AstTypeKind.Named:
-            if strcmp(asttype->name, "short") == 0:
-                return shortType
-            if strcmp(asttype->name, "int") == 0:
-                return intType
-            if strcmp(asttype->name, "long") == 0:
-                return longType
-            if strcmp(asttype->name, "byte") == 0:
-                return byteType
-            if strcmp(asttype->name, "bool") == 0:
-                return boolType
-            if strcmp(asttype->name, "float") == 0:
-                return floatType
-            if strcmp(asttype->name, "double") == 0:
-                return doubleType
-
-            found = ft->find_type(asttype->name)
-            if found != NULL:
-                return found
-
-            snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype->name)
-            fail(asttype->location, msg)
+            match asttype->name with strcmp:
+                case "short":
+                    return shortType
+                case "int":
+                    return intType
+                case "long":
+                    return longType
+                case "byte":
+                    return byteType
+                case "bool":
+                    return boolType
+                case "float":
+                    return floatType
+                case "double":
+                    return doubleType
+                case _:
+                    found = ft->find_type(asttype->name)
+                    if found != NULL:
+                        return found
+                    snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype->name)
+                    fail(asttype->location, msg)
 
         case AstTypeKind.Pointer:
             if asttype->value_type->is_void():

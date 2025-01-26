@@ -21,18 +21,17 @@ def is_operator_byte(c: byte) -> bool:
 
 def is_keyword(word: byte*) -> bool:
     # Please update the syntax documentation if you add keywords
-    keywords = [
-        "import", "def", "declare", "class", "union", "enum", "global",
-        "return", "if", "elif", "else", "while", "for", "pass", "break", "continue",
-        "True", "False", "None", "NULL", "void", "noreturn",
-        "and", "or", "not", "self", "as", "sizeof", "assert",
-        "bool", "byte", "short", "int", "long", "float", "double", "match", "with", "case",
-    ]
-
-    for i = 0; i < sizeof keywords / sizeof keywords[0]; i++:
-        if strcmp(keywords[i], word) == 0:
+    match word with strcmp:
+        case (
+            "import" | "def" | "declare" | "class" | "union" | "enum" | "global"
+            | "return" | "if" | "elif" | "else" | "while" | "for" | "pass" | "break" | "continue"
+            | "True" | "False" | "None" | "NULL" | "void" | "noreturn"
+            | "and" | "or" | "not" | "self" | "as" | "sizeof" | "assert"
+            | "bool" | "byte" | "short" | "int" | "long" | "float" | "double" | "match" | "with" | "case"
+        ):
             return True
-    return False
+        case _:
+            return False
 
 def hexdigit_value(c: byte) -> int:
     if 'A' <= c and c <= 'F':
@@ -139,20 +138,27 @@ def is_valid_float(str: byte[100]) -> bool:
     return is_valid_double(str) or strspn(str, "0123456789") == strlen(str)
 
 
+# TODO: should not be needed
+def bytecmp(a: byte, b: byte) -> int:
+    return (a as int) - (b as int)
+
+
 def flip_paren(c: byte) -> byte:
-    if c == '(':
-        return ')'
-    if c == ')':
-        return '('
-    if c == '[':
-        return ']'
-    if c == ']':
-        return '['
-    if c == '{':
-        return '}'
-    if c == '}':
-        return '{'
-    assert False
+    match c with bytecmp:
+        case '(':
+            return ')'
+        case ')':
+            return '('
+        case '[':
+            return ']'
+        case ']':
+            return '['
+        case '{':
+            return '}'
+        case '}':
+            return '{'
+        case _:
+            assert False
 
 
 class Tokenizer:
@@ -246,22 +252,23 @@ class Tokenizer:
         level = 0
         while True:
             c = self->read_byte()
-            if c == '\0':
-                # End of file. Do not validate that indentation is a
-                # multiple of 4 spaces. Add a trailing newline implicitly
-                # if needed.
-                #
-                # TODO: test this
-                return 0
-            elif c == '\n':
-                level = 0
-            elif c == '#':
-                self->consume_rest_of_line()
-            elif c == ' ':
-                level++
-            else:
-                self->unread_byte(c)
-                return level
+            match c with bytecmp:
+                case '\0':
+                    # End of file. Do not validate that indentation is a
+                    # multiple of 4 spaces. Add a trailing newline implicitly
+                    # if needed.
+                    #
+                    # TODO: test this
+                    return 0
+                case '\n':
+                    level = 0
+                case '#':
+                    self->consume_rest_of_line()
+                case ' ':
+                    level++
+                case _:
+                    self->unread_byte(c)
+                    return level
 
     def read_hex_escape_byte(self) -> byte:
         n1 = hexdigit_value(self->read_byte())
@@ -282,43 +289,47 @@ class Tokenizer:
 
         if c == '\\':
             after_backslash = self->read_byte()
-            if after_backslash == '\0' or after_backslash == '\n':
-                self->location.lineno--
-                fail(self->location, "missing ' to end the byte literal")
-            elif after_backslash == 'n':
-                c = '\n'
-            elif after_backslash == 'r':
-                c = '\r'
-            elif after_backslash == 't':
-                c = '\t'
-            elif after_backslash == '\\':
-                c = '\\'
-            elif after_backslash == '\'':
-                c = '\''
-            elif after_backslash == '"':
-                fail(self->location, "double quotes shouldn't be escaped in byte literals")
-            elif after_backslash == '0':
-                c = '\0'
-            elif after_backslash == 'x':
-                c = self->read_hex_escape_byte()
-            elif after_backslash < 0x80 and isprint(after_backslash) != 0:
-                message: byte* = malloc(100)
-                sprintf(message, "unknown escape: '\\%c'", after_backslash)
-                fail(self->location, message)
-            else:
-                fail(self->location, "unknown '\\' escape")
+            match after_backslash with bytecmp:
+                case '\0':
+                    fail(self->location, "missing ' to end the byte literal")
+                case '\n':
+                    self->location.lineno--
+                    fail(self->location, "missing ' to end the byte literal")
+                case 'n':
+                    c = '\n'
+                case 'r':
+                    c = '\r'
+                case 't':
+                    c = '\t'
+                case '\\':
+                    c = '\\'
+                case '\'':
+                    c = '\''
+                case '"':
+                    fail(self->location, "double quotes shouldn't be escaped in byte literals")
+                case '0':
+                    c = '\0'
+                case 'x':
+                    c = self->read_hex_escape_byte()
+                case _:
+                    # TODO: add is_ascii_printable() function to stdlib/ascii.jou
+                    if after_backslash < 0x80 and isprint(after_backslash) != 0:
+                        message: byte* = malloc(100)
+                        sprintf(message, "unknown escape: '\\%c'", after_backslash)
+                        fail(self->location, message)
+                    else:
+                        fail(self->location, "unknown '\\' escape")
 
         end = self->read_byte()
         if end != '\'':
             # If there's another single quote later on the same line, suggest using double quotes.
             location = self->location
             while True:
-                c = self->read_byte()
-                if c == '\0' or c == '\n':
-                    break
-                if c == '\'':
-                    fail(location, "single quotes are for specifying a byte, maybe use double quotes to instead make a string?")
-            fail(location, "missing ' to end the byte literal")
+                match self->read_byte() with bytecmp:
+                    case '\0' | '\n':
+                        fail(location, "missing ' to end the byte literal")
+                    case '\'':
+                        fail(location, "single quotes are for specifying a byte, maybe use double quotes to instead make a string?")
 
         return c
 
@@ -326,61 +337,70 @@ class Tokenizer:
     def read_string(self) -> byte*:
         result: byte* = NULL
         len = 0
+        msg: byte[100]
 
         while True:
             c = self->read_byte()
-            if c == '"':
-                break
-            elif c == '\n' or c == '\0':
-                if c == '\n':
+            match c with bytecmp:
+                case '"':
+                    break
+                case '\n':
                     self->location.lineno--
-                fail(self->location, "missing \" to end the string")
-            elif c == '\\':
-                # \n means newline, for example
-                after_backslash = self->read_byte()
-                if after_backslash == '\0':
                     fail(self->location, "missing \" to end the string")
-                elif after_backslash == 'n':
+                case '\0':
+                    fail(self->location, "missing \" to end the string")
+                case '\\':
+                    # \n means newline, for example
+                    after_backslash = self->read_byte()
+                    match after_backslash with bytecmp:
+                        case '\0':
+                            fail(self->location, "missing \" to end the string")
+                        case 'n':
+                            result = realloc(result, len+1)
+                            result[len++] = '\n'
+                        case 'r':
+                            result = realloc(result, len+1)
+                            result[len++] = '\r'
+                        case 't':
+                            result = realloc(result, len+1)
+                            result[len++] = '\t'
+                        case '\\':
+                            result = realloc(result, len+1)
+                            result[len++] = '\\'
+                        case '"':
+                            result = realloc(result, len+1)
+                            result[len++] = '"'
+                        case '\'':
+                            fail(self->location, "single quotes shouldn't be escaped in strings")
+                        case '0':
+                            fail(self->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte")
+                        case 'x':
+                            b = self->read_hex_escape_byte()
+                            if b == '\0':
+                                fail(self->location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte")
+                            result = realloc(result, len+1)
+                            result[len++] = b
+                        case '\n':
+                            # \ at end of line, string continues on next line
+                            pass
+                        case _:
+                            # TODO: add is_ascii_printable() function to stdlib/ascii.jou
+                            if after_backslash < 0x80 and isprint(after_backslash) != 0:
+                                snprintf(msg, sizeof(msg), "unknown escape: '\\%c'", after_backslash)
+                            else:
+                                msg = "unknown '\\' escape"
+                            fail(self->location, msg)
+                case _:
                     result = realloc(result, len+1)
-                    result[len++] = '\n'
-                elif after_backslash == 'r':
-                    result = realloc(result, len+1)
-                    result[len++] = '\r'
-                elif after_backslash == 't':
-                    result = realloc(result, len+1)
-                    result[len++] = '\t'
-                elif after_backslash == '\\' or after_backslash == '"':
-                    result = realloc(result, len+1)
-                    result[len++] = after_backslash
-                elif after_backslash == '\'':
-                    fail(self->location, "single quotes shouldn't be escaped in strings")
-                elif after_backslash == '0':
-                    fail(self->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte")
-                elif after_backslash == 'x':
-                    b = self->read_hex_escape_byte()
-                    if b == '\0':
-                        fail(self->location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte")
-                    result = realloc(result, len+1)
-                    result[len++] = b
-                elif after_backslash == '\n':
-                    # \ at end of line, string continues on next line
-                    pass
-                else:
-                    if after_backslash < 0x80 and isprint(after_backslash) != 0:
-                        message: byte* = malloc(100)
-                        sprintf(message, "unknown escape: '\\%c'", after_backslash)
-                        fail(self->location, message)
-                    else:
-                        fail(self->location, "unknown '\\' escape")
-            else:
-                result = realloc(result, len+1)
-                result[len++] = c
+                    result[len++] = c
 
         result = realloc(result, len+1)
         result[len] = '\0'
         return result
 
     def read_operator(self) -> byte[100]:
+        msg: byte[100]
+
         operators = [
             # Please update the syntax documentation if you add new operators.
             # Longer operators are first, so that '==' does not tokenize as '=' '='
@@ -388,9 +408,7 @@ class Tokenizer:
             "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "&&", "||",
             ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">", "!", "|",
         ]
-
-        operator: byte[100]
-        memset(&operator, 0, sizeof operator)
+        operator: byte[100] = ""
 
         # Read as many operator characters as we may need.
         while strlen(operator) < 3:
@@ -410,32 +428,32 @@ class Tokenizer:
 
                 # These operators are here only to give a better error message when you
                 # accidentally use syntax of another programming language.
-                if strcmp(operator, "===") == 0:
-                    fail(self->location, "use '==' instead of '==='")
-                if strcmp(operator, "!==") == 0:
-                    fail(self->location, "use '!=' instead of '!=='")
-                if strcmp(operator, "&&") == 0:
-                    fail(self->location, "use 'and' instead of '&&'")
-                if strcmp(operator, "||") == 0:
-                    fail(self->location, "use 'or' instead of '||'")
-                if strcmp(operator, "!") == 0:
-                    fail(self->location, "use 'not' instead of '!'")
+                match operator with strcmp:
+                    case "===":
+                        fail(self->location, "use '==' instead of '==='")
+                    case "!==":
+                        fail(self->location, "use '!=' instead of '!=='")
+                    case "&&":
+                        fail(self->location, "use 'and' instead of '&&'")
+                    case "||":
+                        fail(self->location, "use 'or' instead of '||'")
+                    case "!":
+                        fail(self->location, "use 'not' instead of '!'")
+                    case _:
+                        return operator
 
-                return operator
-
-        message: byte[100]
-        sprintf(message, "there is no '%s' operator", operator)
-        fail(self->location, message)
+        snprintf(msg, sizeof(msg), "there is no '%s' operator", operator)
+        fail(self->location, msg)
 
     def handle_parentheses(self, token: Token*) -> None:
+        msg: byte[100]
+
         if token->kind == TokenKind.EndOfFile and self->open_parens_len > 0:
             open_token = self->open_parens[0]
             actual_open = open_token.short_string[0]
             expected_close = flip_paren(actual_open)
-
-            message = malloc(100)
-            sprintf(message, "'%c' without a matching '%c'", actual_open, expected_close)
-            fail(open_token.location, message)
+            snprintf(msg, sizeof(msg), "'%c' without a matching '%c'", actual_open, expected_close)
+            fail(open_token.location, msg)
 
         if token->is_open_paren():
             if self->open_parens_len == sizeof self->open_parens / sizeof self->open_parens[0]:
@@ -446,73 +464,72 @@ class Tokenizer:
             actual_close = token->short_string[0]
             expected_open = flip_paren(actual_close)
             if self->open_parens_len == 0 or self->open_parens[--self->open_parens_len].short_string[0] != expected_open:
-                message = malloc(100)
-                sprintf(message, "'%c' without a matching '%c'", actual_close, expected_open)
-                fail(token->location, message)
+                snprintf(msg, sizeof(msg), "'%c' without a matching '%c'", actual_close, expected_open)
+                fail(token->location, msg)
 
     def read_token(self) -> Token:
         while True:
             token = Token{location = self->location}
             b = self->read_byte()
-
-            if b == ' ':
-                continue
-            if b == '#':
-                self->consume_rest_of_line()
-                continue
-
-            if b == '\n':
-                if self->open_parens_len > 0:
+            match b with bytecmp:
+                case ' ':
                     continue
-                token.kind = TokenKind.Newline
-                token.indentation_level = self->read_newline_token()
-            elif b == '"':
-                token.kind = TokenKind.String
-                token.long_string = self->read_string()
-            elif b == '\'':
-                token.kind = TokenKind.Byte
-                token.byte_value = self->read_byte_literal()
-            elif b == '@':
-                token.kind = TokenKind.Decorator
-                token.short_string = self->read_identifier_or_number(b)
-            elif is_identifier_or_number_byte(b):
-                token.short_string = self->read_identifier_or_number(b)
-                if is_keyword(token.short_string):
-                    token.kind = TokenKind.Keyword
-                elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
-                    if is_valid_double(token.short_string):
-                        token.kind = TokenKind.Double
-                    elif is_valid_float(token.short_string):
-                        token.short_string[strlen(token.short_string) - 1] = '\0'  # delete trailing 'f' or 'F'
-                        token.kind = TokenKind.Float
-                    elif token.short_string[strlen(token.short_string) - 1] == 'L':
-                        token.short_string[strlen(token.short_string) - 1] = '\0'
-                        token.kind = TokenKind.Long
-                        token.long_value = parse_integer(token.short_string, token.location, 64)
-                    elif token.short_string[strlen(token.short_string) - 1] == 'S':
-                        token.short_string[strlen(token.short_string) - 1] = '\0'
-                        token.kind = TokenKind.Short
-                        token.short_value = parse_integer(token.short_string, token.location, 16) as short
+                case '#':
+                    self->consume_rest_of_line()
+                    continue
+                case '\n':
+                    if self->open_parens_len > 0:
+                        continue
+                    token.kind = TokenKind.Newline
+                    token.indentation_level = self->read_newline_token()
+                case '"':
+                    token.kind = TokenKind.String
+                    token.long_string = self->read_string()
+                case '\'':
+                    token.kind = TokenKind.Byte
+                    token.byte_value = self->read_byte_literal()
+                case '@':
+                    token.kind = TokenKind.Decorator
+                    token.short_string = self->read_identifier_or_number(b)
+                case '\t':
+                    fail(self->location, "Jou files cannot contain tab characters (use 4 spaces for indentation)")
+                case '\0':
+                    token.kind = TokenKind.EndOfFile
+                case _:
+                    if is_identifier_or_number_byte(b):
+                        token.short_string = self->read_identifier_or_number(b)
+                        if is_keyword(token.short_string):
+                            token.kind = TokenKind.Keyword
+                        elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
+                            if is_valid_double(token.short_string):
+                                token.kind = TokenKind.Double
+                            elif is_valid_float(token.short_string):
+                                token.short_string[strlen(token.short_string) - 1] = '\0'  # delete trailing 'f' or 'F'
+                                token.kind = TokenKind.Float
+                            elif token.short_string[strlen(token.short_string) - 1] == 'L':
+                                token.short_string[strlen(token.short_string) - 1] = '\0'
+                                token.kind = TokenKind.Long
+                                token.long_value = parse_integer(token.short_string, token.location, 64)
+                            elif token.short_string[strlen(token.short_string) - 1] == 'S':
+                                token.short_string[strlen(token.short_string) - 1] = '\0'
+                                token.kind = TokenKind.Short
+                                token.short_value = parse_integer(token.short_string, token.location, 16) as short
+                            else:
+                                token.kind = TokenKind.Int
+                                token.int_value = parse_integer(token.short_string, token.location, 32) as int
+                        else:
+                            token.kind = TokenKind.Name
+                    elif is_operator_byte(b):
+                        self->unread_byte(b)
+                        token.kind = TokenKind.Operator
+                        token.short_string = self->read_operator()
                     else:
-                        token.kind = TokenKind.Int
-                        token.int_value = parse_integer(token.short_string, token.location, 32) as int
-                else:
-                    token.kind = TokenKind.Name
-            elif is_operator_byte(b):
-                self->unread_byte(b)
-                token.kind = TokenKind.Operator
-                token.short_string = self->read_operator()
-            elif b == '\t':
-                fail(self->location, "Jou files cannot contain tab characters (use 4 spaces for indentation)")
-            elif b == '\0':
-                token.kind = TokenKind.EndOfFile
-            else:
-                message: byte[100]
-                if b < 0x80 and isprint(b) != 0:
-                    sprintf(message, "unexpected byte '%c' (%#02x)", b, b)
-                else:
-                    sprintf(message, "unexpected byte %#02x", b)
-                fail(self->location, message)
+                        message: byte[100]
+                        if b < 0x80 and isprint(b) != 0:
+                            sprintf(message, "unexpected byte '%c' (%#02x)", b, b)
+                        else:
+                            sprintf(message, "unexpected byte %#02x", b)
+                        fail(self->location, message)
 
             self->handle_parentheses(&token)
             return token
