@@ -938,6 +938,13 @@ class Parser:
         self->tokens++
 
         result = AstMatchStatement{match_obj = self->parse_expression()}
+
+        if self->tokens->is_keyword("with"):
+            self->tokens++
+            if self->tokens->kind != TokenKind.Name:
+                self->tokens->fail_expected_got("function name")
+            result.with_func_name = (self->tokens++)->short_string
+
         self->parse_start_of_body()
 
         while self->tokens->kind != TokenKind.Dedent:

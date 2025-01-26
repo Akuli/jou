@@ -1,0 +1,8 @@
+# Otherwise the correct signature, but has "..." (varargs) which is not supported
+declare func(a: byte*, b: byte*, ...) -> int
+
+def main() -> int:
+    match "hello" with func:  # Error: cannot match with function func(a: byte*, b: byte*, ...)
+        case "hi":
+            pass
+    return 0

@@ -695,13 +695,15 @@ class AstIfStatement:
         self->else_body.free()
 
 
-# match match_obj:
+# match match_obj with with_func_name:
 #     case ...:
 #         ...
 #     case ...:
 #         ...
 class AstMatchStatement:
     match_obj: AstExpression
+    with_func_name: byte[100]  # empty if there's no "with foo"
+    with_func_signature: Signature  # populated in typecheck, zero-initialized before typecheck runs
     cases: AstCase*
     ncases: int
     case_underscore: AstBody*  # body of "case _" (always last), NULL if no "case _"
@@ -719,6 +721,8 @@ class AstMatchStatement:
 
     def free(self) -> None:
         self->match_obj.free()
+        if self->with_func_signature.name[0] != '\0':
+            self->with_func_signature.free()
         for i = 0; i < self->ncases; i++:
             self->cases[i].free()
         free(self->cases)
