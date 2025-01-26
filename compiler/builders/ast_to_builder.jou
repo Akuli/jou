@@ -472,7 +472,13 @@ class AstToBuilder:
             otherwise = BuilderBlock{}  # will be replaced by loop below
             for k = 0; k < match_stmt->cases[i].n_case_objs; k++:
                 case_obj = self->build_expression(&match_stmt->cases[i].case_objs[k])
-                cond = self->builder->eq(match_obj, case_obj)
+                if match_stmt->with_func_name[0] == '\0':
+                    cond = self->builder->eq(match_obj, case_obj)
+                else:
+                    args = [match_obj, case_obj]
+                    with_func_ret = self->builder->call(&match_stmt->with_func_signature, args, 2)
+                    zero = self->builder->integer(with_func_ret.type, 0)
+                    cond = self->builder->eq(with_func_ret, zero)
                 otherwise = self->builder->add_block()
                 self->builder->branch(cond, then, otherwise)
                 self->builder->set_current_block(otherwise)
