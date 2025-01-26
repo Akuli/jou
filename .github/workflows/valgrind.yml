@@ -57,18 +57,6 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
-
-      # Do not valgrind when there's nothing new to valgrind in the repo
-      - name: Check if there was any commits within the last 24 hours
-        run: |
-          if git --no-pager log --oneline --since="24 hours ago" --exit-code; then
-            echo "No commits, will not run valgrind"
-            echo "recent_commits=false" >> $GITHUB_OUTPUT
-          else
-            echo "recent_commits=true" >> $GITHUB_OUTPUT
-          fi
-
-      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: bootstrapped
