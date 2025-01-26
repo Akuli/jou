@@ -112,7 +112,7 @@ def main() -> int:
         case show_evaluation(Foo.Lol, "case 3") | show_evaluation(Foo.Wut, "case 4"):
             printf("ye\n")
 
-    # Make a string that is surely not equal to "Hello", to make sure strcmp() is called below
+    # Make a string that is surely not == "Hello", to make sure strcmp() is called below
     s: byte* = malloc(20)
     strcpy(s, "Hello")
     match s with strcmp:
