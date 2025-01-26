@@ -107,6 +107,7 @@ Jou has a few different kinds of tokens:
     - `float`
     - `double`
     - `match`
+    - `with`
     - `case`
 - **Newline tokens** occur at the end of a line of code.
     Lines that only contain spaces and comments do not produce a newline token;
