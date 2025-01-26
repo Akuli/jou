@@ -10,14 +10,27 @@ if ! [[ "$OS" =~ Windows ]]; then
     exit 1
 fi
 
-if [ $# = 1 ] && [ $1 = --small ]; then
-    small=yes
-elif [ $# = 0 ]; then
-    small=no
-else
-    echo "Usage: $0 [--small]" >&2
-    exit 2
-fi
+small=no
+offline_mingw64=
+
+while [ $# != 0 ]; do
+    case "$1" in
+        --small)
+            small=yes
+            shift
+            ;;
+        --offline-mingw64)
+            offline_mingw64="$2"
+            shift 2
+            ;;
+        *)
+            echo "Usage: $0 [--small] [--offline-mingw64 path/to/file.zip]"
+            echo ""
+            echo "  --small                     Use this if you have slow internet"
+            echo "  --offline-mingw64 <path>    Use this on systems with no internet"
+            exit 2
+    esac
+done
 
 echo ""
 echo ""
@@ -36,26 +49,31 @@ else
     # All WinLibs versions and download links: https://winlibs.com/
     if [ $small = yes ]; then
         # A special small version of mingw64 that comes with the repo, for people with slow internet.
-        echo "Downloading mingw64-small.zip..."
+        # See .github/workflows/windows.yml for code that checks the contents of the zip so that you can trust it.
         url=https://akuli.github.io/mingw64-small.zip
         filename=mingw64-small.zip
         sha=4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686
     else
-        echo "Downloading mingw64 (WinLibs)..."
         url=https://github.com/brechtsanders/winlibs_mingw/releases/download/12.1.0-14.0.6-10.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-12.1.0-llvm-14.0.6-mingw-w64msvcrt-10.0.0-r3.zip
         filename=mingw64.zip
         sha=9ffef7f7a8dab893bd248085fa81a5a37ed6f775ae220ef673bea8806677836d
     fi
-    curl -L -o $filename $url
 
-    echo "Verifying mingw64..."
+    if [ -z "$offline_mingw64" ]; then
+        echo "Downloading $filename..."
+        curl -L -o $filename $url
+    else
+        echo "Copying $offline_mingw64 to ./$filename..."
+        cp "$offline_mingw64" "$filename"
+    fi
+
+    echo "Verifying $filename..."
     if [ "$(sha256sum $filename | cut -d' ' -f1)" != "$sha" ]; then
         echo "Verifying $filename failed! Please try again or create an issue on GitHub." >&2
         exit 1
     fi
 
-    echo "Extracting mingw64..."
-    rm -rf mingw64
+    echo "Extracting $filename..."
     unzip -q $filename
     rm $filename
 fi
