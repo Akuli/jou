@@ -1,0 +1,11 @@
+import "stdlib/io.jou"
+
+class Foo:
+    x: int
+    y: int
+
+def main() -> int:
+    match Foo{x=1, y=2}:  # Error: cannot match a value of type Foo
+        case Foo{x=1, y=2}:
+            printf("ya\n")
+    return 0
