@@ -19,6 +19,7 @@ set -e -o pipefail
 commits=(
     1c7ce74933aea8a8862fd1d4409735b9fb7a1d7e  # last commit on main that contains the compiler written in C
     b339b1b300ba98a2245b493a58dd7fab4c465020  # "match ... with ..." syntax
+    874d1978044a080173fcdcc4e92736136c97dd61  # "match some_integer:" support
 )
 
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
@@ -48,8 +49,14 @@ cd tmp/bootstrap
 
 for i in ${!commits[@]}; do
     commit=${commits[$i]}
-    show_message "Checking out and compiling commit ${commit:0:10} ($((i+1))/${#commits[@]})"
 
+    # Sanity check: commit must exists on main branch
+    if ! (git log main --format='%H' || true) | grep -qx $commit; then
+        echo "Error: commit $commit is not on main branch"
+        exit 1
+    fi
+
+    show_message "Checking out and compiling commit ${commit:0:10} ($((i+1))/${#commits[@]})"
     git checkout -q $commit
 
     if [[ "$OS" =~ "Windows" ]] && [ $i == 0 ]; then
