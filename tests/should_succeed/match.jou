@@ -1,4 +1,6 @@
 import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
 
 enum Foo:
     Bar
@@ -110,4 +112,32 @@ def main() -> int:
         case show_evaluation(Foo.Lol, "case 3") | show_evaluation(Foo.Wut, "case 4"):
             printf("ye\n")
 
+    # Make a string that is surely not == "Hello", to make sure strcmp() is called below
+    s: byte* = malloc(20)
+    strcpy(s, "Hello")
+    match s with strcmp:
+        case "Hi":
+            printf("Hiii\n")
+        case "Hello":
+            printf("Hello there!\n")  # Output: Hello there!
+        case _:
+            printf("something else\n")
+
+    strcat(s, "lol")
+    match s with strcmp:
+        case "Hi":
+            printf("Hiii\n")
+        case "Hello":
+            printf("Hello there!\n")
+        # no "case _", that's fine
+
+    match s with strcmp:
+        case "Hi":
+            printf("Hiii\n")
+        case "Hello":
+            printf("Hello there!\n")
+        case _:
+            printf("something else\n")  # Output: something else
+
+    free(s)
     return 0
