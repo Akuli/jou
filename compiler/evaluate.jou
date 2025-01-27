@@ -45,7 +45,6 @@ def evaluate_condition(expr: AstExpression*) -> bool:
 
 
 # returns the statements to replace if statement with
-@public
 def evaluate_compile_time_if_statement(if_stmt: AstIfStatement*) -> AstBody:
     result = &if_stmt->else_body
     for i = 0; i < if_stmt->n_if_and_elifs; i++:
