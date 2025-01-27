@@ -181,8 +181,13 @@ def check_statement_not_misplaced(
             inside_xyz = "inside a method"
 
     match stmt_kind:
-        case AstStatementKind.If:
-            # allowed everywhere, so you can do e.g. "if WINDOWS:" however you want
+        case (
+            AstStatementKind.If
+            | AstStatementKind.ClassField
+            | AstStatementKind.DeclareLocalVar
+            | AstStatementKind.MethodDef
+        ):
+            # It is not possible to put these to wrong place
             pass
 
         case AstStatementKind.Import:
@@ -199,7 +204,6 @@ def check_statement_not_misplaced(
             | AstStatementKind.ForLoop
             | AstStatementKind.Break
             | AstStatementKind.Continue
-            | AstStatementKind.DeclareLocalVar
             | AstStatementKind.Assign
             | AstStatementKind.InPlaceAdd
             | AstStatementKind.InPlaceSub
@@ -214,11 +218,6 @@ def check_statement_not_misplaced(
                     fail(location, "you must put your code inside a method")
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     pass
-
-        case AstStatementKind.ClassField | AstStatementKind.MethodDef:
-            # Currently it is not possible to misplace these, the same syntax
-            # is interpreted differently if they're not in a class
-            assert what_are_we_parsing == WhatAreWeParsing.ClassBody
 
         case AstStatementKind.ClassUnion:
             if what_are_we_parsing != WhatAreWeParsing.ClassBody:
@@ -878,9 +877,18 @@ class Parser:
             self->tokens++
             result.kind = AstStatementKind.Continue
         elif self->tokens->kind == TokenKind.Name and self->tokens[1].is_operator(":"):
-            # "foo: int" creates a variable "foo" of type "int"
-            result.kind = AstStatementKind.DeclareLocalVar
-            result.var_declaration = self->parse_name_type_value(NULL)
+            # e.g. "foo: int"
+            match self->what_are_we_parsing:
+                case WhatAreWeParsing.TopLevel:
+                    fail(self->tokens->location, "missing 'global' keyword when defining global variable")
+                case WhatAreWeParsing.ClassBody:
+                    result.kind = AstStatementKind.ClassField
+                    result.class_field = self->parse_name_type_value(NULL)
+                    if result.class_field.value != NULL:
+                        fail(result.class_field.value->location, "class fields cannot have default values")
+                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
+                    result.kind = AstStatementKind.DeclareLocalVar
+                    result.var_declaration = self->parse_name_type_value(NULL)
         else:
             expr = self->parse_expression()
             result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(self->tokens)
@@ -1200,16 +1208,6 @@ class Parser:
         for t = decors_start; t < decors_end; t++:
             if t->kind == TokenKind.Decorator:
                 decorate(&result, t->short_string, t->location)
-
-        # Inside a class, variable declarations become fields.
-        if (
-            self->what_are_we_parsing == WhatAreWeParsing.ClassBody
-            and result.kind == AstStatementKind.DeclareLocalVar
-        ):
-            result.kind = AstStatementKind.ClassField
-            assert &result.var_declaration == &result.class_field  # no need to do anything to these
-            if result.class_field.value != NULL:
-                fail(result.class_field.value->location, "class fields cannot have default values")
 
         check_statement_not_misplaced(result.kind, self->what_are_we_parsing, result.location)
         return result
