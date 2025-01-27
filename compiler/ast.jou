@@ -467,6 +467,7 @@ class AstAssertion:
 
 
 enum AstStatementKind:
+    Import
     ExpressionStatement  # Evaluate an expression. Discard the result.
     Assert
     Pass
@@ -478,6 +479,8 @@ enum AstStatementKind:
     Break
     Continue
     DeclareLocalVar # x: SomeType = y (the "= y" is optional)
+    ClassField      # x: SomeType (inside a class)
+    ClassUnion      # "union:" followed by indented fields inside a class
     Assign          # x = y
     InPlaceAdd      # x += y
     InPlaceSub      # x -= y
@@ -486,6 +489,7 @@ enum AstStatementKind:
     InPlaceMod      # x %= y
     FunctionDeclare
     FunctionDef
+    MethodDef
     Class
     Enum
     GlobalVariableDeclare
@@ -500,14 +504,18 @@ class AstStatement:
         if_statement: AstIfStatement
         while_loop: AstConditionAndBody
         for_loop: AstForLoop
-        return_value: AstExpression*       # can be NULL
-        assignment: AstAssignment          # also used for +=, -= etc
-        var_declaration: AstNameTypeValue  # DeclareLocalVar
+        return_value: AstExpression*        # can be NULL
+        assignment: AstAssignment           # also used for +=, -= etc
+        var_declaration: AstNameTypeValue   # DeclareLocalVar
+        class_field: AstNameTypeValue       # ClassField
+        union_fields: AstUnionFields        # ClassUnion
         function: AstFunctionOrMethod
+        method: AstFunctionOrMethod
         classdef: AstClassDef
         enumdef: AstEnumDef
         assertion: AstAssertion
         match_statement: AstMatchStatement
+        import_statement: AstImport
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -567,6 +575,9 @@ class AstStatement:
             case AstStatementKind.FunctionDef:
                 printf("define a function: ")
                 self->function.print_with_tree_printer(tp)
+            case AstStatementKind.MethodDef:
+                printf("define a method: ")
+                self->method.print_with_tree_printer(tp)
             case AstStatementKind.Class:
                 self->classdef.print_with_tree_printer(tp)
             case AstStatementKind.Enum:
@@ -579,6 +590,15 @@ class AstStatement:
                 printf("define global var ")
                 self->var_declaration.print_with_tree_printer(NULL)
                 printf("\n")
+            case AstStatementKind.Import:
+                self->import_statement.print()
+            case AstStatementKind.ClassField:
+                printf("class field ")
+                self->class_field.print_with_tree_printer(NULL)
+                printf("\n")
+            case AstStatementKind.ClassUnion:
+                printf("union\n")
+                self->union_fields.print_with_tree_printer(tp)
 
     def free(self) -> None:
         match self->kind:
@@ -604,6 +624,8 @@ class AstStatement:
                 | AstStatementKind.GlobalVariableDef
             ):
                 self->var_declaration.free()
+            case AstStatementKind.ClassField:
+                self->class_field.free()
             case (
                 AstStatementKind.Assign
                 | AstStatementKind.InPlaceAdd
@@ -615,10 +637,16 @@ class AstStatement:
                 self->assignment.free()
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 self->function.free()
+            case AstStatementKind.MethodDef:
+                self->method.free()
             case AstStatementKind.Class:
                 self->classdef.free()
             case AstStatementKind.Enum:
                 self->enumdef.free()
+            case AstStatementKind.Import:
+                self->import_statement.free()
+            case AstStatementKind.ClassUnion:
+                self->union_fields.free()
             case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
                 pass
 
@@ -893,15 +921,14 @@ class AstSignature:
 
 # import "./foo.jou"
 class AstImport:
-    location: Location
     specified_path: byte*  # Path in jou code e.g. "stdlib/io.jou"
     resolved_path: byte*  # Absolute path or relative to current working directory e.g. "/home/akuli/jou/stdlib/io.jou"
     used: bool  # For warning messages
 
     def print(self) -> None:
         printf(
-            "line %d: Import \"%s\", which resolves to \"%s\".\n",
-            self->location.lineno, self->specified_path, self->resolved_path,
+            "import \"%s\", which resolves to \"%s\"\n",
+            self->specified_path, self->resolved_path,
         )
 
     def free(self) -> None:
@@ -912,22 +939,15 @@ class AstImport:
 # Represents the AST of one Jou file.
 class AstFile:
     path: byte*  # not owned
-    imports: AstImport*
-    nimports: int
     body: AstBody
     types: FileTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     def print(self) -> None:
         printf("===== AST for file \"%s\" =====\n", self->path)
-        for i = 0; i < self->nimports; i++:
-            self->imports[i].print()
         for i = 0; i < self->body.nstatements; i++:
             self->body.statements[i].print()
 
     def free(self) -> None:
-        for i = 0; i < self->nimports; i++:
-            self->imports[i].free()
-        free(self->imports)
         self->body.free()
         self->types.free()  # also works if self->types is zero-initialized
 
@@ -937,7 +957,7 @@ class AstFile:
 class AstFunctionOrMethod:
     public: bool  # is it decorated with @public
     ast_signature: AstSignature
-    body: AstBody  # empty body means declaration, otherwise it's a definition
+    body: AstBody
     types: FunctionOrMethodTypes  # populated in typecheck, zero-initialized before typecheck runs
     used: bool  # used to detect unused functions
 
@@ -977,64 +997,23 @@ class AstUnionFields:
         free(self->fields)
 
 
-enum AstClassMemberKind:
-    Field
-    Union
-    Method
-
-# Anything that goes inside "class"
-class AstClassMember:
-    kind: AstClassMemberKind
-    union:
-        field: AstNameTypeValue
-        union_fields: AstUnionFields
-        method: AstFunctionOrMethod
-
-    def print(self, tp: TreePrinter) -> None:
-        match self->kind:
-            case AstClassMemberKind.Field:
-                printf("field ")
-                self->field.print_with_tree_printer(NULL)
-                printf("\n")
-            case AstClassMemberKind.Union:
-                printf("union:\n")
-                self->union_fields.print_with_tree_printer(tp)
-            case AstClassMemberKind.Method:
-                printf("method ")
-                self->method.ast_signature.print()
-                self->method.body.print_with_tree_printer(tp)
-
-    def free(self) -> None:
-        match self->kind:
-            case AstClassMemberKind.Field:
-                self->field.free()
-            case AstClassMemberKind.Union:
-                self->union_fields.free()
-            case AstClassMemberKind.Method:
-                self->method.free()
-
-
 # class Foo:
 #     ...members...
 class AstClassDef:
     name: byte[100]
-    name_location: Location
-    members: AstClassMember*
-    nmembers: int
+    body: AstBody*
     type: Type*  # populated in typecheck, NULL before typecheck runs
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("class \"%s\" with %d members\n", self->name, self->nmembers)
-        for i = 0; i < self->nmembers; i++:
-            self->members[i].print(tp.print_prefix(i == self->nmembers-1))
+        printf("class \"%s\"\n", self->name)
+        self->body->print_with_tree_printer(tp)
 
     def free(self) -> None:
-        for i = 0; i < self->nmembers; i++:
-            self->members[i].free()
-        free(self->members)
+        self->body->free()
+        free(self->body)
 
 
 # enum Foo:
