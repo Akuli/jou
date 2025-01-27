@@ -187,6 +187,8 @@ def check_statement_not_misplaced(
             | AstStatementKind.DeclareLocalVar  # created only inside function/method
             | AstStatementKind.FunctionDef  # created only on top level
             | AstStatementKind.MethodDef  # created only inside class
+            | AstStatementKind.FunctionDeclare  # checked when creating
+            | AstStatementKind.GlobalVariableDeclare  # checked when creating
         ):
             # It is not possible to put these to wrong place
             pass
@@ -223,11 +225,6 @@ def check_statement_not_misplaced(
         case AstStatementKind.ClassUnion:
             if what_are_we_parsing != WhatAreWeParsing.ClassBody:
                 fail(location, "'union' can only be used inside a class")
-
-        case AstStatementKind.FunctionDeclare | AstStatementKind.GlobalVariableDeclare:
-            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
-                sprintf(msg, "'declare' cannot be used %s", inside_xyz)
-                fail(location, msg)
 
         case AstStatementKind.Class:
             match what_are_we_parsing:
@@ -1112,6 +1109,8 @@ class Parser:
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     fail(self->tokens->location, "nested functions are not supported")
         elif self->tokens->is_keyword("declare"):
+            if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
+                fail(self->tokens->location, "'declare' must be on top level, not e.g. inside a function")
             location = (self->tokens++)->location
             if self->tokens->is_keyword("global"):
                 self->tokens++
