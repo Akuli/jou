@@ -179,12 +179,14 @@ class Parser:
             snprintf(msg, sizeof(msg), "%s must be on top level, not e.g. inside a function", what_is_it)
             fail(self->tokens->location, msg)
 
-    def check_function_or_method(self) -> None:
+    def check_function_or_method(self, what_is_it: byte*) -> None:
         match self->what_are_we_parsing:
             case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                 pass
             case _:
-                fail(self->tokens->location, "this line of code should be inside a function or method")
+                msg: byte[500]
+                snprintf(msg, sizeof(msg), "%s must be inside a function or method", what_is_it)
+                fail(self->tokens->location, msg)
 
     def parse_import(self) -> AstImport:
         if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
@@ -771,14 +773,14 @@ class Parser:
     def parse_oneline_statement(self) -> AstStatement:
         result = AstStatement{ location = self->tokens->location }
         if self->tokens->is_keyword("return"):
-            self->check_function_or_method()
+            self->check_function_or_method("'return'")
             self->tokens++
             result.kind = AstStatementKind.Return
             if self->tokens->kind != TokenKind.Newline:
                 result.return_value = malloc(sizeof *result.return_value)
                 *result.return_value = self->parse_expression()
         elif self->tokens->is_keyword("assert"):
-            self->check_function_or_method()
+            self->check_function_or_method("'assert'")
             self->tokens++
             result.kind = AstStatementKind.Assert
             start = self->tokens->location
@@ -786,7 +788,7 @@ class Parser:
             end = self->tokens->location
             result.assertion.condition_str = read_assertion_from_file(start, end)
         elif self->tokens->is_keyword("pass"):
-            self->check_function_or_method()  # TODO: would it be better to allow 'pass' elsewhere?
+            self->check_function_or_method("'pass'")  # TODO: would it be better to allow 'pass' elsewhere?
             self->tokens++
             result.kind = AstStatementKind.Pass
         elif self->tokens->is_keyword("break"):
@@ -825,13 +827,14 @@ class Parser:
                 if not expr.is_valid_as_a_statement():
                     fail(expr.location, "not a valid statement")
                 result.expression = expr
+                self->check_function_or_method("this line of code")
             else:
                 self->tokens++
                 result.assignment = AstAssignment{target = expr, value = self->parse_expression()}
                 if self->tokens->is_operator("="):
                     # Would fail elsewhere anyway, but let's make the error message clear
                     fail(self->tokens->location, "only one variable can be assigned at a time")
-            self->check_function_or_method()
+                self->check_function_or_method("assignments")
 
         return result
 
@@ -863,7 +866,7 @@ class Parser:
 
     def parse_while_loop(self) -> AstConditionAndBody:
         assert self->tokens->is_keyword("while")
-        self->check_function_or_method()
+        self->check_function_or_method("while loop")
         self->tokens++
         cond = self->parse_expression_with_unnecessary_parens_warning("while loop condition")
         self->loop_counter++
@@ -873,7 +876,7 @@ class Parser:
 
     def parse_for_loop(self) -> AstForLoop:
         assert self->tokens->is_keyword("for")
-        self->check_function_or_method()
+        self->check_function_or_method("for loop")
         self->tokens++
 
         # Check if it's "for i in ..." loop, those are not supported
@@ -921,7 +924,7 @@ class Parser:
 
     def parse_match_statement(self) -> AstMatchStatement:
         assert self->tokens->is_keyword("match")
-        self->check_function_or_method()
+        self->check_function_or_method("match statement")
         self->tokens++
 
         result = AstMatchStatement{match_obj = self->parse_expression()}
