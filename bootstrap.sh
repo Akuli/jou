@@ -25,7 +25,7 @@ commits=(
 
 for commit in ${commits[@]}; do
     if ! (git log --format='%H' || true) | grep -qx $commit; then
-        echo "Error: commit $commit not found on main branch"
+        echo "Error: commit $commit not in history of current branch"
         exit 1
     fi
 done
