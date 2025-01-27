@@ -96,64 +96,6 @@ def determine_the_kind_of_a_statement_that_starts_with_an_expression(
         return AstStatementKind.InPlaceMod
     return AstStatementKind.ExpressionStatement
 
-# TODO: put something like this to typecheck
-#class MemberInfo:
-#    kind: byte*
-#    name: byte[100]
-#    name_location: Location
-#
-#def check_class_for_duplicate_names(classdef: AstClassDef*) -> None:
-#    n = 0
-#    for i = 0; i < classdef->nmembers; i++:
-#        member = &classdef->members[i]
-#        # We will make a separate MemberInfo for each union field
-#        if member->kind == AstClassMemberKind.Union:
-#            n += member->union_fields.nfields
-#        else:
-#            n++
-#
-#    infos: MemberInfo* = malloc(n * sizeof infos[0] * 1000)
-#    destptr: MemberInfo* = infos
-#
-#    for i = 0; i < classdef->nmembers; i++:
-#        member = &classdef->members[i]
-#        match member->kind:
-#            case AstClassMemberKind.Field:
-#                *destptr++ = MemberInfo{
-#                    kind = "a field",
-#                    name = member->field.name,
-#                    name_location = member->field.name_location,
-#                }
-#            case AstClassMemberKind.Union:
-#                for k = 0; k < member->union_fields.nfields; k++:
-#                    *destptr++ = MemberInfo{
-#                        kind = "a union member",
-#                        name = member->union_fields.fields[k].name,
-#                        name_location = member->union_fields.fields[k].name_location,
-#                    }
-#            case AstClassMemberKind.Method:
-#                *destptr++ = MemberInfo{
-#                    kind = "a method",
-#                    name = member->method.ast_signature.name,
-#                    name_location = member->method.ast_signature.name_location,
-#                }
-#
-#    assert destptr == &infos[n]
-#
-#    for p1 = infos; p1 < destptr; p1++:
-#        for p2 = &p1[1]; p2 < destptr; p2++:
-#            if strcmp(p1->name, p2->name) == 0:
-#                message: byte[500]
-#                snprintf(
-#                    message, sizeof message,
-#                    "class %s already has %s named '%s'",
-#                    classdef->name, p1->kind, p1->name,
-#                )
-#                fail(p2->name_location, message)
-#
-#    free(infos)
-#
-#
 # TODO: this function is just bad...
 def read_assertion_from_file(start: Location, end: Location) -> byte*:
     assert start.path == end.path
