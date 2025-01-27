@@ -162,58 +162,6 @@ enum WhatAreWeParsing:
     MethodBody
 
 
-# Errors if e.g. trying to define a class inside a function (other way around it would become a method)
-def check_statement_not_misplaced(
-    stmt_kind: AstStatementKind,
-    what_are_we_parsing: WhatAreWeParsing,
-    location: Location,
-) -> None:
-    msg: byte[500]
-
-    match stmt_kind:
-        case (
-            AstStatementKind.If  # allowed everywhere
-            | AstStatementKind.ClassField  # created only inside class body
-            | AstStatementKind.DeclareLocalVar  # created only inside function/method
-            | AstStatementKind.FunctionDef  # created only on top level
-            | AstStatementKind.MethodDef  # created only inside class
-            | AstStatementKind.FunctionDeclare  # checked when creating
-            | AstStatementKind.GlobalVariableDeclare  # checked when creating
-            | AstStatementKind.GlobalVariableDef  # checked when creating
-            | AstStatementKind.Import  # checked when creating
-            | AstStatementKind.ClassUnion  # checked when creating
-            | AstStatementKind.Class  # checked when creating
-            | AstStatementKind.Enum  # checked when creating
-        ):
-            # It is not possible to put these to wrong place
-            pass
-
-        case (
-            AstStatementKind.ExpressionStatement
-            | AstStatementKind.Assert
-            | AstStatementKind.Pass
-            | AstStatementKind.Return
-            | AstStatementKind.Match
-            | AstStatementKind.WhileLoop
-            | AstStatementKind.ForLoop
-            | AstStatementKind.Break
-            | AstStatementKind.Continue
-            | AstStatementKind.Assign
-            | AstStatementKind.InPlaceAdd
-            | AstStatementKind.InPlaceSub
-            | AstStatementKind.InPlaceMul
-            | AstStatementKind.InPlaceDiv
-            | AstStatementKind.InPlaceMod
-        ):
-            match what_are_we_parsing:
-                case WhatAreWeParsing.TopLevel:
-                    fail(location, "you must put your code inside a function")
-                case WhatAreWeParsing.ClassBody:
-                    fail(location, "you must put your code inside a method")
-                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
-                    pass
-
-
 class Parser:
     tokens: Token*
     stdlib_path: byte*
@@ -230,6 +178,13 @@ class Parser:
             msg: byte[500]
             snprintf(msg, sizeof(msg), "%s must be on top level, not e.g. inside a function", what_is_it)
             fail(self->tokens->location, msg)
+
+    def check_function_or_method(self) -> None:
+        match self->what_are_we_parsing:
+            case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
+                pass
+            case _:
+                fail(self->tokens->location, "this line of code should be inside a function or method")
 
     def parse_import(self) -> AstImport:
         if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
@@ -816,12 +771,14 @@ class Parser:
     def parse_oneline_statement(self) -> AstStatement:
         result = AstStatement{ location = self->tokens->location }
         if self->tokens->is_keyword("return"):
+            self->check_function_or_method()
             self->tokens++
             result.kind = AstStatementKind.Return
             if self->tokens->kind != TokenKind.Newline:
                 result.return_value = malloc(sizeof *result.return_value)
                 *result.return_value = self->parse_expression()
         elif self->tokens->is_keyword("assert"):
+            self->check_function_or_method()
             self->tokens++
             result.kind = AstStatementKind.Assert
             start = self->tokens->location
@@ -829,6 +786,7 @@ class Parser:
             end = self->tokens->location
             result.assertion.condition_str = read_assertion_from_file(start, end)
         elif self->tokens->is_keyword("pass"):
+            self->check_function_or_method()  # TODO: would it be better to allow 'pass' elsewhere?
             self->tokens++
             result.kind = AstStatementKind.Pass
         elif self->tokens->is_keyword("break"):
@@ -856,6 +814,7 @@ class Parser:
                     result.var_declaration = self->parse_name_type_value(NULL)
         else:
             expr = self->parse_expression()
+            self->check_function_or_method()
             result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(self->tokens)
             if result.kind == AstStatementKind.ExpressionStatement:
                 if not expr.is_valid_as_a_statement():
@@ -898,6 +857,7 @@ class Parser:
 
     def parse_while_loop(self) -> AstConditionAndBody:
         assert self->tokens->is_keyword("while")
+        self->check_function_or_method()
         self->tokens++
         cond = self->parse_expression_with_unnecessary_parens_warning("while loop condition")
         self->loop_counter++
@@ -907,6 +867,7 @@ class Parser:
 
     def parse_for_loop(self) -> AstForLoop:
         assert self->tokens->is_keyword("for")
+        self->check_function_or_method()
         self->tokens++
 
         # Check if it's "for i in ..." loop, those are not supported
@@ -954,6 +915,7 @@ class Parser:
 
     def parse_match_statement(self) -> AstMatchStatement:
         assert self->tokens->is_keyword("match")
+        self->check_function_or_method()
         self->tokens++
 
         result = AstMatchStatement{match_obj = self->parse_expression()}
@@ -1179,7 +1141,6 @@ class Parser:
             if t->kind == TokenKind.Decorator:
                 decorate(&result, t->short_string, t->location)
 
-        check_statement_not_misplaced(result.kind, self->what_are_we_parsing, result.location)
         return result
 
     def parse_start_of_body(self) -> None:
