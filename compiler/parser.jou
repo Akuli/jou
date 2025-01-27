@@ -162,123 +162,6 @@ enum WhatAreWeParsing:
     MethodBody
 
 
-# Errors if e.g. trying to define a class inside a function (other way around it would become a method)
-def check_statement_not_misplaced(
-    stmt_kind: AstStatementKind,
-    what_are_we_parsing: WhatAreWeParsing,
-    location: Location,
-) -> None:
-    msg: byte[500]
-
-    match what_are_we_parsing:
-        case WhatAreWeParsing.TopLevel:
-            inside_xyz = "<internal error>"  # hopefully nobody sees this....
-        case WhatAreWeParsing.ClassBody:
-            inside_xyz = "inside a class"
-        case WhatAreWeParsing.FunctionBody:
-            inside_xyz = "inside a function"
-        case WhatAreWeParsing.MethodBody:
-            inside_xyz = "inside a method"
-
-    match stmt_kind:
-        case AstStatementKind.If:
-            # allowed everywhere, so you can do e.g. "if WINDOWS:" however you want
-            pass
-
-        case AstStatementKind.Import:
-            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
-                fail(location, "imports must be in the beginning of the file")
-
-        case (
-            AstStatementKind.ExpressionStatement
-            | AstStatementKind.Assert
-            | AstStatementKind.Pass
-            | AstStatementKind.Return
-            | AstStatementKind.Match
-            | AstStatementKind.WhileLoop
-            | AstStatementKind.ForLoop
-            | AstStatementKind.Break
-            | AstStatementKind.Continue
-            | AstStatementKind.DeclareLocalVar
-            | AstStatementKind.Assign
-            | AstStatementKind.InPlaceAdd
-            | AstStatementKind.InPlaceSub
-            | AstStatementKind.InPlaceMul
-            | AstStatementKind.InPlaceDiv
-            | AstStatementKind.InPlaceMod
-        ):
-            match what_are_we_parsing:
-                case WhatAreWeParsing.TopLevel:
-                    # User is probably new to Jou, don't say anything about classes/methods
-                    # TODO: test this (or tested already?)
-                    fail(location, "you must put your code inside a function")
-                case WhatAreWeParsing.ClassBody:
-                    # TODO: test this (or tested already?)
-                    fail(location, "you must put your code inside a method")
-                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
-                    pass
-
-        case AstStatementKind.ClassField | AstStatementKind.MethodDef:
-            # Currently it is not possible to misplace these, the same syntax
-            # is interpreted differently if they're not in a class
-            assert what_are_we_parsing == WhatAreWeParsing.ClassBody
-
-        case AstStatementKind.ClassUnion:
-            if what_are_we_parsing != WhatAreWeParsing.ClassBody:
-                # TODO: test this
-                fail(location, "'union' can only be used inside a class")
-
-        case AstStatementKind.FunctionDef:
-            match what_are_we_parsing:
-                case WhatAreWeParsing.TopLevel:
-                    pass
-                case WhatAreWeParsing.ClassBody:
-                    assert False  # should have been turned into a method already
-                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
-                    # TODO: test this
-                    fail(location, "nested functions are not supported")
-
-        case AstStatementKind.FunctionDeclare:
-            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
-                # TODO: test function declare inside class
-                # TODO: test function declare inside function
-                # TODO: test function declare inside method
-                sprintf(msg, "'declare' cannot be used %s", inside_xyz)
-                fail(location, msg)
-
-        case AstStatementKind.Class:
-            match what_are_we_parsing:
-                case WhatAreWeParsing.TopLevel:
-                    pass
-                case WhatAreWeParsing.ClassBody:
-                    # TODO: test this
-                    fail(location, "classes cannot be nested")
-                case _:
-                    # TODO: test class inside function
-                    # TODO: test class inside method
-                    sprintf(msg, "classes cannot be defined %s", inside_xyz)
-                    fail(location, msg)
-
-        case AstStatementKind.Enum:
-            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
-                # TODO: test enum inside function
-                # TODO: test enum inside method
-                # TODO: test enum inside class
-                sprintf(msg, "enums cannot be defined %s", inside_xyz)
-                fail(location, msg)
-
-        case AstStatementKind.GlobalVariableDeclare | AstStatementKind.GlobalVariableDef:
-            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
-                # TODO: test global variable declare inside function
-                # TODO: test global variable declare inside method
-                # TODO: test global variable declare inside class
-                # TODO: test global variable definition inside function
-                # TODO: test global variable definition inside method
-                # TODO: test global variable definition inside class
-                sprintf(msg, "global variables cannot be defined %s", inside_xyz)
-                fail(location, msg)
-
-
 class Parser:
     tokens: Token*
     stdlib_path: byte*
@@ -290,7 +173,25 @@ class Parser:
             self->tokens->fail_expected_got("end of line")
         self->tokens++
 
+    def check_top_level(self, what_is_it: byte*) -> None:
+        if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
+            msg: byte[500]
+            snprintf(msg, sizeof(msg), "%s must be on top level, not e.g. inside a function", what_is_it)
+            fail(self->tokens->location, msg)
+
+    def check_function_or_method(self, what_is_it: byte*) -> None:
+        match self->what_are_we_parsing:
+            case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
+                pass
+            case _:
+                msg: byte[500]
+                snprintf(msg, sizeof(msg), "%s must be inside a function or method", what_is_it)
+                fail(self->tokens->location, msg)
+
     def parse_import(self) -> AstImport:
+        if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
+            fail(self->tokens->location, "imports must be in the beginning of the file")
+
         assert self->tokens->is_keyword("import")
         self->tokens++
 
@@ -872,12 +773,14 @@ class Parser:
     def parse_oneline_statement(self) -> AstStatement:
         result = AstStatement{ location = self->tokens->location }
         if self->tokens->is_keyword("return"):
+            self->check_function_or_method("'return'")
             self->tokens++
             result.kind = AstStatementKind.Return
             if self->tokens->kind != TokenKind.Newline:
                 result.return_value = malloc(sizeof *result.return_value)
                 *result.return_value = self->parse_expression()
         elif self->tokens->is_keyword("assert"):
+            self->check_function_or_method("'assert'")
             self->tokens++
             result.kind = AstStatementKind.Assert
             start = self->tokens->location
@@ -885,6 +788,7 @@ class Parser:
             end = self->tokens->location
             result.assertion.condition_str = read_assertion_from_file(start, end)
         elif self->tokens->is_keyword("pass"):
+            self->check_function_or_method("'pass'")  # TODO: would it be better to allow 'pass' elsewhere?
             self->tokens++
             result.kind = AstStatementKind.Pass
         elif self->tokens->is_keyword("break"):
@@ -898,22 +802,39 @@ class Parser:
             self->tokens++
             result.kind = AstStatementKind.Continue
         elif self->tokens->kind == TokenKind.Name and self->tokens[1].is_operator(":"):
-            # "foo: int" creates a variable "foo" of type "int"
-            result.kind = AstStatementKind.DeclareLocalVar
-            result.var_declaration = self->parse_name_type_value(NULL)
+            # e.g. "foo: int"
+            match self->what_are_we_parsing:
+                case WhatAreWeParsing.TopLevel:
+                    fail(self->tokens->location, "missing 'global' keyword when defining global variable")
+                case WhatAreWeParsing.ClassBody:
+                    result.kind = AstStatementKind.ClassField
+                    result.class_field = self->parse_name_type_value(NULL)
+                    if result.class_field.value != NULL:
+                        fail(result.class_field.value->location, "class fields cannot have default values")
+                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
+                    result.kind = AstStatementKind.DeclareLocalVar
+                    result.var_declaration = self->parse_name_type_value(NULL)
         else:
             expr = self->parse_expression()
             result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(self->tokens)
+            if (
+                result.kind == AstStatementKind.Assign
+                and self->what_are_we_parsing == WhatAreWeParsing.TopLevel
+            ):
+                # Would fail anyway, but let's produce a better error message
+                fail(expr.location, "missing 'global' keyword when defining global variable")
             if result.kind == AstStatementKind.ExpressionStatement:
                 if not expr.is_valid_as_a_statement():
                     fail(expr.location, "not a valid statement")
                 result.expression = expr
+                self->check_function_or_method("this line of code")
             else:
                 self->tokens++
                 result.assignment = AstAssignment{target = expr, value = self->parse_expression()}
                 if self->tokens->is_operator("="):
                     # Would fail elsewhere anyway, but let's make the error message clear
                     fail(self->tokens->location, "only one variable can be assigned at a time")
+                self->check_function_or_method("assignments")
 
         return result
 
@@ -945,6 +866,7 @@ class Parser:
 
     def parse_while_loop(self) -> AstConditionAndBody:
         assert self->tokens->is_keyword("while")
+        self->check_function_or_method("while loop")
         self->tokens++
         cond = self->parse_expression_with_unnecessary_parens_warning("while loop condition")
         self->loop_counter++
@@ -954,6 +876,7 @@ class Parser:
 
     def parse_for_loop(self) -> AstForLoop:
         assert self->tokens->is_keyword("for")
+        self->check_function_or_method("for loop")
         self->tokens++
 
         # Check if it's "for i in ..." loop, those are not supported
@@ -1001,6 +924,7 @@ class Parser:
 
     def parse_match_statement(self) -> AstMatchStatement:
         assert self->tokens->is_keyword("match")
+        self->check_function_or_method("match statement")
         self->tokens++
 
         result = AstMatchStatement{match_obj = self->parse_expression()}
@@ -1116,19 +1040,23 @@ class Parser:
                 import_statement = self->parse_import(),
             }
         elif self->tokens->is_keyword("def"):
-            if self->what_are_we_parsing == WhatAreWeParsing.ClassBody:
-                result = AstStatement{
-                    location = self->tokens->location,
-                    kind = AstStatementKind.MethodDef,
-                    function = self->parse_function_or_method(True),
-                }
-            else:
-                result = AstStatement{
-                    location = self->tokens->location,
-                    kind = AstStatementKind.FunctionDef,
-                    function = self->parse_function_or_method(False),
-                }
+            match self->what_are_we_parsing:
+                case WhatAreWeParsing.TopLevel:
+                    result = AstStatement{
+                        location = self->tokens->location,
+                        kind = AstStatementKind.FunctionDef,
+                        function = self->parse_function_or_method(False),
+                    }
+                case WhatAreWeParsing.ClassBody:
+                    result = AstStatement{
+                        location = self->tokens->location,
+                        kind = AstStatementKind.MethodDef,
+                        function = self->parse_function_or_method(True),
+                    }
+                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
+                    fail(self->tokens->location, "nested functions are not supported")
         elif self->tokens->is_keyword("declare"):
+            self->check_top_level("'declare'")
             location = (self->tokens++)->location
             if self->tokens->is_keyword("global"):
                 self->tokens++
@@ -1150,6 +1078,7 @@ class Parser:
                 }
             self->eat_newline()
         elif self->tokens->is_keyword("global"):
+            self->check_top_level("global variables")
             result = AstStatement{
                 location = (self->tokens++)->location,
                 kind = AstStatementKind.GlobalVariableDef,
@@ -1281,6 +1210,7 @@ class Parser:
 
     def parse_class(self) -> AstClassDef:
         assert self->tokens->is_keyword("class")
+        self->check_top_level("classes")
         self->tokens++
 
         if self->tokens->kind != TokenKind.Name:
@@ -1300,6 +1230,9 @@ class Parser:
         return AstClassDef{name = name, body = bodyptr}
 
     def parse_union(self) -> AstUnionFields:
+        if self->what_are_we_parsing != WhatAreWeParsing.ClassBody:
+            fail(self->tokens->location, "'union' can only be used inside a class")
+
         assert self->tokens->is_keyword("union")
         union_keyword_location = (self->tokens++)->location
         self->parse_start_of_body()
@@ -1322,6 +1255,7 @@ class Parser:
 
     def parse_enum(self) -> AstEnumDef:
         assert self->tokens->is_keyword("enum")
+        self->check_top_level("enums")
         self->tokens++
 
         if self->tokens->kind != TokenKind.Name:
