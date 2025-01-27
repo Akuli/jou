@@ -38,11 +38,8 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
 
     msg: byte[500]
 
-    if (
-        (self_class == NULL and ft->find_function(astsig->name) != NULL)
-        or (self_class != NULL and self_class->find_method(astsig->name) != NULL)
-    ):
-        snprintf(msg, sizeof(msg), "a %s named '%s' already exists", function_or_method, astsig->name)
+    if self_class == NULL and ft->find_function(astsig->name) != NULL:
+        snprintf(msg, sizeof(msg), "a function named '%s' already exists", astsig->name)
         fail(astsig->name_location, msg)
 
     sig = Signature{nargs = astsig->nargs, takes_varargs = astsig->takes_varargs}
@@ -110,6 +107,29 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
     return sig
 
 
+def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> None:
+    msg: byte[500]
+    assert t->kind == TypeKind.Class
+
+    for i = 0; i < t->classdata.nfields; i++:
+        if strcmp(t->classdata.fields[i].name, name) == 0:
+            uid = t->classdata.fields[i].union_id
+            belongs_to_a_union = (
+                (i > 0 and t->classdata.fields[i-1].union_id == uid)
+                or (i+1 < t->classdata.nfields and t->classdata.fields[i+1].union_id == uid)
+            )
+            if belongs_to_a_union:
+                snprintf(msg, sizeof(msg), "class %s already has a union member named '%s'", t->name, name)
+            else:
+                snprintf(msg, sizeof(msg), "class %s already has a field named '%s'", t->name, name)
+            fail(location, msg)
+
+    for i = 0; i < t->classdata.nmethods; i++:
+        if strcmp(t->classdata.methods[i].name, name) == 0:
+            snprintf(msg, sizeof(msg), "class %s already has a method named '%s'", t->name, name)
+            fail(location, msg)
+
+
 def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
     # Previous type-checking step created an opaque class.
     t = classdef->type
@@ -120,23 +140,30 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
     memset(&t->classdata, 0, sizeof t->classdata)
 
     union_id = 0
-    for m = classdef->members; m < &classdef->members[classdef->nmembers]; m++:
-        match m->kind:
-            case AstClassMemberKind.Field:
+    for stmt = classdef->body->statements; stmt < &classdef->body->statements[classdef->body->nstatements]; stmt++:
+        match stmt->kind:
+            case AstStatementKind.ClassField:
                 f = ClassField{
-                    type = type_from_ast(ft, &m->field.type),
+                    type = type_from_ast(ft, &stmt->class_field.type),
                     union_id = union_id++,
                 }
-                assert sizeof(f.name) == sizeof(m->field.name)
-                strcpy(f.name, m->field.name)
+                assert sizeof(f.name) == sizeof(stmt->class_field.name)
+                strcpy(f.name, stmt->class_field.name)
 
+                check_class_member_not_exist(t, f.name, stmt->location)
                 t->classdata.fields = realloc(t->classdata.fields, sizeof(t->classdata.fields[0]) * (t->classdata.nfields + 1))
                 assert t->classdata.fields != NULL
                 t->classdata.fields[t->classdata.nfields++] = f
 
-            case AstClassMemberKind.Union:
+            case AstStatementKind.ClassUnion:
                 uid = union_id++
-                for ntv = m->union_fields.fields; ntv < &m->union_fields.fields[m->union_fields.nfields]; ntv++:
+                for ntv = stmt->union_fields.fields; ntv < &stmt->union_fields.fields[stmt->union_fields.nfields]; ntv++:
+                    for ntv2 = &ntv[1]; ntv2 < &stmt->union_fields.fields[stmt->union_fields.nfields]; ntv2++:
+                        if strcmp(ntv->name, ntv2->name) == 0:
+                            msg: byte[500]
+                            snprintf(msg, sizeof(msg), "duplicate union member '%s'", ntv->name)
+                            fail(ntv2->name_location, msg)
+
                     f = ClassField{
                         type = type_from_ast(ft, &ntv->type),
                         union_id = uid,
@@ -144,18 +171,23 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                     assert sizeof(f.name) == sizeof(ntv->name)
                     strcpy(f.name, ntv->name)
 
+                    check_class_member_not_exist(t, f.name, ntv->name_location)
                     t->classdata.fields = realloc(t->classdata.fields, sizeof(t->classdata.fields[0]) * (t->classdata.nfields + 1))
                     assert t->classdata.fields != NULL
                     t->classdata.fields[t->classdata.nfields++] = f
 
-            case AstClassMemberKind.Method:
+            case AstStatementKind.MethodDef:
                 # Don't handle the method body yet: that is a part of step 3, not step 2
-                sig = handle_signature(ft, &m->method.ast_signature, t, NULL)
-                m->method.types.signature = sig
+                sig = handle_signature(ft, &stmt->method.ast_signature, t, NULL)
+                stmt->method.types.signature = sig
 
+                check_class_member_not_exist(t, sig.name, stmt->location)
                 t->classdata.methods = realloc(t->classdata.methods, sizeof(t->classdata.methods[0]) * (t->classdata.nmethods + 1))
                 assert t->classdata.methods != NULL
                 t->classdata.methods[t->classdata.nmethods++] = sig.copy()
+
+            case _:
+                assert False
 
 
 @public
@@ -170,6 +202,8 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
         assert exports != NULL
 
         match stmt->kind:
+            case AstStatementKind.Import:
+                pass
             case AstStatementKind.GlobalVariableDeclare:
                 exports[nexports++] = handle_global_var(&ast->types, &stmt->var_declaration, False)
             case AstStatementKind.GlobalVariableDef:

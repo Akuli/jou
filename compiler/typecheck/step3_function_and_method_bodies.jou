@@ -1338,12 +1338,15 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
         case (
             AstStatementKind.FunctionDeclare
             | AstStatementKind.FunctionDef
+            | AstStatementKind.MethodDef
             | AstStatementKind.Class
+            | AstStatementKind.ClassField
+            | AstStatementKind.ClassUnion
             | AstStatementKind.Enum
             | AstStatementKind.GlobalVariableDeclare
             | AstStatementKind.GlobalVariableDef
+            | AstStatementKind.Import
         ):
-            # TODO: what happens if you try to create these? are error messages good?
             assert False
 
 
@@ -1371,8 +1374,8 @@ def typecheck_step3_function_and_method_bodies(ast: AstFile*) -> None:
             case AstStatementKind.Class:
                 classtype = stmt->classdef.type
                 assert classtype != NULL
-                for m = stmt->classdef.members; m < &stmt->classdef.members[stmt->classdef.nmembers]; m++:
-                    if m->kind == AstClassMemberKind.Method:
-                        typecheck_function_or_method_body(&state, &m->method)
+                for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
+                    if inner->kind == AstStatementKind.MethodDef:
+                        typecheck_function_or_method_body(&state, &inner->method)
             case _:
                 pass
