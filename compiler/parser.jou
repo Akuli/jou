@@ -191,6 +191,7 @@ def check_statement_not_misplaced(
             | AstStatementKind.GlobalVariableDeclare  # checked when creating
             | AstStatementKind.Import  # checked when creating
             | AstStatementKind.ClassUnion  # checked when creating
+            | AstStatementKind.Class  # checked when creating
         ):
             # It is not possible to put these to wrong place
             pass
@@ -219,16 +220,6 @@ def check_statement_not_misplaced(
                     fail(location, "you must put your code inside a method")
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     pass
-
-        case AstStatementKind.Class:
-            match what_are_we_parsing:
-                case WhatAreWeParsing.TopLevel:
-                    pass
-                case WhatAreWeParsing.ClassBody:
-                    fail(location, "classes cannot be nested")
-                case _:
-                    sprintf(msg, "classes cannot be defined %s", inside_xyz)
-                    fail(location, msg)
 
         case AstStatementKind.Enum:
             if what_are_we_parsing != WhatAreWeParsing.TopLevel:
@@ -1249,6 +1240,9 @@ class Parser:
         return AstFunctionOrMethod{ast_signature = signature, body = body}
 
     def parse_class(self) -> AstClassDef:
+        if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
+            fail(self->tokens->location, "classes must be defined on top level, not e.g. inside a function")
+
         assert self->tokens->is_keyword("class")
         self->tokens++
 
