@@ -43,45 +43,68 @@ else
 fi
 
 function show_message {
-    echo -e "\x1b[36m====== $0: $1 ======\x1b[0m"
+    echo -e "\x1b[36m===== $0: $1 =====\x1b[0m"
 }
 
-show_message "Creating temporary working directory"
-mkdir -vp tmp
-rm -rf tmp/bootstrap
-git clone . tmp/bootstrap
-if [[ "$OS" =~ Windows ]]; then
-    cp -r libs mingw64 tmp/bootstrap
-fi
-cd tmp/bootstrap
+function folder_of_commit {
+    local i=$1
+    local commit=${commits[$i]}
+    echo tmp/bootstrap_cache/$(printf '%03d' $((i+1)))_$commit
+}
+
+# Figure out how far back in history we need to go
+cached_idx=$((${#commits[@]} - 1))
+while [ $cached_idx != -1 ]; do
+    folder=$(folder_of_commit $cached_idx)
+    if [ -f $folder/jou$exe_suffix ]; then
+        show_message "Using cached executable for commit $((cached_idx+1))/${#commits[@]}"
+        echo "Delete $folder if you want to build it again."
+        break
+    else
+        ((cached_idx--)) || true
+    fi
+done
 
 for i in ${!commits[@]}; do
+    if [ $i -le $cached_idx ]; then
+        continue
+    fi
+
     commit=${commits[$i]}
     show_message "Checking out and compiling commit ${commit:0:10} ($((i+1))/${#commits[@]})"
 
-    git checkout -q $commit
+    folder=$(folder_of_commit $i)
+    rm -rf $folder >/dev/null
+    mkdir -vp $folder
+
+    # If you know a better way to checkout a commit into a folder, let me know.
+    git archive --format=zip --output $folder/repo.zip $commit
+    (cd $folder && unzip -q repo.zip && rm repo.zip)
+
+    if [[ "$OS" =~ Windows ]]; then
+        cp -r libs mingw64 $folder
+    fi
 
     if [[ "$OS" =~ "Windows" ]] && [ $i == 0 ]; then
         # The compiler written in C needed LLVM headers, and getting them on
         # Windows turned out to be more difficult than expected, so I included
         # them in the repository as a zip file.
-        unzip llvm_headers.zip
+        echo "Extracting LLVM headers..."
+        (cd $folder && unzip -q llvm_headers.zip)
     fi
 
-    # Convince make that jou_bootstrap(.exe) is usable as is, and does not need
-    # to be recompiled. We don't want bootstrap inside bootstrap.
-    if [ $i != 0 ]; then
-        touch jou_bootstrap$exe_suffix
+    if [ $i == 0 ]; then
+        # Only build the compiler written in C (jou_stage1.exe)
+        (cd $folder && make jou_stage1$exe_suffix && mv -v jou_stage1$exe_suffix jou$exe_suffix)
+    else
+        cp $(folder_of_commit $((i-1)))/jou$exe_suffix $folder/jou_bootstrap$exe_suffix
+        # 'touch' convinces make that jou_bootstrap(.exe) is usable as is, and does
+        # not need to be recompiled. We don't want bootstrap inside bootstrap.
+        (cd $folder && touch jou_bootstrap$exe_suffix && $make jou$exe_suffix)
     fi
-
-    $make jou$exe_suffix
-    mv -v jou$exe_suffix jou_bootstrap$exe_suffix
-    $make clean
 done
 
-show_message "Copying the bootstrapped compiler from temporary directory"
-
-cd ../..  # go out of tmp/bootstrap
-cp -v tmp/bootstrap/jou_bootstrap$exe_suffix .
+show_message "Copying the bootstrapped executable"
+cp -v $(folder_of_commit $((${#commits[@]} - 1)))/jou$exe_suffix ./jou_bootstrap$exe_suffix
 
 show_message "Done!"
