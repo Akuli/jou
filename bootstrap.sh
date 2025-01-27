@@ -22,6 +22,13 @@ commits=(
     874d1978044a080173fcdcc4e92736136c97dd61  # "match some_integer:" support
 )
 
+for commit in ${commits[@]}; do
+    if ! (git log --format='%H' || true) | grep -qx $commit; then
+        echo "Error: commit $commit not in history of current branch"
+        exit 1
+    fi
+done
+
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate
     make="mingw32-make"
