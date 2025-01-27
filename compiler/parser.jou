@@ -189,13 +189,10 @@ def check_statement_not_misplaced(
             | AstStatementKind.MethodDef  # created only inside class
             | AstStatementKind.FunctionDeclare  # checked when creating
             | AstStatementKind.GlobalVariableDeclare  # checked when creating
+            | AstStatementKind.Import
         ):
             # It is not possible to put these to wrong place
             pass
-
-        case AstStatementKind.Import:
-            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
-                fail(location, "imports must be in the beginning of the file")
 
         case (
             AstStatementKind.ExpressionStatement
@@ -259,6 +256,9 @@ class Parser:
         self->tokens++
 
     def parse_import(self) -> AstImport:
+        if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
+            fail(self->tokens->location, "imports must be in the beginning of the file")
+
         assert self->tokens->is_keyword("import")
         self->tokens++
 
