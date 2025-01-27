@@ -1,6 +1,6 @@
-import "stdlib/io.jou"
-
-if not WINDOWS:
+if WINDOWS:
+    import "stdlib/io.jou"
+else:
     # Low level function for writing to file. Does not exist on Windows.
     declare write(fd: int, buf: byte*, count: int) -> long
 
@@ -9,7 +9,7 @@ def main() -> int:
     if WINDOWS:
         printf("hello\n")
     else:
-        # If this code is compiled on Windows, it will not link.
+        # If this code is compiled on Windows, there will be linker errors.
         write(1, "hello\n", 6)
 
     return 0
