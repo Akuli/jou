@@ -155,6 +155,16 @@ class FileState:
         return mod
 
 
+def check_imports_at_start_of_file(body: AstBody*) -> None:
+    i = 0
+    while i < body->nstatements and body->statements[i].kind == AstStatementKind.Import:
+        i++
+
+    for ; i < body->nstatements; i++:
+        if body->statements[i].kind == AstStatementKind.Import:
+            fail(body->statements[i].location, "imports must be in the beginning of the file")
+
+
 class CompileState:
     stdlib_path: byte*
     files: FileState*
@@ -196,6 +206,8 @@ class CompileState:
 
         if command_line_args.verbosity >= 2:
             fs.ast.print()
+
+        check_imports_at_start_of_file(&fs.ast.body)
 
         # If it's not the file passed on command line, it shouldn't define main()
         if strcmp(filename, command_line_args.infile) != 0 and defines_main(&fs.ast):
