@@ -120,23 +120,23 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
     memset(&t->classdata, 0, sizeof t->classdata)
 
     union_id = 0
-    for m = classdef->members; m < &classdef->members[classdef->nmembers]; m++:
-        match m->kind:
-            case AstClassMemberKind.Field:
+    for stmt = classdef->body->statements; stmt < &classdef->body->statements[classdef->body->nstatements]; stmt++:
+        match stmt->kind:
+            case AstStatementKind.ClassField:
                 f = ClassField{
-                    type = type_from_ast(ft, &m->field.type),
+                    type = type_from_ast(ft, &stmt->class_field.type),
                     union_id = union_id++,
                 }
-                assert sizeof(f.name) == sizeof(m->field.name)
-                strcpy(f.name, m->field.name)
+                assert sizeof(f.name) == sizeof(stmt->class_field.name)
+                strcpy(f.name, stmt->class_field.name)
 
                 t->classdata.fields = realloc(t->classdata.fields, sizeof(t->classdata.fields[0]) * (t->classdata.nfields + 1))
                 assert t->classdata.fields != NULL
                 t->classdata.fields[t->classdata.nfields++] = f
 
-            case AstClassMemberKind.Union:
+            case AstStatementKind.ClassUnion:
                 uid = union_id++
-                for ntv = m->union_fields.fields; ntv < &m->union_fields.fields[m->union_fields.nfields]; ntv++:
+                for ntv = stmt->union_fields.fields; ntv < &stmt->union_fields.fields[stmt->union_fields.nfields]; ntv++:
                     f = ClassField{
                         type = type_from_ast(ft, &ntv->type),
                         union_id = uid,
@@ -148,14 +148,17 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                     assert t->classdata.fields != NULL
                     t->classdata.fields[t->classdata.nfields++] = f
 
-            case AstClassMemberKind.Method:
+            case AstStatementKind.MethodDef:
                 # Don't handle the method body yet: that is a part of step 3, not step 2
-                sig = handle_signature(ft, &m->method.ast_signature, t, NULL)
-                m->method.types.signature = sig
+                sig = handle_signature(ft, &stmt->method.ast_signature, t, NULL)
+                stmt->method.types.signature = sig
 
                 t->classdata.methods = realloc(t->classdata.methods, sizeof(t->classdata.methods[0]) * (t->classdata.nmethods + 1))
                 assert t->classdata.methods != NULL
                 t->classdata.methods[t->classdata.nmethods++] = sig.copy()
+
+            case _:
+                assert False
 
 
 @public

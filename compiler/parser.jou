@@ -96,63 +96,6 @@ def determine_the_kind_of_a_statement_that_starts_with_an_expression(
         return AstStatementKind.InPlaceMod
     return AstStatementKind.ExpressionStatement
 
-class MemberInfo:
-    kind: byte*
-    name: byte[100]
-    name_location: Location
-
-def check_class_for_duplicate_names(classdef: AstClassDef*) -> None:
-    n = 0
-    for i = 0; i < classdef->nmembers; i++:
-        member = &classdef->members[i]
-        # We will make a separate MemberInfo for each union field
-        if member->kind == AstClassMemberKind.Union:
-            n += member->union_fields.nfields
-        else:
-            n++
-
-    infos: MemberInfo* = malloc(n * sizeof infos[0] * 1000)
-    destptr: MemberInfo* = infos
-
-    for i = 0; i < classdef->nmembers; i++:
-        member = &classdef->members[i]
-        match member->kind:
-            case AstClassMemberKind.Field:
-                *destptr++ = MemberInfo{
-                    kind = "a field",
-                    name = member->field.name,
-                    name_location = member->field.name_location,
-                }
-            case AstClassMemberKind.Union:
-                for k = 0; k < member->union_fields.nfields; k++:
-                    *destptr++ = MemberInfo{
-                        kind = "a union member",
-                        name = member->union_fields.fields[k].name,
-                        name_location = member->union_fields.fields[k].name_location,
-                    }
-            case AstClassMemberKind.Method:
-                *destptr++ = MemberInfo{
-                    kind = "a method",
-                    name = member->method.ast_signature.name,
-                    name_location = member->method.ast_signature.name_location,
-                }
-
-    assert destptr == &infos[n]
-
-    for p1 = infos; p1 < destptr; p1++:
-        for p2 = &p1[1]; p2 < destptr; p2++:
-            if strcmp(p1->name, p2->name) == 0:
-                message: byte[500]
-                snprintf(
-                    message, sizeof message,
-                    "class %s already has %s named '%s'",
-                    classdef->name, p1->kind, p1->name,
-                )
-                fail(p2->name_location, message)
-
-    free(infos)
-
-
 # TODO: this function is just bad...
 def read_assertion_from_file(start: Location, end: Location) -> byte*:
     assert start.path == end.path
@@ -212,11 +155,135 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
         fail(location, msg)
 
 
+enum WhatAreWeParsing:
+    TopLevel  # must be first, so that this is the default (zero)
+    ClassBody
+    FunctionBody
+    MethodBody
+
+
+# Errors if e.g. trying to define a class inside a function (other way around it would become a method)
+def check_statement_not_misplaced(
+    stmt_kind: AstStatementKind,
+    what_are_we_parsing: WhatAreWeParsing,
+    location: Location,
+) -> None:
+    msg: byte[500]
+
+    match what_are_we_parsing:
+        case WhatAreWeParsing.TopLevel:
+            inside_xyz = "<internal error>"  # hopefully nobody sees this....
+        case WhatAreWeParsing.ClassBody:
+            inside_xyz = "inside a class"
+        case WhatAreWeParsing.FunctionBody:
+            inside_xyz = "inside a function"
+        case WhatAreWeParsing.MethodBody:
+            inside_xyz = "inside a method"
+
+    match stmt_kind:
+        case AstStatementKind.If:
+            # allowed everywhere, so you can do e.g. "if WINDOWS:" however you want
+            pass
+
+        case AstStatementKind.Import:
+            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
+                fail(location, "imports must be in the beginning of the file")
+
+        case (
+            AstStatementKind.ExpressionStatement
+            | AstStatementKind.Assert
+            | AstStatementKind.Pass
+            | AstStatementKind.Return
+            | AstStatementKind.Match
+            | AstStatementKind.WhileLoop
+            | AstStatementKind.ForLoop
+            | AstStatementKind.Break
+            | AstStatementKind.Continue
+            | AstStatementKind.DeclareLocalVar
+            | AstStatementKind.Assign
+            | AstStatementKind.InPlaceAdd
+            | AstStatementKind.InPlaceSub
+            | AstStatementKind.InPlaceMul
+            | AstStatementKind.InPlaceDiv
+            | AstStatementKind.InPlaceMod
+        ):
+            match what_are_we_parsing:
+                case WhatAreWeParsing.TopLevel:
+                    # User is probably new to Jou, don't say anything about classes/methods
+                    # TODO: test this (or tested already?)
+                    fail(location, "you must put your code inside a function")
+                case WhatAreWeParsing.ClassBody:
+                    # TODO: test this (or tested already?)
+                    fail(location, "you must put your code inside a method")
+                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
+                    pass
+
+        case AstStatementKind.ClassField | AstStatementKind.MethodDef:
+            # Currently it is not possible to misplace these, the same syntax
+            # is interpreted differently if they're not in a class
+            assert what_are_we_parsing == WhatAreWeParsing.ClassBody
+
+        case AstStatementKind.ClassUnion:
+            if what_are_we_parsing != WhatAreWeParsing.ClassBody:
+                # TODO: test this
+                fail(location, "'union' can only be used inside a class")
+
+        case AstStatementKind.FunctionDef:
+            match what_are_we_parsing:
+                case WhatAreWeParsing.TopLevel:
+                    pass
+                case WhatAreWeParsing.ClassBody:
+                    assert False  # should have been turned into a method already
+                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
+                    # TODO: test this
+                    fail(location, "nested functions are not supported")
+
+        case AstStatementKind.FunctionDeclare:
+            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
+                # TODO: test function declare inside class
+                # TODO: test function declare inside function
+                # TODO: test function declare inside method
+                sprintf(msg, "'declare' cannot be used %s", inside_xyz)
+                fail(location, msg)
+
+        case AstStatementKind.Class:
+            match what_are_we_parsing:
+                case WhatAreWeParsing.TopLevel:
+                    pass
+                case WhatAreWeParsing.ClassBody:
+                    # TODO: test this
+                    fail(location, "classes cannot be nested")
+                case _:
+                    # TODO: test class inside function
+                    # TODO: test class inside method
+                    sprintf(msg, "classes cannot be defined %s", inside_xyz)
+                    fail(location, msg)
+
+        case AstStatementKind.Enum:
+            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
+                # TODO: test enum inside function
+                # TODO: test enum inside method
+                # TODO: test enum inside class
+                sprintf(msg, "enums cannot be defined %s", inside_xyz)
+                fail(location, msg)
+
+        case AstStatementKind.GlobalVariableDeclare | AstStatementKind.GlobalVariableDef:
+            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
+                # TODO: test global variable declare inside function
+                # TODO: test global variable declare inside method
+                # TODO: test global variable declare inside class
+                # TODO: test global variable definition inside function
+                # TODO: test global variable definition inside method
+                # TODO: test global variable definition inside class
+                sprintf(msg, "global variables cannot be defined %s", inside_xyz)
+                fail(location, msg)
+
+
 class Parser:
     tokens: Token*
     stdlib_path: byte*
-    is_parsing_method_body: bool
     loop_counter: int
+    what_are_we_parsing: WhatAreWeParsing
 
     def eat_newline(self) -> None:
         if self->tokens->kind != TokenKind.Newline:
@@ -225,7 +292,7 @@ class Parser:
 
     def parse_import(self) -> AstImport:
         assert self->tokens->is_keyword("import")
-        import_keyword = self->tokens++
+        self->tokens++
 
         path_token = self->tokens++
         if path_token->kind != TokenKind.String:
@@ -256,7 +323,6 @@ class Parser:
 
         simplify_path(path)
         return AstImport{
-            location = import_keyword->location,
             specified_path = strdup(path_token->long_string),
             resolved_path = path,
         }
@@ -564,7 +630,7 @@ class Parser:
                 elif self->tokens->is_keyword("None"):
                     fail(self->tokens->location, "None is not a value in Jou, use e.g. -1 for numbers or NULL for pointers")
                 elif self->tokens->is_keyword("self"):
-                    if not self->is_parsing_method_body:
+                    if self->what_are_we_parsing != WhatAreWeParsing.MethodBody:
                         fail(self->tokens->location, "'self' cannot be used here")
                     expr.kind = AstExpressionKind.Self
                     self->tokens++
@@ -1044,13 +1110,24 @@ class Parser:
         decors_end = self->tokens
 
         if self->tokens->is_keyword("import"):
-            fail(self->tokens->location, "imports must be in the beginning of the file")
-        elif self->tokens->is_keyword("def"):
             result = AstStatement{
                 location = self->tokens->location,
-                kind = AstStatementKind.FunctionDef,
-                function = self->parse_function_or_method(False),
+                kind = AstStatementKind.Import,
+                import_statement = self->parse_import(),
             }
+        elif self->tokens->is_keyword("def"):
+            if self->what_are_we_parsing == WhatAreWeParsing.ClassBody:
+                result = AstStatement{
+                    location = self->tokens->location,
+                    kind = AstStatementKind.MethodDef,
+                    function = self->parse_function_or_method(True),
+                }
+            else:
+                result = AstStatement{
+                    location = self->tokens->location,
+                    kind = AstStatementKind.FunctionDef,
+                    function = self->parse_function_or_method(False),
+                }
         elif self->tokens->is_keyword("declare"):
             location = (self->tokens++)->location
             if self->tokens->is_keyword("global"):
@@ -1089,6 +1166,12 @@ class Parser:
                 location = self->tokens->location,
                 kind = AstStatementKind.Class,
                 classdef = self->parse_class(),
+            }
+        elif self->tokens->is_keyword("union"):
+            result = AstStatement{
+                location = self->tokens->location,
+                kind = AstStatementKind.ClassUnion,
+                union_fields = self->parse_union(),
             }
         elif self->tokens->is_keyword("enum"):
             result = AstStatement{
@@ -1138,6 +1221,17 @@ class Parser:
             if t->kind == TokenKind.Decorator:
                 decorate(&result, t->short_string, t->location)
 
+        # Inside a class, functions become methods, and variable declarations become fields.
+        if (
+            self->what_are_we_parsing == WhatAreWeParsing.ClassBody
+            and result.kind == AstStatementKind.DeclareLocalVar
+        ):
+            result.kind = AstStatementKind.ClassField
+            assert &result.var_declaration == &result.class_field  # no need to do anything to these
+            if result.class_field.value != NULL:
+                fail(result.class_field.value->location, "class fields cannot have default values")
+
+        check_statement_not_misplaced(result.kind, self->what_are_we_parsing, result.location)
         return result
 
     def parse_start_of_body(self) -> None:
@@ -1175,10 +1269,13 @@ class Parser:
         if signature.takes_varargs:
             fail(self->tokens->location, "functions with variadic arguments cannot be defined yet")
 
-        assert not self->is_parsing_method_body
-        self->is_parsing_method_body = is_method
+        old = self->what_are_we_parsing
+        if is_method:
+            self->what_are_we_parsing = WhatAreWeParsing.MethodBody
+        else:
+            self->what_are_we_parsing = WhatAreWeParsing.FunctionBody
         body = self->parse_body()
-        self->is_parsing_method_body = False
+        self->what_are_we_parsing = old
 
         return AstFunctionOrMethod{ast_signature = signature, body = body}
 
@@ -1188,60 +1285,39 @@ class Parser:
 
         if self->tokens->kind != TokenKind.Name:
             self->tokens->fail_expected_got("a name for the class")
-
-        result = AstClassDef{
-            name = self->tokens->short_string,
-            name_location = self->tokens->location,
-        }
+        name = self->tokens->short_string
         self->tokens++
 
+        old = self->what_are_we_parsing
+        self->what_are_we_parsing = WhatAreWeParsing.ClassBody
+        body = self->parse_body()
+        self->what_are_we_parsing = old
+
+        bodyptr: AstBody* = malloc(sizeof(*bodyptr))
+        assert bodyptr != NULL
+        *bodyptr = body
+
+        return AstClassDef{name = name, body = bodyptr}
+
+    def parse_union(self) -> AstUnionFields:
+        assert self->tokens->is_keyword("union")
+        union_keyword_location = (self->tokens++)->location
         self->parse_start_of_body()
+
+        result = AstUnionFields{}
         while self->tokens->kind != TokenKind.Dedent:
-            if self->tokens->is_keyword("def"):
-                new_member = AstClassMember{
-                    kind = AstClassMemberKind.Method,
-                    method = self->parse_function_or_method(True),
-                }
+            field = self->parse_name_type_value("a union member")
+            if field.value != NULL:
+                fail(field.value->location, "union members cannot have default values")
 
-            elif self->tokens->is_keyword("union"):
-                union_keyword_location = (self->tokens++)->location
-                self->parse_start_of_body()
-
-                union_fields = AstUnionFields{}
-                while self->tokens->kind != TokenKind.Dedent:
-                    field = self->parse_name_type_value("a union member")
-                    if field.value != NULL:
-                        fail(field.value->location, "union members cannot have default values")
-
-                    union_fields.fields = realloc(union_fields.fields, (union_fields.nfields + 1) * sizeof union_fields.fields[0])
-                    union_fields.fields[union_fields.nfields++] = field
-                    self->eat_newline()
-
-                self->tokens++
-
-                if union_fields.nfields < 2:
-                    fail(union_keyword_location, "unions must have at least 2 members")
-
-                new_member = AstClassMember{
-                    kind = AstClassMemberKind.Union,
-                    union_fields = union_fields,
-                }
-
-            else:
-                field = self->parse_name_type_value("a method, a field or a union")
-                if field.value != NULL:
-                    fail(field.value->location, "class fields cannot have default values")
-                new_member = AstClassMember{
-                    kind = AstClassMemberKind.Field,
-                    field = field,
-                }
-                self->eat_newline()
-
-            result.members = realloc(result.members, (result.nmembers + 1) * sizeof result.members[0])
-            result.members[result.nmembers++] = new_member
+            result.fields = realloc(result.fields, (result.nfields + 1) * sizeof result.fields[0])
+            result.fields[result.nfields++] = field
+            self->eat_newline()
 
         self->tokens++
-        check_class_for_duplicate_names(&result)
+
+        if result.nfields < 2:
+            fail(union_keyword_location, "unions must have at least 2 members")
         return result
 
     def parse_enum(self) -> AstEnumDef:
@@ -1281,10 +1357,6 @@ class Parser:
 def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
     parser = Parser{tokens = tokens, stdlib_path = stdlib_path}
     result = AstFile{path = tokens[0].location.path}
-
-    while parser.tokens->is_keyword("import"):
-        result.imports = realloc(result.imports, sizeof result.imports[0] * (result.nimports+1))
-        result.imports[result.nimports++] = parser.parse_import()
 
     while parser.tokens->kind != TokenKind.EndOfFile:
         result.body.statements = realloc(result.body.statements, sizeof result.body.statements[0] * (result.body.nstatements + 1))

@@ -64,7 +64,7 @@ def evaluate_condition(expr: AstExpression*) -> int:
 
 
 # returns the statements to replace if statement with, as a pointer inside if_stmt
-def evaluate_if_statement(if_stmt: AstIfStatement*) -> AstBody*:
+def choose_if_elif_branch(if_stmt: AstIfStatement*) -> AstBody*:
     for i = 0; i < if_stmt->n_if_and_elifs; i++:
         match evaluate_condition(&if_stmt->if_and_elifs[i].condition):
             case -1:
@@ -95,26 +95,28 @@ def replace(body: AstBody*, i: int, new: AstBody) -> None:
     body->nstatements += new.nstatements
 
 
-# This handles nested if statements.
-@public
-def evaluate_compile_time_if_statements(body: AstBody*) -> None:
+def evaluate_if_statements_in_body(body: AstBody*, must_succeed: bool) -> None:
     for i = 0; i < body->nstatements; i++:
         match body->statements[i].kind:
             case AstStatementKind.If:
-                ptr = evaluate_if_statement(&body->statements[i].if_statement)
+                ptr = choose_if_elif_branch(&body->statements[i].if_statement)
                 if ptr != NULL:
+                    if must_succeed:
+                        fail(body->statements[i].location, "cannot evaluate condition at compile-time")
                     replacement = *ptr
                     *ptr = AstBody{}  # avoid double-free
                     replace(body, i, replacement)
-                    i--  # skip same index again to handle nested if statements
+                    i--  # cancels i++ to do same index again, so that we handle nested if statements
             case AstStatementKind.WhileLoop:
-                evaluate_compile_time_if_statements(&body->statements[i].while_loop.body)
+                evaluate_if_statements_in_body(&body->statements[i].while_loop.body, False)
             case AstStatementKind.ForLoop:
-                evaluate_compile_time_if_statements(&body->statements[i].for_loop.body)
+                evaluate_if_statements_in_body(&body->statements[i].for_loop.body, False)
             case AstStatementKind.Class:
-                pass
+                evaluate_if_statements_in_body(body->statements[i].classdef.body, True)
             case AstStatementKind.FunctionDef:
-                evaluate_compile_time_if_statements(&body->statements[i].function.body)
+                evaluate_if_statements_in_body(&body->statements[i].function.body, False)
+            case AstStatementKind.MethodDef:
+                evaluate_if_statements_in_body(&body->statements[i].method.body, False)
             case (
                 AstStatementKind.ExpressionStatement
                 | AstStatementKind.Assert
@@ -134,6 +136,14 @@ def evaluate_compile_time_if_statements(body: AstBody*) -> None:
                 | AstStatementKind.Enum
                 | AstStatementKind.GlobalVariableDeclare
                 | AstStatementKind.GlobalVariableDef
+                | AstStatementKind.Import
+                | AstStatementKind.ClassField
+                | AstStatementKind.ClassUnion
             ):
                 # these statements cannot contain if statements, no need to recurse inside
                 pass
+
+
+@public
+def evaluate_compile_time_if_statements(file: AstFile*) -> None:
+    evaluate_if_statements_in_body(&file->body, True)
