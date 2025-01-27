@@ -50,7 +50,7 @@ for i in ${!commits[@]}; do
     commit=${commits[$i]}
 
     # Sanity check: commit must exists on main branch
-    if ! (git log main --format='%H' || true) | grep -qx $commit; then
+    if ! (git log origin/main --format='%H' || true) | grep -qx $commit; then
         echo "Error: commit $commit is not on main branch"
         exit 1
     fi
