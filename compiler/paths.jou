@@ -23,52 +23,39 @@ declare dirname(path: byte*) -> byte*
 declare stat(path: byte*, buf: byte[1000]*) -> int  # lol
 
 
-def fail_finding_exe() -> noreturn:
-    # TODO: include os error message (GetLastError / errno)
-    fprintf(stderr, "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
-    exit(1)
-
-
-if WINDOWS:
-    @public
-    def find_current_executable() -> byte*:
-        buf = NULL
-        for size = 2L; True; size *= 2:
-            buf = realloc(buf, size)
-            memset(buf, 0, size)
-            ret = GetModuleFileNameA(NULL, buf, size as int)
-            if ret <= 0:
-                fail_finding_exe()
-            if ret < size:
-                # buffer is big enough, it fits
-                return buf
-
-elif MACOS:
-    @public
-    def find_current_executable() -> byte*:
+@public
+def find_current_executable() -> byte*:
+    if MACOS:
         n = 1
         result: byte* = malloc(n)
         ret = _NSGetExecutablePath(result, &n)  # sets n to desired size
         assert ret < 0  # didn't fit
         result = realloc(result, n)
         ret = _NSGetExecutablePath(result, &n)
-        if ret != 0:
-            fail_finding_exe()
-        return result
+        if ret == 0:
+            # success
+            return result
 
-else:
-    @public
-    def find_current_executable() -> byte*:
+    else:
         buf = NULL
         for size = 2L; True; size *= 2:
             buf = realloc(buf, size)
             memset(buf, 0, size)
-            ret = readlink("/proc/self/exe", buf, size)
+
+            if WINDOWS:
+                ret = GetModuleFileNameA(NULL, buf, size as int)
+            else:
+                ret = readlink("/proc/self/exe", buf, size)
+
             if ret <= 0:
-                fail_finding_exe()
+                break  # error
             if ret < size:
                 # buffer is big enough, it fits
                 return buf
+
+    # TODO: show os error message? (GetLastError / errno)
+    fprintf(stderr, "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
+    exit(1)
 
 
 @public
@@ -110,16 +97,6 @@ def find_stdlib() -> byte*:
         fprintf(stderr, "  %s\n", checked[i])
     exit(1)
 
-# Ignoring return values, because there's currently no way to check errno.
-# We need to ignore the error when directory exists already (EEXIST).
-# Ideally we wouldn't ignore any other errors.
-if WINDOWS:
-    def my_mkdir(path: byte*) -> None:
-        _mkdir(path)
-else:
-    def my_mkdir(path: byte*) -> None:
-        mkdir(path, 0o777)  # this is what mkdir in bash does according to strace
-
 
 def write_gitignore(p: byte*) -> None:
     filename: byte* = malloc(strlen(p) + 100)
@@ -139,10 +116,13 @@ def write_gitignore(p: byte*) -> None:
     free(filename)
 
 
-def mkdir_exist_ok(p: byte*) -> None:
+def mkdir_exist_ok(path: byte*) -> None:
     # TODO: check if errno == EEXIST
     # Currently no good way to access EEXIST constant
-    my_mkdir(p)
+    if WINDOWS:
+        _mkdir(path)
+    else:
+        mkdir(path, 0o777)  # this is what mkdir in bash does according to strace
 
 
 @public
