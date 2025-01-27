@@ -49,14 +49,8 @@ cd tmp/bootstrap
 
 for i in ${!commits[@]}; do
     commit=${commits[$i]}
-
-    # Sanity check: commit must exists on main branch
-    if ! (git log main --format='%H' || true) | grep -qx $commit; then
-        echo "Error: commit $commit is not on main branch"
-        exit 1
-    fi
-
     show_message "Checking out and compiling commit ${commit:0:10} ($((i+1))/${#commits[@]})"
+
     git checkout -q $commit
 
     if [[ "$OS" =~ "Windows" ]] && [ $i == 0 ]; then
