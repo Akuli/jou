@@ -182,10 +182,11 @@ def check_statement_not_misplaced(
 
     match stmt_kind:
         case (
-            AstStatementKind.If
-            | AstStatementKind.ClassField
-            | AstStatementKind.DeclareLocalVar
-            | AstStatementKind.MethodDef
+            AstStatementKind.If  # allowed everywhere
+            | AstStatementKind.ClassField  # created only inside class body
+            | AstStatementKind.DeclareLocalVar  # created only inside function/method
+            | AstStatementKind.FunctionDef  # created only on top level
+            | AstStatementKind.MethodDef  # created only inside class
         ):
             # It is not possible to put these to wrong place
             pass
@@ -222,15 +223,6 @@ def check_statement_not_misplaced(
         case AstStatementKind.ClassUnion:
             if what_are_we_parsing != WhatAreWeParsing.ClassBody:
                 fail(location, "'union' can only be used inside a class")
-
-        case AstStatementKind.FunctionDef:
-            match what_are_we_parsing:
-                case WhatAreWeParsing.TopLevel:
-                    pass
-                case WhatAreWeParsing.ClassBody:
-                    assert False  # should have been turned into a method already
-                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
-                    fail(location, "nested functions are not supported")
 
         case AstStatementKind.FunctionDeclare | AstStatementKind.GlobalVariableDeclare:
             if what_are_we_parsing != WhatAreWeParsing.TopLevel:
@@ -1104,18 +1096,21 @@ class Parser:
                 import_statement = self->parse_import(),
             }
         elif self->tokens->is_keyword("def"):
-            if self->what_are_we_parsing == WhatAreWeParsing.ClassBody:
-                result = AstStatement{
-                    location = self->tokens->location,
-                    kind = AstStatementKind.MethodDef,
-                    function = self->parse_function_or_method(True),
-                }
-            else:
-                result = AstStatement{
-                    location = self->tokens->location,
-                    kind = AstStatementKind.FunctionDef,
-                    function = self->parse_function_or_method(False),
-                }
+            match self->what_are_we_parsing:
+                case WhatAreWeParsing.TopLevel:
+                    result = AstStatement{
+                        location = self->tokens->location,
+                        kind = AstStatementKind.FunctionDef,
+                        function = self->parse_function_or_method(False),
+                    }
+                case WhatAreWeParsing.ClassBody:
+                    result = AstStatement{
+                        location = self->tokens->location,
+                        kind = AstStatementKind.MethodDef,
+                        function = self->parse_function_or_method(True),
+                    }
+                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
+                    fail(self->tokens->location, "nested functions are not supported")
         elif self->tokens->is_keyword("declare"):
             location = (self->tokens++)->location
             if self->tokens->is_keyword("global"):
