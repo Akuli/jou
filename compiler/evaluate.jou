@@ -25,36 +25,60 @@ def get_special_constant(name: byte*) -> int:
             return -1
 
 
-def evaluate_condition(expr: AstExpression*) -> bool:
+def evaluate_condition(expr: AstExpression*) -> int:
     match expr->kind:
         case AstExpressionKind.GetVariable:
-            v = get_special_constant(expr->varname)
-            if v == 0:
-                return False
-            if v == 1:
-                return True
-            fail(expr->location, "cannot evaluate condition at compile time")
+            return get_special_constant(expr->varname)
         case AstExpressionKind.And:
-            return evaluate_condition(&expr->operands[0]) and evaluate_condition(&expr->operands[1])
+            match evaluate_condition(&expr->operands[0]):
+                case 1:
+                    return evaluate_condition(&expr->operands[1])
+                case 0:
+                    return 0  # left side false, result false so don't evaluate right side
+                case -1:
+                    return -1
+                case _:
+                    assert False
         case AstExpressionKind.Or:
-            return evaluate_condition(&expr->operands[0]) or evaluate_condition(&expr->operands[1])
+            match evaluate_condition(&expr->operands[0]):
+                case 1:
+                    return 1  # left side true, result true so don't evaluate right side
+                case 0:
+                    return evaluate_condition(&expr->operands[1])
+                case -1:
+                    return -1  # error
+                case _:
+                    assert False
         case AstExpressionKind.Not:
-            return not evaluate_condition(&expr->operands[0])
+            match evaluate_condition(&expr->operands[0]):
+                case 1:
+                    return 0
+                case 0:
+                    return 1
+                case -1:
+                    return -1
+                case _:
+                    assert False
         case _:
-            fail(expr->location, "cannot evaluate condition at compile time")
+            return -1
 
 
-# returns the statements to replace if statement with
-def evaluate_compile_time_if_statement(if_stmt: AstIfStatement*) -> AstBody:
-    result = &if_stmt->else_body
+# returns the statements to replace if statement with, as a pointer inside if_stmt
+def evaluate_if_statement(if_stmt: AstIfStatement*) -> AstBody*:
     for i = 0; i < if_stmt->n_if_and_elifs; i++:
-        if evaluate_condition(&if_stmt->if_and_elifs[i].condition):
-            result = &if_stmt->if_and_elifs[i].body
-            break
-
-    ret = *result
-    *result = AstBody{}  # avoid double-free
-    return ret
+        match evaluate_condition(&if_stmt->if_and_elifs[i].condition):
+            case -1:
+                # don't know how to evaluate it
+                return NULL
+            case 0:
+                # try the next elif or else
+                pass
+            case 1:
+                # condition is true, let's use this if or elif
+                return &if_stmt->if_and_elifs[i].body
+            case _:
+                assert False
+    return &if_stmt->else_body
 
 
 # Replace body->statements[i] with zero or more statements from another body.
@@ -74,9 +98,42 @@ def replace(body: AstBody*, i: int, new: AstBody) -> None:
 # This handles nested if statements.
 @public
 def evaluate_compile_time_if_statements(body: AstBody*) -> None:
-    i = 0
-    while i < body->nstatements:
-        if body->statements[i].kind == AstStatementKind.If:
-            replace(body, i, evaluate_compile_time_if_statement(&body->statements[i].if_statement))
-        else:
-            i++
+    for i = 0; i < body->nstatements; i++:
+        match body->statements[i].kind:
+            case AstStatementKind.If:
+                ptr = evaluate_if_statement(&body->statements[i].if_statement)
+                if ptr != NULL:
+                    replacement = *ptr
+                    *ptr = AstBody{}  # avoid double-free
+                    replace(body, i, replacement)
+                    i--  # skip same index again to handle nested if statements
+            case AstStatementKind.WhileLoop:
+                evaluate_compile_time_if_statements(&body->statements[i].while_loop.body)
+            case AstStatementKind.ForLoop:
+                evaluate_compile_time_if_statements(&body->statements[i].for_loop.body)
+            case AstStatementKind.Class:
+                pass
+            case AstStatementKind.FunctionDef:
+                evaluate_compile_time_if_statements(&body->statements[i].function.body)
+            case (
+                AstStatementKind.ExpressionStatement
+                | AstStatementKind.Assert
+                | AstStatementKind.Pass
+                | AstStatementKind.Return
+                | AstStatementKind.Match
+                | AstStatementKind.Break
+                | AstStatementKind.Continue
+                | AstStatementKind.DeclareLocalVar
+                | AstStatementKind.Assign
+                | AstStatementKind.InPlaceAdd
+                | AstStatementKind.InPlaceSub
+                | AstStatementKind.InPlaceMul
+                | AstStatementKind.InPlaceDiv
+                | AstStatementKind.InPlaceMod
+                | AstStatementKind.FunctionDeclare
+                | AstStatementKind.Enum
+                | AstStatementKind.GlobalVariableDeclare
+                | AstStatementKind.GlobalVariableDef
+            ):
+                # these statements cannot contain if statements, no need to recurse inside
+                pass

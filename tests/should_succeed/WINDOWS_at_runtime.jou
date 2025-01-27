@@ -1,6 +1,9 @@
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
+def foo() -> bool:
+    return WINDOWS
+
 def main() -> int:
     f = fopen("tmp/tests/asdasd.txt", "w")
     assert f != NULL
@@ -8,7 +11,7 @@ def main() -> int:
     fclose(f)
 
     # Output: asd asd
-    if WINDOWS:
+    if foo():
         system("type tmp\\tests\\asdasd.txt")
     else:
         system("cat tmp/tests/asdasd.txt")
