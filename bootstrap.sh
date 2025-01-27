@@ -21,6 +21,13 @@ commits=(
     b339b1b300ba98a2245b493a58dd7fab4c465020  # "match ... with ..." syntax
 )
 
+for commit in ${commits[@]}; do
+    if ! (git log --format='%H' || true) | grep -qx $commit; then
+        echo "Error: commit $commit not found on main branch"
+        exit 1
+    fi
+done
+
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate
     make="mingw32-make"
@@ -45,13 +52,6 @@ if [[ "$OS" =~ Windows ]]; then
     cp -r libs mingw64 tmp/bootstrap
 fi
 cd tmp/bootstrap
-
-for commit in ${commits[@]}; do
-    if ! (git log --format='%H' || true) | grep -qx $commit; then
-        echo "Error: commit $commit not found on main branch"
-        exit 1
-    fi
-done
 
 for i in ${!commits[@]}; do
     commit=${commits[$i]}
