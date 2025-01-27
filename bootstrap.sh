@@ -95,7 +95,7 @@ for i in ${!commits[@]}; do
 
     if [ $i == 0 ]; then
         # Only build the compiler written in C (jou_stage1.exe)
-        (cd $folder && make jou_stage1$exe_suffix && mv -v jou_stage1$exe_suffix jou$exe_suffix)
+        (cd $folder && make jou$exe_suffix)
     else
         cp $(folder_of_commit $((i-1)))/jou$exe_suffix $folder/jou_bootstrap$exe_suffix
         # 'touch' convinces make that jou_bootstrap(.exe) is usable as is, and does
