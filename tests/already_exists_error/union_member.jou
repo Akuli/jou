@@ -1,4 +1,7 @@
 class Foo:
     union:
         x: int
-        x: byte  # Error: class Foo already has a union member named 'x'
+        y: byte*
+    union:
+        x: long  # Error: class Foo already has a union member named 'x'
+        z: byte
