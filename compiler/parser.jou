@@ -213,6 +213,13 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
         fail(location, msg)
 
 
+enum WhatAreWeParsing:
+    TopLevel  # must be first, so that this is the default (zero)
+    ClassBody
+    FunctionBody
+    MethodBody
+
+
 class Parser:
     tokens: Token*
     stdlib_path: byte*
