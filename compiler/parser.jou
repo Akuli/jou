@@ -1172,7 +1172,6 @@ class Parser:
             if result.class_field.value != NULL:
                 fail(result.class_field.value->location, "class fields cannot have default values")
 
-        check_statement_not_misplaced(result.kind, self->what_are_we_parsing, result.location)
         return result
 
     def parse_start_of_body(self) -> None:
