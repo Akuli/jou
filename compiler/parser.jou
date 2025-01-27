@@ -225,6 +225,12 @@ class Parser:
             self->tokens->fail_expected_got("end of line")
         self->tokens++
 
+    def check_top_level(self, what_is_it: byte*) -> None:
+        if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
+            msg: byte[500]
+            snprintf(msg, sizeof(msg), "%s must be on top level, not e.g. inside a function", what_is_it)
+            fail(self->tokens->location, msg)
+
     def parse_import(self) -> AstImport:
         if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
             fail(self->tokens->location, "imports must be in the beginning of the file")
@@ -1079,8 +1085,7 @@ class Parser:
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     fail(self->tokens->location, "nested functions are not supported")
         elif self->tokens->is_keyword("declare"):
-            if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
-                fail(self->tokens->location, "'declare' must be on top level, not e.g. inside a function")
+            self->check_top_level("'declare'")
             location = (self->tokens++)->location
             if self->tokens->is_keyword("global"):
                 self->tokens++
@@ -1102,8 +1107,7 @@ class Parser:
                 }
             self->eat_newline()
         elif self->tokens->is_keyword("global"):
-            if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
-                fail(self->tokens->location, "global variables must be defined on top level, not e.g. inside a function")
+            self->check_top_level("global variables")
             result = AstStatement{
                 location = (self->tokens++)->location,
                 kind = AstStatementKind.GlobalVariableDef,
@@ -1224,10 +1228,8 @@ class Parser:
         return AstFunctionOrMethod{ast_signature = signature, body = body}
 
     def parse_class(self) -> AstClassDef:
-        if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
-            fail(self->tokens->location, "classes must be defined on top level, not e.g. inside a function")
-
         assert self->tokens->is_keyword("class")
+        self->check_top_level("classes")
         self->tokens++
 
         if self->tokens->kind != TokenKind.Name:
@@ -1271,10 +1273,8 @@ class Parser:
         return result
 
     def parse_enum(self) -> AstEnumDef:
-        if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
-            fail(self->tokens->location, "enums must be defined on top level, not e.g. inside a function")
-
         assert self->tokens->is_keyword("enum")
+        self->check_top_level("enums")
         self->tokens++
 
         if self->tokens->kind != TokenKind.Name:
