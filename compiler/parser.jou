@@ -189,7 +189,8 @@ def check_statement_not_misplaced(
             | AstStatementKind.MethodDef  # created only inside class
             | AstStatementKind.FunctionDeclare  # checked when creating
             | AstStatementKind.GlobalVariableDeclare  # checked when creating
-            | AstStatementKind.Import
+            | AstStatementKind.Import  # checked when creating
+            | AstStatementKind.ClassUnion  # checked when creating
         ):
             # It is not possible to put these to wrong place
             pass
@@ -218,10 +219,6 @@ def check_statement_not_misplaced(
                     fail(location, "you must put your code inside a method")
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     pass
-
-        case AstStatementKind.ClassUnion:
-            if what_are_we_parsing != WhatAreWeParsing.ClassBody:
-                fail(location, "'union' can only be used inside a class")
 
         case AstStatementKind.Class:
             match what_are_we_parsing:
@@ -1272,6 +1269,9 @@ class Parser:
         return AstClassDef{name = name, body = bodyptr}
 
     def parse_union(self) -> AstUnionFields:
+        if self->what_are_we_parsing != WhatAreWeParsing.ClassBody:
+            fail(self->tokens->location, "'union' can only be used inside a class")
+
         assert self->tokens->is_keyword("union")
         union_keyword_location = (self->tokens++)->location
         self->parse_start_of_body()
