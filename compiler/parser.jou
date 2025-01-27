@@ -170,16 +170,6 @@ def check_statement_not_misplaced(
 ) -> None:
     msg: byte[500]
 
-    match what_are_we_parsing:
-        case WhatAreWeParsing.TopLevel:
-            inside_xyz = "<internal error>"  # hopefully nobody sees this....
-        case WhatAreWeParsing.ClassBody:
-            inside_xyz = "inside a class"
-        case WhatAreWeParsing.FunctionBody:
-            inside_xyz = "inside a function"
-        case WhatAreWeParsing.MethodBody:
-            inside_xyz = "inside a method"
-
     match stmt_kind:
         case (
             AstStatementKind.If  # allowed everywhere
@@ -189,6 +179,7 @@ def check_statement_not_misplaced(
             | AstStatementKind.MethodDef  # created only inside class
             | AstStatementKind.FunctionDeclare  # checked when creating
             | AstStatementKind.GlobalVariableDeclare  # checked when creating
+            | AstStatementKind.GlobalVariableDef  # checked when creating
             | AstStatementKind.Import  # checked when creating
             | AstStatementKind.ClassUnion  # checked when creating
             | AstStatementKind.Class  # checked when creating
@@ -221,11 +212,6 @@ def check_statement_not_misplaced(
                     fail(location, "you must put your code inside a method")
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     pass
-
-        case AstStatementKind.GlobalVariableDef:
-            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
-                sprintf(msg, "global variables cannot be defined %s", inside_xyz)
-                fail(location, msg)
 
 
 class Parser:
@@ -1116,6 +1102,8 @@ class Parser:
                 }
             self->eat_newline()
         elif self->tokens->is_keyword("global"):
+            if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
+                fail(self->tokens->location, "global variables must be defined on top level, not e.g. inside a function")
             result = AstStatement{
                 location = (self->tokens++)->location,
                 kind = AstStatementKind.GlobalVariableDef,
