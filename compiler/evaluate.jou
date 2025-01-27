@@ -25,7 +25,7 @@ def get_special_constant(name: byte*) -> int:
             return -1
 
 
-def evaluate_condition(expr: AstExpression*) -> int:
+def evaluate_condition(expr: AstExpression*) -> int:  # 1=true 0=false -1=error
     match expr->kind:
         case AstExpressionKind.GetVariable:
             return get_special_constant(expr->varname)
@@ -34,7 +34,7 @@ def evaluate_condition(expr: AstExpression*) -> int:
                 case 1:
                     return evaluate_condition(&expr->operands[1])
                 case 0:
-                    return 0  # left side false, result false so don't evaluate right side
+                    return 0  # left side false, don't evaluate right side
                 case -1:
                     return -1
                 case _:
@@ -42,7 +42,7 @@ def evaluate_condition(expr: AstExpression*) -> int:
         case AstExpressionKind.Or:
             match evaluate_condition(&expr->operands[0]):
                 case 1:
-                    return 1  # left side true, result true so don't evaluate right side
+                    return 1  # left side true, don't evaluate right side
                 case 0:
                     return evaluate_condition(&expr->operands[1])
                 case -1:
