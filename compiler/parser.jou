@@ -1150,17 +1150,6 @@ class Parser:
             if t->kind == TokenKind.Decorator:
                 decorate(&result, t->short_string, t->location)
 
-        # Inside a class, functions become methods, and variable declarations become fields.
-        if (
-            self->what_are_we_parsing == WhatAreWeParsing.ClassBody
-            and result.kind == AstStatementKind.DeclareLocalVar
-        ):
-            result.kind = AstStatementKind.ClassField
-            assert &result.var_declaration == &result.class_field  # no need to do anything to these
-            if result.class_field.value != NULL:
-                fail(result.class_field.value->location, "class fields cannot have default values")
-
-        check_statement_not_misplaced(result.kind, self->what_are_we_parsing, result.location)
         return result
 
     def parse_start_of_body(self) -> None:
