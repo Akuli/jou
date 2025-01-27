@@ -220,6 +220,123 @@ enum WhatAreWeParsing:
     MethodBody
 
 
+# Errors if e.g. trying to define a class inside a function (other way around it would become a method)
+def check_statement_not_misplaced(
+    stmt_kind: AstStatementKind,
+    what_are_we_parsing: WhatAreWeParsing,
+    location: Location,
+) -> None:
+    msg: byte[500]
+
+    match what_are_we_parsing:
+        case WhatAreWeParsing.TopLevel:
+            inside_xyz = "<internal error>"  # hopefully nobody sees this....
+        case WhatAreWeParsing.ClassBody:
+            inside_xyz = "inside a class"
+        case WhatAreWeParsing.FunctionBody:
+            inside_xyz = "inside a function"
+        case WhatAreWeParsing.MethodBody:
+            inside_xyz = "inside a method"
+
+    match stmt_kind:
+        case AstStatementKind.If:
+            # allowed everywhere, so you can do e.g. "if WINDOWS:" however you want
+            pass
+
+        case AstStatementKind.Import:
+            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
+                fail(location, "imports must be in the beginning of the file")
+
+        case (
+            AstStatementKind.ExpressionStatement
+            | AstStatementKind.Assert
+            | AstStatementKind.Pass
+            | AstStatementKind.Return
+            | AstStatementKind.Match
+            | AstStatementKind.WhileLoop
+            | AstStatementKind.ForLoop
+            | AstStatementKind.Break
+            | AstStatementKind.Continue
+            | AstStatementKind.DeclareLocalVar
+            | AstStatementKind.Assign
+            | AstStatementKind.InPlaceAdd
+            | AstStatementKind.InPlaceSub
+            | AstStatementKind.InPlaceMul
+            | AstStatementKind.InPlaceDiv
+            | AstStatementKind.InPlaceMod
+        ):
+            match what_are_we_parsing:
+                case WhatAreWeParsing.TopLevel:
+                    # User is probably new to Jou, don't say anything about classes/methods
+                    # TODO: test this (or tested already?)
+                    fail(location, "you must put your code inside a function")
+                case WhatAreWeParsing.ClassBody:
+                    # TODO: test this (or tested already?)
+                    fail(location, "you must put your code inside a method")
+                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
+                    pass
+
+        case AstStatementKind.ClassField | AstStatementKind.MethodDef:
+            # Currently it is not possible to misplace these, the same syntax
+            # is interpreted differently if they're not in a class
+            assert what_are_we_parsing == WhatAreWeParsing.ClassBody
+
+        case AstStatementKind.ClassUnion:
+            if what_are_we_parsing != WhatAreWeParsing.ClassBody:
+                # TODO: test this
+                fail(location, "'union' can only be used inside a class")
+
+        case AstStatementKind.FunctionDef:
+            match what_are_we_parsing:
+                case WhatAreWeParsing.TopLevel:
+                    pass
+                case WhatAreWeParsing.ClassBody:
+                    assert False  # should have been turned into a method already
+                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
+                    # TODO: test this
+                    fail(location, "nested functions are not supported")
+
+        case AstStatementKind.FunctionDeclare:
+            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
+                # TODO: test function declare inside class
+                # TODO: test function declare inside function
+                # TODO: test function declare inside method
+                sprintf(msg, "'declare' cannot be used %s", inside_xyz)
+                fail(location, msg)
+
+        case AstStatementKind.Class:
+            match what_are_we_parsing:
+                case WhatAreWeParsing.TopLevel:
+                    pass
+                case WhatAreWeParsing.ClassBody:
+                    # TODO: test this
+                    fail(location, "classes cannot be nested")
+                case _:
+                    # TODO: test class inside function
+                    # TODO: test class inside method
+                    sprintf(msg, "classes cannot be defined %s", inside_xyz)
+                    fail(location, msg)
+
+        case AstStatementKind.Enum:
+            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
+                # TODO: test enum inside function
+                # TODO: test enum inside method
+                # TODO: test enum inside class
+                sprintf(msg, "enums cannot be defined %s", inside_xyz)
+                fail(location, msg)
+
+        case AstStatementKind.GlobalVariableDeclare | AstStatementKind.GlobalVariableDef:
+            if what_are_we_parsing != WhatAreWeParsing.TopLevel:
+                # TODO: test global variable declare inside function
+                # TODO: test global variable declare inside method
+                # TODO: test global variable declare inside class
+                # TODO: test global variable definition inside function
+                # TODO: test global variable definition inside method
+                # TODO: test global variable definition inside class
+                sprintf(msg, "global variables cannot be defined %s", inside_xyz)
+                fail(location, msg)
+
+
 class Parser:
     tokens: Token*
     stdlib_path: byte*
@@ -1172,6 +1289,7 @@ class Parser:
             if result.class_field.value != NULL:
                 fail(result.class_field.value->location, "class fields cannot have default values")
 
+        check_statement_not_misplaced(result.kind, self->what_are_we_parsing, result.location)
         return result
 
     def parse_start_of_body(self) -> None:
