@@ -19,6 +19,7 @@ set -e -o pipefail
 commits=(
     1c7ce74933aea8a8862fd1d4409735b9fb7a1d7e  # last commit on main that contains the compiler written in C
     b339b1b300ba98a2245b493a58dd7fab4c465020  # "match ... with ..." syntax
+    874d1978044a080173fcdcc4e92736136c97dd61  # "match some_integer:" support
 )
 
 for commit in ${commits[@]}; do

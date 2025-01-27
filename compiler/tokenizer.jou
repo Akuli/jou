@@ -138,13 +138,8 @@ def is_valid_float(str: byte[100]) -> bool:
     return is_valid_double(str) or strspn(str, "0123456789") == strlen(str)
 
 
-# TODO: should not be needed
-def bytecmp(a: byte, b: byte) -> int:
-    return (a as int) - (b as int)
-
-
 def flip_paren(c: byte) -> byte:
-    match c with bytecmp:
+    match c:
         case '(':
             return ')'
         case ')':
@@ -252,7 +247,7 @@ class Tokenizer:
         level = 0
         while True:
             c = self->read_byte()
-            match c with bytecmp:
+            match c:
                 case '\0':
                     # End of file. Do not validate that indentation is a
                     # multiple of 4 spaces. Add a trailing newline implicitly
@@ -289,7 +284,7 @@ class Tokenizer:
 
         if c == '\\':
             after_backslash = self->read_byte()
-            match after_backslash with bytecmp:
+            match after_backslash:
                 case '\0':
                     fail(self->location, "missing ' to end the byte literal")
                 case '\n':
@@ -325,7 +320,7 @@ class Tokenizer:
             # If there's another single quote later on the same line, suggest using double quotes.
             location = self->location
             while True:
-                match self->read_byte() with bytecmp:
+                match self->read_byte():
                     case '\0' | '\n':
                         fail(location, "missing ' to end the byte literal")
                     case '\'':
@@ -341,7 +336,7 @@ class Tokenizer:
 
         while True:
             c = self->read_byte()
-            match c with bytecmp:
+            match c:
                 case '"':
                     break
                 case '\n':
@@ -352,7 +347,7 @@ class Tokenizer:
                 case '\\':
                     # \n means newline, for example
                     after_backslash = self->read_byte()
-                    match after_backslash with bytecmp:
+                    match after_backslash:
                         case '\0':
                             fail(self->location, "missing \" to end the string")
                         case 'n':
@@ -471,7 +466,7 @@ class Tokenizer:
         while True:
             token = Token{location = self->location}
             b = self->read_byte()
-            match b with bytecmp:
+            match b:
                 case ' ':
                     continue
                 case '#':
