@@ -814,8 +814,13 @@ class Parser:
                     result.var_declaration = self->parse_name_type_value(NULL)
         else:
             expr = self->parse_expression()
-            self->check_function_or_method()
             result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(self->tokens)
+            if (
+                result.kind == AstStatementKind.Assign
+                and self->what_are_we_parsing == WhatAreWeParsing.TopLevel
+            ):
+                # Would fail anyway, but let's produce a better error message
+                fail(expr.location, "missing 'global' keyword when defining global variable")
             if result.kind == AstStatementKind.ExpressionStatement:
                 if not expr.is_valid_as_a_statement():
                     fail(expr.location, "not a valid statement")
@@ -826,6 +831,7 @@ class Parser:
                 if self->tokens->is_operator("="):
                     # Would fail elsewhere anyway, but let's make the error message clear
                     fail(self->tokens->location, "only one variable can be assigned at a time")
+            self->check_function_or_method()
 
         return result
 
