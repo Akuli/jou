@@ -12,7 +12,13 @@ export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
 function usage() {
-    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
+    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [--lf] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
+    echo ""
+    echo "  --valgrind       Run Jou compiler and compiled executable with valgrind"
+    echo "  --verbose        Print more output (not same as passing --verbose to Jou)"
+    echo "  --dont-run-make  Don't attempt to compile the Jou compiler"
+    echo "  --lf             Last Failed. Skip tests that succeeded last time"
+    echo "  --jou-flags      Command-line arguments passed to the Jou compiler"
     echo ""
     echo "If a FILE_FILTER is given, runs only test files whose path contains it."
     echo "For example, you can use \"$0 class\" to run class-related tests."
@@ -22,6 +28,7 @@ function usage() {
 valgrind=no
 verbose=no
 run_make=yes
+last_failed=no
 jou_flags=""
 file_filter=""
 
@@ -37,6 +44,10 @@ while [ $# != 0 ]; do
             ;;
         --dont-run-make)
             run_make=no
+            shift
+            ;;
+        --lf)
+            last_failed=yes
             shift
             ;;
         --jou-flags)
@@ -68,8 +79,9 @@ if [ $valgrind = yes ]; then
     esac
 fi
 
-rm -rf tmp/tests
-mkdir -p tmp/tests
+mkdir -p tmp/tests tmp/tests_prev
+rm -rf tmp/tests_prev/*
+mv tmp/tests/* tmp/tests_prev/
 
 joudir="$(pwd)"
 if [[ "$OS" =~ Windows ]]; then
@@ -171,6 +183,12 @@ function should_skip()
 {
     local joufile="$1"
     local correct_exit_code="$2"
+    local diffname="$3"
+
+    # If --lf is given, skip all files that were previously ok
+    if [ $last_failed == yes ] && grep -q '^ok$' tmp/tests_prev/$diffname 2>/dev/null; then
+        return 0
+    fi
 
     # When optimizations are enabled, skip tests that are supposed to crash.
     # Running them would be unpredictable by design.
@@ -198,7 +216,7 @@ function run_test()
 {
     local joufile="$1"
     local correct_exit_code="$2"
-    local counter="$3"
+    local diffname="$3"
 
     local command="${jouexe#./}"
 
@@ -223,11 +241,7 @@ function run_test()
     fi
 
     show_run "$command"
-
-    local diffpath
-    diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
-
-    printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
+    printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > tmp/tests/$diffname
 
     if $diff --text -u <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
@@ -237,9 +251,9 @@ function run_test()
             ulimit -v 500000 2>/dev/null
         fi
         bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r'
-    ) &>> $diffpath; then
+    ) &>> tmp/tests/$diffname; then
         show_ok "$command"
-        rm -f $diffpath
+        echo ok > tmp/tests/$diffname
     else
         show_fail "$command"
         # Do not delete diff file. It will be displayed at end of test run.
@@ -262,7 +276,8 @@ for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou tests/s
     esac
     counter=$((counter + 1))
 
-    if should_skip $joufile $correct_exit_code; then
+    diffname=diff$(printf "%04d" $counter).txt  # consistent alphabetical order
+    if should_skip $joufile $correct_exit_code $diffname; then
         show_skip $joufile
         skipped=$((skipped + 1))
         continue
@@ -270,7 +285,7 @@ for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou tests/s
 
     # Run 2 tests in parallel.
     while [ $(jobs -p | wc -l) -ge 2 ]; do wait -n; done
-    run_test $joufile $correct_exit_code $counter &
+    run_test $joufile $correct_exit_code $diffname &
 done
 wait
 
@@ -282,12 +297,14 @@ fi
 echo ""
 echo ""
 
-failed=$( (ls -1 tmp/tests/diff*.txt 2>/dev/null || true) | wc -l)
-succeeded=$((counter - failed - skipped))
+succeeded=$( (grep '^ok$' tmp/tests/* || true) | wc -l)
+#failed=$( 
+#for file in tmp/tests/*; do grep -q '^ok$' $file || ((failed++)); done
+echo "suc$succeeded fail$failed"
 
 if [ $failed != 0 ]; then
     echo "------- FAILURES -------"
-    cat tmp/tests/diff*.txt
+    cat tmp/tests/diff*.txt | grep -v '^ok$'
 fi
 
 echo -ne "${GREEN}${succeeded} succeeded"
