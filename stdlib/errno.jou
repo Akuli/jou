@@ -9,35 +9,30 @@ elif NETBSD:
 else:
     declare __errno_location() -> int*
 
-# TODO: Ideally we would be able to place the if statements inside the functions.
-if WINDOWS:
-    @public
-    def set_errno(value: int) -> None:
+
+@public
+def set_errno(value: int) -> None:
+    if WINDOWS:
         *_errno() = value
-    @public
-    def get_errno() -> int:
-        return *_errno()
-elif MACOS:
-    @public
-    def set_errno(value: int) -> None:
+    elif MACOS:
         *__error() = value
-    @public
-    def get_errno() -> int:
-        return *__error()
-elif NETBSD:
-    @public
-    def set_errno(value: int) -> None:
+    elif NETBSD:
         *__errno() = value
-    @public
-    def get_errno() -> int:
-        return *__errno()
-else:
-    @public
-    def set_errno(value: int) -> None:
+    else:
         *__errno_location() = value
-    @public
-    def get_errno() -> int:
+
+
+@public
+def get_errno() -> int:
+    if WINDOWS:
+        return *_errno()
+    elif MACOS:
+        return *__error()
+    elif NETBSD:
+        return *__errno()
+    else:
         return *__errno_location()
+
 
 # Convert an error code into a string. Do not modify or free() the returned string.
 @public
