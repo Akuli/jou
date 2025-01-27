@@ -100,9 +100,9 @@ def evaluate_if_statements_in_body(body: AstBody*, must_succeed: bool) -> None:
         match body->statements[i].kind:
             case AstStatementKind.If:
                 ptr = choose_if_elif_branch(&body->statements[i].if_statement)
+                if ptr == NULL and must_succeed:
+                    fail(body->statements[i].location, "cannot evaluate condition at compile-time")
                 if ptr != NULL:
-                    if must_succeed:
-                        fail(body->statements[i].location, "cannot evaluate condition at compile-time")
                     replacement = *ptr
                     *ptr = AstBody{}  # avoid double-free
                     replace(body, i, replacement)
