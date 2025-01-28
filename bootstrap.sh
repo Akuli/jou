@@ -74,12 +74,11 @@ for i in ${!commits[@]}; do
     show_message "Checking out and compiling commit ${commit:0:10} ($((i+1))/${#commits[@]})"
 
     folder=$(folder_of_commit $i)
-    rm -rf $folder >/dev/null
+    rm -rf $folder
     mkdir -vp $folder
 
-    # If you know a better way to checkout a commit into a folder, let me know.
-    git archive --format=zip --output $folder/repo.zip $commit
-    (cd $folder && unzip -q repo.zip && rm repo.zip)
+    # This seems to be the best way to checkout a commit into a folder.
+    git archive --format=tar $commit | (cd $folder && tar xf -)
 
     if [[ "$OS" =~ Windows ]]; then
         cp -r libs mingw64 $folder
