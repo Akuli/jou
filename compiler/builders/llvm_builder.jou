@@ -232,9 +232,11 @@ class LBuilder:
     alloca_block: LLVMBasicBlock*  # local variables created here before code of function runs
     code_start_block: LLVMBasicBlock*
     current_block: LLVMBasicBlock*
+    returns_a_value: bool
 
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self->llvm_func = declare_in_llvm(sig, self->llvm_module)
+        self->returns_a_value = sig->returntype != NULL
 
         self->alloca_block = LLVMAppendBasicBlock(self->llvm_func, "alloca")
         self->code_start_block = LLVMAppendBasicBlock(self->llvm_func, "code_start")
@@ -542,7 +544,11 @@ class LBuilder:
 
     def ret(self, value: LBuilderValue*) -> None:
         if value == NULL:
-            LLVMBuildRetVoid(self->llvm_builder)
+            if self->returns_a_value:
+                # Implicit "return" at the end of a function that should return a value
+                LLVMBuildUnreachable(self->llvm_builder)
+            else:
+                LLVMBuildRetVoid(self->llvm_builder)
         else:
             LLVMBuildRet(self->llvm_builder, value->llvm_value)
 

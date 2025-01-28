@@ -57,10 +57,7 @@ class AstToBuilder:
             self->builder->call(&jou_startup_sig, NULL, 0)
 
     def end_function(self) -> None:
-        if self->returns_a_value:
-            self->builder->unreachable()
-        else:
-            self->builder->ret(NULL)  # implicit "return" when falling off end of function
+        self->builder->ret(NULL)  # implicit "return" when falling off end of function
         self->builder->end_function()
 
     def local_var_exists(self, name: byte*) -> bool:
