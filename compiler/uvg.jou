@@ -4,17 +4,17 @@ import "stdlib/mem.jou"
 
 
 enum UvgInstructionKind:
-    Set                 # value = something_doesnt_matter_what
-    Use                 # do_something(value)
-    SetToAddressOf      # set first value to address of second value (first = &second)
-    SetValueOfPointer   # *value = something_doesnt_matter_what
+    UseX                # something = x
+    SetX                # x = something
+    UseDerefX           # something = *x
+    SetDerefX           # *x = something
+    SetXToAddressOfY    # x = &y
 
 class UvgInstruction:
     #location: Location
     kind: UvgInstructionKind
-    union:
-        value_id: int       # Set, Use, SetValueOfPointer
-        value_ids: int[2]   # SetToAddressOf
+    x: int
+    y: int
 
 
 class UvgBranch:
@@ -87,19 +87,16 @@ class Uvg:
                 #printf("    [line %d]   ", ins->location.lineno)
                 printf("    [line ???]   ")
                 match ins->kind:
-                    case UvgInstructionKind.Set:
-                        printf("set %s", self->varnames[ins->value_id])
-                    case UvgInstructionKind.Use:
-                        printf("use %s", self->varnames[ins->value_id])
-                    case UvgInstructionKind.SetToAddressOf:
-                        printf(
-                            "set %s to address of %s",
-                            self->varnames[ins->value_ids[0]],
-                            self->varnames[ins->value_ids[1]],
-                        )
-                    case UvgInstructionKind.SetValueOfPointer:
-                        printf("set value of pointer %s", self->varnames[ins->value_id])
-                printf("\n")
+                    case UvgInstructionKind.UseX:
+                        printf("use %s\n", self->varnames[ins->x])
+                    case UvgInstructionKind.SetX:
+                        printf("set %s\n", self->varnames[ins->x])
+                    case UvgInstructionKind.UseDerefX:
+                        printf("use *%s\n", self->varnames[ins->x])
+                    case UvgInstructionKind.SetDerefX:
+                        printf("set *%s\n", self->varnames[ins->x])
+                    case UvgInstructionKind.SetXToAddressOfY:
+                        printf("set %s to &%s\n", self->varnames[ins->x], self->varnames[ins->y])
 
             printf("    ")
             match b->terminator.kind:
@@ -132,7 +129,7 @@ class Uvg:
 
     # Name should point to something within AST, it won't be free()¨d.
     # Name may be NULL to create a variable that represents an anonymous value.
-    def add_value_id(self, varname: byte*) -> int:
+    def add_value(self, varname: byte*) -> int:
         if varname != NULL:
             # Must not exist yet
             for i = 0; i < self->n_values; i++:
@@ -155,4 +152,4 @@ class Uvg:
         for i = 0; i < self->n_values; i++:
             if strcmp(self->varnames[i], varname) == 0:
                 return i
-        return self->add_value_id(varname)
+        return self->add_value(varname)

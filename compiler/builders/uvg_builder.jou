@@ -36,137 +36,141 @@ class UBuilder:
         assert b->instructions != NULL
         b->instructions[b->ninstructions++] = ins
 
-    def set(self, value_id: int) -> None:
-        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Set, value_id = value_id})
+    def use(self, x: int) -> None:
+        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.UseX, x = x})
 
-    def use(self, value_id: int) -> None:
-        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Use, value_id = value_id})
+    def set(self, x: int) -> None:
+        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetX, x = x})
 
-    def set_to_address_of(self, dest: int, address_of_what: int) -> None:
-        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetToAddressOf, value_ids = [dest, address_of_what]})
+    def use_deref(self, x: int) -> None:
+        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.UseDerefX, x = x})
 
-    def set_value_of_pointer(self, ptr: int) -> None:
-        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetValueOfPointer, value_id = ptr})
+    def set_deref(self, x: int) -> None:
+        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetDerefX, x = x})
 
-    def new_value(self, initialize: bool) -> int:
-        value_id = self->uvg.add_value_id(NULL)
-        if initialize:
-            self->set(value_id)
-        return value_id
+    def set_x_to_address_of_y(self, x: int, y: int) -> None:
+        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetXToAddressOfY, x = x, y = y})
+
+    def new_initialized_value(self) -> int:
+        result = self->uvg.add_value(NULL)
+        self->set(result)
+        return result
 
     def stack_alloc(self, t: Type*, varname: byte*) -> int:
-        # varname may be NULL
-        return self->uvg.add_value_id(varname)
+        underlying_value = self->uvg.add_value(varname)
+        ptr = self->uvg.add_value(NULL)
+        self->set_x_to_address_of_y(ptr, underlying_value)
+        return ptr
 
     def set_ptr(self, ptr: int, value: int) -> None:
         self->use(value)
-        self->set_value_of_pointer(ptr)
+        self->set_deref(ptr)
 
     def dereference(self, ptr: int) -> int:
-        self->use(ptr)
-        return self->new_value(True)
+        self->use_deref(ptr)
+        return self->new_initialized_value()
 
     def indexed_pointer(self, ptr: int, index: int) -> int:
         self->use(ptr)
         self->use(index)
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     def class_field_pointer(self, ptr: int, field_name: byte*) -> int:
         self->use(ptr)
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     def global_var_ptr(self, name: byte*, var_type: Type*) -> int:
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     def get_argument(self, i: int, argtype: Type*) -> int:
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     def call(self, sig: Signature*, args: int*, nargs: int) -> int:
         for i = 0; i < nargs; i++:
             self->use(args[i])
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     def string_array(self, s: byte*, array_size: int) -> int:
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     def string(self, s: byte*) -> int:
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     def boolean(self, b: bool) -> int:
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     def integer(self, t: Type*, value: long) -> int:
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     def float_or_double(self, t: Type*, string: byte*) -> int:
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     def zero_of_type(self, t: Type*) -> int:
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     def enum_member(self, t: Type*, name: byte*) -> int:
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     # a + b
     def add(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     # a - b
     def sub(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     # a * b
     def mul(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     # a / b
     def div(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     # a % b
     def mod(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     # a == b
     def eq(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     # a < b
     def lt(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     # not value
     def not_(self, value: int) -> int:
         self->use(value)
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> int:
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: int) -> None:
         self->use(ptr)
-        self->set_value_of_pointer(ptr)
+        self->set_deref(ptr)
 
     # value as to
     def cast(self, value: int, to: Type*) -> int:
         self->use(value)
-        return self->new_value(True)
+        return self->new_initialized_value()
 
     # Blocks are used to implement e.g. if statements and loops.
     def add_block(self) -> UvgBlock*:
