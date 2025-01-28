@@ -859,6 +859,9 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
         case AstExpressionKind.String:
             # Use array string if type hint given, e.g. foo: byte[100] = "hello"
             if type_hint != NULL and type_hint->kind == TypeKind.Array and type_hint->array.item_type == byteType:
+                if strlen(expr->string) >= type_hint->array.len:
+                    snprintf(msg, sizeof(msg), "a string of %lld bytes (including '\\0') does not fit into %s", strlen(expr->string) + 1, type_hint->name)
+                    fail(expr->location, msg)
                 result = type_hint
             else:
                 result = byteType->pointer_type()
@@ -1042,10 +1045,20 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             result = check_increment_or_decrement(state, expr)
 
         case AstExpressionKind.As:
-            # TODO: test this: sizeof("foo" as byte[100])
             result = type_from_ast(state->file_types, &expr->as_->type)
             typecheck_expression_not_void(state, &expr->as_->value, result)
-            do_explicit_cast(state->fom_types, &expr->as_->value, result, expr->location)
+
+            # Special case: "foo" as byte[100] is not really a cast. It sets
+            # the type of the string through a type hint and it's already
+            # byte[100]. If we try to cast it anyway, there will be a warning
+            # about "unnecessary" cast.
+            special_case = (
+                expr->as_->value.kind == AstExpressionKind.String
+                and result->kind == TypeKind.Array
+                and result->array.item_type == byteType
+            )
+            if not special_case:
+                do_explicit_cast(state->fom_types, &expr->as_->value, result, expr->location)
 
         case _:
             printf("%d\n", expr->kind as int)
