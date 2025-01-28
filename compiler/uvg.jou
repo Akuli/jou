@@ -1,103 +1,20 @@
-# Undefined Value Graphs are used to determine which values may be undefined
-# when the code runs.
-#
-# For example, consider the following Jou code (5 lines):
-#
-#    def foo(a: int) -> int:
-#        x = a + 6
-#        y: int
-#        z = y
-#        printf("%d %d\n", x, y, z)
-#
-# For this code, we create the following UVG:
-#
-#    block 0 (start):
-#        [line 1]   set a
-#        [line 2]   use a
-#        [line 2]   set $1
-#        [line 2]   use $1
-#        [line 2]   set $2
-#        [line 2]   use $2
-#        [line 2]   set x
-#        [line 4]   use y
-#        [line 4]   set z
-#        [line 5]   set $3
-#        [line 5]   use $3
-#        [line 5]   use x
-#        [line 5]   use y
-#        [line 5]   use z
-#        [line 5]   set $4
-#        [line 5]   use return
-#        Return from function.
-#
-# Here:
-#   - $1 is an anonymous value that represents the number 6
-#   - $2 is an anonymous value that represents the result of a + 6
-#   - "use a", "use $1", "set $2" comes from computing a + 6
-#   - $3 is an anonymous value that represents the string "%d\n"
-#   - $4 is an anonymous value that represents the return value of printf(...)
-#   - "return" in "use return" represents the return value of the function
-#
-# On lines 4 and 5, we have "use y" even though there is no "set y". On line 5
-# we also have "use $0". This means that we can emit the following warnings:
-#
-#    compiler warning for file "foo.jou", line 4: the value of 'y' is undefined
-#    compiler warning for file "foo.jou", line 5: the value of 'y' is undefined
-#    compiler error in file "foo.jou", line 5: function 'foo' must return a value, because it is defined with '-> int'
-#
-# This gets more complicated when branching and loops are involved. For example,
-# consider the following:
-#
-#    def bar(cond: bool) -> None:
-#        x: int
-#        if cond:
-#            x = 7
-#        printf("%d\n", x)
-#
-# We handle this very similarly to LLVM IR. Here's the UVG for bar():
-#
-#    block 0 (start):
-#        [line 1]   set cond
-#        [line 3]   use cond
-#        If cond is True, jump to block 1. Otherwise jump to block 2.
-#
-#    block 1:
-#        [line 4]   set $1
-#        [line 4]   use $1
-#        [line 4]   set x
-#        Jump to block 3.
-#
-#    block 2:
-#        Jump to block 3.
-#
-#    block 3:
-#        [line 5]   set $2
-#        [line 5]   use $2
-#        [line 5]   use x
-#        [line 5]   set $3
-#        Return from function.
-#
-# Here:
-#   - $1 is an anonymous value that represents 7
-#   - $2 is an anonymous value that represents "%d\n"
-#   - $3 is an anonymous value that represents the return value of printf(...)
-#   - $0 does not appear at all, because this is a '-> None' function (no return value)
-#   - block 2 is basically empty, because it represents the "else" which is missing
-
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 
 enum UvgInstructionKind:
-    Set
-    Use
-    UseAddress  # this means that &foo is used, so don't even try to figure out when and how foo changes
+    Set                 # value = something_doesnt_matter_what
+    Use                 # do_something(value)
+    SetToAddressOf      # set first value to address of second value (first = &second)
+    SetValueOfPointer   # *value = something_doesnt_matter_what
 
 class UvgInstruction:
     #location: Location
     kind: UvgInstructionKind
-    value_id: int
+    union:
+        value_id: int       # Set, Use, SetValueOfPointer
+        value_ids: int[2]   # SetToAddressOf
 
 
 class UvgBranch:
@@ -132,7 +49,6 @@ class UvgBlock:
 # We build one UVG for each function.
 class Uvg:
     name: byte[200]
-    returns_a_value: bool
 
     # Each block is allocated separately so that we can pass them around as
     # pointers, and they don't become invalid when adding more blocks.
@@ -142,6 +58,13 @@ class Uvg:
     # Each variable name points to something within the AST. We won't free() them.
     varnames: byte**
     n_values: int
+
+    def free(self) -> None:
+        for i = 0; i < self->nblocks; i++:
+            self->blocks[i]->free()
+            free(self->blocks[i])
+        free(self->blocks)
+        free(self->varnames)
 
     def index_of_block(self, b: UvgBlock*) -> int:
         for i = 0; i < self->nblocks; i++:
@@ -174,13 +97,19 @@ class Uvg:
                 printf("    [line ???]   ")
                 match ins->kind:
                     case UvgInstructionKind.Set:
-                        printf("set")
+                        printf("set ")
+                        self->print_value_id(ins->value_id)
                     case UvgInstructionKind.Use:
-                        printf("use")
-                    case UvgInstructionKind.UseAddress:
-                        printf("use address of")
-                printf(" ")
-                self->print_value_id(ins->value_id)
+                        printf("use ")
+                        self->print_value_id(ins->value_id)
+                    case UvgInstructionKind.SetToAddressOf:
+                        printf("set ")
+                        self->print_value_id(ins->value_ids[0])
+                        printf(" to address of ")
+                        self->print_value_id(ins->value_ids[1])
+                    case UvgInstructionKind.SetValueOfPointer:
+                        printf("set value of pointer ")
+                        self->print_value_id(ins->value_id)
                 printf("\n")
 
             printf("    ")

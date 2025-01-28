@@ -1,111 +1,179 @@
-import "../uvg.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+import "../ast.jou"
 import "../types.jou"
+import "../uvg.jou"
+import "./either_builder.jou"
+import "./ast_to_builder.jou"
 
 
 # Not named LLVMBuilder because that is the name of LLVM's thing.
 class UBuilder:
+    uvg: Uvg
+    current_block: UvgBlock*
+
     def begin_function(self, sig: Signature*, public: bool) -> None:
-        assert False  # TODO
+        self_class = sig->get_self_class()
+        if self_class == NULL:
+            # function
+            assert sizeof(self->uvg.name) >= sizeof(sig->name)
+            strcpy(self->uvg.name, sig->name)
+        else:
+            # method
+            snprintf(self->uvg.name, sizeof self->uvg.name, "%s.%s", self_class->name, sig->name)
+
+        self->current_block = self->uvg.add_block()
 
     def end_function(self) -> None:
-        assert False  # TODO
+        pass
+
+    def add_instruction(self, ins: UvgInstruction) -> None:
+        b = self->current_block
+        assert b != NULL
+
+        b->instructions = realloc(b->instructions, sizeof(b->instructions[0]) * (b->ninstructions + 1))
+        assert b->instructions != NULL
+        b->instructions[b->ninstructions++] = ins
+
+    def set(self, value_id: int) -> None:
+        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Set, value_id = value_id})
+
+    def use(self, value_id: int) -> None:
+        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Use, value_id = value_id})
+
+    def set_to_address_of(self, dest: int, address_of_what: int) -> None:
+        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetToAddressOf, value_ids = [dest, address_of_what]})
+
+    def set_value_of_pointer(self, ptr: int) -> None:
+        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetValueOfPointer, value_id = ptr})
+
+    def new_value(self, initialize: bool) -> int:
+        value_id = self->uvg.add_value_id(NULL)
+        if initialize:
+            self->set(value_id)
+        return value_id
 
     def stack_alloc(self, t: Type*) -> int:
-        assert False  # TODO
+        return self->new_value(False)
 
     def set_ptr(self, ptr: int, value: int) -> None:
-        assert False  # TODO
+        self->use(value)
+        self->set_value_of_pointer(ptr)
 
     def dereference(self, ptr: int) -> int:
-        assert False  # TODO
+        self->use(ptr)
+        return self->new_value(True)
 
     def indexed_pointer(self, ptr: int, index: int) -> int:
-        assert False  # TODO
+        self->use(ptr)
+        self->use(index)
+        return self->new_value(True)
 
     def class_field_pointer(self, ptr: int, field_name: byte*) -> int:
-        assert False  # TODO
+        self->use(ptr)
+        return self->new_value(True)
 
     def global_var_ptr(self, name: byte*, var_type: Type*) -> int:
-        assert False  # TODO
+        return self->new_value(True)
 
     def get_argument(self, i: int, argtype: Type*) -> int:
-        assert False  # TODO
+        return self->new_value(True)
 
     def call(self, sig: Signature*, args: int*, nargs: int) -> int:
-        assert False  # TODO
+        for i = 0; i < nargs; i++:
+            self->use(args[i])
+        return self->new_value(True)
 
     def string_array(self, s: byte*, array_size: int) -> int:
-        assert False  # TODO
+        return self->new_value(True)
 
     def string(self, s: byte*) -> int:
-        assert False  # TODO
+        return self->new_value(True)
 
     def boolean(self, b: bool) -> int:
-        assert False  # TODO
+        return self->new_value(True)
 
     def integer(self, t: Type*, value: long) -> int:
-        assert False  # TODO
+        return self->new_value(True)
 
     def float_or_double(self, t: Type*, string: byte*) -> int:
-        assert False  # TODO
+        return self->new_value(True)
 
     def zero_of_type(self, t: Type*) -> int:
-        assert False  # TODO
+        return self->new_value(True)
 
     def enum_member(self, t: Type*, name: byte*) -> int:
-        assert False  # TODO
+        return self->new_value(True)
 
     # a + b
     def add(self, a: int, b: int) -> int:
-        assert False  # TODO
+        self->use(a)
+        self->use(b)
+        return self->new_value(True)
 
     # a - b
     def sub(self, a: int, b: int) -> int:
-        assert False  # TODO
+        self->use(a)
+        self->use(b)
+        return self->new_value(True)
 
     # a * b
     def mul(self, a: int, b: int) -> int:
-        assert False  # TODO
+        self->use(a)
+        self->use(b)
+        return self->new_value(True)
 
     # a / b
     def div(self, a: int, b: int) -> int:
-        assert False  # TODO
+        self->use(a)
+        self->use(b)
+        return self->new_value(True)
 
     # a % b
     def mod(self, a: int, b: int) -> int:
-        assert False  # TODO
+        self->use(a)
+        self->use(b)
+        return self->new_value(True)
 
     # a == b
     def eq(self, a: int, b: int) -> int:
-        assert False  # TODO
+        self->use(a)
+        self->use(b)
+        return self->new_value(True)
 
     # a < b
     def lt(self, a: int, b: int) -> int:
-        assert False  # TODO
+        self->use(a)
+        self->use(b)
+        return self->new_value(True)
 
     # not value
     def not_(self, value: int) -> int:
-        assert False  # TODO
+        self->use(value)
+        return self->new_value(True)
 
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> int:
-        assert False  # TODO
+        return self->new_value(True)
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: int) -> None:
-        assert False  # TODO
+        self->use(ptr)
+        self->set_value_of_pointer(ptr)
 
     # value as to
     def cast(self, value: int, to: Type*) -> int:
-        assert False  # TODO
+        self->use(value)
+        return self->new_value(True)
 
     # Blocks are used to implement e.g. if statements and loops.
     def add_block(self) -> UvgBlock*:
-        assert False  # TODO
+        return self->uvg.add_block()
 
     # Decide which block will contain the resulting instructions.
     def set_current_block(self, block: UvgBlock*) -> None:
-        assert False  # TODO
+        self->current_block = block
 
     def branch(self, cond: int, then: UvgBlock*, otherwise: UvgBlock*) -> None:
         assert False  # TODO
@@ -114,7 +182,18 @@ class UBuilder:
         assert False  # TODO
 
     def unreachable(self) -> None:
-        assert False  # TODO
+        # TODO: figure out what to do here
+        self->current_block->terminator = UvgTerminator{kind = UvgTerminatorKind.ExitProgram}
 
     def ret(self, value: int*) -> None:
-        assert False  # TODO
+        assert self->current_block != NULL
+        assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
+        self->current_block->terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
+
+
+@public
+def build_uvg(ast: AstFunctionOrMethod*) -> Uvg:
+    builder = UBuilder{}
+    builder_wrapper = EitherBuilder{ubuilder = &builder}
+    feed_ast_to_builder(ast, &builder_wrapper)
+    return builder.uvg

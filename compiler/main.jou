@@ -4,6 +4,7 @@ import "stdlib/str.jou"
 import "stdlib/process.jou"
 
 import "./builders/llvm_builder.jou"
+import "./builders/uvg_builder.jou"
 import "./command_line_args.jou"
 import "./evaluate.jou"
 import "./run.jou"
@@ -368,6 +369,23 @@ def parse_only(path: byte*, stdlib_path: byte*) -> None:
     free_tokens(tokens)
 
 
+def build_and_print_uvgs(ast: AstFile*) -> None:
+    for stmt = ast->body.statements; stmt < &ast->body.statements[ast->body.nstatements]; stmt++:
+        match stmt->kind:
+            case AstStatementKind.FunctionDef:
+                uvg = build_uvg(&stmt->function)
+                uvg.print()
+                uvg.free()
+            case AstStatementKind.Class:
+                for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
+                    if inner->kind == AstStatementKind.MethodDef:
+                        uvg = build_uvg(&inner->method)
+                        uvg.print()
+                        uvg.free()
+            case _:
+                pass
+
+
 def main(argc: int, argv: byte**) -> int:
     init_target()
     init_types()
@@ -396,6 +414,12 @@ def main(argc: int, argv: byte**) -> int:
     compst.parse(command_line_args.infile, NULL)
 
     compst.typecheck_all_files()
+
+    if command_line_args.uvg_only:
+        mainfile = compst.find_file(command_line_args.infile)
+        assert mainfile != NULL
+        build_and_print_uvgs(&mainfile->ast)
+        return 0
 
     objpaths: byte** = calloc(sizeof objpaths[0], compst.nfiles + 1)
     for i = 0; i < compst.nfiles; i++:
