@@ -252,7 +252,12 @@ class AstToBuilder:
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> BuilderValue:
         match expr->kind:
             case AstExpressionKind.String:
-                return self->builder->string(expr->string)
+                if expr->types.orig_type == byteType->pointer_type():
+                    return self->builder->string(expr->string)
+                else:
+                    assert expr->types.orig_type->kind == TypeKind.Array
+                    assert expr->types.orig_type->array.item_type == byteType
+                    return self->builder->string_array(expr->string, expr->types.orig_type->array.len)
             case AstExpressionKind.Byte:
                 return self->builder->integer(byteType, expr->byte_value)
             case AstExpressionKind.Short:
@@ -358,12 +363,6 @@ class AstToBuilder:
     def build_expression(self, expr: AstExpression*) -> BuilderValue:
         if expr->types.implicit_array_to_pointer_cast:
             return self->builder->cast(self->build_address_of_expression(expr), expr->types.implicit_cast_type)
-
-        if expr->types.implicit_string_to_array_cast:
-            assert expr->types.implicit_cast_type != NULL
-            assert expr->types.implicit_cast_type->kind == TypeKind.Array
-            assert expr->kind == AstExpressionKind.String
-            return self->builder->string_array(expr->string, expr->types.implicit_cast_type->array.len)
 
         raw = self->build_expression_without_implicit_cast(expr)
         if expr->types.orig_type == NULL and expr->types.implicit_cast_type == NULL:

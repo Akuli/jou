@@ -42,4 +42,13 @@ def main() -> int:
     # Evaluating a sizeof has no side effects.
     printf("%lld\n", sizeof side_effect())  # Output: 4
 
+    # Size of strings. Size of byte* is 8 on 64-bit system.
+    # Output: 6 100 8
+    printf(
+        "%lld %lld %lld\n",
+        sizeof("hello"),
+        sizeof("hello" as byte[100]),
+        sizeof("hello" as byte*),  # Warning: unnecessary cast from byte* to byte*
+    )
+
     return 0
