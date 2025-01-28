@@ -1,4 +1,4 @@
-declare printf(fmt: byte*, ...) -> int
+import "stdlib/io.jou"
 
 # c can't do this
 def make_array() -> int[3]:
@@ -50,5 +50,19 @@ def main() -> int:
     for i = 0; i < 4; i++:
         if strings[i] == NULL:
             printf("strings[%d] is NULL\n", i)
+
+    # array of fixed-size strings (#683)
+    # Output: hello
+    # Output: world
+    # Output: test
+    # Output: foo
+    # Output: bar
+    # Output: bazzybaz
+    strings50: byte[50][3] = ["hello", "world", "test"]
+    for i = 0; i < 3; i++:
+        puts(strings50[i])
+    strings50 = ["foo", "bar", "bazzybaz"]
+    for i = 0; i < 3; i++:
+        puts(strings50[i])
 
     return 0
