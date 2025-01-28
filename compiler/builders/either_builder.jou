@@ -43,12 +43,13 @@ class EitherBuilder:
 
     # Allocates enough stack space in the function to hold a value of given type.
     # Returns a pointer to the stack space.
-    def stack_alloc(self, t: Type*) -> EitherBuilderValue:
+    # If allocated stack memory is not a local variable, varname must be NULL.
+    def stack_alloc(self, t: Type*, varname: byte*) -> EitherBuilderValue:
         result = EitherBuilderValue{}
         if self->lbuilder != NULL:
-            result.lvalue = self->lbuilder->stack_alloc(t)
+            result.lvalue = self->lbuilder->stack_alloc(t, varname)
         if self->ubuilder != NULL:
-            result.uvalue = self->ubuilder->stack_alloc(t)
+            result.uvalue = self->ubuilder->stack_alloc(t, varname)
         return result
 
     # *ptr = value

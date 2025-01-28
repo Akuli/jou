@@ -54,8 +54,9 @@ class UBuilder:
             self->set(value_id)
         return value_id
 
-    def stack_alloc(self, t: Type*) -> int:
-        return self->new_value(False)
+    def stack_alloc(self, t: Type*, varname: byte*) -> int:
+        # varname may be NULL
+        return self->uvg.add_value_id(varname)
 
     def set_ptr(self, ptr: int, value: int) -> None:
         self->use(value)
@@ -186,6 +187,9 @@ class UBuilder:
         self->current_block->terminator = UvgTerminator{kind = UvgTerminatorKind.ExitProgram}
 
     def ret(self, value: int*) -> None:
+        if value != NULL:
+            self->use(*value)
+            self->set(self->uvg.value_id_for_varname("return"))
         assert self->current_block != NULL
         assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
         self->current_block->terminator = UvgTerminator{kind = UvgTerminatorKind.Return}

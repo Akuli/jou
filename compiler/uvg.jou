@@ -55,8 +55,7 @@ class Uvg:
     blocks: UvgBlock**
     nblocks: int
 
-    # Each variable name points to something within the AST. We won't free() them.
-    varnames: byte**
+    varnames: byte[100]*
     n_values: int
 
     def free(self) -> None:
@@ -71,14 +70,6 @@ class Uvg:
             if self->blocks[i] == b:
                 return i
         assert False
-
-    # Prints variable name or e.g. "$6"
-    def print_value_id(self, value_id: int) -> None:
-        assert 0 <= value_id and value_id < self->n_values
-        if self->varnames[value_id] == NULL:
-            printf("$%d", value_id)
-        else:
-            printf("%s", self->varnames[value_id])
 
     def print(self) -> None:
         printf("===== UVG for %s =====\n", self->name)
@@ -97,19 +88,17 @@ class Uvg:
                 printf("    [line ???]   ")
                 match ins->kind:
                     case UvgInstructionKind.Set:
-                        printf("set ")
-                        self->print_value_id(ins->value_id)
+                        printf("set %s", self->varnames[ins->value_id])
                     case UvgInstructionKind.Use:
-                        printf("use ")
-                        self->print_value_id(ins->value_id)
+                        printf("use %s", self->varnames[ins->value_id])
                     case UvgInstructionKind.SetToAddressOf:
-                        printf("set ")
-                        self->print_value_id(ins->value_ids[0])
-                        printf(" to address of ")
-                        self->print_value_id(ins->value_ids[1])
+                        printf(
+                            "set %s to address of %s",
+                            self->varnames[ins->value_ids[0]],
+                            self->varnames[ins->value_ids[1]],
+                        )
                     case UvgInstructionKind.SetValueOfPointer:
-                        printf("set value of pointer ")
-                        self->print_value_id(ins->value_id)
+                        printf("set value of pointer %s", self->varnames[ins->value_id])
                 printf("\n")
 
             printf("    ")
@@ -117,10 +106,9 @@ class Uvg:
                 case UvgTerminatorKind.Jump:
                     printf("Jump to block %d.\n", self->index_of_block(b->terminator.jump_block))
                 case UvgTerminatorKind.Branch:
-                    printf("If ")
-                    self->print_value_id(b->terminator.branch.cond_value_id)
                     printf(
-                        " is True, jump to block %d. Otherwise jump to block %d.\n",
+                        "If %s is True, jump to block %d. Otherwise jump to block %d.\n",
+                        self->varnames[b->terminator.branch.cond_value_id],
                         self->index_of_block(b->terminator.branch.then),
                         self->index_of_block(b->terminator.branch.otherwise),
                     )
@@ -148,13 +136,16 @@ class Uvg:
         if varname != NULL:
             # Must not exist yet
             for i = 0; i < self->n_values; i++:
-                if self->varnames[i] != NULL:
-                    assert strcmp(self->varnames[i], varname) != 0
+                assert strcmp(self->varnames[i], varname) != 0
 
         self->varnames = realloc(self->varnames, sizeof(self->varnames[0]) * (self->n_values + 1))
         assert self->varnames != NULL
         value_id = self->n_values++
-        self->varnames[value_id] = varname
+        if varname == NULL:
+            sprintf(self->varnames[value_id], "$%d", value_id)
+        else:
+            assert strlen(varname) < sizeof(self->varnames[value_id])
+            strcpy(self->varnames[value_id], varname)
         return value_id
 
     def value_id_for_varname(self, varname: byte*) -> int:
@@ -162,6 +153,6 @@ class Uvg:
         assert varname[0] != '\0'
 
         for i = 0; i < self->n_values; i++:
-            if self->varnames[i] != NULL:
+            if strcmp(self->varnames[i], varname) == 0:
                 return i
         return self->add_value_id(varname)

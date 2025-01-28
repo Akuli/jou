@@ -45,7 +45,7 @@ class AstToBuilder:
         for i = 0; i < nlocals; i++:
             var_name = locals[i].name
             var_type = locals[i].type
-            var_ptr = self->builder->stack_alloc(var_type)
+            var_ptr = self->builder->stack_alloc(var_type, var_name)
             self->locals[i] = LocalVar{name = var_name, ptr = var_ptr}
             if i < sig->nargs:
                 # First n local variables are the function arguments
@@ -146,7 +146,7 @@ class AstToBuilder:
         assert class_type != NULL
         assert class_type->kind == TypeKind.Class
 
-        inst_ptr = self->builder->stack_alloc(class_type)
+        inst_ptr = self->builder->stack_alloc(class_type, NULL)
         self->builder->memset_to_zero(inst_ptr)
         for i = 0; i < inst->nfields; i++:
             field_ptr = self->builder->class_field_pointer(inst_ptr, inst->field_names[i])
@@ -166,7 +166,7 @@ class AstToBuilder:
         lhstrue = self->builder->add_block()
         lhsfalse = self->builder->add_block()
         done = self->builder->add_block()
-        resultptr = self->builder->stack_alloc(boolType)
+        resultptr = self->builder->stack_alloc(boolType, NULL)
 
         # if lhs:
         self->builder->branch(self->build_expression(lhsexpr), lhstrue, lhsfalse)
@@ -196,7 +196,7 @@ class AstToBuilder:
         lhstrue = self->builder->add_block()
         lhsfalse = self->builder->add_block()
         done = self->builder->add_block()
-        resultptr = self->builder->stack_alloc(boolType)
+        resultptr = self->builder->stack_alloc(boolType, NULL)
 
         # if lhs:
         self->builder->branch(self->build_expression(lhsexpr), lhstrue, lhsfalse)
@@ -238,7 +238,7 @@ class AstToBuilder:
         assert t->kind == TypeKind.Array
         assert t->array.len == nitems
 
-        arr_ptr = self->builder->stack_alloc(t)
+        arr_ptr = self->builder->stack_alloc(t, NULL)
         first_item_ptr = self->builder->cast(arr_ptr, t->array.item_type->pointer_type())
 
         for i = 0; i < nitems; i++:
@@ -309,7 +309,7 @@ class AstToBuilder:
                     # We need to copy, because it's not always possible to evaluate &foo.
                     # For example, consider evaluating some_function().some_field.
                     instance = self->build_expression(expr->class_field.instance)
-                    ptr = self->builder->stack_alloc(expr->class_field.instance->types.implicit_cast_type)
+                    ptr = self->builder->stack_alloc(expr->class_field.instance->types.implicit_cast_type, NULL)
                     self->builder->set_ptr(ptr, instance)
                 fieldptr = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
                 return self->builder->dereference(fieldptr)

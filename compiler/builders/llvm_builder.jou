@@ -248,12 +248,17 @@ class LBuilder:
         LLVMPositionBuilderAtEnd(self->llvm_builder, self->alloca_block)
         LLVMBuildBr(self->llvm_builder, self->code_start_block)
 
-    def stack_alloc(self, t: Type*) -> LBuilderValue:
+    def stack_alloc(self, t: Type*, varname: byte*) -> LBuilderValue:
+        if varname == NULL:
+            debug_name = "stack_alloc"
+        else:
+            debug_name = varname
+
         # Place all allocations to the same block at start of function, so that
         # we don't overflow the stack when the part of code that creates local
         # var runs many times.
         LLVMPositionBuilderAtEnd(self->llvm_builder, self->alloca_block)
-        llvm_ptr = LLVMBuildAlloca(self->llvm_builder, type_to_llvm(t), "stack_alloc")
+        llvm_ptr = LLVMBuildAlloca(self->llvm_builder, type_to_llvm(t), debug_name)
         LLVMPositionBuilderAtEnd(self->llvm_builder, self->current_block)
         llvm_ptr = LLVMBuildBitCast(self->llvm_builder, llvm_ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
         return LBuilderValue{type = t->pointer_type(), llvm_value = llvm_ptr}
