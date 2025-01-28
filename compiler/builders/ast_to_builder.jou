@@ -497,12 +497,7 @@ class AstToBuilder:
 
         self->builder->set_current_block(error_block)
 
-        # TODO: https://github.com/Akuli/jou/issues/683
-        argnames: byte[100][3]
-        strcpy(argnames[0], "assertion")
-        strcpy(argnames[1], "path")
-        strcpy(argnames[2], "lineno")
-
+        argnames: byte[100][3] = ["assertion", "path", "lineno"]
         argtypes: Type*[3] = [byteType->pointer_type(), byteType->pointer_type(), intType]
         sig = Signature{
             name = "_jou_assert_fail",

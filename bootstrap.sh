@@ -21,6 +21,7 @@ commits=(
     b339b1b300ba98a2245b493a58dd7fab4c465020  # "match ... with ..." syntax
     874d1978044a080173fcdcc4e92736136c97dd61  # "match some_integer:" support
     8a0bb4b50ef77932243f4f65ae90be84e763ec45  # evaluating "if WINDOWS:" and such inside functions
+    2b33658b17239c68c84b034c33c2a7c145da43dd  # bidirectional type inference for arrays of strings
 )
 
 for commit in ${commits[@]}; do
