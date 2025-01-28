@@ -13,8 +13,10 @@ import "./ast_to_builder.jou"
 class UBuilder:
     uvg: Uvg
     current_block: UvgBlock*
+    returns_a_value: bool
 
     def begin_function(self, sig: Signature*, public: bool) -> None:
+        self->returns_a_value = sig->returntype != NULL
         self_class = sig->get_self_class()
         if self_class == NULL:
             # function
@@ -202,6 +204,10 @@ class UBuilder:
         if value != NULL:
             self->use(*value)
             self->set(self->uvg.value_id_for_varname("return"))
+
+        if self->returns_a_value:
+            self->use(self->uvg.value_id_for_varname("return"))
+
         assert self->current_block != NULL
         assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
         self->current_block->terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
