@@ -8,7 +8,8 @@ import "./either_builder.jou"
 import "./ast_to_builder.jou"
 
 
-# Not named LLVMBuilder because that is the name of LLVM's thing.
+# Within this class, UVG value id -1 denotes an anonymous value that is not undefined.
+# This "optimization" makes the resulting UVGs much smaller and simpler.
 class UBuilder:
     uvg: Uvg
     current_block: UvgBlock*
@@ -29,6 +30,9 @@ class UBuilder:
         pass
 
     def add_instruction(self, ins: UvgInstruction) -> None:
+        assert ins.x >= 0
+        assert ins.y >= 0  # 0 if not used
+
         b = self->current_block
         assert b != NULL
 
@@ -37,24 +41,28 @@ class UBuilder:
         b->instructions[b->ninstructions++] = ins
 
     def use(self, x: int) -> None:
-        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.UseX, x = x})
+        if x != -1:
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.UseX, x = x})
 
     def set(self, x: int) -> None:
-        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetX, x = x})
+        if x != -1:
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetX, x = x})
 
     def use_deref(self, x: int) -> None:
-        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.UseDerefX, x = x})
+        if x != -1:
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.UseDerefX, x = x})
 
     def set_deref(self, x: int) -> None:
-        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetDerefX, x = x})
+        if x != -1:
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetDerefX, x = x})
 
     def set_x_to_address_of_y(self, x: int, y: int) -> None:
-        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetXToAddressOfY, x = x, y = y})
-
-    def new_initialized_value(self) -> int:
-        result = self->uvg.add_value(NULL)
-        self->set(result)
-        return result
+        # The case "set -1 to address of some_actual_variable" is difficult. It
+        # should be preserved, because it might mean that we cannot analyze
+        # whether the variable is undefined. Can be added later if needed.
+        assert not (x == -1 and y != -1)
+        if x != -1 and y != -1:
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetXToAddressOfY, x = x, y = y})
 
     def stack_alloc(self, t: Type*, varname: byte*) -> int:
         underlying_value = self->uvg.add_value(varname)
@@ -68,99 +76,99 @@ class UBuilder:
 
     def dereference(self, ptr: int) -> int:
         self->use_deref(ptr)
-        return self->new_initialized_value()
+        return -1
 
     def indexed_pointer(self, ptr: int, index: int) -> int:
         self->use(ptr)
         self->use(index)
-        return self->new_initialized_value()
+        return -1
 
     def class_field_pointer(self, ptr: int, field_name: byte*) -> int:
         self->use(ptr)
-        return self->new_initialized_value()
+        return -1
 
     def global_var_ptr(self, name: byte*, var_type: Type*) -> int:
-        return self->new_initialized_value()
+        return -1
 
     def get_argument(self, i: int, argtype: Type*) -> int:
-        return self->new_initialized_value()
+        return -1
 
     def call(self, sig: Signature*, args: int*, nargs: int) -> int:
         for i = 0; i < nargs; i++:
             self->use(args[i])
-        return self->new_initialized_value()
+        return -1
 
     def string_array(self, s: byte*, array_size: int) -> int:
-        return self->new_initialized_value()
+        return -1
 
     def string(self, s: byte*) -> int:
-        return self->new_initialized_value()
+        return -1
 
     def boolean(self, b: bool) -> int:
-        return self->new_initialized_value()
+        return -1
 
     def integer(self, t: Type*, value: long) -> int:
-        return self->new_initialized_value()
+        return -1
 
     def float_or_double(self, t: Type*, string: byte*) -> int:
-        return self->new_initialized_value()
+        return -1
 
     def zero_of_type(self, t: Type*) -> int:
-        return self->new_initialized_value()
+        return -1
 
     def enum_member(self, t: Type*, name: byte*) -> int:
-        return self->new_initialized_value()
+        return -1
 
     # a + b
     def add(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_initialized_value()
+        return -1
 
     # a - b
     def sub(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_initialized_value()
+        return -1
 
     # a * b
     def mul(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_initialized_value()
+        return -1
 
     # a / b
     def div(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_initialized_value()
+        return -1
 
     # a % b
     def mod(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_initialized_value()
+        return -1
 
     # a == b
     def eq(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_initialized_value()
+        return -1
 
     # a < b
     def lt(self, a: int, b: int) -> int:
         self->use(a)
         self->use(b)
-        return self->new_initialized_value()
+        return -1
 
     # not value
     def not_(self, value: int) -> int:
         self->use(value)
-        return self->new_initialized_value()
+        return -1
 
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> int:
-        return self->new_initialized_value()
+        return -1
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: int) -> None:
@@ -170,7 +178,7 @@ class UBuilder:
     # value as to
     def cast(self, value: int, to: Type*) -> int:
         self->use(value)
-        return self->new_initialized_value()
+        return -1
 
     # Blocks are used to implement e.g. if statements and loops.
     def add_block(self) -> UvgBlock*:
