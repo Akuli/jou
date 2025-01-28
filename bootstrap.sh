@@ -93,14 +93,15 @@ for i in ${!commits[@]}; do
         (cd $folder && unzip -q llvm_headers.zip)
     fi
 
-    if [ $i != 0 ]; then
+    if [ $i == 0 ]; then
+        # Only build the compiler written in C (jou_stage1.exe)
+        (cd $folder && make jou$exe_suffix)
+    else
         cp $(folder_of_commit $((i-1)))/jou$exe_suffix $folder/jou_bootstrap$exe_suffix
-        # Convince make that jou_bootstrap(.exe) is usable as is, and does not
-        # need to be recompiled. We don't want bootstrap inside bootstrap.
-        touch $folder/jou_bootstrap$exe_suffix
+        # 'touch' convinces make that jou_bootstrap(.exe) is usable as is, and does
+        # not need to be recompiled. We don't want bootstrap inside bootstrap.
+        (cd $folder && touch jou_bootstrap$exe_suffix && $make jou$exe_suffix)
     fi
-
-    (cd $folder && make jou$exe_suffix)
 done
 
 show_message "Copying the bootstrapped executable"
