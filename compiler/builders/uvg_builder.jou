@@ -225,7 +225,7 @@ class UBuilder:
     def unreachable(self) -> None:
         assert self->current_block != NULL
         assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
-        self->current_block->terminator = UvgTerminator{kind = UvgTerminatorKind.ExitProgram}
+        self->current_block->terminator = UvgTerminator{kind = UvgTerminatorKind.Unreachable}
         self->current_block = NULL
 
     def ret(self, value: int*) -> None:

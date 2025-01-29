@@ -1,88 +1,82 @@
-Undefined Value Graphs are used to determine which values may be undefined when the code runs.
+# Undefined Value Graphs
 
-For example, consider the following Jou code (5 lines):
+UVGs are used to determine which values may be undefined when the code runs.
+
+For example, consider the following Jou code:
 
 ```python
-def foo(a: int) -> int:
-    x = a + 6
-    y: int
-    z = y
-    printf("%d %d\n", x, y, z)
+import "stdlib/io.jou"
+
+def foo(a: int) -> int:         # line 3
+    x = a + 6                   # line 4
+    y: int                      # line 5
+    z = y                       # line 6
+    printf("%d %d\n", x, y, z)  # line 7
 ```
 
-Here's how the compiler builds a UVG for this code.
-Because of the first line `def foo(a: int) -> int:`, we set the value of variable `a`.
-In UVG's, it's not relevant what the value is.
-We only care about whether the value is undefined.
+Running `jou --uvg-only file.jou` prints the following UVG representation of the code:
 
 ```
-set a
+===== UVG for foo =====
+block 0 (start):
+    [line 3]   set $1 to &a
+    [line 3]   set *$1
+    [line 3]   set $3 to &x
+    [line 3]   set $5 to &y
+    [line 3]   set $7 to &z
+    [line 4]   use *$1
+    [line 4]   set *$3
+    [line 6]   use *$5
+    [line 6]   set *$7
+    [line 7]   use *$3
+    [line 7]   use *$5
+    [line 7]   use *$7
+    [line 7]   use return
+    Return from function.
 ```
 
-For the second line `x = a + 6`, we first take the address of `x`
-and store it to an anonymous value `$1`.
+Here `$1`, `$3`, `$5` and `$7` are temporary values within the UVG.
+They are emitted because the compiler thinks of all variable access as happening through pointers.
+Because `$1` is always `&a`, `$3` is always `&x` and so on,
+the compiler will eliminate these before it analyzes the UVG further.
+Here is the resulting, simpler UVG:
 
 ```
-set $1 to address of x
+block 0 (start):
+    [line 3]   set a
+    [line 4]   use a
+    [line 4]   set x
+    [line 6]   use y
+    [line 6]   set z
+    [line 7]   use x
+    [line 7]   use y
+    [line 7]   use z
+    [line 7]   use return
+    Return from function.
 ```
 
-We then evaluate the right side `a + 6`.
-We don't need to do anything to evaluate `a`.
-To evaluate `6`, we create another another anonymous value `$2`.
-To evaluate `a + 6`, we mark `a` and `6` as used, and we place the result to yet another anonymous value `$3`.
+Let's look at this in more detail:
+- Line 3 sets variable `a` because it is the argument of the function.
+- Line 4 uses variable `a` to compute `x`. This is fine because the value of `a` has been set.
+- Line 5 does not show up at all. Creating a variable is not an operation in UVG, and all variables exist (with undefined values) at start.
+- Line 6 uses `y`, which is undefined. There will be a warning.
+- Line 7 uses `y` and `return`. Here `return` is a special variable that represents the return value of the function. It is undefined because the `return` statement is missing.
+
+This causes the compiler to show the following warnings:
 
 ```
-set $2
-use a
-use $2
-set $3
-```
-
-Now we have `a + 6` and we store it to the variable `x` through the pointer `$1`:
-
-```
-use $3
-set value of pointer $1
-```
-
-Later the UVG analyzer will notice that `$1` is always going to be the address of `x`,
-and replace `set value of pointer $1` with `set x`.
-That's how it knows that `x` cannot be undefined when it's printed.
-
-Here's the UVG for the remaining code. Note that no UVG is needed for `y: int`.
-
-```
-set $4 to address of z
-use y
-set value of pointer $4
-set $5      # $5 = the string "%d %d\n"
-use $5
-use x
-use y
-use z
-set $6      # $6 = return value of printf()
-use return
-Return from function.
-```
-
-Here `return` represents the return value of the function.
-We `use` it but never `set` it, so the compiler shows a warning
-about the missing `return` statement in the Jou code.
-We also used `y` a couple times without setting it, so we get the following warnings:
-
-```
-compiler warning for file "foo.jou", line 4: the value of 'y' is undefined
-compiler warning for file "foo.jou", line 5: the value of 'y' is undefined
-compiler error in file "foo.jou", line 5: function 'foo' must return a value, because it is defined with '-> int'
+compiler warning for file "foo.jou", line 6: the value of 'y' is undefined
+compiler warning for file "foo.jou", line 7: the value of 'y' is undefined
+compiler error in file "foo.jou", line 7: function 'foo' must return a value, because it is defined with '-> int'
 ```
 
 In UVG, branching and loops are handled just like in LLVM.
-UVG instructions placed into **blocks**.
+UVG instructions are placed into **blocks**.
 The end of the block is a **terminator**, which can be:
 - jump to another block
 - branch: jump to one of two blocks depending on some value
 - return from function
-- exit the whole program
+- unreachable: the end of the block will never run for some reason
 
 
 ## Value Statuses

@@ -30,7 +30,7 @@ enum UvgTerminatorKind:
     Jump
     Branch
     Return
-    ExitProgram
+    Unreachable
 
 class UvgTerminator:
     kind: UvgTerminatorKind
@@ -112,8 +112,8 @@ class Uvg:
                     )
                 case UvgTerminatorKind.Return:
                     printf("Return from function.\n")
-                case UvgTerminatorKind.ExitProgram:
-                    printf("The program will exit/crash/fail if we get here.\n")
+                case UvgTerminatorKind.Unreachable:
+                    printf("The end of this block is unreachable. It will never run.\n")
                 case UvgTerminatorKind.NotSet:
                     printf("(terminator not set)\n")
         printf("\n")
