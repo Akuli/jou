@@ -7,6 +7,7 @@
 
 import "stdlib/mem.jou"
 
+import "../errors_and_warnings.jou"
 import "../constants.jou"
 import "../llvm.jou"
 import "../types.jou"
@@ -40,6 +41,12 @@ class EitherBuilder:
             self->lbuilder->end_function()
         if self->ubuilder != NULL:
             self->ubuilder->end_function()
+
+    def set_location(self, location: Location) -> None:
+        if self->lbuilder != NULL:
+            self->lbuilder->set_location(location)
+        if self->ubuilder != NULL:
+            self->ubuilder->set_location(location)
 
     # Allocates enough stack space in the function to hold a value of given type.
     # Returns a pointer to the stack space.

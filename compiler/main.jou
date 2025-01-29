@@ -373,13 +373,13 @@ def build_and_print_uvgs(ast: AstFile*) -> None:
     for stmt = ast->body.statements; stmt < &ast->body.statements[ast->body.nstatements]; stmt++:
         match stmt->kind:
             case AstStatementKind.FunctionDef:
-                uvg = build_uvg(&stmt->function)
+                uvg = build_uvg(&stmt->function, stmt->location)
                 uvg.print()
                 uvg.free()
             case AstStatementKind.Class:
                 for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
                     if inner->kind == AstStatementKind.MethodDef:
-                        uvg = build_uvg(&inner->method)
+                        uvg = build_uvg(&inner->method, inner->location)
                         uvg.print()
                         uvg.free()
             case _:

@@ -29,7 +29,21 @@ class AstToBuilder:
     nloops: int
     returns_a_value: bool
 
-    def begin_function(self, sig: Signature*, locals: LocalVariable*, nlocals: int, public: bool) -> None:
+    location: Location
+
+    # Returns old location. Use it to restore the location when you're done.
+    def set_location(self, location: Location) -> Location:
+        old = self->location
+        self->location = location
+        # If no reasonable location is available (e.g. implicit return at end of function),
+        # continue using the previous location for now.
+        if location.path != NULL and location.lineno != 0:
+            self->builder->set_location(location)
+        return old
+
+    def begin_function(self, sig: Signature*, location: Location, locals: LocalVariable*, nlocals: int, public: bool) -> None:
+        old = self->set_location(location)
+
         # First n local variables are the arguments
         assert sig->nargs >= 0
         assert sig->nargs <= nlocals
@@ -55,6 +69,8 @@ class AstToBuilder:
             # Insert a call to the special startup function into main()
             jou_startup_sig = Signature{name = "_jou_startup"}
             self->builder->call(&jou_startup_sig, NULL, 0)
+
+        self->set_location(old)
 
     def end_function(self) -> None:
         self->builder->ret(NULL)  # implicit "return" when falling off end of function
@@ -358,20 +374,27 @@ class AstToBuilder:
         assert False
 
     def build_expression(self, expr: AstExpression*) -> EitherBuilderValue:
-        if expr->types.implicit_array_to_pointer_cast:
-            return self->builder->cast(self->build_address_of_expression(expr), expr->types.implicit_cast_type)
+        old_location = self->set_location(expr->location)
 
-        raw = self->build_expression_without_implicit_cast(expr)
-        if expr->types.orig_type == NULL and expr->types.implicit_cast_type == NULL:
-            # Function/method call that returns no value
-            assert expr->kind == AstExpressionKind.Call
-            return EitherBuilderValue{}
+        if expr->types.implicit_array_to_pointer_cast:
+            result = self->builder->cast(self->build_address_of_expression(expr), expr->types.implicit_cast_type)
         else:
-            assert expr->types.orig_type != NULL
-            assert expr->types.implicit_cast_type != NULL
-            return self->builder->cast(raw, expr->types.implicit_cast_type)
+            raw = self->build_expression_without_implicit_cast(expr)
+            if expr->types.orig_type == NULL and expr->types.implicit_cast_type == NULL:
+                # Function/method call that returns no value
+                assert expr->kind == AstExpressionKind.Call
+                result = EitherBuilderValue{}
+            else:
+                assert expr->types.orig_type != NULL
+                assert expr->types.implicit_cast_type != NULL
+                result = self->builder->cast(raw, expr->types.implicit_cast_type)
+
+        self->set_location(old_location)
+        return result
 
     def build_address_of_expression(self, expr: AstExpression*) -> EitherBuilderValue:
+        old_location = self->set_location(expr->location)
+
         match expr->kind:
             case AstExpressionKind.GetClassField:
                 if expr->class_field.uses_arrow_operator:
@@ -380,24 +403,27 @@ class AstToBuilder:
                 else:
                     # &obj.field = &obj + memory offset
                     ptr = self->build_address_of_expression(expr->class_field.instance)
-                return self->builder->class_field_pointer(ptr, expr->class_field.field_name)
+                result = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
             case AstExpressionKind.Self:
-                return self->local_var_ptr("self")
+                result = self->local_var_ptr("self")
             case AstExpressionKind.GetVariable:
                 if self->local_var_exists(expr->varname):
-                    return self->local_var_ptr(expr->varname)
+                    result = self->local_var_ptr(expr->varname)
                 else:
-                    return self->builder->global_var_ptr(expr->varname, expr->types.orig_type)
+                    result = self->builder->global_var_ptr(expr->varname, expr->types.orig_type)
             case AstExpressionKind.Indexing:
                 # &ptr[index] = ptr + memory offset
                 ptr = self->build_expression(&expr->operands[0])
                 index = self->build_expression(&expr->operands[1])
-                return self->builder->indexed_pointer(ptr, index)
+                result = self->builder->indexed_pointer(ptr, index)
             case AstExpressionKind.Dereference:
                 # &*ptr = ptr
-                return self->build_expression(&expr->operands[0])
+                result = self->build_expression(&expr->operands[0])
             case _:
                 assert False
+
+        self->set_location(old_location)
+        return result
 
     def build_if_statement(self, ifst: AstIfStatement*) -> None:
         done = self->builder->add_block()
@@ -516,6 +542,8 @@ class AstToBuilder:
         self->builder->set_current_block(ok_block)
 
     def build_statement(self, stmt: AstStatement*) -> None:
+        old_location = self->set_location(stmt->location)
+
         match stmt->kind:
             case AstStatementKind.If:
                 self->build_if_statement(&stmt->if_statement)
@@ -572,21 +600,23 @@ class AstToBuilder:
                 # other statements shouldn't occur inside functions/methods
                 assert False
 
+        self->set_location(old_location)
+
     def build_body(self, body: AstBody*) -> None:
         for i = 0; i < body->nstatements; i++:
             self->build_statement(&body->statements[i])
 
 
 @public
-def feed_ast_to_builder(ast: AstFunctionOrMethod*, builder: EitherBuilder*) -> None:
+def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location, builder: EitherBuilder*) -> None:
     public = (
-        ast->public
-        or ast->types.signature.is_main_function()
-        or ast->types.signature.get_self_class() != NULL
+        func_ast->public
+        or func_ast->types.signature.is_main_function()
+        or func_ast->types.signature.get_self_class() != NULL
     )
     ast2ir = AstToBuilder{builder = builder}
-    ast2ir.begin_function(&ast->types.signature, ast->types.locals, ast->types.nlocals, public)
-    ast2ir.build_body(&ast->body)
+    ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals, func_ast->types.nlocals, public)
+    ast2ir.build_body(&func_ast->body)
     ast2ir.end_function()
     free(ast2ir.locals)
     free(ast2ir.loops)

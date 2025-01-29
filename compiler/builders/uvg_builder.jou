@@ -2,6 +2,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
+import "../errors_and_warnings.jou"
 import "../types.jou"
 import "../uvg.jou"
 import "./either_builder.jou"
@@ -14,6 +15,7 @@ class UBuilder:
     uvg: Uvg
     current_block: UvgBlock*
     returns_a_value: bool
+    location: Location
 
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self->returns_a_value = sig->returntype != NULL
@@ -31,9 +33,16 @@ class UBuilder:
     def end_function(self) -> None:
         pass
 
+    def set_location(self, location: Location) -> None:
+        self->location = location
+
     def add_instruction(self, ins: UvgInstruction) -> None:
         assert ins.x >= 0
         assert ins.y >= 0  # 0 if not used
+
+        assert self->location.path != NULL
+        assert self->location.lineno != 0
+        ins.location = self->location
 
         b = self->current_block
         assert b != NULL
@@ -233,8 +242,8 @@ class UBuilder:
 
 
 @public
-def build_uvg(ast: AstFunctionOrMethod*) -> Uvg:
+def build_uvg(func_ast: AstFunctionOrMethod*, func_location: Location) -> Uvg:
     builder = UBuilder{}
     builder_wrapper = EitherBuilder{ubuilder = &builder}
-    feed_ast_to_builder(ast, &builder_wrapper)
+    feed_ast_to_builder(func_ast, func_location, &builder_wrapper)
     return builder.uvg

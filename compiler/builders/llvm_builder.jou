@@ -11,6 +11,7 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 
+import "../errors_and_warnings.jou"
 import "../ast.jou"
 import "./either_builder.jou"
 import "../llvm.jou"
@@ -249,6 +250,10 @@ class LBuilder:
     def end_function(self) -> None:
         LLVMPositionBuilderAtEnd(self->llvm_builder, self->alloca_block)
         LLVMBuildBr(self->llvm_builder, self->code_start_block)
+
+    # TODO: use the location for debug info
+    def set_location(self, location: Location) -> None:
+        pass
 
     def stack_alloc(self, t: Type*, varname: byte*) -> LBuilderValue:
         if varname == NULL:
@@ -571,11 +576,11 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
     for stmt = ast->body.statements; stmt < &ast->body.statements[ast->body.nstatements]; stmt++:
         match stmt->kind:
             case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt->function, &builder_wrapper)
+                feed_ast_to_builder(&stmt->function, stmt->location, &builder_wrapper)
             case AstStatementKind.Class:
                 for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
                     if inner->kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner->method, &builder_wrapper)
+                        feed_ast_to_builder(&inner->method, inner->location, &builder_wrapper)
             case _:
                 pass
 

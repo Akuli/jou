@@ -2,6 +2,8 @@ import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
+import "./errors_and_warnings.jou"
+
 
 enum UvgInstructionKind:
     UseX                # something = x
@@ -11,7 +13,7 @@ enum UvgInstructionKind:
     SetXToAddressOfY    # x = &y
 
 class UvgInstruction:
-    #location: Location
+    location: Location
     kind: UvgInstructionKind
     x: int
     y: int
@@ -84,8 +86,7 @@ class Uvg:
             b = self->blocks[i]
 
             for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
-                #printf("    [line %d]   ", ins->location.lineno)
-                printf("    [line ???]   ")
+                printf("    [line %d]   ", ins->location.lineno)
                 match ins->kind:
                     case UvgInstructionKind.UseX:
                         printf("use %s\n", self->varnames[ins->x])
