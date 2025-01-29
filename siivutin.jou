@@ -1,0 +1,37 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+def aku_jou(s: byte*) -> byte**:
+    length = strlen(s)
+    assert length % 100 == 0
+
+    result: byte** = malloc(sizeof(result[0]) * (length / 100 + 1))
+    assert result != NULL
+
+    for i = 0; i < length; i += 100:
+        result[i/100] = &s[i]
+#        result[i/100] = malloc(101)
+#        assert result[i/100] != NULL
+#        memcpy(result[i/100], &s[i], 100)
+#        result[i/100][100] = '\0'
+
+    result[length/100] = NULL
+    return result
+
+
+def main() -> int:
+    s: byte* = malloc(10_000_001)
+    assert s != NULL
+    memset(s, 'a', 10_000_000)
+    s[10_000_000] = '\0'
+
+    for k = 0; k < 1000; k++:
+        result = aku_jou(s)
+#        for i = 0; result[i] != NULL; i++:
+#            free(result[i])
+        free(result)
+
+    free(s)
+    return 0
