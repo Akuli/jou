@@ -9,8 +9,9 @@ import "./either_builder.jou"
 import "./ast_to_builder.jou"
 
 
-# Within this class, UVG value id -1 denotes an anonymous value that is not undefined.
-# This "optimization" makes the resulting UVGs much smaller and simpler.
+# Within this class, UVG value id -1 denotes a value that is not a pointer, or
+# is some pointer that we don't keep track of. Any other UVG value ID represents
+# a pointer to the corresponding UVG variable.
 class UBuilder:
     uvg: Uvg
     current_block: UvgBlock*
@@ -38,7 +39,6 @@ class UBuilder:
 
     def add_instruction(self, ins: UvgInstruction) -> None:
         assert ins.x >= 0
-        assert ins.y >= 0  # 0 if not used
 
         assert self->location.path != NULL
         assert self->location.lineno != 0
@@ -51,14 +51,6 @@ class UBuilder:
         assert b->instructions != NULL
         b->instructions[b->ninstructions++] = ins
 
-    def use(self, x: int) -> None:
-        if x != -1:
-            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.UseX, x = x})
-
-    def set(self, x: int) -> None:
-        if x != -1:
-            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetX, x = x})
-
     def use_deref(self, x: int) -> None:
         if x != -1:
             self->add_instruction(UvgInstruction{kind = UvgInstructionKind.UseDerefX, x = x})
@@ -67,35 +59,30 @@ class UBuilder:
         if x != -1:
             self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetDerefX, x = x})
 
-    def set_x_to_address_of_y(self, x: int, y: int) -> None:
-        # The case "set -1 to address of some_actual_variable" is difficult. It
-        # should be preserved, because it might mean that we cannot analyze
-        # whether the variable is undefined. Can be added later if needed.
-        assert not (x == -1 and y != -1)
-        if x != -1 and y != -1:
-            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetXToAddressOfY, x = x, y = y})
+    def dont_analyze(self, x: int) -> None:
+        if x != -1:
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.DontAnalyzeX, x = x})
 
     def stack_alloc(self, t: Type*, varname: byte*) -> int:
-        underlying_value = self->uvg.add_value(varname)
-        ptr = self->uvg.add_value(NULL)
-        self->set_x_to_address_of_y(ptr, underlying_value)
-        return ptr
+        if varname != NULL:
+            # Currently the UVG does not support multiple variables with the same name.
+            assert not self->uvg.has_local_var(varname)
+        return self->uvg.get_local_var_ptr(varname)
 
     def set_ptr(self, ptr: int, value: int) -> None:
-        self->use(value)
         self->set_deref(ptr)
 
     def dereference(self, ptr: int) -> int:
+        # TODO: this causes the compiler to give up on "x = &y"
         self->use_deref(ptr)
         return -1
 
     def indexed_pointer(self, ptr: int, index: int) -> int:
-        self->use(ptr)
-        self->use(index)
+        self->dont_analyze(ptr)
         return -1
 
     def class_field_pointer(self, ptr: int, field_name: byte*) -> int:
-        self->use(ptr)
+        self->dont_analyze(ptr)
         return -1
 
     def global_var_ptr(self, name: byte*, var_type: Type*) -> int:
@@ -106,7 +93,7 @@ class UBuilder:
 
     def call(self, sig: Signature*, args: int*, nargs: int) -> int:
         for i = 0; i < nargs; i++:
-            self->use(args[i])
+            self->dont_analyze(args[i])
         return -1
 
     def string_array(self, s: byte*, array_size: int) -> int:
@@ -132,49 +119,34 @@ class UBuilder:
 
     # a + b
     def add(self, a: int, b: int) -> int:
-        self->use(a)
-        self->use(b)
         return -1
 
     # a - b
     def sub(self, a: int, b: int) -> int:
-        self->use(a)
-        self->use(b)
         return -1
 
     # a * b
     def mul(self, a: int, b: int) -> int:
-        self->use(a)
-        self->use(b)
         return -1
 
     # a / b
     def div(self, a: int, b: int) -> int:
-        self->use(a)
-        self->use(b)
         return -1
 
     # a % b
     def mod(self, a: int, b: int) -> int:
-        self->use(a)
-        self->use(b)
         return -1
 
     # a == b
     def eq(self, a: int, b: int) -> int:
-        self->use(a)
-        self->use(b)
         return -1
 
     # a < b
     def lt(self, a: int, b: int) -> int:
-        self->use(a)
-        self->use(b)
         return -1
 
     # not value
     def not_(self, value: int) -> int:
-        self->use(value)
         return -1
 
     # sizeof(any value of given type)
@@ -183,13 +155,16 @@ class UBuilder:
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: int) -> None:
-        self->use(ptr)
         self->set_deref(ptr)
 
     # value as to
     def cast(self, value: int, to: Type*) -> int:
-        self->use(value)
-        return -1
+        if to->is_pointer_type():
+            return value
+        else:
+            # e.g. cast pointer to long
+            self->dont_analyze(value)
+            return -1
 
     # Blocks are used to implement e.g. if statements and loops.
     def add_block(self) -> UvgBlock*:
@@ -200,16 +175,12 @@ class UBuilder:
         self->current_block = block
 
     def branch(self, cond: int, then: UvgBlock*, otherwise: UvgBlock*) -> None:
-        if cond == -1:
-            cond = self->uvg.add_value(NULL)
-            self->set(cond)
-        self->use(cond)
-
+        # TODO: do something with cond?
         assert self->current_block != NULL
         assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
         self->current_block->terminator = UvgTerminator{
             kind = UvgTerminatorKind.Branch,
-            branch = UvgBranch{cond_value_id = cond, then = then, otherwise = otherwise},
+            branch = UvgBranch{then = then, otherwise = otherwise},
         }
         self->current_block = NULL
 
@@ -230,11 +201,10 @@ class UBuilder:
 
     def ret(self, value: int*) -> None:
         if value != NULL:
-            self->use(*value)
-            self->set(self->uvg.value_id_for_varname("return"))
+            self->set_deref(self->uvg.get_local_var_ptr("return"))
 
         if self->returns_a_value:
-            self->use(self->uvg.value_id_for_varname("return"))
+            self->use_deref(self->uvg.get_local_var_ptr("return"))
 
         assert self->current_block != NULL
         assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet

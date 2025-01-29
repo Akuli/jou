@@ -6,21 +6,17 @@ import "./errors_and_warnings.jou"
 
 
 enum UvgInstructionKind:
-    UseX                # something = x
-    SetX                # x = something
     UseDerefX           # something = *x
     SetDerefX           # *x = something
-    SetXToAddressOfY    # x = &y
+    DontAnalyzeX        # do_something_complicated(&x)
 
 class UvgInstruction:
     location: Location
     kind: UvgInstructionKind
     x: int
-    y: int
 
 
 class UvgBranch:
-    cond_value_id: int  # which value is the branch true/false condition
     then: UvgBlock*
     otherwise: UvgBlock*
 
@@ -88,16 +84,12 @@ class Uvg:
             for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
                 printf("    [line %d]   ", ins->location.lineno)
                 match ins->kind:
-                    case UvgInstructionKind.UseX:
-                        printf("use %s\n", self->varnames[ins->x])
-                    case UvgInstructionKind.SetX:
-                        printf("set %s\n", self->varnames[ins->x])
                     case UvgInstructionKind.UseDerefX:
-                        printf("use *%s\n", self->varnames[ins->x])
+                        printf("use %s\n", self->varnames[ins->x])
                     case UvgInstructionKind.SetDerefX:
-                        printf("set *%s\n", self->varnames[ins->x])
-                    case UvgInstructionKind.SetXToAddressOfY:
-                        printf("set %s to &%s\n", self->varnames[ins->x], self->varnames[ins->y])
+                        printf("set %s\n", self->varnames[ins->x])
+                    case UvgInstructionKind.DontAnalyzeX:
+                        printf("don't analyze %s\n", self->varnames[ins->x])
 
             printf("    ")
             match b->terminator.kind:
@@ -105,8 +97,7 @@ class Uvg:
                     printf("Jump to block %d.\n", self->index_of_block(b->terminator.jump_block))
                 case UvgTerminatorKind.Branch:
                     printf(
-                        "If %s is True, jump to block %d. Otherwise jump to block %d.\n",
-                        self->varnames[b->terminator.branch.cond_value_id],
+                        "Jump to either block %d or %d depending on some condition.\n",
                         self->index_of_block(b->terminator.branch.then),
                         self->index_of_block(b->terminator.branch.otherwise),
                     )
@@ -129,29 +120,27 @@ class Uvg:
 
         return b
 
-    # Name should point to something within AST, it won't be free()¨d.
-    # Name may be NULL to create a variable that represents an anonymous value.
-    def add_value(self, varname: byte*) -> int:
+    def has_local_var(self, varname: byte*) -> bool:
+        assert varname != NULL
+        for i = 0; i < self->n_values; i++:
+            if strcmp(self->varnames[i], varname) == 0:
+                return True
+        return False
+
+    def get_local_var_ptr(self, varname: byte*) -> int:
         if varname != NULL:
-            # Must not exist yet
             for i = 0; i < self->n_values; i++:
-                assert strcmp(self->varnames[i], varname) != 0
+                if strcmp(self->varnames[i], varname) == 0:
+                    # Reuse existing
+                    return i
 
         self->varnames = realloc(self->varnames, sizeof(self->varnames[0]) * (self->n_values + 1))
         assert self->varnames != NULL
         value_id = self->n_values++
+
         if varname == NULL:
             sprintf(self->varnames[value_id], "$%d", value_id)
         else:
             assert strlen(varname) < sizeof(self->varnames[value_id])
             strcpy(self->varnames[value_id], varname)
         return value_id
-
-    def value_id_for_varname(self, varname: byte*) -> int:
-        assert varname != NULL
-        assert varname[0] != '\0'
-
-        for i = 0; i < self->n_values; i++:
-            if strcmp(self->varnames[i], varname) == 0:
-                return i
-        return self->add_value(varname)
