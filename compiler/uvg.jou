@@ -54,7 +54,7 @@ class Uvg:
     nblocks: int
 
     varnames: byte[100]*
-    n_values: int
+    nvars: int
 
     def free(self) -> None:
         for i = 0; i < self->nblocks; i++:
@@ -82,7 +82,14 @@ class Uvg:
             b = self->blocks[i]
 
             for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
-                printf("    [line %d]   ", ins->location.lineno)
+                s: byte[50]
+                sprintf(s, "    [line %-5d]", ins->location.lineno)
+
+                # Move the ']' right next to the number because I like it that way :D
+                while strstr(s, " ]") != NULL:
+                    memswap(strstr(s, " ]"), strstr(s, "]"), 1)
+                printf("%s", s)
+
                 match ins->kind:
                     case UvgInstructionKind.UseDerefX:
                         printf("use %s\n", self->varnames[ins->x])
@@ -122,25 +129,25 @@ class Uvg:
 
     def has_local_var(self, varname: byte*) -> bool:
         assert varname != NULL
-        for i = 0; i < self->n_values; i++:
+        for i = 0; i < self->nvars; i++:
             if strcmp(self->varnames[i], varname) == 0:
                 return True
         return False
 
     def get_local_var_ptr(self, varname: byte*) -> int:
         if varname != NULL:
-            for i = 0; i < self->n_values; i++:
+            for i = 0; i < self->nvars; i++:
                 if strcmp(self->varnames[i], varname) == 0:
                     # Reuse existing
                     return i
 
-        self->varnames = realloc(self->varnames, sizeof(self->varnames[0]) * (self->n_values + 1))
+        self->varnames = realloc(self->varnames, sizeof(self->varnames[0]) * (self->nvars + 1))
         assert self->varnames != NULL
-        value_id = self->n_values++
+        var_id = self->nvars++
 
         if varname == NULL:
-            sprintf(self->varnames[value_id], "$%d", value_id)
+            sprintf(self->varnames[var_id], "$%d", var_id)
         else:
-            assert strlen(varname) < sizeof(self->varnames[value_id])
-            strcpy(self->varnames[value_id], varname)
-        return value_id
+            assert strlen(varname) < sizeof(self->varnames[var_id])
+            strcpy(self->varnames[var_id], varname)
+        return var_id

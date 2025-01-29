@@ -1,8 +1,12 @@
 # Undefined Value Graphs
 
 UVGs are used to determine which values may be undefined when the code runs.
+This file explains how they work using examples.
 
-For example, consider the following Jou code:
+
+## `set` and `use`
+
+Consider the following Jou code:
 
 ```python
 import "stdlib/io.jou"
@@ -46,6 +50,9 @@ compiler warning for file "foo.jou", line 7: the value of 'y' is undefined
 compiler error in file "foo.jou", line 7: function 'foo' must return a value, because it is defined with '-> int'
 ```
 
+
+## The "don't analyze" instruction
+
 Sometimes the code does something that is too complicated for the compiler to analyze.
 For example:
 
@@ -71,19 +78,11 @@ block 0 (start):
 The "don't analyze" UVG instruction means that
 the address of the variable has been used in some complicated way.
 From that point on, it is not possible to determine whether the value is defined or undefined.
-For example, a function call with `&a` could store the pointer into a local variable
-and then set it later.
-
-In UVG, branching and loops are handled just like in LLVM.
-UVG instructions are placed into **blocks**.
-The end of the block is a **terminator**, which can be:
-- jump to another block
-- branch: jump to one of two blocks depending on some value
-- return from function
-- unreachable: the end of the block will never run for some reason
+For example, a function call with `&a` might store `a` to a global variable and set its value later.
+No matter what you do after a variable is marked as "don't analyze", the compiler will not complain.
 
 
-## Value Statuses
+## Value Statuses and Branching
 
 To implement the warnings in
 [tests/should_succeed/undefined_variable.jou](tests/should_succeed/undefined_variable.jou),
@@ -95,6 +94,14 @@ The **status** of a variable is a subset of the following:
 
 For example, a variable with status `{undefined, points to foo}`
 is either undefined or `&foo` depending on some `if` statement or loop or other control flow thing.
+
+In UVG, branching and loops are handled just like in LLVM.
+UVG instructions are placed into **blocks**.
+The end of the block is a **terminator**, which can be:
+- jump to another block
+- branch: jump to one of two blocks depending on some value
+- return from function
+- unreachable: the end of the block will never run for some reason.
 
 The statuses are figured out block by block.
 The compiler internally stores the status of each variable at the end of each block in UVG.
