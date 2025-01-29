@@ -191,14 +191,33 @@ class UBuilder:
         self->current_block = block
 
     def branch(self, cond: int, then: UvgBlock*, otherwise: UvgBlock*) -> None:
-        assert False  # TODO
+        if cond == -1:
+            cond = self->uvg.add_value(NULL)
+            self->set(cond)
+        self->use(cond)
+
+        assert self->current_block != NULL
+        assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
+        self->current_block->terminator = UvgTerminator{
+            kind = UvgTerminatorKind.Branch,
+            branch = UvgBranch{cond_value_id = cond, then = then, otherwise = otherwise},
+        }
+        self->current_block = NULL
 
     def jump(self, next_block: UvgBlock*) -> None:
-        assert False  # TODO
+        assert self->current_block != NULL
+        assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
+        self->current_block->terminator = UvgTerminator{
+            kind = UvgTerminatorKind.Jump,
+            jump_block = next_block,
+        }
+        self->current_block = NULL
 
     def unreachable(self) -> None:
-        # TODO: figure out what to do here
+        assert self->current_block != NULL
+        assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
         self->current_block->terminator = UvgTerminator{kind = UvgTerminatorKind.ExitProgram}
+        self->current_block = NULL
 
     def ret(self, value: int*) -> None:
         if value != NULL:

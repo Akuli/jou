@@ -1,0 +1,71 @@
+import "stdlib/io.jou"
+
+def maybe_undefined(n: int) -> None:
+    for i = 0; i < n; i++:
+        message = "Hi"
+    puts(message)  # Warning: the value of 'message' may be undefined
+
+def surely_undefined_loop() -> None:
+    while False:
+        message = "Hi"  # Warning: this code will never run
+    puts(message)  # Warning: the value of 'message' is undefined
+
+def surely_undefined_annotation() -> None:
+    x: byte*
+    puts(x)  # Warning: the value of 'x' is undefined
+
+def surely_undefined_assignments() -> None:
+    a: int
+    b = &a
+    c = b
+    d = c
+    e = *d  # Warning: value of variable 'a' is undefined
+
+def main() -> int:
+    return 0
+
+
+
+# Status of a value is a possibly empty subset of {defined,undefined}.
+# Pseudo code for determining the statuses at end of each block:
+#
+#   statuses_at_end = {b: {v: set() for v in values} for b in blocks}
+#
+#   def analyze_block(b, warn=False):
+#       statuses = {}
+#       for v in values:
+#           statuses[v] = set()
+#           for sourceblock in blocks_that_jump_to_b:
+#               statuses[v] |= statuses_at_end[sourceblock][v]
+#           if b == the_start_block:
+#               statuses[v].add("undefined")
+#
+#       for ins in b.instructions:
+#           ...update statuses...
+#           if warn and ins uses an undefined value:
+#               show a warning
+#
+#       if statuses_at_end[b] != statuses:
+#           statuses_at_end[b] = statuses
+#           for destblock in blocks_that_b_jumps_to:
+#               queue.add(destblock)
+#
+#   queue = {the_start_block}
+#   while queue:
+#       analyze_block(queue.pop(), warn=False)
+#   for b in all_blocks:
+#       analyze_block(b, warn=True)
+#
+# Initially, the possible statuses of variables come from other blocks that
+# jump into the block being analyzed. Also, all values may be undefined in the
+# beginning of the start block.
+#
+# When we have computed the statuses of variables at the end of a block, and
+# they differ from the previous analysis, we must reanalyze all blocks that
+# depend on these statuses. This ends eventually because we only add more
+# statuses, never remove them.
+#
+# At this point, we know which statuses are possible, and control flow has
+# basically been taken care of. Because we only stored the statuses at the end
+# of each block, we must loop through the instructions in each block again to
+# show warnings.

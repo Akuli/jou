@@ -78,9 +78,9 @@ class Uvg:
 
         for i = 0; i < self->nblocks; i++:
             if i == 0:
-                printf("block %d (start):\n", i)
+                printf("block 0 (start):\n")
             else:
-                printf("\nblock %d:\n", i)
+                printf("block %d:\n", i)
             b = self->blocks[i]
 
             for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
@@ -115,6 +115,7 @@ class Uvg:
                     printf("The program will exit/crash/fail if we get here.\n")
                 case UvgTerminatorKind.NotSet:
                     printf("(terminator not set)\n")
+        printf("\n")
 
     def add_block(self) -> UvgBlock*:
         b: UvgBlock* = malloc(sizeof(*b))
