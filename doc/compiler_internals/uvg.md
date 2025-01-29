@@ -83,3 +83,67 @@ The end of the block is a **terminator**, which can be:
 - branch: jump to one of two blocks depending on some value
 - return from function
 - exit the whole program
+
+
+## Value Statuses
+
+To implement the warnings in
+[tests/should_succeed/undefined_variable.jou](tests/should_succeed/undefined_variable.jou),
+the Jou compiler keeps track of the possible statuses of the variables in UVG.
+The **status** of a variable is a subset of the following:
+- `undefined`
+- `defined` (some value has been assigned to the value, but we don't know what value)
+- `points to foo`, where `foo` is another variable in the UVG
+
+For example, a variable with status `{undefined, points to foo}`
+is either undefined or `&foo` depending on some `if` statement or loop or other control flow thing.
+
+The statuses are figured out block by block.
+The compiler internally stores the status of each variable at the end of each block in UVG.
+They are first set to empty sets and then filled in block by block,
+revisiting blocks multiple as needed to handle loops.
+
+Pseudo code:
+
+```python
+statuses_at_end = {b: {v: set() for v in values} for b in blocks}
+
+def analyze_block(b, warn=False):
+    statuses = {}
+    for v in values:
+        statuses[v] = set()
+        for sourceblock in blocks_that_jump_to_b:
+            statuses[v] |= statuses_at_end[sourceblock][v]
+        if b == the_start_block:
+            statuses[v].add("undefined")
+
+    for ins in b.instructions:
+        (update statuses based on ins)
+        if warn and (ins uses an undefined value):
+            show a warning
+
+    if statuses_at_end[b] != statuses:
+        statuses_at_end[b] = statuses
+        for destblock in blocks_that_b_jumps_to:
+            queue.add(destblock)
+
+queue = {the_start_block}
+while queue:
+    analyze_block(queue.pop(), warn=False)
+for b in all_blocks:
+    analyze_block(b, warn=True)
+```
+
+Initially, the possible statuses of values come from other blocks that jump into the block being analyzed.
+Also, all values may be undefined in the beginning of the start block.
+
+When we have computed the statuses of variables at the end of a block,
+and they differ from the previous analysis,
+we take the blocks that used the outdated statuses and queue them for another round of analyzing.
+
+At this point, we know which statuses are possible, and control flow has basically been taken care of.
+Because we only stored the statuses at the end of each block,
+we must loop through the instructions in each block again to show warnings.
+
+This could be done in a way that loops over the instructions fewer times, but that is unnecessary,
+because this code is not the performance bottleneck of the compiler.
