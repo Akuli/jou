@@ -1,12 +1,13 @@
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
+import "../uvg_analyze.jou"
 import "../ast.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
 import "../uvg.jou"
-import "./either_builder.jou"
 import "./ast_to_builder.jou"
+import "./either_builder.jou"
 
 
 # Within this class, UVG variable ID -1 denotes a value that is not a pointer,
@@ -32,7 +33,8 @@ class UBuilder:
         self->current_block = self->uvg.add_block()
 
     def end_function(self) -> None:
-        pass
+        self->current_block = NULL
+        self->location = Location{}
 
     def set_location(self, location: Location) -> None:
         self->location = location
@@ -211,9 +213,37 @@ class UBuilder:
         self->current_block->terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
 
 
+enum UvgProcessing:
+    Print
+    Analyze
+
+
+def do_processing(uvg: Uvg*, proc: UvgProcessing) -> None:
+    match proc:
+        case UvgProcessing.Print:
+            uvg->print()
+        case UvgProcessing.Analyze:
+            uvg_analyze(uvg)
+
+
 @public
-def build_uvg(func_ast: AstFunctionOrMethod*, func_location: Location) -> Uvg:
+def build_and_process_uvgs(ast: AstFile*, proc: UvgProcessing) -> None:
     builder = UBuilder{}
     builder_wrapper = EitherBuilder{ubuilder = &builder}
-    feed_ast_to_builder(func_ast, func_location, &builder_wrapper)
-    return builder.uvg
+
+    for stmt = ast->body.statements; stmt < &ast->body.statements[ast->body.nstatements]; stmt++:
+        match stmt->kind:
+            case AstStatementKind.FunctionDef:
+                feed_ast_to_builder(&stmt->function, stmt->location, &builder_wrapper)
+                do_processing(&builder.uvg, proc)
+                builder.uvg.free()
+                memset(&builder.uvg, 0, sizeof(builder.uvg))
+            case AstStatementKind.Class:
+                for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
+                    if inner->kind == AstStatementKind.MethodDef:
+                        feed_ast_to_builder(&inner->method, inner->location, &builder_wrapper)
+                        do_processing(&builder.uvg, proc)
+                        builder.uvg.free()
+                        memset(&builder.uvg, 0, sizeof(builder.uvg))
+            case _:
+                pass

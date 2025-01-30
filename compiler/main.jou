@@ -310,6 +310,12 @@ class CompileState:
 
         free(pending_exports)
 
+    def analyze_all_uvgs(self) -> None:
+        for i = 0; i < self->nfiles; i++:
+            if command_line_args.verbosity >= 1:
+                printf("Building and analyzing UVGs for %s\n", self->files[i].path)
+            build_and_process_uvgs(&self->files[i].ast, UvgProcessing.Analyze)
+
 
 def optimize(module: LLVMModule*, level: int) -> None:
     assert 1 <= level and level <= 3
@@ -369,23 +375,6 @@ def parse_only(path: byte*, stdlib_path: byte*) -> None:
     free_tokens(tokens)
 
 
-def build_and_print_uvgs(ast: AstFile*) -> None:
-    for stmt = ast->body.statements; stmt < &ast->body.statements[ast->body.nstatements]; stmt++:
-        match stmt->kind:
-            case AstStatementKind.FunctionDef:
-                uvg = build_uvg(&stmt->function, stmt->location)
-                uvg.print()
-                uvg.free()
-            case AstStatementKind.Class:
-                for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
-                    if inner->kind == AstStatementKind.MethodDef:
-                        uvg = build_uvg(&inner->method, inner->location)
-                        uvg.print()
-                        uvg.free()
-            case _:
-                pass
-
-
 def main(argc: int, argv: byte**) -> int:
     init_target()
     init_types()
@@ -418,7 +407,7 @@ def main(argc: int, argv: byte**) -> int:
     if command_line_args.uvg_only:
         mainfile = compst.find_file(command_line_args.infile)
         assert mainfile != NULL
-        build_and_print_uvgs(&mainfile->ast)
+        build_and_process_uvgs(&mainfile->ast, UvgProcessing.Print)
         return 0
 
     objpaths: byte** = calloc(sizeof objpaths[0], compst.nfiles + 1)
