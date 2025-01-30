@@ -113,7 +113,7 @@ That might be doable, but for now, it seems unnecessarily complicated.
 ## Value Statuses and Branching
 
 To implement the warnings in
-[tests/should_succeed/undefined_variable.jou](../../tests/should_succeed/undefined_variable.jou),
+[tests/should_succeed/undefined_variable.jou](../../tests/broken_tests/undefined_variable.jou),
 the Jou compiler keeps track of the possible statuses of the variables in UVG.
 The **status** of a variable is a subset of the following:
 - `undefined`
