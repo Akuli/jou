@@ -16,20 +16,10 @@ import "./either_builder.jou"
 class UBuilder:
     uvg: Uvg
     current_block: UvgBlock*
-    returns_a_value: bool
     location: Location
 
     def begin_function(self, sig: Signature*, public: bool) -> None:
-        self->returns_a_value = sig->returntype != NULL
-        self_class = sig->get_self_class()
-        if self_class == NULL:
-            # function
-            assert sizeof(self->uvg.name) >= sizeof(sig->name)
-            strcpy(self->uvg.name, sig->name)
-        else:
-            # method
-            snprintf(self->uvg.name, sizeof self->uvg.name, "%s.%s", self_class->name, sig->name)
-
+        self->uvg.signature = sig
         self->current_block = self->uvg.add_block()
 
     def end_function(self) -> None:
@@ -205,7 +195,7 @@ class UBuilder:
         if value != NULL:
             self->set(self->uvg.get_local_var_ptr("return"))
 
-        if self->returns_a_value:
+        if self->uvg.signature->returntype != NULL:
             self->use(self->uvg.get_local_var_ptr("return"))
 
         assert self->current_block != NULL

@@ -1,9 +1,11 @@
 # See doc/compiler_internals/uvg.md
 
 import "stdlib/io.jou"
+import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./uvg.jou"
+import "./errors_and_warnings.jou"
 
 
 enum VarStatus:
@@ -101,16 +103,42 @@ def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: VarStatus**, bl
     return statuses
 
 
-def update_statuses_based_on_instructions(statuses: VarStatus*, block: UvgBlock*, warn: bool) -> None:
+def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block: UvgBlock*, warn: bool) -> None:
+    msg: byte[500]
+
     for ins = block->instructions; ins < &block->instructions[block->ninstructions]; ins++:
         match ins->kind:
             case UvgInstructionKind.Set:
                 if statuses[ins->var] != VarStatus.DontAnalyze:
                     statuses[ins->var] = VarStatus.Defined
             case UvgInstructionKind.Use:
-                # TODO: show warning
-                #if warn and something:
-                #    ...
+                if warn and uvg->varnames[ins->var][0] != '$':
+                    printf("use %s with ", uvg->varnames[ins->var])
+                    print_statuses(uvg, statuses)
+                    match statuses[ins->var]:
+                        case VarStatus.Defined | VarStatus.DontAnalyze:
+                            pass
+                        # TODO: handle 'return' specially
+                        case VarStatus.Undefined:
+                            if strcmp(uvg->varnames[ins->var], "return") == 0:
+                                snprintf(
+                                    msg, sizeof(msg),
+                                    "%s '%s' must return a value, because it is defined with '-> %s'",
+                                    uvg->signature->function_or_method(),
+                                    uvg->signature->name,
+                                    uvg->signature->returntype->name,
+                                )
+                                fail(ins->location, msg)
+                            else:
+                                snprintf(msg, sizeof(msg), "the value of '%s' is undefined", uvg->varnames[ins->var])
+                                show_warning(ins->location, msg)
+                        case VarStatus.PossiblyUndefined:
+                            # TODO: special-case returning
+                            snprintf(msg, sizeof(msg), "the value of '%s' may be undefined", uvg->varnames[ins->var])
+                            show_warning(ins->location, msg)
+                        case VarStatus.Unvisited:
+                            # TODO: unreachable code warning?
+                            pass
                 pass
             case UvgInstructionKind.DontAnalyze:
                 statuses[ins->var] = VarStatus.DontAnalyze
@@ -121,8 +149,11 @@ declare memcmp(s1: void*, s2: void*, n: long) -> int
 
 
 def analyze_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int, warn: bool) -> bool:
+    if warn:
+        uvg->print()
+
     statuses = build_statuses_at_start_of_block(uvg, statuses_at_end, blockidx)
-    update_statuses_based_on_instructions(statuses, uvg->blocks[blockidx], warn)
+    update_statuses_based_on_instructions(uvg, statuses, uvg->blocks[blockidx], warn)
 
     statuses_size = sizeof(statuses[0]) * uvg->nvars
     if memcmp(statuses, statuses_at_end[blockidx], statuses_size) != 0:

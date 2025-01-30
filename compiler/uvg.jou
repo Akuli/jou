@@ -3,6 +3,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./errors_and_warnings.jou"
+import "./types.jou"
 
 
 enum UvgInstructionKind:
@@ -55,7 +56,7 @@ class UvgBlock:
 
 # We build one UVG for each function.
 class Uvg:
-    name: byte[200]
+    signature: Signature*
 
     # Each block is allocated separately so that we can pass them around as
     # pointers, and they don't become invalid when adding more blocks.
@@ -79,7 +80,9 @@ class Uvg:
         assert False
 
     def print(self) -> None:
-        printf("===== UVG for %s =====\n", self->name)
+        sigstr = self->signature->to_string(True, True)
+        printf("===== UVG for %s =====\n", sigstr)
+        free(sigstr)
 
         assert self->nblocks > 0
 
