@@ -18,7 +18,7 @@ def foo(a: int) -> int:         # line 3
     printf("%d %d\n", x, y, z)  # line 7
 ```
 
-Running `jou --uvg-only file.jou` prints the following UVG representation of the code:
+Running `jou --uvg-only file.jou` prints the following UVG:
 
 ```
 ===== UVG for foo =====
