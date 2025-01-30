@@ -1,0 +1,153 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+import "./errors_and_warnings.jou"
+
+
+enum UvgInstructionKind:
+    Use             # something = *x
+    Set             # *x = something
+    DontAnalyze     # do_something_complicated(&x)
+
+class UvgInstruction:
+    location: Location
+    kind: UvgInstructionKind
+    var: int
+
+
+class UvgBranch:
+    then: UvgBlock*
+    otherwise: UvgBlock*
+
+
+enum UvgTerminatorKind:
+    NotSet  # must be first so it's zero memory
+    Jump
+    Branch
+    Return
+    Unreachable
+
+class UvgTerminator:
+    kind: UvgTerminatorKind
+    union:
+        jump_block: UvgBlock*   # UvgTerminatorKind.Jump
+        branch: UvgBranch       # UvgTerminatorKind.Branch
+
+
+class UvgBlock:
+    instructions: UvgInstruction*
+    ninstructions: int
+    terminator: UvgTerminator
+
+    def free(self) -> None:
+        free(self->instructions)
+
+
+# We build one UVG for each function.
+class Uvg:
+    name: byte[200]
+
+    # Each block is allocated separately so that we can pass them around as
+    # pointers, and they don't become invalid when adding more blocks.
+    blocks: UvgBlock**
+    nblocks: int
+
+    varnames: byte[100]*
+    nvars: int
+
+    def free(self) -> None:
+        for i = 0; i < self->nblocks; i++:
+            self->blocks[i]->free()
+            free(self->blocks[i])
+        free(self->blocks)
+        free(self->varnames)
+
+    def index_of_block(self, b: UvgBlock*) -> int:
+        for i = 0; i < self->nblocks; i++:
+            if self->blocks[i] == b:
+                return i
+        assert False
+
+    def print(self) -> None:
+        printf("===== UVG for %s =====\n", self->name)
+
+        assert self->nblocks > 0
+
+        for i = 0; i < self->nblocks; i++:
+            if i == 0:
+                printf("block 0 (start):\n")
+            else:
+                printf("block %d:\n", i)
+            b = self->blocks[i]
+
+            for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
+                s: byte[50]
+                sprintf(s, "    [line %-5d]", ins->location.lineno)
+
+                # Move the ']' right next to the number because I like it that way :D
+                while strstr(s, " ]") != NULL:
+                    memswap(strstr(s, " ]"), strstr(s, "]"), 1)
+                printf("%s", s)
+
+                match ins->kind:
+                    case UvgInstructionKind.Use:
+                        printf("use %s\n", self->varnames[ins->var])
+                    case UvgInstructionKind.Set:
+                        printf("set %s\n", self->varnames[ins->var])
+                    case UvgInstructionKind.DontAnalyze:
+                        printf("don't analyze %s\n", self->varnames[ins->var])
+
+            printf("    ")
+            match b->terminator.kind:
+                case UvgTerminatorKind.Jump:
+                    printf("Jump to block %d.\n", self->index_of_block(b->terminator.jump_block))
+                case UvgTerminatorKind.Branch:
+                    printf(
+                        "Jump to either block %d or %d depending on some condition.\n",
+                        self->index_of_block(b->terminator.branch.then),
+                        self->index_of_block(b->terminator.branch.otherwise),
+                    )
+                case UvgTerminatorKind.Return:
+                    printf("Return from function.\n")
+                case UvgTerminatorKind.Unreachable:
+                    printf("The end of this block is unreachable. It will never run.\n")
+                case UvgTerminatorKind.NotSet:
+                    printf("(terminator not set)\n")
+        printf("\n")
+
+    def add_block(self) -> UvgBlock*:
+        b: UvgBlock* = malloc(sizeof(*b))
+        assert b != NULL
+        memset(b, 0, sizeof(*b))
+
+        self->blocks = realloc(self->blocks, sizeof(self->blocks[0]) * (self->nblocks + 1))
+        assert self->blocks != NULL
+        self->blocks[self->nblocks++] = b
+
+        return b
+
+    def has_local_var(self, varname: byte*) -> bool:
+        assert varname != NULL
+        for i = 0; i < self->nvars; i++:
+            if strcmp(self->varnames[i], varname) == 0:
+                return True
+        return False
+
+    def get_local_var_ptr(self, varname: byte*) -> int:
+        if varname != NULL:
+            for i = 0; i < self->nvars; i++:
+                if strcmp(self->varnames[i], varname) == 0:
+                    # Reuse existing
+                    return i
+
+        self->varnames = realloc(self->varnames, sizeof(self->varnames[0]) * (self->nvars + 1))
+        assert self->varnames != NULL
+        var_id = self->nvars++
+
+        if varname == NULL:
+            sprintf(self->varnames[var_id], "$%d", var_id)
+        else:
+            assert strlen(varname) < sizeof(self->varnames[var_id])
+            strcpy(self->varnames[var_id], varname)
+        return var_id

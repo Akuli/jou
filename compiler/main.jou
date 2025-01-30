@@ -4,6 +4,7 @@ import "stdlib/str.jou"
 import "stdlib/process.jou"
 
 import "./builders/llvm_builder.jou"
+import "./builders/uvg_builder.jou"
 import "./command_line_args.jou"
 import "./evaluate.jou"
 import "./run.jou"
@@ -309,6 +310,12 @@ class CompileState:
 
         free(pending_exports)
 
+    def analyze_all_uvgs(self) -> None:
+        for i = 0; i < self->nfiles; i++:
+            if command_line_args.verbosity >= 1:
+                printf("Building and analyzing UVGs for %s\n", self->files[i].path)
+            build_and_process_uvgs(&self->files[i].ast, UvgProcessing.Analyze)
+
 
 def optimize(module: LLVMModule*, level: int) -> None:
     assert 1 <= level and level <= 3
@@ -396,6 +403,12 @@ def main(argc: int, argv: byte**) -> int:
     compst.parse(command_line_args.infile, NULL)
 
     compst.typecheck_all_files()
+
+    if command_line_args.uvg_only:
+        mainfile = compst.find_file(command_line_args.infile)
+        assert mainfile != NULL
+        build_and_process_uvgs(&mainfile->ast, UvgProcessing.Print)
+        return 0
 
     objpaths: byte** = calloc(sizeof objpaths[0], compst.nfiles + 1)
     for i = 0; i < compst.nfiles; i++:

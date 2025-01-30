@@ -1,0 +1,29 @@
+import "stdlib/io.jou"
+
+@public
+def maybe_undefined(n: int) -> None:
+    for i = 0; i < n; i++:
+        message = "Hi"
+    puts(message)  # Warning: the value of 'message' may be undefined
+
+@public
+def surely_undefined_loop() -> None:
+    while False:
+        message = "Hi"  # Warning: this code will never run
+    puts(message)  # Warning: the value of 'message' is undefined
+
+@public
+def surely_undefined_annotation() -> None:
+    x: byte*
+    puts(x)  # Warning: the value of 'x' is undefined
+
+@public
+def surely_undefined_assignments() -> None:
+    a: int
+    b = &a
+    c = b
+    d = c
+    e = *d  # TODO: should emit warning, but this is too "advanced" for UVGs
+
+def main() -> int:
+    return 0

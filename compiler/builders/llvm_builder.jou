@@ -2,19 +2,18 @@
 # function or method.
 #
 # The idea is that instead of building just LLVM IR, we can also build other
-# useful data structures by modifying only the IR builder. This means we don't
-# walk through the AST in multiple different places that could handle some
-# corner cases differently.
-#
-# Currently this is used only to build LLVM IR, but more uses are planned.
+# useful data structures by modifying only the IR builder, such as UVG. This
+# means we don't walk through the AST in multiple different places that could
+# handle some corner cases differently.
 
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 
+import "../errors_and_warnings.jou"
 import "../ast.jou"
-import "../constants.jou"
+import "./either_builder.jou"
 import "../llvm.jou"
 import "../target.jou"
 import "../types.jou"
@@ -221,25 +220,24 @@ def find_enum_member(enumtype: Type*, name: byte*) -> int:
     assert False
 
 
-class BuilderValue:
+class LBuilderValue:
     type: Type*
     llvm_value: LLVMValue*
 
 
-class BuilderBlock:
-    llvm_block: LLVMBasicBlock*
-
-
-class Builder:
+# Not named LLVMBuilder because that is the name of LLVM's thing.
+class LBuilder:
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
     llvm_func: LLVMValue*
     alloca_block: LLVMBasicBlock*  # local variables created here before code of function runs
     code_start_block: LLVMBasicBlock*
     current_block: LLVMBasicBlock*
+    returns_a_value: bool
 
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self->llvm_func = declare_in_llvm(sig, self->llvm_module)
+        self->returns_a_value = sig->returntype != NULL
 
         self->alloca_block = LLVMAppendBasicBlock(self->llvm_func, "alloca")
         self->code_start_block = LLVMAppendBasicBlock(self->llvm_func, "code_start")
@@ -253,14 +251,24 @@ class Builder:
         LLVMPositionBuilderAtEnd(self->llvm_builder, self->alloca_block)
         LLVMBuildBr(self->llvm_builder, self->code_start_block)
 
-    # Allocates enough stack space in the function to hold a value of given type.
-    # Returns a pointer to the stack space.
-    def stack_alloc(self, t: Type*) -> BuilderValue:
+    # TODO: use the location for debug info
+    def set_location(self, location: Location) -> None:
+        pass
+
+    def stack_alloc(self, t: Type*, varname: byte*) -> LBuilderValue:
+        if varname == NULL:
+            debug_name = "stack_alloc"
+        else:
+            debug_name = varname
+
+        # Place all allocations to the same block at start of function, so that
+        # we don't overflow the stack when the part of code that creates local
+        # var runs many times.
         LLVMPositionBuilderAtEnd(self->llvm_builder, self->alloca_block)
-        llvm_ptr = LLVMBuildAlloca(self->llvm_builder, type_to_llvm(t), "stack_alloc")
+        llvm_ptr = LLVMBuildAlloca(self->llvm_builder, type_to_llvm(t), debug_name)
         LLVMPositionBuilderAtEnd(self->llvm_builder, self->current_block)
         llvm_ptr = LLVMBuildBitCast(self->llvm_builder, llvm_ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
-        return BuilderValue{type = t->pointer_type(), llvm_value = llvm_ptr}
+        return LBuilderValue{type = t->pointer_type(), llvm_value = llvm_ptr}
 
     # TODO: Everything named legacy_llvm14_cast can be removed once we drop LLVM 14 support
     #       Needed due to LLVM opaque pointer types transition
@@ -268,7 +276,7 @@ class Builder:
     # TODO: which casts are necessary on LLVM 14 and which are not?
 
     # *ptr = value
-    def set_ptr(self, ptr: BuilderValue, value: BuilderValue) -> None:
+    def set_ptr(self, ptr: LBuilderValue, value: LBuilderValue) -> None:
         if ptr.type != value.type->pointer_type():
             printf("Cannot set value of %s to %s\n", ptr.type->name, value.type->name)
         assert ptr.type == value.type->pointer_type()
@@ -277,13 +285,13 @@ class Builder:
         LLVMBuildStore(self->llvm_builder, value.llvm_value, llvm_ptr)
 
     # *ptr
-    def dereference(self, ptr: BuilderValue) -> BuilderValue:
+    def dereference(self, ptr: LBuilderValue) -> LBuilderValue:
         assert ptr.type->kind == TypeKind.Pointer
         llvm_result = LLVMBuildLoad2(self->llvm_builder, type_to_llvm(ptr.type->value_type), ptr.llvm_value, "dereference")
-        return BuilderValue{type = ptr.type->value_type, llvm_value = llvm_result}
+        return LBuilderValue{type = ptr.type->value_type, llvm_value = llvm_result}
 
     # Returns &ptr[index]
-    def indexed_pointer(self, ptr: BuilderValue, index: BuilderValue) -> BuilderValue:
+    def indexed_pointer(self, ptr: LBuilderValue, index: LBuilderValue) -> LBuilderValue:
         assert ptr.type->kind == TypeKind.Pointer
         assert index.type == longType  # doesn't work right if it's other type
         llvm_result = LLVMBuildGEP2(
@@ -295,10 +303,10 @@ class Builder:
             "indexed_pointer",
         )
         llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
-        return BuilderValue{type = ptr.type, llvm_value = llvm_result}
+        return LBuilderValue{type = ptr.type, llvm_value = llvm_result}
 
     # Returns &ptr->field
-    def class_field_pointer(self, ptr: BuilderValue, field_name: byte*) -> BuilderValue:
+    def class_field_pointer(self, ptr: LBuilderValue, field_name: byte*) -> LBuilderValue:
         assert ptr.type->kind == TypeKind.Pointer
         classtype = ptr.type->value_type
         assert classtype->kind == TypeKind.Class
@@ -315,23 +323,22 @@ class Builder:
         llvm_ptr = LLVMBuildBitCast(self->llvm_builder, ptr.llvm_value, LLVMPointerType(llvm_struct_type, 0), "legacy_llvm14_cast")
         llvm_result = LLVMBuildStructGEP2(self->llvm_builder, llvm_struct_type, llvm_ptr, field->union_id, field->name)
         llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
-        return BuilderValue{type = field->type->pointer_type(), llvm_value = llvm_result}
+        return LBuilderValue{type = field->type->pointer_type(), llvm_value = llvm_result}
 
-    # Returns &llvm_stringiable. Type needs to be passed in because a new builder
-    # unaware of global variables is created for each function.
-    def global_var_ptr(self, name: byte*, var_type: Type*) -> BuilderValue:
+    # &global_variable
+    def global_var_ptr(self, name: byte*, var_type: Type*) -> LBuilderValue:
         llvm_result = LLVMGetNamedGlobal(self->llvm_module, name)
         assert llvm_result != NULL
         llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
-        return BuilderValue{type = var_type->pointer_type(), llvm_value = llvm_result}
+        return LBuilderValue{type = var_type->pointer_type(), llvm_value = llvm_result}
 
-    # Returns the i'th argument given to function
-    def get_argument(self, i: int, argtype: Type*) -> BuilderValue:
+    # i'th argument given to this function
+    def get_argument(self, i: int, argtype: Type*) -> LBuilderValue:
         llvm_result = LLVMGetParam(self->llvm_func, i)
-        return BuilderValue{type = argtype, llvm_value = llvm_result}
+        return LBuilderValue{type = argtype, llvm_value = llvm_result}
 
-    # Function or method call. If method, self with the correct type must be included in args.
-    def call(self, sig: Signature*, args: BuilderValue*, nargs: int) -> BuilderValue:
+    # Function or method call, self included in args if method
+    def call(self, sig: Signature*, args: LBuilderValue*, nargs: int) -> LBuilderValue:
         assert nargs >= sig->nargs
         if nargs > sig->nargs:
             assert sig->takes_varargs
@@ -352,83 +359,64 @@ class Builder:
         llvm_return_value = LLVMBuildCall2(self->llvm_builder, signature_to_llvm(sig), llvm_func, llvm_args, nargs, debug_name)
 
         if sig->returntype == NULL:
-            return BuilderValue{}
+            return LBuilderValue{}
         else:
             assert llvm_return_value != NULL
-            return BuilderValue{type = sig->returntype, llvm_value = llvm_return_value}
+            return LBuilderValue{type = sig->returntype, llvm_value = llvm_return_value}
 
     # string as array of bytes
-    def string_array(self, s: byte*, array_size: int) -> BuilderValue:
+    def string_array(self, s: byte*, array_size: int) -> LBuilderValue:
         assert strlen(s) < array_size
         padded: byte* = malloc(array_size)
         memset(padded, 0, array_size)
         strcpy(padded, s)
         llvm_array = LLVMConstString(padded, array_size, True as int)
         free(padded)
-        return BuilderValue{type = byteType->array_type(array_size), llvm_value = llvm_array}
+        return LBuilderValue{type = byteType->array_type(array_size), llvm_value = llvm_array}
 
     # string as '\0' terminated pointer
-    def string(self, s: byte*) -> BuilderValue:
+    def string(self, s: byte*) -> LBuilderValue:
         llvm_array = self->string_array(s, (strlen(s) + 1) as int).llvm_value
         llvm_string = LLVMAddGlobal(self->llvm_module, LLVMTypeOf(llvm_array), "string_literal")
         LLVMSetLinkage(llvm_string, LLVMLinkage.Private)  # This makes it a static global variable
         LLVMSetInitializer(llvm_string, llvm_array)
         llvm_string = LLVMBuildBitCast(self->llvm_builder, llvm_string, type_to_llvm(byteType->pointer_type()), "legacy_llvm14_cast")
-        return BuilderValue{type = byteType->pointer_type(), llvm_value = llvm_string}
+        return LBuilderValue{type = byteType->pointer_type(), llvm_value = llvm_string}
 
-    def boolean(self, b: bool) -> BuilderValue:
-        return BuilderValue{
+    def boolean(self, b: bool) -> LBuilderValue:
+        return LBuilderValue{
             type = boolType,
             llvm_value = LLVMConstInt(LLVMInt1Type(), b as long, False as int),
         }
 
-    def integer(self, t: Type*, value: long) -> BuilderValue:
+    def integer(self, t: Type*, value: long) -> LBuilderValue:
         assert t->is_integer_type()
-        return BuilderValue{
+        return LBuilderValue{
             type = t,
             llvm_value = LLVMConstInt(type_to_llvm(t), value, (t->kind == TypeKind.SignedInteger) as int),
         }
 
-    def float_or_double(self, t: Type*, string: byte*) -> BuilderValue:
+    def float_or_double(self, t: Type*, string: byte*) -> LBuilderValue:
         assert t->kind == TypeKind.FloatingPoint
-        return BuilderValue{
+        return LBuilderValue{
             type = t,
             llvm_value = LLVMConstRealOfString(type_to_llvm(t), string)
         }
 
-    def zero_of_type(self, t: Type*) -> BuilderValue:
-        return BuilderValue{
+    def zero_of_type(self, t: Type*) -> LBuilderValue:
+        return LBuilderValue{
             type = t,
             llvm_value = LLVMConstNull(type_to_llvm(t)),
         }
 
-    def enum_member(self, t: Type*, name: byte*) -> BuilderValue:
-        return BuilderValue{
+    def enum_member(self, t: Type*, name: byte*) -> LBuilderValue:
+        return LBuilderValue{
             type = t,
             llvm_value = LLVMConstInt(LLVMInt32Type(), find_enum_member(t, name), False as int),
         }
 
-    def constant(self, c: Constant*) -> BuilderValue:
-        llvm_constant: LLVMValue* = NULL
-        match c->kind:
-            case ConstantKind.Bool:
-                return self->boolean(c->boolean)
-            case ConstantKind.Integer:
-                return self->integer(c->get_type(), c->integer.value)
-            case ConstantKind.Float | ConstantKind.Double:
-                return self->float_or_double(c->get_type(), c->double_or_float_text)
-            case ConstantKind.Null:
-                llvm_constant = LLVMConstNull(type_to_llvm(voidPtrType))
-            case ConstantKind.String:
-                return self->string(c->str)
-            case ConstantKind.EnumMember:
-                llvm_constant = LLVMConstInt(LLVMInt32Type(), c->enum_member.memberidx, False as int)
-
-        assert llvm_constant != NULL
-        return BuilderValue{type = c->get_type(), llvm_value = llvm_constant}
-
     # a + b
-    def add(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+    def add(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
         assert a.type == b.type
         match a.type->kind:
             case TypeKind.FloatingPoint:
@@ -437,10 +425,10 @@ class Builder:
                 llvm_sum = LLVMBuildAdd(self->llvm_builder, a.llvm_value, b.llvm_value, "int_sum")
             case _:
                 assert False
-        return BuilderValue{type = a.type, llvm_value = llvm_sum}
+        return LBuilderValue{type = a.type, llvm_value = llvm_sum}
 
     # a - b
-    def sub(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+    def sub(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
         assert a.type == b.type
         match a.type->kind:
             case TypeKind.FloatingPoint:
@@ -449,10 +437,10 @@ class Builder:
                 llvm_diff = LLVMBuildSub(self->llvm_builder, a.llvm_value, b.llvm_value, "int_diff")
             case _:
                 assert False
-        return BuilderValue{type = a.type, llvm_value = llvm_diff}
+        return LBuilderValue{type = a.type, llvm_value = llvm_diff}
 
     # a * b
-    def mul(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+    def mul(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
         assert a.type == b.type
         match a.type->kind:
             case TypeKind.FloatingPoint:
@@ -461,10 +449,10 @@ class Builder:
                 llvm_prod = LLVMBuildMul(self->llvm_builder, a.llvm_value, b.llvm_value, "int_prod")
             case _:
                 assert False
-        return BuilderValue{type = a.type, llvm_value = llvm_prod}
+        return LBuilderValue{type = a.type, llvm_value = llvm_prod}
 
     # a / b
-    def div(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+    def div(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
         assert a.type == b.type
         match a.type->kind:
             case TypeKind.FloatingPoint:
@@ -475,10 +463,10 @@ class Builder:
                 llvm_quot = LLVMBuildUDiv(self->llvm_builder, a.llvm_value, b.llvm_value, "uint_quot")
             case _:
                 assert False
-        return BuilderValue{type = a.type, llvm_value = llvm_quot}
+        return LBuilderValue{type = a.type, llvm_value = llvm_quot}
 
     # a % b
-    def mod(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+    def mod(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
         assert a.type == b.type
         match a.type->kind:
             case TypeKind.FloatingPoint:
@@ -489,10 +477,10 @@ class Builder:
                 llvm_mod = LLVMBuildURem(self->llvm_builder, a.llvm_value, b.llvm_value, "uint_mod")
             case _:
                 assert False
-        return BuilderValue{type = a.type, llvm_value = llvm_mod}
+        return LBuilderValue{type = a.type, llvm_value = llvm_mod}
 
     # a == b
-    def eq(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+    def eq(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
         assert a.type == b.type
         match a.type->kind:
             case TypeKind.SignedInteger | TypeKind.UnsignedInteger | TypeKind.Enum | TypeKind.Bool:
@@ -501,10 +489,10 @@ class Builder:
                 llvm_result = LLVMBuildFCmp(self->llvm_builder, LLVMRealPredicate.OEQ, a.llvm_value, b.llvm_value, "eq")
             case _:
                 assert False
-        return BuilderValue{type = boolType, llvm_value = llvm_result}
+        return LBuilderValue{type = boolType, llvm_value = llvm_result}
 
     # a < b
-    def lt(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+    def lt(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
         assert a.type == b.type
         match a.type->kind:
             case TypeKind.SignedInteger:
@@ -515,72 +503,57 @@ class Builder:
                 llvm_result = LLVMBuildFCmp(self->llvm_builder, LLVMRealPredicate.OLT, a.llvm_value, b.llvm_value, "lt")
             case _:
                 assert False
-        return BuilderValue{type = boolType, llvm_value = llvm_result}
+        return LBuilderValue{type = boolType, llvm_value = llvm_result}
 
     # not value
-    def not_(self, value: BuilderValue) -> BuilderValue:
+    def not_(self, value: LBuilderValue) -> LBuilderValue:
         llvm_result = LLVMBuildXor(self->llvm_builder, value.llvm_value, LLVMConstInt(LLVMInt1Type(), 1, False as int), "not")
-        return BuilderValue{type = boolType, llvm_value = llvm_result}
+        return LBuilderValue{type = boolType, llvm_value = llvm_result}
 
     # sizeof(any value of given type)
-    def size_of(self, t: Type*) -> BuilderValue:
-        return BuilderValue{
+    def size_of(self, t: Type*) -> LBuilderValue:
+        return LBuilderValue{
             type = longType,
             llvm_value = LLVMSizeOf(type_to_llvm(t)),
         }
 
     # memset(ptr, 0, sizeof(*ptr))
-    def memset_to_zero(self, ptr: BuilderValue) -> None:
+    def memset_to_zero(self, ptr: LBuilderValue) -> None:
         assert ptr.type->kind == TypeKind.Pointer
         size = self->size_of(ptr.type->value_type).llvm_value
         zero_byte = LLVMConstInt(LLVMInt8Type(), 0, False as int)
         LLVMBuildMemSet(self->llvm_builder, ptr.llvm_value, zero_byte, size, 0)
 
     # value as to
-    def cast(self, value: BuilderValue, to: Type*) -> BuilderValue:
+    def cast(self, value: LBuilderValue, to: Type*) -> LBuilderValue:
         llvm_result = build_llvm_cast(self->llvm_builder, value.llvm_value, value.type, to)
-        return BuilderValue{type = to, llvm_value = llvm_result}
+        return LBuilderValue{type = to, llvm_value = llvm_result}
 
     # Blocks are used to implement e.g. if statements and loops.
-    def add_block(self) -> BuilderBlock:
-        llvm_block = LLVMAppendBasicBlock(self->llvm_func, "block")
-        return BuilderBlock{llvm_block = llvm_block}
+    def add_block(self) -> LLVMBasicBlock*:
+        return LLVMAppendBasicBlock(self->llvm_func, "block")
 
     # Decide which block will contain the resulting instructions.
-    def set_current_block(self, block: BuilderBlock) -> None:
-        LLVMPositionBuilderAtEnd(self->llvm_builder, block.llvm_block)
-        self->current_block = block.llvm_block
+    def set_current_block(self, block: LLVMBasicBlock*) -> None:
+        LLVMPositionBuilderAtEnd(self->llvm_builder, block)
+        self->current_block = block
 
-    # Conditional branch:
-    #
-    #   if cond:
-    #       then
-    #   else:
-    #       otherwise
-    #
-    # This leaves the builder in a "no current block" state, i.e. you must call
-    # set_current_block() before the builder is usable again.
-    def branch(self, cond: BuilderValue, then: BuilderBlock, otherwise: BuilderBlock) -> None:
-        LLVMBuildCondBr(self->llvm_builder, cond.llvm_value, then.llvm_block, otherwise.llvm_block)
+    def branch(self, cond: LBuilderValue, then: LLVMBasicBlock*, otherwise: LLVMBasicBlock*) -> None:
+        LLVMBuildCondBr(self->llvm_builder, cond.llvm_value, then, otherwise)
 
-    # Go to the block. Similar to branch() but no condition. LLVM calls this
-    # "unconditional branch", which IMO doesn't make sense because it always
-    # jumps and hence doesn't branch.
-    #
-    # This leaves the builder in a "no current block" state, i.e. you must call
-    # set_current_block() before the builder is usable again.
-    def jump(self, next_block: BuilderBlock) -> None:
-        LLVMBuildBr(self->llvm_builder, next_block.llvm_block)
+    def jump(self, next_block: LLVMBasicBlock*) -> None:
+        LLVMBuildBr(self->llvm_builder, next_block)
 
-    # Add an instruction that should never run.
-    # May be used by optimizer, but also tells LLVM that the block ends here.
     def unreachable(self) -> None:
         LLVMBuildUnreachable(self->llvm_builder)
 
-    # Return from function/method. Value should be NULL if the function is '-> None'.
-    def ret(self, value: BuilderValue*) -> None:
+    def ret(self, value: LBuilderValue*) -> None:
         if value == NULL:
-            LLVMBuildRetVoid(self->llvm_builder)
+            if self->returns_a_value:
+                # Implicit "return" at the end of a function that should return a value
+                LLVMBuildUnreachable(self->llvm_builder)
+            else:
+                LLVMBuildRetVoid(self->llvm_builder)
         else:
             LLVMBuildRet(self->llvm_builder, value->llvm_value)
 
@@ -591,7 +564,8 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
     LLVMSetTarget(module, target.triple)
     LLVMSetDataLayout(module, target.data_layout)
 
-    builder = Builder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
+    builder = LBuilder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
+    builder_wrapper = EitherBuilder{lbuilder = &builder}
 
     for g = ast->types.globals; g < &ast->types.globals[ast->types.nglobals]; g++:
         t = type_to_llvm(g->type)
@@ -602,11 +576,11 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
     for stmt = ast->body.statements; stmt < &ast->body.statements[ast->body.nstatements]; stmt++:
         match stmt->kind:
             case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt->function, &builder)
+                feed_ast_to_builder(&stmt->function, stmt->location, &builder_wrapper)
             case AstStatementKind.Class:
                 for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
                     if inner->kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner->method, &builder)
+                        feed_ast_to_builder(&inner->method, inner->location, &builder_wrapper)
             case _:
                 pass
 
