@@ -310,7 +310,7 @@ class CompileState:
 
         free(pending_exports)
 
-    def analyze_all_uvgs(self) -> None:
+    def build_and_analyze_all_uvgs(self) -> None:
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
                 printf("Building and analyzing UVGs for %s\n", self->files[i].path)
@@ -409,6 +409,8 @@ def main(argc: int, argv: byte**) -> int:
         assert mainfile != NULL
         build_and_process_uvgs(&mainfile->ast, UvgProcessing.Print)
         return 0
+
+    compst.build_and_analyze_all_uvgs()
 
     objpaths: byte** = calloc(sizeof objpaths[0], compst.nfiles + 1)
     for i = 0; i < compst.nfiles; i++:

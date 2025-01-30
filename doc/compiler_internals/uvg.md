@@ -1,6 +1,6 @@
 # Undefined Value Graphs
 
-UVGs are used to determine which values may be undefined when the code runs.
+UVGs are used to determine which variables may be undefined when the code runs.
 This file explains how they work using examples.
 
 
@@ -77,7 +77,7 @@ block 0 (start):
 
 The "don't analyze" UVG instruction means that
 the address of the variable has been used in some complicated way.
-From that point on, it is not possible to determine whether the value is defined or undefined.
+From that point on, it is not possible to determine whether the variable is defined or undefined.
 For example, a function call with `&a` might store `a` to a global variable and set its value later.
 No matter what you do after a variable is marked as "don't analyze", the compiler will not complain.
 
@@ -110,7 +110,7 @@ we don't need to somehow know which variables might end up in the variable `y`.
 That might be doable, but for now, it seems unnecessarily complicated.
 
 
-## Value Statuses and Branching
+## Variable Statuses and Branching
 
 To implement the warnings in
 [tests/should_succeed/undefined_variable.jou](../../broken_tests/should_succeed/undefined_variable.jou),
@@ -139,14 +139,14 @@ revisiting blocks multiple as needed to handle loops.
 Pseudo code:
 
 ```python
-statuses_at_end = {b: {v: set() for v in values} for b in blocks}
+statuses_at_end = {b: {v: set() for v in variables} for b in blocks}
 
 def analyze_block(b, warn=False):
     statuses = {}
-    for v in values:
-        statuses[v] = "unvisited"
+    for v in variables:
+        statuses[v] = set()
         for sourceblock in blocks_that_jump_to_b:
-            statuses[v] = merge(statuses[v], statuses_at_end[sourceblock][v])
+            statuses[v] |= statuses_at_end[sourceblock][v]
         if b == the_start_block:
             statuses[v].add("undefined")
 
