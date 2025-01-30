@@ -38,7 +38,7 @@ class UBuilder:
         self->location = location
 
     def add_instruction(self, ins: UvgInstruction) -> None:
-        assert ins.x >= 0
+        assert ins.var >= 0
 
         assert self->location.path != NULL
         assert self->location.lineno != 0
@@ -51,17 +51,17 @@ class UBuilder:
         assert b->instructions != NULL
         b->instructions[b->ninstructions++] = ins
 
-    def use_deref(self, x: int) -> None:
-        if x != -1:
-            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.UseDerefX, x = x})
+    def use(self, var: int) -> None:
+        if var != -1:
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Use, var = var})
 
-    def set_deref(self, x: int) -> None:
-        if x != -1:
-            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.SetDerefX, x = x})
+    def set(self, var: int) -> None:
+        if var != -1:
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Set, var = var})
 
-    def dont_analyze(self, x: int) -> None:
-        if x != -1:
-            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.DontAnalyzeX, x = x})
+    def dont_analyze(self, var: int) -> None:
+        if var != -1:
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.DontAnalyze, var = var})
 
     def stack_alloc(self, t: Type*, varname: byte*) -> int:
         if varname != NULL:
@@ -70,11 +70,11 @@ class UBuilder:
         return self->uvg.get_local_var_ptr(varname)
 
     def set_ptr(self, ptr: int, value: int) -> None:
-        self->set_deref(ptr)
+        self->dont_analyze(value)
+        self->set(ptr)
 
     def dereference(self, ptr: int) -> int:
-        # TODO: this causes the compiler to give up on "x = &y"
-        self->use_deref(ptr)
+        self->use(ptr)
         return -1
 
     def indexed_pointer(self, ptr: int, index: int) -> int:
@@ -155,7 +155,7 @@ class UBuilder:
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: int) -> None:
-        self->set_deref(ptr)
+        self->set(ptr)
 
     # value as to
     def cast(self, value: int, to: Type*) -> int:
@@ -201,10 +201,10 @@ class UBuilder:
 
     def ret(self, value: int*) -> None:
         if value != NULL:
-            self->set_deref(self->uvg.get_local_var_ptr("return"))
+            self->set(self->uvg.get_local_var_ptr("return"))
 
         if self->returns_a_value:
-            self->use_deref(self->uvg.get_local_var_ptr("return"))
+            self->use(self->uvg.get_local_var_ptr("return"))
 
         assert self->current_block != NULL
         assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet

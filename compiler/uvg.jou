@@ -6,14 +6,14 @@ import "./errors_and_warnings.jou"
 
 
 enum UvgInstructionKind:
-    UseDerefX           # something = *x
-    SetDerefX           # *x = something
-    DontAnalyzeX        # do_something_complicated(&x)
+    Use             # something = *x
+    Set             # *x = something
+    DontAnalyze     # do_something_complicated(&x)
 
 class UvgInstruction:
     location: Location
     kind: UvgInstructionKind
-    x: int
+    var: int
 
 
 class UvgBranch:
@@ -91,12 +91,12 @@ class Uvg:
                 printf("%s", s)
 
                 match ins->kind:
-                    case UvgInstructionKind.UseDerefX:
-                        printf("use %s\n", self->varnames[ins->x])
-                    case UvgInstructionKind.SetDerefX:
-                        printf("set %s\n", self->varnames[ins->x])
-                    case UvgInstructionKind.DontAnalyzeX:
-                        printf("don't analyze %s\n", self->varnames[ins->x])
+                    case UvgInstructionKind.Use:
+                        printf("use %s\n", self->varnames[ins->var])
+                    case UvgInstructionKind.Set:
+                        printf("set %s\n", self->varnames[ins->var])
+                    case UvgInstructionKind.DontAnalyze:
+                        printf("don't analyze %s\n", self->varnames[ins->var])
 
             printf("    ")
             match b->terminator.kind:

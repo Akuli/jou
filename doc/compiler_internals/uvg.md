@@ -81,6 +81,34 @@ From that point on, it is not possible to determine whether the value is defined
 For example, a function call with `&a` might store `a` to a global variable and set its value later.
 No matter what you do after a variable is marked as "don't analyze", the compiler will not complain.
 
+Even a simple variable assignment can introduce the "don't analyze" instruction.
+For example, consider the following:
+
+```python
+import "stdlib/io.jou"
+
+def baz() -> None:
+    x: int
+    y = &x              # line 5
+    scanf("%d\n", y)    # line 6
+```
+
+The UVG is:
+
+```
+===== UVG for baz =====
+block 0 (start):
+    [line 5]    don't analyze x
+    [line 5]    set y
+    [line 6]    use y
+    Return from function.
+```
+
+Just setting `y = &x` emits the "don't analyze" instruction for `x`.
+This way, when we see `scanf("%d\n", y)`,
+we don't need to somehow know which variables might end up in the variable `y`.
+That might be doable, but for now, it seems unnecessarily complicated.
+
 
 ## Value Statuses and Branching
 
