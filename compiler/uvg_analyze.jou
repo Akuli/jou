@@ -1,6 +1,5 @@
 # See doc/compiler_internals/uvg.md
 
-import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
@@ -16,22 +15,24 @@ enum VarStatus:
     DontAnalyze         # The "don't analyze" UVG instruction has been used.
 
 
-def print_statuses(uvg: Uvg*, statuses: VarStatus*) -> None:
-    printf("VAR STATUSES:")
-    for v = 0; v < uvg->nvars; v++:
-        printf(" %s=", uvg->varnames[v])
-        match statuses[v]:
-            case VarStatus.Unvisited:
-                printf("{}")
-            case VarStatus.Undefined:
-                printf("{u}")
-            case VarStatus.Defined:
-                printf("{d}")
-            case VarStatus.PossiblyUndefined:
-                printf("{u,d}")
-            case VarStatus.DontAnalyze:
-                printf("-")
-    printf("\n")
+# TODO: "if False:" doesn't work
+if WINDOWS and not WINDOWS:
+    def print_statuses(uvg: Uvg*, statuses: VarStatus*) -> None:
+        printf("VAR STATUSES:")
+        for v = 0; v < uvg->nvars; v++:
+            printf(" %s=", uvg->varnames[v])
+            match statuses[v]:
+                case VarStatus.Unvisited:
+                    printf("{}")
+                case VarStatus.Undefined:
+                    printf("{u}")
+                case VarStatus.Defined:
+                    printf("{d}")
+                case VarStatus.PossiblyUndefined:
+                    printf("{u,d}")
+                case VarStatus.DontAnalyze:
+                    printf("-")
+        printf("\n")
 
 
 # a and b are statuses from different branches that both jump to the same block.
@@ -113,8 +114,8 @@ def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block
                     statuses[ins->var] = VarStatus.Defined
             case UvgInstructionKind.Use:
                 if warn and uvg->varnames[ins->var][0] != '$':
-                    printf("use %s with ", uvg->varnames[ins->var])
-                    print_statuses(uvg, statuses)
+#                    printf("use %s with ", uvg->varnames[ins->var])
+#                    print_statuses(uvg, statuses)
                     match statuses[ins->var]:
                         case VarStatus.Defined | VarStatus.DontAnalyze:
                             pass
@@ -133,9 +134,19 @@ def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block
                                 snprintf(msg, sizeof(msg), "the value of '%s' is undefined", uvg->varnames[ins->var])
                                 show_warning(ins->location, msg)
                         case VarStatus.PossiblyUndefined:
-                            # TODO: special-case returning
-                            snprintf(msg, sizeof(msg), "the value of '%s' may be undefined", uvg->varnames[ins->var])
-                            show_warning(ins->location, msg)
+                            if strcmp(uvg->varnames[ins->var], "return") == 0:
+                                # TODO: test this
+                                snprintf(
+                                    msg, sizeof(msg),
+                                    "%s '%s' does not seem to return a value in all cases",
+                                    uvg->signature->function_or_method(),
+                                    uvg->signature->name,
+                                    uvg->signature->returntype->name,
+                                )
+                                show_warning(ins->location, msg)
+                            else:
+                                snprintf(msg, sizeof(msg), "the value of '%s' may be undefined", uvg->varnames[ins->var])
+                                show_warning(ins->location, msg)
                         case VarStatus.Unvisited:
                             # TODO: unreachable code warning?
                             pass
@@ -149,8 +160,8 @@ declare memcmp(s1: void*, s2: void*, n: long) -> int
 
 
 def analyze_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int, warn: bool) -> bool:
-    if warn:
-        uvg->print()
+#    if warn:
+#        uvg->print()
 
     statuses = build_statuses_at_start_of_block(uvg, statuses_at_end, blockidx)
     update_statuses_based_on_instructions(uvg, statuses, uvg->blocks[blockidx], warn)
