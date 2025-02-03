@@ -62,7 +62,7 @@ jobs:
       - run: sudo apt update
       - run: sudo apt install -y llvm-{14,15,16}-dev clang-{14,15,16} make
       - run: LLVM_CONFIG=llvm-config-14 ./doctest.sh
-      - run: make clean
+      - run: mv jou_bootstrap x; make clean; mv x jou_bootstrap
       - run: LLVM_CONFIG=llvm-config-15 ./doctest.sh
-      - run: make clean
+      - run: mv jou_bootstrap x; make clean; mv x jou_bootstrap
       - run: LLVM_CONFIG=llvm-config-16 ./doctest.sh
