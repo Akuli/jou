@@ -210,6 +210,7 @@ def show_unreachable_warning(uvg: Uvg*, blockidx: int, reachable: bool*, skip_wa
                     i != k
                     and skip_warn[i]
                     and not skip_warn[k]
+                    and not reachable[k]
                     and uvg->blocks[i]->jumps_to(uvg->blocks[k])
                 ):
                     skip_warn[k] = True
