@@ -29,9 +29,13 @@ jobs:
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: bootstrapped
+      - name: "Download bootstrap compiler artifact"
+        run: |
+          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
+          unzip artifact.zip
+          rm -v artifact.zip
+          touch jou_bootstrap  # Do not use modification timestamp extracted from zip
       - run: chmod +x jou_bootstrap
       - run: brew install bash diffutils llvm@${{ matrix.llvm-version }}
       - name: "Select LLVM version"
@@ -49,9 +53,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: bootstrapped
+      - name: "Download bootstrap compiler artifact"
+        run: |
+          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
+          unzip artifact.zip
+          rm -v artifact.zip
+          touch jou_bootstrap  # Do not use modification timestamp extracted from zip
       - run: chmod +x jou_bootstrap
       - run: brew install bash diffutils llvm@15
       - run: ./doctest.sh
