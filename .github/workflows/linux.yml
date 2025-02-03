@@ -40,6 +40,7 @@ jobs:
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
           unzip artifact.zip
           rm -v artifact.zip
+          touch jou_bootstrap  # Do not use modification timestamp extracted from zip
       - run: chmod +x jou_bootstrap
       - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make
