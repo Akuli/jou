@@ -217,7 +217,7 @@ jobs:
           path: repo
       - name: "Download release artifact"
         run: |
-          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
+          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | jq -r '.artifacts[] | select(.name == "windows-zip") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
         shell: bash
       # It's a zip file inside zip file because the Jou release itself is a
