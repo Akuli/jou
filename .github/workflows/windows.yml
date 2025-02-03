@@ -185,15 +185,16 @@ jobs:
         with:
           # Add a space in the folder name to trigger bugs like #165
           path: "test dir"
-      - name: "Download bootstrap compiler artifact to 'test dir'"
+      - name: "Download bootstrap compiler artifact"
         run: |
-          cd "test dir"
           url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
         shell: bash
       - run: unzip artifact.zip
         shell: bash
       - run: touch jou_bootstrap.exe  # Do not bootstrap again due to timestamp extracted from zip
+        shell: bash
+      - run: mv jou_bootstrap.exe "test dir"
         shell: bash
       - run: cd "test dir" && ./windows_setup.sh --small
         shell: bash
