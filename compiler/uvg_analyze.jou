@@ -192,16 +192,19 @@ def uvg_analyze(uvg: Uvg*) -> None:
 #    uvg->print()
     assert uvg->nblocks >= 1  # must have at least start block
 
-    queue: bool* = malloc(sizeof(queue[0]) * uvg->nblocks)
+    queue: bool* = calloc(sizeof(queue[0]), uvg->nblocks)
+    reachable: bool* = calloc(sizeof(queue[0]), uvg->nblocks)
     assert queue != NULL
+    assert reachable != NULL
     queue[0] = True
-    memset(&queue[1], 0, sizeof(queue[0]) * (uvg->nblocks - 1))
+
     statuses_at_end = build_statuses_at_end_before_analyzing(uvg)
 
     while True:
         blockidx = find_true(queue, uvg->nblocks)
         if blockidx == -1:
             break
+        reachable[blockidx] = True
 #        printf("Analyze %d\n", blockidx)
 
         queue[blockidx] = False
@@ -213,7 +216,8 @@ def uvg_analyze(uvg: Uvg*) -> None:
                     queue[b] = True
 
     for b = 0; b < uvg->nblocks; b++:
-        analyze_block(uvg, statuses_at_end, b, True)
+        if reachable[b]:
+            analyze_block(uvg, statuses_at_end, b, True)
 
     free_statuses(uvg, statuses_at_end)
     free(queue)
