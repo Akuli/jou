@@ -1,6 +1,6 @@
 # Undefined Value Graphs
 
-UVGs are used to determine which values may be undefined when the code runs.
+UVGs are used to determine which variables may be undefined when the code runs.
 This file explains how they work using examples.
 
 
@@ -77,7 +77,7 @@ block 0 (start):
 
 The "don't analyze" UVG instruction means that
 the address of the variable has been used in some complicated way.
-From that point on, it is not possible to determine whether the value is defined or undefined.
+From that point on, it is not possible to determine whether the variable is defined or undefined.
 For example, a function call with `&a` might store `a` to a global variable and set its value later.
 No matter what you do after a variable is marked as "don't analyze", the compiler will not complain.
 
@@ -110,26 +110,26 @@ we don't need to somehow know which variables might end up in the variable `y`.
 That might be doable, but for now, it seems unnecessarily complicated.
 
 
-## Value Statuses and Branching
+## Variable Statuses and Branching
 
 To implement the warnings in
 [tests/should_succeed/undefined_variable.jou](../../broken_tests/should_succeed/undefined_variable.jou),
 the Jou compiler keeps track of the possible statuses of the variables in UVG.
-The **status** of a variable is a subset of the following:
-- `undefined`
-- `points to foo`, where `foo` is another variable in the UVG
-- `defined` (some value has been assigned to the value, but we don't know what value)
+The **status** of a variable is conceptually a subset of the two-element set `{defined, undefined}`.
+In reality, the "don't analyze" instruction makes this slightly more complicated (but not much).
 
-For example, a variable with status `{undefined, points to foo}`
-is either undefined or `&foo` depending on some `if` statement or loop or other control flow thing.
+Examples:
+- A variable with status `{undefined}` is surely undefined. For example, `x` just after `x: int`.
+- A variable with status `{defined, undefined}` may be defined or undefined.
+    For example, a variable inside a loop before a value is assigned to it is like this:
+    a previous iteration may leave the variable in a `defined` state.
+- A variable whose status is the empty set has not been analyzed yet.
 
 In UVG, branching and loops are handled just like in LLVM.
 UVG instructions are placed into **blocks**.
-The end of the block is a **terminator**, which can be:
-- jump to another block
-- branch: jump to one of two blocks depending on some value
-- return from function
-- unreachable: the end of the block will never run for some reason.
+The end of the block is a **terminator**, which defines what happens at the end of the block.
+Most importantly, it contains information about which blocks we may jump into.
+For example, an `if`/`else` statement may jump into the `if` or the `else`.
 
 The statuses are figured out block by block.
 The compiler internally stores the status of each variable at the end of each block in UVG.
@@ -139,11 +139,11 @@ revisiting blocks multiple as needed to handle loops.
 Pseudo code:
 
 ```python
-statuses_at_end = {b: {v: set() for v in values} for b in blocks}
+statuses_at_end = {b: {v: set() for v in variables} for b in blocks}
 
 def analyze_block(b, warn=False):
     statuses = {}
-    for v in values:
+    for v in variables:
         statuses[v] = set()
         for sourceblock in blocks_that_jump_to_b:
             statuses[v] |= statuses_at_end[sourceblock][v]
@@ -173,10 +173,12 @@ Also, all values may be undefined in the beginning of the start block.
 When we have computed the statuses of variables at the end of a block,
 and they differ from the previous analysis,
 we take the blocks that used the outdated statuses and queue them for another round of analyzing.
+The algorithm will terminate eventually as long as a cyclic change of statuses
+(e.g. `foo -> bar -> baz -> foo`) is not possible.
 
-At this point, we know which statuses are possible, and control flow has basically been taken care of.
-Because we only stored the statuses at the end of each block,
-we must loop through the instructions in each block again to show warnings.
+Once all that is done, we know which statuses are possible at the start and end of each block,
+Basically, control flow has been taken care of.
+This means that it's time to show warnings.
 
 This could be done in a way that loops over the instructions fewer times, but that is unnecessary,
 because this code is not the performance bottleneck of the compiler.
