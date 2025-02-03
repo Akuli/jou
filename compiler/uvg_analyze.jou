@@ -147,7 +147,6 @@ def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block
                                 snprintf(msg, sizeof(msg), "the value of '%s' may be undefined", uvg->varnames[ins->var])
                                 show_warning(ins->location, msg)
                         case VarStatus.Unvisited:
-                            # TODO: unreachable code warning?
                             pass
                 pass
             case UvgInstructionKind.DontAnalyze:
@@ -187,9 +186,9 @@ def show_unreachable_warning(uvg: Uvg*, blockidx: int, reachable: bool*, skip_wa
     warn_location: Location* = NULL
     for i = 0; i < uvg->blocks[blockidx]->ninstructions; i++:
         # TODO: check if we can warn at this instruction
-#        if not uvg->blocks[blockidx]->instructions[i].skip_unreachable_warning:
-        warn_location = &uvg->blocks[blockidx]->instructions[i].location
-        break
+        if uvg->blocks[blockidx]->instructions[i].warn_unreachable:
+            warn_location = &uvg->blocks[blockidx]->instructions[i].location
+            break
 
     if warn_location == NULL:
         return
@@ -210,7 +209,7 @@ def show_unreachable_warning(uvg: Uvg*, blockidx: int, reachable: bool*, skip_wa
                     i != k
                     and skip_warn[i]
                     and not skip_warn[k]
-                    and not reachable[k]
+#                    and not reachable[k]
                     and uvg->blocks[i]->jumps_to(uvg->blocks[k])
                 ):
                     skip_warn[k] = True

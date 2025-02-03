@@ -248,6 +248,12 @@ class LBuilder:
             LLVMSetLinkage(self->llvm_func, LLVMLinkage.Private)
 
     def end_function(self) -> None:
+        if self->returns_a_value:
+            # Implicit "return" at the end of a function that should return a value
+            LLVMBuildUnreachable(self->llvm_builder)
+        else:
+            LLVMBuildRetVoid(self->llvm_builder)
+
         LLVMPositionBuilderAtEnd(self->llvm_builder, self->alloca_block)
         LLVMBuildBr(self->llvm_builder, self->code_start_block)
 
@@ -549,11 +555,7 @@ class LBuilder:
 
     def ret(self, value: LBuilderValue*) -> None:
         if value == NULL:
-            if self->returns_a_value:
-                # Implicit "return" at the end of a function that should return a value
-                LLVMBuildUnreachable(self->llvm_builder)
-            else:
-                LLVMBuildRetVoid(self->llvm_builder)
+            LLVMBuildRetVoid(self->llvm_builder)
         else:
             LLVMBuildRet(self->llvm_builder, value->llvm_value)
 
