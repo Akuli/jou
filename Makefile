@@ -1,5 +1,5 @@
 ifneq (,$(findstring Windows,$(OS)))
-	include Makefile.windows
+    include Makefile.windows
 else
 	include Makefile.posix
 endif
