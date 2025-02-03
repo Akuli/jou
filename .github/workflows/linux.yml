@@ -38,9 +38,8 @@ jobs:
         run: |
           url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
-          unzip artifact.zip
-          rm -v artifact.zip
-          touch jou_bootstrap  # Do not use modification timestamp extracted from zip
+      - run: unzip artifact.zip
+      - run: touch jou_bootstrap  # Do not bootstrap again due to timestamp extracted from zip
       - run: chmod +x jou_bootstrap
       - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make
@@ -63,9 +62,8 @@ jobs:
         run: |
           url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
-          unzip artifact.zip
-          rm -v artifact.zip
-          touch jou_bootstrap  # Do not use modification timestamp extracted from zip
+      - run: unzip artifact.zip
+      - run: touch jou_bootstrap  # Do not bootstrap again due to timestamp extracted from zip
       - run: chmod +x jou_bootstrap
       - run: sudo apt update
       - run: sudo apt install -y llvm-{14,15,16}-dev clang-{14,15,16} make

@@ -33,9 +33,8 @@ jobs:
         run: |
           url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
-          unzip artifact.zip
-          rm -v artifact.zip
-          touch jou_bootstrap  # Do not use modification timestamp extracted from zip
+      - run: unzip artifact.zip
+      - run: touch jou_bootstrap  # Do not bootstrap again due to timestamp extracted from zip
       - run: chmod +x jou_bootstrap
       - run: brew install bash diffutils llvm@${{ matrix.llvm-version }}
       - name: "Select LLVM version"
@@ -57,9 +56,8 @@ jobs:
         run: |
           url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
-          unzip artifact.zip
-          rm -v artifact.zip
-          touch jou_bootstrap  # Do not use modification timestamp extracted from zip
+      - run: unzip artifact.zip
+      - run: touch jou_bootstrap  # Do not bootstrap again due to timestamp extracted from zip
       - run: chmod +x jou_bootstrap
       - run: brew install bash diffutils llvm@15
       - run: ./doctest.sh

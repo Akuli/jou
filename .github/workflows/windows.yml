@@ -94,9 +94,10 @@ jobs:
         run: |
           url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
-          unzip artifact.zip
-          rm -v artifact.zip
-          touch jou_bootstrap.exe  # Do not use modification timestamp extracted from zip
+        shell: bash
+      - run: unzip artifact.zip
+        shell: bash
+      - run: touch jou_bootstrap.exe  # Do not bootstrap again due to timestamp extracted from zip
         shell: bash
       # TODO: figure out why --small doesn't work here
       - run: source activate && ./windows_setup.sh
@@ -189,9 +190,10 @@ jobs:
           cd "test dir"
           url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
-          unzip artifact.zip
-          rm -v artifact.zip
-          touch jou_bootstrap.exe  # Do not use modification timestamp extracted from zip
+        shell: bash
+      - run: unzip artifact.zip
+        shell: bash
+      - run: touch jou_bootstrap.exe  # Do not bootstrap again due to timestamp extracted from zip
         shell: bash
       - run: cd "test dir" && ./windows_setup.sh --small
         shell: bash
@@ -213,15 +215,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: repo
-      - name: "Download bootstrap compiler artifact"
+      - name: "Download release artifact"
         run: |
-          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
+          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" >| tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
-          unzip artifact.zip
-          rm -v artifact.zip
-          touch jou_bootstrap.exe  # Do not use modification timestamp extracted from zip
+        shell: bash
+      # It's a zip file inside zip file because the Jou release itself is a
+      # zip, and github wraps build artifacts into zip files
+      - run: unzip artifact.zip
         shell: bash
       - run: unzip jou.zip
+        shell: bash
       - run: cp -r repo/tests repo/runtests.sh jou
         shell: bash
       - run: cd jou && ./jou.exe --verbose examples/hello.jou
@@ -239,9 +243,10 @@ jobs:
         run: |
           url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
-          unzip artifact.zip
-          rm -v artifact.zip
-          touch jou_bootstrap.exe  # Do not use modification timestamp extracted from zip
+        shell: bash
+      - run: unzip artifact.zip
+        shell: bash
+      - run: touch jou_bootstrap.exe  # Do not bootstrap again due to timestamp extracted from zip
         shell: bash
       - run: ./windows_setup.sh --small
         shell: bash
