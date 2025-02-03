@@ -108,7 +108,7 @@ jobs:
                   -d "$(jq -n --arg t "$1" --arg b "$(cat)" '{title: $t, body: $b}')"
           }
 
-          link="- [$(date)](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          link="- [$(date)](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
           echo $link
 
           echo "Checking if there is already an issue about valgrind errors..."
