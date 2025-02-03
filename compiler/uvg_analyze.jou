@@ -74,7 +74,8 @@ def build_statuses_at_end_before_analyzing(uvg: Uvg*) -> VarStatus**:
     assert statuses_at_end != NULL
     for b = 0; b < uvg->nblocks; b++:
         statuses_at_end[b] = malloc(sizeof(statuses_at_end[b][0]) * uvg->nvars)
-        assert statuses_at_end[b] != NULL
+        if uvg->nvars != 0:
+            assert statuses_at_end[b] != NULL
         for v = 0; v < uvg->nvars; v++:
             statuses_at_end[b][v] = VarStatus.Unvisited
     return statuses_at_end
@@ -88,7 +89,8 @@ def free_statuses(uvg: Uvg*, statuses_at_end: VarStatus**) -> None:
 
 def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int) -> VarStatus*:
     statuses: VarStatus* = malloc(sizeof(statuses[0]) * uvg->nvars)
-    assert statuses != NULL
+    if uvg->nvars != 0:
+        assert statuses != NULL
 
     for v = 0; v < uvg->nvars; v++:
         if blockidx == 0:
@@ -117,7 +119,6 @@ def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block
                     match statuses[ins->var]:
                         case VarStatus.Defined | VarStatus.DontAnalyze:
                             pass
-                        # TODO: handle 'return' specially
                         case VarStatus.Undefined:
                             if strcmp(uvg->varnames[ins->var], "return") == 0:
                                 snprintf(
@@ -161,8 +162,7 @@ def analyze_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int, warn: 
     statuses = build_statuses_at_start_of_block(uvg, statuses_at_end, blockidx)
     update_statuses_based_on_instructions(uvg, statuses, uvg->blocks[blockidx], warn)
 
-    statuses_size = sizeof(statuses[0]) * uvg->nvars
-    if memcmp(statuses, statuses_at_end[blockidx], statuses_size) != 0:
+    if memcmp(statuses, statuses_at_end[blockidx], sizeof(statuses[0]) * uvg->nvars) != 0:
         # Statuses changed
         assert not warn  # warnings should be applied at the end when statuses are stable
         free(statuses_at_end[blockidx])
@@ -178,6 +178,48 @@ def find_true(arr: bool*, len: int) -> int:
         if arr[i]:
             return i
     return -1
+
+
+# This function is slow, but it doesn't matter, because usually you don't have
+# very much many unreachable code.
+def show_unreachable_warnings(blocks: UvgBlock**, nblocks: int) -> None:
+    connected: bool* = malloc(sizeof(connected[0]) * nblocks)
+
+    while nblocks > 0:
+        # Find a set of connected blocks.
+        # Two blocks are connected if one block jumps into the other (perhaps indirectly).
+        memset(connected, 0, sizeof(connected[0]) * nblocks)
+        connected[0] = True
+        while True:
+            did_something = False
+            for i = 0; i < nblocks; i++:
+                for k = 0; k < nblocks; k++:
+                    if (
+                        i != k
+                        and connected[i]
+                        and not connected[k]
+                        and (blocks[i]->jumps_to(blocks[k]) or blocks[k]->jumps_to(blocks[i]))
+                    ):
+                        connected[k] = True
+                        did_something = True
+            if not did_something:
+                break
+
+        # Show unreachability warning as early in the file as possible.
+        top_location = Location{}
+        for i = 0; i < nblocks; i++:
+            if connected[i] and blocks[i]->ninstructions > 0:
+                location = blocks[i]->instructions[0].location
+                if top_location.lineno == 0 or location.lineno < top_location.lineno:
+                    top_location = location
+        if top_location.lineno != 0:
+            show_warning(top_location, "this code will never run")
+
+        for i = nblocks - 1; i >= 0; i--:
+            if connected[i]:
+                blocks[i] = blocks[--nblocks]
+
+    free(connected)
 
 
 @public
@@ -204,9 +246,21 @@ def uvg_analyze(uvg: Uvg*) -> None:
                 if uvg->blocks[blockidx]->jumps_to(uvg->blocks[b]):
                     queue[b] = True
 
+    num_unreachable = 0
+    unreachable: UvgBlock** = NULL
+ 
     for b = 0; b < uvg->nblocks; b++:
         if reachable[b]:
             analyze_block(uvg, statuses_at_end, b, True)
+        else:
+            if num_unreachable == 0:
+                unreachable = malloc(sizeof(unreachable[0]) * uvg->nblocks)
+                assert unreachable != NULL
+            unreachable[num_unreachable++] = uvg->blocks[b]
 
     free_statuses(uvg, statuses_at_end)
     free(queue)
+
+    if num_unreachable > 0:
+        show_unreachable_warnings(unreachable, num_unreachable)
+        free(unreachable)
