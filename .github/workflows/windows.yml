@@ -69,7 +69,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4  # TODO: upgrade to v4 in other places
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history
       - run: ./windows_setup.sh
@@ -92,7 +92,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: "Download bootstrap compiler artifact"
         run: |
-          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
+          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
         shell: bash
       - run: unzip artifact.zip
@@ -188,7 +188,7 @@ jobs:
       - name: "Download bootstrap compiler artifact to 'test dir'"
         run: |
           cd "test dir"
-          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
+          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
         shell: bash
       - run: unzip artifact.zip
@@ -217,7 +217,7 @@ jobs:
           path: repo
       - name: "Download release artifact"
         run: |
-          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" >| tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
+          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
         shell: bash
       # It's a zip file inside zip file because the Jou release itself is a
@@ -241,7 +241,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: "Download bootstrap compiler artifact"
         run: |
-          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | tee /dev/stderr | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
+          url="$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" | jq -r '.artifacts[] | select(.name == "bootstrapped") | .archive_download_url')"
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -o artifact.zip "$url"
         shell: bash
       - run: unzip artifact.zip
