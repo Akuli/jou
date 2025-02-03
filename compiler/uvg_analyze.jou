@@ -106,6 +106,38 @@ def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: VarStatus**, bl
     return statuses
 
 
+def handle_missing_return_statement(uvg: Uvg*, location: Location) -> bool:
+    # Check if there is a "return" statement that user wrote. 
+    n = 0
+    for b = 0; b < uvg->nblocks; b++:
+        if uvg->blocks[b]->terminator.kind == UvgTerminatorKind.Return:
+            n++
+
+    # There is always automatically generated "return" statement at the end of the function.
+    assert n >= 1
+
+    msg: byte[500]
+    if n == 1:
+        # There are no return statements. Tell user to add them and why they are needed.
+        snprintf(
+            msg, sizeof(msg),
+            "%s '%s' must return a value, because it is defined with '-> %s'",
+            uvg->signature->function_or_method(),
+            uvg->signature->name,
+            uvg->signature->returntype->name,
+        )
+        fail(location, msg)
+    else:
+        # There are some return statements but they don't cover all cases.
+        snprintf(
+            msg, sizeof(msg),
+            "%s '%s' does not seem to return a value in all cases",
+            uvg->signature->function_or_method(),
+            uvg->signature->name,
+        )
+        show_warning(location, msg)
+
+
 def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block: UvgBlock*, warn: bool) -> None:
     msg: byte[500]
 
@@ -121,28 +153,13 @@ def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block
                             pass
                         case VarStatus.Undefined:
                             if strcmp(uvg->varnames[ins->var], "return") == 0:
-                                snprintf(
-                                    msg, sizeof(msg),
-                                    "%s '%s' must return a value, because it is defined with '-> %s'",
-                                    uvg->signature->function_or_method(),
-                                    uvg->signature->name,
-                                    uvg->signature->returntype->name,
-                                )
-                                fail(ins->location, msg)
+                                handle_missing_return_statement(uvg, ins->location)
                             else:
                                 snprintf(msg, sizeof(msg), "the value of '%s' is undefined", uvg->varnames[ins->var])
                                 show_warning(ins->location, msg)
                         case VarStatus.PossiblyUndefined:
                             if strcmp(uvg->varnames[ins->var], "return") == 0:
-                                # TODO: test this
-                                snprintf(
-                                    msg, sizeof(msg),
-                                    "%s '%s' does not seem to return a value in all cases",
-                                    uvg->signature->function_or_method(),
-                                    uvg->signature->name,
-                                    uvg->signature->returntype->name,
-                                )
-                                show_warning(ins->location, msg)
+                                handle_missing_return_statement(uvg, ins->location)
                             else:
                                 snprintf(msg, sizeof(msg), "the value of '%s' may be undefined", uvg->varnames[ins->var])
                                 show_warning(ins->location, msg)
