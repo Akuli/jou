@@ -114,8 +114,6 @@ def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block
                     statuses[ins->var] = VarStatus.Defined
             case UvgInstructionKind.Use:
                 if warn and uvg->varnames[ins->var][0] != '$':
-#                    printf("use %s with ", uvg->varnames[ins->var])
-#                    print_statuses(uvg, statuses)
                     match statuses[ins->var]:
                         case VarStatus.Defined | VarStatus.DontAnalyze:
                             pass
@@ -160,9 +158,6 @@ declare memcmp(s1: void*, s2: void*, n: long) -> int
 
 
 def analyze_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int, warn: bool) -> bool:
-#    if warn:
-#        uvg->print()
-
     statuses = build_statuses_at_start_of_block(uvg, statuses_at_end, blockidx)
     update_statuses_based_on_instructions(uvg, statuses, uvg->blocks[blockidx], warn)
 
@@ -172,7 +167,6 @@ def analyze_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int, warn: 
         assert not warn  # warnings should be applied at the end when statuses are stable
         free(statuses_at_end[blockidx])
         statuses_at_end[blockidx] = statuses
-#        print_statuses(uvg, statuses)
         return True
     else:
         free(statuses)
@@ -182,14 +176,12 @@ def analyze_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int, warn: 
 def find_true(arr: bool*, len: int) -> int:
     for i = 0; i < len; i++:
         if arr[i]:
-#            printf("find_true --> %d\n", i)
             return i
     return -1
 
 
 @public
 def uvg_analyze(uvg: Uvg*) -> None:
-#    uvg->print()
     assert uvg->nblocks >= 1  # must have at least start block
 
     queue: bool* = calloc(sizeof(queue[0]), uvg->nblocks)
@@ -205,14 +197,11 @@ def uvg_analyze(uvg: Uvg*) -> None:
         if blockidx == -1:
             break
         reachable[blockidx] = True
-#        printf("Analyze %d\n", blockidx)
 
         queue[blockidx] = False
         if analyze_block(uvg, statuses_at_end, blockidx, False):
-#            printf("  Analyze changed something, queueing...\n")
             for b = 0; b < uvg->nblocks; b++:
                 if uvg->blocks[blockidx]->jumps_to(uvg->blocks[b]):
-#                    printf("  Will also analyze subsequent block %d\n", b)
                     queue[b] = True
 
     for b = 0; b < uvg->nblocks; b++:
