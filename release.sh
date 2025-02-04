@@ -53,7 +53,7 @@ for commit in $(git log --pretty=%H $latest_tag..origin/main --reverse); do
             echo "  Skipping because pull request #$pr_number has the 'skip-release' label"
             continue
         fi
-        link=https://github.com/Akuli/jou/pulls/$pr_number
+        link=https://github.com/Akuli/jou/pull/$pr_number
     else
         echo "  No associated pull request, the commit has probably been pushed directly to main"
         link=https://github.com/Akuli/jou/commit/$commit
