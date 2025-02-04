@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [check-if-needed, bootstrap, valgrind]
-    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && (needs.bootstrap.result == 'failure' || needs.valgrind.result == 'failure') }}
+    if: ${{ always() && needs.check-if-needed.outputs.needed == 'true' && (needs.bootstrap.result == 'failure' || needs.valgrind.result == 'failure') }}
     permissions:
       issues: write
     steps:
