@@ -3,9 +3,11 @@ import "stdlib/mem.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
-import "../config.jou"
 import "./command_line_args.jou"
 import "./paths.jou"
+
+if not WINDOWS:
+    import "../config.jou"
 
 
 @public
@@ -38,7 +40,7 @@ def run_linker(objpaths: byte**, exepath: byte*) -> None:
         strcat(quoted_object_files, "\"")
 
     size = strlen(instdir) + strlen(quoted_object_files) + strlen(exepath) + strlen(linker_flags) + 100
-    if get_jou_clang_path() != NULL:
+    if not WINDOWS:
         size += strlen(get_jou_clang_path())
     command: byte* = malloc(size)
 
