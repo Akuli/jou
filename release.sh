@@ -83,7 +83,7 @@ echo "  Artifacts URL: $(jq -r .artifacts_url < run.json)"
 echo ""
 
 if [ $(jq -r .status < run.json) != completed ]; then
-    echo "Seems like CI is still running (status = $run_status). Not releasing."
+    echo "Seems like CI is still running. Not releasing."
     exit 0
 fi
 
