@@ -16,16 +16,20 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - run: git fetch --tags
-      - id: tagname
+        with:
+          fetch-depth: 0  # Fetch the whole Git history, used for release description
+      - name: Generate release description
+        run: ./release_desc.sh --github-token "${{ secrets.GITHUB_TOKEN }}" > desc.md
+      - run: cat desc.md
+      - name: Decide if we should do a release
         run: |
-          if git tag -l --contains HEAD | grep .; then
-            # Commit already tagged
-            echo datetag= >> $GITHUB_OUTPUT
+          if [ -s desc.md ]; then
+            # File is not empty
+            echo DOIT=yes > $GITHUB_ENV
           else
-            echo datetag=$(date +'%Y-%m-%d-%H00') > $GITHUB_OUTPUT
+            echo DOIT=no > $GITHUB_ENV
           fi
-      - if: ${{ steps.tagname.outputs.datetag != '' }}
+      - if: env.DOIT == 'yes'
         name: Download latest GitHub actions build results
         uses: actions/github-script@v6
         with:
@@ -74,13 +78,13 @@ jobs:
       #   * Outer zip file: It is possible to include multiple files to the same
       #     GitHub Actions artifact, and downloadArtifact() gives a zip of all
       #     files that the artifact consists of.
-      - if: ${{ steps.tagname.outputs.datetag != '' }}
+      - if: env.DOIT == 'yes'
         run: unzip nested-zip-file.zip
 
-      - if: ${{ steps.tagname.outputs.datetag != '' }}
+      - if: env.DOIT == 'yes'
         run: mv jou.zip jou_windows_64bit_${{ steps.tagname.outputs.datetag }}.zip
 
-      - if: ${{ steps.tagname.outputs.datetag != '' }}
+      - if: env.DOIT == 'yes'
         name: Create release
         uses: ncipollo/release-action@v1
         with:
