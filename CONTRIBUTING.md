@@ -173,7 +173,7 @@ It only looks at code examples that contain `# Output:`, `# Warning:` or `# Erro
 It then attempts to run each example and compares the output similarly to `runtests.sh`.
 
 
-## Windows Release Builds
+## Releases
 
 Using Jou on Linux is easy,
 because you can install Jou's dependencies with `apt` (or whatever package manager you have).
@@ -184,20 +184,16 @@ See the README for instructions to install Jou from a zip file.
 A zip file is built and released in GitHub Actions every morning at 4AM UTC,
 or when triggered manually from GitHub's UI
 (e.g. to release an important bugfix as quickly as possible).
-No new release is made if there are no new commits.
+
+Sometimes a pull request doesn't affect Jou users in any way, but makes things easier for Jou developers.
+These pull requests should be marked with the `skip-release` label in GitHub.
+Now new release is made if there are no new commits or they all have the `skip-release` label.
 
 Some parts of the build are done in `.github/workflows/windows.yml`,
-and the rest is in `.github/workflows/release.yml`.
-The difference is that `windows.yml` runs on every pull request and on every push to `main`,
-but `release.yml` runs daily and when triggered manually.
-This means that:
-- `windows.yml` should do most of the build.
-    It should also run tests on the build results to make sure that everything works.
-    If something in this file stops working, it will be noticed very quickly when someone makes a pull request.
-- `release.yml` should be simple and small.
-    If `release.yml` breaks, it might take a while for someone to notice it.
-    Ideally it would only download the build results of `windows.yml` and create a release.
+and the rest is in `release.sh` (invoked from `.github/workflows/release.yml`).
+The difference is that `windows.yml` builds and tests the Windows zip file,
+and `release.sh` creates a GitHub release for it.
 
 There is also `jou --update`.
-On Linux it simply runs `git pull` and recompiles the Jou compiler.
 On Windows it runs a PowerShell script that downloads and installs the latest release from GitHub Actions.
+On other platforms it simply runs `git pull` and recompiles the Jou compiler.
