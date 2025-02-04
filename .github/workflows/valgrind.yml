@@ -17,7 +17,10 @@ jobs:
       - uses: actions/checkout@v4
       - id: check
         run: |
-          if git --no-pager log --oneline --since="24 hours ago" --exit-code; then
+          if [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
+            echo "This is a fork of Jou"
+            echo "recent_commits=false" >> $GITHUB_OUTPUT
+          elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
             echo "No recent commits, no need to run valgrind"
             echo "recent_commits=false" >> $GITHUB_OUTPUT
           else
