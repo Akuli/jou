@@ -191,17 +191,10 @@ These pull requests should be marked with the `skip-release` in GitHub.
 Now new release is made if there are no new commits or they all have the `skip-release` label.
 
 Some parts of the build are done in `.github/workflows/windows.yml`,
-and the rest is in `.github/workflows/release.yml`.
-The difference is that `windows.yml` runs on every pull request and on every push to `main`,
-but `release.yml` runs daily and when triggered manually.
-This means that:
-- `windows.yml` should do most of the build.
-    It should also run tests on the build results to make sure that everything works.
-    If something in this file stops working, it will be noticed very quickly when someone makes a pull request.
-- `release.yml` should be simple and small.
-    If `release.yml` breaks, it might take a while for someone to notice it.
-    Ideally it would only download the build results of `windows.yml` and create a release.
+and the rest is in `release.sh` (invoked from `.github/workflows/release.yml`).
+The difference is that `windows.yml` builds and tests the Windows zip file,
+and `release.sh` creates a GitHub release for it.
 
 There is also `jou --update`.
-On Linux it simply runs `git pull` and recompiles the Jou compiler.
 On Windows it runs a PowerShell script that downloads and installs the latest release from GitHub Actions.
+On other platforms it simply runs `git pull` and recompiles the Jou compiler.
