@@ -47,8 +47,9 @@ for commit in $(git log --pretty=%H $latest_tag..origin/main --reverse); do
     summary="$(git show -s --format=%s $commit)"
     echo "Found commit ${commit:0:10}: $summary"
 
-    pr_number="$(echo "$summary" | grep -oE '\(#[0-9]+\)$' | grep -oE '[0-9]+')"
-    if [ -n "$pr_number" ]; then
+    # Parse PR number, if any
+    if [[ $summary =~ \(\#([0-9]+)\)$ ]]; then
+        pr_number=${BASH_REMATCH[1]}
         if curl -s -H "$auth_header" https://api.github.com/repos/Akuli/jou/pulls/$pr_number | jq -r '.labels[].name' | grep -q '^skip-release$'; then
             echo "  Skipping because pull request #$pr_number has the 'skip-release' label"
             continue
