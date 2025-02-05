@@ -32,6 +32,20 @@ declare memcpy(dest: void*, source: void*, size: long) -> void*  # copy memory, 
 @public
 declare memmove(dest: void*, source: void*, size: long) -> void*  # copy memory, overlaps are ok
 
+# Compare two memory regions of the same size. Return 0 if they contain the
+# same bytes, nonzero if different bytes.
+#
+# This can be used to e.g. check if two arrays of ints are equal:
+#
+#   a = [1, 2, 3]
+#   b = [1, 2, 4]
+#   if memcmp(a, b, sizeof(a)) != 0:
+#       printf("Different\n")
+#
+# This is somewhat similar to strcmp() in stdlib/str.jou.
+@public
+declare memcmp(a: void*, b: void*, size: long) -> int
+
 # Swaps the contents of two memory regions of the same size.
 # This does nothing if the same memory region is passed twice.
 # This probably doesn't do what you want if the memory regions overlap in some other way.

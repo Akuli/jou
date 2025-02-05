@@ -12,4 +12,12 @@ def main() -> int:
     memswap(&a, &a, sizeof(a))  # does nothing
     printf("%d %d\n", a, b)   # Output: 456 123
 
+    arr1 = [1, 2, 3]
+    arr2 = [1, 2, 3]
+    printf("%d\n", memcmp(arr1, arr2, sizeof(arr1)))  # Output: 0
+    arr1[1]++
+    printf("%d\n", memcmp(arr1, arr2, sizeof(arr1)))  # Output: 1
+    arr2[0]++
+    printf("%d\n", memcmp(arr1, arr2, sizeof(arr1)))  # Output: -1
+
     return 0
