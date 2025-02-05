@@ -91,7 +91,14 @@ class AstToBuilder:
         args: EitherBuilderValue[100]
         for i = 0; i < call->nargs; i++:
             args[i] = self->build_expression(&call->args[i])
-        return self->builder->call(call->called_signature, args, call->nargs)
+        result = self->builder->call(call->called_signature, args, call->nargs)
+
+        if call->called_signature->is_noreturn:
+            # Code after the function call will not run. Place it to a new block.
+            self->builder->unreachable()
+            self->builder->set_current_block(self->builder->add_block())
+
+        return result
 
     def build_method_call(self, call: AstCall*) -> EitherBuilderValue:
         assert call->method_call_self != NULL
