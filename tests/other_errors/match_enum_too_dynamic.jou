@@ -1,0 +1,11 @@
+enum Thing:
+    Foo
+    Bar
+    Baz
+
+def do_stuff(t1: Thing, t2: Thing) -> None:
+    match t1:
+        # This is forbidden because it would be hard for the compiler to know
+        # which values have been handled and which haven't
+        case t2:  # Error: 'case' value must be Thing.something when matching a value of enum Thing
+            pass
