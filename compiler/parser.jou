@@ -147,6 +147,10 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
                 stmt->function.public = True
             case AstStatementKind.Enum:
                 stmt->enumdef.public = True
+            # Temporarily allow and ignore using @public on enums, classes and global variables.
+            # This is needed for the bootstrap compiler to accept new syntax.
+            case AstStatementKind.Class | AstStatementKind.GlobalVariableDeclare | AstStatementKind.GlobalVariableDef:
+                pass  # TODO: handle these cases properly
             case _:
                 fail(location, "the @public decorator cannot be used here")
     else:
