@@ -29,6 +29,8 @@ def evaluate_condition(expr: AstExpression*) -> int:  # 1=true 0=false -1=error
     match expr->kind:
         case AstExpressionKind.GetVariable:
             return get_special_constant(expr->varname)
+        case AstExpressionKind.Bool:
+            return expr->bool_value as int
         case AstExpressionKind.And:
             match evaluate_condition(&expr->operands[0]):
                 case 1:
