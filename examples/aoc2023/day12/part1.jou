@@ -53,6 +53,7 @@ def generate_numbers(non_questional_string: byte*) -> byte[100]:
     result: byte[100] = ""
 
     prev = '.'
+    n = 0
     for p = non_questional_string; *p != '\0'; p++:
         assert *p == '#' or *p == '.'
         if prev == '.' and *p == '#':
