@@ -169,10 +169,6 @@ def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block
                 statuses[ins->var] = VarStatus.DontAnalyze
 
 
-# TODO: put to stdlib
-declare memcmp(s1: void*, s2: void*, n: long) -> int
-
-
 def analyze_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int, warn: bool) -> bool:
     statuses = build_statuses_at_start_of_block(uvg, statuses_at_end, blockidx)
     update_statuses_based_on_instructions(uvg, statuses, uvg->blocks[blockidx], warn)
