@@ -26,16 +26,17 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
     for i = 0; i < ast->body.nstatements; i++:
         stmt = &ast->body.statements[i]
 
-        name: byte[100]
         match stmt->kind:
             case AstStatementKind.Class:
-                assert sizeof(name) == sizeof(stmt->classdef.name)
-                strcpy(name, stmt->classdef.name)
+                name = stmt->classdef.name
+                public = True
+                usedptr = NULL
                 t = create_opaque_class(name)
                 stmt->classdef.type = t
             case AstStatementKind.Enum:
-                assert sizeof(name) == sizeof(stmt->enumdef.name)
-                strcpy(name, stmt->enumdef.name)
+                name = stmt->enumdef.name
+                public = stmt->enumdef.public
+                usedptr = &stmt->enumdef.used
                 t = create_enum(name, stmt->enumdef.member_count, stmt->enumdef.member_names)
                 stmt->enumdef.type = t
             case _:
@@ -47,15 +48,12 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
             snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing->short_description(), name)
             fail(stmt->location, msg)
 
-        ast->types.add_type(t, NULL)
+        ast->types.add_type(t, usedptr)
 
-        es = ExportSymbol{kind = ExportSymbolKind.Type, type = t}
-        assert sizeof(es.name) == sizeof(name)
-        strcpy(es.name, name)
-
-        exports = realloc(exports, sizeof(exports[0]) * (nexports+1))
-        assert exports != NULL
-        exports[nexports++] = es
+        if public:
+            exports = realloc(exports, sizeof(exports[0]) * (nexports+1))
+            assert exports != NULL
+            exports[nexports++] = ExportSymbol{kind = ExportSymbolKind.Type, type = t, name = name}
 
     exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
     assert exports != NULL
