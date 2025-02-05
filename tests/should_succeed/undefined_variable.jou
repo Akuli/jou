@@ -5,14 +5,18 @@ def maybe_undefined(n: int) -> None:
         message = "Hi"
     puts(message)  # Warning: the value of 'message' may be undefined
 
+@public  # avoid unused function warning, can't actually run this function
 def surely_undefined_loop() -> None:
     while False:
-        message = "Hi"  # Warning: this code will never run
+        # TODO: should be Warning: this code will never run
+        message = "Hi"
     puts(message)  # Warning: the value of 'message' is undefined
 
+@public  # avoid unused function warning, can't actually run this function
 def surely_undefined_annotation() -> None:
     x: byte*
     puts(x)  # Warning: the value of 'x' is undefined
 
 def main() -> int:
+    maybe_undefined(5)  # Output: Hi
     return 0

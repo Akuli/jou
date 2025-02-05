@@ -72,10 +72,6 @@ class AstToBuilder:
 
         self->set_location(old)
 
-    def end_function(self) -> None:
-        self->builder->ret(NULL)  # implicit "return" when falling off end of function
-        self->builder->end_function()
-
     def local_var_exists(self, name: byte*) -> bool:
         for i = 0; i < self->nlocals; i++:
             if strcmp(self->locals[i].name, name) == 0:
@@ -632,6 +628,6 @@ def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location,
     ast2ir = AstToBuilder{builder = builder}
     ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals, func_ast->types.nlocals, public)
     ast2ir.build_body(&func_ast->body)
-    ast2ir.end_function()
+    builder->end_function()
     free(ast2ir.locals)
     free(ast2ir.loops)
