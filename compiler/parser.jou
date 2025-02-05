@@ -145,7 +145,8 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
                 if strcmp(stmt->function.ast_signature.name, "main") == 0:
                     fail(location, "the main() function cannot be @public")
                 stmt->function.public = True
-                return
+            case AstStatementKind.Enum:
+                stmt->enumdef.public = True
             case _:
                 fail(location, "the @public decorator cannot be used here")
     else:

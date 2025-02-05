@@ -129,6 +129,10 @@ class FileState:
                         snprintf(msg, sizeof msg, "function %s %s but not used", sigstr, did_what)
                         free(sigstr)
                         show_warning(stmt->location, msg)
+                case AstStatementKind.Enum:
+                    if not stmt->enumdef.public and not stmt->enumdef.used:
+                        snprintf(msg, sizeof msg, "enum %s defined but not used", stmt->enumdef.name)
+                        show_warning(stmt->location, msg)
                 case _:
                     pass
 
