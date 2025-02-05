@@ -508,7 +508,22 @@ class AstToBuilder:
 
         if match_stmt->case_underscore != NULL:
             self->build_body(match_stmt->case_underscore)
-        self->builder->jump(done)
+
+        if (
+            match_stmt->case_underscore == NULL
+            and match_stmt->match_obj.types.implicit_cast_type->kind == TypeKind.Enum
+        ):
+            # The one corner case where match statement invokes UB:
+            #   - User is matching over an enum
+            #   - All enum members are handled (otherwise error in typecheck)
+            #   - The value stored in the enum is not a valid value of the enum
+            #   - There is no "case _" to catch the invalid value
+            #
+            # See also: doc/match.md
+            self->builder->unreachable()
+        else:
+            self->builder->jump(done)
+
         self->builder->set_current_block(done)
 
     def build_assert(self, assert_location: Location, assertion: AstAssertion*) -> None:
