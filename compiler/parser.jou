@@ -904,10 +904,10 @@ class Parser:
         ):
             fail(self->tokens[1].location, "Python-style for loops aren't supported. Use e.g. 'for i = 0; i < 10; i++'")
 
-        init: AstStatement* = NULL
-        loop_var_token: Token* = NULL
-
-        if not self->tokens->is_operator(";"):
+        init: AstStatement*
+        if self->tokens->is_operator(";"):
+            init = NULL
+        else:
             init = malloc(sizeof *init)
             *init = self->parse_oneline_statement()
 
