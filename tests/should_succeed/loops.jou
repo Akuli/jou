@@ -58,8 +58,10 @@ def main() -> int:
     # Output: #### #### ####
     for y = 0; y < 4; y++:
         for x = 0; x < 14; x++:
-            if x % 5 != 4:
+            if x % 5 != 4 and (y == 3 or (y == 0 and (x == 6 or x == 7)) or (x > 0 and x % 5 == 0) or x % 5 == 3):
                 putchar('#')
+            else:
+                putchar(' ')
         putchar('\n')
 
     return 0
