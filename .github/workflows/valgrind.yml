@@ -12,16 +12,22 @@ jobs:
     timeout-minutes: 1
     runs-on: ubuntu-latest
     outputs:
-      needed: ${{ steps.check.outputs.recent_commits }}
+      needed: ${{ steps.check.outputs.run }}
     steps:
       - uses: actions/checkout@v4
       - id: check
         run: |
-          if git --no-pager log --oneline --since="24 hours ago" --exit-code; then
-            echo "No recent commits, no need to run valgrind"
-            echo "recent_commits=false" >> $GITHUB_OUTPUT
+          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
+            echo "Triggered manually"
+            echo "run=true" >> $GITHUB_OUTPUT
+          elif [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
+            echo "This is a fork of Jou, skipping"
+            echo "run=false" >> $GITHUB_OUTPUT
+          elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
+            echo "No recent commits, skipping"
+            echo "run=false" >> $GITHUB_OUTPUT
           else
-            echo "recent_commits=true" >> $GITHUB_OUTPUT
+            echo "run=true" >> $GITHUB_OUTPUT
           fi
 
   bootstrap:

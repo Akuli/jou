@@ -9,9 +9,9 @@ enum Foo:
     Wut
 
 
-def show_evaluation(foo: Foo, msg: byte*) -> Foo:
+def show_evaluation(value: int, msg: byte*) -> int:
     puts(msg)
-    return foo
+    return value
 
 
 def main() -> int:
@@ -80,6 +80,8 @@ def main() -> int:
             printf("Hey! :)\n")  # Output: Hey! :)
         case Foo.Wut:
             printf("nope\n")
+        case _:
+            printf("Other!!!\n")
 
     f = 12345 as Foo
     match f:
@@ -91,6 +93,8 @@ def main() -> int:
             printf("nope\n")
         case Foo.Wut:
             printf("nope\n")
+        case _:
+            printf("Other!!!\n")  # Output: Other!!!
 
     # Test evaluation order.
     #
@@ -99,14 +103,14 @@ def main() -> int:
     # Output: case 2
     # Output: case 3
     # Output: ye
-    match show_evaluation(Foo.Lol, "match obj"):
-        case show_evaluation(Foo.Bar, "case 1"):
+    match show_evaluation(3, "match obj"):
+        case show_evaluation(1, "case 1"):
             printf("nope\n")
-        case show_evaluation(Foo.Baz, "case 2"):
+        case show_evaluation(2, "case 2"):
             printf("nope\n")
-        case show_evaluation(Foo.Lol, "case 3"):
+        case show_evaluation(3, "case 3"):
             printf("ye\n")
-        case show_evaluation(Foo.Wut, "case 4"):
+        case show_evaluation(4, "case 4"):
             printf("nope\n")
 
     # Output: match obj
@@ -114,10 +118,10 @@ def main() -> int:
     # Output: case 2
     # Output: case 3
     # Output: ye
-    match show_evaluation(Foo.Lol, "match obj"):
-        case show_evaluation(Foo.Bar, "case 1") | show_evaluation(Foo.Baz, "case 2"):
+    match show_evaluation(3, "match obj"):
+        case show_evaluation(1, "case 1") | show_evaluation(2, "case 2"):
             printf("nope\n")
-        case show_evaluation(Foo.Lol, "case 3") | show_evaluation(Foo.Wut, "case 4"):
+        case show_evaluation(3, "case 3") | show_evaluation(4, "case 4"):
             printf("ye\n")
 
     # Make a string that is surely not == "Hello", to make sure strcmp() is called below
