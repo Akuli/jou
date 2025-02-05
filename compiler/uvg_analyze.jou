@@ -107,7 +107,7 @@ def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: VarStatus**, bl
 
 
 def handle_missing_return_statement(uvg: Uvg*, location: Location) -> None:
-    # Check if there is a "return" statement that user wrote. 
+    # Check if there is a "return" statement that user wrote.
     n = 0
     for b = 0; b < uvg->nblocks; b++:
         if uvg->blocks[b]->terminator.kind == UvgTerminatorKind.Return:
