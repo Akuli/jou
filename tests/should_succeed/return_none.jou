@@ -1,0 +1,18 @@
+import "stdlib/io.jou"
+
+def foo() -> None:
+    putchar('h')
+    putchar('i')
+    putchar('\n')
+
+def skipper(skip: bool, c: byte) -> None:
+    if skip:
+        return
+    putchar(c)
+    putchar('\n')
+
+def main() -> int:
+    skipper(False, 'a')  # Output: a
+    skipper(True, 'a')
+    foo()  # Output: hi
+    return 0
