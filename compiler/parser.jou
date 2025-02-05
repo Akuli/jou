@@ -143,8 +143,7 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
         match stmt->kind:
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 if strcmp(stmt->function.ast_signature.name, "main") == 0:
-                    # TODO: test this
-                    fail(location, "do not decorate the main() function with @public")
+                    fail(location, "the main() function cannot be @public")
                 stmt->function.public = True
                 return
             case _:
