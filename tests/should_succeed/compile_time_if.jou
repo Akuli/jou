@@ -33,15 +33,27 @@ if not WINDOWS and not MACOS:
         pass
 
 
-def main() -> int:
-    make_foo()
-    f = fopen("tmp/tests/foo/bar", "w")
-    if f != NULL:
-        puts("ok")  # Output: ok
-        fclose(f)
+# No unused function warning for "if False", it acts as commenting out
+if False:
+    def blahblah() -> None:
+        pass
 
-    # Output: OneTwo
-    bar1()
-    bar2()
 
-    return 0
+if True:
+    def main() -> int:
+        make_foo()
+        f = fopen("tmp/tests/foo/bar", "w")
+        if f != NULL:
+            if True:
+                puts("ok")  # Output: ok
+            fclose(f)
+
+        # Output: OneTwo
+        bar1()
+        bar2()
+
+        # No unreachable code warning for "if False", it acts as commenting out
+        if False:
+            printf("hello\n")
+
+        return 0
