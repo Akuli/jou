@@ -13,8 +13,12 @@ Windows CRLF line endings (`\r\n`) and Linux/UNIX LF line endings (`\n`) are bot
 However, `\r` bytes can be used only in CRLF line endings:
 it is an error if the file contains a `\r` byte that isn't immediately followed by `\n`.
 
-It is also an error if a Jou source file contains tab characters or zero bytes.
-They cannot occur even inside strings or byte literals.
+It is also an error if a Jou source file contains:
+- tab characters
+- zero bytes
+- unicode space characters (e.g. the non-breaking space)
+
+These banned characters cannot occur even inside strings or byte literals.
 Use spaces for indentation, and use backslashes to express zero bytes and tabs,
 as in `'\0'` or `"foo\tbar"`.
 
