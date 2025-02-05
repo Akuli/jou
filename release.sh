@@ -47,23 +47,22 @@ for commit in $(git log --pretty=%H $latest_tag..origin/main --reverse); do
     summary="$(git show -s --format=%s $commit)"
     echo "Found commit ${commit:0:10}: $summary"
 
-    # Parse PR number, if any
-    if [[ $summary =~ \(\#([0-9]+)\)$ ]]; then
-        pr_number=${BASH_REMATCH[1]}
-        if curl -s -H "$auth_header" https://api.github.com/repos/Akuli/jou/pulls/$pr_number | jq -r '.labels[].name' | grep -q '^skip-release$'; then
-            echo "  Skipping because pull request #$pr_number has the 'skip-release' label"
-            continue
-        fi
-        link=https://github.com/Akuli/jou/pull/$pr_number
-    else
-        echo "  No associated pull request, the commit has probably been pushed directly to main"
-        link=https://github.com/Akuli/jou/commit/$commit
+    # Parse PR number
+    if ! [[ $summary =~ \(\#([0-9]+)\)$ ]]; then
+        echo "  Skipping because commit is not associated with a pull request."
+        continue
+    fi
+    pr_number=${BASH_REMATCH[1]}
+
+    if curl -s -H "$auth_header" https://api.github.com/repos/Akuli/jou/pulls/$pr_number | jq -r '.labels[].name' | grep -q '^skip-release$'; then
+        echo "  Skipping because pull request #$pr_number has the 'skip-release' label"
+        continue
     fi
 
     if ! [ -f desc.md ]; then
         echo "This release contains the following changes:" > desc.md
     fi
-    echo "- [$summary]($link)" >> desc.md
+    echo "- [$summary](https://github.com/Akuli/jou/pull/$pr_number)" >> desc.md
 done
 
 if ! [ -f desc.md ]; then
