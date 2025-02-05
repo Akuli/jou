@@ -868,7 +868,7 @@ class Parser:
     def enter_loop_body(self, varname: byte*, location: Location) -> None:
         if varname != NULL:
             for i = 0; i < self->nloops; i++:
-                if strcmp(self->loop_vars[i], varname) == 0:
+                if self->loop_vars[i] != NULL and strcmp(self->loop_vars[i], varname) == 0:
                     msg: byte[500]
                     snprintf(msg, sizeof(msg), "this loop is inside another loop that also uses variable '%s'", varname)
                     show_warning(location, msg)
