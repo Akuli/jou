@@ -52,6 +52,14 @@ def main() -> int:
         if i == 4:
             break
 
+    # Output: inner loop says 0 1 2
+    for i = 0; i < 10; i++:
+        printf("inner loop says")
+        for i = 0; i < 3; i++:  # Warning: this loop is inside another loop that also uses variable 'i'
+            printf(" %d", i)
+        printf("\n")
+        break
+
     # Output:    # #### #  #
     # Output:    # #  # #  #
     # Output:    # #  # #  #
