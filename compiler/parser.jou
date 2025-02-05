@@ -865,18 +865,18 @@ class Parser:
             else_body = else_body,
         }
 
-    def enter_loop_body(self, loop_var_token: Token*) -> None:
-        if loop_var_token != NULL:
+    def enter_loop_body(self, varname: byte*, location: Location) -> None:
+        if varname != NULL:
             for i = 0; i < self->nloops; i++:
-                if strcmp(self->loop_vars[i], loop_var_token->short_string) == 0:
+                if strcmp(self->loop_vars[i], varname) == 0:
                     msg: byte[500]
-                    snprintf(msg, sizeof(msg), "this loop is inside another loop that also uses variable '%s'", self->loop_vars[i])
-                    show_warning(loop_var_token->location, msg)
+                    snprintf(msg, sizeof(msg), "this loop is inside another loop that also uses variable '%s'", varname)
+                    show_warning(location, msg)
                     break
 
         self->loop_vars = realloc(self->loop_vars, sizeof(self->loop_vars[0]) * (self->nloops + 1))
         assert self->loop_vars != NULL
-        self->loop_vars[self->nloops++] = loop_var_token->short_string
+        self->loop_vars[self->nloops++] = varname
 
     def exit_loop_body(self) -> None:
         self->nloops--
@@ -886,7 +886,7 @@ class Parser:
         self->check_function_or_method("while loop")
         self->tokens++
         cond = self->parse_expression_with_unnecessary_parens_warning("while loop condition")
-        self->enter_loop_body(NULL)
+        self->enter_loop_body(NULL, Location{})
         body = self->parse_body()
         self->exit_loop_body()
         return AstConditionAndBody{condition = cond, body = body}
@@ -908,15 +908,8 @@ class Parser:
         loop_var_token: Token* = NULL
 
         if not self->tokens->is_operator(";"):
-            first_token_of_init = self->tokens
             init = malloc(sizeof *init)
             *init = self->parse_oneline_statement()
-            if (
-                init->kind == AstStatementKind.Assign
-                and init->assignment.target.kind == AstExpressionKind.GetVariable
-            ):
-                # for varname = value; ...
-                loop_var_token = first_token_of_init
 
         if not self->tokens->is_operator(";"):
             self->tokens->fail_expected_got("a ';'")
@@ -940,7 +933,15 @@ class Parser:
             incr = malloc(sizeof *incr)
             *incr = self->parse_oneline_statement()
 
-        self->enter_loop_body(loop_var_token)
+        if (
+            init != NULL
+            and init->kind == AstStatementKind.Assign
+            and init->assignment.target.kind == AstExpressionKind.GetVariable
+        ):
+            # for varname = value; ...
+            self->enter_loop_body(init->assignment.target.varname, init->location)
+        else:
+            self->enter_loop_body(NULL, Location{})
         body = self->parse_body()
         self->exit_loop_body()
 
