@@ -29,17 +29,13 @@ class UBuilder:
     uvg: Uvg
     current_block: UvgBlock*
     location: Location
-    warn_unreachable: bool
 
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self->uvg.signature = sig
         self->current_block = self->uvg.add_block()
-        self->warn_unreachable = True
 
     def end_function(self) -> None:
-        self->warn_unreachable = False
         self->ret(NULL)
-        self->warn_unreachable = True
         self->current_block = NULL
         self->location = Location{}
 
@@ -52,7 +48,6 @@ class UBuilder:
         assert self->location.path != NULL
         assert self->location.lineno != 0
         ins.location = self->location
-        ins.warn_unreachable = self->warn_unreachable
 
         b = self->current_block
         assert b != NULL
