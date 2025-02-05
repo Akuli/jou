@@ -164,7 +164,8 @@ enum WhatAreWeParsing:
 class Parser:
     tokens: Token*
     stdlib_path: byte*
-    loop_counter: int
+    loop_vars: byte**
+    nloops: int
     what_are_we_parsing: WhatAreWeParsing
 
     def eat_newline(self) -> None:
@@ -791,12 +792,12 @@ class Parser:
             self->tokens++
             result.kind = AstStatementKind.Pass
         elif self->tokens->is_keyword("break"):
-            if self->loop_counter == 0:
+            if self->nloops == 0:
                 fail(self->tokens->location, "'break' can only be used inside a loop")
             self->tokens++
             result.kind = AstStatementKind.Break
         elif self->tokens->is_keyword("continue"):
-            if self->loop_counter == 0:
+            if self->nloops == 0:
                 fail(self->tokens->location, "'continue' can only be used inside a loop")
             self->tokens++
             result.kind = AstStatementKind.Continue
@@ -863,14 +864,30 @@ class Parser:
             else_body = else_body,
         }
 
+    def enter_loop_body(self, varname: byte*, location: Location) -> None:
+        if varname != NULL:
+            for i = 0; i < self->nloops; i++:
+                if self->loop_vars[i] != NULL and strcmp(self->loop_vars[i], varname) == 0:
+                    msg: byte[500]
+                    snprintf(msg, sizeof(msg), "this loop is inside another loop that also uses variable '%s'", varname)
+                    show_warning(location, msg)
+                    break
+
+        self->loop_vars = realloc(self->loop_vars, sizeof(self->loop_vars[0]) * (self->nloops + 1))
+        assert self->loop_vars != NULL
+        self->loop_vars[self->nloops++] = varname
+
+    def exit_loop_body(self) -> None:
+        self->nloops--
+
     def parse_while_loop(self) -> AstConditionAndBody:
         assert self->tokens->is_keyword("while")
         self->check_function_or_method("while loop")
         self->tokens++
         cond = self->parse_expression_with_unnecessary_parens_warning("while loop condition")
-        self->loop_counter++
+        self->enter_loop_body(NULL, Location{})
         body = self->parse_body()
-        self->loop_counter--
+        self->exit_loop_body()
         return AstConditionAndBody{condition = cond, body = body}
 
     def parse_for_loop(self) -> AstForLoop:
@@ -915,9 +932,17 @@ class Parser:
             incr = malloc(sizeof *incr)
             *incr = self->parse_oneline_statement()
 
-        self->loop_counter++
+        if (
+            init != NULL
+            and init->kind == AstStatementKind.Assign
+            and init->assignment.target.kind == AstExpressionKind.GetVariable
+        ):
+            # for varname = value; ...
+            self->enter_loop_body(init->assignment.target.varname, init->location)
+        else:
+            self->enter_loop_body(NULL, Location{})
         body = self->parse_body()
-        self->loop_counter--
+        self->exit_loop_body()
 
         return AstForLoop{init = init, cond = cond, incr = incr, body = body}
 
@@ -1284,5 +1309,6 @@ def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
         result.body.statements = realloc(result.body.statements, sizeof result.body.statements[0] * (result.body.nstatements + 1))
         result.body.statements[result.body.nstatements++] = parser.parse_statement()
 
-    assert parser.loop_counter == 0
+    assert parser.nloops == 0
+    free(parser.loop_vars)
     return result
