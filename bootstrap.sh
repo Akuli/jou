@@ -22,6 +22,7 @@ commits=(
     874d1978044a080173fcdcc4e92736136c97dd61  # "match some_integer:" support
     8a0bb4b50ef77932243f4f65ae90be84e763ec45  # evaluating "if WINDOWS:" and such inside functions
     2b33658b17239c68c84b034c33c2a7c145da43dd  # bidirectional type inference for arrays of strings
+    adad3da193f8bb5473c3d63602997ab70a3571cb  # @public can be applied to classes, enums and global variables
 )
 
 for commit in ${commits[@]}; do

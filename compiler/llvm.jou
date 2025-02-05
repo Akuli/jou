@@ -61,12 +61,14 @@ declare LLVMABISizeOfType(TD: LLVMTargetData*, Ty: LLVMType*) -> long
 
 
 # =========== TargetMachine.h ===========
+@public
 enum LLVMCodeGenOptLevel:
     none    # can't make it None because that is a keyword
     Less
     Default
     Aggressive
 
+@public
 enum LLVMRelocMode:
     Default
     Static
@@ -76,6 +78,7 @@ enum LLVMRelocMode:
     RWPI
     ROPI_RWPI
 
+@public
 enum LLVMCodeModel:
     Default
     JITDefault
@@ -85,6 +88,7 @@ enum LLVMCodeModel:
     Medium
     Large
 
+@public
 enum LLVMCodeGenFileType:
     AssemblyFile
     ObjectFile
@@ -107,6 +111,7 @@ declare LLVMGetDefaultTargetTriple() -> byte*
 declare LLVMLinkModules2(Dest: LLVMModule*, Src: LLVMModule*) -> int
 
 # =========== Analysis.h ===========
+@public
 enum LLVMVerifierFailureAction:
     AbortProcess
     PrintMessage
@@ -116,6 +121,7 @@ enum LLVMVerifierFailureAction:
 declare LLVMVerifyModule(M: LLVMModule*, Action: LLVMVerifierFailureAction, OutMessage: byte**) -> int
 
 # =========== Core.h ===========
+@public
 enum LLVMTypeKind:
     Void
     Half
@@ -137,6 +143,7 @@ enum LLVMTypeKind:
     ScalableVector
     BFloat
 
+@public
 enum LLVMLinkage:
     External
     AvailableExternally
@@ -156,6 +163,7 @@ enum LLVMLinkage:
     LinkerPrivate
     LinkerPrivateWeak
 
+@public
 enum LLVMIntPredicate:
     # TODO: a better way to start the enum at 32
     Dummy0
@@ -201,6 +209,7 @@ enum LLVMIntPredicate:
     SLT
     SLE
 
+@public
 enum LLVMRealPredicate:
     AlwaysFalse
     OEQ

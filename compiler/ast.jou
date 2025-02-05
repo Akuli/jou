@@ -15,6 +15,7 @@ import "./types_in_ast.jou"
 import "./utils.jou"
 
 
+@public
 enum AstTypeKind:
     Named
     Pointer
@@ -137,6 +138,7 @@ class AstInstantiation:
         free(self->field_values)
 
 
+@public
 enum AstExpressionKind:
     String
     Int
@@ -466,6 +468,7 @@ class AstAssertion:
         free(self->condition_str)
 
 
+@public
 enum AstStatementKind:
     Import
     ExpressionStatement  # Evaluate an expression. Discard the result.
