@@ -1146,11 +1146,11 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
                 snprintf(msg, sizeof(msg), "case value cannot be <from> when matching with %s", sig_string)
             typecheck_expression_with_implicit_cast(state, case_obj, case_type, msg)
 
+            # The special casing only applies to simple enum member lookups (TheEnum.TheMember syntax)
+            if case_obj->kind != AstExpressionKind.GetEnumMember:
+                nremaining = -1
+
             if nremaining != -1:
-                if case_obj->kind != AstExpressionKind.GetEnumMember:
-                    # Matching an enum but it's too dynamic, not simply TheEnum.Member
-                    snprintf(msg, sizeof(msg), "'case' value must be %s.something when matching a value of enum %s", case_type->name, case_type->name)
-                    fail(case_obj->location, msg)
                 # We are matching against TheEnum.member. Try to find and remove it from remaining members.
                 member = case_obj->enum_member.member_name
                 found = False
