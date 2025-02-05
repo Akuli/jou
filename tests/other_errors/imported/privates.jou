@@ -1,0 +1,12 @@
+def private_function() -> None:
+    pass
+
+enum PrivateEnum:
+    Foo
+    Bar
+    Baz
+
+@public
+def this_function_silences_warnings_about_unused_things() -> None:
+    private_function()
+    x = PrivateEnum.Foo
