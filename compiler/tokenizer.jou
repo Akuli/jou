@@ -2,6 +2,7 @@ import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/errno.jou"
+import "stdlib/ascii.jou"
 import "./errors_and_warnings.jou"
 import "./token.jou"
 
@@ -9,12 +10,8 @@ import "./token.jou"
 declare isprint(b: int) -> int
 
 def is_identifier_or_number_byte(b: byte) -> bool:
-    return (
-        ('A' <= b and b <= 'Z')
-        or ('a' <= b and b <= 'z')
-        or ('0' <= b and b <= '9')
-        or b == '_'
-    )
+    # Allows non-ASCII variable names (bytes 128-255)
+    return b >= 128 or is_ascii_letter(b) or is_ascii_digit(b) or b == '_'
 
 def is_operator_byte(c: byte) -> bool:
     return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|", c) != NULL
@@ -156,6 +153,54 @@ def flip_paren(c: byte) -> byte:
             assert False
 
 
+# TODO: put to stdlib
+declare memcmp(s1: void*, s2: void*, n: long) -> int
+
+
+def detect_banned_whitespace_characters(last_3_bytes: byte[3]) -> byte*:
+    last_2_bytes = [last_3_bytes[1], last_3_bytes[2]]
+
+    # Ban all UTF-8 whitespace characters (longest one is 3 bytes)
+    # Python code used to generate this:
+    #
+    #    for x in range(128, 0x110000):  # 128 to skip ascii, chr(0x110000) errors
+    #        if chr(x).isspace():
+    #            print(chr(x).encode('utf-8'))
+    length2 = [
+        ["\xc2\x85", "U+00000085 NEXT LINE (NEL)"],
+        ["\xc2\xa0", "U+000000A0 NO-BREAK SPACE"],
+    ]
+    length3 = [
+        ["\xe1\x9a\x80", "U+00001680 OGHAM SPACE MARK"],
+        ["\xe2\x80\x80", "U+00002000 EN QUAD"],
+        ["\xe2\x80\x81", "U+00002001 EM QUAD"],
+        ["\xe2\x80\x82", "U+00002002 EN SPACE"],
+        ["\xe2\x80\x83", "U+00002003 EM SPACE"],
+        ["\xe2\x80\x84", "U+00002004 THREE-PER-EM SPACE"],
+        ["\xe2\x80\x85", "U+00002005 FOUR-PER-EM SPACE"],
+        ["\xe2\x80\x86", "U+00002006 SIX-PER-EM SPACE"],
+        ["\xe2\x80\x87", "U+00002007 FIGURE SPACE"],
+        ["\xe2\x80\x88", "U+00002008 PUNCTUATION SPACE"],
+        ["\xe2\x80\x89", "U+00002009 THIN SPACE"],
+        ["\xe2\x80\x8a", "U+0000200A HAIR SPACE"],
+        ["\xe2\x80\xa8", "U+00002028 LINE SEPARATOR"],
+        ["\xe2\x80\xa9", "U+00002029 PARAGRAPH SEPARATOR"],
+        ["\xe2\x80\xaf", "U+0000202F NARROW NO-BREAK SPACE"],
+        ["\xe2\x81\x9f", "U+0000205F MEDIUM MATHEMATICAL SPACE"],
+        ["\xe3\x80\x80", "U+00003000 IDEOGRAPHIC SPACE"],
+    ]
+
+    for i = 0; i < sizeof(length2)/sizeof(length2[0]); i++:
+        if memcmp(last_2_bytes, length2[i][0], 2) == 0:
+            return length2[i][1]
+
+    for i = 0; i < sizeof(length3)/sizeof(length3[0]); i++:
+        if memcmp(last_3_bytes, length3[i][0], 3) == 0:
+            return length3[i][1]
+
+    return NULL
+
+
 class Tokenizer:
     f: FILE*
     location: Location
@@ -166,6 +211,7 @@ class Tokenizer:
     # which would make it recurse too deep.
     open_parens: Token[50]
     open_parens_len: int
+    last_3_bytes: byte[3]
 
     def read_byte(self) -> byte:
         EOF = -1  # FIXME
@@ -192,6 +238,14 @@ class Tokenizer:
                 fail(self->location, "source file contains a zero byte")
             else:
                 c = temp as byte
+                self->last_3_bytes[0] = self->last_3_bytes[1]
+                self->last_3_bytes[1] = self->last_3_bytes[2]
+                self->last_3_bytes[2] = c
+                bad = detect_banned_whitespace_characters(self->last_3_bytes)
+                if bad != NULL:
+                    msg: byte[500]
+                    snprintf(msg, sizeof(msg), "source file contains Unicode whitespace character %s", bad)
+                    fail(self->location, msg)
 
         if c == '\n':
             self->location.lineno++
