@@ -51,8 +51,8 @@ def main() -> int:
     return 0
 ```
 
-The `case _` may be omitted if you don't want to do anything for other values
-(unless you are matching an enum, see [below](#special-casing-for-enums))
+The `case _` is special syntax that means "anything else".
+It may be omitted if you don't want to do anything for other values.
 
 Match statements can only be used with [integer types](types.md#integers) (`int` in this example) and [enums](enums.md).
 [Jou doesn't have very many different kinds of types](types.md), so this covers most use cases.
