@@ -108,60 +108,7 @@ This is useful especially when adding a new feature to a large existing program.
 Instead of a `match` statement, you can also use `if` and `elif` with enums,
 but then the compiler won't complain if you don't handle all enum members.
 
-Sometimes you don't want to list all enum members in a `match` statement.
-You can use `case _:` to catch all remaining enum members:
-
-```python
-import "stdlib/io.jou"
-
-enum Operation:
-    Add
-    Subtract
-    Multiply
-    Divide
-    FloorDivide
-
-def main() -> int:
-    op = Operation.Divide
-
-    match op:
-        case Operation.Add:
-            printf("It's adding\n")
-        case Operation.Subtract:
-            printf("It's subtracting\n")
-        case _:
-            printf("Not adding or subtracting\n")  # Output: Not adding or subtracting
-
-    return 0
-```
-
-You can also combine multiple cases with `|`.
-Read the `|` operator as "or" when it's used in match statements.
-
-```python
-import "stdlib/io.jou"
-
-enum Operation:
-    Add
-    Subtract
-    Multiply
-    Divide
-    FloorDivide
-
-def main() -> int:
-    op = Operation.FloorDivide
-
-    match op:
-        case Operation.Divide | Operation.FloorDivide:
-            printf("It's dividing\n")  # Output: It's dividing
-        case _:
-            pass
-
-    return 0
-```
-
-Here `case _: pass` is needed to ignore the enum members that were not mentioned,
-because without it, you will get a compiler error saying that you didn't handle all possible values.
+See also [the `match` statement documentation](match.md).
 
 
 ## Integer conversions
@@ -203,7 +150,7 @@ def main() -> int:
 
 You can also convert integers to enums,
 but note that the result might not correspond with any member of the enum.
-In a `match` statements, only `case _:` matches these values.
+For example:
 
 ```python
 import "stdlib/io.jou"
@@ -229,6 +176,8 @@ def main() -> int:
 
     return 0
 ```
+
+Make sure to include `case _` if you do this, [so that you don't get Undefined Behavior](match.md#the-weird-corner-case-where-a-match-statement-produces-ub).
 
 
 ## Debugging
