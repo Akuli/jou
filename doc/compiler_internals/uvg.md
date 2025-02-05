@@ -176,7 +176,7 @@ we take the blocks that used the outdated statuses and queue them for another ro
 The algorithm will terminate eventually as long as a cyclic change of statuses
 (e.g. `foo -> bar -> baz -> foo`) is not possible.
 
-Once all that is done, we know which statuses are possible at the start and end of each block,
+Once all that is done, we know which statuses are possible at the start and end of each block.
 Basically, control flow has been taken care of.
 This means that it's time to show warnings.
 

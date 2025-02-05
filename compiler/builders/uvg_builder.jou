@@ -179,7 +179,7 @@ class UBuilder:
     # value as to
     def cast(self, value: int, to: Type*) -> int:
         if to->is_pointer_type():
-            # TODO: is this needed?
+            # Needed to keep track of pointers to local variables, implicit casts are basically everywhere
             return value
         elif to == boolType and (value == TRUE_ID() or value == FALSE_ID()):
             # Thips helps with e.g. if statements and loops where condition is a literal "True".
