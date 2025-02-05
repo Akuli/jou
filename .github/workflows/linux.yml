@@ -48,6 +48,12 @@ jobs:
         run: mv jou jou_bootstrap && make
       - name: "Compile and test again"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}"
+      # Valgrinding all files is slow, but let's valgrind the hello world.
+      # This is enough to catch many bugs.
+      #
+      # We also have a separate, "full" valgrind run. See valgrind.yml.
+      - name: "Run hello world with valgrind"
+        run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}" --valgrind hello
 
   doctest:
     needs: bootstrap
