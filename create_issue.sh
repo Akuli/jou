@@ -59,5 +59,5 @@ if [ -n "$n" ]; then
     ( (get_body $n | awk 1) && echo "$link") | set_body $n
 else
     echo "No open issue found, creating a new one."
-    (echo "Valgrind outputs:" && echo "$link") | new_issue "$issue_title"
+    (echo "Test outputs:" && echo "$link") | new_issue "$issue_title"
 fi
