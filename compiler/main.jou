@@ -138,6 +138,10 @@ class FileState:
                     if not stmt->enumdef.public and not stmt->enumdef.used:
                         snprintf(msg, sizeof msg, "enum %s defined but not used", stmt->enumdef.name)
                         show_warning(stmt->location, msg)
+                case AstStatementKind.GlobalVariableDef:
+                    if not stmt->global_var_def.public and not stmt->global_var_def.used:
+                        snprintf(msg, sizeof msg, "global variable '%s' defined but not used", stmt->global_var_def.name)
+                        show_warning(stmt->location, msg)
                 case _:
                     pass
 

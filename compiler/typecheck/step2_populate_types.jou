@@ -18,13 +18,13 @@ import "../errors_and_warnings.jou"
 import "./common.jou"
 
 
-def handle_global_var(ft: FileTypes*, location: Location, name: byte*, type: AstType*) -> ExportSymbol:
+def handle_global_var(ft: FileTypes*, location: Location, name: byte*, type: AstType*, usedptr: bool*) -> ExportSymbol:
     if ft->find_global_var(name) != NULL:
         msg: byte[500]
         snprintf(msg, sizeof(msg), "a global variable named '%s' already exists", name)
         fail(location, msg)
 
-    g = ft->add_global_var(name, type_from_ast(ft, type), NULL)
+    g = ft->add_global_var(name, type_from_ast(ft, type), usedptr)
     return ExportSymbol{kind = ExportSymbolKind.GlobalVar, type = g->type, name = g->name}
 
 
@@ -204,9 +204,9 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
                 pass
             case AstStatementKind.GlobalVariableDeclare:
                 assert stmt->global_var_declare.value == NULL
-                exports[nexports++] = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type)
+                exports[nexports++] = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type, NULL)
             case AstStatementKind.GlobalVariableDef:
-                exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_def.name, &stmt->global_var_def.type)
+                exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_def.name, &stmt->global_var_def.type, &stmt->global_var_def.used)
                 if stmt->global_var_def.public:
                     exports[nexports++] = exp
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
