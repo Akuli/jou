@@ -577,12 +577,7 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
             case AstStatementKind.GlobalVariableDef:
                 globalptr = LLVMGetNamedGlobal(module, stmt->global_var_def.name)
                 assert globalptr != NULL
-                # TODO: better way to get the type
-                vartype: Type* = NULL
-                for g = ast->types.globals; g < &ast->types.globals[ast->types.nglobals]; g++:
-                    if strcmp(g->name, stmt->global_var_def.name) == 0:
-                        vartype = g->type
-                        break
+                vartype = ast->types.find_global_var(stmt->global_var_def.name)
                 assert vartype != NULL
                 LLVMSetInitializer(globalptr, LLVMConstNull(type_to_llvm(vartype)))
                 if not stmt->global_var_def.public:
