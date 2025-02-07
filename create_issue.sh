@@ -33,7 +33,7 @@ function get_body() {
 # Usage: echo body | set_body <issue_number>
 function set_body() {
     curl -s -X PATCH \
-        -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+        -H "$auth_header" \
         -H "Accept: application/vnd.github.v3+json" \
         "https://api.github.com/repos/Akuli/jou/issues/$1" \
         -d "$(jq -n --arg b "$(cat)" '{body: $b}')"
@@ -42,7 +42,7 @@ function set_body() {
 # Usage: echo body | new_issue <title>
 function new_issue() {
     curl -s -X POST \
-        -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+        -H "$auth_header" \
         -H "Accept: application/vnd.github.v3+json" \
         "https://api.github.com/repos/Akuli/jou/issues" \
         -d "$(jq -n --arg t "$1" --arg b "$(cat)" '{title: $t, body: $b}')"
@@ -56,7 +56,7 @@ n=$(find_issue "$issue_title")
 
 if [ -n "$n" ]; then
     echo "There is already an open issue (#$n). Appending link to issue description."
-    ((get_body $n | awk 1) && echo "$link") | set_body $n
+    ( (get_body $n | awk 1) && echo "$link") | set_body $n
 else
     echo "No open issue found, creating a new one."
     (echo "Valgrind outputs:" && echo "$link") | new_issue "$issue_title"
