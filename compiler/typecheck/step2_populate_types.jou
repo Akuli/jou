@@ -203,8 +203,9 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
             case AstStatementKind.Import:
                 pass
             case AstStatementKind.GlobalVariableDeclare:
-                assert stmt->global_var_declare.value == NULL
-                exports[nexports++] = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type, NULL)
+                exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type, &stmt->global_var_declare.used)
+                if stmt->global_var_declare.public:
+                    exports[nexports++] = exp
             case AstStatementKind.GlobalVariableDef:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_def.name, &stmt->global_var_def.type, &stmt->global_var_def.used)
                 if stmt->global_var_def.public:
