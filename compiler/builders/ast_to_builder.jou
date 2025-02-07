@@ -608,9 +608,9 @@ class AstToBuilder:
                     self->builder->ret(NULL)
                 self->builder->set_current_block(self->builder->add_block())  # for code after 'return', if any
             case AstStatementKind.DeclareLocalVar:
-                if stmt->var_declaration.value != NULL:
-                    var_ptr = self->local_var_ptr(stmt->var_declaration.name)
-                    value = self->build_expression(stmt->var_declaration.value)
+                if stmt->local_var_declare.value != NULL:
+                    var_ptr = self->local_var_ptr(stmt->local_var_declare.name)
+                    value = self->build_expression(stmt->local_var_declare.value)
                     self->builder->set_ptr(var_ptr, value)
             case AstStatementKind.ExpressionStatement:
                 self->build_expression(&stmt->expression)

@@ -1,7 +1,11 @@
-# Tests two files with non-public functions that have same name.
-def internal() -> int:
-    return 2
+# Tests two files with non-public things that have same name.
+global value: int
+
+def internal() -> None:
+    value *= 20
 
 @public
 def public_func_2() -> int:
-    return 20 * internal()
+    value = 2
+    internal()
+    return value

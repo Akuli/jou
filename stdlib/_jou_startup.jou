@@ -17,8 +17,11 @@
 # We can't import FILE from io.jou here, because then we would be
 # trying to define a variable that already exists.
 if WINDOWS or MACOS or NETBSD:
+    @public
     global stdin: void*
+    @public
     global stdout: void*
+    @public
     global stderr: void*
 
 if WINDOWS:

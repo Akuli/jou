@@ -1332,16 +1332,16 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 typecheck_expression_with_implicit_cast(state, stmt->return_value, return_type, msg)
 
         case AstStatementKind.DeclareLocalVar:
-            if state->find_any_var(stmt->var_declaration.name) != NULL:
-                snprintf(msg, sizeof(msg), "a variable named '%s' already exists", stmt->var_declaration.name)
+            if state->find_any_var(stmt->local_var_declare.name) != NULL:
+                snprintf(msg, sizeof(msg), "a variable named '%s' already exists", stmt->local_var_declare.name)
                 fail(stmt->location, msg)
 
-            type = type_from_ast(state->file_types, &stmt->var_declaration.type)
-            state->fom_types->add_variable(type, stmt->var_declaration.name)
+            type = type_from_ast(state->file_types, &stmt->local_var_declare.type)
+            state->fom_types->add_variable(type, stmt->local_var_declare.name)
 
-            if stmt->var_declaration.value != NULL:
+            if stmt->local_var_declare.value != NULL:
                 typecheck_expression_with_implicit_cast(
-                    state, stmt->var_declaration.value, type,
+                    state, stmt->local_var_declare.value, type,
                     "initial value for variable of type <to> cannot be of type <from>")
 
         case AstStatementKind.ExpressionStatement:

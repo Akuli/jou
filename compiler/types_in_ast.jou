@@ -62,7 +62,6 @@ class FunctionOrMethodTypes:
 class GlobalVariable:
     name: byte[100]  # Same as in user's code, never empty
     type: Type*
-    defined_in_current_file: bool  # not declare-only (e.g. stdout) or imported
     usedptr: bool*  # If non-NULL, set to true when the variable is used. This is how we detect unused imports.
 
 class TypeAndUsedPtr:

@@ -38,10 +38,15 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
                 importsym->kind == ExportSymbolKind.Function
                 and strcmp(importsym->name, stmt->function.ast_signature.name) == 0
             )
-        case AstStatementKind.GlobalVariableDeclare | AstStatementKind.GlobalVariableDef:
+        case AstStatementKind.GlobalVariableDeclare:
             return (
                 importsym->kind == ExportSymbolKind.GlobalVar
-                and strcmp(importsym->name, stmt->var_declaration.name) == 0
+                and strcmp(importsym->name, stmt->global_var_declare.name) == 0
+            )
+        case AstStatementKind.GlobalVariableDef:
+            return (
+                importsym->kind == ExportSymbolKind.GlobalVar
+                and strcmp(importsym->name, stmt->global_var_def.name) == 0
             )
         case AstStatementKind.Class:
             return (
@@ -132,6 +137,10 @@ class FileState:
                 case AstStatementKind.Enum:
                     if not stmt->enumdef.public and not stmt->enumdef.used:
                         snprintf(msg, sizeof msg, "enum %s defined but not used", stmt->enumdef.name)
+                        show_warning(stmt->location, msg)
+                case AstStatementKind.GlobalVariableDef:
+                    if not stmt->global_var_def.public and not stmt->global_var_def.used:
+                        snprintf(msg, sizeof msg, "global variable '%s' defined but not used", stmt->global_var_def.name)
                         show_warning(stmt->location, msg)
                 case _:
                     pass
