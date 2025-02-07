@@ -12,6 +12,8 @@ on:
 
 jobs:
   release:
+    # Run it on forks only if triggered manually
+    if: ${{ github.repository == 'Akuli/jou' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
