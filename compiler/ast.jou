@@ -509,7 +509,9 @@ class AstStatement:
         for_loop: AstForLoop
         return_value: AstExpression*        # can be NULL
         assignment: AstAssignment           # also used for +=, -= etc
-        var_declaration: AstNameTypeValue   # DeclareLocalVar
+        local_var_declare: AstNameTypeValue # DeclareLocalVar
+        global_var_declare: AstNameTypeValue  # GlobalVariableDeclare
+        global_var_def: AstGlobalVarDef     # GlobalVariableDef
         class_field: AstNameTypeValue       # ClassField
         union_fields: AstUnionFields        # ClassUnion
         function: AstFunctionOrMethod
@@ -553,7 +555,7 @@ class AstStatement:
                 printf("continue\n")
             case AstStatementKind.DeclareLocalVar:
                 printf("declare local var ")
-                self->var_declaration.print_with_tree_printer(&tp)
+                self->local_var_declare.print_with_tree_printer(&tp)
             case AstStatementKind.Assign:
                 printf("assign\n")
                 self->assignment.print_with_tree_printer(tp)
@@ -587,11 +589,11 @@ class AstStatement:
                 self->enumdef.print_with_tree_printer(tp)
             case AstStatementKind.GlobalVariableDeclare:
                 printf("declare global var ")
-                self->var_declaration.print_with_tree_printer(NULL)
+                self->global_var_declare.print_with_tree_printer(NULL)
                 printf("\n")
             case AstStatementKind.GlobalVariableDef:
                 printf("define global var ")
-                self->var_declaration.print_with_tree_printer(NULL)
+                self->global_var_def.print()
                 printf("\n")
             case AstStatementKind.Import:
                 self->import_statement.print()
@@ -621,12 +623,12 @@ class AstStatement:
                 self->for_loop.free()
             case AstStatementKind.Match:
                 self->match_statement.free()
-            case (
-                AstStatementKind.DeclareLocalVar
-                | AstStatementKind.GlobalVariableDeclare
-                | AstStatementKind.GlobalVariableDef
-            ):
-                self->var_declaration.free()
+            case AstStatementKind.DeclareLocalVar:
+                self->local_var_declare.free()
+            case AstStatementKind.GlobalVariableDeclare:
+                self->global_var_declare.free()
+            case AstStatementKind.GlobalVariableDef:
+                self->global_var_def.free()
             case AstStatementKind.ClassField:
                 self->class_field.free()
             case (
@@ -861,6 +863,22 @@ class AstNameTypeValue:
         if self->value != NULL:
             self->value->free()
             free(self->value)
+
+
+# global foo: int
+class AstGlobalVarDef:
+    name: byte[100]
+    type: AstType
+    public: bool  # is it decorated with @public
+    used: bool  # used to detect unused global variables
+
+    def print(self) -> None:
+        printf("%s: ", self->name)
+        self->type.print(True)
+        printf("\n")
+
+    def free(self) -> None:
+        self->type.free()
 
 
 # typically multiple indented lines after a ":" at end of line

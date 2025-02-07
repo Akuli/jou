@@ -147,9 +147,11 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
                 stmt->function.public = True
             case AstStatementKind.Enum:
                 stmt->enumdef.public = True
+            case AstStatementKind.GlobalVariableDef:
+                stmt->global_var_def.public = True
             # Temporarily allow and ignore using @public on enums, classes and global variables.
             # This is needed for the bootstrap compiler to accept new syntax.
-            case AstStatementKind.Class | AstStatementKind.GlobalVariableDeclare | AstStatementKind.GlobalVariableDef:
+            case AstStatementKind.Class | AstStatementKind.GlobalVariableDeclare:
                 pass  # TODO: handle these cases properly
             case _:
                 fail(location, "the @public decorator cannot be used here")
@@ -818,7 +820,7 @@ class Parser:
                         fail(result.class_field.value->location, "class fields cannot have default values")
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     result.kind = AstStatementKind.DeclareLocalVar
-                    result.var_declaration = self->parse_name_type_value(NULL)
+                    result.local_var_declare = self->parse_name_type_value(NULL)
         else:
             expr = self->parse_expression()
             result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(self->tokens)
@@ -1039,9 +1041,6 @@ class Parser:
         if self->tokens->is_operator("="):
             fail(self->tokens->location, "only one variable can be assigned at a time")
 
-        if self->tokens->is_operator("="):
-            fail(self->tokens->location, "only one variable can be assigned at a time")
-
         if not self->tokens->is_operator(":"):
             self->tokens->fail_expected_got("':' and a type after it (example: \"foo, bar: int\")")
         self->tokens++
@@ -1089,16 +1088,17 @@ class Parser:
             location = (self->tokens++)->location
             if self->tokens->is_keyword("global"):
                 self->tokens++
+                ntv = self->parse_name_type_value("a variable name")
+                if ntv.value != NULL:
+                    fail(
+                        ntv.value->location,
+                        "a value cannot be given when declaring a global variable",
+                    )
                 result = AstStatement{
                     location = location,
                     kind = AstStatementKind.GlobalVariableDeclare,
-                    var_declaration = self->parse_name_type_value("a variable name"),
+                    global_var_declare = ntv,
                 }
-                if result.var_declaration.value != NULL:
-                    fail(
-                        result.var_declaration.value->location,
-                        "a value cannot be given when declaring a global variable",
-                    )
             else:
                 result = AstStatement{
                     location = location,
@@ -1108,16 +1108,18 @@ class Parser:
             self->eat_newline()
         elif self->tokens->is_keyword("global"):
             self->check_top_level("global variables")
-            result = AstStatement{
-                location = (self->tokens++)->location,
-                kind = AstStatementKind.GlobalVariableDef,
-                var_declaration = self->parse_name_type_value("a variable name"),
-            }
-            if result.var_declaration.value != NULL:
+            location = (self->tokens++)->location
+            ntv = self->parse_name_type_value("a variable name")
+            if ntv.value != NULL:
                 fail(
-                    result.var_declaration.value->location,
+                    ntv.value->location,
                     "specifying a value for a global variable is not supported yet",
                 )
+            result = AstStatement{
+                location = location,
+                kind = AstStatementKind.GlobalVariableDef,
+                global_var_def = AstGlobalVarDef{name = ntv.name, type = ntv.type},
+            }
             self->eat_newline()
         elif self->tokens->is_keyword("class"):
             result = AstStatement{
@@ -1169,7 +1171,7 @@ class Parser:
             result = AstStatement{
                 location = self->tokens->location,
                 kind = AstStatementKind.DeclareLocalVar,
-                var_declaration = self->parse_first_of_multiple_local_var_declares(),
+                local_var_declare = self->parse_first_of_multiple_local_var_declares(),
             }
         else:
             result = self->parse_oneline_statement()
