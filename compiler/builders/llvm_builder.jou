@@ -578,11 +578,11 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
     for stmt = ast->body.statements; stmt < &ast->body.statements[ast->body.nstatements]; stmt++:
         match stmt->kind:
             case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt->function, stmt->location, &builder_wrapper)
+                feed_ast_to_builder(&stmt->function, stmt->location, ast->is_main_file, &builder_wrapper)
             case AstStatementKind.Class:
                 for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
                     if inner->kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner->method, inner->location, &builder_wrapper)
+                        feed_ast_to_builder(&inner->method, inner->location, ast->is_main_file, &builder_wrapper)
             case _:
                 pass
 

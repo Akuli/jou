@@ -942,6 +942,7 @@ class AstImport:
 # Represents the AST of one Jou file.
 class AstFile:
     path: byte*  # not owned
+    is_main_file: bool  # is this the file passed in Jou compiler command? False means imported file
     body: AstBody
     types: FileTypes  # populated in typecheck, zero-initialized before typecheck runs
 

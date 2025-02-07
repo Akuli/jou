@@ -26,7 +26,7 @@ import "./ast.jou"
 def defines_main(ast: AstFile*) -> bool:
     for i = 0; i < ast->body.nstatements; i++:
         s = &ast->body.statements[i]
-        if s->kind == AstStatementKind.FunctionDef and strcmp(s->function.ast_signature.name, "main") == 0:
+        if s->kind == AstStatementKind.FunctionDef and s->function.types.signature.is_main_function():
             return True
     return False
 
@@ -205,6 +205,9 @@ class CompileState:
         fs.ast = parse(tokens, self->stdlib_path)
         free_tokens(tokens)
 
+        if strcmp(filename, command_line_args.infile) == 0:
+            fs.ast.is_main_file = True
+
         if command_line_args.verbosity >= 1:
             printf("Evaluating compile-time if statements in %s\n", filename)
         evaluate_compile_time_if_statements(&fs.ast)
@@ -213,13 +216,6 @@ class CompileState:
             fs.ast.print()
 
         check_imports_at_start_of_file(&fs.ast.body)
-
-        # If it's not the file passed on command line, it shouldn't define main()
-        if strcmp(filename, command_line_args.infile) != 0 and defines_main(&fs.ast):
-            # Set error location to import, so user immediately knows which file
-            # imports something that defines main().
-            assert import_location != NULL
-            fail(*import_location, "imported file should not have `main` function")
 
         self->files = realloc(self->files, sizeof(self->files[0]) * (self->nfiles + 1))
         assert self->files != NULL
