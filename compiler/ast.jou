@@ -510,7 +510,7 @@ class AstStatement:
         return_value: AstExpression*        # can be NULL
         assignment: AstAssignment           # also used for +=, -= etc
         local_var_declare: AstNameTypeValue # DeclareLocalVar
-        global_var_declare: AstNameTypeValue  # GlobalVariableDeclare
+        global_var_declare: AstGlobalVarDeclare  # GlobalVariableDeclare
         global_var_def: AstGlobalVarDef     # GlobalVariableDef
         class_field: AstNameTypeValue       # ClassField
         union_fields: AstUnionFields        # ClassUnion
@@ -589,7 +589,7 @@ class AstStatement:
                 self->enumdef.print_with_tree_printer(tp)
             case AstStatementKind.GlobalVariableDeclare:
                 printf("declare global var ")
-                self->global_var_declare.print_with_tree_printer(NULL)
+                self->global_var_declare.print()
                 printf("\n")
             case AstStatementKind.GlobalVariableDef:
                 printf("define global var ")
@@ -865,7 +865,24 @@ class AstNameTypeValue:
             free(self->value)
 
 
+# declare global foo: int
+class AstGlobalVarDeclare:
+    name: byte[100]
+    type: AstType
+    public: bool  # is it decorated with @public
+    used: bool  # used to detect unused global variables
+
+    def print(self) -> None:
+        printf("%s: ", self->name)
+        self->type.print(True)
+        printf("\n")
+
+    def free(self) -> None:
+        self->type.free()
+
+
 # global foo: int
+# TODO: support specifying an initial value
 class AstGlobalVarDef:
     name: byte[100]
     type: AstType

@@ -42,9 +42,13 @@ class FILE:
     # to accessing the members directly.
     _dummy: int
 
-# Special files for terminal input and output.
+# Special files for terminal input and output. Platform-specific details are
+# handled in _jou_startup.jou.
+@public
 declare global stdin: FILE*
+@public
 declare global stdout: FILE*
+@public
 declare global stderr: FILE*
 
 # Open/close a file for reading or writing. Mode can be e.g. "r", "w",

@@ -2,6 +2,13 @@ import "stdlib/io.jou"
 import "./imported/samename1.jou"
 import "./imported/samename2.jou"
 
+# This is declared in other files, let's actually define it to avoid linker errors
+# Must be public so that linker knows it's not only for this file.
+@public
+global the_counter: int
+
 def main() -> int:
+    printf("%d\n", the_counter)  # Output: 0
     printf("%d %d\n", public_func_1(), public_func_2())  # Output: 10 40
+    printf("%d\n", the_counter)  # Output: 2
     return 0
