@@ -1,0 +1,13 @@
+# If an imported file has a main() function, it is ignored.
+#
+# This is useful in large Jou projects. For example, large_project/json_utils.jou
+# could have a main function for experimenting with JSON files, and
+# large_project/main.jou can simply import it.
+
+import "./public_hello_printer.jou"
+
+def main() -> int:
+    # Call it twice to make sure compiler doesn't run the other main function
+    print_hello()  # Output: Hello World!
+    print_hello()  # Output: Hello World!
+    return 0
