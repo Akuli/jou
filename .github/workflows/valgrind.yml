@@ -7,7 +7,7 @@ on:
   workflow_dispatch:  # Can also be triggered manually from github UI
 
 jobs:
-  # Check if there was any commits within the last 24 hours
+  # Please keep in sync with macos.yml
   check-if-needed:
     timeout-minutes: 1
     runs-on: ubuntu-latest
@@ -73,9 +73,9 @@ jobs:
       - name: "Test compiler with valgrind"
         run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.opt-level }}"
 
-  # Based on: https://github.com/python/typeshed/blob/9f28171658b9ca6c32a7cb93fbb99fc92b17858b/.github/workflows/daily.yml
+  # Please keep in sync with macos.yml
   create-issue-on-failure:
-    name: Create an issue if valgrind failed
+    name: Create an issue if failed
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [check-if-needed, bootstrap, valgrind]
@@ -83,47 +83,5 @@ jobs:
     permissions:
       issues: write
     steps:
-      - run: |
-          # Usage: find_issue <title>
-          # Echos issue number, if any
-          function find_issue() {
-              curl -s "https://api.github.com/repos/${{ github.repository }}/issues?state=open" \
-                  | jq -r --arg t "$1" '.[] | select(.title==$t) | .number'
-          }
-
-          # Usage: get_body <issue_number>
-          function get_body() {
-              curl -s "https://api.github.com/repos/${{ github.repository }}/issues/$1" | jq -r .body
-          }
-
-          # Usage: echo body | set_body <issue_number>
-          function set_body() {
-              curl -s -X PATCH \
-                  -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                  -H "Accept: application/vnd.github.v3+json" \
-                  "https://api.github.com/repos/${{ github.repository }}/issues/$1" \
-                  -d "$(jq -n --arg b "$(cat)" '{body: $b}')"
-          }
-
-          # Usage: echo body | new_issue <title>
-          function new_issue() {
-              curl -s -X POST \
-                  -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                  -H "Accept: application/vnd.github.v3+json" \
-                  "https://api.github.com/repos/${{ github.repository }}/issues" \
-                  -d "$(jq -n --arg t "$1" --arg b "$(cat)" '{title: $t, body: $b}')"
-          }
-
-          link="- [$(date)](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
-          echo $link
-
-          echo "Checking if there is already an issue about valgrind errors..."
-          n=$(find_issue "Running tests with valgrind failed")
-
-          if [ -n "$n" ]; then
-              echo "There is already an open issue about the valgrind errors. Appending link to issue description."
-              ((get_body $n | awk 1) && echo "$link") | set_body $n
-          else
-              echo "No open issue found, creating a new one."
-              (echo "Valgrind outputs:" && echo "$link") | new_issue "Running tests with valgrind failed"
-          fi
+      - uses: actions/checkout@v4
+      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests with valgrind failed"
