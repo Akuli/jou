@@ -1,6 +1,9 @@
 def private_function() -> None:
     pass
 
+class PrivateClass:
+    x: int
+
 global globaah: int
 declare global decl_g: int
 
@@ -13,4 +16,5 @@ enum PrivateEnum:
 def this_function_silences_warnings_about_unused_things() -> None:
     private_function()
     x = PrivateEnum.Foo
+    y: PrivateClass
     globaah++

@@ -36,9 +36,9 @@ Practically, here's what you need to know:
 
 ## Public
 
-If you want a function to be importable, mark it with `@public`.
-Functions not marked with `@public` are "private within file":
-they can only be used within the file that defines the function.
+If you want a function, [class](classes.md), [enum](enums.md) or global variable to be importable,
+make it public with the `@public` decorator.
+Anything not decorated with `@public` can only be used in the same file.
 
 For example:
 
@@ -49,11 +49,32 @@ def only_for_this_file() -> None:
 @public
 def visible_in_files_that_import_this_file() -> None:
     ...
+
+class OnlyForThisFile:
+    field: int
+    def method(self) -> None:
+        ...
+
+@public
+class VisibleInFilesThatImportThisFile:
+    field: int
+    def method(self) -> None:
+        ...
+
+global kinda_ok_variable: int
+
+@public
+global many_people_consider_this_bad: int
 ```
 
-Currently this only applies to functions, including `declare`,
-but extending it to other things is planned.
-See [issue #84](https://github.com/Akuli/jou/issues/84).
+Class fields and methods are always public.
+This means that if you have an instance of a class,
+you can simply call any method defined in the class.
+If you don't like this, please create an issue on GitHub to discuss it.
+
+Many people dislike global variables, especially when they are accessed in multiple files.
+That said, Jou lets you decorate a global variable as `@public` and import it into another file,
+because sometimes that is the best solution.
 
 
 ## Conflicting Names
@@ -64,9 +85,8 @@ and `baz.jou` also defines a function `foo()` with `@public`,
 then you cannot use `bar.jou` and `baz.jou` in the same project.
 To work around this, rename the functions or don't use `@public`.
 
-The same applies to basically anything public (that is, accessible from other files).
-However, it's fine to have multiple methods with the same name in different classes
-as long as the class names are different.
+The same applies to anything decorated with `@public`.
+However, it's fine to have multiple methods with the same name in different public classes.
 For example, [the `ast.jou` file in the Jou compiler](../compiler/ast.jou)
 has many classes whose name starts with `Ast` to prevent conflicts with other files,
 and most of them have methods named `print()` and `free()`.

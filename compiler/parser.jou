@@ -145,16 +145,16 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
                 if strcmp(stmt->function.ast_signature.name, "main") == 0:
                     fail(location, "the main() function cannot be @public")
                 stmt->function.public = True
+            case AstStatementKind.MethodDef:
+                fail(location, "methods cannot be decorated with @public, a class is either fully public or fully private")
+            case AstStatementKind.Class:
+                stmt->classdef.public = True
             case AstStatementKind.Enum:
                 stmt->enumdef.public = True
             case AstStatementKind.GlobalVariableDeclare:
                 stmt->global_var_declare.public = True
             case AstStatementKind.GlobalVariableDef:
                 stmt->global_var_def.public = True
-            # Temporarily allow and ignore using @public on enums, classes and global variables.
-            # This is needed for the bootstrap compiler to accept new syntax.
-            case AstStatementKind.Class:
-                pass  # TODO: handle these cases properly
             case _:
                 fail(location, "the @public decorator cannot be used here")
     else:

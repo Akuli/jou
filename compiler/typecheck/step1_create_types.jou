@@ -29,8 +29,8 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
         match stmt->kind:
             case AstStatementKind.Class:
                 name = stmt->classdef.name
-                public = True
-                usedptr = NULL
+                public = stmt->classdef.public
+                usedptr = &stmt->classdef.used
                 t = create_opaque_class(name)
                 stmt->classdef.type = t
             case AstStatementKind.Enum:

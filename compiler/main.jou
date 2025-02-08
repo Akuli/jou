@@ -146,6 +146,10 @@ class FileState:
                     if not stmt->global_var_declare.public and not stmt->global_var_declare.used:
                         snprintf(msg, sizeof msg, "global variable '%s' declared but not used", stmt->global_var_declare.name)
                         show_warning(stmt->location, msg)
+                case AstStatementKind.Class:
+                    if not stmt->classdef.public and not stmt->classdef.used:
+                        snprintf(msg, sizeof msg, "class '%s' defined but not used", stmt->classdef.name)
+                        show_warning(stmt->location, msg)
                 case _:
                     pass
 

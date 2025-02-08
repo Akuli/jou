@@ -220,12 +220,14 @@ def find_enum_member(enumtype: Type*, name: byte*) -> int:
     assert False
 
 
+@public
 class LBuilderValue:
     type: Type*
     llvm_value: LLVMValue*
 
 
 # Not named LLVMBuilder because that is the name of LLVM's thing.
+@public
 class LBuilder:
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*

@@ -11,6 +11,7 @@ import "stdlib/mem.jou"
 import "./types.jou"
 
 
+@public
 class ExpressionTypes:
     # Type of value that the expression evaluates to, before implicit casts are applied.
     # This is NULL before type checking, and if the expression  calling '-> None' function/method.
@@ -24,6 +25,7 @@ class ExpressionTypes:
     implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
 
 
+@public
 class LocalVariable:
     name: byte[100]  # Same name as in user's code, empty for temporary variables created by compiler
     type: Type*
@@ -31,6 +33,7 @@ class LocalVariable:
 
 # Type information about a function or method defined in the current file.
 # Not created for anything imported from another file.
+@public
 class FunctionOrMethodTypes:
     signature: Signature
     locals: LocalVariable*
@@ -73,6 +76,7 @@ class SignatureAndUsedPtr:
     usedptr: bool*  # used to detect unused imports
 
 
+@public
 class FileTypes:
     globals: GlobalVariable*
     nglobals: int
