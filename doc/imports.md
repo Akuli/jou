@@ -37,8 +37,8 @@ Practically, here's what you need to know:
 ## Public
 
 If you want a function, [class](classes.md), [enum](enums.md) or global variable to be importable,
-mark it with `@public`.
-Anything not marked with `@public` can only be used in the same file.
+make it public with the `@public` decorator.
+Anything not decorated with `@public` can only be used in the same file.
 
 For example:
 
@@ -73,7 +73,7 @@ you can simply call any method defined in the class.
 If you don't like this, please create an issue on GitHub to discuss it.
 
 Many people dislike global variables, especially when they are accessed in multiple files.
-That said, Jou lets you mark a global variable as `@public` and import it into another file,
+That said, Jou lets you decorate a global variable as `@public` and import it into another file,
 because sometimes that is the best solution.
 
 
@@ -85,9 +85,8 @@ and `baz.jou` also defines a function `foo()` with `@public`,
 then you cannot use `bar.jou` and `baz.jou` in the same project.
 To work around this, rename the functions or don't use `@public`.
 
-The same applies to basically anything public (that is, accessible from other files).
-However, it's fine to have multiple methods with the same name in different classes
-as long as the class names are different.
+The same applies to anything decorated with `@public`.
+However, it's fine to have multiple methods with the same name in different public classes.
 For example, [the `ast.jou` file in the Jou compiler](../compiler/ast.jou)
 has many classes whose name starts with `Ast` to prevent conflicts with other files,
 and most of them have methods named `print()` and `free()`.
