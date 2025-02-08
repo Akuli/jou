@@ -60,12 +60,21 @@ class VisibleInFilesThatImportThisFile:
     field: int
     def method(self) -> None:
         ...
+
+global kinda_ok_variable: int
+
+@public
+global many_people_consider_this_bad: int
 ```
 
 Class fields and methods are always public.
 This means that if you have an instance of a class,
 you can simply call any method defined in the class.
 If you don't like this, please create an issue on GitHub to discuss it.
+
+Many people dislike global variables, especially when they are accessed in multiple files.
+That said, Jou lets you mark a global variable as `@public` and import it into another file,
+because sometimes that is the best solution.
 
 
 ## Conflicting Names
