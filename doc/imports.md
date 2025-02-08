@@ -36,9 +36,9 @@ Practically, here's what you need to know:
 
 ## Public
 
-If you want a function to be importable, mark it with `@public`.
-Functions not marked with `@public` are "private within file":
-they can only be used within the file that defines the function.
+If you want a function, [class](classes.md), [enum](enums.md) or global variable to be importable,
+mark it with `@public`.
+Anything not marked with `@public` can only be used in the same file.
 
 For example:
 
@@ -49,11 +49,23 @@ def only_for_this_file() -> None:
 @public
 def visible_in_files_that_import_this_file() -> None:
     ...
+
+class OnlyForThisFile:
+    field: int
+    def method(self) -> None:
+        ...
+
+@public
+class VisibleInFilesThatImportThisFile:
+    field: int
+    def method(self) -> None:
+        ...
 ```
 
-Currently this only applies to functions, including `declare`,
-but extending it to other things is planned.
-See [issue #84](https://github.com/Akuli/jou/issues/84).
+Class fields and methods are always public.
+This means that if you have an instance of a class,
+you can simply call any method defined in the class.
+If you don't like this, please create an issue on GitHub to discuss it.
 
 
 ## Conflicting Names
