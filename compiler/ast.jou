@@ -22,6 +22,7 @@ enum AstTypeKind:
     Array
 
 
+@public
 class AstArrayType:
     member_type: AstType*
     length: AstExpression*
@@ -33,6 +34,7 @@ class AstArrayType:
         free(self->length)
 
 
+@public
 class AstType:
     kind: AstTypeKind
     location: Location
@@ -97,12 +99,14 @@ class TreePrinter:
 
 
 # Foo.Bar where Foo is an enum
+@public
 class AstEnumMember:
     enum_name: byte[100]
     member_name: byte[100]
 
 
 # foo.bar, foo->bar
+@public
 class AstClassField:
     instance: AstExpression*
     uses_arrow_operator: bool  # distinguishes foo.bar and foo->bar
@@ -114,6 +118,7 @@ class AstClassField:
 
 
 # Foo{bar = 1, baz = 2}
+@public
 class AstInstantiation:
     class_name_location: Location  # TODO: probably not necessary, can use location of the instantiate expression
     class_name: byte[100]
@@ -183,6 +188,7 @@ enum AstExpressionKind:
     And         # x and y
     Or          # x or y
 
+@public
 class AstExpression:
     location: Location
     kind: AstExpressionKind
@@ -382,6 +388,7 @@ class AstExpression:
 
 
 # [foo, bar, baz]
+@public
 class AstArray:
     length: int
     items: AstExpression*
@@ -393,6 +400,7 @@ class AstArray:
 
 
 # foo as bar
+@public
 class AstAs:
     value: AstExpression
     type: AstType
@@ -414,6 +422,7 @@ class AstAs:
 # foo(arg1, arg2, arg3)
 # foo.bar(arg1, arg2, arg3)
 # foo->bar(arg1, arg2, arg3)
+@public
 class AstCall:
     location: Location
     name: byte[100]  # name of function or method
@@ -459,6 +468,7 @@ class AstCall:
 
 
 # assert foo
+@public
 class AstAssertion:
     condition: AstExpression
     condition_str: byte*
@@ -498,6 +508,7 @@ enum AstStatementKind:
     GlobalVariableDeclare
     GlobalVariableDef
 
+@public
 class AstStatement:
     location: Location
     kind: AstStatementKind
@@ -657,6 +668,7 @@ class AstStatement:
 
 
 # Useful for e.g. "while condition: body", "if condition: body"
+@public
 class AstConditionAndBody:
     condition: AstExpression
     body: AstBody
@@ -679,6 +691,7 @@ class AstConditionAndBody:
 
 
 # foo = bar
+@public
 class AstAssignment:
     target: AstExpression
     value: AstExpression
@@ -703,6 +716,7 @@ class AstAssignment:
 #     ...
 # else:
 #     ...
+@public
 class AstIfStatement:
     if_and_elifs: AstConditionAndBody*
     n_if_and_elifs: int  # At least 1 (the if statement). The rest, if any, are elifs.
@@ -733,6 +747,7 @@ class AstIfStatement:
 #         ...
 #     case ...:
 #         ...
+@public
 class AstMatchStatement:
     match_obj: AstExpression
     func_name: byte[100]  # empty if there's no "with foo"
@@ -766,6 +781,7 @@ class AstMatchStatement:
 
 # case case_obj1 | case_obj2 | case_obj3:
 #     body
+@public
 class AstCase:
     case_objs: AstExpression*
     n_case_objs: int
@@ -790,6 +806,7 @@ class AstCase:
 
 # for init; cond; incr:
 #     ...body...
+@public
 class AstForLoop:
     init: AstStatement*   # may be NULL
     cond: AstExpression*  # may be NULL
@@ -835,6 +852,7 @@ class AstForLoop:
 
 
 # name: type = value
+@public
 class AstNameTypeValue:
     name: byte[100]
     name_location: Location
@@ -883,6 +901,7 @@ class AstGlobalVarDeclare:
 
 # global foo: int
 # TODO: support specifying an initial value
+@public
 class AstGlobalVarDef:
     name: byte[100]
     type: AstType
@@ -899,6 +918,7 @@ class AstGlobalVarDef:
 
 
 # typically multiple indented lines after a ":" at end of line
+@public
 class AstBody:
     statements: AstStatement*
     nstatements: int
@@ -917,6 +937,7 @@ class AstBody:
 
 
 # function name and parameters in "def" or "declare"
+@public
 class AstSignature:
     name_location: Location
     name: byte[100]  # name of function or method, after "def" keyword
@@ -958,6 +979,7 @@ class AstSignature:
 
 
 # import "./foo.jou"
+@public
 class AstImport:
     specified_path: byte*  # Path in jou code e.g. "stdlib/io.jou"
     resolved_path: byte*  # Absolute path or relative to current working directory e.g. "/home/akuli/jou/stdlib/io.jou"
@@ -975,6 +997,7 @@ class AstImport:
 
 
 # Represents the AST of one Jou file.
+@public
 class AstFile:
     path: byte*  # not owned
     is_main_file: bool  # is this the file passed in Jou compiler command? False means imported file
@@ -993,6 +1016,7 @@ class AstFile:
 
 # def foo() -> bar:
 #     ...
+@public
 class AstFunctionOrMethod:
     ast_signature: AstSignature
     body: AstBody
@@ -1018,6 +1042,7 @@ class AstFunctionOrMethod:
 # union:
 #     foo: type1
 #     bar: type2
+@public
 class AstUnionFields:
     fields: AstNameTypeValue*
     nfields: int
@@ -1038,6 +1063,7 @@ class AstUnionFields:
 
 # class Foo:
 #     ...members...
+@public
 class AstClassDef:
     name: byte[100]
     body: AstBody*
@@ -1061,6 +1087,7 @@ class AstClassDef:
 #     Member1
 #     Member2
 #     Member3
+@public
 class AstEnumDef:
     name: byte[100]
     name_location: Location

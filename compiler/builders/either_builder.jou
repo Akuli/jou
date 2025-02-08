@@ -16,16 +16,19 @@ import "./llvm_builder.jou"
 import "./uvg_builder.jou"
 
 
+@public
 class EitherBuilderValue:
     lvalue: LBuilderValue
     uvalue: int
 
 
+@public
 class EitherBuilderBlock:
     lblock: LLVMBasicBlock*
     ublock: UvgBlock*  # funny naming :)
 
 
+@public
 class EitherBuilder:
     lbuilder: LBuilder*  # may be NULL
     ubuilder: UBuilder*  # may be NULL

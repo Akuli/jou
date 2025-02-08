@@ -3,6 +3,7 @@ import "stdlib/str.jou"
 
 import "./errors_and_warnings.jou"
 
+@public
 class ClassField:
     name: byte[100]
     type: Type*
@@ -37,6 +38,7 @@ enum TypeKind:
     OpaqueClass  # class with unknown members, used temporarily during type checking
     Enum
 
+@public
 class Type:
     name: byte[500]   # All types have a name for error messages and debugging.
     kind: TypeKind
@@ -283,6 +285,7 @@ def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*
     return &result->type
 
 
+@public
 class Signature:
     name: byte[100]  # Function or method name. For methods it does not include the name of the class.
     nargs: int

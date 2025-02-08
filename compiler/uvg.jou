@@ -12,12 +12,14 @@ enum UvgInstructionKind:
     Set             # *x = something
     DontAnalyze     # do_something_complicated(&x)
 
+@public
 class UvgInstruction:
     location: Location
     kind: UvgInstructionKind
     var: int
 
 
+@public
 class UvgBranch:
     then: UvgBlock*
     otherwise: UvgBlock*
@@ -31,6 +33,7 @@ enum UvgTerminatorKind:
     Return
     Unreachable
 
+@public
 class UvgTerminator:
     kind: UvgTerminatorKind
     union:
@@ -38,6 +41,7 @@ class UvgTerminator:
         branch: UvgBranch       # UvgTerminatorKind.Branch
 
 
+@public
 class UvgBlock:
     instructions: UvgInstruction*
     ninstructions: int
@@ -57,6 +61,7 @@ class UvgBlock:
 
 
 # We build one UVG for each function.
+@public
 class Uvg:
     signature: Signature*
 
