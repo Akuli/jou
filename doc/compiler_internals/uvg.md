@@ -21,13 +21,17 @@ def foo(a: int) -> int:         # line 3
 Running `jou --uvg-only file.jou` prints the following UVG:
 
 ```
-===== UVG for foo =====
+===== UVG for foo(a: int) -> int =====
 block 0 (start):
     [line 3]    set a
+    [line 4]    statement
     [line 4]    use a
     [line 4]    set x
+    [line 5]    statement
+    [line 6]    statement
     [line 6]    use y
     [line 6]    set z
+    [line 7]    statement
     [line 7]    use x
     [line 7]    use y
     [line 7]    use z
@@ -35,7 +39,8 @@ block 0 (start):
     Return from function.
 ```
 
-Let's look at this in more detail:
+The `statement` instructions are used to detect code that never runs.
+Let's look at other instructions in more detail:
 - Line 3 sets variable `a` because it is the argument of the function.
 - Line 4 uses variable `a` to compute `x`. This is fine because the value of `a` has been set.
 - Line 5 does not show up at all. Creating a variable is not an instruction in UVG, and all variables exist already when the function begins.
@@ -68,9 +73,13 @@ def bar() -> None:                  # line 3
 The UVG for this function is:
 
 ```
-===== UVG for bar =====
+===== UVG for bar() -> void =====
 block 0 (start):
+    [line 4]    statement
+    [line 4]    statement
+    [line 5]    statement
     [line 5]    don't analyze a
+    [line 6]    statement
     [line 6]    don't analyze b
     Return from function.
 ```
@@ -96,10 +105,13 @@ def baz() -> None:
 The UVG is:
 
 ```
-===== UVG for baz =====
+===== UVG for baz() -> void =====
 block 0 (start):
+    [line 4]    statement
+    [line 5]    statement
     [line 5]    don't analyze x
     [line 5]    set y
+    [line 6]    statement
     [line 6]    use y
     Return from function.
 ```
