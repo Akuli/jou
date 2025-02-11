@@ -374,7 +374,6 @@ class AstToBuilder:
                 return self->build_or(&expr->operands[0], &expr->operands[1])
             case AstExpressionKind.Not:
                 return self->builder->not_(self->build_expression(&expr->operands[0]))
-        assert False
 
     def build_expression(self, expr: AstExpression*) -> EitherBuilderValue:
         old_location = self->set_location(expr->location)
