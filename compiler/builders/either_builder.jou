@@ -45,6 +45,12 @@ class EitherBuilder:
         if self->ubuilder != NULL:
             self->ubuilder->end_function()
 
+    def begin_statement_in_a_body(self) -> None:
+        if self->lbuilder != NULL:
+            self->lbuilder->begin_statement_in_a_body()
+        if self->ubuilder != NULL:
+            self->ubuilder->begin_statement_in_a_body()
+
     def set_location(self, location: Location) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->set_location(location)
@@ -207,7 +213,6 @@ class EitherBuilder:
                 return self->string(c->str)
             case ConstantKind.EnumMember:
                 return self->enum_member(c->get_type(), c->get_type()->enummembers.names[c->enum_member.memberidx])
-        assert False
 
     # a + b
     def add(self, a: EitherBuilderValue, b: EitherBuilderValue) -> EitherBuilderValue:

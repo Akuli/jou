@@ -2,6 +2,11 @@ def foo(n: int) -> int:
     if n > 10:  # Warning: function 'foo' doesn't seem to return a value in all cases
         return 123
 
+# No error/warning for this, infinite loop
+def this_is_fine() -> int:
+    while True:
+        pass
+
 # Ideally we could detect this too, but currently the compiler is not smart enough.
 # That's why the warning says "doesn't seem to" instead of "doesn't".
 # That's also why it is a warning, not an error.

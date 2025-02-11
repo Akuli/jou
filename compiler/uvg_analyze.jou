@@ -81,12 +81,6 @@ def build_statuses_at_end_before_analyzing(uvg: Uvg*) -> VarStatus**:
     return statuses_at_end
 
 
-def free_statuses(uvg: Uvg*, statuses_at_end: VarStatus**) -> None:
-    for b = 0; b < uvg->nblocks; b++:
-        free(statuses_at_end[b])
-    free(statuses_at_end)
-
-
 def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int) -> VarStatus*:
     statuses: VarStatus* = malloc(sizeof(statuses[0]) * uvg->nvars)
     if uvg->nvars != 0:
@@ -165,6 +159,8 @@ def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block
                                 show_warning(ins->location, msg)
                         case VarStatus.Unvisited:
                             pass
+            case UvgInstructionKind.Statement:
+                pass
             case UvgInstructionKind.DontAnalyze:
                 statuses[ins->var] = VarStatus.DontAnalyze
 
@@ -191,24 +187,56 @@ def find_true(arr: bool*, len: int) -> int:
     return -1
 
 
+def show_block_unreachable_warning(b: UvgBlock*) -> bool:
+    for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
+        if ins->kind == UvgInstructionKind.Statement:
+            show_warning(ins->location, "this code will never run")
+            return True
+    return False
+
+
+# This function sets marked[i] to True whenever blocks[i] is reachable from blocks[start].
+# Block A is reachable from block B, if B may jump (perhaps through other blocks) into A.
+#
+# If bidirectional is True, either block may be the one that jumps into the other.
+# This is used to show only one unreachable warning when an unreachable part of code
+# consists of many blocks.
+#
+# If ignore is not NULL and ignore[i] is True, we pretend that blocks[i] doesn't exist.
+def mark_reachable_blocks(blocks: UvgBlock**, nblocks: int, ignore: bool*, marked: bool*, bidirectional: bool, start: int) -> None:
+    assert 0 <= start and start < nblocks
+    assert ignore == NULL or not ignore[start]
+    assert not marked[start]
+    marked[start] = True
+    for i = 0; i < nblocks; i++:
+        if (
+            (ignore == NULL or not ignore[i])
+            and not marked[i]
+            and (blocks[start]->jumps_to(blocks[i]) or (bidirectional and blocks[i]->jumps_to(blocks[start])))
+        ):
+            mark_reachable_blocks(blocks, nblocks, ignore, marked, bidirectional, i)
+
+
 @public
 def uvg_analyze(uvg: Uvg*) -> None:
     assert uvg->nblocks >= 1  # must have at least start block
 
     queue: bool* = calloc(sizeof(queue[0]), uvg->nblocks)
-    reachable: bool* = calloc(sizeof(queue[0]), uvg->nblocks)
+    reachable: bool* = calloc(sizeof(reachable[0]), uvg->nblocks)
+    u_warned: bool* = calloc(sizeof(u_warned[0]), uvg->nblocks)
     assert queue != NULL
     assert reachable != NULL
+    assert u_warned != NULL
 
+    mark_reachable_blocks(uvg->blocks, uvg->nblocks, NULL, reachable, False, 0)
+
+    # Analyze blocks until we arrive at a stable state where variable statuses don't change.
     statuses_at_end = build_statuses_at_end_before_analyzing(uvg)
-
     queue[0] = True
     while True:
         blockidx = find_true(queue, uvg->nblocks)
         if blockidx == -1:
             break
-        reachable[blockidx] = True
-
         queue[blockidx] = False
         if analyze_block(uvg, statuses_at_end, blockidx, False):
             for b = 0; b < uvg->nblocks; b++:
@@ -218,7 +246,16 @@ def uvg_analyze(uvg: Uvg*) -> None:
     for b = 0; b < uvg->nblocks; b++:
         if reachable[b]:
             analyze_block(uvg, statuses_at_end, b, True)
+        elif not u_warned[b]:
+            # Attempt to show unreachable warning. Will fail if the block is
+            # basically empty, then its unreachability doesn't matter.
+            if show_block_unreachable_warning(uvg->blocks[b]):
+                # Warning was shown. Do not show it for related unreachable blocks.
+                mark_reachable_blocks(uvg->blocks, uvg->nblocks, reachable, u_warned, True, b)
 
-    free_statuses(uvg, statuses_at_end)
     free(queue)
     free(reachable)
+    free(u_warned)
+    for b = 0; b < uvg->nblocks; b++:
+        free(statuses_at_end[b])
+    free(statuses_at_end)

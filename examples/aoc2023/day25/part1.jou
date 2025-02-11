@@ -1,9 +1,11 @@
 import "stdlib/ascii.jou"
 import "stdlib/math.jou"
-import "stdlib/process.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
+
+if not WINDOWS:
+    import "stdlib/process.jou"
 
 
 class Graph:
@@ -17,24 +19,23 @@ class Graph:
         free(self->matrix)
         free(self->weights)
 
-    def visualize_with_graphviz(self) -> None:
-        assert not WINDOWS
+    if not WINDOWS:
+        def visualize_with_graphviz(self) -> None:
+            f = fopen("/tmp/aoc25-graph.txt", "w")
+            assert f != NULL
 
-        f = fopen("/tmp/aoc25-graph.txt", "w")
-        assert f != NULL
+            fprintf(f, "digraph G {\n")
+            for i = 0; i < self->num_nodes; i++:
+                fprintf(f, "node%d [label=\"%d (weight=%d)\"]\n", i, i, self->weights[i])
 
-        fprintf(f, "digraph G {\n")
-        for i = 0; i < self->num_nodes; i++:
-            fprintf(f, "node%d [label=\"%d (weight=%d)\"]\n", i, i, self->weights[i])
+            for i = 0; i < self->num_nodes; i++:
+                for k = 0; k < i; k++:
+                    if self->matrix[i][k] != 0:
+                        fprintf(f, "    node%d -> node%d [label=\"%d\", dir=none]\n", i, k, self->matrix[i][k])
 
-        for i = 0; i < self->num_nodes; i++:
-            for k = 0; k < i; k++:
-                if self->matrix[i][k] != 0:
-                    fprintf(f, "    node%d -> node%d [label=\"%d\", dir=none]\n", i, k, self->matrix[i][k])
-
-        fprintf(f, "}\n")
-        fclose(f)
-        system("dot -T png /tmp/aoc25-graph.txt -o /tmp/aoc25-graph.png && open /tmp/aoc25-graph.png")
+            fprintf(f, "}\n")
+            fclose(f)
+            system("dot -T png /tmp/aoc25-graph.txt -o /tmp/aoc25-graph.png && open /tmp/aoc25-graph.png")
 
     def connect(self, a: int, b: int) -> None:
         assert 0 <= a and a < self->num_nodes
