@@ -41,17 +41,19 @@ def main() -> int:
     # Output:   -v / --verbose   display some progress information
     # Output:   -vv              display a lot of information about all compilation steps
     # Output:   --valgrind       use valgrind when running the code
+    # Output:   --tokenize-only  display only the output of the tokenizer, don't do anything else
+    # Output:   --parse-only     display only the AST (parse tree), don't do anything else
     # Output:   --linker-flags   appended to the linker command, so you can use external libraries
-    # Output:   --tokenize-only  display the output of the tokenizer, do not compile further
-    # Output:   --parse-only     display the AST (parse tree), do not compile further
-    # Output:   --uvg-only       display Undefined Value Graphs, do not compile further
     run_jou("--help")
 
     # Test that double-verbose kinda works, without asserting the output in too much detail.
+    # See README for an explanation of why CFG is twice.
     # TODO: shouldn't need to hide special stdlib/_... files, ideally they would be precompiled
     run_jou("-vv examples/hello.jou | grep === | grep -v stdlib/io.jou | grep -v stdlib/_")
     # Output: ===== Tokens for file "examples/hello.jou" =====
     # Output: ===== AST for file "examples/hello.jou" =====
+    # Output: ===== Control Flow Graphs for file "examples/hello.jou" =====
+    # Output: ===== Control Flow Graphs for file "examples/hello.jou" =====
     # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
     # Output: ===== Optimized LLVM IR for file "examples/hello.jou" =====
 
@@ -76,13 +78,13 @@ def main() -> int:
         system("tmp/tests/hello.exe")
 
     # Compiler in weird place
-    # TODO: make this test work with new (more robust) standard library finding logic?
-    #if WINDOWS:
-    #    system("copy jou.exe tmp\\tests\\jou_executable.exe >nul")
-    #    system("tmp\\tests\\jou_executable.exe")
-    #else:
-    #    system("cp jou tmp/tests/jou_executable")
-    #    system("tmp/tests/jou_executable")
+    # Output: error: cannot find the Jou standard library in <joudir>/tmp/tests/stdlib
+    if WINDOWS:
+        system("copy jou.exe tmp\\tests\\jou_executable.exe >nul")
+        system("tmp\\tests\\jou_executable.exe")
+    else:
+        system("cp jou tmp/tests/jou_executable")
+        system("tmp/tests/jou_executable")
 
     # Compile a GUI program
     if not (WINDOWS or MACOS):
