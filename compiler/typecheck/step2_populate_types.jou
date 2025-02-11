@@ -184,6 +184,9 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                 assert t->classdata.methods != NULL
                 t->classdata.methods[t->classdata.nmethods++] = sig.copy()
 
+            case AstStatementKind.Pass:
+                pass
+
             case _:
                 assert False
 
@@ -200,7 +203,7 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
         assert exports != NULL
 
         match stmt->kind:
-            case AstStatementKind.Import:
+            case AstStatementKind.Import | AstStatementKind.Pass:
                 pass
             case AstStatementKind.GlobalVariableDeclare:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type, &stmt->global_var_declare.used)
