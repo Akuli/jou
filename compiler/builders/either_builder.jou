@@ -45,6 +45,12 @@ class EitherBuilder:
         if self->ubuilder != NULL:
             self->ubuilder->end_function()
 
+    def begin_statement(self) -> None:
+        if self->lbuilder != NULL:
+            self->lbuilder->begin_statement()
+        if self->ubuilder != NULL:
+            self->ubuilder->begin_statement()
+
     def set_location(self, location: Location) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->set_location(location)

@@ -165,6 +165,8 @@ def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block
                                 show_warning(ins->location, msg)
                         case VarStatus.Unvisited:
                             pass
+            case UvgInstructionKind.Statement:
+                pass
             case UvgInstructionKind.DontAnalyze:
                 statuses[ins->var] = VarStatus.DontAnalyze
 
@@ -191,6 +193,33 @@ def find_true(arr: bool*, len: int) -> int:
     return -1
 
 
+def show_block_unreachable_warning(b: UvgBlock*) -> bool:
+    for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
+        if ins->kind == UvgInstructionKind.Statement:
+            show_warning(ins->location, "this code will never run")
+            return True
+    return False
+
+
+# blocks[i1] and blocks[i2] are related if ignore[i1] and ignore[i2] are
+# both False, and one of the two blocks jumps into the other.
+#
+# This is used to avoid showing many unreachable warnings for one big chunk
+# of unreachable code.
+def mark_related_blocks(blocks: UvgBlock**, nblocks: int, ignore: bool*, connected: bool*, start: int) -> None:
+    assert 0 <= start and start < nblocks
+    assert not ignore[start]
+    assert not connected[start]
+    connected[start] = True
+    for i = 0; i < nblocks; i++:
+        if (
+            not ignore[i]
+            and not connected[i]
+            and (blocks[start]->jumps_to(blocks[i]) or blocks[i]->jumps_to(blocks[start]))
+        ):
+            mark_related_blocks(blocks, nblocks, ignore, connected, i)
+
+
 @public
 def uvg_analyze(uvg: Uvg*) -> None:
     assert uvg->nblocks >= 1  # must have at least start block
@@ -215,10 +244,20 @@ def uvg_analyze(uvg: Uvg*) -> None:
                 if uvg->blocks[blockidx]->jumps_to(uvg->blocks[b]):
                     queue[b] = True
 
+    free(queue)
+
+    u_warned: bool* = calloc(sizeof(u_warned[0]), uvg->nblocks)
+    assert u_warned != NULL
     for b = 0; b < uvg->nblocks; b++:
         if reachable[b]:
             analyze_block(uvg, statuses_at_end, b, True)
+        elif not u_warned[b]:
+            # Attempt to show unreachable warning. Will fail if the block is
+            # basically empty, then its unreachability doesn't matter.
+            if show_block_unreachable_warning(uvg->blocks[b]):
+                # Warning was shown. Do not show it for related unreachable blocks.
+                mark_related_blocks(uvg->blocks, uvg->nblocks, reachable, u_warned, b)
+    free(u_warned)
 
     free_statuses(uvg, statuses_at_end)
-    free(queue)
     free(reachable)

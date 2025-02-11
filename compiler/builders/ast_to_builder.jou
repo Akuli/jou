@@ -561,6 +561,7 @@ class AstToBuilder:
 
     def build_statement(self, stmt: AstStatement*) -> None:
         old_location = self->set_location(stmt->location)
+        self->builder->begin_statement()
 
         match stmt->kind:
             case AstStatementKind.If:

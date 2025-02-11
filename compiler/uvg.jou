@@ -11,12 +11,13 @@ enum UvgInstructionKind:
     Use             # something = *x
     Set             # *x = something
     DontAnalyze     # do_something_complicated(&x)
+    Statement       # basically a line of code, used to detect code that never runs
 
 @public
 class UvgInstruction:
     location: Location
     kind: UvgInstructionKind
-    var: int
+    var: int  # not used for UvgInstructionKind.Statement
 
 
 @public
@@ -116,6 +117,8 @@ class Uvg:
                         printf("set %s\n", self->varnames[ins->var])
                     case UvgInstructionKind.DontAnalyze:
                         printf("don't analyze %s\n", self->varnames[ins->var])
+                    case UvgInstructionKind.Statement:
+                        printf("statement\n")
 
             printf("    ")
             match b->terminator.kind:
