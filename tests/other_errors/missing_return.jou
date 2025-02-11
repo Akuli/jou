@@ -1,16 +1,16 @@
-def foo(n: int) -> int:  # Warning: function 'foo' doesn't seem to return a value in all cases
-    if n > 10:
+def foo(n: int) -> int:
+    if n > 10:  # Warning: function 'foo' doesn't seem to return a value in all cases
         return 123
 
 # Ideally we could detect this too, but currently the compiler is not smart enough.
 # That's why the warning says "doesn't seem to" instead of "doesn't".
 # That's also why it is a warning, not an error.
-def bar(n: int) -> int:  # Warning: function 'bar' doesn't seem to return a value in all cases
+def bar(n: int) -> int:
     if n > 10:
         return 123
-    if n <= 10:
+    if n <= 10:  # Warning: function 'bar' doesn't seem to return a value in all cases
         return 456
 
 # This one is an error because the compiler knows that the function will not return anything.
-def baz() -> int:  # Error: function 'baz' must return a value, because it is defined with '-> int'
-    a = 123
+def baz() -> int:
+    a = 123  # Error: function 'baz' must return a value, because it is defined with '-> int'
