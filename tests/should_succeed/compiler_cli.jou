@@ -87,7 +87,7 @@ def main() -> int:
     #    system("tmp/tests/jou_executable")
 
     # Compile a GUI program. Doesn't work on GitHub Actions because X11 isn't installed.
-    if getenv("GITHUB_ACTIONS") == NULL and not WINDOWS and not MACOS:
+    if not WINDOWS and not MACOS and getenv("GITHUB_ACTIONS") == NULL:
         if NETBSD:
             ret = system("./jou -o /dev/null --linker-flags \"-L/usr/X11R7/lib -lX11\" examples/x11_window.jou")
         else:
