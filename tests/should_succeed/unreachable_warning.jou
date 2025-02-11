@@ -6,23 +6,29 @@ def after_return() -> None:
     return
     puts("hey2")  # Warning: this code will never run
 
+@public  # cannot be called in tests, silences unused function warning
 def after_infinite_loop() -> None:
     while True:
         puts("hi")
     puts("yooooo wat")  # Warning: this code will never run
 
+@public  # cannot be called in tests, silences unused function warning
 def after_infinite_loop_with_variable() -> None:
     flag = True
     while flag:
         puts("hi")
-    puts("yooooo wat")  # Warning: this code will never run
+    # TODO: can we warn in this case by improving UVGs or substituting constants?
+    puts("yooooo wat")
 
+@public  # cannot be called in tests, silences unused function warning
 def after_infinite_loop_with_variable_set_after_loop() -> None:
     flag = True
     while flag:
         puts("hi")
-    flag = False  # Warning: this code will never run
+    # TODO: can we warn in this case by improving UVGs or substituting constants?
+    flag = False
 
+@public  # cannot be called in tests, silences unused function warning
 def noreturn_function_called() -> None:
     abort()
     x = 1  # Warning: this code will never run
@@ -39,12 +45,19 @@ def lots_of_unreachable_code() -> None:
         puts("blah")
         i = i+1
 
-def with_not() -> None:
+def not_true() -> None:
     if not True:
         puts("Hello")  # Warning: this code will never run
 
+def unreachable_loop_increment() -> None:
+    # In this loop, i++ will never run.
+    for i = 0; i < 10; i++:
+        return
+
 def main() -> int:
     after_return()
-    with_not()
+    lots_of_unreachable_code()
+    not_true()
+    unreachable_loop_increment()
     # Can't run infinite loops (test script redirects output to file)
     return 0
