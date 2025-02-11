@@ -57,7 +57,7 @@ class UBuilder:
         assert b->instructions != NULL
         b->instructions[b->ninstructions++] = ins
 
-    def begin_statement(self) -> None:
+    def begin_statement_in_a_body(self) -> None:
         self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Statement})
 
     def use(self, var: int) -> None:

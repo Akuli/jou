@@ -50,7 +50,8 @@ def not_true() -> None:
         puts("Hello")  # Warning: this code will never run
 
 def unreachable_loop_increment() -> None:
-    # In this loop, i++ will never run.
+    # In this loop, i++ will never run. Compiler shouldn't complain, because
+    # the same line contains other code that does run.
     for i = 0; i < 10; i++:
         return
 

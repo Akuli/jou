@@ -477,7 +477,7 @@ class AstToBuilder:
         # Run incr and jump back to condition.
         self->builder->set_current_block(incrblock)
         if incr != NULL:
-            self->build_statement(incr)
+            self->build_statement(incr, False)
         self->builder->jump(condblock)
 
         # Code after the loop goes to "loop done" part.
@@ -558,9 +558,10 @@ class AstToBuilder:
 
         self->builder->set_current_block(ok_block)
 
-    def build_statement(self, stmt: AstStatement*) -> None:
+    def build_statement(self, stmt: AstStatement*, in_a_body: bool) -> None:
         old_location = self->set_location(stmt->location)
-        self->builder->begin_statement()
+        if in_a_body:
+            self->builder->begin_statement_in_a_body()
 
         match stmt->kind:
             case AstStatementKind.If:
@@ -573,7 +574,7 @@ class AstToBuilder:
                 self->build_loop(&stmt->while_loop.condition, NULL, &stmt->while_loop.body)
             case AstStatementKind.ForLoop:
                 if stmt->for_loop.init != NULL:
-                    self->build_statement(stmt->for_loop.init)
+                    self->build_statement(stmt->for_loop.init, False)
                 self->build_loop(
                     stmt->for_loop.cond, stmt->for_loop.incr, &stmt->for_loop.body)
             case AstStatementKind.Match:
@@ -622,7 +623,7 @@ class AstToBuilder:
 
     def build_body(self, body: AstBody*) -> None:
         for i = 0; i < body->nstatements; i++:
-            self->build_statement(&body->statements[i])
+            self->build_statement(&body->statements[i], True)
 
 
 @public
