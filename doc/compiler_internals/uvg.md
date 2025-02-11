@@ -23,15 +23,15 @@ Running `jou --uvg-only file.jou` prints the following UVG:
 ```
 ===== UVG for foo =====
 block 0 (start):
-    [line 3]   set a
-    [line 4]   use a
-    [line 4]   set x
-    [line 6]   use y
-    [line 6]   set z
-    [line 7]   use x
-    [line 7]   use y
-    [line 7]   use z
-    [line 7]   use return
+    [line 3]    set a
+    [line 4]    use a
+    [line 4]    set x
+    [line 6]    use y
+    [line 6]    set z
+    [line 7]    use x
+    [line 7]    use y
+    [line 7]    use z
+    [line 7]    use return
     Return from function.
 ```
 
@@ -70,8 +70,8 @@ The UVG for this function is:
 ```
 ===== UVG for bar =====
 block 0 (start):
-    [line 5]   don't analyze a
-    [line 6]   don't analyze b
+    [line 5]    don't analyze a
+    [line 6]    don't analyze b
     Return from function.
 ```
 
