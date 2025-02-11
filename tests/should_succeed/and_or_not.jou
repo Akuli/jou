@@ -20,49 +20,38 @@ def main() -> int:
     printf("\n")
 
     # Output: 01
-    printf("%d", not 1+2==3)
-    printf("%d", not 1+2==4)
+    printf("%d", not 1+2==3)  # Warning: use 'foo != bar' instead of 'not foo == bar'
+    printf("%d", not 1+2==4)  # Warning: use 'foo != bar' instead of 'not foo == bar'
     printf("\n")
-
-    # Anything with "False and ..." contains code that never runs: the "..." part
-    # is not evaluated at all because the result will be False anyway.
-    #
-    # Technically "True and ..." also contains code that never runs: the left side
-    # of "and" is never False, but the compiler still generates code to handle that
-    # case (the generated code sets the result of the "and" operation to False).
-    # Showing a warning about the generated code would probably be more
-    # confusing than helpful, so the compiler hides it.
-    #
-    # Similar things apply to "or".
 
     # Output: Triple and 10000000
     printf("Triple and ")
     printf("%d", True and True and True)
     printf("%d", True and True and False)
-    printf("%d", True and False and True)  # Warning: this code will never run
-    printf("%d", True and False and False)  # Warning: this code will never run
-    printf("%d", False and True and True)  # Warning: this code will never run
-    printf("%d", False and True and False)  # Warning: this code will never run
-    printf("%d", False and False and True)  # Warning: this code will never run
-    printf("%d", False and False and False)  # Warning: this code will never run
+    printf("%d", True and False and True)
+    printf("%d", True and False and False)
+    printf("%d", False and True and True)
+    printf("%d", False and True and False)
+    printf("%d", False and False and True)
+    printf("%d", False and False and False)
     printf("\n")
 
     # Output: Triple or 11111110
     printf("Triple or ")
-    printf("%d", True or True or True)  # Warning: this code will never run
-    printf("%d", True or True or False)  # Warning: this code will never run
-    printf("%d", True or False or True)  # Warning: this code will never run
-    printf("%d", True or False or False)  # Warning: this code will never run
-    printf("%d", False or True or True)  # Warning: this code will never run
-    printf("%d", False or True or False)  # Warning: this code will never run
+    printf("%d", True or True or True)
+    printf("%d", True or True or False)
+    printf("%d", True or False or True)
+    printf("%d", True or False or False)
+    printf("%d", False or True or True)
+    printf("%d", False or True or False)
     printf("%d", False or False or True)
     printf("%d", False or False or False)
     printf("\n")
 
     # Output: Precedence and 0001
     printf("Precedence and ")
-    printf("%d", not True and not True)  # Warning: this code will never run
-    printf("%d", not True and not False)  # Warning: this code will never run
+    printf("%d", not True and not True)
+    printf("%d", not True and not False)
     printf("%d", not False and not True)
     printf("%d", not False and not False)
     printf("\n")
@@ -71,8 +60,8 @@ def main() -> int:
     printf("Precedence or ")
     printf("%d", not True or not True)
     printf("%d", not True or not False)
-    printf("%d", not False or not True)  # Warning: this code will never run
-    printf("%d", not False or not False)  # Warning: this code will never run
+    printf("%d", not False or not True)
+    printf("%d", not False or not False)
     printf("\n")
 
     # Output: Side effects and aAbBcd
