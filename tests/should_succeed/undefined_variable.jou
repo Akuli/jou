@@ -16,6 +16,14 @@ def surely_undefined_annotation() -> None:
     x: byte*
     puts(x)  # Warning: the value of 'x' is undefined
 
+@public  # avoid unused function warning, can't actually run this function
+def surely_undefined_assignments() -> None:
+    a: int
+    b = &a
+    c = b
+    d = c
+    e = *d  # TODO: should emit warning, but this is too "advanced" for UVGs
+
 def main() -> int:
     maybe_undefined(5)  # Output: Hi
     return 0
