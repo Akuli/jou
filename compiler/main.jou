@@ -328,10 +328,11 @@ class CompileState:
         free(pending_exports)
 
     def build_and_analyze_all_uvgs(self) -> None:
+        print_uvgs = command_line_args.verbosity >= 2
         for i = 0; i < self->nfiles; i++:
             if command_line_args.verbosity >= 1:
                 printf("Building and analyzing UVGs for %s\n", self->files[i].path)
-            build_and_process_uvgs(&self->files[i].ast, UvgProcessing.Analyze)
+            build_and_analyze_uvgs(&self->files[i].ast, print_uvgs)
 
 
 def optimize(module: LLVMModule*, level: int) -> None:
@@ -424,7 +425,7 @@ def main(argc: int, argv: byte**) -> int:
     if command_line_args.uvg_only:
         mainfile = compst.find_file(command_line_args.infile)
         assert mainfile != NULL
-        build_and_process_uvgs(&mainfile->ast, UvgProcessing.Print)
+        build_and_analyze_uvgs(&mainfile->ast, True)
         return 0
 
     compst.build_and_analyze_all_uvgs()
