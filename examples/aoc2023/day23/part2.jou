@@ -1,9 +1,11 @@
 import "stdlib/mem.jou"
 import "stdlib/math.jou"
 import "stdlib/str.jou"
-import "stdlib/process.jou"
 import "stdlib/io.jou"
 import "../grid.jou"
+
+if not WINDOWS:
+    import "stdlib/process.jou"
 
 
 def is_intersection(grid: Grid*, point: int[2]) -> bool:
@@ -85,29 +87,28 @@ class Graph:
         self->matrix[a][b] = weight
         self->matrix[b][a] = weight
 
-    def visualize_with_graphviz(self) -> None:
-        assert not WINDOWS
+    if not WINDOWS:
+        def visualize_with_graphviz(self) -> None:
+            f = fopen("/tmp/aoc23-graph.txt", "w")
+            assert f != NULL
 
-        f = fopen("/tmp/aoc23-graph.txt", "w")
-        assert f != NULL
+            fprintf(f, "digraph G {\n")
+            for i = 0; i < self->num_nodes; i++:
+                if i == self->start:
+                    fprintf(f, "node%d [label=\"%d START\"]\n", i, i)
+                elif i == self->end:
+                    fprintf(f, "node%d [label=\"%d END\"]\n", i, i)
+                else:
+                    fprintf(f, "node%d [label=\"%d\"]\n", i, i)
 
-        fprintf(f, "digraph G {\n")
-        for i = 0; i < self->num_nodes; i++:
-            if i == self->start:
-                fprintf(f, "node%d [label=\"%d START\"]\n", i, i)
-            elif i == self->end:
-                fprintf(f, "node%d [label=\"%d END\"]\n", i, i)
-            else:
-                fprintf(f, "node%d [label=\"%d\"]\n", i, i)
+            for i = 0; i < self->num_nodes; i++:
+                for k = 0; k < i; k++:
+                    if self->matrix[i][k] > 0:
+                        fprintf(f, "    node%d -> node%d [label=\"%d\", dir=none]\n", i, k, self->matrix[i][k])
 
-        for i = 0; i < self->num_nodes; i++:
-            for k = 0; k < i; k++:
-                if self->matrix[i][k] > 0:
-                    fprintf(f, "    node%d -> node%d [label=\"%d\", dir=none]\n", i, k, self->matrix[i][k])
-
-        fprintf(f, "}\n")
-        fclose(f)
-        system("dot -T png /tmp/aoc23-graph.txt -o /tmp/aoc23-graph.png && open /tmp/aoc23-graph.png")
+            fprintf(f, "}\n")
+            fclose(f)
+            system("dot -T png /tmp/aoc23-graph.txt -o /tmp/aoc23-graph.png && open /tmp/aoc23-graph.png")
 
 
 def create_graph_of_intersections(grid: Grid*) -> Graph*:

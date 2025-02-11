@@ -259,6 +259,9 @@ class LBuilder:
         LLVMPositionBuilderAtEnd(self->llvm_builder, self->alloca_block)
         LLVMBuildBr(self->llvm_builder, self->code_start_block)
 
+    def begin_statement_in_a_body(self) -> None:
+        pass
+
     # TODO: use the location for debug info
     def set_location(self, location: Location) -> None:
         pass
