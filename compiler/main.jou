@@ -58,7 +58,7 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
                 importsym->kind == ExportSymbolKind.Type
                 and strcmp(importsym->name, stmt->enumdef.name) == 0
             )
-        case AstStatementKind.Import:
+        case AstStatementKind.Import | AstStatementKind.Pass:
             return False
         case _:
             printf("%d\n", stmt->kind as int)

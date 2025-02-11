@@ -797,7 +797,6 @@ class Parser:
             end = self->tokens->location
             result.assertion.condition_str = read_assertion_from_file(start, end)
         elif self->tokens->is_keyword("pass"):
-            self->check_function_or_method("'pass'")  # TODO: would it be better to allow 'pass' elsewhere?
             self->tokens++
             result.kind = AstStatementKind.Pass
         elif self->tokens->is_keyword("break"):
