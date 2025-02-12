@@ -81,8 +81,6 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
     else:
         sig.return_type = type_from_ast(ft, &astsig->return_type)
 
-    sig.returntype_location = astsig->return_type.location
-
     if self_class == NULL:
         ft->add_function(&sig, usedptr)
 

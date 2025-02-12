@@ -1,8 +1,6 @@
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
-import "./errors_and_warnings.jou"
-
 @public
 class ClassField:
     name: byte[100]
@@ -294,8 +292,6 @@ class Signature:
     takes_varargs: bool  # true for functions like printf()
     return_type: Type*    # NULL, if does not return a value
     is_noreturn: bool
-    # TODO: rename to return_type_location
-    returntype_location: Location  # meaningful even if returntype is NULL
 
     def free(self) -> None:
         free(self->argnames)
