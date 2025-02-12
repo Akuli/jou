@@ -684,7 +684,7 @@ class Parser:
     def parse_expression_with_as(self) -> AstExpression:
         result = self->parse_expression_with_add()
         while self->tokens->is_keyword("as"):
-            as_location = (self->tokens++)->location  # TODO: shouldn't need so many parentheses
+            as_location = (self->tokens++)->location
             p: AstAs* = malloc(sizeof(*p))
             *p = AstAs{type = self->parse_type(), value = result}
             result = AstExpression{
