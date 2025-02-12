@@ -101,14 +101,25 @@ def evaluate_if_statements_in_body(body: AstBody*, must_succeed: bool) -> None:
     for i = 0; i < body->nstatements; i++:
         match body->statements[i].kind:
             case AstStatementKind.If:
-                ptr = choose_if_elif_branch(&body->statements[i].if_statement)
+                if_stmt = &body->statements[i].if_statement
+
+                ptr = choose_if_elif_branch(if_stmt)
                 if ptr == NULL and must_succeed:
                     fail(body->statements[i].location, "cannot evaluate condition at compile time")
+
                 if ptr != NULL:
                     replacement = *ptr
                     *ptr = AstBody{}  # avoid double-free
                     replace(body, i, replacement)
                     i--  # cancels i++ to do same index again, so that we handle nested if statements
+                    continue
+
+                # Recurse into inner if statements. Needed when compile-time if
+                # statement is inside a runtime if statement.
+                for k = 0; k < if_stmt->n_if_and_elifs; k++:
+                    evaluate_if_statements_in_body(&if_stmt->if_and_elifs[k].body, False)
+                evaluate_if_statements_in_body(&if_stmt->else_body, False)
+
             case AstStatementKind.WhileLoop:
                 evaluate_if_statements_in_body(&body->statements[i].while_loop.body, False)
             case AstStatementKind.ForLoop:
