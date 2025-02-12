@@ -380,9 +380,8 @@ class Parser:
             self->tokens->fail_expected_got("a ')'")
         self->tokens++
 
-        # TODO:
-        #   * If is_method, ensure that self parameter exists and is first
-        #   * Else, ensure that self parameter does not exists
+        # TODO: make sure "self" is first, doesn't seem to be checked?
+        #       or do we even want it? consider fread() and https://github.com/Akuli/jou/issues/740
 
         # Special case for common typo:   def foo():
         if self->tokens->is_operator(":"):
