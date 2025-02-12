@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/process.jou"
 
 # TODO: "if WINDOWS" doesn't work very well inside functions yet.
 #       Ideally only the declares would need compile-time if statements.
@@ -55,5 +56,14 @@ if True:
         # No unreachable code warning for "if False", it acts as commenting out
         if False:
             printf("hello\n")
+
+        # Corner case: compile-time if statement inside a runtime if statement.
+        # Should not produce any unreachable code warnings.
+        # Output: Foo
+        if getenv("does_not_exist") == NULL:
+            if WINDOWS:
+                printf("Foo\n")
+            else:
+                printf("Foo\n")
 
         return 0
