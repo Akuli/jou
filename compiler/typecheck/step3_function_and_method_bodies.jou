@@ -649,9 +649,9 @@ def typecheck_class_field(
     location: Location,
 ) -> ClassField*:
     assert classtype->kind == TypeKind.Class
-    for f = classtype->classdata.fields; f < &classtype->classdata.fields[classtype->classdata.nfields]; f++:
-        if strcmp(f->name, fieldname) == 0:
-            return f
+    f = classtype->find_class_field(fieldname)
+    if f != NULL:
+        return f
 
     msg: byte[500]
     snprintf(msg, sizeof(msg), "class %s has no field named '%s'", classtype->name, fieldname)

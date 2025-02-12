@@ -104,6 +104,15 @@ class Type:
             case TypeKind.Bool:
                 return "the built-in bool type"
 
+    def find_class_field(self, name: byte*) -> ClassField*:
+        if self->kind != TypeKind.Class:
+            return NULL
+
+        for f = self->classdata.fields; f < &self->classdata.fields[self->classdata.nfields]; f++:
+            if strcmp(f->name, name) == 0:
+                return f
+        return NULL
+
     def find_method(self, name: byte*) -> Signature*:
         if self->kind != TypeKind.Class:
             return NULL

@@ -322,12 +322,7 @@ class LBuilder:
         classtype = ptr.type->value_type
         assert classtype->kind == TypeKind.Class
 
-        # TODO: method to find field
-        field: ClassField* = NULL
-        for f = classtype->classdata.fields; f < &classtype->classdata.fields[classtype->classdata.nfields]; f++:
-            if strcmp(f->name, field_name) == 0:
-                field = f
-                break
+        field = classtype->find_class_field(field_name)
         assert field != NULL
 
         llvm_struct_type = type_to_llvm(classtype)
