@@ -380,9 +380,8 @@ class Parser:
             self->tokens->fail_expected_got("a ')'")
         self->tokens++
 
-        # TODO:
-        #   * If is_method, ensure that self parameter exists and is first
-        #   * Else, ensure that self parameter does not exists
+        # TODO: make sure "self" is first, doesn't seem to be checked?
+        #       or do we even want it? consider fread() and https://github.com/Akuli/jou/issues/740
 
         # Special case for common typo:   def foo():
         if self->tokens->is_operator(":"):
@@ -424,7 +423,7 @@ class Parser:
 
     def parse_instantiation(self) -> AstInstantiation:
         assert self->tokens->kind == TokenKind.Name
-        result = AstInstantiation{class_name_location = self->tokens->location, class_name = self->tokens->short_string}
+        result = AstInstantiation{class_name = self->tokens->short_string}
         self->tokens++
         assert self->tokens->is_operator("{")
         self->tokens++
@@ -684,7 +683,7 @@ class Parser:
     def parse_expression_with_as(self) -> AstExpression:
         result = self->parse_expression_with_add()
         while self->tokens->is_keyword("as"):
-            as_location = (self->tokens++)->location  # TODO: shouldn't need so many parentheses
+            as_location = (self->tokens++)->location
             p: AstAs* = malloc(sizeof(*p))
             *p = AstAs{type = self->parse_type(), value = result}
             result = AstExpression{

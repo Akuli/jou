@@ -49,7 +49,7 @@ class AstToBuilder:
         assert sig->nargs <= nlocals
 
         self->builder->begin_function(sig, public)
-        self->returns_a_value = (sig->returntype != NULL)
+        self->returns_a_value = (sig->return_type != NULL)
 
         if nlocals > self->nlocals:
             self->locals = realloc(self->locals, sizeof(self->locals[0]) * nlocals)
@@ -497,7 +497,7 @@ class AstToBuilder:
                 else:
                     args = [match_obj, case_obj]
                     func_ret = self->builder->call(&match_stmt->func_signature, args, 2)
-                    zero = self->builder->integer(match_stmt->func_signature.returntype, 0)
+                    zero = self->builder->integer(match_stmt->func_signature.return_type, 0)
                     cond = self->builder->eq(func_ret, zero)
                 otherwise = self->builder->add_block()
                 self->builder->branch(cond, then, otherwise)
@@ -546,7 +546,6 @@ class AstToBuilder:
             argnames = argnames,
             takes_varargs = False,
             is_noreturn = True,
-            returntype_location = assert_location,
         }
         args = [
             self->builder->string(assertion->condition_str),
