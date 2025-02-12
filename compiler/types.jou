@@ -292,8 +292,7 @@ class Signature:
     argtypes: Type**
     argnames: byte[100]*
     takes_varargs: bool  # true for functions like printf()
-    # TODO: rename to return_type
-    returntype: Type*    # NULL, if does not return a value
+    return_type: Type*    # NULL, if does not return a value
     is_noreturn: bool
     # TODO: rename to return_type_location
     returntype_location: Location  # meaningful even if returntype is NULL
@@ -355,17 +354,17 @@ class Signature:
         strcat(result, ")")
 
         if include_return_type:
-            assert sizeof(self->returntype->name) == 500
+            assert sizeof(self->return_type->name) == 500
             result = realloc(result, strlen(result) + 600)
             assert result != NULL
 
             strcat(result, " -> ")
             if self->is_noreturn:
                 strcat(result, "noreturn")
-            elif self->returntype == NULL:
+            elif self->return_type == NULL:
                 strcat(result, "void")
             else:
-                strcat(result, self->returntype->name)
+                strcat(result, self->return_type->name)
 
         return result
 

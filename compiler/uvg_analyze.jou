@@ -117,7 +117,7 @@ def handle_missing_return_statement(uvg: Uvg*, location: Location) -> None:
             "%s '%s' must return a value, because it is defined with '-> %s'",
             uvg->signature->function_or_method(),
             uvg->signature->name,
-            uvg->signature->returntype->name,
+            uvg->signature->return_type->name,
         )
         fail(location, msg)
     else:

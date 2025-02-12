@@ -640,7 +640,7 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
             fail(call->args[i].location, msg)
 
     free(sig_string)
-    return sig->returntype
+    return sig->return_type
 
 
 def typecheck_class_field(
@@ -1122,8 +1122,8 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
         # Most of the time, only argument types are relevant, so don't include the return type into sig_string.
         sig_string = sig->to_string(False, False)
 
-        if sig->nargs != 2 or sig->returntype != intType or sig->takes_varargs:  # TODO: could be more general
-            if sig->returntype != intType:
+        if sig->nargs != 2 or sig->return_type != intType or sig->takes_varargs:  # TODO: could be more general
+            if sig->return_type != intType:
                 # show return type in error message
                 sig_string = sig->to_string(True, False)
             snprintf(msg, sizeof(msg), "cannot match with function %s", sig_string)
@@ -1304,7 +1304,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 )
                 fail(stmt->location, msg)
 
-            return_type = state->fom_types->signature.returntype
+            return_type = state->fom_types->signature.return_type
 
             if stmt->return_value != NULL and return_type == NULL:
                 snprintf(
@@ -1318,7 +1318,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                     "a return value is needed, because the return type of %s '%s' is %s",
                     function_or_method,
                     state->fom_types->signature.name,
-                    state->fom_types->signature.returntype->name)
+                    state->fom_types->signature.return_type->name)
                 fail(stmt->location, msg)
 
             if stmt->return_value != NULL:
