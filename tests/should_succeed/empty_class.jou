@@ -1,0 +1,18 @@
+import "stdlib/io.jou"
+
+class Emptie:
+    pass
+
+def main() -> int:
+    e1: Emptie
+    e2 = Emptie{}
+
+    printf("%lld\n", sizeof(e1))  # Output: 0
+    printf("%lld\n", sizeof(e2))  # Output: 0
+
+    if &e1 == NULL:
+        printf("wat?\n")
+    if &e2 == NULL:
+        printf("wat?\n")
+
+    return 0

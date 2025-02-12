@@ -640,7 +640,7 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
             fail(call->args[i].location, msg)
 
     free(sig_string)
-    return sig->returntype
+    return sig->return_type
 
 
 def typecheck_class_field(
@@ -649,9 +649,9 @@ def typecheck_class_field(
     location: Location,
 ) -> ClassField*:
     assert classtype->kind == TypeKind.Class
-    for f = classtype->classdata.fields; f < &classtype->classdata.fields[classtype->classdata.nfields]; f++:
-        if strcmp(f->name, fieldname) == 0:
-            return f
+    f = classtype->find_class_field(fieldname)
+    if f != NULL:
+        return f
 
     msg: byte[500]
     snprintf(msg, sizeof(msg), "class %s has no field named '%s'", classtype->name, fieldname)
@@ -659,9 +659,7 @@ def typecheck_class_field(
 
 
 def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Location) -> Type*:
-    tmp = AstType{kind = AstTypeKind.Named, location = inst->class_name_location}
-    assert sizeof(tmp.name) == sizeof(inst->class_name)
-    strcpy(tmp.name, inst->class_name)
+    tmp = AstType{kind = AstTypeKind.Named, location = location, name = inst->class_name}
     t = type_from_ast(state->file_types, &tmp)
 
     msg: byte[500]
@@ -694,14 +692,6 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
 
     free(specified_fields)
     return t
-
-
-def enum_member_exists(t: Type*, name: byte*) -> bool:
-    assert t->kind == TypeKind.Enum
-    for i = 0; i < t->enummembers.count; i++:
-        if strcmp(t->enummembers.names[i], name) == 0:
-            return True
-    return False
 
 
 def cast_array_members_to_a_common_type(fom: FunctionOrMethodTypes*, error_location: Location, array: AstArray) -> Type*:
@@ -796,7 +786,6 @@ def handle_conflicting_class_field_and_enum_member_syntax(state: State*, expr: A
 
     if state->find_any_var(enum_name) != NULL:
         # there is a variable named "foo", use that
-        # TODO: test this
         return
 
     t = state->file_types->find_type(expr->class_field.instance->varname)
@@ -869,7 +858,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             # AstExpressionKind.GetEnumMember is only created if the enum exists
             assert result != NULL
             assert result->kind == TypeKind.Enum
-            if not enum_member_exists(result, expr->enum_member.member_name):
+            if result->find_enum_member(expr->enum_member.member_name) == -1:
                 snprintf(
                     msg, sizeof(msg),
                     "enum %s has no member named '%s'",
@@ -1101,11 +1090,11 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
                 pass
             case TypeKind.Enum:
                 # Ensure user checks all possible enum values
-                nremaining = case_type->enummembers.count
+                nremaining = case_type->enum_members.count
                 remaining = malloc(sizeof(remaining[0]) * nremaining)
                 assert remaining != NULL
                 for i = 0; i < nremaining; i++:
-                    remaining[i] = case_type->enummembers.names[i]
+                    remaining[i] = case_type->enum_members.names[i]
             case _:
                 snprintf(msg, sizeof(msg), "cannot match a value of type %s", case_type->name)
                 if strlen(msg) + 100 < sizeof(msg):
@@ -1124,8 +1113,8 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
         # Most of the time, only argument types are relevant, so don't include the return type into sig_string.
         sig_string = sig->to_string(False, False)
 
-        if sig->nargs != 2 or sig->returntype != intType or sig->takes_varargs:  # TODO: could be more general
-            if sig->returntype != intType:
+        if sig->nargs != 2 or sig->return_type != intType or sig->takes_varargs:  # TODO: could be more general
+            if sig->return_type != intType:
                 # show return type in error message
                 sig_string = sig->to_string(True, False)
             snprintf(msg, sizeof(msg), "cannot match with function %s", sig_string)
@@ -1306,7 +1295,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 )
                 fail(stmt->location, msg)
 
-            return_type = state->fom_types->signature.returntype
+            return_type = state->fom_types->signature.return_type
 
             if stmt->return_value != NULL and return_type == NULL:
                 snprintf(
@@ -1320,7 +1309,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                     "a return value is needed, because the return type of %s '%s' is %s",
                     function_or_method,
                     state->fom_types->signature.name,
-                    state->fom_types->signature.returntype->name)
+                    state->fom_types->signature.return_type->name)
                 fail(stmt->location, msg)
 
             if stmt->return_value != NULL:

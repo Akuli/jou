@@ -1,8 +1,6 @@
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
-import "./errors_and_warnings.jou"
-
 @public
 class ClassField:
     name: byte[100]
@@ -47,7 +45,7 @@ class Type:
         value_type: Type*  # Pointer
         classdata: ClassData  # Class
         array: ArrayType  # Array
-        enummembers: EnumType
+        enum_members: EnumType
 
     def is_integer_type(self) -> bool:
         return self->kind == TypeKind.SignedInteger or self->kind == TypeKind.UnsignedInteger
@@ -106,6 +104,15 @@ class Type:
             case TypeKind.Bool:
                 return "the built-in bool type"
 
+    def find_class_field(self, name: byte*) -> ClassField*:
+        if self->kind != TypeKind.Class:
+            return NULL
+
+        for f = self->classdata.fields; f < &self->classdata.fields[self->classdata.nfields]; f++:
+            if strcmp(f->name, name) == 0:
+                return f
+        return NULL
+
     def find_method(self, name: byte*) -> Signature*:
         if self->kind != TypeKind.Class:
             return NULL
@@ -114,6 +121,15 @@ class Type:
             if strcmp(m->name, name) == 0:
                 return m
         return NULL
+
+    def find_enum_member(self, name: byte*) -> int:
+        if self->kind != TypeKind.Enum:
+            return -1
+
+        for i = 0; i < self->enum_members.count; i++:
+            if strcmp(self->enum_members.names[i], name) == 0:
+                return i
+        return -1
 
 
 # The TypeInfo for type T contains the type T* (if it has been used)
@@ -275,7 +291,7 @@ def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*
     result: TypeInfo* = calloc(1, sizeof *result)
     result->type = Type{
         kind = TypeKind.Enum,
-        enummembers = EnumType{count=membercount, names=membernames},
+        enum_members = EnumType{count=membercount, names=membernames},
     }
 
     assert strlen(name) < sizeof result->type.name
@@ -292,11 +308,8 @@ class Signature:
     argtypes: Type**
     argnames: byte[100]*
     takes_varargs: bool  # true for functions like printf()
-    # TODO: rename to return_type
-    returntype: Type*    # NULL, if does not return a value
+    return_type: Type*    # NULL, if does not return a value
     is_noreturn: bool
-    # TODO: rename to return_type_location
-    returntype_location: Location  # meaningful even if returntype is NULL
 
     def free(self) -> None:
         free(self->argnames)
@@ -355,17 +368,17 @@ class Signature:
         strcat(result, ")")
 
         if include_return_type:
-            assert sizeof(self->returntype->name) == 500
+            assert sizeof(self->return_type->name) == 500
             result = realloc(result, strlen(result) + 600)
             assert result != NULL
 
             strcat(result, " -> ")
             if self->is_noreturn:
                 strcat(result, "noreturn")
-            elif self->returntype == NULL:
+            elif self->return_type == NULL:
                 strcat(result, "void")
             else:
-                strcat(result, self->returntype->name)
+                strcat(result, self->return_type->name)
 
         return result
 

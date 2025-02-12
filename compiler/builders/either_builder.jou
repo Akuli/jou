@@ -8,7 +8,6 @@
 import "stdlib/mem.jou"
 
 import "../errors_and_warnings.jou"
-import "../constants.jou"
 import "../llvm.jou"
 import "../types.jou"
 import "../uvg.jou"
@@ -197,22 +196,6 @@ class EitherBuilder:
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->enum_member(t, name)
         return result
-
-    # TODO: delete this?
-    def constant(self, c: Constant*) -> EitherBuilderValue:
-        match c->kind:
-            case ConstantKind.Bool:
-                return self->boolean(c->boolean)
-            case ConstantKind.Integer:
-                return self->integer(c->get_type(), c->integer.value)
-            case ConstantKind.Float | ConstantKind.Double:
-                return self->float_or_double(c->get_type(), c->double_or_float_text)
-            case ConstantKind.Null:
-                return self->zero_of_type(voidPtrType)
-            case ConstantKind.String:
-                return self->string(c->str)
-            case ConstantKind.EnumMember:
-                return self->enum_member(c->get_type(), c->get_type()->enummembers.names[c->enum_member.memberidx])
 
     # a + b
     def add(self, a: EitherBuilderValue, b: EitherBuilderValue) -> EitherBuilderValue:

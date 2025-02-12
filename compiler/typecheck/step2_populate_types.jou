@@ -70,7 +70,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
 
     sig.is_noreturn = astsig->return_type.is_noreturn()
     if astsig->return_type.is_none() or astsig->return_type.is_noreturn():
-        sig.returntype = NULL
+        sig.return_type = NULL
     elif astsig->return_type.is_void():
         snprintf(
             msg, sizeof(msg),
@@ -79,15 +79,13 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
         )
         fail(astsig->return_type.location, msg)
     else:
-        sig.returntype = type_from_ast(ft, &astsig->return_type)
-
-    sig.returntype_location = astsig->return_type.location
+        sig.return_type = type_from_ast(ft, &astsig->return_type)
 
     if self_class == NULL:
         ft->add_function(&sig, usedptr)
 
     if sig.is_main_function():
-        if sig.returntype != intType:
+        if sig.return_type != intType:
             fail(astsig->return_type.location, "the main() function must return int")
         if (
             sig.nargs != 0
@@ -109,23 +107,25 @@ def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> N
     msg: byte[500]
     assert t->kind == TypeKind.Class
 
-    for i = 0; i < t->classdata.nfields; i++:
-        if strcmp(t->classdata.fields[i].name, name) == 0:
-            uid = t->classdata.fields[i].union_id
-            belongs_to_a_union = (
-                (i > 0 and t->classdata.fields[i-1].union_id == uid)
-                or (i+1 < t->classdata.nfields and t->classdata.fields[i+1].union_id == uid)
-            )
-            if belongs_to_a_union:
-                snprintf(msg, sizeof(msg), "class %s already has a union member named '%s'", t->name, name)
-            else:
-                snprintf(msg, sizeof(msg), "class %s already has a field named '%s'", t->name, name)
-            fail(location, msg)
+    field = t->find_class_field(name)
+    if field != NULL:
+        # TODO: this is complicated, should just use same error message for fields and union members
+        assert t->classdata.fields <= field and field < &t->classdata.fields[t->classdata.nfields]
 
-    for i = 0; i < t->classdata.nmethods; i++:
-        if strcmp(t->classdata.methods[i].name, name) == 0:
-            snprintf(msg, sizeof(msg), "class %s already has a method named '%s'", t->name, name)
-            fail(location, msg)
+        belongs_to_a_union = (
+            (field > t->classdata.fields and field[-1].union_id == field->union_id)
+            or (&field[1] < &t->classdata.fields[t->classdata.nfields] and field[1].union_id == field->union_id)
+        )
+
+        if belongs_to_a_union:
+            snprintf(msg, sizeof(msg), "class %s already has a union member named '%s'", t->name, name)
+        else:
+            snprintf(msg, sizeof(msg), "class %s already has a field named '%s'", t->name, name)
+        fail(location, msg)
+
+    if t->find_method(name) != NULL:
+        snprintf(msg, sizeof(msg), "class %s already has a method named '%s'", t->name, name)
+        fail(location, msg)
 
 
 def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
@@ -184,6 +184,9 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                 assert t->classdata.methods != NULL
                 t->classdata.methods[t->classdata.nmethods++] = sig.copy()
 
+            case AstStatementKind.Pass:
+                pass
+
             case _:
                 assert False
 
@@ -200,7 +203,7 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
         assert exports != NULL
 
         match stmt->kind:
-            case AstStatementKind.Import:
+            case AstStatementKind.Import | AstStatementKind.Pass:
                 pass
             case AstStatementKind.GlobalVariableDeclare:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type, &stmt->global_var_declare.used)
