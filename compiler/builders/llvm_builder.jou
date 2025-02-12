@@ -211,15 +211,6 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
     assert False
 
 
-# TODO: useful, but doesn't belong here
-def find_enum_member(enumtype: Type*, name: byte*) -> int:
-    assert enumtype->kind == TypeKind.Enum
-    for i = 0; i < enumtype->enummembers.count; i++:
-        if strcmp(enumtype->enummembers.names[i], name) == 0:
-            return i
-    assert False
-
-
 @public
 class LBuilderValue:
     type: Type*
@@ -416,9 +407,11 @@ class LBuilder:
         }
 
     def enum_member(self, t: Type*, name: byte*) -> LBuilderValue:
+        int_value = t->find_enum_member(name)
+        assert int_value != -1
         return LBuilderValue{
             type = t,
-            llvm_value = LLVMConstInt(LLVMInt32Type(), find_enum_member(t, name), False as int),
+            llvm_value = LLVMConstInt(LLVMInt32Type(), int_value, False as int),
         }
 
     # a + b

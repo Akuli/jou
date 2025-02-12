@@ -694,14 +694,6 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
     return t
 
 
-def enum_member_exists(t: Type*, name: byte*) -> bool:
-    assert t->kind == TypeKind.Enum
-    for i = 0; i < t->enummembers.count; i++:
-        if strcmp(t->enummembers.names[i], name) == 0:
-            return True
-    return False
-
-
 def cast_array_members_to_a_common_type(fom: FunctionOrMethodTypes*, error_location: Location, array: AstArray) -> Type*:
     # Avoid O(ntypes^2) code in a long array where all or almost all items have the same type.
     # This is at most O(ntypes*k) where k is the number of distinct types.
@@ -866,7 +858,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             # AstExpressionKind.GetEnumMember is only created if the enum exists
             assert result != NULL
             assert result->kind == TypeKind.Enum
-            if not enum_member_exists(result, expr->enum_member.member_name):
+            if result->find_enum_member(expr->enum_member.member_name) == -1:
                 snprintf(
                     msg, sizeof(msg),
                     "enum %s has no member named '%s'",
@@ -1098,11 +1090,11 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
                 pass
             case TypeKind.Enum:
                 # Ensure user checks all possible enum values
-                nremaining = case_type->enummembers.count
+                nremaining = case_type->enum_members.count
                 remaining = malloc(sizeof(remaining[0]) * nremaining)
                 assert remaining != NULL
                 for i = 0; i < nremaining; i++:
-                    remaining[i] = case_type->enummembers.names[i]
+                    remaining[i] = case_type->enum_members.names[i]
             case _:
                 snprintf(msg, sizeof(msg), "cannot match a value of type %s", case_type->name)
                 if strlen(msg) + 100 < sizeof(msg):
