@@ -794,7 +794,6 @@ def handle_conflicting_class_field_and_enum_member_syntax(state: State*, expr: A
 
     if state->find_any_var(enum_name) != NULL:
         # there is a variable named "foo", use that
-        # TODO: test this
         return
 
     t = state->file_types->find_type(expr->class_field.instance->varname)
