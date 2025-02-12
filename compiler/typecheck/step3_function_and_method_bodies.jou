@@ -659,9 +659,7 @@ def typecheck_class_field(
 
 
 def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Location) -> Type*:
-    tmp = AstType{kind = AstTypeKind.Named, location = inst->class_name_location}
-    assert sizeof(tmp.name) == sizeof(inst->class_name)
-    strcpy(tmp.name, inst->class_name)
+    tmp = AstType{kind = AstTypeKind.Named, location = location, name = inst->class_name}
     t = type_from_ast(state->file_types, &tmp)
 
     msg: byte[500]

@@ -424,7 +424,7 @@ class Parser:
 
     def parse_instantiation(self) -> AstInstantiation:
         assert self->tokens->kind == TokenKind.Name
-        result = AstInstantiation{class_name_location = self->tokens->location, class_name = self->tokens->short_string}
+        result = AstInstantiation{class_name = self->tokens->short_string}
         self->tokens++
         assert self->tokens->is_operator("{")
         self->tokens++
