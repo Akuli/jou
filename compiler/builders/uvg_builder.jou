@@ -57,6 +57,9 @@ class UBuilder:
         assert b->instructions != NULL
         b->instructions[b->ninstructions++] = ins
 
+    def begin_statement_in_a_body(self) -> None:
+        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Statement})
+
     def use(self, var: int) -> None:
         if var >= 0:
             self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Use, var = var})
@@ -228,7 +231,7 @@ class UBuilder:
         if value != NULL:
             self->set(self->uvg.get_local_var_ptr("return"))
 
-        if self->uvg.signature->returntype != NULL:
+        if self->uvg.signature->return_type != NULL:
             self->use(self->uvg.get_local_var_ptr("return"))
 
         assert self->current_block != NULL
@@ -237,21 +240,7 @@ class UBuilder:
 
 
 @public
-enum UvgProcessing:
-    Print
-    Analyze
-
-
-def do_processing(uvg: Uvg*, proc: UvgProcessing) -> None:
-    match proc:
-        case UvgProcessing.Print:
-            uvg->print()
-        case UvgProcessing.Analyze:
-            uvg_analyze(uvg)
-
-
-@public
-def build_and_process_uvgs(ast: AstFile*, proc: UvgProcessing) -> None:
+def build_and_analyze_uvgs(ast: AstFile*, print: bool) -> None:
     builder = UBuilder{}
     builder_wrapper = EitherBuilder{ubuilder = &builder}
 
@@ -259,14 +248,18 @@ def build_and_process_uvgs(ast: AstFile*, proc: UvgProcessing) -> None:
         match stmt->kind:
             case AstStatementKind.FunctionDef:
                 feed_ast_to_builder(&stmt->function, stmt->location, ast->is_main_file, &builder_wrapper)
-                do_processing(&builder.uvg, proc)
+                if print:
+                    builder.uvg.print()
+                uvg_analyze(&builder.uvg)
                 builder.uvg.free()
                 memset(&builder.uvg, 0, sizeof(builder.uvg))
             case AstStatementKind.Class:
                 for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
                     if inner->kind == AstStatementKind.MethodDef:
                         feed_ast_to_builder(&inner->method, inner->location, ast->is_main_file, &builder_wrapper)
-                        do_processing(&builder.uvg, proc)
+                        if print:
+                            builder.uvg.print()
+                        uvg_analyze(&builder.uvg)
                         builder.uvg.free()
                         memset(&builder.uvg, 0, sizeof(builder.uvg))
             case _:

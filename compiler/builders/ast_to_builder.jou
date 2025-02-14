@@ -49,7 +49,7 @@ class AstToBuilder:
         assert sig->nargs <= nlocals
 
         self->builder->begin_function(sig, public)
-        self->returns_a_value = (sig->returntype != NULL)
+        self->returns_a_value = (sig->return_type != NULL)
 
         if nlocals > self->nlocals:
             self->locals = realloc(self->locals, sizeof(self->locals[0]) * nlocals)
@@ -374,7 +374,6 @@ class AstToBuilder:
                 return self->build_or(&expr->operands[0], &expr->operands[1])
             case AstExpressionKind.Not:
                 return self->builder->not_(self->build_expression(&expr->operands[0]))
-        assert False
 
     def build_expression(self, expr: AstExpression*) -> EitherBuilderValue:
         old_location = self->set_location(expr->location)
@@ -478,7 +477,7 @@ class AstToBuilder:
         # Run incr and jump back to condition.
         self->builder->set_current_block(incrblock)
         if incr != NULL:
-            self->build_statement(incr)
+            self->build_statement(incr, False)
         self->builder->jump(condblock)
 
         # Code after the loop goes to "loop done" part.
@@ -498,7 +497,7 @@ class AstToBuilder:
                 else:
                     args = [match_obj, case_obj]
                     func_ret = self->builder->call(&match_stmt->func_signature, args, 2)
-                    zero = self->builder->integer(match_stmt->func_signature.returntype, 0)
+                    zero = self->builder->integer(match_stmt->func_signature.return_type, 0)
                     cond = self->builder->eq(func_ret, zero)
                 otherwise = self->builder->add_block()
                 self->builder->branch(cond, then, otherwise)
@@ -547,7 +546,6 @@ class AstToBuilder:
             argnames = argnames,
             takes_varargs = False,
             is_noreturn = True,
-            returntype_location = assert_location,
         }
         args = [
             self->builder->string(assertion->condition_str),
@@ -559,8 +557,10 @@ class AstToBuilder:
 
         self->builder->set_current_block(ok_block)
 
-    def build_statement(self, stmt: AstStatement*) -> None:
+    def build_statement(self, stmt: AstStatement*, in_a_body: bool) -> None:
         old_location = self->set_location(stmt->location)
+        if in_a_body:
+            self->builder->begin_statement_in_a_body()
 
         match stmt->kind:
             case AstStatementKind.If:
@@ -573,7 +573,7 @@ class AstToBuilder:
                 self->build_loop(&stmt->while_loop.condition, NULL, &stmt->while_loop.body)
             case AstStatementKind.ForLoop:
                 if stmt->for_loop.init != NULL:
-                    self->build_statement(stmt->for_loop.init)
+                    self->build_statement(stmt->for_loop.init, False)
                 self->build_loop(
                     stmt->for_loop.cond, stmt->for_loop.incr, &stmt->for_loop.body)
             case AstStatementKind.Match:
@@ -622,7 +622,7 @@ class AstToBuilder:
 
     def build_body(self, body: AstBody*) -> None:
         for i = 0; i < body->nstatements; i++:
-            self->build_statement(&body->statements[i])
+            self->build_statement(&body->statements[i], True)
 
 
 @public
