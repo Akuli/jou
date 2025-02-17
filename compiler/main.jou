@@ -336,20 +336,21 @@ class CompileState:
 
 
 def optimize(module: LLVMModule*, level: int) -> None:
-    assert 1 <= level and level <= 3
-
-    pm = LLVMCreatePassManager()
-
-    # The default settings should be fine for Jou because they work well for
-    # C and C++, and Jou is quite similar to C.
-    pmbuilder = LLVMPassManagerBuilderCreate()
-    LLVMPassManagerBuilderSetOptLevel(pmbuilder, level)
-    LLVMPassManagerBuilderPopulateModulePassManager(pmbuilder, pm)
-    LLVMPassManagerBuilderDispose(pmbuilder)
-
-    LLVMRunPassManager(pm, module)
-    LLVMDisposePassManager(pm)
-
+    pass
+#    assert 1 <= level and level <= 3
+#
+#    pm = LLVMCreatePassManager()
+#
+#    # The default settings should be fine for Jou because they work well for
+#    # C and C++, and Jou is quite similar to C.
+#    pmbuilder = LLVMPassManagerBuilderCreate()
+#    LLVMPassManagerBuilderSetOptLevel(pmbuilder, level)
+#    LLVMPassManagerBuilderPopulateModulePassManager(pmbuilder, pm)
+#    LLVMPassManagerBuilderDispose(pmbuilder)
+#
+#    LLVMRunPassManager(pm, module)
+#    LLVMDisposePassManager(pm)
+#
 
 def compile_llvm_ir_to_object_file(module: LLVMModule*) -> byte*:
     len = 0L
