@@ -78,7 +78,7 @@ for i in ${!commits[@]}; do
 
     folder=$(folder_of_commit $i)
     rm -rf $folder
-    mkdir -vp $folder
+    mkdir -p $folder
 
     # This seems to be the best way to checkout a commit into a folder.
     git archive --format=tar $commit | (cd $folder && tar xf -)
