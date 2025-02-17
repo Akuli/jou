@@ -19,7 +19,7 @@ jobs:
           version: '10.0'
           environment_variables: PKG_PATH
           run: |
-            sudo pkgin -y install clang libLLVM gmake diffutils && \
+            sudo pkgin -y install clang libLLVM gmake diffutils git && \
             gmake && \
             ./runtests.sh --verbose --stage1 && \
             ./runtests.sh --verbose --stage2 && \
