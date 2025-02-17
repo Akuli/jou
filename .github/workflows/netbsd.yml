@@ -10,6 +10,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch the whole Git history
       # TODO: don't use an action for this? could we instead install qemu from apt and call it?
       - uses: cross-platform-actions/action@v0.26.0
         env:
