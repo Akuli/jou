@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # The Jou compiler is written in Jou, but it doesn't help you very much if you
 # have nothing that can compile or run Jou code. That's why this script exists.
