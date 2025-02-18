@@ -10,58 +10,62 @@ if not WINDOWS:
     import "../config.jou"
 
 
+# TODO: declare this in stdlib
+declare asprintf(dest: byte**, pattern: byte*, ...) -> int
+
+
+def determine_linker_flags(from_link_statements_in_jou_files: byte*) -> byte*:
+    from_command_line = command_line_args.linker_flags
+    if from_command_line == NULL:
+        from_command_line = ""
+
+    # TODO: don't hard-code -lm
+    result: byte*
+    asprintf(&result, "%s %s -lm", from_link_statements_in_jou_files, from_command_line)
+    return result
+
+
+def quote_paths(paths: byte**) -> byte*:
+    size = 10L
+    for i = 0; paths[i] != NULL; i++:
+        size += strlen(paths[i]) + 10
+
+    result: byte* = malloc(size)
+    strcpy(result, "")
+    for i = 0; paths[i] != NULL; i++:
+        # TODO: quote better?
+        strcat(result, " \"")
+        strcat(result, paths[i])
+        strcat(result, "\"")
+
+    return result
+
+
 @public
-def run_linker(objpaths: byte**, exepath: byte*) -> None:
+def run_linker(objpaths: byte**, exepath: byte*, link_flags: byte*) -> None:
     jou_exe = find_current_executable()
     instdir = dirname(jou_exe)
 
-    if command_line_args.linker_flags != NULL:
-        linker_flags = malloc(strlen(command_line_args.linker_flags) + 50)
-        assert linker_flags != NULL
-        strcpy(linker_flags, "-lm ")
-        strcat(linker_flags, command_line_args.linker_flags)
-    else:
-        linker_flags = strdup("-lm")
-        assert linker_flags != NULL
+    quoted_object_files = quote_paths(objpaths)
+    all_linker_flags = determine_linker_flags(link_flags)
 
-    size = 10L
-    for i = 0; objpaths[i] != NULL; i++:
-        size += strlen(objpaths[i]) + 10
-
-    quoted_object_files: byte* = malloc(size)
-    assert quoted_object_files != NULL
-    quoted_object_files[0] = '\0'
-
-    for i = 0; objpaths[i] != NULL; i++:
-        if i != 0:
-            strcat(quoted_object_files, " ")
-        strcat(quoted_object_files, "\"")
-        strcat(quoted_object_files, objpaths[i])  # TODO: escape properly?
-        strcat(quoted_object_files, "\"")
-
-    size = strlen(instdir) + strlen(quoted_object_files) + strlen(exepath) + strlen(linker_flags) + 100
-    if not WINDOWS:
-        size += strlen(get_jou_clang_path())
-    command: byte* = malloc(size)
-
+    command: byte*
     if WINDOWS:
         # Assume mingw with clang has been downloaded with windows_setup.sh.
         # Could also use clang, but gcc has less dependencies so we can make the Windows zips smaller.
         # Windows quoting is weird. The outermost quotes get stripped here.
-        snprintf(command, size, "\"\"%s\\mingw64\\bin\\gcc.exe\" %s -o \"%s\" %s\"", instdir, quoted_object_files, exepath, linker_flags)
+        asprintf(&command, "\"\"%s\\mingw64\\bin\\gcc.exe\" %s -o \"%s\" %s\"", instdir, quoted_object_files, exepath, all_linker_flags)
     else:
         # Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
         # instdir is not used in this case.
-        snprintf(command, size, "'%s' %s -o '%s' %s", get_jou_clang_path(), quoted_object_files, exepath, linker_flags)
+        asprintf(&command, "'%s' %s -o '%s' %s", get_jou_clang_path(), quoted_object_files, exepath, all_linker_flags)
 
     free(quoted_object_files)
     free(jou_exe)
-    free(linker_flags)
+    free(all_linker_flags)
 
-    if command_line_args.verbosity >= 2:
+    if command_line_args.verbosity >= 1:
         printf("Running linker: %s\n", command)
-    elif command_line_args.verbosity >= 1:
-        printf("Running linker\n")
 
     if system(command) != 0:
         exit(1)

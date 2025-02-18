@@ -132,6 +132,7 @@ def evaluate_if_statements_in_body(body: AstBody*, must_succeed: bool) -> None:
                 evaluate_if_statements_in_body(&body->statements[i].method.body, False)
             case (
                 AstStatementKind.ExpressionStatement
+                | AstStatementKind.Link
                 | AstStatementKind.Assert
                 | AstStatementKind.Pass
                 | AstStatementKind.Return

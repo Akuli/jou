@@ -237,6 +237,28 @@ class Parser:
             resolved_path = path,
         }
 
+    def parse_link(self) -> AstImport:
+        if self->what_are_we_parsing != WhatAreWeParsing.TopLevel:
+            fail(self->tokens->location, "imports must be in the beginning of the file")
+
+        assert self->tokens->is_keyword("import")
+        self->tokens++
+
+        path_token = self->tokens++
+        if path_token->kind != TokenKind.String:
+            path_token->fail_expected_got("a string to specify the file name")
+
+        self->eat_newline()
+
+        # TODO: replace "./" and "../" with actual folder paths
+        path = strdup(path_token->kind)
+
+        simplify_path(path)
+        return AstImport{
+            specified_path = strdup(path_token->long_string),
+            resolved_path = path,
+        }
+
     def parse_type(self) -> AstType:
         if not (
             self->tokens->kind == TokenKind.Name
@@ -1066,6 +1088,12 @@ class Parser:
                 location = self->tokens->location,
                 kind = AstStatementKind.Import,
                 import_statement = self->parse_import(),
+            }
+        elif self->tokens->is_keyword("link"):
+            result = AstStatement{
+                location = self->tokens->location,
+                kind = AstStatementKind.Link,
+                link_statement = self->parse_link_statement(),
             }
         elif self->tokens->is_keyword("def"):
             match self->what_are_we_parsing:

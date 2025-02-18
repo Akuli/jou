@@ -480,6 +480,7 @@ class AstAssertion:
 @public
 enum AstStatementKind:
     Import
+    Link
     ExpressionStatement  # Evaluate an expression. Discard the result.
     Assert
     Pass
@@ -513,7 +514,7 @@ class AstStatement:
     kind: AstStatementKind
 
     union:
-        expression: AstExpression       # ExpressionStatement, Assert
+        expression: AstExpression       # ExpressionStatement
         if_statement: AstIfStatement
         while_loop: AstConditionAndBody
         for_loop: AstForLoop
@@ -531,6 +532,7 @@ class AstStatement:
         assertion: AstAssertion
         match_statement: AstMatchStatement
         import_statement: AstImport
+        link_statement: AstLink
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -541,6 +543,8 @@ class AstStatement:
             case AstStatementKind.ExpressionStatement:
                 printf("expression statement\n")
                 self->expression.print_with_tree_printer(tp.print_prefix(True))
+            case AstStatementKind.Link:
+                self->link_statement.print()
             case AstStatementKind.Assert:
                 printf("assert \"%s\"\n", self->assertion.condition_str)
                 self->assertion.condition.print_with_tree_printer(tp.print_prefix(True))
@@ -617,7 +621,7 @@ class AstStatement:
 
     def free(self) -> None:
         match self->kind:
-            case AstStatementKind.ExpressionStatement:
+            case AstStatementKind.ExpressionStatement | AstStatementKind.Link:
                 self->expression.free()
             case AstStatementKind.Assert:
                 self->assertion.free()
@@ -993,6 +997,20 @@ class AstImport:
     def free(self) -> None:
         free(self->specified_path)
         free(self->resolved_path)
+
+
+# link "./foo.a"
+@public
+class AstLink:
+    specified_flags: byte*  # Path in jou code e.g. "../libs/foo.a"
+    resolved_flags: byte*  # Contains absolute paths or relative to current working directory e.g. "/home/akuli/jou/libs/foo.a"
+
+    def print(self) -> None:
+        printf("link \"%s\" (resolves to \"%s\")\n", self->specified_flags, self->resolved_flags)
+
+    def free(self) -> None:
+        free(self->specified_flags)
+        free(self->resolved_flags)
 
 
 # Represents the AST of one Jou file.
