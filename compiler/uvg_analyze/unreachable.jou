@@ -1,0 +1,59 @@
+# Generates warnings about code that will never run.
+
+import "stdlib/mem.jou"
+
+import "../uvg.jou"
+import "../errors_and_warnings.jou"
+
+
+def show_block_unreachable_warning(b: UvgBlock*) -> bool:
+    for ins = b->instructions; ins < &b->instructions[b->ninstructions]; ins++:
+        if ins->kind == UvgInstructionKind.Statement:
+            show_warning(ins->location, "this code will never run")
+            return True
+    return False
+
+
+# This function sets marked[i] to True whenever blocks[i] is reachable from blocks[start].
+# Block A is reachable from block B, if B may jump (perhaps through other blocks) into A.
+#
+# If bidirectional is True, either block may be the one that jumps into the other.
+# This is used to show only one unreachable warning when an unreachable part of code
+# consists of many blocks.
+#
+# If ignore is not NULL and ignore[i] is True, we pretend that blocks[i] doesn't exist.
+def mark_reachable_blocks(blocks: UvgBlock**, nblocks: int, ignore: bool*, marked: bool*, bidirectional: bool, start: int) -> None:
+    assert 0 <= start and start < nblocks
+    assert ignore == NULL or not ignore[start]
+    assert not marked[start]
+    marked[start] = True
+    for i = 0; i < nblocks; i++:
+        if (
+            (ignore == NULL or not ignore[i])
+            and not marked[i]
+            and (blocks[start]->jumps_to(blocks[i]) or (bidirectional and blocks[i]->jumps_to(blocks[start])))
+        ):
+            mark_reachable_blocks(blocks, nblocks, ignore, marked, bidirectional, i)
+
+
+@public
+def uvg_analyze_unreachable(uvg: Uvg*) -> None:
+    assert uvg->nblocks >= 1  # must have at least start block
+
+    reachable: bool* = calloc(sizeof(reachable[0]), uvg->nblocks)
+    warned: bool* = calloc(sizeof(warned[0]), uvg->nblocks)
+    assert reachable != NULL
+    assert warned != NULL
+
+    mark_reachable_blocks(uvg->blocks, uvg->nblocks, NULL, reachable, False, 0)
+
+    for b = 0; b < uvg->nblocks; b++:
+        if not reachable[b] and not warned[b]:
+            # Attempt to show unreachable warning. Will fail if the block is
+            # basically empty, then its unreachability doesn't matter.
+            if show_block_unreachable_warning(uvg->blocks[b]):
+                # Warning was shown. Do not show it for related unreachable blocks.
+                mark_reachable_blocks(uvg->blocks, uvg->nblocks, reachable, warned, True, b)
+
+    free(reachable)
+    free(warned)

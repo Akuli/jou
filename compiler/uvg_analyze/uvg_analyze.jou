@@ -1,0 +1,9 @@
+import "../uvg.jou"
+import "./unreachable.jou"
+import "./undefined_vars.jou"
+
+@public
+def uvg_analyze(uvg: Uvg*) -> None:
+    # These are ordered roughly so that most important warnings appear first
+    uvg_analyze_undefined_vars(uvg)
+    uvg_analyze_unreachable(uvg)
