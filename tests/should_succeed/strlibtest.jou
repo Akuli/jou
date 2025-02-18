@@ -1,5 +1,6 @@
-import "stdlib/str.jou"
 import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
 
 def main() -> int:
     printf("%d\n", starts_with("hello", ""))  # Output: 1
@@ -17,5 +18,20 @@ def main() -> int:
     printf("%d\n", ends_with("hello", "hell"))  # Output: 0
     printf("%d\n", ends_with("hello", "H"))  # Output: 0
     printf("%d\n", ends_with("hello", "O"))  # Output: 0
+
+    message: byte[100]
+    sprintf(message, "You selected option %d.", 1 + 2)
+    puts(message)  # Output: You selected option 3.
+
+    greeting: byte[10]
+    snprintf(greeting, sizeof(greeting), "Hello %s", "World")
+    puts(greeting)  # Output: Hello Wor
+
+    # Output: Title: Foobar
+    # Output: Bla bla bla. Bla bla. Bla.
+    full_text: byte*
+    asprintf(&full_text, "Title: %s\n%s", "Foobar", "Bla bla bla. Bla bla. Bla.")
+    puts(full_text)
+    free(full_text)
 
     return 0
