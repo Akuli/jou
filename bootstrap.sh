@@ -111,10 +111,18 @@ for i in $(seq 1 ${#commits[@]}); do
             sed -i "/Found unsupported LLVM version/d" Makefile.*
 
             echo "Patching Jou code..."
-            # Update the optimization code in the compiler written in Jou
+            # Delete function calls we no longer need
+            sed -i /LLVMCreatePassManager/d compiler/main.jou
+            sed -i /LLVMDisposePassManager/d compiler/main.jou
+            sed -i /LLVMPassManagerBuilderSetOptLevel/d compiler/main.jou
+            sed -i /LLVMRunPassManager/d compiler/main.jou
+
+            # Old code creates and destroys LLVMPassManagerBuilder just like new code
+            # creates and destroys LLVMPassBuilderOptions.
             sed -i s/LLVMPassManagerBuilderCreate/LLVMCreatePassBuilderOptions/g compiler/*.jou
             sed -i s/LLVMPassManagerBuilderDispose/LLVMDisposePassBuilderOptions/g compiler/*.jou
-            sed -i /LLVMPassManagerBuilderSetOptLevel/d compiler/main.jou
+
+            # Change the function that does the optimizing: LLVMPassManagerBuilderPopulateModulePassManager --> LLVMRunPasses
             sed -i s/'LLVMPassManagerBuilderPopulateModulePassManager.*'/'LLVMRunPasses(module, "default<O1>", target.target_machine, pmbuilder)'/g compiler/main.jou
             sed -i s/'declare LLVMPassManagerBuilderPopulateModulePassManager.*'/'declare LLVMRunPasses(a:void*, b:void*, c:void*, d:void*) -> void*'/g compiler/llvm.jou
         fi
