@@ -15,14 +15,11 @@ def run_linker(objpaths: byte**, exepath: byte*) -> None:
     jou_exe = find_current_executable()
     instdir = dirname(jou_exe)
 
+    linker_flags: byte*
     if command_line_args.linker_flags != NULL:
-        linker_flags = malloc(strlen(command_line_args.linker_flags) + 50)
-        assert linker_flags != NULL
-        strcpy(linker_flags, "-lm ")
-        strcat(linker_flags, command_line_args.linker_flags)
+        asprintf(&linker_flags, "-lm %s", command_line_args.linker_flags)
     else:
         linker_flags = strdup("-lm")
-        assert linker_flags != NULL
 
     size = 10L
     for i = 0; objpaths[i] != NULL; i++:
@@ -39,20 +36,16 @@ def run_linker(objpaths: byte**, exepath: byte*) -> None:
         strcat(quoted_object_files, objpaths[i])  # TODO: escape properly?
         strcat(quoted_object_files, "\"")
 
-    size = strlen(instdir) + strlen(quoted_object_files) + strlen(exepath) + strlen(linker_flags) + 100
-    if not WINDOWS:
-        size += strlen(get_jou_clang_path())
-    command: byte* = malloc(size)
-
+    command: byte*
     if WINDOWS:
         # Assume mingw with clang has been downloaded with windows_setup.sh.
         # Could also use clang, but gcc has less dependencies so we can make the Windows zips smaller.
         # Windows quoting is weird. The outermost quotes get stripped here.
-        snprintf(command, size, "\"\"%s\\mingw64\\bin\\gcc.exe\" %s -o \"%s\" %s\"", instdir, quoted_object_files, exepath, linker_flags)
+        asprintf(&command, "\"\"%s\\mingw64\\bin\\gcc.exe\" %s -o \"%s\" %s\"", instdir, quoted_object_files, exepath, linker_flags)
     else:
         # Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
         # instdir is not used in this case.
-        snprintf(command, size, "'%s' %s -o '%s' %s", get_jou_clang_path(), quoted_object_files, exepath, linker_flags)
+        asprintf(&command, "'%s' %s -o '%s' %s", get_jou_clang_path(), quoted_object_files, exepath, linker_flags)
 
     free(quoted_object_files)
     free(jou_exe)
@@ -70,16 +63,16 @@ def run_linker(objpaths: byte**, exepath: byte*) -> None:
 
 @public
 def run_exe(exepath: byte*, valgrind: bool) -> int:
-    command = malloc(strlen(exepath) + 1000)
+    command: byte*
     if WINDOWS:
-        sprintf(command, "\"%s\"", exepath)
+        asprintf(&command, "\"%s\"", exepath)
         while strstr(command, "/") != NULL:
             *strstr(command, "/") = '\\'
     else:
         if valgrind:
-            sprintf(command, "valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 '%s'", exepath)
+            asprintf(&command, "valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 '%s'", exepath)
         else:
-            sprintf(command, "'%s'", exepath)
+            asprintf(&command, "'%s'", exepath)
 
     # Make sure that everything else shows up before the user's prints.
     fflush(stdout)

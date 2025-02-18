@@ -67,8 +67,8 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> long:
         or digits[strlen(digits) - 1] == '_'
         or strspn(digits, valid_digits) != strlen(digits)
     ):
-        message = malloc(strlen(string) + 100)
-        sprintf(message, "invalid number or variable name \"%s\"", string)
+        message: byte*
+        asprintf(&message, "invalid number or variable name \"%s\"", string)
         fail(location, message)
 
     # We can't use strtoll() or similar, because there's not yet a way to check errno.
