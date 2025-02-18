@@ -7,10 +7,29 @@ declare sscanf(s: byte*, pattern: byte*, ...) -> int  # Parse a string. See ssca
 # Formatting. See also printf() in io.jou.
 #   sprintf() assumes that the result fits in dest (UB happens, if it overflows)
 #   snprintf() truncates the string so that the string and its '\0' fit into a total of n bytes of space
+#   asprintf() allocates the right amount of memory with malloc() and needs a corresponding free()
+#
+# Examples:
+#
+#   # Fixed max size, must fit
+#   message: byte[100]
+#   sprintf(message, "You selected option %d.", 1 + 2)
+#
+#   # Truncate if too long
+#   greeting: byte[100]
+#   snprintf(greeting, sizeof(greeting), "Hello %s", name)
+#
+#   # Allocate memory
+#   full_text: byte*
+#   asprintf(&full_text, "Title: %s\n\n%s", email_title, email_message)
+#   ...
+#   free(full_text)
 @public
 declare sprintf(dest: byte*, pattern: byte*, ...) -> int
 @public
 declare snprintf(dest: byte*, n: long, pattern: byte*, ...) -> int
+@public
+declare asprintf(dest: byte**, pattern: byte*, ...) -> int
 
 # Find a substring. Return a pointer to the first occurrence in haystack, or NULL if not found.
 @public

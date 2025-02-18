@@ -243,8 +243,8 @@ class CompileState:
                 self->parse(stmt->import_statement.resolved_path, &stmt->location)  # recursive call
 
     def parse_from_stdlib(self, filename: byte*) -> None:
-        path = malloc(strlen(self->stdlib_path) + strlen(filename) + 123)
-        sprintf(path, "%s/%s", self->stdlib_path, filename)
+        path: byte*
+        asprintf(&path, "%s/%s", self->stdlib_path, filename)
         self->parse(path, NULL)
         free(path)
 

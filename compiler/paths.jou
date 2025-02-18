@@ -76,16 +76,18 @@ def find_stdlib() -> byte*:
             # give up, seems like we reached root of file system (e.g. "C:/" or "/")
             break
 
-        path = malloc(strlen(exedir) + 10)
-        sprintf(path, "%s/stdlib", exedir)
+        path: byte*
+        asprintf(&path, "%s/stdlib", exedir)
 
-        iojou: byte* = malloc(strlen(path) + 10)
-        sprintf(iojou, "%s/io.jou", path)
+        iojou: byte*
+        asprintf(&iojou, "%s/io.jou", path)
         buf: byte[1000]
         stat_result = stat(iojou, &buf)
         free(iojou)
 
         if stat_result == 0:
+            for k = 0; k < i; k++:
+                free(checked[k])
             free(exedir)
             return path
 
@@ -99,8 +101,8 @@ def find_stdlib() -> byte*:
 
 
 def write_gitignore(p: byte*) -> None:
-    filename: byte* = malloc(strlen(p) + 100)
-    sprintf(filename, "%s/.gitignore", p)
+    filename: byte*
+    asprintf(&filename, "%s/.gitignore", p)
 
     f = fopen(filename, "r")
     if f != NULL:
