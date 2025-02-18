@@ -13,9 +13,9 @@ class LLVMBasicBlock:
 @public
 class LLVMBuilder:
     pass
+@public
 class LLVMPassManager:
     pass
-
 @public
 class LLVMTarget:
     pass
@@ -25,8 +25,14 @@ class LLVMTargetData:
 @public
 class LLVMTargetMachine:
     pass
-
+@public
 class LLVMPassManagerBuilder:
+    pass
+@public
+class LLVMPassBuilderOptions:
+    pass
+@public
+class LLVMError:
     pass
 
 # =========== Target.h ===========
@@ -421,6 +427,7 @@ declare LLVMDisposePassManager(PM: LLVMPassManager*) -> None
 
 
 # =========== Transforms/PassManagerBuilder.h ===========
+# TODO: This file is old and no longer exists
 @public
 declare LLVMPassManagerBuilderCreate() -> LLVMPassManagerBuilder*
 @public
@@ -443,3 +450,19 @@ declare LLVMPassManagerBuilderPopulateFunctionPassManager(PMB: LLVMPassManagerBu
 declare LLVMPassManagerBuilderPopulateModulePassManager(PMB: LLVMPassManagerBuilder*, PM: LLVMPassManager*) -> None
 @public
 declare LLVMPassManagerBuilderPopulateLTOPassManager(PMB: LLVMPassManagerBuilder*, PM: LLVMPassManager*, Internalize: int, RunInliner: int) -> None
+
+
+# =========== Transforms/PassBuilder.h ===========
+@public
+declare LLVMCreatePassBuilderOptions() -> LLVMPassBuilderOptions*
+@public
+declare LLVMDisposePassBuilderOptions(Options: LLVMPassBuilderOptions*) -> None
+@public
+declare LLVMRunPasses(M: LLVMModule*, Passes: byte*, TM: LLVMTargetMachine*, Options: LLVMPassBuilderOptions*) -> LLVMError*
+
+
+# =========== Error.h ===========
+@public
+declare LLVMGetErrorMessage(Err: LLVMError*) -> byte*
+@public
+declare LLVMDisposeErrorMessage(ErrMsg: byte*) -> None
