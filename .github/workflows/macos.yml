@@ -29,23 +29,8 @@ jobs:
             echo "run=true" >> $GITHUB_OUTPUT
           fi
 
-  bootstrap:
-    needs: check-if-needed
-    if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
-    runs-on: macos-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch the whole Git history
-      - run: ./bootstrap.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bootstrapped
-          path: jou_bootstrap
-
   test:
-    needs: [bootstrap, check-if-needed]
+    needs: [check-if-needed]
     if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
     runs-on: macos-latest
     timeout-minutes: 10
@@ -56,10 +41,14 @@ jobs:
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
         with:
-          name: bootstrapped
-      - run: chmod +x jou_bootstrap
+          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
+      - uses: actions/cache@v4
+        with:
+          path: jou_bootstrap
+          key: bootstrap-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}-${{ hashFiles('bootstrap.sh') }}
+      - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
+        run: touch -c jou_bootstrap
       - run: brew install bash diffutils llvm@${{ matrix.llvm-version }}
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=/opt/homebrew/opt/llvm@${{ matrix.llvm-version }}/bin/llvm-config" >> $GITHUB_ENV
@@ -76,8 +65,8 @@ jobs:
     name: Create an issue if failed
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [check-if-needed, bootstrap, test]
-    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && (needs.bootstrap.result == 'failure' || needs.test.result == 'failure') }}
+    needs: [check-if-needed, test]
+    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.test.result == 'failure' }}
     permissions:
       issues: write
     steps:

@@ -5,26 +5,7 @@ on:
   pull_request:
 
 jobs:
-  bootstrap:
-    # Please keep in sync with valgrind.yml
-    timeout-minutes: 10
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch the whole Git history
-      - run: sudo apt update
-      - run: sudo apt install -y llvm-19-dev clang-19 make
-      - name: "Select LLVM version"
-        run: echo "LLVM_CONFIG=llvm-config-19" >> $GITHUB_ENV
-      - run: ./bootstrap.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bootstrapped
-          path: jou_bootstrap
-
   test:
-    needs: bootstrap
     timeout-minutes: 10
     runs-on: ubuntu-latest
     strategy:
@@ -46,10 +27,14 @@ jobs:
           - { llvm-version: 19, opt-level: '-O3' }
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
         with:
-          name: bootstrapped
-      - run: chmod +x jou_bootstrap
+          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
+      - uses: actions/cache@v4
+        with:
+          path: jou_bootstrap
+          key: bootstrap-${{ runner.os }}-${{ matrix.params.llvm-version }}-${{ matrix.params.opt-level }}-${{ hashFiles('bootstrap.sh') }}
+      - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
+        run: touch -c jou_bootstrap
       - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind
       - name: "Select LLVM version"

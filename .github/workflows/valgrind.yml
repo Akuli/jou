@@ -30,28 +30,8 @@ jobs:
             echo "run=true" >> $GITHUB_OUTPUT
           fi
 
-  bootstrap:
-    needs: check-if-needed
-    if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
-    # Please keep in sync with linux.yml
-    timeout-minutes: 10
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch the whole Git history
-      - run: sudo apt update
-      - run: sudo apt install -y llvm-16-dev clang-16 make
-      - name: "Select LLVM version"
-        run: echo "LLVM_CONFIG=llvm-config-16" >> $GITHUB_ENV
-      - run: ./bootstrap.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bootstrapped
-          path: jou_bootstrap
-
   valgrind:
-    needs: [check-if-needed, bootstrap]
+    needs: [check-if-needed]
     if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -74,10 +54,14 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
         with:
-          name: bootstrapped
-      - run: chmod +x jou_bootstrap
+          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
+      - uses: actions/cache@v4
+        with:
+          path: jou_bootstrap
+          key: bootstrap-valgrind-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}-${{ hashFiles('bootstrap.sh') }}
+      - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
+        run: touch -c jou_bootstrap
       - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
       - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
@@ -89,8 +73,8 @@ jobs:
     name: Create an issue if failed
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [check-if-needed, bootstrap, valgrind]
-    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && (needs.bootstrap.result == 'failure' || needs.valgrind.result == 'failure') }}
+    needs: [check-if-needed, valgrind]
+    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.valgrind.result == 'failure' }}
     permissions:
       issues: write
     steps:
