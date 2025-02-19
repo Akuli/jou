@@ -19,7 +19,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: jou_bootstrap
-          key: bootstrap-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}
+          key: bootstrap-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}-${{ hashFiles('bootstrap.sh') }}
       - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
       - name: "Select LLVM version"
