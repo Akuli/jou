@@ -13,7 +13,6 @@
 # in the Jou compiler or standard library used by the compiler.
 
 set -e -o pipefail
-set -x
 
 # Add the latest commit on main branch to the end of the list if this script
 # produces a compiler that is too old.

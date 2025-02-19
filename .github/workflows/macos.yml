@@ -4,7 +4,6 @@ on:
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:  # Can also be triggered manually from github UI
-  pull_request:
 
 jobs:
   # Please keep in sync with valgrind.yml
@@ -72,15 +71,15 @@ jobs:
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
       - run: ./doctest.sh
 
-#  # Please keep in sync with valgrind.yml
-#  create-issue-on-failure:
-#    name: Create an issue if failed
-#    runs-on: ubuntu-latest
-#    timeout-minutes: 5
-#    needs: [check-if-needed, test]
-#    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.test.result == 'failure' }}
-#    permissions:
-#      issues: write
-#    steps:
-#      - uses: actions/checkout@v4
-#      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on MacOS failed"
+  # Please keep in sync with valgrind.yml
+  create-issue-on-failure:
+    name: Create an issue if failed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [check-if-needed, test]
+    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.test.result == 'failure' }}
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on MacOS failed"
