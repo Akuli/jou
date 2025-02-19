@@ -98,6 +98,7 @@ for i in $(seq 1 ${#commits[@]}); do
 
         if [ $i == 1 ]; then
             echo "Patching C code..."
+            sed --version
             # Delete optimizations from C code. They cause linker errors with new LLVM versions.
             # Passing in -O0 doesn't help, because the optimizing code would still be linked.
             # See https://blog.llvm.org/posts/2021-03-26-the-new-pass-manager/
