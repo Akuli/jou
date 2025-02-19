@@ -37,9 +37,21 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        llvm-version: [14, 15, 16]
         # Testing all levels because there was a bug that only happened with -O1. (#224)
-        opt-level: ['-O0', '-O1', '-O2', '-O3']
+        # Please keep in sync with linux.yml
+        params:
+          - { llvm-version: 14, opt-level: '-O0' }
+          - { llvm-version: 14, opt-level: '-O1' }
+          - { llvm-version: 14, opt-level: '-O2' }
+          - { llvm-version: 14, opt-level: '-O3' }
+          - { llvm-version: 15, opt-level: '-O1' }
+          - { llvm-version: 16, opt-level: '-O1' }
+          - { llvm-version: 17, opt-level: '-O1' }
+          - { llvm-version: 18, opt-level: '-O1' }
+          - { llvm-version: 19, opt-level: '-O0' }
+          - { llvm-version: 19, opt-level: '-O1' }
+          - { llvm-version: 19, opt-level: '-O2' }
+          - { llvm-version: 19, opt-level: '-O3' }
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -48,14 +60,14 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: jou_bootstrap
-          key: bootstrap-valgrind-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}-${{ hashFiles('bootstrap.sh') }}
+          key: bootstrap-valgrind-${{ runner.os }}-${{ matrix.params.llvm-version }}-${{ matrix.params.opt-level }}-${{ hashFiles('bootstrap.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap
       - run: sudo apt update
-      - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
-      - run: LLVM_CONFIG=llvm-config-${{ matrix.llvm-version }} make
+      - run: sudo apt install -y llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind
+      - run: LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }} make
       - name: "Test compiler with valgrind"
-        run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.opt-level }}"
+        run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.params.opt-level }}"
 
   # Please keep in sync with macos.yml
   create-issue-on-failure:

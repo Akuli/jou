@@ -337,18 +337,18 @@ class CompileState:
 
 def optimize(module: LLVMModule*, level: int) -> None:
     assert 1 <= level and level <= 3
+    passes: byte[100]
+    sprintf(passes, "default<O%d>", level)
 
-    pm = LLVMCreatePassManager()
+    options = LLVMCreatePassBuilderOptions()
+    error = LLVMRunPasses(module, passes, target.target_machine, options)
+    LLVMDisposePassBuilderOptions(options)
 
-    # The default settings should be fine for Jou because they work well for
-    # C and C++, and Jou is quite similar to C.
-    pmbuilder = LLVMPassManagerBuilderCreate()
-    LLVMPassManagerBuilderSetOptLevel(pmbuilder, level)
-    LLVMPassManagerBuilderPopulateModulePassManager(pmbuilder, pm)
-    LLVMPassManagerBuilderDispose(pmbuilder)
-
-    LLVMRunPassManager(pm, module)
-    LLVMDisposePassManager(pm)
+    if error != NULL:
+        msg = LLVMGetErrorMessage(error)
+        fprintf(stderr, "Optimizing with LLVM failed: %s\n", msg)
+        fprintf(stderr, "This is a bug. Please create an issue at https://github.com/Akuli/jou\n", msg)
+        exit(1)
 
 
 def compile_llvm_ir_to_object_file(module: LLVMModule*) -> byte*:

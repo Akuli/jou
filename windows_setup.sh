@@ -88,7 +88,7 @@ mkdir -vp libs
 echo "Generating .a files (this can take a while)"
 for name in \
         libLLVMCore libLLVMX86CodeGen libLLVMAnalysis libLLVMTarget \
-        libLLVMipo libLLVMLinker libLTO libLLVMX86AsmParser \
+        libLLVMPasses libLLVMSupport libLLVMLinker libLTO libLLVMX86AsmParser \
         libLLVMX86Info libLLVMX86Desc
 do
     if [ -f libs/$name.a ]; then

@@ -234,7 +234,7 @@ function run_test()
     ) <(
         export PATH="$PWD:$PATH"
         if [ $valgrind = no ]; then
-            ulimit -v 500000 2>/dev/null
+            ulimit -v 1000000 2>/dev/null
         fi
         bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r'
     ) &>> $diffpath; then

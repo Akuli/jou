@@ -13,9 +13,9 @@ class LLVMBasicBlock:
 @public
 class LLVMBuilder:
     pass
+@public
 class LLVMPassManager:
     pass
-
 @public
 class LLVMTarget:
     pass
@@ -25,8 +25,11 @@ class LLVMTargetData:
 @public
 class LLVMTargetMachine:
     pass
-
-class LLVMPassManagerBuilder:
+@public
+class LLVMPassBuilderOptions:
+    pass
+@public
+class LLVMError:
     pass
 
 # =========== Target.h ===========
@@ -420,26 +423,17 @@ declare LLVMRunPassManager(PM: LLVMPassManager*, M: LLVMModule*) -> int
 declare LLVMDisposePassManager(PM: LLVMPassManager*) -> None
 
 
-# =========== Transforms/PassManagerBuilder.h ===========
+# =========== Transforms/PassBuilder.h ===========
 @public
-declare LLVMPassManagerBuilderCreate() -> LLVMPassManagerBuilder*
+declare LLVMCreatePassBuilderOptions() -> LLVMPassBuilderOptions*
 @public
-declare LLVMPassManagerBuilderDispose(PMB: LLVMPassManagerBuilder*) -> None
+declare LLVMDisposePassBuilderOptions(Options: LLVMPassBuilderOptions*) -> None
 @public
-declare LLVMPassManagerBuilderSetOptLevel(PMB: LLVMPassManagerBuilder*, OptLevel: int) -> None
+declare LLVMRunPasses(M: LLVMModule*, Passes: byte*, TM: LLVMTargetMachine*, Options: LLVMPassBuilderOptions*) -> LLVMError*
+
+
+# =========== Error.h ===========
 @public
-declare LLVMPassManagerBuilderSetSizeLevel(PMB: LLVMPassManagerBuilder*, SizeLevel: int) -> None
+declare LLVMGetErrorMessage(Err: LLVMError*) -> byte*
 @public
-declare LLVMPassManagerBuilderSetDisableUnitAtATime(PMB: LLVMPassManagerBuilder*, Value: int) -> None
-@public
-declare LLVMPassManagerBuilderSetDisableUnrollLoops(PMB: LLVMPassManagerBuilder*, Value: int) -> None
-@public
-declare LLVMPassManagerBuilderSetDisableSimplifyLibCalls(PMB: LLVMPassManagerBuilder*, Value: int) -> None
-@public
-declare LLVMPassManagerBuilderUseInlinerWithThreshold(PMB: LLVMPassManagerBuilder*, Threshold: int) -> None
-@public
-declare LLVMPassManagerBuilderPopulateFunctionPassManager(PMB: LLVMPassManagerBuilder*, PM: LLVMPassManager*) -> None
-@public
-declare LLVMPassManagerBuilderPopulateModulePassManager(PMB: LLVMPassManagerBuilder*, PM: LLVMPassManager*) -> None
-@public
-declare LLVMPassManagerBuilderPopulateLTOPassManager(PMB: LLVMPassManagerBuilder*, PM: LLVMPassManager*, Internalize: int, RunInliner: int) -> None
+declare LLVMDisposeErrorMessage(ErrMsg: byte*) -> None
