@@ -6,7 +6,6 @@ on:
 
 jobs:
   test:
-    needs: bootstrap
     timeout-minutes: 10
     runs-on: ubuntu-latest
     strategy:
@@ -36,21 +35,4 @@ jobs:
       # We also have a separate, "full" valgrind run. See valgrind.yml.
       - name: "Run hello world with valgrind"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.opt-level }}" --valgrind hello
-
-  doctest:
-    needs: bootstrap
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: bootstrapped
-      - run: chmod +x jou_bootstrap
-      - run: sudo apt update
-      - run: sudo apt install -y llvm-{14,15,16}-dev clang-{14,15,16} make
-      - run: LLVM_CONFIG=llvm-config-14 ./doctest.sh
-      - run: mv jou_bootstrap x; make clean; mv x jou_bootstrap
-      - run: LLVM_CONFIG=llvm-config-15 ./doctest.sh
-      - run: mv jou_bootstrap x; make clean; mv x jou_bootstrap
-      - run: LLVM_CONFIG=llvm-config-16 ./doctest.sh
+      - run: ./doctest.sh
