@@ -65,34 +65,21 @@ jobs:
             exit 1
           fi
 
-  bootstrap:
-    runs-on: windows-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4  # TODO: upgrade to v4 in other places
-        with:
-          fetch-depth: 0  # Fetch the whole Git history
-      - run: ./windows_setup.sh
-        shell: bash
-      - run: ./bootstrap.sh
-        shell: bash
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bootstrapped
-          # Include .a files because generating them is slow
-          path: |
-            jou_bootstrap.exe
-            libs/*.a
-
   build-zip:
-    needs: bootstrap
     runs-on: windows-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
         with:
-          name: bootstrapped
+          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
+      - uses: actions/cache@v4
+        with:
+          path: |
+            jou_bootstrap.exe
+            libs/*.a
+          key: bootstrap-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}-${{ hashFiles('*.sh') }}
+      - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
+        run: touch -c jou_bootstrap.exe
       # TODO: figure out why --small doesn't work here
       - run: source activate && ./windows_setup.sh
         shell: bash
@@ -171,28 +158,32 @@ jobs:
           path: jou.zip
 
   test:
-    needs: bootstrap
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          # Add a space in the folder name to trigger bugs like #165
-          path: "test dir"
-      - uses: actions/download-artifact@v4
+          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
+      - uses: actions/cache@v4
         with:
-          name: bootstrapped
-          path: "test dir"
-      - run: cd "test dir" && ./windows_setup.sh --small
+          path: |
+            jou_bootstrap.exe
+            libs/*.a
+          key: bootstrap-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}-${{ hashFiles('*.sh') }}
+      - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
+        run: touch -c jou_bootstrap.exe
+      - run: ./windows_setup.sh --small
         shell: bash
       - name: "Compile and test"
-        run: cd "test dir" && source activate && ./runtests.sh --verbose
+        run: source activate && ./runtests.sh --verbose
         shell: bash
       - name: "Compile the compiler with itself"
-        run: cd "test dir" && source activate && mv jou.exe jou_bootstrap.exe && mingw32-make
+        run: source activate && mv jou.exe jou_bootstrap.exe && mingw32-make
         shell: bash
       - name: "Compile and test again"
-        run: cd "test dir" && source activate && ./runtests.sh --verbose
+        run: source activate && ./runtests.sh --verbose
+        shell: bash
+      - run: source activate && ./doctest.sh
         shell: bash
 
   test-zip:
@@ -207,23 +198,12 @@ jobs:
         with:
           name: windows-zip
       - run: unzip jou.zip
-      - run: cp -r repo/tests repo/runtests.sh jou
+      # Make sure it works even if there is a space in folder name
+      - run: mv jou "test dir"
         shell: bash
-      - run: cd jou && ./jou.exe --verbose examples/hello.jou
+      - run: cp -r repo/tests repo/runtests.sh "test dir"
         shell: bash
-      - run: cd jou && ./runtests.sh --dont-run-make --verbose
+      - run: cd "test dir" && ./jou.exe --verbose examples/hello.jou
         shell: bash
-
-  doctest:
-    needs: bootstrap
-    runs-on: windows-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: bootstrapped
-      - run: ./windows_setup.sh --small
-        shell: bash
-      - run: source activate && ./doctest.sh
+      - run: cd "test dir" && ./runtests.sh --dont-run-make --verbose
         shell: bash
