@@ -5,24 +5,6 @@ on:
   pull_request:
 
 jobs:
-  bootstrap:
-    # Please keep in sync with valgrind.yml
-    timeout-minutes: 10
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch the whole Git history
-      - run: sudo apt update
-      - run: sudo apt install -y llvm-16-dev clang-16 make
-      - name: "Select LLVM version"
-        run: echo "LLVM_CONFIG=llvm-config-16" >> $GITHUB_ENV
-      - run: ./bootstrap.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bootstrapped
-          path: jou_bootstrap
-
   test:
     needs: bootstrap
     timeout-minutes: 10
@@ -34,10 +16,10 @@ jobs:
         opt-level: ['-O0', '-O1', '-O2', '-O3']
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/cache@v4
         with:
-          name: bootstrapped
-      - run: chmod +x jou_bootstrap
+          path: jou_bootstrap
+          key: bootstrap-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}
       - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
       - name: "Select LLVM version"
