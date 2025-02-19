@@ -98,35 +98,35 @@ for i in $(seq 1 ${#commits[@]}); do
 
         if [ $i == 1 ]; then
             echo "Patching C code..."
-            sed --version
             # Delete optimizations from C code. They cause linker errors with new LLVM versions.
             # Passing in -O0 doesn't help, because the optimizing code would still be linked.
             # See https://blog.llvm.org/posts/2021-03-26-the-new-pass-manager/
-            sed -i '/static void optimize/,/^}/d' bootstrap_compiler/main.c  # delete old optimize function
-            sed -i '/#include .*PassManagerBuilder.h/d' bootstrap_compiler/main.c  # delete old include
-            sed -i '1i static void optimize(void *module, int level) { (void)module; (void)level; }' bootstrap_compiler/main.c  # add new optimize function
+            sed -i"" -e '/#include .*PassManagerBuilder.h/d' bootstrap_compiler/main.c  # delete old include
+            sed -i"" -e '/static void optimize/,/^}/d' bootstrap_compiler/main.c  # delete old optimize function
+            sed -i"" -e '1i\
+static void optimize(void *module, int level) { (void)module; (void)level; }' bootstrap_compiler/main.c  # add new optimize function
         fi
 
         if [ $i -le 7 ]; then
             echo "Deleting version check..."
             # Delete version checks to support bootstrapping on newer LLVM versions
-            sed -i "/Found unsupported LLVM version/d" Makefile.*
+            sed -i"" -e "/Found unsupported LLVM version/d" Makefile.*
 
             echo "Patching Jou code..."
             # Delete function calls we no longer need
-            sed -i /LLVMCreatePassManager/d compiler/main.jou
-            sed -i /LLVMDisposePassManager/d compiler/main.jou
-            sed -i /LLVMPassManagerBuilderSetOptLevel/d compiler/main.jou
-            sed -i /LLVMRunPassManager/d compiler/main.jou
+            sed -i"" -e /LLVMCreatePassManager/d compiler/main.jou
+            sed -i"" -e /LLVMDisposePassManager/d compiler/main.jou
+            sed -i"" -e /LLVMPassManagerBuilderSetOptLevel/d compiler/main.jou
+            sed -i"" -e /LLVMRunPassManager/d compiler/main.jou
 
             # Old code creates and destroys LLVMPassManagerBuilder just like new code
             # creates and destroys LLVMPassBuilderOptions.
-            sed -i s/LLVMPassManagerBuilderCreate/LLVMCreatePassBuilderOptions/g compiler/*.jou
-            sed -i s/LLVMPassManagerBuilderDispose/LLVMDisposePassBuilderOptions/g compiler/*.jou
+            sed -i"" -e s/LLVMPassManagerBuilderCreate/LLVMCreatePassBuilderOptions/g compiler/*.jou
+            sed -i"" -e s/LLVMPassManagerBuilderDispose/LLVMDisposePassBuilderOptions/g compiler/*.jou
 
             # Change the function that does the optimizing: LLVMPassManagerBuilderPopulateModulePassManager --> LLVMRunPasses
-            sed -i s/'LLVMPassManagerBuilderPopulateModulePassManager.*'/'LLVMRunPasses(module, "default<O1>", target.target_machine, pmbuilder)'/g compiler/main.jou
-            sed -i s/'declare LLVMPassManagerBuilderPopulateModulePassManager.*'/'declare LLVMRunPasses(a:void*, b:void*, c:void*, d:void*) -> void*'/g compiler/llvm.jou
+            sed -i"" -e s/'LLVMPassManagerBuilderPopulateModulePassManager.*'/'LLVMRunPasses(module, "default<O1>", target.target_machine, pmbuilder)'/g compiler/main.jou
+            sed -i"" -e s/'declare LLVMPassManagerBuilderPopulateModulePassManager.*'/'declare LLVMRunPasses(a:void*, b:void*, c:void*, d:void*) -> void*'/g compiler/llvm.jou
         fi
     )
 
