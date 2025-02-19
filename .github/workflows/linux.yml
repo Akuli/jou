@@ -18,13 +18,11 @@ jobs:
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
       - uses: actions/cache@v4
-        id: cache-bootstrap
         with:
           path: jou_bootstrap
           key: bootstrap-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}-${{ hashFiles('bootstrap.sh') }}
       - name: "Mark bootstrap compiler as modified so that it is not rebuilt"
-        if: steps.cache-bootstrap.outputs.cache-hit == 'true'
-        run: touch jou_bootstrap
+        run: if [ -f jou_bootstrap ]; then touch jou_bootstrap; fi
       - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
       - name: "Select LLVM version"
