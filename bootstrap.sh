@@ -101,11 +101,17 @@ for i in $(seq 1 ${#commits[@]}); do
             # Delete optimizations from C code. They cause linker errors with new LLVM versions.
             # Passing in -O0 doesn't help, because the optimizing code would still be linked.
             # See https://blog.llvm.org/posts/2021-03-26-the-new-pass-manager/
-            sed -i"" -e '/#include .*PassManagerBuilder.h/d' bootstrap_compiler/main.c  # delete old include
-            sed -i"" -e '/static void optimize/,/^}/d' bootstrap_compiler/main.c  # delete old optimize function
+
+            # Delete old include
+            sed -i"" -e '/#include .*PassManagerBuilder.h/d' bootstrap_compiler/main.c
+
+            # Delete old optimize function
+            sed -i"" -e '/static void optimize/,/^}/d' bootstrap_compiler/main.c
+
+            # Add new optimize function
             sed -i"" -e '1i\
 static void optimize(void *module, int level) { (void)module; (void)level; }
-' bootstrap_compiler/main.c  # add new optimize function
+' bootstrap_compiler/main.c
         fi
 
         if [ $i -le 7 ]; then
