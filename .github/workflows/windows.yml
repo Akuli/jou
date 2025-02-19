@@ -77,7 +77,7 @@ jobs:
           path: |
             jou_bootstrap.exe
             libs/*.a
-          key: bootstrap-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}-${{ hashFiles('*.sh') }}
+          key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap.exe
       # TODO: figure out why --small doesn't work here
@@ -169,7 +169,7 @@ jobs:
           path: |
             jou_bootstrap.exe
             libs/*.a
-          key: bootstrap-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}-${{ hashFiles('*.sh') }}
+          key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap.exe
       - run: ./windows_setup.sh --small
