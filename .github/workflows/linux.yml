@@ -21,8 +21,8 @@ jobs:
         with:
           path: jou_bootstrap
           key: bootstrap-${{ runner.os }}-${{ matrix.llvm-version }}-${{ matrix.opt-level }}-${{ hashFiles('bootstrap.sh') }}
-      - name: "Mark bootstrap compiler as modified so that it is not rebuilt"
-        run: if [ -f jou_bootstrap ]; then touch jou_bootstrap; fi
+      - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
+        run: touch -c jou_bootstrap
       - run: sudo apt update
       - run: sudo apt install -y llvm-${{ matrix.llvm-version }}-dev clang-${{ matrix.llvm-version }} make valgrind
       - name: "Select LLVM version"
