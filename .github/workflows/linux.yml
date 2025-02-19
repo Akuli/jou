@@ -14,9 +14,9 @@ jobs:
         with:
           fetch-depth: 0  # Fetch the whole Git history
       - run: sudo apt update
-      - run: sudo apt install -y llvm-16-dev clang-16 make
+      - run: sudo apt install -y llvm-19-dev clang-19 make
       - name: "Select LLVM version"
-        run: echo "LLVM_CONFIG=llvm-config-16" >> $GITHUB_ENV
+        run: echo "LLVM_CONFIG=llvm-config-19" >> $GITHUB_ENV
       - run: ./bootstrap.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -29,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        # Testing all levels because there was a bug that only happened with -O1. (#224)
+        # Please keep in sync with valgrind.yml
         params:
           - { llvm-version: 14, opt-level: '-O0' }
           - { llvm-version: 14, opt-level: '-O1' }
@@ -64,21 +66,4 @@ jobs:
       # We also have a separate, "full" valgrind run. See valgrind.yml.
       - name: "Run hello world with valgrind"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" --valgrind hello
-
-  doctest:
-    needs: bootstrap
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: bootstrapped
-      - run: chmod +x jou_bootstrap
-      - run: sudo apt update
-      - run: sudo apt install -y llvm-{14,15,16}-dev clang-{14,15,16} make
-      - run: LLVM_CONFIG=llvm-config-14 ./doctest.sh
-      - run: mv jou_bootstrap x; make clean; mv x jou_bootstrap
-      - run: LLVM_CONFIG=llvm-config-15 ./doctest.sh
-      - run: mv jou_bootstrap x; make clean; mv x jou_bootstrap
-      - run: LLVM_CONFIG=llvm-config-16 ./doctest.sh
+      - run: ./doctest.sh
