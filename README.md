@@ -191,7 +191,7 @@ shortcomings.
 
 1. Install the dependencies:
     ```
-    # pkgin install bash clang git gmake libLLVM
+    # pkgin install bash clang git gmake
     ```
     Optionally `diffutils` can be installed for coloured diff outputs.
 2. Download and compile Jou.

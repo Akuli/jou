@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # The Jou compiler is written in Jou, but it doesn't help you very much if you
 # have nothing that can compile or run Jou code. That's why this script exists.
@@ -87,7 +87,7 @@ for i in $(seq 1 ${#commits[@]}); do
 
     folder=$(folder_of_commit $i)
     rm -rf $folder
-    mkdir -vp $folder
+    mkdir -p $folder
 
     # This seems to be the best way to checkout a commit into a folder.
     git archive --format=tar $commit | (cd $folder && tar xf -)

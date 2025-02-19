@@ -1,6 +1,6 @@
 # Linux has llvm-config-xx in PATH, where xx is version number
 # On macos, brew installs LLVM to a weird place in /usr/local/
-# On NetBSD, use llvm-config from libLLVM (package from pkgsrc)
+# On NetBSD, llvm-config is unversioned.
 LLVM_CONFIG ?= $(shell \
 	which llvm-config-19 \
 	|| which /usr/local/opt/llvm@19/bin/llvm-config \
@@ -20,7 +20,7 @@ LLVM_CONFIG ?= $(shell \
 	|| which llvm-config-14 \
 	|| which /usr/local/opt/llvm@14/bin/llvm-config \
 	|| which /opt/homebrew/opt/llvm@14/bin/llvm-config \
-	|| which /usr/pkg/libexec/libLLVM/llvm-config \
+	|| which llvm-config \
 	)
 
 all: jou
