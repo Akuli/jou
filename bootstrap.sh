@@ -33,7 +33,7 @@ for commit in ${commits[@]}; do
     fi
 done
 
-if [ -z "$LLVM_CONFIG" ]; then
+if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
     echo "Jou commits may use different LLVM versions, and it gets confusing."
     echo ""
