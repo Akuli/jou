@@ -108,7 +108,9 @@ for i in $(seq 1 ${#commits[@]}); do
             sed -i"" -e '/static void optimize/,/^}/d' bootstrap_compiler/main.c
 
             # Add new optimize function
-            sed -i"" -e '1i static void optimize(void *module, int level) { (void)module; (void)level; }' bootstrap_compiler/main.c
+            sed -i"" -e '1i\
+static void optimize(void *module, int level) { (void)module; (void)level; }
+' bootstrap_compiler/main.c
         fi
 
         if [ $i -le 7 ]; then
