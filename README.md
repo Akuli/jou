@@ -88,7 +88,7 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 1. Install the dependencies:
     ```
-    $ sudo apt install git llvm-16-dev clang-16 make
+    $ sudo apt install git llvm-19-dev clang-19 make
     ```
     Let me know if you use a distro that doesn't have `apt`,
     and you need help with this step.
@@ -123,6 +123,9 @@ These LLVM/clang versions are supported:
 - LLVM 14 with clang 14
 - LLVM 15 with clang 15
 - LLVM 16 with clang 16
+- LLVM 17 with clang 17
+- LLVM 18 with clang 18
+- LLVM 19 with clang 19
 
 By default, the `make` command picks the latest available version.
 You can also specify the version manually by setting the `LLVM_CONFIG` variable:
@@ -137,7 +140,7 @@ $ LLVM_CONFIG=llvm-config-14 make
 
 <details> <summary>MacOS</summary>
 
-MacOS support is new. Please create an issue if something doesn't work.
+MacOS support is somewhat new. Please create an issue if something doesn't work.
 
 1. Install Git, make and LLVM 15.
     If you do software development on MacOS, you probably already have Git and make,
@@ -146,6 +149,13 @@ MacOS support is new. Please create an issue if something doesn't work.
     ```
     $ brew install llvm@15
     ```
+    Instead of LLVM 15, you can also use any other supported LLVM version:
+    - `llvm@14`
+    - `llvm@15`
+    - `llvm@16`
+    - `llvm@17`
+    - `llvm@18`
+    - `llvm@19`
 2. Download and compile Jou.
     ```
     $ git clone https://github.com/Akuli/jou
@@ -181,7 +191,7 @@ shortcomings.
 
 1. Install the dependencies:
     ```
-    # pkgin install bash clang git gmake libLLVM
+    # pkgin install bash clang git gmake
     ```
     Optionally `diffutils` can be installed for coloured diff outputs.
 2. Download and compile Jou.

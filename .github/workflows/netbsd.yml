@@ -10,12 +10,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      # TODO: disabled for now because freezes with no output for some reason.
-      # Started happening in #562, so it has something to do with self-hosted compiler.
-      #
+        with:
+          fetch-depth: 0  # Fetch the whole Git history
       # TODO: don't use an action for this? could we instead install qemu from apt and call it?
-      - if: false
-        uses: cross-platform-actions/action@v0.26.0
+      - uses: cross-platform-actions/action@v0.26.0
         env:
           PKG_PATH: 'https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/amd64/10.0/All'
         with:
@@ -23,11 +21,10 @@ jobs:
           version: '10.0'
           environment_variables: PKG_PATH
           run: |
-            sudo pkgin -y install clang libLLVM gmake diffutils && \
+            sudo pkgin -y install clang gmake diffutils git && \
             gmake && \
-            ./runtests.sh --verbose --stage1 && \
-            ./runtests.sh --verbose --stage2 && \
             ./runtests.sh --verbose && \
-            ./runtests.sh --verbose --jou-flags "--verbose" && \
+            mv jou jou_bootstrap && gmake && \
+            ./runtests.sh --verbose && \
             gmake clean && \
             ./doctest.sh

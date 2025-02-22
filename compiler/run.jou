@@ -10,10 +10,6 @@ if not WINDOWS:
     import "../config.jou"
 
 
-# TODO: declare this in stdlib
-declare asprintf(dest: byte**, pattern: byte*, ...) -> int
-
-
 def determine_linker_flags(from_link_statements_in_jou_files: byte*) -> byte*:
     from_command_line = command_line_args.linker_flags
     if from_command_line == NULL:
@@ -74,16 +70,16 @@ def run_linker(objpaths: byte**, exepath: byte*, link_flags: byte*) -> None:
 
 @public
 def run_exe(exepath: byte*, valgrind: bool) -> int:
-    command = malloc(strlen(exepath) + 1000)
+    command: byte*
     if WINDOWS:
-        sprintf(command, "\"%s\"", exepath)
+        asprintf(&command, "\"%s\"", exepath)
         while strstr(command, "/") != NULL:
             *strstr(command, "/") = '\\'
     else:
         if valgrind:
-            sprintf(command, "valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 '%s'", exepath)
+            asprintf(&command, "valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 '%s'", exepath)
         else:
-            sprintf(command, "'%s'", exepath)
+            asprintf(&command, "'%s'", exepath)
 
     # Make sure that everything else shows up before the user's prints.
     fflush(stdout)

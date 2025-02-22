@@ -210,26 +210,20 @@ class Parser:
 
         self->eat_newline()
 
+        path: byte*
         if starts_with(path_token->long_string, "stdlib/"):
             # Starts with stdlib --> import from where stdlib actually is
-            tmp = NULL
-            part1 = self->stdlib_path
-            part2 = &path_token->long_string[7]
+            asprintf(&path, "%s/%s", self->stdlib_path, &path_token->long_string[7])
         elif starts_with(path_token->long_string, "."):
             # Relative to directory where the file is
             tmp = strdup(path_token->location.path)
-            part1 = dirname(tmp)
-            part2 = path_token->long_string
+            asprintf(&path, "%s/%s", dirname(tmp), path_token->long_string)
+            free(tmp)
         else:
             fail(
                 path_token->location,
                 "import path must start with 'stdlib/' (standard-library import) or a dot (relative import)"
             )
-
-        # 1 for slash, 1 for \0, 1 for fun
-        path = malloc(strlen(part1) + strlen(part2) + 3)
-        sprintf(path, "%s/%s", part1, part2)
-        free(tmp)
 
         simplify_path(path)
         return AstImport{

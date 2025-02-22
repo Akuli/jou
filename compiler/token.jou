@@ -139,8 +139,8 @@ class Token:
             case TokenKind.EndOfFile:
                 got = "end of file"
 
-        message: byte* = malloc(strlen(what_was_expected_instead) + 500)
-        sprintf(message, "expected %s, got %s", what_was_expected_instead, got)
+        message: byte*
+        asprintf(&message, "expected %s, got %s", what_was_expected_instead, got)
         fail(self->location, message)
 
 

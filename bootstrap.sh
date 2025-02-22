@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # The Jou compiler is written in Jou, but it doesn't help you very much if you
 # have nothing that can compile or run Jou code. That's why this script exists.
@@ -33,6 +33,14 @@ for commit in ${commits[@]}; do
     fi
 done
 
+if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
+    echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
+    echo "Jou commits may use different LLVM versions, and it gets confusing."
+    echo ""
+    echo "The easiest way to set LLVM_CONFIG is to run this script with 'make'."
+    exit 1
+fi
+
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate
     make="mingw32-make"
@@ -51,43 +59,88 @@ function show_message {
 
 function folder_of_commit {
     local i=$1
-    local commit=${commits[$i]}
-    echo tmp/bootstrap_cache/$(printf '%03d' $((i+1)))_$commit
+    local commit=${commits[i-1]}
+    echo tmp/bootstrap_cache/$(printf '%03d' $i)_$commit
 }
 
-# Figure out how far back in history we need to go
-cached_idx=$((${#commits[@]} - 1))
-while [ $cached_idx != -1 ]; do
-    folder=$(folder_of_commit $cached_idx)
+# Figure out how far back in history we need to go.
+# 0 means full rebuild, 1 means skip first commit, 2 means skip two commits etc.
+skip_count=${#commits[@]}
+while [ $skip_count != 0 ]; do
+    folder=$(folder_of_commit $skip_count)
     if [ -f $folder/jou$exe_suffix ]; then
-        show_message "Using cached executable for commit $((cached_idx+1))/${#commits[@]}"
+        show_message "Using cached executable for commit $skip_count/${#commits[@]}"
         echo "Delete $folder if you want to build it again."
         break
     else
-        ((cached_idx--)) || true
+        ((skip_count--)) || true
     fi
 done
 
-for i in ${!commits[@]}; do
-    if [ $i -le $cached_idx ]; then
+for i in $(seq 1 ${#commits[@]}); do
+    if [ $i -le $skip_count ]; then
         continue
     fi
 
-    commit=${commits[$i]}
-    show_message "Checking out and compiling commit ${commit:0:10} ($((i+1))/${#commits[@]})"
+    commit=${commits[i-1]}
+    show_message "Checking out and compiling commit ${commit:0:10} ($i/${#commits[@]})"
 
     folder=$(folder_of_commit $i)
     rm -rf $folder
-    mkdir -vp $folder
+    mkdir -p $folder
 
     # This seems to be the best way to checkout a commit into a folder.
     git archive --format=tar $commit | (cd $folder && tar xf -)
+
+    (
+        cd $folder
+
+        if [ $i == 1 ]; then
+            echo "Patching C code..."
+            # Delete optimizations from C code. They cause linker errors with new LLVM versions.
+            # Passing in -O0 doesn't help, because the optimizing code would still be linked.
+            # See https://blog.llvm.org/posts/2021-03-26-the-new-pass-manager/
+
+            # Delete old include
+            sed -i"" -e '/#include .*PassManagerBuilder.h/d' bootstrap_compiler/main.c
+
+            # Delete old optimize function
+            sed -i"" -e '/static void optimize/,/^}/d' bootstrap_compiler/main.c
+
+            # Add new optimize function
+            sed -i"" -e '1i\
+static void optimize(void *module, int level) { (void)module; (void)level; }
+' bootstrap_compiler/main.c
+        fi
+
+        if [ $i -le 7 ]; then
+            echo "Deleting version check..."
+            # Delete version checks to support bootstrapping on newer LLVM versions
+            sed -i"" -e "/Found unsupported LLVM version/d" Makefile.*
+
+            echo "Patching Jou code..."
+            # Delete function calls we no longer need
+            sed -i"" -e /LLVMCreatePassManager/d compiler/main.jou
+            sed -i"" -e /LLVMDisposePassManager/d compiler/main.jou
+            sed -i"" -e /LLVMPassManagerBuilderSetOptLevel/d compiler/main.jou
+            sed -i"" -e /LLVMRunPassManager/d compiler/main.jou
+
+            # Old code creates and destroys LLVMPassManagerBuilder just like new code
+            # creates and destroys LLVMPassBuilderOptions.
+            sed -i"" -e s/LLVMPassManagerBuilderCreate/LLVMCreatePassBuilderOptions/g compiler/*.jou
+            sed -i"" -e s/LLVMPassManagerBuilderDispose/LLVMDisposePassBuilderOptions/g compiler/*.jou
+
+            # Change the function that does the optimizing: LLVMPassManagerBuilderPopulateModulePassManager --> LLVMRunPasses
+            sed -i"" -e s/'LLVMPassManagerBuilderPopulateModulePassManager.*'/'LLVMRunPasses(module, "default<O1>", target.target_machine, pmbuilder)'/g compiler/main.jou
+            sed -i"" -e s/'declare LLVMPassManagerBuilderPopulateModulePassManager.*'/'declare LLVMRunPasses(a:void*, b:void*, c:void*, d:void*) -> void*'/g compiler/llvm.jou
+        fi
+    )
 
     if [[ "$OS" =~ Windows ]]; then
         cp -r libs mingw64 $folder
     fi
 
-    if [[ "$OS" =~ "Windows" ]] && [ $i == 0 ]; then
+    if [[ "$OS" =~ "Windows" ]] && [ $i == 1 ]; then
         # The compiler written in C needed LLVM headers, and getting them on
         # Windows turned out to be more difficult than expected, so I included
         # them in the repository as a zip file.
@@ -95,7 +148,7 @@ for i in ${!commits[@]}; do
         (cd $folder && unzip -q llvm_headers.zip)
     fi
 
-    if [ $i != 0 ]; then
+    if [ $i != 1 ]; then
         cp $(folder_of_commit $((i-1)))/jou$exe_suffix $folder/jou_bootstrap$exe_suffix
         # Convince make that jou_bootstrap(.exe) is usable as is, and does
         # not need to be recompiled. We don't want bootstrap inside bootstrap.
@@ -106,6 +159,6 @@ for i in ${!commits[@]}; do
 done
 
 show_message "Copying the bootstrapped executable"
-cp -v $(folder_of_commit $((${#commits[@]} - 1)))/jou$exe_suffix ./jou_bootstrap$exe_suffix
+cp -v $(folder_of_commit ${#commits[@]})/jou$exe_suffix ./jou_bootstrap$exe_suffix
 
 show_message "Done!"
