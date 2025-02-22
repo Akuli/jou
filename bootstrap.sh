@@ -109,8 +109,7 @@ for i in $(seq 1 ${#commits[@]}); do
 
             # Add new optimize function
             sed -i -e '1i\
-static void optimize(void *module, int level) { (void)module; (void)level; }
-' bootstrap_compiler/main.c
+static void optimize(void *module, int level) { (void)module; (void)level; }'$'\n' bootstrap_compiler/main.c
         fi
 
         if [ $i -le 7 ]; then
