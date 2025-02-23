@@ -1,8 +1,6 @@
-# This test is skipped if not running on linux.
+# This file intentionally doesn't define how to link lzma.
 
 import "stdlib/io.jou"
-
-link "/usr/lib/x86_64-linux-gnu/liblzma.a"
 
 class lzma_stream:
     next_in: byte*
@@ -19,11 +17,12 @@ declare lzma_stream_decoder(strm: lzma_stream*, memlimit: long, flags: int) -> i
 declare lzma_code(stream: lzma_stream*, action: int) -> int
 declare lzma_end(stream: lzma_stream*) -> None
 
-def main() -> int:
+@public
+def simple_lzma_decode(filename: byte*) -> byte[100]:
     input: byte[100]
     output: byte[100] = ""
 
-    f = fopen("tests/data/hellohellohello.xz", "rb")
+    f = fopen(filename, "rb")
     assert f != NULL
     input_size = fread(input, 1, sizeof(input), f)
     fclose(f)
@@ -37,6 +36,4 @@ def main() -> int:
     lzma_code(&stream, 3)  # 3 = LZMA_FINISH
     lzma_end(&stream)
 
-    puts(output)  # Output: hellohellohello
-
-    return 0
+    return output
