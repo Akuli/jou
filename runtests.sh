@@ -191,6 +191,11 @@ function should_skip()
         return 0
     fi
 
+    # If not on linux, skip test that uses hard-coded linux library path
+    if [[ $joufile =~ link_with_liblzma.jou$ ]] && [ "${OS:=$(uname)}" != "Linux" ]; then
+        return 0
+    fi
+
     return 1  # false, don't skip
 }
 
