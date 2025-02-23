@@ -77,7 +77,9 @@ jobs:
           path: |
             jou_bootstrap.exe
             libs/*.a
-          key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
+          # We hash compiler/llvm.jou because windows_setup.sh uses it to determine
+          # which .a files it needs to generate.
+          key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh', 'compiler/llvm.jou') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap.exe
       # TODO: figure out why --small doesn't work here

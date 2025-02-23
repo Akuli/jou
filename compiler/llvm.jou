@@ -1,3 +1,22 @@
+if WINDOWS:
+    # A simple "grep -r LLVMCreatePassManager" reveals that only libLLVMCore.dll
+    # contains the functions we need, so windows_setup.sh generates libLLVMCore.a
+    # from libLLVMCore.dll. I found other files here similarly.
+    link "libs/libLLVMCore.a"
+    link "libs/libLLVMX86CodeGen.a"
+    link "libs/libLLVMAnalysis.a"
+    link "libs/libLLVMTarget.a"
+    link "libs/libLLVMPasses.a"
+    link "libs/libLLVMSupport.a"
+    link "libs/libLLVMLinker.a"
+    link "libs/libLTO.a"
+    link "libs/libLLVMX86AsmParser.a"
+    link "libs/libLLVMX86Info.a"
+    link "libs/libLLVMX86Desc.a"
+else:
+    # Linker commands are defined in config.jou, which is auto-generated.
+    pass
+
 @public
 class LLVMModule:
     pass
