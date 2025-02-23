@@ -10,17 +10,6 @@ if not WINDOWS:
     import "../config.jou"
 
 
-def determine_linker_flags(from_link_statements_in_jou_files: byte*) -> byte*:
-    from_command_line = command_line_args.linker_flags
-    if from_command_line == NULL:
-        from_command_line = ""
-
-    # TODO: don't hard-code -lm
-    result: byte*
-    asprintf(&result, "%s %s -lm", from_link_statements_in_jou_files, from_command_line)
-    return result
-
-
 def quote_paths(paths: byte**) -> byte*:
     size = 10L
     for i = 0; paths[i] != NULL; i++:
@@ -38,27 +27,25 @@ def quote_paths(paths: byte**) -> byte*:
 
 
 @public
-def run_linker(objpaths: byte**, exepath: byte*, link_flags: byte*) -> None:
+def run_linker(objpaths: byte**, exepath: byte*, linker_flags: byte*) -> None:
     jou_exe = find_current_executable()
     instdir = dirname(jou_exe)
 
     quoted_object_files = quote_paths(objpaths)
-    all_linker_flags = determine_linker_flags(link_flags)
 
     command: byte*
     if WINDOWS:
         # Assume mingw with clang has been downloaded with windows_setup.sh.
         # Could also use clang, but gcc has less dependencies so we can make the Windows zips smaller.
         # Windows quoting is weird. The outermost quotes get stripped here.
-        asprintf(&command, "\"\"%s\\mingw64\\bin\\gcc.exe\" %s -o \"%s\" %s\"", instdir, quoted_object_files, exepath, all_linker_flags)
+        asprintf(&command, "\"\"%s\\mingw64\\bin\\gcc.exe\" %s -o \"%s\" %s\"", instdir, quoted_object_files, exepath, linker_flags)
     else:
         # Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
         # instdir is not used in this case.
-        asprintf(&command, "'%s' %s -o '%s' %s", get_jou_clang_path(), quoted_object_files, exepath, all_linker_flags)
+        asprintf(&command, "'%s' %s -o '%s' %s", get_jou_clang_path(), quoted_object_files, exepath, linker_flags)
 
     free(quoted_object_files)
     free(jou_exe)
-    free(all_linker_flags)
 
     if command_line_args.verbosity >= 1:
         printf("Running linker: %s\n", command)
