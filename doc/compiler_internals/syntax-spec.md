@@ -75,6 +75,7 @@ Jou has a few different kinds of tokens:
 
 - **Keyword tokens** are any of the following:
     - `import`
+    - `link`
     - `def`
     - `declare`
     - `class`

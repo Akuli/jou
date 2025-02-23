@@ -231,6 +231,26 @@ class Parser:
             resolved_path = path,
         }
 
+    def parse_link(self) -> AstLink:
+        self->check_top_level("'link' statement")
+
+        assert self->tokens->is_keyword("link")
+        self->tokens++
+
+        flags_token = self->tokens++
+        if flags_token->kind != TokenKind.String:
+            flags_token->fail_expected_got("a string of linker flags after the 'link' keyword")
+
+        self->eat_newline()
+
+        # TODO: replace "./" and "../" with actual folder paths
+        resolved_flags = strdup(flags_token->long_string)
+
+        return AstLink{
+            specified_flags = strdup(flags_token->long_string),
+            resolved_flags = resolved_flags,
+        }
+
     def parse_type(self) -> AstType:
         if not (
             self->tokens->kind == TokenKind.Name
@@ -1060,6 +1080,12 @@ class Parser:
                 location = self->tokens->location,
                 kind = AstStatementKind.Import,
                 import_statement = self->parse_import(),
+            }
+        elif self->tokens->is_keyword("link"):
+            result = AstStatement{
+                location = self->tokens->location,
+                kind = AstStatementKind.Link,
+                link_statement = self->parse_link(),
             }
         elif self->tokens->is_keyword("def"):
             match self->what_are_we_parsing:

@@ -1,0 +1,39 @@
+# This file intentionally doesn't define how to link lzma.
+
+import "stdlib/io.jou"
+
+class lzma_stream:
+    next_in: byte*
+    avail_in: long
+    total_in: long
+
+    next_out: byte*
+    avail_out: long
+    total_out: long
+
+    dummy: byte[1000]  # should be big enough, currently the whole struct 136 bytes on my system
+
+declare lzma_stream_decoder(strm: lzma_stream*, memlimit: long, flags: int) -> int
+declare lzma_code(stream: lzma_stream*, action: int) -> int
+declare lzma_end(stream: lzma_stream*) -> None
+
+@public
+def simple_lzma_decode(filename: byte*) -> byte[100]:
+    input: byte[100]
+    output: byte[100] = ""
+
+    f = fopen(filename, "rb")
+    assert f != NULL
+    input_size = fread(input, 1, sizeof(input), f)
+    fclose(f)
+
+    stream = lzma_stream{}
+    lzma_stream_decoder(&stream, -1 as long, 0)
+    stream.next_in = input
+    stream.avail_in = input_size
+    stream.next_out = output
+    stream.avail_out = sizeof(output) - 1
+    lzma_code(&stream, 3)  # 3 = LZMA_FINISH
+    lzma_end(&stream)
+
+    return output

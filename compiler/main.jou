@@ -58,7 +58,7 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
                 importsym->kind == ExportSymbolKind.Type
                 and strcmp(importsym->name, stmt->enumdef.name) == 0
             )
-        case AstStatementKind.Import | AstStatementKind.Pass:
+        case AstStatementKind.Import | AstStatementKind.Link | AstStatementKind.Pass:
             return False
         case _:
             printf("%d\n", stmt->kind as int)
@@ -393,6 +393,38 @@ def parse_only(path: byte*, stdlib_path: byte*) -> None:
     free_tokens(tokens)
 
 
+# Linker flags come from:
+#   - files with 'link' statements
+#   - command-line --linker-flags argument
+def collect_linker_flags(files: FileState*, nfiles: int) -> byte*:
+    maxlen = 0L
+    maxlen += strlen("-lm") + 1  # TODO: delete this
+    if command_line_args.linker_flags != NULL:
+        maxlen += strlen(command_line_args.linker_flags) + 1
+    for file = files; file < &files[nfiles]; file++:
+        body = &file->ast.body
+        for stmt = body->statements; stmt < &body->statements[body->nstatements]; stmt++:
+            if stmt->kind == AstStatementKind.Link:
+                maxlen += strlen(stmt->link_statement.resolved_flags) + 1
+
+    result: byte* = malloc(maxlen + 1)
+    assert result != NULL
+    strcpy(result, "")
+
+    strcat(result, "-lm ")  # TODO: delete this
+    if command_line_args.linker_flags != NULL:
+        strcat(result, command_line_args.linker_flags)
+        strcat(result, " ")
+    for file = files; file < &files[nfiles]; file++:
+        body = &file->ast.body
+        for stmt = body->statements; stmt < &body->statements[body->nstatements]; stmt++:
+            if stmt->kind == AstStatementKind.Link:
+                strcat(result, stmt->link_statement.resolved_flags)
+                strcat(result, " ")
+
+    return result
+
+
 def main(argc: int, argv: byte**) -> int:
     init_target()
     init_types()
@@ -443,11 +475,14 @@ def main(argc: int, argv: byte**) -> int:
     if not defines_main(&mainfile->ast):
         fail(Location{path=mainfile->path}, "missing `main` function to execute the program")
 
+    linker_flags = collect_linker_flags(compst.files, compst.nfiles)
+
     compst.free()
     free(stdlib)
 
     exepath = decide_exe_path()
-    run_linker(objpaths, exepath)
+    run_linker(objpaths, exepath, linker_flags)
+    free(linker_flags)
 
     for i = 0; objpaths[i] != NULL; i++:
         free(objpaths[i])

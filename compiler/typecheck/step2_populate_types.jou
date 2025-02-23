@@ -223,7 +223,7 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
                     exports[nexports++] = es
             case AstStatementKind.Class:
                 handle_class_members(&ast->types, &stmt->classdef)
-            case AstStatementKind.Enum:
+            case AstStatementKind.Enum | AstStatementKind.Link:
                 pass  # Everything done in previous type-checking steps.
             case _:
                 assert False

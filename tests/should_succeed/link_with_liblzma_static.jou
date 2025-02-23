@@ -1,0 +1,10 @@
+import "stdlib/io.jou"
+import "./imported/simple_lzma_decode.jou"
+
+# "pkg-config --variable=libdir liblzma" prints /usr/lib/x86_64-linux-gnu on a typical linux system
+link "`pkg-config --variable=libdir liblzma`/liblzma.a"
+
+def main() -> int:
+    result = simple_lzma_decode("tests/data/hellohellohello.xz")
+    puts(result)  # Output: hellohellohello
+    return 0
