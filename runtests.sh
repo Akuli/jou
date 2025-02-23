@@ -227,6 +227,11 @@ function run_test()
         command="$command $joufile"
     fi
 
+    if [[ $joufile =~ link_with_liblzma_relative_path ]]; then
+        # This test passes a relative path to the "link" keyword and expects to find liblzma.a with it
+        command="cp '$(pkg-config --variable=libdir liblzma)/liblzma.a' tmp/tests/ && $command"
+    fi
+
     show_run "$command"
 
     local diffpath
@@ -254,7 +259,7 @@ function run_test()
 counter=0
 skipped=0
 
-for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou tests/should_succeed/double_dotdot_import/*/*.jou; do
+for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou tests/should_succeed/double_dotdot_import/*/*.jou compiler/paths.jou; do
     if ! [[ $joufile == *"$file_filter"* ]]; then
         # Skip silently, without showing that this is skipped.
         # This produces less noisy output when you select only a few tests.
@@ -262,7 +267,7 @@ for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou tests/s
     fi
 
     case $joufile in
-        examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
+        examples/* | tests/should_succeed/* | compiler/*) correct_exit_code=0; ;;
         *) correct_exit_code=1; ;;  # compiler or runtime error
     esac
     counter=$((counter + 1))
