@@ -694,7 +694,17 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
     return t
 
 
-def cast_array_members_to_a_common_type(fom: FunctionOrMethodTypes*, error_location: Location, array: AstArray) -> Type*:
+def cast_array_members_to_a_common_type(
+    fom: FunctionOrMethodTypes*,
+    error_location: Location,
+    array: AstArray,
+    item_type_hint: Type*,
+) -> Type*:
+    if item_type_hint != NULL:
+        for i = 0; i < array.length; i++:
+            do_implicit_cast(fom, &array.items[i], item_type_hint, error_location, "array items should be of type <to>, not <from>")
+        return item_type_hint
+
     # Avoid O(ntypes^2) code in a long array where all or almost all items have the same type.
     # This is at most O(ntypes*k) where k is the number of distinct types.
     distinct: Type** = NULL
@@ -885,7 +895,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             n = expr->array.length
             for i = 0; i < n; i++:
                 typecheck_expression_not_void(state, &expr->array.items[i], item_type_hint)
-            membertype = cast_array_members_to_a_common_type(state->fom_types, expr->location, expr->array)
+            membertype = cast_array_members_to_a_common_type(state->fom_types, expr->location, expr->array, item_type_hint)
             result = membertype->array_type(n)
 
         case AstExpressionKind.GetClassField:

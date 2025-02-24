@@ -1,0 +1,23 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def check_nulls(arr: byte**) -> None:
+    if arr[0] == NULL and arr[1] == NULL and arr[2] == NULL:
+        printf("ok\n")
+    else:
+        printf("Not all nulls!!!\n")
+
+
+def main() -> int:
+    # Many ways to create array of NULLs
+    nulls1 = [NULL as byte*, NULL as byte*, NULL as byte*]
+    nulls2: byte*[3]
+    memset(nulls2, 0, sizeof(nulls2))
+    nulls3: byte*[3] = [NULL, NULL, NULL]
+
+    check_nulls(nulls1)  # Output: ok
+    check_nulls(nulls2)  # Output: ok
+    check_nulls(nulls3)  # Output: ok
+
+    return 0
