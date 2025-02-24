@@ -295,7 +295,7 @@ def handle_relative_paths_in_linker_flags(flags: byte*, jou_file_path: byte*) ->
             continue
 
         # If we have "../" do nothing when we see the "./" part
-        if p > result and p[-1] == '.':
+        if p > result and starts_with(&p[-1], "../"):
             continue
 
         # If we have multiple "../" wait until we get to the first one

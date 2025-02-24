@@ -243,7 +243,6 @@ class Parser:
 
         self->eat_newline()
 
-        # TODO: replace "./" and "../" with actual folder paths
         resolved_flags = handle_relative_paths_in_linker_flags(flags_token->long_string, flags_token->location.path)
 
         return AstLink{
