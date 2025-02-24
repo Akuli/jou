@@ -227,6 +227,11 @@ function run_test()
         command="$command $joufile"
     fi
 
+    if [[ $joufile =~ link_with_liblzma_relative_path ]]; then
+        # This test passes a relative path to the "link" keyword and expects to find liblzma.a with it
+        command="cp '$(pkg-config --variable=libdir liblzma)/liblzma.a' tmp/tests/ && $command"
+    fi
+
     show_run "$command"
 
     local diffpath

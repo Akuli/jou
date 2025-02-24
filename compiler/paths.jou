@@ -1,3 +1,4 @@
+import "stdlib/ascii.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
@@ -241,3 +242,78 @@ def simplify_path(path: byte*) -> None:
     # Delete unnecessary ".." components.
     while simplify_dotdot_once(path):
         pass
+
+
+# Insert substring to string, assuming it fits.
+def insert(string: byte*, substring: byte*) -> None:
+    sublen = strlen(substring)
+    memmove(&string[sublen], string, strlen(string) + 1)
+    memcpy(string, substring, sublen)
+
+
+# Rewrites linker flags passed to `link` statements in Jou files so that the
+# paths are correct regardless of current working directory.
+#
+# Examples where the given Jou file is "/home/akuli/folder/file.jou":
+#
+#   "-L./foo/"  --> "'-L/home/akuli/folder/./foo/'"
+#   "-L../foo/"  --> "'-L/home/akuli/folder/../foo/'"
+#   "-L../../foo/"  --> "'-L/home/akuli/folder/../../foo/'"
+#
+# The extra quotes are needed when we are compiling in a folder whose name
+# contains spaces.
+@public
+def handle_relative_paths_in_linker_flags(flags: byte*, jou_file_path: byte*) -> byte*:
+    jou_file_path2 = strdup(jou_file_path)
+    folder = dirname(jou_file_path2)  # may modify jou_file_path2
+
+    if WINDOWS:
+        quote = "\""
+    else:
+        quote = "'"
+
+    # Allocate enough memory even for the following worst case scenario:
+    #   - flags is full of "./", so "./" occurs strlen(flags)/2 times (note floor division)
+    #   - for each "./" we add the folder, "/", and a pair of quotes
+    #   - add '\0' to terminate the string
+    result: byte* = malloc(strlen(flags) + (strlen(flags)/2)*(strlen(folder) + 3) + 1)
+    assert result != NULL
+    strcpy(result, flags)
+
+    quoting = False
+
+    for p = &result[strlen(result) - 1]; p >= result; p--:
+        if is_ascii_whitespace(*p) and quoting:
+            # add quote before whatever thing we added that needs quoting
+            insert(&p[1], quote)
+            quoting = False
+
+        if not starts_with(p, "./") and not starts_with(p, "../"):
+            continue
+
+        # If we have "../" do nothing when we see the "./" part
+        if p > result and starts_with(&p[-1], "../"):
+            continue
+
+        # If we have multiple "../" wait until we get to the first one
+        if &p[-3] >= result and starts_with(&p[-3], "../"):
+            continue
+
+        if not quoting:
+            # add quote after
+            q = p
+            while *q != '\0' and not is_ascii_whitespace(*q):
+                q++
+            insert(q, quote)
+            quoting = True
+
+        insert(p, "/")
+        insert(p, folder)  # goes in front of the "/"
+
+    if quoting:
+        insert(result, quote)
+
+    free(jou_file_path2)  # no longer need the folder
+
+    # We may have allocated much more memory than needed for result, shrink it to the right size
+    return realloc(result, strlen(result) + 1)
