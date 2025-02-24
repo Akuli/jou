@@ -178,7 +178,7 @@ jobs:
         run: source activate && ./runtests.sh --verbose
         shell: bash
       - name: "Compile the compiler with itself"
-        run: source activate && mv jou.exe jou_bootstrap.exe && mingw32-make
+        run: source activate && ./jou -o jou2 compiler/main.jou && mv jou2.exe jou.exe
         shell: bash
       - name: "Compile and test again"
         run: source activate && ./runtests.sh --verbose

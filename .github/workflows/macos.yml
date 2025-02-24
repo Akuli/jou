@@ -66,7 +66,7 @@ jobs:
       - name: "Compile and test"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
       - name: "Compile the compiler with itself"
-        run: mv jou jou_bootstrap && make
+        run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
       - name: "Compile and test again"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
       - run: ./doctest.sh

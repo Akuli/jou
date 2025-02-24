@@ -86,6 +86,7 @@ fi
 # There are also a few other files that I found similarly.
 mkdir -vp libs
 echo "Generating .a files (this can take a while)"
+# Please keep in sync with compiler/llvm.jou
 for name in \
         libLLVMCore libLLVMX86CodeGen libLLVMAnalysis libLLVMTarget \
         libLLVMPasses libLLVMSupport libLLVMLinker libLTO libLLVMX86AsmParser \
