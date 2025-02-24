@@ -144,10 +144,6 @@ function post_process_output()
         # Hide most of the output. We really only care about whether it
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
-    elif [[ "$OS" =~ NetBSD ]] && [[ "$joufile" =~ compiler_unit_tests ]]; then
-        # Silence linker warning
-        # TODO: this is a hack
-        grep -vE "compiler_unit_tests/paths.o: in function \`find_stdlib':|warning: warning: reference to compatibility stat"
     else
         # Pass the output through unchanged.
         cat
