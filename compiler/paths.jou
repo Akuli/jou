@@ -21,8 +21,6 @@ else:
 @public
 declare dirname(path: byte*) -> byte*
 
-declare stat(path: byte*, buf: byte[1000]*) -> int  # lol
-
 
 @public
 def find_current_executable() -> byte*:
@@ -77,16 +75,15 @@ def find_stdlib() -> byte*:
             # give up, seems like we reached root of file system (e.g. "C:/" or "/")
             break
 
-        path: byte*
+        path, iojou: byte*
         asprintf(&path, "%s/stdlib", exedir)
-
-        iojou: byte*
         asprintf(&iojou, "%s/io.jou", path)
-        buf: byte[1000]
-        stat_result = stat(iojou, &buf)
+
+        f = fopen(iojou, "r")
         free(iojou)
 
-        if stat_result == 0:
+        if f != NULL:
+            fclose(f)
             for k = 0; k < i; k++:
                 free(checked[k])
             free(exedir)
