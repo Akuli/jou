@@ -1,0 +1,49 @@
+# I don't like unit tests for various reasons, but they're great when some part
+# of the code is really hard to get right.
+
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "../../compiler/paths.jou"
+
+
+if WINDOWS:
+    def replace(s: byte*, old: byte, new: byte) -> None:
+        for i = 0; s[i] != '\0'; i++:
+            if s[i] == old:
+                s[i] = new
+
+
+def test_link_statement_path_rewriting() -> None:
+    # Output: '-L/home/akuli/my folder/./foo/' '-L/home/akuli/my folder/../foo/' '-L/home/akuli/my folder/../../foo/'
+    s = handle_relative_paths_in_linker_flags("-L./foo/ -L../foo/ -L../../foo/", "/home/akuli/my folder/file.jou")
+    if WINDOWS:
+        replace(s, '"', '\'')  # not possible to do platform-specific output for Jou tests yet
+    puts(s)
+    free(s)
+
+    # Output: '/my folder/./'
+    s = handle_relative_paths_in_linker_flags("./", "/my folder/file.jou")
+    if WINDOWS:
+        replace(s, '"', '\'')  # not possible to do platform-specific output for Jou tests yet
+    puts(s)
+    free(s)
+
+    # Quotes are always added, even if they are unnecessary. This might change later.
+    # Output: '/myfolder/./'
+    s = handle_relative_paths_in_linker_flags("./", "/myfolder/file.jou")
+    if WINDOWS:
+        replace(s, '"', '\'')  # not possible to do platform-specific output for Jou tests yet
+    puts(s)
+    free(s)
+
+    # Output: /this/is/absolute/path
+    s = handle_relative_paths_in_linker_flags("/this/is/absolute/path", "/folder/file.jou")
+    if WINDOWS:
+        replace(s, '"', '\'')  # not possible to do platform-specific output for Jou tests yet
+    puts(s)
+    free(s)
+
+
+def main() -> int:
+    test_link_statement_path_rewriting()
+    return 0
