@@ -24,7 +24,7 @@ commits=(
     2b33658b17239c68c84b034c33c2a7c145da43dd  # bidirectional type inference for arrays of strings
     adad3da193f8bb5473c3d63602997ab70a3571cb  # @public can be applied to classes, enums and global variables
     2c2e8efa3be20fb63727d96731b92ec515b872db  # "pass" in class, "if False" at compile time
-    b3000bdb7108b55523a6a36f2fc08d1d86526859  # the "link" keyword
+    d8c1f36e92812185a999f87a1fadc7e9eae78bd0  # the "link" keyword
 )
 
 for commit in ${commits[@]}; do
