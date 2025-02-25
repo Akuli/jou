@@ -84,3 +84,37 @@ The size of a `bool` is one byte,
 because byte is the smallest unit that computers like to work with.
 This doesn't matter as much as you might think, but as usual,
 please create an issue if this becomes a problem for you.
+
+
+# Casts
+
+Jou has two kinds of casts:
+- **Implicit casts** are done basically whenever a value must be of a specific type.
+    For example, you can pass an `int` to a function that expects a `long` argument,
+    because function arguments are cast implicitly.
+- **Explicit casts** are done with the `as` keyword, e.g. `0 as byte`.
+
+The allowed implicit casts are:
+- Array to pointer: `T[N]` (where `T` is a type and `N` is an integer) casts implicitly to `T*` or `void*`
+- Integer to integer: [Integer type](types.md#integers) `T1` casts implicitly to another integer type `T2`
+    if the size of `T1` is smaller than the size of `T2`,
+    and this is not a "signed → unsigned" cast.
+    For example, `byte` casts implicitly to `int` (8-bit unsigned → 32-bit signed),
+    and `int` casts implicitly to `long` (32-bit signed → 64-bit signed).
+- `float` casts implicitly to `double`.
+- Any integer type (signed or unsigned) casts implicitly to `float` or `double`.
+- Any pointer type casts implicitly to `void*`, and `void*` casts implicitly to any pointer type.
+
+Explicit casts are:
+- Array to pointer: `T[N]` (where `T` is a type and `N` is an integer) casts to `T*` or `void*`.
+    Note that `array_of_ints as long*` is a compiler error.
+- Any pointer type casts to any other pointer type. This includes `void*` pointers.
+- Any number type casts to any other number type.
+- Any integer type casts to any enum.
+- Any enum casts to any integer type.
+- `bool` casts to any integer type and produces zero or one.
+    For example, `True as int` is `1`.
+    However, integers cannot be cast to `bool`.
+    Use an explicit `foo == 1`, `foo != 0`, `foo > 0` or `match foo: ...` depending on what you need.
+- Any pointer type casts to `long`. (This gives the memory address as an integer.)
+- `long` casts to any pointer type.

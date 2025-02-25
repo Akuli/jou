@@ -229,11 +229,7 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
 
 
 def can_cast_implicitly(from: Type*, to: Type*) -> bool:
-    # TODO: document these properly. But they are:
-    #   array to pointer, e.g. int[3] --> int* (needs special-casing elsewhere)
-    #   from one integer type to another bigger integer type, unless it is signed-->unsigned
-    #   between two pointer types when one of the two is void*
-    #   from float to double (TODO)
+    # Please keep doc/types.md up to date if you modify this
     return (
         from == to
         or (from->kind == TypeKind.Array and to->kind == TypeKind.Pointer and from->array.item_type == to->value_type)
@@ -251,6 +247,7 @@ def can_cast_implicitly(from: Type*, to: Type*) -> bool:
 
 
 def can_cast_explicitly(from: Type*, to: Type*) -> bool:
+    # Please keep doc/types.md up to date if you modify this
     return (
         from == to
         or (from->kind == TypeKind.Array and to->kind == TypeKind.Pointer and from->array.item_type == to->value_type)
