@@ -23,7 +23,7 @@ LLVM_CONFIG ?= $(shell \
 	|| which llvm-config \
 	)
 
-all: jou
+all: jou joupkg
 
 config.jou: Makefile.posix
 	@v=`$(LLVM_CONFIG) --version`; case "$$v" in 14.*|15.*|16.*|17.*|18.*|19.*) ;; *) echo "Error: Found unsupported LLVM version $$v. Only LLVM 14,15,16,17,18,19 are supported."; exit 1; esac
@@ -38,6 +38,9 @@ jou_bootstrap: bootstrap.sh
 
 jou: jou_bootstrap config.jou $(wildcard compiler/*.jou compiler/*/*.jou)
 	rm -rf compiler/jou_compiled && ./jou_bootstrap -o jou compiler/main.jou
+
+joupkg: jou $(wildcard package_manager/*.jou package_manager/*/*.jou)
+	./jou -o joupkg package_manager/main.jou
 
 # Does not delete tmp/bootstrap_cache because bootstrapping is slow.
 .PHONY: clean

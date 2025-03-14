@@ -1,10 +1,13 @@
-all: jou.exe
+all: jou.exe joupkg.exe
 
 jou_bootstrap.exe: bootstrap.sh
 	bash ./bootstrap.sh
 
 jou.exe: jou_bootstrap.exe $(wildcard compiler/*.jou compiler/*/*.jou)
 	rm -rf compiler/jou_compiled && ./jou_bootstrap.exe -o jou.exe --linker-flags "$(wildcard libs/lib*.a)" compiler/main.jou
+
+joupkg.exe: jou.exe $(wildcard package_manager/*.jou package_manager/*/*.jou)
+	./jou.exe -o joupkg.exe package_manager/main.jou
 
 # Does not delete tmp/bootstrap_cache because bootstrapping is slow.
 .PHONY: clean
