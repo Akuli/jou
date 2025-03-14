@@ -1,6 +1,6 @@
-import "./errors_and_warnings.jou"
-
-# TODO: Windows support
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
 
 if WINDOWS:
     declare _mkdir(path: byte*) -> int
@@ -10,6 +10,7 @@ else:
     declare chdir(path: byte*) -> int
 
 
+@public
 def my_mkdir(path: byte*) -> int:
     if WINDOWS:
         return _mkdir(path)
@@ -24,32 +25,37 @@ def my_chdir(path: byte*) -> int:
         return chdir(path)
 
 
-# Goes to the "jou_libs" folder. Finds it from current directory or a parent.
+# If joupkg is ran from a subfolder within a project, change to project root
+# folder. Basically, this makes joupkg less nit-picky about what directory to
+# run it in.
+#
+# Project root folder is detected based on whether it contains joupkg.toml.
+# When running "joupkg install" in a fresh project, joupkg.toml doesn't exist
+# yet. In that case we don't change directory at all.
+#
+# Detecting existence of ".git" or "README.md" or similar would be bad, because
+# you may want to have a Jou project as a folder inside a larger repository.
 @public
-def cd_jou_libs(create_if_not_found: bool) -> None:
-    # If joupkg is ran from a subdirectory, it "just works" unless the subfolder
-    # is unreasonably deep.
-    paths = [
-        "./jou_libs",
-        "../jou_libs",
-        "../../jou_libs",
-        "../../../jou_libs",
-        "../../../../jou_libs",
-        "../../../../../jou_libs",
-        "../../../../../../jou_libs",
-        "../../../../../../../jou_libs",
-        "../../../../../../../../jou_libs",
-        "../../../../../../../../../jou_libs",
+def cd_to_project_root() -> None:
+    folders = [
+        ".",
+        "..",
+        "../..",
+        "../../..",
+        "../../../..",
+        "../../../../..",
+        "../../../../../..",
+        "../../../../../../..",
+        "../../../../../../../..",
+        "../../../../../../../../..",
     ]
-    for i = 0; i < sizeof(paths)/sizeof(paths[0]); i++:
-        if my_chdir(paths[i]) == 0:
-            return
+    for i = 0; i < sizeof(folders)/sizeof(folders[0]); i++:
+        joupkg_toml_path: byte*
+        asprintf(&joupkg_toml_path, "%s/joupkg.toml", folders[i])
+        f = fopen(joupkg_toml_path, "r")
+        free(joupkg_toml_path)
 
-    if not create_if_not_found:
-        my_mkdir("jou_libs")
-        if my_chdir("jou_libs") != 0:
-            # TODO: test this
-            fail("failed to create ./jou_libs directory")
-    else:
-        # TODO: test this
-        fail("cannot find jou_libs directory, seems like no packages are installed")
+        if f != NULL:
+            fclose(f)
+            my_chdir(folders[i])
+            return

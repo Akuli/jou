@@ -1,14 +1,28 @@
+import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 import "stdlib/str.jou"
 
 import "./globals.jou"
-import "./paths.jou"
+import "./joupkg_toml.jou"
+
+
+# TODO: how to delete on windows
+if not WINDOWS:
+    declare unlink(path: byte*) -> int
+
+
+def the_branch() -> byte*:
+    # TODO: use main branch
+    return "joupkg"
 
 
 def print_usage() -> None:
     printf("Usage:\n")
-    printf("  %s install foo    Install from https://github.com/Akuli/jou/tree/main/packages\n", joupkg_program_name)
+    printf(
+        "  %s install foo    Install from https://github.com/Akuli/jou/tree/%s/packages\n",
+        joupkg_program_name, the_branch(),
+    )
 
 
 def print_help() -> None:
@@ -18,15 +32,28 @@ def print_help() -> None:
     puts("    Download and install packages/foo from Jou's GitHub repository. This is")
     puts("    recommended for libraries that have an \"official\" Jou package. See the")
     puts("    following folder on GitHub for a list of such packages:")
-    puts("    https://github.com/Akuli/jou/tree/main/packages")
+    printf("    https://github.com/Akuli/jou/tree/%s/packages\n", the_branch())
     # TODO: support more different ways to specify what to install
     exit(1)
 
 
+def get_tag_of_latest_jou_release() -> byte[100]:
+    # TODO: this is bad!!! doesn't work on windows and creates unnecessary file
+    system("curl -s https://api.github.com/repos/Akuli/jou/releases/latest | jq -r .tag_name > joupkg_install_temp.txt")
+    f = fopen("joupkg_install_temp.txt", "r")
+    assert f != NULL
+    result: byte[100] = ""
+    fgets(result, sizeof(result) as int, f)
+    fclose(f)
+    unlink("joupkg_install_temp.txt")
+
+    trim_ascii_whitespace(result)
+    assert strlen(result) > 0
+    return result
+
+
 @public
 def joupkg_install(args: byte**, nargs: int) -> None:
-    printf("install: joupkg_program_name = %s\n", joupkg_program_name)
-
     if nargs == 1 and strcmp(args[0], "--help") == 0:
         print_help()
         exit(0)
@@ -36,10 +63,17 @@ def joupkg_install(args: byte**, nargs: int) -> None:
         exit(2)
 
     package_name = args[0]
-    if strspn(package_name, "abcdefghijklmnopqrstuvwxyz") != strlen(package_name):
+    if strlen(package_name) > 30 or strspn(package_name, "abcdefghijklmnopqrstuvwxyz") != strlen(package_name):
         fprintf(stderr, "%s: invalid package name '%s'\n", joupkg_program_name, package_name)
         exit(1)
 
-    cd_jou_libs(True)
+    package = Package{
+        git_url = "https://github.com/Akuli/jou",
+        git_tag = get_tag_of_latest_jou_release(),
+    }
+    snprintf(package.path, sizeof(package.path), "jou_libs/%s", package_name)
+    snprintf(package.subfolder, sizeof(package.subfolder), "packages/%s", package_name)
+
     printf("Installing... Hurr Durr...\n")
     system("pwd")
+    package.print(stdout)

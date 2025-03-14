@@ -1,0 +1,22 @@
+# This file manages reading and writing joupkg.toml.
+
+import "stdlib/io.jou"
+
+
+@public
+class Package:
+    # If not otherwise mentioned, all fields are always set and never NULL/empty or similar.
+    path: byte[200]         # starts with "jou_libs/"
+    git_url: byte[200]      # suitable for "git clone"
+    git_tag: byte[100]      # Git tag in the git repo, specifies version of library
+    subfolder: byte[200]    # relative path inside the git repo
+    #folder_hash: byte[65]   # SHA-256 hash of folder contents
+
+    # Use package.print(stdout) to debug, package.print(f) to write to joupkg.toml opened as f
+    def print(self, f: FILE*) -> None:
+        fprintf(f, "\n")
+        # TODO: escape the strings properly
+        fprintf(f, "[\"%s\"]\n", self->path)
+        fprintf(f, "git_url = \"%s\"\n", self->git_url)
+        fprintf(f, "git_tag = \"%s\"\n", self->git_tag)
+        fprintf(f, "subfolder = \"%s\"\n", self->subfolder)
