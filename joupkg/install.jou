@@ -1,0 +1,45 @@
+import "stdlib/io.jou"
+import "stdlib/process.jou"
+import "stdlib/str.jou"
+
+import "./globals.jou"
+import "./paths.jou"
+
+
+def print_usage() -> None:
+    printf("Usage:\n")
+    printf("  %s install foo    Install from https://github.com/Akuli/jou/tree/main/packages\n", joupkg_program_name)
+
+
+def print_help() -> None:
+    puts("Usage:")
+    puts("")
+    printf("  %s install foo\n", joupkg_program_name)
+    puts("    Download and install packages/foo from Jou's GitHub repository. This is")
+    puts("    recommended for libraries that have an \"official\" Jou package. See the")
+    puts("    following folder on GitHub for a list of such packages:")
+    puts("    https://github.com/Akuli/jou/tree/main/packages")
+    # TODO: support more different ways to specify what to install
+    exit(1)
+
+
+@public
+def joupkg_install(args: byte**, nargs: int) -> None:
+    printf("install: joupkg_program_name = %s\n", joupkg_program_name)
+
+    if nargs == 1 and strcmp(args[0], "--help") == 0:
+        print_help()
+        exit(0)
+
+    if nargs != 1 or starts_with(args[0], "-"):
+        print_usage()
+        exit(2)
+
+    package_name = args[0]
+    if strspn(package_name, "abcdefghijklmnopqrstuvwxyz") != strlen(package_name):
+        fprintf(stderr, "%s: invalid package name '%s'\n", joupkg_program_name, package_name)
+        exit(1)
+
+    cd_jou_libs(True)
+    printf("Installing... Hurr Durr...\n")
+    system("pwd")

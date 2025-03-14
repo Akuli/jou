@@ -1,0 +1,22 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+import "./install.jou"
+import "./globals.jou"
+
+
+def main(argc: int, argv: byte**) -> int:
+    if ends_with(argv[0], "/joupkg") or ends_with(argv[0], "\\joupkg.exe"):
+        printf("ya\n")
+        joupkg_program_name = "joupkg"
+    else:
+        joupkg_program_name = argv[0]
+
+    if argc >= 2 and strcmp(argv[1], "install") == 0:
+        joupkg_install(&argv[2], argc - 2)
+    else:
+        fprintf(stderr, "Usage:\n")
+        fprintf(stderr, "  joupkg install foo       Install a package to ./libs/\n")
+        return 2
+
+    return 0

@@ -1,0 +1,47 @@
+import "./errors_and_warnings.jou"
+
+# TODO: Windows support
+declare chdir(path: byte*) -> int
+
+if WINDOWS:
+    declare _mkdir(path: byte*) -> int
+else:
+    declare mkdir(path: byte*, mode: int) -> int  # posix
+
+
+def my_mkdir(path: byte*) -> int:
+    if WINDOWS:
+        return _mkdir(path)
+    else:
+        return mkdir(path, 0o777)  # this is what mkdir in bash does according to strace
+
+
+# Goes to the "jou_libs" folder. Finds it from current directory or a parent.
+@public
+def cd_jou_libs(create_if_not_found: bool) -> None:
+    # If joupkg is ran from a subdirectory, it "just works" unless the subfolder
+    # is unreasonably deep.
+    paths = [
+        "./jou_libs",
+        "../jou_libs",
+        "../../jou_libs",
+        "../../../jou_libs",
+        "../../../../jou_libs",
+        "../../../../../jou_libs",
+        "../../../../../../jou_libs",
+        "../../../../../../../jou_libs",
+        "../../../../../../../../jou_libs",
+        "../../../../../../../../../jou_libs",
+    ]
+    for i = 0; i < sizeof(paths)/sizeof(paths[0]); i++:
+        if chdir(paths[i]) == 0:
+            return
+
+    if not create_if_not_found:
+        my_mkdir("jou_libs")
+        if chdir("jou_libs") != 0:
+            # TODO: test this
+            fail("failed to create ./jou_libs directory")
+    else:
+        # TODO: test this
+        fail("cannot find jou_libs directory, seems like no packages are installed")

@@ -1,0 +1,22 @@
+import "stdlib/process.jou"
+import "stdlib/io.jou"
+
+
+# When stdout is redirected to same place as stderr,
+# make sure that normal printf()s show up before our warning.
+def flush_streams() -> None:
+    fflush(stdout)
+    fflush(stderr)
+
+
+@public
+def show_warning(message: byte*) -> None:
+    flush_streams()
+    fprintf(stderr, "joupkg warning: %s\n", message)
+
+
+@public
+def fail(message: byte*) -> noreturn:
+    flush_streams()
+    fprintf(stderr, "joupkg error: %s\n", message)
+    exit(1)
