@@ -1,12 +1,13 @@
 import "./errors_and_warnings.jou"
 
 # TODO: Windows support
-declare chdir(path: byte*) -> int
 
 if WINDOWS:
     declare _mkdir(path: byte*) -> int
+    declare _chdir(path: byte*) -> int
 else:
-    declare mkdir(path: byte*, mode: int) -> int  # posix
+    declare mkdir(path: byte*, mode: int) -> int
+    declare chdir(path: byte*) -> int
 
 
 def my_mkdir(path: byte*) -> int:
@@ -14,6 +15,13 @@ def my_mkdir(path: byte*) -> int:
         return _mkdir(path)
     else:
         return mkdir(path, 0o777)  # this is what mkdir in bash does according to strace
+
+
+def my_chdir(path: byte*) -> int:
+    if WINDOWS:
+        return _chdir(path)
+    else:
+        return chdir(path)
 
 
 # Goes to the "jou_libs" folder. Finds it from current directory or a parent.
@@ -34,12 +42,12 @@ def cd_jou_libs(create_if_not_found: bool) -> None:
         "../../../../../../../../../jou_libs",
     ]
     for i = 0; i < sizeof(paths)/sizeof(paths[0]); i++:
-        if chdir(paths[i]) == 0:
+        if my_chdir(paths[i]) == 0:
             return
 
     if not create_if_not_found:
         my_mkdir("jou_libs")
-        if chdir("jou_libs") != 0:
+        if my_chdir("jou_libs") != 0:
             # TODO: test this
             fail("failed to create ./jou_libs directory")
     else:
