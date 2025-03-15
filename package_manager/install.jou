@@ -1,9 +1,12 @@
 import "stdlib/ascii.jou"
 import "stdlib/io.jou"
+import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/str.jou"
 
 import "./globals.jou"
+import "./paths.jou"
+import "./errors_and_warnings.jou"
 import "./joupkg_toml.jou"
 
 
@@ -12,27 +15,94 @@ if not WINDOWS:
     declare unlink(path: byte*) -> int
 
 
-def the_branch() -> byte*:
-    # TODO: use main branch
-    return "joupkg"
+# Extract user and repo from "https://github.com/user/repo"
+# Strings stored to user and repo, if any, are always shorter than the url.
+def parse_simple_github_url(url: byte*, user: byte*, repo: byte*) -> bool:
+    memset(user, 0, strlen(url) + 1)
+    memset(repo, 0, strlen(url) + 1)
+
+    prefix = "https://github.com/"
+    if not starts_with(url, prefix):
+        return False
+    url = &url[strlen(prefix)]
+
+    while is_ascii_letter(*url) or is_ascii_digit(*url) or *url == '-' or *url == '_' or *url == '.':
+        *user++ = *url++
+    if *url++ != '/':
+        return False
+    while is_ascii_letter(*url) or is_ascii_digit(*url) or *url == '-' or *url == '_' or *url == '.':
+        *repo++ = *url++
+    if *url == '/':
+        url++
+
+    return (
+        *url == '\0'  # Reject "https://github.com/user/repo/extra_junk_at_end"
+        and user[0] != '\0'
+        and repo[0] != '\0'
+    )
+
+
+def download_git_repo(clone_url: byte*, tag: byte*, dest_folder: byte*) -> None:
+    allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_:/."
+    msg: byte[500]
+
+    if strspn(clone_url, allowed) != strlen(clone_url):
+        snprintf(msg, sizeof(msg), "unsupported Git URL: %s", clone_url)
+        fail(msg)
+
+    # TODO: proper quoting so we don't need to do this
+    if strspn(dest_folder, allowed) != strlen(dest_folder):
+        snprintf(msg, sizeof(msg), "refusing to clone to folder %s", dest_folder)
+        fail(msg)
+
+    user: byte[500]
+    repo: byte[500]
+    if strlen(clone_url) < sizeof(user) and parse_simple_github_url(clone_url, user, repo):
+        # TODO: download zip file from github so people don't need to have git installed.
+        # Can also be faster...
+        pass
+
+    git_command: byte*
+    # --branch is misleadingly named, it can actually take a Git tag instead of a branch
+    asprintf(&git_command, "git clone -q --depth 1 --branch \"%s\" -- \"%s\" \"%s\"", tag, clone_url, dest_folder)
+
+    old = 
+
+    if system(git_command) != 0:
+        snprintf(msg, sizeof(msg), "running Git command failed: %s", git_command)
+        fail(msg)
+    free(git_command)
+
+
+def download_package(pkg: Package*) -> None:
+    assert starts_with(pkg->path, "jou_libs/")
+    my_mkdir("jou_libs")
+    if my_mkdir(pkg->path) != 0:
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "failed to create directory %s\n", pkg->path)
+        fail(msg)
+
+    temp_folder: byte[300]
+    snprintf(temp_folder, sizeof(temp_folder), "%s/temp", pkg->path)
+    download_git_repo(pkg->git_url, pkg->git_tag, temp_folder)
+    printf("Wrrr. Durrr.... see %s\n", temp_folder)
 
 
 def print_usage() -> None:
     printf("Usage:\n")
     printf(
-        "  %s install foo    Install from https://github.com/Akuli/jou/tree/%s/packages\n",
-        joupkg_program_name, the_branch(),
+        "  %s install foo    Install from https://github.com/Akuli/jou/tree/main/packages\n",
+        joupkg_program_name
     )
 
 
 def print_help() -> None:
-    puts("Usage:")
-    puts("")
+    printf("Usage:\n\n")
     printf("  %s install foo\n", joupkg_program_name)
-    puts("    Download and install packages/foo from Jou's GitHub repository. This is")
-    puts("    recommended for libraries that have an \"official\" Jou package. See the")
-    puts("    following folder on GitHub for a list of such packages:")
-    printf("    https://github.com/Akuli/jou/tree/%s/packages\n", the_branch())
+    printf("    Download and install packages/foo from Jou's GitHub repository. This is\n")
+    printf("    recommended for libraries that have an \"official\" Jou package. See the\n")
+    printf("    following folder on GitHub for a list of such packages:\n")
+    printf("    https://github.com/Akuli/jou/tree/main/packages")
     # TODO: support more different ways to specify what to install
     exit(1)
 
@@ -67,13 +137,15 @@ def joupkg_install(args: byte**, nargs: int) -> None:
         fprintf(stderr, "%s: invalid package name '%s'\n", joupkg_program_name, package_name)
         exit(1)
 
-    package = Package{
+    pkg = Package{
         git_url = "https://github.com/Akuli/jou",
         git_tag = get_tag_of_latest_jou_release(),
     }
-    snprintf(package.path, sizeof(package.path), "jou_libs/%s", package_name)
-    snprintf(package.subfolder, sizeof(package.subfolder), "packages/%s", package_name)
+    snprintf(pkg.path, sizeof(pkg.path), "jou_libs/%s", package_name)
+    snprintf(pkg.subfolder, sizeof(pkg.subfolder), "packages/%s", package_name)
 
     printf("Installing... Hurr Durr...\n")
     system("pwd")
-    package.print(stdout)
+    pkg.print(stdout)
+
+    download_package(&pkg)
