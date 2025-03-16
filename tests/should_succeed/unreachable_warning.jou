@@ -34,6 +34,20 @@ def noreturn_function_called() -> None:
     x = 1  # Warning: this code will never run
     y = 2
 
+class Aborter:
+    def abort_the_process(self) -> noreturn:
+        abort()
+        x = 1  # Warning: this code will never run
+        y = 2
+
+# There was a bug where noreturn functions worked but methods didn't
+@public  # cannot be called in tests, silences unused function warning
+def noreturn_method_called() -> None:
+    a = Aborter{}
+    a.abort_the_process()
+    x = 1  # Warning: this code will never run
+    y = 2
+
 # https://github.com/Akuli/jou/issues/18
 def lots_of_unreachable_code() -> None:
     return

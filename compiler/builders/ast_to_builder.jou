@@ -93,6 +93,7 @@ class AstToBuilder:
             # it is a method call, pass self as first argument
             want_pointer = call->called_signature->argtypes[0]->is_pointer_type()
             got_pointer = call->uses_arrow_operator
+
             if want_pointer and not got_pointer:
                 args[k++] = self->build_address_of_expression(call->method_call_self)
             elif got_pointer and not want_pointer:
