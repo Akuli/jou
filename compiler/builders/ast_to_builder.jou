@@ -21,6 +21,11 @@ class Loop:
     on_continue: EitherBuilderBlock
 
 
+class InliningInfo:
+    return_jumps_to: EitherBuilderBlock
+    return_value_ptr: EitherBuilderValue
+
+
 class AstToBuilder:
     builder: EitherBuilder*
     locals: LocalVar*
@@ -29,6 +34,9 @@ class AstToBuilder:
     nloops: int
 
     location: Location
+
+    # If not NULL, this builder is used to handle calling an @inline function
+    inlining_info: InliningInfo*
 
     # Returns old location. Use it to restore the location when you're done.
     def set_location(self, location: Location) -> Location:
@@ -69,6 +77,31 @@ class AstToBuilder:
             self->builder->call(&jou_startup_sig, NULL, 0)
 
         self->set_location(old)
+
+    # Handles the beginning of calling an @inline function. That's always done
+    # in a new builder, so that we don't accidentally access local variables
+    # of the calling function.
+    def begin_inlining(self, types: FunctionOrMethodTypes*, info: InliningInfo, args: EitherBuilderValue*, nargs: int) -> None:
+        # First n local variables are the arguments
+        assert types->signature.nargs >= 0
+        assert types->signature.nargs <= types->nlocals
+
+        # Must pass correct number of values for parameters of inlined function
+        assert nargs == types->signature.nargs
+
+        if types->nlocals > self->nlocals:
+            self->locals = realloc(self->locals, sizeof(self->locals[0]) * types->nlocals)
+            assert self->locals != NULL
+        self->nlocals = types->nlocals
+
+        for i = 0; i < types->nlocals; i++:
+            var_name = types->locals[i].name
+            var_type = types->locals[i].type
+            var_ptr = self->builder->stack_alloc(var_type, var_name)
+            self->locals[i] = LocalVar{name = var_name, ptr = var_ptr}
+            if i < nargs:
+                # First n local variables are the function arguments
+                self->builder->set_ptr(var_ptr, args[i])
 
     def local_var_exists(self, name: byte*) -> bool:
         for i = 0; i < self->nlocals; i++:
@@ -294,6 +327,7 @@ class AstToBuilder:
                 elif self->local_var_exists(expr->varname):
                     return self->builder->dereference(self->local_var_ptr(expr->varname))
                 else:
+                    assert self->inlining_info == NULL
                     return self->builder->dereference(self->builder->global_var_ptr(expr->varname, expr->types.orig_type))
             case AstExpressionKind.Indexing:
                 # ptr[foo] can always be evaluated as &ptr[foo], because ptr is already a pointer.
@@ -396,6 +430,7 @@ class AstToBuilder:
                 if self->local_var_exists(expr->varname):
                     result = self->local_var_ptr(expr->varname)
                 else:
+                    assert self->inlining_info == NULL
                     result = self->builder->global_var_ptr(expr->varname, expr->types.orig_type)
             case AstExpressionKind.Indexing:
                 # &ptr[index] = ptr + memory offset

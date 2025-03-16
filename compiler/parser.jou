@@ -166,7 +166,7 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
                     fail(location, "the main() function cannot be @inline")
                 stmt->function.inline = True
             case AstStatementKind.MethodDef:
-                assert False   # TODO: add support
+                stmt->method.inline = True
             case _:
                 # TODO: test this
                 fail(location, "the @inline decorator cannot be used here")

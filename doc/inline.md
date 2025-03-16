@@ -27,14 +27,43 @@ def main() -> int:
 
 In other words, when the program runs, there will be no function call.
 An `@inline` function is basically a way to tell the compiler to copy/paste code.
+However, `@inline` isn't literally copy/pasting.
+For example, you don't need to worry about conflicting variable names:
+
+```python
+import "stdlib/io.jou"
+
+@inline
+def increment(x: int) -> int:
+    x += 1
+    return x
+
+def main() -> int:
+    x = 1
+    y = 2
+    z = increment(y)  # Does not do anything with x, does not change y
+    printf("%d %d %d\n", x, y, z)  # Output: 1 2 3
+    return 0
+```
 
 Unlike many other languages, Jou always inlines calls to `@inline` functions,
 even if [optimizations](perf.md) are turned off with `-O0`.
+
+Functions and methods marked with `@inline` cannot access global variables.
+It would be possible to implement this in the compiler.
+Please create an issue on GitHub if you need this.
+To work around this, you could also create a non-`@inline` function
+to access the global variable and call it.
 
 
 ## When to use `@inline`
 
 The `@inline` decorator is useful for small and performance critical functions.
+Usually inlining a long function is a bad idea.
+That causes the compiler to copy/paste a lot of code,
+which means that the compiled executable will be bigger.
+Also, it probably won't be noticably faster with `@inline`.
+
 For example, if you do game programming,
 you might have a function that adds two 3D vectors, represented as `float[3]` arrays
 (or perhaps with [a class](classes.md)):
@@ -81,7 +110,3 @@ def main() -> int:
     return 0
 ```
 
-Usually inlining a long function is a bad idea.
-That causes the compiler to copy/paste a lot of code,
-which means that the compiled executable will be bigger.
-Also, it probably won't be noticably faster with `@inline`.
