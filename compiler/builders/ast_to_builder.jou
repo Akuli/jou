@@ -84,14 +84,26 @@ class AstToBuilder:
                 return self->locals[i].ptr
         assert False
 
-    def build_function_call(self, call: AstCall*) -> EitherBuilderValue:
-        assert call->method_call_self == NULL
-
-        assert call->nargs <= 100
+    def build_call(self, call: AstCall*) -> EitherBuilderValue:
+        assert call->nargs <= 99  # leave room for self
         args: EitherBuilderValue[100]
+        k = 0
+
+        if call->method_call_self != NULL:
+            # it is a method call, pass self as first argument
+            want_pointer = call->called_signature->argtypes[0]->is_pointer_type()
+            got_pointer = call->uses_arrow_operator
+            if want_pointer and not got_pointer:
+                args[k++] = self->build_address_of_expression(call->method_call_self)
+            elif got_pointer and not want_pointer:
+                args[k++] = self->builder->dereference(self->build_expression(call->method_call_self))
+            else:
+                args[k++] = self->build_expression(call->method_call_self)
+
         for i = 0; i < call->nargs; i++:
-            args[i] = self->build_expression(&call->args[i])
-        result = self->builder->call(call->called_signature, args, call->nargs)
+            args[k++] = self->build_expression(&call->args[i])
+
+        result = self->builder->call(call->called_signature, args, k)
 
         if call->called_signature->is_noreturn:
             # Code after the function call will not run. Place it to a new block.
@@ -99,30 +111,6 @@ class AstToBuilder:
             self->builder->set_current_block(self->builder->add_block())
 
         return result
-
-    def build_method_call(self, call: AstCall*) -> EitherBuilderValue:
-        assert call->method_call_self != NULL
-
-        # leave room for self
-        assert call->nargs <= 99
-        args: EitherBuilderValue[100]
-
-        k = 0
-
-        want_pointer = call->called_signature->argtypes[0]->is_pointer_type()
-        got_pointer = call->uses_arrow_operator
-
-        if want_pointer and not got_pointer:
-            args[k++] = self->build_address_of_expression(call->method_call_self)
-        elif got_pointer and not want_pointer:
-            args[k++] = self->builder->dereference(self->build_expression(call->method_call_self))
-        else:
-            args[k++] = self->build_expression(call->method_call_self)
-
-        for i = 0; i < call->nargs; i++:
-            args[k++] = self->build_expression(&call->args[i])
-
-        return self->builder->call(call->called_signature, args, k)
 
     def build_binop(self, op: AstExpressionKind, lhs: EitherBuilderValue, rhs: EitherBuilderValue) -> EitherBuilderValue:
         match op:
@@ -293,10 +281,7 @@ class AstToBuilder:
             case AstExpressionKind.Array:
                 return self->build_array(expr->types.orig_type, expr->array.items, expr->array.length)
             case AstExpressionKind.Call:
-                if expr->call.method_call_self == NULL:
-                    return self->build_function_call(&expr->call)
-                else:
-                    return self->build_method_call(&expr->call)
+                return self->build_call(&expr->call)
             case AstExpressionKind.Instantiate:
                 return self->build_instantiation(expr->types.orig_type, &expr->instantiation)
             case AstExpressionKind.Self:

@@ -157,6 +157,20 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
                 stmt->global_var_def.public = True
             case _:
                 fail(location, "the @public decorator cannot be used here")
+
+    elif strcmp(decor, "@inline") == 0:
+        match stmt->kind:
+            case AstStatementKind.FunctionDef:
+                if strcmp(stmt->function.ast_signature.name, "main") == 0:
+                    # TODO: test this
+                    fail(location, "the main() function cannot be @inline")
+                stmt->function.inline = True
+            case AstStatementKind.MethodDef:
+                assert False   # TODO: add support
+            case _:
+                # TODO: test this
+                fail(location, "the @inline decorator cannot be used here")
+
     else:
         msg: byte[200]
         snprintf(msg, sizeof(msg), "there is no decorator named '%s'", decor)
