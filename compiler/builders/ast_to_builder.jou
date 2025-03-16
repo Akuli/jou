@@ -27,7 +27,6 @@ class AstToBuilder:
     nlocals: int
     loops: Loop*
     nloops: int
-    returns_a_value: bool
 
     location: Location
 
@@ -41,31 +40,30 @@ class AstToBuilder:
             self->builder->set_location(location)
         return old
 
-    def begin_function(self, sig: Signature*, location: Location, locals: LocalVariable*, nlocals: int, public: bool) -> None:
+    def begin_function(self, types: FunctionOrMethodTypes*, location: Location, public: bool) -> None:
         old = self->set_location(location)
 
         # First n local variables are the arguments
-        assert sig->nargs >= 0
-        assert sig->nargs <= nlocals
+        assert types->signature.nargs >= 0
+        assert types->signature.nargs <= types->nlocals
 
-        self->builder->begin_function(sig, public)
-        self->returns_a_value = (sig->return_type != NULL)
+        self->builder->begin_function(&types->signature, public)
 
-        if nlocals > self->nlocals:
-            self->locals = realloc(self->locals, sizeof(self->locals[0]) * nlocals)
+        if types->nlocals > self->nlocals:
+            self->locals = realloc(self->locals, sizeof(self->locals[0]) * types->nlocals)
             assert self->locals != NULL
-        self->nlocals = nlocals
+        self->nlocals = types->nlocals
 
-        for i = 0; i < nlocals; i++:
-            var_name = locals[i].name
-            var_type = locals[i].type
+        for i = 0; i < types->nlocals; i++:
+            var_name = types->locals[i].name
+            var_type = types->locals[i].type
             var_ptr = self->builder->stack_alloc(var_type, var_name)
             self->locals[i] = LocalVar{name = var_name, ptr = var_ptr}
-            if i < sig->nargs:
+            if i < types->signature.nargs:
                 # First n local variables are the function arguments
                 self->builder->set_ptr(var_ptr, self->builder->get_argument(i, var_type))
 
-        if (WINDOWS or MACOS or NETBSD) and sig->is_main_function():
+        if (WINDOWS or MACOS or NETBSD) and types->signature.is_main_function():
             # Insert a call to the special startup function into main()
             jou_startup_sig = Signature{name = "_jou_startup"}
             self->builder->call(&jou_startup_sig, NULL, 0)
@@ -619,7 +617,7 @@ def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location,
         or (is_main_file and func_ast->types.signature.is_main_function())
     )
     ast2ir = AstToBuilder{builder = builder}
-    ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals, func_ast->types.nlocals, public)
+    ast2ir.begin_function(&func_ast->types, func_location, public)
     ast2ir.build_body(&func_ast->body)
     builder->end_function()
     free(ast2ir.locals)
