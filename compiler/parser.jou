@@ -6,6 +6,7 @@ import "./token.jou"
 import "./ast.jou"
 import "./errors_and_warnings.jou"
 import "./paths.jou"
+import "./types.jou"
 
 
 # arity = number of operands, e.g. 2 for a binary operator such as "+"
@@ -1257,6 +1258,32 @@ class Parser:
         name = self->tokens->short_string
         self->tokens++
 
+        generics: Type** = NULL
+        ngenerics = 0
+
+        if self->tokens->is_operator("["):
+            self->tokens++
+            while not self->tokens->is_operator("]"):
+                if self->tokens->kind != TokenKind.Name:
+                    # TODO: test this
+                    self->tokens->fail_expected_got("name of a generic type variable")
+                typevar_name = (self->tokens++)->short_string
+
+                generics = realloc(generics, sizeof(generics[0]) * (ngenerics+1))
+                generics[ngenerics++] = create_generic_type_var(typevar_name)
+
+                if not self->tokens->is_operator(","):
+                    break
+                self->tokens++
+
+            if not self->tokens->is_operator("]"):
+                # TODO: test this
+                self->tokens->fail_expected_got("a ']'")
+            if ngenerics == 0:
+                # TODO: test this
+                fail(self->tokens->location, "at least one generic type is needed, e.g. [T] instead of []")
+            self->tokens++
+
         old = self->what_are_we_parsing
         self->what_are_we_parsing = WhatAreWeParsing.ClassBody
         body = self->parse_body()
@@ -1266,7 +1293,12 @@ class Parser:
         assert bodyptr != NULL
         *bodyptr = body
 
-        return AstClassDef{name = name, body = bodyptr}
+        return AstClassDef{
+            name = name,
+            generic_type_vars = generics,
+            n_generic_type_vars = ngenerics,
+            body = bodyptr,
+        }
 
     def parse_union(self) -> AstUnionFields:
         if self->what_are_we_parsing != WhatAreWeParsing.ClassBody:

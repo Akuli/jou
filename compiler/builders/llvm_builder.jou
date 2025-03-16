@@ -97,8 +97,8 @@ def type_to_llvm(type: Type*) -> LLVMType*:
             return LLVMIntType(type->size_in_bits)
         case TypeKind.Bool:
             return LLVMInt1Type()
-        case TypeKind.OpaqueClass:
-            # this is compiler internal/temporary thing and should never end up here
+        case TypeKind.OpaqueClass | TypeKind.GenericTypeVar:
+            # these are compiler internal/temporary things and should never end up here
             assert False
         case TypeKind.Class:
             return class_type_to_llvm(type)

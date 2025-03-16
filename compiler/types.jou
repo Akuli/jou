@@ -35,6 +35,7 @@ enum TypeKind:
     Class
     OpaqueClass  # class with unknown members, used temporarily during type checking
     Enum
+    GenericTypeVar  # the yet-unknown T of "class Foo[T]: ..."
 
 @public
 class Type:
@@ -103,6 +104,8 @@ class Type:
                 return "an array type"
             case TypeKind.Bool:
                 return "the built-in bool type"
+            case TypeKind.GenericTypeVar:
+                return "an unknown generic type"
 
     def find_class_field(self, name: byte*) -> ClassField*:
         if self->kind != TypeKind.Class:
@@ -293,6 +296,18 @@ def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*
         kind = TypeKind.Enum,
         enum_members = EnumType{count=membercount, names=membernames},
     }
+
+    assert strlen(name) < sizeof result->type.name
+    strcpy(result->type.name, name)
+
+    satisfy_valgrind(result)
+    return &result->type
+
+
+@public
+def create_generic_type_var(name: byte*) -> Type*:
+    result: TypeInfo* = calloc(1, sizeof *result)
+    result->type = Type{kind = TypeKind.GenericTypeVar}
 
     assert strlen(name) < sizeof result->type.name
     strcpy(result->type.name, name)
