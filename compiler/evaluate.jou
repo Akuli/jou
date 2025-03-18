@@ -27,12 +27,27 @@ def get_special_constant(name: byte*) -> int:
             return -1
 
 
+# Return values: 1=true 0=false -1=error
+def evaluate_boolean_and_or(expr: AstExpression*, and_or: byte*) -> int:
+    assert strcmp(and_or, "and") == 0 or strcmp(and_or, "or") == 0
+
+    value: Constant
+    if not evaluate_constant_expression(expr, &value):
+        return -1
+
+    if value.kind != ConstantKind.Bool:
+        # Use the same error message as typecheck
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "'%s' only works with bools, not %s", and_or, value.get_type()->name)
+        fail(expr->location, msg)
+
+    return value.boolean as int
+
+
 # Returns False if the expression is not a simple compile-time constant.
 @public
 def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> bool:
     msg: byte[500]
-    lhs: Constant
-    rhs: Constant
 
     match expr->kind:
         case AstExpressionKind.Int:
@@ -52,33 +67,19 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
             return True
 
         case AstExpressionKind.And:
-            if not evaluate_constant_expression(&expr->operands[0], &lhs):
+            lhs = evaluate_boolean_and_or(&expr->operands[0], "and")
+            rhs = evaluate_boolean_and_or(&expr->operands[1], "and")
+            if lhs == -1 or rhs == -1:
                 return False
-            if not evaluate_constant_expression(&expr->operands[1], &rhs):
-                return False
-
-            if lhs.kind != ConstantKind.Bool or rhs.kind != ConstantKind.Bool:
-                # Error message is same as during type checking
-                # TODO: test this
-                snprintf(msg, sizeof(msg), "'and' only works with bools, not %s", lhs.get_type()->name)
-                fail(expr->location, msg)
-
-            *result = Constant{kind = ConstantKind.Bool, boolean = lhs.boolean and rhs.boolean}
+            *result = Constant{kind = ConstantKind.Bool, boolean = (lhs == 1 and rhs == 1)}
             return True
 
         case AstExpressionKind.Or:
-            if not evaluate_constant_expression(&expr->operands[0], &lhs):
+            lhs = evaluate_boolean_and_or(&expr->operands[0], "or")
+            rhs = evaluate_boolean_and_or(&expr->operands[1], "or")
+            if lhs == -1 or rhs == -1:
                 return False
-            if not evaluate_constant_expression(&expr->operands[1], &rhs):
-                return False
-
-            if lhs.kind != ConstantKind.Bool or rhs.kind != ConstantKind.Bool:
-                # Error message is same as during type checking
-                # TODO: test this
-                snprintf(msg, sizeof(msg), "'or' only works with bools, not %s", lhs.get_type()->name)
-                fail(expr->location, msg)
-
-            *result = Constant{kind = ConstantKind.Bool, boolean = lhs.boolean or rhs.boolean}
+            *result = Constant{kind = ConstantKind.Bool, boolean = (lhs == 1 or rhs == 1)}
             return True
 
         case AstExpressionKind.Not:
@@ -99,7 +100,6 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
             return False
 
 
-# 1=true 0=false -1=error
 def evaluate_condition(expr: AstExpression*) -> int:
     result: Constant
     if evaluate_constant_expression(expr, &result) and result.kind == ConstantKind.Bool:
