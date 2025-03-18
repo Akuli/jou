@@ -999,7 +999,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 # Not a constant, proceed with normal variable lookup
                 result = state->find_any_var(expr->varname)
                 if result == NULL:
-                    snprintf(msg, sizeof(msg), "no variable named '%s'", name)
+                    snprintf(msg, sizeof(msg), "no variable named '%s'", expr->varname)
                     fail(expr->location, msg)
 
         case AstExpressionKind.Self:
