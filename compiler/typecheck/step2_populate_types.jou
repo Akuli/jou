@@ -27,7 +27,7 @@ def check_no_global_var_or_const(ft: FileTypes*, location: Location, name: byte*
         snprintf(msg, sizeof(msg), "a global variable named '%s' already exists", name)
         fail(location, msg)
 
-    if ft->find_constant(name) != NULL:
+    if ft->find_constant(name) != NULL or get_special_constant(name) != -1:
         snprintf(msg, sizeof(msg), "a global constant named '%s' already exists", name)
         fail(location, msg)
 
@@ -48,9 +48,8 @@ def handle_const(ft: FileTypes*, location: Location, name: byte*, type: AstType*
 
     expected_type = type_from_ast(ft, type)
 
-    # TODO: allow implicit casts
+    # TODO: allow implicit casts?
     if value.get_type() != expected_type:
-        # TODO: test this
         msg: byte[500]
         snprintf(
             msg, sizeof(msg),

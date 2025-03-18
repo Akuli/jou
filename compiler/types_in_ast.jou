@@ -156,6 +156,7 @@ class FileTypes:
                 return var->type
         return NULL
 
+    # Note: For special constants like "WINDOWS" this returns NULL, be aware!!!
     def find_constant(self, name: byte*) -> Constant*:
         for c = self->constants; c < &self->constants[self->nconstants]; c++:
             if strcmp(c->name, name) == 0:

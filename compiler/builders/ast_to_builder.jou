@@ -324,12 +324,7 @@ class AstToBuilder:
             case AstExpressionKind.Self:
                 return self->builder->dereference(self->local_var_ptr("self"))
             case AstExpressionKind.GetVariable:
-                special = get_special_constant(expr->varname)
-                if special == 0:
-                    return self->builder->boolean(False)
-                elif special == 1:
-                    return self->builder->boolean(True)
-                elif self->local_var_exists(expr->varname):
+                if self->local_var_exists(expr->varname):
                     return self->builder->dereference(self->local_var_ptr(expr->varname))
                 else:
                     return self->builder->dereference(self->builder->global_var_ptr(expr->varname, expr->types.orig_type))

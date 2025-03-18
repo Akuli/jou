@@ -14,6 +14,7 @@ import "stdlib/math.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
+import "../constants.jou"
 import "../errors_and_warnings.jou"
 import "../evaluate.jou"
 import "../types.jou"
@@ -26,23 +27,10 @@ class State:
     fom_types: FunctionOrMethodTypes*
 
     def find_any_var(self, name: byte*) -> Type*:
-        # TODO: do we need to handle special constants here?
-        # There's already code that evaluates at compile time, including special constants (evaluate.jou)
-        if get_special_constant(name) != -1:
-            return boolType
-
         local = self->fom_types->find_local_var(name)
         if local != NULL:
             return local->type
-
-        # TODO: Order shouldn't matter, add tests to ensure you cannot have
-        # constant and global variable with same name
-        constant = self->file_types->find_constant(name)
-        if constant != NULL:
-            return constant->get_type()
-
         return self->file_types->find_global_var(name)
-
 
 
 # Intended for errors. Returned string can be overwritten in next call.
@@ -94,8 +82,6 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
                 return "a method call"
 
         case AstExpressionKind.GetVariable:
-            if get_special_constant(expr->varname) != -1:
-                return "a special constant"
             return "a variable"
 
         case (
@@ -178,14 +164,6 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
 
         ensure_can_take_address(fom, &expr->operands[0], newtemplate)
         free(newtemplate)
-        return
-
-    # You can usually take address of variable, but you can't take address of special
-    # constant (e.g. &WINDOWS)
-    if (
-        expr->kind == AstExpressionKind.GetVariable
-        and get_special_constant(expr->varname) == -1
-    ):
         return
 
     # You can take address of self if it's not passed as a pointer:
@@ -987,11 +965,17 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             ensure_can_take_address(state->fom_types, &expr->operands[0], "the '&' operator cannot be used with %s")
 
         case AstExpressionKind.GetVariable:
-            # Check for constants first
             constant = state->file_types->find_constant(expr->varname)
+
+            # TODO: taking special constants into account is more difficult than it should be
+            sc_val = get_special_constant(expr->varname)
+            sc: Constant
+            if sc_val != -1:
+                sc = Constant{kind = ConstantKind.Bool, boolean = (sc_val == 1)}
+                constant = &sc
+
             if constant != NULL:
                 # Transform the expression into a constant
-                name = expr->varname  # Save the name for error message if needed
                 expr->kind = AstExpressionKind.Constant
                 expr->constant = constant->copy()
                 result = constant->get_type()
