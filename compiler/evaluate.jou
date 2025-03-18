@@ -3,6 +3,8 @@ import "stdlib/mem.jou"
 
 import "./ast.jou"
 import "./errors_and_warnings.jou"
+import "./constants.jou"
+import "./types.jou"
 
 
 @public
@@ -25,44 +27,98 @@ def get_special_constant(name: byte*) -> int:
             return -1
 
 
-def evaluate_condition(expr: AstExpression*) -> int:  # 1=true 0=false -1=error
+@public
+def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> bool:
+    msg: byte[500]
+    left: Constant
+    right: Constant
+
     match expr->kind:
-        case AstExpressionKind.GetVariable:
-            return get_special_constant(expr->varname)
+        case AstExpressionKind.Int:
+            *result = int_constant(intType, expr->int_value)
+            return True
+
         case AstExpressionKind.Bool:
-            return expr->bool_value as int
+            result->kind = ConstantKind.Bool
+            result->boolean = expr->bool_value
+            return True
+
+        case AstExpressionKind.GetVariable:
+            # Handle special constants like WINDOWS, MACOS, etc.
+            val = get_special_constant(expr->varname)
+            if val == -1:
+                return False
+            result->kind = ConstantKind.Bool
+            result->boolean = val != 0
+            return True
+
         case AstExpressionKind.And:
-            match evaluate_condition(&expr->operands[0]):
-                case 1:
-                    return evaluate_condition(&expr->operands[1])
-                case 0:
-                    return 0  # left side false, don't evaluate right side
-                case -1:
-                    return -1
-                case _:
-                    assert False
+            if not evaluate_constant_expression(&expr->operands[0], &left):
+                return False
+            if left.kind != ConstantKind.Bool:
+                fail(expr->location, "left side of 'and' must be a bool")
+            
+            # Short circuit if left is false
+            if not left.boolean:
+                result->kind = ConstantKind.Bool
+                result->boolean = False
+                return True
+
+            if not evaluate_constant_expression(&expr->operands[1], &right):
+                return False
+            if right.kind != ConstantKind.Bool:
+                fail(expr->location, "right side of 'and' must be a bool")
+
+            result->kind = ConstantKind.Bool
+            result->boolean = right.boolean
+            return True
+
         case AstExpressionKind.Or:
-            match evaluate_condition(&expr->operands[0]):
-                case 1:
-                    return 1  # left side true, don't evaluate right side
-                case 0:
-                    return evaluate_condition(&expr->operands[1])
-                case -1:
-                    return -1  # error
-                case _:
-                    assert False
+            if not evaluate_constant_expression(&expr->operands[0], &left):
+                return False
+            if left.kind != ConstantKind.Bool:
+                fail(expr->location, "left side of 'or' must be a bool")
+            
+            # Short circuit if left is true
+            if left.boolean:
+                result->kind = ConstantKind.Bool
+                result->boolean = True
+                return True
+
+            if not evaluate_constant_expression(&expr->operands[1], &right):
+                return False
+            if right.kind != ConstantKind.Bool:
+                fail(expr->location, "right side of 'or' must be a bool")
+
+            result->kind = ConstantKind.Bool
+            result->boolean = right.boolean
+            return True
+
         case AstExpressionKind.Not:
-            match evaluate_condition(&expr->operands[0]):
-                case 1:
-                    return 0
-                case 0:
-                    return 1
-                case -1:
-                    return -1
-                case _:
-                    assert False
+            if not evaluate_constant_expression(&expr->operands[0], &left):
+                return False
+            if left.kind != ConstantKind.Bool:
+                fail(expr->location, "operand of 'not' must be a bool")
+
+            result->kind = ConstantKind.Bool
+            result->boolean = not left.boolean
+            return True
+
         case _:
-            return -1
+            snprintf(msg, sizeof(msg), "expression cannot be evaluated at compile time")
+            fail(expr->location, msg)
+            return False
+
+
+def evaluate_condition(expr: AstExpression*) -> int:  # 1=true 0=false -1=error
+    result: Constant
+    if not evaluate_constant_expression(expr, &result):
+        return -1
+    
+    if result.kind != ConstantKind.Bool:
+        return -1
+    
+    return result.boolean as int
 
 
 # returns the statements to replace if statement with, as a pointer inside if_stmt
