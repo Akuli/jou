@@ -616,7 +616,9 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
             # Add an extra newline token at end of file and the dedents after it.
             # This makes it similar to how other newline and dedent tokens work:
             # the dedents always come after a newline token.
-            tokens = realloc(tokens, sizeof tokens[0] * (ntokens + level/4 + 1))
+            tokens = realloc(tokens, sizeof tokens[0] * (ntokens + level/4 + 2))
+            if t > raw_tokens and t[-1].kind != TokenKind.Newline:
+                tokens[ntokens++] = Token{location = t->location, kind = TokenKind.Newline}
             while level != 0:
                 tokens[ntokens++] = Token{location = t->location, kind = TokenKind.Dedent}
                 level -= 4
