@@ -283,9 +283,7 @@ class AstToBuilder:
                 )
             case _:
                 # TODO: support other constant types
-                msg: byte[500]
-                snprintf(msg, sizeof(msg), "unsupported constant type: %s", constant->get_type()->name)
-                fail(self->location, msg)
+                assert False
 
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> EitherBuilderValue:
         match expr->kind:

@@ -54,7 +54,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
         case AstExpressionKind.And:
             if not evaluate_constant_expression(&expr->operands[0], &lhs):
                 return False
-            if not evaluate_constant_expression(&expr->operands[0], &rhs):
+            if not evaluate_constant_expression(&expr->operands[1], &rhs):
                 return False
 
             if lhs.kind != ConstantKind.Bool or rhs.kind != ConstantKind.Bool:
@@ -69,7 +69,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
         case AstExpressionKind.Or:
             if not evaluate_constant_expression(&expr->operands[0], &lhs):
                 return False
-            if not evaluate_constant_expression(&expr->operands[0], &rhs):
+            if not evaluate_constant_expression(&expr->operands[1], &rhs):
                 return False
 
             if lhs.kind != ConstantKind.Bool or rhs.kind != ConstantKind.Bool:
