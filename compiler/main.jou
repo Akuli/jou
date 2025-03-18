@@ -60,6 +60,8 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
             )
         case AstStatementKind.Import | AstStatementKind.Link | AstStatementKind.Pass:
             return False
+        case AstStatementKind.ConstDecl:
+            return False  # TODO: rethink this, figure out how it should work
         case _:
             printf("%d\n", stmt->kind as int)
             stmt->print()
@@ -100,6 +102,8 @@ class FileState:
                         wat = "global variable"
                     case ExportSymbolKind.Type:
                         wat = "type"
+                    case ExportSymbolKind.Const:
+                        wat = "constant"
 
                 msg: byte[500]
                 snprintf(msg, sizeof msg, "a %s named '%s' already exists", wat, es->name)
@@ -112,6 +116,8 @@ class FileState:
                 self->ast.types.add_type(es->type, &imp->used)
             case ExportSymbolKind.GlobalVar:
                 self->ast.types.add_global_var(es->name, es->type, &imp->used)
+            case ExportSymbolKind.Const:
+                self->ast.types.add_constant(es->name, es->constant)
 
     def warn_about_unused(self) -> None:
         msg: byte[500]
@@ -284,6 +290,8 @@ class CompileState:
                                 kindstr = "global var"
                             case ExportSymbolKind.Type:
                                 kindstr = "type"
+                            case ExportSymbolKind.Const:
+                                kindstr = "constant"
                         printf("Adding imported %s %s: %s --> %s\n",
                             kindstr, es->name, from->path, to->path)
 

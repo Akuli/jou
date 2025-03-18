@@ -9,6 +9,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./types.jou"
+import "./constants.jou"
 
 
 @public
@@ -77,6 +78,12 @@ class SignatureAndUsedPtr:
 
 
 @public
+class ConstantDeclaration:
+    name: byte[100]
+    type: Type*
+    value: Constant
+
+@public
 class FileTypes:
     globals: GlobalVariable*
     nglobals: int
@@ -84,6 +91,8 @@ class FileTypes:
     n_available_types: int
     functions: SignatureAndUsedPtr*
     nfunctions: int
+    constants: ConstantDeclaration*
+    nconstants: int
 
     def add_function(self, signature: Signature*, usedptr: bool*) -> None:
         self->functions = realloc(self->functions, sizeof(self->functions[0]) * (self->nfunctions + 1))
@@ -136,3 +145,19 @@ class FileTypes:
                     *var->usedptr = True
                 return var->type
         return NULL
+
+    def find_constant(self, name: byte*) -> Constant*:
+        for c = self->constants; c < &self->constants[self->nconstants]; c++:
+            if strcmp(c->name, name) == 0:
+                return &c->value
+        return NULL
+
+    def add_constant(self, name: byte*, value: Constant) -> ConstantDeclaration*:
+        self->constants = realloc(self->constants, sizeof(self->constants[0]) * (self->nconstants + 1))
+        assert self->constants != NULL
+
+        c = &self->constants[self->nconstants++]
+        assert strlen(name) < sizeof(c->name)
+        strcpy(c->name, name)
+        c->value = value
+        return c

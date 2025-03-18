@@ -2,6 +2,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
+import "../constants.jou"
 import "../errors_and_warnings.jou"
 import "../evaluate.jou"
 import "../types.jou"
@@ -23,6 +24,7 @@ class Loop:
 
 class AstToBuilder:
     builder: EitherBuilder*
+    file_types: FileTypes*
     locals: LocalVar*
     nlocals: int
     loops: Loop*
@@ -265,6 +267,31 @@ class AstToBuilder:
 
         return self->builder->dereference(arr_ptr)
 
+    def build_constant(self, constant: Constant*) -> EitherBuilderValue:
+        # Constants are compile-time values, so we can create the appropriate
+        # LLVM constant directly based on the constant's type and value
+        match constant->kind:
+            case ConstantKind.Integer:
+                return self->builder->integer(constant->get_type(), constant->integer.value)
+            case ConstantKind.Bool:
+                return self->builder->boolean(constant->boolean)
+            case ConstantKind.Float | ConstantKind.Double:
+                return self->builder->float_or_double(constant->get_type(), constant->float_or_double_text)
+            case ConstantKind.String:
+                return self->builder->string(constant->str)
+            case ConstantKind.Null:
+                return self->builder->zero_of_type(voidPtrType)
+            case ConstantKind.EnumMember:
+                return self->builder->enum_member(
+                    constant->enum_member.enumtype,
+                    constant->enum_member.enumtype->enum_members.names[constant->enum_member.memberidx]
+                )
+            case _:
+                # TODO: support other constant types
+                msg: byte[500]
+                snprintf(msg, sizeof(msg), "unsupported constant type: %s", constant->get_type()->name)
+                fail(self->location, msg)
+
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> EitherBuilderValue:
         match expr->kind:
             case AstExpressionKind.String:
@@ -374,6 +401,8 @@ class AstToBuilder:
                 return self->build_or(&expr->operands[0], &expr->operands[1])
             case AstExpressionKind.Not:
                 return self->builder->not_(self->build_expression(&expr->operands[0]))
+            case AstExpressionKind.Constant:
+                return self->build_constant(&expr->constant)
 
     def build_expression(self, expr: AstExpression*) -> EitherBuilderValue:
         old_location = self->set_location(expr->location)

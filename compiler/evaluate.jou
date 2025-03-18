@@ -107,7 +107,6 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
         case _:
             snprintf(msg, sizeof(msg), "expression cannot be evaluated at compile time")
             fail(expr->location, msg)
-            return False
 
 
 def evaluate_condition(expr: AstExpression*) -> int:  # 1=true 0=false -1=error

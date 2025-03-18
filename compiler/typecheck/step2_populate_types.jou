@@ -15,6 +15,8 @@ import "../ast.jou"
 import "../types.jou"
 import "../types_in_ast.jou"
 import "../errors_and_warnings.jou"
+import "../evaluate.jou"
+import "../constants.jou"
 import "./common.jou"
 
 
@@ -191,6 +193,42 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                 assert False
 
 
+def handle_constant_decl(ft: FileTypes*, location: Location, name: byte*, type: AstType*, value: AstExpression*) -> None:
+    msg: byte[500]
+
+    if ft->find_global_var(name) != NULL or ft->find_constant(name) != NULL:
+        # TODO: add a test for this
+        snprintf(msg, sizeof(msg), "a variable or constant named '%s' already exists", name)
+        fail(location, msg)
+
+    if value == NULL:
+        # TODO: add a test for this
+        fail(location, "constant declarations must have an initial value")
+
+    # First evaluate the constant expression
+    constant: Constant
+    if not evaluate_constant_expression(value, &constant):
+        # TODO: add a test for this
+        fail(location, "constant value must be evaluable at compile time")
+
+    # Then check that the type matches
+    declared_type = type_from_ast(ft, type)
+    value_type = constant.get_type()
+
+    if declared_type != value_type:
+        # TODO: add a test for this
+        snprintf(
+            msg, sizeof(msg),
+            "constant of type %s cannot be initialized with a value of type %s",
+            declared_type->name,
+            value_type->name
+        )
+        fail(location, msg)
+
+    # Add the constant to FileTypes (now with just name and value)
+    ft->add_constant(name, constant)
+
+
 @public
 def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
@@ -225,6 +263,22 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
                 handle_class_members(&ast->types, &stmt->classdef)
             case AstStatementKind.Enum | AstStatementKind.Link:
                 pass  # Everything done in previous type-checking steps.
+            case AstStatementKind.ConstDecl:
+                handle_constant_decl(
+                    &ast->types,
+                    stmt->location,
+                    stmt->const_decl.name,
+                    &stmt->const_decl.type,
+                    stmt->const_decl.value
+                )
+                # TODO: @public decorator for const declaration statements
+                #if stmt->const_decl.public:
+                #    es = ExportSymbol{
+                #        kind = ExportSymbolKind.Const,
+                #        name = stmt->const_decl.name,
+                #        constant = constant
+                #    }
+                #    exports[nexports++] = es
             case _:
                 assert False
 
