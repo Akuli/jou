@@ -89,8 +89,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
 
             if param.kind != ConstantKind.Bool:
                 # Error message is same as during type checking
-                # TODO: test this
-                snprintf(msg, sizeof(msg), "value after 'not' must be a bool, not <from>", param.get_type()->name)
+                snprintf(msg, sizeof(msg), "value after 'not' must be a bool, not %s", param.get_type()->name)
                 fail(expr->location, msg)
 
             *result = Constant{kind = ConstantKind.Bool, boolean = not param.boolean}

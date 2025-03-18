@@ -28,7 +28,6 @@ def check_no_global_var_or_const(ft: FileTypes*, location: Location, name: byte*
         fail(location, msg)
 
     if ft->find_constant(name) != NULL:
-        # TODO: test this
         snprintf(msg, sizeof(msg), "a global constant named '%s' already exists", name)
         fail(location, msg)
 
