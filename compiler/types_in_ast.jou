@@ -121,6 +121,7 @@ class FileTypes:
         free(self->globals)
         free(self->available_types)
         free(self->functions)
+        free(self->constants)
 
     def find_type(self, name: byte*) -> Type*:
         for t = self->available_types; t < &self->available_types[self->n_available_types]; t++:
