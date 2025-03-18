@@ -1338,6 +1338,9 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                     state, stmt->local_var_declare.value, type,
                     "initial value for variable of type <to> cannot be of type <from>")
 
+        case AstStatementKind.ConstDecl:
+            assert False  # TODO
+
         case AstStatementKind.ExpressionStatement:
             typecheck_expression(state, &stmt->expression, NULL)
 

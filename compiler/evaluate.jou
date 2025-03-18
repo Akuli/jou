@@ -153,6 +153,7 @@ def evaluate_if_statements_in_body(body: AstBody*, must_succeed: bool) -> None:
                 | AstStatementKind.Import
                 | AstStatementKind.ClassField
                 | AstStatementKind.ClassUnion
+                | AstStatementKind.ConstDecl
             ):
                 # these statements cannot contain if statements, no need to recurse inside
                 pass

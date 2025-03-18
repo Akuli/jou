@@ -500,6 +500,7 @@ enum AstStatementKind:
     InPlaceMul      # x *= y
     InPlaceDiv      # x /= y
     InPlaceMod      # x %= y
+    ConstDecl       # const x: SomeType = y
     FunctionDeclare
     FunctionDef
     MethodDef
@@ -533,6 +534,7 @@ class AstStatement:
         match_statement: AstMatchStatement
         import_statement: AstImport
         link_statement: AstLink
+        const_decl: AstNameTypeValue       # ConstDecl
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -618,6 +620,9 @@ class AstStatement:
             case AstStatementKind.ClassUnion:
                 printf("union\n")
                 self->union_fields.print_with_tree_printer(tp)
+            case AstStatementKind.ConstDecl:
+                printf("constant declaration ")
+                self->const_decl.print_with_tree_printer(&tp)
 
     def free(self) -> None:
         match self->kind:
@@ -666,6 +671,8 @@ class AstStatement:
                 self->import_statement.free()
             case AstStatementKind.ClassUnion:
                 self->union_fields.free()
+            case AstStatementKind.ConstDecl:
+                self->const_decl.free()
             case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
                 pass
 

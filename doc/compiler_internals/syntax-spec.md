@@ -114,6 +114,7 @@ Jou has a few different kinds of tokens:
     - `match`
     - `with`
     - `case`
+    - `const`
 - **Newline tokens** occur at the end of a line of code.
     Lines that only contain spaces and comments do not produce a newline token;
     this ensures that blank lines are ignored as they should be.
