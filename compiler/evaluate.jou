@@ -100,28 +100,24 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
             return False
 
 
-def evaluate_condition(expr: AstExpression*) -> int:
-    result: Constant
-    if evaluate_constant_expression(expr, &result) and result.kind == ConstantKind.Bool:
-        return result.boolean as int
-    return -1
-
-
 # returns the statements to replace if statement with, as a pointer inside if_stmt
 def choose_if_elif_branch(if_stmt: AstIfStatement*) -> AstBody*:
+    cond: Constant
+
     for i = 0; i < if_stmt->n_if_and_elifs; i++:
-        match evaluate_condition(&if_stmt->if_and_elifs[i].condition):
-            case -1:
-                # don't know how to evaluate it
-                return NULL
-            case 0:
-                # try the next elif or else
-                pass
-            case 1:
-                # condition is true, let's use this if or elif
-                return &if_stmt->if_and_elifs[i].body
-            case _:
-                assert False
+        if not evaluate_constant_expression(&if_stmt->if_and_elifs[i].condition, &cond):
+            # don't know how to evaluate it at compile time
+            return NULL
+
+        if cond.kind != ConstantKind.Bool:
+            # not allowed, let the type checker complain about it later
+            return NULL
+
+        if cond.boolean:
+            # condition is true, let's use this if or elif
+            return &if_stmt->if_and_elifs[i].body
+        # condition is false, try the next elif or else
+
     return &if_stmt->else_body
 
 
