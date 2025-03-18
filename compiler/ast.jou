@@ -159,6 +159,7 @@ enum AstExpressionKind:
     Instantiate   # MyClass{x=1, y=2}
     Self    # not a variable lookup, so you can't use 'self' as variable name outside a class
     GetVariable
+    Constant    # accessing `const` value, GetVariable changes to Constant during type checking
     GetEnumMember
     GetClassField   # foo.bar, foo->bar
     As
@@ -187,7 +188,6 @@ enum AstExpressionKind:
     Le          # x <= y
     And         # x and y
     Or          # x or y
-    Constant    # type checking changes `const` accesses from GetVariable to this
 
 @public
 class AstExpression:
@@ -505,7 +505,6 @@ enum AstStatementKind:
     InPlaceMul      # x *= y
     InPlaceDiv      # x /= y
     InPlaceMod      # x %= y
-    ConstDecl       # const x: SomeType = y
     FunctionDeclare
     FunctionDef
     MethodDef
@@ -513,6 +512,7 @@ enum AstStatementKind:
     Enum
     GlobalVariableDeclare
     GlobalVariableDef
+    Const           # const x: SomeType = y
 
 @public
 class AstStatement:
@@ -539,7 +539,7 @@ class AstStatement:
         match_statement: AstMatchStatement
         import_statement: AstImport
         link_statement: AstLink
-        const_decl: AstNameTypeValue       # ConstDecl
+        constant: AstNameTypeValue          # Const
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -625,9 +625,9 @@ class AstStatement:
             case AstStatementKind.ClassUnion:
                 printf("union\n")
                 self->union_fields.print_with_tree_printer(tp)
-            case AstStatementKind.ConstDecl:
-                printf("constant declaration ")
-                self->const_decl.print_with_tree_printer(&tp)
+            case AstStatementKind.Const:
+                printf("const definition ")
+                self->constant.print_with_tree_printer(&tp)
 
     def free(self) -> None:
         match self->kind:
@@ -676,8 +676,8 @@ class AstStatement:
                 self->import_statement.free()
             case AstStatementKind.ClassUnion:
                 self->union_fields.free()
-            case AstStatementKind.ConstDecl:
-                self->const_decl.free()
+            case AstStatementKind.Const:
+                self->constant.free()
             case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
                 pass
 
@@ -1137,4 +1137,3 @@ class AstEnumDef:
 
     def free(self) -> None:
         free(self->member_names)
-

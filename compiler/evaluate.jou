@@ -27,11 +27,12 @@ def get_special_constant(name: byte*) -> int:
             return -1
 
 
+# Returns False if the expression is not a simple compile-time constant.
 @public
 def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> bool:
     msg: byte[500]
-    left: Constant
-    right: Constant
+    lhs: Constant
+    rhs: Constant
 
     match expr->kind:
         case AstExpressionKind.Int:
@@ -39,8 +40,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
             return True
 
         case AstExpressionKind.Bool:
-            result->kind = ConstantKind.Bool
-            result->boolean = expr->bool_value
+            *result = Constant{kind = ConstantKind.Bool, boolean = expr->bool_value}
             return True
 
         case AstExpressionKind.GetVariable:
@@ -48,76 +48,63 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
             val = get_special_constant(expr->varname)
             if val == -1:
                 return False
-            result->kind = ConstantKind.Bool
-            result->boolean = val != 0
+            *result = Constant{kind = ConstantKind.Bool, boolean = (val == 1)}
             return True
 
         case AstExpressionKind.And:
-            if not evaluate_constant_expression(&expr->operands[0], &left):
+            if not evaluate_constant_expression(&expr->operands[0], &lhs):
                 return False
-            if left.kind != ConstantKind.Bool:
-                fail(expr->location, "left side of 'and' must be a bool")
-            
-            # Short circuit if left is false
-            if not left.boolean:
-                result->kind = ConstantKind.Bool
-                result->boolean = False
-                return True
-
-            if not evaluate_constant_expression(&expr->operands[1], &right):
+            if not evaluate_constant_expression(&expr->operands[0], &rhs):
                 return False
-            if right.kind != ConstantKind.Bool:
-                fail(expr->location, "right side of 'and' must be a bool")
 
-            result->kind = ConstantKind.Bool
-            result->boolean = right.boolean
+            if lhs.kind != ConstantKind.Bool or rhs.kind != ConstantKind.Bool:
+                # Error message is same as during type checking
+                # TODO: test this
+                snprintf(msg, sizeof(msg), "'and' only works with bools, not %s", lhs.get_type()->name)
+                fail(expr->location, msg)
+
+            *result = Constant{kind = ConstantKind.Bool, boolean = lhs.boolean and rhs.boolean}
             return True
 
         case AstExpressionKind.Or:
-            if not evaluate_constant_expression(&expr->operands[0], &left):
+            if not evaluate_constant_expression(&expr->operands[0], &lhs):
                 return False
-            if left.kind != ConstantKind.Bool:
-                fail(expr->location, "left side of 'or' must be a bool")
-            
-            # Short circuit if left is true
-            if left.boolean:
-                result->kind = ConstantKind.Bool
-                result->boolean = True
-                return True
-
-            if not evaluate_constant_expression(&expr->operands[1], &right):
+            if not evaluate_constant_expression(&expr->operands[0], &rhs):
                 return False
-            if right.kind != ConstantKind.Bool:
-                fail(expr->location, "right side of 'or' must be a bool")
 
-            result->kind = ConstantKind.Bool
-            result->boolean = right.boolean
+            if lhs.kind != ConstantKind.Bool or rhs.kind != ConstantKind.Bool:
+                # Error message is same as during type checking
+                # TODO: test this
+                snprintf(msg, sizeof(msg), "'or' only works with bools, not %s", lhs.get_type()->name)
+                fail(expr->location, msg)
+
+            *result = Constant{kind = ConstantKind.Bool, boolean = lhs.boolean or rhs.boolean}
             return True
 
         case AstExpressionKind.Not:
-            if not evaluate_constant_expression(&expr->operands[0], &left):
+            param: Constant
+            if not evaluate_constant_expression(&expr->operands[0], &param):
                 return False
-            if left.kind != ConstantKind.Bool:
-                fail(expr->location, "operand of 'not' must be a bool")
 
-            result->kind = ConstantKind.Bool
-            result->boolean = not left.boolean
+            if param.kind != ConstantKind.Bool:
+                # Error message is same as during type checking
+                # TODO: test this
+                snprintf(msg, sizeof(msg), "value after 'not' must be a bool, not <from>", param.get_type()->name)
+                fail(expr->location, msg)
+
+            *result = Constant{kind = ConstantKind.Bool, boolean = not param.boolean}
             return True
 
         case _:
-            snprintf(msg, sizeof(msg), "expression cannot be evaluated at compile time")
-            fail(expr->location, msg)
+            return False
 
 
-def evaluate_condition(expr: AstExpression*) -> int:  # 1=true 0=false -1=error
+# 1=true 0=false -1=error
+def evaluate_condition(expr: AstExpression*) -> int:
     result: Constant
-    if not evaluate_constant_expression(expr, &result):
-        return -1
-    
-    if result.kind != ConstantKind.Bool:
-        return -1
-    
-    return result.boolean as int
+    if evaluate_constant_expression(expr, &result) and result.kind == ConstantKind.Bool:
+        return result.boolean as int
+    return -1
 
 
 # returns the statements to replace if statement with, as a pointer inside if_stmt
@@ -208,7 +195,7 @@ def evaluate_if_statements_in_body(body: AstBody*, must_succeed: bool) -> None:
                 | AstStatementKind.Import
                 | AstStatementKind.ClassField
                 | AstStatementKind.ClassUnion
-                | AstStatementKind.ConstDecl
+                | AstStatementKind.Const
             ):
                 # these statements cannot contain if statements, no need to recurse inside
                 pass

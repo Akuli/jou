@@ -78,21 +78,20 @@ class SignatureAndUsedPtr:
 
 
 @public
-class ConstantDeclaration:
+class NamedConstant:
     name: byte[100]
-    type: Type*
     value: Constant
 
 @public
 class FileTypes:
     globals: GlobalVariable*
     nglobals: int
+    constants: NamedConstant*
+    nconstants: int
     available_types: TypeAndUsedPtr*
     n_available_types: int
     functions: SignatureAndUsedPtr*
     nfunctions: int
-    constants: ConstantDeclaration*
-    nconstants: int
 
     def add_function(self, signature: Signature*, usedptr: bool*) -> None:
         self->functions = realloc(self->functions, sizeof(self->functions[0]) * (self->nfunctions + 1))
@@ -113,6 +112,16 @@ class FileTypes:
         assert self->globals != NULL
         self->globals[self->nglobals++] = g
         return &self->globals[self->nglobals - 1]
+
+    def add_constant(self, name: byte*, value: Constant*) -> NamedConstant*:
+        self->constants = realloc(self->constants, sizeof(self->constants[0]) * (self->nconstants + 1))
+        assert self->constants != NULL
+
+        c = &self->constants[self->nconstants++]
+        assert strlen(name) < sizeof(c->name)
+        strcpy(c->name, name)
+        c->value = value->copy()
+        return c
 
     # This is safe to call if self has been zero-initialized.
     def free(self) -> None:
@@ -152,13 +161,3 @@ class FileTypes:
             if strcmp(c->name, name) == 0:
                 return &c->value
         return NULL
-
-    def add_constant(self, name: byte*, value: Constant) -> ConstantDeclaration*:
-        self->constants = realloc(self->constants, sizeof(self->constants[0]) * (self->nconstants + 1))
-        assert self->constants != NULL
-
-        c = &self->constants[self->nconstants++]
-        assert strlen(name) < sizeof(c->name)
-        strcpy(c->name, name)
-        c->value = value
-        return c

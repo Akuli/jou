@@ -20,14 +20,50 @@ import "../constants.jou"
 import "./common.jou"
 
 
-def handle_global_var(ft: FileTypes*, location: Location, name: byte*, type: AstType*, usedptr: bool*) -> ExportSymbol:
+def check_no_global_var_or_const(ft: FileTypes*, location: Location, name: byte*) -> None:
+    msg: byte[500]
+
     if ft->find_global_var(name) != NULL:
-        msg: byte[500]
         snprintf(msg, sizeof(msg), "a global variable named '%s' already exists", name)
         fail(location, msg)
 
+    if ft->find_constant(name) != NULL:
+        # TODO: test this
+        snprintf(msg, sizeof(msg), "a global constant named '%s' already exists", name)
+        fail(location, msg)
+
+
+def handle_global_var(ft: FileTypes*, location: Location, name: byte*, type: AstType*, usedptr: bool*) -> ExportSymbol:
+    check_no_global_var_or_const(ft, location, name)
     g = ft->add_global_var(name, type_from_ast(ft, type), usedptr)
     return ExportSymbol{kind = ExportSymbolKind.GlobalVar, type = g->type, name = g->name}
+
+
+def handle_const(ft: FileTypes*, location: Location, name: byte*, type: AstType*, expr: AstExpression*, usedptr: bool*) -> ExportSymbol:
+    check_no_global_var_or_const(ft, location, name)
+
+    # evaluate the constant expression
+    value: Constant
+    if not evaluate_constant_expression(expr, &value):
+        # TODO: test this
+        fail(location, "cannot evaluate value of constant at compile time")
+
+    expected_type = type_from_ast(ft, type)
+
+    # TODO: allow implicit casts
+    if value.get_type() != expected_type:
+        # TODO: test this
+        msg: byte[500]
+        snprintf(
+            msg, sizeof(msg),
+            "constant of type %s cannot have a value of type %s",
+            expected_type->name,
+            value.get_type()->name
+        )
+        fail(location, msg)
+
+    ft->add_constant(name, &value)
+    return ExportSymbol{kind = ExportSymbolKind.Constant, constant = value}
 
 
 def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, usedptr: bool*) -> Signature:
@@ -193,42 +229,6 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                 assert False
 
 
-def handle_constant_decl(ft: FileTypes*, location: Location, name: byte*, type: AstType*, value: AstExpression*) -> None:
-    msg: byte[500]
-
-    if ft->find_global_var(name) != NULL or ft->find_constant(name) != NULL:
-        # TODO: add a test for this
-        snprintf(msg, sizeof(msg), "a variable or constant named '%s' already exists", name)
-        fail(location, msg)
-
-    if value == NULL:
-        # TODO: add a test for this
-        fail(location, "constant declarations must have an initial value")
-
-    # First evaluate the constant expression
-    constant: Constant
-    if not evaluate_constant_expression(value, &constant):
-        # TODO: add a test for this
-        fail(location, "constant value must be evaluable at compile time")
-
-    # Then check that the type matches
-    declared_type = type_from_ast(ft, type)
-    value_type = constant.get_type()
-
-    if declared_type != value_type:
-        # TODO: add a test for this
-        snprintf(
-            msg, sizeof(msg),
-            "constant of type %s cannot be initialized with a value of type %s",
-            declared_type->name,
-            value_type->name
-        )
-        fail(location, msg)
-
-    # Add the constant to FileTypes (now with just name and value)
-    ft->add_constant(name, constant)
-
-
 @public
 def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
@@ -247,6 +247,13 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type, &stmt->global_var_declare.used)
                 if stmt->global_var_declare.public:
                     exports[nexports++] = exp
+            case AstStatementKind.Const:
+                # TODO: usedptr is useful for detecting unused private constants, currently set to NULL
+                exp = handle_const(&ast->types, stmt->location, stmt->constant.name, &stmt->constant.type, stmt->constant.value, NULL)
+                # TODO: public and private constants
+                #if stmt->constant.public:
+                #    exports[nexports++] = exp
+                exp.free()
             case AstStatementKind.GlobalVariableDef:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_def.name, &stmt->global_var_def.type, &stmt->global_var_def.used)
                 if stmt->global_var_def.public:
@@ -263,22 +270,6 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
                 handle_class_members(&ast->types, &stmt->classdef)
             case AstStatementKind.Enum | AstStatementKind.Link:
                 pass  # Everything done in previous type-checking steps.
-            case AstStatementKind.ConstDecl:
-                handle_constant_decl(
-                    &ast->types,
-                    stmt->location,
-                    stmt->const_decl.name,
-                    &stmt->const_decl.type,
-                    stmt->const_decl.value
-                )
-                # TODO: @public decorator for const declaration statements
-                #if stmt->const_decl.public:
-                #    es = ExportSymbol{
-                #        kind = ExportSymbolKind.Const,
-                #        name = stmt->const_decl.name,
-                #        constant = constant
-                #    }
-                #    exports[nexports++] = es
             case _:
                 assert False
 

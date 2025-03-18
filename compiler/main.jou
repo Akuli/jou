@@ -38,10 +38,16 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
                 importsym->kind == ExportSymbolKind.Function
                 and strcmp(importsym->name, stmt->function.ast_signature.name) == 0
             )
-        case AstStatementKind.GlobalVariableDeclare:
+        case AstStatementKind.GlobalVariableDeclare | AstStatementKind.Const:
+            # TODO: test this
             return (
-                importsym->kind == ExportSymbolKind.GlobalVar
-                and strcmp(importsym->name, stmt->global_var_declare.name) == 0
+                (
+                    importsym->kind == ExportSymbolKind.GlobalVar
+                    and strcmp(importsym->name, stmt->global_var_declare.name) == 0
+                ) or (
+                    importsym->kind == ExportSymbolKind.Constant
+                    and strcmp(importsym->name, stmt->constant.name) == 0
+                )
             )
         case AstStatementKind.GlobalVariableDef:
             return (
@@ -60,8 +66,6 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
             )
         case AstStatementKind.Import | AstStatementKind.Link | AstStatementKind.Pass:
             return False
-        case AstStatementKind.ConstDecl:
-            return False  # TODO: rethink this, figure out how it should work
         case _:
             printf("%d\n", stmt->kind as int)
             stmt->print()
@@ -102,7 +106,7 @@ class FileState:
                         wat = "global variable"
                     case ExportSymbolKind.Type:
                         wat = "type"
-                    case ExportSymbolKind.Const:
+                    case ExportSymbolKind.Constant:
                         wat = "constant"
 
                 msg: byte[500]
@@ -116,8 +120,8 @@ class FileState:
                 self->ast.types.add_type(es->type, &imp->used)
             case ExportSymbolKind.GlobalVar:
                 self->ast.types.add_global_var(es->name, es->type, &imp->used)
-            case ExportSymbolKind.Const:
-                self->ast.types.add_constant(es->name, es->constant)
+            case ExportSymbolKind.Constant:
+                self->ast.types.add_constant(es->name, &es->constant)
 
     def warn_about_unused(self) -> None:
         msg: byte[500]
@@ -290,7 +294,7 @@ class CompileState:
                                 kindstr = "global var"
                             case ExportSymbolKind.Type:
                                 kindstr = "type"
-                            case ExportSymbolKind.Const:
+                            case ExportSymbolKind.Constant:
                                 kindstr = "constant"
                         printf("Adding imported %s %s: %s --> %s\n",
                             kindstr, es->name, from->path, to->path)

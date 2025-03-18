@@ -18,7 +18,7 @@ enum ExportSymbolKind:
     Function
     Type
     GlobalVar
-    Const
+    Constant
 
 @public
 class ExportSymbol:
@@ -33,7 +33,7 @@ class ExportSymbol:
         match self->kind:
             case ExportSymbolKind.Function:
                 self->funcsignature.free()
-            case ExportSymbolKind.Const:
+            case ExportSymbolKind.Constant:
                 self->constant.free()
             case _:
                 pass
