@@ -822,11 +822,11 @@ class Parser:
             self->tokens++
             result.kind = AstStatementKind.Continue
         elif self->tokens->is_keyword("const"):
-            self->check_top_level("constant declarations")  # TODO: add test for this error case
+            self->check_top_level("constant declarations")
             location = (self->tokens++)->location
-            ntv = self->parse_name_type_value("a constant name")  # TODO: add test for this error case
+            ntv = self->parse_name_type_value("a constant name")
             if ntv.value == NULL:
-                fail(location, "constant declarations must have an initial value")  # TODO: add test for this error case
+                fail(location, "constant declarations must have an initial value")
             result.kind = AstStatementKind.ConstDecl
             result.const_decl = ntv
         elif self->tokens->kind == TokenKind.Name and self->tokens[1].is_operator(":"):
