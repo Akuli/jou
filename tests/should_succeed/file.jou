@@ -25,7 +25,7 @@ def read_hello_123() -> None:
     rewind(f)
     while True:
         c = fgetc(f)
-        if c < 0:
+        if c == EOF:
             break
         printf("%c", c as byte)  # Output: hello 123
 

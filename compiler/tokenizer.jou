@@ -210,8 +210,6 @@ class Tokenizer:
     last_3_bytes: byte[3]
 
     def read_byte(self) -> byte:
-        EOF = -1  # FIXME
-
         c: byte
         if self->pushback_len > 0:
             c = self->pushback[--self->pushback_len]
