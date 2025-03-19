@@ -39,7 +39,6 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
                 and strcmp(importsym->name, stmt->function.ast_signature.name) == 0
             )
         case AstStatementKind.GlobalVariableDeclare | AstStatementKind.Const:
-            # TODO: test this
             return (
                 (
                     importsym->kind == ExportSymbolKind.GlobalVar
