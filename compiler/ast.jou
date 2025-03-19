@@ -210,7 +210,7 @@ class AstExpression:
         array: AstArray
         varname: byte[100]
         float_or_double_text: byte[100]
-        operands: AstExpression*
+        operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
         constant: Constant
 
     def print(self) -> None:
