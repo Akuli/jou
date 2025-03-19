@@ -40,32 +40,33 @@ class Constant:
     def print(self) -> None:
         match self->kind:
             case ConstantKind.EnumMember:
-                printf("enum member %d of %s", self->enum_member.memberidx, self->enum_member.enumtype->name)
+                printf("enum member %d of %s\n", self->enum_member.memberidx, self->enum_member.enumtype->name)
             case ConstantKind.Bool:
                 if self->boolean:
-                    printf("True")
+                    printf("True\n")
                 else:
-                    printf("False")
+                    printf("False\n")
             case ConstantKind.Float:
-                printf("float %s", self->float_or_double_text)
+                printf("float %s\n", self->float_or_double_text)
             case ConstantKind.Double:
-                printf("double %s", self->float_or_double_text)
+                printf("double %s\n", self->float_or_double_text)
             case ConstantKind.Integer:
                 if self->integer.is_signed:
                     signed_or_unsigned = "signed"
                 else:
                     signed_or_unsigned = "unsigned"
                 printf(
-                    "%lld (%d-bit %s)",
+                    "%lld (%d-bit %s)\n",
                     self->integer.value,
                     self->integer.size_in_bits,
                     signed_or_unsigned,
                 )
             case ConstantKind.Null:
-                printf("NULL")
+                printf("NULL\n")
             case ConstantKind.String:
                 printf("string ")
                 print_string(self->str, strlen(self->str))
+                printf("\n")
 
     def free(self) -> None:
         if self->kind == ConstantKind.String:

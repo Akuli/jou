@@ -228,6 +228,9 @@ class AstExpression:
                 printf("string ")
                 print_string(self->string, strlen(self->string))
                 printf("\n")
+            case AstExpressionKind.Constant:
+                printf("constant: ")
+                self->constant.print()
             case AstExpressionKind.Short:
                 printf("short %hd\n", self->short_value)
             case AstExpressionKind.Int:
@@ -319,8 +322,6 @@ class AstExpression:
                 printf("and\n")
             case AstExpressionKind.Or:
                 printf("or\n")
-            case AstExpressionKind.Constant:
-                printf("constant\n")
 
         for i = 0; i < self->get_arity(); i++:
             self->operands[i].print_with_tree_printer(tp.print_prefix(i == self->get_arity()-1))
