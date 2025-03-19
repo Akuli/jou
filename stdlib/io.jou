@@ -15,9 +15,16 @@ declare puts(string: byte*) -> int  # Print a string followed by "\n"
 @public
 declare printf(pattern: byte*, ...) -> int  # Example: printf("%s %d\n", "hi", 123)
 
-# Keyboard input
-# TODO: add EOF and errno, explain here how to use them
-# TODO: add stdin and explain how to use fgets(..., stdin)
+@public
+const EOF: int = -1
+
+# Reads one character of keyboard input (stdin).
+#
+# Return value is either a valid byte (use 'as byte') or EOF. If EOF is
+# returned, it means either end of file or reading error. You can use
+# ferror(stdin) to determine whether there was an error.
+#
+# See fgets() if you want to read a line.
 @public
 declare getchar() -> int
 
