@@ -4,6 +4,7 @@
 import "stdlib/str.jou"
 
 import "../ast.jou"
+import "../constants.jou"
 import "../evaluate.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
@@ -17,6 +18,7 @@ enum ExportSymbolKind:
     Function
     Type
     GlobalVar
+    Constant
 
 @public
 class ExportSymbol:
@@ -25,10 +27,16 @@ class ExportSymbol:
     union:
         funcsignature: Signature
         type: Type*  # ExportSymbolKind.Type and ExportSymbolKind.GlobalVar
+        constant: Constant  # ExportSymbolKind.Const
 
     def free(self) -> None:
-        if self->kind == ExportSymbolKind.Function:
-            self->funcsignature.free()
+        match self->kind:
+            case ExportSymbolKind.Function:
+                self->funcsignature.free()
+            case ExportSymbolKind.Constant:
+                self->constant.free()
+            case _:
+                pass
 
 
 @public

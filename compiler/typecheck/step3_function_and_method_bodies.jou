@@ -14,6 +14,7 @@ import "stdlib/math.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
+import "../constants.jou"
 import "../errors_and_warnings.jou"
 import "../evaluate.jou"
 import "../types.jou"
@@ -26,15 +27,24 @@ class State:
     fom_types: FunctionOrMethodTypes*
 
     def find_any_var(self, name: byte*) -> Type*:
-        if get_special_constant(name) != -1:
-            return boolType
-
         local = self->fom_types->find_local_var(name)
         if local != NULL:
             return local->type
-
         return self->file_types->find_global_var(name)
 
+    def find_any_constant(self, name: byte*) -> Type*:
+        if get_special_constant(name) != -1:
+            return boolType
+        c = self->file_types->find_constant(name)
+        if c != NULL:
+            return c->get_type()
+        return NULL
+
+    def find_any_var_or_constant(self, name: byte*) -> Type*:
+        vartype = self->find_any_var(name)
+        if vartype != NULL:
+            return vartype
+        return self->find_any_constant(name)
 
 
 # Intended for errors. Returned string can be overwritten in next call.
@@ -52,6 +62,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             | AstExpressionKind.Float
             | AstExpressionKind.Double
             | AstExpressionKind.Bool
+            | AstExpressionKind.Constant
         ):
             return "a constant"
         case AstExpressionKind.Null:
@@ -86,8 +97,6 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
                 return "a method call"
 
         case AstExpressionKind.GetVariable:
-            if get_special_constant(expr->varname) != -1:
-                return "a special constant"
             return "a variable"
 
         case (
@@ -169,12 +178,7 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
         free(newtemplate)
         return
 
-    # You can usually take address of variable, but you can't take address of special
-    # constant (e.g. &WINDOWS)
-    if (
-        expr->kind == AstExpressionKind.GetVariable
-        and get_special_constant(expr->varname) == -1
-    ):
+    if expr->kind == AstExpressionKind.GetVariable:
         return
 
     # You can take address of self if it's not passed as a pointer:
@@ -976,10 +980,25 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             ensure_can_take_address(state->fom_types, &expr->operands[0], "the '&' operator cannot be used with %s")
 
         case AstExpressionKind.GetVariable:
-            result = state->find_any_var(expr->varname)
-            if result == NULL:
-                snprintf(msg, sizeof(msg), "no variable named '%s'", expr->varname)
-                fail(expr->location, msg)
+            result = state->find_any_constant(expr->varname)
+            if result != NULL:
+                # Transform the expression into a constant
+                expr->kind = AstExpressionKind.Constant
+                match get_special_constant(expr->varname):
+                    case 1:
+                        expr->constant = Constant{kind = ConstantKind.Bool, boolean = True}
+                    case 0:
+                        expr->constant = Constant{kind = ConstantKind.Bool, boolean = False}
+                    case -1:
+                        expr->constant = state->file_types->find_constant(expr->varname)->copy()
+                    case _:
+                        assert False
+            else:
+                # Not a constant, proceed with normal variable lookup
+                result = state->find_any_var(expr->varname)
+                if result == NULL:
+                    snprintf(msg, sizeof(msg), "no variable named '%s'", expr->varname)
+                    fail(expr->location, msg)
 
         case AstExpressionKind.Self:
             selfvar = state->fom_types->find_local_var("self")
@@ -1232,7 +1251,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
 
             if (
                 targetexpr->kind == AstExpressionKind.GetVariable
-                and state->find_any_var(targetexpr->varname) == NULL
+                and state->find_any_var_or_constant(targetexpr->varname) == NULL
             ):
                 # Making a new variable. Use the type of the value being assigned.
                 type = typecheck_expression_not_void(state, valueexpr, NULL)
@@ -1326,12 +1345,18 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 typecheck_expression_with_implicit_cast(state, stmt->return_value, return_type, msg)
 
         case AstStatementKind.DeclareLocalVar:
-            if state->find_any_var(stmt->local_var_declare.name) != NULL:
-                snprintf(msg, sizeof(msg), "a variable named '%s' already exists", stmt->local_var_declare.name)
+            varname = stmt->local_var_declare.name
+
+            if state->find_any_var(varname) != NULL:
+                snprintf(msg, sizeof(msg), "a variable named '%s' already exists", varname)
+                fail(stmt->location, msg)
+
+            if state->find_any_constant(varname) != NULL:
+                snprintf(msg, sizeof(msg), "a constant named '%s' already exists", varname)
                 fail(stmt->location, msg)
 
             type = type_from_ast(state->file_types, &stmt->local_var_declare.type)
-            state->fom_types->add_variable(type, stmt->local_var_declare.name)
+            state->fom_types->add_variable(type, varname)
 
             if stmt->local_var_declare.value != NULL:
                 typecheck_expression_with_implicit_cast(
@@ -1356,6 +1381,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             | AstStatementKind.GlobalVariableDef
             | AstStatementKind.Import
             | AstStatementKind.Link
+            | AstStatementKind.Const
         ):
             assert False
 

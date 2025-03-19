@@ -3,6 +3,8 @@ import "stdlib/mem.jou"
 
 import "./ast.jou"
 import "./errors_and_warnings.jou"
+import "./constants.jou"
+import "./types.jou"
 
 
 @public
@@ -25,61 +27,105 @@ def get_special_constant(name: byte*) -> int:
             return -1
 
 
-def evaluate_condition(expr: AstExpression*) -> int:  # 1=true 0=false -1=error
+# Return values: 1=true 0=false -1=error
+def evaluate_boolean_and_or(expr: AstExpression*, and_or: byte*) -> int:
+    assert strcmp(and_or, "and") == 0 or strcmp(and_or, "or") == 0
+
+    value: Constant
+    if not evaluate_constant_expression(expr, &value):
+        return -1
+
+    if value.kind != ConstantKind.Bool:
+        # Use the same error message as typecheck
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "'%s' only works with bools, not %s", and_or, value.get_type()->name)
+        fail(expr->location, msg)
+
+    return value.boolean as int
+
+
+# Returns False if the expression is not a simple compile-time constant.
+@public
+def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> bool:
+    msg: byte[500]
+
     match expr->kind:
-        case AstExpressionKind.GetVariable:
-            return get_special_constant(expr->varname)
+        case AstExpressionKind.Int:
+            *result = int_constant(intType, expr->int_value)
+            return True
+
         case AstExpressionKind.Bool:
-            return expr->bool_value as int
+            *result = Constant{kind = ConstantKind.Bool, boolean = expr->bool_value}
+            return True
+
+        case AstExpressionKind.GetVariable:
+            # Handle special constants like WINDOWS, MACOS, etc.
+            val = get_special_constant(expr->varname)
+            if val == -1:
+                return False
+            *result = Constant{kind = ConstantKind.Bool, boolean = (val == 1)}
+            return True
+
         case AstExpressionKind.And:
-            match evaluate_condition(&expr->operands[0]):
-                case 1:
-                    return evaluate_condition(&expr->operands[1])
-                case 0:
-                    return 0  # left side false, don't evaluate right side
-                case -1:
-                    return -1
-                case _:
-                    assert False
+            lhs = evaluate_boolean_and_or(&expr->operands[0], "and")
+            rhs = evaluate_boolean_and_or(&expr->operands[1], "and")
+            if lhs == -1 or rhs == -1:
+                return False
+            *result = Constant{kind = ConstantKind.Bool, boolean = (lhs == 1 and rhs == 1)}
+            return True
+
         case AstExpressionKind.Or:
-            match evaluate_condition(&expr->operands[0]):
-                case 1:
-                    return 1  # left side true, don't evaluate right side
-                case 0:
-                    return evaluate_condition(&expr->operands[1])
-                case -1:
-                    return -1  # error
-                case _:
-                    assert False
+            lhs = evaluate_boolean_and_or(&expr->operands[0], "or")
+            rhs = evaluate_boolean_and_or(&expr->operands[1], "or")
+            if lhs == -1 or rhs == -1:
+                return False
+            *result = Constant{kind = ConstantKind.Bool, boolean = (lhs == 1 or rhs == 1)}
+            return True
+
         case AstExpressionKind.Not:
-            match evaluate_condition(&expr->operands[0]):
-                case 1:
-                    return 0
-                case 0:
-                    return 1
-                case -1:
-                    return -1
-                case _:
-                    assert False
+            if not evaluate_constant_expression(&expr->operands[0], result):
+                return False
+
+            if result->kind != ConstantKind.Bool:
+                # Error message is same as during type checking
+                snprintf(msg, sizeof(msg), "value after 'not' must be a bool, not %s", result->get_type()->name)
+                fail(expr->location, msg)
+
+            result->boolean = not result->boolean
+            return True
+
+        case AstExpressionKind.Negate:
+            if not evaluate_constant_expression(&expr->operands[0], result):
+                return False
+
+            # TODO: make this more general
+            if result->get_type() != intType:
+                return False
+
+            # TODO: is casting to int and back necessary to get the right overflow behaviors?
+            result->integer.value = -(result->integer.value as int)
+            return True
+
         case _:
-            return -1
+            return False
 
 
-# returns the statements to replace if statement with, as a pointer inside if_stmt
 def choose_if_elif_branch(if_stmt: AstIfStatement*) -> AstBody*:
+    cond: Constant
+
+    # Return the first branch whose condition is true.
+    # Return NULL if we fail to evaluate a condition and it must be checked at runtime.
     for i = 0; i < if_stmt->n_if_and_elifs; i++:
-        match evaluate_condition(&if_stmt->if_and_elifs[i].condition):
-            case -1:
-                # don't know how to evaluate it
-                return NULL
-            case 0:
-                # try the next elif or else
-                pass
-            case 1:
-                # condition is true, let's use this if or elif
-                return &if_stmt->if_and_elifs[i].body
-            case _:
-                assert False
+        if (
+            not evaluate_constant_expression(&if_stmt->if_and_elifs[i].condition, &cond)
+            or cond.kind != ConstantKind.Bool
+        ):
+            return NULL
+
+        if cond.boolean:
+            return &if_stmt->if_and_elifs[i].body
+
+    # All conditions are known to be false.
     return &if_stmt->else_body
 
 
@@ -103,13 +149,15 @@ def evaluate_if_statements_in_body(body: AstBody*, must_succeed: bool) -> None:
             case AstStatementKind.If:
                 if_stmt = &body->statements[i].if_statement
 
-                ptr = choose_if_elif_branch(if_stmt)
-                if ptr == NULL and must_succeed:
+                branch = choose_if_elif_branch(if_stmt)
+                if branch == NULL and must_succeed:
                     fail(body->statements[i].location, "cannot evaluate condition at compile time")
 
-                if ptr != NULL:
-                    replacement = *ptr
-                    *ptr = AstBody{}  # avoid double-free
+                if branch != NULL:
+                    # The if/elif statement always takes the same branch.
+                    # Replace the whole if/elif with that branch.
+                    replacement = *branch
+                    *branch = AstBody{}  # avoid double-free
                     replace(body, i, replacement)
                     i--  # cancels i++ to do same index again, so that we handle nested if statements
                     continue
@@ -153,6 +201,7 @@ def evaluate_if_statements_in_body(body: AstBody*, must_succeed: bool) -> None:
                 | AstStatementKind.Import
                 | AstStatementKind.ClassField
                 | AstStatementKind.ClassUnion
+                | AstStatementKind.Const
             ):
                 # these statements cannot contain if statements, no need to recurse inside
                 pass

@@ -9,6 +9,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./types.jou"
+import "./constants.jou"
 
 
 @public
@@ -77,9 +78,17 @@ class SignatureAndUsedPtr:
 
 
 @public
+class NamedConstant:
+    name: byte[100]
+    value: Constant
+    usedptr: bool*
+
+@public
 class FileTypes:
     globals: GlobalVariable*
     nglobals: int
+    constants: NamedConstant*
+    nconstants: int
     available_types: TypeAndUsedPtr*
     n_available_types: int
     functions: SignatureAndUsedPtr*
@@ -105,6 +114,17 @@ class FileTypes:
         self->globals[self->nglobals++] = g
         return &self->globals[self->nglobals - 1]
 
+    def add_constant(self, name: byte*, value: Constant*, usedptr: bool*) -> NamedConstant*:
+        self->constants = realloc(self->constants, sizeof(self->constants[0]) * (self->nconstants + 1))
+        assert self->constants != NULL
+
+        c = &self->constants[self->nconstants++]
+        assert strlen(name) < sizeof(c->name)
+        strcpy(c->name, name)
+        c->value = value->copy()
+        c->usedptr = usedptr
+        return c
+
     # This is safe to call if self has been zero-initialized.
     def free(self) -> None:
         for func = self->functions; func < &self->functions[self->nfunctions]; func++:
@@ -112,6 +132,7 @@ class FileTypes:
         free(self->globals)
         free(self->available_types)
         free(self->functions)
+        free(self->constants)
 
     def find_type(self, name: byte*) -> Type*:
         for t = self->available_types; t < &self->available_types[self->n_available_types]; t++:
@@ -135,4 +156,13 @@ class FileTypes:
                 if var->usedptr != NULL:
                     *var->usedptr = True
                 return var->type
+        return NULL
+
+    # Note: For special constants like "WINDOWS" this returns NULL, be aware!!!
+    def find_constant(self, name: byte*) -> Constant*:
+        for c = self->constants; c < &self->constants[self->nconstants]; c++:
+            if strcmp(c->name, name) == 0:
+                if c->usedptr != NULL:
+                    *c->usedptr = True
+                return &c->value
         return NULL

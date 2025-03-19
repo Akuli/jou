@@ -82,6 +82,7 @@ Jou has a few different kinds of tokens:
     - `union`
     - `enum`
     - `global`
+    - `const`
     - `return`
     - `if`
     - `elif`
