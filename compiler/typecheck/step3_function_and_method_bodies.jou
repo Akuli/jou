@@ -166,6 +166,9 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
         free(newtemplate)
         return
 
+    if expr->kind == AstExpressionKind.GetVariable:
+        return
+
     # You can take address of self if it's not passed as a pointer:
     #
     #   def method(self: MyClass) -> None:
