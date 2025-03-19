@@ -53,17 +53,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
     result: byte[200]
 
     match expr->kind:
-        case (
-            AstExpressionKind.String
-            | AstExpressionKind.Int
-            | AstExpressionKind.Short
-            | AstExpressionKind.Long
-            | AstExpressionKind.Byte
-            | AstExpressionKind.Float
-            | AstExpressionKind.Double
-            | AstExpressionKind.Bool
-            | AstExpressionKind.Constant
-        ):
+        case AstExpressionKind.String | AstExpressionKind.Constant:
             return "a constant"
         case AstExpressionKind.Null:
             return "NULL"
@@ -838,20 +828,8 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
     handle_conflicting_class_field_and_enum_member_syntax(state, expr)
 
     match expr->kind:
-        case AstExpressionKind.Bool:
-            result = boolType
-        case AstExpressionKind.Byte:
-            result = byteType
-        case AstExpressionKind.Double:
-            result = doubleType
-        case AstExpressionKind.Float:
-            result = floatType
-        case AstExpressionKind.Short:
-            result = shortType
-        case AstExpressionKind.Int:
-            result = intType
-        case AstExpressionKind.Long:
-            result = longType
+        case AstExpressionKind.Constant:
+            result = expr->constant.get_type()
         case AstExpressionKind.Null:
             result = voidPtrType
         case AstExpressionKind.String:

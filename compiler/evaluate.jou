@@ -8,13 +8,6 @@ import "./types.jou"
 
 
 @public
-def evaluate_array_length(expr: AstExpression*) -> int:
-    if expr->kind == AstExpressionKind.Int:
-        return expr->int_value
-    fail(expr->location, "cannot evaluate array length at compile time")
-
-
-@public
 def get_special_constant(name: byte*) -> int:
     match name with strcmp:
         case "WINDOWS":
@@ -50,12 +43,8 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
     msg: byte[500]
 
     match expr->kind:
-        case AstExpressionKind.Int:
-            *result = int_constant(intType, expr->int_value)
-            return True
-
-        case AstExpressionKind.Bool:
-            *result = Constant{kind = ConstantKind.Bool, boolean = expr->bool_value}
+        case AstExpressionKind.Constant:
+            *result = expr->constant.copy()
             return True
 
         case AstExpressionKind.GetVariable:
@@ -108,6 +97,15 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
 
         case _:
             return False
+
+
+@public
+def evaluate_array_length(expr: AstExpression*) -> int:
+    # TODO: this should probably support longs
+    c: Constant
+    if evaluate_constant_expression(expr, &c) and c.get_type() == intType:
+        return c.integer.value as int
+    fail(expr->location, "cannot evaluate array length at compile time")
 
 
 def choose_if_elif_branch(if_stmt: AstIfStatement*) -> AstBody*:

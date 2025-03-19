@@ -146,20 +146,13 @@ class AstInstantiation:
 @public
 enum AstExpressionKind:
     String
-    Int
-    Short
-    Long
-    Byte
-    Float
-    Double
-    Bool
     Null
+    Constant    # e.g. int literals, also accessing `const` values becomes this during type checking
     Array
     Call  # function call or method call
     Instantiate   # MyClass{x=1, y=2}
     Self    # not a variable lookup, so you can't use 'self' as variable name outside a class
     GetVariable
-    Constant    # accessing `const` value, GetVariable changes to Constant during type checking
     GetEnumMember
     GetClassField   # foo.bar, foo->bar
     As
@@ -199,11 +192,6 @@ class AstExpression:
         enum_member: AstEnumMember
         class_field: AstClassField
         string: byte*
-        int_value: int
-        short_value: short
-        long_value: long
-        byte_value: byte
-        bool_value: bool
         call: AstCall
         instantiation: AstInstantiation
         as_: AstAs*  # Must be pointer, because it contains an AstExpression
@@ -231,23 +219,6 @@ class AstExpression:
             case AstExpressionKind.Constant:
                 printf("constant: ")
                 self->constant.print()
-            case AstExpressionKind.Short:
-                printf("short %hd\n", self->short_value)
-            case AstExpressionKind.Int:
-                printf("int %d\n", self->int_value)
-            case AstExpressionKind.Long:
-                printf("long %lld\n", self->long_value)
-            case AstExpressionKind.Byte:
-                printf("byte %d\n", self->byte_value)
-            case AstExpressionKind.Float:
-                printf("float %s\n", self->float_or_double_text)
-            case AstExpressionKind.Double:
-                printf("double %s\n", self->float_or_double_text)
-            case AstExpressionKind.Bool:
-                if self->bool_value:
-                    printf("True\n")
-                else:
-                    printf("False\n")
             case AstExpressionKind.Null:
                 printf("NULL\n")
             case AstExpressionKind.Indexing:

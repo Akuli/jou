@@ -282,20 +282,6 @@ class AstToBuilder:
                     assert expr->types.orig_type->kind == TypeKind.Array
                     assert expr->types.orig_type->array.item_type == byteType
                     return self->builder->string_array(expr->string, expr->types.orig_type->array.len)
-            case AstExpressionKind.Byte:
-                return self->builder->integer(byteType, expr->byte_value)
-            case AstExpressionKind.Short:
-                return self->builder->integer(shortType, expr->short_value)
-            case AstExpressionKind.Int:
-                return self->builder->integer(intType, expr->int_value)
-            case AstExpressionKind.Long:
-                return self->builder->integer(longType, expr->long_value)
-            case AstExpressionKind.Float:
-                return self->builder->float_or_double(floatType, expr->float_or_double_text)
-            case AstExpressionKind.Double:
-                return self->builder->float_or_double(doubleType, expr->float_or_double_text)
-            case AstExpressionKind.Bool:
-                return self->builder->boolean(expr->bool_value)
             case AstExpressionKind.Null:
                 return self->builder->zero_of_type(voidPtrType)
             case AstExpressionKind.Constant:
