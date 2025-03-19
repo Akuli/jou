@@ -45,7 +45,7 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
                     and strcmp(importsym->name, stmt->global_var_declare.name) == 0
                 ) or (
                     importsym->kind == ExportSymbolKind.Constant
-                    and strcmp(importsym->name, stmt->constant.name) == 0
+                    and strcmp(importsym->name, stmt->const_statement.name) == 0
                 )
             )
         case AstStatementKind.GlobalVariableDef:

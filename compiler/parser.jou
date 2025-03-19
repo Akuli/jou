@@ -828,7 +828,8 @@ class Parser:
             if ntv.value == NULL:
                 fail(location, "constants must have an initial value")
             result.kind = AstStatementKind.Const
-            result.constant = ntv
+            result.const_statement = AstConstStatement{name = ntv.name, type = ntv.type, value = *ntv.value}
+            free(ntv.value)
         elif self->tokens->kind == TokenKind.Name and self->tokens[1].is_operator(":"):
             # e.g. "foo: int"
             match self->what_are_we_parsing:

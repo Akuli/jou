@@ -38,15 +38,15 @@ def handle_global_var(ft: FileTypes*, location: Location, name: byte*, type: Ast
     return ExportSymbol{kind = ExportSymbolKind.GlobalVar, type = g->type, name = g->name}
 
 
-def handle_const(ft: FileTypes*, location: Location, name: byte*, type: AstType*, expr: AstExpression*, usedptr: bool*) -> ExportSymbol:
-    check_no_global_var_or_const(ft, location, name)
+def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> ExportSymbol:
+    check_no_global_var_or_const(ft, location, c->name)
 
     # evaluate the constant expression
     value: Constant
-    if not evaluate_constant_expression(expr, &value):
+    if not evaluate_constant_expression(&c->value, &value):
         fail(location, "cannot evaluate value of constant at compile time")
 
-    expected_type = type_from_ast(ft, type)
+    expected_type = type_from_ast(ft, &c->type)
 
     # TODO: allow implicit casts?
     if value.get_type() != expected_type:
@@ -59,7 +59,7 @@ def handle_const(ft: FileTypes*, location: Location, name: byte*, type: AstType*
         )
         fail(location, msg)
 
-    ft->add_constant(name, &value)
+    ft->add_constant(c->name, &value)
     return ExportSymbol{kind = ExportSymbolKind.Constant, constant = value}
 
 
@@ -245,12 +245,11 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
                 if stmt->global_var_declare.public:
                     exports[nexports++] = exp
             case AstStatementKind.Const:
-                # TODO: usedptr is useful for detecting unused private constants, currently set to NULL
-                exp = handle_const(&ast->types, stmt->location, stmt->constant.name, &stmt->constant.type, stmt->constant.value, NULL)
-                # TODO: public and private constants
-                #if stmt->constant.public:
-                #    exports[nexports++] = exp
-                exp.free()
+                exp = handle_const(&ast->types, stmt->location, &stmt->const_statement)
+                if stmt->const_statement.public:
+                    exports[nexports++] = exp
+                else:
+                    exp.free()
             case AstStatementKind.GlobalVariableDef:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_def.name, &stmt->global_var_def.type, &stmt->global_var_def.used)
                 if stmt->global_var_def.public:
