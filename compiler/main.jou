@@ -120,7 +120,7 @@ class FileState:
             case ExportSymbolKind.GlobalVar:
                 self->ast.types.add_global_var(es->name, es->type, &imp->used)
             case ExportSymbolKind.Constant:
-                self->ast.types.add_constant(es->name, &es->constant)
+                self->ast.types.add_constant(es->name, &es->constant, &imp->used)
 
     def warn_about_unused(self) -> None:
         msg: byte[500]
@@ -158,6 +158,10 @@ class FileState:
                 case AstStatementKind.Class:
                     if not stmt->classdef.public and not stmt->classdef.used:
                         snprintf(msg, sizeof msg, "class '%s' defined but not used", stmt->classdef.name)
+                        show_warning(stmt->location, msg)
+                case AstStatementKind.Const:
+                    if not stmt->const_statement.public and not stmt->const_statement.used:
+                        snprintf(msg, sizeof msg, "constant '%s' defined but not used", stmt->const_statement.name)
                         show_warning(stmt->location, msg)
                 case _:
                     pass

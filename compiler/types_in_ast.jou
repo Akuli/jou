@@ -81,6 +81,7 @@ class SignatureAndUsedPtr:
 class NamedConstant:
     name: byte[100]
     value: Constant
+    usedptr: bool*
 
 @public
 class FileTypes:
@@ -113,7 +114,7 @@ class FileTypes:
         self->globals[self->nglobals++] = g
         return &self->globals[self->nglobals - 1]
 
-    def add_constant(self, name: byte*, value: Constant*) -> NamedConstant*:
+    def add_constant(self, name: byte*, value: Constant*, usedptr: bool*) -> NamedConstant*:
         self->constants = realloc(self->constants, sizeof(self->constants[0]) * (self->nconstants + 1))
         assert self->constants != NULL
 
@@ -121,6 +122,7 @@ class FileTypes:
         assert strlen(name) < sizeof(c->name)
         strcpy(c->name, name)
         c->value = value->copy()
+        c->usedptr = usedptr
         return c
 
     # This is safe to call if self has been zero-initialized.
@@ -160,5 +162,7 @@ class FileTypes:
     def find_constant(self, name: byte*) -> Constant*:
         for c = self->constants; c < &self->constants[self->nconstants]; c++:
             if strcmp(c->name, name) == 0:
+                if c->usedptr != NULL:
+                    *c->usedptr = True
                 return &c->value
         return NULL

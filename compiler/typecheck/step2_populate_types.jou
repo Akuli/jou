@@ -59,8 +59,8 @@ def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> E
         )
         fail(location, msg)
 
-    ft->add_constant(c->name, &value)
-    return ExportSymbol{kind = ExportSymbolKind.Constant, constant = value}
+    ft->add_constant(c->name, &value, &c->used)
+    return ExportSymbol{kind = ExportSymbolKind.Constant, constant = value, name = c->name}
 
 
 def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, usedptr: bool*) -> Signature:
@@ -244,16 +244,16 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type, &stmt->global_var_declare.used)
                 if stmt->global_var_declare.public:
                     exports[nexports++] = exp
+            case AstStatementKind.GlobalVariableDef:
+                exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_def.name, &stmt->global_var_def.type, &stmt->global_var_def.used)
+                if stmt->global_var_def.public:
+                    exports[nexports++] = exp
             case AstStatementKind.Const:
                 exp = handle_const(&ast->types, stmt->location, &stmt->const_statement)
                 if stmt->const_statement.public:
                     exports[nexports++] = exp
                 else:
                     exp.free()
-            case AstStatementKind.GlobalVariableDef:
-                exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_def.name, &stmt->global_var_def.type, &stmt->global_var_def.used)
-                if stmt->global_var_def.public:
-                    exports[nexports++] = exp
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 sig = handle_signature(&ast->types, &stmt->function.ast_signature, NULL, &stmt->function.used)
                 stmt->function.types.signature = sig
