@@ -2,6 +2,7 @@ import "stdlib/io.jou"
 import "./imported/magic_constant.jou"
 
 const foo: int = 42
+const negative: int = -6
 const flag: bool = True
 
 const yes1: bool = True and True
@@ -19,9 +20,9 @@ const yes5: bool = not False
 
 
 def main() -> int:
-    printf("foo = %d\n", foo)       # Output: foo = 42
-    printf("flag = %d\n", flag)     # Output: flag = 1
-    printf("%#x\n", MAGIC_CONSTANT)  # Output: 0x6a6f75
+    printf("foo=%d negative=%d\n", foo, negative)  # Output: foo=42 negative=-6
+    printf("flag = %d\n", flag)         # Output: flag = 1
+    printf("%#x\n", MAGIC_CONSTANT)     # Output: 0x6a6f75
 
     printf("%d %d %d %d %d\n", yes1, yes2, yes3, yes4, yes5)  # Output: 1 1 1 1 1
     printf("%d %d %d %d %d\n", no1, no2, no3, no4, no5)       # Output: 0 0 0 0 0

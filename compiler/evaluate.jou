@@ -83,16 +83,27 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
             return True
 
         case AstExpressionKind.Not:
-            param: Constant
-            if not evaluate_constant_expression(&expr->operands[0], &param):
+            if not evaluate_constant_expression(&expr->operands[0], result):
                 return False
 
-            if param.kind != ConstantKind.Bool:
+            if result->kind != ConstantKind.Bool:
                 # Error message is same as during type checking
-                snprintf(msg, sizeof(msg), "value after 'not' must be a bool, not %s", param.get_type()->name)
+                snprintf(msg, sizeof(msg), "value after 'not' must be a bool, not %s", result->get_type()->name)
                 fail(expr->location, msg)
 
-            *result = Constant{kind = ConstantKind.Bool, boolean = not param.boolean}
+            result->boolean = not result->boolean
+            return True
+
+        case AstExpressionKind.Negate:
+            if not evaluate_constant_expression(&expr->operands[0], result):
+                return False
+
+            # TODO: make this more general
+            if result->get_type() != intType:
+                return False
+
+            # TODO: is casting to int and back necessary to get the right overflow behaviors?
+            result->integer.value = -(result->integer.value as int)
             return True
 
         case _:
