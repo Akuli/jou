@@ -155,6 +155,8 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
                 stmt->global_var_declare.public = True
             case AstStatementKind.GlobalVariableDef:
                 stmt->global_var_def.public = True
+            case AstStatementKind.Const:
+                stmt->const_statement.public = True
             case _:
                 fail(location, "the @public decorator cannot be used here")
     else:
