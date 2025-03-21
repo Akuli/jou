@@ -256,6 +256,11 @@ class AstToBuilder:
 
     def build_constant(self, constant: Constant*) -> EitherBuilderValue:
         match constant->kind:
+            case ConstantKind.ArrayString:
+                # TODO: rename the builder methods according to ConstantKind enum
+                return self->builder->string_array(constant->array_string.str, constant->array_string.array_size)
+            case ConstantKind.PointerString:
+                return self->builder->string(constant->pointer_string)
             case ConstantKind.Integer:
                 return self->builder->integer(constant->get_type(), constant->integer.value)
             case ConstantKind.Bool:
@@ -275,15 +280,6 @@ class AstToBuilder:
 
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> EitherBuilderValue:
         match expr->kind:
-            case AstExpressionKind.String:
-                if expr->types.orig_type == byteType->pointer_type():
-                    return self->builder->string(expr->string)
-                else:
-                    assert expr->types.orig_type->kind == TypeKind.Array
-                    assert expr->types.orig_type->array.item_type == byteType
-                    return self->builder->string_array(expr->string, expr->types.orig_type->array.len)
-            case AstExpressionKind.Null:
-                return self->builder->zero_of_type(voidPtrType)
             case AstExpressionKind.Constant:
                 return self->build_constant(&expr->constant)
             case AstExpressionKind.Array:

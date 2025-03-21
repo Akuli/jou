@@ -53,10 +53,14 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
     result: byte[200]
 
     match expr->kind:
-        case AstExpressionKind.String | AstExpressionKind.Constant:
-            return "a constant"
-        case AstExpressionKind.Null:
-            return "NULL"
+        case AstExpressionKind.Constant:
+            match expr->constant.kind:
+                case ConstantKind.Null:
+                    return "NULL"
+                case ConstantKind.ArrayString | ConstantKind.PointerString:
+                    return "a string"
+                case _:
+                    return "a constant"
         case AstExpressionKind.GetEnumMember:
             return "an enum member"
         case AstExpressionKind.SizeOf:
@@ -829,18 +833,24 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
 
     match expr->kind:
         case AstExpressionKind.Constant:
-            result = expr->constant.get_type()
-        case AstExpressionKind.Null:
-            result = voidPtrType
-        case AstExpressionKind.String:
             # Use array string if type hint given, e.g. foo: byte[100] = "hello"
-            if type_hint != NULL and type_hint->kind == TypeKind.Array and type_hint->array.item_type == byteType:
-                if strlen(expr->string) >= type_hint->array.len:
-                    snprintf(msg, sizeof(msg), "a string of %lld bytes (including '\\0') does not fit into %s", strlen(expr->string) + 1, type_hint->name)
+            if (
+                expr->constant.kind == ConstantKind.PointerString
+                and type_hint != NULL
+                and type_hint->kind == TypeKind.Array
+                and type_hint->array.item_type == byteType
+            ):
+                s = expr->constant.pointer_string
+                if strlen(s) >= type_hint->array.len:
+                    snprintf(msg, sizeof(msg), "a string of %lld bytes (including '\\0') does not fit into %s", strlen(s) + 1, type_hint->name)
                     fail(expr->location, msg)
+                expr->constant.kind = ConstantKind.ArrayString
+                expr->constant.array_string.str = s
+                expr->constant.array_string.array_size = type_hint->array.len
+                assert expr->constant.get_type() == type_hint
                 result = type_hint
             else:
-                result = byteType->pointer_type()
+                result = expr->constant.get_type()
 
         case AstExpressionKind.GetEnumMember:
             result = state->file_types->find_type(expr->enum_member.enum_name)
@@ -855,9 +865,12 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 fail(expr->location, msg)
 
         case AstExpressionKind.SizeOf:
-            if expr->operands[0].kind == AstExpressionKind.String:
+            if (
+                expr->operands[0].kind == AstExpressionKind.Constant
+                and expr->operands[0].constant.kind == ConstantKind.PointerString
+            ):
                 # sizeof("foo") should be 4
-                obj_type_hint = byteType->array_type((strlen(expr->operands[0].string) as int) + 1)
+                obj_type_hint = byteType->array_type((strlen(expr->operands[0].constant.pointer_string) as int) + 1)
             else:
                 obj_type_hint = NULL
             typecheck_expression_not_void(state, &expr->operands[0], obj_type_hint)
@@ -1039,14 +1052,14 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             result = type_from_ast(state->file_types, &expr->as_->type)
             typecheck_expression_not_void(state, &expr->as_->value, result)
 
-            # Special case: "foo" as byte[100] is not really a cast. It sets
+            # Special case: `"foo" as byte[100]` is not really a cast. It sets
             # the type of the string through a type hint and it's already
             # byte[100]. If we try to cast it anyway, there will be a warning
             # about "unnecessary" cast.
             special_case = (
-                expr->as_->value.kind == AstExpressionKind.String
-                and result->kind == TypeKind.Array
-                and result->array.item_type == byteType
+                expr->as_->value.kind == AstExpressionKind.Constant
+                and expr->as_->value.constant.kind == ConstantKind.ArrayString
+                and result == expr->as_->value.constant.get_type()
             )
             if not special_case:
                 do_explicit_cast(state->fom_types, &expr->as_->value, result, expr->location)
