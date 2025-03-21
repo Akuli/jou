@@ -42,7 +42,7 @@ def run_linker(objpaths: byte**, exepath: byte*, linker_flags: byte*) -> None:
     else:
         # Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
         # instdir is not used in this case.
-        asprintf(&command, "'%s' %s -o '%s' %s", get_jou_clang_path(), quoted_object_files, exepath, linker_flags)
+        asprintf(&command, "'%s' %s -o '%s' %s", JOU_CLANG_PATH, quoted_object_files, exepath, linker_flags)
 
     free(quoted_object_files)
     free(jou_exe)
