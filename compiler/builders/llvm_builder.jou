@@ -362,7 +362,7 @@ class LBuilder:
             return LBuilderValue{type = sig->return_type, llvm_value = llvm_return_value}
 
     # string as array of bytes
-    def string_array(self, s: byte*, array_size: int) -> LBuilderValue:
+    def array_string(self, s: byte*, array_size: int) -> LBuilderValue:
         assert strlen(s) < array_size
         padded: byte* = malloc(array_size)
         memset(padded, 0, array_size)
@@ -372,8 +372,8 @@ class LBuilder:
         return LBuilderValue{type = byteType->array_type(array_size), llvm_value = llvm_array}
 
     # string as '\0' terminated pointer
-    def string(self, s: byte*) -> LBuilderValue:
-        llvm_array = self->string_array(s, (strlen(s) + 1) as int).llvm_value
+    def pointer_string(self, s: byte*) -> LBuilderValue:
+        llvm_array = self->array_string(s, (strlen(s) + 1) as int).llvm_value
         llvm_string = LLVMAddGlobal(self->llvm_module, LLVMTypeOf(llvm_array), "string_literal")
         LLVMSetLinkage(llvm_string, LLVMLinkage.Private)  # This makes it a static global variable
         LLVMSetInitializer(llvm_string, llvm_array)

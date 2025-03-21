@@ -257,10 +257,9 @@ class AstToBuilder:
     def build_constant(self, constant: Constant*) -> EitherBuilderValue:
         match constant->kind:
             case ConstantKind.ArrayString:
-                # TODO: rename the builder methods according to ConstantKind enum
-                return self->builder->string_array(constant->array_string.str, constant->array_string.array_size)
+                return self->builder->array_string(constant->array_string.str, constant->array_string.array_size)
             case ConstantKind.PointerString:
-                return self->builder->string(constant->pointer_string)
+                return self->builder->pointer_string(constant->pointer_string)
             case ConstantKind.Integer:
                 return self->builder->integer(constant->get_type(), constant->integer.value)
             case ConstantKind.Bool:
@@ -532,8 +531,8 @@ class AstToBuilder:
             is_noreturn = True,
         }
         args = [
-            self->builder->string(assertion->condition_str),
-            self->builder->string(assert_location.path),
+            self->builder->pointer_string(assertion->condition_str),
+            self->builder->pointer_string(assert_location.path),
             self->builder->integer(intType, assert_location.lineno),
         ]
         self->builder->call(&sig, args, 3)
