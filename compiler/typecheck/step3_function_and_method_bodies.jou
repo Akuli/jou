@@ -54,13 +54,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
 
     match expr->kind:
         case AstExpressionKind.Constant:
-            match expr->constant.kind:
-                case ConstantKind.Null:
-                    return "NULL"
-                case ConstantKind.ArrayString | ConstantKind.PointerString:
-                    return "a string"
-                case _:
-                    return "a constant"
+            return "a constant"
         case AstExpressionKind.GetEnumMember:
             return "an enum member"
         case AstExpressionKind.SizeOf:
