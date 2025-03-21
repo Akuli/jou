@@ -9,20 +9,13 @@ import "./ast_to_builder.jou"
 import "./either_builder.jou"
 
 
-# Within this class, we use the following special UVG variable IDs.
-# TODO: ideally these would be constants, not functions.
+# Special "UVG variable ID". Denotes a value that is not a pointer,
+# or is some pointer that we don't keep track of.
+const ANONYMOUS_VALUE_ID: int = -1
 
-# A value that is not a pointer, or is some pointer that we don't keep track of.
-def ANONYMOUS_VALUE_ID() -> int:
-    return -1
-
-# Boolean value known to be true at compile time.
-def TRUE_ID() -> int:
-    return -2
-
-# Boolean value known to be false at compile time.
-def FALSE_ID() -> int:
-    return -3
+# These represents boolean values known at compile time.
+const TRUE_ID: int = -2
+const FALSE_ID: int = -3
 
 
 @public
@@ -84,92 +77,92 @@ class UBuilder:
 
     def dereference(self, ptr: int) -> int:
         self->use(ptr)
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     def indexed_pointer(self, ptr: int, index: int) -> int:
         self->dont_analyze(ptr)
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     def class_field_pointer(self, ptr: int, field_name: byte*) -> int:
         self->dont_analyze(ptr)
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     def global_var_ptr(self, name: byte*, var_type: Type*) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     def get_argument(self, i: int, argtype: Type*) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     def call(self, sig: Signature*, args: int*, nargs: int) -> int:
         for i = 0; i < nargs; i++:
             self->dont_analyze(args[i])
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     def array_string(self, s: byte*, array_size: int) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     def pointer_string(self, s: byte*) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     def boolean(self, b: bool) -> int:
         if b:
-            return TRUE_ID()
+            return TRUE_ID
         else:
-            return FALSE_ID()
+            return FALSE_ID
 
     def integer(self, t: Type*, value: long) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     def float_or_double(self, t: Type*, string: byte*) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     def zero_of_type(self, t: Type*) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     def enum_member(self, t: Type*, name: byte*) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     # a + b
     def add(self, a: int, b: int) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     # a - b
     def sub(self, a: int, b: int) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     # a * b
     def mul(self, a: int, b: int) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     # a / b
     def div(self, a: int, b: int) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     # a % b
     def mod(self, a: int, b: int) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     # a == b
     def eq(self, a: int, b: int) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     # a < b
     def lt(self, a: int, b: int) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     # not value
     def not_(self, value: int) -> int:
         match value:
-            case TRUE_ID():
-                return FALSE_ID()
-            case FALSE_ID():
-                return TRUE_ID()
+            case TRUE_ID:
+                return FALSE_ID
+            case FALSE_ID:
+                return TRUE_ID
             case _:
-                return ANONYMOUS_VALUE_ID()
+                return ANONYMOUS_VALUE_ID
 
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> int:
-        return ANONYMOUS_VALUE_ID()
+        return ANONYMOUS_VALUE_ID
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: int) -> None:
@@ -180,14 +173,14 @@ class UBuilder:
         if to->is_pointer_type():
             # Needed to keep track of pointers to local variables, implicit casts are basically everywhere
             return value
-        elif to == boolType and (value == TRUE_ID() or value == FALSE_ID()):
+        elif to == boolType and (value == TRUE_ID or value == FALSE_ID):
             # Thips helps with e.g. if statements and loops where condition is a literal "True".
             # There is an implicit cast from bool to bool.
             return value
         else:
             # e.g. cast pointer to long
             self->dont_analyze(value)
-            return ANONYMOUS_VALUE_ID()
+            return ANONYMOUS_VALUE_ID
 
     # Blocks are used to implement e.g. if statements and loops.
     def add_block(self) -> UvgBlock*:
@@ -199,9 +192,9 @@ class UBuilder:
 
     def branch(self, cond: int, then: UvgBlock*, otherwise: UvgBlock*) -> None:
         match cond:
-            case TRUE_ID():
+            case TRUE_ID:
                 self->jump(then)
-            case FALSE_ID():
+            case FALSE_ID:
                 self->jump(otherwise)
             case _:
                 assert self->current_block != NULL
