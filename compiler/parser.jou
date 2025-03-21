@@ -527,8 +527,8 @@ class Parser:
                 expr.constant = Constant{kind = ConstantKind.Double, float_or_double_text = self->tokens->short_string}
                 self->tokens++
             case TokenKind.String:
-                expr.kind = AstExpressionKind.String
-                expr.string = strdup(self->tokens->long_string)
+                expr.kind = AstExpressionKind.Constant
+                expr.constant = Constant{kind = ConstantKind.PointerString, pointer_string = strdup(self->tokens->long_string)}
                 self->tokens++
             case TokenKind.Name:
                 if self->tokens[1].is_operator("("):
@@ -551,7 +551,8 @@ class Parser:
                     expr.constant = Constant{kind = ConstantKind.Bool, boolean = False}
                     self->tokens++
                 elif self->tokens->is_keyword("NULL"):
-                    expr.kind = AstExpressionKind.Null
+                    expr.kind = AstExpressionKind.Constant
+                    expr.constant = Constant{kind = ConstantKind.Null}
                     self->tokens++
                 elif self->tokens->is_keyword("None"):
                     fail(self->tokens->location, "None is not a value in Jou, use e.g. -1 for numbers or NULL for pointers")

@@ -140,21 +140,21 @@ class EitherBuilder:
         return result
 
     # string as array of bytes
-    def string_array(self, s: byte*, array_size: int) -> EitherBuilderValue:
+    def array_string(self, s: byte*, array_size: int) -> EitherBuilderValue:
         result = EitherBuilderValue{}
         if self->lbuilder != NULL:
-            result.lvalue = self->lbuilder->string_array(s, array_size)
+            result.lvalue = self->lbuilder->array_string(s, array_size)
         if self->ubuilder != NULL:
-            result.uvalue = self->ubuilder->string_array(s, array_size)
+            result.uvalue = self->ubuilder->array_string(s, array_size)
         return result
 
     # string as '\0' terminated pointer
-    def string(self, s: byte*) -> EitherBuilderValue:
+    def pointer_string(self, s: byte*) -> EitherBuilderValue:
         result = EitherBuilderValue{}
         if self->lbuilder != NULL:
-            result.lvalue = self->lbuilder->string(s)
+            result.lvalue = self->lbuilder->pointer_string(s)
         if self->ubuilder != NULL:
-            result.uvalue = self->ubuilder->string(s)
+            result.uvalue = self->ubuilder->pointer_string(s)
         return result
 
     def boolean(self, b: bool) -> EitherBuilderValue:

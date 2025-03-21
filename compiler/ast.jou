@@ -13,7 +13,6 @@ import "./errors_and_warnings.jou"
 import "./constants.jou"
 import "./types.jou"
 import "./types_in_ast.jou"
-import "./utils.jou"
 
 
 @public
@@ -145,8 +144,6 @@ class AstInstantiation:
 
 @public
 enum AstExpressionKind:
-    String
-    Null
     Constant    # e.g. int literals, also accessing `const` values becomes this during type checking
     Array
     Call  # function call or method call
@@ -191,7 +188,6 @@ class AstExpression:
     union:
         enum_member: AstEnumMember
         class_field: AstClassField
-        string: byte*
         call: AstCall
         instantiation: AstInstantiation
         as_: AstAs*  # Must be pointer, because it contains an AstExpression
@@ -212,15 +208,9 @@ class AstExpression:
         printf("] ")
 
         match self->kind:
-            case AstExpressionKind.String:
-                printf("string ")
-                print_string(self->string, strlen(self->string))
-                printf("\n")
             case AstExpressionKind.Constant:
                 printf("constant: ")
                 self->constant.print()
-            case AstExpressionKind.Null:
-                printf("NULL\n")
             case AstExpressionKind.Indexing:
                 printf("indexing\n")
             case AstExpressionKind.Array:
@@ -299,8 +289,8 @@ class AstExpression:
 
     def free(self) -> None:
         match self->kind:
-            case AstExpressionKind.String:
-                free(self->string)
+            case AstExpressionKind.Constant:
+                self->constant.free()
             case AstExpressionKind.Array:
                 self->array.free()
             case AstExpressionKind.Call:
