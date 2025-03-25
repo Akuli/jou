@@ -141,7 +141,7 @@ class AstClassField:
 # Foo{bar = 1, baz = 2}
 @public
 class AstInstantiation:
-    class_name: byte[100]
+    type: AstType
     nfields: int
     field_names: byte[100]*
     field_values: AstExpression*
@@ -150,7 +150,10 @@ class AstInstantiation:
         self->print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("instantiate \"%s\"\n", self->class_name)
+        printf("instantiate ")
+        self->type.print(False)
+        printf("\n")
+
         for i = 0; i < self->nfields; i++:
             sub = tp.print_prefix(i == self->nfields - 1)
             printf("field \"%s\": ", self->field_names[i])

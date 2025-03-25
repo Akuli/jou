@@ -648,8 +648,7 @@ def typecheck_class_field(
 
 
 def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Location) -> Type*:
-    tmp = AstType{kind = AstTypeKind.Named, location = location, name = inst->class_name}
-    t = type_from_ast(state->file_types, NULL, &tmp)
+    t = type_from_ast(state->file_types, NULL, &inst->type)
 
     msg: byte[500]
 
@@ -667,7 +666,7 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
 
         snprintf(msg, sizeof msg,
             "value for field '%s' of class %s must be of type <to>, not <from>",
-            inst->field_names[i], inst->class_name)
+            inst->field_names[i], t->name)
         typecheck_expression_with_implicit_cast(state, &inst->field_values[i], f->type, msg)
         specified_fields[i] = f
 

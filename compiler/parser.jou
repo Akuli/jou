@@ -167,6 +167,29 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
         fail(location, msg)
 
 
+# Determines whether the next tokens are "Class{attribute = value}" syntax.
+# Not as simple as you might expect, because the class can be generic.
+# Example: Foo[int, byte*]{x = 1, y="hello"}
+def looks_like_instantiate(t: Token*) -> bool:
+    if t->kind != TokenKind.Name:
+        return False
+    t++
+    if t->is_operator("{"):
+        return True
+    if t->is_operator("["):
+        # Find matching ']' and see if there's '{' after it.
+        depth = 1
+        t++
+        while depth > 0 and t->kind != TokenKind.EndOfFile:
+            if t->is_operator("["):
+                depth++
+            if t->is_operator("]"):
+                depth--
+            t++
+        return t->is_operator("{")
+    return False
+
+
 enum WhatAreWeParsing:
     TopLevel  # must be first, so that this is the default (zero)
     ClassBody
@@ -482,9 +505,7 @@ class Parser:
         return result
 
     def parse_instantiation(self) -> AstInstantiation:
-        assert self->tokens->kind == TokenKind.Name
-        result = AstInstantiation{class_name = self->tokens->short_string}
-        self->tokens++
+        result = AstInstantiation{type = self->parse_type()}
         assert self->tokens->is_operator("{")
         self->tokens++
 
@@ -577,7 +598,7 @@ class Parser:
                 if self->tokens[1].is_operator("("):
                     expr.kind = AstExpressionKind.Call
                     expr.call = self->parse_call()
-                elif self->tokens[1].is_operator("{"):
+                elif looks_like_instantiate(self->tokens):
                     expr.kind = AstExpressionKind.Instantiate
                     expr.instantiation = self->parse_instantiation()
                 else:

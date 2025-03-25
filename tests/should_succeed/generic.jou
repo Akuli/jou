@@ -5,8 +5,12 @@ class List[T1, T2]:
     y: T2
 
 def main() -> int:
-    pair: List[int, byte*]
-    pair.x = 1
-    pair.y = "hi"
-    printf("%d %s\n", pair.x, pair.y)  # Output: 1 hi
+    pair1: List[int, byte*]
+    pair1.x = 1
+    pair1.y = "hi"
+    pair2 = List[int, byte*]{x = 222, y = "hello"}
+
+    printf("%d %s\n", pair1.x, pair1.y)  # Output: 1 hi
+    printf("%d %s\n", pair2.x, pair2.y)  # Output: 222 hello
+
     return 0
