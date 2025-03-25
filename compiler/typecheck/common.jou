@@ -117,11 +117,17 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             return tmp->array_type(len)
 
         case AstTypeKind.Generic:
-            gclass = ft->find_generic_class(asttype->generic.class_name)
+            name = asttype->generic.class_name
+            gclass = ft->find_generic_class(name)
             if gclass == NULL:
-                snprintf(msg, sizeof(msg), "there is no generic class named '%s'", asttype->generic.class_name)
+                if ft->find_type(name) != NULL:
+                    snprintf(msg, sizeof(msg), "%s is not generic, use just %s instead of %s[something]", name, name, name)
+                else:
+                    snprintf(msg, sizeof(msg), "there is no generic class named '%s'", name)
                 fail(asttype->location, msg)
+
             assert gclass->kind == TypeKind.Class
+            assert gclass->classdata.n_generic_params > 0
 
             # TODO: test wrong number of params
             assert asttype->generic.n_param_types == gclass->classdata.n_generic_params
