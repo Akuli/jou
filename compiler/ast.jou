@@ -1082,6 +1082,8 @@ class AstUnionFields:
 @public
 class AstClassDef:
     name: byte[100]
+    generic_type_vars: Type**  # the T1 and T2 of "class Foo[T1, T2]"
+    n_generic_type_vars: int  # 0 means not generic
     body: AstBody*
     type: Type*  # populated in typecheck, NULL before typecheck runs
     public: bool  # is it decorated with @public
@@ -1095,6 +1097,7 @@ class AstClassDef:
         self->body->print_with_tree_printer(tp)
 
     def free(self) -> None:
+        free(self->generic_type_vars)
         self->body->free()
         free(self->body)
 

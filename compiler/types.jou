@@ -106,7 +106,7 @@ class Type:
                 return "the built-in bool type"
             case TypeKind.TypeVariable:
                 # TODO: is this good? test it
-                return "an unknown type"
+                return "an unknown generic type"
 
     def find_class_field(self, name: byte*) -> ClassField*:
         if self->kind != TypeKind.Class:
@@ -297,6 +297,19 @@ def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*
         kind = TypeKind.Enum,
         enum_members = EnumType{count=membercount, names=membernames},
     }
+
+    assert strlen(name) < sizeof result->type.name
+    strcpy(result->type.name, name)
+
+    satisfy_valgrind(result)
+    return &result->type
+
+
+# Creates the "T" type when defining List[T].
+@public
+def create_type_variable(name: byte*) -> Type*:
+    result: TypeInfo* = calloc(1, sizeof *result)
+    result->type = Type{kind = TypeKind.TypeVariable}
 
     assert strlen(name) < sizeof result->type.name
     strcpy(result->type.name, name)
