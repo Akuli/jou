@@ -35,6 +35,7 @@ enum TypeKind:
     Class
     OpaqueClass  # class with unknown members, used temporarily during type checking
     Enum
+    TypeVariable  # the unknown T of List[T]
 
 @public
 class Type:
@@ -103,6 +104,9 @@ class Type:
                 return "an array type"
             case TypeKind.Bool:
                 return "the built-in bool type"
+            case TypeKind.TypeVariable:
+                # TODO: is this good? test it
+                return "an unknown type"
 
     def find_class_field(self, name: byte*) -> ClassField*:
         if self->kind != TypeKind.Class:

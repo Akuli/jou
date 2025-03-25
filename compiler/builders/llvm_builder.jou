@@ -104,6 +104,8 @@ def type_to_llvm(type: Type*) -> LLVMType*:
             return class_type_to_llvm(type)
         case TypeKind.Enum:
             return LLVMInt32Type()
+        case TypeKind.TypeVariable:
+            assert False  # should never be converted to LLVM
 
 
 def signature_to_llvm(sig: Signature*) -> LLVMType*:
