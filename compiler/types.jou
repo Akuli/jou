@@ -35,9 +35,8 @@ enum TypeKind:
     VoidPointer
     Array
     Class
-    OpaqueClass  # class with unknown members, used temporarily during type checking
+    Temporary  # see create_temporary_type()
     Enum
-    TypeVariable  # the unknown T of List[T]
 
 @public
 class Type:
@@ -94,7 +93,7 @@ class Type:
 
     def short_description(self) -> byte*:
         match self->kind:
-            case TypeKind.OpaqueClass | TypeKind.Class:
+            case TypeKind.Class:
                 return "a class"
             case TypeKind.Enum:
                 return "an enum"
@@ -106,9 +105,9 @@ class Type:
                 return "an array type"
             case TypeKind.Bool:
                 return "the built-in bool type"
-            case TypeKind.TypeVariable:
+            case TypeKind.Temporary:
                 # TODO: is this good? test it
-                return "an unknown generic type"
+                return "an unknown type"
 
     def find_class_field(self, name: byte*) -> ClassField*:
         if self->kind != TypeKind.Class:
@@ -282,16 +281,20 @@ def satisfy_valgrind(ti: TypeInfo*) -> None:
     global_type_state.other_types[global_type_state.n_other_types++] = ti
 
 
+# Used for a couple different things:
+#   - Classes before their members are known
+#   - Generics, e.g. the type "T" when defining class List[T]
 @public
-def create_opaque_class(name: byte*) -> Type*:
+def create_temporary_type(name: byte*) -> Type*:
     result: TypeInfo* = calloc(1, sizeof *result)
-    result->type = Type{kind = TypeKind.OpaqueClass}
+    result->type = Type{kind = TypeKind.Temporary}
 
     assert strlen(name) < sizeof result->type.name
     strcpy(result->type.name, name)
 
     satisfy_valgrind(result)
     return &result->type
+
 
 @public
 def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*:
@@ -300,19 +303,6 @@ def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*
         kind = TypeKind.Enum,
         enum_members = EnumType{count=membercount, names=membernames},
     }
-
-    assert strlen(name) < sizeof result->type.name
-    strcpy(result->type.name, name)
-
-    satisfy_valgrind(result)
-    return &result->type
-
-
-# Creates the "T" type when defining List[T].
-@public
-def create_type_variable(name: byte*) -> Type*:
-    result: TypeInfo* = calloc(1, sizeof *result)
-    result->type = Type{kind = TypeKind.TypeVariable}
 
     assert strlen(name) < sizeof result->type.name
     strcpy(result->type.name, name)

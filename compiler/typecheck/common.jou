@@ -2,6 +2,7 @@
 # checking steps.
 
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 
 import "../ast.jou"
 import "../constants.jou"
@@ -45,7 +46,8 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
     if containing_class != NULL:
         assert containing_class->kind == TypeKind.Class
         for i = 0; i < containing_class->classdata.n_generic_params; i++:
-            assert containing_class->classdata.generic_params[i]->kind == TypeKind.TypeVariable
+            # Should be e.g. List[T], where T is a temporary type
+            assert containing_class->classdata.generic_params[i]->kind == TypeKind.Temporary
 
     msg: byte[500]
 

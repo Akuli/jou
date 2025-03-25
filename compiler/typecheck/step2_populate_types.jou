@@ -8,6 +8,7 @@
 # This step assumes that all types exist, but doesn't need to know what fields
 # and methods each class has.
 
+import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
@@ -164,20 +165,36 @@ def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> N
 
 
 def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
-    # Previous type-checking step created an opaque class.
+    # Previous type-checking step created a temporary type. It now becomes a class.
     t = classdef->type
     assert t != NULL
-    assert t->kind == TypeKind.OpaqueClass
+    assert t->kind == TypeKind.Temporary
     t->kind = TypeKind.Class
 
     memset(&t->classdata, 0, sizeof t->classdata)
 
-    # When defining generic class List[T], create a temporary type named T.
-    n = t->classdata.n_generic_params
-    t->classdata.n_generic_params = classdef->n_generic_typevars
-    t->classdata.generic_params = malloc(sizeof(t->classdata.generic_params[0]) * n)
-    for i = 0; i < n; i++:
-        t->classdata.generic_params[i] = create_type_variable(classdef->generic_typevar_names[i])
+    n = classdef->n_generic_typevars
+    if n > 0:
+        # When defining generic class List[T], create a temporary type named T.
+        t->classdata.n_generic_params = n
+        t->classdata.generic_params = malloc(sizeof(t->classdata.generic_params[0]) * n)
+        for i = 0; i < n; i++:
+            t->classdata.generic_params[i] = create_temporary_type(classdef->generic_typevar_names[i])
+
+        # Update name of type from "List" to "List[T]"
+        total_len = strlen(t->name) + strlen("[]") + (n-1)*strlen(", ")
+        for i = 0; i < n; i++:
+            total_len += strlen(classdef->generic_typevar_names[i])
+        if total_len < sizeof(t->name):
+            strcat(t->name, "[")
+            for i = 0; i < n; i++:
+                if i != 0:
+                    strcat(t->name, ", ")
+                strcat(t->name, classdef->generic_typevar_names[i])
+            strcat(t->name, "]")
+        else:
+            old_name: byte[500] = t->name
+            snprintf(t->name, sizeof(t->name), "%s[...]", old_name)
 
     union_id = 0
     for stmt = classdef->body->statements; stmt < &classdef->body->statements[classdef->body->nstatements]; stmt++:
@@ -235,6 +252,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
 @public
 def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
+    
     exports: ExportSymbol* = NULL
     nexports = 0
 
