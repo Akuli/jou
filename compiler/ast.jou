@@ -160,6 +160,7 @@ class AstInstantiation:
             self->field_values[i].print_with_tree_printer(sub)
 
     def free(self) -> None:
+        self->type.free()
         for i = 0; i < self->nfields; i++:
             self->field_values[i].free()
         free(self->field_names)
