@@ -12,6 +12,16 @@ import "../types.jou"
 import "../types_in_ast.jou"
 
 
+@public
+def plural_s(n: int) -> byte*:
+    if n == 1:
+        # e.g. "1 argument"
+        return ""
+    else:
+        # e.g. "0 arguments", "2 arguments"
+        return "s"
+
+
 # Type checking steps 1 and 2 return export symbols to be passed on to the next
 # step. That's how the next step accesses the results of the previous step.
 @public
@@ -129,9 +139,18 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             assert gclass->kind == TypeKind.Class
             assert gclass->classdata.n_generic_params > 0
 
-            # TODO: test wrong number of params
-            assert asttype->generic.n_param_types == gclass->classdata.n_generic_params
-            n = asttype->generic.n_param_types
+            # Check number of parameters
+            expected = gclass->classdata.n_generic_params
+            got = asttype->generic.n_param_types
+            if expected != got:
+                snprintf(
+                    msg, sizeof(msg), "generic class %s takes %d type parameter%s, but it is used with %d type parameter%s",
+                    gclass->name, expected, plural_s(expected), got, plural_s(got),
+                )
+                fail(asttype->location, msg)
+
+            assert expected == got
+            n = got
 
             from = gclass->classdata.generic_params
             to: Type** = malloc(sizeof(to[0]) * n)

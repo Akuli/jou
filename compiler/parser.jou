@@ -354,8 +354,7 @@ class Parser:
                     self->tokens++
 
                 if nparams == 0:
-                    # TODO: test this
-                    fail(self->tokens->location, "empty [] is not valid syntax for specifying a type")
+                    fail(self->tokens->location, "empty [] is not valid syntax when specifying a type")
 
                 if not self->tokens->is_operator("]"):
                     self->tokens->fail_expected_got("a ']'")
@@ -1343,7 +1342,7 @@ class Parser:
             while not self->tokens->is_operator("]"):
                 if self->tokens->kind != TokenKind.Name:
                     # TODO: test this
-                    self->tokens->fail_expected_got("name of a generic type variable")
+                    self->tokens->fail_expected_got("name of a generic type variable (typically 'T')")
                 generics = realloc(generics, sizeof(generics[0]) * (ngenerics+1))
                 generics[ngenerics++] = (self->tokens++)->short_string
 
@@ -1352,11 +1351,11 @@ class Parser:
                 self->tokens++
 
             if not self->tokens->is_operator("]"):
-                # TODO: test this
                 self->tokens->fail_expected_got("a ']'")
             if ngenerics == 0:
-                # TODO: test this
-                fail(self->tokens->location, "at least one generic type is needed, e.g. [T] instead of []")
+                msg: byte[500]
+                snprintf(msg, sizeof(msg), "at least one generic type parameter is needed, e.g. 'class %s[T]:'", name, name)
+                fail(self->tokens->location, msg)
             self->tokens++
 
         old = self->what_are_we_parsing

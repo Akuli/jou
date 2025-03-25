@@ -544,15 +544,6 @@ def nth(n: int) -> byte[100]:
     return result
 
 
-def plural_s(n: int) -> byte*:
-    if n == 1:
-        # e.g. "1 argument"
-        return ""
-    else:
-        # e.g. "0 arguments", "2 arguments"
-        return "s"
-
-
 # returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
 def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: Type*, location: Location) -> Type*:
     msg: byte[500]
