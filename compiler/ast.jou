@@ -20,6 +20,7 @@ enum AstTypeKind:
     Named
     Pointer
     Array
+    Generic  # e.g. List[int]
 
 
 @public
@@ -34,15 +35,24 @@ class AstArrayType:
         free(self->length)
 
 
+# e.g. List[int]
+@public
+class AstGenericType:
+    class_name: byte[100]  # e.g. "List"
+    param_types: AstType*
+    n_param_types: int
+
+
 @public
 class AstType:
     kind: AstTypeKind
     location: Location
 
     union:
-        name: byte[100]       # AstTypeKind.Named
-        value_type: AstType*  # AstTypeKind.Pointer
-        array: AstArrayType   # AstTypeKind.Array
+        name: byte[100]         # AstTypeKind.Named
+        value_type: AstType*    # AstTypeKind.Pointer
+        array: AstArrayType     # AstTypeKind.Array
+        generic: AstGenericType # AstTypeKind.Generic
 
     def is_void(self) -> bool:
         return self->kind == AstTypeKind.Named and strcmp(self->name, "void") == 0
@@ -63,6 +73,13 @@ class AstType:
             case AstTypeKind.Array:
                 self->array.member_type->print(False)
                 printf("[<size>]")  # TODO: show the size expression better?
+            case AstTypeKind.Generic:
+                printf("%s[", self->generic.class_name)
+                for i = 0; i < self->generic.n_param_types; i++:
+                    if i != 0:
+                        printf(", ")
+                    self->generic.param_types[i].print(False)
+                printf("]")
 
         if show_lineno:
             printf(" [line %d]", self->location.lineno)
@@ -76,6 +93,10 @@ class AstType:
                 self->array.free()
             case AstTypeKind.Named:
                 pass
+            case AstTypeKind.Generic:
+                for i = 0; i < self->generic.n_param_types; i++:
+                    self->generic.param_types[i].free()
+                free(self->generic.param_types)
 
 
 # Statements and expressions can be printed in a tree.

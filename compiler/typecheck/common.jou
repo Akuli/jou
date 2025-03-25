@@ -98,3 +98,15 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             if len <= 0:
                 fail(asttype->array.length->location, "array length must be positive")
             return tmp->array_type(len)
+
+        case AstTypeKind.Generic:
+            gclass = ft->find_generic_class(asttype->generic.class_name)
+            if gclass == NULL:
+                snprintf(msg, sizeof(msg), "there is no generic class named '%s'", asttype->generic.class_name)
+                fail(asttype->location, msg)
+            printf("TODO: substitute into %s\n", gclass->name)
+            printf("\n")
+            for i = 0; i < asttype->generic.n_param_types; i++:
+                asttype->generic.param_types[i].print(True)
+                printf("\n")
+            assert False
