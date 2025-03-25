@@ -649,7 +649,7 @@ def typecheck_class_field(
 
 def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Location) -> Type*:
     tmp = AstType{kind = AstTypeKind.Named, location = location, name = inst->class_name}
-    t = type_from_ast(state->file_types, &tmp)
+    t = type_from_ast(state->file_types, NULL, &tmp)
 
     msg: byte[500]
 
@@ -1043,7 +1043,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             result = check_increment_or_decrement(state, expr)
 
         case AstExpressionKind.As:
-            result = type_from_ast(state->file_types, &expr->as_->type)
+            result = type_from_ast(state->file_types, NULL, &expr->as_->type)
             typecheck_expression_not_void(state, &expr->as_->value, result)
 
             # Special case: `"foo" as byte[100]` is not really a cast. It sets
@@ -1340,7 +1340,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 snprintf(msg, sizeof(msg), "a constant named '%s' already exists", varname)
                 fail(stmt->location, msg)
 
-            type = type_from_ast(state->file_types, &stmt->local_var_declare.type)
+            type = type_from_ast(state->file_types, NULL, &stmt->local_var_declare.type)
             state->fom_types->add_variable(type, varname)
 
             if stmt->local_var_declare.value != NULL:

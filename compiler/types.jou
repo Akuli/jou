@@ -14,6 +14,8 @@ class ClassData:
     nfields: int
     methods: Signature*
     nmethods: int
+    generic_params: Type**   # this is the "int" part of List[int]
+    n_generic_params: int
 
 class ArrayType:
     item_type: Type*
@@ -236,6 +238,7 @@ def free_type(t: Type*) -> None:
     if t->kind == TypeKind.Class:
         for m = t->classdata.methods; m < &t->classdata.methods[t->classdata.nmethods]; m++:
             m->free()
+        free(t->classdata.generic_params)
         free(t->classdata.fields)
         free(t->classdata.methods)
 

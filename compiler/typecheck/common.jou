@@ -41,7 +41,12 @@ class ExportSymbol:
 
 
 @public
-def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
+def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) -> Type*:
+    if containing_class != NULL:
+        assert containing_class->kind == TypeKind.Class
+        for i = 0; i < containing_class->classdata.n_generic_params; i++:
+            assert containing_class->classdata.generic_params[i]->kind == TypeKind.TypeVariable
+
     msg: byte[500]
 
     if asttype->is_void() or asttype->is_none() or asttype->is_noreturn():
@@ -66,6 +71,14 @@ def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
                 case "double":
                     return doubleType
                 case _:
+                    # Are we inside a generic class? When defining List[T], we want to find the T.
+                    if containing_class != NULL:
+                        assert containing_class->kind == TypeKind.Class
+                        cdata = &containing_class->classdata
+                        for i = 0; i < cdata->n_generic_params; i++:
+                            if strcmp(cdata->generic_params[i]->name, asttype->name) == 0:
+                                return cdata->generic_params[i]
+
                     found = ft->find_type(asttype->name)
                     if found != NULL:
                         return found
@@ -75,10 +88,10 @@ def type_from_ast(ft: FileTypes*, asttype: AstType*) -> Type*:
         case AstTypeKind.Pointer:
             if asttype->value_type->is_void():
                 return voidPtrType
-            return type_from_ast(ft, asttype->value_type)->pointer_type()
+            return type_from_ast(ft, containing_class, asttype->value_type)->pointer_type()
 
         case AstTypeKind.Array:
-            tmp = type_from_ast(ft, asttype->value_type)
+            tmp = type_from_ast(ft, containing_class, asttype->value_type)
             len = evaluate_array_length(asttype->array.length)
             if len <= 0:
                 fail(asttype->array.length->location, "array length must be positive")

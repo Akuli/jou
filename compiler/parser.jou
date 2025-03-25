@@ -1271,7 +1271,7 @@ class Parser:
         name = self->tokens->short_string
         self->tokens++
 
-        generics: Type** = NULL
+        generics: byte[100]* = NULL
         ngenerics = 0
 
         if self->tokens->is_operator("["):
@@ -1280,10 +1280,8 @@ class Parser:
                 if self->tokens->kind != TokenKind.Name:
                     # TODO: test this
                     self->tokens->fail_expected_got("name of a generic type variable")
-                typevar_name = (self->tokens++)->short_string
-
                 generics = realloc(generics, sizeof(generics[0]) * (ngenerics+1))
-                generics[ngenerics++] = create_type_variable(typevar_name)
+                generics[ngenerics++] = (self->tokens++)->short_string
 
                 if not self->tokens->is_operator(","):
                     break
@@ -1308,8 +1306,8 @@ class Parser:
 
         return AstClassDef{
             name = name,
-            generic_type_vars = generics,
-            n_generic_type_vars = ngenerics,
+            generic_typevar_names = generics,
+            n_generic_typevars = ngenerics,
             body = bodyptr,
         }
 
