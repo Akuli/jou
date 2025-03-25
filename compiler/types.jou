@@ -119,14 +119,15 @@ class Type:
                 return self
 
             case TypeKind.Class:
-                cdata = self->classdata
-                if cdata.n_generic_params == 0:
+                if self->classdata.n_generic_params == 0:
                     # Do nothing for non-generic classes
                     return self
 
-                cdata.generic_params = memdup(cdata.generic_params, sizeof(cdata.generic_params[0]) * cdata.n_generic_params)
-                for i = 0; i < cdata.n_generic_params; i++:
-                    cdata.generic_params[i] = cdata.generic_params[i]->substitute_generic_params(from, to, n)
+                n_generic_params = self->classdata.n_generic_params
+                generic_params: Type** = malloc(sizeof(generic_params[0]) * n_generic_params)
+                assert generic_params != NULL
+                for i = 0; i < self->classdata.n_generic_params; i++:
+                    generic_params[i] = self->classdata.generic_params[i]->substitute_generic_params(from, to, n)
 
                 # Results are cached in related_types, just like arrays.
                 # Before we go further, let's check if the type we want is already cached.
@@ -136,40 +137,48 @@ class Type:
                     t = &(*r)->type
                     if (
                         t->kind == TypeKind.Class
-                        and t->classdata.n_generic_params == cdata.n_generic_params
-                        and memcmp(t->classdata.generic_params, cdata.generic_params, sizeof(cdata.generic_params[0]) * cdata.n_generic_params) == 0
+                        and t->classdata.n_generic_params == self->classdata.n_generic_params
+                        and memcmp(t->classdata.generic_params, generic_params, sizeof(generic_params[0]) * n_generic_params) == 0
                     ):
-                        free(cdata.generic_params)
+                        free(generic_params)
                         return t
 
+                # Cache the incomplete result. This helps avoid infinite recursion when
+                # a class contains a pointer to itself. When visiting the pointer, we see
+                # the already cached type.
+                new_info: TypeInfo* = calloc(1, sizeof(*new_info))
+                assert new_info != NULL
+                info->related_types = realloc(info->related_types, sizeof(info->related_types[0]) * (info->n_related_types + 1))
+                assert info->related_types != NULL
+                info->related_types[info->n_related_types++] = new_info
+                result = &new_info->type
+
+                *result = *self
+                result->name = create_type_name_with_params(self->name, generic_params, n_generic_params)
+
                 # Recursively convert everything inside the class.
-                cdata.fields = memdup(cdata.fields, sizeof(cdata.fields[0]) * cdata.nfields)
-                for f = cdata.fields; f < &cdata.fields[cdata.nfields]; f++:
+                result->classdata.generic_params = generic_params
+
+                result->classdata.fields = memdup(result->classdata.fields, sizeof(result->classdata.fields[0]) * result->classdata.nfields)
+                for f = result->classdata.fields; f < &result->classdata.fields[result->classdata.nfields]; f++:
                     f->type = f->type->substitute_generic_params(from, to, n)
-                cdata.methods = memdup(cdata.methods, sizeof(cdata.methods[0]) * cdata.nmethods)
-                for sig = cdata.methods; sig < &cdata.methods[cdata.nmethods]; sig++:
+
+                result->classdata.methods = memdup(result->classdata.methods, sizeof(result->classdata.methods[0]) * result->classdata.nmethods)
+                for sig = result->classdata.methods; sig < &result->classdata.methods[result->classdata.nmethods]; sig++:
+                    *sig = sig->copy()
                     for argtype = sig->argtypes; argtype < &sig->argtypes[sig->nargs]; argtype++:
                         *argtype = (*argtype)->substitute_generic_params(from, to, n)
                     if sig->return_type != NULL:
                         sig->return_type = sig->return_type->substitute_generic_params(from, to, n)
-
-                # Cache the result
-                result: TypeInfo* = calloc(1, sizeof *result)
-                result->type = *self
-                result->type.classdata = cdata
-                result->type.name = create_type_name_with_params(result->type.name, cdata.generic_params, cdata.n_generic_params)
-                info->related_types = realloc(info->related_types, sizeof(info->related_types[0]) * (info->n_related_types + 1))
-                assert info->related_types != NULL
-                info->related_types[info->n_related_types++] = result
-                return &result->type
+                return result
 
             case TypeKind.Pointer:
-                return self->value_type->substitute_generic_params(from, to, n)->pointer_type()
+                new_value_type = self->value_type->substitute_generic_params(from, to, n)
+                return new_value_type->pointer_type()
 
             case TypeKind.Array:
-                array_item_type = self->array.item_type->substitute_generic_params(from, to, n)
-                array_len = self->array.len
-                return array_item_type->array_type(array_len)
+                new_item_type = self->array.item_type->substitute_generic_params(from, to, n)
+                return new_item_type->array_type(self->array.len)
 
             case (
                 TypeKind.SignedInteger
