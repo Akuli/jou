@@ -26,6 +26,7 @@ commits=(
     2c2e8efa3be20fb63727d96731b92ec515b872db  # "pass" in class, "if False" at compile time
     d8c1f36e92812185a999f87a1fadc7e9eae78bd0  # the "link" keyword
     ec92977acf51c265c28eefdab36d7ef272ac9eda  # the "const" keyword
+    6d443fa1da12d462fe6f6a64b75ce74227bc13ff  # "const" keyword works with strings
 )
 
 for commit in ${commits[@]}; do
