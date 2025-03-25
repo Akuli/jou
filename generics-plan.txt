@@ -1,0 +1,10 @@
+New types:
+- Type variable: the undetermined `T` of `List[T]`. Available when checking class bodies.
+- Generic instance: `List[T]` or `List[byte]`
+
+New check in type checker: ensure we can compute the size of a given type.
+Called for all local variables and intermediate values.
+Base case: succeeds for pointers and numbers, fails for type variables.
+Recursion: check class members
+
+Plain `List` is stored and exported as generic instance `List[T]`, where `T` is the type variable.
