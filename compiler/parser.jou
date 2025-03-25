@@ -1341,7 +1341,6 @@ class Parser:
             self->tokens++
             while not self->tokens->is_operator("]"):
                 if self->tokens->kind != TokenKind.Name:
-                    # TODO: test this
                     self->tokens->fail_expected_got("name of a generic type variable (typically 'T')")
                 generics = realloc(generics, sizeof(generics[0]) * (ngenerics+1))
                 generics[ngenerics++] = (self->tokens++)->short_string
