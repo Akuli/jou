@@ -167,7 +167,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
     # Previous type-checking step created a temporary type. It now becomes a class.
     t = classdef->type
     assert t != NULL
-    assert t->kind == TypeKind.Temporary
+    assert t->kind == TypeKind.OpaqueClass
     t->kind = TypeKind.Class
 
     memset(&t->classdata, 0, sizeof t->classdata)
@@ -178,7 +178,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
         t->classdata.n_generic_params = n
         t->classdata.generic_params = malloc(sizeof(t->classdata.generic_params[0]) * n)
         for i = 0; i < n; i++:
-            t->classdata.generic_params[i] = create_temporary_type(classdef->generic_typevar_names[i])
+            t->classdata.generic_params[i] = create_typevar(classdef->generic_typevar_names[i])
 
         # Update name of type from "List" to "List[T]"
         old_name: byte[500] = t->name

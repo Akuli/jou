@@ -42,7 +42,8 @@ enum TypeKind:
     VoidPointer
     Array
     Class
-    Temporary  # see create_temporary_type()
+    OpaqueClass  # class with unknown members. TODO do we need this?
+    TypeVar  # the unknown type "T" of "class List[T]"
     Enum
 
 @public
@@ -107,10 +108,10 @@ class Type:
     # The result is cached similarly to arrays.
     def substitute_generic_params(self, from: Type**, to: Type**, n: int) -> Type*:
         for i = 0; i < n; i++:
-            assert from[i]->kind == TypeKind.Temporary  # should be the "T"
+            assert from[i]->kind == TypeKind.TypeVar
 
         match self->kind:
-            case TypeKind.Temporary:
+            case TypeKind.TypeVar:
                 # the T of List[T] becomes the int of List[int]
                 for i = 0; i < n; i++:
                     if from[i] == self:
@@ -177,12 +178,13 @@ class Type:
                 | TypeKind.Bool
                 | TypeKind.Enum
                 | TypeKind.VoidPointer
+                | TypeKind.OpaqueClass
             ):
                 return self
 
     def short_description(self) -> byte*:
         match self->kind:
-            case TypeKind.Class:
+            case TypeKind.Class | TypeKind.OpaqueClass:
                 return "a class"
             case TypeKind.Enum:
                 return "an enum"
@@ -194,7 +196,7 @@ class Type:
                 return "an array type"
             case TypeKind.Bool:
                 return "the built-in bool type"
-            case TypeKind.Temporary:
+            case TypeKind.TypeVar:
                 # TODO: is this good? test it
                 return "an unknown type"
 
@@ -370,19 +372,27 @@ def satisfy_valgrind(ti: TypeInfo*) -> None:
     global_type_state.other_types[global_type_state.n_other_types++] = ti
 
 
-# Used for a couple different things:
-#   - Classes before their members are known
-#   - Generics, e.g. the type "T" when defining class List[T]
-@public
-def create_temporary_type(name: byte*) -> Type*:
+def create_simple_type(name: byte*, kind: TypeKind) -> Type*:
     result: TypeInfo* = calloc(1, sizeof *result)
-    result->type = Type{kind = TypeKind.Temporary}
+    result->type = Type{kind = kind}
 
     assert strlen(name) < sizeof result->type.name
     strcpy(result->type.name, name)
 
     satisfy_valgrind(result)
     return &result->type
+
+
+# Used for classes before their members are known.
+@public
+def create_opaque_class(name: byte*) -> Type*:
+    return create_simple_type(name, TypeKind.OpaqueClass)
+
+
+# Used for generics. This creates the unknown type "T" when defining class "List[T]".
+@public
+def create_typevar(name: byte*) -> Type*:
+    return create_simple_type(name, TypeKind.TypeVar)
 
 
 @public
