@@ -84,7 +84,24 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
                     found = ft->find_type(asttype->name)
                     if found != NULL:
                         return found
-                    snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype->name)
+
+                    # At this point we will show an error for sure.
+                    generic = ft->find_generic_class(asttype->name)
+                    if generic == NULL:
+                        snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype->name)
+                    else:
+                        # Suggest int for all params of the generic class, e.g. List[int]
+                        assert generic->classdata.n_generic_params > 0
+                        ints = malloc(10 * generic->classdata.n_generic_params)
+                        assert ints != NULL
+                        strcpy(ints, "int")
+                        for i = 1; i < generic->classdata.n_generic_params; i++:
+                            strcat(ints, ", int")
+                        snprintf(
+                            msg, sizeof(msg),
+                            "%s is a generic class, use e.g. %s[%s] instead of just %s",
+                            generic->name, asttype->name, ints, asttype->name,
+                        )
                     fail(asttype->location, msg)
 
         case AstTypeKind.Pointer:
