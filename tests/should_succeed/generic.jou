@@ -1,2 +1,12 @@
-class Foo[T]:
-    x: T
+import "stdlib/io.jou"
+
+class List[T1, T2]:
+    x: T1
+    y: T2
+
+def main() -> int:
+    pair: List[int, byte*]
+    pair.x = 1
+    pair.y = "hi"
+    printf("%d %s\n", pair.x, pair.y)  # Output: 1 hi
+    return 0

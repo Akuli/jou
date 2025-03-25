@@ -182,19 +182,8 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
             t->classdata.generic_params[i] = create_temporary_type(classdef->generic_typevar_names[i])
 
         # Update name of type from "List" to "List[T]"
-        total_len = strlen(t->name) + strlen("[]") + (n-1)*strlen(", ")
-        for i = 0; i < n; i++:
-            total_len += strlen(classdef->generic_typevar_names[i])
-        if total_len < sizeof(t->name):
-            strcat(t->name, "[")
-            for i = 0; i < n; i++:
-                if i != 0:
-                    strcat(t->name, ", ")
-                strcat(t->name, classdef->generic_typevar_names[i])
-            strcat(t->name, "]")
-        else:
-            old_name: byte[500] = t->name
-            snprintf(t->name, sizeof(t->name), "%s[...]", old_name)
+        old_name: byte[500] = t->name
+        t->name = create_type_name_with_params(old_name, t->classdata.generic_params, n)
 
     union_id = 0
     for stmt = classdef->body->statements; stmt < &classdef->body->statements[classdef->body->nstatements]; stmt++:

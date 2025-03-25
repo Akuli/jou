@@ -2,6 +2,7 @@
 # checking steps.
 
 import "stdlib/str.jou"
+import "stdlib/mem.jou"
 import "stdlib/io.jou"
 
 import "../ast.jou"
@@ -104,9 +105,18 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             if gclass == NULL:
                 snprintf(msg, sizeof(msg), "there is no generic class named '%s'", asttype->generic.class_name)
                 fail(asttype->location, msg)
-            printf("TODO: substitute into %s\n", gclass->name)
-            printf("\n")
-            for i = 0; i < asttype->generic.n_param_types; i++:
-                asttype->generic.param_types[i].print(True)
-                printf("\n")
-            assert False
+            assert gclass->kind == TypeKind.Class
+
+            # TODO: test wrong number of params
+            assert asttype->generic.n_param_types == gclass->classdata.n_generic_params
+            n = asttype->generic.n_param_types
+
+            from = gclass->classdata.generic_params
+            to: Type** = malloc(sizeof(to[0]) * n)
+            assert to != NULL
+            for i = 0; i < n; i++:
+                to[i] = type_from_ast(ft, containing_class, &asttype->generic.param_types[i])
+
+            result = gclass->substitute_generic_params(from, to, n)
+            free(to)
+            return result
