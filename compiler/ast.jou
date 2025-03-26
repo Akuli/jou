@@ -96,7 +96,7 @@ class AstType:
             case AstTypeKind.Generic:
                 for p = self->generic.param_types.ptr; p < self->generic.param_types.end(); p++:
                     p->free()
-                self->generic.param_types.clear()
+                free(self->generic.param_types.ptr)
 
 
 # Statements and expressions can be printed in a tree.
@@ -167,7 +167,7 @@ class AstInstantiation:
         self->type.free()
         for f = self->fields.ptr; f < self->fields.end(); f++:
             f->value.free()
-        self->fields.clear()
+        free(self->fields.ptr)
 
 
 @public
@@ -322,7 +322,7 @@ class AstExpression:
             case AstExpressionKind.Array:
                 for p = self->array.ptr; p < self->array.end(); p++:
                     p->free()
-                self->array.clear()
+                free(self->array.ptr)
             case AstExpressionKind.Call:
                 self->call.free()
             case AstExpressionKind.Instantiate:
@@ -437,7 +437,7 @@ class AstCall:
     def free(self) -> None:
         for p = self->args.ptr; p < self->args.end(); p++:
             p->free()
-        self->args.clear()
+        free(self->args.ptr)
         if self->method_call_self != NULL:
             self->method_call_self->free()
             free(self->method_call_self)
@@ -756,7 +756,7 @@ class AstIfStatement:
     def free(self) -> None:
         for p = self->if_and_elifs.ptr; p < self->if_and_elifs.end(); p++:
             p->free()
-        self->if_and_elifs.clear()
+        free(self->if_and_elifs.ptr)
         free_body(self->else_body)
 
 
@@ -790,7 +790,7 @@ class AstMatchStatement:
             self->func_signature.free()
         for p = self->cases.ptr; p < self->cases.end(); p++:
             p->free()
-        self->cases.clear()
+        free(self->cases.ptr)
         if self->case_underscore != NULL:
             free_body(*self->case_underscore)
             free(self->case_underscore)
@@ -816,7 +816,7 @@ class AstCase:
     def free(self) -> None:
         for p = self->case_objs.ptr; p < self->case_objs.end(); p++:
             p->free()
-        self->case_objs.clear()
+        free(self->case_objs.ptr)
         free_body(self->body)
 
 
@@ -867,7 +867,7 @@ class AstForLoop:
 
         for stmt = self->body.ptr; stmt < self->body.end(); stmt++:
             stmt->free()
-        self->body.clear()
+        free(self->body.ptr)
 
 
 # name: type = value
@@ -946,7 +946,7 @@ def print_body(body: List[AstStatement], tp: TreePrinter) -> None:
 def free_body(body: List[AstStatement]) -> None:
     for p = body.ptr; p < body.end(); p++:
         p->free()
-    body.clear()
+    free(body.ptr)
 
 
 # function name and parameters in "def" or "declare"
@@ -986,7 +986,7 @@ class AstSignature:
     def free(self) -> None:
         for p = self->args.ptr; p < self->args.end(); p++:
             p->free()
-        self->args.clear()
+        free(self->args.ptr)
         self->return_type.free()
 
 

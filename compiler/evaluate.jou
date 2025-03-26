@@ -159,7 +159,7 @@ def evaluate_if_statements_in_body(body: List[AstStatement]*, must_succeed: bool
                     replacement = *branch
                     *branch = List[AstStatement]{}  # avoid double-free
                     replace(body, i, replacement)
-                    replacement.clear()
+                    free(replacement.ptr)
                     i--  # cancels i++ to do same index again, so that we handle nested if statements
                     continue
 

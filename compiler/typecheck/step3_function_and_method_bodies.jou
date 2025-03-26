@@ -669,7 +669,7 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
                     specified_fields.ptr[i1]->name, specified_fields.ptr[i2]->name)
                 fail(inst->fields.ptr[i2].value.location,msg)
 
-    specified_fields.clear()
+    free(specified_fields.ptr)
     return t
 
 
@@ -736,8 +736,8 @@ def cast_array_members_to_a_common_type(
         fail(error_location, msg)
 
     elemtype = compatible_with_all.ptr[0]
-    distinct.clear()
-    compatible_with_all.clear()
+    free(distinct.ptr)
+    free(compatible_with_all.ptr)
 
     for p = array.ptr; p < array.end(); p++:
         do_implicit_cast(fom, p, elemtype, error_location, NULL)

@@ -2,6 +2,7 @@
 
 import "stdlib/io.jou"
 import "stdlib/list.jou"
+import "stdlib/mem.jou"
 
 
 def main() -> int:
@@ -35,7 +36,7 @@ def main() -> int:
     for p = foo.ptr; p < foo.end(); p++:
         printf("%d\n", *p)
 
-    # This is needed to free memory when you are done with the list!
-    foo.clear()
+    # Free memory used by the list when you're done to avoid a memory leak.
+    free(foo.ptr)
 
     return 0

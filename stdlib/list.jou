@@ -52,14 +52,6 @@ class List[T]:
         memcpy(self->end(), item, itemsize)
         self->len++
 
-    # Make the list empty and free the memory used by the list.
-    def clear(self) -> None:
-        free(self->ptr)
-        self->ptr = NULL
-        self->len = 0
-        self->alloc = 0
-        # Let itemsize be set, so that we are more likely to detect wrong sizes in append()
-
     # Return a pointer just beyond the last element of the list.
     # Use list.end()[-1] to get the last element.
     def end(self) -> T*:

@@ -1,5 +1,6 @@
 import "stdlib/str.jou"
 import "stdlib/list.jou"
+import "stdlib/mem.jou"
 
 import "../ast.jou"
 import "../constants.jou"
@@ -49,7 +50,7 @@ class AstToBuilder:
         self->builder->begin_function(sig, public)
         self->returns_a_value = (sig->return_type != NULL)
 
-        self->locals.clear()
+        self->locals.len = 0
         for i = 0; i < nlocals; i++:
             var_name = locals[i].name
             var_type = locals[i].type
@@ -613,5 +614,5 @@ def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location,
     ast2ir.build_body(func_ast->body)
     builder->end_function()
 
-    ast2ir.locals.clear()
-    ast2ir.loops.clear()
+    free(ast2ir.locals.ptr)
+    free(ast2ir.loops.ptr)
