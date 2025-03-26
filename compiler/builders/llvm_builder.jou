@@ -99,8 +99,7 @@ def type_to_llvm(type: Type*) -> LLVMType*:
             return LLVMInt1Type()
         case TypeKind.TypeVar:
             # This is compiler internal/temporary thing and should never end up here.
-            # Please create an issue on GitHub if you get an error from the following line.
-            assert False
+            assert False  # please create an issue on GitHub if this errors
         case TypeKind.Class:
             return class_type_to_llvm(type)
         case TypeKind.Enum:
