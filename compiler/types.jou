@@ -1,4 +1,5 @@
 import "stdlib/mem.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 
@@ -12,12 +13,14 @@ class ClassField:
 
 
 class ClassData:
-    generic_params: Type**   # this is the "int" part of List[int]
-    n_generic_params: int   # 0 means this is not a generic class
+    generic_params: List[Type*]   # this is the "int" part of List[int]
     fields: ClassField*
     nfields: int
     methods: Signature*
     nmethods: int
+
+    def is_generic(self) -> bool:
+        return self->generic_params.len > 0
 
     def substitute_generic_params_to_fields(self, from: Type**, to: Type**, n: int) -> ClassField*:
         if self->nfields == 0:
@@ -139,15 +142,14 @@ class Type:
                 return self
 
             case TypeKind.Class:
-                if self->classdata.n_generic_params == 0:
+                if not self->classdata.is_generic():
                     # Do nothing for non-generic classes
                     return self
 
-                n_generic_params = self->classdata.n_generic_params
-                generic_params: Type** = malloc(sizeof(generic_params[0]) * n_generic_params)
-                assert generic_params != NULL
-                for i = 0; i < self->classdata.n_generic_params; i++:
-                    generic_params[i] = self->classdata.generic_params[i]->substitute_generic_params(from, to, n)
+                generic_params = List[Type*]{}
+                for p = self->classdata.generic_params.ptr; p < self->classdata.generic_params.end(); p++:
+                    subbed = (*p)->substitute_generic_params(from, to, n)
+                    generic_params.append(&subbed, sizeof(subbed))
 
                 # Results are cached in related_types, just like arrays.
                 # Before we go further, let's check if the type we want is already cached.
@@ -156,10 +158,10 @@ class Type:
                     t = &(*r)->type
                     if (
                         t->kind == TypeKind.Class
-                        and t->classdata.n_generic_params == self->classdata.n_generic_params
-                        and memcmp(t->classdata.generic_params, generic_params, sizeof(generic_params[0]) * n_generic_params) == 0
+                        and t->classdata.generic_params.len == generic_params.len
+                        and memcmp(t->classdata.generic_params.ptr, generic_params.ptr, sizeof(generic_params.ptr[0]) * generic_params.len) == 0
                     ):
-                        free(generic_params)
+                        free(generic_params.ptr)
                         return t
 
                 # Cache the incomplete result. This helps avoid infinite recursion when
@@ -172,7 +174,7 @@ class Type:
                 info->related_types[info->n_related_types++] = new_info
                 result = &new_info->type
                 *result = *self
-                result->name = create_type_name_with_params(self->name, generic_params, n_generic_params)
+                result->name = create_type_name_with_params(self->name, generic_params.ptr, generic_params.len as int)
 
                 # Recursively convert everything inside the class.
                 result->classdata.generic_params = generic_params
@@ -206,18 +208,17 @@ class Type:
     # methods are recomputed from the fields and methods of Foo[T].
     def update_fields_and_methods_to_generic_instances(self) -> None:
         assert self->kind == TypeKind.Class
-        assert self->classdata.n_generic_params > 0
 
-        from = self->classdata.generic_params
-        n = self->classdata.n_generic_params
+        from = self->classdata.generic_params.ptr
+        n = self->classdata.generic_params.len as int
+        assert n > 0
 
         info = cast_type_to_typeinfo(self)
         for r = info->related_types; r < &info->related_types[info->n_related_types]; r++:
             t = &(*r)->type
-            if t->kind != TypeKind.Class or t->classdata.n_generic_params != n:
+            if t->kind != TypeKind.Class or t->classdata.generic_params.len != n:
                 continue
-
-            to = t->classdata.generic_params
+            to = t->classdata.generic_params.ptr
 
             if t->classdata.nfields < self->classdata.nfields:
                 free(t->classdata.fields)
@@ -384,7 +385,7 @@ def free_type(t: Type*) -> None:
     if t->kind == TypeKind.Class:
         for sig = t->classdata.methods; sig < &t->classdata.methods[t->classdata.nmethods]; sig++:
             sig->free()
-        free(t->classdata.generic_params)
+        free(t->classdata.generic_params.ptr)
         free(t->classdata.fields)
         free(t->classdata.methods)
 

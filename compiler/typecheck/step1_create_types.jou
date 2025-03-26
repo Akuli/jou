@@ -22,16 +22,13 @@ import "./common.jou"
 # attaches it to the Foo type. It also renames the type from "Foo" to "Foo[T]".
 def handle_generics(t: Type*, classdef: AstClassDef*) -> None:
     assert t->kind == TypeKind.Class
-    n = classdef->generic_typevar_names.len  # number of generic parameters, e.g. 2 for Foo[T1, T2]
-    assert n > 0
-
-    t->classdata.n_generic_params = n as int
-    t->classdata.generic_params = malloc(sizeof(t->classdata.generic_params[0]) * n)
-    for i = 0; i < n; i++:
-        t->classdata.generic_params[i] = create_typevar(classdef->generic_typevar_names.ptr[i])
+    assert classdef->is_generic()
+    for nameptr = classdef->generic_typevar_names.ptr; nameptr < classdef->generic_typevar_names.end(); nameptr++:
+        typevar = create_typevar(*nameptr)
+        t->classdata.generic_params.append(&typevar, sizeof(typevar))
 
     old_name: byte[500] = t->name
-    t->name = create_type_name_with_params(old_name, t->classdata.generic_params, n as int)
+    t->name = create_type_name_with_params(old_name, t->classdata.generic_params.ptr, t->classdata.generic_params.len as int)
 
 
 @public
