@@ -334,6 +334,7 @@ class Parser:
                 self->tokens++
 
                 result = AstType{
+                    location = location,
                     kind = AstTypeKind.Array,
                     array = AstArrayType{
                         member_type = p,
@@ -352,9 +353,6 @@ class Parser:
                     if not self->tokens->is_operator(","):
                         break
                     self->tokens++
-
-                if nparams == 0:
-                    fail(self->tokens->location, "empty [] is not valid syntax when specifying a type")
 
                 if not self->tokens->is_operator("]"):
                     self->tokens->fail_expected_got("a ']'")

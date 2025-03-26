@@ -431,7 +431,7 @@ def create_type_name_with_params(class_name: byte*, params: Type**, nparams: int
 
     result: byte[500]
     if total_len < sizeof(result):
-        snprintf(result, sizeof(result), "%.*s[", class_name_len as int, class_name)
+        sprintf(result, "%.*s[", class_name_len as int, class_name)
         for i = 0; i < nparams; i++:
             if i != 0:
                 strcat(result, ", ")
