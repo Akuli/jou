@@ -45,10 +45,7 @@ class UBuilder:
 
         b = self->current_block
         assert b != NULL
-
-        b->instructions = realloc(b->instructions, sizeof(b->instructions[0]) * (b->ninstructions + 1))
-        assert b->instructions != NULL
-        b->instructions[b->ninstructions++] = ins
+        b->instructions.append(&ins, sizeof(ins))
 
     def begin_statement_in_a_body(self) -> None:
         self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Statement})
