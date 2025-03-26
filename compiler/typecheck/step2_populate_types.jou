@@ -167,7 +167,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
     # Previous type-checking step created an opaque class.
     t = classdef->type
     assert t != NULL
-    assert t->kind == TypeKind.OpaqueClass
+    assert t->kind == TypeKind.Class
     t->kind = TypeKind.Class
 
     memset(&t->classdata, 0, sizeof t->classdata)
