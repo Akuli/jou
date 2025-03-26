@@ -206,16 +206,15 @@ def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
 
 class CompileState:
     stdlib_path: byte*
-    files: FileState*
-    nfiles: int
+    files: List[FileState]
 
     def free(self) -> None:
-        for fs = self->files; fs < &self->files[self->nfiles]; fs++:
+        for fs = self->files.ptr; fs < self->files.end(); fs++:
             fs->free()
-        free(self->files)
+        free(self->files.ptr)
 
     def find_file(self, path: byte*) -> FileState*:
-        for fs = self->files; fs < &self->files[self->nfiles]; fs++:
+        for fs = self->files.ptr; fs < self->files.end(); fs++:
             if strcmp(fs->path, path) == 0:
                 return fs
         return NULL
@@ -251,9 +250,7 @@ class CompileState:
 
         check_imports_at_start_of_file(fs.ast.body)
 
-        self->files = realloc(self->files, sizeof(self->files[0]) * (self->nfiles + 1))
-        assert self->files != NULL
-        self->files[self->nfiles++] = fs
+        self->files.append(&fs, sizeof(fs))
 
         for stmt = fs.ast.body.ptr; stmt < fs.ast.body.end(); stmt++:
             if stmt->kind == AstStatementKind.Import:
@@ -268,7 +265,7 @@ class CompileState:
     # Each step of type checking produces exported symbols that other files can import.
     # This method hands them over to the importing files.
     def exports_to_imports(self, pending_exports: ExportSymbol**) -> None:
-        for to = self->files; to < &self->files[self->nfiles]; to++:
+        for to = self->files.ptr; to < self->files.end(); to++:
             seen_before: FileState** = NULL
             seen_before_len = 0
 
@@ -278,7 +275,7 @@ class CompileState:
 
                 from = self->find_file(stmt->import_statement.resolved_path)
                 assert from != NULL
-                from_index = ((from as long) - (self->files as long)) / sizeof(self->files[0])
+                from_index = ((from as long) - (self->files.ptr as long)) / sizeof(self->files.ptr[0])
 
                 if from == to:
                     fail(stmt->location, "the file itself cannot be imported")
@@ -312,7 +309,7 @@ class CompileState:
 
             free(seen_before)
 
-        for i = 0; i < self->nfiles; i++:
+        for i = 0; i < self->files.len; i++:
             for es = pending_exports[i]; es->name[0] != '\0'; es++:
                 es->free()
             free(pending_exports[i])
@@ -322,38 +319,38 @@ class CompileState:
         if command_line_args.verbosity >= 1:
             printf("Type-checking...\n")
 
-        pending_exports: ExportSymbol** = malloc(sizeof(pending_exports[0]) * self->nfiles)
+        pending_exports: ExportSymbol** = malloc(sizeof(pending_exports[0]) * self->files.len)
 
-        for i = 0; i < self->nfiles; i++:
+        for i = 0; i < self->files.len; i++:
             if command_line_args.verbosity >= 1:
-                printf("  step 1: %s\n", self->files[i].path)
-            pending_exports[i] = typecheck_step1_create_types(&self->files[i].ast)
+                printf("  step 1: %s\n", self->files.ptr[i].path)
+            pending_exports[i] = typecheck_step1_create_types(&self->files.ptr[i].ast)
 
         self->exports_to_imports(pending_exports)
 
-        for i = 0; i < self->nfiles; i++:
+        for i = 0; i < self->files.len; i++:
             if command_line_args.verbosity >= 1:
-                printf("  step 2: %s\n", self->files[i].path)
-            pending_exports[i] = typecheck_step2_populate_types(&self->files[i].ast)
+                printf("  step 2: %s\n", self->files.ptr[i].path)
+            pending_exports[i] = typecheck_step2_populate_types(&self->files.ptr[i].ast)
 
         self->exports_to_imports(pending_exports)
 
-        for i = 0; i < self->nfiles; i++:
+        for i = 0; i < self->files.len; i++:
             if command_line_args.verbosity >= 1:
-                printf("  step 3: %s\n", self->files[i].path)
-            typecheck_step3_function_and_method_bodies(&self->files[i].ast)
+                printf("  step 3: %s\n", self->files.ptr[i].path)
+            typecheck_step3_function_and_method_bodies(&self->files.ptr[i].ast)
             if command_line_args.verbosity >= 3:
                 # AST now contains types. If very verbose, print them.
-                self->files[i].ast.print()
+                self->files.ptr[i].ast.print()
 
         free(pending_exports)
 
     def build_and_analyze_all_uvgs(self) -> None:
         print_uvgs = command_line_args.verbosity >= 2
-        for i = 0; i < self->nfiles; i++:
+        for f = self->files.ptr; f < self->files.end(); f++:
             if command_line_args.verbosity >= 1:
-                printf("Building and analyzing UVGs for %s\n", self->files[i].path)
-            build_and_analyze_uvgs(&self->files[i].ast, print_uvgs)
+                printf("Building and analyzing UVGs for %s\n", f->path)
+            build_and_analyze_uvgs(&f->ast, print_uvgs)
 
 
 def optimize(module: LLVMModule*, level: int) -> None:
@@ -417,12 +414,12 @@ def parse_only(path: byte*, stdlib_path: byte*) -> None:
 # Linker flags come from:
 #   - files with 'link' statements
 #   - command-line --linker-flags argument
-def collect_linker_flags(files: FileState*, nfiles: int) -> byte*:
+def collect_linker_flags(files: List[FileState]) -> byte*:
     maxlen = 0L
     maxlen += strlen("-lm") + 1  # TODO: delete this
     if command_line_args.linker_flags != NULL:
         maxlen += strlen(command_line_args.linker_flags) + 1
-    for file = files; file < &files[nfiles]; file++:
+    for file = files.ptr; file < files.end(); file++:
         for stmt = file->ast.body.ptr; stmt < file->ast.body.end(); stmt++:
             if stmt->kind == AstStatementKind.Link:
                 maxlen += strlen(stmt->link_statement.resolved_flags) + 1
@@ -435,7 +432,7 @@ def collect_linker_flags(files: FileState*, nfiles: int) -> byte*:
     if command_line_args.linker_flags != NULL:
         strcat(result, command_line_args.linker_flags)
         strcat(result, " ")
-    for file = files; file < &files[nfiles]; file++:
+    for file = files.ptr; file < files.end(); file++:
         for stmt = file->ast.body.ptr; stmt < file->ast.body.end(); stmt++:
             if stmt->kind == AstStatementKind.Link:
                 strcat(result, stmt->link_statement.resolved_flags)
@@ -481,9 +478,9 @@ def main(argc: int, argv: byte**) -> int:
 
     compst.build_and_analyze_all_uvgs()
 
-    objpaths: byte** = calloc(sizeof objpaths[0], compst.nfiles + 1)
-    for i = 0; i < compst.nfiles; i++:
-        llvm_ir = compst.files[i].build_llvm_ir()
+    objpaths: byte** = calloc(sizeof objpaths[0], compst.files.len + 1)
+    for i = 0; i < compst.files.len; i++:
+        llvm_ir = compst.files.ptr[i].build_llvm_ir()
         objpaths[i] = compile_llvm_ir_to_object_file(llvm_ir)
         LLVMDisposeModule(llvm_ir)
 
@@ -494,7 +491,7 @@ def main(argc: int, argv: byte**) -> int:
     if not defines_main(&mainfile->ast):
         fail(Location{path=mainfile->path}, "missing `main` function to execute the program")
 
-    linker_flags = collect_linker_flags(compst.files, compst.nfiles)
+    linker_flags = collect_linker_flags(compst.files)
 
     compst.free()
     free(stdlib)
