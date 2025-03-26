@@ -1,5 +1,4 @@
 import "stdlib/str.jou"
-import "stdlib/mem.jou"
 import "stdlib/list.jou"
 
 import "../ast.jou"
@@ -25,8 +24,7 @@ class Loop:
 class AstToBuilder:
     builder: EitherBuilder*
     locals: List[LocalVar]
-    loops: Loop*
-    nloops: int
+    loops: List[Loop]
     returns_a_value: bool
 
     location: Location
@@ -441,9 +439,8 @@ class AstToBuilder:
             self->builder->branch(self->build_expression(cond), bodyblock, doneblock)
 
         # Within loop body, 'break' skips to after loop, 'continue' goes to incr.
-        self->loops = realloc(self->loops, (self->nloops + 1) * sizeof(self->loops[0]))
-        assert self->loops != NULL
-        self->loops[self->nloops++] = Loop{on_break = doneblock, on_continue = incrblock}
+        loop = Loop{on_break = doneblock, on_continue = incrblock}
+        self->loops.append(&loop, sizeof(loop))
 
         # Run loop body. When done, go to incr.
         self->builder->set_current_block(bodyblock)
@@ -451,8 +448,7 @@ class AstToBuilder:
         self->builder->jump(incrblock)
 
         # 'break' and 'continue' are not allowed after the loop body.
-        assert self->nloops > 0
-        self->nloops--
+        self->loops.pop()
 
         # Run incr and jump back to condition.
         self->builder->set_current_block(incrblock)
@@ -559,12 +555,12 @@ class AstToBuilder:
             case AstStatementKind.Match:
                 self->build_match_statement(&stmt->match_statement)
             case AstStatementKind.Break:
-                assert self->nloops > 0
-                self->builder->jump(self->loops[self->nloops - 1].on_break)
+                assert self->loops.len > 0
+                self->builder->jump(self->loops.end()[-1].on_break)
                 self->builder->set_current_block(self->builder->add_block())  # for code after 'break', if any
             case AstStatementKind.Continue:
-                assert self->nloops > 0
-                self->builder->jump(self->loops[self->nloops - 1].on_continue)
+                assert self->loops.len > 0
+                self->builder->jump(self->loops.end()[-1].on_continue)
                 self->builder->set_current_block(self->builder->add_block())  # for code after 'continue', if any
             case AstStatementKind.Assign:
                 lhs_ptr = self->build_address_of_expression(&stmt->assignment.target)
@@ -616,5 +612,6 @@ def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location,
     ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals, func_ast->types.nlocals, public)
     ast2ir.build_body(&func_ast->body)
     builder->end_function()
+
     ast2ir.locals.clear()
-    free(ast2ir.loops)
+    ast2ir.loops.clear()

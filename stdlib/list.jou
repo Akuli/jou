@@ -61,3 +61,8 @@ class List[T]:
         start = self->ptr as byte*
         end = &start[self->len * self->itemsize]
         return end as T*
+
+    # TODO: It is currently not possible to return the deleted element unless it is a pointer.
+    def pop(self) -> None:
+        assert self->len > 0  # If this fails, you are trying to pop from an empty list
+        self->len--
