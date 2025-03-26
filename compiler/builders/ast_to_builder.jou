@@ -234,17 +234,17 @@ class AstToBuilder:
         else:
             return old_value
 
-    def build_array(self, t: Type*, items: AstExpression*, nitems: int) -> EitherBuilderValue:
+    def build_array(self, t: Type*, items: List[AstExpression]) -> EitherBuilderValue:
         assert t->kind == TypeKind.Array
-        assert t->array.len == nitems
+        assert t->array.len == items.len
 
         arr_ptr = self->builder->stack_alloc(t, NULL)
         first_item_ptr = self->builder->cast(arr_ptr, t->array.item_type->pointer_type())
 
-        for i = 0; i < nitems; i++:
+        for i = 0; i < items.len; i++:
             i_built = self->builder->integer(longType, i)
             item_ptr = self->builder->indexed_pointer(first_item_ptr, i_built)
-            item_value = self->build_expression(&items[i])
+            item_value = self->build_expression(&items.ptr[i])
             self->builder->set_ptr(item_ptr, item_value)
 
         return self->builder->dereference(arr_ptr)
@@ -277,7 +277,7 @@ class AstToBuilder:
             case AstExpressionKind.Constant:
                 return self->build_constant(&expr->constant)
             case AstExpressionKind.Array:
-                return self->build_array(expr->types.orig_type, expr->array.items, expr->array.length)
+                return self->build_array(expr->types.orig_type, expr->array)
             case AstExpressionKind.Call:
                 return self->build_call(&expr->call)
             case AstExpressionKind.Instantiate:

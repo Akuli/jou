@@ -219,7 +219,7 @@ class AstExpression:
         call: AstCall
         instantiation: AstInstantiation
         as_: AstAs*  # Must be pointer, because it contains an AstExpression
-        array: AstArray
+        array: List[AstExpression]
         varname: byte[100]
         float_or_double_text: byte[100]
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
@@ -243,8 +243,8 @@ class AstExpression:
                 printf("indexing\n")
             case AstExpressionKind.Array:
                 printf("array\n")
-                for i = 0; i < self->array.length; i++:
-                    self->array.items[i].print_with_tree_printer(tp.print_prefix(i == self->array.length-1))
+                for i = 0; i < self->array.len; i++:
+                    self->array.ptr[i].print_with_tree_printer(tp.print_prefix(i == self->array.len-1))
             case AstExpressionKind.Call:
                 self->call.print_with_tree_printer(tp)
             case AstExpressionKind.Instantiate:
@@ -320,7 +320,9 @@ class AstExpression:
             case AstExpressionKind.Constant:
                 self->constant.free()
             case AstExpressionKind.Array:
-                self->array.free()
+                for p = self->array.ptr; p < self->array.end(); p++:
+                    p->free()
+                self->array.clear()
             case AstExpressionKind.Call:
                 self->call.free()
             case AstExpressionKind.Instantiate:
@@ -379,18 +381,6 @@ class AstExpression:
             or self->kind == AstExpressionKind.PostIncr
             or self->kind == AstExpressionKind.PostDecr
         )
-
-
-# [foo, bar, baz]
-@public
-class AstArray:
-    length: int
-    items: AstExpression*
-
-    def free(self) -> None:
-        for i = 0; i < self->length; i++:
-            self->items[i].free()
-        free(self->items)
 
 
 # foo as bar

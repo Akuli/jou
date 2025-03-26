@@ -535,21 +535,21 @@ class Parser:
 
         return result
 
-    def parse_array(self) -> AstArray:
+    def parse_array(self) -> List[AstExpression]:
         assert self->tokens->is_operator("[")
         self->tokens++
 
-        result = AstArray{}
+        result = List[AstExpression]{}
         while not self->tokens->is_operator("]"):
-            result.items = realloc(result.items, (result.length + 1) * sizeof result.items[0])
-            result.items[result.length++] = self->parse_expression()
+            item = self->parse_expression()
+            result.append(&item, sizeof(item))
             if not self->tokens->is_operator(","):
                 break
             self->tokens++
 
         if not self->tokens->is_operator("]"):
             self->tokens->fail_expected_got("a ']' to end the array")
-        if result.length == 0:
+        if result.len == 0:
             fail(self->tokens->location, "arrays cannot be empty")
         self->tokens++
 

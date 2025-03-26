@@ -676,77 +676,71 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
 def cast_array_members_to_a_common_type(
     fom: FunctionOrMethodTypes*,
     error_location: Location,
-    array: AstArray,
+    array: List[AstExpression],
     item_type_hint: Type*,
 ) -> Type*:
     if item_type_hint != NULL:
-        for i = 0; i < array.length; i++:
-            do_implicit_cast(fom, &array.items[i], item_type_hint, error_location, "array items should be of type <to>, not <from>")
+        for p = array.ptr; p < array.end(); p++:
+            do_implicit_cast(fom, p, item_type_hint, error_location, "array items should be of type <to>, not <from>")
         return item_type_hint
 
     # Avoid O(ntypes^2) code in a long array where all or almost all items have the same type.
     # This is at most O(ntypes*k) where k is the number of distinct types.
-    distinct: Type** = NULL
-    ndistinct = 0
+    distinct = List[Type*]{}
 
-    for i = 0; i < array.length; i++:
-        itemtype = array.items[i].types.orig_type
+    for p = array.ptr; p < array.end(); p++:
+        itemtype = p->types.orig_type
         assert itemtype != NULL
 
         found = False
-        for t = distinct; t < &distinct[ndistinct]; t++:
+        for t = distinct.ptr; t < distinct.end(); t++:
             if itemtype == *t:
                 found = True
                 break
         if not found:
-            distinct = realloc(distinct, sizeof(distinct[0]) * (ndistinct + 1))
-            assert distinct != NULL
-            distinct[ndistinct++] = itemtype
+            distinct.append(&itemtype, sizeof(itemtype))
 
-    compatible_with_all: Type** = NULL
-    n_compatible_with_all = 0
+    compatible_with_all = List[Type*]{}
 
-    for t = distinct; t < &distinct[ndistinct]; t++:
+    for t = distinct.ptr; t < distinct.end(); t++:
         t_compatible_with_all_others = True
-        for t2 = distinct; t2 < &distinct[ndistinct]; t2++:
+        for t2 = distinct.ptr; t2 < distinct.end(); t2++:
             if not can_cast_implicitly(*t2, *t):
                 t_compatible_with_all_others = False
                 break
 
         if t_compatible_with_all_others:
-            compatible_with_all = realloc(compatible_with_all, sizeof(compatible_with_all[0]) * (n_compatible_with_all + 1))
-            assert compatible_with_all != NULL
-            compatible_with_all[n_compatible_with_all++] = *t
+            compatible_with_all.append(t, sizeof(*t))
 
-    if n_compatible_with_all > 1:
+    if compatible_with_all.len > 1:
         # Remove void* if exists, so that type of ["hello", NULL] becomes byte*[2]
-        for i = 0; i < n_compatible_with_all; i++:
-            if compatible_with_all[i] == voidPtrType:
-                compatible_with_all[i] = compatible_with_all[--n_compatible_with_all]
+        for i = 0; i < compatible_with_all.len; i++:
+            if compatible_with_all.ptr[i] == voidPtrType:
+                compatible_with_all.ptr[i] = compatible_with_all.ptr[--compatible_with_all.len]
                 break
 
-    if n_compatible_with_all != 1:
+    if compatible_with_all.len != 1:
         size = 500L
-        for t = distinct; t < &distinct[ndistinct]; t++:
+        for t = distinct.ptr; t < distinct.end(); t++:
             size += strlen((*t)->name) + 3  # 1 for comma, 1 for space, 1 because why not lol
 
         msg: byte* = malloc(size)
         assert msg != NULL
 
         strcpy(msg, "array items have different types (")
-        for t = distinct; t < &distinct[ndistinct]; t++:
-            if t != distinct:
+        for t = distinct.ptr; t < distinct.end(); t++:
+            if t != distinct.ptr:
                 strcat(msg, ", ")
             strcat(msg, (*t)->name)
         strcat(msg, ")")
         fail(error_location, msg)
 
-    elemtype = compatible_with_all[0]
-    free(distinct)
-    free(compatible_with_all)
+    elemtype = compatible_with_all.ptr[0]
+    distinct.clear()
+    compatible_with_all.clear()
 
-    for i = 0; i < array.length; i++:
-        do_implicit_cast(fom, &array.items[i], elemtype, error_location, NULL)
+    for p = array.ptr; p < array.end(); p++:
+        do_implicit_cast(fom, p, elemtype, error_location, NULL)
     return elemtype
 
 
@@ -868,11 +862,11 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 item_type_hint = type_hint->array.item_type
             else:
                 item_type_hint = NULL
-            n = expr->array.length
+            n = expr->array.len
             for i = 0; i < n; i++:
-                typecheck_expression_not_void(state, &expr->array.items[i], item_type_hint)
+                typecheck_expression_not_void(state, &expr->array.ptr[i], item_type_hint)
             membertype = cast_array_members_to_a_common_type(state->fom_types, expr->location, expr->array, item_type_hint)
-            result = membertype->array_type(n)
+            result = membertype->array_type(n as int)
 
         case AstExpressionKind.GetClassField:
             if expr->class_field.uses_arrow_operator:
