@@ -1088,12 +1088,12 @@ class Parser:
                             self->tokens->fail_expected_got("'|' or '):'")
                         else:
                             self->tokens->fail_expected_got("'|' or ':'")
-                result.cases = realloc(result.cases, sizeof result.cases[0] * (result.ncases + 1))
-                result.cases[result.ncases++] = AstCase{
+                c = AstCase{
                     case_objs = case_objs,
                     n_case_objs = n_case_objs,
                     body = self->parse_body(),
                 }
+                result.cases.append(&c, sizeof(c))
         self->tokens++
 
         return result

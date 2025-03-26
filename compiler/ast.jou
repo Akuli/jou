@@ -770,15 +770,14 @@ class AstMatchStatement:
     match_obj: AstExpression
     func_name: byte[100]  # empty if there's no "with foo"
     func_signature: Signature  # populated in typecheck, zero-initialized before typecheck runs
-    cases: AstCase*
-    ncases: int
+    cases: List[AstCase]
     case_underscore: AstBody*  # body of "case _" (always last), NULL if no "case _"
     case_underscore_location: Location  # not meaningful if case_underscore == NULL
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("match\n")
-        for i = 0; i < self->ncases; i++:
-            self->cases[i].print_with_tree_printer(tp, i == self->ncases - 1 and self->case_underscore == NULL)
+        for p = self->cases.ptr; p < self->cases.end(); p++:
+            p->print_with_tree_printer(tp, p == &self->cases.end()[-1] and self->case_underscore == NULL)
 
         if self->case_underscore != NULL:
             sub = tp.print_prefix(True)
@@ -789,9 +788,9 @@ class AstMatchStatement:
         self->match_obj.free()
         if self->func_signature.name[0] != '\0':
             self->func_signature.free()
-        for i = 0; i < self->ncases; i++:
-            self->cases[i].free()
-        free(self->cases)
+        for p = self->cases.ptr; p < self->cases.end(); p++:
+            p->free()
+        self->cases.clear()
         if self->case_underscore != NULL:
             self->case_underscore->free()
             free(self->case_underscore)

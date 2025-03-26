@@ -463,11 +463,11 @@ class AstToBuilder:
         match_obj = self->build_expression(&match_stmt->match_obj)
 
         done = self->builder->add_block()
-        for i = 0; i < match_stmt->ncases; i++:
+        for p = match_stmt->cases.ptr; p < match_stmt->cases.end(); p++:
             then = self->builder->add_block()
             otherwise = EitherBuilderBlock{}  # will be replaced by loop below
-            for k = 0; k < match_stmt->cases[i].n_case_objs; k++:
-                case_obj = self->build_expression(&match_stmt->cases[i].case_objs[k])
+            for k = 0; k < p->n_case_objs; k++:
+                case_obj = self->build_expression(&p->case_objs[k])
                 if match_stmt->func_name[0] == '\0':
                     cond = self->builder->eq(match_obj, case_obj)
                 else:
@@ -480,7 +480,7 @@ class AstToBuilder:
                 self->builder->set_current_block(otherwise)
 
             self->builder->set_current_block(then)
-            self->build_body(&match_stmt->cases[i].body)
+            self->build_body(&p->body)
             self->builder->jump(done)
             self->builder->set_current_block(otherwise)
 

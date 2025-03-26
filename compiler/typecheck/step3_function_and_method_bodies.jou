@@ -1118,9 +1118,9 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
         typecheck_expression_with_implicit_cast(state, &match_stmt->match_obj, sig->argtypes[0], msg)
         case_type = sig->argtypes[1]
 
-    for i = 0; i < match_stmt->ncases; i++:
-        for j = 0; j < match_stmt->cases[i].n_case_objs; j++:
-            case_obj = &match_stmt->cases[i].case_objs[j]
+    for c = match_stmt->cases.ptr; c < match_stmt->cases.end(); c++:
+        for j = 0; j < c->n_case_objs; j++:
+            case_obj = &c->case_objs[j]
             if sig_string == NULL:
                 msg = "case value of type <from> cannot be matched against <to>"
             else:
@@ -1145,7 +1145,7 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
                     snprintf(msg, sizeof(msg), "enum member %s is handled twice", member)
                     fail(case_obj->location, msg)
 
-        typecheck_body(state, &match_stmt->cases[i].body)
+        typecheck_body(state, &c->body)
 
     # Do not complain if there is a seemingly unnecessary 'case _', because it
     # may be ran by casting an integer to enum with 'as'. However, we can
