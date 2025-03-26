@@ -534,7 +534,7 @@ class AstStatement:
         global_var_declare: AstGlobalVarDeclare  # GlobalVariableDeclare
         global_var_def: AstGlobalVarDef     # GlobalVariableDef
         class_field: AstNameTypeValue       # ClassField
-        union_fields: AstUnionFields        # ClassUnion
+        union_fields: List[AstNameTypeValue]  # ClassUnion
         function: AstFunctionOrMethod
         method: AstFunctionOrMethod
         classdef: AstClassDef
@@ -628,7 +628,9 @@ class AstStatement:
                 printf("\n")
             case AstStatementKind.ClassUnion:
                 printf("union\n")
-                self->union_fields.print_with_tree_printer(tp)
+                for f = self->union_fields.ptr; f < self->union_fields.end(); f++:
+                    subprinter = tp.print_prefix(f == &self->union_fields.end()[-1])
+                    f->print_with_tree_printer(&subprinter)  # TODO: does this need to be optional/pointer?
             case AstStatementKind.Const:
                 printf("const statement ")
                 self->const_statement.print()
@@ -679,7 +681,9 @@ class AstStatement:
             case AstStatementKind.Import:
                 self->import_statement.free()
             case AstStatementKind.ClassUnion:
-                self->union_fields.free()
+                for f = self->union_fields.ptr; f < self->union_fields.end(); f++:
+                    f->free()
+                free(self->union_fields.ptr)
             case AstStatementKind.Const:
                 self->const_statement.free()
             case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
@@ -1063,28 +1067,6 @@ class AstFunctionOrMethod:
         if self->types.signature.name[0] != '\0':
             # type-checking ran, the types are set and they need freeing
             self->types.free()
-
-
-# union:
-#     foo: type1
-#     bar: type2
-@public
-class AstUnionFields:
-    fields: AstNameTypeValue*
-    nfields: int
-
-    def print(self) -> None:
-        self->print_with_tree_printer(TreePrinter{})
-
-    def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        for i = 0; i < self->nfields; i++:
-            subprinter = tp.print_prefix(i == self->nfields-1)
-            self->fields[i].print_with_tree_printer(&subprinter)  # TODO: does this need to be optional/pointer?
-
-    def free(self) -> None:
-        for i = 0; i < self->nfields; i++:
-            self->fields[i].free()
-        free(self->fields)
 
 
 # class Foo:

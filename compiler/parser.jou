@@ -1347,7 +1347,7 @@ class Parser:
             body = body,
         }
 
-    def parse_union(self) -> AstUnionFields:
+    def parse_union(self) -> List[AstNameTypeValue]:
         if self->what_are_we_parsing != WhatAreWeParsing.ClassBody:
             fail(self->tokens->location, "'union' can only be used inside a class")
 
@@ -1355,19 +1355,18 @@ class Parser:
         union_keyword_location = (self->tokens++)->location
         self->parse_start_of_body()
 
-        result = AstUnionFields{}
+        result = List[AstNameTypeValue]{}
         while self->tokens->kind != TokenKind.Dedent:
             field = self->parse_name_type_value("a union member")
             if field.value != NULL:
                 fail(field.value->location, "union members cannot have default values")
 
-            result.fields = realloc(result.fields, (result.nfields + 1) * sizeof result.fields[0])
-            result.fields[result.nfields++] = field
+            result.append(&field, sizeof(field))
             self->eat_newline()
 
         self->tokens++
 
-        if result.nfields < 2:
+        if result.len < 2:
             fail(union_keyword_location, "unions must have at least 2 members")
         return result
 

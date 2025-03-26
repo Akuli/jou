@@ -187,8 +187,8 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
             case AstStatementKind.ClassUnion:
                 uid = union_id++
-                for ntv = stmt->union_fields.fields; ntv < &stmt->union_fields.fields[stmt->union_fields.nfields]; ntv++:
-                    for ntv2 = &ntv[1]; ntv2 < &stmt->union_fields.fields[stmt->union_fields.nfields]; ntv2++:
+                for ntv = stmt->union_fields.ptr; ntv < stmt->union_fields.end(); ntv++:
+                    for ntv2 = &ntv[1]; ntv2 < stmt->union_fields.end(); ntv2++:
                         if strcmp(ntv->name, ntv2->name) == 0:
                             msg: byte[500]
                             snprintf(msg, sizeof(msg), "duplicate union member '%s'", ntv->name)
