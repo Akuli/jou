@@ -222,6 +222,9 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
             case _:
                 assert False
 
+    if t->classdata.n_generic_params > 0:
+        t->update_fields_and_methods_to_generic_instances()
+
 
 @public
 def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
