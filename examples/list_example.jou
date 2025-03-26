@@ -1,0 +1,41 @@
+# TODO: rename this to list.jou once https://github.com/Akuli/jou/issues/806 is fixed
+
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+
+
+def main() -> int:
+    # Create empty list
+    foo = List[int]{}
+
+    # Add items to list
+    #
+    # Due to limitations of the Jou language, it is currently impossible to write
+    # a simple list.append(item) method instead of list.append(&item, sizeof(item)).
+    # Inline functions (https://github.com/Akuli/jou/issues/791) will help with
+    # this when they are implemented.
+    n = 7
+    foo.append(&n, sizeof(n))
+    n++
+    foo.append(&n, sizeof(n))
+    n++
+    foo.append(&n, sizeof(n))
+
+    # Iterating with indexes
+    # Output: 7
+    # Output: 8
+    # Output: 9
+    for i = 0; i < foo.len; i++:
+        printf("%d\n", foo.ptr[i])
+
+    # Iterating with pointers
+    # Output: 7
+    # Output: 8
+    # Output: 9
+    for p = foo.ptr; p < foo.end(); p++:
+        printf("%d\n", *p)
+
+    # This is needed to free memory when you are done with the list!
+    foo.clear()
+
+    return 0

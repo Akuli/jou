@@ -1,0 +1,62 @@
+# A list is basically an array that grows dynamically.
+#
+# See examples/list.jou for example code.
+
+import "stdlib/mem.jou"
+
+
+@public
+class List[T]:
+    ptr: T*         # Pointer to first item of the list (may change when list grows)
+    len: long       # How many items are in the list
+    alloc: long     # How many bytes of space starting at ptr are allocated
+    itemsize: long  # This is either zero or sizeof(T). Set when appending.
+
+    # Ensure that the list has room for at least the given number of bytes.
+    def _grow(self, nbytes: long) -> None:
+        assert nbytes >= 0
+
+        if self->alloc >= nbytes:
+            # Already big enough
+            return
+
+        # Allocate more than enough space, so that the next grow() is likely
+        # going to be a fast "yes we have enough room" check.
+        if self->alloc == 0:
+            self->alloc = 8
+        while self->alloc < nbytes:
+            self->alloc *= 2
+
+        self->ptr = realloc(self->ptr, self->alloc)
+        assert self->ptr != NULL  # If this fails, we ran out of memory
+
+    # Add *item to end of the list.
+    #
+    # The "itemsize" argument must be sizeof(*item). Unfortunately it is not
+    # possible to tell the compiler to determine it automatically.
+    def append(self, item: T*, itemsize: long) -> None:
+        assert itemsize > 0
+
+        if self->itemsize == 0:
+            self->itemsize = itemsize
+        else:
+            assert self->itemsize == itemsize  # If this fails you passed the wrong size to some append()
+
+        self->_grow((self->len + 1) * itemsize)
+        memcpy(self->end(), item, itemsize)
+        self->len++
+
+    def clear(self) -> None:
+        free(self->ptr)
+        self->ptr = NULL
+        self->len = 0
+        self->alloc = 0
+        # Let itemsize be set, so that we are more likely to detect wrong sizes in append()
+
+    # Return a pointer just beyond the last element of the list.
+    # Use list.end()[-1] to get the last element.
+    def end(self) -> T*:
+        # This works even if itemsize is zero, because that means empty list.
+        start = self->ptr as byte*
+        end = &start[self->len * self->itemsize]
+        return end as T*
