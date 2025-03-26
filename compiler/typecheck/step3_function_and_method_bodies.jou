@@ -178,7 +178,7 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
     # This lets you e.g. write methods that return a modified instance.
     if (
         expr->kind == AstExpressionKind.Self
-        and fom->signature.argtypes[0]->kind == TypeKind.Class
+        and fom->signature.args.ptr[0].type->kind == TypeKind.Class
     ):
         return
 
@@ -572,7 +572,7 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
 
     sig_string = sig->to_string(False, False)
 
-    nargs = sig->nargs
+    nargs = sig->args.len
     if self_type != NULL:
         nargs--
 
@@ -591,8 +591,8 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
 
     k = 0
     selfless_counter = 0
-    for i = 0; i < sig->nargs; i++:
-        if strcmp(sig->argnames[i], "self") == 0:
+    for arg = sig->args.ptr; arg < sig->args.end(); arg++:
+        if strcmp(arg->name, "self") == 0:
             continue
         # This is a common error, so worth spending some effort to get a good error message.
         which_arg = nth(++selfless_counter)
@@ -600,7 +600,7 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
             msg, sizeof msg,
             "%s argument of %s %s should have type <to>, not <from>", which_arg, function_or_method, sig_string
         )
-        typecheck_expression_with_implicit_cast(state, &call->args.ptr[k++], sig->argtypes[i], msg)
+        typecheck_expression_with_implicit_cast(state, &call->args.ptr[k++], arg->type, msg)
 
     for vararg = &call->args.ptr[k]; vararg < call->args.end(); vararg++:
         # This code runs for varargs, e.g. the things to format in printf().
@@ -929,7 +929,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 assert temptype->kind == TypeKind.Class
                 signature = temptype->find_method(expr->call.name)
                 assert signature != NULL
-                if signature->argtypes[0]->is_pointer_type():
+                if signature->args.ptr[0].type->is_pointer_type():
                     assert strstr(expr->call.name, "%") == NULL
                     snprintf(
                         msg, sizeof msg,
@@ -1107,7 +1107,7 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
         # Most of the time, only argument types are relevant, so don't include the return type into sig_string.
         sig_string = sig->to_string(False, False)
 
-        if sig->nargs != 2 or sig->return_type != intType or sig->takes_varargs:  # TODO: could be more general
+        if sig->args.len != 2 or sig->return_type != intType or sig->takes_varargs:  # TODO: could be more general
             if sig->return_type != intType:
                 # show return type in error message
                 sig_string = sig->to_string(True, False)
@@ -1115,8 +1115,8 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
             fail(match_stmt->match_obj.location, msg)
 
         snprintf(msg, sizeof(msg), "cannot match <from> with %s", sig_string)
-        typecheck_expression_with_implicit_cast(state, &match_stmt->match_obj, sig->argtypes[0], msg)
-        case_type = sig->argtypes[1]
+        typecheck_expression_with_implicit_cast(state, &match_stmt->match_obj, sig->args.ptr[0].type, msg)
+        case_type = sig->args.ptr[1].type
 
     for c = match_stmt->cases.ptr; c < match_stmt->cases.end(); c++:
         for case_obj = c->case_objs.ptr; case_obj < c->case_objs.end(); case_obj++:
@@ -1358,8 +1358,8 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
     state->fom_types = &fom->types
 
     sig = &fom->types.signature
-    for i = 0; i < sig->nargs; i++:
-        state->fom_types->add_variable(sig->argtypes[i], sig->argnames[i])
+    for arg = sig->args.ptr; arg < sig->args.end(); arg++:
+        state->fom_types->add_variable(arg->type, arg->name)
 
     typecheck_body(state, fom->body)
     state->fom_types = NULL

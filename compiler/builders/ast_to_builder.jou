@@ -44,8 +44,7 @@ class AstToBuilder:
         old = self->set_location(location)
 
         # First n local variables are the arguments
-        assert sig->nargs >= 0
-        assert sig->nargs <= nlocals
+        assert sig->args.len <= nlocals
 
         self->builder->begin_function(sig, public)
         self->returns_a_value = (sig->return_type != NULL)
@@ -57,7 +56,7 @@ class AstToBuilder:
             var_ptr = self->builder->stack_alloc(var_type, var_name)
             local = LocalVar{name = var_name, ptr = var_ptr}
             self->locals.append(&local, sizeof(local))
-            if i < sig->nargs:
+            if i < sig->args.len:
                 # First n local variables are the function arguments
                 self->builder->set_ptr(var_ptr, self->builder->get_argument(i, var_type))
 
@@ -87,7 +86,7 @@ class AstToBuilder:
 
         if call->method_call_self != NULL:
             # it is a method call, pass self as first argument
-            want_pointer = call->called_signature->argtypes[0]->is_pointer_type()
+            want_pointer = call->called_signature->args.ptr[0].type->is_pointer_type()
             got_pointer = call->uses_arrow_operator
 
             if want_pointer and not got_pointer:
@@ -514,24 +513,26 @@ class AstToBuilder:
 
         self->builder->set_current_block(error_block)
 
-        argnames: byte[100][3] = ["assertion", "path", "lineno"]
-        argtypes: Type*[3] = [byteType->pointer_type(), byteType->pointer_type(), intType]
+        sig_args = [
+            NameAndType{name = "assertion", type = byteType->pointer_type()},
+            NameAndType{name = "path", type = byteType->pointer_type()},
+            NameAndType{name = "lineno", type = intType},
+        ]
         sig = Signature{
             name = "_jou_assert_fail",
-            nargs = 3,
-            argtypes = argtypes,
-            argnames = argnames,
+            args = List[NameAndType]{ptr = sig_args, len = 3},  # modifying this list would be UB
             takes_varargs = False,
             is_noreturn = True,
         }
+
         args = [
             self->builder->pointer_string(assertion->condition_str),
             self->builder->pointer_string(assert_location.path),
             self->builder->integer(intType, assert_location.lineno),
         ]
         self->builder->call(&sig, args, 3)
-        self->builder->unreachable()
 
+        self->builder->unreachable()
         self->builder->set_current_block(ok_block)
 
     def build_statement(self, stmt: AstStatement*, in_a_body: bool) -> None:

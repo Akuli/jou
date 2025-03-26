@@ -75,33 +75,26 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
         snprintf(msg, sizeof(msg), "a function named '%s' already exists", astsig->name)
         fail(astsig->name_location, msg)
 
-    sig = Signature{
-        name = astsig->name,
-        nargs = astsig->args.len as int,
-        takes_varargs = astsig->takes_varargs,
-    }
+    sig = Signature{name = astsig->name, takes_varargs = astsig->takes_varargs}
 
-    sig.argnames = malloc(sizeof(sig.argnames[0]) * sig.nargs)
-    for i = 0; i < sig.nargs; i++:
-        sig.argnames[i] = astsig->args.ptr[i].name
-
-    sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs)
-    for i = 0; i < sig.nargs; i++:
+    for astarg = astsig->args.ptr; astarg < astsig->args.end(); astarg++:
+        arg = NameAndType{name = astarg->name}
         if (
-            strcmp(sig.argnames[i], "self") == 0
-            and astsig->args.ptr[i].type.kind == AstTypeKind.Named
-            and astsig->args.ptr[i].type.name[0] == '\0'
+            strcmp(astarg->name, "self") == 0
+            and astarg->type.kind == AstTypeKind.Named
+            and astarg->type.name[0] == '\0'
         ):
             # just "self" without a type after it --> default to "self: Foo*" in class Foo
-            argtype = self_class->pointer_type()
+            assert self_class != NULL
+            arg.type = self_class->pointer_type()
         else:
-            argtype = type_from_ast(ft, self_class, &astsig->args.ptr[i].type)
+            arg.type = type_from_ast(ft, self_class, &astarg->type)
 
-        if strcmp(sig.argnames[i], "self") == 0 and argtype != self_class and argtype != self_class->pointer_type():
+        if strcmp(arg.name, "self") == 0 and arg.type != self_class and arg.type != self_class->pointer_type():
             snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class->name, self_class->name)
-            fail(astsig->args.ptr[i].type.location, msg)
+            fail(astarg->type.location, msg)
 
-        sig.argtypes[i] = argtype
+        sig.args.append(&arg, sizeof(arg))
 
     sig.is_noreturn = astsig->return_type.is_noreturn()
     if astsig->return_type.is_none() or astsig->return_type.is_noreturn():
@@ -123,11 +116,11 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
         if sig.return_type != intType:
             fail(astsig->return_type.location, "the main() function must return int")
         if (
-            sig.nargs != 0
+            sig.args.len != 0
             and not (
-                sig.nargs == 2
-                and sig.argtypes[0] == intType
-                and sig.argtypes[1] == byteType->pointer_type()->pointer_type()
+                sig.args.len == 2
+                and sig.args.ptr[0].type == intType
+                and sig.args.ptr[1].type == byteType->pointer_type()->pointer_type()
             )
         ):
             fail(
