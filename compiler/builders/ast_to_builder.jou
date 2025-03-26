@@ -80,7 +80,7 @@ class AstToBuilder:
         assert False
 
     def build_call(self, call: AstCall*) -> EitherBuilderValue:
-        assert call->nargs <= 99  # leave room for self
+        assert call->args.len <= 99  # leave room for self
         args: EitherBuilderValue[100]
         k = 0
 
@@ -96,8 +96,8 @@ class AstToBuilder:
             else:
                 args[k++] = self->build_expression(call->method_call_self)
 
-        for i = 0; i < call->nargs; i++:
-            args[k++] = self->build_expression(&call->args[i])
+        for p = call->args.ptr; p < call->args.end(); p++:
+            args[k++] = self->build_expression(p)
 
         result = self->builder->call(call->called_signature, args, k)
 

@@ -576,16 +576,16 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
     if self_type != NULL:
         nargs--
 
-    if call->nargs < nargs or (call->nargs > nargs and not sig->takes_varargs):
+    if call->args.len < nargs or (call->args.len > nargs and not sig->takes_varargs):
         snprintf(
             msg, sizeof(msg),
-            "%s %s takes %d argument%s, but it was called with %d argument%s",
+            "%s %s takes %d argument%s, but it was called with %lld argument%s",
             function_or_method,
             sig_string,
             nargs,
             plural_s(nargs),
-            call->nargs,
-            plural_s(call->nargs),
+            call->args.len,
+            plural_s(call->args.len),
         )
         fail(location, msg)
 
@@ -600,25 +600,25 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
             msg, sizeof msg,
             "%s argument of %s %s should have type <to>, not <from>", which_arg, function_or_method, sig_string
         )
-        typecheck_expression_with_implicit_cast(state, &call->args[k++], sig->argtypes[i], msg)
+        typecheck_expression_with_implicit_cast(state, &call->args.ptr[k++], sig->argtypes[i], msg)
 
-    for i = k; i < call->nargs; i++:
+    for vararg = &call->args.ptr[k]; vararg < call->args.end(); vararg++:
         # This code runs for varargs, e.g. the things to format in printf().
-        t = typecheck_expression_not_void(state, &call->args[i], NULL)
+        t = typecheck_expression_not_void(state, vararg, NULL)
         if t->kind == TypeKind.Array:
-            cast_array_to_pointer(state->fom_types, &call->args[i])
+            cast_array_to_pointer(state->fom_types, vararg)
         elif (t->is_integer_type() and t->size_in_bits < 32) or t == boolType:
             # Add implicit cast to signed int, just like in C.
-            do_implicit_cast(state->fom_types, &call->args[i], intType, Location{}, NULL)
+            do_implicit_cast(state->fom_types, vararg, intType, Location{}, NULL)
         elif t == floatType:
-            do_implicit_cast(state->fom_types, &call->args[i], doubleType, Location{}, NULL)
+            do_implicit_cast(state->fom_types, vararg, doubleType, Location{}, NULL)
         elif t->kind == TypeKind.Enum:
             snprintf(
                 msg, sizeof(msg),
                 "enums cannot be passed to functions that take variadic arguments, such as %s",
                 sig->name,
             )
-            fail(call->args[i].location, msg)
+            fail(vararg->location, msg)
 
     free(sig_string)
     return sig->return_type

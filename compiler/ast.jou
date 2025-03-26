@@ -412,8 +412,7 @@ class AstCall:
     name: byte[100]  # name of function or method
     method_call_self: AstExpression*  # NULL for function calls, the foo of foo.bar() for method calls
     uses_arrow_operator: bool  # distinguishes foo->bar() and foo.bar()
-    nargs: int
-    args: AstExpression*
+    args: List[AstExpression]
     called_signature: Signature*  # populated in typecheck, NULL before typecheck runs, not owned
 
     def print(self) -> None:
@@ -426,19 +425,19 @@ class AstCall:
         printf("\n")
 
         if self->method_call_self != NULL:
-            sub = tp.print_prefix(self->nargs == 0)
+            sub = tp.print_prefix(self->args.len == 0)
             printf("self: ")
             self->method_call_self->print_with_tree_printer(sub)
 
-        for i = 0; i < self->nargs; i++:
-            sub = tp.print_prefix(i == self->nargs - 1)
+        for i = 0; i < self->args.len; i++:
+            sub = tp.print_prefix(i == self->args.len - 1)
             printf("argument %d: ", i)
-            self->args[i].print_with_tree_printer(sub)
+            self->args.ptr[i].print_with_tree_printer(sub)
 
     def free(self) -> None:
-        for i = 0; i < self->nargs; i++:
-            self->args[i].free()
-        free(self->args)
+        for p = self->args.ptr; p < self->args.end(); p++:
+            p->free()
+        self->args.clear()
         if self->method_call_self != NULL:
             self->method_call_self->free()
             free(self->method_call_self)

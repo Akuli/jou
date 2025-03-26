@@ -488,8 +488,8 @@ class Parser:
         self->tokens++
 
         while not self->tokens->is_operator(")"):
-            result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
-            result.args[result.nargs++] = self->parse_expression()
+            arg = self->parse_expression()
+            result.args.append(&arg, sizeof(arg))
             if not self->tokens->is_operator(","):
                 break
             self->tokens++
