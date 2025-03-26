@@ -21,6 +21,7 @@ import "./common.jou"
 # When defining a generic class Foo[T], this function creates the T and
 # attaches it to the Foo type. It also renames the type from "Foo" to "Foo[T]".
 def handle_generics(t: Type*, classdef: AstClassDef*) -> None:
+    assert t->kind == TypeKind.Class
     n = classdef->n_generic_typevars  # number of generic parameters, e.g. 2 for Foo[T1, T2]
     assert n > 0
 
