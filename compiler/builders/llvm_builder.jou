@@ -97,9 +97,9 @@ def type_to_llvm(type: Type*) -> LLVMType*:
             return LLVMIntType(type->size_in_bits)
         case TypeKind.Bool:
             return LLVMInt1Type()
-        case TypeKind.OpaqueClass | TypeKind.TypeVar:
-            # these are compiler internal/temporary things and should never end up here
-            assert False
+        case TypeKind.TypeVar:
+            # This is compiler internal/temporary thing and should never end up here.
+            assert False  # please create an issue on GitHub if this errors
         case TypeKind.Class:
             return class_type_to_llvm(type)
         case TypeKind.Enum:
