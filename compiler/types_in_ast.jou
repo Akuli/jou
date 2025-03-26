@@ -83,24 +83,18 @@ class NamedConstant:
 
 @public
 class FileTypes:
-    globals: GlobalVariable*
-    nglobals: int
-    constants: NamedConstant*
-    nconstants: int
-    available_types: TypeAndUsedPtr*
-    n_available_types: int
-    functions: SignatureAndUsedPtr*
-    nfunctions: int
+    globals: List[GlobalVariable]
+    constants: List[NamedConstant]
+    available_types: List[TypeAndUsedPtr]
+    functions: List[SignatureAndUsedPtr]
 
     def add_function(self, signature: Signature*, usedptr: bool*) -> None:
-        self->functions = realloc(self->functions, sizeof(self->functions[0]) * (self->nfunctions + 1))
-        assert self->functions != NULL
-        self->functions[self->nfunctions++] = SignatureAndUsedPtr{signature = signature->copy(), usedptr = usedptr}
+        item = SignatureAndUsedPtr{signature = signature->copy(), usedptr = usedptr}
+        self->functions.append(&item, sizeof(item))
 
     def _add_type_internal(self, t: Type*, usedptr: bool*) -> None:
-        self->available_types = realloc(self->available_types, sizeof(self->available_types[0]) * (self->n_available_types + 1))
-        assert self->available_types != NULL
-        self->available_types[self->n_available_types++] = TypeAndUsedPtr{type = t, usedptr = usedptr}
+        item = TypeAndUsedPtr{type = t, usedptr = usedptr}
+        self->available_types.append(&item, sizeof(item))
 
     def add_type(self, t: Type*, usedptr: bool*) -> None:
         assert strstr(t->name, "[") == NULL  # must be able to find the types by name
@@ -116,36 +110,29 @@ class FileTypes:
         assert strlen(name) < sizeof g.name
         strcpy(g.name, name)
 
-        self->globals = realloc(self->globals, sizeof(self->globals[0]) * (self->nglobals + 1))
-        assert self->globals != NULL
-        self->globals[self->nglobals++] = g
-        return &self->globals[self->nglobals - 1]
+        self->globals.append(&g, sizeof(g))
+        return &self->globals.end()[-1]
 
-    def add_constant(self, name: byte*, value: Constant*, usedptr: bool*) -> NamedConstant*:
-        self->constants = realloc(self->constants, sizeof(self->constants[0]) * (self->nconstants + 1))
-        assert self->constants != NULL
-
-        c = &self->constants[self->nconstants++]
-        assert strlen(name) < sizeof(c->name)
-        strcpy(c->name, name)
-        c->value = value->copy()
-        c->usedptr = usedptr
-        return c
+    def add_constant(self, name: byte*, value: Constant*, usedptr: bool*) -> None:
+        c = NamedConstant{value = value->copy(), usedptr = usedptr}
+        assert strlen(name) < sizeof(c.name)
+        strcpy(c.name, name)
+        self->constants.append(&c, sizeof(c))
 
     # This is safe to call if self has been zero-initialized.
     def free(self) -> None:
-        for func = self->functions; func < &self->functions[self->nfunctions]; func++:
+        free(self->globals.ptr)
+        free(self->available_types.ptr)
+        for func = self->functions.ptr; func < self->functions.end(); func++:
             func->signature.free()
-        free(self->globals)
-        free(self->available_types)
-        free(self->functions)
-        for i = 0; i < self->nconstants; i++:
-            self->constants[i].value.free()
-        free(self->constants)
+        free(self->functions.ptr)
+        for p = self->constants.ptr; p < self->constants.end(); p++:
+            p->value.free()
+        free(self->constants.ptr)
 
     def find_type(self, name: byte*) -> Type*:
         assert strstr(name, "[") == NULL
-        for t = self->available_types; t < &self->available_types[self->n_available_types]; t++:
+        for t = self->available_types.ptr; t < self->available_types.end(); t++:
             if strcmp(t->type->name, name) == 0:
                 if t->usedptr != NULL:
                     *t->usedptr = True
@@ -153,7 +140,7 @@ class FileTypes:
         return NULL
 
     def find_generic_class(self, name: byte*) -> Type*:
-        for t = self->available_types; t < &self->available_types[self->n_available_types]; t++:
+        for t = self->available_types.ptr; t < self->available_types.end(); t++:
             # If looking for "List", check if it starts with "List[" as in "List[T]"
             if (
                 t->type->kind == TypeKind.Class
@@ -166,7 +153,7 @@ class FileTypes:
         return NULL
 
     def find_function(self, name: byte*) -> Signature*:
-        for f = self->functions; f < &self->functions[self->nfunctions]; f++:
+        for f = self->functions.ptr; f < self->functions.end(); f++:
             if strcmp(f->signature.name, name) == 0:
                 if f->usedptr != NULL:
                     *f->usedptr = True
@@ -174,7 +161,7 @@ class FileTypes:
         return NULL
 
     def find_global_var(self, name: byte*) -> Type*:
-        for var = self->globals; var < &self->globals[self->nglobals]; var++:
+        for var = self->globals.ptr; var < self->globals.end(); var++:
             if strcmp(var->name, name) == 0:
                 if var->usedptr != NULL:
                     *var->usedptr = True
@@ -183,7 +170,7 @@ class FileTypes:
 
     # Note: For special constants like "WINDOWS" this returns NULL, be aware!!!
     def find_constant(self, name: byte*) -> Constant*:
-        for c = self->constants; c < &self->constants[self->nconstants]; c++:
+        for c = self->constants.ptr; c < self->constants.end(); c++:
             if strcmp(c->name, name) == 0:
                 if c->usedptr != NULL:
                     *c->usedptr = True

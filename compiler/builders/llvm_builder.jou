@@ -564,7 +564,7 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
     builder = LBuilder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
     builder_wrapper = EitherBuilder{lbuilder = &builder}
 
-    for g = ast->types.globals; g < &ast->types.globals[ast->types.nglobals]; g++:
+    for g = ast->types.globals.ptr; g < ast->types.globals.end(); g++:
         LLVMAddGlobal(module, type_to_llvm(g->type), g->name)
 
     for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
@@ -573,7 +573,7 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
                 globalptr = LLVMGetNamedGlobal(module, stmt->global_var_def.name)
                 assert globalptr != NULL
                 vartype: Type* = NULL
-                for g = ast->types.globals; g < &ast->types.globals[ast->types.nglobals]; g++:
+                for g = ast->types.globals.ptr; g < ast->types.globals.end(); g++:
                     if strcmp(g->name, stmt->global_var_def.name) == 0:
                         vartype = g->type
                         break
