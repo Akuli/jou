@@ -407,13 +407,13 @@ class AstToBuilder:
 
     def build_if_statement(self, ifst: AstIfStatement*) -> None:
         done = self->builder->add_block()
-        for i = 0; i < ifst->n_if_and_elifs; i++:
-            cond = self->build_expression(&ifst->if_and_elifs[i].condition)
+        for p = ifst->if_and_elifs.ptr; p < ifst->if_and_elifs.end(); p++:
+            cond = self->build_expression(&p->condition)
             then = self->builder->add_block()
             otherwise = self->builder->add_block()
             self->builder->branch(cond, then, otherwise)
             self->builder->set_current_block(then)
-            self->build_body(&ifst->if_and_elifs[i].body)
+            self->build_body(&p->body)
             self->builder->jump(done)
             self->builder->set_current_block(otherwise)
 

@@ -113,15 +113,12 @@ def choose_if_elif_branch(if_stmt: AstIfStatement*) -> AstBody*:
 
     # Return the first branch whose condition is true.
     # Return NULL if we fail to evaluate a condition and it must be checked at runtime.
-    for i = 0; i < if_stmt->n_if_and_elifs; i++:
-        if (
-            not evaluate_constant_expression(&if_stmt->if_and_elifs[i].condition, &cond)
-            or cond.kind != ConstantKind.Bool
-        ):
+    for p = if_stmt->if_and_elifs.ptr; p < if_stmt->if_and_elifs.end(); p++:
+        if (not evaluate_constant_expression(&p->condition, &cond)) or cond.kind != ConstantKind.Bool:
             return NULL
 
         if cond.boolean:
-            return &if_stmt->if_and_elifs[i].body
+            return &p->body
 
     # All conditions are known to be false.
     return &if_stmt->else_body
@@ -162,8 +159,8 @@ def evaluate_if_statements_in_body(body: AstBody*, must_succeed: bool) -> None:
 
                 # Recurse into inner if statements. Needed when compile-time if
                 # statement is inside a runtime if statement.
-                for k = 0; k < if_stmt->n_if_and_elifs; k++:
-                    evaluate_if_statements_in_body(&if_stmt->if_and_elifs[k].body, False)
+                for p = if_stmt->if_and_elifs.ptr; p < if_stmt->if_and_elifs.end(); p++:
+                    evaluate_if_statements_in_body(&p->body, False)
                 evaluate_if_statements_in_body(&if_stmt->else_body, False)
 
             case AstStatementKind.WhileLoop:

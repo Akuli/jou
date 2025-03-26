@@ -930,16 +930,15 @@ class Parser:
         return result
 
     def parse_if_statement(self) -> AstIfStatement:
-        ifs_and_elifs: AstConditionAndBody* = NULL
-        n = 0
+        ifs_and_elifs = List[AstConditionAndBody]{}
 
         assert self->tokens->is_keyword("if")
         while True:
             self->tokens++
             cond = self->parse_expression_with_unnecessary_parens_warning("if statement condition")
             body = self->parse_body()
-            ifs_and_elifs = realloc(ifs_and_elifs, sizeof ifs_and_elifs[0] * (n+1))
-            ifs_and_elifs[n++] = AstConditionAndBody{condition = cond, body = body}
+            if_or_elif = AstConditionAndBody{condition = cond, body = body}
+            ifs_and_elifs.append(&if_or_elif, sizeof(if_or_elif))
             if not self->tokens->is_keyword("elif"):
                 break
 
@@ -949,11 +948,7 @@ class Parser:
         else:
             else_body = AstBody{}
 
-        return AstIfStatement{
-            if_and_elifs = ifs_and_elifs,
-            n_if_and_elifs = n,
-            else_body = else_body,
-        }
+        return AstIfStatement{if_and_elifs = ifs_and_elifs, else_body = else_body}
 
     def enter_loop_body(self, varname: byte*, location: Location) -> None:
         if varname != NULL:

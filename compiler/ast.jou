@@ -737,8 +737,7 @@ class AstAssignment:
 #     ...
 @public
 class AstIfStatement:
-    if_and_elifs: AstConditionAndBody*
-    n_if_and_elifs: int  # At least 1 (the if statement). The rest, if any, are elifs.
+    if_and_elifs: List[AstConditionAndBody]  # At least 1 (the if statement). The rest, if any, are elifs.
     else_body: AstBody    # Empty if there is no else
 
     def print(self) -> None:
@@ -746,8 +745,8 @@ class AstIfStatement:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("if\n")
-        for i = 0; i < self->n_if_and_elifs; i++:
-            self->if_and_elifs[i].print_with_tree_printer(tp, i == self->n_if_and_elifs - 1 and self->else_body.nstatements == 0)
+        for i = 0; i < self->if_and_elifs.len; i++:
+            self->if_and_elifs.ptr[i].print_with_tree_printer(tp, i == self->if_and_elifs.len - 1 and self->else_body.nstatements == 0)
 
         if self->else_body.nstatements > 0:
             sub = tp.print_prefix(True)
@@ -755,9 +754,9 @@ class AstIfStatement:
             self->else_body.print_with_tree_printer(sub)
 
     def free(self) -> None:
-        for i = 0; i < self->n_if_and_elifs; i++:
-            self->if_and_elifs[i].free()
-        free(self->if_and_elifs)
+        for p = self->if_and_elifs.ptr; p < self->if_and_elifs.end(); p++:
+            p->free()
+        self->if_and_elifs.clear()
         self->else_body.free()
 
 

@@ -1057,15 +1057,14 @@ def typecheck_body(state: State*, body: AstBody*) -> None:
 
 
 def typecheck_if_statement(state: State*, ifstmt: AstIfStatement*) -> None:
-    for i = 0; i < ifstmt->n_if_and_elifs; i++:
-        if i == 0:
+    for p = ifstmt->if_and_elifs.ptr; p < ifstmt->if_and_elifs.end(); p++:
+        if p == ifstmt->if_and_elifs.ptr:
             errmsg = "'if' condition must be a bool, not <from>"
         else:
             errmsg = "'elif' condition must be a bool, not <from>"
 
-        typecheck_expression_with_implicit_cast(
-            state, &ifstmt->if_and_elifs[i].condition, boolType, errmsg)
-        typecheck_body(state, &ifstmt->if_and_elifs[i].body)
+        typecheck_expression_with_implicit_cast(state, &p->condition, boolType, errmsg)
+        typecheck_body(state, &p->body)
 
     typecheck_body(state, &ifstmt->else_body)
 
