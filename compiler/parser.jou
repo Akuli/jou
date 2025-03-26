@@ -1,4 +1,5 @@
 import "stdlib/ascii.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
@@ -345,11 +346,10 @@ class Parser:
                 # Generic, e.g. List[int]
                 free(p)
 
-                nparams = 0
-                params: AstType* = NULL
+                params = List[AstType]{}
                 while not self->tokens->is_operator("]"):
-                    params = realloc(params, sizeof(params[0]) * (nparams + 1))
-                    params[nparams++] = self->parse_type()
+                    param = self->parse_type()
+                    params.append(&param, sizeof(param))
                     if not self->tokens->is_operator(","):
                         break
                     self->tokens++
@@ -365,7 +365,6 @@ class Parser:
                     generic = AstGenericType{
                         class_name = result.name,
                         param_types = params,
-                        n_param_types = nparams,
                     }
                 }
 

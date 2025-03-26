@@ -6,6 +6,7 @@
 # which is basically an internal detail of the .print() implementation.
 
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
@@ -39,8 +40,7 @@ class AstArrayType:
 @public
 class AstGenericType:
     class_name: byte[100]  # e.g. "List"
-    param_types: AstType*
-    n_param_types: int
+    param_types: List[AstType]
 
 
 @public
@@ -75,10 +75,10 @@ class AstType:
                 printf("[<size>]")  # TODO: show the size expression better?
             case AstTypeKind.Generic:
                 printf("%s[", self->generic.class_name)
-                for i = 0; i < self->generic.n_param_types; i++:
+                for i = 0; i < self->generic.param_types.len; i++:
                     if i != 0:
                         printf(", ")
-                    self->generic.param_types[i].print(False)
+                    self->generic.param_types.ptr[i].print(False)
                 printf("]")
 
         if show_lineno:
@@ -94,9 +94,9 @@ class AstType:
             case AstTypeKind.Named:
                 pass
             case AstTypeKind.Generic:
-                for i = 0; i < self->generic.n_param_types; i++:
-                    self->generic.param_types[i].free()
-                free(self->generic.param_types)
+                for p = self->generic.param_types.ptr; p < self->generic.param_types.end(); p++:
+                    p->free()
+                self->generic.param_types.clear()
 
 
 # Statements and expressions can be printed in a tree.

@@ -141,7 +141,7 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
 
             # Check number of parameters
             expected = gclass->classdata.n_generic_params
-            got = asttype->generic.n_param_types
+            got = asttype->generic.param_types.len as int
             if expected != got:
                 snprintf(
                     msg, sizeof(msg), "generic class %s takes %d type parameter%s, but it is used with %d type parameter%s",
@@ -156,7 +156,7 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             to: Type** = malloc(sizeof(to[0]) * n)
             assert to != NULL
             for i = 0; i < n; i++:
-                to[i] = type_from_ast(ft, containing_class, &asttype->generic.param_types[i])
+                to[i] = type_from_ast(ft, containing_class, &asttype->generic.param_types.ptr[i])
 
             result = gclass->substitute_generic_params(from, to, n)
             free(to)
