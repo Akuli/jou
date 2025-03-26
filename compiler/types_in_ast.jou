@@ -6,6 +6,7 @@
 # but it was not as convenient as this is.
 
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
 import "./types.jou"
@@ -109,6 +110,8 @@ class FileTypes:
         self->_add_type_internal(t, usedptr)
 
     def add_generic_class(self, t: Type*, usedptr: bool*) -> None:
+        if t->kind != TypeKind.Class:
+            printf("add_generic_class %s %d\n", t->name, t->kind as int)
         assert t->kind == TypeKind.Class
         assert strstr(t->name, "[") != NULL  # e.g. List[T]
         self->_add_type_internal(t, usedptr)

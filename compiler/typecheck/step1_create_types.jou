@@ -53,7 +53,11 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
         if public:
             exports = realloc(exports, sizeof(exports[0]) * (nexports+1))
             assert exports != NULL
-            exports[nexports++] = ExportSymbol{kind = ExportSymbolKind.Type, type = t, name = name}
+            if stmt->kind == AstStatementKind.Class and stmt->classdef.n_generic_typevars > 0:
+                k = ExportSymbolKind.GenericClass
+            else:
+                k = ExportSymbolKind.Type
+            exports[nexports++] = ExportSymbol{kind = k, type = t, name = name}
 
     exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
     assert exports != NULL

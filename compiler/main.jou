@@ -55,6 +55,8 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
             )
         case AstStatementKind.Class:
             return (
+                # TODO: test this
+                #(importsym->kind == ExportSymbolKind.Type or importsym->kind == ExportSymbolKind.GenericClass)
                 importsym->kind == ExportSymbolKind.Type
                 and strcmp(importsym->name, stmt->classdef.name) == 0
             )
