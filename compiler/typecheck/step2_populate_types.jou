@@ -145,11 +145,11 @@ def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> N
     field = t->find_class_field(name)
     if field != NULL:
         # TODO: this is complicated, should just use same error message for fields and union members
-        assert t->classdata.fields <= field and field < &t->classdata.fields[t->classdata.nfields]
+        assert t->classdata.fields.ptr <= field and field < t->classdata.fields.end()
 
         belongs_to_a_union = (
-            (field > t->classdata.fields and field[-1].union_id == field->union_id)
-            or (&field[1] < &t->classdata.fields[t->classdata.nfields] and field[1].union_id == field->union_id)
+            (field > t->classdata.fields.ptr and field[-1].union_id == field->union_id)
+            or (&field[1] < t->classdata.fields.end() and field[1].union_id == field->union_id)
         )
 
         if belongs_to_a_union:
@@ -174,16 +174,12 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
         match stmt->kind:
             case AstStatementKind.ClassField:
                 f = ClassField{
+                    name = stmt->class_field.name,
                     type = type_from_ast(ft, t, &stmt->class_field.type),
                     union_id = union_id++,
                 }
-                assert sizeof(f.name) == sizeof(stmt->class_field.name)
-                strcpy(f.name, stmt->class_field.name)
-
                 check_class_member_not_exist(t, f.name, stmt->location)
-                t->classdata.fields = realloc(t->classdata.fields, sizeof(t->classdata.fields[0]) * (t->classdata.nfields + 1))
-                assert t->classdata.fields != NULL
-                t->classdata.fields[t->classdata.nfields++] = f
+                t->classdata.fields.append(&f, sizeof(f))
 
             case AstStatementKind.ClassUnion:
                 uid = union_id++
@@ -195,16 +191,12 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                             fail(ntv2->name_location, msg)
 
                     f = ClassField{
+                        name = ntv->name,
                         type = type_from_ast(ft, t, &ntv->type),
                         union_id = uid,
                     }
-                    assert sizeof(f.name) == sizeof(ntv->name)
-                    strcpy(f.name, ntv->name)
-
                     check_class_member_not_exist(t, f.name, ntv->name_location)
-                    t->classdata.fields = realloc(t->classdata.fields, sizeof(t->classdata.fields[0]) * (t->classdata.nfields + 1))
-                    assert t->classdata.fields != NULL
-                    t->classdata.fields[t->classdata.nfields++] = f
+                    t->classdata.fields.append(&f, sizeof(f))
 
             case AstStatementKind.MethodDef:
                 # Don't handle the method body yet: that is a part of step 3, not step 2

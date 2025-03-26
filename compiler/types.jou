@@ -14,23 +14,19 @@ class ClassField:
 
 class ClassData:
     generic_params: List[Type*]   # this is the "int" part of List[int]
-    fields: ClassField*
-    nfields: int
+    fields: List[ClassField]
     methods: Signature*
     nmethods: int
 
     def is_generic(self) -> bool:
         return self->generic_params.len > 0
 
-    def substitute_generic_params_to_fields(self, from: Type**, to: Type**, n: int) -> ClassField*:
-        if self->nfields == 0:
-            return NULL
-
-        result: ClassField* = malloc(sizeof(result[0]) * self->nfields)
-        assert result != NULL
-        memcpy(result, self->fields, sizeof(result[0]) * self->nfields)
-        for f = result; f < &result[self->nfields]; f++:
-            f->type = f->type->substitute_generic_params(from, to, n)
+    def substitute_generic_params_to_fields(self, from: Type**, to: Type**, n: int) -> List[ClassField]:
+        result = List[ClassField]{}
+        for f1 = self->fields.ptr; f1 < self->fields.end(); f1++:
+            f2 = *f1
+            f2.type = f2.type->substitute_generic_params(from, to, n)
+            result.append(&f2, sizeof(f2))
         return result
 
     def substitute_generic_params_to_methods(self, from: Type**, to: Type**, n: int) -> Signature*:
@@ -220,10 +216,9 @@ class Type:
                 continue
             to = t->classdata.generic_params.ptr
 
-            if t->classdata.nfields < self->classdata.nfields:
-                free(t->classdata.fields)
+            if t->classdata.fields.len < self->classdata.fields.len:
+                free(t->classdata.fields.ptr)
                 t->classdata.fields = self->classdata.substitute_generic_params_to_fields(from, to, n)
-                t->classdata.nfields = self->classdata.nfields
 
             if t->classdata.nmethods < self->classdata.nmethods:
                 for sig = t->classdata.methods; sig < &t->classdata.methods[t->classdata.nmethods]; sig++:
@@ -253,7 +248,7 @@ class Type:
         if self->kind != TypeKind.Class:
             return NULL
 
-        for f = self->classdata.fields; f < &self->classdata.fields[self->classdata.nfields]; f++:
+        for f = self->classdata.fields.ptr; f < self->classdata.fields.end(); f++:
             if strcmp(f->name, name) == 0:
                 return f
         return NULL
@@ -386,7 +381,7 @@ def free_type(t: Type*) -> None:
         for sig = t->classdata.methods; sig < &t->classdata.methods[t->classdata.nmethods]; sig++:
             sig->free()
         free(t->classdata.generic_params.ptr)
-        free(t->classdata.fields)
+        free(t->classdata.fields.ptr)
         free(t->classdata.methods)
 
     cast_type_to_typeinfo(t)->free_related_types()

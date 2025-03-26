@@ -59,18 +59,18 @@ def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
 def class_type_to_llvm(type: Type*) -> LLVMType*:
     assert type->kind == TypeKind.Class
 
-    n = type->classdata.nfields
+    n = type->classdata.fields.len
 
     flat_elems: LLVMType** = malloc(sizeof(flat_elems[0]) * n)
     for i = 0; i < n; i++:
-        flat_elems[i] = type_to_llvm(type->classdata.fields[i].type)
+        flat_elems[i] = type_to_llvm(type->classdata.fields.ptr[i].type)
 
     # Combine together fields of the same union.
     combined: LLVMType** = malloc(sizeof(combined[0]) * n)
     combinedlen = 0
     for start = 0; start < n; start = end:
         end = start + 1
-        while end < n and type->classdata.fields[start].union_id == type->classdata.fields[end].union_id:
+        while end < n and type->classdata.fields.ptr[start].union_id == type->classdata.fields.ptr[end].union_id:
             end++
         combined[combinedlen++] = union_type_to_llvm(&flat_elems[start], end-start)
 
