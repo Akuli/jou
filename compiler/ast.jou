@@ -941,11 +941,10 @@ class AstGlobalVarDef:
 
 
 # Body is ":" followed by statements, represented with simply List[AstStatement].
-# We define a few functions to work with bodies, similarly to methods for most other things.
+# We define functions to work with bodies, similarly to methods for most other things.
 def print_body(body: List[AstStatement], tp: TreePrinter) -> None:
     for i = 0; i < body.len; i++:
         body.ptr[i].print_with_tree_printer(tp.print_prefix(i == body.len - 1))
-
 
 def free_body(body: List[AstStatement]) -> None:
     for p = body.ptr; p < body.end(); p++:
