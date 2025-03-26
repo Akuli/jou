@@ -237,7 +237,7 @@ def build_and_analyze_uvgs(ast: AstFile*, print: bool) -> None:
     builder = UBuilder{}
     builder_wrapper = EitherBuilder{ubuilder = &builder}
 
-    for stmt = ast->body.statements; stmt < &ast->body.statements[ast->body.nstatements]; stmt++:
+    for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
         match stmt->kind:
             case AstStatementKind.FunctionDef:
                 feed_ast_to_builder(&stmt->function, stmt->location, ast->is_main_file, &builder_wrapper)
@@ -247,7 +247,7 @@ def build_and_analyze_uvgs(ast: AstFile*, print: bool) -> None:
                 builder.uvg.free()
                 memset(&builder.uvg, 0, sizeof(builder.uvg))
             case AstStatementKind.Class:
-                for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
+                for inner = stmt->classdef.body.ptr; inner < stmt->classdef.body.end(); inner++:
                     if inner->kind == AstStatementKind.MethodDef:
                         feed_ast_to_builder(&inner->method, inner->location, ast->is_main_file, &builder_wrapper)
                         if print:

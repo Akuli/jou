@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/process.jou"
@@ -24,9 +25,8 @@ import "./ast.jou"
 
 
 def defines_main(ast: AstFile*) -> bool:
-    for i = 0; i < ast->body.nstatements; i++:
-        s = &ast->body.statements[i]
-        if s->kind == AstStatementKind.FunctionDef and s->function.types.signature.is_main_function():
+    for p = ast->body.ptr; p < ast->body.end(); p++:
+        if p->kind == AstStatementKind.FunctionDef and p->function.types.signature.is_main_function():
             return True
     return False
 
@@ -96,8 +96,8 @@ class FileState:
         free(self->path)
 
     def add_imported_symbol(self, es: ExportSymbol*, imp: AstImport*) -> None:
-        for i = 0; i < self->ast.body.nstatements; i++:
-            if statement_conflicts_with_an_import(&self->ast.body.statements[i], es):
+        for p = self->ast.body.ptr; p < self->ast.body.end(); p++:
+            if statement_conflicts_with_an_import(p, es):
                 match es->kind:
                     case ExportSymbolKind.Function:
                         wat = "function"
@@ -112,7 +112,7 @@ class FileState:
 
                 msg: byte[500]
                 snprintf(msg, sizeof msg, "a %s named '%s' already exists", wat, es->name)
-                fail(self->ast.body.statements[i].location, msg)
+                fail(p->location, msg)
 
         match es->kind:
             case ExportSymbolKind.Function:
@@ -129,7 +129,7 @@ class FileState:
     def warn_about_unused(self) -> None:
         msg: byte[500]
 
-        for stmt = self->ast.body.statements; stmt < &self->ast.body.statements[self->ast.body.nstatements]; stmt++:
+        for stmt = self->ast.body.ptr; stmt < self->ast.body.end(); stmt++:
             match stmt->kind:
                 case AstStatementKind.Import:
                     if not stmt->import_statement.used:
@@ -194,14 +194,14 @@ class FileState:
         return mod
 
 
-def check_imports_at_start_of_file(body: AstBody*) -> None:
+def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
     i = 0
-    while i < body->nstatements and body->statements[i].kind == AstStatementKind.Import:
+    while i < body.len and body.ptr[i].kind == AstStatementKind.Import:
         i++
 
-    for ; i < body->nstatements; i++:
-        if body->statements[i].kind == AstStatementKind.Import:
-            fail(body->statements[i].location, "imports must be in the beginning of the file")
+    for ; i < body.len; i++:
+        if body.ptr[i].kind == AstStatementKind.Import:
+            fail(body.ptr[i].location, "imports must be in the beginning of the file")
 
 
 class CompileState:
@@ -249,13 +249,13 @@ class CompileState:
         if command_line_args.verbosity >= 2:
             fs.ast.print()
 
-        check_imports_at_start_of_file(&fs.ast.body)
+        check_imports_at_start_of_file(fs.ast.body)
 
         self->files = realloc(self->files, sizeof(self->files[0]) * (self->nfiles + 1))
         assert self->files != NULL
         self->files[self->nfiles++] = fs
 
-        for stmt = fs.ast.body.statements; stmt < &fs.ast.body.statements[fs.ast.body.nstatements]; stmt++:
+        for stmt = fs.ast.body.ptr; stmt < fs.ast.body.end(); stmt++:
             if stmt->kind == AstStatementKind.Import:
                 self->parse(stmt->import_statement.resolved_path, &stmt->location)  # recursive call
 
@@ -272,7 +272,7 @@ class CompileState:
             seen_before: FileState** = NULL
             seen_before_len = 0
 
-            for stmt = to->ast.body.statements; stmt < &to->ast.body.statements[to->ast.body.nstatements]; stmt++:
+            for stmt = to->ast.body.ptr; stmt < to->ast.body.end(); stmt++:
                 if stmt->kind != AstStatementKind.Import:
                     continue
 
@@ -423,8 +423,7 @@ def collect_linker_flags(files: FileState*, nfiles: int) -> byte*:
     if command_line_args.linker_flags != NULL:
         maxlen += strlen(command_line_args.linker_flags) + 1
     for file = files; file < &files[nfiles]; file++:
-        body = &file->ast.body
-        for stmt = body->statements; stmt < &body->statements[body->nstatements]; stmt++:
+        for stmt = file->ast.body.ptr; stmt < file->ast.body.end(); stmt++:
             if stmt->kind == AstStatementKind.Link:
                 maxlen += strlen(stmt->link_statement.resolved_flags) + 1
 
@@ -437,8 +436,7 @@ def collect_linker_flags(files: FileState*, nfiles: int) -> byte*:
         strcat(result, command_line_args.linker_flags)
         strcat(result, " ")
     for file = files; file < &files[nfiles]; file++:
-        body = &file->ast.body
-        for stmt = body->statements; stmt < &body->statements[body->nstatements]; stmt++:
+        for stmt = file->ast.body.ptr; stmt < file->ast.body.end(); stmt++:
             if stmt->kind == AstStatementKind.Link:
                 strcat(result, stmt->link_statement.resolved_flags)
                 strcat(result, " ")

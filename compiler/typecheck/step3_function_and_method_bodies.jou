@@ -1051,9 +1051,9 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
     expr->types.implicit_cast_type = result  # by default, no implicit cast
 
 
-def typecheck_body(state: State*, body: AstBody*) -> None:
-    for i = 0; i < body->nstatements; i++:
-        typecheck_statement(state, &body->statements[i])
+def typecheck_body(state: State*, body: List[AstStatement]) -> None:
+    for p = body.ptr; p < body.end(); p++:
+        typecheck_statement(state, p)
 
 
 def typecheck_if_statement(state: State*, ifstmt: AstIfStatement*) -> None:
@@ -1064,9 +1064,9 @@ def typecheck_if_statement(state: State*, ifstmt: AstIfStatement*) -> None:
             errmsg = "'elif' condition must be a bool, not <from>"
 
         typecheck_expression_with_implicit_cast(state, &p->condition, boolType, errmsg)
-        typecheck_body(state, &p->body)
+        typecheck_body(state, p->body)
 
-    typecheck_body(state, &ifstmt->else_body)
+    typecheck_body(state, ifstmt->else_body)
 
 
 def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> None:
@@ -1144,7 +1144,7 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
                     snprintf(msg, sizeof(msg), "enum member %s is handled twice", member)
                     fail(case_obj->location, msg)
 
-        typecheck_body(state, &c->body)
+        typecheck_body(state, c->body)
 
     # Do not complain if there is a seemingly unnecessary 'case _', because it
     # may be ran by casting an integer to enum with 'as'. However, we can
@@ -1179,7 +1179,7 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
     free(remaining)
 
     if match_stmt->case_underscore != NULL:
-        typecheck_body(state, match_stmt->case_underscore)
+        typecheck_body(state, *match_stmt->case_underscore)
 
 
 def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
@@ -1193,7 +1193,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             typecheck_expression_with_implicit_cast(
                 state, &stmt->while_loop.condition, boolType,
                 "'while' condition must be a bool, not <from>")
-            typecheck_body(state, &stmt->while_loop.body)
+            typecheck_body(state, stmt->while_loop.body)
 
         case AstStatementKind.ForLoop:
             if stmt->for_loop.init != NULL:
@@ -1202,7 +1202,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 typecheck_expression_with_implicit_cast(
                     state, stmt->for_loop.cond, boolType,
                     "'for' condition must be a bool, not <from>")
-            typecheck_body(state, &stmt->for_loop.body)
+            typecheck_body(state, stmt->for_loop.body)
             if stmt->for_loop.incr != NULL:
                 typecheck_statement(state, stmt->for_loop.incr)
 
@@ -1361,7 +1361,7 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
     for i = 0; i < sig->nargs; i++:
         state->fom_types->add_variable(sig->argtypes[i], sig->argnames[i])
 
-    typecheck_body(state, &fom->body)
+    typecheck_body(state, fom->body)
     state->fom_types = NULL
 
 
@@ -1369,13 +1369,12 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
 def typecheck_step3_function_and_method_bodies(ast: AstFile*) -> None:
     state = State{file_types = &ast->types}
 
-    for i = 0; i < ast->body.nstatements; i++:
-        stmt = &ast->body.statements[i]
+    for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
         match stmt->kind:
             case AstStatementKind.FunctionDef:
                 typecheck_function_or_method_body(&state, &stmt->function)
             case AstStatementKind.Class:
-                for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
+                for inner = stmt->classdef.body.ptr; inner < stmt->classdef.body.end(); inner++:
                     if inner->kind == AstStatementKind.MethodDef:
                         typecheck_function_or_method_body(&state, &inner->method)
             case _:

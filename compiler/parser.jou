@@ -946,7 +946,7 @@ class Parser:
             self->tokens++
             else_body = self->parse_body()
         else:
-            else_body = AstBody{}
+            else_body = List[AstStatement]{}
 
         return AstIfStatement{if_and_elifs = ifs_and_elifs, else_body = else_body}
 
@@ -1276,17 +1276,15 @@ class Parser:
             self->tokens->fail_expected_got("more indentation after ':'")
         self->tokens++
 
-    def parse_body(self) -> AstBody:
+    def parse_body(self) -> List[AstStatement]:
         self->parse_start_of_body()
 
-        result: AstStatement* = NULL
-        n = 0
+        result = List[AstStatement]{}
         while self->tokens->kind != TokenKind.Dedent:
-            result = realloc(result, sizeof result[0] * (n+1))
-            result[n++] = self->parse_statement()
+            s = self->parse_statement()
+            result.append(&s, sizeof(s))
         self->tokens++
-
-        return AstBody{ statements = result, nstatements = n }
+        return result
 
     def parse_function_or_method(self, is_method: bool) -> AstFunctionOrMethod:
         assert self->tokens->is_keyword("def")
@@ -1346,15 +1344,11 @@ class Parser:
         body = self->parse_body()
         self->what_are_we_parsing = old
 
-        bodyptr: AstBody* = malloc(sizeof(*bodyptr))
-        assert bodyptr != NULL
-        *bodyptr = body
-
         return AstClassDef{
             name = name,
             generic_typevar_names = generics,
             n_generic_typevars = ngenerics,
-            body = bodyptr,
+            body = body,
         }
 
     def parse_union(self) -> AstUnionFields:
@@ -1421,8 +1415,8 @@ def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
     result = AstFile{path = tokens[0].location.path}
 
     while parser.tokens->kind != TokenKind.EndOfFile:
-        result.body.statements = realloc(result.body.statements, sizeof result.body.statements[0] * (result.body.nstatements + 1))
-        result.body.statements[result.body.nstatements++] = parser.parse_statement()
+        s = parser.parse_statement()
+        result.body.append(&s, sizeof(s))
 
     assert parser.nloops == 0
     free(parser.loop_vars)

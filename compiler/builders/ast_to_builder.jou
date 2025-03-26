@@ -413,15 +413,15 @@ class AstToBuilder:
             otherwise = self->builder->add_block()
             self->builder->branch(cond, then, otherwise)
             self->builder->set_current_block(then)
-            self->build_body(&p->body)
+            self->build_body(p->body)
             self->builder->jump(done)
             self->builder->set_current_block(otherwise)
 
-        self->build_body(&ifst->else_body)
+        self->build_body(ifst->else_body)
         self->builder->jump(done)
         self->builder->set_current_block(done)
 
-    def build_loop(self, cond: AstExpression*, incr: AstStatement*, body: AstBody*) -> None:
+    def build_loop(self, cond: AstExpression*, incr: AstStatement*, body: List[AstStatement]) -> None:
         condblock = self->builder->add_block()  # evaluate condition and go to bodyblock or doneblock
         bodyblock = self->builder->add_block()  # run loop body and go to incrblock
         incrblock = self->builder->add_block()  # run incr and go to condblock
@@ -480,12 +480,12 @@ class AstToBuilder:
                 self->builder->set_current_block(otherwise)
 
             self->builder->set_current_block(then)
-            self->build_body(&p->body)
+            self->build_body(p->body)
             self->builder->jump(done)
             self->builder->set_current_block(otherwise)
 
         if match_stmt->case_underscore != NULL:
-            self->build_body(match_stmt->case_underscore)
+            self->build_body(*match_stmt->case_underscore)
 
         if (
             match_stmt->case_underscore == NULL
@@ -546,12 +546,12 @@ class AstToBuilder:
             case AstStatementKind.Pass:
                 pass
             case AstStatementKind.WhileLoop:
-                self->build_loop(&stmt->while_loop.condition, NULL, &stmt->while_loop.body)
+                self->build_loop(&stmt->while_loop.condition, NULL, stmt->while_loop.body)
             case AstStatementKind.ForLoop:
                 if stmt->for_loop.init != NULL:
                     self->build_statement(stmt->for_loop.init, False)
                 self->build_loop(
-                    stmt->for_loop.cond, stmt->for_loop.incr, &stmt->for_loop.body)
+                    stmt->for_loop.cond, stmt->for_loop.incr, stmt->for_loop.body)
             case AstStatementKind.Match:
                 self->build_match_statement(&stmt->match_statement)
             case AstStatementKind.Break:
@@ -596,9 +596,9 @@ class AstToBuilder:
 
         self->set_location(old_location)
 
-    def build_body(self, body: AstBody*) -> None:
-        for i = 0; i < body->nstatements; i++:
-            self->build_statement(&body->statements[i], True)
+    def build_body(self, body: List[AstStatement]) -> None:
+        for p = body.ptr; p < body.end(); p++:
+            self->build_statement(p, True)
 
 
 @public
@@ -610,7 +610,7 @@ def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location,
     )
     ast2ir = AstToBuilder{builder = builder}
     ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals, func_ast->types.nlocals, public)
-    ast2ir.build_body(&func_ast->body)
+    ast2ir.build_body(func_ast->body)
     builder->end_function()
 
     ast2ir.locals.clear()

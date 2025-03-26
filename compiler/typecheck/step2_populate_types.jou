@@ -170,7 +170,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
     assert t->kind == TypeKind.Class
 
     union_id = 0
-    for stmt = classdef->body->statements; stmt < &classdef->body->statements[classdef->body->nstatements]; stmt++:
+    for stmt = classdef->body.ptr; stmt < classdef->body.end(); stmt++:
         match stmt->kind:
             case AstStatementKind.ClassField:
                 f = ClassField{
@@ -231,9 +231,7 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
     nexports = 0
 
-    for i = 0; i < ast->body.nstatements; i++:
-        stmt = &ast->body.statements[i]
-
+    for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
         exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
         assert exports != NULL
 

@@ -690,7 +690,7 @@ class AstStatement:
 @public
 class AstConditionAndBody:
     condition: AstExpression
-    body: AstBody
+    body: List[AstStatement]
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{}, True)
@@ -702,11 +702,11 @@ class AstConditionAndBody:
 
         sub = tp.print_prefix(body_is_last_sub_item)
         printf("body:\n")
-        self->body.print_with_tree_printer(sub)
+        print_body(self->body, sub)
 
     def free(self) -> None:
         self->condition.free()
-        self->body.free()
+        free_body(self->body)
 
 
 # foo = bar
@@ -738,7 +738,7 @@ class AstAssignment:
 @public
 class AstIfStatement:
     if_and_elifs: List[AstConditionAndBody]  # At least 1 (the if statement). The rest, if any, are elifs.
-    else_body: AstBody    # Empty if there is no else
+    else_body: List[AstStatement]    # Empty if there is no else
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -746,18 +746,18 @@ class AstIfStatement:
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("if\n")
         for i = 0; i < self->if_and_elifs.len; i++:
-            self->if_and_elifs.ptr[i].print_with_tree_printer(tp, i == self->if_and_elifs.len - 1 and self->else_body.nstatements == 0)
+            self->if_and_elifs.ptr[i].print_with_tree_printer(tp, i == self->if_and_elifs.len - 1 and self->else_body.len == 0)
 
-        if self->else_body.nstatements > 0:
+        if self->else_body.len > 0:
             sub = tp.print_prefix(True)
             printf("else body:\n")
-            self->else_body.print_with_tree_printer(sub)
+            print_body(self->else_body, sub)
 
     def free(self) -> None:
         for p = self->if_and_elifs.ptr; p < self->if_and_elifs.end(); p++:
             p->free()
         self->if_and_elifs.clear()
-        self->else_body.free()
+        free_body(self->else_body)
 
 
 # match match_obj with func:
@@ -771,7 +771,7 @@ class AstMatchStatement:
     func_name: byte[100]  # empty if there's no "with foo"
     func_signature: Signature  # populated in typecheck, zero-initialized before typecheck runs
     cases: List[AstCase]
-    case_underscore: AstBody*  # body of "case _" (always last), NULL if no "case _"
+    case_underscore: List[AstStatement]*  # body of "case _" (always last), NULL if no "case _"
     case_underscore_location: Location  # not meaningful if case_underscore == NULL
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
@@ -782,7 +782,7 @@ class AstMatchStatement:
         if self->case_underscore != NULL:
             sub = tp.print_prefix(True)
             printf("[line %d] body of case _:\n", self->case_underscore_location.lineno)
-            self->case_underscore->print_with_tree_printer(sub)
+            print_body(*self->case_underscore, sub)
 
     def free(self) -> None:
         self->match_obj.free()
@@ -792,7 +792,7 @@ class AstMatchStatement:
             p->free()
         self->cases.clear()
         if self->case_underscore != NULL:
-            self->case_underscore->free()
+            free_body(*self->case_underscore)
             free(self->case_underscore)
 
 
@@ -801,7 +801,7 @@ class AstMatchStatement:
 @public
 class AstCase:
     case_objs: List[AstExpression]
-    body: AstBody
+    body: List[AstStatement]
 
     def print_with_tree_printer(self, tp: TreePrinter, is_last_case: bool) -> None:
         for p = self->case_objs.ptr; p < self->case_objs.end(); p++:
@@ -811,13 +811,13 @@ class AstCase:
 
         sub = tp.print_prefix(is_last_case)
         printf("body:\n")
-        self->body.print_with_tree_printer(sub)
+        print_body(self->body, sub)
 
     def free(self) -> None:
         for p = self->case_objs.ptr; p < self->case_objs.end(); p++:
             p->free()
         self->case_objs.clear()
-        self->body.free()
+        free_body(self->body)
 
 
 # for init; cond; incr:
@@ -827,7 +827,7 @@ class AstForLoop:
     init: AstStatement*   # may be NULL
     cond: AstExpression*  # may be NULL
     incr: AstStatement*   # may be NULL
-    body: AstBody
+    body: List[AstStatement]
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -852,7 +852,7 @@ class AstForLoop:
 
         sub = tp.print_prefix(True)
         printf("body:\n")
-        self->body.print_with_tree_printer(sub)
+        print_body(self->body, sub)
 
     def free(self) -> None:
         if self->init != NULL:
@@ -864,7 +864,10 @@ class AstForLoop:
         if self->incr != NULL:
             self->incr->free()
             free(self->incr)
-        self->body.free()
+
+        for stmt = self->body.ptr; stmt < self->body.end(); stmt++:
+            stmt->free()
+        self->body.clear()
 
 
 # name: type = value
@@ -933,23 +936,17 @@ class AstGlobalVarDef:
         self->type.free()
 
 
-# typically multiple indented lines after a ":" at end of line
-@public
-class AstBody:
-    statements: AstStatement*
-    nstatements: int
+# Body is ":" followed by statements, represented with simply List[AstStatement].
+# We define a few functions to work with bodies, similarly to methods for most other things.
+def print_body(body: List[AstStatement], tp: TreePrinter) -> None:
+    for i = 0; i < body.len; i++:
+        body.ptr[i].print_with_tree_printer(tp.print_prefix(i == body.len - 1))
 
-    def print(self) -> None:
-        self->print_with_tree_printer(TreePrinter{})
 
-    def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        for i = 0; i < self->nstatements; i++:
-            self->statements[i].print_with_tree_printer(tp.print_prefix(i == self->nstatements - 1))
-
-    def free(self) -> None:
-        for i = 0; i < self->nstatements; i++:
-            self->statements[i].free()
-        free(self->statements)
+def free_body(body: List[AstStatement]) -> None:
+    for p = body.ptr; p < body.end(); p++:
+        p->free()
+    body.clear()
 
 
 # function name and parameters in "def" or "declare"
@@ -1031,16 +1028,16 @@ class AstLink:
 class AstFile:
     path: byte*  # not owned
     is_main_file: bool  # is this the file passed in Jou compiler command? False means imported file
-    body: AstBody
+    body: List[AstStatement]
     types: FileTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     def print(self) -> None:
         printf("===== AST for file \"%s\" =====\n", self->path)
-        for i = 0; i < self->body.nstatements; i++:
-            self->body.statements[i].print()
+        for p = self->body.ptr; p < self->body.end(); p++:
+            p->print()
 
     def free(self) -> None:
-        self->body.free()
+        free_body(self->body)
         self->types.free()  # also works if self->types is zero-initialized
 
 
@@ -1049,7 +1046,7 @@ class AstFile:
 @public
 class AstFunctionOrMethod:
     ast_signature: AstSignature
-    body: AstBody
+    body: List[AstStatement]
     types: FunctionOrMethodTypes  # populated in typecheck, zero-initialized before typecheck runs
     public: bool  # is it decorated with @public
     used: bool  # used to detect unused functions
@@ -1059,11 +1056,11 @@ class AstFunctionOrMethod:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         self->ast_signature.print()
-        self->body.print_with_tree_printer(tp)
+        print_body(self->body, tp)
 
     def free(self) -> None:
         self->ast_signature.free()
-        self->body.free()
+        free_body(self->body)
         if self->types.signature.name[0] != '\0':
             # type-checking ran, the types are set and they need freeing
             self->types.free()
@@ -1098,7 +1095,7 @@ class AstClassDef:
     name: byte[100]
     generic_typevar_names: byte[100]*  # the "T1" and "T2" of "class Foo[T1, T2]"
     n_generic_typevars: int  # 0 means not generic
-    body: AstBody*
+    body: List[AstStatement]
     type: Type*  # populated in typecheck, NULL before typecheck runs
     public: bool  # is it decorated with @public
     used: bool  # used to detect unused classes
@@ -1108,12 +1105,11 @@ class AstClassDef:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("class \"%s\"\n", self->name)
-        self->body->print_with_tree_printer(tp)
+        print_body(self->body, tp)
 
     def free(self) -> None:
         free(self->generic_typevar_names)
-        self->body->free()
-        free(self->body)
+        free_body(self->body)
 
 
 # enum Foo:

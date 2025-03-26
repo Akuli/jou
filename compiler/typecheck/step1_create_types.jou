@@ -39,9 +39,7 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
     exports: ExportSymbol* = NULL
     nexports = 0
 
-    for i = 0; i < ast->body.nstatements; i++:
-        stmt = &ast->body.statements[i]
-
+    for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
         match stmt->kind:
             case AstStatementKind.Class:
                 name = stmt->classdef.name

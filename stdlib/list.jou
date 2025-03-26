@@ -12,8 +12,21 @@ class List[T]:
     alloc: long     # How many bytes of space starting at ptr are allocated
     itemsize: long  # This is either zero or sizeof(T). Set when appending.
 
+    # Ensure that the list has room for at least the given number of elements.
+    # Newly allocated space at the end of list will contain uninitialized/garbage values.
+    def grow(self, n: long, itemsize: long) -> None:
+        assert n >= 0
+        assert itemsize > 0
+
+        if self->itemsize == 0:
+            self->itemsize = itemsize
+        else:
+            assert self->itemsize == itemsize  # If this fails you passed the wrong size
+
+        self->_grow_nbytes(n * itemsize)
+
     # Ensure that the list has room for at least the given number of bytes.
-    def _grow(self, nbytes: long) -> None:
+    def _grow_nbytes(self, nbytes: long) -> None:
         assert nbytes >= 0
 
         if self->alloc >= nbytes:
@@ -35,14 +48,7 @@ class List[T]:
     # The "itemsize" argument must be sizeof(*item). Unfortunately it is not
     # possible to tell the compiler to determine it automatically.
     def append(self, item: T*, itemsize: long) -> None:
-        assert itemsize > 0
-
-        if self->itemsize == 0:
-            self->itemsize = itemsize
-        else:
-            assert self->itemsize == itemsize  # If this fails you passed the wrong size to some append()
-
-        self->_grow((self->len + 1) * itemsize)
+        self->grow(self->len + 1, itemsize)
         memcpy(self->end(), item, itemsize)
         self->len++
 
