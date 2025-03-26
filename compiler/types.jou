@@ -15,8 +15,7 @@ class ClassField:
 class ClassData:
     generic_params: List[Type*]   # this is the "int" part of List[int]
     fields: List[ClassField]
-    methods: Signature*
-    nmethods: int
+    methods: List[Signature]
 
     def is_generic(self) -> bool:
         return self->generic_params.len > 0
@@ -29,19 +28,15 @@ class ClassData:
             result.append(&f2, sizeof(f2))
         return result
 
-    def substitute_generic_params_to_methods(self, from: Type**, to: Type**, n: int) -> Signature*:
-        if self->nmethods == 0:
-            return NULL
-
-        result: Signature* = malloc(sizeof(result[0]) * self->nmethods)
-        assert result != NULL
-        memcpy(result, self->methods, sizeof(result[0]) * self->nmethods)
-        for sig = result; sig < &result[self->nmethods]; sig++:
-            *sig = sig->copy()
-            for argtype = sig->argtypes; argtype < &sig->argtypes[sig->nargs]; argtype++:
+    def substitute_generic_params_to_methods(self, from: Type**, to: Type**, n: int) -> List[Signature]:
+        result = List[Signature]{}
+        for sig1 = self->methods.ptr; sig1 < self->methods.end(); sig1++:
+            sig2 = sig1->copy()
+            for argtype = sig2.argtypes; argtype < &sig2.argtypes[sig2.nargs]; argtype++:
                 *argtype = (*argtype)->substitute_generic_params(from, to, n)
-            if sig->return_type != NULL:
-                sig->return_type = sig->return_type->substitute_generic_params(from, to, n)
+            if sig2.return_type != NULL:
+                sig2.return_type = sig2.return_type->substitute_generic_params(from, to, n)
+            result.append(&sig2, sizeof(sig2))
         return result
 
 
@@ -220,12 +215,11 @@ class Type:
                 free(t->classdata.fields.ptr)
                 t->classdata.fields = self->classdata.substitute_generic_params_to_fields(from, to, n)
 
-            if t->classdata.nmethods < self->classdata.nmethods:
-                for sig = t->classdata.methods; sig < &t->classdata.methods[t->classdata.nmethods]; sig++:
+            if t->classdata.methods.len < self->classdata.methods.len:
+                for sig = t->classdata.methods.ptr; sig < t->classdata.methods.end(); sig++:
                     sig->free()
-                free(t->classdata.methods)
+                free(t->classdata.methods.ptr)
                 t->classdata.methods = self->classdata.substitute_generic_params_to_methods(from, to, n)
-                t->classdata.nmethods = self->classdata.nmethods
 
     def short_description(self) -> byte*:
         match self->kind:
@@ -257,7 +251,7 @@ class Type:
         if self->kind != TypeKind.Class:
             return NULL
 
-        for sig = self->classdata.methods; sig < &self->classdata.methods[self->classdata.nmethods]; sig++:
+        for sig = self->classdata.methods.ptr; sig < self->classdata.methods.end(); sig++:
             if strcmp(sig->name, name) == 0:
                 return sig
         return NULL
@@ -378,11 +372,11 @@ def init_types() -> None:
 def free_type(t: Type*) -> None:
     assert t != NULL
     if t->kind == TypeKind.Class:
-        for sig = t->classdata.methods; sig < &t->classdata.methods[t->classdata.nmethods]; sig++:
+        for sig = t->classdata.methods.ptr; sig < t->classdata.methods.end(); sig++:
             sig->free()
         free(t->classdata.generic_params.ptr)
         free(t->classdata.fields.ptr)
-        free(t->classdata.methods)
+        free(t->classdata.methods.ptr)
 
     cast_type_to_typeinfo(t)->free_related_types()
     free(t)

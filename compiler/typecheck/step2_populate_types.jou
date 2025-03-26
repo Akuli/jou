@@ -204,9 +204,8 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                 stmt->method.types.signature = sig
 
                 check_class_member_not_exist(t, sig.name, stmt->location)
-                t->classdata.methods = realloc(t->classdata.methods, sizeof(t->classdata.methods[0]) * (t->classdata.nmethods + 1))
-                assert t->classdata.methods != NULL
-                t->classdata.methods[t->classdata.nmethods++] = sig.copy()
+                sig2 = sig.copy()
+                t->classdata.methods.append(&sig2, sizeof(sig2))
 
             case AstStatementKind.Pass:
                 pass
