@@ -20,6 +20,7 @@ enum AstTypeKind:
     Named
     Pointer
     Array
+    Generic  # e.g. List[int]
 
 
 @public
@@ -34,15 +35,24 @@ class AstArrayType:
         free(self->length)
 
 
+# e.g. List[int]
+@public
+class AstGenericType:
+    class_name: byte[100]  # e.g. "List"
+    param_types: AstType*
+    n_param_types: int
+
+
 @public
 class AstType:
     kind: AstTypeKind
     location: Location
 
     union:
-        name: byte[100]       # AstTypeKind.Named
-        value_type: AstType*  # AstTypeKind.Pointer
-        array: AstArrayType   # AstTypeKind.Array
+        name: byte[100]         # AstTypeKind.Named
+        value_type: AstType*    # AstTypeKind.Pointer
+        array: AstArrayType     # AstTypeKind.Array
+        generic: AstGenericType # AstTypeKind.Generic
 
     def is_void(self) -> bool:
         return self->kind == AstTypeKind.Named and strcmp(self->name, "void") == 0
@@ -63,6 +73,13 @@ class AstType:
             case AstTypeKind.Array:
                 self->array.member_type->print(False)
                 printf("[<size>]")  # TODO: show the size expression better?
+            case AstTypeKind.Generic:
+                printf("%s[", self->generic.class_name)
+                for i = 0; i < self->generic.n_param_types; i++:
+                    if i != 0:
+                        printf(", ")
+                    self->generic.param_types[i].print(False)
+                printf("]")
 
         if show_lineno:
             printf(" [line %d]", self->location.lineno)
@@ -76,6 +93,10 @@ class AstType:
                 self->array.free()
             case AstTypeKind.Named:
                 pass
+            case AstTypeKind.Generic:
+                for i = 0; i < self->generic.n_param_types; i++:
+                    self->generic.param_types[i].free()
+                free(self->generic.param_types)
 
 
 # Statements and expressions can be printed in a tree.
@@ -120,7 +141,7 @@ class AstClassField:
 # Foo{bar = 1, baz = 2}
 @public
 class AstInstantiation:
-    class_name: byte[100]
+    type: AstType
     nfields: int
     field_names: byte[100]*
     field_values: AstExpression*
@@ -129,13 +150,17 @@ class AstInstantiation:
         self->print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("instantiate \"%s\"\n", self->class_name)
+        printf("instantiate ")
+        self->type.print(False)
+        printf("\n")
+
         for i = 0; i < self->nfields; i++:
             sub = tp.print_prefix(i == self->nfields - 1)
             printf("field \"%s\": ", self->field_names[i])
             self->field_values[i].print_with_tree_printer(sub)
 
     def free(self) -> None:
+        self->type.free()
         for i = 0; i < self->nfields; i++:
             self->field_values[i].free()
         free(self->field_names)
@@ -1082,6 +1107,8 @@ class AstUnionFields:
 @public
 class AstClassDef:
     name: byte[100]
+    generic_typevar_names: byte[100]*  # the "T1" and "T2" of "class Foo[T1, T2]"
+    n_generic_typevars: int  # 0 means not generic
     body: AstBody*
     type: Type*  # populated in typecheck, NULL before typecheck runs
     public: bool  # is it decorated with @public
@@ -1095,6 +1122,7 @@ class AstClassDef:
         self->body->print_with_tree_printer(tp)
 
     def free(self) -> None:
+        free(self->generic_typevar_names)
         self->body->free()
         free(self->body)
 

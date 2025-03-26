@@ -99,10 +99,19 @@ class FileTypes:
         assert self->functions != NULL
         self->functions[self->nfunctions++] = SignatureAndUsedPtr{signature = signature->copy(), usedptr = usedptr}
 
-    def add_type(self, t: Type*, usedptr: bool*) -> None:
+    def _add_type_internal(self, t: Type*, usedptr: bool*) -> None:
         self->available_types = realloc(self->available_types, sizeof(self->available_types[0]) * (self->n_available_types + 1))
         assert self->available_types != NULL
         self->available_types[self->n_available_types++] = TypeAndUsedPtr{type = t, usedptr = usedptr}
+
+    def add_type(self, t: Type*, usedptr: bool*) -> None:
+        assert strstr(t->name, "[") == NULL  # must be able to find the types by name
+        self->_add_type_internal(t, usedptr)
+
+    def add_generic_class(self, t: Type*, usedptr: bool*) -> None:
+        assert t->kind == TypeKind.Class
+        assert strstr(t->name, "[") != NULL  # e.g. List[T]
+        self->_add_type_internal(t, usedptr)
 
     def add_global_var(self, name: byte*, type: Type*, usedptr: bool*) -> GlobalVariable*:
         g = GlobalVariable{type = type, usedptr = usedptr}
@@ -137,8 +146,22 @@ class FileTypes:
         free(self->constants)
 
     def find_type(self, name: byte*) -> Type*:
+        assert strstr(name, "[") == NULL
         for t = self->available_types; t < &self->available_types[self->n_available_types]; t++:
             if strcmp(t->type->name, name) == 0:
+                if t->usedptr != NULL:
+                    *t->usedptr = True
+                return t->type
+        return NULL
+
+    def find_generic_class(self, name: byte*) -> Type*:
+        for t = self->available_types; t < &self->available_types[self->n_available_types]; t++:
+            # If looking for "List", check if it starts with "List[" as in "List[T]"
+            if (
+                t->type->kind == TypeKind.Class
+                and starts_with(t->type->name, name)
+                and t->type->name[strlen(name)] == '['
+            ):
                 if t->usedptr != NULL:
                     *t->usedptr = True
                 return t->type

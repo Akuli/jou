@@ -544,15 +544,6 @@ def nth(n: int) -> byte[100]:
     return result
 
 
-def plural_s(n: int) -> byte*:
-    if n == 1:
-        # e.g. "1 argument"
-        return ""
-    else:
-        # e.g. "0 arguments", "2 arguments"
-        return "s"
-
-
 # returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
 def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: Type*, location: Location) -> Type*:
     msg: byte[500]
@@ -648,8 +639,7 @@ def typecheck_class_field(
 
 
 def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Location) -> Type*:
-    tmp = AstType{kind = AstTypeKind.Named, location = location, name = inst->class_name}
-    t = type_from_ast(state->file_types, &tmp)
+    t = type_from_ast(state->file_types, state->fom_types->signature.get_self_class(), &inst->type)
 
     msg: byte[500]
 
@@ -667,7 +657,7 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
 
         snprintf(msg, sizeof msg,
             "value for field '%s' of class %s must be of type <to>, not <from>",
-            inst->field_names[i], inst->class_name)
+            inst->field_names[i], t->name)
         typecheck_expression_with_implicit_cast(state, &inst->field_values[i], f->type, msg)
         specified_fields[i] = f
 
@@ -1043,7 +1033,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             result = check_increment_or_decrement(state, expr)
 
         case AstExpressionKind.As:
-            result = type_from_ast(state->file_types, &expr->as_->type)
+            result = type_from_ast(state->file_types, state->fom_types->signature.get_self_class(), &expr->as_->type)
             typecheck_expression_not_void(state, &expr->as_->value, result)
 
             # Special case: `"foo" as byte[100]` is not really a cast. It sets
@@ -1340,7 +1330,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 snprintf(msg, sizeof(msg), "a constant named '%s' already exists", varname)
                 fail(stmt->location, msg)
 
-            type = type_from_ast(state->file_types, &stmt->local_var_declare.type)
+            type = type_from_ast(state->file_types, state->fom_types->signature.get_self_class(), &stmt->local_var_declare.type)
             state->fom_types->add_variable(type, varname)
 
             if stmt->local_var_declare.value != NULL:
@@ -1393,8 +1383,6 @@ def typecheck_step3_function_and_method_bodies(ast: AstFile*) -> None:
             case AstStatementKind.FunctionDef:
                 typecheck_function_or_method_body(&state, &stmt->function)
             case AstStatementKind.Class:
-                classtype = stmt->classdef.type
-                assert classtype != NULL
                 for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
                     if inner->kind == AstStatementKind.MethodDef:
                         typecheck_function_or_method_body(&state, &inner->method)

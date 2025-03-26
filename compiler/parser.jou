@@ -167,6 +167,29 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
         fail(location, msg)
 
 
+# Determines whether the next tokens are "Class{attribute = value}" syntax.
+# Not as simple as you might expect, because the class can be generic.
+# Example: Foo[int, byte*]{x = 1, y="hello"}
+def looks_like_instantiate(t: Token*) -> bool:
+    if t->kind != TokenKind.Name:
+        return False
+    t++
+    if t->is_operator("{"):
+        return True
+    if t->is_operator("["):
+        # Find matching ']' and see if there's '{' after it.
+        depth = 1
+        t++
+        while depth > 0 and t->kind != TokenKind.EndOfFile:
+            if t->is_operator("["):
+                depth++
+            if t->is_operator("]"):
+                depth--
+            t++
+        return t->is_operator("{")
+    return False
+
+
 enum WhatAreWeParsing:
     TopLevel  # must be first, so that this is the default (zero)
     ClassBody
@@ -283,13 +306,26 @@ class Parser:
 
             if self->tokens->is_operator("*"):
                 result = AstType{
-                    location = (self->tokens++)->location,  # TODO: shouldn't need all the parentheses
+                    location = (self->tokens++)->location,
                     kind = AstTypeKind.Pointer,
                     value_type = p,
                 }
-            else:
-                location = (self->tokens++)->location
+                continue
 
+            assert self->tokens->is_operator("[")
+            location = (self->tokens++)->location
+
+            if (
+                self->tokens->kind == TokenKind.Short
+                or self->tokens->kind == TokenKind.Int
+                or self->tokens->kind == TokenKind.Long
+                or result.kind != AstTypeKind.Named
+            ):
+                # Array, e.g. int[10]
+                #
+                # TODO: This way to distinguish arrays and generics prevents using
+                # constants defined with `const` as array sizes. See:
+                # https://github.com/Akuli/jou/issues/804
                 len_expression: AstExpression* = malloc(sizeof *len_expression)
                 *len_expression = self->parse_expression()
 
@@ -303,6 +339,33 @@ class Parser:
                     array = AstArrayType{
                         member_type = p,
                         length = len_expression,
+                    }
+                }
+            else:
+                # Generic, e.g. List[int]
+                free(p)
+
+                nparams = 0
+                params: AstType* = NULL
+                while not self->tokens->is_operator("]"):
+                    params = realloc(params, sizeof(params[0]) * (nparams + 1))
+                    params[nparams++] = self->parse_type()
+                    if not self->tokens->is_operator(","):
+                        break
+                    self->tokens++
+
+                if not self->tokens->is_operator("]"):
+                    self->tokens->fail_expected_got("a ']'")
+                self->tokens++
+
+                assert result.kind == AstTypeKind.Named
+                result = AstType{
+                    location = result.location,
+                    kind = AstTypeKind.Generic,
+                    generic = AstGenericType{
+                        class_name = result.name,
+                        param_types = params,
+                        n_param_types = nparams,
                     }
                 }
 
@@ -439,9 +502,7 @@ class Parser:
         return result
 
     def parse_instantiation(self) -> AstInstantiation:
-        assert self->tokens->kind == TokenKind.Name
-        result = AstInstantiation{class_name = self->tokens->short_string}
-        self->tokens++
+        result = AstInstantiation{type = self->parse_type()}
         assert self->tokens->is_operator("{")
         self->tokens++
 
@@ -534,7 +595,7 @@ class Parser:
                 if self->tokens[1].is_operator("("):
                     expr.kind = AstExpressionKind.Call
                     expr.call = self->parse_call()
-                elif self->tokens[1].is_operator("{"):
+                elif looks_like_instantiate(self->tokens):
                     expr.kind = AstExpressionKind.Instantiate
                     expr.instantiation = self->parse_instantiation()
                 else:
@@ -1271,6 +1332,29 @@ class Parser:
         name = self->tokens->short_string
         self->tokens++
 
+        generics: byte[100]* = NULL
+        ngenerics = 0
+
+        if self->tokens->is_operator("["):
+            self->tokens++
+            while not self->tokens->is_operator("]"):
+                if self->tokens->kind != TokenKind.Name:
+                    self->tokens->fail_expected_got("name of a generic type variable (typically 'T')")
+                generics = realloc(generics, sizeof(generics[0]) * (ngenerics+1))
+                generics[ngenerics++] = (self->tokens++)->short_string
+
+                if not self->tokens->is_operator(","):
+                    break
+                self->tokens++
+
+            if not self->tokens->is_operator("]"):
+                self->tokens->fail_expected_got("a ']'")
+            if ngenerics == 0:
+                msg: byte[500]
+                snprintf(msg, sizeof(msg), "at least one generic type parameter is needed, e.g. 'class %s[T]:'", name, name)
+                fail(self->tokens->location, msg)
+            self->tokens++
+
         old = self->what_are_we_parsing
         self->what_are_we_parsing = WhatAreWeParsing.ClassBody
         body = self->parse_body()
@@ -1280,7 +1364,12 @@ class Parser:
         assert bodyptr != NULL
         *bodyptr = body
 
-        return AstClassDef{name = name, body = bodyptr}
+        return AstClassDef{
+            name = name,
+            generic_typevar_names = generics,
+            n_generic_typevars = ngenerics,
+            body = bodyptr,
+        }
 
     def parse_union(self) -> AstUnionFields:
         if self->what_are_we_parsing != WhatAreWeParsing.ClassBody:

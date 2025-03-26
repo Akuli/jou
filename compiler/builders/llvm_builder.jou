@@ -97,8 +97,8 @@ def type_to_llvm(type: Type*) -> LLVMType*:
             return LLVMIntType(type->size_in_bits)
         case TypeKind.Bool:
             return LLVMInt1Type()
-        case TypeKind.OpaqueClass:
-            # this is compiler internal/temporary thing and should never end up here
+        case TypeKind.OpaqueClass | TypeKind.TypeVar:
+            # these are compiler internal/temporary things and should never end up here
             assert False
         case TypeKind.Class:
             return class_type_to_llvm(type)
@@ -128,8 +128,10 @@ def declare_in_llvm(sig: Signature*, mod: LLVMModule*) -> LLVMValue*:
         # function
         snprintf(fullname, sizeof(fullname), "%s", sig->name)
     else:
-        # method
-        snprintf(fullname, sizeof(fullname), "%s.%s", self_class->name, sig->name)
+        # method bark() in class Dog becomes Dog.bark()
+        # method append() in generic class List[int] becomes List.append(), not List[int].append()
+        n = strcspn(self_class->name, "[")
+        snprintf(fullname, sizeof(fullname), "%.*s.%s", n as int, self_class->name, sig->name)
 
     # Make it so that this can be called many times without issue
     llvm_func = LLVMGetNamedFunction(mod, fullname)

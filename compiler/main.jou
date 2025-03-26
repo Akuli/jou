@@ -105,6 +105,8 @@ class FileState:
                         wat = "global variable"
                     case ExportSymbolKind.Type:
                         wat = "type"
+                    case ExportSymbolKind.GenericClass:
+                        wat = "generic class"
                     case ExportSymbolKind.Constant:
                         wat = "constant"
 
@@ -117,6 +119,8 @@ class FileState:
                 self->ast.types.add_function(&es->funcsignature, &imp->used)
             case ExportSymbolKind.Type:
                 self->ast.types.add_type(es->type, &imp->used)
+            case ExportSymbolKind.GenericClass:
+                self->ast.types.add_generic_class(es->type, &imp->used)
             case ExportSymbolKind.GlobalVar:
                 self->ast.types.add_global_var(es->name, es->type, &imp->used)
             case ExportSymbolKind.Constant:
@@ -297,6 +301,8 @@ class CompileState:
                                 kindstr = "global var"
                             case ExportSymbolKind.Type:
                                 kindstr = "type"
+                            case ExportSymbolKind.GenericClass:
+                                kindstr = "generic class"
                             case ExportSymbolKind.Constant:
                                 kindstr = "constant"
                         printf("Adding imported %s %s: %s --> %s\n",

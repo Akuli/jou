@@ -34,7 +34,7 @@ def check_no_global_var_or_const(ft: FileTypes*, location: Location, name: byte*
 
 def handle_global_var(ft: FileTypes*, location: Location, name: byte*, type: AstType*, usedptr: bool*) -> ExportSymbol:
     check_no_global_var_or_const(ft, location, name)
-    g = ft->add_global_var(name, type_from_ast(ft, type), usedptr)
+    g = ft->add_global_var(name, type_from_ast(ft, NULL, type), usedptr)
     return ExportSymbol{kind = ExportSymbolKind.GlobalVar, type = g->type, name = g->name}
 
 
@@ -46,7 +46,7 @@ def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> E
     if not evaluate_constant_expression(&c->value, &value):
         fail(location, "cannot evaluate value of constant at compile time")
 
-    expected_type = type_from_ast(ft, &c->type)
+    expected_type = type_from_ast(ft, NULL, &c->type)
 
     # TODO: allow implicit casts?
     if value.get_type() != expected_type:
@@ -95,7 +95,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
             # just "self" without a type after it --> default to "self: Foo*" in class Foo
             argtype = self_class->pointer_type()
         else:
-            argtype = type_from_ast(ft, &astsig->args[i].type)
+            argtype = type_from_ast(ft, self_class, &astsig->args[i].type)
 
         if strcmp(sig.argnames[i], "self") == 0 and argtype != self_class and argtype != self_class->pointer_type():
             snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class->name, self_class->name)
@@ -114,7 +114,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
         )
         fail(astsig->return_type.location, msg)
     else:
-        sig.return_type = type_from_ast(ft, &astsig->return_type)
+        sig.return_type = type_from_ast(ft, self_class, &astsig->return_type)
 
     if self_class == NULL:
         ft->add_function(&sig, usedptr)
@@ -172,12 +172,24 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
     memset(&t->classdata, 0, sizeof t->classdata)
 
+    n = classdef->n_generic_typevars
+    if n > 0:
+        # When defining generic class List[T], create a temporary type named T.
+        t->classdata.n_generic_params = n
+        t->classdata.generic_params = malloc(sizeof(t->classdata.generic_params[0]) * n)
+        for i = 0; i < n; i++:
+            t->classdata.generic_params[i] = create_typevar(classdef->generic_typevar_names[i])
+
+        # Update name of type from "List" to "List[T]"
+        old_name: byte[500] = t->name
+        t->name = create_type_name_with_params(old_name, t->classdata.generic_params, n)
+
     union_id = 0
     for stmt = classdef->body->statements; stmt < &classdef->body->statements[classdef->body->nstatements]; stmt++:
         match stmt->kind:
             case AstStatementKind.ClassField:
                 f = ClassField{
-                    type = type_from_ast(ft, &stmt->class_field.type),
+                    type = type_from_ast(ft, t, &stmt->class_field.type),
                     union_id = union_id++,
                 }
                 assert sizeof(f.name) == sizeof(stmt->class_field.name)
@@ -198,7 +210,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                             fail(ntv2->name_location, msg)
 
                     f = ClassField{
-                        type = type_from_ast(ft, &ntv->type),
+                        type = type_from_ast(ft, t, &ntv->type),
                         union_id = uid,
                     }
                     assert sizeof(f.name) == sizeof(ntv->name)
