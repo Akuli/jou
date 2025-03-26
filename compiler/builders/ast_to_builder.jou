@@ -610,7 +610,7 @@ def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location,
         or (is_main_file and func_ast->types.signature.is_main_function())
     )
     ast2ir = AstToBuilder{builder = builder}
-    ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals, func_ast->types.nlocals, public)
+    ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals.ptr, func_ast->types.locals.len as int, public)
     ast2ir.build_body(func_ast->body)
     builder->end_function()
 
