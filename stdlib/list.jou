@@ -46,6 +46,7 @@ class List[T]:
         memcpy(self->end(), item, itemsize)
         self->len++
 
+    # Make the list empty and free the memory used by the list.
     def clear(self) -> None:
         free(self->ptr)
         self->ptr = NULL
