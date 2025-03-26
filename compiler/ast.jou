@@ -800,24 +800,23 @@ class AstMatchStatement:
 #     body
 @public
 class AstCase:
-    case_objs: AstExpression*
-    n_case_objs: int
+    case_objs: List[AstExpression]
     body: AstBody
 
     def print_with_tree_printer(self, tp: TreePrinter, is_last_case: bool) -> None:
-        for i = 0; i < self->n_case_objs; i++:
+        for p = self->case_objs.ptr; p < self->case_objs.end(); p++:
             sub = tp.print_prefix(False)
             printf("case_obj: ")
-            self->case_objs[i].print_with_tree_printer(sub)
+            p->print_with_tree_printer(sub)
 
         sub = tp.print_prefix(is_last_case)
         printf("body:\n")
         self->body.print_with_tree_printer(sub)
 
     def free(self) -> None:
-        for i = 0; i < self->n_case_objs; i++:
-            self->case_objs[i].free()
-        free(self->case_objs)
+        for p = self->case_objs.ptr; p < self->case_objs.end(); p++:
+            p->free()
+        self->case_objs.clear()
         self->body.free()
 
 

@@ -1071,11 +1071,10 @@ class Parser:
                 parens = self->tokens->is_operator("(")
                 if parens:
                     self->tokens++
-                case_objs: AstExpression* = NULL
-                n_case_objs = 0
+                case_objs = List[AstExpression]{}
                 while True:
-                    case_objs = realloc(case_objs, sizeof(case_objs[0]) * (n_case_objs + 1))
-                    case_objs[n_case_objs++] = self->parse_expression()
+                    case_obj = self->parse_expression()
+                    case_objs.append(&case_obj, sizeof(case_obj))
                     if self->tokens->is_operator("|"):
                         self->tokens++
                     elif (not parens) and self->tokens->is_operator(":"):
@@ -1088,11 +1087,7 @@ class Parser:
                             self->tokens->fail_expected_got("'|' or '):'")
                         else:
                             self->tokens->fail_expected_got("'|' or ':'")
-                c = AstCase{
-                    case_objs = case_objs,
-                    n_case_objs = n_case_objs,
-                    body = self->parse_body(),
-                }
+                c = AstCase{case_objs = case_objs, body = self->parse_body()}
                 result.cases.append(&c, sizeof(c))
         self->tokens++
 
