@@ -148,9 +148,9 @@ class AstToBuilder:
 
         inst_ptr = self->builder->stack_alloc(class_type, NULL)
         self->builder->memset_to_zero(inst_ptr)
-        for i = 0; i < inst->nfields; i++:
-            field_ptr = self->builder->class_field_pointer(inst_ptr, inst->field_names[i])
-            field_value = self->build_expression(&inst->field_values[i])
+        for f = inst->fields.ptr; f < inst->fields.end(); f++:
+            field_ptr = self->builder->class_field_pointer(inst_ptr, f->name)
+            field_value = self->build_expression(&f->value)
             self->builder->set_ptr(field_ptr, field_value)
 
         return self->builder->dereference(inst_ptr)

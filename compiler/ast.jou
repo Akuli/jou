@@ -138,13 +138,17 @@ class AstClassField:
         free(self->instance)
 
 
+@public
+class AstInstantiationField:
+    name: byte[100]
+    value: AstExpression
+
+
 # Foo{bar = 1, baz = 2}
 @public
 class AstInstantiation:
     type: AstType
-    nfields: int
-    field_names: byte[100]*
-    field_values: AstExpression*
+    fields: List[AstInstantiationField]
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -154,17 +158,16 @@ class AstInstantiation:
         self->type.print(False)
         printf("\n")
 
-        for i = 0; i < self->nfields; i++:
-            sub = tp.print_prefix(i == self->nfields - 1)
-            printf("field \"%s\": ", self->field_names[i])
-            self->field_values[i].print_with_tree_printer(sub)
+        for f = self->fields.ptr; f < self->fields.end(); f++:
+            sub = tp.print_prefix(f == &self->fields.end()[-1])
+            printf("field \"%s\": ", f->name)
+            f->value.print_with_tree_printer(sub)
 
     def free(self) -> None:
         self->type.free()
-        for i = 0; i < self->nfields; i++:
-            self->field_values[i].free()
-        free(self->field_names)
-        free(self->field_values)
+        for f = self->fields.ptr; f < self->fields.end(); f++:
+            f->value.free()
+        self->fields.clear()
 
 
 @public

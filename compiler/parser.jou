@@ -509,13 +509,11 @@ class Parser:
             if self->tokens->kind != TokenKind.Name:
                 self->tokens->fail_expected_got("a field name")
             field_name = self->tokens->short_string
-            for i = 0; i < result.nfields; i++:
-                if strcmp(result.field_names[i], field_name) == 0:
+            for f = result.fields.ptr; f < result.fields.end(); f++:
+                if strcmp(f->name, field_name) == 0:
                     error: byte[500]
                     snprintf(error, sizeof error, "multiple values were given for field '%s'", field_name)
                     fail(self->tokens->location, error)
-            result.field_names = realloc(result.field_names, (result.nfields + 1) * sizeof result.field_names[0])
-            result.field_names[result.nfields] = field_name
             self->tokens++
 
             if not self->tokens->is_operator("="):
@@ -524,10 +522,9 @@ class Parser:
                 self->tokens->fail_expected_got(msg)
             self->tokens++
 
-            result.field_values = realloc(result.field_values, sizeof result.field_values[0] * (result.nfields+1))
-            result.field_values[result.nfields] = self->parse_expression()
+            field = AstInstantiationField{name = field_name, value = self->parse_expression()}
+            result.fields.append(&field, sizeof(field))
 
-            result.nfields++
             if not self->tokens->is_operator(","):
                 break
             self->tokens++

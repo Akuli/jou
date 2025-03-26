@@ -8,6 +8,7 @@
 # already exist and are fully populated, so that we e.g. know what methods each
 # class has and what parameter types they take.
 
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/math.jou"
@@ -650,26 +651,25 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
             t->name, t->name, t->short_description())
         fail(location, msg)
 
-    specified_fields: ClassField** = malloc(sizeof(specified_fields[0]) * inst->nfields)
-
-    for i = 0; i < inst->nfields; i++:
-        f = typecheck_class_field(t, inst->field_names[i], inst->field_values[i].location)
+    specified_fields = List[ClassField*]{}
+    for f = inst->fields.ptr; f < inst->fields.end(); f++:
+        field = typecheck_class_field(t, f->name, f->value.location)
 
         snprintf(msg, sizeof msg,
             "value for field '%s' of class %s must be of type <to>, not <from>",
-            inst->field_names[i], t->name)
-        typecheck_expression_with_implicit_cast(state, &inst->field_values[i], f->type, msg)
-        specified_fields[i] = f
+            f->name, t->name)
+        typecheck_expression_with_implicit_cast(state, &f->value, field->type, msg)
+        specified_fields.append(&field, sizeof(field))
 
-    for i1 = 0; i1 < inst->nfields; i1++:
-        for i2 = i1+1; i2 < inst->nfields; i2++:
-            if specified_fields[i1]->union_id == specified_fields[i2]->union_id:
+    for i1 = 0; i1 < inst->fields.len; i1++:
+        for i2 = i1+1; i2 < inst->fields.len; i2++:
+            if specified_fields.ptr[i1]->union_id == specified_fields.ptr[i2]->union_id:
                 snprintf(msg, sizeof(msg),
                     "fields '%s' and '%s' cannot be set simultaneously because they belong to the same union",
-                    specified_fields[i1]->name, specified_fields[i2]->name)
-                fail(inst->field_values[i2].location,msg)
+                    specified_fields.ptr[i1]->name, specified_fields.ptr[i2]->name)
+                fail(inst->fields.ptr[i2].value.location,msg)
 
-    free(specified_fields)
+    specified_fields.clear()
     return t
 
 
