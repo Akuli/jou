@@ -169,18 +169,6 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
     assert t != NULL
     assert t->kind == TypeKind.Class
 
-    n = classdef->n_generic_typevars
-    if n > 0:
-        # When defining generic class List[T], create a temporary type named T.
-        t->classdata.n_generic_params = n
-        t->classdata.generic_params = malloc(sizeof(t->classdata.generic_params[0]) * n)
-        for i = 0; i < n; i++:
-            t->classdata.generic_params[i] = create_typevar(classdef->generic_typevar_names[i])
-
-        # Update name of type from "List" to "List[T]"
-        old_name: byte[500] = t->name
-        t->name = create_type_name_with_params(old_name, t->classdata.generic_params, n)
-
     union_id = 0
     for stmt = classdef->body->statements; stmt < &classdef->body->statements[classdef->body->nstatements]; stmt++:
         match stmt->kind:
@@ -233,6 +221,9 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
             case _:
                 assert False
+
+    if t->classdata.n_generic_params > 0:
+        t->update_fields_and_methods_to_generic_instances()
 
 
 @public
