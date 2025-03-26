@@ -1119,8 +1119,7 @@ class AstClassDef:
 class AstEnumDef:
     name: byte[100]
     name_location: Location
-    member_count: int
-    member_names: byte[100]*
+    members: List[byte[100]]
     type: Type*  # populated in typecheck, NULL before typecheck runs
     public: bool  # is it decorated with @public
     used: bool  # used to detect unused enums
@@ -1129,10 +1128,10 @@ class AstEnumDef:
         self->print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("enum \"%s\" with %d members\n", self->name, self->member_count)
-        for i = 0; i < self->member_count; i++:
-            tp.print_prefix(i == self->member_count-1)
-            puts(self->member_names[i])
+        printf("enum \"%s\" with %d members\n", self->name, self->members.len)
+        for i = 0; i < self->members.len; i++:
+            tp.print_prefix(i == self->members.len - 1)
+            puts(self->members.ptr[i])
 
     def free(self) -> None:
-        free(self->member_names)
+        free(self->members.ptr)

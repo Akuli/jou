@@ -53,7 +53,7 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
                 name = stmt->enumdef.name
                 public = stmt->enumdef.public
                 usedptr = &stmt->enumdef.used
-                t = create_enum(name, stmt->enumdef.member_count, stmt->enumdef.member_names)
+                t = create_enum(name, stmt->enumdef.members.len as int, stmt->enumdef.members.ptr)
                 stmt->enumdef.type = t
             case _:
                 continue

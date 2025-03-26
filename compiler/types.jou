@@ -448,6 +448,7 @@ def create_typevar(name: byte*) -> Type*:
     return create_simple_type(name, TypeKind.TypeVar)
 
 
+# TODO: Might be a good idea to copy the given enum member names.
 @public
 def create_enum(name: byte*, membercount: int, membernames: byte[100]*) -> Type*:
     result: TypeInfo* = calloc(1, sizeof *result)
