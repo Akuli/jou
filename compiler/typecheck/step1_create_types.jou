@@ -46,7 +46,7 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
                 name = stmt->classdef.name
                 public = stmt->classdef.public
                 usedptr = &stmt->classdef.used
-                t = create_class(name)
+                t = create_empty_class(name)
                 if stmt->classdef.n_generic_typevars != 0:
                     handle_generics(t, &stmt->classdef)
                 stmt->classdef.type = t
