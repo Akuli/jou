@@ -55,7 +55,7 @@ class List[T]:
     # Return a pointer just beyond the last element of the list.
     # Use list.end()[-1] to get the last element.
     def end(self) -> T*:
-        # This works even if itemsize is zero, because that means empty list.
+        # This works even if itemsize is zero, because that can only happen with empty list.
         start = self->ptr as byte*
         end = &start[self->len * self->itemsize]
         return end as T*
