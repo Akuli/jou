@@ -22,16 +22,16 @@ import "./common.jou"
 # attaches it to the Foo type. It also renames the type from "Foo" to "Foo[T]".
 def handle_generics(t: Type*, classdef: AstClassDef*) -> None:
     assert t->kind == TypeKind.Class
-    n = classdef->n_generic_typevars  # number of generic parameters, e.g. 2 for Foo[T1, T2]
+    n = classdef->generic_typevar_names.len  # number of generic parameters, e.g. 2 for Foo[T1, T2]
     assert n > 0
 
-    t->classdata.n_generic_params = n
+    t->classdata.n_generic_params = n as int
     t->classdata.generic_params = malloc(sizeof(t->classdata.generic_params[0]) * n)
     for i = 0; i < n; i++:
-        t->classdata.generic_params[i] = create_typevar(classdef->generic_typevar_names[i])
+        t->classdata.generic_params[i] = create_typevar(classdef->generic_typevar_names.ptr[i])
 
     old_name: byte[500] = t->name
-    t->name = create_type_name_with_params(old_name, t->classdata.generic_params, n)
+    t->name = create_type_name_with_params(old_name, t->classdata.generic_params, n as int)
 
 
 @public
@@ -46,7 +46,7 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
                 public = stmt->classdef.public
                 usedptr = &stmt->classdef.used
                 t = create_empty_class(name)
-                if stmt->classdef.n_generic_typevars != 0:
+                if stmt->classdef.is_generic():
                     handle_generics(t, &stmt->classdef)
                 stmt->classdef.type = t
             case AstStatementKind.Enum:
@@ -64,7 +64,7 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
             snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing->short_description(), name)
             fail(stmt->location, msg)
 
-        if stmt->kind == AstStatementKind.Class and stmt->classdef.n_generic_typevars != 0:
+        if stmt->kind == AstStatementKind.Class and stmt->classdef.is_generic():
             ast->types.add_generic_class(t, usedptr)
         else:
             ast->types.add_type(t, usedptr)
@@ -72,7 +72,7 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
         if public:
             exports = realloc(exports, sizeof(exports[0]) * (nexports+1))
             assert exports != NULL
-            if stmt->kind == AstStatementKind.Class and stmt->classdef.n_generic_typevars != 0:
+            if stmt->kind == AstStatementKind.Class and stmt->classdef.is_generic():
                 k = ExportSymbolKind.GenericClass
             else:
                 k = ExportSymbolKind.Type

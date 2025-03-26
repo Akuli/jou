@@ -1314,16 +1314,15 @@ class Parser:
         name = self->tokens->short_string
         self->tokens++
 
-        generics: byte[100]* = NULL
-        ngenerics = 0
+        generics = List[byte[100]]{}
 
         if self->tokens->is_operator("["):
             self->tokens++
             while not self->tokens->is_operator("]"):
                 if self->tokens->kind != TokenKind.Name:
                     self->tokens->fail_expected_got("name of a generic type variable (typically 'T')")
-                generics = realloc(generics, sizeof(generics[0]) * (ngenerics+1))
-                generics[ngenerics++] = (self->tokens++)->short_string
+                generics.append(&self->tokens->short_string, sizeof(self->tokens->short_string))
+                self->tokens++
 
                 if not self->tokens->is_operator(","):
                     break
@@ -1331,7 +1330,7 @@ class Parser:
 
             if not self->tokens->is_operator("]"):
                 self->tokens->fail_expected_got("a ']'")
-            if ngenerics == 0:
+            if generics.len == 0:
                 msg: byte[500]
                 snprintf(msg, sizeof(msg), "at least one generic type parameter is needed, e.g. 'class %s[T]:'", name, name)
                 fail(self->tokens->location, msg)
@@ -1345,7 +1344,6 @@ class Parser:
         return AstClassDef{
             name = name,
             generic_typevar_names = generics,
-            n_generic_typevars = ngenerics,
             body = body,
         }
 

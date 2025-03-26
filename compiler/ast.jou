@@ -1092,12 +1092,14 @@ class AstUnionFields:
 @public
 class AstClassDef:
     name: byte[100]
-    generic_typevar_names: byte[100]*  # the "T1" and "T2" of "class Foo[T1, T2]"
-    n_generic_typevars: int  # 0 means not generic
+    generic_typevar_names: List[byte[100]]  # the "T1" and "T2" of "class Foo[T1, T2]", empty means not generic
     body: List[AstStatement]
     type: Type*  # populated in typecheck, NULL before typecheck runs
     public: bool  # is it decorated with @public
     used: bool  # used to detect unused classes
+
+    def is_generic(self) -> bool:
+        return self->generic_typevar_names.len > 0
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -1107,7 +1109,7 @@ class AstClassDef:
         print_body(self->body, tp)
 
     def free(self) -> None:
-        free(self->generic_typevar_names)
+        free(self->generic_typevar_names.ptr)
         free_body(self->body)
 
 
