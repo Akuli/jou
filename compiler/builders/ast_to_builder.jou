@@ -1,5 +1,6 @@
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/list.jou"
 
 import "../ast.jou"
 import "../constants.jou"
@@ -23,8 +24,7 @@ class Loop:
 
 class AstToBuilder:
     builder: EitherBuilder*
-    locals: LocalVar*
-    nlocals: int
+    locals: List[LocalVar]
     loops: Loop*
     nloops: int
     returns_a_value: bool
@@ -51,16 +51,13 @@ class AstToBuilder:
         self->builder->begin_function(sig, public)
         self->returns_a_value = (sig->return_type != NULL)
 
-        if nlocals > self->nlocals:
-            self->locals = realloc(self->locals, sizeof(self->locals[0]) * nlocals)
-            assert self->locals != NULL
-        self->nlocals = nlocals
-
+        self->locals.clear()
         for i = 0; i < nlocals; i++:
             var_name = locals[i].name
             var_type = locals[i].type
             var_ptr = self->builder->stack_alloc(var_type, var_name)
-            self->locals[i] = LocalVar{name = var_name, ptr = var_ptr}
+            local = LocalVar{name = var_name, ptr = var_ptr}
+            self->locals.append(&local, sizeof(local))
             if i < sig->nargs:
                 # First n local variables are the function arguments
                 self->builder->set_ptr(var_ptr, self->builder->get_argument(i, var_type))
@@ -73,15 +70,15 @@ class AstToBuilder:
         self->set_location(old)
 
     def local_var_exists(self, name: byte*) -> bool:
-        for i = 0; i < self->nlocals; i++:
-            if strcmp(self->locals[i].name, name) == 0:
+        for local = self->locals.ptr; local < self->locals.end(); local++:
+            if strcmp(local->name, name) == 0:
                 return True
         return False
 
     def local_var_ptr(self, name: byte*) -> EitherBuilderValue:
-        for i = 0; i < self->nlocals; i++:
-            if strcmp(self->locals[i].name, name) == 0:
-                return self->locals[i].ptr
+        for local = self->locals.ptr; local < self->locals.end(); local++:
+            if strcmp(local->name, name) == 0:
+                return local->ptr
         assert False
 
     def build_call(self, call: AstCall*) -> EitherBuilderValue:
@@ -619,5 +616,5 @@ def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location,
     ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals, func_ast->types.nlocals, public)
     ast2ir.build_body(&func_ast->body)
     builder->end_function()
-    free(ast2ir.locals)
+    ast2ir.locals.clear()
     free(ast2ir.loops)
