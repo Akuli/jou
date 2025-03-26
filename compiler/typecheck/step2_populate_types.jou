@@ -75,31 +75,31 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
         snprintf(msg, sizeof(msg), "a function named '%s' already exists", astsig->name)
         fail(astsig->name_location, msg)
 
-    sig = Signature{nargs = astsig->nargs, takes_varargs = astsig->takes_varargs}
-    assert sizeof(sig.name) == sizeof(astsig->name)
-    strcpy(sig.name, astsig->name)
+    sig = Signature{
+        name = astsig->name,
+        nargs = astsig->args.len as int,
+        takes_varargs = astsig->takes_varargs,
+    }
 
-    size = sizeof(sig.argnames[0]) * sig.nargs
-    sig.argnames = malloc(size)
+    sig.argnames = malloc(sizeof(sig.argnames[0]) * sig.nargs)
     for i = 0; i < sig.nargs; i++:
-        assert sizeof(sig.argnames[i]) == sizeof(astsig->args[i].name)
-        strcpy(sig.argnames[i], astsig->args[i].name)
+        sig.argnames[i] = astsig->args.ptr[i].name
 
     sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs)
     for i = 0; i < sig.nargs; i++:
         if (
             strcmp(sig.argnames[i], "self") == 0
-            and astsig->args[i].type.kind == AstTypeKind.Named
-            and astsig->args[i].type.name[0] == '\0'
+            and astsig->args.ptr[i].type.kind == AstTypeKind.Named
+            and astsig->args.ptr[i].type.name[0] == '\0'
         ):
             # just "self" without a type after it --> default to "self: Foo*" in class Foo
             argtype = self_class->pointer_type()
         else:
-            argtype = type_from_ast(ft, self_class, &astsig->args[i].type)
+            argtype = type_from_ast(ft, self_class, &astsig->args.ptr[i].type)
 
         if strcmp(sig.argnames[i], "self") == 0 and argtype != self_class and argtype != self_class->pointer_type():
             snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class->name, self_class->name)
-            fail(astsig->args[i].type.location, msg)
+            fail(astsig->args.ptr[i].type.location, msg)
 
         sig.argtypes[i] = argtype
 
@@ -131,7 +131,7 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
             )
         ):
             fail(
-                astsig->args[0].type.location,
+                astsig->args.ptr[0].type.location,
                 "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
             )
 
