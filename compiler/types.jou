@@ -96,7 +96,7 @@ class Type:
         info = cast_type_to_typeinfo(self)
 
         assert len > 0
-        for t = info->related_types; t < &info->related_types[info->n_related_types]; t++:
+        for t = info->related_types.ptr; t < info->related_types.end(); t++:
             if (
                 (*t)->type.kind == TypeKind.Array
                 and (*t)->type.array.item_type == self
@@ -108,9 +108,7 @@ class Type:
         arr->type = Type{kind = TypeKind.Array, array = ArrayType{item_type = self, len = len}}
         snprintf(arr->type.name, sizeof arr->type.name, "%s[%d]", self->name, len)
 
-        info->related_types = realloc(info->related_types, sizeof(info->related_types[0]) * (info->n_related_types + 1))
-        assert info->related_types != NULL
-        info->related_types[info->n_related_types++] = arr
+        info->related_types.append(&arr, sizeof(arr))
         return &arr->type
 
     # This method is used to create List[int] from a generic List[T].
@@ -140,7 +138,7 @@ class Type:
                 # Results are cached in related_types, just like arrays.
                 # Before we go further, let's check if the type we want is already cached.
                 info = cast_type_to_typeinfo(self)
-                for r = info->related_types; r < &info->related_types[info->n_related_types]; r++:
+                for r = info->related_types.ptr; r < info->related_types.end(); r++:
                     t = &(*r)->type
                     if (
                         t->kind == TypeKind.Class
@@ -155,9 +153,7 @@ class Type:
                 # the already cached type.
                 new_info: TypeInfo* = calloc(1, sizeof(*new_info))
                 assert new_info != NULL
-                info->related_types = realloc(info->related_types, sizeof(info->related_types[0]) * (info->n_related_types + 1))
-                assert info->related_types != NULL
-                info->related_types[info->n_related_types++] = new_info
+                info->related_types.append(&new_info, sizeof(new_info))
                 result = &new_info->type
                 *result = *self
                 result->name = create_type_name_with_params(self->name, generic_params.ptr, generic_params.len as int)
@@ -200,7 +196,7 @@ class Type:
         assert n > 0
 
         info = cast_type_to_typeinfo(self)
-        for r = info->related_types; r < &info->related_types[info->n_related_types]; r++:
+        for r = info->related_types.ptr; r < info->related_types.end(); r++:
             t = &(*r)->type
             if t->kind != TypeKind.Class or t->classdata.generic_params.len != n:
                 continue
@@ -266,16 +262,15 @@ class Type:
 class TypeInfo:
     type: Type
     pointer: TypeInfo*
-    related_types: TypeInfo**
-    n_related_types: long
+    related_types: List[TypeInfo*]
 
     def free_related_types(self) -> None:
         if self->pointer != NULL:
             free_type(&self->pointer->type)
-        for t = self->related_types; t < &self->related_types[self->n_related_types]; t++:
+        for t = self->related_types.ptr; t < self->related_types.end(); t++:
             assert &(*t)->type != NULL
             free_type(&(*t)->type)
-        free(self->related_types)
+        free(self->related_types.ptr)
 
 
 # You can think of Type as public members and TypeInfo as private members. From
