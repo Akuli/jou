@@ -42,7 +42,6 @@ enum TypeKind:
     VoidPointer
     Array
     Class
-    OpaqueClass  # class with unknown members. TODO do we need this?
     TypeVar  # the unknown type "T" of "class List[T]"
     Enum
 
@@ -187,13 +186,12 @@ class Type:
                 | TypeKind.Bool
                 | TypeKind.Enum
                 | TypeKind.VoidPointer
-                | TypeKind.OpaqueClass
             ):
                 return self
 
     def short_description(self) -> byte*:
         match self->kind:
-            case TypeKind.OpaqueClass | TypeKind.Class:
+            case TypeKind.Class:
                 return "a class"
             case TypeKind.Enum:
                 return "an enum"
@@ -391,10 +389,10 @@ def create_simple_type(name: byte*, kind: TypeKind) -> Type*:
     return &result->type
 
 
-# Used for classes before their members are known.
+# Creates a class with no members. Used for classes before their members are known.
 @public
-def create_opaque_class(name: byte*) -> Type*:
-    return create_simple_type(name, TypeKind.OpaqueClass)
+def create_class(name: byte*) -> Type*:
+    return create_simple_type(name, TypeKind.Class)
 
 
 # Used for generics. This creates the unknown type "T" when defining class "List[T]".

@@ -31,7 +31,7 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
                 name = stmt->classdef.name
                 public = stmt->classdef.public
                 usedptr = &stmt->classdef.used
-                t = create_opaque_class(name)
+                t = create_class(name)
                 stmt->classdef.type = t
             case AstStatementKind.Enum:
                 name = stmt->enumdef.name
