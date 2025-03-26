@@ -1073,7 +1073,7 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
     msg: byte[500]
     sig_string: byte* = NULL
     remaining: byte** = NULL
-    nremaining = -1
+    nremaining = -1L
 
     if match_stmt->func_name[0] == '\0':
         case_type = typecheck_expression_not_void(state, &match_stmt->match_obj, NULL)
@@ -1084,11 +1084,11 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
                 pass
             case TypeKind.Enum:
                 # Ensure user checks all possible enum values
-                nremaining = case_type->enum_members.count
+                nremaining = case_type->enum_members.len
                 remaining = malloc(sizeof(remaining[0]) * nremaining)
                 assert remaining != NULL
                 for i = 0; i < nremaining; i++:
-                    remaining[i] = case_type->enum_members.names[i]
+                    remaining[i] = case_type->enum_members.ptr[i]
             case _:
                 snprintf(msg, sizeof(msg), "cannot match a value of type %s", case_type->name)
                 if strlen(msg) + 100 < sizeof(msg):

@@ -267,7 +267,7 @@ class AstToBuilder:
             case ConstantKind.EnumMember:
                 return self->builder->enum_member(
                     constant->enum_member.enumtype,
-                    constant->enum_member.enumtype->enum_members.names[constant->enum_member.memberidx]
+                    constant->enum_member.enumtype->enum_members.ptr[constant->enum_member.memberidx]
                 )
             case _:
                 # TODO: support other constant types
