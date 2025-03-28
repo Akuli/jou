@@ -1,0 +1,66 @@
+# A list is basically an array that grows dynamically.
+#
+# See examples/list.jou for example code.
+
+import "stdlib/mem.jou"
+
+
+@public
+class List[T]:
+    ptr: T*         # Pointer to first item of the list (may change when list grows)
+    len: long       # How many items are in the list
+    alloc: long     # How many bytes of space starting at ptr are allocated
+    itemsize: long  # This is either zero or sizeof(T). Set when appending.
+
+    # Ensure that the list has room for at least the given number of elements.
+    # Newly allocated space at the end of list will contain uninitialized/garbage values.
+    def grow(self, n: long, itemsize: long) -> None:
+        assert n >= 0
+        assert itemsize > 0
+
+        if self->itemsize == 0:
+            self->itemsize = itemsize
+        else:
+            assert self->itemsize == itemsize  # If this fails you passed the wrong size
+
+        self->_grow_nbytes(n * itemsize)
+
+    # Ensure that the list has room for at least the given number of bytes.
+    def _grow_nbytes(self, nbytes: long) -> None:
+        assert nbytes >= 0
+
+        if self->alloc >= nbytes:
+            # Already big enough
+            return
+
+        # Allocate more than enough space, so that the next grow() is likely
+        # going to be a fast "yes we have enough room" check.
+        if self->alloc == 0:
+            self->alloc = 8
+        while self->alloc < nbytes:
+            self->alloc *= 2
+
+        self->ptr = realloc(self->ptr, self->alloc)
+        assert self->ptr != NULL  # If this fails, we ran out of memory
+
+    # Add *item to end of the list.
+    #
+    # The "itemsize" argument must be sizeof(*item). Unfortunately it is not
+    # possible to tell the compiler to determine it automatically.
+    def append(self, item: T*, itemsize: long) -> None:
+        self->grow(self->len + 1, itemsize)
+        memcpy(self->end(), item, itemsize)
+        self->len++
+
+    # Return a pointer just beyond the last element of the list.
+    # Use list.end()[-1] to get the last element.
+    def end(self) -> T*:
+        # This works even if itemsize is zero, because that can only happen with empty list.
+        start = self->ptr as byte*
+        end = &start[self->len * self->itemsize]
+        return end as T*
+
+    # TODO: It is currently not possible to return the deleted element unless it is a pointer.
+    def pop(self) -> None:
+        assert self->len > 0  # If this fails, you are trying to pop from an empty list
+        self->len--
