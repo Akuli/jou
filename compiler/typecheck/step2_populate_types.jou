@@ -8,7 +8,7 @@
 # This step assumes that all types exist, but doesn't need to know what fields
 # and methods each class has.
 
-import "stdlib/mem.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "../ast.jou"
@@ -211,39 +211,33 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
 
 @public
-def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
-    exports: ExportSymbol* = NULL
-    nexports = 0
+def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
+    exports = List[ExportSymbol]{}
 
     for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
-        exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
-        assert exports != NULL
-
         match stmt->kind:
             case AstStatementKind.Import | AstStatementKind.Pass:
                 pass
             case AstStatementKind.GlobalVariableDeclare:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type, &stmt->global_var_declare.used)
                 if stmt->global_var_declare.public:
-                    exports[nexports++] = exp
+                    exports.append(&exp, sizeof(exp))
             case AstStatementKind.GlobalVariableDef:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_def.name, &stmt->global_var_def.type, &stmt->global_var_def.used)
                 if stmt->global_var_def.public:
-                    exports[nexports++] = exp
+                    exports.append(&exp, sizeof(exp))
             case AstStatementKind.Const:
                 exp = handle_const(&ast->types, stmt->location, &stmt->const_statement)
                 if stmt->const_statement.public:
-                    exports[nexports++] = exp
+                    exports.append(&exp, sizeof(exp))
                 else:
                     exp.free()
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 sig = handle_signature(&ast->types, &stmt->function.ast_signature, NULL, &stmt->function.used)
                 stmt->function.types.signature = sig
                 if stmt->function.public:
-                    es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig.copy()}
-                    assert sizeof(es.name) == sizeof(sig.name)
-                    strcpy(es.name, sig.name)
-                    exports[nexports++] = es
+                    exp = ExportSymbol{kind = ExportSymbolKind.Function, name = sig.name, funcsignature = sig.copy()}
+                    exports.append(&exp, sizeof(exp))
             case AstStatementKind.Class:
                 handle_class_members(&ast->types, &stmt->classdef)
             case AstStatementKind.Enum | AstStatementKind.Link:
@@ -251,7 +245,4 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
             case _:
                 assert False
 
-    exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
-    assert exports != NULL
-    exports[nexports] = ExportSymbol{}
     return exports

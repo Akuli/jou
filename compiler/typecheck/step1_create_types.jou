@@ -10,7 +10,7 @@
 # although it doesn't really matter whether that's done in step 1 or 2.
 
 import "stdlib/str.jou"
-import "stdlib/mem.jou"
+import "stdlib/list.jou"
 
 import "../ast.jou"
 import "../errors_and_warnings.jou"
@@ -32,9 +32,8 @@ def handle_generics(t: Type*, classdef: AstClassDef*) -> None:
 
 
 @public
-def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
-    exports: ExportSymbol* = NULL
-    nexports = 0
+def typecheck_step1_create_types(ast: AstFile*) -> List[ExportSymbol]:
+    exports = List[ExportSymbol]{}
 
     for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
         match stmt->kind:
@@ -67,15 +66,11 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
             ast->types.add_type(t, usedptr)
 
         if public:
-            exports = realloc(exports, sizeof(exports[0]) * (nexports+1))
-            assert exports != NULL
             if stmt->kind == AstStatementKind.Class and stmt->classdef.is_generic():
                 k = ExportSymbolKind.GenericClass
             else:
                 k = ExportSymbolKind.Type
-            exports[nexports++] = ExportSymbol{kind = k, type = t, name = name}
+            es = ExportSymbol{kind = k, type = t, name = name}
+            exports.append(&es, sizeof(es))
 
-    exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
-    assert exports != NULL
-    exports[nexports] = ExportSymbol{}  # list terminator
     return exports

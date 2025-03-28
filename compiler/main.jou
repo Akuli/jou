@@ -264,7 +264,7 @@ class CompileState:
 
     # Each step of type checking produces exported symbols that other files can import.
     # This method hands them over to the importing files.
-    def exports_to_imports(self, pending_exports: ExportSymbol**) -> None:
+    def exports_to_imports(self, pending_exports: List[ExportSymbol]*) -> None:
         for to = self->files.ptr; to < self->files.end(); to++:
             seen_before = List[FileState*]{}
 
@@ -286,7 +286,7 @@ class CompileState:
                         fail(stmt->location, msg)
                 seen_before.append(&from, sizeof(from))
 
-                for es = pending_exports[from_index]; es->name[0] != '\0'; es++:
+                for es = pending_exports[from_index].ptr; es < pending_exports[from_index].end(); es++:
                     if command_line_args.verbosity >= 2:
                         match es->kind:
                             case ExportSymbolKind.Function:
@@ -307,16 +307,16 @@ class CompileState:
             free(seen_before.ptr)
 
         for i = 0; i < self->files.len; i++:
-            for es = pending_exports[i]; es->name[0] != '\0'; es++:
+            for es = pending_exports[i].ptr; es < pending_exports[i].end(); es++:
                 es->free()
-            free(pending_exports[i])
-            pending_exports[i] = NULL
+            free(pending_exports[i].ptr)
+            pending_exports[i] = List[ExportSymbol]{}
 
     def typecheck_all_files(self) -> None:
         if command_line_args.verbosity >= 1:
             printf("Type-checking...\n")
 
-        pending_exports: ExportSymbol** = malloc(sizeof(pending_exports[0]) * self->files.len)
+        pending_exports: List[ExportSymbol]* = malloc(sizeof(pending_exports[0]) * self->files.len)
 
         for i = 0; i < self->files.len; i++:
             if command_line_args.verbosity >= 1:
