@@ -200,25 +200,21 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
 def fail_with_implicit_cast_error(location: Location, template: byte*, from: Type*, to: Type*) -> None:
     assert template != NULL
 
-    n = 0
-    for i = 0; template[i] != '\0'; i++:
-        if template[i] == '<':
-            n++
-
-    message: byte* = malloc(sizeof(from->name)*n + strlen(template) + 1)
-    message[0] = '\0'
+    message = List[byte]{}
     while *template != '\0':
         if starts_with(template, "<from>"):
             template = &template[6]
-            strcat(message, from->name)
+            for p = from->name as byte*; *p != '\0'; p++:
+                message.append(p, 1)
         elif starts_with(template, "<to>"):
             template = &template[4]
-            strcat(message, to->name)
+            for p = to->name as byte*; *p != '\0'; p++:
+                message.append(p, 1)
         else:
-            s = [*template++, '\0']
-            strcat(message, s)
+            message.append(template++, 1)
 
-    fail(location, message)
+    message.append("", 1)
+    fail(location, message.ptr)
 
 
 def can_cast_implicitly(from: Type*, to: Type*) -> bool:
