@@ -375,8 +375,7 @@ class Tokenizer:
 
     # Assumes the initial " has been read.
     def read_string(self) -> byte*:
-        result: byte* = NULL
-        len = 0
+        result = List[byte]{}
         msg: byte[100]
 
         while True:
@@ -396,20 +395,15 @@ class Tokenizer:
                         case '\0':
                             fail(self->location, "missing \" to end the string")
                         case 'n':
-                            result = realloc(result, len+1)
-                            result[len++] = '\n'
+                            result.append("\n", 1)
                         case 'r':
-                            result = realloc(result, len+1)
-                            result[len++] = '\r'
+                            result.append("\r", 1)
                         case 't':
-                            result = realloc(result, len+1)
-                            result[len++] = '\t'
+                            result.append("\t", 1)
                         case '\\':
-                            result = realloc(result, len+1)
-                            result[len++] = '\\'
+                            result.append("\\", 1)
                         case '"':
-                            result = realloc(result, len+1)
-                            result[len++] = '"'
+                            result.append("\"", 1)
                         case '\'':
                             fail(self->location, "single quotes shouldn't be escaped in strings")
                         case '0':
@@ -418,8 +412,7 @@ class Tokenizer:
                             b = self->read_hex_escape_byte()
                             if b == '\0':
                                 fail(self->location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte")
-                            result = realloc(result, len+1)
-                            result[len++] = b
+                            result.append(&b, sizeof(b))
                         case '\n':
                             # \ at end of line, string continues on next line
                             pass
@@ -431,12 +424,10 @@ class Tokenizer:
                                 msg = "unknown '\\' escape"
                             fail(self->location, msg)
                 case _:
-                    result = realloc(result, len+1)
-                    result[len++] = c
+                    result.append(&c, sizeof(c))
 
-        result = realloc(result, len+1)
-        result[len] = '\0'
-        return result
+        result.append("", 1)
+        return result.ptr
 
     def read_operator(self) -> byte[100]:
         msg: byte[100]
