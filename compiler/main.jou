@@ -475,10 +475,11 @@ def main(argc: int, argv: byte**) -> int:
 
     compst.build_and_analyze_all_uvgs()
 
-    objpaths: byte** = calloc(sizeof objpaths[0], compst.files.len + 1)
-    for i = 0; i < compst.files.len; i++:
-        llvm_ir = compst.files.ptr[i].build_llvm_ir()
-        objpaths[i] = compile_llvm_ir_to_object_file(llvm_ir)
+    objpaths = List[byte*]{}
+    for f = compst.files.ptr; f < compst.files.end(); f++:
+        llvm_ir = f->build_llvm_ir()
+        path = compile_llvm_ir_to_object_file(llvm_ir)
+        objpaths.append(&path, sizeof(path))
         LLVMDisposeModule(llvm_ir)
 
     # Check for missing main() as late as possible, so that other errors come first.
@@ -497,9 +498,9 @@ def main(argc: int, argv: byte**) -> int:
     run_linker(objpaths, exepath, linker_flags)
     free(linker_flags)
 
-    for i = 0; objpaths[i] != NULL; i++:
-        free(objpaths[i])
-    free(objpaths)
+    for p = objpaths.ptr; p < objpaths.end(); p++:
+        free(*p)
+    free(objpaths.ptr)
 
     ret = 0
     if command_line_args.outfile == NULL:
