@@ -201,8 +201,7 @@ enum WhatAreWeParsing:
 class Parser:
     tokens: Token*
     stdlib_path: byte*
-    loop_vars: byte**
-    nloops: int
+    loop_vars: List[byte*]  # NULL means a loop that doesn't look like "for foo = bar; ..."
     what_are_we_parsing: WhatAreWeParsing
 
     def eat_newline(self) -> None:
@@ -872,12 +871,12 @@ class Parser:
             self->tokens++
             result.kind = AstStatementKind.Pass
         elif self->tokens->is_keyword("break"):
-            if self->nloops == 0:
+            if self->loop_vars.len == 0:
                 fail(self->tokens->location, "'break' can only be used inside a loop")
             self->tokens++
             result.kind = AstStatementKind.Break
         elif self->tokens->is_keyword("continue"):
-            if self->nloops == 0:
+            if self->loop_vars.len == 0:
                 fail(self->tokens->location, "'continue' can only be used inside a loop")
             self->tokens++
             result.kind = AstStatementKind.Continue
@@ -950,19 +949,16 @@ class Parser:
 
     def enter_loop_body(self, varname: byte*, location: Location) -> None:
         if varname != NULL:
-            for i = 0; i < self->nloops; i++:
-                if self->loop_vars[i] != NULL and strcmp(self->loop_vars[i], varname) == 0:
+            for p = self->loop_vars.ptr; p < self->loop_vars.end(); p++:
+                if *p != NULL and strcmp(*p, varname) == 0:
                     msg: byte[500]
                     snprintf(msg, sizeof(msg), "this loop is inside another loop that also uses variable '%s'", varname)
                     show_warning(location, msg)
                     break
-
-        self->loop_vars = realloc(self->loop_vars, sizeof(self->loop_vars[0]) * (self->nloops + 1))
-        assert self->loop_vars != NULL
-        self->loop_vars[self->nloops++] = varname
+        self->loop_vars.append(&varname, sizeof(varname))
 
     def exit_loop_body(self) -> None:
-        self->nloops--
+        self->loop_vars.pop()
 
     def parse_while_loop(self) -> AstConditionAndBody:
         assert self->tokens->is_keyword("while")
@@ -1412,6 +1408,6 @@ def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
         s = parser.parse_statement()
         result.body.append(&s, sizeof(s))
 
-    assert parser.nloops == 0
-    free(parser.loop_vars)
+    assert parser.loop_vars.len == 0
+    free(parser.loop_vars.ptr)
     return result
