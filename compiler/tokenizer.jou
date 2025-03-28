@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/errno.jou"
@@ -200,8 +201,7 @@ def detect_banned_whitespace_characters(last_3_bytes: byte[3]) -> byte*:
 class Tokenizer:
     f: FILE*
     location: Location
-    pushback: byte*
-    pushback_len: int  # TODO: dynamic array
+    pushback: List[byte]
     # Parens array isn't dynamic, so that you can't segfault
     # the compiler by feeding it lots of nested parentheses,
     # which would make it recurse too deep.
@@ -211,8 +211,8 @@ class Tokenizer:
 
     def read_byte(self) -> byte:
         c: byte
-        if self->pushback_len > 0:
-            c = self->pushback[--self->pushback_len]
+        if self->pushback.len > 0:
+            c = self->pushback.ptr[--self->pushback.len]
         else:
             temp = fgetc(self->f)
             if temp == '\r':
@@ -250,8 +250,7 @@ class Tokenizer:
             return
 
         assert b != '\r'
-        self->pushback = realloc(self->pushback, self->pushback_len + 1)
-        self->pushback[self->pushback_len++] = b
+        self->pushback.append(&b, sizeof(b))
         if b == '\n':
             self->location.lineno--
 
@@ -588,9 +587,7 @@ def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
     #  * It is easier to detect an unexpected indentation in the beginning
     #    of the file, as it becomes just like any other indentation.
     #  * Line numbers start at 1.
-    tokenizer.pushback = malloc(1)
-    tokenizer.pushback[0] = '\n'
-    tokenizer.pushback_len = 1
+    tokenizer.pushback.append("\n", 1)
 
     tokens: Token* = NULL
     len = 0
@@ -598,7 +595,7 @@ def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
         tokens = realloc(tokens, sizeof(tokens[0]) * (len+1))
         tokens[len++] = tokenizer.read_token()
 
-    free(tokenizer.pushback)
+    free(tokenizer.pushback.ptr)
     return tokens
 
 
