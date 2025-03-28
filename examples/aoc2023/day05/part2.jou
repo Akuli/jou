@@ -4,7 +4,8 @@ import "stdlib/ascii.jou"
 import "stdlib/mem.jou"
 
 
-class List:
+# TODO: replace with stdlib list
+class List2:
     ptr: long*
     len: int
     alloc: int
@@ -24,7 +25,7 @@ class List:
 
         self->ptr[self->len++] = n
 
-    def extend(self, other: List) -> None:
+    def extend(self, other: List2) -> None:
         for v = other.ptr; v < other.end(); v++:
             self->append(*v)
 
@@ -48,8 +49,8 @@ class Map:
         assert self->ntriples < sizeof(self->triples)/sizeof(self->triples[0])
         self->triples[self->ntriples++] = [a, b, c]
 
-    def get_input_range_starts(self) -> List:
-        result = List{}
+    def get_input_range_starts(self) -> List2:
+        result = List2{}
         for i = 0; i < self->ntriples; i++:
             result.append(self->triples[i][1])
         return result
@@ -64,8 +65,8 @@ class Map:
         return n
 
     # Find all numbers n for which map_number(n) == output.
-    def inverse_image(self, output: long) -> List:
-        result = List{}
+    def inverse_image(self, output: long) -> List2:
+        result = List2{}
 
         for i = 0; i < self->ntriples; i++:
             dest_start = self->triples[i][0]
@@ -82,8 +83,8 @@ class Map:
         return result
 
     # Find all numbers n for which map_number(n) is in a list of outputs.
-    def inverse_image_of_list(self, outputs: List) -> List:
-        result = List{}
+    def inverse_image_of_list(self, outputs: List2) -> List2:
+        result = List2{}
         for p = outputs.ptr; p < outputs.end(); p++:
             to_add = self->inverse_image(*p)
             result.extend(to_add)
@@ -112,14 +113,14 @@ class Input:
         line = &line[6]
 
         words = split_by_ascii_whitespace(line)
-        for i = 0; words[i] != NULL and words[i+1] != NULL; i += 2:
+        for i = 0; i+1 < words.len; i += 2:
             assert i/2 < sizeof(self->seed_ranges) / sizeof(self->seed_ranges[0])
             self->seed_ranges[i/2] = Range{
-                start = atoll(words[i]),
-                end = atoll(words[i]) + atoll(words[i+1]),
+                start = atoll(words.ptr[i]),
+                end = atoll(words.ptr[i]) + atoll(words.ptr[i+1]),
             }
             self->n_seed_ranges++
-        free(words)
+        free(words.ptr)
 
     def is_valid_seed(self, n: long) -> bool:
         for i = 0; i < self->n_seed_ranges; i++:
@@ -152,7 +153,7 @@ def main() -> int:
 
     fclose(f)
 
-    interesting_inputs = List{}
+    interesting_inputs = List2{}
     for i = 0; i < input->nmaps; i++:
         # We get small values whenever the i'th map sees a start of its range.
         values = input->maps[i].get_input_range_starts()

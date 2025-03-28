@@ -45,24 +45,24 @@ def main() -> int:
     words = split_by_ascii_whitespace(s)
     # Output: hello
     # Output: world
-    for w = words; *w != NULL; w++:
+    for w = words.ptr; w < words.end(); w++:
         puts(*w)
     # Output: hello
     # Output: world
-    for i = 0; words[i] != NULL; i++:
-        puts(words[i])
-    free(words)
+    for i = 0; i < words.len; i++:
+        puts(words.ptr[i])
+    free(words.ptr)
 
     s = ""
     words = split_by_ascii_whitespace(s)
-    assert words[0] == NULL
-    free(words)
+    assert words.len == 0
+    free(words.ptr)
 
     s = "test1 test2"
     words = split_by_ascii_whitespace(s)
-    puts(words[0])  # Output: test1
-    puts(words[1])  # Output: test2
-    assert words[2] == NULL
-    free(words)
+    assert words.len == 2
+    puts(words.ptr[0])  # Output: test1
+    puts(words.ptr[1])  # Output: test2
+    free(words.ptr)
 
     return 0

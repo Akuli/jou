@@ -13,19 +13,19 @@ def main() -> int:
     line: byte[1000]
     while fgets(line, sizeof(line) as int, f) != NULL:
         words = split_by_ascii_whitespace(line)
-        assert words[0] != NULL and strcmp(words[0], "Card") == 0
-        assert words[1] != NULL  # id number
+        assert words.len >= 2
+        assert strcmp(words.ptr[0], "Card") == 0
 
         winning: int[100]
         nwinning = 0
         score = 0
 
         no_separator_yet = True
-        for i = 2; words[i] != NULL; i++:
-            if strcmp(words[i], "|") == 0:
+        for i = 2; i < words.len; i++:
+            if strcmp(words.ptr[i], "|") == 0:
                 no_separator_yet = False
             else:
-                n = atoi(words[i])
+                n = atoi(words.ptr[i])
                 if no_separator_yet:
                     assert nwinning < sizeof(winning)/sizeof(winning[0])
                     winning[nwinning++] = n
@@ -42,7 +42,7 @@ def main() -> int:
                 k *= 2
             total_score += k
 
-        free(words)
+        free(words.ptr)
 
     fclose(f)
 

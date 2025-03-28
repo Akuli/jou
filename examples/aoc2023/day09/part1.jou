@@ -35,10 +35,10 @@ def main() -> int:
         nums: long[100]
         nnums = 0
         parts = split_by_ascii_whitespace(line)
-        for p = parts; *p != NULL; p++:
+        for p = parts.ptr; p < parts.end(); p++:
             assert nnums < sizeof(nums)/sizeof(nums[0])
             nums[nnums++] = atoll(*p)
-        free(parts)
+        free(parts.ptr)
 
         result += predict_next(nums, nnums)
 

@@ -44,16 +44,12 @@ class Report:
 def parse_report(line: byte*) -> Report:
     words = split_by_ascii_whitespace(line)
 
-    n = 0
-    while words[n] != NULL:
-        n++
+    report = Report{len=words.len as int}
+    report.data = malloc(sizeof(report.data[0]) * words.len)
+    for i = 0; i < words.len; i++:
+        report.data[i] = atoi(words.ptr[i])
 
-    report = Report{len=n}
-    report.data = malloc(sizeof(report.data[0]) * n)
-    for i = 0; i < n; i++:
-        report.data[i] = atoi(words[i])
-
-    free(words)
+    free(words.ptr)
     return report
 
 

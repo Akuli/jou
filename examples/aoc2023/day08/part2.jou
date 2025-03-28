@@ -33,7 +33,8 @@ class Input:
             self->nodes[i].right_node = self->find_node(self->nodes[i].right)
 
 
-class List:
+# TODO: use stdlib list
+class List2:
     ptr: long*
     len: int
     alloc: int
@@ -57,7 +58,7 @@ class List:
 
         self->ptr[self->len++] = n
 
-    def extend(self, other: List) -> None:
+    def extend(self, other: List2) -> None:
         for v = other.ptr; v < other.end(); v++:
             self->append(*v)
 
@@ -90,8 +91,8 @@ def lcm(a: long, b: long) -> long:
 # Repeating starts where we reach the same state twice. By same state, I
 # mean same current node and same index into the left_right_string.
 class ZCounts:
-    non_repeating: List
-    first_cycle: List
+    non_repeating: List2
+    first_cycle: List2
     cycle_offset: long  # 10 in the example, each cycle starts 10 bigger than previous
 
     def free(self) -> None:
@@ -157,8 +158,8 @@ def get_z_counts(input: Input*, start: Node*) -> ZCounts:
         for i = 0; i < nstates; i++:
             if i % left_right_strlen == nstates % left_right_strlen and states[i] == node:
                 # from here it cycles
-                non_repeating = List{}
-                first_cycle = List{}
+                non_repeating = List2{}
+                first_cycle = List2{}
                 for k = 0; k < nstates; k++:
                     if states[k]->name[2] == 'Z':
                         if k < i:
