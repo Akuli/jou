@@ -82,7 +82,7 @@ Here:
 - `%s` means a string
 - `%f` means a `float` or `double` (`float` takes up less memory but is also less accurate, just use `double` if you don't know which to use)
 - `%.2f` means a `float` or `double` rounded to two decimal places
-- `as float` is a type cast, needed to construct a `float`.
+- `as float` is a [type cast](./types.md#casts), needed to construct a `float`.
 
 There are various other `%` things you can pass to `printf()`.
 Just search something like "printf format specifiers" online:
@@ -240,18 +240,15 @@ because `&b` computes the address of the `b` variable.
 <p><details>
 <summary>An unimportant "ahchthually" that you can skip</summary>
 
-The memory addresses are not necessary just indexes into RAM.
-For example, the Linux kernel moves infrequently accessed things to disk
+The memory addresses are not necessarily just indexes into RAM.
+For example, the Linux kernel moves infrequently used things to disk
 when RAM is about to get full (this is called **swapping**).
-This doesn't change memory addresses within the program,
-so you don't need to think about swapping when you write Jou programs.
-The OS will take care of mapping your memory addresses to the right place.
 
-I think the locations in RAM are called **physical addresses**,
+However, this doesn't affect memory addresses inside Jou programs,
+because the OS takes care of mapping them to the right place.
+The locations in RAM are called **physical addresses**,
 and the memory addresses that Jou programs see are called **virtual addresses**.
-I'm not sure about the names though.
-I don't think of this much: I just imagine that everything goes in RAM,
-and on the rest of this page I continue to do so.
+But practically, you can ignore this and just imagine that everything goes to RAM.
 
 </details>
 
@@ -261,13 +258,13 @@ Even on the same computer I get a different memory address every time,
 because the program essentially loads into whatever memory location is available:
 
 ```
-$ ./jou asd.jou
+$ jou asd.jou
 140731014311191
-$ ./jou asd.jou
+$ jou asd.jou
 140737258450055
-$ ./jou asd.jou
+$ jou asd.jou
 140734089620951
-$ ./jou asd.jou
+$ jou asd.jou
 140731780950007
 ```
 
@@ -341,19 +338,20 @@ as they have many other uses in Jou.
 Pointers are used for strings, arrays that are not fixed-size,
 instances of most classes, and so on.
 
-Basically, you need pointers whenever you want to use a large object in multiple places
+Basically, you need pointers whenever you want to use an object in multiple places
 without making several copies of it.
 Instead, you just make one object and point to it from many places.
 This is probably what you expect if you have mostly used high-level languages,
 like Python or JavaScript.
 In fact, in Python, **all** objects are passed around as pointers.
 
-You usually don't need pointers for small objects.
-For example, if you want to make a function takes two `int`s and prints them,
+For simple things, pointers are overkill.
+If you want to make a function takes two `int`s and prints them,
 just make a function that takes two `int`s.
-On the other hand, if your function takes an array of 100000 `int`s,
-you should use a pointer.
-Passing around hundreds or thousands of bytes without pointers is usually a bad idea.
+More generally, you usually don't need pointers for small objects,
+but passing around several thousands of bytes without pointers is often a bad idea.
+Instead of copying a large object to a local variable inside every function that uses it,
+it's better to tell the functions where the object is.
 
 
 ## Undefined Behavior (UB)
@@ -382,7 +380,8 @@ For example, if I delete the `get_point(&x, &y)` line, I get:
 ```
 compiler warning for file "asd.jou", line 10: the value of 'x' is undefined
 compiler warning for file "asd.jou", line 10: the value of 'y' is undefined
-The point is (-126484104,-126484088)
+compiler warning for file "asd.jou", line 3: function get_point(x: int*, y: int*) defined but not used
+The point is (593905576,593905592)
 ```
 
 Again, Jou doesn't attempt to hide the way the computer's memory works.
@@ -396,9 +395,40 @@ you tend to get something nonsensical.
 
 This is one example of **UB (Undefined Behavior)** in Jou.
 In general, UB is a Bad Thing, because code that contains UB can behave unpredictably.
+
 You need to know about UB,
 because **the Jou compiler does not always warn you when you're about to do UB.**
-See [UB documentation](ub.md) for more info.
+The following program contains undefined behavior,
+but the compiler is not smart enough to warn you about it:
+
+```python3
+import "stdlib/io.jou"
+
+def create_int_pointer() -> int*:
+    num = 1
+    return &num  # This is bad, don't do this
+
+def main() -> int:
+    num_ptr = create_int_pointer()
+    printf("%d\n", *num_ptr)  # May print 1 or a garbage value
+    return 0
+```
+
+Local variables are destroyed when a function returns.
+This means that the `num` variable no longer exists when `main()` tries to read its value.
+Instead, `main()` gets whatever value happens to be in the same memory location by that time.
+This could be something else than `1` if the memory has been reused for something else.
+On my system, this program prints a garbage value
+if I [enable optimizations](perf.md) by passing `-O3` to the Jou compiler:
+
+```
+$ jou asd.jou 
+num = 1
+$ jou -O3 asd.jou 
+num = 1022449160
+```
+
+See [UB documentation](ub.md) to learn more about Undefined Behavior.
 
 
 ## Memory safety, speed, ease of use: pick two
@@ -408,7 +438,7 @@ Ideally, a programming language would be:
 - fast
 - simple/easy to use.
 
-So far I haven't seen a programming language that would check all boxes to me,
+So far I haven't seen a programming language that checks all boxes to me,
 and I think it is not possible to make such a language.
 However, every combination of two features has been done:
 - Jou and C are fast and simple languages, but not memory safe.

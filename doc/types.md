@@ -86,7 +86,7 @@ This doesn't matter as much as you might think, but as usual,
 please create an issue if this becomes a problem for you.
 
 
-# Casts
+## Casts
 
 Jou has two kinds of casts:
 - **Implicit casts** are done basically whenever a value must be of a specific type.
