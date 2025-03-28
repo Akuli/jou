@@ -580,14 +580,13 @@ def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
     #  * Line numbers start at 1.
     tokenizer.pushback.append("\n", 1)
 
-    tokens: Token* = NULL
-    len = 0
-    while len == 0 or tokens[len-1].kind != TokenKind.EndOfFile:
-        tokens = realloc(tokens, sizeof(tokens[0]) * (len+1))
-        tokens[len++] = tokenizer.read_token()
+    tokens = List[Token]{}
+    while tokens.len == 0 or tokens.end()[-1].kind != TokenKind.EndOfFile:
+        t = tokenizer.read_token()
+        tokens.append(&t, sizeof(t))
 
     free(tokenizer.pushback.ptr)
-    return tokens
+    return tokens.ptr
 
 
 # Creates a new array of tokens with indent/dedent tokens added after
