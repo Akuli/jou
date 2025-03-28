@@ -266,8 +266,7 @@ class CompileState:
     # This method hands them over to the importing files.
     def exports_to_imports(self, pending_exports: ExportSymbol**) -> None:
         for to = self->files.ptr; to < self->files.end(); to++:
-            seen_before: FileState** = NULL
-            seen_before_len = 0
+            seen_before = List[FileState*]{}
 
             for stmt = to->ast.body.ptr; stmt < to->ast.body.end(); stmt++:
                 if stmt->kind != AstStatementKind.Import:
@@ -280,14 +279,12 @@ class CompileState:
                 if from == to:
                     fail(stmt->location, "the file itself cannot be imported")
 
-                for i = 0; i < seen_before_len; i++:
-                    if seen_before[i] == from:
+                for p = seen_before.ptr; p < seen_before.end(); p++:
+                    if *p == from:
                         msg: byte[500]
                         snprintf(msg, sizeof msg, "file \"%s\" is imported twice", stmt->import_statement.specified_path)
                         fail(stmt->location, msg)
-
-                seen_before = realloc(seen_before, sizeof(seen_before[0]) * (seen_before_len + 1))
-                seen_before[seen_before_len++] = from
+                seen_before.append(&from, sizeof(from))
 
                 for es = pending_exports[from_index]; es->name[0] != '\0'; es++:
                     if command_line_args.verbosity >= 2:
@@ -307,7 +304,7 @@ class CompileState:
 
                     to->add_imported_symbol(es, &stmt->import_statement)
 
-            free(seen_before)
+            free(seen_before.ptr)
 
         for i = 0; i < self->files.len; i++:
             for es = pending_exports[i]; es->name[0] != '\0'; es++:
