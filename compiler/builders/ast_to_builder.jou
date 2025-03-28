@@ -40,19 +40,19 @@ class AstToBuilder:
             self->builder->set_location(location)
         return old
 
-    def begin_function(self, sig: Signature*, location: Location, locals: LocalVariable*, nlocals: int, public: bool) -> None:
+    def begin_function(self, sig: Signature*, location: Location, locals: List[LocalVariable], public: bool) -> None:
         old = self->set_location(location)
 
         # First n local variables are the arguments
-        assert sig->args.len <= nlocals
+        assert sig->args.len <= locals.len
 
         self->builder->begin_function(sig, public)
         self->returns_a_value = (sig->return_type != NULL)
 
         self->locals.len = 0
-        for i = 0; i < nlocals; i++:
-            var_name = locals[i].name
-            var_type = locals[i].type
+        for i = 0; i < locals.len; i++:
+            var_name = locals.ptr[i].name
+            var_type = locals.ptr[i].type
             var_ptr = self->builder->stack_alloc(var_type, var_name)
             local = LocalVar{name = var_name, ptr = var_ptr}
             self->locals.append(&local, sizeof(local))
@@ -611,7 +611,7 @@ def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location,
         or (is_main_file and func_ast->types.signature.is_main_function())
     )
     ast2ir = AstToBuilder{builder = builder}
-    ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals.ptr, func_ast->types.locals.len as int, public)
+    ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals, public)
     ast2ir.build_body(func_ast->body)
     builder->end_function()
 
