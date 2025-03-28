@@ -1,5 +1,6 @@
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/list.jou"
 
 # Test if a string is ASCII only.
 @public
@@ -46,43 +47,31 @@ def trim_ascii_whitespace(s: byte*) -> None:
     s[len] = '\0'
 
 # Finds all non-whitespace parts of a string.
-# For example:  " foo bar  baz \n" --> ["foo", "bar", "baz", NULL]
+# For example:  " foo bar  baz \n" --> ["foo", "bar", "baz"]
 #
 # Example usage:
 #
 #    s = strdup(" foo bar  baz\n")
 #    words = split_by_ascii_whitespace(s)
 #
-#    for i = 0; words[i] != NULL; i++:
-#        printf("%s\n", words[i])
+#    for w = words.ptr; w < words.end(); w++:
+#        printf("%s\n", *w)
 #
-#    free(words)
+#    free(words.ptr)
 #    free(s)
 #
 # Modifies s in-place to put '\0' bytes where words end.
-# Returns an array of byte*, using NULL to mark last word.
 # Return value (and perhaps s) must be free()d, but individual strings don't.
 @public
-def split_by_ascii_whitespace(s: byte*) -> byte**:
-    # Count how many non-whitespace sections we have.
-    count = 0
-    flag = False
-    for p = s; *p != '\0'; p++:
-        if not flag and not is_ascii_whitespace(*p):
-            count++
-            flag = True
-        elif flag and is_ascii_whitespace(*p):
-            flag = False
-
-    result: byte** = malloc(sizeof(result[0]) * (count + 1))
-    result_ptr = result
+def split_by_ascii_whitespace(s: byte*) -> List[byte*]:
+    result = List[byte*]{}
 
     while True:
         while is_ascii_whitespace(*s):
             s++
         if *s == '\0':
             break
-        *result_ptr++ = s
+        result.append(&s, sizeof(s))
 
         while *s != '\0' and not is_ascii_whitespace(*s):
             s++
@@ -93,6 +82,4 @@ def split_by_ascii_whitespace(s: byte*) -> byte**:
         # mark end of word and move on
         *s++ = '\0'
 
-    assert result_ptr == &result[count]
-    *result_ptr = NULL
     return result
