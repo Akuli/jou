@@ -252,7 +252,7 @@ class AstToBuilder:
     def build_constant(self, constant: Constant*) -> EitherBuilderValue:
         match constant->kind:
             case ConstantKind.ArrayString:
-                return self->builder->array_string(constant->array_string.str, constant->array_string.array_size)
+                return self->builder->array_string(constant->array_string.ptr, constant->array_string.len as int)
             case ConstantKind.PointerString:
                 return self->builder->pointer_string(constant->pointer_string)
             case ConstantKind.Integer:
