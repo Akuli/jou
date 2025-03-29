@@ -10,7 +10,7 @@
 # although it doesn't really matter whether that's done in step 1 or 2.
 
 import "stdlib/str.jou"
-import "stdlib/mem.jou"
+import "stdlib/list.jou"
 
 import "../ast.jou"
 import "../errors_and_warnings.jou"
@@ -22,40 +22,34 @@ import "./common.jou"
 # attaches it to the Foo type. It also renames the type from "Foo" to "Foo[T]".
 def handle_generics(t: Type*, classdef: AstClassDef*) -> None:
     assert t->kind == TypeKind.Class
-    n = classdef->n_generic_typevars  # number of generic parameters, e.g. 2 for Foo[T1, T2]
-    assert n > 0
-
-    t->classdata.n_generic_params = n
-    t->classdata.generic_params = malloc(sizeof(t->classdata.generic_params[0]) * n)
-    for i = 0; i < n; i++:
-        t->classdata.generic_params[i] = create_typevar(classdef->generic_typevar_names[i])
+    assert classdef->is_generic()
+    for nameptr = classdef->generic_typevar_names.ptr; nameptr < classdef->generic_typevar_names.end(); nameptr++:
+        typevar = create_typevar(*nameptr)
+        t->classdata.generic_params.append(&typevar, sizeof(typevar))
 
     old_name: byte[500] = t->name
-    t->name = create_type_name_with_params(old_name, t->classdata.generic_params, n)
+    t->name = create_type_name_with_params(old_name, t->classdata.generic_params)
 
 
 @public
-def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
-    exports: ExportSymbol* = NULL
-    nexports = 0
+def typecheck_step1_create_types(ast: AstFile*) -> List[ExportSymbol]:
+    exports = List[ExportSymbol]{}
 
-    for i = 0; i < ast->body.nstatements; i++:
-        stmt = &ast->body.statements[i]
-
+    for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
         match stmt->kind:
             case AstStatementKind.Class:
                 name = stmt->classdef.name
                 public = stmt->classdef.public
                 usedptr = &stmt->classdef.used
                 t = create_empty_class(name)
-                if stmt->classdef.n_generic_typevars != 0:
+                if stmt->classdef.is_generic():
                     handle_generics(t, &stmt->classdef)
                 stmt->classdef.type = t
             case AstStatementKind.Enum:
                 name = stmt->enumdef.name
                 public = stmt->enumdef.public
                 usedptr = &stmt->enumdef.used
-                t = create_enum(name, stmt->enumdef.member_count, stmt->enumdef.member_names)
+                t = create_enum(name, stmt->enumdef.members)
                 stmt->enumdef.type = t
             case _:
                 continue
@@ -66,21 +60,17 @@ def typecheck_step1_create_types(ast: AstFile*) -> ExportSymbol*:
             snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing->short_description(), name)
             fail(stmt->location, msg)
 
-        if stmt->kind == AstStatementKind.Class and stmt->classdef.n_generic_typevars != 0:
+        if stmt->kind == AstStatementKind.Class and stmt->classdef.is_generic():
             ast->types.add_generic_class(t, usedptr)
         else:
             ast->types.add_type(t, usedptr)
 
         if public:
-            exports = realloc(exports, sizeof(exports[0]) * (nexports+1))
-            assert exports != NULL
-            if stmt->kind == AstStatementKind.Class and stmt->classdef.n_generic_typevars != 0:
+            if stmt->kind == AstStatementKind.Class and stmt->classdef.is_generic():
                 k = ExportSymbolKind.GenericClass
             else:
                 k = ExportSymbolKind.Type
-            exports[nexports++] = ExportSymbol{kind = k, type = t, name = name}
+            es = ExportSymbol{kind = k, type = t, name = name}
+            exports.append(&es, sizeof(es))
 
-    exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
-    assert exports != NULL
-    exports[nexports] = ExportSymbol{}  # list terminator
     return exports
