@@ -1,0 +1,77 @@
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+
+
+def test_empty_list() -> None:
+    list = List[int]{}
+    assert list.end() == NULL
+    for i = 0; i < list.len; i++:
+        printf("This does not run.\n")
+    for p = list.ptr; p < list.end(); p++:
+        printf("This does not run either.\n")
+
+
+def test_grow() -> None:
+    list = List[int]{}
+
+    list.grow(3, sizeof(list.ptr[0]))
+    list.ptr[0] = 1
+    list.ptr[1] = 2
+    list.ptr[2] = 3
+    list.len = 3
+
+    # Make sure that nothing breaks if we append after growing
+    for i = 4; i < 10; i++:
+        list.append(&i, sizeof(i))
+
+    # Output: 123456789
+    for p = list.ptr; p < list.end(); p++:
+        printf("%d", *p)
+    printf("\n")
+
+
+def test_extend() -> None:
+    list = List[int]{}
+    one = 1
+    list.append(&one, sizeof(one))
+
+    # Extend from pointer
+    arr = [2, 3, 4, 5]
+    list.extend_from_ptr(arr, 4, sizeof(arr[0]))
+
+    # Extend from another list
+    list2 = List[int]{}
+    for i = 11; i <= 99; i += 11:
+        list2.append(&i, sizeof(i))
+    list.extend(list2)
+
+    # Output: 1,2,3,4,5,11,22,33,44,55,66,77,88,99
+    for p = list.ptr; p < list.end(); p++:
+        if p > list.ptr:
+            printf(",")
+        printf("%d", *p)
+    printf("\n")
+
+
+def test_pop() -> None:
+    list = List[int]{}
+    arr = [1, 2, 3, 4]
+    list.extend_from_ptr(arr, 4, sizeof(arr[0]))
+    printf("%d\n", list.end()[-1])  # Output: 4
+    list.pop()
+    printf("%d\n", list.end()[-1])  # Output: 3
+    list.pop()
+    printf("%d\n", list.end()[-1])  # Output: 2
+    list.pop()
+    printf("%d\n", list.end()[-1])  # Output: 1
+    list.pop()
+    if list.len == 0:
+        printf("It's empty\n")  # Output: It's empty
+
+
+def main() -> int:
+    test_empty_list()
+    test_grow()
+    test_extend()
+    test_pop()
+    return 0
