@@ -28,7 +28,7 @@ def handle_generics(t: Type*, classdef: AstClassDef*) -> None:
         t->classdata.generic_params.append(&typevar, sizeof(typevar))
 
     old_name: byte[500] = t->name
-    t->name = create_type_name_with_params(old_name, t->classdata.generic_params.ptr, t->classdata.generic_params.len as int)
+    t->name = create_type_name_with_params(old_name, t->classdata.generic_params)
 
 
 @public
