@@ -60,7 +60,7 @@ def main() -> int:
     assert boxes != NULL
     memset(boxes, 0, sizeof(*boxes))
 
-    for commandptr = commands; *commandptr != NULL; commandptr++:
+    for commandptr = commands.ptr; commandptr < commands.end(); commandptr++:
         command = *commandptr
 
         if ends_with(command, "-"):
@@ -74,7 +74,7 @@ def main() -> int:
             box = &(*boxes)[hash(command)]
             box->set(command, atoi(&eq[1]))
 
-    free(commands)
+    free(commands.ptr)
     free(s)
 
     result = 0

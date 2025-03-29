@@ -82,15 +82,15 @@ def main() -> int:
 
     # First with 25 steps to make sure the rewritten code works
     result25 = 0L
-    for i = 0; words[i] != NULL; i++:
-        result25 += analyze_stone(atoll(words[i]), 25)
+    for i = 0; i < words.len; i++:
+        result25 += analyze_stone(atoll(words.ptr[i]), 25)
     printf("%lld\n", result25)  # Output: 55312
 
     # Then with 75 steps, this is the real part 2
     result75 = 0L
-    for i = 0; words[i] != NULL; i++:
-        result75 += analyze_stone(atoll(words[i]), 75)
+    for i = 0; i < words.len; i++:
+        result75 += analyze_stone(atoll(words.ptr[i]), 75)
     printf("%lld\n", result75)  # Output: 65601038650482
 
-    free(words)
+    free(words.ptr)
     return 0

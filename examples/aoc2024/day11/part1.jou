@@ -51,17 +51,14 @@ def main() -> int:
     fclose(f)
 
     words = split_by_ascii_whitespace(line)
+    nstones = words.len as int
 
-    nstones = 0
-    while words[nstones] != NULL:
-        nstones++
-
-    stones: long* = malloc(sizeof(stones[0]) * nstones)
+    stones: long* = malloc(sizeof(stones[0]) * words.len)
     assert stones != NULL
     for i = 0; i < nstones; i++:
-        stones[i] = atoll(words[i])
+        stones[i] = atoll(words.ptr[i])
 
-    free(words)
+    free(words.ptr)
 
     for i = 0; i < 25; i++:
         # Make sure there's enough room even if every stone splits.

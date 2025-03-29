@@ -1,3 +1,4 @@
+import "stdlib/list.jou"
 import "stdlib/ascii.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
@@ -13,7 +14,7 @@ global avail_cache: CacheEntry[1000]
 global avail_cache_len: int
 
 
-def count_availability(towel: byte*, patterns: byte**) -> long:
+def count_availability(towel: byte*, patterns: List[byte*]) -> long:
     cacheptr: CacheEntry* = NULL
     if strlen(towel) < sizeof(avail_cache[0].towel):
         # Find value from cache if exists
@@ -30,9 +31,9 @@ def count_availability(towel: byte*, patterns: byte**) -> long:
         result = 1L
     else:
         result = 0L
-        for i = 0; patterns[i] != NULL; i++:
-            if starts_with(towel, patterns[i]):
-                result += count_availability(&towel[strlen(patterns[i])], patterns)
+        for p = patterns.ptr; p < patterns.end(); p++:
+            if starts_with(towel, *p):
+                result += count_availability(&towel[strlen(*p)], patterns)
 
     if cacheptr != NULL:
         cacheptr->value = result
@@ -50,8 +51,8 @@ def main() -> int:
     patterns = split_by_ascii_whitespace(patterns_buf)
 
     # remove trailing commas
-    for i = 0; patterns[i] != NULL; i++:
-        patterns[i][strcspn(patterns[i], ",")] = '\0'
+    for p = patterns.ptr; p < patterns.end(); p++:
+        (*p)[strcspn(*p, ",")] = '\0'
 
     line: byte[1000]
     result = 0L
@@ -71,5 +72,5 @@ def main() -> int:
     printf("%lld\n", result)  # Output: 16
 
     fclose(f)
-    free(patterns)
+    free(patterns.ptr)
     return 0

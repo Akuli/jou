@@ -5,7 +5,8 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 
-class List:
+# TODO: use stdlib list
+class List2:
     ptr: byte[100]*
     length: int
     alloc: int
@@ -71,8 +72,8 @@ class KeyPad:
 
         return False
 
-    def get_presses(self, what_to_write: byte*) -> List:
-        result = List{}
+    def get_presses(self, what_to_write: byte*) -> List2:
+        result = List2{}
         result.append("")
 
         for p = &what_to_write[0]; *p != '\0'; p++:
@@ -98,7 +99,7 @@ class KeyPad:
             else:
                 memset(&v, 'v', dy)
 
-            result2 = List{}
+            result2 = List2{}
             for i = 0; i < result.length; i++:
                 # Do horizontal and vertical moves in both possible orders. This
                 # may affect other robots, because their arms move less if we use
@@ -128,8 +129,8 @@ class KeyPad:
 
         return result
 
-    def get_presses_for_each(self, things_we_could_write: List) -> List:
-        result = List{}
+    def get_presses_for_each(self, things_we_could_write: List2) -> List2:
+        result = List2{}
         for i = 0; i < things_we_could_write.length; i++:
             adding = self->get_presses(things_we_could_write.ptr[i])
             for k = 0; k < adding.length; k++:
