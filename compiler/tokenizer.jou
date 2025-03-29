@@ -212,7 +212,7 @@ class Tokenizer:
     def read_byte(self) -> byte:
         c: byte
         if self->pushback.len > 0:
-            c = self->pushback.ptr[--self->pushback.len]
+            c = self->pushback.ptr[--self->pushback.len]  # TODO: use .pop()
         else:
             temp = fgetc(self->f)
             if temp == '\r':
