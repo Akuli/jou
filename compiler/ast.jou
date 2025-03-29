@@ -243,8 +243,8 @@ class AstExpression:
                 printf("indexing\n")
             case AstExpressionKind.Array:
                 printf("array\n")
-                for i = 0; i < self->array.len; i++:
-                    self->array.ptr[i].print_with_tree_printer(tp.print_prefix(i == self->array.len-1))
+                for p = self->array.ptr; p < self->array.end(); p++:
+                    p->print_with_tree_printer(tp.print_prefix(p == &self->array.end()[-1]))
             case AstExpressionKind.Call:
                 self->call.print_with_tree_printer(tp)
             case AstExpressionKind.Instantiate:
