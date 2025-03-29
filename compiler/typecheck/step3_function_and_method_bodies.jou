@@ -860,11 +860,10 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 item_type_hint = type_hint->array.item_type
             else:
                 item_type_hint = NULL
-            n = expr->array.len
-            for i = 0; i < n; i++:
-                typecheck_expression_not_void(state, &expr->array.ptr[i], item_type_hint)
+            for item = expr->array.ptr; item < expr->array.end(); item++:
+                typecheck_expression_not_void(state, item, item_type_hint)
             membertype = cast_array_members_to_a_common_type(state->fom_types, expr->location, expr->array, item_type_hint)
-            result = membertype->array_type(n as int)
+            result = membertype->array_type(expr->array.len as int)
 
         case AstExpressionKind.GetClassField:
             if expr->class_field.uses_arrow_operator:
