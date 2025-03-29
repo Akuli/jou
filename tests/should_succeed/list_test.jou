@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/mem.jou"
 import "stdlib/list.jou"
 
 
@@ -29,6 +30,8 @@ def test_grow() -> None:
         printf("%d", *p)
     printf("\n")
 
+    free(list.ptr)
+
 
 def test_pop() -> None:
     list = List[int]{}
@@ -43,6 +46,14 @@ def test_pop() -> None:
     printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 1 items, last is 11
     list.pop()
     printf("%lld items\n", list.len)  # Output: 0 items
+
+    assert list.ptr != NULL  # same memory will be reused
+    for i = 1; i <= 3; i++:
+        list.append(&i, sizeof(i))
+    # Output: len=3 [1,2,3]
+    printf("len=%lld [%d,%d,%d]\n", list.len, list.ptr[0], list.ptr[1], list.ptr[2])
+
+    free(list.ptr)
 
 
 def main() -> int:
