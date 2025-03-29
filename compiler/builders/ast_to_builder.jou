@@ -1,4 +1,5 @@
 import "stdlib/str.jou"
+import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
@@ -23,10 +24,8 @@ class Loop:
 
 class AstToBuilder:
     builder: EitherBuilder*
-    locals: LocalVar*
-    nlocals: int
-    loops: Loop*
-    nloops: int
+    locals: List[LocalVar]
+    loops: List[Loop]
     returns_a_value: bool
 
     location: Location
@@ -41,27 +40,23 @@ class AstToBuilder:
             self->builder->set_location(location)
         return old
 
-    def begin_function(self, sig: Signature*, location: Location, locals: LocalVariable*, nlocals: int, public: bool) -> None:
+    def begin_function(self, sig: Signature*, location: Location, locals: List[LocalVariable], public: bool) -> None:
         old = self->set_location(location)
 
         # First n local variables are the arguments
-        assert sig->nargs >= 0
-        assert sig->nargs <= nlocals
+        assert sig->args.len <= locals.len
 
         self->builder->begin_function(sig, public)
         self->returns_a_value = (sig->return_type != NULL)
 
-        if nlocals > self->nlocals:
-            self->locals = realloc(self->locals, sizeof(self->locals[0]) * nlocals)
-            assert self->locals != NULL
-        self->nlocals = nlocals
-
-        for i = 0; i < nlocals; i++:
-            var_name = locals[i].name
-            var_type = locals[i].type
+        self->locals.len = 0
+        for i = 0; i < locals.len; i++:
+            var_name = locals.ptr[i].name
+            var_type = locals.ptr[i].type
             var_ptr = self->builder->stack_alloc(var_type, var_name)
-            self->locals[i] = LocalVar{name = var_name, ptr = var_ptr}
-            if i < sig->nargs:
+            local = LocalVar{name = var_name, ptr = var_ptr}
+            self->locals.append(&local, sizeof(local))
+            if i < sig->args.len:
                 # First n local variables are the function arguments
                 self->builder->set_ptr(var_ptr, self->builder->get_argument(i, var_type))
 
@@ -73,25 +68,25 @@ class AstToBuilder:
         self->set_location(old)
 
     def local_var_exists(self, name: byte*) -> bool:
-        for i = 0; i < self->nlocals; i++:
-            if strcmp(self->locals[i].name, name) == 0:
+        for local = self->locals.ptr; local < self->locals.end(); local++:
+            if strcmp(local->name, name) == 0:
                 return True
         return False
 
     def local_var_ptr(self, name: byte*) -> EitherBuilderValue:
-        for i = 0; i < self->nlocals; i++:
-            if strcmp(self->locals[i].name, name) == 0:
-                return self->locals[i].ptr
+        for local = self->locals.ptr; local < self->locals.end(); local++:
+            if strcmp(local->name, name) == 0:
+                return local->ptr
         assert False
 
     def build_call(self, call: AstCall*) -> EitherBuilderValue:
-        assert call->nargs <= 99  # leave room for self
+        assert call->args.len <= 99  # leave room for self
         args: EitherBuilderValue[100]
         k = 0
 
         if call->method_call_self != NULL:
             # it is a method call, pass self as first argument
-            want_pointer = call->called_signature->argtypes[0]->is_pointer_type()
+            want_pointer = call->called_signature->args.ptr[0].type->is_pointer_type()
             got_pointer = call->uses_arrow_operator
 
             if want_pointer and not got_pointer:
@@ -101,8 +96,8 @@ class AstToBuilder:
             else:
                 args[k++] = self->build_expression(call->method_call_self)
 
-        for i = 0; i < call->nargs; i++:
-            args[k++] = self->build_expression(&call->args[i])
+        for p = call->args.ptr; p < call->args.end(); p++:
+            args[k++] = self->build_expression(p)
 
         result = self->builder->call(call->called_signature, args, k)
 
@@ -153,9 +148,9 @@ class AstToBuilder:
 
         inst_ptr = self->builder->stack_alloc(class_type, NULL)
         self->builder->memset_to_zero(inst_ptr)
-        for i = 0; i < inst->nfields; i++:
-            field_ptr = self->builder->class_field_pointer(inst_ptr, inst->field_names[i])
-            field_value = self->build_expression(&inst->field_values[i])
+        for f = inst->fields.ptr; f < inst->fields.end(); f++:
+            field_ptr = self->builder->class_field_pointer(inst_ptr, f->name)
+            field_value = self->build_expression(&f->value)
             self->builder->set_ptr(field_ptr, field_value)
 
         return self->builder->dereference(inst_ptr)
@@ -239,17 +234,17 @@ class AstToBuilder:
         else:
             return old_value
 
-    def build_array(self, t: Type*, items: AstExpression*, nitems: int) -> EitherBuilderValue:
+    def build_array(self, t: Type*, items: List[AstExpression]) -> EitherBuilderValue:
         assert t->kind == TypeKind.Array
-        assert t->array.len == nitems
+        assert t->array.len == items.len
 
         arr_ptr = self->builder->stack_alloc(t, NULL)
         first_item_ptr = self->builder->cast(arr_ptr, t->array.item_type->pointer_type())
 
-        for i = 0; i < nitems; i++:
+        for i = 0; i < items.len; i++:
             i_built = self->builder->integer(longType, i)
             item_ptr = self->builder->indexed_pointer(first_item_ptr, i_built)
-            item_value = self->build_expression(&items[i])
+            item_value = self->build_expression(&items.ptr[i])
             self->builder->set_ptr(item_ptr, item_value)
 
         return self->builder->dereference(arr_ptr)
@@ -257,7 +252,7 @@ class AstToBuilder:
     def build_constant(self, constant: Constant*) -> EitherBuilderValue:
         match constant->kind:
             case ConstantKind.ArrayString:
-                return self->builder->array_string(constant->array_string.str, constant->array_string.array_size)
+                return self->builder->array_string(constant->array_string.ptr, constant->array_string.len as int)
             case ConstantKind.PointerString:
                 return self->builder->pointer_string(constant->pointer_string)
             case ConstantKind.Integer:
@@ -271,7 +266,7 @@ class AstToBuilder:
             case ConstantKind.EnumMember:
                 return self->builder->enum_member(
                     constant->enum_member.enumtype,
-                    constant->enum_member.enumtype->enum_members.names[constant->enum_member.memberidx]
+                    constant->enum_member.enumtype->enum_members.ptr[constant->enum_member.memberidx]
                 )
             case _:
                 # TODO: support other constant types
@@ -282,7 +277,7 @@ class AstToBuilder:
             case AstExpressionKind.Constant:
                 return self->build_constant(&expr->constant)
             case AstExpressionKind.Array:
-                return self->build_array(expr->types.orig_type, expr->array.items, expr->array.length)
+                return self->build_array(expr->types.orig_type, expr->array)
             case AstExpressionKind.Call:
                 return self->build_call(&expr->call)
             case AstExpressionKind.Instantiate:
@@ -412,21 +407,21 @@ class AstToBuilder:
 
     def build_if_statement(self, ifst: AstIfStatement*) -> None:
         done = self->builder->add_block()
-        for i = 0; i < ifst->n_if_and_elifs; i++:
-            cond = self->build_expression(&ifst->if_and_elifs[i].condition)
+        for p = ifst->if_and_elifs.ptr; p < ifst->if_and_elifs.end(); p++:
+            cond = self->build_expression(&p->condition)
             then = self->builder->add_block()
             otherwise = self->builder->add_block()
             self->builder->branch(cond, then, otherwise)
             self->builder->set_current_block(then)
-            self->build_body(&ifst->if_and_elifs[i].body)
+            self->build_body(p->body)
             self->builder->jump(done)
             self->builder->set_current_block(otherwise)
 
-        self->build_body(&ifst->else_body)
+        self->build_body(ifst->else_body)
         self->builder->jump(done)
         self->builder->set_current_block(done)
 
-    def build_loop(self, cond: AstExpression*, incr: AstStatement*, body: AstBody*) -> None:
+    def build_loop(self, cond: AstExpression*, incr: AstStatement*, body: List[AstStatement]) -> None:
         condblock = self->builder->add_block()  # evaluate condition and go to bodyblock or doneblock
         bodyblock = self->builder->add_block()  # run loop body and go to incrblock
         incrblock = self->builder->add_block()  # run incr and go to condblock
@@ -444,9 +439,8 @@ class AstToBuilder:
             self->builder->branch(self->build_expression(cond), bodyblock, doneblock)
 
         # Within loop body, 'break' skips to after loop, 'continue' goes to incr.
-        self->loops = realloc(self->loops, (self->nloops + 1) * sizeof(self->loops[0]))
-        assert self->loops != NULL
-        self->loops[self->nloops++] = Loop{on_break = doneblock, on_continue = incrblock}
+        loop = Loop{on_break = doneblock, on_continue = incrblock}
+        self->loops.append(&loop, sizeof(loop))
 
         # Run loop body. When done, go to incr.
         self->builder->set_current_block(bodyblock)
@@ -454,8 +448,7 @@ class AstToBuilder:
         self->builder->jump(incrblock)
 
         # 'break' and 'continue' are not allowed after the loop body.
-        assert self->nloops > 0
-        self->nloops--
+        self->loops.pop()
 
         # Run incr and jump back to condition.
         self->builder->set_current_block(incrblock)
@@ -470,11 +463,11 @@ class AstToBuilder:
         match_obj = self->build_expression(&match_stmt->match_obj)
 
         done = self->builder->add_block()
-        for i = 0; i < match_stmt->ncases; i++:
+        for p = match_stmt->cases.ptr; p < match_stmt->cases.end(); p++:
             then = self->builder->add_block()
             otherwise = EitherBuilderBlock{}  # will be replaced by loop below
-            for k = 0; k < match_stmt->cases[i].n_case_objs; k++:
-                case_obj = self->build_expression(&match_stmt->cases[i].case_objs[k])
+            for case_obj_ast = p->case_objs.ptr; case_obj_ast < p->case_objs.end(); case_obj_ast++:
+                case_obj = self->build_expression(case_obj_ast)
                 if match_stmt->func_name[0] == '\0':
                     cond = self->builder->eq(match_obj, case_obj)
                 else:
@@ -487,12 +480,12 @@ class AstToBuilder:
                 self->builder->set_current_block(otherwise)
 
             self->builder->set_current_block(then)
-            self->build_body(&match_stmt->cases[i].body)
+            self->build_body(p->body)
             self->builder->jump(done)
             self->builder->set_current_block(otherwise)
 
         if match_stmt->case_underscore != NULL:
-            self->build_body(match_stmt->case_underscore)
+            self->build_body(*match_stmt->case_underscore)
 
         if (
             match_stmt->case_underscore == NULL
@@ -520,24 +513,26 @@ class AstToBuilder:
 
         self->builder->set_current_block(error_block)
 
-        argnames: byte[100][3] = ["assertion", "path", "lineno"]
-        argtypes: Type*[3] = [byteType->pointer_type(), byteType->pointer_type(), intType]
+        sig_args = [
+            NameAndType{name = "assertion", type = byteType->pointer_type()},
+            NameAndType{name = "path", type = byteType->pointer_type()},
+            NameAndType{name = "lineno", type = intType},
+        ]
         sig = Signature{
             name = "_jou_assert_fail",
-            nargs = 3,
-            argtypes = argtypes,
-            argnames = argnames,
+            args = List[NameAndType]{ptr = sig_args, len = 3},  # modifying this list would be UB
             takes_varargs = False,
             is_noreturn = True,
         }
+
         args = [
             self->builder->pointer_string(assertion->condition_str),
             self->builder->pointer_string(assert_location.path),
             self->builder->integer(intType, assert_location.lineno),
         ]
         self->builder->call(&sig, args, 3)
-        self->builder->unreachable()
 
+        self->builder->unreachable()
         self->builder->set_current_block(ok_block)
 
     def build_statement(self, stmt: AstStatement*, in_a_body: bool) -> None:
@@ -553,21 +548,21 @@ class AstToBuilder:
             case AstStatementKind.Pass:
                 pass
             case AstStatementKind.WhileLoop:
-                self->build_loop(&stmt->while_loop.condition, NULL, &stmt->while_loop.body)
+                self->build_loop(&stmt->while_loop.condition, NULL, stmt->while_loop.body)
             case AstStatementKind.ForLoop:
                 if stmt->for_loop.init != NULL:
                     self->build_statement(stmt->for_loop.init, False)
                 self->build_loop(
-                    stmt->for_loop.cond, stmt->for_loop.incr, &stmt->for_loop.body)
+                    stmt->for_loop.cond, stmt->for_loop.incr, stmt->for_loop.body)
             case AstStatementKind.Match:
                 self->build_match_statement(&stmt->match_statement)
             case AstStatementKind.Break:
-                assert self->nloops > 0
-                self->builder->jump(self->loops[self->nloops - 1].on_break)
+                assert self->loops.len > 0
+                self->builder->jump(self->loops.end()[-1].on_break)
                 self->builder->set_current_block(self->builder->add_block())  # for code after 'break', if any
             case AstStatementKind.Continue:
-                assert self->nloops > 0
-                self->builder->jump(self->loops[self->nloops - 1].on_continue)
+                assert self->loops.len > 0
+                self->builder->jump(self->loops.end()[-1].on_continue)
                 self->builder->set_current_block(self->builder->add_block())  # for code after 'continue', if any
             case AstStatementKind.Assign:
                 lhs_ptr = self->build_address_of_expression(&stmt->assignment.target)
@@ -603,9 +598,9 @@ class AstToBuilder:
 
         self->set_location(old_location)
 
-    def build_body(self, body: AstBody*) -> None:
-        for i = 0; i < body->nstatements; i++:
-            self->build_statement(&body->statements[i], True)
+    def build_body(self, body: List[AstStatement]) -> None:
+        for p = body.ptr; p < body.end(); p++:
+            self->build_statement(p, True)
 
 
 @public
@@ -616,8 +611,9 @@ def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location,
         or (is_main_file and func_ast->types.signature.is_main_function())
     )
     ast2ir = AstToBuilder{builder = builder}
-    ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals, func_ast->types.nlocals, public)
-    ast2ir.build_body(&func_ast->body)
+    ast2ir.begin_function(&func_ast->types.signature, func_location, func_ast->types.locals, public)
+    ast2ir.build_body(func_ast->body)
     builder->end_function()
-    free(ast2ir.locals)
-    free(ast2ir.loops)
+
+    free(ast2ir.locals.ptr)
+    free(ast2ir.loops.ptr)

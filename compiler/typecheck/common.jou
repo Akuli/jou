@@ -13,7 +13,7 @@ import "../types_in_ast.jou"
 
 
 @public
-def plural_s(n: int) -> byte*:
+def plural_s(n: long) -> byte*:
     if n == 1:
         # e.g. "1 argument"
         return ""
@@ -55,9 +55,9 @@ class ExportSymbol:
 def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) -> Type*:
     if containing_class != NULL:
         assert containing_class->kind == TypeKind.Class
-        for i = 0; i < containing_class->classdata.n_generic_params; i++:
+        for p = containing_class->classdata.generic_params.ptr; p < containing_class->classdata.generic_params.end(); p++:
             # Should be e.g. List[T], where T is a typevar
-            assert containing_class->classdata.generic_params[i]->kind == TypeKind.TypeVar
+            assert (*p)->kind == TypeKind.TypeVar
 
     msg: byte[500]
 
@@ -87,9 +87,9 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
                     if containing_class != NULL:
                         assert containing_class->kind == TypeKind.Class
                         cdata = &containing_class->classdata
-                        for i = 0; i < cdata->n_generic_params; i++:
-                            if strcmp(cdata->generic_params[i]->name, asttype->name) == 0:
-                                return cdata->generic_params[i]
+                        for p = cdata->generic_params.ptr; p < cdata->generic_params.end(); p++:
+                            if strcmp((*p)->name, asttype->name) == 0:
+                                return *p
 
                     found = ft->find_type(asttype->name)
                     if found != NULL:
@@ -101,11 +101,11 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
                         snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype->name)
                     else:
                         # Suggest int for all params of the generic class, e.g. List[int]
-                        assert generic->classdata.n_generic_params > 0
-                        ints = malloc(10 * generic->classdata.n_generic_params)
+                        assert generic->classdata.is_generic()
+                        ints = malloc(10 * generic->classdata.generic_params.len)
                         assert ints != NULL
                         strcpy(ints, "int")
-                        for i = 1; i < generic->classdata.n_generic_params; i++:
+                        for i = 1; i < generic->classdata.generic_params.len; i++:
                             strcat(ints, ", int")
                         snprintf(
                             msg, sizeof(msg),
@@ -137,14 +137,14 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
                 fail(asttype->location, msg)
 
             assert gclass->kind == TypeKind.Class
-            assert gclass->classdata.n_generic_params > 0
+            assert gclass->classdata.is_generic()
 
             # Check number of parameters
-            expected = gclass->classdata.n_generic_params
-            got = asttype->generic.n_param_types
+            expected = gclass->classdata.generic_params.len
+            got = asttype->generic.param_types.len
             if expected != got:
                 snprintf(
-                    msg, sizeof(msg), "generic class %s takes %d type parameter%s, but it is used with %d type parameter%s",
+                    msg, sizeof(msg), "generic class %s takes %lld type parameter%s, but it is used with %lld type parameter%s",
                     gclass->name, expected, plural_s(expected), got, plural_s(got),
                 )
                 fail(asttype->location, msg)
@@ -158,8 +158,8 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             assert to != NULL
             n = 0
             for i = 0; i < nparams; i++:
-                from_item = gclass->classdata.generic_params[i]
-                to_item = type_from_ast(ft, containing_class, &asttype->generic.param_types[i])
+                from_item = gclass->classdata.generic_params.ptr[i]
+                to_item = type_from_ast(ft, containing_class, &asttype->generic.param_types.ptr[i])
                 if from_item != to_item:
                     from[n] = from_item
                     to[n] = to_item
