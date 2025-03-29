@@ -1,0 +1,63 @@
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/list.jou"
+
+
+def test_empty_list() -> None:
+    list = List[int]{}
+    assert list.end() == NULL
+    for i = 0; i < list.len; i++:
+        printf("This does not run.\n")
+    for p = list.ptr; p < list.end(); p++:
+        printf("This does not run either.\n")
+
+
+def test_grow() -> None:
+    list = List[int]{}
+
+    list.grow(3, sizeof(list.ptr[0]))
+    list.ptr[0] = 1
+    list.ptr[1] = 2
+    list.ptr[2] = 3
+    list.len = 3
+
+    # Make sure that nothing breaks if we append after growing
+    for i = 4; i < 10; i++:
+        list.append(&i, sizeof(i))
+
+    # Output: 123456789
+    for p = list.ptr; p < list.end(); p++:
+        printf("%d", *p)
+    printf("\n")
+
+    free(list.ptr)
+
+
+def test_pop() -> None:
+    list = List[int]{}
+    for i = 11; i <= 44; i += 11:
+        list.append(&i, sizeof(i))
+    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 4 items, last is 44
+    list.pop()
+    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 3 items, last is 33
+    list.pop()
+    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 2 items, last is 22
+    list.pop()
+    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 1 items, last is 11
+    list.pop()
+    printf("%lld items\n", list.len)  # Output: 0 items
+
+    assert list.ptr != NULL  # same memory will be reused
+    for i = 1; i <= 3; i++:
+        list.append(&i, sizeof(i))
+    # Output: len=3 [1,2,3]
+    printf("len=%lld [%d,%d,%d]\n", list.len, list.ptr[0], list.ptr[1], list.ptr[2])
+
+    free(list.ptr)
+
+
+def main() -> int:
+    test_empty_list()
+    test_grow()
+    test_pop()
+    return 0
