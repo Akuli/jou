@@ -208,7 +208,7 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
                 message.append(p, 1)
         elif starts_with(template, "<to>"):
             template = &template[4]
-            for p = to->name as byte*; *p != '\0'; p++:
+            for p = &to->name[0]; *p != '\0'; p++:
                 message.append(p, 1)
         else:
             message.append(template++, 1)
