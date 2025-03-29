@@ -150,14 +150,23 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
                 fail(asttype->location, msg)
 
             assert expected == got
-            n = got
+            nparams = got
 
-            from = gclass->classdata.generic_params
-            to: Type** = malloc(sizeof(to[0]) * n)
+            from: Type** = malloc(sizeof(from[0]) * nparams)
+            to: Type** = malloc(sizeof(to[0]) * nparams)
+            assert from != NULL
             assert to != NULL
-            for i = 0; i < n; i++:
-                to[i] = type_from_ast(ft, containing_class, &asttype->generic.param_types[i])
+            n = 0
+            for i = 0; i < nparams; i++:
+                from_item = gclass->classdata.generic_params[i]
+                to_item = type_from_ast(ft, containing_class, &asttype->generic.param_types[i])
+                if from_item != to_item:
+                    from[n] = from_item
+                    to[n] = to_item
+                    n++
 
             result = gclass->substitute_generic_params(from, to, n)
+
+            free(from)
             free(to)
             return result
