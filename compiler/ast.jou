@@ -749,8 +749,8 @@ class AstIfStatement:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("if\n")
-        for i = 0; i < self->if_and_elifs.len; i++:
-            self->if_and_elifs.ptr[i].print_with_tree_printer(tp, i == self->if_and_elifs.len - 1 and self->else_body.len == 0)
+        for p = self->if_and_elifs.ptr; p < self->if_and_elifs.end(); p++:
+            p->print_with_tree_printer(tp, p == &self->if_and_elifs.end()[-1] and self->else_body.len == 0)
 
         if self->else_body.len > 0:
             sub = tp.print_prefix(True)
@@ -943,8 +943,8 @@ class AstGlobalVarDef:
 # Body is ":" followed by statements, represented with simply List[AstStatement].
 # We define functions to work with bodies, similarly to methods for most other things.
 def print_body(body: List[AstStatement], tp: TreePrinter) -> None:
-    for i = 0; i < body.len; i++:
-        body.ptr[i].print_with_tree_printer(tp.print_prefix(i == body.len - 1))
+    for p = body.ptr; p < body.end(); p++:
+        p->print_with_tree_printer(tp.print_prefix(p == &body.end()[-1]))
 
 def free_body(body: List[AstStatement]) -> None:
     for p = body.ptr; p < body.end(); p++:
@@ -1112,9 +1112,9 @@ class AstEnumDef:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("enum \"%s\" with %d members\n", self->name, self->members.len)
-        for i = 0; i < self->members.len; i++:
-            tp.print_prefix(i == self->members.len - 1)
-            puts(self->members.ptr[i])
+        for p = self->members.ptr; p < self->members.end(); p++:
+            tp.print_prefix(p == &self->members.end()[-1])
+            puts(*p)
 
     def free(self) -> None:
         free(self->members.ptr)
