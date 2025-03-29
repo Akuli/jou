@@ -821,8 +821,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 expr->constant.kind = ConstantKind.ArrayString
                 expr->constant.array_string = List[byte]{}
                 while expr->constant.array_string.len < type_hint->array.len:
-                    zero = 0 as byte
-                    expr->constant.array_string.append(&zero, sizeof(zero))
+                    expr->constant.array_string.append("", 1)
                 strcpy(expr->constant.array_string.ptr, s)
                 assert expr->constant.get_type() == type_hint
                 result = type_hint
