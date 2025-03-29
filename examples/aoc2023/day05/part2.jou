@@ -5,15 +5,6 @@ import "stdlib/ascii.jou"
 import "stdlib/mem.jou"
 
 
-def remove_dupes(list: List[long]*) -> None:
-    for i = list->len-1; i >= 0; i--:
-        # delete i'th number if it occurs after index i
-        for k = i+1; k < list->len; k++:
-            if list->ptr[i] == list->ptr[k]:
-                list->ptr[i] = list->ptr[--list->len]
-                break
-
-
 class Map:
     triples: long[3][50]
     ntriples: int
@@ -130,7 +121,7 @@ def main() -> int:
 
     fclose(f)
 
-    interesting_inputs = List{}
+    interesting_inputs = List[long]{}
     for i = 0; i < input->nmaps; i++:
         # We get small values whenever the i'th map sees a start of its range.
         values = input->maps[i].get_input_range_starts()
@@ -146,7 +137,7 @@ def main() -> int:
 
     # Let's also try start of each seed range
     for i = 0; i < input->n_seed_ranges; i++:
-        interesting_inputs.append(input->seed_ranges[i].start)
+        interesting_inputs.append(&input->seed_ranges[i].start, sizeof(input->seed_ranges[i].start))
 
     smallest = -1 as long
     for p = interesting_inputs.ptr; p < interesting_inputs.end(); p++:
