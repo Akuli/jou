@@ -30,48 +30,23 @@ def test_grow() -> None:
     printf("\n")
 
 
-def test_extend() -> None:
-    list = List[int]{}
-    one = 1
-    list.append(&one, sizeof(one))
-
-    # Extend from pointer
-    arr = [2, 3, 4, 5]
-    list.extend_from_ptr(arr, 4, sizeof(arr[0]))
-
-    # Extend from another list
-    list2 = List[int]{}
-    for i = 11; i <= 99; i += 11:
-        list2.append(&i, sizeof(i))
-    list.extend(list2)
-
-    # Output: 1,2,3,4,5,11,22,33,44,55,66,77,88,99
-    for p = list.ptr; p < list.end(); p++:
-        if p > list.ptr:
-            printf(",")
-        printf("%d", *p)
-    printf("\n")
-
-
 def test_pop() -> None:
     list = List[int]{}
-    arr = [1, 2, 3, 4]
-    list.extend_from_ptr(arr, 4, sizeof(arr[0]))
-    printf("%d\n", list.end()[-1])  # Output: 4
+    for i = 11; i <= 44; i += 11:
+        list.append(&i, sizeof(i))
+    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 4 items, last is 44
     list.pop()
-    printf("%d\n", list.end()[-1])  # Output: 3
+    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 3 items, last is 33
     list.pop()
-    printf("%d\n", list.end()[-1])  # Output: 2
+    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 2 items, last is 22
     list.pop()
-    printf("%d\n", list.end()[-1])  # Output: 1
+    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 1 items, last is 11
     list.pop()
-    if list.len == 0:
-        printf("It's empty\n")  # Output: It's empty
+    printf("%lld items\n", list.len)  # Output: 0 items
 
 
 def main() -> int:
     test_empty_list()
     test_grow()
-    test_extend()
     test_pop()
     return 0
