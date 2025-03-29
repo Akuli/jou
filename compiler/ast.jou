@@ -6,6 +6,7 @@
 # which is basically an internal detail of the .print() implementation.
 
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
@@ -39,8 +40,7 @@ class AstArrayType:
 @public
 class AstGenericType:
     class_name: byte[100]  # e.g. "List"
-    param_types: AstType*
-    n_param_types: int
+    param_types: List[AstType]
 
 
 @public
@@ -75,10 +75,10 @@ class AstType:
                 printf("[<size>]")  # TODO: show the size expression better?
             case AstTypeKind.Generic:
                 printf("%s[", self->generic.class_name)
-                for i = 0; i < self->generic.n_param_types; i++:
+                for i = 0; i < self->generic.param_types.len; i++:
                     if i != 0:
                         printf(", ")
-                    self->generic.param_types[i].print(False)
+                    self->generic.param_types.ptr[i].print(False)
                 printf("]")
 
         if show_lineno:
@@ -94,9 +94,9 @@ class AstType:
             case AstTypeKind.Named:
                 pass
             case AstTypeKind.Generic:
-                for i = 0; i < self->generic.n_param_types; i++:
-                    self->generic.param_types[i].free()
-                free(self->generic.param_types)
+                for p = self->generic.param_types.ptr; p < self->generic.param_types.end(); p++:
+                    p->free()
+                free(self->generic.param_types.ptr)
 
 
 # Statements and expressions can be printed in a tree.
@@ -138,13 +138,17 @@ class AstClassField:
         free(self->instance)
 
 
+@public
+class AstInstantiationField:
+    name: byte[100]
+    value: AstExpression
+
+
 # Foo{bar = 1, baz = 2}
 @public
 class AstInstantiation:
     type: AstType
-    nfields: int
-    field_names: byte[100]*
-    field_values: AstExpression*
+    fields: List[AstInstantiationField]
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -154,17 +158,16 @@ class AstInstantiation:
         self->type.print(False)
         printf("\n")
 
-        for i = 0; i < self->nfields; i++:
-            sub = tp.print_prefix(i == self->nfields - 1)
-            printf("field \"%s\": ", self->field_names[i])
-            self->field_values[i].print_with_tree_printer(sub)
+        for f = self->fields.ptr; f < self->fields.end(); f++:
+            sub = tp.print_prefix(f == &self->fields.end()[-1])
+            printf("field \"%s\": ", f->name)
+            f->value.print_with_tree_printer(sub)
 
     def free(self) -> None:
         self->type.free()
-        for i = 0; i < self->nfields; i++:
-            self->field_values[i].free()
-        free(self->field_names)
-        free(self->field_values)
+        for f = self->fields.ptr; f < self->fields.end(); f++:
+            f->value.free()
+        free(self->fields.ptr)
 
 
 @public
@@ -216,7 +219,7 @@ class AstExpression:
         call: AstCall
         instantiation: AstInstantiation
         as_: AstAs*  # Must be pointer, because it contains an AstExpression
-        array: AstArray
+        array: List[AstExpression]
         varname: byte[100]
         float_or_double_text: byte[100]
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
@@ -240,8 +243,8 @@ class AstExpression:
                 printf("indexing\n")
             case AstExpressionKind.Array:
                 printf("array\n")
-                for i = 0; i < self->array.length; i++:
-                    self->array.items[i].print_with_tree_printer(tp.print_prefix(i == self->array.length-1))
+                for p = self->array.ptr; p < self->array.end(); p++:
+                    p->print_with_tree_printer(tp.print_prefix(p == &self->array.end()[-1]))
             case AstExpressionKind.Call:
                 self->call.print_with_tree_printer(tp)
             case AstExpressionKind.Instantiate:
@@ -317,7 +320,9 @@ class AstExpression:
             case AstExpressionKind.Constant:
                 self->constant.free()
             case AstExpressionKind.Array:
-                self->array.free()
+                for p = self->array.ptr; p < self->array.end(); p++:
+                    p->free()
+                free(self->array.ptr)
             case AstExpressionKind.Call:
                 self->call.free()
             case AstExpressionKind.Instantiate:
@@ -378,18 +383,6 @@ class AstExpression:
         )
 
 
-# [foo, bar, baz]
-@public
-class AstArray:
-    length: int
-    items: AstExpression*
-
-    def free(self) -> None:
-        for i = 0; i < self->length; i++:
-            self->items[i].free()
-        free(self->items)
-
-
 # foo as bar
 @public
 class AstAs:
@@ -419,8 +412,7 @@ class AstCall:
     name: byte[100]  # name of function or method
     method_call_self: AstExpression*  # NULL for function calls, the foo of foo.bar() for method calls
     uses_arrow_operator: bool  # distinguishes foo->bar() and foo.bar()
-    nargs: int
-    args: AstExpression*
+    args: List[AstExpression]
     called_signature: Signature*  # populated in typecheck, NULL before typecheck runs, not owned
 
     def print(self) -> None:
@@ -433,19 +425,19 @@ class AstCall:
         printf("\n")
 
         if self->method_call_self != NULL:
-            sub = tp.print_prefix(self->nargs == 0)
+            sub = tp.print_prefix(self->args.len == 0)
             printf("self: ")
             self->method_call_self->print_with_tree_printer(sub)
 
-        for i = 0; i < self->nargs; i++:
-            sub = tp.print_prefix(i == self->nargs - 1)
+        for i = 0; i < self->args.len; i++:
+            sub = tp.print_prefix(i == self->args.len - 1)
             printf("argument %d: ", i)
-            self->args[i].print_with_tree_printer(sub)
+            self->args.ptr[i].print_with_tree_printer(sub)
 
     def free(self) -> None:
-        for i = 0; i < self->nargs; i++:
-            self->args[i].free()
-        free(self->args)
+        for p = self->args.ptr; p < self->args.end(); p++:
+            p->free()
+        free(self->args.ptr)
         if self->method_call_self != NULL:
             self->method_call_self->free()
             free(self->method_call_self)
@@ -542,7 +534,7 @@ class AstStatement:
         global_var_declare: AstGlobalVarDeclare  # GlobalVariableDeclare
         global_var_def: AstGlobalVarDef     # GlobalVariableDef
         class_field: AstNameTypeValue       # ClassField
-        union_fields: AstUnionFields        # ClassUnion
+        union_fields: List[AstNameTypeValue]  # ClassUnion
         function: AstFunctionOrMethod
         method: AstFunctionOrMethod
         classdef: AstClassDef
@@ -636,7 +628,9 @@ class AstStatement:
                 printf("\n")
             case AstStatementKind.ClassUnion:
                 printf("union\n")
-                self->union_fields.print_with_tree_printer(tp)
+                for f = self->union_fields.ptr; f < self->union_fields.end(); f++:
+                    subprinter = tp.print_prefix(f == &self->union_fields.end()[-1])
+                    f->print_with_tree_printer(&subprinter)  # TODO: does this need to be optional/pointer?
             case AstStatementKind.Const:
                 printf("const statement ")
                 self->const_statement.print()
@@ -687,7 +681,9 @@ class AstStatement:
             case AstStatementKind.Import:
                 self->import_statement.free()
             case AstStatementKind.ClassUnion:
-                self->union_fields.free()
+                for f = self->union_fields.ptr; f < self->union_fields.end(); f++:
+                    f->free()
+                free(self->union_fields.ptr)
             case AstStatementKind.Const:
                 self->const_statement.free()
             case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
@@ -698,7 +694,7 @@ class AstStatement:
 @public
 class AstConditionAndBody:
     condition: AstExpression
-    body: AstBody
+    body: List[AstStatement]
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{}, True)
@@ -710,11 +706,11 @@ class AstConditionAndBody:
 
         sub = tp.print_prefix(body_is_last_sub_item)
         printf("body:\n")
-        self->body.print_with_tree_printer(sub)
+        print_body(self->body, sub)
 
     def free(self) -> None:
         self->condition.free()
-        self->body.free()
+        free_body(self->body)
 
 
 # foo = bar
@@ -745,28 +741,27 @@ class AstAssignment:
 #     ...
 @public
 class AstIfStatement:
-    if_and_elifs: AstConditionAndBody*
-    n_if_and_elifs: int  # At least 1 (the if statement). The rest, if any, are elifs.
-    else_body: AstBody    # Empty if there is no else
+    if_and_elifs: List[AstConditionAndBody]  # At least 1 (the if statement). The rest, if any, are elifs.
+    else_body: List[AstStatement]    # Empty if there is no else
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("if\n")
-        for i = 0; i < self->n_if_and_elifs; i++:
-            self->if_and_elifs[i].print_with_tree_printer(tp, i == self->n_if_and_elifs - 1 and self->else_body.nstatements == 0)
+        for p = self->if_and_elifs.ptr; p < self->if_and_elifs.end(); p++:
+            p->print_with_tree_printer(tp, p == &self->if_and_elifs.end()[-1] and self->else_body.len == 0)
 
-        if self->else_body.nstatements > 0:
+        if self->else_body.len > 0:
             sub = tp.print_prefix(True)
             printf("else body:\n")
-            self->else_body.print_with_tree_printer(sub)
+            print_body(self->else_body, sub)
 
     def free(self) -> None:
-        for i = 0; i < self->n_if_and_elifs; i++:
-            self->if_and_elifs[i].free()
-        free(self->if_and_elifs)
-        self->else_body.free()
+        for p = self->if_and_elifs.ptr; p < self->if_and_elifs.end(); p++:
+            p->free()
+        free(self->if_and_elifs.ptr)
+        free_body(self->else_body)
 
 
 # match match_obj with func:
@@ -779,30 +774,29 @@ class AstMatchStatement:
     match_obj: AstExpression
     func_name: byte[100]  # empty if there's no "with foo"
     func_signature: Signature  # populated in typecheck, zero-initialized before typecheck runs
-    cases: AstCase*
-    ncases: int
-    case_underscore: AstBody*  # body of "case _" (always last), NULL if no "case _"
+    cases: List[AstCase]
+    case_underscore: List[AstStatement]*  # body of "case _" (always last), NULL if no "case _"
     case_underscore_location: Location  # not meaningful if case_underscore == NULL
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("match\n")
-        for i = 0; i < self->ncases; i++:
-            self->cases[i].print_with_tree_printer(tp, i == self->ncases - 1 and self->case_underscore == NULL)
+        for p = self->cases.ptr; p < self->cases.end(); p++:
+            p->print_with_tree_printer(tp, p == &self->cases.end()[-1] and self->case_underscore == NULL)
 
         if self->case_underscore != NULL:
             sub = tp.print_prefix(True)
             printf("[line %d] body of case _:\n", self->case_underscore_location.lineno)
-            self->case_underscore->print_with_tree_printer(sub)
+            print_body(*self->case_underscore, sub)
 
     def free(self) -> None:
         self->match_obj.free()
         if self->func_signature.name[0] != '\0':
             self->func_signature.free()
-        for i = 0; i < self->ncases; i++:
-            self->cases[i].free()
-        free(self->cases)
+        for p = self->cases.ptr; p < self->cases.end(); p++:
+            p->free()
+        free(self->cases.ptr)
         if self->case_underscore != NULL:
-            self->case_underscore->free()
+            free_body(*self->case_underscore)
             free(self->case_underscore)
 
 
@@ -810,25 +804,24 @@ class AstMatchStatement:
 #     body
 @public
 class AstCase:
-    case_objs: AstExpression*
-    n_case_objs: int
-    body: AstBody
+    case_objs: List[AstExpression]
+    body: List[AstStatement]
 
     def print_with_tree_printer(self, tp: TreePrinter, is_last_case: bool) -> None:
-        for i = 0; i < self->n_case_objs; i++:
+        for p = self->case_objs.ptr; p < self->case_objs.end(); p++:
             sub = tp.print_prefix(False)
             printf("case_obj: ")
-            self->case_objs[i].print_with_tree_printer(sub)
+            p->print_with_tree_printer(sub)
 
         sub = tp.print_prefix(is_last_case)
         printf("body:\n")
-        self->body.print_with_tree_printer(sub)
+        print_body(self->body, sub)
 
     def free(self) -> None:
-        for i = 0; i < self->n_case_objs; i++:
-            self->case_objs[i].free()
-        free(self->case_objs)
-        self->body.free()
+        for p = self->case_objs.ptr; p < self->case_objs.end(); p++:
+            p->free()
+        free(self->case_objs.ptr)
+        free_body(self->body)
 
 
 # for init; cond; incr:
@@ -838,7 +831,7 @@ class AstForLoop:
     init: AstStatement*   # may be NULL
     cond: AstExpression*  # may be NULL
     incr: AstStatement*   # may be NULL
-    body: AstBody
+    body: List[AstStatement]
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
@@ -863,7 +856,7 @@ class AstForLoop:
 
         sub = tp.print_prefix(True)
         printf("body:\n")
-        self->body.print_with_tree_printer(sub)
+        print_body(self->body, sub)
 
     def free(self) -> None:
         if self->init != NULL:
@@ -875,7 +868,10 @@ class AstForLoop:
         if self->incr != NULL:
             self->incr->free()
             free(self->incr)
-        self->body.free()
+
+        for stmt = self->body.ptr; stmt < self->body.end(); stmt++:
+            stmt->free()
+        free(self->body.ptr)
 
 
 # name: type = value
@@ -944,23 +940,16 @@ class AstGlobalVarDef:
         self->type.free()
 
 
-# typically multiple indented lines after a ":" at end of line
-@public
-class AstBody:
-    statements: AstStatement*
-    nstatements: int
+# Body is ":" followed by statements, represented with simply List[AstStatement].
+# We define functions to work with bodies, similarly to methods for most other things.
+def print_body(body: List[AstStatement], tp: TreePrinter) -> None:
+    for p = body.ptr; p < body.end(); p++:
+        p->print_with_tree_printer(tp.print_prefix(p == &body.end()[-1]))
 
-    def print(self) -> None:
-        self->print_with_tree_printer(TreePrinter{})
-
-    def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        for i = 0; i < self->nstatements; i++:
-            self->statements[i].print_with_tree_printer(tp.print_prefix(i == self->nstatements - 1))
-
-    def free(self) -> None:
-        for i = 0; i < self->nstatements; i++:
-            self->statements[i].free()
-        free(self->statements)
+def free_body(body: List[AstStatement]) -> None:
+    for p = body.ptr; p < body.end(); p++:
+        p->free()
+    free(body.ptr)
 
 
 # function name and parameters in "def" or "declare"
@@ -968,29 +957,28 @@ class AstBody:
 class AstSignature:
     name_location: Location
     name: byte[100]  # name of function or method, after "def" keyword
-    args: AstNameTypeValue*
-    nargs: int
+    args: List[AstNameTypeValue]
     takes_varargs: bool  # True for functions like printf()
     return_type: AstType
 
     def print(self) -> None:
         printf("%s(", self->name)
-        for i = 0; i < self->nargs; i++:
-            if i != 0:
+        for p = self->args.ptr; p < self->args.end(); p++:
+            if p > self->args.ptr:
                 printf(", ")
 
             if (
-                strcmp(self->args[i].name, "self") == 0
-                and self->args[i].type.kind == AstTypeKind.Named
-                and self->args[i].type.name[0] == '\0'
+                strcmp(p->name, "self") == 0
+                and p->type.kind == AstTypeKind.Named
+                and p->type.name[0] == '\0'
             ):
                 # self with implicitly given type
                 printf("self")
             else:
-                self->args[i].print_with_tree_printer(NULL)
+                p->print_with_tree_printer(NULL)
 
         if self->takes_varargs:
-            if self->nargs != 0:
+            if self->args.len != 0:
                 printf(", ")
             printf("...")
 
@@ -999,9 +987,9 @@ class AstSignature:
         printf("\n")
 
     def free(self) -> None:
-        for i = 0; i < self->nargs; i++:
-            self->args[i].free()
-        free(self->args)
+        for p = self->args.ptr; p < self->args.end(); p++:
+            p->free()
+        free(self->args.ptr)
         self->return_type.free()
 
 
@@ -1042,16 +1030,16 @@ class AstLink:
 class AstFile:
     path: byte*  # not owned
     is_main_file: bool  # is this the file passed in Jou compiler command? False means imported file
-    body: AstBody
+    body: List[AstStatement]
     types: FileTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     def print(self) -> None:
         printf("===== AST for file \"%s\" =====\n", self->path)
-        for i = 0; i < self->body.nstatements; i++:
-            self->body.statements[i].print()
+        for p = self->body.ptr; p < self->body.end(); p++:
+            p->print()
 
     def free(self) -> None:
-        self->body.free()
+        free_body(self->body)
         self->types.free()  # also works if self->types is zero-initialized
 
 
@@ -1060,7 +1048,7 @@ class AstFile:
 @public
 class AstFunctionOrMethod:
     ast_signature: AstSignature
-    body: AstBody
+    body: List[AstStatement]
     types: FunctionOrMethodTypes  # populated in typecheck, zero-initialized before typecheck runs
     public: bool  # is it decorated with @public
     used: bool  # used to detect unused functions
@@ -1070,36 +1058,14 @@ class AstFunctionOrMethod:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         self->ast_signature.print()
-        self->body.print_with_tree_printer(tp)
+        print_body(self->body, tp)
 
     def free(self) -> None:
         self->ast_signature.free()
-        self->body.free()
+        free_body(self->body)
         if self->types.signature.name[0] != '\0':
             # type-checking ran, the types are set and they need freeing
             self->types.free()
-
-
-# union:
-#     foo: type1
-#     bar: type2
-@public
-class AstUnionFields:
-    fields: AstNameTypeValue*
-    nfields: int
-
-    def print(self) -> None:
-        self->print_with_tree_printer(TreePrinter{})
-
-    def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        for i = 0; i < self->nfields; i++:
-            subprinter = tp.print_prefix(i == self->nfields-1)
-            self->fields[i].print_with_tree_printer(&subprinter)  # TODO: does this need to be optional/pointer?
-
-    def free(self) -> None:
-        for i = 0; i < self->nfields; i++:
-            self->fields[i].free()
-        free(self->fields)
 
 
 # class Foo:
@@ -1107,24 +1073,25 @@ class AstUnionFields:
 @public
 class AstClassDef:
     name: byte[100]
-    generic_typevar_names: byte[100]*  # the "T1" and "T2" of "class Foo[T1, T2]"
-    n_generic_typevars: int  # 0 means not generic
-    body: AstBody*
+    generic_typevar_names: List[byte[100]]  # the "T1" and "T2" of "class Foo[T1, T2]", empty means not generic
+    body: List[AstStatement]
     type: Type*  # populated in typecheck, NULL before typecheck runs
     public: bool  # is it decorated with @public
     used: bool  # used to detect unused classes
+
+    def is_generic(self) -> bool:
+        return self->generic_typevar_names.len > 0
 
     def print(self) -> None:
         self->print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("class \"%s\"\n", self->name)
-        self->body->print_with_tree_printer(tp)
+        print_body(self->body, tp)
 
     def free(self) -> None:
-        free(self->generic_typevar_names)
-        self->body->free()
-        free(self->body)
+        free(self->generic_typevar_names.ptr)
+        free_body(self->body)
 
 
 # enum Foo:
@@ -1135,8 +1102,7 @@ class AstClassDef:
 class AstEnumDef:
     name: byte[100]
     name_location: Location
-    member_count: int
-    member_names: byte[100]*
+    members: List[byte[100]]
     type: Type*  # populated in typecheck, NULL before typecheck runs
     public: bool  # is it decorated with @public
     used: bool  # used to detect unused enums
@@ -1145,10 +1111,10 @@ class AstEnumDef:
         self->print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("enum \"%s\" with %d members\n", self->name, self->member_count)
-        for i = 0; i < self->member_count; i++:
-            tp.print_prefix(i == self->member_count-1)
-            puts(self->member_names[i])
+        printf("enum \"%s\" with %d members\n", self->name, self->members.len)
+        for p = self->members.ptr; p < self->members.end(); p++:
+            tp.print_prefix(p == &self->members.end()[-1])
+            puts(*p)
 
     def free(self) -> None:
-        free(self->member_names)
+        free(self->members.ptr)
