@@ -114,8 +114,14 @@ class Type:
     # This method is used to create List[int] from a generic List[T].
     # The result is cached similarly to arrays.
     def substitute_generic_params(self, from: Type**, to: Type**, n: int) -> Type*:
+        if n == 0:
+            return self
+
+        assert n > 0
         for i = 0; i < n; i++:
             assert from[i]->kind == TypeKind.TypeVar
+            # Do not allow replacing any type with itself, creates confusing bugs
+            assert from[i] != to[i]
 
         match self->kind:
             case TypeKind.TypeVar:
