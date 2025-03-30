@@ -23,7 +23,7 @@ class ClassData:
     def substitute_generic_params_to_fields(self, from: Type**, to: Type**, n: int) -> List[ClassField]:
         result = List[ClassField]{}
         result.extend(self->fields)
-        for f = result.fields.ptr; f < result.fields.end(); f++:
+        for f = result.ptr; f < result.end(); f++:
             f->type = f->type->substitute_generic_params(from, to, n)
         return result
 
