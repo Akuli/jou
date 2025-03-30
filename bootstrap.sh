@@ -28,6 +28,7 @@ commits=(
     ec92977acf51c265c28eefdab36d7ef272ac9eda  # the "const" keyword
     6d443fa1da12d462fe6f6a64b75ce74227bc13ff  # "const" keyword works with strings
     09fa4d1b9d414d8a05b4e45b316fad043aaf5ad7  # generic classes
+    519539bfc5551a6e6b9c3fa3070156b07a534601  # generic class bug fix
 )
 
 for commit in ${commits[@]}; do

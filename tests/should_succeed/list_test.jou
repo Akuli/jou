@@ -33,6 +33,32 @@ def test_grow() -> None:
     free(list.ptr)
 
 
+def test_extend() -> None:
+    list = List[int]{}
+    one = 1
+    list.append(&one, sizeof(one))
+
+    # Extend from pointer
+    arr = [2, 3, 4, 5]
+    list.extend_from_ptr(arr, 4, sizeof(arr[0]))
+
+    # Extend from another list
+    list2 = List[int]{}
+    for i = 11; i <= 99; i += 11:
+        list2.append(&i, sizeof(i))
+    list.extend(list2)
+    free(list2.ptr)
+
+    # Output: 1,2,3,4,5,11,22,33,44,55,66,77,88,99
+    for p = list.ptr; p < list.end(); p++:
+        if p > list.ptr:
+            printf(",")
+        printf("%d", *p)
+    printf("\n")
+
+    free(list.ptr)
+
+
 def test_pop() -> None:
     list = List[int]{}
     for i = 11; i <= 44; i += 11:
@@ -59,5 +85,6 @@ def test_pop() -> None:
 def main() -> int:
     test_empty_list()
     test_grow()
+    test_extend()
     test_pop()
     return 0
