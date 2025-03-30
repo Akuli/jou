@@ -1,4 +1,5 @@
 import "stdlib/ascii.jou"
+import "stdlib/list.jou"
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
@@ -39,15 +40,15 @@ class Expression:
 
 class Workflow:
     name: byte[10]
-    ifs: Expression*
-    thens: byte[10]*
-    n_ifs_and_thens: int
+    ifs: List[Expression]
+    thens: List[byte[10]]
     the_else: byte[10]
 
     def run(self, xmas: XMAS) -> byte*:
-        for i = 0; i < self->n_ifs_and_thens; i++:
-            if self->ifs[i].applies_to(xmas):
-                return self->thens[i]
+        assert self->ifs.len == self->thens.len
+        for i = 0; i < self->ifs.len; i++:
+            if self->ifs.ptr[i].applies_to(xmas):
+                return self->thens.ptr[i]
         return self->the_else
 
 
@@ -87,28 +88,25 @@ def parse_workflow(s: byte*) -> Workflow:
         then = take_word(&s)
         assert *s++ == ','
 
-        wf.ifs = realloc(wf.ifs, sizeof(wf.ifs[0]) * (wf.n_ifs_and_thens + 1))
-        wf.thens = realloc(wf.thens, sizeof(wf.thens[0]) * (wf.n_ifs_and_thens + 1))
-
         assert strlen(var) == 1
         assert op == '>' or op == '<'
-        wf.ifs[wf.n_ifs_and_thens] = Expression{var = var[0], greater_than = (op == '>'), value = num}
-        wf.thens[wf.n_ifs_and_thens] = then
-        wf.n_ifs_and_thens++
+        if_expr = Expression{var = var[0], greater_than = (op == '>'), value = num}
+        wf.ifs.append(&if_expr, sizeof(if_expr))
+        wf.thens.append(&then, sizeof(then))
 
 
-def find_workflow(workflows: Workflow*, nworkflows: int, name: byte*) -> Workflow*:
-    for i = 0; i < nworkflows; i++:
-        if strcmp(workflows[i].name, name) == 0:
-            return &workflows[i]
+def find_workflow(workflows: List[Workflow], name: byte*) -> Workflow*:
+    for p = workflows.ptr; p < workflows.end(); p++:
+        if strcmp(p->name, name) == 0:
+            return p
     assert False
 
 
-def run(workflows: Workflow*, nworkflows: int, xmas: XMAS) -> bool:
+def run(workflows: List[Workflow], xmas: XMAS) -> bool:
     result = "in"
 
     while True:
-        result = find_workflow(workflows, nworkflows, result)->run(xmas)
+        result = find_workflow(workflows, result)->run(xmas)
         match result with strcmp:
             case "A":
                 return True
@@ -120,7 +118,7 @@ def main() -> int:
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
-    workflows: Workflow* = NULL
+    workflows = List[Workflow]{}
     nworkflows = 0
 
     line: byte[200]
@@ -130,20 +128,20 @@ def main() -> int:
             # end of workflows
             break
 
-        workflows = realloc(workflows, sizeof(workflows[0]) * (nworkflows + 1))
-        workflows[nworkflows++] = parse_workflow(line)
+        workflow = parse_workflow(line)
+        workflows.append(&workflow, sizeof(workflow))
 
     xmas: XMAS
     result = 0
     while fscanf(f, "{x=%d,m=%d,a=%d,s=%d}\n", &xmas.x, &xmas.m, &xmas.a, &xmas.s) == 4:
-        if run(workflows, nworkflows, xmas):
+        if run(workflows, xmas):
             result += xmas.sum()
 
     printf("%d\n", result)  # Output: 19114
 
-    for i = 0; i < nworkflows; i++:
-        free(workflows[i].ifs)
-        free(workflows[i].thens)
-    free(workflows)
+    for wf = workflows.ptr; wf < workflows.end(); wf++:
+        free(wf->ifs.ptr)
+        free(wf->thens.ptr)
+    free(workflows.ptr)
     fclose(f)
     return 0
