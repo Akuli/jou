@@ -22,10 +22,9 @@ class ClassData:
 
     def substitute_generic_params_to_fields(self, from: Type**, to: Type**, n: int) -> List[ClassField]:
         result = List[ClassField]{}
-        for f1 = self->fields.ptr; f1 < self->fields.end(); f1++:
-            f2 = *f1
-            f2.type = f2.type->substitute_generic_params(from, to, n)
-            result.append(&f2, sizeof(f2))
+        result.extend(self->fields)
+        for f = result.fields.ptr; f < result.fields.end(); f++:
+            f->type = f->type->substitute_generic_params(from, to, n)
         return result
 
     def substitute_generic_params_to_methods(self, from: Type**, to: Type**, n: int) -> List[Signature]:
@@ -436,8 +435,7 @@ def create_typevar(name: byte*) -> Type*:
 @public
 def create_enum(name: byte*, members: List[byte[100]]) -> Type*:
     copied_members = List[byte[100]]{}
-    for p = members.ptr; p < members.end(); p++:
-        copied_members.append(p, sizeof(*p))
+    copied_members.extend(members)
 
     result: TypeInfo* = calloc(1, sizeof *result)
     result->type = Type{kind = TypeKind.Enum, enum_members = copied_members}
@@ -562,6 +560,5 @@ class Signature:
     def copy(self) -> Signature:
         result = *self
         result.args = List[NameAndType]{}
-        for arg = self->args.ptr; arg < self->args.end(); arg++:
-            result.args.append(arg, sizeof(*arg))
+        result.args.extend(self->args)
         return result

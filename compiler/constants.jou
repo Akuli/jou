@@ -100,8 +100,7 @@ class Constant:
             case ConstantKind.ArrayString:
                 old = self.array_string
                 self.array_string = List[byte]{}
-                for p = old.ptr; p < old.end(); p++:
-                    self.array_string.append(p, sizeof(*p))
+                self.array_string.extend(old)
             case ConstantKind.PointerString:
                 self.pointer_string = strdup(self.pointer_string)
             case _:
