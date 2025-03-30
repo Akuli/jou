@@ -230,6 +230,9 @@ class LBuilder:
     current_block: LLVMBasicBlock*
     returns_a_value: bool
 
+    def should_functions_marked_with_inline_be_inlined(self) -> bool:
+        return True
+
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self->llvm_func = declare_in_llvm(sig, self->llvm_module)
         self->returns_a_value = sig->return_type != NULL

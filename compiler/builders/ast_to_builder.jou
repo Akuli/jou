@@ -94,6 +94,26 @@ class AstToBuilder:
                 # First n local variables are the function arguments
                 self->builder->set_ptr(var_ptr, args.ptr[i])
 
+    def call_or_inline(self, sig: Signature*, args: List[EitherBuilderValue]) -> EitherBuilderValue:
+        if sig->ast_to_inline != NULL and self->builder->should_functions_marked_with_inline_be_inlined():
+            info = InliningInfo{return_jumps_to = self->builder->add_block()}
+            if sig->return_type != NULL:
+                info.return_value_ptr = self->builder->stack_alloc(sig->return_type, NULL)
+
+            inliner = AstToBuilder{builder = self->builder}
+            inliner.begin_inlining(&sig->ast_to_inline->types, info, args)
+            inliner.build_body(sig->ast_to_inline->body)
+            self->builder->jump(info.return_jumps_to)  # the implicit 'return' at the end
+
+            self->builder->set_current_block(info.return_jumps_to)
+            if sig->return_type == NULL:
+                return EitherBuilderValue{}
+            else:
+                return self->builder->dereference(info.return_value_ptr)
+
+        else:
+            return self->builder->call(sig, args.ptr, args.len as int)
+
     def local_var_exists(self, name: byte*) -> bool:
         for local = self->locals.ptr; local < self->locals.end(); local++:
             if strcmp(local->name, name) == 0:
@@ -107,9 +127,7 @@ class AstToBuilder:
         assert False
 
     def build_call(self, call: AstCall*) -> EitherBuilderValue:
-        assert call->args.len <= 99  # leave room for self
-        args: EitherBuilderValue[100]
-        k = 0
+        args = List[EitherBuilderValue]{}
 
         if call->method_call_self != NULL:
             # it is a method call, pass self as first argument
@@ -117,16 +135,18 @@ class AstToBuilder:
             got_pointer = call->uses_arrow_operator
 
             if want_pointer and not got_pointer:
-                args[k++] = self->build_address_of_expression(call->method_call_self)
+                arg = self->build_address_of_expression(call->method_call_self)
             elif got_pointer and not want_pointer:
-                args[k++] = self->builder->dereference(self->build_expression(call->method_call_self))
+                arg = self->builder->dereference(self->build_expression(call->method_call_self))
             else:
-                args[k++] = self->build_expression(call->method_call_self)
+                arg = self->build_expression(call->method_call_self)
+            args.append(&arg, sizeof(arg))
 
         for p = call->args.ptr; p < call->args.end(); p++:
-            args[k++] = self->build_expression(p)
+            arg = self->build_expression(p)
+            args.append(&arg, sizeof(arg))
 
-        result = self->builder->call(call->called_signature, args, k)
+        result = self->call_or_inline(call->called_signature, args)
 
         if call->called_signature->is_noreturn:
             # Code after the function call will not run. Place it to a new block.
@@ -501,7 +521,10 @@ class AstToBuilder:
                     cond = self->builder->eq(match_obj, case_obj)
                 else:
                     args = [match_obj, case_obj]
-                    func_ret = self->builder->call(&match_stmt->func_signature, args, 2)
+                    func_ret = self->call_or_inline(
+                        &match_stmt->func_signature,
+                        List[EitherBuilderValue]{ptr=args,len=2},
+                    )
                     zero = self->builder->integer(match_stmt->func_signature.return_type, 0)
                     cond = self->builder->eq(func_ret, zero)
                 otherwise = self->builder->add_block()
@@ -608,11 +631,17 @@ class AstToBuilder:
             case AstStatementKind.InPlaceMod:
                 self->build_inplace_binop(AstExpressionKind.Mod, &stmt->assignment.target, &stmt->assignment.value)
             case AstStatementKind.Return:
-                if stmt->return_value != NULL:
-                    r = self->build_expression(stmt->return_value)
-                    self->builder->ret(&r)
+                if self->inlining_info == NULL:
+                    if stmt->return_value != NULL:
+                        r = self->build_expression(stmt->return_value)
+                        self->builder->ret(&r)
+                    else:
+                        self->builder->ret(NULL)
                 else:
-                    self->builder->ret(NULL)
+                    if stmt->return_value != NULL:
+                        r = self->build_expression(stmt->return_value)
+                        self->builder->set_ptr(self->inlining_info->return_value_ptr, r)
+                    self->builder->jump(self->inlining_info->return_jumps_to)
                 self->builder->set_current_block(self->builder->add_block())  # for code after 'return', if any
             case AstStatementKind.DeclareLocalVar:
                 if stmt->local_var_declare.value != NULL:
@@ -633,7 +662,12 @@ class AstToBuilder:
 
 
 @public
-def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location, is_main_file: bool, builder: EitherBuilder*) -> None:
+def feed_ast_to_builder(
+    func_ast: AstFunctionOrMethod*,
+    func_location: Location,
+    is_main_file: bool,
+    builder: EitherBuilder*,
+) -> None:
     public = (
         func_ast->public
         or func_ast->types.signature.get_self_class() != NULL
