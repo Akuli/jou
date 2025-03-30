@@ -3,6 +3,7 @@ indent_style = space
 charset = utf-8
 trim_trailing_whitespace = true
 indent_size = 4
+insert_final_newline = true
 
 [.github/workflows/*.yml]
 indent_size = 2
@@ -20,6 +21,10 @@ indent_size = 3
 [tests/syntax_error/indentation_not4.jou]
 indent_size = 2
 
-[tests/should_succeed/newline_and_space_at_eof.jou]
+[tests/should_succeed/eof_newline_and_space.jou]
 trim_trailing_whitespace = false
 indent_size = unset
+insert_final_newline = false
+
+[tests/should_succeed/eof_no_newline.jou]
+insert_final_newline = false

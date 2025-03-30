@@ -1,4 +1,5 @@
 import "stdlib/ascii.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
@@ -6,6 +7,8 @@ import "./token.jou"
 import "./ast.jou"
 import "./errors_and_warnings.jou"
 import "./paths.jou"
+import "./constants.jou"
+import "./types.jou"
 
 
 # arity = number of operands, e.g. 2 for a binary operator such as "+"
@@ -155,6 +158,8 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
                 stmt->global_var_declare.public = True
             case AstStatementKind.GlobalVariableDef:
                 stmt->global_var_def.public = True
+            case AstStatementKind.Const:
+                stmt->const_statement.public = True
             case _:
                 fail(location, "the @public decorator cannot be used here")
 
@@ -177,6 +182,29 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
         fail(location, msg)
 
 
+# Determines whether the next tokens are "Class{attribute = value}" syntax.
+# Not as simple as you might expect, because the class can be generic.
+# Example: Foo[int, byte*]{x = 1, y="hello"}
+def looks_like_instantiate(t: Token*) -> bool:
+    if t->kind != TokenKind.Name:
+        return False
+    t++
+    if t->is_operator("{"):
+        return True
+    if t->is_operator("["):
+        # Find matching ']' and see if there's '{' after it.
+        depth = 1
+        t++
+        while depth > 0 and t->kind != TokenKind.EndOfFile:
+            if t->is_operator("["):
+                depth++
+            if t->is_operator("]"):
+                depth--
+            t++
+        return t->is_operator("{")
+    return False
+
+
 enum WhatAreWeParsing:
     TopLevel  # must be first, so that this is the default (zero)
     ClassBody
@@ -187,8 +215,7 @@ enum WhatAreWeParsing:
 class Parser:
     tokens: Token*
     stdlib_path: byte*
-    loop_vars: byte**
-    nloops: int
+    loop_vars: List[byte*]  # NULL means a loop that doesn't look like "for foo = bar; ..."
     what_are_we_parsing: WhatAreWeParsing
 
     def eat_newline(self) -> None:
@@ -293,13 +320,26 @@ class Parser:
 
             if self->tokens->is_operator("*"):
                 result = AstType{
-                    location = (self->tokens++)->location,  # TODO: shouldn't need all the parentheses
+                    location = (self->tokens++)->location,
                     kind = AstTypeKind.Pointer,
                     value_type = p,
                 }
-            else:
-                location = (self->tokens++)->location
+                continue
 
+            assert self->tokens->is_operator("[")
+            location = (self->tokens++)->location
+
+            if (
+                self->tokens->kind == TokenKind.Short
+                or self->tokens->kind == TokenKind.Int
+                or self->tokens->kind == TokenKind.Long
+                or result.kind != AstTypeKind.Named
+            ):
+                # Array, e.g. int[10]
+                #
+                # TODO: This way to distinguish arrays and generics prevents using
+                # constants defined with `const` as array sizes. See:
+                # https://github.com/Akuli/jou/issues/804
                 len_expression: AstExpression* = malloc(sizeof *len_expression)
                 *len_expression = self->parse_expression()
 
@@ -313,6 +353,31 @@ class Parser:
                     array = AstArrayType{
                         member_type = p,
                         length = len_expression,
+                    }
+                }
+            else:
+                # Generic, e.g. List[int]
+                free(p)
+
+                params = List[AstType]{}
+                while not self->tokens->is_operator("]"):
+                    param = self->parse_type()
+                    params.append(&param, sizeof(param))
+                    if not self->tokens->is_operator(","):
+                        break
+                    self->tokens++
+
+                if not self->tokens->is_operator("]"):
+                    self->tokens->fail_expected_got("a ']'")
+                self->tokens++
+
+                assert result.kind == AstTypeKind.Named
+                result = AstType{
+                    location = result.location,
+                    kind = AstTypeKind.Generic,
+                    generic = AstGenericType{
+                        class_name = result.name,
+                        param_types = params,
                     }
                 }
 
@@ -379,8 +444,7 @@ class Parser:
                     self->tokens++
                     self_arg.type = self->parse_type()
 
-                result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
-                result.args[result.nargs++] = self_arg
+                result.args.append(&self_arg, sizeof(self_arg))
                 used_self = True
 
             else:
@@ -388,16 +452,15 @@ class Parser:
                 if arg.value != NULL:
                     fail(arg.value->location, "arguments cannot have default values")
 
-                for i = 0; i < result.nargs; i++:
-                    if strcmp(result.args[i].name, arg.name) == 0:
+                for p = result.args.ptr; p < result.args.end(); p++:
+                    if strcmp(p->name, arg.name) == 0:
                         message: byte[200]
                         snprintf(
                             message, sizeof message,
                             "there are multiple arguments named '%s'", arg.name)
                         fail(arg.name_location, message)
 
-                result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
-                result.args[result.nargs++] = arg
+                result.args.append(&arg, sizeof(arg))
 
             if not self->tokens->is_operator(","):
                 break
@@ -436,8 +499,8 @@ class Parser:
         self->tokens++
 
         while not self->tokens->is_operator(")"):
-            result.args = realloc(result.args, sizeof result.args[0] * (result.nargs+1))
-            result.args[result.nargs++] = self->parse_expression()
+            arg = self->parse_expression()
+            result.args.append(&arg, sizeof(arg))
             if not self->tokens->is_operator(","):
                 break
             self->tokens++
@@ -449,9 +512,7 @@ class Parser:
         return result
 
     def parse_instantiation(self) -> AstInstantiation:
-        assert self->tokens->kind == TokenKind.Name
-        result = AstInstantiation{class_name = self->tokens->short_string}
-        self->tokens++
+        result = AstInstantiation{type = self->parse_type()}
         assert self->tokens->is_operator("{")
         self->tokens++
 
@@ -459,13 +520,11 @@ class Parser:
             if self->tokens->kind != TokenKind.Name:
                 self->tokens->fail_expected_got("a field name")
             field_name = self->tokens->short_string
-            for i = 0; i < result.nfields; i++:
-                if strcmp(result.field_names[i], field_name) == 0:
+            for f = result.fields.ptr; f < result.fields.end(); f++:
+                if strcmp(f->name, field_name) == 0:
                     error: byte[500]
                     snprintf(error, sizeof error, "multiple values were given for field '%s'", field_name)
                     fail(self->tokens->location, error)
-            result.field_names = realloc(result.field_names, (result.nfields + 1) * sizeof result.field_names[0])
-            result.field_names[result.nfields] = field_name
             self->tokens++
 
             if not self->tokens->is_operator("="):
@@ -474,10 +533,9 @@ class Parser:
                 self->tokens->fail_expected_got(msg)
             self->tokens++
 
-            result.field_values = realloc(result.field_values, sizeof result.field_values[0] * (result.nfields+1))
-            result.field_values[result.nfields] = self->parse_expression()
+            field = AstInstantiationField{name = field_name, value = self->parse_expression()}
+            result.fields.append(&field, sizeof(field))
 
-            result.nfields++
             if not self->tokens->is_operator(","):
                 break
             self->tokens++
@@ -488,21 +546,21 @@ class Parser:
 
         return result
 
-    def parse_array(self) -> AstArray:
+    def parse_array(self) -> List[AstExpression]:
         assert self->tokens->is_operator("[")
         self->tokens++
 
-        result = AstArray{}
+        result = List[AstExpression]{}
         while not self->tokens->is_operator("]"):
-            result.items = realloc(result.items, (result.length + 1) * sizeof result.items[0])
-            result.items[result.length++] = self->parse_expression()
+            item = self->parse_expression()
+            result.append(&item, sizeof(item))
             if not self->tokens->is_operator(","):
                 break
             self->tokens++
 
         if not self->tokens->is_operator("]"):
             self->tokens->fail_expected_got("a ']' to end the array")
-        if result.length == 0:
+        if result.len == 0:
             fail(self->tokens->location, "arrays cannot be empty")
         self->tokens++
 
@@ -513,38 +571,38 @@ class Parser:
 
         match self->tokens->kind:
             case TokenKind.Short:
-                expr.kind = AstExpressionKind.Short
-                expr.short_value = self->tokens->short_value
+                expr.kind = AstExpressionKind.Constant
+                expr.constant = int_constant(shortType, self->tokens->short_value)
                 self->tokens++
             case TokenKind.Int:
-                expr.kind = AstExpressionKind.Int
-                expr.int_value = self->tokens->int_value
+                expr.kind = AstExpressionKind.Constant
+                expr.constant = int_constant(intType, self->tokens->int_value)
                 self->tokens++
             case TokenKind.Long:
-                expr.kind = AstExpressionKind.Long
-                expr.long_value = self->tokens->long_value
+                expr.kind = AstExpressionKind.Constant
+                expr.constant = int_constant(longType, self->tokens->long_value)
                 self->tokens++
             case TokenKind.Byte:
-                expr.kind = AstExpressionKind.Byte
-                expr.byte_value = self->tokens->byte_value
-                self->tokens++
-            case TokenKind.String:
-                expr.kind = AstExpressionKind.String
-                expr.string = strdup(self->tokens->long_string)
+                expr.kind = AstExpressionKind.Constant
+                expr.constant = int_constant(byteType, self->tokens->byte_value)
                 self->tokens++
             case TokenKind.Float:
-                expr.kind = AstExpressionKind.Float
-                expr.float_or_double_text = self->tokens->short_string
+                expr.kind = AstExpressionKind.Constant
+                expr.constant = Constant{kind = ConstantKind.Float, float_or_double_text = self->tokens->short_string}
                 self->tokens++
             case TokenKind.Double:
-                expr.kind = AstExpressionKind.Double
-                expr.float_or_double_text = self->tokens->short_string
+                expr.kind = AstExpressionKind.Constant
+                expr.constant = Constant{kind = ConstantKind.Double, float_or_double_text = self->tokens->short_string}
+                self->tokens++
+            case TokenKind.String:
+                expr.kind = AstExpressionKind.Constant
+                expr.constant = Constant{kind = ConstantKind.PointerString, pointer_string = strdup(self->tokens->long_string)}
                 self->tokens++
             case TokenKind.Name:
                 if self->tokens[1].is_operator("("):
                     expr.kind = AstExpressionKind.Call
                     expr.call = self->parse_call()
-                elif self->tokens[1].is_operator("{"):
+                elif looks_like_instantiate(self->tokens):
                     expr.kind = AstExpressionKind.Instantiate
                     expr.instantiation = self->parse_instantiation()
                 else:
@@ -553,15 +611,16 @@ class Parser:
                     self->tokens++
             case _:
                 if self->tokens->is_keyword("True"):
-                    expr.kind = AstExpressionKind.Bool
-                    expr.bool_value = True
+                    expr.kind = AstExpressionKind.Constant
+                    expr.constant = Constant{kind = ConstantKind.Bool, boolean = True}
                     self->tokens++
                 elif self->tokens->is_keyword("False"):
-                    expr.kind = AstExpressionKind.Bool
-                    expr.bool_value = False
+                    expr.kind = AstExpressionKind.Constant
+                    expr.constant = Constant{kind = ConstantKind.Bool, boolean = False}
                     self->tokens++
                 elif self->tokens->is_keyword("NULL"):
-                    expr.kind = AstExpressionKind.Null
+                    expr.kind = AstExpressionKind.Constant
+                    expr.constant = Constant{kind = ConstantKind.Null}
                     self->tokens++
                 elif self->tokens->is_keyword("None"):
                     fail(self->tokens->location, "None is not a value in Jou, use e.g. -1 for numbers or NULL for pointers")
@@ -826,15 +885,24 @@ class Parser:
             self->tokens++
             result.kind = AstStatementKind.Pass
         elif self->tokens->is_keyword("break"):
-            if self->nloops == 0:
+            if self->loop_vars.len == 0:
                 fail(self->tokens->location, "'break' can only be used inside a loop")
             self->tokens++
             result.kind = AstStatementKind.Break
         elif self->tokens->is_keyword("continue"):
-            if self->nloops == 0:
+            if self->loop_vars.len == 0:
                 fail(self->tokens->location, "'continue' can only be used inside a loop")
             self->tokens++
             result.kind = AstStatementKind.Continue
+        elif self->tokens->is_keyword("const"):
+            self->check_top_level("const definitions")
+            location = (self->tokens++)->location
+            ntv = self->parse_name_type_value("a constant name")
+            if ntv.value == NULL:
+                fail(location, "constants must have an initial value")
+            result.kind = AstStatementKind.Const
+            result.const_statement = AstConstStatement{name = ntv.name, type = ntv.type, value = *ntv.value}
+            free(ntv.value)
         elif self->tokens->kind == TokenKind.Name and self->tokens[1].is_operator(":"):
             # e.g. "foo: int"
             match self->what_are_we_parsing:
@@ -873,16 +941,15 @@ class Parser:
         return result
 
     def parse_if_statement(self) -> AstIfStatement:
-        ifs_and_elifs: AstConditionAndBody* = NULL
-        n = 0
+        ifs_and_elifs = List[AstConditionAndBody]{}
 
         assert self->tokens->is_keyword("if")
         while True:
             self->tokens++
             cond = self->parse_expression_with_unnecessary_parens_warning("if statement condition")
             body = self->parse_body()
-            ifs_and_elifs = realloc(ifs_and_elifs, sizeof ifs_and_elifs[0] * (n+1))
-            ifs_and_elifs[n++] = AstConditionAndBody{condition = cond, body = body}
+            if_or_elif = AstConditionAndBody{condition = cond, body = body}
+            ifs_and_elifs.append(&if_or_elif, sizeof(if_or_elif))
             if not self->tokens->is_keyword("elif"):
                 break
 
@@ -890,29 +957,22 @@ class Parser:
             self->tokens++
             else_body = self->parse_body()
         else:
-            else_body = AstBody{}
+            else_body = List[AstStatement]{}
 
-        return AstIfStatement{
-            if_and_elifs = ifs_and_elifs,
-            n_if_and_elifs = n,
-            else_body = else_body,
-        }
+        return AstIfStatement{if_and_elifs = ifs_and_elifs, else_body = else_body}
 
     def enter_loop_body(self, varname: byte*, location: Location) -> None:
         if varname != NULL:
-            for i = 0; i < self->nloops; i++:
-                if self->loop_vars[i] != NULL and strcmp(self->loop_vars[i], varname) == 0:
+            for p = self->loop_vars.ptr; p < self->loop_vars.end(); p++:
+                if *p != NULL and strcmp(*p, varname) == 0:
                     msg: byte[500]
                     snprintf(msg, sizeof(msg), "this loop is inside another loop that also uses variable '%s'", varname)
                     show_warning(location, msg)
                     break
-
-        self->loop_vars = realloc(self->loop_vars, sizeof(self->loop_vars[0]) * (self->nloops + 1))
-        assert self->loop_vars != NULL
-        self->loop_vars[self->nloops++] = varname
+        self->loop_vars.append(&varname, sizeof(varname))
 
     def exit_loop_body(self) -> None:
-        self->nloops--
+        self->loop_vars.pop()
 
     def parse_while_loop(self) -> AstConditionAndBody:
         assert self->tokens->is_keyword("while")
@@ -1019,11 +1079,10 @@ class Parser:
                 parens = self->tokens->is_operator("(")
                 if parens:
                     self->tokens++
-                case_objs: AstExpression* = NULL
-                n_case_objs = 0
+                case_objs = List[AstExpression]{}
                 while True:
-                    case_objs = realloc(case_objs, sizeof(case_objs[0]) * (n_case_objs + 1))
-                    case_objs[n_case_objs++] = self->parse_expression()
+                    case_obj = self->parse_expression()
+                    case_objs.append(&case_obj, sizeof(case_obj))
                     if self->tokens->is_operator("|"):
                         self->tokens++
                     elif (not parens) and self->tokens->is_operator(":"):
@@ -1036,12 +1095,8 @@ class Parser:
                             self->tokens->fail_expected_got("'|' or '):'")
                         else:
                             self->tokens->fail_expected_got("'|' or ':'")
-                result.cases = realloc(result.cases, sizeof result.cases[0] * (result.ncases + 1))
-                result.cases[result.ncases++] = AstCase{
-                    case_objs = case_objs,
-                    n_case_objs = n_case_objs,
-                    body = self->parse_body(),
-                }
+                c = AstCase{case_objs = case_objs, body = self->parse_body()}
+                result.cases.append(&c, sizeof(c))
         self->tokens++
 
         return result
@@ -1229,17 +1284,15 @@ class Parser:
             self->tokens->fail_expected_got("more indentation after ':'")
         self->tokens++
 
-    def parse_body(self) -> AstBody:
+    def parse_body(self) -> List[AstStatement]:
         self->parse_start_of_body()
 
-        result: AstStatement* = NULL
-        n = 0
+        result = List[AstStatement]{}
         while self->tokens->kind != TokenKind.Dedent:
-            result = realloc(result, sizeof result[0] * (n+1))
-            result[n++] = self->parse_statement()
+            s = self->parse_statement()
+            result.append(&s, sizeof(s))
         self->tokens++
-
-        return AstBody{ statements = result, nstatements = n }
+        return result
 
     def parse_function_or_method(self, is_method: bool) -> AstFunctionOrMethod:
         assert self->tokens->is_keyword("def")
@@ -1271,18 +1324,40 @@ class Parser:
         name = self->tokens->short_string
         self->tokens++
 
+        generics = List[byte[100]]{}
+
+        if self->tokens->is_operator("["):
+            self->tokens++
+            while not self->tokens->is_operator("]"):
+                if self->tokens->kind != TokenKind.Name:
+                    self->tokens->fail_expected_got("name of a generic type variable (typically 'T')")
+                generics.append(&self->tokens->short_string, sizeof(self->tokens->short_string))
+                self->tokens++
+
+                if not self->tokens->is_operator(","):
+                    break
+                self->tokens++
+
+            if not self->tokens->is_operator("]"):
+                self->tokens->fail_expected_got("a ']'")
+            if generics.len == 0:
+                msg: byte[500]
+                snprintf(msg, sizeof(msg), "at least one generic type parameter is needed, e.g. 'class %s[T]:'", name, name)
+                fail(self->tokens->location, msg)
+            self->tokens++
+
         old = self->what_are_we_parsing
         self->what_are_we_parsing = WhatAreWeParsing.ClassBody
         body = self->parse_body()
         self->what_are_we_parsing = old
 
-        bodyptr: AstBody* = malloc(sizeof(*bodyptr))
-        assert bodyptr != NULL
-        *bodyptr = body
+        return AstClassDef{
+            name = name,
+            generic_typevar_names = generics,
+            body = body,
+        }
 
-        return AstClassDef{name = name, body = bodyptr}
-
-    def parse_union(self) -> AstUnionFields:
+    def parse_union(self) -> List[AstNameTypeValue]:
         if self->what_are_we_parsing != WhatAreWeParsing.ClassBody:
             fail(self->tokens->location, "'union' can only be used inside a class")
 
@@ -1290,19 +1365,18 @@ class Parser:
         union_keyword_location = (self->tokens++)->location
         self->parse_start_of_body()
 
-        result = AstUnionFields{}
+        result = List[AstNameTypeValue]{}
         while self->tokens->kind != TokenKind.Dedent:
             field = self->parse_name_type_value("a union member")
             if field.value != NULL:
                 fail(field.value->location, "union members cannot have default values")
 
-            result.fields = realloc(result.fields, (result.nfields + 1) * sizeof result.fields[0])
-            result.fields[result.nfields++] = field
+            result.append(&field, sizeof(field))
             self->eat_newline()
 
         self->tokens++
 
-        if result.nfields < 2:
+        if result.len < 2:
             fail(union_keyword_location, "unions must have at least 2 members")
         return result
 
@@ -1325,15 +1399,14 @@ class Parser:
             if self->tokens->kind != TokenKind.Name:
                 self->tokens->fail_expected_got("a name for an enum member")
 
-            for i = 0; i < result.member_count; i++:
-                if strcmp(result.member_names[i], self->tokens->short_string) == 0:
+            for p = result.members.ptr; p < result.members.end(); p++:
+                if strcmp(*p, self->tokens->short_string) == 0:
                     assert sizeof self->tokens->short_string == 100
                     error: byte[200]
                     sprintf(error, "the enum has two members named '%s'", self->tokens->short_string)
                     fail(self->tokens->location, error)
 
-            result.member_names = realloc(result.member_names, sizeof result.member_names[0] * (result.member_count + 1))
-            result.member_names[result.member_count++] = self->tokens->short_string
+            result.members.append(&self->tokens->short_string, sizeof(self->tokens->short_string))
             self->tokens++
             self->eat_newline()
 
@@ -1346,9 +1419,9 @@ def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
     result = AstFile{path = tokens[0].location.path}
 
     while parser.tokens->kind != TokenKind.EndOfFile:
-        result.body.statements = realloc(result.body.statements, sizeof result.body.statements[0] * (result.body.nstatements + 1))
-        result.body.statements[result.body.nstatements++] = parser.parse_statement()
+        s = parser.parse_statement()
+        result.body.append(&s, sizeof(s))
 
-    assert parser.nloops == 0
-    free(parser.loop_vars)
+    assert parser.loop_vars.len == 0
+    free(parser.loop_vars.ptr)
     return result

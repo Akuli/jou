@@ -1,0 +1,16 @@
+# This is a test for https://github.com/Akuli/jou/issues/814
+
+@public
+class Foo[T]:
+    def grow(self) -> None:
+        pass
+
+    def extend(self, other: Foo[T]) -> None:
+        pass
+
+
+def main() -> int:
+    a = Foo[int]{}
+    b = Foo[int]{}
+    a.extend(b)
+    return 0

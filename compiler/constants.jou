@@ -1,9 +1,22 @@
 import "stdlib/str.jou"
+import "stdlib/list.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
-import "./utils.jou"
 import "./types.jou"
+
+
+def print_string(s: byte*) -> None:
+    putchar('"')
+    for i = 0; s[i] != '\0'; i++:
+        if 32 <= s[i] and s[i] <= 126:
+            # printable ascii character
+            putchar(s[i])
+        elif s[i] == '\n':
+            printf("\\n")
+        else:
+            printf("\\x%02x", s[i])
+    putchar('"')
 
 
 # Constants can appear in AST and also compilation steps after AST.
@@ -13,7 +26,8 @@ enum ConstantKind:
     Integer
     Float
     Double
-    String
+    PointerString
+    ArrayString
     Null
     Bool
 
@@ -26,13 +40,13 @@ class EnumMemberConstant:
     enumtype: Type*
     memberidx: int
 
-# TODO: It seems like this is currently not used anywhere.
 @public
 class Constant:
     kind: ConstantKind
     union:
         integer: IntegerConstant
-        str: byte*
+        pointer_string: byte*
+        array_string: List[byte]
         float_or_double_text: byte[100]  # convenient because LLVM wants a string anyway
         boolean: bool
         enum_member: EnumMemberConstant
@@ -40,41 +54,57 @@ class Constant:
     def print(self) -> None:
         match self->kind:
             case ConstantKind.EnumMember:
-                printf("enum member %d of %s", self->enum_member.memberidx, self->enum_member.enumtype->name)
+                printf("enum member %d of %s\n", self->enum_member.memberidx, self->enum_member.enumtype->name)
             case ConstantKind.Bool:
                 if self->boolean:
-                    printf("True")
+                    printf("True\n")
                 else:
-                    printf("False")
+                    printf("False\n")
             case ConstantKind.Float:
-                printf("float %s", self->double_or_float_text)
+                printf("float %s\n", self->float_or_double_text)
             case ConstantKind.Double:
-                printf("double %s", self->double_or_float_text)
+                printf("double %s\n", self->float_or_double_text)
             case ConstantKind.Integer:
                 if self->integer.is_signed:
                     signed_or_unsigned = "signed"
                 else:
                     signed_or_unsigned = "unsigned"
                 printf(
-                    "%lld (%d-bit %s)",
+                    "%lld (%d-bit %s)\n",
                     self->integer.value,
                     self->integer.size_in_bits,
                     signed_or_unsigned,
                 )
             case ConstantKind.Null:
-                printf("NULL")
-            case ConstantKind.String:
-                printf("string ")
-                print_string(self->str, strlen(self->str))
+                printf("NULL\n")
+            case ConstantKind.ArrayString:
+                printf("array string ")
+                print_string(self->array_string.ptr)
+                printf(" (padded to %lld bytes)\n", self->array_string.len)
+            case ConstantKind.PointerString:
+                printf("pointer string ")
+                print_string(self->pointer_string)
+                printf("\n")
 
     def free(self) -> None:
-        if self->kind == ConstantKind.String:
-            free(self->str)
+        match self->kind:
+            case ConstantKind.ArrayString:
+                free(self->array_string.ptr)
+            case ConstantKind.PointerString:
+                free(self->pointer_string)
+            case _:
+                pass
 
     def copy(self: Constant) -> Constant:
-        if self.kind == ConstantKind.String:
-            self.str = strdup(self.str)
-            assert self.str != NULL
+        match self.kind:
+            case ConstantKind.ArrayString:
+                old = self.array_string
+                self.array_string = List[byte]{}
+                self.array_string.extend(old)
+            case ConstantKind.PointerString:
+                self.pointer_string = strdup(self.pointer_string)
+            case _:
+                pass
         return self
 
     def get_type(self) -> Type*:
@@ -89,7 +119,9 @@ class Constant:
                 return floatType
             case ConstantKind.Bool:
                 return boolType
-            case ConstantKind.String:
+            case ConstantKind.ArrayString:
+                return byteType->array_type(self->array_string.len as int)
+            case ConstantKind.PointerString:
                 return byteType->pointer_type()
             case ConstantKind.Integer:
                 return get_integer_type(self->integer.size_in_bits, self->integer.is_signed)

@@ -1,0 +1,26 @@
+import "stdlib/io.jou"
+
+class Pair[T1, T2]:
+    x: T1
+    y: T2
+
+    def say_hi(self) -> None:
+        # TODO: not really possible to do anything with self here, because
+        # we don't know sizes of x and y fields. Ideally it would be possible
+        # to work around this by making inline methods.
+        printf("Hi\n")
+
+
+def main() -> int:
+    pair1: Pair[int, byte*]
+    pair1.x = 1
+    pair1.y = "hi"
+    pair2 = Pair[int, byte*]{x = 222, y = "hello"}
+
+    pair1.say_hi()  # Output: Hi
+    pair2.say_hi()  # Output: Hi
+
+    printf("%d %s\n", pair1.x, pair1.y)  # Output: 1 hi
+    printf("%d %s\n", pair2.x, pair2.y)  # Output: 222 hello
+
+    return 0

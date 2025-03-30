@@ -1,0 +1,35 @@
+import "stdlib/io.jou"
+import "./imported/magic_constant.jou"
+
+const foo: int = 42
+const negative: int = -6
+const flag: bool = True
+
+const yes1: bool = True and True
+const no1: bool = True and False
+const no2: bool = False and True
+const no3: bool = False and False
+
+const yes2: bool = True or True
+const yes3: bool = True or False
+const yes4: bool = False or True
+const no4: bool = False or False
+
+const no5: bool = not True
+const yes5: bool = not False
+
+const message: byte* = "hello"
+
+
+def main() -> int:
+    printf("foo = %d\n", foo)           # Output: foo = 42
+    printf("negative = %d\n", negative) # Output: negative = -6
+    printf("flag = %d\n", flag)         # Output: flag = 1
+    printf("%#x\n", MAGIC_CONSTANT)     # Output: 0x6a6f75
+
+    printf("%d %d %d %d %d\n", yes1, yes2, yes3, yes4, yes5)  # Output: 1 1 1 1 1
+    printf("%d %d %d %d %d\n", no1, no2, no3, no4, no5)       # Output: 0 0 0 0 0
+
+    puts(message)  # Output: hello
+
+    return 0

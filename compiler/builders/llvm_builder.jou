@@ -59,18 +59,18 @@ def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
 def class_type_to_llvm(type: Type*) -> LLVMType*:
     assert type->kind == TypeKind.Class
 
-    n = type->classdata.nfields
+    n = type->classdata.fields.len
 
     flat_elems: LLVMType** = malloc(sizeof(flat_elems[0]) * n)
     for i = 0; i < n; i++:
-        flat_elems[i] = type_to_llvm(type->classdata.fields[i].type)
+        flat_elems[i] = type_to_llvm(type->classdata.fields.ptr[i].type)
 
     # Combine together fields of the same union.
     combined: LLVMType** = malloc(sizeof(combined[0]) * n)
     combinedlen = 0
     for start = 0; start < n; start = end:
         end = start + 1
-        while end < n and type->classdata.fields[start].union_id == type->classdata.fields[end].union_id:
+        while end < n and type->classdata.fields.ptr[start].union_id == type->classdata.fields.ptr[end].union_id:
             end++
         combined[combinedlen++] = union_type_to_llvm(&flat_elems[start], end-start)
 
@@ -97,9 +97,9 @@ def type_to_llvm(type: Type*) -> LLVMType*:
             return LLVMIntType(type->size_in_bits)
         case TypeKind.Bool:
             return LLVMInt1Type()
-        case TypeKind.OpaqueClass:
-            # this is compiler internal/temporary thing and should never end up here
-            assert False
+        case TypeKind.TypeVar:
+            # This is compiler internal/temporary thing and should never end up here.
+            assert False  # please create an issue on GitHub if this errors
         case TypeKind.Class:
             return class_type_to_llvm(type)
         case TypeKind.Enum:
@@ -107,10 +107,10 @@ def type_to_llvm(type: Type*) -> LLVMType*:
 
 
 def signature_to_llvm(sig: Signature*) -> LLVMType*:
-    assert sig->nargs <= 100
+    assert sig->args.len <= 100
     argtypes: LLVMType*[100]
-    for i = 0; i < sig->nargs; i++:
-        argtypes[i] = type_to_llvm(sig->argtypes[i])
+    for i = 0; i < sig->args.len; i++:
+        argtypes[i] = type_to_llvm(sig->args.ptr[i].type)
 
     # TODO: tell llvm, if we know a function is noreturn ?
     if sig->return_type == NULL:  # "-> noreturn" or "-> None"
@@ -118,7 +118,7 @@ def signature_to_llvm(sig: Signature*) -> LLVMType*:
     else:
         return_type = type_to_llvm(sig->return_type)
 
-    return LLVMFunctionType(return_type, argtypes, sig->nargs, sig->takes_varargs as int)
+    return LLVMFunctionType(return_type, argtypes, sig->args.len as int, sig->takes_varargs as int)
 
 
 def declare_in_llvm(sig: Signature*, mod: LLVMModule*) -> LLVMValue*:
@@ -128,8 +128,10 @@ def declare_in_llvm(sig: Signature*, mod: LLVMModule*) -> LLVMValue*:
         # function
         snprintf(fullname, sizeof(fullname), "%s", sig->name)
     else:
-        # method
-        snprintf(fullname, sizeof(fullname), "%s.%s", self_class->name, sig->name)
+        # method bark() in class Dog becomes Dog.bark()
+        # method append() in generic class List[int] becomes List.append(), not List[int].append()
+        n = strcspn(self_class->name, "[")
+        snprintf(fullname, sizeof(fullname), "%.*s.%s", n as int, self_class->name, sig->name)
 
     # Make it so that this can be called many times without issue
     llvm_func = LLVMGetNamedFunction(mod, fullname)
@@ -336,16 +338,16 @@ class LBuilder:
 
     # Function or method call, self included in args if method
     def call(self, sig: Signature*, args: LBuilderValue*, nargs: int) -> LBuilderValue:
-        assert nargs >= sig->nargs
-        if nargs > sig->nargs:
+        assert nargs >= sig->args.len
+        if nargs > sig->args.len:
             assert sig->takes_varargs
 
         assert nargs <= 100
         llvm_args: LLVMValue*[100]
         for i = 0; i < nargs; i++:
-            if i < sig->nargs:
+            if i < sig->args.len:
                 # not a vararg
-                assert args[i].type == sig->argtypes[i]
+                assert args[i].type == sig->args.ptr[i].type
             llvm_args[i] = args[i].llvm_value
 
         debug_name: byte[100] = ""
@@ -362,7 +364,7 @@ class LBuilder:
             return LBuilderValue{type = sig->return_type, llvm_value = llvm_return_value}
 
     # string as array of bytes
-    def string_array(self, s: byte*, array_size: int) -> LBuilderValue:
+    def array_string(self, s: byte*, array_size: int) -> LBuilderValue:
         assert strlen(s) < array_size
         padded: byte* = malloc(array_size)
         memset(padded, 0, array_size)
@@ -372,8 +374,8 @@ class LBuilder:
         return LBuilderValue{type = byteType->array_type(array_size), llvm_value = llvm_array}
 
     # string as '\0' terminated pointer
-    def string(self, s: byte*) -> LBuilderValue:
-        llvm_array = self->string_array(s, (strlen(s) + 1) as int).llvm_value
+    def pointer_string(self, s: byte*) -> LBuilderValue:
+        llvm_array = self->array_string(s, (strlen(s) + 1) as int).llvm_value
         llvm_string = LLVMAddGlobal(self->llvm_module, LLVMTypeOf(llvm_array), "string_literal")
         LLVMSetLinkage(llvm_string, LLVMLinkage.Private)  # This makes it a static global variable
         LLVMSetInitializer(llvm_string, llvm_array)
@@ -562,16 +564,16 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
     builder = LBuilder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
     builder_wrapper = EitherBuilder{lbuilder = &builder}
 
-    for g = ast->types.globals; g < &ast->types.globals[ast->types.nglobals]; g++:
+    for g = ast->types.globals.ptr; g < ast->types.globals.end(); g++:
         LLVMAddGlobal(module, type_to_llvm(g->type), g->name)
 
-    for stmt = ast->body.statements; stmt < &ast->body.statements[ast->body.nstatements]; stmt++:
+    for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
         match stmt->kind:
             case AstStatementKind.GlobalVariableDef:
                 globalptr = LLVMGetNamedGlobal(module, stmt->global_var_def.name)
                 assert globalptr != NULL
                 vartype: Type* = NULL
-                for g = ast->types.globals; g < &ast->types.globals[ast->types.nglobals]; g++:
+                for g = ast->types.globals.ptr; g < ast->types.globals.end(); g++:
                     if strcmp(g->name, stmt->global_var_def.name) == 0:
                         vartype = g->type
                         break
@@ -582,7 +584,7 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
             case AstStatementKind.FunctionDef:
                 feed_ast_to_builder(&stmt->function, stmt->location, ast->is_main_file, &builder_wrapper)
             case AstStatementKind.Class:
-                for inner = stmt->classdef.body->statements; inner < &stmt->classdef.body->statements[stmt->classdef.body->nstatements]; inner++:
+                for inner = stmt->classdef.body.ptr; inner < stmt->classdef.body.end(); inner++:
                     if inner->kind == AstStatementKind.MethodDef:
                         feed_ast_to_builder(&inner->method, inner->location, ast->is_main_file, &builder_wrapper)
             case _:
