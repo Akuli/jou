@@ -1,3 +1,4 @@
+import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/math.jou"
 import "stdlib/str.jou"
@@ -115,12 +116,12 @@ def create_graph_of_intersections(grid: Grid*) -> Graph*:
     intersections: int[2]* = NULL
     nintersections = 0
 
-    todo: int[2]* = malloc(sizeof(todo[0]))
-    todo_len = 1
-    todo[0] = [1, 0]
+    todo = List[int[2]]{}
+    start = [1, 0]
+    todo.append(&start, sizeof(start))
 
-    while todo_len > 0:
-        p = todo[--todo_len]
+    while todo.len > 0:
+        p = todo.ptr[--todo.len]
 
         already_found = False
         for i = 0; i < nintersections; i++:
@@ -133,13 +134,13 @@ def create_graph_of_intersections(grid: Grid*) -> Graph*:
         intersections = realloc(intersections, sizeof(intersections[0]) * (nintersections + 1))
         intersections[nintersections++] = p
 
-        todo = realloc(todo, sizeof(todo[0]) * (todo_len + 4))
         neighbors = find_connected_intersections(grid, p)
         for i = 0; i < 4; i++:
             if neighbors[i][0] != -1:
-                todo[todo_len++] = [neighbors[i][0], neighbors[i][1]]
+                neighbor = [neighbors[i][0], neighbors[i][1]]
+                todo.append(&neighbor, sizeof(neighbor))
 
-    free(todo)
+    free(todo.ptr)
 
     graph: Graph* = calloc(1, sizeof(*graph))
     graph->num_nodes = nintersections
