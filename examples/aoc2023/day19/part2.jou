@@ -1,5 +1,6 @@
 import "stdlib/ascii.jou"
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/math.jou"
@@ -60,22 +61,19 @@ class Box:
 
 
 class UnionOfBoxes:
-    boxes: Box*  # non-empty and non-overlapping
-    nboxes: int
+    boxes: List[Box]  # non-empty and non-overlapping
 
     def copy(self) -> UnionOfBoxes:
-        result = UnionOfBoxes{nboxes = self->nboxes}
-        result.boxes = malloc(result.nboxes * sizeof(result.boxes[0]))
-        assert result.boxes != NULL
-        memcpy(result.boxes, self->boxes, result.nboxes * sizeof(result.boxes[0]))
+        result = UnionOfBoxes{}
+        result.boxes.extend(self->boxes)
         return result
 
     def remove_box(self, box: Box) -> None:
         if box.is_empty():
             return
 
-        for k = self->nboxes - 1; k >= 0; k--:
-            existing = self->boxes[k]
+        for k = self->boxes.len - 1; k >= 0; k--:
+            existing = self->boxes.ptr[k]
             assert not existing.is_empty()
 
             if not box.overlaps(existing):
@@ -84,63 +82,55 @@ class UnionOfBoxes:
             # We need to remove a part of an existing box.
             # Split the existing box at boundaries of what we're removing.
             # Delete the parts we don't like.
-            have: Box* = malloc(sizeof(have[0]))
-            nhave = 1
-            have[0] = existing
+            have = List[Box]{}
+            have.append(&existing, sizeof(existing))
             for coord_idx = 0; coord_idx < 4; coord_idx++:
                 splits = [box.mins[coord_idx], box.maxs[coord_idx] + 1]
                 for s = &splits[0]; s < &splits[2]; s++:
                     # Split
-                    have = realloc(have, 2*nhave*sizeof(have[0]) + 1)
-                    assert have != NULL
-                    for i = nhave - 1; i >= 0; i--:
-                        if have[i].can_split(*s, coord_idx):
-                            split = have[i].split(*s, coord_idx)
-                            have[i] = split[0]
-                            have[nhave++] = split[1]
+                    for i = have.len - 1; i >= 0; i--:
+                        if have.ptr[i].can_split(*s, coord_idx):
+                            split = have.ptr[i].split(*s, coord_idx)
+                            have.ptr[i] = split[0]
+                            have.append(&split[1], sizeof(split[1]))
 
                     # Delete unwanted small boxes
-                    for i = nhave - 1; i >= 0; i--:
-                        assert not have[i].is_empty()
-                        if box.contains_box(have[i]):
-                            have[i] = have[--nhave]
+                    for i = have.len - 1; i >= 0; i--:
+                        assert not have.ptr[i].is_empty()
+                        if box.contains_box(have.ptr[i]):
+                            have.ptr[i] = have.ptr[--have.len]
 
             # Replace self->boxes[k] with "have"
-            self->boxes[k] = self->boxes[--self->nboxes]
-            self->boxes = realloc(self->boxes, (self->nboxes + nhave) * sizeof(self->boxes[0]) + 1)
-            for i = 0; i < nhave; i++:
-                self->boxes[self->nboxes++] = have[i]
-            free(have)
+            self->boxes.ptr[k] = self->boxes.ptr[--self->boxes.len]
+            self->boxes.extend(have)
+            free(have.ptr)
 
     def add_box(self, box: Box) -> None:
         if not box.is_empty():
             self->remove_box(box)
-            self->boxes = realloc(self->boxes, (self->nboxes + 1) * sizeof(self->boxes[0]))
-            assert self->boxes != NULL
-            self->boxes[self->nboxes++] = box
+            self->boxes.append(&box, sizeof(box))
 
     def add_union_of_boxes(self, u: UnionOfBoxes) -> None:
-        for i = 0; i < u.nboxes; i++:
-            self->add_box(u.boxes[i])
+        for p = u.boxes.ptr; p < u.boxes.end(); p++:
+            self->add_box(*p)
 
     def intersect_with_box(self, box: Box) -> None:
-        for i = self->nboxes - 1; i >= 0; i--:
-            self->boxes[i] = self->boxes[i].intersect(box)
-            if self->boxes[i].is_empty():
-                self->boxes[i] = self->boxes[--self->nboxes]
+        for i = self->boxes.len - 1; i >= 0; i--:
+            self->boxes.ptr[i] = self->boxes.ptr[i].intersect(box)
+            if self->boxes.ptr[i].is_empty():
+                self->boxes.ptr[i] = self->boxes.ptr[--self->boxes.len]
 
     def size(self) -> long:
         result = 0L
-        for i = 0; i < self->nboxes; i++:
-            result += self->boxes[i].size()
+        for p = self->boxes.ptr; p < self->boxes.end(); p++:
+            result += p->size()
         return result
 
 
 class Workflow:
     name: byte[10]
-    ifs: Box*
-    thens: byte[10]*
-    n_ifs_and_thens: int
+    ifs: List[Box]
+    thens: List[byte[10]]
     the_else: byte[10]
     how_to_get_here: UnionOfBoxes
 
@@ -181,9 +171,6 @@ def parse_workflow(s: byte*) -> Workflow:
         then = take_word(&s)
         assert *s++ == ','
 
-        wf.ifs = realloc(wf.ifs, sizeof(wf.ifs[0]) * (wf.n_ifs_and_thens + 1))
-        wf.thens = realloc(wf.thens, sizeof(wf.thens[0]) * (wf.n_ifs_and_thens + 1))
-
         xmas = "xmas"
         ptr = strstr(xmas, var)
         assert ptr != NULL
@@ -198,15 +185,15 @@ def parse_workflow(s: byte*) -> Workflow:
         else:
             assert False
 
-        wf.ifs[wf.n_ifs_and_thens] = Box{mins=mins, maxs=maxs}
-        wf.thens[wf.n_ifs_and_thens] = then
-        wf.n_ifs_and_thens++
+        if_box = Box{mins=mins, maxs=maxs}
+        wf.ifs.append(&if_box, sizeof(if_box))
+        wf.thens.append(&then, sizeof(then))
 
 
-def find_workflow(workflows: Workflow*, nworkflows: int, name: byte*) -> Workflow*:
-    for i = 0; i < nworkflows; i++:
-        if strcmp(workflows[i].name, name) == 0:
-            return &workflows[i]
+def find_workflow(workflows: List[Workflow], name: byte*) -> Workflow*:
+    for p = workflows.ptr; p < workflows.end(); p++:
+        if strcmp(p->name, name) == 0:
+            return p
     assert False
 
 
@@ -214,8 +201,7 @@ def main() -> int:
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
-    workflows: Workflow* = NULL
-    nworkflows = 0
+    workflows = List[Workflow]{}
 
     line: byte[200]
     while fgets(line, sizeof(line) as int, f) != NULL:
@@ -224,32 +210,34 @@ def main() -> int:
             # end of workflows
             break
 
-        workflows = realloc(workflows, sizeof(workflows[0]) * (nworkflows + 1))
-        workflows[nworkflows++] = parse_workflow(line)
+        workflow = parse_workflow(line)
+        workflows.append(&workflow, sizeof(workflow))
 
     fclose(f)
 
     # add dummy "A" and "R" workflows
-    workflows = realloc(workflows, sizeof(workflows[0]) * (nworkflows + 2))
-    workflows[nworkflows++] = parse_workflow("A{A}")
-    workflows[nworkflows++] = parse_workflow("R{R}")
+    workflow = parse_workflow("A{A}")
+    workflows.append(&workflow, sizeof(workflow))
+    workflow = parse_workflow("R{R}")
+    workflows.append(&workflow, sizeof(workflow))
 
     start_bounds = UnionOfBoxes{}
     start_bounds.add_box(Box{mins=[1,1,1,1], maxs=[4000,4000,4000,4000]})
-    find_workflow(workflows, nworkflows, "in")->how_to_get_here = start_bounds
+    find_workflow(workflows, "in")->how_to_get_here = start_bounds
 
     did_something = True
     while did_something:
         did_something = False
 
-        for wf = &workflows[0]; wf < &workflows[nworkflows]; wf++:
+        for wf = workflows.ptr; wf < workflows.end(); wf++:
             bounds = wf->how_to_get_here.copy()
 
-            for i = 0; i < wf->n_ifs_and_thens; i++:
+            assert wf->ifs.len == wf->thens.len
+            for i = 0; i < wf->ifs.len; i++:
                 true_bounds = bounds.copy()
-                true_bounds.intersect_with_box(wf->ifs[i])
+                true_bounds.intersect_with_box(wf->ifs.ptr[i])
 
-                wf2 = find_workflow(workflows, nworkflows, wf->thens[i])
+                wf2 = find_workflow(workflows, wf->thens.ptr[i])
                 old = wf2->how_to_get_here.size()
                 wf2->how_to_get_here.add_union_of_boxes(true_bounds)
                 new = wf2->how_to_get_here.size()
@@ -257,17 +245,17 @@ def main() -> int:
                 if old < new:
                     did_something = True
 
-                free(true_bounds.boxes)
-                bounds.remove_box(wf->ifs[i])
+                free(true_bounds.boxes.ptr)
+                bounds.remove_box(wf->ifs.ptr[i])
 
-            find_workflow(workflows, nworkflows, wf->the_else)->how_to_get_here.add_union_of_boxes(bounds)
-            free(bounds.boxes)
+            find_workflow(workflows, wf->the_else)->how_to_get_here.add_union_of_boxes(bounds)
+            free(bounds.boxes.ptr)
 
-    printf("%lld\n", find_workflow(workflows, nworkflows, "A")->how_to_get_here.size())  # Output: 167409079868000
+    printf("%lld\n", find_workflow(workflows, "A")->how_to_get_here.size())  # Output: 167409079868000
 
-    for i = 0; i < nworkflows; i++:
-        free(workflows[i].ifs)
-        free(workflows[i].thens)
-        free(workflows[i].how_to_get_here.boxes)
-    free(workflows)
+    for wf = workflows.ptr; wf < workflows.end(); wf++:
+        free(wf->ifs.ptr)
+        free(wf->thens.ptr)
+        free(wf->how_to_get_here.boxes.ptr)
+    free(workflows.ptr)
     return 0

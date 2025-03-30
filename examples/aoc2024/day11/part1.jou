@@ -1,4 +1,5 @@
 import "stdlib/ascii.jou"
+import "stdlib/list.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
@@ -26,21 +27,17 @@ def split_digits(n: long) -> long[2]:
     return [n / power_of_10, n % power_of_10]
 
 
-# Returns new number of stones
-def blink(stones: long*, nstones: int) -> int:
-    old_nstones = nstones
-
-    for i = 0; i < old_nstones; i++:
-        if stones[i] == 0:
-            stones[i] = 1
-        elif count_digits(stones[i]) % 2 == 0:
-            pair = split_digits(stones[i])
-            stones[i] = pair[0]
-            stones[nstones++] = pair[1]
+def blink(stones: List[long]*) -> None:
+    old_len = stones->len
+    for i = 0; i < old_len; i++:
+        if stones->ptr[i] == 0:
+            stones->ptr[i] = 1
+        elif count_digits(stones->ptr[i]) % 2 == 0:
+            pair = split_digits(stones->ptr[i])
+            stones->ptr[i] = pair[0]
+            stones->append(&pair[1], sizeof(pair[1]))
         else:
-            stones[i] *= 2024
-
-    return nstones
+            stones->ptr[i] *= 2024
 
 
 def main() -> int:
@@ -52,23 +49,16 @@ def main() -> int:
 
     words = split_by_ascii_whitespace(line)
 
-    nstones = 0
-    while words[nstones] != NULL:
-        nstones++
-
-    stones: long* = malloc(sizeof(stones[0]) * nstones)
-    assert stones != NULL
-    for i = 0; i < nstones; i++:
-        stones[i] = atoll(words[i])
+    stones = List[long]{}
+    for i = 0; words[i] != NULL; i++:
+        stone = atoll(words[i])
+        stones.append(&stone, sizeof(stone))
 
     free(words)
 
     for i = 0; i < 25; i++:
-        # Make sure there's enough room even if every stone splits.
-        stones = realloc(stones, sizeof(stones[0]) * (2 * nstones))
-        assert stones != NULL
-        nstones = blink(stones, nstones)
-    printf("%d\n", nstones)  # Output: 55312
+        blink(&stones)
+    printf("%d\n", stones.len)  # Output: 55312
 
-    free(stones)
+    free(stones.ptr)
     return 0
