@@ -156,6 +156,9 @@ class AstToBuilder:
             return self->builder->dereference(info.return_value_ptr)
 
     def call_or_inline(self, sig: Signature*, args: List[EitherBuilderValue]) -> EitherBuilderValue:
+        printf("call_or_inline %s\n", sig->to_string(True,True))
+        for a = args.ptr; a < args.end(); a++:
+            printf("  arg: %s\n", a->lvalue.type->name)
         if sig->ast_to_inline != NULL and self->builder->should_functions_marked_with_inline_be_inlined():
             return self->inline(sig, args)
         else:
@@ -410,7 +413,7 @@ class AstToBuilder:
             case AstExpressionKind.As:
                 return self->builder->cast(self->build_expression(&expr->as_->value), expr->types.orig_type)
             case AstExpressionKind.SizeOf:
-                return self->builder->size_of(expr->operands[0].types.implicit_cast_type)
+                return self->builder->size_of(self->map_type(expr->operands[0].types.implicit_cast_type))
             case AstExpressionKind.AddressOf:
                 return self->build_address_of_expression(&expr->operands[0])
             case AstExpressionKind.Dereference:

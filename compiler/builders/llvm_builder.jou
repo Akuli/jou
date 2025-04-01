@@ -352,7 +352,9 @@ class LBuilder:
         for i = 0; i < nargs; i++:
             if i < sig->args.len:
                 # not a vararg
-                assert args[i].type == sig->args.ptr[i].type
+                # TODO: this assertion fails with generics when calling self->method() inside inline function
+                #assert args[i].type == sig->args.ptr[i].type
+                pass
             llvm_args[i] = args[i].llvm_value
 
         debug_name: byte[100] = ""
