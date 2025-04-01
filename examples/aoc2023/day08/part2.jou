@@ -1,4 +1,5 @@
 import "stdlib/ascii.jou"
+import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/io.jou"
 import "stdlib/str.jou"
@@ -33,35 +34,6 @@ class Input:
             self->nodes[i].right_node = self->find_node(self->nodes[i].right)
 
 
-class List:
-    ptr: long*
-    len: int
-    alloc: int
-
-    def end(self) -> long*:
-        return &self->ptr[self->len]
-
-    def last(self) -> long:
-        assert self->len != 0
-        return self->end()[-1]
-
-    def append(self, n: long) -> None:
-        if self->alloc == self->len:
-            if self->alloc == 0:
-                self->alloc = 4
-            else:
-                self->alloc *= 2
-
-            self->ptr = realloc(self->ptr, self->alloc * sizeof(self->ptr[0]))
-            assert self->ptr != NULL
-
-        self->ptr[self->len++] = n
-
-    def extend(self, other: List) -> None:
-        for v = other.ptr; v < other.end(); v++:
-            self->append(*v)
-
-
 def gcd(a: long, b: long) -> long:
     assert a > 0 and b > 0
     while True:
@@ -90,8 +62,8 @@ def lcm(a: long, b: long) -> long:
 # Repeating starts where we reach the same state twice. By same state, I
 # mean same current node and same index into the left_right_string.
 class ZCounts:
-    non_repeating: List
-    first_cycle: List
+    non_repeating: List[long]
+    first_cycle: List[long]
     cycle_offset: long  # 10 in the example, each cycle starts 10 bigger than previous
 
     def free(self) -> None:
@@ -157,14 +129,14 @@ def get_z_counts(input: Input*, start: Node*) -> ZCounts:
         for i = 0; i < nstates; i++:
             if i % left_right_strlen == nstates % left_right_strlen and states[i] == node:
                 # from here it cycles
-                non_repeating = List{}
-                first_cycle = List{}
-                for k = 0; k < nstates; k++:
+                non_repeating = List[long]{}
+                first_cycle = List[long]{}
+                for k = 0L; k < nstates; k++:
                     if states[k]->name[2] == 'Z':
                         if k < i:
-                            non_repeating.append(k)
+                            non_repeating.append(&k, sizeof(k))
                         else:
-                            first_cycle.append(k)
+                            first_cycle.append(&k, sizeof(k))
                 free(states)
 
                 assert first_cycle.len != 0

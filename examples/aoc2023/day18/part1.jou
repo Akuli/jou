@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "../grid.jou"
@@ -81,13 +82,12 @@ def read_input_to_grid(filename: byte*) -> Grid:
 
 
 def fill_with_f(grid: Grid*) -> None:
-    todo: int[2]* = malloc(sizeof(todo[0]))
-    todo_len = 1
-    todo_alloc = 1
-    todo[0] = [0, 0]
+    todo = List[int[2]]{}
+    start = [0, 0]
+    todo.append(&start, sizeof(start))
 
-    while todo_len > 0:
-        point = todo[--todo_len]
+    while todo.len > 0:
+        point = todo.ptr[--todo.len]
         if not grid->is_in_bounds(point) or grid->get(point) != '.':
             continue
 
@@ -100,14 +100,9 @@ def fill_with_f(grid: Grid*) -> None:
             [point[0]-1, point[1]],
             [point[0]+1, point[1]],
         ]
-        while todo_alloc < todo_len + 4:
-            todo_alloc *= 2
-            todo = realloc(todo, sizeof(todo[0]) * todo_alloc)
-            assert todo != NULL
-        memcpy(&todo[todo_len], &neighbors, sizeof(neighbors))
-        todo_len += 4
+        todo.extend_from_ptr(neighbors, 4, sizeof(neighbors[0]))
 
-    free(todo)
+    free(todo.ptr)
 
 
 def main() -> int:

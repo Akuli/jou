@@ -1,31 +1,16 @@
 import "stdlib/str.jou"
+import "stdlib/list.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
 
-# arrays are empty string terminated
-def append_all(dest: byte[100]*, src: byte[100]*) -> byte[100]*:
-    while (*src)[0] != '\0':
-        *dest++ = *src++
-    *dest = ""
-    return dest
-
-
-def count(arr: byte[100]*) -> int:
-    n = 0
-    while arr[n][0] != '\0':
-        n++
-    return n
-
-
-# returns NULL terminated array
-def substitute_questionmarks_in_all_ways(questional_string: byte*) -> byte[100]*:
+def substitute_questionmarks_in_all_ways(questional_string: byte*) -> List[byte[100]]:
     assert strlen(questional_string) == strspn(questional_string, "?.#")
     assert 0 < strlen(questional_string) and strlen(questional_string) < 100
+    temp: byte[100]
 
     for i = 0; questional_string[i] != '\0'; i++:
         if questional_string[i] == '?':
-            temp: byte[100]
             strcpy(temp, questional_string)
 
             temp[i] = '#'
@@ -33,17 +18,14 @@ def substitute_questionmarks_in_all_ways(questional_string: byte*) -> byte[100]*
             temp[i] = '.'
             without_hashtag = substitute_questionmarks_in_all_ways(temp)
 
-            # Concatenate lists
-            result: byte[100]* = malloc(sizeof(result[0]) * (count(with_hashtag) + count(without_hashtag) + 1))
-            assert result != NULL
-            append_all(append_all(result, with_hashtag), without_hashtag)
-            free(with_hashtag)
-            free(without_hashtag)
+            result = with_hashtag
+            result.extend(without_hashtag)
+            free(without_hashtag.ptr)
             return result
 
-    result = malloc(sizeof(result[0]) * 2)
-    strcpy(result[0], questional_string)
-    result[1] = ""
+    strcpy(temp, questional_string)
+    result = List[byte[100]]{}
+    result.append(&temp, sizeof(temp))
     return result
 
 
@@ -85,11 +67,11 @@ def main() -> int:
     while fscanf(f, "%99s %99s\n", questional_string, non_questional_string) == 2:
         #puts(questional_string)
         possibilities = substitute_questionmarks_in_all_ways(questional_string)
-        for i = 0; possibilities[i][0] != '\0'; i++:
-            s = generate_numbers(possibilities[i])
+        for p = possibilities.ptr; p < possibilities.end(); p++:
+            s = generate_numbers(*p)
             if strcmp(s, non_questional_string) == 0:
                 result++
-        free(possibilities)
+        free(possibilities.ptr)
 
     fclose(f)
     printf("%d\n", result)  # Output: 21

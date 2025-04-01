@@ -1,40 +1,8 @@
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/ascii.jou"
 import "stdlib/mem.jou"
-
-
-class List:
-    ptr: long*
-    len: int
-    alloc: int
-
-    def end(self) -> long*:
-        return &self->ptr[self->len]
-
-    def append(self, n: long) -> None:
-        if self->alloc == self->len:
-            if self->alloc == 0:
-                self->alloc = 4
-            else:
-                self->alloc *= 2
-
-            self->ptr = realloc(self->ptr, self->alloc * sizeof(self->ptr[0]))
-            assert self->ptr != NULL
-
-        self->ptr[self->len++] = n
-
-    def extend(self, other: List) -> None:
-        for v = other.ptr; v < other.end(); v++:
-            self->append(*v)
-
-    def remove_dupes(self) -> None:
-        for i = self->len-1; i >= 0; i--:
-            # delete i'th number if it occurs after index i
-            for k = i+1; k < self->len; k++:
-                if self->ptr[i] == self->ptr[k]:
-                    self->ptr[i] = self->ptr[--self->len]
-                    break
 
 
 class Map:
@@ -48,10 +16,11 @@ class Map:
         assert self->ntriples < sizeof(self->triples)/sizeof(self->triples[0])
         self->triples[self->ntriples++] = [a, b, c]
 
-    def get_input_range_starts(self) -> List:
-        result = List{}
+    def get_input_range_starts(self) -> List[long]:
+        result = List[long]{}
         for i = 0; i < self->ntriples; i++:
-            result.append(self->triples[i][1])
+            n = self->triples[i][1]
+            result.append(&n, sizeof(n))
         return result
 
     def map_number(self, n: long) -> long:
@@ -64,8 +33,8 @@ class Map:
         return n
 
     # Find all numbers n for which map_number(n) == output.
-    def inverse_image(self, output: long) -> List:
-        result = List{}
+    def inverse_image(self, output: long) -> List[long]:
+        result = List[long]{}
 
         for i = 0; i < self->ntriples; i++:
             dest_start = self->triples[i][0]
@@ -74,16 +43,16 @@ class Map:
             # Solve equation:   output = n - source_start + dest_start
             n = output + source_start - dest_start
             if self->map_number(n) == output:
-                result.append(n)
+                result.append(&n, sizeof(n))
 
         if self->map_number(output) == output:
-            result.append(output)
+            result.append(&output, sizeof(output))
 
         return result
 
     # Find all numbers n for which map_number(n) is in a list of outputs.
-    def inverse_image_of_list(self, outputs: List) -> List:
-        result = List{}
+    def inverse_image_of_list(self, outputs: List[long]) -> List[long]:
+        result = List[long]{}
         for p = outputs.ptr; p < outputs.end(); p++:
             to_add = self->inverse_image(*p)
             result.extend(to_add)
@@ -152,7 +121,7 @@ def main() -> int:
 
     fclose(f)
 
-    interesting_inputs = List{}
+    interesting_inputs = List[long]{}
     for i = 0; i < input->nmaps; i++:
         # We get small values whenever the i'th map sees a start of its range.
         values = input->maps[i].get_input_range_starts()
@@ -168,7 +137,7 @@ def main() -> int:
 
     # Let's also try start of each seed range
     for i = 0; i < input->n_seed_ranges; i++:
-        interesting_inputs.append(input->seed_ranges[i].start)
+        interesting_inputs.append(&input->seed_ranges[i].start, sizeof(input->seed_ranges[i].start))
 
     smallest = -1 as long
     for p = interesting_inputs.ptr; p < interesting_inputs.end(); p++:
