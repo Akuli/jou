@@ -1,4 +1,5 @@
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
@@ -26,8 +27,10 @@ class InliningInfo:
     return_jumps_to: EitherBuilderBlock
     return_value_ptr: EitherBuilderValue
     # The following define how to remap types.
-    # For example, T in code could 
-    types_from: Type**
+    # For example, T in code could become int in LLVM.
+    typemap_from: Type**
+    typemap_to: Type**
+    typemap_count: int
 
 
 class AstToBuilder:
@@ -39,6 +42,19 @@ class AstToBuilder:
 
     # If not NULL, this builder is used to handle calling an @inline function
     inlining_info: InliningInfo*
+
+    # Internal method. Should not be called outside this file.
+    #
+    # Handles a corner case when calling a generic inline method.
+    # When we inline the code from List[int].append(123), this changes T to int.
+    def map_type(self, t: Type*) -> Type*:
+        if self->inlining_info != NULL and self->inlining_info->typemap_count > 0:
+            return t->substitute_generic_params(
+                self->inlining_info->typemap_from,
+                self->inlining_info->typemap_to,
+                self->inlining_info->typemap_count,
+            )
+        return t
 
     # Returns old location. Use it to restore the location when you're done.
     def set_location(self, location: Location) -> Location:
@@ -79,7 +95,7 @@ class AstToBuilder:
     # Handles the beginning of calling an @inline function. That's always done
     # in a new builder, so that we don't accidentally access local variables
     # of the calling function.
-    def begin_inlining(self, types: FunctionOrMethodTypes*, info: InliningInfo, args: List[EitherBuilderValue]) -> None:
+    def begin_inlining(self, types: FunctionOrMethodTypes*, args: List[EitherBuilderValue]) -> None:
         # First n local variables are the arguments
         assert types->signature.args.len <= types->locals.len
 
@@ -90,30 +106,58 @@ class AstToBuilder:
         for i = 0; i < types->locals.len; i++:
             var_name = types->locals.ptr[i].name
             var_type = types->locals.ptr[i].type
-            var_ptr = self->builder->stack_alloc(var_type, var_name)
+            var_ptr = self->builder->stack_alloc(self->map_type(var_type), var_name)
             local = LocalVar{name = var_name, ptr = var_ptr}
             self->locals.append(&local, sizeof(local))
             if i < args.len:
+                printf("initial set... %s: %s\n", var_name, self->map_type(var_type))
                 # First n local variables are the function arguments
                 self->builder->set_ptr(var_ptr, args.ptr[i])
+                printf("Initial set ok!!!\n")
+
+    def inline(self, sig: Signature*, args: List[EitherBuilderValue]) -> EitherBuilderValue:
+        assert sig->ast_to_inline != NULL
+        assert self->builder->should_functions_marked_with_inline_be_inlined()
+        ast = sig->ast_to_inline
+
+        info = InliningInfo{return_jumps_to = self->builder->add_block()}
+        if sig->return_type != NULL:
+            info.return_value_ptr = self->builder->stack_alloc(sig->return_type, NULL)
+
+        if sig->get_self_class() != NULL and sig->get_self_class()->classdata.is_generic():
+            # When inlining a generic method List[int].append(), map T to int
+            assert args.len >= 1
+            ast_self_class = ast->types.signature.get_self_class()
+            passed_self_class = sig->get_self_class()
+
+            assert ast_self_class->kind == TypeKind.Class
+            assert passed_self_class->kind == TypeKind.Class
+
+            info.typemap_from = ast_self_class->classdata.generic_params.ptr
+            info.typemap_to = passed_self_class->classdata.generic_params.ptr
+
+            n1 = ast_self_class->classdata.generic_params.len
+            n2 = passed_self_class->classdata.generic_params.len
+            assert n1 == n2
+            info.typemap_count = n1 as int
+            printf("Will inline %d types!\n", n1 as int)
+            for i = 0; i < n1; i++:
+                printf("  %s --> %s\n", info.typemap_from[i]->name, info.typemap_to[i]->name)
+
+        inliner = AstToBuilder{builder = self->builder, inlining_info = &info}
+        inliner.begin_inlining(&ast->types, args)
+        inliner.build_body(ast->body)
+        self->builder->jump(info.return_jumps_to)  # the implicit 'return' at the end
+
+        self->builder->set_current_block(info.return_jumps_to)
+        if sig->return_type == NULL:
+            return EitherBuilderValue{}
+        else:
+            return self->builder->dereference(info.return_value_ptr)
 
     def call_or_inline(self, sig: Signature*, args: List[EitherBuilderValue]) -> EitherBuilderValue:
         if sig->ast_to_inline != NULL and self->builder->should_functions_marked_with_inline_be_inlined():
-            info = InliningInfo{return_jumps_to = self->builder->add_block()}
-            if sig->return_type != NULL:
-                info.return_value_ptr = self->builder->stack_alloc(sig->return_type, NULL)
-
-            inliner = AstToBuilder{builder = self->builder}
-            inliner.begin_inlining(&sig->ast_to_inline->types, info, args)
-            inliner.build_body(sig->ast_to_inline->body)
-            self->builder->jump(info.return_jumps_to)  # the implicit 'return' at the end
-
-            self->builder->set_current_block(info.return_jumps_to)
-            if sig->return_type == NULL:
-                return EitherBuilderValue{}
-            else:
-                return self->builder->dereference(info.return_value_ptr)
-
+            return self->inline(sig, args)
         else:
             return self->builder->call(sig, args.ptr, args.len as int)
 
@@ -126,6 +170,7 @@ class AstToBuilder:
     def local_var_ptr(self, name: byte*) -> EitherBuilderValue:
         for local = self->locals.ptr; local < self->locals.end(); local++:
             if strcmp(local->name, name) == 0:
+                printf("found local var '%s' (pointer type: %s)\n", name, local->ptr.lvalue.type->name)
                 return local->ptr
         assert False
 
@@ -320,6 +365,7 @@ class AstToBuilder:
                 )
             case _:
                 # TODO: support other constant types
+                # TODO: got all covered?
                 assert False
 
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> EitherBuilderValue:
@@ -333,6 +379,7 @@ class AstToBuilder:
             case AstExpressionKind.Instantiate:
                 return self->build_instantiation(expr->types.orig_type, &expr->instantiation)
             case AstExpressionKind.Self:
+                printf("BuildExWIC Self\n")
                 return self->builder->dereference(self->local_var_ptr("self"))
             case AstExpressionKind.GetVariable:
                 if self->local_var_exists(expr->varname):
@@ -354,9 +401,11 @@ class AstToBuilder:
                     # We need to copy, because it's not always possible to evaluate &foo.
                     # For example, consider evaluating some_function().some_field.
                     instance = self->build_expression(expr->class_field.instance)
-                    ptr = self->builder->stack_alloc(expr->class_field.instance->types.implicit_cast_type, NULL)
+                    ptr = self->builder->stack_alloc(self->map_type(expr->class_field.instance->types.implicit_cast_type), NULL)
                     self->builder->set_ptr(ptr, instance)
+                printf("&GetClassField '%s'\n", expr->class_field.field_name)
                 fieldptr = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
+                printf("&GetClassField done\n")
                 return self->builder->dereference(fieldptr)
             case AstExpressionKind.As:
                 return self->builder->cast(self->build_expression(&expr->as_->value), expr->types.orig_type)
@@ -418,7 +467,8 @@ class AstToBuilder:
             else:
                 assert expr->types.orig_type != NULL
                 assert expr->types.implicit_cast_type != NULL
-                result = self->builder->cast(raw, expr->types.implicit_cast_type)
+                printf("IMPLICIT CAST: %s --> %s\n", expr->types.orig_type->name, expr->types.implicit_cast_type->name)
+                result = self->builder->cast(raw, self->map_type(expr->types.implicit_cast_type))
 
         self->set_location(old_location)
         return result
@@ -430,11 +480,16 @@ class AstToBuilder:
             case AstExpressionKind.GetClassField:
                 if expr->class_field.uses_arrow_operator:
                     # &ptr->field = ptr + memory offset
+                    printf("the '&ptr->field' code runs...\n")
                     ptr = self->build_expression(expr->class_field.instance)
+                    printf("  ptr is %s\n", ptr.lvalue.type->name)
+                    expr->print()
                 else:
                     # &obj.field = &obj + memory offset
                     ptr = self->build_address_of_expression(expr->class_field.instance)
+                    printf("the '&ptr.field' code runs...\n")
                 result = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
+                printf("that code is ok\n")
             case AstExpressionKind.Self:
                 result = self->local_var_ptr("self")
             case AstExpressionKind.GetVariable:
@@ -671,6 +726,10 @@ def feed_ast_to_builder(
     is_main_file: bool,
     builder: EitherBuilder*,
 ) -> None:
+    if func_ast->inline and builder->should_functions_marked_with_inline_be_inlined():
+        # Calls to this function will be inlined. Pretend the function doesn't exist.
+        return
+
     public = (
         func_ast->public
         or func_ast->types.signature.get_self_class() != NULL
