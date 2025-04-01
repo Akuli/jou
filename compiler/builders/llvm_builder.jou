@@ -234,7 +234,6 @@ class LBuilder:
         return True
 
     def begin_function(self, sig: Signature*, public: bool) -> None:
-        printf("LLVM builder begins function: %s\n", sig->to_string(True,True))
         self->llvm_func = declare_in_llvm(sig, self->llvm_module)
         self->returns_a_value = sig->return_type != NULL
 
@@ -315,7 +314,6 @@ class LBuilder:
 
     # Returns &ptr->field
     def class_field_pointer(self, ptr: LBuilderValue, field_name: byte*) -> LBuilderValue:
-        printf("class_field_pointer: type(&instance) = %s, field_name = %s\n", ptr.type->name, field_name)
         assert ptr.type->kind == TypeKind.Pointer
         classtype = ptr.type->value_type
         assert classtype->kind == TypeKind.Class

@@ -110,10 +110,8 @@ class AstToBuilder:
             local = LocalVar{name = var_name, ptr = var_ptr}
             self->locals.append(&local, sizeof(local))
             if i < args.len:
-                printf("initial set... %s: %s\n", var_name, self->map_type(var_type))
                 # First n local variables are the function arguments
                 self->builder->set_ptr(var_ptr, args.ptr[i])
-                printf("Initial set ok!!!\n")
 
     def inline(self, sig: Signature*, args: List[EitherBuilderValue]) -> EitherBuilderValue:
         assert sig->ast_to_inline != NULL
@@ -140,9 +138,6 @@ class AstToBuilder:
             n2 = passed_self_class->classdata.generic_params.len
             assert n1 == n2
             info.typemap_count = n1 as int
-            printf("Will inline %d types!\n", n1 as int)
-            for i = 0; i < n1; i++:
-                printf("  %s --> %s\n", info.typemap_from[i]->name, info.typemap_to[i]->name)
 
         inliner = AstToBuilder{builder = self->builder, inlining_info = &info}
         inliner.begin_inlining(&ast->types, args)
@@ -156,9 +151,6 @@ class AstToBuilder:
             return self->builder->dereference(info.return_value_ptr)
 
     def call_or_inline(self, sig: Signature*, args: List[EitherBuilderValue]) -> EitherBuilderValue:
-        printf("call_or_inline %s\n", sig->to_string(True,True))
-        for a = args.ptr; a < args.end(); a++:
-            printf("  arg: %s\n", a->lvalue.type->name)
         if sig->ast_to_inline != NULL and self->builder->should_functions_marked_with_inline_be_inlined():
             return self->inline(sig, args)
         else:
@@ -173,7 +165,6 @@ class AstToBuilder:
     def local_var_ptr(self, name: byte*) -> EitherBuilderValue:
         for local = self->locals.ptr; local < self->locals.end(); local++:
             if strcmp(local->name, name) == 0:
-                printf("found local var '%s' (pointer type: %s)\n", name, local->ptr.lvalue.type->name)
                 return local->ptr
         assert False
 
@@ -382,7 +373,6 @@ class AstToBuilder:
             case AstExpressionKind.Instantiate:
                 return self->build_instantiation(expr->types.orig_type, &expr->instantiation)
             case AstExpressionKind.Self:
-                printf("BuildExWIC Self\n")
                 return self->builder->dereference(self->local_var_ptr("self"))
             case AstExpressionKind.GetVariable:
                 if self->local_var_exists(expr->varname):
@@ -406,9 +396,7 @@ class AstToBuilder:
                     instance = self->build_expression(expr->class_field.instance)
                     ptr = self->builder->stack_alloc(self->map_type(expr->class_field.instance->types.implicit_cast_type), NULL)
                     self->builder->set_ptr(ptr, instance)
-                printf("&GetClassField '%s'\n", expr->class_field.field_name)
                 fieldptr = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
-                printf("&GetClassField done\n")
                 return self->builder->dereference(fieldptr)
             case AstExpressionKind.As:
                 return self->builder->cast(self->build_expression(&expr->as_->value), expr->types.orig_type)
@@ -470,7 +458,6 @@ class AstToBuilder:
             else:
                 assert expr->types.orig_type != NULL
                 assert expr->types.implicit_cast_type != NULL
-                printf("IMPLICIT CAST: %s --> %s\n", expr->types.orig_type->name, expr->types.implicit_cast_type->name)
                 result = self->builder->cast(raw, self->map_type(expr->types.implicit_cast_type))
 
         self->set_location(old_location)
@@ -483,16 +470,11 @@ class AstToBuilder:
             case AstExpressionKind.GetClassField:
                 if expr->class_field.uses_arrow_operator:
                     # &ptr->field = ptr + memory offset
-                    printf("the '&ptr->field' code runs...\n")
                     ptr = self->build_expression(expr->class_field.instance)
-                    printf("  ptr is %s\n", ptr.lvalue.type->name)
-                    expr->print()
                 else:
                     # &obj.field = &obj + memory offset
                     ptr = self->build_address_of_expression(expr->class_field.instance)
-                    printf("the '&ptr.field' code runs...\n")
                 result = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
-                printf("that code is ok\n")
             case AstExpressionKind.Self:
                 result = self->local_var_ptr("self")
             case AstExpressionKind.GetVariable:
