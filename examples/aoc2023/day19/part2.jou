@@ -98,10 +98,10 @@ class UnionOfBoxes:
                     for i = have.len - 1; i >= 0; i--:
                         assert not have.ptr[i].is_empty()
                         if box.contains_box(have.ptr[i]):
-                            have.ptr[i] = have.ptr[--have.len]
+                            have.ptr[i] = have.pop()
 
             # Replace self->boxes[k] with "have"
-            self->boxes.ptr[k] = self->boxes.ptr[--self->boxes.len]
+            self->boxes.ptr[k] = self->boxes.pop()
             self->boxes.extend(have)
             free(have.ptr)
 
@@ -118,7 +118,7 @@ class UnionOfBoxes:
         for i = self->boxes.len - 1; i >= 0; i--:
             self->boxes.ptr[i] = self->boxes.ptr[i].intersect(box)
             if self->boxes.ptr[i].is_empty():
-                self->boxes.ptr[i] = self->boxes.ptr[--self->boxes.len]
+                self->boxes.ptr[i] = self->boxes.pop()
 
     def size(self) -> long:
         result = 0L

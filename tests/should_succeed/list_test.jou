@@ -62,17 +62,29 @@ def test_pop() -> None:
     list = List[int]{}
     for i = 11; i <= 44; i += 11:
         list.append(i)
-    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 4 items, last is 44
-    list.pop()
-    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 3 items, last is 33
-    list.pop()
-    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 2 items, last is 22
-    list.pop()
-    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 1 items, last is 11
-    list.pop()
-    printf("%lld items\n", list.len)  # Output: 0 items
 
-    assert list.ptr != NULL  # same memory will be reused
+    # Output: 4 items
+    # Output: pop() -> 44
+    # Output: 3 items
+    # Output: pop() -> 33
+    # Output: 2 items
+    # Output: pop() -> 22
+    # Output: 1 items
+    # Output: pop() -> 11
+    # Output: 0 items
+    while True:
+        printf("%lld items\n", list.len)
+        if list.len == 0:
+            break
+        printf("pop() -> %d\n", list.pop())
+
+    # The items are still in the list, only the length changed.
+    # This is important for some tricks that can be done with pop().
+    # Output: post-pop [11,22,33,44]
+    assert list.ptr != NULL
+    printf("post-pop [%d,%d,%d,%d]\n", list.ptr[0], list.ptr[1], list.ptr[2], list.ptr[3])
+
+    # Same memory will be reused
     list.append(1)
     list.append(2)
     list.append(3)
