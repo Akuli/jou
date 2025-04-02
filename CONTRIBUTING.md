@@ -66,7 +66,7 @@ run `mingw32-make` (Windows) or `make` (other systems) to recompile the compiler
 
 ## How does the compiler work?
 
-See [doc/compiler_internals/architecture-and-design.md](doc/compiler_internals/compiler-intro.md).
+See [doc/compiler_internals/architecture-and-design.md](doc/compiler_internals/architecture-and-design.md).
 
 
 ## Tests
