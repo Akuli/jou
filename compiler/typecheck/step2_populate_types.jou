@@ -63,19 +63,24 @@ def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> E
     return ExportSymbol{kind = ExportSymbolKind.Constant, constant = value, name = c->name}
 
 
-def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, usedptr: bool*) -> Signature:
+def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
     if self_class == NULL:
         function_or_method = "function"
+        usedptr = &ast->used
     else:
         function_or_method = "method"
+        usedptr = NULL  # No warnings for unused methods :( Would be harder to implement.
 
     msg: byte[500]
+
+    astsig = &ast->ast_signature
+    sig = Signature{name = astsig->name, takes_varargs = astsig->takes_varargs}
+    if ast->inline:
+        sig.ast_to_inline = ast
 
     if self_class == NULL and ft->find_function(astsig->name) != NULL:
         snprintf(msg, sizeof(msg), "a function named '%s' already exists", astsig->name)
         fail(astsig->name_location, msg)
-
-    sig = Signature{name = astsig->name, takes_varargs = astsig->takes_varargs}
 
     for astarg = astsig->args.ptr; astarg < astsig->args.end(); astarg++:
         arg = NameAndType{name = astarg->name}
@@ -193,7 +198,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
             case AstStatementKind.MethodDef:
                 # Don't handle the method body yet: that is a part of step 3, not step 2
-                sig = handle_signature(ft, &stmt->method.ast_signature, t, NULL)
+                sig = handle_signature(ft, &stmt->method, t)
                 stmt->method.types.signature = sig
 
                 check_class_member_not_exist(t, sig.name, stmt->location)
@@ -233,7 +238,7 @@ def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
                 else:
                     exp.free()
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
-                sig = handle_signature(&ast->types, &stmt->function.ast_signature, NULL, &stmt->function.used)
+                sig = handle_signature(&ast->types, &stmt->function, NULL)
                 stmt->function.types.signature = sig
                 if stmt->function.public:
                     exp = ExportSymbol{kind = ExportSymbolKind.Function, name = sig.name, funcsignature = sig.copy()}
