@@ -47,10 +47,8 @@ Here's what each step does:
     Whenever one file influences another file, that is done explicitly between the steps.
     For example, suppose that functions `foo()` and `bar()` call each other recursively,
     and they are in files `foo.jou` and `bar.jou` respectively.
-    When type-checking the body of `foo()` and see the call to `bar()`,
-    the compiler already knows that the `bar()` function exists,
-    because discovering functions is part of step 2,
-    but going through the content of functions is step 3.
+    During step 3, the compiler goes through the body of `foo()`, and it sees a call to `bar()`.
+    It already knows about the `bar()` function, because discovering functions is part of step 2.
     To understand what each step does, see the comments at the start of
     [compiler/typecheck/step1_create_types.jou](../../compiler/typecheck/step1_create_types.jou),
     [compiler/typecheck/step2_populate_types.jou](../../compiler/typecheck/step2_populate_types.jou) and
