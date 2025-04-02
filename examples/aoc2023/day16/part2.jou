@@ -63,7 +63,7 @@ def run_beam(grid: Grid*, start_beam: LightBeam) -> int:
     todo.append(start_beam)
 
     while todo.len > 0:
-        beam = todo.ptr[--todo.len]
+        beam = todo.pop()
         x = beam.location[0]
         y = beam.location[1]
         ptr = &(*visited)[x][y][direction_to_int(beam.direction)]

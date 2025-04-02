@@ -69,7 +69,18 @@ class List[T]:
         end = &start[self->len * self->itemsize]
         return end as T*
 
-    # TODO: It is currently not possible to return the deleted element unless it is a pointer.
-    def pop(self) -> None:
+    # Return the last item from the list and return it.
+    #
+    # To remove an item at index i, you can replace it with the result of
+    # popping:
+    #
+    #    list.ptr[i] = list.pop()
+    #
+    # This works even if `i` refers to the last item of the list. In that case,
+    # the item is assigned back to the place where it was just "removed" from.
+    # In reality, the item remains in the memory used by the list, and only the
+    # length of the list changes.
+    @inline
+    def pop(self) -> T:
         assert self->len > 0  # If this fails, you are trying to pop from an empty list
-        self->len--
+        return self->ptr[--self->len]

@@ -148,12 +148,12 @@ def main() -> int:
                 for k = states.len-1; k > i; k--:
                     if states.ptr[i].equals(&states.ptr[k]):
                         states.ptr[i].repeat_count += states.ptr[k].repeat_count
-                        states.ptr[k] = states.ptr[--states.len]
+                        states.ptr[k] = states.pop()
 
             # Delete impossible states
             for i = states.len-1; i >= 0; i--:
                 if not states.ptr[i].is_possible():
-                    states.ptr[i] = states.ptr[--states.len]
+                    states.ptr[i] = states.pop()
 
         for s = states.ptr; s < states.end(); s++:
             result += s->repeat_count

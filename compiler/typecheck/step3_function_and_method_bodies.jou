@@ -710,7 +710,7 @@ def cast_array_members_to_a_common_type(
         # Remove void* if exists, so that type of ["hello", NULL] becomes byte*[2]
         for i = 0; i < compatible_with_all.len; i++:
             if compatible_with_all.ptr[i] == voidPtrType:
-                compatible_with_all.ptr[i] = compatible_with_all.ptr[--compatible_with_all.len]
+                compatible_with_all.ptr[i] = compatible_with_all.pop()
                 break
 
     if compatible_with_all.len != 1:

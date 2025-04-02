@@ -86,7 +86,7 @@ def fill_with_f(grid: Grid*) -> None:
     todo.append([0, 0])
 
     while todo.len > 0:
-        point = todo.ptr[--todo.len]
+        point = todo.pop()
         if not grid->is_in_bounds(point) or grid->get(point) != '.':
             continue
 
