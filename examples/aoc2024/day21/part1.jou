@@ -57,8 +57,7 @@ class KeyPad:
 
     def get_presses(self, what_to_write: byte*) -> List[byte[100]]:
         result = List[byte[100]]{}
-        empty: byte[100] = ""
-        result.append(&empty, sizeof(empty))
+        result.append("")
 
         for p = &what_to_write[0]; *p != '\0'; p++:
             if p == &what_to_write[0]:
@@ -103,9 +102,9 @@ class KeyPad:
                 strcat(v_then_h, "A")
 
                 if not self->goes_to_blank(h_then_v):
-                    result2.append(&h_then_v, sizeof(h_then_v))
+                    result2.append(h_then_v)
                 if not self->goes_to_blank(v_then_h):
-                    result2.append(&v_then_h, sizeof(v_then_h))
+                    result2.append(v_then_h)
 
             free(result.ptr)
             result = result2

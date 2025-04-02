@@ -35,7 +35,7 @@ def blink(stones: List[long]*) -> None:
         elif count_digits(stones->ptr[i]) % 2 == 0:
             pair = split_digits(stones->ptr[i])
             stones->ptr[i] = pair[0]
-            stones->append(&pair[1], sizeof(pair[1]))
+            stones->append(pair[1])
         else:
             stones->ptr[i] *= 2024
 
@@ -51,8 +51,7 @@ def main() -> int:
 
     stones = List[long]{}
     for i = 0; words[i] != NULL; i++:
-        stone = atoll(words[i])
-        stones.append(&stone, sizeof(stone))
+        stones.append(atoll(words[i]))
 
     free(words)
 

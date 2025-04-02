@@ -21,8 +21,7 @@ def parse_hex_string(s: byte*, len: int) -> int:
 
 def read_input_as_points(filename: byte*) -> List[int[2]]:
     result = List[int[2]]{}
-    start = [0, 0]
-    result.append(&start, sizeof(start))
+    result.append([0, 0])
 
     f = fopen(filename, "r")
     assert f != NULL
@@ -51,8 +50,7 @@ def read_input_as_points(filename: byte*) -> List[int[2]]:
         else:
             assert False
 
-        point = [x, y]
-        result.append(&point, sizeof(point))
+        result.append([x, y])
 
     fclose(f)
 

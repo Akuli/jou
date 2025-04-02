@@ -128,9 +128,8 @@ def main() -> int:
             if questional_string[i] == '?':
                 n_question_marks++
 
-        initial_state = State{questional_string=questional_string, numbers=numbers, repeat_count=1}
         states = List[State]{}
-        states.append(&initial_state, sizeof(initial_state))
+        states.append(State{questional_string=questional_string, numbers=numbers, repeat_count=1})
 
         while n_question_marks --> 0:
             states.grow(2*states.len, sizeof(states.ptr[0]))

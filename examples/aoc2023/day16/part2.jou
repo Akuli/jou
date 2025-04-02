@@ -60,7 +60,7 @@ def run_beam(grid: Grid*, start_beam: LightBeam) -> int:
     assert visited != NULL
 
     todo = List[LightBeam]{}
-    todo.append(&start_beam, sizeof(start_beam))
+    todo.append(start_beam)
 
     while todo.len > 0:
         beam = todo.ptr[--todo.len]
@@ -77,8 +77,7 @@ def run_beam(grid: Grid*, start_beam: LightBeam) -> int:
             dir = next_dirs[i]
             location = [beam.location[0] + dir[0], beam.location[1] + dir[1]]
             if grid->is_in_bounds(location):
-                beam2 = LightBeam{location = location, direction = dir}
-                todo.append(&beam2, sizeof(beam2))
+                todo.append(LightBeam{location = location, direction = dir})
 
     free(todo.ptr)
 

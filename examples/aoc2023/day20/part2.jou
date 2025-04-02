@@ -96,8 +96,7 @@ class TodoList:
     items: List[GonnaSend]
 
     def send_later(self, from: Module*, to: Module*, value: bool) -> None:
-        item = GonnaSend{from=from, to=to, value=value}
-        self->items.append(&item, sizeof(item))
+        self->items.append(GonnaSend{from=from, to=to, value=value})
 
     def pop_left(self) -> GonnaSend:
         result = self->items.ptr[0]

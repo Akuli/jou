@@ -83,8 +83,7 @@ def read_input_to_grid(filename: byte*) -> Grid:
 
 def fill_with_f(grid: Grid*) -> None:
     todo = List[int[2]]{}
-    start = [0, 0]
-    todo.append(&start, sizeof(start))
+    todo.append([0, 0])
 
     while todo.len > 0:
         point = todo.ptr[--todo.len]
@@ -94,13 +93,10 @@ def fill_with_f(grid: Grid*) -> None:
         grid->set(point, 'f')
 
         # Append neighbors to todo list
-        neighbors: int[2][4] = [
-            [point[0], point[1]-1],
-            [point[0], point[1]+1],
-            [point[0]-1, point[1]],
-            [point[0]+1, point[1]],
-        ]
-        todo.extend_from_ptr(neighbors, 4, sizeof(neighbors[0]))
+        todo.append([point[0], point[1]-1])
+        todo.append([point[0], point[1]+1])
+        todo.append([point[0]-1, point[1]])
+        todo.append([point[0]+1, point[1]])
 
     free(todo.ptr)
 
