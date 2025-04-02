@@ -942,7 +942,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
 
         case AstExpressionKind.AddressOf:
             result = typecheck_expression_not_void(state, &expr->operands[0], NULL)->pointer_type()
-            ensure_can_take_address(state->fom_types, &expr->operands[0], "the '&' operator cannot be used with %s")
+            ensure_can_take_address(state->fom_types, &expr->operands[0], "the '&' operator cannot be applied to %s")
 
         case AstExpressionKind.GetVariable:
             result = state->find_any_constant(expr->varname)
