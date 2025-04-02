@@ -89,7 +89,7 @@ $ ./jou -vv examples/hello.jou  # Show all details
 ## Gotchas and unusual things
 
 Unlike many other compilers, the Jou compiler does not have "Jou IR" between AST and LLVM IR.
-The Jou compiler used to have "Jou IR" (called CFGs) that was generated from AST,
+The Jou compiler used to have a "Jou IR" (called CFGs) that was generated from AST,
 and then LLVM IR was generated from the "Jou IR".
 I deleted the "Jou IR" because it was a lot of code, and it felt like LLVM IR but worse.
 
