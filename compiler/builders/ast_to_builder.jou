@@ -139,6 +139,7 @@ class AstToBuilder:
         inliner = AstToBuilder{builder = self->builder, inlining_info = &info}
         inliner.begin_inlining(&ast->types, args)
         inliner.build_body(ast->body)
+        inliner.free()
         self->builder->jump(info.return_jumps_to)  # the implicit 'return' at the end
 
         self->builder->set_current_block(info.return_jumps_to)
@@ -699,6 +700,10 @@ class AstToBuilder:
         for p = body.ptr; p < body.end(); p++:
             self->build_statement(p, True)
 
+    def free(self) -> None:
+        free(self->locals.ptr)
+        free(self->loops.ptr)
+
 
 @public
 def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location, is_main_file: bool, builder: EitherBuilder*) -> None:
@@ -714,7 +719,5 @@ def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location,
     ast2ir = AstToBuilder{builder = builder}
     ast2ir.begin_function(&func_ast->types, func_location, public)
     ast2ir.build_body(func_ast->body)
+    ast2ir.free()
     builder->end_function()
-
-    free(ast2ir.locals.ptr)
-    free(ast2ir.loops.ptr)
