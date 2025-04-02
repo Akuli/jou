@@ -60,10 +60,13 @@ Following the [instructions in the README](README.md#setup) is enough.
 
 </details>
 
+After making changes to the compiler,
+run `mingw32-make` (Windows) or `make` (other systems) to recompile the compiler.
+
 
 ## How does the compiler work?
 
-See [doc/compiler_internals/intro.md](doc/compiler_internals/intro.md).
+See [doc/compiler_internals/architecture-and-design.md](doc/compiler_internals/compiler-intro.md).
 
 
 ## Tests
