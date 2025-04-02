@@ -188,6 +188,7 @@ class AstToBuilder:
             args.append(&arg, sizeof(arg))
 
         result = self->call_or_inline(call->called_signature, args)
+        free(args.ptr)
 
         if call->called_signature->is_noreturn:
             # Code after the function call will not run. Place it to a new block.
