@@ -53,6 +53,7 @@ class List[T]:
     # For example, with n=3, this appends ptr[0], ptr[1] and ptr[2].
     def extend_from_ptr(self, ptr: T*, n: long, itemsize: long) -> None:
         self->grow(self->len + n, itemsize)
+#        x = &self->ptr[self->len]
         memcpy(self->end(), ptr, n * itemsize)
         self->len += n
 

@@ -301,6 +301,7 @@ class LBuilder:
     def indexed_pointer(self, ptr: LBuilderValue, index: LBuilderValue) -> LBuilderValue:
         assert ptr.type->kind == TypeKind.Pointer
         assert index.type == longType  # doesn't work right if it's other type
+        printf("LLVMBuildGEP2 param: %s\n", ptr.type->value_type->name)
         llvm_result = LLVMBuildGEP2(
             self->llvm_builder,
             type_to_llvm(ptr.type->value_type),
