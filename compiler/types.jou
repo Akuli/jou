@@ -121,8 +121,6 @@ class Type:
         assert n > 0
         for i = 0; i < n; i++:
             assert from[i]->kind == TypeKind.TypeVar
-            # Do not allow replacing any type with itself, creates confusing bugs
-            assert from[i] != to[i]
 
         match self->kind:
             case TypeKind.TypeVar:
@@ -133,13 +131,21 @@ class Type:
                 return self
 
             case TypeKind.Class:
-                if not self->classdata.is_generic():
-                    # Do nothing for non-generic classes
-                    return self
-
                 generic_params = List[Type*]{}
                 for p = self->classdata.generic_params.ptr; p < self->classdata.generic_params.end(); p++:
                     generic_params.append((*p)->substitute_generic_params(from, to, n))
+
+                # Special case: No substitutions need to be done.
+                # Used e.g. when List[T] occurs inside the body of class List[T].
+                # This also handles non-generic classes.
+                ret = memcmp(
+                    self->classdata.generic_params.ptr,
+                    generic_params.ptr,
+                    generic_params.len * sizeof(generic_params.ptr[0])
+                )
+                if ret == 0:
+                    free(generic_params.ptr)
+                    return self
 
                 # Results are cached in related_types, just like arrays.
                 # Before we go further, let's check if the type we want is already cached.
