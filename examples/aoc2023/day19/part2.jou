@@ -83,7 +83,7 @@ class UnionOfBoxes:
             # Split the existing box at boundaries of what we're removing.
             # Delete the parts we don't like.
             have = List[Box]{}
-            have.append(&existing, sizeof(existing))
+            have.append(existing)
             for coord_idx = 0; coord_idx < 4; coord_idx++:
                 splits = [box.mins[coord_idx], box.maxs[coord_idx] + 1]
                 for s = &splits[0]; s < &splits[2]; s++:
@@ -92,7 +92,7 @@ class UnionOfBoxes:
                         if have.ptr[i].can_split(*s, coord_idx):
                             split = have.ptr[i].split(*s, coord_idx)
                             have.ptr[i] = split[0]
-                            have.append(&split[1], sizeof(split[1]))
+                            have.append(split[1])
 
                     # Delete unwanted small boxes
                     for i = have.len - 1; i >= 0; i--:
@@ -108,7 +108,7 @@ class UnionOfBoxes:
     def add_box(self, box: Box) -> None:
         if not box.is_empty():
             self->remove_box(box)
-            self->boxes.append(&box, sizeof(box))
+            self->boxes.append(box)
 
     def add_union_of_boxes(self, u: UnionOfBoxes) -> None:
         for p = u.boxes.ptr; p < u.boxes.end(); p++:
@@ -185,9 +185,8 @@ def parse_workflow(s: byte*) -> Workflow:
         else:
             assert False
 
-        if_box = Box{mins=mins, maxs=maxs}
-        wf.ifs.append(&if_box, sizeof(if_box))
-        wf.thens.append(&then, sizeof(then))
+        wf.ifs.append(Box{mins=mins, maxs=maxs})
+        wf.thens.append(then)
 
 
 def find_workflow(workflows: List[Workflow], name: byte*) -> Workflow*:
@@ -209,17 +208,13 @@ def main() -> int:
         if line[0] == '\0':
             # end of workflows
             break
-
-        workflow = parse_workflow(line)
-        workflows.append(&workflow, sizeof(workflow))
+        workflows.append(parse_workflow(line))
 
     fclose(f)
 
     # add dummy "A" and "R" workflows
-    workflow = parse_workflow("A{A}")
-    workflows.append(&workflow, sizeof(workflow))
-    workflow = parse_workflow("R{R}")
-    workflows.append(&workflow, sizeof(workflow))
+    workflows.append(parse_workflow("A{A}"))
+    workflows.append(parse_workflow("R{R}"))
 
     start_bounds = UnionOfBoxes{}
     start_bounds.add_box(Box{mins=[1,1,1,1], maxs=[4000,4000,4000,4000]})

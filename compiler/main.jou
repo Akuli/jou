@@ -250,7 +250,7 @@ class CompileState:
 
         check_imports_at_start_of_file(fs.ast.body)
 
-        self->files.append(&fs, sizeof(fs))
+        self->files.append(fs)
 
         for stmt = fs.ast.body.ptr; stmt < fs.ast.body.end(); stmt++:
             if stmt->kind == AstStatementKind.Import:
@@ -284,7 +284,7 @@ class CompileState:
                         msg: byte[500]
                         snprintf(msg, sizeof msg, "file \"%s\" is imported twice", stmt->import_statement.specified_path)
                         fail(stmt->location, msg)
-                seen_before.append(&from, sizeof(from))
+                seen_before.append(from)
 
                 for es = pending_exports[from_index].ptr; es < pending_exports[from_index].end(); es++:
                     if command_line_args.verbosity >= 2:
@@ -478,8 +478,7 @@ def main(argc: int, argv: byte**) -> int:
     objpaths = List[byte*]{}
     for f = compst.files.ptr; f < compst.files.end(); f++:
         llvm_ir = f->build_llvm_ir()
-        path = compile_llvm_ir_to_object_file(llvm_ir)
-        objpaths.append(&path, sizeof(path))
+        objpaths.append(compile_llvm_ir_to_object_file(llvm_ir))
         LLVMDisposeModule(llvm_ir)
 
     # Check for missing main() as late as possible, so that other errors come first.

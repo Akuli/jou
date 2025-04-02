@@ -209,9 +209,9 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
             template = &template[4]
             message.extend_from_ptr(to->name, strlen(to->name), 1)
         else:
-            message.append(template++, 1)
+            message.append(*template++)
 
-    message.append("", 1)
+    message.append('\0')
     fail(location, message.ptr)
 
 
@@ -653,7 +653,7 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
             "value for field '%s' of class %s must be of type <to>, not <from>",
             f->name, t->name)
         typecheck_expression_with_implicit_cast(state, &f->value, field->type, msg)
-        specified_fields.append(&field, sizeof(field))
+        specified_fields.append(field)
 
     for i1 = 0; i1 < inst->fields.len; i1++:
         for i2 = i1+1; i2 < inst->fields.len; i2++:
@@ -692,7 +692,7 @@ def cast_array_members_to_a_common_type(
                 found = True
                 break
         if not found:
-            distinct.append(&itemtype, sizeof(itemtype))
+            distinct.append(itemtype)
 
     compatible_with_all = List[Type*]{}
 
@@ -704,7 +704,7 @@ def cast_array_members_to_a_common_type(
                 break
 
         if t_compatible_with_all_others:
-            compatible_with_all.append(t, sizeof(*t))
+            compatible_with_all.append(*t)
 
     if compatible_with_all.len > 1:
         # Remove void* if exists, so that type of ["hello", NULL] becomes byte*[2]
@@ -819,7 +819,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 expr->constant.kind = ConstantKind.ArrayString
                 expr->constant.array_string = List[byte]{}
                 while expr->constant.array_string.len < type_hint->array.len:
-                    expr->constant.array_string.append("", 1)
+                    expr->constant.array_string.append('\0')
                 strcpy(expr->constant.array_string.ptr, s)
                 free(s)
                 assert expr->constant.get_type() == type_hint

@@ -139,7 +139,7 @@ class Uvg:
         b: UvgBlock* = malloc(sizeof(*b))
         assert b != NULL
         memset(b, 0, sizeof(*b))
-        self->blocks.append(&b, sizeof(b))
+        self->blocks.append(b)
         return b
 
     def has_local_var(self, varname: byte*) -> bool:
@@ -164,5 +164,5 @@ class Uvg:
             strcpy(actual_varname, varname)
 
         index = self->varnames.len
-        self->varnames.append(&actual_varname, sizeof(actual_varname))
+        self->varnames.append(actual_varname)
         return index as int

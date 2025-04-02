@@ -90,9 +90,8 @@ def parse_workflow(s: byte*) -> Workflow:
 
         assert strlen(var) == 1
         assert op == '>' or op == '<'
-        if_expr = Expression{var = var[0], greater_than = (op == '>'), value = num}
-        wf.ifs.append(&if_expr, sizeof(if_expr))
-        wf.thens.append(&then, sizeof(then))
+        wf.ifs.append(Expression{var = var[0], greater_than = (op == '>'), value = num})
+        wf.thens.append(then)
 
 
 def find_workflow(workflows: List[Workflow], name: byte*) -> Workflow*:
@@ -127,9 +126,7 @@ def main() -> int:
         if line[0] == '\0':
             # end of workflows
             break
-
-        workflow = parse_workflow(line)
-        workflows.append(&workflow, sizeof(workflow))
+        workflows.append(parse_workflow(line))
 
     xmas: XMAS
     result = 0

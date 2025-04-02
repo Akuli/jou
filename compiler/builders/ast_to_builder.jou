@@ -78,8 +78,7 @@ class AstToBuilder:
             var_name = types->locals.ptr[i].name
             var_type = types->locals.ptr[i].type
             var_ptr = self->builder->stack_alloc(var_type, var_name)
-            local = LocalVar{name = var_name, ptr = var_ptr}
-            self->locals.append(&local, sizeof(local))
+            self->locals.append(LocalVar{name = var_name, ptr = var_ptr})
             if i < types->signature.args.len:
                 # First n local variables are the function arguments
                 self->builder->set_ptr(var_ptr, self->builder->get_argument(i, var_type))
@@ -106,8 +105,7 @@ class AstToBuilder:
             var_name = types->locals.ptr[i].name
             var_type = types->locals.ptr[i].type
             var_ptr = self->builder->stack_alloc(self->map_type(var_type), var_name)
-            local = LocalVar{name = var_name, ptr = var_ptr}
-            self->locals.append(&local, sizeof(local))
+            self->locals.append(LocalVar{name = var_name, ptr = var_ptr})
             if i < args.len:
                 # First n local variables are the function arguments
                 self->builder->set_ptr(var_ptr, args.ptr[i])
@@ -181,11 +179,10 @@ class AstToBuilder:
                 arg = self->builder->dereference(self->build_expression(call->method_call_self))
             else:
                 arg = self->build_expression(call->method_call_self)
-            args.append(&arg, sizeof(arg))
+            args.append(arg)
 
         for p = call->args.ptr; p < call->args.end(); p++:
-            arg = self->build_expression(p)
-            args.append(&arg, sizeof(arg))
+            args.append(self->build_expression(p))
 
         result = self->call_or_inline(call->called_signature, args)
         free(args.ptr)
@@ -531,8 +528,7 @@ class AstToBuilder:
             self->builder->branch(self->build_expression(cond), bodyblock, doneblock)
 
         # Within loop body, 'break' skips to after loop, 'continue' goes to incr.
-        loop = Loop{on_break = doneblock, on_continue = incrblock}
-        self->loops.append(&loop, sizeof(loop))
+        self->loops.append(Loop{on_break = doneblock, on_continue = incrblock})
 
         # Run loop body. When done, go to incr.
         self->builder->set_current_block(bodyblock)

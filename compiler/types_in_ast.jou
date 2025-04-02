@@ -54,7 +54,7 @@ class FunctionOrMethodTypes:
         assert strlen(name) < sizeof(var.name)
         strcpy(var.name, name)
 
-        self->locals.append(&var, sizeof(var))
+        self->locals.append(var)
 
     def free(self) -> None:
         free(self->locals.ptr)
@@ -89,12 +89,10 @@ class FileTypes:
     functions: List[SignatureAndUsedPtr]
 
     def add_function(self, signature: Signature*, usedptr: bool*) -> None:
-        item = SignatureAndUsedPtr{signature = signature->copy(), usedptr = usedptr}
-        self->functions.append(&item, sizeof(item))
+        self->functions.append(SignatureAndUsedPtr{signature = signature->copy(), usedptr = usedptr})
 
     def _add_type_internal(self, t: Type*, usedptr: bool*) -> None:
-        item = TypeAndUsedPtr{type = t, usedptr = usedptr}
-        self->available_types.append(&item, sizeof(item))
+        self->available_types.append(TypeAndUsedPtr{type = t, usedptr = usedptr})
 
     def add_type(self, t: Type*, usedptr: bool*) -> None:
         assert strstr(t->name, "[") == NULL  # must be able to find the types by name
@@ -110,14 +108,14 @@ class FileTypes:
         assert strlen(name) < sizeof g.name
         strcpy(g.name, name)
 
-        self->globals.append(&g, sizeof(g))
+        self->globals.append(g)
         return &self->globals.end()[-1]
 
     def add_constant(self, name: byte*, value: Constant*, usedptr: bool*) -> None:
         c = NamedConstant{value = value->copy(), usedptr = usedptr}
         assert strlen(name) < sizeof(c.name)
         strcpy(c.name, name)
-        self->constants.append(&c, sizeof(c))
+        self->constants.append(c)
 
     # This is safe to call if self has been zero-initialized.
     def free(self) -> None:

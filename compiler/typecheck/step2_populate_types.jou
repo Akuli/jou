@@ -99,7 +99,7 @@ def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type
             snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class->name, self_class->name)
             fail(astarg->type.location, msg)
 
-        sig.args.append(&arg, sizeof(arg))
+        sig.args.append(arg)
 
     sig.is_noreturn = astsig->return_type.is_noreturn()
     if astsig->return_type.is_none() or astsig->return_type.is_noreturn():
@@ -177,7 +177,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                     union_id = union_id++,
                 }
                 check_class_member_not_exist(t, f.name, stmt->location)
-                t->classdata.fields.append(&f, sizeof(f))
+                t->classdata.fields.append(f)
 
             case AstStatementKind.ClassUnion:
                 uid = union_id++
@@ -194,7 +194,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                         union_id = uid,
                     }
                     check_class_member_not_exist(t, f.name, ntv->name_location)
-                    t->classdata.fields.append(&f, sizeof(f))
+                    t->classdata.fields.append(f)
 
             case AstStatementKind.MethodDef:
                 # Don't handle the method body yet: that is a part of step 3, not step 2
@@ -202,8 +202,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                 stmt->method.types.signature = sig
 
                 check_class_member_not_exist(t, sig.name, stmt->location)
-                sig2 = sig.copy()
-                t->classdata.methods.append(&sig2, sizeof(sig2))
+                t->classdata.methods.append(sig.copy())
 
             case AstStatementKind.Pass:
                 pass
@@ -226,15 +225,15 @@ def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
             case AstStatementKind.GlobalVariableDeclare:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type, &stmt->global_var_declare.used)
                 if stmt->global_var_declare.public:
-                    exports.append(&exp, sizeof(exp))
+                    exports.append(exp)
             case AstStatementKind.GlobalVariableDef:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_def.name, &stmt->global_var_def.type, &stmt->global_var_def.used)
                 if stmt->global_var_def.public:
-                    exports.append(&exp, sizeof(exp))
+                    exports.append(exp)
             case AstStatementKind.Const:
                 exp = handle_const(&ast->types, stmt->location, &stmt->const_statement)
                 if stmt->const_statement.public:
-                    exports.append(&exp, sizeof(exp))
+                    exports.append(exp)
                 else:
                     exp.free()
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
@@ -242,7 +241,7 @@ def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
                 stmt->function.types.signature = sig
                 if stmt->function.public:
                     exp = ExportSymbol{kind = ExportSymbolKind.Function, name = sig.name, funcsignature = sig.copy()}
-                    exports.append(&exp, sizeof(exp))
+                    exports.append(exp)
             case AstStatementKind.Class:
                 handle_class_members(&ast->types, &stmt->classdef)
             case AstStatementKind.Enum | AstStatementKind.Link:

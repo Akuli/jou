@@ -7,8 +7,7 @@ import "stdlib/mem.jou"
 
 def find_path_through_maze(grid: Grid) -> List[int[2]]:
     path = List[int[2]]{}
-    start = grid.find_first('S')
-    path.append(&start, sizeof(start))
+    path.append(grid.find_first('S'))
 
     while grid.get(path.end()[-1]) != 'E':
         x = path.end()[-1][0]
@@ -40,7 +39,7 @@ def find_path_through_maze(grid: Grid) -> List[int[2]]:
             chosen_neighbor = &neighbors[i]
 
         assert chosen_neighbor != NULL
-        path.append(chosen_neighbor, sizeof(*chosen_neighbor))
+        path.append(*chosen_neighbor)
 
     return path
 

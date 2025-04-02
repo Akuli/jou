@@ -35,9 +35,8 @@ def get_next_paths(path: List[int[2]], grid: Grid*) -> List[int[2]][4]:
                     break
 
         if can_go:
-            next = [x, y]
             result[i].extend(path)
-            result[i].append(&next, sizeof(next))
+            result[i].append([x, y])
 
     return result
 
@@ -52,8 +51,7 @@ def main() -> int:
 
     paths: List[int[2]][1000]
     paths[0] = List[int[2]]{}
-    start = [1, 0]
-    paths[0].append(&start, sizeof(start))
+    paths[0].append([1, 0])
     npaths = 1
 
     result = 0

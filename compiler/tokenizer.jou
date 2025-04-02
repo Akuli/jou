@@ -250,7 +250,7 @@ class Tokenizer:
             return
 
         assert b != '\r'
-        self->pushback.append(&b, sizeof(b))
+        self->pushback.append(b)
         if b == '\n':
             self->location.lineno--
 
@@ -395,15 +395,15 @@ class Tokenizer:
                         case '\0':
                             fail(self->location, "missing \" to end the string")
                         case 'n':
-                            result.append("\n", 1)
+                            result.append('\n')
                         case 'r':
-                            result.append("\r", 1)
+                            result.append('\r')
                         case 't':
-                            result.append("\t", 1)
+                            result.append('\t')
                         case '\\':
-                            result.append("\\", 1)
+                            result.append('\\')
                         case '"':
-                            result.append("\"", 1)
+                            result.append('"')
                         case '\'':
                             fail(self->location, "single quotes shouldn't be escaped in strings")
                         case '0':
@@ -412,7 +412,7 @@ class Tokenizer:
                             b = self->read_hex_escape_byte()
                             if b == '\0':
                                 fail(self->location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte")
-                            result.append(&b, sizeof(b))
+                            result.append(b)
                         case '\n':
                             # \ at end of line, string continues on next line
                             pass
@@ -424,9 +424,9 @@ class Tokenizer:
                                 msg = "unknown '\\' escape"
                             fail(self->location, msg)
                 case _:
-                    result.append(&c, sizeof(c))
+                    result.append(c)
 
-        result.append("", 1)
+        result.append('\0')
         return result.ptr
 
     def read_operator(self) -> byte[100]:
@@ -578,12 +578,11 @@ def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
     #  * It is easier to detect an unexpected indentation in the beginning
     #    of the file, as it becomes just like any other indentation.
     #  * Line numbers start at 1.
-    tokenizer.pushback.append("\n", 1)
+    tokenizer.pushback.append('\n')
 
     tokens = List[Token]{}
     while tokens.len == 0 or tokens.end()[-1].kind != TokenKind.EndOfFile:
-        t = tokenizer.read_token()
-        tokens.append(&t, sizeof(t))
+        tokens.append(tokenizer.read_token())
 
     free(tokenizer.pushback.ptr)
     return tokens.ptr
@@ -601,16 +600,14 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
             # This makes it similar to how other newline and dedent tokens work:
             # the dedents always come after a newline token.
             if t > raw_tokens and t[-1].kind != TokenKind.Newline:
-                nl = Token{location = t->location, kind = TokenKind.Newline}
-                tokens.append(&nl, sizeof(nl))
+                tokens.append(Token{location = t->location, kind = TokenKind.Newline})
             while level != 0:
-                dedent = Token{location = t->location, kind = TokenKind.Dedent}
-                tokens.append(&dedent, sizeof(dedent))
+                tokens.append(Token{location = t->location, kind = TokenKind.Dedent})
                 level -= 4
-            tokens.append(t, sizeof(*t))
+            tokens.append(*t)
             break
 
-        tokens.append(t, sizeof(*t))
+        tokens.append(*t)
 
         if t->kind == TokenKind.Newline:
             after_newline = t->location
@@ -620,13 +617,11 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
                 fail(after_newline, "indentation must be a multiple of 4 spaces")
 
             while level < t->indentation_level:
-                indent = Token{location = after_newline, kind = TokenKind.Indent}
-                tokens.append(&indent, sizeof(indent))
+                tokens.append(Token{location = after_newline, kind = TokenKind.Indent})
                 level += 4
 
             while level > t->indentation_level:
-                dedent = Token{location = after_newline, kind = TokenKind.Dedent}
-                tokens.append(&dedent, sizeof(dedent))
+                tokens.append(Token{location = after_newline, kind = TokenKind.Dedent})
                 level -= 4
 
     # Delete the newline token in the beginning.

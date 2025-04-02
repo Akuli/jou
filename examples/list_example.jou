@@ -10,17 +10,9 @@ def main() -> int:
     foo = List[int]{}
 
     # Add items to list
-    #
-    # Due to limitations of the Jou language, it is currently impossible to write
-    # a simple list.append(item) method instead of list.append(&item, sizeof(item)).
-    # Inline functions (https://github.com/Akuli/jou/issues/791) will help with
-    # this when they are implemented.
-    n = 7
-    foo.append(&n, sizeof(n))
-    n++
-    foo.append(&n, sizeof(n))
-    n++
-    foo.append(&n, sizeof(n))
+    foo.append(7)
+    foo.append(8)
+    foo.append(9)
 
     # Iterating with indexes
     # Output: 7

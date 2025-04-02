@@ -24,8 +24,7 @@ def handle_generics(t: Type*, classdef: AstClassDef*) -> None:
     assert t->kind == TypeKind.Class
     assert classdef->is_generic()
     for nameptr = classdef->generic_typevar_names.ptr; nameptr < classdef->generic_typevar_names.end(); nameptr++:
-        typevar = create_typevar(*nameptr)
-        t->classdata.generic_params.append(&typevar, sizeof(typevar))
+        t->classdata.generic_params.append(create_typevar(*nameptr))
 
     old_name: byte[500] = t->name
     t->name = create_type_name_with_params(old_name, t->classdata.generic_params)
@@ -70,7 +69,6 @@ def typecheck_step1_create_types(ast: AstFile*) -> List[ExportSymbol]:
                 k = ExportSymbolKind.GenericClass
             else:
                 k = ExportSymbolKind.Type
-            es = ExportSymbol{kind = k, type = t, name = name}
-            exports.append(&es, sizeof(es))
+            exports.append(ExportSymbol{kind = k, type = t, name = name})
 
     return exports

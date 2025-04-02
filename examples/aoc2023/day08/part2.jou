@@ -134,9 +134,9 @@ def get_z_counts(input: Input*, start: Node*) -> ZCounts:
                 for k = 0L; k < nstates; k++:
                     if states[k]->name[2] == 'Z':
                         if k < i:
-                            non_repeating.append(&k, sizeof(k))
+                            non_repeating.append(k)
                         else:
-                            first_cycle.append(&k, sizeof(k))
+                            first_cycle.append(k)
                 free(states)
 
                 assert first_cycle.len != 0

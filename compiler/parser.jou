@@ -361,8 +361,7 @@ class Parser:
 
                 params = List[AstType]{}
                 while not self->tokens->is_operator("]"):
-                    param = self->parse_type()
-                    params.append(&param, sizeof(param))
+                    params.append(self->parse_type())
                     if not self->tokens->is_operator(","):
                         break
                     self->tokens++
@@ -444,7 +443,7 @@ class Parser:
                     self->tokens++
                     self_arg.type = self->parse_type()
 
-                result.args.append(&self_arg, sizeof(self_arg))
+                result.args.append(self_arg)
                 used_self = True
 
             else:
@@ -460,7 +459,7 @@ class Parser:
                             "there are multiple arguments named '%s'", arg.name)
                         fail(arg.name_location, message)
 
-                result.args.append(&arg, sizeof(arg))
+                result.args.append(arg)
 
             if not self->tokens->is_operator(","):
                 break
@@ -499,8 +498,7 @@ class Parser:
         self->tokens++
 
         while not self->tokens->is_operator(")"):
-            arg = self->parse_expression()
-            result.args.append(&arg, sizeof(arg))
+            result.args.append(self->parse_expression())
             if not self->tokens->is_operator(","):
                 break
             self->tokens++
@@ -533,8 +531,7 @@ class Parser:
                 self->tokens->fail_expected_got(msg)
             self->tokens++
 
-            field = AstInstantiationField{name = field_name, value = self->parse_expression()}
-            result.fields.append(&field, sizeof(field))
+            result.fields.append(AstInstantiationField{name = field_name, value = self->parse_expression()})
 
             if not self->tokens->is_operator(","):
                 break
@@ -552,8 +549,7 @@ class Parser:
 
         result = List[AstExpression]{}
         while not self->tokens->is_operator("]"):
-            item = self->parse_expression()
-            result.append(&item, sizeof(item))
+            result.append(self->parse_expression())
             if not self->tokens->is_operator(","):
                 break
             self->tokens++
@@ -948,8 +944,7 @@ class Parser:
             self->tokens++
             cond = self->parse_expression_with_unnecessary_parens_warning("if statement condition")
             body = self->parse_body()
-            if_or_elif = AstConditionAndBody{condition = cond, body = body}
-            ifs_and_elifs.append(&if_or_elif, sizeof(if_or_elif))
+            ifs_and_elifs.append(AstConditionAndBody{condition = cond, body = body})
             if not self->tokens->is_keyword("elif"):
                 break
 
@@ -969,7 +964,7 @@ class Parser:
                     snprintf(msg, sizeof(msg), "this loop is inside another loop that also uses variable '%s'", varname)
                     show_warning(location, msg)
                     break
-        self->loop_vars.append(&varname, sizeof(varname))
+        self->loop_vars.append(varname)
 
     def exit_loop_body(self) -> None:
         self->loop_vars.pop()
@@ -1081,8 +1076,7 @@ class Parser:
                     self->tokens++
                 case_objs = List[AstExpression]{}
                 while True:
-                    case_obj = self->parse_expression()
-                    case_objs.append(&case_obj, sizeof(case_obj))
+                    case_objs.append(self->parse_expression())
                     if self->tokens->is_operator("|"):
                         self->tokens++
                     elif (not parens) and self->tokens->is_operator(":"):
@@ -1095,8 +1089,7 @@ class Parser:
                             self->tokens->fail_expected_got("'|' or '):'")
                         else:
                             self->tokens->fail_expected_got("'|' or ':'")
-                c = AstCase{case_objs = case_objs, body = self->parse_body()}
-                result.cases.append(&c, sizeof(c))
+                result.cases.append(AstCase{case_objs = case_objs, body = self->parse_body()})
         self->tokens++
 
         return result
@@ -1289,8 +1282,7 @@ class Parser:
 
         result = List[AstStatement]{}
         while self->tokens->kind != TokenKind.Dedent:
-            s = self->parse_statement()
-            result.append(&s, sizeof(s))
+            result.append(self->parse_statement())
         self->tokens++
         return result
 
@@ -1331,7 +1323,7 @@ class Parser:
             while not self->tokens->is_operator("]"):
                 if self->tokens->kind != TokenKind.Name:
                     self->tokens->fail_expected_got("name of a generic type variable (typically 'T')")
-                generics.append(&self->tokens->short_string, sizeof(self->tokens->short_string))
+                generics.append(self->tokens->short_string)
                 self->tokens++
 
                 if not self->tokens->is_operator(","):
@@ -1371,7 +1363,7 @@ class Parser:
             if field.value != NULL:
                 fail(field.value->location, "union members cannot have default values")
 
-            result.append(&field, sizeof(field))
+            result.append(field)
             self->eat_newline()
 
         self->tokens++
@@ -1406,7 +1398,7 @@ class Parser:
                     sprintf(error, "the enum has two members named '%s'", self->tokens->short_string)
                     fail(self->tokens->location, error)
 
-            result.members.append(&self->tokens->short_string, sizeof(self->tokens->short_string))
+            result.members.append(self->tokens->short_string)
             self->tokens++
             self->eat_newline()
 
@@ -1419,8 +1411,7 @@ def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
     result = AstFile{path = tokens[0].location.path}
 
     while parser.tokens->kind != TokenKind.EndOfFile:
-        s = parser.parse_statement()
-        result.body.append(&s, sizeof(s))
+        result.body.append(parser.parse_statement())
 
     assert parser.loop_vars.len == 0
     free(parser.loop_vars.ptr)

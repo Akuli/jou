@@ -104,8 +104,7 @@ def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: i
         if last7 == -1 or last7 == 0:
             # The input can actually be zero. It's not banned by the required
             # last 7 bits.
-            zero = 0L
-            results.append(&zero, sizeof(zero))
+            results.append(0)
     else:
         for last10 = 0; last10 < 1024; last10++:  # all 10 bit numbers
             if (
@@ -120,7 +119,7 @@ def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: i
                     x *= 8  # shift left to make room
                     x = xor(x, last_bits(last10, 3))
                     assert last_bits(x, 10) == last10
-                    results.append(&x, sizeof(x))
+                    results.append(x)
                 free(new_results.ptr)
 
     return results

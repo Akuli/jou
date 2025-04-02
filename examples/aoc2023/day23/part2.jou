@@ -116,8 +116,7 @@ def create_graph_of_intersections(grid: Grid*) -> Graph*:
     intersections = List[int[2]]{}
 
     todo = List[int[2]]{}
-    start = [1, 0]
-    todo.append(&start, sizeof(start))
+    todo.append([1, 0])
 
     while todo.len > 0:
         p = todo.ptr[--todo.len]
@@ -130,13 +129,12 @@ def create_graph_of_intersections(grid: Grid*) -> Graph*:
         if already_found:
             continue
 
-        intersections.append(&p, sizeof(p))
+        intersections.append(p)
 
         neighbors = find_connected_intersections(grid, p)
         for i = 0; i < 4; i++:
             if neighbors[i][0] != -1:
-                neighbor = [neighbors[i][0], neighbors[i][1]]
-                todo.append(&neighbor, sizeof(neighbor))
+                todo.append([neighbors[i][0], neighbors[i][1]])
 
     free(todo.ptr)
 
