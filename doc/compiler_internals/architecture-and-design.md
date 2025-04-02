@@ -42,9 +42,9 @@ Here's what each step does:
 - **Evaluating compile-time if statements** must be done before looking at what other files are imported.
     For example, if there is a Windows-specific `import` statement under `if WINDOWS:`,
     we want to ignore it when not compiling for Windows.
-- **Type checking** is split into several stages,
+- **Type checking** is split into several steps,
     so that everything will work as expected even if there are circular imports.
-    Whenever one file influences another file, that is done explicitly between the stages.
+    Whenever one file influences another file, that is done explicitly between the steps.
     For example, suppose that functions `foo()` and `bar()` call each other recursively,
     and they are in files `foo.jou` and `bar.jou` respectively.
     When type-checking the body of `foo()` and see the call to `bar()`,
