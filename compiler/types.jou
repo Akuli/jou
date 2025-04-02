@@ -136,7 +136,7 @@ class Type:
                     generic_params.append((*p)->substitute_generic_params(from, to, n))
 
                 # Special case: No substitutions need to be done.
-                # Used e.g. when class List[T] references to itself as List[T].
+                # Used e.g. when List[T] occurs inside the body of class List[T].
                 # This also handles non-generic classes.
                 ret = memcmp(
                     self->classdata.generic_params.ptr,
