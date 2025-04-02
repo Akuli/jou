@@ -72,9 +72,9 @@ To make the compiler easier to debug, command line flags can be used
 to stop the compilation and print what we have at various points:
 
 ```
-$ jou --tokenize-only examples/hello.jou   # Show tokens
-$ jou --parse-only examples/hello.jou      # Show untyped AST
-$ jou --uvg-only examples/hello.jou        # Show UVG
+$ ./jou --tokenize-only examples/hello.jou   # Show tokens
+$ ./jou --parse-only examples/hello.jou      # Show untyped AST
+$ ./jou --uvg-only examples/hello.jou        # Show UVG
 ```
 
 You can also tell the compiler to print more information
