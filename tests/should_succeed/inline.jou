@@ -5,6 +5,8 @@ class Foo[T]:
 
     # This wouldn't work without @inline because size of stack
     # variable new_x and return value would be unknown.
+    #
+    # TODO: add a test for this, ensure compiler gives a reasonable error message
     @inline
     def set_x(self, new_x: T) -> None:
         self->x = new_x
