@@ -62,15 +62,21 @@ def test_pop() -> None:
     list = List[int]{}
     for i = 11; i <= 44; i += 11:
         list.append(i)
-    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 4 items, last is 44
-    printf("pop() -> %d\n", list.pop())
-    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 3 items, last is 33
-    printf("pop() -> %d\n", list.pop())
-    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 2 items, last is 22
-    printf("pop() -> %d\n", list.pop())
-    printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 1 items, last is 11
-    printf("pop() -> %d\n", list.pop())
-    printf("%lld items\n", list.len)  # Output: 0 items
+
+    # Output: 4 items
+    # Output: pop() -> 44
+    # Output: 3 items
+    # Output: pop() -> 33
+    # Output: 2 items
+    # Output: pop() -> 22
+    # Output: 1 items
+    # Output: pop() -> 11
+    # Output: 0 items
+    while True:
+        printf("%lld items\n", list.len)
+        if list.len == 0:
+            break
+        printf("pop() -> %d\n", list.pop())
 
     # The items are still in the list, only the length changed.
     # This is important for some tricks that can be done with pop().
