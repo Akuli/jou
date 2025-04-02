@@ -57,9 +57,9 @@ class List[T]:
         self->len += n
 
     # Append all items in the given list.
+    @inline
     def extend(self, other: List[T]) -> None:
-        if other.len > 0:  # Needed, because empty lists may have unknown itemsize
-            self->extend_from_ptr(other.ptr, other.len, other.itemsize)
+        self->extend_from_ptr(other.ptr, other.len, sizeof(other.ptr[0]))
 
     # Return a pointer just beyond the last element of the list.
     # Use list.end()[-1] to get the last element.
