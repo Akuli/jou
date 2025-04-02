@@ -37,7 +37,7 @@ class ClassData:
                 arg->type = arg->type->substitute_generic_params(from, to, n)
             if sig2.return_type != NULL:
                 sig2.return_type = sig2.return_type->substitute_generic_params(from, to, n)
-            result.append(&sig2, sizeof(sig2))
+            result.append(sig2)
         return result
 
 
@@ -109,7 +109,7 @@ class Type:
         arr->type = Type{kind = TypeKind.Array, array = ArrayType{item_type = self, len = len}}
         snprintf(arr->type.name, sizeof arr->type.name, "%s[%d]", self->name, len)
 
-        info->related_types.append(&arr, sizeof(arr))
+        info->related_types.append(arr)
         return &arr->type
 
     # This method is used to create List[int] from a generic List[T].
@@ -139,8 +139,7 @@ class Type:
 
                 generic_params = List[Type*]{}
                 for p = self->classdata.generic_params.ptr; p < self->classdata.generic_params.end(); p++:
-                    subbed = (*p)->substitute_generic_params(from, to, n)
-                    generic_params.append(&subbed, sizeof(subbed))
+                    generic_params.append((*p)->substitute_generic_params(from, to, n))
 
                 # Results are cached in related_types, just like arrays.
                 # Before we go further, let's check if the type we want is already cached.
@@ -160,7 +159,7 @@ class Type:
                 # the already cached type.
                 new_info: TypeInfo* = calloc(1, sizeof(*new_info))
                 assert new_info != NULL
-                info->related_types.append(&new_info, sizeof(new_info))
+                info->related_types.append(new_info)
                 result = &new_info->type
                 *result = *self
                 result->name = create_type_name_with_params(self->name, generic_params)
@@ -408,7 +407,7 @@ def get_integer_type(size_in_bits: int, is_signed: bool) -> Type*:
 # do it anyway, but communicating this to valgrind is complicated because of
 # how pointers and arrays work.
 def satisfy_valgrind(ti: TypeInfo*) -> None:
-    global_type_state.other_types.append(&ti, sizeof(ti))
+    global_type_state.other_types.append(ti)
 
 
 def create_simple_type(name: byte*, kind: TypeKind) -> Type*:

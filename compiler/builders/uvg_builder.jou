@@ -51,7 +51,7 @@ class UBuilder:
 
         b = self->current_block
         assert b != NULL
-        b->instructions.append(&ins, sizeof(ins))
+        b->instructions.append(ins)
 
     def begin_statement_in_a_body(self) -> None:
         self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Statement})

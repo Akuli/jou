@@ -43,14 +43,11 @@ class List[T]:
         self->ptr = realloc(self->ptr, self->alloc)
         assert self->ptr != NULL  # If this fails, we ran out of memory
 
-    # Add *item to end of the list.
-    #
-    # The "itemsize" argument must be sizeof(*item). Unfortunately it is not
-    # possible to tell the compiler to determine it automatically.
-    def append(self, item: T*, itemsize: long) -> None:
-        self->grow(self->len + 1, itemsize)
-        memcpy(self->end(), item, itemsize)
-        self->len++
+    # Add item to end of the list.
+    @inline
+    def append(self, item: T) -> None:
+        self->grow(self->len + 1, sizeof(item))
+        self->ptr[self->len++] = item
 
     # Append n items to the list, starting at the given pointer.
     # For example, with n=3, this appends ptr[0], ptr[1] and ptr[2].

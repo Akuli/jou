@@ -23,7 +23,7 @@ def test_grow() -> None:
 
     # Make sure that nothing breaks if we append after growing
     for i = 4; i < 10; i++:
-        list.append(&i, sizeof(i))
+        list.append(i)
 
     # Output: 123456789
     for p = list.ptr; p < list.end(); p++:
@@ -35,8 +35,7 @@ def test_grow() -> None:
 
 def test_extend() -> None:
     list = List[int]{}
-    one = 1
-    list.append(&one, sizeof(one))
+    list.append(1)
 
     # Extend from pointer
     arr = [2, 3, 4, 5]
@@ -45,7 +44,7 @@ def test_extend() -> None:
     # Extend from another list
     list2 = List[int]{}
     for i = 11; i <= 99; i += 11:
-        list2.append(&i, sizeof(i))
+        list2.append(i)
     list.extend(list2)
     free(list2.ptr)
 
@@ -62,7 +61,7 @@ def test_extend() -> None:
 def test_pop() -> None:
     list = List[int]{}
     for i = 11; i <= 44; i += 11:
-        list.append(&i, sizeof(i))
+        list.append(i)
     printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 4 items, last is 44
     list.pop()
     printf("%lld items, last is %d\n", list.len, list.end()[-1])  # Output: 3 items, last is 33
@@ -74,8 +73,9 @@ def test_pop() -> None:
     printf("%lld items\n", list.len)  # Output: 0 items
 
     assert list.ptr != NULL  # same memory will be reused
-    for i = 1; i <= 3; i++:
-        list.append(&i, sizeof(i))
+    list.append(1)
+    list.append(2)
+    list.append(3)
     # Output: len=3 [1,2,3]
     printf("len=%lld [%d,%d,%d]\n", list.len, list.ptr[0], list.ptr[1], list.ptr[2])
 
