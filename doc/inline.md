@@ -1,6 +1,6 @@
 # Inline functions
 
-Jou functions can be marked with the `@inline` decorator.
+Jou functions and methods can be decorated with the `@inline` decorator.
 For example:
 
 ```python

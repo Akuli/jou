@@ -39,7 +39,7 @@ class AstToBuilder:
 
     location: Location
 
-    # If not NULL, this builder is used to handle calling an @inline function
+    # If not NULL, this builder is being used to handle calling an @inline function
     inlining_info: InliningInfo*
 
     # Internal method. Should not be called outside this file.
@@ -705,12 +705,7 @@ class AstToBuilder:
 
 
 @public
-def feed_ast_to_builder(
-    func_ast: AstFunctionOrMethod*,
-    func_location: Location,
-    is_main_file: bool,
-    builder: EitherBuilder*,
-) -> None:
+def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location, is_main_file: bool, builder: EitherBuilder*) -> None:
     if func_ast->inline and builder->should_functions_marked_with_inline_be_inlined():
         # Calls to this function will be inlined. Pretend the function doesn't exist.
         return
