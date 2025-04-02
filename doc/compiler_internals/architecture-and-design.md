@@ -46,7 +46,7 @@ Here's what each step does:
     so that everything will work as expected even if there are circular imports.
     Whenever one file influences another file, that is done explicitly between the steps.
     For example, suppose that functions `foo()` and `bar()` call each other recursively,
-    and they are in files `foo.jou` and `bar.jou` respectively.
+    and they are in different files.
     During step 3, the compiler goes through the body of `foo()`, and it sees a call to `bar()`.
     It already knows about the `bar()` function, because discovering functions is part of step 2.
     To understand what each step does, see the comments at the start of
