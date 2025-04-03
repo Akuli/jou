@@ -1,4 +1,5 @@
 import "stdlib/str.jou"
+import "stdlib/list.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
@@ -39,17 +40,13 @@ class EnumMemberConstant:
     enumtype: Type*
     memberidx: int
 
-class ArrayStringConstant:
-    str: byte*  # always '\0' terminated
-    array_size: int  # -1 means that the string is a byte* pointer, not byte[N] array
-
 @public
 class Constant:
     kind: ConstantKind
     union:
         integer: IntegerConstant
         pointer_string: byte*
-        array_string: ArrayStringConstant
+        array_string: List[byte]
         float_or_double_text: byte[100]  # convenient because LLVM wants a string anyway
         boolean: bool
         enum_member: EnumMemberConstant
@@ -82,8 +79,8 @@ class Constant:
                 printf("NULL\n")
             case ConstantKind.ArrayString:
                 printf("array string ")
-                print_string(self->array_string.str)
-                printf(" (padded to %d bytes)\n", self->array_string.array_size)
+                print_string(self->array_string.ptr)
+                printf(" (padded to %lld bytes)\n", self->array_string.len)
             case ConstantKind.PointerString:
                 printf("pointer string ")
                 print_string(self->pointer_string)
@@ -92,7 +89,7 @@ class Constant:
     def free(self) -> None:
         match self->kind:
             case ConstantKind.ArrayString:
-                free(self->array_string.str)
+                free(self->array_string.ptr)
             case ConstantKind.PointerString:
                 free(self->pointer_string)
             case _:
@@ -101,7 +98,9 @@ class Constant:
     def copy(self: Constant) -> Constant:
         match self.kind:
             case ConstantKind.ArrayString:
-                self.array_string.str = strdup(self.array_string.str)
+                old = self.array_string
+                self.array_string = List[byte]{}
+                self.array_string.extend(old)
             case ConstantKind.PointerString:
                 self.pointer_string = strdup(self.pointer_string)
             case _:
@@ -121,7 +120,7 @@ class Constant:
             case ConstantKind.Bool:
                 return boolType
             case ConstantKind.ArrayString:
-                return byteType->array_type(self->array_string.array_size)
+                return byteType->array_type(self->array_string.len as int)
             case ConstantKind.PointerString:
                 return byteType->pointer_type()
             case ConstantKind.Integer:

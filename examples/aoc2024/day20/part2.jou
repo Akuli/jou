@@ -1,33 +1,17 @@
 import "../../aoc2023/grid.jou"
+import "stdlib/list.jou"
 import "stdlib/io.jou"
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
 
 
-class Path:
-    points: int[2]*
-    length: int
-    alloc: int
-
-    def append(self, point: int[2]) -> None:
-        if self->length == self->alloc:
-            if self->alloc == 0:
-                self->alloc = 8
-            else:
-                self->alloc *= 2
-            self->points = realloc(self->points, sizeof(self->points[0]) * self->alloc)
-            assert self->points != NULL
-
-        self->points[self->length++] = point
-
-
-def find_path_through_maze(grid: Grid) -> Path:
-    path = Path{}
+def find_path_through_maze(grid: Grid) -> List[int[2]]:
+    path = List[int[2]]{}
     path.append(grid.find_first('S'))
 
-    while grid.get(path.points[path.length - 1]) != 'E':
-        x = path.points[path.length - 1][0]
-        y = path.points[path.length - 1][1]
+    while grid.get(path.end()[-1]) != 'E':
+        x = path.end()[-1][0]
+        y = path.end()[-1][1]
 
         neighbors = [
             [x-1, y],
@@ -45,9 +29,9 @@ def find_path_through_maze(grid: Grid) -> Path:
 
             # Do not go to where we just came from
             if (
-                path.length > 1
-                and new_place[0] == path.points[path.length - 2][0]
-                and new_place[1] == path.points[path.length - 2][1]
+                path.len > 1
+                and new_place[0] == path.end()[-2][0]
+                and new_place[1] == path.end()[-2][1]
             ):
                 continue
 
@@ -85,9 +69,9 @@ def main() -> int:
     path = find_path_through_maze(grid)
 
     counter = 0
-    for i1 = 0; i1 < path.length; i1++:
-        for i2 = i1; i2 < path.length; i2++:
-            time_spent = manhattan_distance(path.points[i1], path.points[i2])
+    for i1 = 0; i1 < path.len; i1++:
+        for i2 = i1; i2 < path.len; i2++:
+            time_spent = manhattan_distance(path.ptr[i1], path.ptr[i2])
             if time_spent <= 20:
                 # we can cheat here
                 time_saved = i2 - i1 - time_spent
@@ -96,6 +80,6 @@ def main() -> int:
 
     printf("%d\n", counter)  # Output: 285
 
-    free(path.points)
+    free(path.ptr)
     free(grid.data)
     return 0

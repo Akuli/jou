@@ -32,6 +32,16 @@ class EitherBuilder:
     lbuilder: LBuilder*  # may be NULL
     ubuilder: UBuilder*  # may be NULL
 
+    def should_functions_marked_with_inline_be_inlined(self) -> bool:
+        both = self->lbuilder != NULL and self->ubuilder != NULL
+        assert not both
+
+        if self->lbuilder != NULL:
+            return self->lbuilder->should_functions_marked_with_inline_be_inlined()
+        if self->ubuilder != NULL:
+            return self->ubuilder->should_functions_marked_with_inline_be_inlined()
+        assert False
+
     def begin_function(self, sig: Signature*, public: bool) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->begin_function(sig, public)

@@ -60,31 +60,13 @@ Following the [instructions in the README](README.md#setup) is enough.
 
 </details>
 
+After making changes to the compiler,
+run `mingw32-make` (Windows) or `make` (other systems) to recompile the compiler.
+
 
 ## How does the compiler work?
 
-At a high level, the compilation steps are:
-- **Tokenize:** split the source code into tokens
-- **Parse:** build an abstract syntax tree (AST) from the tokens
-- **Typecheck:** errors for wrong number or type of function arguments etc, figure out the type of each expression in the AST
-- **Build LLVM IR:** walk the AST and call methods on a builder that builds LLVM IR (see [compiler/builders/](compiler/builders/))
-- **Emit objects:** create `.o` files from the LLVM IR
-- **Link:** run a linker that combines the `.o` files into an executable
-- **Run:** run the executable
-
-To get a good idea of how these steps work,
-you can run the compiler in verbose mode:
-
-```
-$ ./jou -v examples/hello.jou   # High-level overview
-$ ./jou -vv examples/hello.jou  # Show all details
-```
-
-With `-vv` (or `--verbose --verbose`), the compiler shows
-the tokens, AST and LLVM IR generated.
-LLVM IR is shown twice, before and after optimizing.
-
-After making changes to the compiler, run `make` to recompile it.
+See [doc/compiler_internals/architecture-and-design.md](doc/compiler_internals/architecture-and-design.md).
 
 
 ## Tests

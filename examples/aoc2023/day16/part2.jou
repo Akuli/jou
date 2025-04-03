@@ -1,3 +1,4 @@
+import "stdlib/list.jou"
 import "stdlib/math.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
@@ -58,19 +59,11 @@ def run_beam(grid: Grid*, start_beam: LightBeam) -> int:
     visited: bool[4][200][200]* = calloc(1, sizeof(*visited))
     assert visited != NULL
 
-    todo: LightBeam* = malloc(sizeof(todo[0]))
-    todo[0] = start_beam
-    todo_len = 1
-    todo_alloc = 1
+    todo = List[LightBeam]{}
+    todo.append(start_beam)
 
-    while todo_len > 0:
-        # Make sure there is room for another beam
-        if todo_alloc == todo_len:
-            todo_alloc *= 2
-            todo = realloc(todo, sizeof(todo[0]) * todo_alloc)
-            assert todo != NULL
-
-        beam = todo[--todo_len]
+    while todo.len > 0:
+        beam = todo.pop()
         x = beam.location[0]
         y = beam.location[1]
         ptr = &(*visited)[x][y][direction_to_int(beam.direction)]
@@ -84,9 +77,9 @@ def run_beam(grid: Grid*, start_beam: LightBeam) -> int:
             dir = next_dirs[i]
             location = [beam.location[0] + dir[0], beam.location[1] + dir[1]]
             if grid->is_in_bounds(location):
-                todo[todo_len++] = LightBeam{location = location, direction = dir}
+                todo.append(LightBeam{location = location, direction = dir})
 
-    free(todo)
+    free(todo.ptr)
 
     n = 0
     for x = 0; x < 200; x++:

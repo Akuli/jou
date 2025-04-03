@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/ascii.jou"
@@ -18,12 +19,9 @@ def parse_hex_string(s: byte*, len: int) -> int:
     return result
 
 
-# returned array is [-1, -1] terminated
-def read_input_as_points(filename: byte*, result_len: int*) -> int[2]*:
-    result: int[2]* = malloc(sizeof(result[0]))
-    assert result != NULL
-    result[0] = [0, 0]
-    *result_len = 1
+def read_input_as_points(filename: byte*) -> List[int[2]]:
+    result = List[int[2]]{}
+    result.append([0, 0])
 
     f = fopen(filename, "r")
     assert f != NULL
@@ -52,8 +50,7 @@ def read_input_as_points(filename: byte*, result_len: int*) -> int[2]*:
         else:
             assert False
 
-        result = realloc(result, sizeof(result[0]) * (*result_len + 1))
-        result[(*result_len)++] = [x, y]
+        result.append([x, y])
 
     fclose(f)
 
@@ -61,35 +58,35 @@ def read_input_as_points(filename: byte*, result_len: int*) -> int[2]*:
 
 
 # See day 10 part 2
-def polygon_area(corners: int[2]*, ncorners: int) -> long:
+def polygon_area(corners: List[int[2]]) -> long:
     double_area = 0L
-    for i = 0; i < ncorners; i++:
-        a: long = corners[i][0]
-        b: long = corners[i][1]
-        c: long = corners[(i+1) % ncorners][0]
-        d: long = corners[(i+1) % ncorners][1]
+    for i = 0; i < corners.len; i++:
+        a: long = corners.ptr[i][0]
+        b: long = corners.ptr[i][1]
+        c: long = corners.ptr[(i+1) % corners.len][0]
+        d: long = corners.ptr[(i+1) % corners.len][1]
         double_area += a*d - b*c
     return llabs(double_area)/2
 
 
 def main() -> int:
-    n: int
-    points = read_input_as_points("sampleinput.txt", &n)
+    points = read_input_as_points("sampleinput.txt")
 
     # must end where it starts
-    assert n > 0
-    assert points[0][0] == 0
-    assert points[0][1] == 0
-    assert points[n-1][0] == 0
-    assert points[n-1][1] == 0
+    assert points.len > 0
+    assert points.ptr[0][0] == 0
+    assert points.ptr[0][1] == 0
+    assert points.end()[-1][0] == 0
+    assert points.end()[-1][1] == 0
 
     path_len = 0L
-    for i = 1; i < n; i++:
-        path_len += abs(points[i-1][0] - points[i][0])
-        path_len += abs(points[i-1][1] - points[i][1])
+    for i = 1; i < points.len; i++:
+        path_len += abs(points.ptr[i-1][0] - points.ptr[i][0])
+        path_len += abs(points.ptr[i-1][1] - points.ptr[i][1])
 
     assert path_len % 2 == 0
-    printf("%lld\n", polygon_area(points, n-1) + 1 + path_len/2)  # Output: 952408144115
+    points.pop()
+    printf("%lld\n", polygon_area(points) + 1 + path_len/2)  # Output: 952408144115
 
-    free(points)
+    free(points.ptr)
     return 0

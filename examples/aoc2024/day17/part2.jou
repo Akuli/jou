@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
@@ -67,22 +68,6 @@ def get_first_output(code: int*, reg_a: long) -> int:
     return -1  # no output
 
 
-class List:
-    ptr: long*
-    len: int
-    alloc: int
-
-    def append(self, item: long) -> None:
-        if self->len == self->alloc:
-            if self->alloc == 0:
-                self->alloc = 4
-            else:
-                self->alloc *= 2
-            self->ptr = realloc(self->ptr, self->alloc * sizeof(self->ptr[0]))
-            assert self->ptr != NULL
-        self->ptr[self->len++] = item
-
-
 def last_bits(n: long, how_many: int) -> long:
     power_of_two = 1L
     while how_many --> 0:
@@ -109,9 +94,9 @@ def last_bits(n: long, how_many: int) -> long:
 # This function finds all such x that:
 #   - when machine runs on x, it outputs the desired output
 #   - last 7 bits of x are as given (-1 means anything will do).
-def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: int, last7: int) -> List:
+def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: int, last7: int) -> List[long]:
     assert desired_output_len >= 0
-    results = List{}
+    results = List[long]{}
 
     if desired_output_len == 0:
         # Ensure the code does nothing, imagining that the loop condition is at
@@ -129,8 +114,8 @@ def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: i
                 # Recursively find more bits.
                 last7_before = last10 / 8  # shift right by 3
                 new_results = find_matching_inputs(code, &desired_output[1], desired_output_len - 1, last7_before)
-                for i = 0; i < new_results.len; i++:
-                    x = new_results.ptr[i]
+                for p = new_results.ptr; p < new_results.end(); p++:
+                    x = *p
                     x *= 8  # shift left to make room
                     x = xor(x, last_bits(last10, 3))
                     assert last_bits(x, 10) == last10

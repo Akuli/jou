@@ -1,4 +1,5 @@
 import "stdlib/str.jou"
+import "stdlib/list.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
@@ -123,43 +124,40 @@ def main() -> int:
         numbers = split_ints_by_commas(number_string)
 
         n_question_marks = 0
-        for i = 0; questional_string[i] != '\0'; i++:
+        for i = 0L; questional_string[i] != '\0'; i++:
             if questional_string[i] == '?':
                 n_question_marks++
 
-        states: State* = malloc(sizeof(states[0]))
-        states[0] = State{questional_string=questional_string, numbers=numbers, repeat_count=1}
-        nstates = 1
+        states = List[State]{}
+        states.append(State{questional_string=questional_string, numbers=numbers, repeat_count=1})
 
         while n_question_marks --> 0:
-            states = realloc(states, sizeof(states[0]) * (2*nstates))
-            assert states != NULL
-
-            for i = nstates-1; i >= 0; i--:
-                both_ways = states[i].substitute_both_ways()
-                states[2*i] = both_ways[0]
-                states[2*i+1] = both_ways[1]
-            nstates *= 2
+            states.grow(2*states.len, sizeof(states.ptr[0]))
+            for i = states.len-1; i >= 0; i--:
+                both_ways = states.ptr[i].substitute_both_ways()
+                states.ptr[2*i] = both_ways[0]
+                states.ptr[2*i+1] = both_ways[1]
+            states.len *= 2
 
             # Simplify states to merge as much as possible
-            for i = 0; i < nstates; i++:
-                states[i].simplify()
+            for s = states.ptr; s < states.end(); s++:
+                s->simplify()
 
             # Merge duplicate states
-            for i = 0; i < nstates; i++:
-                for k = nstates-1; k > i; k--:
-                    if states[i].equals(&states[k]):
-                        states[i].repeat_count += states[k].repeat_count
-                        states[k] = states[--nstates]
+            for i = 0; i < states.len; i++:
+                for k = states.len-1; k > i; k--:
+                    if states.ptr[i].equals(&states.ptr[k]):
+                        states.ptr[i].repeat_count += states.ptr[k].repeat_count
+                        states.ptr[k] = states.pop()
 
             # Delete impossible states
-            for i = nstates-1; i >= 0; i--:
-                if not states[i].is_possible():
-                    states[i] = states[--nstates]
+            for i = states.len-1; i >= 0; i--:
+                if not states.ptr[i].is_possible():
+                    states.ptr[i] = states.pop()
 
-        for i = 0; i < nstates; i++:
-            result += states[i].repeat_count
-        free(states)
+        for s = states.ptr; s < states.end(); s++:
+            result += s->repeat_count
+        free(states.ptr)
 
     fclose(f)
     printf("%lld\n", result)  # Output: 525152

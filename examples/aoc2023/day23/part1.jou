@@ -1,3 +1,4 @@
+import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/math.jou"
@@ -5,64 +6,39 @@ import "stdlib/io.jou"
 import "../grid.jou"
 
 
-class Path:
-    points: int[2]*
-    len: int
-    alloc: int
+# result contains an empty path for each impossible direction
+def get_next_paths(path: List[int[2]], grid: Grid*) -> List[int[2]][4]:
+    assert path.len >= 1
 
-    def append(self, point: int[2]) -> None:
-        if self->len == self->alloc:
-            if self->alloc == 0:
-                self->alloc = 4
-            else:
-                self->alloc *= 2
+    directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+    result = [List[int[2]]{}, List[int[2]]{}, List[int[2]]{}, List[int[2]]{}]
 
-            self->points = realloc(self->points, sizeof(self->points[0]) * self->alloc)
-            assert self->points != NULL
+    for i = 0; i < 4; i++:
+        dx = directions[i][0]
+        dy = directions[i][1]
+        last = path.end()[-1]
+        x = last[0] + dx
+        y = last[1] + dy
 
-        self->points[self->len++] = point
+        can_go = grid->is_in_bounds([x, y]) and (
+            grid->get([x, y]) == '.'
+            or (grid->get([x, y]) == '<' and dx == -1)
+            or (grid->get([x, y]) == '>' and dx == 1)
+            or (grid->get([x, y]) == '^' and dy == -1)
+            or (grid->get([x, y]) == 'v' and dy == 1)
+        )
 
-    def copy(self) -> Path:
-        result = Path{}
-        for i = 0; i < self->len; i++:
-            result.append(self->points[i])
-        return result
+        if can_go:
+            for k = 0; k < path.len; k++:
+                if path.ptr[k][0] == x and path.ptr[k][1] == y:
+                    can_go = False
+                    break
 
-    def last(self) -> int[2]:
-        assert self->len > 0
-        return self->points[self->len - 1]
+        if can_go:
+            result[i].extend(path)
+            result[i].append([x, y])
 
-    # result contains an empty path for each impossible direction
-    def get_next_paths(self, grid: Grid*) -> Path[4]:
-        directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]
-        result = [Path{}, Path{}, Path{}, Path{}]
-
-        for i = 0; i < 4; i++:
-            dx = directions[i][0]
-            dy = directions[i][1]
-            last = self->last()
-            x = last[0] + dx
-            y = last[1] + dy
-
-            can_go = grid->is_in_bounds([x, y]) and (
-                grid->get([x, y]) == '.'
-                or (grid->get([x, y]) == '<' and dx == -1)
-                or (grid->get([x, y]) == '>' and dx == 1)
-                or (grid->get([x, y]) == '^' and dy == -1)
-                or (grid->get([x, y]) == 'v' and dy == 1)
-            )
-
-            if can_go:
-                for k = 0; k < self->len; k++:
-                    if self->points[k][0] == x and self->points[k][1] == y:
-                        can_go = False
-                        break
-
-            if can_go:
-                result[i] = self->copy()
-                result[i].append([x, y])
-
-        return result
+    return result
 
 
 def main() -> int:
@@ -73,26 +49,26 @@ def main() -> int:
 
     assert starts_with(grid.data, "#.#####")
 
-    paths: Path[1000]
-    paths[0] = Path{}
+    paths: List[int[2]][1000]
+    paths[0] = List[int[2]]{}
     paths[0].append([1, 0])
     npaths = 1
 
     result = 0
     while npaths > 0:
         p = paths[--npaths]
-        last = p.last()
+        last = p.end()[-1]
         if last[1] == grid.height - 1:
             # reached goal
             step_count = p.len - 1
-            result = max(result, step_count)
+            result = max(result, step_count as int)
         else:
-            next: Path[4] = p.get_next_paths(&grid)
+            next: List[int[2]][4] = get_next_paths(p, &grid)
             for i = 0; i < 4; i++:
                 if next[i].len > 0:
                     assert npaths < sizeof(paths)/sizeof(paths[0])
                     paths[npaths++] = next[i]
-        free(p.points)
+        free(p.ptr)
 
     printf("%d\n", result)  # Output: 94
     free(grid.data)

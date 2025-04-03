@@ -8,7 +8,7 @@
 # This step assumes that all types exist, but doesn't need to know what fields
 # and methods each class has.
 
-import "stdlib/mem.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "../ast.jou"
@@ -63,45 +63,43 @@ def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> E
     return ExportSymbol{kind = ExportSymbolKind.Constant, constant = value, name = c->name}
 
 
-def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, usedptr: bool*) -> Signature:
+def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
     if self_class == NULL:
         function_or_method = "function"
+        usedptr = &ast->used
     else:
         function_or_method = "method"
+        usedptr = NULL  # No warnings for unused methods :( Would be harder to implement.
 
     msg: byte[500]
+
+    astsig = &ast->ast_signature
+    sig = Signature{name = astsig->name, takes_varargs = astsig->takes_varargs}
+    if ast->inline:
+        sig.ast_to_inline = ast
 
     if self_class == NULL and ft->find_function(astsig->name) != NULL:
         snprintf(msg, sizeof(msg), "a function named '%s' already exists", astsig->name)
         fail(astsig->name_location, msg)
 
-    sig = Signature{nargs = astsig->nargs, takes_varargs = astsig->takes_varargs}
-    assert sizeof(sig.name) == sizeof(astsig->name)
-    strcpy(sig.name, astsig->name)
-
-    size = sizeof(sig.argnames[0]) * sig.nargs
-    sig.argnames = malloc(size)
-    for i = 0; i < sig.nargs; i++:
-        assert sizeof(sig.argnames[i]) == sizeof(astsig->args[i].name)
-        strcpy(sig.argnames[i], astsig->args[i].name)
-
-    sig.argtypes = malloc(sizeof(sig.argtypes[0]) * sig.nargs)
-    for i = 0; i < sig.nargs; i++:
+    for astarg = astsig->args.ptr; astarg < astsig->args.end(); astarg++:
+        arg = NameAndType{name = astarg->name}
         if (
-            strcmp(sig.argnames[i], "self") == 0
-            and astsig->args[i].type.kind == AstTypeKind.Named
-            and astsig->args[i].type.name[0] == '\0'
+            strcmp(astarg->name, "self") == 0
+            and astarg->type.kind == AstTypeKind.Named
+            and astarg->type.name[0] == '\0'
         ):
             # just "self" without a type after it --> default to "self: Foo*" in class Foo
-            argtype = self_class->pointer_type()
+            assert self_class != NULL
+            arg.type = self_class->pointer_type()
         else:
-            argtype = type_from_ast(ft, self_class, &astsig->args[i].type)
+            arg.type = type_from_ast(ft, self_class, &astarg->type)
 
-        if strcmp(sig.argnames[i], "self") == 0 and argtype != self_class and argtype != self_class->pointer_type():
+        if strcmp(arg.name, "self") == 0 and arg.type != self_class and arg.type != self_class->pointer_type():
             snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class->name, self_class->name)
-            fail(astsig->args[i].type.location, msg)
+            fail(astarg->type.location, msg)
 
-        sig.argtypes[i] = argtype
+        sig.args.append(arg)
 
     sig.is_noreturn = astsig->return_type.is_noreturn()
     if astsig->return_type.is_none() or astsig->return_type.is_noreturn():
@@ -123,15 +121,15 @@ def handle_signature(ft: FileTypes*, astsig: AstSignature*, self_class: Type*, u
         if sig.return_type != intType:
             fail(astsig->return_type.location, "the main() function must return int")
         if (
-            sig.nargs != 0
+            sig.args.len != 0
             and not (
-                sig.nargs == 2
-                and sig.argtypes[0] == intType
-                and sig.argtypes[1] == byteType->pointer_type()->pointer_type()
+                sig.args.len == 2
+                and sig.args.ptr[0].type == intType
+                and sig.args.ptr[1].type == byteType->pointer_type()->pointer_type()
             )
         ):
             fail(
-                astsig->args[0].type.location,
+                astsig->args.ptr[0].type.location,
                 "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
             )
 
@@ -145,11 +143,11 @@ def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> N
     field = t->find_class_field(name)
     if field != NULL:
         # TODO: this is complicated, should just use same error message for fields and union members
-        assert t->classdata.fields <= field and field < &t->classdata.fields[t->classdata.nfields]
+        assert t->classdata.fields.ptr <= field and field < t->classdata.fields.end()
 
         belongs_to_a_union = (
-            (field > t->classdata.fields and field[-1].union_id == field->union_id)
-            or (&field[1] < &t->classdata.fields[t->classdata.nfields] and field[1].union_id == field->union_id)
+            (field > t->classdata.fields.ptr and field[-1].union_id == field->union_id)
+            or (&field[1] < t->classdata.fields.end() and field[1].union_id == field->union_id)
         )
 
         if belongs_to_a_union:
@@ -170,51 +168,41 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
     assert t->kind == TypeKind.Class
 
     union_id = 0
-    for stmt = classdef->body->statements; stmt < &classdef->body->statements[classdef->body->nstatements]; stmt++:
+    for stmt = classdef->body.ptr; stmt < classdef->body.end(); stmt++:
         match stmt->kind:
             case AstStatementKind.ClassField:
                 f = ClassField{
+                    name = stmt->class_field.name,
                     type = type_from_ast(ft, t, &stmt->class_field.type),
                     union_id = union_id++,
                 }
-                assert sizeof(f.name) == sizeof(stmt->class_field.name)
-                strcpy(f.name, stmt->class_field.name)
-
                 check_class_member_not_exist(t, f.name, stmt->location)
-                t->classdata.fields = realloc(t->classdata.fields, sizeof(t->classdata.fields[0]) * (t->classdata.nfields + 1))
-                assert t->classdata.fields != NULL
-                t->classdata.fields[t->classdata.nfields++] = f
+                t->classdata.fields.append(f)
 
             case AstStatementKind.ClassUnion:
                 uid = union_id++
-                for ntv = stmt->union_fields.fields; ntv < &stmt->union_fields.fields[stmt->union_fields.nfields]; ntv++:
-                    for ntv2 = &ntv[1]; ntv2 < &stmt->union_fields.fields[stmt->union_fields.nfields]; ntv2++:
+                for ntv = stmt->union_fields.ptr; ntv < stmt->union_fields.end(); ntv++:
+                    for ntv2 = &ntv[1]; ntv2 < stmt->union_fields.end(); ntv2++:
                         if strcmp(ntv->name, ntv2->name) == 0:
                             msg: byte[500]
                             snprintf(msg, sizeof(msg), "duplicate union member '%s'", ntv->name)
                             fail(ntv2->name_location, msg)
 
                     f = ClassField{
+                        name = ntv->name,
                         type = type_from_ast(ft, t, &ntv->type),
                         union_id = uid,
                     }
-                    assert sizeof(f.name) == sizeof(ntv->name)
-                    strcpy(f.name, ntv->name)
-
                     check_class_member_not_exist(t, f.name, ntv->name_location)
-                    t->classdata.fields = realloc(t->classdata.fields, sizeof(t->classdata.fields[0]) * (t->classdata.nfields + 1))
-                    assert t->classdata.fields != NULL
-                    t->classdata.fields[t->classdata.nfields++] = f
+                    t->classdata.fields.append(f)
 
             case AstStatementKind.MethodDef:
                 # Don't handle the method body yet: that is a part of step 3, not step 2
-                sig = handle_signature(ft, &stmt->method.ast_signature, t, NULL)
+                sig = handle_signature(ft, &stmt->method, t)
                 stmt->method.types.signature = sig
 
                 check_class_member_not_exist(t, sig.name, stmt->location)
-                t->classdata.methods = realloc(t->classdata.methods, sizeof(t->classdata.methods[0]) * (t->classdata.nmethods + 1))
-                assert t->classdata.methods != NULL
-                t->classdata.methods[t->classdata.nmethods++] = sig.copy()
+                t->classdata.methods.append(sig.copy())
 
             case AstStatementKind.Pass:
                 pass
@@ -222,46 +210,38 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
             case _:
                 assert False
 
-    if t->classdata.n_generic_params > 0:
+    if t->classdata.is_generic():
         t->update_fields_and_methods_to_generic_instances()
 
 
 @public
-def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
-    exports: ExportSymbol* = NULL
-    nexports = 0
+def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
+    exports = List[ExportSymbol]{}
 
-    for i = 0; i < ast->body.nstatements; i++:
-        stmt = &ast->body.statements[i]
-
-        exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
-        assert exports != NULL
-
+    for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
         match stmt->kind:
             case AstStatementKind.Import | AstStatementKind.Pass:
                 pass
             case AstStatementKind.GlobalVariableDeclare:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type, &stmt->global_var_declare.used)
                 if stmt->global_var_declare.public:
-                    exports[nexports++] = exp
+                    exports.append(exp)
             case AstStatementKind.GlobalVariableDef:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_def.name, &stmt->global_var_def.type, &stmt->global_var_def.used)
                 if stmt->global_var_def.public:
-                    exports[nexports++] = exp
+                    exports.append(exp)
             case AstStatementKind.Const:
                 exp = handle_const(&ast->types, stmt->location, &stmt->const_statement)
                 if stmt->const_statement.public:
-                    exports[nexports++] = exp
+                    exports.append(exp)
                 else:
                     exp.free()
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
-                sig = handle_signature(&ast->types, &stmt->function.ast_signature, NULL, &stmt->function.used)
+                sig = handle_signature(&ast->types, &stmt->function, NULL)
                 stmt->function.types.signature = sig
                 if stmt->function.public:
-                    es = ExportSymbol{kind = ExportSymbolKind.Function, funcsignature = sig.copy()}
-                    assert sizeof(es.name) == sizeof(sig.name)
-                    strcpy(es.name, sig.name)
-                    exports[nexports++] = es
+                    exp = ExportSymbol{kind = ExportSymbolKind.Function, name = sig.name, funcsignature = sig.copy()}
+                    exports.append(exp)
             case AstStatementKind.Class:
                 handle_class_members(&ast->types, &stmt->classdef)
             case AstStatementKind.Enum | AstStatementKind.Link:
@@ -269,7 +249,4 @@ def typecheck_step2_populate_types(ast: AstFile*) -> ExportSymbol*:
             case _:
                 assert False
 
-    exports = realloc(exports, sizeof(exports[0]) * (nexports + 1))
-    assert exports != NULL
-    exports[nexports] = ExportSymbol{}
     return exports

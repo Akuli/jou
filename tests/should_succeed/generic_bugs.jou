@@ -1,0 +1,33 @@
+import "stdlib/io.jou"
+
+
+@public
+class Foo[T]:
+    def grow(self) -> None:
+        pass
+
+    # Referencing the class itself didn't work properly on first try
+    # https://github.com/Akuli/jou/issues/814
+    def extend(self, other: Foo[T]) -> None:
+        printf("Extend\n")
+
+    # Calling inline method from non-inline method used to crash the compiler.
+    # https://github.com/Akuli/jou/issues/826
+    @inline
+    def inlined(self) -> None:
+        printf("Inlined\n")
+
+    def call_the_inlined(self) -> None:
+        printf("Calling the inlined\n")
+        self->inlined()
+
+
+def main() -> int:
+    a = Foo[int]{}
+    b = Foo[int]{}
+    a.extend(b)  # Output: Extend
+
+    # Output: Calling the inlined
+    # Output: Inlined
+    a.call_the_inlined()
+    return 0

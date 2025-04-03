@@ -1,40 +1,23 @@
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/ascii.jou"
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 
-# TODO: use stdlib list
-class List2:
-    ptr: byte[100]*
-    length: int
-    alloc: int
-
-    def append(self, string: byte*) -> None:
-        if self->length == self->alloc:
-            if self->alloc == 0:
-                self->alloc = 4
-            else:
-                self->alloc *= 2
-            self->ptr = realloc(self->ptr, sizeof(self->ptr[0]) * self->alloc)
-            assert self->ptr != NULL
-
-        assert strlen(string) < sizeof(self->ptr[0])
-        strcpy(self->ptr[self->length++], string)
-
-    def dedup(self) -> None:
-        i = 0
-        while i < self->length:
-            exists_before = False
-            for k = 0; k < i; k++:
-                if strcmp(self->ptr[k], self->ptr[i]) == 0:
-                    exists_before = True
-                    break
-            if exists_before:
-                self->ptr[k] = self->ptr[--self->length]
-            else:
-                i++
+def dedup(list: List[byte[100]]*) -> None:
+    i = 0
+    while i < list->len:
+        exists_before = False
+        for k = 0; k < i; k++:
+            if strcmp(list->ptr[k], list->ptr[i]) == 0:
+                exists_before = True
+                break
+        if exists_before:
+            list->ptr[k] = list->ptr[--list->len]
+        else:
+            i++
 
 
 class KeyPad:
@@ -72,8 +55,8 @@ class KeyPad:
 
         return False
 
-    def get_presses(self, what_to_write: byte*) -> List2:
-        result = List2{}
+    def get_presses(self, what_to_write: byte*) -> List[byte[100]]:
+        result = List[byte[100]]{}
         result.append("")
 
         for p = &what_to_write[0]; *p != '\0'; p++:
@@ -99,8 +82,8 @@ class KeyPad:
             else:
                 memset(&v, 'v', dy)
 
-            result2 = List2{}
-            for i = 0; i < result.length; i++:
+            result2 = List[byte[100]]{}
+            for i = 0; i < result.len; i++:
                 # Do horizontal and vertical moves in both possible orders. This
                 # may affect other robots, because their arms move less if we use
                 # consecutive presses in the same direction.
@@ -125,19 +108,18 @@ class KeyPad:
 
             free(result.ptr)
             result = result2
-            result.dedup()  # must be done right away so we don't run out of memory
+            dedup(&result)  # must be done right away so we don't run out of memory
 
         return result
 
-    def get_presses_for_each(self, things_we_could_write: List2) -> List2:
-        result = List2{}
-        for i = 0; i < things_we_could_write.length; i++:
+    def get_presses_for_each(self, things_we_could_write: List[byte[100]]) -> List[byte[100]]:
+        result = List[byte[100]]{}
+        for i = 0; i < things_we_could_write.len; i++:
             adding = self->get_presses(things_we_could_write.ptr[i])
-            for k = 0; k < adding.length; k++:
-                result.append(adding.ptr[k])
+            result.extend(adding)
             free(adding.ptr)
 
-        result.dedup()
+        dedup(&result)
         return result
 
 
@@ -173,10 +155,10 @@ def main() -> int:
             free(presses.ptr)
             presses = presses2
 
-        assert presses.length != 0
+        assert presses.len != 0
 
         shortest_len = strlen(presses.ptr[0]) as int
-        for i = 1; i < presses.length; i++:
+        for i = 1; i < presses.len; i++:
             shortest_len = min(shortest_len, strlen(presses.ptr[i]) as int)
         free(presses.ptr)
 

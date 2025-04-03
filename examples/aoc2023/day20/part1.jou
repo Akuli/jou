@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/ascii.jou"
@@ -55,25 +56,14 @@ class GonnaSend:
 
 
 class TodoList:
-    ptr: GonnaSend*
-    len: int
-    alloc: int
+    items: List[GonnaSend]
 
     def send_later(self, from: Module*, to: Module*, value: bool) -> None:
-        if self->len == self->alloc:
-            if self->alloc == 0:
-                self->alloc = 1
-            else:
-                self->alloc *= 2
-            self->ptr = realloc(self->ptr, sizeof(self->ptr[0]) * self->alloc)
-            assert self->ptr != NULL
-
-        assert to != NULL
-        self->ptr[self->len++] = GonnaSend{from=from, to=to, value=value}
+        self->items.append(GonnaSend{from=from, to=to, value=value})
 
     def pop_left(self) -> GonnaSend:
-        result = self->ptr[0]
-        memmove(&self->ptr[0], &self->ptr[1], --self->len * sizeof(self->ptr[0]))
+        result = self->items.ptr[0]
+        memmove(&self->items.ptr[0], &self->items.ptr[1], --self->items.len * sizeof(self->items.ptr[0]))
         return result
 
 
@@ -81,7 +71,7 @@ def press_button(modules: ModuleList*, high_counter: int*, low_counter: int*) ->
     todo = TodoList{}
     todo.send_later(NULL, modules->find_module("broadcaster"), False)
 
-    while todo.len > 0:
+    while todo.items.len > 0:
         fflush(stdout)
         item = todo.pop_left()
 
@@ -119,7 +109,7 @@ def press_button(modules: ModuleList*, high_counter: int*, low_counter: int*) ->
                 for i = 0; i < item.to->ndestinations; i++:
                     todo.send_later(item.to, item.to->destinations[i], not all_high)
 
-    free(todo.ptr)
+    free(todo.items.ptr)
 
 
 def main() -> int:

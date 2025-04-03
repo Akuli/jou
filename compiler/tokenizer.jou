@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/errno.jou"
@@ -200,8 +201,7 @@ def detect_banned_whitespace_characters(last_3_bytes: byte[3]) -> byte*:
 class Tokenizer:
     f: FILE*
     location: Location
-    pushback: byte*
-    pushback_len: int  # TODO: dynamic array
+    pushback: List[byte]
     # Parens array isn't dynamic, so that you can't segfault
     # the compiler by feeding it lots of nested parentheses,
     # which would make it recurse too deep.
@@ -211,8 +211,8 @@ class Tokenizer:
 
     def read_byte(self) -> byte:
         c: byte
-        if self->pushback_len > 0:
-            c = self->pushback[--self->pushback_len]
+        if self->pushback.len > 0:
+            c = self->pushback.pop()
         else:
             temp = fgetc(self->f)
             if temp == '\r':
@@ -250,8 +250,7 @@ class Tokenizer:
             return
 
         assert b != '\r'
-        self->pushback = realloc(self->pushback, self->pushback_len + 1)
-        self->pushback[self->pushback_len++] = b
+        self->pushback.append(b)
         if b == '\n':
             self->location.lineno--
 
@@ -376,8 +375,7 @@ class Tokenizer:
 
     # Assumes the initial " has been read.
     def read_string(self) -> byte*:
-        result: byte* = NULL
-        len = 0
+        result = List[byte]{}
         msg: byte[100]
 
         while True:
@@ -397,20 +395,15 @@ class Tokenizer:
                         case '\0':
                             fail(self->location, "missing \" to end the string")
                         case 'n':
-                            result = realloc(result, len+1)
-                            result[len++] = '\n'
+                            result.append('\n')
                         case 'r':
-                            result = realloc(result, len+1)
-                            result[len++] = '\r'
+                            result.append('\r')
                         case 't':
-                            result = realloc(result, len+1)
-                            result[len++] = '\t'
+                            result.append('\t')
                         case '\\':
-                            result = realloc(result, len+1)
-                            result[len++] = '\\'
+                            result.append('\\')
                         case '"':
-                            result = realloc(result, len+1)
-                            result[len++] = '"'
+                            result.append('"')
                         case '\'':
                             fail(self->location, "single quotes shouldn't be escaped in strings")
                         case '0':
@@ -419,8 +412,7 @@ class Tokenizer:
                             b = self->read_hex_escape_byte()
                             if b == '\0':
                                 fail(self->location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte")
-                            result = realloc(result, len+1)
-                            result[len++] = b
+                            result.append(b)
                         case '\n':
                             # \ at end of line, string continues on next line
                             pass
@@ -432,12 +424,10 @@ class Tokenizer:
                                 msg = "unknown '\\' escape"
                             fail(self->location, msg)
                 case _:
-                    result = realloc(result, len+1)
-                    result[len++] = c
+                    result.append(c)
 
-        result = realloc(result, len+1)
-        result[len] = '\0'
-        return result
+        result.append('\0')
+        return result.ptr
 
     def read_operator(self) -> byte[100]:
         msg: byte[100]
@@ -588,25 +578,20 @@ def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
     #  * It is easier to detect an unexpected indentation in the beginning
     #    of the file, as it becomes just like any other indentation.
     #  * Line numbers start at 1.
-    tokenizer.pushback = malloc(1)
-    tokenizer.pushback[0] = '\n'
-    tokenizer.pushback_len = 1
+    tokenizer.pushback.append('\n')
 
-    tokens: Token* = NULL
-    len = 0
-    while len == 0 or tokens[len-1].kind != TokenKind.EndOfFile:
-        tokens = realloc(tokens, sizeof(tokens[0]) * (len+1))
-        tokens[len++] = tokenizer.read_token()
+    tokens = List[Token]{}
+    while tokens.len == 0 or tokens.end()[-1].kind != TokenKind.EndOfFile:
+        tokens.append(tokenizer.read_token())
 
-    free(tokenizer.pushback)
-    return tokens
+    free(tokenizer.pushback.ptr)
+    return tokens.ptr
 
 
 # Creates a new array of tokens with indent/dedent tokens added after
 # newline tokens that change the indentation level.
 def handle_indentations(raw_tokens: Token*) -> Token*:
-    tokens: Token* = NULL
-    ntokens = 0
+    tokens = List[Token]{}
     level = 0
 
     for t = raw_tokens; True; t++:
@@ -614,17 +599,15 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
             # Add an extra newline token at end of file and the dedents after it.
             # This makes it similar to how other newline and dedent tokens work:
             # the dedents always come after a newline token.
-            tokens = realloc(tokens, sizeof tokens[0] * (ntokens + level/4 + 2))
             if t > raw_tokens and t[-1].kind != TokenKind.Newline:
-                tokens[ntokens++] = Token{location = t->location, kind = TokenKind.Newline}
+                tokens.append(Token{location = t->location, kind = TokenKind.Newline})
             while level != 0:
-                tokens[ntokens++] = Token{location = t->location, kind = TokenKind.Dedent}
+                tokens.append(Token{location = t->location, kind = TokenKind.Dedent})
                 level -= 4
-            tokens[ntokens++] = *t
+            tokens.append(*t)
             break
 
-        tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
-        tokens[ntokens++] = *t
+        tokens.append(*t)
 
         if t->kind == TokenKind.Newline:
             after_newline = t->location
@@ -634,13 +617,11 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
                 fail(after_newline, "indentation must be a multiple of 4 spaces")
 
             while level < t->indentation_level:
-                tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
-                tokens[ntokens++] = Token{location = after_newline, kind = TokenKind.Indent}
+                tokens.append(Token{location = after_newline, kind = TokenKind.Indent})
                 level += 4
 
             while level > t->indentation_level:
-                tokens = realloc(tokens, sizeof tokens[0] * (ntokens+1))
-                tokens[ntokens++] = Token{location = after_newline, kind = TokenKind.Dedent}
+                tokens.append(Token{location = after_newline, kind = TokenKind.Dedent})
                 level -= 4
 
     # Delete the newline token in the beginning.
@@ -648,10 +629,10 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
     # If the file has indentations after it, they are now represented by separate
     # indent tokens and parsing will fail. If the file doesn't have any blank/comment
     # lines in the beginning, it has a newline token anyway to avoid special casing.
-    assert tokens[0].kind == TokenKind.Newline
-    memmove(&tokens[0], &tokens[1], sizeof tokens[0] * (ntokens - 1))
+    assert tokens.ptr[0].kind == TokenKind.Newline
+    memmove(&tokens.ptr[0], &tokens.ptr[1], sizeof tokens.ptr[0] * --tokens.len)
 
-    return tokens
+    return tokens.ptr
 
 
 @public
