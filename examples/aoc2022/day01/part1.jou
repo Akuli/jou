@@ -1,0 +1,37 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/ascii.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    line: byte[100]
+    elf = 0
+    best_elf = 0
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        if line[0] == '\0':
+            # Output: elf: 6000
+            # Output: elf: 4000
+            # Output: elf: 11000
+            # Output: elf: 24000
+            printf("elf: %d\n", elf)
+            if elf > best_elf:
+                best_elf = elf
+            elf = 0
+        else:
+            elf += atoi(line)
+    fclose(f)
+
+    # file does not end with a blank line, so last elf is special
+    printf("elf: %d\n", elf)  # Output: elf: 10000
+    if elf > best_elf:
+        best_elf = elf
+
+    # Output: best elf: 24000
+    printf("best elf: %d\n", best_elf)
+
+    return 0
