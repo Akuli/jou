@@ -208,7 +208,7 @@ def main() -> int:
         *colon = ' '
 
         words = split_by_ascii_whitespace(line)
-        for w = words; *w != NULL; w++:
+        for w = words.ptr; w < words.end(); w++:
             found = False
             for i = 0; i < num_nodes; i++:
                 if strcmp(node_names[i], *w) == 0:
@@ -220,7 +220,7 @@ def main() -> int:
                 strcpy(s, *w)
                 node_names[num_nodes++] = s
 
-        free(words)
+        free(words.ptr)
 
     graph = Graph{num_nodes = num_nodes}
     graph.matrix = calloc(num_nodes, sizeof(graph.matrix[0]))
@@ -239,21 +239,21 @@ def main() -> int:
         *colon = ' '
 
         words = split_by_ascii_whitespace(line)
-        assert words[0] != NULL
+        assert words.len >= 1
 
         start_node = -1
         for i = 0; i < num_nodes; i++:
-            if strcmp(node_names[i], words[0]) == 0:
+            if strcmp(node_names[i], words.ptr[0]) == 0:
                 start_node = i
                 break
 
-        for w = words; *w != NULL; w++:
+        for w = words.ptr; w < words.end(); w++:
             for i = 0; i < num_nodes; i++:
                 if strcmp(node_names[i], *w) == 0:
                     graph.connect(start_node, i)
                     break
 
-        free(words)
+        free(words.ptr)
 
     fclose(f)
     free(node_names)

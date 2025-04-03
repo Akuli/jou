@@ -50,10 +50,10 @@ def main() -> int:
     words = split_by_ascii_whitespace(line)
 
     stones = List[long]{}
-    for i = 0; words[i] != NULL; i++:
-        stones.append(atoll(words[i]))
+    for p = words.ptr; p < words.end(); p++:
+        stones.append(atoll(*p))
 
-    free(words)
+    free(words.ptr)
 
     for i = 0; i < 25; i++:
         blink(&stones)

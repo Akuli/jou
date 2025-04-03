@@ -37,11 +37,11 @@ class Input:
         assert starts_with(line, "seeds: ")
 
         words = split_by_ascii_whitespace(line)
-        for i = 1; words[i] != NULL; i++:
+        for i = 1; i < words.len; i++:
             assert i < sizeof(self->seed_numbers) / sizeof(self->seed_numbers[0])
-            self->seed_numbers[i-1] = atoll(words[i])
+            self->seed_numbers[i-1] = atoll(words.ptr[i])
             self->n_seed_numbers++
-        free(words)
+        free(words.ptr)
 
 
 def main() -> int:

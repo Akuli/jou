@@ -80,14 +80,14 @@ class Input:
         line = &line[6]
 
         words = split_by_ascii_whitespace(line)
-        for i = 0; words[i] != NULL and words[i+1] != NULL; i += 2:
+        for i = 0; i+1 < words.len; i += 2:
             assert i/2 < sizeof(self->seed_ranges) / sizeof(self->seed_ranges[0])
             self->seed_ranges[i/2] = Range{
-                start = atoll(words[i]),
-                end = atoll(words[i]) + atoll(words[i+1]),
+                start = atoll(words.ptr[i]),
+                end = atoll(words.ptr[i]) + atoll(words.ptr[i+1]),
             }
             self->n_seed_ranges++
-        free(words)
+        free(words.ptr)
 
     def is_valid_seed(self, n: long) -> bool:
         for i = 0; i < self->n_seed_ranges; i++:
