@@ -71,7 +71,7 @@ def split_by_ascii_whitespace(s: byte*) -> List[byte*]:
             s++
         if *s == '\0':
             break
-        result.append(&s, sizeof(s))
+        result.append(s)
 
         while *s != '\0' and not is_ascii_whitespace(*s):
             s++
