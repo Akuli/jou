@@ -48,11 +48,10 @@ def main() -> int:
     fclose(f)
 
     words = split_by_ascii_whitespace(line)
-    nstones = words.len as int
 
     stones = List[long]{}
-    for i = 0; words[i] != NULL; i++:
-        stones.append(atoll(words[i]))
+    for p = words.ptr; p < words.end(); p++:
+        stones.append(atoll(*p))
 
     free(words.ptr)
 
