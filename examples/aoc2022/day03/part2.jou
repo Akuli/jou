@@ -1,0 +1,32 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+def priority(b: byte) -> int:
+    if 'a' <= b and b <= 'z':
+        return 1 + (b - 'a')
+    if 'A' <= b and b <= 'Z':
+        return 27 + (b - 'A')
+    assert False
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    result = 0
+
+    line1, line2, line3: byte[200]
+    while (
+        fgets(line1, sizeof(line1) as int, f) != NULL
+        and fgets(line2, sizeof(line2) as int, f) != NULL
+        and fgets(line3, sizeof(line3) as int, f) != NULL
+    ):
+        for p = &line1[0]; *p != '\0' and *p != '\n'; p++:
+            if strchr(line2, *p) != NULL and strchr(line3, *p) != NULL:
+                result += priority(*p)
+                break
+
+    printf("%d\n", result)  # Output: 70
+    fclose(f)
+    return 0

@@ -1,0 +1,32 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/ascii.jou"
+
+
+def priority(b: byte) -> int:
+    if 'a' <= b and b <= 'z':
+        return 1 + (b - 'a')
+    if 'A' <= b and b <= 'Z':
+        return 27 + (b - 'A')
+    assert False
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    result = 0
+
+    line: byte[200]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        right = &line[strlen(line) / 2]
+
+        for p = &line[0]; p < right; p++:
+            if strchr(right, *p) != NULL:
+                result += priority(*p)
+                break
+
+    printf("%d\n", result)  # Output: 157
+    fclose(f)
+    return 0
