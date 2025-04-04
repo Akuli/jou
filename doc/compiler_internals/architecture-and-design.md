@@ -107,4 +107,4 @@ There are also a few other cases where the AST is changed afterwards.
 For example, `foo.bar` in Jou code can be a class member lookup (`foo` is an instance of [a class](../classes.md))
 or an enum lookup (`foo` is [an enum](../enums.md)).
 The parser doesn't know, because it is not aware of imports or other things defined later in the same file.
-Instead, this is determining during type checking.
+Instead, this is determined during type checking.
