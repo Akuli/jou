@@ -145,6 +145,7 @@ The backslash character has a special meaning in string literals (e.g. `"hello\n
     because the ASCII value of the `j` character is 106,
     which is 6A in hexadecimal.
     Note that because `\x00` is equivalent to `\0`, it cannot be used inside strings.
+- `\\` means an actual backslash character.
 - `\` followed by anything else is an error.
 
 Before tokenizing, the compiler adds an imaginary newline character to the beginning of the file.
