@@ -1,0 +1,52 @@
+import "stdlib/io.jou"
+
+
+def is_marker(arr: byte[4]) -> bool:
+    for i = 0; i < 4; i++:
+        if arr[i] == '\0':
+            return False
+
+    for i = 0; i < 4; i++:
+        for k = 0; k < i; k++:
+            if arr[i] == arr[k]:
+                return False
+
+    return True
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    result = 0
+    buf: byte[4] = ""
+
+    while True:
+        c = fgetc(f)
+        if c == EOF:
+            fclose(f)
+            return 0
+
+        # Each line contains a marker before end of line
+        assert c != '\n'
+
+        buf[0] = buf[1]
+        buf[1] = buf[2]
+        buf[2] = buf[3]
+        buf[3] = c as byte
+
+        result++
+        if is_marker(buf):
+            # Output: 7
+            # Output: 5
+            # Output: 6
+            # Output: 10
+            # Output: 11
+            printf("%d\n", result)
+            result = 0
+            buf = ""
+            # skip rest of line
+            while True:
+                c = fgetc(f)
+                if c == EOF or c == '\n':
+                    break
