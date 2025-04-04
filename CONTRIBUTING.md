@@ -169,7 +169,7 @@ or when triggered manually from GitHub's UI
 
 Sometimes a pull request doesn't affect Jou users in any way, but makes things easier for Jou developers.
 These pull requests should be marked with the `skip-release` label in GitHub.
-Now new release is made if there are no new commits or they all have the `skip-release` label.
+No new release is made if there are no new commits or they all have the `skip-release` label.
 
 Some parts of the build are done in `.github/workflows/windows.yml`,
 and the rest is in `release.sh` (invoked from `.github/workflows/release.yml`).
