@@ -1,0 +1,39 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/ascii.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    score = 0
+    line: byte[10]
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+
+        match line with strcmp:
+            case "A Y" | "B Z" | "C X":
+                # win
+                score += 6
+            case "A X" | "B Y" | "C Z":
+                # draw
+                score += 3
+            case "A Z" | "B X" | "C Y":
+                # lose
+                pass
+            case _:
+                assert False
+
+        match line[2]:
+            case 'X':
+                score += 1
+            case 'Y':
+                score += 2
+            case 'Z':
+                score += 3
+
+    fclose(f)
+    printf("%d\n", score)  # Output: 15
+    return 0
