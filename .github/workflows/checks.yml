@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          if git grep '```python3' || git grep '```py$' || git grep '```py3$'; then
+          if git grep -E '```(python3|py$|py3)' '*.md'; then
             echo 'Error: Jou code in markdown files must be marked with ```python'
             exit 1
           fi
