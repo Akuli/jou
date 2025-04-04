@@ -2,11 +2,10 @@
 
 TL;DR:
 
-```python3
+```python
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"  # For the free() function
-
 
 def main() -> int:
     # Create empty list
@@ -43,7 +42,7 @@ def main() -> int:
 Jou arrays are just chunks of memory where multiple items are next to each other.
 For example, the size of an array of 3 ints is 12 bytes, because each int is 4 bytes.
 
-```python3
+```python
 import "stdlib/io.jou"
 
 def main() -> int:
@@ -65,7 +64,7 @@ def main() -> int:
 If you know that you won't need no more than 10 elements,
 you can use an array of 10 elements together with an integer to stores the length:
 
-```python3
+```python
 import "stdlib/io.jou"
 
 def main() -> int:
@@ -98,7 +97,7 @@ It allocates more memory automatically when you add more items to it,
 just like Python's `list`, Rust's `Vec` and C++ `std::vector`.
 With `List` instead of an array, the above example becomes:
 
-```python3
+```python
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
@@ -179,7 +178,7 @@ Each list has a [pointer](tutorial.md#pointers) called `ptr`
 that points to heap memory used by the list.
 For now, let's assume that the list items are ints.
 
-```python3
+```python
 class SimpleList:
     ptr: int*
 ```
@@ -188,7 +187,7 @@ The list also needs to know how many items it contains.
 To do that, let's add another member called `len`.
 Let's use `long` so that [lists can contain more than 2147483647 items](tutorial.md#byte-int-long).
 
-```python3
+```python
 class SimpleList:
     ptr: int*
     len: long
@@ -201,7 +200,7 @@ it's better to allocate more than enough, e.g. enough for 8 items.
 This way the next 3 appends don't need to allocate memory at all.
 To do this, we need to keep track of how much memory we have already allocated:
 
-```python3
+```python
 class SimpleList:
     ptr: int*
     len: long
@@ -225,7 +224,7 @@ to zero-initialize a `List` instance.
 There are two commonly used ways to loop through lists in Jou.
 The most straight-forward way is to use indexes:
 
-```python3
+```python
 for i = 0; i < list.len; i++:
     printf("List item: %d\n", list.ptr[i])
 ```
@@ -237,7 +236,7 @@ Instead of `i++`, we can simply do `p++` to move `p` to the next list element,
 because the elements are stored next to each other in heap memory (just like with arrays).
 Here's how it looks:
 
-```python3
+```python
 for p = list.ptr; p < list.end(); p++:
     printf("List item: %d\n", *p)
 ```
@@ -257,7 +256,7 @@ If you want to make a function that adds more items to a list,
 it needs to take the list as a pointer.
 Like this:
 
-```python3
+```python
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
@@ -289,7 +288,7 @@ the `main()` function will see the old location of the list and probably crash t
 However, if the length of the list won't change,
 you can simply pass it by value (that is, without a pointer):
 
-```python3
+```python
 def print_items(list: List[int]) -> None:
     for i = 0; i < list.len; i++:
         printf("%d\n", list.ptr[i])
@@ -313,7 +312,7 @@ Use `list.end()[-1]` to get the last list item, `list.end()[-2]` to get the item
 
 Use `.pop()` to delete the last element of a list:
 
-```python3
+```python
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"  # For the free() function
@@ -337,7 +336,7 @@ it only gets the last item and modifies the `len`.
 
 Use `list.ptr[i] = list.pop()` to delete an item in the middle of the list:
 
-```python3
+```python
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"  # For the free() function
@@ -372,7 +371,7 @@ For example, to delete the first list item,
 you can copy from the location of the second list item
 to where the first list item is:
 
-```python3
+```python
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"  # For the free() function
@@ -408,7 +407,7 @@ This does not free the allocated memory,
 and the memory will be reused when items are appended to the list.
 If you also want to free all allocated memory, use:
 
-```python3
+```python
 free(list.ptr)
 list = List[int]{}  # change int to match type of list
 ```
@@ -418,7 +417,7 @@ list = List[int]{}  # change int to match type of list
 
 The `.extend()` method adds all elements from another list:
 
-```python3
+```python
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"  # For the free() function
