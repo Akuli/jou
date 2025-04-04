@@ -137,7 +137,7 @@ In any modern computer, programs can basically use two kinds of memory:
 - **Stack memory** is where all local variables are stored.
     Stack variables are cleaned up automatically when a function returns.
     Also, the stack has a maximum size.
-    This means that [your program crashes if you use too much stack memory](https://stackoverflow.com/q/24904047).
+    This means that [your program crashes if you use too much stack memory](https://stackoverflow.com/questions/24904047/maximum-size-of-local-array-variable).
 - **Heap memory** is used with `malloc()`, `realloc()` and `free()` (TODO: document).
     There is no maximum size:
     if you allocate a lot of heap memory, the computer usually runs out of RAM.
@@ -162,7 +162,7 @@ it has 3 items
 ==2453==    at 0x484682F: realloc (vg_replace_malloc.c:1437)
 ==2453==    by 0x109329: List.grow (in /home/akuli/jou/jou_compiled/a/a)
 ==2453==    by 0x109222: main (in /home/akuli/jou/jou_compiled/a/a)
-==2453== 
+==2453==
 ```
 
 See [the UB documentation](ub.md#crashing-and-valgrind) for more about `jou --valgrind`.
