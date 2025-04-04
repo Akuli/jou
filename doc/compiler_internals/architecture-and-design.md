@@ -2,7 +2,7 @@
 
 Suppose you have file `foo.jou` with the following content:
 
-```python3
+```python
 import "./bar.jou"
 import "stdlib/io.jou"
 
@@ -14,7 +14,7 @@ def main() -> int:
 
 And file `bar.jou` with this content:
 
-```python3
+```python
 import "stdlib/io.jou"
 
 @public
