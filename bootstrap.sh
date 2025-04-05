@@ -30,6 +30,7 @@ commits=(
     09fa4d1b9d414d8a05b4e45b316fad043aaf5ad7  # generic classes
     519539bfc5551a6e6b9c3fa3070156b07a534601  # generic class bug fix
     30bf61efa40832a2429eee34c8cc93e80ea7f591  # @inline
+    722d066c840bf9c07dafd69e5bd1d12823f04b25  # bug fixes for using @inline in generic classes
 )
 
 for commit in ${commits[@]}; do

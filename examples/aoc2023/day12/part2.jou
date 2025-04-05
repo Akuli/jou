@@ -132,7 +132,7 @@ def main() -> int:
         states.append(State{questional_string=questional_string, numbers=numbers, repeat_count=1})
 
         while n_question_marks --> 0:
-            states.grow(2*states.len, sizeof(states.ptr[0]))
+            states.grow(2*states.len)
             for i = states.len-1; i >= 0; i--:
                 both_ways = states.ptr[i].substitute_both_ways()
                 states.ptr[2*i] = both_ways[0]

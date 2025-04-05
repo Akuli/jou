@@ -204,10 +204,10 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
     while *template != '\0':
         if starts_with(template, "<from>"):
             template = &template[6]
-            message.extend_from_ptr(from->name, strlen(from->name), 1)
+            message.extend_from_ptr(from->name, strlen(from->name))
         elif starts_with(template, "<to>"):
             template = &template[4]
-            message.extend_from_ptr(to->name, strlen(to->name), 1)
+            message.extend_from_ptr(to->name, strlen(to->name))
         else:
             message.append(*template++)
 

@@ -15,7 +15,7 @@ def test_empty_list() -> None:
 def test_grow() -> None:
     list = List[int]{}
 
-    list.grow(3, sizeof(list.ptr[0]))
+    list.grow(3)
     list.ptr[0] = 1
     list.ptr[1] = 2
     list.ptr[2] = 3
@@ -39,7 +39,7 @@ def test_extend() -> None:
 
     # Extend from pointer
     arr = [2, 3, 4, 5]
-    list.extend_from_ptr(arr, 4, sizeof(arr[0]))
+    list.extend_from_ptr(arr, 4)
 
     # Extend from another list
     list2 = List[int]{}
