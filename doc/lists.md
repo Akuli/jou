@@ -124,7 +124,7 @@ def main() -> int:
     return 0
 ```
 
-(Here `numbers.len` is [printed with `%lld` because it's a `long`](types.md#integers).)
+(Because `numbers.len` is a `long`, it [should be printed with `%lld`](types.md#integers).)
 
 Here `List[int]{}` is [the syntax for creating a new instance of a class](classes.md#instantiating-syntax).
 In this case, the class is `List[int]`, which means a list of `int`s.
