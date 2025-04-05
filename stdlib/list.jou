@@ -9,51 +9,37 @@ import "stdlib/mem.jou"
 class List[T]:
     ptr: T*         # Pointer to first item of the list (may change when list grows)
     len: long       # How many items are in the list
-    alloc: long     # How many bytes of space starting at ptr are allocated
-    itemsize: long  # This is either zero or sizeof(T). Set when appending.
+    alloc: long     # How many items fit into the list without needing to allocate more memory
 
     # Ensure that the list has room for at least the given number of elements.
     # Newly allocated space at the end of list will contain uninitialized/garbage values.
-    def grow(self, n: long, itemsize: long) -> None:
-        assert n >= 0
-        assert itemsize > 0
-
-        if self->itemsize == 0:
-            self->itemsize = itemsize
-        else:
-            assert self->itemsize == itemsize  # If this fails you passed the wrong size
-
-        self->_grow_nbytes(n * itemsize)
-
-    # Ensure that the list has room for at least the given number of bytes.
-    def _grow_nbytes(self, nbytes: long) -> None:
-        assert nbytes >= 0
-
-        if self->alloc >= nbytes:
+    @inline
+    def grow(self, n: long) -> None:
+        if self->alloc >= n:
             # Already big enough
             return
 
         # Allocate more than enough space, so that the next grow() is likely
         # going to be a fast "yes we have enough room" check.
         if self->alloc == 0:
-            self->alloc = 8
-        while self->alloc < nbytes:
+            self->alloc = 4
+        while self->alloc < n:
             self->alloc *= 2
 
-        self->ptr = realloc(self->ptr, self->alloc)
+        self->ptr = realloc(self->ptr, self->alloc * sizeof(self->ptr[0]))
         assert self->ptr != NULL  # If this fails, we ran out of memory
 
     # Add item to end of the list.
     @inline
     def append(self, item: T) -> None:
-        self->grow(self->len + 1, sizeof(item))
+        self->grow(self->len + 1)
         self->ptr[self->len++] = item
 
     # Append n items to the list, starting at the given pointer.
     # For example, with n=3, this appends ptr[0], ptr[1] and ptr[2].
     @inline
     def extend_from_ptr(self, ptr: T*, n: long) -> None:
-        self->grow(self->len + n, sizeof(ptr[0]))
+        self->grow(self->len + n)
         memcpy(self->end(), ptr, n * sizeof(ptr[0]))
         self->len += n
 
