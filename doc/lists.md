@@ -62,7 +62,7 @@ def main() -> int:
 ```
 
 If you know that you won't need no more than 10 elements,
-you can use an array of 10 elements together with an integer to stores the length:
+you can use an array of 10 elements together with an integer that represents the length:
 
 ```python
 import "stdlib/io.jou"
@@ -123,6 +123,8 @@ def main() -> int:
 
     return 0
 ```
+
+(Here `numbers.len` is [printed with `%lld` because it's a `long`](types.md#integers).)
 
 Here `List[int]{}` is [the syntax for creating a new instance of a class](classes.md#instantiating-syntax).
 In this case, the class is `List[int]`, which means a list of `int`s.
