@@ -132,7 +132,7 @@ Instead of `int`, you can use any other type.
 For example, `List[byte*]{}` is an empty list of strings.
 
 
-## What does `free(my_list.ptr)` do?
+## What does `free(list.ptr)` do?
 
 In any modern computer, programs can basically use two kinds of memory:
 - **Stack memory** is where all local variables are stored.
@@ -142,7 +142,8 @@ In any modern computer, programs can basically use two kinds of memory:
 - **Heap memory** is used with `malloc()`, `realloc()` and `free()` (TODO: document).
     There is no maximum size:
     if you allocate a lot of heap memory, the computer usually runs out of RAM.
-    There is no automatic cleanup. You must call the `free()` function.
+    There is no automatic cleanup.
+    You must call the `free()` function when you're done with using a chunk of heap memory.
 
 Lists allocate heap memory when you `.append()` items onto them,
 and it is your responsibility to free that memory when you no longer need the list.
@@ -255,7 +256,7 @@ will point inside the old memory location instead of the new one.
 ## Passing lists around
 
 If you want to make a function that adds more items to a list,
-it needs to take the list as a pointer.
+it needs to [take the list as a pointer](classes.md#pointers).
 Like this:
 
 ```python
@@ -282,7 +283,7 @@ def main() -> int:
     return 0
 ```
 
-If you do `def add_one(list: List[int])`,
+If you do `def add_one(list: List[int])` without a pointer,
 the `add_one()` function receives a copy of the `List` instance,
 so the length of the list will not update inside the `main()` function.
 Even worse, if the list contents need to be moved to a new memory location,
@@ -305,6 +306,7 @@ def add_one_to_all_items(list: List[int]) -> None:
 ## Accessing list items from start or end
 
 Use `list.ptr[0]` to get the first list item, `list.ptr[1]` to get the second, `list.ptr[2]` to get the third and so on.
+[The Jou tutorial explains how this syntax works](tutorial.md#more-about-strings).
 
 The `list.end()` method is equivalent to `&list.ptr[list.len]`.
 In other words, it is a pointer just beyond the end of the list.
@@ -335,7 +337,7 @@ def main() -> int:
 ```
 
 The `.pop()` method never frees allocated memory,
-it only gets the last item and modifies the `len`.
+it only gets the last item and decrements the `len`.
 
 Use `list.ptr[i] = list.pop()` to delete an item in the middle of the list:
 
@@ -366,7 +368,7 @@ Note that this affects the order of the list:
 `Moosems` moved to the start of the list where `Akuli` was, before `littlewhitecloud`.
 
 Jou's `list` does not have a method that deletes an item at a given index `i` without affecting the order of other items.
-If you would find it useful, [create an issue on GitHub](https://github.com/Akuli/jou/issues/new).
+If you would find it useful, please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new).
 For now, you can use the `memmove()` function declared in [stdlib/mem.jou](../stdlib/mem.jou).
 It works so that `memmove(dest, src, n)` copies `n` bytes of memory starting at pointer `src`
 to a new location that starts at pointer `dest`.
@@ -448,8 +450,8 @@ def main() -> int:
 
 Do not extend a list with itself, as in `names1.extend(names1)`.
 This fails if the list items are moved to a different memory location,
-because the argument to `extend()` is passed by value,
-and it always points to the old location
+because the argument of `extend()` is passed by value,
+and its `ptr` is the old memory location
 (see [above](#passing-lists-around)).
 [Create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if you think it would be a good idea to support extending a list with itself.
