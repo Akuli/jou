@@ -123,7 +123,7 @@ class AstToBuilder:
             # When inlining a generic method List[int].append(), map T to int
             assert args.len >= 1
             ast_self_class = ast->types.signature.get_self_class()
-            passed_self_class = self->map_type(sig->get_self_class())
+            passed_self_class = sig->get_self_class()
 
             assert ast_self_class->kind == TypeKind.Class
             assert passed_self_class->kind == TypeKind.Class
