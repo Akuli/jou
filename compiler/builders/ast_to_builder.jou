@@ -1,5 +1,4 @@
 import "stdlib/str.jou"
-import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
@@ -107,7 +106,6 @@ class AstToBuilder:
             var_type = types->locals.ptr[i].type
             var_ptr = self->builder->stack_alloc(self->map_type(var_type), var_name)
             self->locals.append(LocalVar{name = var_name, ptr = var_ptr})
-            printf("Created local variable %s: %s\n", var_name, self->map_type(var_type)->name)
             if i < args.len:
                 # First n local variables are the function arguments
                 self->builder->set_ptr(var_ptr, args.ptr[i])
@@ -122,14 +120,10 @@ class AstToBuilder:
             info.return_value_ptr = self->builder->stack_alloc(self->map_type(sig->return_type), NULL)
 
         if sig->get_self_class() != NULL and sig->get_self_class()->classdata.is_generic():
-            printf("Generic-inlining %s\n", sig->to_string(True, True))
             # When inlining a generic method List[int].append(), map T to int
             assert args.len >= 1
             ast_self_class = ast->types.signature.get_self_class()
             passed_self_class = self->map_type(sig->get_self_class())
-            printf("AST: %s\n", ast_self_class->name)
-            printf("Passed (old): %s\n", sig->get_self_class()->name)
-            printf("Passed (new): %s\n", passed_self_class->name)
 
             assert ast_self_class->kind == TypeKind.Class
             assert passed_self_class->kind == TypeKind.Class
