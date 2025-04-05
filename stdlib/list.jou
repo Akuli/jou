@@ -51,27 +51,22 @@ class List[T]:
 
     # Append n items to the list, starting at the given pointer.
     # For example, with n=3, this appends ptr[0], ptr[1] and ptr[2].
-    def extend_from_ptr(self, ptr: T*, n: long, itemsize: long) -> None:
-        self->grow(self->len + n, itemsize)
-        memcpy(self->end(), ptr, n * itemsize)
+    @inline
+    def extend_from_ptr(self, ptr: T*, n: long) -> None:
+        self->grow(self->len + n, sizeof(ptr[0]))
+        memcpy(self->end(), ptr, n * sizeof(ptr[0]))
         self->len += n
 
     # Append all items in the given list.
     @inline
-    def extend2(self, other: List[T]) -> None:
-        self->extend_from_ptr(other.ptr, other.len, sizeof(other.ptr[0]))
-
-    @inline
     def extend(self, other: List[T]) -> None:
-        self->extend2(other)
+        self->extend_from_ptr(other.ptr, other.len)
 
     # Return a pointer just beyond the last element of the list.
     # Use list.end()[-1] to get the last element.
+    @inline
     def end(self) -> T*:
-        # This works even if itemsize is zero, because that can only happen with empty list.
-        start = self->ptr as byte*
-        end = &start[self->len * self->itemsize]
-        return end as T*
+        return &self->ptr[self->len]
 
     # Remove the last item from the list and return it.
     #
