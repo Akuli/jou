@@ -150,22 +150,34 @@ and it is your responsibility to free that memory when you no longer need the li
 
 If you forget to free the memory of a list,
 your program has a [memory leak](https://en.wikipedia.org/wiki/Memory_leak).
+For example, the following program contains a memory leak:
+
+```python
+import "stdlib/list.jou"
+
+def main() -> int:
+    numbers = List[int]{}
+    for i = 0; i < 100; i++:
+        numbers.append(i)
+    return 0
+```
+
 On Linux, you can use `jou --valgrind` to check for memory leaks.
-Here's what `jou --valgrind` says if I delete `free(numbers.ptr)` in the above program
+Here's what `jou --valgrind` says for the above program:
 
 ```
 $ jou --valgrind a.jou
-compiler warning for file "a.jou", line 3: "stdlib/mem.jou" imported but not used
-it has 3 items
-12
-34
-56
-==2453== 16 bytes in 1 blocks are definitely lost in loss record 1 of 1
-==2453==    at 0x484682F: realloc (vg_replace_malloc.c:1437)
-==2453==    by 0x109329: List.grow (in /home/akuli/jou/jou_compiled/a/a)
-==2453==    by 0x109222: main (in /home/akuli/jou/jou_compiled/a/a)
-==2453==
+==25607== 512 bytes in 1 blocks are definitely lost in loss record 1 of 1
+==25607==    at 0x484682F: realloc (vg_replace_malloc.c:1437)
+==25607==    by 0x1091EA: main (in /home/akuli/jou/jou_compiled/a/a)
+==25607==
 ```
+
+Here `realloc()` is the function that the `List` class uses to allocate heap memory.
+Unfortunately, the error message says nothing about `List`,
+because the `List` class uses a lot of [`@inline`](inline.md).
+You can also see that the list allocated 512 bytes
+even though 400 bytes would be enough for 100 ints. Each int is 4 bytes.
 
 See [the UB documentation](ub.md#crashing-and-valgrind) for more about `jou --valgrind`.
 
