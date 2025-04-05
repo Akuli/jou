@@ -177,7 +177,7 @@ Here `realloc()` is the function that the `List` class uses to allocate heap mem
 Unfortunately, the error message says nothing about `List`,
 because the `List` class uses a lot of [`@inline`](inline.md).
 You can also see that the list allocated 512 bytes
-even though 400 bytes would be enough for 100 ints. Each int is 4 bytes.
+even though 400 bytes would be enough for 100 ints (each `int` is 4 bytes).
 
 See [the UB documentation](ub.md#crashing-and-valgrind) for more about `jou --valgrind`.
 
