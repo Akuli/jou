@@ -277,6 +277,7 @@ def main() -> int:
         printf("%d\n", numbers.ptr[i])
 
     free(numbers.ptr)
+    return 0
 ```
 
 If you do `def add_one(list: List[int])`,
@@ -352,8 +353,8 @@ def main() -> int:
 
     # Output: Moosems
     # Output: littlewhitecloud
-    for p = names.ptr; i < names.end(); p++:
-        printf("%s\n", *ptr)
+    for p = names.ptr; p < names.end(); p++:
+        printf("%s\n", *p)
 
     free(names.ptr)
     return 0
@@ -388,8 +389,8 @@ def main() -> int:
 
     # Output: littlewhitecloud
     # Output: Moosems
-    for p = names.ptr; i < names.end(); p++:
-        printf("%s\n", *ptr)
+    for p = names.ptr; p < names.end(); p++:
+        printf("%s\n", *p)
 
     free(names.ptr)
     return 0
@@ -436,8 +437,8 @@ def main() -> int:
     # Output: Akuli
     # Output: littlewhitecloud
     # Output: Moosems
-    for p = names1.ptr; i < names1.end(); p++:
-        printf("%s\n", *ptr)
+    for p = names1.ptr; p < names1.end(); p++:
+        printf("%s\n", *p)
 
     free(names1.ptr)
     return 0
@@ -445,7 +446,8 @@ def main() -> int:
 
 Do not extend a list with itself, as in `names1.extend(names1)`.
 This fails if the list items are moved to a different memory location,
-because the `names1` is passed by value, and it always points to the old location
+because the argument to `extend()` is passed by value,
+and it always points to the old location
 (see [above](#passing-lists-around)).
 [Create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if you think it would be a good idea to support extending a list with itself.
