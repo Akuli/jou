@@ -117,13 +117,13 @@ class AstToBuilder:
 
         info = InliningInfo{return_jumps_to = self->builder->add_block()}
         if sig->return_type != NULL:
-            info.return_value_ptr = self->builder->stack_alloc(sig->return_type, NULL)
+            info.return_value_ptr = self->builder->stack_alloc(self->map_type(sig->return_type), NULL)
 
         if sig->get_self_class() != NULL and sig->get_self_class()->classdata.is_generic():
             # When inlining a generic method List[int].append(), map T to int
             assert args.len >= 1
             ast_self_class = ast->types.signature.get_self_class()
-            passed_self_class = sig->get_self_class()
+            passed_self_class = self->map_type(sig->get_self_class())
 
             assert ast_self_class->kind == TypeKind.Class
             assert passed_self_class->kind == TypeKind.Class
