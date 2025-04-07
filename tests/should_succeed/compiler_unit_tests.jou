@@ -57,7 +57,7 @@ def test_fnv1a_hash() -> None:
 
     for i = 0; i < sizeof(tests)/sizeof(tests[0]); i++:
         h = new_hash()
-        h.add_string(tests[i])
+        h.add_bytes(tests[i], strlen(tests[i]))
         printf("%llX\n", h.hash)
 
 

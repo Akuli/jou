@@ -5,6 +5,7 @@
 # it. This is good, because outputting optimized (or even non-optimized) `.o`
 # files with LLVM is really slow.
 
+import "stdlib/io.jou"
 import "../ast.jou"
 import "../command_line_args.jou"
 import "../errors_and_warnings.jou"
@@ -148,7 +149,7 @@ class HBuilder:
     def global_var_ptr(self, name: byte*, var_type: Type*) -> HBuilderValue:
         self->hash.add_string("global_var_ptr")
         self->hash.add_string(name)
-        return self->new_value(var_type)
+        return self->new_value(var_type->pointer_type())
 
     # i'th argument given to this function
     def get_argument(self, i: int, argtype: Type*) -> HBuilderValue:
