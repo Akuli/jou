@@ -1,0 +1,51 @@
+# This file is used to calculate 64-bit hashes. They are used to check whether
+# source files have changed so that we need to recompile.
+#
+# The hash algorithm we use is FNV-1a:
+# https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+# It is super easy to implement. We use the 64-bit variant to get a reasonably
+# low probability for collisions.
+#
+# Of course, this is not cryptographically secure, but it doesn't matter for a
+# compiler: if someone can place whatever they want into `jou_compiled`, you're
+# doomed anyway :)
+
+
+# TODO: xor should be built in to language, not implemented here
+def xor_bytes(a: byte, b: byte) -> byte:
+    result = 0
+    power_of_two = 1
+
+    while a != 0 or b != 0:
+        if a % 2 != b % 2:
+            result += power_of_two
+        a /= 2 as byte
+        b /= 2 as byte
+        power_of_two *= 2
+
+    return result as byte
+
+
+# Hash of empty data
+# TODO: not possible to put this in a const
+@public
+def fnv1a_init() -> long:
+    result: long = 0
+    # Set value to cb f2 9c e4 84 22 23 25 (assumes little endian)
+    (&result as byte*)[0] = 0x25 as byte
+    (&result as byte*)[1] = 0x23 as byte
+    (&result as byte*)[2] = 0x22 as byte
+    (&result as byte*)[3] = 0x84 as byte
+    (&result as byte*)[4] = 0xe4 as byte
+    (&result as byte*)[5] = 0x9c as byte
+    (&result as byte*)[6] = 0xf2 as byte
+    (&result as byte*)[7] = 0xcb as byte
+    return result
+
+
+# Add data to hash
+@public
+def fnv1a_update(hash: long*, data: byte*, data_len: long) -> None:
+    for i = 0L; i < data_len; i++:
+        (hash as byte*)[0] = xor_bytes((hash as byte*)[0], data[i])
+        *hash *= 1099511628211L
