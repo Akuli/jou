@@ -142,7 +142,7 @@ class HBuilder:
         self->hash.add_string("class_field_pointer")
         self->hash.add_long(ptr.id)
         self->hash.add_int(field->union_id)
-        return self->new_value(field->type)
+        return self->new_value(field->type->pointer_type())
 
     # &global_variable
     def global_var_ptr(self, name: byte*, var_type: Type*) -> HBuilderValue:
