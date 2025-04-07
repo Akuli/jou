@@ -6,6 +6,7 @@ import "stdlib/process.jou"
 
 import "./builders/llvm_builder.jou"
 import "./builders/uvg_builder.jou"
+import "./builders/hash_builder.jou"
 import "./command_line_args.jou"
 import "./evaluate.jou"
 import "./run.jou"
@@ -171,6 +172,10 @@ class FileState:
                     pass
 
     def build_llvm_ir(self) -> LLVMModule*:
+        printf("Computing hash for object file: %s\n", self->path)
+        hash = build_hash(&self->ast)
+        printf("   %llx\n", hash.hash)
+
         if command_line_args.verbosity >= 1:
             printf("Building LLVM IR: %s\n", self->path)
 

@@ -13,7 +13,7 @@ import "stdlib/io.jou"
 
 import "../errors_and_warnings.jou"
 import "../ast.jou"
-import "./either_builder.jou"
+import "./any_builder.jou"
 import "../llvm.jou"
 import "../target.jou"
 import "../types.jou"
@@ -567,7 +567,7 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
     LLVMSetDataLayout(module, target.data_layout)
 
     builder = LBuilder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
-    builder_wrapper = EitherBuilder{lbuilder = &builder}
+    builder_wrapper = AnyBuilder{lbuilder = &builder}
 
     for g = ast->types.globals.ptr; g < ast->types.globals.end(); g++:
         LLVMAddGlobal(module, type_to_llvm(g->type), g->name)
