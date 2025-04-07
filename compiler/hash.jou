@@ -26,26 +26,42 @@ def xor_bytes(a: byte, b: byte) -> byte:
     return result as byte
 
 
-# Hash of empty data
-# TODO: not possible to put this in a const
+# Do not instantiate this as `Hash{}`, that uses wrong initial value.
+# Use new_hash() function.
 @public
-def fnv1a_init() -> long:
-    result: long = 0
+class Hash:
+    hash: long
+    created_correctly: bool
+
+    # Add data to hash
+    def add_bytes(self, data: byte*, len: long) -> None:
+        assert self->created_correctly  # If this fails, use new_hash() function
+        for i = 0L; i < len; i++:
+            (&self->hash as byte*)[0] = xor_bytes(self->hash as byte, data[i])
+            self->hash *= 1099511628211L
+
+    def add_string(self, s: byte*) -> None:
+        self->add_bytes(s, strlen(s))
+
+    def add_int(self, i: int) -> None:
+        self->add_bytes(&i as byte*, sizeof(i))
+
+    def add_long(self, l: long) -> None:
+        self->add_bytes(&l as byte*, sizeof(l))
+
+
+@public
+def new_hash() -> Hash:
+    h: long = 0
+    # Hash of empty data
     # Set value to cb f2 9c e4 84 22 23 25 (assumes little endian)
-    (&result as byte*)[0] = 0x25 as byte
-    (&result as byte*)[1] = 0x23 as byte
-    (&result as byte*)[2] = 0x22 as byte
-    (&result as byte*)[3] = 0x84 as byte
-    (&result as byte*)[4] = 0xe4 as byte
-    (&result as byte*)[5] = 0x9c as byte
-    (&result as byte*)[6] = 0xf2 as byte
-    (&result as byte*)[7] = 0xcb as byte
-    return result
-
-
-# Add data to hash
-@public
-def fnv1a_update(hash: long*, data: byte*, data_len: long) -> None:
-    for i = 0L; i < data_len; i++:
-        (hash as byte*)[0] = xor_bytes((hash as byte*)[0], data[i])
-        *hash *= 1099511628211L
+    # TODO: not possible to put this in a const
+    (&h as byte*)[0] = 0x25 as byte
+    (&h as byte*)[1] = 0x23 as byte
+    (&h as byte*)[2] = 0x22 as byte
+    (&h as byte*)[3] = 0x84 as byte
+    (&h as byte*)[4] = 0xe4 as byte
+    (&h as byte*)[5] = 0x9c as byte
+    (&h as byte*)[6] = 0xf2 as byte
+    (&h as byte*)[7] = 0xcb as byte
+    return Hash{hash = h, created_correctly = True}

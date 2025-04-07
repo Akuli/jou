@@ -56,9 +56,9 @@ def test_fnv1a_hash() -> None:
     ]
 
     for i = 0; i < sizeof(tests)/sizeof(tests[0]); i++:
-        h = fnv1a_init()
-        fnv1a_update(&h, tests[i], strlen(tests[i]))
-        printf("%llX\n", h)
+        h = new_hash()
+        h.add_string(tests[i])
+        printf("%llX\n", h.hash)
 
 
 def main() -> int:
