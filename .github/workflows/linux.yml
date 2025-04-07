@@ -40,8 +40,6 @@ jobs:
       - run: sudo apt install -y llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind liblzma-dev
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }}" >> $GITHUB_ENV
-      . name: "Temp debug thing"
-        run: make && ./jou -vv examples/hello.jou
       - name: "Compile and test"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
       - name: "Compile the compiler with itself"
