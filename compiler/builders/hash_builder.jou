@@ -1,14 +1,9 @@
-# This file abstracts away all LLVM things needed to build the LLVM IR for a
-# function or method.
+# This file builds hashes that change whenever `.o` files would change.
 #
-# The idea is that instead of building just LLVM IR, we can also build other
-# useful data structures by modifying only the IR builder, such as UVG. This
-# means we don't walk through the AST in multiple different places that could
-# handle some corner cases differently.
-#
-# Hashing should be done in such a way that apart from hash collisions, there's
-# no way to get the same hash for different inputs. This way, if there is
-# such a bug in the future, we can simply switch to a better hash function.
+# The resulting hashes are embedded into names of `.o` files. If a `.o` file
+# with a matching hash exists, we will reuse it directly instead of recompiling
+# it. This is good, because outputting optimized (or even non-optimized) `.o`
+# files with LLVM is really slow.
 
 import "../ast.jou"
 import "../command_line_args.jou"
