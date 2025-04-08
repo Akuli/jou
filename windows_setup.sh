@@ -50,11 +50,10 @@ else
     if [ $small = yes ]; then
         # A special small version of mingw64 that comes with the repo, for people with slow internet.
         # See .github/workflows/windows.yml for code that checks the contents of the zip so that you can trust it.
-        echo "Small install is currently not suppported." >&2
-        exit 1
-#        url=https://akuli.github.io/mingw64-small.zip
-#        filename=mingw64-small.zip
-#        sha=4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686
+        # TODO: this is still LLVM 14
+        url=https://akuli.github.io/mingw64-small.zip
+        filename=mingw64-small.zip
+        sha=4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686
     else
         url=https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-llvm-19.1.7-mingw-w64msvcrt-12.0.0-r3.zip
         filename=mingw64.zip
