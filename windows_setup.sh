@@ -11,7 +11,7 @@ if ! [[ "$OS" =~ Windows ]]; then
 fi
 
 small=no
-offline_mingw64=
+offline_zip=
 
 while [ $# != 0 ]; do
     case "$1" in
@@ -19,15 +19,22 @@ while [ $# != 0 ]; do
             small=yes
             shift
             ;;
-        --offline-mingw64)
-            offline_mingw64="$2"
+        --offline-zip)
+            offline_zip="$2"
             shift 2
             ;;
         *)
-            echo "Usage: $0 [--small] [--offline-mingw64 path/to/file.zip]"
-            echo ""
-            echo "  --small                     Use this if you have slow internet"
-            echo "  --offline-mingw64 <path>    Use this on systems with no internet"
+            echo "\
+Usage: $0 [--small] [--offline-mingw64 path/to/file.zip]
+
+  --small                 Use this if you have slow internet. See
+                          CONTRIBUTING.md for a detailed explanation
+                          about what this does.
+
+  --offline-zip <path>    Path to already downloaded file. Used to set
+                          up a Jou dev environment on a system with no
+                          internet connection.
+"
             exit 2
     esac
 done
@@ -63,12 +70,12 @@ else
         sha=5937a482247bebc2eca8c0b93fa43ddb17d94968adfff3f2e0c63c94608ee76b
     fi
 
-    if [ -z "$offline_mingw64" ]; then
+    if [ -z "$offline_zip" ]; then
         echo "Downloading $filename..."
         curl -L -o $filename $url
     else
-        echo "Copying $offline_mingw64 to ./$filename..."
-        cp "$offline_mingw64" "$filename"
+        echo "Copying $offline_zip to ./$filename..."
+        cp "$offline_zip" "$filename"
     fi
 
     echo "Verifying $filename..."
