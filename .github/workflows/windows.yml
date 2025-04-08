@@ -32,63 +32,69 @@ jobs:
         shell: bash
       # We don't need to copy all of mingw64. We only need the GNU linker.
       # The less we copy, the smaller the resulting zip becomes.
-      #
-      # gcc is needed only to run the linker. It would be possible to invoke ld.exe
-      # directly, but the command-line it wants is a bit complicated and it's just
-      # easier to let a C compiler figure it out. I also tried using clang instead
-      # of gcc, but it depends on many LLVM DLLs and the zip file became huge.
-      - name: Copy the linker from mingw64 to jou/mingw64
+      # Executables are copied without their DLLs (added later)
+      - name: Copy files from mingw64 to jou/mingw64
         shell: bash
         run: |
-          # Executables are copied without their DLLs (added later)
-          # Names of .a files figured out by deleting them all and looking at error message.
-          # CRT (C RunTime) files are needed because the linker implicitly adds them to every executable.
-          for file in \
-              mingw64/version_info.txt \
-              $(find mingw64 -name 'crt*.o') \
-              mingw64/bin/gcc.exe \
-              mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/libgcc.a \
-              mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/libgcc_eh.a \
-              mingw64/libexec/gcc/x86_64-w64-mingw32/14.2.0/liblto_plugin.dll \
-              mingw64/x86_64-w64-mingw32/bin/ld.exe \
-              mingw64/x86_64-w64-mingw32/lib/libadvapi32.a \
-              mingw64/x86_64-w64-mingw32/lib/libkernel32.a \
-              mingw64/x86_64-w64-mingw32/lib/libm.a \
-              mingw64/x86_64-w64-mingw32/lib/libmingw32.a \
-              mingw64/x86_64-w64-mingw32/lib/libmingwex.a \
-              mingw64/x86_64-w64-mingw32/lib/libmsvcrt.a \
-              mingw64/x86_64-w64-mingw32/lib/libpthread.a \
-              mingw64/x86_64-w64-mingw32/lib/libshell32.a \
-              mingw64/x86_64-w64-mingw32/lib/libuser32.a
-          do
+          files=(
+            # Currently not used for anything, but very small, and may help someone to debug something.
+            mingw64/version_info.txt
+
+            # Let's copy the GNU linker.
+            #
+            # gcc is needed only to run the linker. It would be possible to invoke ld.exe
+            # directly, but the command-line it wants is a bit complicated and it's just
+            # easier to let a C compiler figure it out. I also tried using clang instead
+            # of gcc, but it depends on many LLVM DLLs and the zip file became huge.
+            mingw64/bin/gcc.exe
+            mingw64/x86_64-w64-mingw32/bin/ld.exe
+
+            # CRT (C RunTime) files are needed because the linker implicitly adds them to every executable.
+            $(find mingw64 -name 'crt*.o')
+
+            # Needed for gcc to act as a linker.
+            # Figured out by deleting all of these and looking at error messages.
+            mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/libgcc.a
+            mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/libgcc_eh.a
+            mingw64/libexec/gcc/x86_64-w64-mingw32/14.2.0/liblto_plugin.dll
+            mingw64/x86_64-w64-mingw32/lib/libadvapi32.a
+            mingw64/x86_64-w64-mingw32/lib/libkernel32.a
+            mingw64/x86_64-w64-mingw32/lib/libm.a
+            mingw64/x86_64-w64-mingw32/lib/libmingw32.a
+            mingw64/x86_64-w64-mingw32/lib/libmingwex.a
+            mingw64/x86_64-w64-mingw32/lib/libmsvcrt.a
+            mingw64/x86_64-w64-mingw32/lib/libpthread.a
+            mingw64/x86_64-w64-mingw32/lib/libshell32.a
+            mingw64/x86_64-w64-mingw32/lib/libuser32.a
+
+            # These .dll.a files are needed for compiling Jou code that uses LLVM.
+            # Without these, the compiler works but cannot compile itself.
+            # These are included here just for "./windows_setup.sh --small".
+            #
+            # These .a files don't contain actual code, so they are somewhat small.
+            # The DLLs still need to be present when running code that uses LLVM.
+            #
+            # Please keep in sync with compiler/llvm.jou
+            mingw64/lib/libLLVMCore.dll.a
+            mingw64/lib/libLLVMX86CodeGen.dll.a
+            mingw64/lib/libLLVMAnalysis.dll.a
+            mingw64/lib/libLLVMTarget.dll.a
+            mingw64/lib/libLLVMPasses.dll.a
+            mingw64/lib/libLLVMSupport.dll.a
+            mingw64/lib/libLLVMLinker.dll.a
+            mingw64/lib/libLTO.dll.a
+            mingw64/lib/libLLVMX86AsmParser.dll.a
+            mingw64/lib/libLLVMX86Info.dll.a
+            mingw64/lib/libLLVMX86Desc.dll.a
+
+            # This is here only for "./windows_setup.sh --small".
+            mingw64/bin/mingw32-make.exe
+          )
+
+          for file in ${files[@]}; do
             mkdir -vp jou/$(dirname $file)
             cp -v $file jou/$file
           done
-      # These .dll.a files are needed for compiling Jou code that uses LLVM.
-      # Without these, the compiler works but cannot compile itself. These are
-      # included here just for "./windows_setup.sh --small".
-      #
-      # These .a files don't contain actual code, so they are somewhat small.
-      # The DLLs still need to be present when running the compiler.
-      #
-      # Please keep in sync with compiler/llvm.jou
-      - name: Copy LLVM stub files to jou/
-        shell: bash
-        run: |
-          mkdir -vp jou/lib
-          cp -v \
-            mingw64/lib/libLLVMCore.dll.a \
-            mingw64/lib/libLLVMX86CodeGen.dll.a \
-            mingw64/lib/libLLVMAnalysis.dll.a \
-            mingw64/lib/libLLVMTarget.dll.a \
-            mingw64/lib/libLLVMPasses.dll.a \
-            mingw64/lib/libLLVMSupport.dll.a \
-            mingw64/lib/libLLVMLinker.dll.a \
-            mingw64/lib/libLTO.dll.a \
-            mingw64/lib/libLLVMX86AsmParser.dll.a \
-            mingw64/lib/libLLVMX86Info.dll.a \
-            mingw64/lib/libLLVMX86Desc.dll.a \
-            jou/mingw64/lib/
       - name: Copy more files to jou/
         # Please keep this list of files in sync with update.ps1
         run: cp -rv stdlib doc examples LICENSE jou.exe update.ps1 jou
