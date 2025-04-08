@@ -202,7 +202,9 @@ jobs:
           key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap.exe
-      - run: ./windows_setup.sh --small
+      # TODO: use --small (#856)
+      #- run: ./windows_setup.sh --small
+      - run: ./windows_setup.sh
         shell: bash
       - name: "Compile and test"
         run: source activate && ./runtests.sh --verbose
