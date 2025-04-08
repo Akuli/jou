@@ -32,7 +32,7 @@ commits=(
     30bf61efa40832a2429eee34c8cc93e80ea7f591  # @inline
     722d066c840bf9c07dafd69e5bd1d12823f04b25  # bug fixes for using @inline in generic classes
     e7fea1f2ed602a7c191f8c8c605fa56ae2468723  # JOU_MINGW_DIR environment variable
-    6f6622072f6b3a321e53619606dcc09a82c8232c  # "./windows_setup.sh --small" starts from this commit
+    212db69885bd1f18e7fa67458110b81b3b1cd812  # "./windows_setup.sh --small" starts from this commit
 )
 
 for commit in ${commits[@]}; do
@@ -157,9 +157,12 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
     if [[ "$OS" =~ Windows ]] && [ $i -le 15 ]; then
         # These files used to be in a separate "libs" folder next to mingw64 folder.
         # Now they are in mingw64/lib.
+        # They were also named slightly differently.
         echo "Copying files..."
         mkdir $folder/libs
-        cp mingw64/lib/libLLVM*.dll.a mingw64/lib/libLTO.dll.a $folder/libs
+        for file in mingw64/lib/libLLVM*.dll.a mingw64/lib/libLTO.dll.a; do
+            cp -v $file $folder/libs/${file/.dll/}
+        done
     fi
 
     if [[ "$OS" =~ Windows ]] && [ $i == 1 ]; then
