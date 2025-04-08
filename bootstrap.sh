@@ -145,8 +145,6 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         if [[ "$OS" =~ Windows ]] && [ $i -le 14 ]; then
             # Old version of Jou. Doesn't support the JOU_MINGW_DIR environment variable.
             # Patch code to find mingw64 in the directory where it is.
-            # This used to copy the mingw64 folder, but it was slow and wasted disk space.
-            # Afaik symlinks aren't really a thing on windows.
             echo "Patching to specify location of mingw64..."
             sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' compiler/run.jou
             if [ $i == 1 ]; then
@@ -168,19 +166,28 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         (cd $folder && unzip -q llvm_headers.zip)
     fi
 
+    echo "Copying previous bootstrap compiler..."
     if [ $i != 1 ]; then
         cp $(folder_of_commit $((i-1)))/jou$exe_suffix $folder/jou_bootstrap$exe_suffix
-        # Convince make that jou_bootstrap(.exe) is usable as is, and does
-        # not need to be recompiled. We don't want bootstrap inside bootstrap.
-        touch $folder/jou_bootstrap$exe_suffix
     fi
 
     echo "Running make..."
+
+    # The jou_bootstrap(.exe) file should never be rebuilt.
+    # We don't want bootstrap inside bootstrap.
+    make_flags="--old-file jou_bootstrap$exe_suffix"
+
     if [[ "$OS" =~ Windows ]]; then
-        (cd $folder && $make CC=../../../mingw64/bin/clang.exe JOU_MINGW_DIR=../../../mingw64 jou.exe)
-    else
-        (cd $folder && $make jou)
+        # Use correct path to mingw64. This used to copy the mingw64 folder,
+        # but it was slow and wasted disk space. Afaik symlinks aren't really a
+        # thing on windows.
+        make_flags="$make_flags JOU_MINGW_DIR=../../../mingw64"
+        if [ $i == 1 ]; then
+            make_flags="$make_flags CC=../../../mingw64/bin/clang.exe"
+        fi
     fi
+
+    (cd $folder && $make $make_flags jou.exe)
 done
 
 show_message "Copying the bootstrapped executable"
