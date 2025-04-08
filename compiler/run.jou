@@ -50,6 +50,8 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
             jou_exe = find_current_executable()
             asprintf(&mingw_dir, "%s\\mingw64", dirname(jou_exe))
             free(jou_exe)
+            while strstr(mingw_dir, "\\") != NULL:
+                *strstr(mingw_dir, "\\") = '/'
 
         # Could also use clang, but gcc has less dependencies so we can make the Windows zips smaller.
         # Windows quoting is weird. The outermost quotes get stripped here.
