@@ -187,7 +187,7 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         fi
     fi
 
-    (cd $folder && $make $make_flags jou.exe)
+    (cd $folder && $make $make_flags jou$exe_suffix)
 done
 
 show_message "Copying the bootstrapped executable"
