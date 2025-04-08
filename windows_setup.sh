@@ -50,13 +50,14 @@ else
     if [ $small = yes ]; then
         # A special small version of mingw64 that comes with the repo, for people with slow internet.
         # See .github/workflows/windows.yml for code that checks the contents of the zip so that you can trust it.
+        # TODO: this is still LLVM 14
         url=https://akuli.github.io/mingw64-small.zip
         filename=mingw64-small.zip
         sha=4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686
     else
-        url=https://github.com/brechtsanders/winlibs_mingw/releases/download/12.1.0-14.0.6-10.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-12.1.0-llvm-14.0.6-mingw-w64msvcrt-10.0.0-r3.zip
+        url=https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-llvm-19.1.7-mingw-w64msvcrt-12.0.0-r3.zip
         filename=mingw64.zip
-        sha=9ffef7f7a8dab893bd248085fa81a5a37ed6f775ae220ef673bea8806677836d
+        sha=5937a482247bebc2eca8c0b93fa43ddb17d94968adfff3f2e0c63c94608ee76b
     fi
 
     if [ -z "$offline_mingw64" ]; then
