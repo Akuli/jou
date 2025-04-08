@@ -31,6 +31,7 @@ commits=(
     519539bfc5551a6e6b9c3fa3070156b07a534601  # generic class bug fix
     30bf61efa40832a2429eee34c8cc93e80ea7f591  # @inline
     722d066c840bf9c07dafd69e5bd1d12823f04b25  # bug fixes for using @inline in generic classes
+    e7fea1f2ed602a7c191f8c8c605fa56ae2468723  # JOU_MINGW_DIR environment variable
 )
 
 for commit in ${commits[@]}; do
@@ -142,11 +143,23 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         fi
     )
 
-    if [[ "$OS" =~ Windows ]]; then
-        cp -r libs mingw64 $folder
+    if [[ "$OS" =~ Windows ]] && [ $i -le 14 ]; then
+        # Old version of Jou. Doesn't support the JOU_MINGW_DIR environment variable.
+        # Patch code to find mingw64 in the directory where it is.
+        # This used to copy the mingw64 folder, but it was slow and wasted disk space.
+        # Afaik symlinks aren't really a thing on windows.
+        echo "Patching to specify location of mingw64..."
+        sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' compiler/run.jou
+        if [ $i == 1 ]; then
+            sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' bootstrap_compiler/output.c
+        fi
     fi
 
-    if [[ "$OS" =~ "Windows" ]] && [ $i == 1 ]; then
+    if [[ "$OS" =~ Windows ]]; then
+        cp -r libs $folder
+    fi
+
+    if [[ "$OS" =~ Windows ]] && [ $i == 1 ]; then
         # The compiler written in C needed LLVM headers, and getting them on
         # Windows turned out to be more difficult than expected, so I included
         # them in the repository as a zip file.
@@ -161,7 +174,12 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         touch $folder/jou_bootstrap$exe_suffix
     fi
 
-    (cd $folder && $make jou$exe_suffix)
+    echo "Running make..."
+    if [[ "$OS" =~ Windows ]]; then
+        (cd $folder && $make CC=../../../mingw64/bin/clang.exe JOU_MINGW_DIR=../../../mingw64 jou.exe)
+    else
+        (cd $folder && $make jou)
+    fi
 done
 
 show_message "Copying the bootstrapped executable"
