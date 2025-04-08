@@ -92,7 +92,9 @@ jobs:
         shell: bash
         run: |
           files=(
-            #
+            # Currently not used for anything, but very small, and may help someone to debug something.
+            mingw64/version_info.txt
+
             # Let's copy the GNU linker.
             #
             # gcc is needed only to run the linker. It would be possible to invoke ld.exe
@@ -101,9 +103,6 @@ jobs:
             # of gcc, but it depends on many LLVM DLLs and the zip file became huge.
             mingw64/bin/gcc.exe
             mingw64/x86_64-w64-mingw32/bin/ld.exe
-
-            # Currently not used for anything, but very small, and may help someone to debug something.
-            mingw64/version_info.txt
 
             # CRT (C RunTime) files are needed because the linker implicitly adds them to every executable.
             $(find mingw64 -name 'crt*.o')
