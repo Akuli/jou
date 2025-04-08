@@ -32,7 +32,7 @@ commits=(
     30bf61efa40832a2429eee34c8cc93e80ea7f591  # @inline
     722d066c840bf9c07dafd69e5bd1d12823f04b25  # bug fixes for using @inline in generic classes
     e7fea1f2ed602a7c191f8c8c605fa56ae2468723  # JOU_MINGW_DIR environment variable
-    98c5fb2792eaac8bbe7496a176808d684f631d82  # "./windows_setup.sh --small" starts from this commit
+    98c5fb2792eaac8bbe7496a176808d684f631d82  # "./windows_setup.sh --small" starts from this commit (release 2025-04-08-2200)
 )
 
 for commit in ${commits[@]}; do
