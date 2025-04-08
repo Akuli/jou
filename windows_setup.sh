@@ -48,12 +48,15 @@ else
     # This is due to opaque pointer types. Scroll down to "Version Support" here: https://llvm.org/docs/OpaquePointers.html
     # All WinLibs versions and download links: https://winlibs.com/
     if [ $small = yes ]; then
-        # A special small version of mingw64 that comes with the repo, for people with slow internet.
-        # See .github/workflows/windows.yml for code that checks the contents of the zip so that you can trust it.
-        # TODO: this is still LLVM 14
-        url=https://akuli.github.io/mingw64-small.zip
-        filename=mingw64-small.zip
+        # User has slow internet and doesn't want to download the whole mingw64 (about 1GB).
+        # Instead, download a release of Jou (about 50MB), and extract mingw and Jou compiler from there.
+        url=https://github.com/Akuli/jou/releases/download/2025-04-08-1600/jou_windows_64bit_2025-04-08-1600.zip
+        filename=jou_windows_64bit_2025-04-08-1600.zip
         sha=4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686
+        # This is the folder where the downloaded Jou compiler (jou.exe) will go.
+        # Placing it here makes bootstrap.sh use our downloaded Jou compiler
+        # instead of starting from scratch.
+        jou_exe_folder=tmp/bootstrap_cache/016_6f6622072f6b3a321e53619606dcc09a82c8232c
     else
         url=https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-llvm-19.1.7-mingw-w64msvcrt-12.0.0-r3.zip
         filename=mingw64.zip
@@ -75,7 +78,17 @@ else
     fi
 
     echo "Extracting $filename..."
-    unzip -q $filename
+    if [ $small = yes ]; then
+        mkdir -vp tmp
+        mkdir -vp $jou_exe_folder
+        unzip -q $filename -d tmp/windows_setup_extracted
+        mv tmp/windows_setup_extracted/jou/mingw64 ./
+        mv tmp/windows_setup_extracted/jou/libLLVM*.dll mingw64/bin/
+        mv tmp/windows_setup_extracted/jou/jou.exe $jou_exe_folder/
+        rm -rf tmp/windows_setup_extracted
+    else
+        unzip -q $filename
+    fi
     rm $filename
 fi
 

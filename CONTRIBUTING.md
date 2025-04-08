@@ -30,11 +30,8 @@ Following the [instructions in the README](README.md#setup) is enough.
     If you have a slow internet connection
     and it takes a long time for `windows_setup.sh` to download mingw64,
     you can instead run `./windows_setup.sh --small`.
-    This way it uses `mingw64-small.zip`,
-    which is just like the usual mingw64, but with many large files deleted to make it smaller.
-    I created it locally on my computer.
-    If you don't want to trust it, you can run `windows_setup.sh` without `--small`
-    or look at how `.github/workflows/windows.yml` compares `mingw64-small.zip` to the original `mingw64.zip`.
+    Instead of downloading the full mingw64 (about 1GB),
+    this will get a minimal version of MinGW from a [release](#releases) of Jou (about 50MB).
 5. Compile Jou:
     ```
     source activate
@@ -44,7 +41,12 @@ Following the [instructions in the README](README.md#setup) is enough.
     where `C:\Users\YourName\Desktop` is the folder where you cloned Jou.
     If you don't want to run it every time you open a Git Bash window to work on Jou,
     you can instead add it to your PATH permanently with Control Panel.
-    When you run `mingw32-make` for the first time, it [bootstraps Jou from Git history](README.md#bootstrapping).
+
+    When you run `mingw32-make` for the first time, it
+    [bootstraps Jou from Git history](README.md#bootstrapping).
+    If you used the `--small` option of `windows_setup.sh`,
+    the bootstrapping process will begin at the downloaded Jou release
+    instead of the last version that came with a compiler written in C.
 6. Compile and run hello world:
     ```
     ./jou.exe examples/hello.jou
