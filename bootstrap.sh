@@ -31,6 +31,7 @@ commits=(
     519539bfc5551a6e6b9c3fa3070156b07a534601  # generic class bug fix
     30bf61efa40832a2429eee34c8cc93e80ea7f591  # @inline
     722d066c840bf9c07dafd69e5bd1d12823f04b25  # bug fixes for using @inline in generic classes
+    e7fea1f2ed602a7c191f8c8c605fa56ae2468723  # JOU_MINGW_DIR environment variable
 )
 
 for commit in ${commits[@]}; do
@@ -140,13 +141,24 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
             sed -i -e s/'LLVMPassManagerBuilderPopulateModulePassManager.*'/'LLVMRunPasses(module, "default<O1>", target.target_machine, pmbuilder)'/g compiler/main.jou
             sed -i -e s/'declare LLVMPassManagerBuilderPopulateModulePassManager.*'/'declare LLVMRunPasses(a:void*, b:void*, c:void*, d:void*) -> void*'/g compiler/llvm.jou
         fi
+
+        if [[ "$OS" =~ Windows ]] && [ $i -le 14 ]; then
+            # Old version of Jou. Doesn't support the JOU_MINGW_DIR environment variable.
+            # Patch code to find mingw64 in the directory where it is.
+            echo "Patching to specify location of mingw64..."
+            sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' compiler/run.jou
+            if [ $i == 1 ]; then
+                sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' bootstrap_compiler/output.c
+            fi
+        fi
     )
 
     if [[ "$OS" =~ Windows ]]; then
-        cp -r libs mingw64 $folder
+        echo "Copying files..."
+        cp -r libs $folder
     fi
 
-    if [[ "$OS" =~ "Windows" ]] && [ $i == 1 ]; then
+    if [[ "$OS" =~ Windows ]] && [ $i == 1 ]; then
         # The compiler written in C needed LLVM headers, and getting them on
         # Windows turned out to be more difficult than expected, so I included
         # them in the repository as a zip file.
@@ -154,14 +166,28 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         (cd $folder && unzip -q llvm_headers.zip)
     fi
 
+    echo "Copying previous bootstrap compiler..."
     if [ $i != 1 ]; then
         cp $(folder_of_commit $((i-1)))/jou$exe_suffix $folder/jou_bootstrap$exe_suffix
-        # Convince make that jou_bootstrap(.exe) is usable as is, and does
-        # not need to be recompiled. We don't want bootstrap inside bootstrap.
-        touch $folder/jou_bootstrap$exe_suffix
     fi
 
-    (cd $folder && $make jou$exe_suffix)
+    echo "Running make..."
+
+    # The jou_bootstrap(.exe) file should never be rebuilt.
+    # We don't want bootstrap inside bootstrap.
+    make_flags="--old-file jou_bootstrap$exe_suffix"
+
+    if [[ "$OS" =~ Windows ]]; then
+        # Use correct path to mingw64. This used to copy the mingw64 folder,
+        # but it was slow and wasted disk space. Afaik symlinks aren't really a
+        # thing on windows.
+        make_flags="$make_flags JOU_MINGW_DIR=../../../mingw64"
+        if [ $i == 1 ]; then
+            make_flags="$make_flags CC=../../../mingw64/bin/clang.exe"
+        fi
+    fi
+
+    (cd $folder && $make $make_flags jou$exe_suffix)
 done
 
 show_message "Copying the bootstrapped executable"
