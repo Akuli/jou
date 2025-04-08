@@ -35,12 +35,26 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
     command: byte*
     if WINDOWS:
         # Assume mingw with clang has been downloaded with windows_setup.sh.
+        #
+        # If this is a bootstrap compiler, the location of mingw is something
+        # like ../../../mingw64 relative to jou.exe location, and it is passed
+        # with an environment variable.
+        mingw_dir = getenv("JOU_MINGW_DIR")
+        if mingw_dir != NULL:
+            # Environment variable given
+            mingw_dir = strdup(mingw_dir)
+            while strstr(mingw_dir, "/") != NULL:
+                *strstr(mingw_dir, "/") = '\\'
+        else:
+            # Assume the folder that contains jou.exe also contains mingw64
+            jou_exe = find_current_executable()
+            asprintf(&mingw_dir, "%s\\mingw64", dirname(jou_exe))
+            free(jou_exe)
+
         # Could also use clang, but gcc has less dependencies so we can make the Windows zips smaller.
         # Windows quoting is weird. The outermost quotes get stripped here.
-        jou_exe = find_current_executable()
-        instdir = dirname(jou_exe)
-        asprintf(&command, "\"\"%s\\mingw64\\bin\\gcc.exe\" %s -o \"%s\" %s\"", instdir, quoted_object_files, exepath, linker_flags)
-        free(jou_exe)
+        asprintf(&command, "\"\"%s\\bin\\gcc.exe\" %s -o \"%s\" %s\"", mingw_dir, quoted_object_files, exepath, linker_flags)
+        free(mingw_dir)
     else:
         # Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
         asprintf(&command, "'%s' %s -o '%s' %s", JOU_CLANG_PATH, quoted_object_files, exepath, linker_flags)
