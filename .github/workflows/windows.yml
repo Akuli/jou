@@ -147,6 +147,10 @@ jobs:
             mkdir -vp jou/$(dirname $file)
             cp -v $file jou/$file
           done
+      - name: Copy more files to jou/
+        # Please keep this list of files in sync with update.ps1
+        run: cp -rv stdlib doc examples LICENSE jou.exe update.ps1 jou
+        shell: bash
       - name: Copy missing DLL files to jou/
         shell: bash
         run: |
@@ -168,10 +172,6 @@ jobs:
           copy_dlls mingw64/bin jou
           copy_dlls mingw64/bin jou/mingw64/bin
           copy_dlls mingw64/x86_64-w64-mingw32/bin jou/mingw64/x86_64-w64-mingw32/bin
-      - name: Copy more files to jou/
-        # Please keep this list of files in sync with update.ps1
-        run: cp -rv stdlib doc examples LICENSE jou.exe update.ps1 jou
-        shell: bash
       - name: Convert text files to Windows-style CRLF line endings
         run: mingw64/bin/unix2dos $(find jou -name '*.jou') $(find jou -name '*.md') jou/LICENSE
         shell: bash
