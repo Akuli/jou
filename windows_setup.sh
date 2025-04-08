@@ -31,7 +31,7 @@ Usage: $0 [--small] [--offline-mingw64 path/to/file.zip]
         Use this if you have slow internet. See CONTRIBUTING.md for a detailed
         explanation about what this does.
 
-  --offline-zip <path/to/file.zip>
+  --offline-zip path/to/file.zip
         Usually this script downloads one zip file, but if this option is used,
         nothing will be downloaded from internet. The file is instead copied
         from the given path. This can be used to set up a Jou dev environment
