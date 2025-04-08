@@ -156,6 +156,7 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
     )
 
     if [[ "$OS" =~ Windows ]]; then
+        echo "Copying files..."
         cp -r libs $folder
     fi
 
