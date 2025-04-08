@@ -161,7 +161,7 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         echo "Copying files..."
         mkdir $folder/libs
         for file in mingw64/lib/libLLVM*.dll.a mingw64/lib/libLTO.dll.a; do
-            cp -v $file $folder/libs/${file/.dll/}
+            cp -v $file $folder/libs/$(basename -s .dll.a $file).a
         done
     fi
 
