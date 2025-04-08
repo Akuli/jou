@@ -160,9 +160,20 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         # They were also named slightly differently.
         echo "Copying files..."
         mkdir $folder/libs
-        for file in mingw64/lib/libLLVM*.dll.a mingw64/lib/libLTO.dll.a; do
-            cp -v $file $folder/libs/$(basename -s .dll.a $file).a
-        done
+        # The same list of files is in:
+        #   - .github/workflows/windows.yml
+        #   - compiler/llvm.jou
+        cp mingw64/lib/libLLVMCore.dll.a $folder/libs/libLLVMCore.a
+        cp mingw64/lib/libLLVMX86CodeGen.dll.a $folder/libs/libLLVMX86CodeGen.a
+        cp mingw64/lib/libLLVMAnalysis.dll.a $folder/libs/libLLVMAnalysis.a
+        cp mingw64/lib/libLLVMTarget.dll.a $folder/libs/libLLVMTarget.a
+        cp mingw64/lib/libLLVMPasses.dll.a $folder/libs/libLLVMPasses.a
+        cp mingw64/lib/libLLVMSupport.dll.a $folder/libs/libLLVMSupport.a
+        cp mingw64/lib/libLLVMLinker.dll.a $folder/libs/libLLVMLinker.a
+        cp mingw64/lib/libLTO.dll.a $folder/libs/libLTO.a
+        cp mingw64/lib/libLLVMX86AsmParser.dll.a $folder/libs/libLLVMX86AsmParser.a
+        cp mingw64/lib/libLLVMX86Info.dll.a $folder/libs/libLLVMX86Info.a
+        cp mingw64/lib/libLLVMX86Desc.dll.a $folder/libs/libLLVMX86Desc.a
     fi
 
     if [[ "$OS" =~ Windows ]] && [ $i == 1 ]; then
