@@ -27,7 +27,7 @@ jobs:
           key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap.exe
-      # TODO: figure out why --small doesn't work here
+      # Do not use --small because it relies on a previously built zip
       - run: source activate && ./windows_setup.sh
         shell: bash
       - run: source activate && mingw32-make

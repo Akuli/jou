@@ -92,33 +92,6 @@ else
     rm $filename
 fi
 
-# Blog post that explains how .a library is generated from dll file on Windows:
-# https://dev.my-gate.net/2018/06/02/generate-a-def-file-from-a-dll/
-#
-# A simple "grep -r LLVMCreatePassManager" reveals that only libLLVMCore.dll
-# contains the functions we need, so we generate a corresponding .a file.
-# There are also a few other files that I found similarly.
-mkdir -vp libs
-echo "Generating .a files (this can take a while)"
-# Please keep in sync with compiler/llvm.jou
-for name in \
-        libLLVMCore libLLVMX86CodeGen libLLVMAnalysis libLLVMTarget \
-        libLLVMPasses libLLVMSupport libLLVMLinker libLTO libLLVMX86AsmParser \
-        libLLVMX86Info libLLVMX86Desc
-do
-    if [ -f libs/$name.a ]; then
-        echo "  libs/$name.a has already been generated."
-    else
-        echo "  Generating libs/$name.a..."
-        cd libs
-        ../mingw64/bin/gendef.exe ../mingw64/bin/$name.dll
-        ../mingw64/bin/dlltool.exe -d $name.def -l $name.a
-        rm $name.def
-        cd ..
-        echo "    done"
-    fi
-done
-
 echo ""
 echo ""
 echo ""
