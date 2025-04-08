@@ -12,6 +12,59 @@ on:
   pull_request:
 
 jobs:
+  # I created a zip file that contains mingw64, but with some large files deleted.
+  # These large files are most of the time unnecessary for developing Jou.
+  # People with slow internet need the smaller zip file.
+  #
+  # This check fails if the zip file contains anything else than what's in the original/full zip file.
+  # It serves two purposes:
+  #   * People can trust the random zip file I have created locally on my system and committed.
+  #   * I can be sure that I didn't accidentally include something unnecessary or do something else dumb.
+  check-small-mingw64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Same URLs as in windows_setup.sh
+      - name: Download the small mingw64
+        run: curl -L -o mingw64-small.zip https://akuli.github.io/mingw64-small.zip
+      - name: Download the full mingw64
+        run: curl -L -o mingw64.zip https://github.com/brechtsanders/winlibs_mingw/releases/download/12.1.0-14.0.6-10.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-12.1.0-llvm-14.0.6-mingw-w64msvcrt-10.0.0-r3.zip
+      # Same SHA hashes as in windows_setup.sh
+      - name: Verify the small mingw64
+        run: |
+          if [ "$(sha256sum mingw64-small.zip | cut -d' ' -f1)" != "4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686" ]; then
+            echo "verifying failed"
+            exit 1
+          fi
+      - name: Verify the full mingw64
+        run: |
+          if [ "$(sha256sum mingw64.zip | cut -d' ' -f1)" != "9ffef7f7a8dab893bd248085fa81a5a37ed6f775ae220ef673bea8806677836d" ]; then
+            echo "verifying failed"
+            exit 1
+          fi
+      - name: Make sure that all file paths start with mingw64
+        run: |
+          zipinfo -1 mingw64.zip > output.txt
+          zipinfo -1 mingw64-small.zip >> output.txt
+          cat output.txt
+          if [ "$(cut -d/ -f1 output.txt | uniq)" != "mingw64" ]; then
+            exit 1
+          fi
+      - run: ls -lh mingw64*.zip
+      - name: Extract mingw64.zip
+        run: mkdir full && cd full && unzip ../mingw64.zip
+      - name: Extract mingw64-small.zip
+        run: mkdir small && cd small && unzip ../mingw64-small.zip
+      - name: Compare files
+        run: |
+          # diff exits with status 1 because the folders differ.
+          # Put errors to output.txt as well, so that we notice if something goes wrong.
+          (diff -r full small || true) &> output.txt
+          cat output.txt
+          if [ "$(cut -d/ -f1 output.txt | uniq)" != "Only in full" ]; then
+            exit 1
+          fi
+
   build-zip:
     runs-on: windows-latest
     timeout-minutes: 10  # may need to bootstrap
