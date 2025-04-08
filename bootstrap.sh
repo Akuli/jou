@@ -141,19 +141,19 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
             sed -i -e s/'LLVMPassManagerBuilderPopulateModulePassManager.*'/'LLVMRunPasses(module, "default<O1>", target.target_machine, pmbuilder)'/g compiler/main.jou
             sed -i -e s/'declare LLVMPassManagerBuilderPopulateModulePassManager.*'/'declare LLVMRunPasses(a:void*, b:void*, c:void*, d:void*) -> void*'/g compiler/llvm.jou
         fi
-    )
 
-    if [[ "$OS" =~ Windows ]] && [ $i -le 14 ]; then
-        # Old version of Jou. Doesn't support the JOU_MINGW_DIR environment variable.
-        # Patch code to find mingw64 in the directory where it is.
-        # This used to copy the mingw64 folder, but it was slow and wasted disk space.
-        # Afaik symlinks aren't really a thing on windows.
-        echo "Patching to specify location of mingw64..."
-        sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' compiler/run.jou
-        if [ $i == 1 ]; then
-            sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' bootstrap_compiler/output.c
+        if [[ "$OS" =~ Windows ]] && [ $i -le 14 ]; then
+            # Old version of Jou. Doesn't support the JOU_MINGW_DIR environment variable.
+            # Patch code to find mingw64 in the directory where it is.
+            # This used to copy the mingw64 folder, but it was slow and wasted disk space.
+            # Afaik symlinks aren't really a thing on windows.
+            echo "Patching to specify location of mingw64..."
+            sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' compiler/run.jou
+            if [ $i == 1 ]; then
+                sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' bootstrap_compiler/output.c
+            fi
         fi
-    fi
+    )
 
     if [[ "$OS" =~ Windows ]]; then
         cp -r libs $folder
