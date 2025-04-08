@@ -119,6 +119,31 @@ jobs:
             mkdir -vp jou/$(dirname $file)
             cp -v $file jou/$file
           done
+      # These .dll.a files are needed for compiling Jou code that uses LLVM.
+      # Without these, the compiler works but cannot compile itself. These are
+      # included here just for "./windows_setup.sh --small".
+      #
+      # These .a files don't contain actual code, so they are somewhat small.
+      # The DLLs still need to be present when running the compiler.
+      #
+      # Please keep in sync with compiler/llvm.jou
+      - name: Copy LLVM stub files to jou/
+        shell: bash
+        run: |
+          mkdir -vp jou/lib
+          cp -v \
+            mingw64/lib/libLLVMCore.dll.a \
+            mingw64/lib/libLLVMX86CodeGen.dll.a \
+            mingw64/lib/libLLVMAnalysis.dll.a \
+            mingw64/lib/libLLVMTarget.dll.a \
+            mingw64/lib/libLLVMPasses.dll.a \
+            mingw64/lib/libLLVMSupport.dll.a \
+            mingw64/lib/libLLVMLinker.dll.a \
+            mingw64/lib/libLTO.dll.a \
+            mingw64/lib/libLLVMX86AsmParser.dll.a \
+            mingw64/lib/libLLVMX86Info.dll.a \
+            mingw64/lib/libLLVMX86Desc.dll.a \
+            jou/mingw64/lib/
       - name: Copy more files to jou/
         # Please keep this list of files in sync with update.ps1
         run: cp -rv stdlib doc examples LICENSE jou.exe update.ps1 jou
