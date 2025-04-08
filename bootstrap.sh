@@ -143,6 +143,7 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
     )
 
     if [[ "$OS" =~ Windows ]]; then
+        echo "Copying files..."
         cp -r libs mingw64 $folder
     fi
 
@@ -162,6 +163,13 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
     fi
 
     (cd $folder && $make jou$exe_suffix)
+
+    if [[ "$OS" =~ Windows ]]; then
+        # TODO: mingw64 is really big. Ideally we would only copy the bits we need,
+        # not the whole thing. For now it's easier to just delete it after use...
+        echo "Deleting files to save space..."
+        rm -r $folder/libs $folder/mingw64
+    fi
 done
 
 show_message "Copying the bootstrapped executable"
