@@ -176,7 +176,11 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         touch $folder/jou_bootstrap$exe_suffix
     fi
 
-    (cd $folder && $make CC=../../../mingw64/bin/clang.exe jou$exe_suffix)
+    if [[ "$OS" =~ "Windows" ]] && [ $i == 1 ]; then
+        (cd $folder && $make CC=../../../mingw64/bin/clang.exe jou$exe_suffix)
+    else
+        (cd $folder && $make jou$exe_suffix)
+    fi
 done
 
 show_message "Copying the bootstrapped executable"
