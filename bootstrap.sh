@@ -140,11 +140,25 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
             sed -i -e s/'LLVMPassManagerBuilderPopulateModulePassManager.*'/'LLVMRunPasses(module, "default<O1>", target.target_machine, pmbuilder)'/g compiler/main.jou
             sed -i -e s/'declare LLVMPassManagerBuilderPopulateModulePassManager.*'/'declare LLVMRunPasses(a:void*, b:void*, c:void*, d:void*) -> void*'/g compiler/llvm.jou
         fi
+
+        if [[ "$OS" =~ Windows ]]; then
+            # Patch code to find mingw64 in the directory where it is.
+            # This used to copy the mingw64 folder, but it was slow.
+            # Afaik symlinks aren't really a thing on windows.
+            #
+            # TODO: When we have compile time getenv() or similar, we can just
+            # use that. Or maybe a runtime environment variable...
+            echo "Patching to specify location of mingw64..."
+            sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' compiler/run.jou
+            if [ $i == 1 ]; then
+                sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' bootstrap_compiler/output.c
+            fi
+        fi
     )
 
     if [[ "$OS" =~ Windows ]]; then
         echo "Copying files..."
-        cp -r libs mingw64 $folder
+        cp -r libs $folder
     fi
 
     if [[ "$OS" =~ "Windows" ]] && [ $i == 1 ]; then
@@ -163,13 +177,6 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
     fi
 
     (cd $folder && $make jou$exe_suffix)
-
-    if [[ "$OS" =~ Windows ]]; then
-        # TODO: mingw64 is really big. Ideally we would only copy the bits we need,
-        # not the whole thing. For now it's easier to just delete it after use...
-        echo "Deleting files to save space..."
-        rm -r $folder/libs $folder/mingw64
-    fi
 done
 
 show_message "Copying the bootstrapped executable"
