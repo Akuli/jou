@@ -36,7 +36,7 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
     if WINDOWS:
         # Assume mingw with clang has been downloaded with windows_setup.sh.
         #
-        # If this is a bootstrap compiler, the location of mingw is something
+        # During the bootstrapping, the location of mingw is something
         # like ../../../mingw64 relative to jou.exe location, and it is passed
         # with an environment variable.
         mingw_dir = getenv("JOU_MINGW_DIR")
