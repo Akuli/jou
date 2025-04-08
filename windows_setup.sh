@@ -50,13 +50,13 @@ else
     if [ $small = yes ]; then
         # User has slow internet and doesn't want to download the whole mingw64 (about 1GB).
         # Instead, download a release of Jou (about 50MB), and extract mingw and Jou compiler from there.
-        url=https://github.com/Akuli/jou/releases/download/2025-04-08-1600/jou_windows_64bit_2025-04-08-1600.zip
-        filename=jou_windows_64bit_2025-04-08-1600.zip
-        sha=50b85b43aa3fc7055df4a85d8650d47b8de3700f86b371337f9f7daf99d86f4b
+        url=https://github.com/Akuli/jou/releases/download/2025-04-08-2000/jou_windows_64bit_2025-04-08-2000.zip
+        filename=jou_windows_64bit_2025-04-08-2000.zip
+        sha=da9fc23e0ee270d176171d2370d25abe42d09895cc69ae531f6d714398039eb9
         # This is the folder where the downloaded Jou compiler (jou.exe) will go.
         # Placing it here makes bootstrap.sh use our downloaded Jou compiler
         # instead of starting from scratch.
-        jou_exe_folder=tmp/bootstrap_cache/016_6f6622072f6b3a321e53619606dcc09a82c8232c
+        jou_exe_folder=tmp/bootstrap_cache/016_212db69885bd1f18e7fa67458110b81b3b1cd812
     else
         url=https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-llvm-19.1.7-mingw-w64msvcrt-12.0.0-r3.zip
         filename=mingw64.zip
