@@ -176,7 +176,7 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         touch $folder/jou_bootstrap$exe_suffix
     fi
 
-    (cd $folder && $make jou$exe_suffix)
+    (cd $folder && $make CC=../../../mingw64/bin/clang.exe jou$exe_suffix)
 done
 
 show_message "Copying the bootstrapped executable"
