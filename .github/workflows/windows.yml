@@ -21,9 +21,7 @@ jobs:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
       - uses: actions/cache@v4
         with:
-          path: |
-            jou_bootstrap.exe
-            libs/*.a
+          path: jou_bootstrap.exe
           key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap.exe
@@ -112,9 +110,7 @@ jobs:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
       - uses: actions/cache@v4
         with:
-          path: |
-            jou_bootstrap.exe
-            libs/*.a
+          path: jou_bootstrap.exe
           key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap.exe

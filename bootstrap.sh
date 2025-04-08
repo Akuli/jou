@@ -154,9 +154,12 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         fi
     )
 
-    if [[ "$OS" =~ Windows ]]; then
+    if [[ "$OS" =~ Windows ]] && [ $i -le 15 ]; then
+        # These files used to be in a separate "libs" folder next to mingw64 folder.
+        # Now they are in mingw64/lib.
         echo "Copying files..."
-        cp -r libs $folder
+        mkdir $folder/libs
+        cp mingw64/lib/libLLVM*.dll.a mingw64/lib/libLTO.dll.a $folder/libs
     fi
 
     if [[ "$OS" =~ Windows ]] && [ $i == 1 ]; then
