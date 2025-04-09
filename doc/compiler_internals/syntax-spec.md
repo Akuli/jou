@@ -35,16 +35,16 @@ For example, to see the tokens of the hello world program,
 run `jou --tokenize-only examples/hello.jou`.
 
 Jou has a few different kinds of tokens:
-- **Int literals** can be specified in base 10 (e.g. `123`), hex (`0x123abc` or `0x123ABC`), octal (`0o777`) or binary (`0b010101`).
+- **Integer literals** can be specified in base 10 (e.g. `123`), hex (`0x123abc` or `0x123ABC`), octal (`0o777`) or binary (`0b010101`).
     The prefixes `0x`, `0o` and `0b` are case-sensitive.
     A minus sign is never a part of an int literal token: `-10` tokenizes as two separate tokens.
-
-    It is an error if the value of an int literal does not fit in a signed 32-bit integer (Jou `int`);
-    that is, if its value is greater than or equal to 2<sup>31</sup>.
 
     Unnecessary zeros in the beginning are allowed in hex, octal and binary (so `0x000f` is fine), but are not allowed in base 10.
     This is because in C, `0123` is somewhat surprisingly same as `83`, because the extra `0` makes it an octal number.
     Jou uses an explicit `0o` prefix for octal numbers, similarly to Python.
+
+    It is an error if the value of an int literal does not fit into
+    [the inferred type](../types.md#type-inference) of the integer literal.
 
 - **Short literals** are just like in literals, except that they have an extra `S` at the end (e.g. `114S`),
     The `S` must be uppercase.
