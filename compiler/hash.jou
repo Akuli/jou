@@ -37,14 +37,14 @@ def xor_bytes(a: byte, b: byte) -> byte:
 # Use new_hash() function.
 @public
 class Hash:
-    hash: long
+    hash: uint64
     created_correctly: bool
 
     # Add data to hash
     def add_byte(self, b: byte) -> None:
         assert self->created_correctly  # If this fails, use new_hash() function
         (&self->hash as byte*)[0] = xor_bytes(self->hash as byte, b)
-        self->hash *= 1099511628211L
+        self->hash *= 0x100_0000_01b3L as uint64
 
     def add_bytes(self, data: byte*, len: long) -> None:
         for i = 0L; i < len; i++:
@@ -56,18 +56,21 @@ class Hash:
     def add_int(self, i: int) -> None:
         self->add_bytes(&i as byte*, sizeof(i))
 
-    def add_long(self, l: long) -> None:
-        self->add_bytes(&l as byte*, sizeof(l))
+    def add_int64(self, i: int64) -> None:
+        self->add_bytes(&i as byte*, sizeof(i))
+
+    def add_uint64(self, i: uint64) -> None:
+        self->add_bytes(&i as byte*, sizeof(i))
 
     def add_string(self, s: byte*) -> None:
         len = strlen(s)
-        self->add_long(len)
+        self->add_int64(len)
         self->add_bytes(s, len)
 
 
 @public
 def new_hash() -> Hash:
-    h: long = 0
+    h = 0 as uint64
     # Hash of empty data
     # Set value to cb f2 9c e4 84 22 23 25 (assumes little endian)
     # TODO: not possible to put this in a const
