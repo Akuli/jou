@@ -52,11 +52,7 @@ class List[T]:
     # Use list.end()[-1] to get the last element.
     @inline
     def end(self) -> T*:
-        # Ideally this would be "return &self->ptr[self->len]", but that doesn't
-        # work due to a bug in LLVM 14: https://github.com/Akuli/jou/issues/844
-        start = self->ptr as byte*
-        end = &start[self->len * sizeof(self->ptr[0])]
-        return end as T*
+        return &self->ptr[self->len]
 
     # Remove the last item from the list and return it.
     #

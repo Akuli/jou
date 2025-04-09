@@ -42,9 +42,14 @@ def find_links_in_file(markdown_file_path):
 
 @cache
 def check_https_link(url):
+    # Give website owners some sort of idea why we are doing these requests.
+    headers = {
+        "User-Agent": "check-markdown-links.py/1.0 (+https://github.com/Akuli/jou)"
+    }
+
     try:
         # Many sites redirect to front page for bad URLs. Let's not treat that as ok.
-        response = requests.head(url, timeout=10, allow_redirects=False)
+        response = requests.head(url, timeout=10, allow_redirects=False, headers=headers)
     except requests.exceptions.RequestException as e:
         return f"HTTP HEAD request failed: {e}"
 

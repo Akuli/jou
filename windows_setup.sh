@@ -11,7 +11,7 @@ if ! [[ "$OS" =~ Windows ]]; then
 fi
 
 small=no
-offline_mingw64=
+offline_zip=
 
 while [ $# != 0 ]; do
     case "$1" in
@@ -19,15 +19,24 @@ while [ $# != 0 ]; do
             small=yes
             shift
             ;;
-        --offline-mingw64)
-            offline_mingw64="$2"
+        --offline-zip)
+            offline_zip="$2"
             shift 2
             ;;
         *)
-            echo "Usage: $0 [--small] [--offline-mingw64 path/to/file.zip]"
-            echo ""
-            echo "  --small                     Use this if you have slow internet"
-            echo "  --offline-mingw64 <path>    Use this on systems with no internet"
+            echo "\
+Usage: $0 [--small] [--offline-mingw64 path/to/file.zip]
+
+    --small
+        Use this if you have slow internet. See CONTRIBUTING.md for a detailed
+        explanation about what this does.
+
+    --offline-zip path/to/file.zip
+        Usually this script downloads one zip file, but if this option is used,
+        nothing will be downloaded from internet. The file is instead copied
+        from the given path. This can be used to set up a Jou dev environment
+        on a system with no internet connection.
+"
             exit 2
     esac
 done
@@ -44,27 +53,29 @@ if [ -d mingw64 ]; then
     echo "mingw64 has already been downloaded and extracted."
     echo "If you want to download it again, delete the mingw64 folder."
 else
-    # The WinLibs version we use ships with LLVM 14, which was latest LLVM that Jou can use when I set this up.
-    # This is due to opaque pointer types. Scroll down to "Version Support" here: https://llvm.org/docs/OpaquePointers.html
-    # All WinLibs versions and download links: https://winlibs.com/
     if [ $small = yes ]; then
-        # A special small version of mingw64 that comes with the repo, for people with slow internet.
-        # See .github/workflows/windows.yml for code that checks the contents of the zip so that you can trust it.
-        url=https://akuli.github.io/mingw64-small.zip
-        filename=mingw64-small.zip
-        sha=4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686
+        # User has slow internet and doesn't want to download the whole mingw64.
+        # Instead, download a release of Jou, and extract mingw and Jou compiler from there.
+        url=https://github.com/Akuli/jou/releases/download/2025-04-08-2200/jou_windows_64bit_2025-04-08-2200.zip
+        filename=jou_windows_64bit_2025-04-08-2200.zip
+        sha=2945093e2ef7229729f010e45aac9bbe4635a4ee1289857d6aa0cdfb81b0d24b
+        # This is the folder where the downloaded Jou compiler (jou.exe) will go.
+        # Placing it here makes bootstrap.sh use our downloaded Jou compiler
+        # instead of starting from scratch.
+        jou_exe_folder=tmp/bootstrap_cache/016_98c5fb2792eaac8bbe7496a176808d684f631d82
     else
-        url=https://github.com/brechtsanders/winlibs_mingw/releases/download/12.1.0-14.0.6-10.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-12.1.0-llvm-14.0.6-mingw-w64msvcrt-10.0.0-r3.zip
+        # This is a mingw64 version that comes with LLVM 19.
+        url=https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-llvm-19.1.7-mingw-w64msvcrt-12.0.0-r3.zip
         filename=mingw64.zip
-        sha=9ffef7f7a8dab893bd248085fa81a5a37ed6f775ae220ef673bea8806677836d
+        sha=5937a482247bebc2eca8c0b93fa43ddb17d94968adfff3f2e0c63c94608ee76b
     fi
 
-    if [ -z "$offline_mingw64" ]; then
+    if [ -z "$offline_zip" ]; then
         echo "Downloading $filename..."
         curl -L -o $filename $url
     else
-        echo "Copying $offline_mingw64 to ./$filename..."
-        cp "$offline_mingw64" "$filename"
+        echo "Copying $offline_zip to ./$filename..."
+        cp "$offline_zip" "$filename"
     fi
 
     echo "Verifying $filename..."
@@ -74,36 +85,19 @@ else
     fi
 
     echo "Extracting $filename..."
-    unzip -q $filename
+    if [ $small = yes ]; then
+        mkdir -vp tmp
+        mkdir -vp $jou_exe_folder
+        unzip -q $filename -d tmp/windows_setup_extracted
+        mv -v tmp/windows_setup_extracted/jou/mingw64 ./
+        mv -v tmp/windows_setup_extracted/jou/*.dll mingw64/bin/  # will be in PATH while developing
+        mv -v tmp/windows_setup_extracted/jou/jou.exe $jou_exe_folder/
+        rm -rf tmp/windows_setup_extracted
+    else
+        unzip -q $filename
+    fi
     rm $filename
 fi
-
-# Blog post that explains how .a library is generated from dll file on Windows:
-# https://dev.my-gate.net/2018/06/02/generate-a-def-file-from-a-dll/
-#
-# A simple "grep -r LLVMCreatePassManager" reveals that only libLLVMCore.dll
-# contains the functions we need, so we generate a corresponding .a file.
-# There are also a few other files that I found similarly.
-mkdir -vp libs
-echo "Generating .a files (this can take a while)"
-# Please keep in sync with compiler/llvm.jou
-for name in \
-        libLLVMCore libLLVMX86CodeGen libLLVMAnalysis libLLVMTarget \
-        libLLVMPasses libLLVMSupport libLLVMLinker libLTO libLLVMX86AsmParser \
-        libLLVMX86Info libLLVMX86Desc
-do
-    if [ -f libs/$name.a ]; then
-        echo "  libs/$name.a has already been generated."
-    else
-        echo "  Generating libs/$name.a..."
-        cd libs
-        ../mingw64/bin/gendef.exe ../mingw64/bin/$name.dll
-        ../mingw64/bin/dlltool.exe -d $name.def -l $name.a
-        rm $name.def
-        cd ..
-        echo "    done"
-    fi
-done
 
 echo ""
 echo ""
