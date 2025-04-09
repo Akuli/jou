@@ -155,27 +155,32 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         fi
     )
 
-    if [[ "$OS" =~ Windows ]] && [ $i -le 16 ]; then
+    if [[ "$OS" =~ Windows ]]; then
         echo "Copying files..."
         # These files used to be in a separate "libs" folder next to mingw64 folder.
         # Now they are in mingw64/lib.
-        # They were also named slightly differently.
+        # They were also named slightly differently before.
         #
         # The same list of files is in:
         #   - .github/workflows/windows.yml
         #   - compiler/llvm.jou
-        mkdir $folder/libs
-        cp mingw64/lib/libLLVMCore.dll.a $folder/libs/libLLVMCore.a
-        cp mingw64/lib/libLLVMX86CodeGen.dll.a $folder/libs/libLLVMX86CodeGen.a
-        cp mingw64/lib/libLLVMAnalysis.dll.a $folder/libs/libLLVMAnalysis.a
-        cp mingw64/lib/libLLVMTarget.dll.a $folder/libs/libLLVMTarget.a
-        cp mingw64/lib/libLLVMPasses.dll.a $folder/libs/libLLVMPasses.a
-        cp mingw64/lib/libLLVMSupport.dll.a $folder/libs/libLLVMSupport.a
-        cp mingw64/lib/libLLVMLinker.dll.a $folder/libs/libLLVMLinker.a
-        cp mingw64/lib/libLTO.dll.a $folder/libs/libLTO.a
-        cp mingw64/lib/libLLVMX86AsmParser.dll.a $folder/libs/libLLVMX86AsmParser.a
-        cp mingw64/lib/libLLVMX86Info.dll.a $folder/libs/libLLVMX86Info.a
-        cp mingw64/lib/libLLVMX86Desc.dll.a $folder/libs/libLLVMX86Desc.a
+        if [ $i -le 16 ]; then
+            dest=$folder/libs
+        else
+            dest=$folder/mingw64/lib
+        fi
+        mkdir $dest
+        cp mingw64/lib/libLLVMCore.dll.a $dest/libLLVMCore.a
+        cp mingw64/lib/libLLVMX86CodeGen.dll.a $dest/libLLVMX86CodeGen.a
+        cp mingw64/lib/libLLVMAnalysis.dll.a $dest/libLLVMAnalysis.a
+        cp mingw64/lib/libLLVMTarget.dll.a $dest/libLLVMTarget.a
+        cp mingw64/lib/libLLVMPasses.dll.a $dest/libLLVMPasses.a
+        cp mingw64/lib/libLLVMSupport.dll.a $dest/libLLVMSupport.a
+        cp mingw64/lib/libLLVMLinker.dll.a $dest/libLLVMLinker.a
+        cp mingw64/lib/libLTO.dll.a $dest/libLTO.a
+        cp mingw64/lib/libLLVMX86AsmParser.dll.a $dest/libLLVMX86AsmParser.a
+        cp mingw64/lib/libLLVMX86Info.dll.a $dest/libLLVMX86Info.a
+        cp mingw64/lib/libLLVMX86Desc.dll.a $dest/libLLVMX86Desc.a
     fi
 
     if [[ "$OS" =~ Windows ]] && [ $i == 1 ]; then
