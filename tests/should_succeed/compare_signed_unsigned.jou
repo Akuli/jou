@@ -92,11 +92,11 @@ def main() -> int:
 
     # TODO: this is really not great, see https://github.com/Akuli/jou/issues/863
     uffff_ffff_ffff_ffff = -1 as uint64
-    u8000_0000_0000_0000 = (0x7fff_ffff_ffff_ffffL as uint64) + 1
+    u8000_0000_0000_0000 = (0x7fff_ffff_ffff_ffffL as uint64) + (1 as uint64)
 
     # 64-bit version
     compare_64bit(-1 as int64, uffff_ffff_ffff_ffff)  # Output: less
-    compare_64bit(0x7fff_ffff_ffff_ffffL, u8000_0000_0000_0000 as uint64)  # Output: less
+    compare_64bit(0x7fff_ffff_ffff_ffffL, u8000_0000_0000_0000)  # Output: less
     compare_64bit(0x7fff_ffff_ffff_ffffL, 0x7fff_ffff_ffff_ffffL as uint64)  # Output: equal
     compare_64bit(0x7fff_ffff_ffff_ffffL, 0x7fff_ffff_ffff_fffeL as uint64)  # Output: greater
     compare_64bit(0, 0 as uint64)  # Output: equal
