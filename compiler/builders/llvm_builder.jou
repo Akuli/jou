@@ -274,13 +274,7 @@ class LBuilder:
         LLVMPositionBuilderAtEnd(self->llvm_builder, self->alloca_block)
         llvm_ptr = LLVMBuildAlloca(self->llvm_builder, type_to_llvm(t), debug_name)
         LLVMPositionBuilderAtEnd(self->llvm_builder, self->current_block)
-        llvm_ptr = LLVMBuildBitCast(self->llvm_builder, llvm_ptr, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
         return LBuilderValue{type = t->pointer_type(), llvm_value = llvm_ptr}
-
-    # TODO: Everything named legacy_llvm14_cast can be removed once we drop LLVM 14 support
-    #       Needed due to LLVM opaque pointer types transition
-    #
-    # TODO: which casts are necessary on LLVM 14 and which are not?
 
     # *ptr = value
     def set_ptr(self, ptr: LBuilderValue, value: LBuilderValue) -> None:
@@ -288,8 +282,7 @@ class LBuilder:
             printf("Cannot set value of %s to %s\n", ptr.type->name, value.type->name)
         assert ptr.type == value.type->pointer_type()
         ptr_type = LLVMPointerType(type_to_llvm(value.type), 0)
-        llvm_ptr = LLVMBuildBitCast(self->llvm_builder, ptr.llvm_value, ptr_type, "legacy_llvm14_cast")
-        LLVMBuildStore(self->llvm_builder, value.llvm_value, llvm_ptr)
+        LLVMBuildStore(self->llvm_builder, value.llvm_value, ptr.llvm_value)
 
     # *ptr
     def dereference(self, ptr: LBuilderValue) -> LBuilderValue:
@@ -309,7 +302,6 @@ class LBuilder:
             1,
             "indexed_pointer",
         )
-        llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
         return LBuilderValue{type = ptr.type, llvm_value = llvm_result}
 
     # Returns &ptr->field
@@ -322,16 +314,13 @@ class LBuilder:
         assert field != NULL
 
         llvm_struct_type = type_to_llvm(classtype)
-        llvm_ptr = LLVMBuildBitCast(self->llvm_builder, ptr.llvm_value, LLVMPointerType(llvm_struct_type, 0), "legacy_llvm14_cast")
-        llvm_result = LLVMBuildStructGEP2(self->llvm_builder, llvm_struct_type, llvm_ptr, field->union_id, field->name)
-        llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
+        llvm_result = LLVMBuildStructGEP2(self->llvm_builder, llvm_struct_type, ptr.llvm_value, field->union_id, field->name)
         return LBuilderValue{type = field->type->pointer_type(), llvm_value = llvm_result}
 
     # &global_variable
     def global_var_ptr(self, name: byte*, var_type: Type*) -> LBuilderValue:
         llvm_result = LLVMGetNamedGlobal(self->llvm_module, name)
         assert llvm_result != NULL
-        llvm_result = LLVMBuildBitCast(self->llvm_builder, llvm_result, type_to_llvm(voidPtrType), "legacy_llvm14_cast")
         return LBuilderValue{type = var_type->pointer_type(), llvm_value = llvm_result}
 
     # i'th argument given to this function
@@ -384,7 +373,6 @@ class LBuilder:
         llvm_string = LLVMAddGlobal(self->llvm_module, LLVMTypeOf(llvm_array), "string_literal")
         LLVMSetLinkage(llvm_string, LLVMLinkage.Private)  # This makes it a static global variable
         LLVMSetInitializer(llvm_string, llvm_array)
-        llvm_string = LLVMBuildBitCast(self->llvm_builder, llvm_string, type_to_llvm(byteType->pointer_type()), "legacy_llvm14_cast")
         return LBuilderValue{type = byteType->pointer_type(), llvm_value = llvm_string}
 
     def boolean(self, b: bool) -> LBuilderValue:

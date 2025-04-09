@@ -120,7 +120,6 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
     so you need to use a full path (or `$HOME`) instead.
 
 These LLVM/clang versions are supported:
-- LLVM 14 with clang 14
 - LLVM 15 with clang 15
 - LLVM 16 with clang 16
 - LLVM 17 with clang 17
@@ -131,9 +130,9 @@ By default, the `make` command picks the latest available version.
 You can also specify the version manually by setting the `LLVM_CONFIG` variable:
 
 ```
-$ sudo apt install llvm-14-dev clang-14
+$ sudo apt install llvm-15-dev clang-15
 $ make clean    # Delete files that were compiled with previous LLVM version
-$ LLVM_CONFIG=llvm-config-14 make
+$ LLVM_CONFIG=llvm-config-15 make
 ```
 
 </details>
@@ -150,7 +149,6 @@ MacOS support is somewhat new. Please create an issue if something doesn't work.
     $ brew install llvm@15
     ```
     Instead of LLVM 15, you can also use any other supported LLVM version:
-    - `llvm@14`
     - `llvm@15`
     - `llvm@16`
     - `llvm@17`
