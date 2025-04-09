@@ -91,9 +91,9 @@ else
         mkdir -vp tmp
         mkdir -vp $jou_exe_folder
         unzip -q $filename -d tmp/windows_setup_extracted
-        mv tmp/windows_setup_extracted/jou/mingw64 ./
-        mv tmp/windows_setup_extracted/jou/*.dll mingw64/bin/  # will be in PATH while developing
-        mv tmp/windows_setup_extracted/jou/jou.exe $jou_exe_folder/
+        mv -v tmp/windows_setup_extracted/jou/mingw64 ./
+        mv -v tmp/windows_setup_extracted/jou/*.dll mingw64/bin/  # will be in PATH while developing
+        mv -v tmp/windows_setup_extracted/jou/jou.exe $jou_exe_folder/
         rm -rf tmp/windows_setup_extracted
     else
         unzip -q $filename
