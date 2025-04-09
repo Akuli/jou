@@ -153,7 +153,7 @@ Let's modify the example from earlier by making an array of `byte`s instead of `
 import "stdlib/io.jou"
 
 def main() -> int:
-    arr = [1 as byte, 2 as byte, 3 as byte]
+    arr: byte[3] = [1, 2, 3]
 
     sum = 0
     for i = 0; i < 4; i++:
