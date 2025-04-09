@@ -1,9 +1,26 @@
 import "stdlib/io.jou"
 
 
-# TODO: It's not possible to test things like "signed < unsigned" yet with types of the same size.
-# For 8-bit there's only unsigned (byte), for 16-bit only signed (short), 32-bit only signed (int), 64-bit only signed (long).
-def main() -> int:
+def signed_signed() -> None:
+    puts("signed signed")  # Output: signed signed
+
+    a = -5 as int8
+    b = 10 as int8
+    c = 50 as int8
+
+    printf("%d %d %d\n", a < b, b < b, c < b)       # Output: 1 0 0
+    printf("%d %d %d\n", a > b, b > b, c > b)       # Output: 0 0 1
+
+    printf("%d %d %d\n", a <= b, b <= b, c <= b)    # Output: 1 1 0
+    printf("%d %d %d\n", a >= b, b >= b, c >= b)    # Output: 0 1 1
+
+    printf("%d %d %d\n", a == b, b == b, c == b)    # Output: 0 1 0
+    printf("%d %d %d\n", a != b, b != b, c != b)    # Output: 1 0 1
+
+
+def unsigned_unsigned() -> None:
+    puts("unsigned unsigned")  # Output: unsigned unsigned
+
     a = 0 as byte
     b = 100 as byte
     c = 200 as byte
@@ -17,4 +34,45 @@ def main() -> int:
     printf("%d %d %d\n", a == b, b == b, c == b)    # Output: 0 1 0
     printf("%d %d %d\n", a != b, b != b, c != b)    # Output: 1 0 1
 
+
+def signed_unsigned() -> None:
+    puts("signed unsigned")  # Output: signed unsigned
+
+    # a and b 
+    a = -5 as int8  # same bits as x, but different value due to signed-ness
+    b = 100 as int8
+    c = 120 as int8
+
+    bb = b as byte
+
+    printf("%d %d %d\n", a < bb, b < bb, c < bb)       # Output: 1 0 0
+    printf("%d %d %d\n", a > bb, b > bb, c > bb)       # Output: 0 0 1
+
+    printf("%d %d %d\n", a <= bb, b <= bb, c <= bb)    # Output: 1 1 0
+    printf("%d %d %d\n", a >= bb, b >= bb, c >= bb)    # Output: 0 1 1
+
+    printf("%d %d %d\n", a == bb, b == bb, c == bb)    # Output: 0 1 0
+    printf("%d %d %d\n", a != bb, b != bb, c != bb)    # Output: 1 0 1
+
+    # Numbers aren't necessarily equal if they have the same bits.
+    x = -100 as int8
+    y = 156 as byte
+
+    # Output: same bits 1 1
+    printf("same bits %d %d\n", x as byte == y, y as int8 == x)
+
+    # Output: same value 0
+    printf("same value %d\n", x == y)
+
+    # Output: less
+    if x < y:
+        printf("less\n")
+    if x > y:
+        printf("greater\n")
+
+
+def main() -> int:
+    signed_signed()
+    unsigned_unsigned()
+    signed_unsigned()
     return 0
