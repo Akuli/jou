@@ -28,4 +28,26 @@ def main() -> int:
     printf("%d\n", side_effect(5) > side_effect(6))  # Output: 5 6 0
     printf("%d\n", side_effect(5) >= side_effect(6))  # Output: 5 6 0
 
+    # Test another signed type than int, in case int works better for some reason
+    ai = -5 as int8
+    bi = 10 as int8
+    ci = 50 as int8
+    printf("%d %d %d\n", ai < bi, bi < bi, ci < bi)       # Output: 1 0 0
+    printf("%d %d %d\n", ai > bi, bi > bi, ci > bi)       # Output: 0 0 1
+    printf("%d %d %d\n", ai <= bi, bi <= bi, ci <= bi)    # Output: 1 1 0
+    printf("%d %d %d\n", ai >= bi, bi >= bi, ci >= bi)    # Output: 0 1 1
+    printf("%d %d %d\n", ai == bi, bi == bi, ci == bi)    # Output: 0 1 0
+    printf("%d %d %d\n", ai != bi, bi != bi, ci != bi)    # Output: 1 0 1
+
+    # Test unsigned comparing
+    au = 0 as uint8
+    bu = 100 as uint8
+    cu = 200 as uint8
+    printf("%d %d %d\n", au < bu, bu < bu, cu < bu)       # Output: 1 0 0
+    printf("%d %d %d\n", au > bu, bu > bu, cu > bu)       # Output: 0 0 1
+    printf("%d %d %d\n", au <= bu, bu <= bu, cu <= bu)    # Output: 1 1 0
+    printf("%d %d %d\n", au >= bu, bu >= bu, cu >= bu)    # Output: 0 1 1
+    printf("%d %d %d\n", au == bu, bu == bu, cu == bu)    # Output: 0 1 0
+    printf("%d %d %d\n", au != bu, bu != bu, cu != bu)    # Output: 1 0 1
+
     return 0
