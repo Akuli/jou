@@ -53,9 +53,6 @@ if [ -d mingw64 ]; then
     echo "mingw64 has already been downloaded and extracted."
     echo "If you want to download it again, delete the mingw64 folder."
 else
-    # The WinLibs version we use ships with LLVM 14, which was latest LLVM that Jou can use when I set this up.
-    # This is due to opaque pointer types. Scroll down to "Version Support" here: https://llvm.org/docs/OpaquePointers.html
-    # All WinLibs versions and download links: https://winlibs.com/
     if [ $small = yes ]; then
         # User has slow internet and doesn't want to download the whole mingw64.
         # Instead, download a release of Jou, and extract mingw and Jou compiler from there.
@@ -67,6 +64,7 @@ else
         # instead of starting from scratch.
         jou_exe_folder=tmp/bootstrap_cache/016_98c5fb2792eaac8bbe7496a176808d684f631d82
     else
+        # This is a mingw64 version that comes with LLVM 19.
         url=https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-llvm-19.1.7-mingw-w64msvcrt-12.0.0-r3.zip
         filename=mingw64.zip
         sha=5937a482247bebc2eca8c0b93fa43ddb17d94968adfff3f2e0c63c94608ee76b
