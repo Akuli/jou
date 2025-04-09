@@ -64,7 +64,7 @@ else
         # instead of starting from scratch.
         jou_exe_folder=tmp/bootstrap_cache/016_98c5fb2792eaac8bbe7496a176808d684f631d82
     else
-        # This is a MinGW version that comes with LLVM 19.
+        # This is a mingw64 version that comes with LLVM 19.
         url=https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-llvm-19.1.7-mingw-w64msvcrt-12.0.0-r3.zip
         filename=mingw64.zip
         sha=5937a482247bebc2eca8c0b93fa43ddb17d94968adfff3f2e0c63c94608ee76b
