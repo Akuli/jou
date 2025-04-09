@@ -351,7 +351,7 @@ def init_types() -> None:
     global_type_state.floater.type = Type{name = "float", kind = TypeKind.FloatingPoint, size_in_bits = 32 }
     global_type_state.doublelele.type = Type{name = "double", kind = TypeKind.FloatingPoint, size_in_bits = 64 }
 
-    # Currently int8 and uint8 are not exposed in the language, but int8 is used
+    # Currently int128 and uint128 are not exposed in the language, but int128 is used
     # for temporary values hidden from users.
     for size = 8; size <= 128; size *= 2:
         global_type_state.integers[size][0].type.kind = TypeKind.UnsignedInteger
