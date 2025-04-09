@@ -1,5 +1,12 @@
 if WINDOWS:
-    # Please keep in sync with windows_setup.sh
+    # These .dll.a files define what symbols the corresponding .dll files have.
+    #
+    # These files don't contain actual code. The DLLs still need to be in
+    # current directory or PATH when running the compiler.
+    #
+    # The same list of files is in:
+    #   - .github/workflows/windows.yml
+    #   - bootstrap.sh
     link "../mingw64/lib/libLLVMCore.dll.a"
     link "../mingw64/lib/libLLVMX86CodeGen.dll.a"
     link "../mingw64/lib/libLLVMAnalysis.dll.a"
