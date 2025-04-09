@@ -1,0 +1,43 @@
+import "stdlib/io.jou"
+
+
+# This ensures that int32 can be passed to a function that expects int
+def print_ints(a: int, b: int) -> None:
+    printf("%d %d\n", a, b)
+
+
+def main() -> int:
+    # Sizes in bytes
+    signed8: int8 = 'x' as int8
+    unsigned8: uint8 = 'x'
+    signed16: int16 = 1234S
+    unsigned16: uint16 = 1234S as uint16
+    signed32: int32 = 1234567890
+    unsigned32: uint32 = 1234567890 as uint32
+    signed64: int64 = 123456789123456789L
+    unsigned64: uint64 = 123456789123456789L as uint64
+
+    printf("%lld %lld\n", sizeof(signed8), sizeof(unsigned8))  # Output: 1 1
+    printf("%lld %lld\n", sizeof(signed16), sizeof(unsigned16))  # Output: 2 2
+    printf("%lld %lld\n", sizeof(signed32), sizeof(unsigned32))  # Output: 4 4
+    printf("%lld %lld\n", sizeof(signed64), sizeof(unsigned64))  # Output: 8 8
+
+    # byte and uint8 are the same
+    b: byte = 'y'
+    unsigned8 = b
+    b = unsigned8
+    printf("%c%c\n", b, unsigned8)  # Output: yy
+
+    # int and int32 are the same
+    n: int = 123
+    signed32 = n
+    n = signed32
+    print_ints(n, signed32)  # Output: 123 123
+
+    # long and int64 are the same
+    big: long = 123123123123123L
+    signed64 = big
+    big = signed64
+    printf("%lld %lld\n", big, big)  # Output: 123123123123123 123123123123123
+
+    return 0

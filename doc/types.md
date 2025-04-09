@@ -5,22 +5,46 @@ This page documents all types in the Jou programming language.
 
 ## Integers
 
-| Name      | Example   | Size              | Signed?   | How to print  | Min value                     | Max value                     |
-|-----------|-----------|-------------------|-----------|---------------|-------------------------------|-------------------------------|
-| `byte`    | `'a'`     | 1 byte (8 bits)   | unsigned  | `%d`          | `0`                           | `255`                         |
-| `short`   | `1234S`   | 2 bytes (16 bits) | signed    | `%d`          | `-32_768`                     | `32_767`                      |
-| `int`     | `1234`    | 4 bytes (32 bits) | signed    | `%d`          | `-2_147_483_648`              | `2_147_483_647`               |
-| `long`    | `1234L`   | 8 bytes (64 bits) | signed    | `%lld`        | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
+Jou has the following signed integer types:
 
-Integers in Jou code may contain underscores.
+| Name              | Example       | Size              | How to print  | Min value                     | Max value                     |
+|-------------------|---------------|-------------------|---------------|-------------------------------|-------------------------------|
+| `int8`            | `123 as int8` | 1 byte (8 bits)   | `%d`          | `-128`                        | `127`                         |
+| `int16` or `short`| `123S`        | 2 bytes (16 bits) | `%d`          | `-32_768`                     | `32_767`                      |
+| `int32` or `int`  | `123`         | 4 bytes (32 bits) | `%d`          | `-2_147_483_648`              | `2_147_483_647`               |
+| `int64` or `long` | `123L`        | 8 bytes (64 bits) | `%lld`        | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
+
+And the following unsigned integer types:
+
+| Name              | Example           | Size              | How to print  | Min value | Max value                     |
+|-------------------|-------------------|-------------------|---------------|-----------|-------------------------------|
+| `uint8` or `byte` | `'a'`             | 1 byte (8 bits)   | `%d`          | `0`       | `255`                         |
+| `uint16`          | `123 as uint16`   | 2 bytes (16 bits) | `%d`          | `0`       | `65_535`                      |
+| `uint32`          | `123 as uint32`   | 4 bytes (32 bits) | `%u`          | `0`       | `4_294_967_295`               |
+| `uint64`          | `123 as uint64`   | 8 bytes (64 bits) | `%llu`        | `0`       | `18_446_744_073_709_551_615`  |
+
+For convenience, the most commonly used types have simpler names
+`byte` always means same as `uint8`,
+`short` always means same as `uint16`,
+`int` always means same as `int32`, and
+`long` always means same as `int64`.
+
+Values of integers in Jou code may contain underscores.
 They are ignored, but they often make large numbers much more readable.
 
 Integers wrap around if you exceed their minimum/maximum values.
 For example, `(0 as byte) - (1 as byte)` produces `255 as byte`.
 It is not possible to invoke [UB](ub.md) by overflowing integers.
 
-When printing, `%d` can be used for anything smaller than `int`,
-because numbers smaller than `int` are automatically converted to `int`.
+When printing, `%d` can be used for anything smaller than 32 bits,
+because values smaller than `int` are automatically converted to `int`.
+With 32-bit and 64-bit values, you need to be more careful:
+use `u` for unsigned and add `ll` for 64-bit values.
+
+The `ll` in `%lld` and `%llu` is short for "long long",
+which is basically C's way to say "64-bit number".
+Do not use `%ld` or `%lu`, because
+it prints a 32-bit value on Windows and a 64-bit value on most other systems.
 
 Support for other combinations of sizes and signed/unsigned is planned, but not implemented.
 See [issue #164](https://github.com/Akuli/jou/issues/164).

@@ -358,8 +358,8 @@ def init_types() -> None:
         global_type_state.integers[size][0].type.size_in_bits = size
         global_type_state.integers[size][1].type.size_in_bits = size
 
-        sprintf(global_type_state.integers[size][0].type.name, "<%d-bit unsigned integer>", size)
-        sprintf(global_type_state.integers[size][1].type.name, "<%d-bit signed integer>", size)
+        sprintf(global_type_state.integers[size][0].type.name, "uint%d", size)
+        sprintf(global_type_state.integers[size][1].type.name, "int%d", size)
 
     strcpy(global_type_state.integers[8][0].type.name, "byte")
     strcpy(global_type_state.integers[16][1].type.name, "short")
