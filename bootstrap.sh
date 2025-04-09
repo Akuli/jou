@@ -164,23 +164,28 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
         # The same list of files is in:
         #   - .github/workflows/windows.yml
         #   - compiler/llvm.jou
+        files=(
+            mingw64/lib/libLLVMCore.dll.a
+            mingw64/lib/libLLVMX86CodeGen.dll.a
+            mingw64/lib/libLLVMAnalysis.dll.a
+            mingw64/lib/libLLVMTarget.dll.a
+            mingw64/lib/libLLVMPasses.dll.a
+            mingw64/lib/libLLVMSupport.dll.a
+            mingw64/lib/libLLVMLinker.dll.a
+            mingw64/lib/libLTO.dll.a
+            mingw64/lib/libLLVMX86AsmParser.dll.a
+            mingw64/lib/libLLVMX86Info.dll.a
+            mingw64/lib/libLLVMX86Desc.dll.a
+        )
         if [ $i -le 16 ]; then
-            dest=$folder/libs
+            mkdir $folder/libs
+            for f in ${files[@]}; do
+                cp $f $folder/libs/$(basename -s .dll.a $f).a
+            done
         else
-            dest=$folder/mingw64/lib
+            mkdir -p $folder/mingw64/lib
+            cp ${files[@]} $folder/mingw64/lib/
         fi
-        mkdir $dest
-        cp mingw64/lib/libLLVMCore.dll.a $dest/libLLVMCore.a
-        cp mingw64/lib/libLLVMX86CodeGen.dll.a $dest/libLLVMX86CodeGen.a
-        cp mingw64/lib/libLLVMAnalysis.dll.a $dest/libLLVMAnalysis.a
-        cp mingw64/lib/libLLVMTarget.dll.a $dest/libLLVMTarget.a
-        cp mingw64/lib/libLLVMPasses.dll.a $dest/libLLVMPasses.a
-        cp mingw64/lib/libLLVMSupport.dll.a $dest/libLLVMSupport.a
-        cp mingw64/lib/libLLVMLinker.dll.a $dest/libLLVMLinker.a
-        cp mingw64/lib/libLTO.dll.a $dest/libLTO.a
-        cp mingw64/lib/libLLVMX86AsmParser.dll.a $dest/libLLVMX86AsmParser.a
-        cp mingw64/lib/libLLVMX86Info.dll.a $dest/libLLVMX86Info.a
-        cp mingw64/lib/libLLVMX86Desc.dll.a $dest/libLLVMX86Desc.a
     fi
 
     if [[ "$OS" =~ Windows ]] && [ $i == 1 ]; then
