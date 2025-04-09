@@ -57,8 +57,8 @@ else
     # This is due to opaque pointer types. Scroll down to "Version Support" here: https://llvm.org/docs/OpaquePointers.html
     # All WinLibs versions and download links: https://winlibs.com/
     if [ $small = yes ]; then
-        # User has slow internet and doesn't want to download the whole mingw64 (about 1GB).
-        # Instead, download a release of Jou (about 50MB), and extract mingw and Jou compiler from there.
+        # User has slow internet and doesn't want to download the whole mingw64.
+        # Instead, download a release of Jou, and extract mingw and Jou compiler from there.
         url=https://github.com/Akuli/jou/releases/download/2025-04-08-2200/jou_windows_64bit_2025-04-08-2200.zip
         filename=jou_windows_64bit_2025-04-08-2200.zip
         sha=2945093e2ef7229729f010e45aac9bbe4635a4ee1289857d6aa0cdfb81b0d24b
