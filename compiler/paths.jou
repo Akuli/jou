@@ -1,10 +1,12 @@
 import "stdlib/ascii.jou"
+import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
 import "./command_line_args.jou"
+import "./hash.jou"
 
 if WINDOWS:
     declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
@@ -18,8 +20,107 @@ if WINDOWS:
 else:
     declare mkdir(path: byte*, mode: int) -> int  # posix
 
+if WINDOWS:
+    declare _unlink(path: byte*) -> int
+else:
+    declare unlink(path: byte*) -> int
+
 @public
 declare dirname(path: byte*) -> byte*
+
+if WINDOWS:
+    class WIN32_FIND_DATAA:
+        # WIN32_FIND_DATAA is 320 bytes. We can't fill in the actual members
+        # here because jou adds a lot of padding.
+        dummy: byte[320]
+
+    const INVALID_HANDLE_VALUE: int64 = -1L
+
+    declare FindFirstFileA(FileName: byte*, FindFileData: WIN32_FIND_DATAA*) -> int64
+    declare FindNextFileA(hFindFile: int64, FindFileData: WIN32_FIND_DATAA*) -> int
+    declare FindClose(hFindFile: int64) -> int
+
+else:
+    class DIR:
+        pass
+    class dirent:
+        pass
+
+    # I ran the following C program to find the offset of d_name in the dirent struct:
+    #
+    #    #include <dirent.h>
+    #    #include <stddef.h>
+    #    #include <stdio.h>
+    #    int main()
+    #    {
+    #        printf("%d\n", (int) offsetof(struct dirent, d_name));
+    #        return 0;
+    #    }
+    #
+    # TODO: check on NetBSD
+    const DIRENT_NAME_OFFSET: int = 19
+
+    declare opendir(name: byte*) -> DIR*
+    declare readdir(dirp: DIR*) -> dirent*
+    declare closedir(dirp: DIR*) -> int
+
+
+# The listdir() function returns a list of names (not full paths) of everything
+# in a given directory, just like os.listdir() in Python. Long names are ignored.
+#
+# TODO: put this to stdlib instead of here?
+def listdir(path: byte*) -> List[byte[100]]:
+    result = List[byte[100]]{}
+
+    if WINDOWS:
+        find_spec: byte*
+        asprintf(&find_spec, "%s\\*", path)  # Find anything
+
+        find_data: WIN32_FIND_DATAA
+        handle = FindFirstFileA(path, &find_data)
+
+        # Seems like there's no easy way to distinguish empty directory and error.
+        if handle != INVALID_HANDLE_VALUE:
+            found_something = True
+            while found_something:
+                cFileName = &(&find_data as byte*)[44]  # cFileName field is at offset 44
+                short_name: byte[100] = ""
+                if strlen(cFileName) < sizeof(short_name):
+                    strcpy(short_name, cFileName)
+                    result.append(short_name)
+                found_something = (FindNextFileA(handle, &find_data) != 0)
+            FindClose(handle)
+
+    else:
+        dir = opendir(path)
+        if dir == NULL:
+            fprintf(stderr, "error: cannot list directory '%s'\n", path)
+            exit(1)
+
+        while True:
+            entry = readdir(dir)
+            if entry == NULL:
+                break
+
+            d_name = &(entry as byte*)[dirent_name_offset]
+            short_name: byte[100] = ""
+            if strlen(d_name) < sizeof(short_name):
+                strcpy(short_name, d_name)
+                result.append(short_name)
+
+        closedir(dir)
+
+    return result
+
+
+@public
+def file_exists(path: byte*) -> bool:
+    f = fopen(path, "r")
+    if f == NULL:
+        return False
+    else:
+        fclose(f)
+        return True
 
 
 @public
@@ -75,15 +176,15 @@ def find_stdlib() -> byte*:
             # give up, seems like we reached root of file system (e.g. "C:/" or "/")
             break
 
-        path, iojou: byte*
+        path: byte*
         asprintf(&path, "%s/stdlib", exedir)
-        asprintf(&iojou, "%s/io.jou", path)
 
-        f = fopen(iojou, "r")
+        iojou: byte*
+        asprintf(&iojou, "%s/io.jou", path)
+        exists = file_exists(iojou)
         free(iojou)
 
-        if f != NULL:
-            fclose(f)
+        if exists:
             for k = 0; k < i; k++:
                 free(checked[k])
             free(exedir)
@@ -98,24 +199,6 @@ def find_stdlib() -> byte*:
     exit(1)
 
 
-def write_gitignore(p: byte*) -> None:
-    filename: byte*
-    asprintf(&filename, "%s/.gitignore", p)
-
-    f = fopen(filename, "r")
-    if f != NULL:
-        # already exists
-        fclose(f)
-    else:
-        # write '*' into gitignore, so that git won't track any compiled files
-        f = fopen(filename, "w")
-        if f != NULL:
-            fprintf(f, "*")
-            fclose(f)
-
-    free(filename)
-
-
 def mkdir_exist_ok(path: byte*) -> None:
     # TODO: check if errno == EEXIST
     # Currently no good way to access EEXIST constant
@@ -125,55 +208,136 @@ def mkdir_exist_ok(path: byte*) -> None:
         mkdir(path, 0o777)  # this is what mkdir in bash does according to strace
 
 
-@public
-def get_path_to_file_in_jou_compiled(filename: byte*) -> byte*:
-    # Place compiled files so that it's difficult to get race conditions when
-    # compiling multiple Jou files simultaneously (tests do that)
-    tmp = strdup(command_line_args.infile)
-    infile_folder = strdup(dirname(tmp))
-    free(tmp)
+def write_gitignore(p: byte*) -> None:
+    filename: byte*
+    asprintf(&filename, "%s/.gitignore", p)
+    if not file_exists(filename):
+        # write '*' into gitignore, so that git won't track any compiled files
+        f = fopen(filename, "w")
+        if f != NULL:
+            fprintf(f, "*")
+            fclose(f)
+    free(filename)
 
-    subfolder = get_filename_without_jou_suffix(command_line_args.infile)
 
-    result: byte* = malloc(strlen(infile_folder) + strlen(subfolder) + strlen(filename) + 100)
-    assert result != NULL
+def get_path_to_jou_compiled() -> byte*:
+    # Place jou_compiled into the same directory with the main file we are compiling.
+    # No strong reason for doing this. Feel free to change this if it causes problems.
+    infile = strdup(command_line_args.infile)
+    jou_compiled: byte*
+    asprintf(&jou_compiled, "%s/jou_compiled", dirname(infile))
+    free(infile)
 
-    sprintf(result, "%s/jou_compiled", infile_folder)
-    mkdir_exist_ok(result)
-    write_gitignore(result)
+    return jou_compiled
 
-    sprintf(result, "%s/jou_compiled/%s", infile_folder, subfolder)
-    mkdir_exist_ok(result)
 
-    sprintf(result, "%s/jou_compiled/%s/%s", infile_folder, subfolder, filename)
+# Deletes files in a directory whose name ends with the given suffix.
+def delete_by_suffix(dir: byte*, suffix: byte*) -> None:
+    list = listdir(dir)
 
-    free(infile_folder)
-    free(subfolder)
+    for p = list.ptr; p < list.end(); p++:
+        if ends_with(*p, suffix):
+            full_path: byte*
+            asprintf(&full_path, "%s/%s", dir, *p)
+
+            if WINDOWS:
+                ret = _unlink(path)
+            else:
+                ret = unlink(path)
+
+            if ret == 0 and command_line_args.verbosity >= 1:
+                printf("Deleted: %s\n", path)
+
+            free(full_path)
+
+    free(list.ptr)
+
+
+def get_simple_name(jou_file_path: byte*) -> byte[50]:
+    # "/home/akuli/folder/file.jou" --> "file.jou"
+    while strstr(jou_file_path, "/") != NULL or strstr(jou_file_path, "\\") != NULL:
+        jou_file_path++
+
+    result: byte[50]
+    memset(result, 0, sizeof(result))
+    result_len = 0
+
+    while result_len + 1 < sizeof(result):
+        # We have room to add a character
+
+        if jou_file_path[0] == '\0':
+            # No more characters to add
+            break
+
+        if result_len > 0 and strcmp(jou_file_path, ".jou") == 0:
+            # do not add ".jou" suffix
+            break
+
+        c = *jou_file_path++
+        if c == '_':
+            c = '.'
+        result[result_len++] = c
+
     return result
 
 
+def calculate_file_path_hash(jou_file_path: byte*) -> uint64:
+    h = new_hash()
+    h.add_bytes(jou_file_path, strlen(jou_file_path))
+    return h
+
 
 @public
-def get_filename_without_jou_suffix(path: byte*) -> byte*:
-    last_slash = strrchr(path, '/')
-    if last_slash != NULL:
-        path = &last_slash[1]
+def get_path_to_file_in_jou_compiled(jou_file_path: byte*, content_hash: Hash) -> byte*:
+    jou_compiled = get_path_to_jou_compiled()
+    mkdir_exist_ok(jou_compiled)
+    write_gitignore(jou_compiled)
 
-    if WINDOWS:
-        last_slash = strrchr(path, '\\')
-        if last_slash != NULL:
-            path = &last_slash[1]
+    # File names are like "simple_name_0011223344556677_8899aabbccddeeff.o" where:
+    #   - "simple_name" is related to source file path, mostly for debugging purposes
+    #   - "0011223344556677" is the content hash, if it changes we must recompile the file
+    #   - "8899aabbccddeeff" is a hash calculated from Jou file path used to identify this file
+    simple_name = get_simple_name(jou_file_path)
+    file_path_hash = calculate_file_path_hash(jou_file_path)
 
-    len = strlen(path)
-    if len > 4 and ends_with(path, ".jou"):
-        len -= 4
+    assert sizeof(simple_name) == 50
+    filename: byte[200]
+    sprintf(filename, "%s_%016llx_%016llx.o", simple_name, content_hash.hash, file_path_hash.hash)
 
-    result: byte* = malloc(len+1)
-    assert result != NULL
-    memcpy(result, path, len)
-    result[len] = '\0'
+    full_path: byte*
+    asprintf(&full_path, "%s/%s", jou_compiled, filename)
 
-    return result
+    if not file_exists(full_path):
+        # We will create the file. Delete any previously compiled version of the same source file.
+        suffix_len = 19  # "_" between hashes, 16 characters for hash, ".o" at end
+        suffix = &filename[strlen(filename) - suffix_len]
+        delete_by_suffix(jou_compiled, suffix)
+
+    free(jou_compiled)
+    return full_path
+
+
+#@public
+#def get_filename_without_jou_suffix(path: byte*) -> byte*:
+#    last_slash = strrchr(path, '/')
+#    if last_slash != NULL:
+#        path = &last_slash[1]
+#
+#    if WINDOWS:
+#        last_slash = strrchr(path, '\\')
+#        if last_slash != NULL:
+#            path = &last_slash[1]
+#
+#    len = strlen(path)
+#    if len > 4 and ends_with(path, ".jou"):
+#        len -= 4
+#
+#    result: byte* = malloc(len+1)
+#    assert result != NULL
+#    memcpy(result, path, len)
+#    result[len] = '\0'
+#
+#    return result
 
 
 @public
