@@ -46,9 +46,6 @@ which is basically C's way to say "64-bit number".
 Do not use `%ld` or `%lu`, because
 it prints a 32-bit value on Windows and a 64-bit value on most other systems.
 
-Support for other combinations of sizes and signed/unsigned is planned, but not implemented.
-See [issue #164](https://github.com/Akuli/jou/issues/164).
-
 
 ## Floating-point numbers
 
