@@ -42,6 +42,10 @@ def find_links_in_file(markdown_file_path):
 
 @cache
 def check_https_link(url):
+    # TODO: delete when Advent of Code stops returning 403 for our requests
+    if "adventofcode.com" in url:
+        return "ok"
+
     try:
         # Many sites redirect to front page for bad URLs. Let's not treat that as ok.
         response = requests.head(url, timeout=10, allow_redirects=False)
