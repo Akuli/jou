@@ -306,7 +306,7 @@ def cast_type_to_typeinfo(t: Type*) -> TypeInfo*:
 # compare types, because two different classes with the same members are
 # not the same type.
 class GlobalTypeState:
-    integers: TypeInfo[2][65]  # integers[i][j] = i-bit integer, j=1 for signed, j=0 for unsigned
+    integers: TypeInfo[2][129]  # integers[i][j] = i-bit integer, j=1 for signed, j=0 for unsigned
     boolean: TypeInfo
     doublelele: TypeInfo
     floater: TypeInfo
@@ -351,7 +351,9 @@ def init_types() -> None:
     global_type_state.floater.type = Type{name = "float", kind = TypeKind.FloatingPoint, size_in_bits = 32 }
     global_type_state.doublelele.type = Type{name = "double", kind = TypeKind.FloatingPoint, size_in_bits = 64 }
 
-    for size = 8; size <= 64; size *= 2:
+    # Currently int8 and uint8 are not exposed in the language, but int8 is used
+    # for temporary values hidden from users.
+    for size = 8; size <= 128; size *= 2:
         global_type_state.integers[size][0].type.kind = TypeKind.UnsignedInteger
         global_type_state.integers[size][1].type.kind = TypeKind.SignedInteger
 
@@ -405,7 +407,7 @@ def free_global_type_state() -> None:
 
 @public
 def get_integer_type(size_in_bits: int, is_signed: bool) -> Type*:
-    assert size_in_bits==8 or size_in_bits==16 or size_in_bits==32 or size_in_bits==64
+    assert size_in_bits==8 or size_in_bits==16 or size_in_bits==32 or size_in_bits==64 or size_in_bits==128
     return &global_type_state.integers[size_in_bits][is_signed as int].type
 
 
