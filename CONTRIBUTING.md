@@ -30,8 +30,8 @@ Following the [instructions in the README](README.md#setup) is enough.
     If you have a slow internet connection
     and it takes a long time for `windows_setup.sh` to download mingw64,
     you can instead run `./windows_setup.sh --small`.
-    Instead of downloading the full mingw64 (about 1GB),
-    this will get a minimal version of MinGW from a [release](#releases) of Jou (about 50MB).
+    Instead of downloading the full mingw64 (about 360MB download),
+    this will get a minimal version of MinGW from a [release](#releases) of Jou (about 50MB download).
 5. Compile Jou:
     ```
     source activate
