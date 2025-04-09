@@ -1,0 +1,95 @@
+import "stdlib/io.jou"
+
+# Comparing signed and unsigned values is more difficult than you might expect.
+# For example, "-1 as int8" and "255 as uint8" have the same bits (11111111 = 0xFF),
+# but they represent different values because int8 interprets the first bit as a sign bit.
+#
+# See also: https://github.com/Akuli/jou/issues/865
+
+
+# Only one of the if statements below should print something at a time.
+# It is a bug if you get output "lessequal" or similar.
+def compare_8bit(i: int8, u: uint8) -> None:
+    if (i<u) != (u>i) or (i>u) != (u<i) or (i==u) != (u==i):
+        printf("problem")
+    if i < u:
+        printf("less")
+    if i == u:
+        printf("equal")
+    if i > u:
+        printf("greater")
+    printf("\n")
+def compare_16bit(i: int16, u: uint16) -> None:
+    if (i<u) != (u>i) or (i>u) != (u<i) or (i==u) != (u==i):
+        printf("problem")
+    if i < u:
+        printf("less")
+    if i == u:
+        printf("equal")
+    if i > u:
+        printf("greater")
+    printf("\n")
+def compare_32bit(i: int32, u: uint32) -> None:
+    if (i<u) != (u>i) or (i>u) != (u<i) or (i==u) != (u==i):
+        printf("problem")
+    if i < u:
+        printf("less")
+    if i == u:
+        printf("equal")
+    if i > u:
+        printf("greater")
+    printf("\n")
+def compare_64bit(i: int64, u: uint64) -> None:
+    if (i<u) != (u>i) or (i>u) != (u<i) or (i==u) != (u==i):
+        printf("problem")
+    if i < u:
+        printf("less")
+    if i == u:
+        printf("equal")
+    if i > u:
+        printf("greater")
+    printf("\n")
+
+
+def main() -> int:
+    compare_8bit(-1 as int8, 255 as uint8)  # Output: less
+    compare_8bit(127 as int8, 128 as uint8)  # Output: less
+    compare_8bit(127 as int8, 127 as uint8)  # Output: equal
+    compare_8bit(127 as int8, 126 as uint8)  # Output: greater
+    compare_8bit(0 as int8, 0 as uint8)  # Output: equal
+
+    # For 8-bit values, it's fast enough to loop through all values and check the behavior.
+    # No output is expected from this.
+    for i = -128; i < 128; i++:
+        for u = 0; u < 256; u++:
+            if ((i as int8) < (u as uint8)) != (i < u):
+                printf("problem: %d < %d\n", i, u)
+            if ((i as int8) == (u as uint8)) != (i == u):
+                printf("problem: %d == %d\n", i, u)
+            if ((i as int8) > (u as uint8)) != (i > u):
+                printf("problem: %d > %d\n", i, u)
+
+    # 16-bit version of the above. How to change the constants:
+    #   127 == 0x7f, use 0x7fff here
+    #   128 == 0x80, use 0x8000 here
+    #   255 == 0xff, use 0xffff here
+    #   254 == 0xfe, use 0xfffe here
+    compare_16bit(-1 as int16, 0xffff as uint16)  # Output: less
+    compare_16bit(0x7fff as int16, 0x8000 as uint16)  # Output: less
+    compare_16bit(0x7fff as int16, 0x7fff as uint16)  # Output: equal
+    compare_16bit(0x7fff as int16, 0x7ffE as uint16)  # Output: greater
+    compare_16bit(0 as int16, 0 as uint16)  # Output: equal
+
+    # 32-bit version
+    compare_32bit(-1 as int32, 0xffff_ffff as uint32)  # Output: less
+    compare_32bit(0x7fff_ffff as int32, 0x8000_0000 as uint32)  # Output: less
+    compare_32bit(0x7fff_ffff as int32, 0x7fff_ffff as uint32)  # Output: equal
+    compare_32bit(0x7fff_ffff as int32, 0x7fff_fffe as uint32)  # Output: greater
+    compare_32bit(0 as int32, 0 as uint32)  # Output: equal
+
+    # 64-bit version
+    compare_64bit(-1 as int64, 0xffff_ffff_ffff_ffff as uint64)  # Output: less
+    compare_64bit(0x7fff_ffff_ffff_ffff as int64, 0x8000_0000_0000_0000 as uint64)  # Output: less
+    compare_64bit(0x7fff_ffff_ffff_ffff as int64, 0x7fff_ffff_ffff_ffff as uint64)  # Output: equal
+    compare_64bit(0x7fff_ffff_ffff_ffff as int64, 0x7fff_ffff_ffff_fffe as uint64)  # Output: greater
+    compare_64bit(0 as int64, 0 as uint64)  # Output: equal
