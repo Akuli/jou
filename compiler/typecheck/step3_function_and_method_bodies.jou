@@ -405,10 +405,15 @@ def check_binop(
     if got_bools:
         cast_type = boolType
     if got_integers:
-        cast_type = get_integer_type(
-            max(lhs->types.orig_type->size_in_bits, rhs->types.orig_type->size_in_bits),
-            lhs->types.orig_type->kind == TypeKind.SignedInteger or rhs->types.orig_type->kind == TypeKind.SignedInteger
-        )
+        size = max(lhs->types.orig_type->size_in_bits, rhs->types.orig_type->size_in_bits)
+        lhs_signed = lhs->types.orig_type->kind == TypeKind.SignedInteger
+        rhs_signed = rhs->types.orig_type->kind == TypeKind.SignedInteger
+        mixed_signs = (lhs_signed and not rhs_signed) or (rhs_signed and not lhs_signed)
+        # If one number is signed and the other is unsigned, use a bigger type if available.
+        # For example, we use int16 to compare "-1 as int8" and "255 as uint8".
+        if size < 64 and mixed_signs:
+            size *= 2
+        cast_type = get_integer_type(size, lhs_signed or rhs_signed)
     if got_numbers and not got_integers:
         if lhs->types.orig_type == doubleType or rhs->types.orig_type == doubleType:
             cast_type = doubleType
