@@ -348,29 +348,6 @@ def get_path_to_object_file_in_jou_compiled(jou_file_path: byte*, content_hash: 
     return full_path
 
 
-#@public
-#def get_filename_without_jou_suffix(path: byte*) -> byte*:
-#    last_slash = strrchr(path, '/')
-#    if last_slash != NULL:
-#        path = &last_slash[1]
-#
-#    if WINDOWS:
-#        last_slash = strrchr(path, '\\')
-#        if last_slash != NULL:
-#            path = &last_slash[1]
-#
-#    len = strlen(path)
-#    if len > 4 and ends_with(path, ".jou"):
-#        len -= 4
-#
-#    result: byte* = malloc(len+1)
-#    assert result != NULL
-#    memcpy(result, path, len)
-#    result[len] = '\0'
-#
-#    return result
-
-
 @public
 def decide_exe_path() -> byte*:
     if command_line_args.outfile != NULL:

@@ -395,18 +395,6 @@ class CompileState:
             build_and_analyze_uvgs(&f->ast, print_uvgs)
 
 
-#def compile_llvm_ir_to_object_file(jou_file_path: byte*, content_hash: Hash, module: LLVMModule*) -> byte*:
-#    already_exists: bool
-#    path = get_path_to_file_in_jou_compiled(jou_file_path, content_hash, &already_exists)
-#    if already_exists:
-#        if command_line_args.verbosity >= 1:
-#            printf("Reusing previously compiled object file: %s\n", path)
-#
-#
-#    assert error == NULL
-#    return path
-
-
 def tokenize_only(path: byte*) -> None:
     tokens = tokenize(command_line_args.infile, NULL)
     print_tokens(tokens)
