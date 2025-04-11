@@ -6,7 +6,7 @@ import "../errors_and_warnings.jou"
 import "../types.jou"
 import "../uvg.jou"
 import "./ast_to_builder.jou"
-import "./either_builder.jou"
+import "./any_builder.jou"
 
 
 # Special "UVG variable ID". Denotes a value that is not a pointer,
@@ -238,7 +238,7 @@ class UBuilder:
 @public
 def build_and_analyze_uvgs(ast: AstFile*, print: bool) -> None:
     builder = UBuilder{}
-    builder_wrapper = EitherBuilder{ubuilder = &builder}
+    builder_wrapper = AnyBuilder{ubuilder = &builder}
 
     for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
         match stmt->kind:

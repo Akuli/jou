@@ -7,24 +7,24 @@ import "../constants.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
 import "../types_in_ast.jou"
-import "./either_builder.jou"
+import "./any_builder.jou"
 
 
 class LocalVar:
     name: byte[100]
     # All local variables are represented as pointers to stack space, even
     # if they are never reassigned. LLVM will optimize the mess.
-    ptr: EitherBuilderValue
+    ptr: AnyBuilderValue
 
 
 class Loop:
-    on_break: EitherBuilderBlock
-    on_continue: EitherBuilderBlock
+    on_break: AnyBuilderBlock
+    on_continue: AnyBuilderBlock
 
 
 class InliningInfo:
-    return_jumps_to: EitherBuilderBlock
-    return_value_ptr: EitherBuilderValue
+    return_jumps_to: AnyBuilderBlock
+    return_value_ptr: AnyBuilderValue
     # The following define how to remap types.
     # For example, T in code could become int in LLVM.
     typemap_from: Type**
@@ -33,7 +33,7 @@ class InliningInfo:
 
 
 class AstToBuilder:
-    builder: EitherBuilder*
+    builder: AnyBuilder*
     locals: List[LocalVar]
     loops: List[Loop]
 
@@ -93,7 +93,7 @@ class AstToBuilder:
     # Handles the beginning of calling an @inline function. That's always done
     # in a new builder, so that we don't accidentally access local variables
     # of the calling function.
-    def begin_inlining(self, types: FunctionOrMethodTypes*, args: List[EitherBuilderValue]) -> None:
+    def begin_inlining(self, types: FunctionOrMethodTypes*, args: List[AnyBuilderValue]) -> None:
         # First n local variables are the arguments
         assert types->signature.args.len <= types->locals.len
 
@@ -110,7 +110,7 @@ class AstToBuilder:
                 # First n local variables are the function arguments
                 self->builder->set_ptr(var_ptr, args.ptr[i])
 
-    def inline(self, sig: Signature*, args: List[EitherBuilderValue]) -> EitherBuilderValue:
+    def inline(self, sig: Signature*, args: List[AnyBuilderValue]) -> AnyBuilderValue:
         assert sig->ast_to_inline != NULL
         assert self->builder->should_functions_marked_with_inline_be_inlined()
         ast = sig->ast_to_inline
@@ -144,11 +144,11 @@ class AstToBuilder:
 
         self->builder->set_current_block(info.return_jumps_to)
         if sig->return_type == NULL:
-            return EitherBuilderValue{}
+            return AnyBuilderValue{}
         else:
             return self->builder->dereference(info.return_value_ptr)
 
-    def call_or_inline(self, sig: Signature*, args: List[EitherBuilderValue]) -> EitherBuilderValue:
+    def call_or_inline(self, sig: Signature*, args: List[AnyBuilderValue]) -> AnyBuilderValue:
         if sig->ast_to_inline != NULL and self->builder->should_functions_marked_with_inline_be_inlined():
             return self->inline(sig, args)
         else:
@@ -160,14 +160,14 @@ class AstToBuilder:
                 return True
         return False
 
-    def local_var_ptr(self, name: byte*) -> EitherBuilderValue:
+    def local_var_ptr(self, name: byte*) -> AnyBuilderValue:
         for local = self->locals.ptr; local < self->locals.end(); local++:
             if strcmp(local->name, name) == 0:
                 return local->ptr
         assert False
 
-    def build_call(self, call: AstCall*) -> EitherBuilderValue:
-        args = List[EitherBuilderValue]{}
+    def build_call(self, call: AstCall*) -> AnyBuilderValue:
+        args = List[AnyBuilderValue]{}
 
         if call->method_call_self != NULL:
             # it is a method call, pass self as first argument
@@ -195,7 +195,7 @@ class AstToBuilder:
 
         return result
 
-    def build_binop(self, op: AstExpressionKind, lhs: EitherBuilderValue, rhs: EitherBuilderValue) -> EitherBuilderValue:
+    def build_binop(self, op: AstExpressionKind, lhs: AnyBuilderValue, rhs: AnyBuilderValue) -> AnyBuilderValue:
         match op:
             case AstExpressionKind.Eq:
                 return self->builder->eq(lhs, rhs)
@@ -229,7 +229,7 @@ class AstToBuilder:
         new_value = self->build_binop(op, old_value, rhs_value)
         self->builder->set_ptr(lhs_ptr, new_value)
 
-    def build_instantiation(self, class_type: Type*, inst: AstInstantiation*) -> EitherBuilderValue:
+    def build_instantiation(self, class_type: Type*, inst: AstInstantiation*) -> AnyBuilderValue:
         assert class_type != NULL
         assert class_type->kind == TypeKind.Class
 
@@ -242,7 +242,7 @@ class AstToBuilder:
 
         return self->builder->dereference(inst_ptr)
 
-    def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> EitherBuilderValue:
+    def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> AnyBuilderValue:
         # Must be careful with side effects.
         #
         #    # lhs returning False means we don't evaluate rhs
@@ -272,7 +272,7 @@ class AstToBuilder:
 
         return self->builder->dereference(resultptr)
 
-    def build_or(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> EitherBuilderValue:
+    def build_or(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> AnyBuilderValue:
         # Must be careful with side effects.
         #
         #    # lhs returning True means we don't evaluate rhs
@@ -302,7 +302,7 @@ class AstToBuilder:
 
         return self->builder->dereference(resultptr)
 
-    def build_increment_or_decrement(self, inner: AstExpression*, pre: bool, diff: int) -> EitherBuilderValue:
+    def build_increment_or_decrement(self, inner: AstExpression*, pre: bool, diff: int) -> AnyBuilderValue:
         assert diff == 1 or diff == -1  # 1=increment, -1=decrement
 
         ptr = self->build_address_of_expression(inner)
@@ -321,7 +321,7 @@ class AstToBuilder:
         else:
             return old_value
 
-    def build_array(self, t: Type*, items: List[AstExpression]) -> EitherBuilderValue:
+    def build_array(self, t: Type*, items: List[AstExpression]) -> AnyBuilderValue:
         assert t->kind == TypeKind.Array
         assert t->array.len == items.len
 
@@ -336,7 +336,7 @@ class AstToBuilder:
 
         return self->builder->dereference(arr_ptr)
 
-    def build_constant(self, constant: Constant*) -> EitherBuilderValue:
+    def build_constant(self, constant: Constant*) -> AnyBuilderValue:
         match constant->kind:
             case ConstantKind.ArrayString:
                 return self->builder->array_string(constant->array_string.ptr, constant->array_string.len as int)
@@ -360,7 +360,7 @@ class AstToBuilder:
                 # TODO: got all covered?
                 assert False
 
-    def build_expression_without_implicit_cast(self, expr: AstExpression*) -> EitherBuilderValue:
+    def build_expression_without_implicit_cast(self, expr: AstExpression*) -> AnyBuilderValue:
         match expr->kind:
             case AstExpressionKind.Constant:
                 return self->build_constant(&expr->constant)
@@ -442,7 +442,7 @@ class AstToBuilder:
             case AstExpressionKind.Not:
                 return self->builder->not_(self->build_expression(&expr->operands[0]))
 
-    def build_expression(self, expr: AstExpression*) -> EitherBuilderValue:
+    def build_expression(self, expr: AstExpression*) -> AnyBuilderValue:
         old_location = self->set_location(expr->location)
 
         if expr->types.implicit_array_to_pointer_cast:
@@ -452,7 +452,7 @@ class AstToBuilder:
             if expr->types.orig_type == NULL and expr->types.implicit_cast_type == NULL:
                 # Function/method call that returns no value
                 assert expr->kind == AstExpressionKind.Call
-                result = EitherBuilderValue{}
+                result = AnyBuilderValue{}
             else:
                 assert expr->types.orig_type != NULL
                 assert expr->types.implicit_cast_type != NULL
@@ -461,7 +461,7 @@ class AstToBuilder:
         self->set_location(old_location)
         return result
 
-    def build_address_of_expression(self, expr: AstExpression*) -> EitherBuilderValue:
+    def build_address_of_expression(self, expr: AstExpression*) -> AnyBuilderValue:
         old_location = self->set_location(expr->location)
 
         match expr->kind:
@@ -554,7 +554,7 @@ class AstToBuilder:
         done = self->builder->add_block()
         for p = match_stmt->cases.ptr; p < match_stmt->cases.end(); p++:
             then = self->builder->add_block()
-            otherwise = EitherBuilderBlock{}  # will be replaced by loop below
+            otherwise = AnyBuilderBlock{}  # will be replaced by loop below
             for case_obj_ast = p->case_objs.ptr; case_obj_ast < p->case_objs.end(); case_obj_ast++:
                 case_obj = self->build_expression(case_obj_ast)
                 if match_stmt->func_name[0] == '\0':
@@ -563,7 +563,7 @@ class AstToBuilder:
                     args = [match_obj, case_obj]
                     func_ret = self->call_or_inline(
                         &match_stmt->func_signature,
-                        List[EitherBuilderValue]{ptr=args,len=2},
+                        List[AnyBuilderValue]{ptr=args,len=2},
                     )
                     zero = self->builder->integer(match_stmt->func_signature.return_type, 0)
                     cond = self->builder->eq(func_ret, zero)
@@ -706,7 +706,7 @@ class AstToBuilder:
 
 
 @public
-def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location, is_main_file: bool, builder: EitherBuilder*) -> None:
+def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location, is_main_file: bool, builder: AnyBuilder*) -> None:
     if func_ast->inline and builder->should_functions_marked_with_inline_be_inlined():
         # Calls to this function will be inlined. Pretend the function doesn't exist.
         return

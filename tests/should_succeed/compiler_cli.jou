@@ -48,19 +48,13 @@ def main() -> int:
     run_jou("--help")
 
     # Test that double-verbose kinda works, without asserting the output in too much detail.
-    # TODO: shouldn't need to hide special stdlib/_... files, ideally they would be precompiled
-    run_jou("-vv examples/hello.jou | grep === | grep -v stdlib/io.jou | grep -v stdlib/_ | grep -v jou_startup")
+    # Usually stdlib/_... files are compiled, but not necessarily, so hide them.
+    # Showing LLVM IR is not consistent because of caching compiled files.
+    run_jou("-vv examples/hello.jou | grep === | grep -v stdlib/io.jou | grep -v stdlib/_ | grep -v jou_startup | grep -v \"LLVM IR\"")
     # Output: ===== Tokens for file "examples/hello.jou" =====
     # Output: ===== AST for file "examples/hello.jou" =====
     # Output: ===== UVG for _jou_assert_fail(assertion: byte*, path: byte*, lineno: int) -> noreturn =====
     # Output: ===== UVG for main() -> int =====
-    # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
-    # Output: ===== Optimized LLVM IR for file "examples/hello.jou" =====
-
-    # With optimizations disabled, we don't see the optimized LLVM IR.
-    run_jou("-vv -O0 examples/hello.jou | grep 'LLVM IR for file' | grep -v stdlib/_")
-    # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
-    # Output: ===== Unoptimized LLVM IR for file "<joudir>/stdlib/io.jou" =====
 
     # Different working directory.
     # Output: Hello World

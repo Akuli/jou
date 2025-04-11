@@ -33,7 +33,7 @@ commits=(
     722d066c840bf9c07dafd69e5bd1d12823f04b25  # bug fixes for using @inline in generic classes
     e7fea1f2ed602a7c191f8c8c605fa56ae2468723  # JOU_MINGW_DIR environment variable
     98c5fb2792eaac8bbe7496a176808d684f631d82  # "./windows_setup.sh --small" starts from this commit (release 2025-04-08-2200)
-    4dc6d2bc6a88472949b34ac9797b8fae17b6fde5  # on Windows, "libs" folder is no longer used
+    eed3b974ccb42a01339ead7f6dcaa0913ca2cd64  # fixed-size integer types, e.g. uint64
 )
 
 for commit in ${commits[@]}; do

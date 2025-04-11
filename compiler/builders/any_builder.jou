@@ -13,126 +13,149 @@ import "../types.jou"
 import "../uvg.jou"
 import "./llvm_builder.jou"
 import "./uvg_builder.jou"
+import "./hash_builder.jou"
 
 
 @public
-class EitherBuilderValue:
+class AnyBuilderValue:
     lvalue: LBuilderValue
     uvalue: int
+    hvalue: HBuilderValue
 
 
 @public
-class EitherBuilderBlock:
+class AnyBuilderBlock:
     lblock: LLVMBasicBlock*
     ublock: UvgBlock*  # funny naming :)
+    hblock: long
 
 
 @public
-class EitherBuilder:
+class AnyBuilder:
     lbuilder: LBuilder*  # may be NULL
     ubuilder: UBuilder*  # may be NULL
+    hbuilder: HBuilder*
 
     def should_functions_marked_with_inline_be_inlined(self) -> bool:
-        both = self->lbuilder != NULL and self->ubuilder != NULL
-        assert not both
-
-        if self->lbuilder != NULL:
-            return self->lbuilder->should_functions_marked_with_inline_be_inlined()
-        if self->ubuilder != NULL:
-            return self->ubuilder->should_functions_marked_with_inline_be_inlined()
-        assert False
+        return (
+            (self->lbuilder != NULL and self->lbuilder->should_functions_marked_with_inline_be_inlined())
+            or (self->ubuilder != NULL and self->ubuilder->should_functions_marked_with_inline_be_inlined())
+            or (self->hbuilder != NULL and self->hbuilder->should_functions_marked_with_inline_be_inlined())
+        )
 
     def begin_function(self, sig: Signature*, public: bool) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->begin_function(sig, public)
         if self->ubuilder != NULL:
             self->ubuilder->begin_function(sig, public)
+        if self->hbuilder != NULL:
+            self->hbuilder->begin_function(sig, public)
 
     def end_function(self) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->end_function()
         if self->ubuilder != NULL:
             self->ubuilder->end_function()
+        if self->hbuilder != NULL:
+            self->hbuilder->end_function()
 
     def begin_statement_in_a_body(self) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->begin_statement_in_a_body()
         if self->ubuilder != NULL:
             self->ubuilder->begin_statement_in_a_body()
+        if self->hbuilder != NULL:
+            self->hbuilder->begin_statement_in_a_body()
 
     def set_location(self, location: Location) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->set_location(location)
         if self->ubuilder != NULL:
             self->ubuilder->set_location(location)
+        if self->hbuilder != NULL:
+            self->hbuilder->set_location(location)
 
     # Allocates enough stack space in the function to hold a value of given type.
     # Returns a pointer to the stack space.
     # If allocated stack memory is not a local variable, varname must be NULL.
-    def stack_alloc(self, t: Type*, varname: byte*) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def stack_alloc(self, t: Type*, varname: byte*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->stack_alloc(t, varname)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->stack_alloc(t, varname)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->stack_alloc(t, varname)
         return result
 
     # *ptr = value
-    def set_ptr(self, ptr: EitherBuilderValue, value: EitherBuilderValue) -> None:
+    def set_ptr(self, ptr: AnyBuilderValue, value: AnyBuilderValue) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->set_ptr(ptr.lvalue, value.lvalue)
-        else:
+        if self->ubuilder != NULL:
             self->ubuilder->set_ptr(ptr.uvalue, value.uvalue)
+        if self->hbuilder != NULL:
+            self->hbuilder->set_ptr(ptr.hvalue, value.hvalue)
 
     # *ptr
-    def dereference(self, ptr: EitherBuilderValue) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def dereference(self, ptr: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->dereference(ptr.lvalue)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->dereference(ptr.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->dereference(ptr.hvalue)
         return result
 
     # Returns &ptr[index]
-    def indexed_pointer(self, ptr: EitherBuilderValue, index: EitherBuilderValue) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def indexed_pointer(self, ptr: AnyBuilderValue, index: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->indexed_pointer(ptr.lvalue, index.lvalue)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->indexed_pointer(ptr.uvalue, index.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->indexed_pointer(ptr.hvalue, index.hvalue)
         return result
 
     # Returns &ptr->field
-    def class_field_pointer(self, ptr: EitherBuilderValue, field_name: byte*) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def class_field_pointer(self, ptr: AnyBuilderValue, field_name: byte*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->class_field_pointer(ptr.lvalue, field_name)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->class_field_pointer(ptr.uvalue, field_name)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->class_field_pointer(ptr.hvalue, field_name)
         return result
 
     # Returns &global_variable. Type needs to be passed in because a new builder
     # unaware of global variables is created for each function.
-    def global_var_ptr(self, name: byte*, var_type: Type*) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def global_var_ptr(self, name: byte*, var_type: Type*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->global_var_ptr(name, var_type)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->global_var_ptr(name, var_type)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->global_var_ptr(name, var_type)
         return result
 
     # Returns the i'th argument given to function
-    def get_argument(self, i: int, argtype: Type*) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def get_argument(self, i: int, argtype: Type*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->get_argument(i, argtype)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->get_argument(i, argtype)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->get_argument(i, argtype)
         return result
 
     # Function or method call. If method, self with the correct type must be included in args.
-    def call(self, sig: Signature*, args: EitherBuilderValue*, nargs: int) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def call(self, sig: Signature*, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             largs: LBuilderValue* = malloc(sizeof(largs[0]) * nargs)
             assert largs != NULL
@@ -147,178 +170,225 @@ class EitherBuilder:
                 uargs[i] = args[i].uvalue
             result.uvalue = self->ubuilder->call(sig, uargs, nargs)
             free(uargs)
+        if self->hbuilder != NULL:
+            hargs: HBuilderValue* = malloc(sizeof(hargs[0]) * nargs)
+            assert hargs != NULL
+            for i = 0; i < nargs; i++:
+                hargs[i] = args[i].hvalue
+            result.hvalue = self->hbuilder->call(sig, hargs, nargs)
+            free(hargs)
         return result
 
     # string as array of bytes
-    def array_string(self, s: byte*, array_size: int) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def array_string(self, s: byte*, array_size: int) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->array_string(s, array_size)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->array_string(s, array_size)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->array_string(s, array_size)
         return result
 
     # string as '\0' terminated pointer
-    def pointer_string(self, s: byte*) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def pointer_string(self, s: byte*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->pointer_string(s)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->pointer_string(s)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->pointer_string(s)
         return result
 
-    def boolean(self, b: bool) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def boolean(self, b: bool) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->boolean(b)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->boolean(b)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->boolean(b)
         return result
 
-    def integer(self, t: Type*, value: long) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def integer(self, t: Type*, value: long) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->integer(t, value)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->integer(t, value)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->integer(t, value)
         return result
 
-    def float_or_double(self, t: Type*, string: byte*) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def float_or_double(self, t: Type*, string: byte*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->float_or_double(t, string)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->float_or_double(t, string)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->float_or_double(t, string)
         return result
 
-    def zero_of_type(self, t: Type*) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def zero_of_type(self, t: Type*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->zero_of_type(t)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->zero_of_type(t)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->zero_of_type(t)
         return result
 
-    def enum_member(self, t: Type*, name: byte*) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def enum_member(self, t: Type*, name: byte*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->enum_member(t, name)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->enum_member(t, name)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->enum_member(t, name)
         return result
 
     # a + b
-    def add(self, a: EitherBuilderValue, b: EitherBuilderValue) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def add(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->add(a.lvalue, b.lvalue)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->add(a.uvalue, b.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->add(a.hvalue, b.hvalue)
         return result
 
     # a - b
-    def sub(self, a: EitherBuilderValue, b: EitherBuilderValue) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def sub(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->sub(a.lvalue, b.lvalue)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->sub(a.uvalue, b.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->sub(a.hvalue, b.hvalue)
         return result
 
     # a * b
-    def mul(self, a: EitherBuilderValue, b: EitherBuilderValue) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def mul(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->mul(a.lvalue, b.lvalue)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->mul(a.uvalue, b.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->mul(a.hvalue, b.hvalue)
         return result
 
     # a / b
-    def div(self, a: EitherBuilderValue, b: EitherBuilderValue) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def div(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->div(a.lvalue, b.lvalue)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->div(a.uvalue, b.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->div(a.hvalue, b.hvalue)
         return result
 
     # a % b
-    def mod(self, a: EitherBuilderValue, b: EitherBuilderValue) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def mod(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->mod(a.lvalue, b.lvalue)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->mod(a.uvalue, b.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->mod(a.hvalue, b.hvalue)
         return result
 
     # a == b
-    def eq(self, a: EitherBuilderValue, b: EitherBuilderValue) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def eq(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->eq(a.lvalue, b.lvalue)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->eq(a.uvalue, b.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->eq(a.hvalue, b.hvalue)
         return result
 
     # a < b
-    def lt(self, a: EitherBuilderValue, b: EitherBuilderValue) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def lt(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->lt(a.lvalue, b.lvalue)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->lt(a.uvalue, b.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->lt(a.hvalue, b.hvalue)
         return result
 
     # not value
-    def not_(self, value: EitherBuilderValue) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def not_(self, value: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->not_(value.lvalue)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->not_(value.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->not_(value.hvalue)
         return result
 
     # sizeof(any value of given type)
-    def size_of(self, t: Type*) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def size_of(self, t: Type*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->size_of(t)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->size_of(t)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->size_of(t)
         return result
 
     # memset(ptr, 0, sizeof(*ptr))
-    def memset_to_zero(self, ptr: EitherBuilderValue) -> None:
+    def memset_to_zero(self, ptr: AnyBuilderValue) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->memset_to_zero(ptr.lvalue)
         if self->ubuilder != NULL:
             self->ubuilder->memset_to_zero(ptr.uvalue)
+        if self->hbuilder != NULL:
+            self->hbuilder->memset_to_zero(ptr.hvalue)
 
     # value as to
-    def cast(self, value: EitherBuilderValue, to: Type*) -> EitherBuilderValue:
-        result = EitherBuilderValue{}
+    def cast(self, value: AnyBuilderValue, to: Type*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
         if self->lbuilder != NULL:
             result.lvalue = self->lbuilder->cast(value.lvalue, to)
         if self->ubuilder != NULL:
             result.uvalue = self->ubuilder->cast(value.uvalue, to)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->cast(value.hvalue, to)
         return result
 
     # Blocks are used to implement e.g. if statements and loops.
-    def add_block(self) -> EitherBuilderBlock:
-        result = EitherBuilderBlock{}
+    def add_block(self) -> AnyBuilderBlock:
+        result = AnyBuilderBlock{}
         if self->lbuilder != NULL:
             result.lblock = self->lbuilder->add_block()
         if self->ubuilder != NULL:
             result.ublock = self->ubuilder->add_block()
+        if self->hbuilder != NULL:
+            result.hblock = self->hbuilder->add_block()
         return result
 
     # Decide which block will contain the resulting instructions.
-    def set_current_block(self, block: EitherBuilderBlock) -> None:
+    def set_current_block(self, block: AnyBuilderBlock) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->set_current_block(block.lblock)
         if self->ubuilder != NULL:
             self->ubuilder->set_current_block(block.ublock)
+        if self->hbuilder != NULL:
+            self->hbuilder->set_current_block(block.hblock)
 
     # Conditional branch:
     #
@@ -330,11 +400,13 @@ class EitherBuilder:
     # This terminates the current block and hence leaves the builder in a
     # "no current block" state, i.e. you must call set_current_block()
     # before the builder is usable again.
-    def branch(self, cond: EitherBuilderValue, then: EitherBuilderBlock, otherwise: EitherBuilderBlock) -> None:
+    def branch(self, cond: AnyBuilderValue, then: AnyBuilderBlock, otherwise: AnyBuilderBlock) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->branch(cond.lvalue, then.lblock, otherwise.lblock)
         if self->ubuilder != NULL:
             self->ubuilder->branch(cond.uvalue, then.ublock, otherwise.ublock)
+        if self->hbuilder != NULL:
+            self->hbuilder->branch(cond.hvalue, then.hblock, otherwise.hblock)
 
     # Go to the block. Similar to branch() but no condition. LLVM calls this
     # "unconditional branch", which IMO doesn't make sense because it always
@@ -343,11 +415,13 @@ class EitherBuilder:
     # This terminates the current block and hence leaves the builder in a
     # "no current block" state, i.e. you must call set_current_block()
     # before the builder is usable again.
-    def jump(self, next_block: EitherBuilderBlock) -> None:
+    def jump(self, next_block: AnyBuilderBlock) -> None:
         if self->lbuilder != NULL:
             self->lbuilder->jump(next_block.lblock)
         if self->ubuilder != NULL:
             self->ubuilder->jump(next_block.ublock)
+        if self->hbuilder != NULL:
+            self->hbuilder->jump(next_block.hblock)
 
     # Add an instruction that should never run.
     # May be used by optimizer, but also tells LLVM that the block ends here.
@@ -356,9 +430,11 @@ class EitherBuilder:
             self->lbuilder->unreachable()
         if self->ubuilder != NULL:
             self->ubuilder->unreachable()
+        if self->hbuilder != NULL:
+            self->hbuilder->unreachable()
 
     # Return from function/method. Value should be NULL if the function is '-> None'.
-    def ret(self, value: EitherBuilderValue*) -> None:
+    def ret(self, value: AnyBuilderValue*) -> None:
         if self->lbuilder != NULL:
             if value == NULL:
                 self->lbuilder->ret(NULL)
@@ -369,3 +445,8 @@ class EitherBuilder:
                 self->ubuilder->ret(NULL)
             else:
                 self->ubuilder->ret(&value->uvalue)
+        if self->hbuilder != NULL:
+            if value == NULL:
+                self->hbuilder->ret(NULL)
+            else:
+                self->hbuilder->ret(&value->hvalue)
