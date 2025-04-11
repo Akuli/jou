@@ -339,6 +339,8 @@ def check_binop(
     assert rhs->types.orig_type != NULL
 
     do_what: byte*
+    some_kind_of_compare = False
+    equals_compare = False
     match op:
         case AstExpressionKind.Add:
             do_what = "add"
@@ -350,15 +352,13 @@ def check_binop(
             do_what = "divide"
         case AstExpressionKind.Mod:
             do_what = "take remainder with"
-        case (
-            AstExpressionKind.Eq
-            | AstExpressionKind.Ne
-            | AstExpressionKind.Gt
-            | AstExpressionKind.Ge
-            | AstExpressionKind.Lt
-            | AstExpressionKind.Le
-        ):
+        case AstExpressionKind.Eq | AstExpressionKind.Ne:
             do_what = "compare"
+            some_kind_of_compare = True
+            equals_compare = True
+        case AstExpressionKind.Gt | AstExpressionKind.Ge | AstExpressionKind.Lt | AstExpressionKind.Le:
+            do_what = "compare"
+            some_kind_of_compare = True
         case _:
             assert False
 
@@ -378,24 +378,10 @@ def check_binop(
     )
 
     if (
-        (
-            (not got_bools)
-            and (not got_numbers)
-            and (not got_enums)
-            and (not got_pointers)
-        ) or (
-            (got_bools or got_enums)
-            and op != AstExpressionKind.Eq
-            and op != AstExpressionKind.Ne
-        ) or (
-            got_pointers
-            and op != AstExpressionKind.Eq
-            and op != AstExpressionKind.Ne
-            and op != AstExpressionKind.Gt
-            and op != AstExpressionKind.Ge
-            and op != AstExpressionKind.Lt
-            and op != AstExpressionKind.Le
-        )
+        (not (got_bools or got_numbers or got_enums or got_pointers))
+        or (got_bools and not equals_compare)
+        or (got_enums and not equals_compare)
+        or (got_pointers and not some_kind_of_compare)
     ):
         msg: byte[500]
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, lhs->types.orig_type->name, rhs->types.orig_type->name)
@@ -405,10 +391,18 @@ def check_binop(
     if got_bools:
         cast_type = boolType
     if got_integers:
-        cast_type = get_integer_type(
-            max(lhs->types.orig_type->size_in_bits, rhs->types.orig_type->size_in_bits),
-            lhs->types.orig_type->kind == TypeKind.SignedInteger or rhs->types.orig_type->kind == TypeKind.SignedInteger
-        )
+        lhs_signed = lhs->types.orig_type->kind == TypeKind.SignedInteger
+        rhs_signed = rhs->types.orig_type->kind == TypeKind.SignedInteger
+        size = max(lhs->types.orig_type->size_in_bits, rhs->types.orig_type->size_in_bits)
+        if lhs_signed != rhs_signed and some_kind_of_compare:
+            # Signed vs unsigned comparing. Must use a bigger integer type.
+            # For example, we use int16 to compare "-1 as int8" and "255 as uint8".
+            # They consist of the same bits (11111111) but they represent different values.
+            #
+            # Currently the biggest integers available in Jou are 64-bit.
+            # This may cast them to 128-bit, which is supported in LLVM.
+            size *= 2
+        cast_type = get_integer_type(size, lhs_signed or rhs_signed)
     if got_numbers and not got_integers:
         if lhs->types.orig_type == doubleType or rhs->types.orig_type == doubleType:
             cast_type = doubleType
@@ -423,26 +417,10 @@ def check_binop(
     do_implicit_cast(fom, lhs, cast_type, Location{}, NULL)
     do_implicit_cast(fom, rhs, cast_type, Location{}, NULL)
 
-    match op:
-        case (
-            AstExpressionKind.Add
-            | AstExpressionKind.Sub
-            | AstExpressionKind.Mul
-            | AstExpressionKind.Div
-            | AstExpressionKind.Mod
-        ):
-            return cast_type
-        case (
-            AstExpressionKind.Eq
-            | AstExpressionKind.Ne
-            | AstExpressionKind.Gt
-            | AstExpressionKind.Ge
-            | AstExpressionKind.Lt
-            | AstExpressionKind.Le
-        ):
-            return boolType
-        case _:
-            assert False
+    if some_kind_of_compare:
+        return boolType
+    else:
+        return cast_type
 
 
 def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:

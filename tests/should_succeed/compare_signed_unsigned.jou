@@ -1,78 +1,105 @@
 import "stdlib/io.jou"
 
-
-def signed_signed() -> None:
-    puts("signed signed")  # Output: signed signed
-
-    a = -5 as int8
-    b = 10 as int8
-    c = 50 as int8
-
-    printf("%d %d %d\n", a < b, b < b, c < b)       # Output: 1 0 0
-    printf("%d %d %d\n", a > b, b > b, c > b)       # Output: 0 0 1
-
-    printf("%d %d %d\n", a <= b, b <= b, c <= b)    # Output: 1 1 0
-    printf("%d %d %d\n", a >= b, b >= b, c >= b)    # Output: 0 1 1
-
-    printf("%d %d %d\n", a == b, b == b, c == b)    # Output: 0 1 0
-    printf("%d %d %d\n", a != b, b != b, c != b)    # Output: 1 0 1
-
-
-def unsigned_unsigned() -> None:
-    puts("unsigned unsigned")  # Output: unsigned unsigned
-
-    a = 0 as byte
-    b = 100 as byte
-    c = 200 as byte
-
-    printf("%d %d %d\n", a < b, b < b, c < b)       # Output: 1 0 0
-    printf("%d %d %d\n", a > b, b > b, c > b)       # Output: 0 0 1
-
-    printf("%d %d %d\n", a <= b, b <= b, c <= b)    # Output: 1 1 0
-    printf("%d %d %d\n", a >= b, b >= b, c >= b)    # Output: 0 1 1
-
-    printf("%d %d %d\n", a == b, b == b, c == b)    # Output: 0 1 0
-    printf("%d %d %d\n", a != b, b != b, c != b)    # Output: 1 0 1
-
-
-def signed_unsigned() -> None:
-    puts("signed unsigned")  # Output: signed unsigned
-
-    a = -5 as int8  # same bits as x, but different value due to signed-ness
-    b = 100 as int8
-    c = 120 as int8
-
-    bb = b as byte
-
-    printf("%d %d %d\n", a < bb, b < bb, c < bb)       # Output: 1 0 0
-    printf("%d %d %d\n", a > bb, b > bb, c > bb)       # Output: 0 0 1
-
-    printf("%d %d %d\n", a <= bb, b <= bb, c <= bb)    # Output: 1 1 0
-    printf("%d %d %d\n", a >= bb, b >= bb, c >= bb)    # Output: 0 1 1
-
-    printf("%d %d %d\n", a == bb, b == bb, c == bb)    # Output: 0 1 0
-    printf("%d %d %d\n", a != bb, b != bb, c != bb)    # Output: 1 0 1
-
-    # Numbers aren't necessarily equal if they have the same bits.
-    x = -100 as int8
-    y = 156 as byte
-
-    # Output: same bits 1 1
-    printf("same bits %d %d\n", x as byte == y, y as int8 == x)
-
-    # FIXME: these tests fail
-#    # Outputttt: same value 0
-#    printf("same value %d\n", x == y)
+# Comparing signed and unsigned values is more difficult than you might expect.
+# For example, "-1 as int8" and "255 as uint8" have the same bits (11111111 = 0xFF),
+# but they represent different values because int8 interprets the first bit as a sign bit.
 #
-#    # Outputttt: less
-#    if x < y:
-#        printf("less\n")
-#    if x > y:
-#        printf("greater\n")
+# See also: https://github.com/Akuli/jou/issues/865
+
+
+# Only one of the if statements below should print something at a time.
+# It is a bug if you get output "lessequal" or similar.
+def compare_8bit(i: int8, u: uint8) -> None:
+    if (i<u) != (u>i) or (i>u) != (u<i) or (i==u) != (u==i):
+        printf("problem")
+    if i < u:
+        printf("less")
+    if i == u:
+        printf("equal")
+    if i > u:
+        printf("greater")
+    printf("\n")
+def compare_16bit(i: int16, u: uint16) -> None:
+    if (i<u) != (u>i) or (i>u) != (u<i) or (i==u) != (u==i):
+        printf("problem")
+    if i < u:
+        printf("less")
+    if i == u:
+        printf("equal")
+    if i > u:
+        printf("greater")
+    printf("\n")
+def compare_32bit(i: int32, u: uint32) -> None:
+    if (i<u) != (u>i) or (i>u) != (u<i) or (i==u) != (u==i):
+        printf("problem")
+    if i < u:
+        printf("less")
+    if i == u:
+        printf("equal")
+    if i > u:
+        printf("greater")
+    printf("\n")
+def compare_64bit(i: int64, u: uint64) -> None:
+    if (i<u) != (u>i) or (i>u) != (u<i) or (i==u) != (u==i):
+        printf("problem")
+    if i < u:
+        printf("less")
+    if i == u:
+        printf("equal")
+    if i > u:
+        printf("greater")
+    printf("\n")
 
 
 def main() -> int:
-    signed_signed()
-    unsigned_unsigned()
-    signed_unsigned()
+    compare_8bit(-1 as int8, 255 as uint8)  # Output: less
+    compare_8bit(127 as int8, 128 as uint8)  # Output: less
+    compare_8bit(127 as int8, 127 as uint8)  # Output: equal
+    compare_8bit(127 as int8, 126 as uint8)  # Output: greater
+    compare_8bit(0 as int8, 0 as uint8)  # Output: equal
+    compare_8bit(2 as int8, 2 as uint8)  # Output: equal
+
+    # For 8-bit values, it's fast enough to loop through all values and check the behavior.
+    # No output is expected from this.
+    for i = -128; i < 128; i++:
+        for u = 0; u < 256; u++:
+            if ((i as int8) < (u as uint8)) != (i < u):
+                printf("problem: %d < %d\n", i, u)
+            if ((i as int8) == (u as uint8)) != (i == u):
+                printf("problem: %d == %d\n", i, u)
+            if ((i as int8) > (u as uint8)) != (i > u):
+                printf("problem: %d > %d\n", i, u)
+
+    # 16-bit version of the above. How to change the constants:
+    #   127 == 0x7f, use 0x7fff here
+    #   128 == 0x80, use 0x8000 here
+    #   255 == 0xff, use 0xffff here
+    #   254 == 0xfe, use 0xfffe here
+    compare_16bit(-1 as int16, 0xffff as uint16)  # Output: less
+    compare_16bit(0x7fff as int16, 0x8000 as uint16)  # Output: less
+    compare_16bit(0x7fff as int16, 0x7fff as uint16)  # Output: equal
+    compare_16bit(0x7fff as int16, 0x7ffE as uint16)  # Output: greater
+    compare_16bit(0 as int16, 0 as uint16)  # Output: equal
+    compare_16bit(2 as int16, 2 as uint16)  # Output: equal
+
+    # 32-bit version
+    compare_32bit(-1, 0xffff_ffffL as uint32)  # Output: less
+    compare_32bit(0x7fff_ffff, 0x8000_0000L as uint32)  # Output: less
+    compare_32bit(0x7fff_ffff, 0x7fff_ffffL as uint32)  # Output: equal
+    compare_32bit(0x7fff_ffff, 0x7fff_fffeL as uint32)  # Output: greater
+    compare_32bit(0, 0 as uint32)  # Output: equal
+    compare_32bit(2, 2 as uint32)  # Output: equal
+
+    # TODO: this is really not great, see https://github.com/Akuli/jou/issues/863
+    uffff_ffff_ffff_ffff = -1 as uint64
+    u8000_0000_0000_0000 = (0x7fff_ffff_ffff_ffffL as uint64) + (1 as uint64)
+
+    # 64-bit version
+    compare_64bit(-1 as int64, uffff_ffff_ffff_ffff)  # Output: less
+    compare_64bit(0x7fff_ffff_ffff_ffffL, u8000_0000_0000_0000)  # Output: less
+    compare_64bit(0x7fff_ffff_ffff_ffffL, 0x7fff_ffff_ffff_ffffL as uint64)  # Output: equal
+    compare_64bit(0x7fff_ffff_ffff_ffffL, 0x7fff_ffff_ffff_fffeL as uint64)  # Output: greater
+    compare_64bit(0, 0 as uint64)  # Output: equal
+    compare_64bit(2, 2 as uint64)  # Output: equal
+
     return 0
