@@ -34,7 +34,9 @@ if WINDOWS:
         # here because jou adds a lot of padding.
         dummy: byte[320]
 
-    const INVALID_HANDLE_VALUE: int64 = -1L
+    # TODO: this should be a `const`, but that creates compiler error
+    def INVALID_HANDLE_VALUE() -> int64:
+        return -1
 
     declare FindFirstFileA(FileName: byte*, FindFileData: WIN32_FIND_DATAA*) -> int64
     declare FindNextFileA(hFindFile: int64, FindFileData: WIN32_FIND_DATAA*) -> int
@@ -80,7 +82,7 @@ def listdir(path: byte*) -> List[byte[100]]:
         handle = FindFirstFileA(path, &find_data)
 
         # Seems like there's no easy way to distinguish empty directory and error.
-        if handle != INVALID_HANDLE_VALUE:
+        if handle != INVALID_HANDLE_VALUE():
             found_something = True
             while found_something:
                 cFileName = &(&find_data as byte*)[44]  # cFileName field is at offset 44
