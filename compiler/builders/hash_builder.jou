@@ -317,7 +317,7 @@ class HBuilder:
 
 # Returned hash is different when LLVM IR should be recompiled.
 @public
-def build_hash(ast: AstFile*) -> Hash:
+def build_content_hash(ast: AstFile*) -> Hash:
     builder = HBuilder{hash = new_hash()}
     builder.hash.add_string(ast->path)  # file path is given to LLVM, presumably will be included in .o file
     builder.hash.add_string(target.triple)

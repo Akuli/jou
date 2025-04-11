@@ -102,7 +102,7 @@ def listdir(path: byte*) -> List[byte[100]]:
             if entry == NULL:
                 break
 
-            d_name = &(entry as byte*)[dirent_name_offset]
+            d_name = &(entry as byte*)[DIRENT_NAME_OFFSET]
             short_name: byte[100] = ""
             if strlen(d_name) < sizeof(short_name):
                 strcpy(short_name, d_name)
@@ -199,7 +199,7 @@ def find_stdlib() -> byte*:
     exit(1)
 
 
-def mkdir_exist_ok(path: byte*) -> None:
+def simple_mkdir(path: byte*) -> None:
     # TODO: check if errno == EEXIST
     # Currently no good way to access EEXIST constant
     if WINDOWS:
@@ -220,7 +220,27 @@ def write_gitignore(p: byte*) -> None:
     free(filename)
 
 
-def get_path_to_jou_compiled() -> byte*:
+# "/home/akuli/folder/file.jou" --> "file.jou"
+def skip_slashes(name: byte*) -> byte*:
+    p = strrchr(name, '/')
+    if p != NULL:
+        p++
+        name = p
+
+    p = strrchr(name, '\\')
+    if p != NULL:
+        p++
+        name = p
+
+    return name
+
+
+# When compiling file foo.jou, we use jou_compiled/foo/ subdirectory.
+#
+# This is currently needed to avoid race conditions when running multiple files
+# at the same time. Feel free to clean this up if you implement locking.
+# See also: https://github.com/Akuli/jou/issues/743
+def get_path_to_jou_compiled_subfolder() -> byte*:
     # Place jou_compiled into the same directory with the main file we are compiling.
     # No strong reason for doing this. Feel free to change this if it causes problems.
     infile = strdup(command_line_args.infile)
@@ -228,7 +248,20 @@ def get_path_to_jou_compiled() -> byte*:
     asprintf(&jou_compiled, "%s/jou_compiled", dirname(infile))
     free(infile)
 
-    return jou_compiled
+    simple_mkdir(jou_compiled)
+    write_gitignore(jou_compiled)
+
+    name = skip_slashes(command_line_args.infile)
+    name_len = strlen(name)
+    if name_len > 4 and ends_with(name, ".jou"):
+        name_len -= 4
+
+    subfolder: byte*
+    asprintf(&subfolder, "%s/%.*s", jou_compiled, name_len as int, name)
+    simple_mkdir(subfolder)
+
+    free(jou_compiled)
+    return subfolder
 
 
 # Deletes files in a directory whose name ends with the given suffix.
@@ -241,12 +274,12 @@ def delete_by_suffix(dir: byte*, suffix: byte*) -> None:
             asprintf(&full_path, "%s/%s", dir, *p)
 
             if WINDOWS:
-                ret = _unlink(path)
+                ret = _unlink(full_path)
             else:
-                ret = unlink(path)
+                ret = unlink(full_path)
 
             if ret == 0 and command_line_args.verbosity >= 1:
-                printf("Deleted: %s\n", path)
+                printf("Deleted %s\n", full_path)
 
             free(full_path)
 
@@ -254,9 +287,7 @@ def delete_by_suffix(dir: byte*, suffix: byte*) -> None:
 
 
 def get_simple_name(jou_file_path: byte*) -> byte[50]:
-    # "/home/akuli/folder/file.jou" --> "file.jou"
-    while strstr(jou_file_path, "/") != NULL or strstr(jou_file_path, "\\") != NULL:
-        jou_file_path++
+    jou_file_path = skip_slashes(jou_file_path)
 
     result: byte[50]
     memset(result, 0, sizeof(result))
@@ -274,24 +305,22 @@ def get_simple_name(jou_file_path: byte*) -> byte[50]:
             break
 
         c = *jou_file_path++
-        if c == '_':
-            c = '.'
+        if c == '.':
+            c = '_'
         result[result_len++] = c
 
     return result
 
 
-def calculate_file_path_hash(jou_file_path: byte*) -> uint64:
+def calculate_file_path_hash(jou_file_path: byte*) -> Hash:
     h = new_hash()
     h.add_bytes(jou_file_path, strlen(jou_file_path))
     return h
 
 
 @public
-def get_path_to_file_in_jou_compiled(jou_file_path: byte*, content_hash: Hash) -> byte*:
-    jou_compiled = get_path_to_jou_compiled()
-    mkdir_exist_ok(jou_compiled)
-    write_gitignore(jou_compiled)
+def get_path_to_object_file_in_jou_compiled(jou_file_path: byte*, content_hash: Hash, exists: bool*) -> byte*:
+    subfolder = get_path_to_jou_compiled_subfolder()
 
     # File names are like "simple_name_0011223344556677_8899aabbccddeeff.o" where:
     #   - "simple_name" is related to source file path, mostly for debugging purposes
@@ -305,15 +334,17 @@ def get_path_to_file_in_jou_compiled(jou_file_path: byte*, content_hash: Hash) -
     sprintf(filename, "%s_%016llx_%016llx.o", simple_name, content_hash.hash, file_path_hash.hash)
 
     full_path: byte*
-    asprintf(&full_path, "%s/%s", jou_compiled, filename)
+    asprintf(&full_path, "%s/%s", subfolder, filename)
 
-    if not file_exists(full_path):
+    *exists = file_exists(full_path)
+
+    if not *exists:
         # We will create the file. Delete any previously compiled version of the same source file.
         suffix_len = 19  # "_" between hashes, 16 characters for hash, ".o" at end
         suffix = &filename[strlen(filename) - suffix_len]
-        delete_by_suffix(jou_compiled, suffix)
+        delete_by_suffix(subfolder, suffix)
 
-    free(jou_compiled)
+    free(subfolder)
     return full_path
 
 
@@ -345,14 +376,23 @@ def decide_exe_path() -> byte*:
     if command_line_args.outfile != NULL:
         return strdup(command_line_args.outfile)
 
-    name = get_filename_without_jou_suffix(command_line_args.infile)
-    if WINDOWS:
-        name = realloc(name, strlen(name) + 10)
-        strcat(name, ".exe")
+    name = skip_slashes(command_line_args.infile)
+    name_len = strlen(name)
+    if name_len > 4 and ends_with(name, ".jou"):
+        name_len -= 4
 
-    path = get_path_to_file_in_jou_compiled(name)
-    free(name)
-    return path
+    if WINDOWS:
+        suffix = ".exe"
+    else:
+        suffix = ""
+
+    subfolder = get_path_to_jou_compiled_subfolder()
+
+    result: byte*
+    asprintf(&result, "%s/%.*s%s", subfolder, name_len as int, name, suffix)
+
+    free(subfolder)
+    return result
 
 
 def delete_slice(start: byte*, end: byte*) -> None:
