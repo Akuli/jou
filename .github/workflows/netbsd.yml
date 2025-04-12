@@ -22,4 +22,9 @@ jobs:
           environment_variables: PKG_PATH
           run: |
             sudo pkgin -y install clang gmake diffutils git && \
-            clang test.c && ./a.out
+            gmake && \
+            ./runtests.sh --verbose && \
+            mv jou jou_bootstrap && gmake && \
+            ./runtests.sh --verbose && \
+            gmake clean && \
+            ./doctest.sh
