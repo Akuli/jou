@@ -58,12 +58,27 @@ else:
     #        printf("%d\n", (int) offsetof(struct dirent, d_name));
     #        return 0;
     #    }
-    #
-    # TODO: check on NetBSD
-    const DIRENT_NAME_OFFSET: int = 19
+    if NETBSD:
+        # TODO
+        pass#const DIRENT_NAME_OFFSET: int = 0
+    else:
+        # Assume linux
+        const DIRENT_NAME_OFFSET: int = 19
 
-    declare opendir(name: byte*) -> DIR*
-    declare readdir(dirp: DIR*) -> dirent*
+    if NETBSD:
+        # On NetBSD, "opendir" and "readdir" are legacy functions.
+        # We can't use them because they generate a warning at compile time.
+        # The dirent.h header magically renames them at compile time to the following names.
+        declare __opendir30(name: byte*) -> DIR*
+        declare __readdir30(dirp: DIR*) -> dirent*
+        def opendir(name: byte*) -> DIR*:
+            return __opendir30(name)
+        def readdir(dirp: DIR*) -> dirent*:
+            return __readdir30(dirp)
+    else:
+        declare opendir(name: byte*) -> DIR*
+        declare readdir(dirp: DIR*) -> dirent*
+
     declare closedir(dirp: DIR*) -> int
 
 
@@ -95,6 +110,7 @@ def listdir(path: byte*) -> List[byte[100]]:
 
     else:
         dir = opendir(path)
+
         if dir == NULL:
             fprintf(stderr, "error: cannot list directory '%s'\n", path)
             exit(1)
