@@ -153,7 +153,8 @@ jobs:
         run: source activate && ./runtests.sh --verbose
         shell: bash
       - name: "Make sure that object files are not recompiled every time"
-        run: source activate && ./jou -v ${{ matrix.params.opt-level }} examples/hello.jou | grep 'Reusing previously compiled file: .*/hello_[0-9a-f_]*\.o'
+        run: |
+          source activate && ./jou -v ${{ matrix.params.opt-level }} examples/hello.jou | grep 'Reusing previously compiled file: .*/hello_[0-9a-f_]*\.o'
         shell: bash
       - name: "Compile the compiler with itself"
         run: source activate && ./jou -o jou2 compiler/main.jou && mv jou2.exe jou.exe

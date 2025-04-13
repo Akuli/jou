@@ -42,7 +42,8 @@ jobs:
       - name: "Compile and test"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
       - name: "Make sure that object files are not recompiled every time"
-        run: ./jou -v ${{ matrix.params.opt-level }} examples/hello.jou | grep 'Reusing previously compiled file: .*/hello_[0-9a-f_]*\.o'
+        run: |
+          ./jou -v ${{ matrix.params.opt-level }} examples/hello.jou | grep 'Reusing previously compiled file: .*/hello_[0-9a-f_]*\.o'
       - name: "Compile the compiler with itself"
         run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
       - name: "Compile and test again"
