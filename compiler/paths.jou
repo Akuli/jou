@@ -329,14 +329,13 @@ def get_simple_name(jou_file_path: byte*) -> byte[50]:
     return result
 
 
-# Creates a hash that is used to identify a file. If the returned hash changes,
-# we leave the old output file behind and make a new one.
+# See doc/lazy-recompile.md for an explaanation of the hashes.
 #
 # For example, if foo.jou is compiled with -O1 and -O2, this function returns
 # different hashes, computed from the pairs ("foo.jou", 1) and ("foo.jou", 2).
 # This means we store two compiled versions of foo.jou for the two optimization
 # levels, and we always have it ready regardless of which level is used.
-def calculate_file_path_hash(jou_file_path: byte*) -> Hash:
+def calculate_identifier_hash(jou_file_path: byte*) -> Hash:
     h = new_hash()
     h.add_byte(command_line_args.optlevel as byte)
     h.add_bytes(jou_file_path, strlen(jou_file_path))
@@ -347,12 +346,11 @@ def calculate_file_path_hash(jou_file_path: byte*) -> Hash:
 def get_path_to_object_file_in_jou_compiled(jou_file_path: byte*, content_hash: Hash, exists: bool*) -> byte*:
     subfolder = get_path_to_jou_compiled_subfolder()
 
-    # File names are like "simple_name_0011223344556677_8899aabbccddeeff.o" where:
-    #   - "simple_name" is related to source file path, mostly for debugging purposes
-    #   - "0011223344556677" is the content hash, if it changes we must recompile the file
-    #   - "8899aabbccddeeff" is a hash calculated from Jou file path used to identify this file
     simple_name = get_simple_name(jou_file_path)
-    file_path_hash = calculate_file_path_hash(jou_file_path)
+    file_path_hash = calculate_identifier_hash(jou_file_path)
+
+    # See doc/lazy-recompile.md for an explaanation of the file naming.
+    # Example file name: simple_name_0011223344556677_8899aabbccddeeff.o
 
     assert sizeof(simple_name) == 50
     filename: byte[200]

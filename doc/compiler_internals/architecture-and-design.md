@@ -22,6 +22,9 @@ def bar() -> None:
     printf("Bar\n")
 ```
 
+Let's also assume that the `jou_compiled` is empty or doesn't exist yet.
+Feel free to delete it if you want to try this. (The compiler will create it again.)
+
 The following picture shows what happens when you run `jou foo.jou`:
 
 ![design](images/design.png)
@@ -56,6 +59,8 @@ Here's what each step does:
 - **UVGs** are used only to show error messages and warnings.
     They are used to detect undefined variables and a few other common mistakes.
     See [uvg.md](uvg.md) for details.
+- **Hashes** are included in file names to detect when whether files need to be recompiled.
+    See [lazy-recompile.md](./lazy-recompile.md) for details.
 - Jou uses [the LLVM library](https://en.wikipedia.org/wiki/LLVM) to compile the code.
     (This is the only external library used in the Jou compiler.)
     **LLVM IR** is LLVM's representation of the code.
