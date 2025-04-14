@@ -35,10 +35,12 @@ While this approach works, it has several downsides:
     If such a method changes a parameter from `int` to `long`, it must be passed differently,
     so all calls to the method must be recompiled as well.
 - Timestamps work differently depending on both the OS and the underlying filesystem.
-    For example, the precision of mtime can be anything from nanoseconds to whole seconds,
-    or it may always appear as zero for some reason.
-- Weird things will happen if the user notices that the computer's clock is showing the wrong time,
-    fixes it, and then continues programming.
+    For example, mtime may always appear as zero for some reason.
+- Weird things will happen if mtime is in the future.
+    This may happen if the user notices that the computer's clock is showing the wrong time,
+    moves it back, and then continues programming.
+    This can also happen if you extract a `.zip` file or similar
+    created on another computer whose clock is set to a different time.
 
 
 ## Hashes in File Names
@@ -70,14 +72,14 @@ Here's how the files are named:
      name      hash             hash
 
 The file name starts with **a simple name**
-whose purpose is to make the file name more human-readable:
-The compiler does not rely on it to identify the file.
+whose purpose is to make the file name more human-readable.
+The compiler does not rely on it in any way.
 Note that the simple name may contain underscores.
 
 The **content hash** depends on all data that is given to LLVM when compiling.
 It changes when LLVM would produce a different result.
 For example, it will stay the same if you fix a typo in a comment,
-but it will change if you modify `examples/hello.jou` to print something else.
+but it will change if you modify `examples/hello.jou` to print something else than "Hello World".
 This is implemented by feeding the AST to
 [a builder](../../compiler/builders/hash_builder.jou) that is just like
 [the LLVM builder](../../compiler/builders/llvm_builder.jou)
