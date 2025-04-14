@@ -35,7 +35,7 @@ While this approach works, it has several downsides:
     If such a method changes a parameter from `int` to `long`, it must be passed differently,
     so all calls to the method must be recompiled as well.
 - Timestamps work differently depending on both the OS and the underlying filesystem.
-    For example, mtime might have a precision of one second,
+    For example, the precision of mtime can be anything from nanoseconds to whole seconds,
     or it may always appear as zero for some reason.
 - Weird things will happen if the user notices that the computer's clock is showing the wrong time,
     fixes it, and then continues programming.
