@@ -66,7 +66,7 @@ else:
 
     if NETBSD:
         # On NetBSD, "opendir" and "readdir" are legacy functions.
-        # We can't use them because they generate a warning at compile time.
+        # We can't use them because they generate a linker warning.
         # The dirent.h header magically renames them at compile time to the following names.
         declare __opendir30(name: byte*) -> DIR*
         declare __readdir30(dirp: DIR*) -> dirent*

@@ -72,16 +72,9 @@ class Hash:
 def new_hash() -> Hash:
     h = 0 as uint64
     # Hash of empty data
-    # Set value to cb f2 9c e4 84 22 23 25 (assumes little endian)
+    # Set value to 0xcbf29ce484222325 (assumes little endian)
     # TODO: not possible to put this in a const
-    (&h as byte*)[0] = 0x25 as byte
-    (&h as byte*)[1] = 0x23 as byte
-    (&h as byte*)[2] = 0x22 as byte
-    (&h as byte*)[3] = 0x84 as byte
-    (&h as byte*)[4] = 0xe4 as byte
-    (&h as byte*)[5] = 0x9c as byte
-    (&h as byte*)[6] = 0xf2 as byte
-    (&h as byte*)[7] = 0xcb as byte
+    memcpy(&h, "\x25\x23\x22\x84\xe4\x9c\xf2\xcb", sizeof(h))
     return Hash{hash = h, created_correctly = True}
 
 
