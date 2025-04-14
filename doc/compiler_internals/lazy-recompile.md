@@ -14,7 +14,7 @@ This is because the second compilation reuses `.o` files created when compiling 
 
 There are a few ways to recompile only the parts of the project that changed.
 The most traditional way is to look at file system timestamps,
-typically the "modified time" of the files, also known as mtime.
+typically the "modified time" of the files, also known as **mtime**.
 
 When a file is modified, the file system remembers *when* it was modified.
 For example if `foo.jou` is newer than `foo.o`,
@@ -25,7 +25,7 @@ the `foo.o` file still contains the wrong print in a compiled form.
 Most build tools (such as `make` and `ninja`) do this.
 
 While this approach works, it has several downsides:
-- An unimportant change to a file changes the modified time and will cause it to be recompiled.
+- An unimportant change to a file changes the mtime and will cause it to be recompiled.
     For example, the file is rebuilt if you fix a typo in a comment.
 - Multiple source files (in our case, Jou files) may affect the compilation of a `.o` file.
     In other words, each `.o` file can depend on multiple different Jou files.
@@ -35,8 +35,8 @@ While this approach works, it has several downsides:
     If such a method changes a parameter from `int` to `long`, it must be passed differently,
     so all calls to the method must be recompiled as well.
 - Timestamps work differently depending on both the OS and the underlying filesystem.
-    For example, modified time might be saved with one second precision,
-    or sometimes not saved at all.
+    For example, mtime might have a precision of one second,
+    or it may always appear as zero for some reason.
 
 
 ## Hashes in File Names

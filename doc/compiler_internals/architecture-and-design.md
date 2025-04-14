@@ -22,8 +22,8 @@ def bar() -> None:
     printf("Bar\n")
 ```
 
-Let's also assume that the `jou_compiled` is empty or doesn't exist yet.
-Feel free to delete it if you want to try this. (The compiler will create it again.)
+Let's also assume that the `jou_compiled` folder is empty or doesn't exist yet.
+Feel free to delete it if you want to try this. (The compiler will create it again as needed.)
 
 The following picture shows what happens when you run `jou foo.jou`:
 
@@ -100,11 +100,8 @@ I deleted the "Jou IR" because it was a lot of code, and it felt like LLVM IR bu
 
 Instead of "Jou IR", there are [builders](../../compiler/builders/) to abstract away details of the AST.
 For example, suppose that you want to replace LLVM with something else.
-To do this, you don't need to know anything about the AST, you just add a new builder.
-The code that feeds the AST into a builder would remain the same.
-Currently there are two builders:
-[LLVM builder](../../compiler/builders/llvm_builder.jou) and
-[UVG builder](../../compiler/builders/uvg_builder.jou).
+To do this, you don't need to know anything about the AST,
+you just add a new builder that replaces [the LLVM builder](../../compiler/builders/llvm_builder.jou).
 
 **The AST is mutated during type checking.**
 The types of expressions, function arguments and other such things are attached directly to the AST.
