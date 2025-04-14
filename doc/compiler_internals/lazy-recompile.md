@@ -12,17 +12,16 @@ This is because the second compilation reuses `.o` files created when compiling 
 
 ## Why not File Modified Time (mtime)
 
-There are a few ways to recompile only the parts of the project that changed.
-The most traditional way is to look at file system timestamps,
-typically the "modified time" of the files, also known as **mtime**.
+This is the most traditional way to decide when to recompile a file.
+Most build tools (such as `make` and `ninja`) do this.
 
+The idea is to look at the "modified time" of the files, also known as **mtime**.
 When a file is modified, the file system remembers *when* it was modified.
-For example if `foo.jou` is newer than `foo.o`,
+For example, if `foo.jou` is newer than `foo.o`,
 it means we cannot reuse the previously compiled `foo.o`.
-For example, if `foo.jou` used to contain `printf("Hello Wrodl")`
+If `foo.jou` used to contain `printf("Hello Wrodl")`
 and it was changed to `printf("Hello World\n")`,
 the `foo.o` file still contains the wrong print in a compiled form.
-Most build tools (such as `make` and `ninja`) do this.
 
 While this approach works, it has several downsides:
 - An unimportant change to a file changes the mtime and will cause it to be recompiled.
