@@ -27,7 +27,7 @@ def print_reusing_compiled_file_lines(path: byte*) -> None:
 
     line: byte[500]
     while fgets(line, sizeof(line) as int, f) != NULL:
-        if strstr(line, "_jou_startup"):
+        if strstr(line, "_jou_startup") != NULL:
             continue  # platform-specific
 
         if starts_with(line, "Reusing"):
