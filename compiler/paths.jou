@@ -329,8 +329,16 @@ def get_simple_name(jou_file_path: byte*) -> byte[50]:
     return result
 
 
+# Creates a hash that is used to identify a file. If the returned hash changes,
+# we leave the old output file behind and make a new one.
+#
+# For example, if foo.jou is compiled with -O1 and -O2, this function returns
+# different hashes, computed from the pairs ("foo.jou", 1) and ("foo.jou", 2).
+# This means we store two compiled versions of foo.jou for the two optimization
+# levels, and we always have it ready regardless of which level is used.
 def calculate_file_path_hash(jou_file_path: byte*) -> Hash:
     h = new_hash()
+    h.add_byte(command_line_args.optlevel as byte)
     h.add_bytes(jou_file_path, strlen(jou_file_path))
     return h
 
