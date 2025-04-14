@@ -47,10 +47,12 @@ if WINDOWS:
             asprintf(&mingw_dir, "%s\\mingw64", dirname(jou_exe))
             free(jou_exe)
 
-        result: byte*
-
         # Windows quoting is weird. The outermost quotes get stripped here.
-        asprintf(&result, "\"\"%s\\bin\\%s\" %s\"", exe_filename, args)
+        result: byte*
+        asprintf(&result, "\"\"%s\\bin\\%s\" %s\"", mingw_dir, exe_filename, args)
+
+        free(mingw_dir)
+        return result
 
 
 @public
