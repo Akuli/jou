@@ -24,8 +24,7 @@ jobs:
             sudo pkgin -y install clang gmake diffutils git && \
             gmake && \
             ./runtests.sh --verbose && \
-            (./jou -v examples/hello.jou | grep 'Reusing previously compiled file: .*/hello_[0-9a-f_]*\.o') && \
-            ./jou -o jou2 compiler/main.jou && \
-            mv jou2 jou && \
+            mv jou jou_bootstrap && gmake && \
             ./runtests.sh --verbose && \
+            gmake clean && \
             ./doctest.sh

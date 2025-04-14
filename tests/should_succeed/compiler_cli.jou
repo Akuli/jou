@@ -30,6 +30,13 @@ def main() -> int:
     run_jou("--linker-flags x --linker-flags y")  # Output: <jouexe>: --linker-flags cannot be given multiple times (try "<jouexe> --help")
     run_jou("--tokenize-only -O1 examples/hello.jou")  # Output: <jouexe>: --tokenize-only cannot be used together with other flags (try "<jouexe> --help")
 
+    # Test caching of compiled files. We just ran hello.jou so nothing should be recompiled.
+    #
+    # Output: Reusing previously compiled file: examples/jou_compiled/hello/_assert_fail_36494a390f444fbd_c836422383205631.o
+    # Output: Reusing previously compiled file: examples/jou_compiled/hello/hello_e9d75a087f84b9fb_206571b75665c619.o
+    # Output: Reusing previously compiled file: examples/jou_compiled/hello/io_2692405f3337e81e_9bd7fe21c89ad529.o
+    run_jou("-v examples/hello.jou | grep Reusing")
+
     # Output: Usage:
     # Output:   <jouexe> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags "..."] FILENAME
     # Output:   <jouexe> --help       # This message
