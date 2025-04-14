@@ -13,10 +13,11 @@ This is because the second compilation reuses `.o` files created when compiling 
 ## Why not File Modified Time (mtime)
 
 This is the most traditional way to decide when to recompile a file.
-Most build tools (such as `make` and `ninja`) do this.
+Most build tools (such as `make` and `ninja`) use this approach.
 
 The idea is to look at the "modified time" of the files, also known as **mtime**.
-When a file is modified, the file system remembers *when* it was modified.
+When a file is modified, the file system remembers *when* it was modified,
+and the file's mtime is set to the current time.
 For example, if `foo.jou` is newer than `foo.o`,
 it means we cannot reuse the previously compiled `foo.o`.
 If `foo.jou` used to contain `printf("Hello Wrodl")`
@@ -36,6 +37,8 @@ While this approach works, it has several downsides:
 - Timestamps work differently depending on both the OS and the underlying filesystem.
     For example, mtime might have a precision of one second,
     or it may always appear as zero for some reason.
+- Weird things will happen if the user notices that the computer's clock is showing the wrong time,
+    fixes it, and then continues programming.
 
 
 ## Hashes in File Names
