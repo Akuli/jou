@@ -220,11 +220,6 @@ class FileState:
 
         return mod
 
-    def compile_to_object_file(self, o_path: byte*) -> None:
-        mod = self->build_llvm_ir()
-        write_llvm_ir_to_file(mod, o_path)
-        LLVMDisposeModule(mod)
-
     def find_existing_object_file_or_compile_to_object_file(self) -> byte*:
         content_hash = build_content_hash(&self->ast)
         exists: bool
@@ -234,7 +229,9 @@ class FileState:
             if command_line_args.verbosity >= 1:
                 printf("Reusing previously compiled file: %s\n", o_path)
         else:
-            self->compile_to_object_file(o_path)
+            mod = self->build_llvm_ir()
+            write_llvm_ir_to_file(mod, o_path)
+            LLVMDisposeModule(mod)
 
         return o_path
 
