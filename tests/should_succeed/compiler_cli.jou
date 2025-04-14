@@ -15,6 +15,36 @@ def run_jou(command: byte*) -> None:
     system(full_command)
     free(full_command)
 
+
+# Find and print things like the following...
+#
+#   Reusing previously compiled file: examples/jou_compiled/hello/_assert_fail_36494a390f444fbd_c836422383205631.o
+#
+# ...but replace things like 36494a390f444fbd with "<hash>" as they are platform-specific.
+def print_reusing_compiled_file_lines(path: byte*) -> None:
+    f = fopen(path, "r")
+    assert f != NULL
+
+    line: byte[500]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        if starts_with(line, "Reusing"):
+            p = &line[0]
+            while *p != '\0':
+                is_hash = True
+                for i = 0; i < 16; i++:
+                    if not (('0' <= p[i] and p[i] <= '9') or ('a' <= p[i] and p[i] <= 'f')):
+                        is_hash = False
+                        break
+                if is_hash:
+                    printf("<hash>")
+                    p = &p[16]
+                else:
+                    putchar(*p++)
+
+    fclose(f)
+    fflush(stdout)  # ensure output appears in the right place, not buffered until end
+
+
 def main() -> int:
     run_jou("")  # Output: <jouexe>: missing Jou file name (try "<jouexe> --help")
     run_jou("--update -O3")  # Output: <jouexe>: "--update" cannot be used with other arguments (try "<jouexe> --help")
@@ -32,10 +62,11 @@ def main() -> int:
 
     # Test caching of compiled files. We just ran hello.jou so nothing should be recompiled.
     #
-    # Output: Reusing previously compiled file: examples/jou_compiled/hello/_assert_fail_36494a390f444fbd_c836422383205631.o
-    # Output: Reusing previously compiled file: examples/jou_compiled/hello/hello_e9d75a087f84b9fb_206571b75665c619.o
-    # Output: Reusing previously compiled file: examples/jou_compiled/hello/io_2692405f3337e81e_9bd7fe21c89ad529.o
-    run_jou("-v examples/hello.jou | grep Reusing")
+    # Output: Reusing previously compiled file: examples/jou_compiled/hello/_assert_fail_<hash>_<hash>.o
+    # Output: Reusing previously compiled file: examples/jou_compiled/hello/hello_<hash>_<hash>.o
+    # Output: Reusing previously compiled file: examples/jou_compiled/hello/io_<hash>_<hash>.o
+    run_jou("-v examples/hello.jou > tmp/hello_out_v.txt")
+    print_reusing_compiled_file_lines("tmp/hello_out_v.txt")
 
     # Output: Usage:
     # Output:   <jouexe> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags "..."] FILENAME
