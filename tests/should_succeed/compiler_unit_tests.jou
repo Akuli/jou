@@ -2,7 +2,9 @@
 # of the code is really hard to get right.
 
 import "stdlib/io.jou"
+import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "../../compiler/hash.jou"
 import "../../compiler/paths.jou"
 
 
@@ -44,6 +46,22 @@ def test_link_statement_path_rewriting() -> None:
     free(s)
 
 
+def test_fnv1a_hash() -> None:
+    tests = [
+        "",             # Output: CBF29CE484222325
+        "a",            # Output: AF63DC4C8601EC8C
+        "foobar",       # Output: 85944171F73967E8
+        "FNV",          # Output: F32BBE199CF22F39
+        "HashFunction", # Output: FC11AA668104F0B5
+    ]
+
+    for i = 0; i < sizeof(tests)/sizeof(tests[0]); i++:
+        h = new_hash()
+        h.add_bytes(tests[i], strlen(tests[i]))
+        printf("%llX\n", h.hash)
+
+
 def main() -> int:
     test_link_statement_path_rewriting()
+    test_fnv1a_hash()
     return 0

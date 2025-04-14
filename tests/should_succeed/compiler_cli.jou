@@ -15,6 +15,39 @@ def run_jou(command: byte*) -> None:
     system(full_command)
     free(full_command)
 
+
+# Find and print things like the following...
+#
+#   Reusing previously compiled file: examples/jou_compiled/hello/_assert_fail_36494a390f444fbd_c836422383205631.o
+#
+# ...but replace things like 36494a390f444fbd with "<hash>" as they are platform-specific.
+def print_reusing_compiled_file_lines(path: byte*) -> None:
+    f = fopen(path, "r")
+    assert f != NULL
+
+    line: byte[500]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        if strstr(line, "_jou_startup") != NULL:
+            continue  # platform-specific
+
+        if starts_with(line, "Reusing"):
+            p = &line[0]
+            while *p != '\0':
+                is_hash = True
+                for i = 0; i < 16; i++:
+                    if not (('0' <= p[i] and p[i] <= '9') or ('a' <= p[i] and p[i] <= 'f')):
+                        is_hash = False
+                        break
+                if is_hash:
+                    printf("<hash>")
+                    p = &p[16]
+                else:
+                    putchar(*p++)
+
+    fclose(f)
+    fflush(stdout)  # ensure output appears in the right place, not buffered until end
+
+
 def main() -> int:
     run_jou("")  # Output: <jouexe>: missing Jou file name (try "<jouexe> --help")
     run_jou("--update -O3")  # Output: <jouexe>: "--update" cannot be used with other arguments (try "<jouexe> --help")
@@ -29,6 +62,14 @@ def main() -> int:
     run_jou("--linker-flags")  # Output: <jouexe>: there must be a string of flags after --linker-flags (try "<jouexe> --help")
     run_jou("--linker-flags x --linker-flags y")  # Output: <jouexe>: --linker-flags cannot be given multiple times (try "<jouexe> --help")
     run_jou("--tokenize-only -O1 examples/hello.jou")  # Output: <jouexe>: --tokenize-only cannot be used together with other flags (try "<jouexe> --help")
+
+    # Test caching of compiled files. We just ran hello.jou so nothing should be recompiled.
+    #
+    # Output: Reusing previously compiled file: examples/jou_compiled/hello/_assert_fail_<hash>_<hash>.o
+    # Output: Reusing previously compiled file: examples/jou_compiled/hello/hello_<hash>_<hash>.o
+    # Output: Reusing previously compiled file: examples/jou_compiled/hello/io_<hash>_<hash>.o
+    run_jou("-v examples/hello.jou > tmp/hello_out_v.txt")
+    print_reusing_compiled_file_lines("tmp/hello_out_v.txt")
 
     # Output: Usage:
     # Output:   <jouexe> [-o OUTFILE] [-O0|-O1|-O2|-O3] [--verbose] [--linker-flags "..."] FILENAME
@@ -48,19 +89,13 @@ def main() -> int:
     run_jou("--help")
 
     # Test that double-verbose kinda works, without asserting the output in too much detail.
-    # TODO: shouldn't need to hide special stdlib/_... files, ideally they would be precompiled
-    run_jou("-vv examples/hello.jou | grep === | grep -v stdlib/io.jou | grep -v stdlib/_ | grep -v jou_startup")
+    # Usually stdlib/_... files are compiled, but not necessarily, so hide them.
+    # Showing LLVM IR is not consistent because of caching compiled files.
+    run_jou("-vv examples/hello.jou | grep === | grep -v stdlib/io.jou | grep -v stdlib/_ | grep -v jou_startup | grep -v \"LLVM IR\"")
     # Output: ===== Tokens for file "examples/hello.jou" =====
     # Output: ===== AST for file "examples/hello.jou" =====
     # Output: ===== UVG for _jou_assert_fail(assertion: byte*, path: byte*, lineno: int) -> noreturn =====
     # Output: ===== UVG for main() -> int =====
-    # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
-    # Output: ===== Optimized LLVM IR for file "examples/hello.jou" =====
-
-    # With optimizations disabled, we don't see the optimized LLVM IR.
-    run_jou("-vv -O0 examples/hello.jou | grep 'LLVM IR for file' | grep -v stdlib/_")
-    # Output: ===== Unoptimized LLVM IR for file "examples/hello.jou" =====
-    # Output: ===== Unoptimized LLVM IR for file "<joudir>/stdlib/io.jou" =====
 
     # Different working directory.
     # Output: Hello World

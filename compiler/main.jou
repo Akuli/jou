@@ -6,6 +6,7 @@ import "stdlib/process.jou"
 
 import "./builders/llvm_builder.jou"
 import "./builders/uvg_builder.jou"
+import "./builders/hash_builder.jou"
 import "./command_line_args.jou"
 import "./evaluate.jou"
 import "./run.jou"
@@ -84,6 +85,35 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     s = LLVMPrintModuleToString(module)
     puts(s)
     LLVMDisposeMessage(s)
+
+
+def optimize(module: LLVMModule*, level: int) -> None:
+    assert 1 <= level and level <= 3
+    passes: byte[100]
+    sprintf(passes, "default<O%d>", level)
+
+    options = LLVMCreatePassBuilderOptions()
+    error = LLVMRunPasses(module, passes, target.target_machine, options)
+    LLVMDisposePassBuilderOptions(options)
+
+    if error != NULL:
+        msg = LLVMGetErrorMessage(error)
+        fprintf(stderr, "Optimizing with LLVM failed: %s\n", msg)
+        fprintf(stderr, "This is a bug. Please create an issue at https://github.com/Akuli/jou\n", msg)
+        exit(1)
+
+
+def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
+    if command_line_args.verbosity >= 1:
+        printf("Writing LLVM IR to %s\n", o_path)
+
+    o_path_2 = strdup(o_path)  # TODO: not sure if this is needed
+    error: byte* = NULL
+    if LLVMTargetMachineEmitToFile(target.target_machine, mod, o_path_2, LLVMCodeGenFileType.ObjectFile, &error) != 0:
+        assert error != NULL
+        fprintf(stderr, "failed to emit object file \"%s\": %s\n", o_path, error)
+        exit(1)
+    free(o_path_2)
 
 
 class FileState:
@@ -173,10 +203,7 @@ class FileState:
     def build_llvm_ir(self) -> LLVMModule*:
         if command_line_args.verbosity >= 1:
             printf("Building LLVM IR: %s\n", self->path)
-
         mod = build_llvm_ir(&self->ast)
-        self->warn_about_unused()
-
         if command_line_args.verbosity >= 2:
             print_llvm_ir(mod, False)
 
@@ -192,6 +219,21 @@ class FileState:
                 print_llvm_ir(mod, True)
 
         return mod
+
+    def find_existing_object_file_or_compile_to_object_file(self) -> byte*:
+        content_hash = build_content_hash(&self->ast)
+        exists: bool
+        o_path = get_path_to_object_file_in_jou_compiled(self->path, content_hash, &exists)
+
+        if exists:
+            if command_line_args.verbosity >= 1:
+                printf("Reusing previously compiled file: %s\n", o_path)
+        else:
+            mod = self->build_llvm_ir()
+            write_llvm_ir_to_file(mod, o_path)
+            LLVMDisposeModule(mod)
+
+        return o_path
 
 
 def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
@@ -350,50 +392,6 @@ class CompileState:
             build_and_analyze_uvgs(&f->ast, print_uvgs)
 
 
-def optimize(module: LLVMModule*, level: int) -> None:
-    assert 1 <= level and level <= 3
-    passes: byte[100]
-    sprintf(passes, "default<O%d>", level)
-
-    options = LLVMCreatePassBuilderOptions()
-    error = LLVMRunPasses(module, passes, target.target_machine, options)
-    LLVMDisposePassBuilderOptions(options)
-
-    if error != NULL:
-        msg = LLVMGetErrorMessage(error)
-        fprintf(stderr, "Optimizing with LLVM failed: %s\n", msg)
-        fprintf(stderr, "This is a bug. Please create an issue at https://github.com/Akuli/jou\n", msg)
-        exit(1)
-
-
-def compile_llvm_ir_to_object_file(module: LLVMModule*) -> byte*:
-    len = 0L
-    objname = get_filename_without_jou_suffix(LLVMGetSourceFileName(module, &len))
-
-    objname = realloc(objname, strlen(objname) + 10)
-    if WINDOWS:
-        strcat(objname, ".obj")
-    else:
-        strcat(objname, ".o")
-
-    path = get_path_to_file_in_jou_compiled(objname)
-    free(objname)
-
-    if command_line_args.verbosity >= 1:
-        printf("Emitting object file: %s\n", path)
-
-    tmppath = strdup(path)
-    error: byte* = NULL
-    if LLVMTargetMachineEmitToFile(target.target_machine, module, tmppath, LLVMCodeGenFileType.ObjectFile, &error) != 0:
-        assert error != NULL
-        fprintf(stderr, "failed to emit object file \"%s\": %s\n", path, error)
-        exit(1)
-    free(tmppath)
-
-    assert error == NULL
-    return path
-
-
 def tokenize_only(path: byte*) -> None:
     tokens = tokenize(command_line_args.infile, NULL)
     print_tokens(tokens)
@@ -474,12 +472,13 @@ def main(argc: int, argv: byte**) -> int:
         return 0
 
     compst.build_and_analyze_all_uvgs()
+    for f = compst.files.ptr; f < compst.files.end(); f++:
+        f->warn_about_unused()
 
     objpaths = List[byte*]{}
     for f = compst.files.ptr; f < compst.files.end(); f++:
-        llvm_ir = f->build_llvm_ir()
-        objpaths.append(compile_llvm_ir_to_object_file(llvm_ir))
-        LLVMDisposeModule(llvm_ir)
+        o_path = f->find_existing_object_file_or_compile_to_object_file()
+        objpaths.append(o_path)
 
     # Check for missing main() as late as possible, so that other errors come first.
     # This way Jou users can work on other functions before main() function is written.
