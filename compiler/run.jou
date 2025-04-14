@@ -78,6 +78,30 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
 
 
 @public
+def run_ar(objpaths: List[byte*], a_path: byte*) -> None:
+    assert ends_with(a_path, ".a")
+    quoted_object_files = quote_paths(objpaths)
+
+    args: byte*
+    asprintf(&args, "rcs \"%s\" %s", a_path, quoted_object_files)
+    free(quoted_object_files)
+
+    command: byte*
+    if WINDOWS:
+        command = get_mingw_command("ar.exe", args)
+    else:
+        asprintf(&command, "'%s' %s", JOU_AR_PATH, args)
+    free(args)
+
+    if command_line_args.verbosity >= 1:
+        printf("Running ar: %s\n", command)
+
+    if system(command) != 0:
+        exit(1)
+    free(command)
+
+
+@public
 def run_exe(exepath: byte*, valgrind: bool) -> int:
     command: byte*
     if WINDOWS:
