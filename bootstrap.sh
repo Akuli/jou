@@ -34,6 +34,7 @@ commits=(
     e7fea1f2ed602a7c191f8c8c605fa56ae2468723  # JOU_MINGW_DIR environment variable
     98c5fb2792eaac8bbe7496a176808d684f631d82  # "./windows_setup.sh --small" starts from this commit (release 2025-04-08-2200)
     eed3b974ccb42a01339ead7f6dcaa0913ca2cd64  # fixed-size integer types, e.g. uint64
+    66de981a9b59020f3feb4af3fb231c81320a9f61  # reuse previously compiled object files to speed up compiling
 )
 
 for commit in ${commits[@]}; do
