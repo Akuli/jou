@@ -831,7 +831,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                     signed_or_unsigned = "signed"
                 else:
                     signed_or_unsigned = "unsigned"
-                snprintf(msg, sizeof(msg), "value doesn't fit into %s (%d-bit %s integer)", result->name, result->size_in_bits, signed_or_unsigned)
+                snprintf(msg, sizeof(msg), "value does not fit into %s (%d-bit %s integer)", result->name, result->size_in_bits, signed_or_unsigned)
                 fail(expr->location, msg)
 
             expr->kind = AstExpressionKind.Constant
