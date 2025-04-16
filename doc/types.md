@@ -107,7 +107,7 @@ This doesn't matter as much as you might think, but as usual,
 please create an issue if this becomes a problem for you.
 
 
-# Casts
+## Casts
 
 Jou has two kinds of casts:
 - **Implicit casts** are done basically whenever a value must be of a specific type.
@@ -139,3 +139,59 @@ Explicit casts are:
     Use an explicit `foo == 1`, `foo != 0`, `foo > 0` or `match foo: ...` depending on what you need.
 - Any pointer type casts to `long`. (This gives the memory address as an integer.)
 - `long` casts to any pointer type.
+
+
+## Type Inference
+
+When the Jou compiler is determining the type of an integer in the code,
+it considers how the integer is going to be used.
+
+For example, this is an error, because the type of `1000000000000000` is `int` by default:
+
+```python
+def main() -> int:
+    x = 1000000000000000  # Error: value does not fit into int (32-bit signed integer)
+    return 0
+```
+
+But if you specify a type for the `x` variable,
+the compiler *infers* the type of `1000000000000000` based on it:
+
+```python
+def main() -> int:
+    x: int64 = 1000000000000000  # This works, no errors
+    return 0
+```
+
+Jou's type inference is implemented in a very simple way
+compared to many other languages and compilers.
+For example, using the variable later does not affect the inference in any way:
+
+```python
+def main() -> int:
+    x = 1000000000000000  # Error: value does not fit into int (32-bit signed integer)
+    y: int64 = x  # Does not affect the type of x
+    return 0
+```
+
+Jou uses type inference only for integers and strings.
+By default, strings are `byte*`, but they can also be inferred as arrays:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    string1 = "foo"             # Type of "foo" is byte* (the default)
+    string2: byte[100] = "foo"  # Type of "foo" is byte[100]
+    n = sizeof("foo")           # Type of "foo" is byte[4] (smallest possible)
+
+    # Output: 4 bytes are needed for "foo".
+    printf("%lld bytes are needed for \"%s\".\n", n, string1)
+
+    return 0
+```
+
+When the `sizeof` operator is applied to a string,
+the compiler chooses the smallest possible array size where the string fits.
+Above `"foo"` needs 4 bytes because of [the terminating zero byte](tutorial.md#more-about-strings):
+in this context, `"foo"` is same as `['f', 'o', 'o', '\0']`.

@@ -9,9 +9,9 @@ declare isprint(b: int) -> int
 
 @public
 enum TokenKind:
-    Short
-    Int
-    Long
+    Short  # old, bad, basically deprecated, e.g. 123S
+    Long   # old, bad, basically deprecated, e.g. 123123123123123L
+    Integer  # type check determines what type this is (usually int, but not necessarily)
     Float
     Double
     Byte    # example: 'a' is 97 as a byte
@@ -31,27 +31,24 @@ class Token:
     location: Location
 
     union:
-        short_value: short      # Short
-        int_value: int          # Int
-        long_value: long        # Long
-        byte_value: byte        # Byte
+        integer_value: uint64   # Short, Long, Integer, Byte
         indentation_level: int  # Newline (indicates how many spaces there are after the newline)
-        short_string: byte[100] # Name, Keyword, Operator
+        short_string: byte[100] # Name, Keyword, Operator, Float, Double, most other things
         long_string: byte*      # String
 
     def print(self) -> None:
         match self->kind:
             case TokenKind.Byte:
-                printf("byte %#02x", self->byte_value)
-                if isprint(self->byte_value) != 0:
-                    printf(" '%c'", self->byte_value)
+                printf("byte %#02llx", self->integer_value)
+                if isprint(self->integer_value as byte) != 0:
+                    printf(" '%c'", self->integer_value as byte)
                 printf("\n")
             case TokenKind.Short:
-                printf("short %hd\n", self->short_value)
-            case TokenKind.Int:
-                printf("integer %d\n", self->int_value)
+                printf("short %llu\n", self->integer_value)
             case TokenKind.Long:
-                printf("long %lld\n", self->long_value)
+                printf("long %llu\n", self->integer_value)
+            case TokenKind.Integer:
+                printf("integer %llu\n", self->integer_value)
             case TokenKind.Float:
                 printf("float %s\n", self->short_string)
             case TokenKind.Double:
@@ -108,12 +105,8 @@ class Token:
     def fail_expected_got(self, what_was_expected_instead: byte*) -> None:
         got: byte[100]
         match self->kind:
-            case TokenKind.Short:
-                got = "a short"
-            case TokenKind.Int:
+            case TokenKind.Integer | TokenKind.Short | TokenKind.Long:
                 got = "an integer"
-            case TokenKind.Long:
-                got = "a long integer"
             case TokenKind.Float:
                 got = "a float constant"
             case TokenKind.Double:

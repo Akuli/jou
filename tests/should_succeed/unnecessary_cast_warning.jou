@@ -3,4 +3,11 @@ import "stdlib/io.jou"
 def main() -> int:
     x = 1 as int  # Warning: unnecessary cast from int to int
     printf("%d\n", x)  # Output: 1
+
+    y = 123 as int64  # Warning: unnecessary cast from long to long
+    y2: int64 = 123  # correct way to avoid above warning
+
+    # Not unnecessary cast, otherwise s would become byte*
+    s = "hello" as byte[100]
+
     return 0

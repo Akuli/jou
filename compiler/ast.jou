@@ -172,7 +172,8 @@ class AstInstantiation:
 
 @public
 enum AstExpressionKind:
-    Constant    # e.g. int literals, also accessing `const` values becomes this during type checking
+    IntegerConstant # e.g. 123, type is unknown for now (it's usually int)
+    Constant        # a compile-time-known value with known type, e.g. use of `const` value after type checking
     Array
     Call  # function call or method call
     Instantiate   # MyClass{x=1, y=2}
@@ -214,6 +215,7 @@ class AstExpression:
     types: ExpressionTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     union:
+        integer_value: uint64
         enum_member: AstEnumMember
         class_field: AstClassField
         call: AstCall
@@ -236,6 +238,8 @@ class AstExpression:
         printf("] ")
 
         match self->kind:
+            case AstExpressionKind.IntegerConstant:
+                printf("integer constant: %llu\n", self->integer_value)
             case AstExpressionKind.Constant:
                 printf("constant: ")
                 self->constant.print()

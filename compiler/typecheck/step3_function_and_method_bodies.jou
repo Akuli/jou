@@ -54,7 +54,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
     result: byte[200]
 
     match expr->kind:
-        case AstExpressionKind.Constant:
+        case AstExpressionKind.IntegerConstant | AstExpressionKind.Constant:
             return "a constant"
         case AstExpressionKind.GetEnumMember:
             return "an enum member"
@@ -775,6 +775,40 @@ def handle_conflicting_class_field_and_enum_member_syntax(state: State*, expr: A
     }
 
 
+def max_value(t: Type*) -> uint64:
+    match t->kind:
+        # See doc/types.md
+        case TypeKind.SignedInteger:
+            match t->size_in_bits:
+                case 8:
+                    return 0x7f as uint64
+                case 16:
+                    return 0x7fff as uint64
+                case 32:
+                    return 0x7fff_ffff as uint64
+                case 64:
+                    # TODO: clean this up when possible
+                    result: uint64
+                    memcpy(&result, "\xff\xff\xff\xff\xff\xff\xff\x7f", 8)
+                    return result
+                case _:
+                    assert False
+        case TypeKind.UnsignedInteger:
+            match t->size_in_bits:
+                case 8:
+                    return -1 as uint8
+                case 16:
+                    return -1 as uint16
+                case 32:
+                    return -1 as uint32
+                case 64:
+                    return -1 as uint64
+                case _:
+                    assert False
+        case _:
+            assert False
+
+
 def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) -> None:
     msg: byte[500]
     result: Type* = NULL
@@ -782,6 +816,25 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
     handle_conflicting_class_field_and_enum_member_syntax(state, expr)
 
     match expr->kind:
+        case AstExpressionKind.IntegerConstant:
+            # Usually int, but use type hint if given resaonably.
+            # See documentation on type inference (and please keep it up to date).
+            if type_hint != NULL and type_hint->is_integer_type():
+                result = type_hint
+            else:
+                result = intType
+
+            if expr->integer_value > max_value(result):
+                if result->kind == TypeKind.SignedInteger:
+                    signed_or_unsigned = "signed"
+                else:
+                    signed_or_unsigned = "unsigned"
+                snprintf(msg, sizeof(msg), "value doesn't fit into %s (%d-bit %s integer)", result->name, result->size_in_bits, signed_or_unsigned)
+                fail(expr->location, msg)
+
+            expr->kind = AstExpressionKind.Constant
+            expr->constant = int_constant(result, expr->integer_value as int64)
+
         case AstExpressionKind.Constant:
             # Use array string if type hint given, e.g. foo: byte[100] = "hello"
             if (

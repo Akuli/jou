@@ -39,11 +39,22 @@ def evaluate_boolean_and_or(expr: AstExpression*, and_or: byte*) -> int:
 
 
 # Returns False if the expression is not a simple compile-time constant.
+#
+# If a type hint is given, does not necessarily return a value of that type.
+# As the name suggests, it is merely a hint.
 @public
 def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> bool:
     msg: byte[500]
 
     match expr->kind:
+        case AstExpressionKind.IntegerConstant:
+            # TODO: don't assume "int" when it doesn't make sense
+            if expr->integer_value <= 0x7fff_ffff:
+                # fits into int
+                *result = int_constant(intType, expr->integer_value as int64)
+                return True
+            return False
+
         case AstExpressionKind.Constant:
             *result = expr->constant.copy()
             return True

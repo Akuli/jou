@@ -34,7 +34,7 @@ enum ConstantKind:
 class IntegerConstant:
     size_in_bits: int
     is_signed: bool
-    value: long
+    value: int64  # "as uint64" is needed to get the right value for uint64 constants
 
 class EnumMemberConstant:
     enumtype: Type*
@@ -128,7 +128,7 @@ class Constant:
 
 
 @public
-def int_constant(type: Type*, value: long) -> Constant:
+def int_constant(type: Type*, value: int64) -> Constant:
     assert type->is_integer_type()
     return Constant{
         kind = ConstantKind.Integer,

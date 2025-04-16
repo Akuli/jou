@@ -362,6 +362,9 @@ class AstToBuilder:
 
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> AnyBuilderValue:
         match expr->kind:
+            case AstExpressionKind.IntegerConstant:
+                # should be turned into Constant during type checking
+                assert False
             case AstExpressionKind.Constant:
                 return self->build_constant(&expr->constant)
             case AstExpressionKind.Array:
