@@ -1055,7 +1055,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
 
         case AstExpressionKind.As:
             result = type_from_ast(state->file_types, state->fom_types->signature.get_self_class(), &expr->as_->type)
-            typecheck_expression_not_void(state, &expr->as_->value, result)
+            typecheck_expression_not_void(state, &expr->as_->value, NULL)
 
             # Special case: `"foo" as byte[100]` is not really a cast. It sets
             # the type of the string through a type hint and it's already
@@ -1273,7 +1273,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             valueexpr = &stmt->assignment.value
 
             targettype = typecheck_expression_not_void(state, targetexpr, NULL)
-            value_type = typecheck_expression_not_void(state, valueexpr, NULL)
+            value_type = typecheck_expression_not_void(state, valueexpr, targettype)
             ensure_can_take_address(state->fom_types, targetexpr, "cannot assign to %s")
 
             match stmt->kind:
