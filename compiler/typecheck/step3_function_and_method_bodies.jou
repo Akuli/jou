@@ -234,7 +234,9 @@ def can_cast_implicitly(from: Type*, to: Type*) -> bool:
 
 
 def can_cast_explicitly(from: Type*, to: Type*) -> bool:
-    # Please keep doc/types.md up to date if you modify this
+    # Please keep doc/types.md up to date if you modify this.
+    #
+    # This does not take into account things that type inference does, see docs.
     return (
         from == to
         or (from->kind == TypeKind.Array and to->kind == TypeKind.Pointer and from->array.item_type == to->value_type)
@@ -840,8 +842,6 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             if (
                 expr->constant.kind == ConstantKind.PointerString
                 and type_hint != NULL
-                and type_hint->kind == TypeKind.Array
-                and type_hint->array.item_type == byteType
             ):
                 s = expr->constant.pointer_string
                 if strlen(s) >= type_hint->array.len:
@@ -1055,18 +1055,38 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
 
         case AstExpressionKind.As:
             result = type_from_ast(state->file_types, state->fom_types->signature.get_self_class(), &expr->as_->type)
-            typecheck_expression_not_void(state, &expr->as_->value, NULL)
 
-            # Special case: `"foo" as byte[100]` is not really a cast. It sets
-            # the type of the string through a type hint and it's already
-            # byte[100]. If we try to cast it anyway, there will be a warning
-            # about "unnecessary" cast.
-            special_case = (
+            # The `foo as SomeType` operation usually doesn't specify how the
+            # type of `foo` should be inferred. The intent is that `foo` can be
+            # of any type it wants to be, and we convert it afterwards.
+            #
+            # However, the `as` operation is documented as being also able to do
+            # everything that type inference can do. This means that in a couple
+            # cases, we actually use type inference and the rest of "as" does
+            # nothing.
+
+            # Special case 1: `"foo" as byte[100]`
+            special_case_1 = (
                 expr->as_->value.kind == AstExpressionKind.Constant
-                and expr->as_->value.constant.kind == ConstantKind.ArrayString
-                and result == expr->as_->value.constant.get_type()
+                and expr->as_->value.constant.kind == ConstantKind.PointerString
+                and result->kind == TypeKind.Array
+                and result->array.item_type == byteType
             )
-            if not special_case:
+
+            # Special case 2: `123123123123123 as int64`. The value doesn't fit
+            # inside `int`, but the compiler would use `int` if no type hint was
+            # given for inference.
+            #
+            # TODO: make this work for negative values?
+            special_case_2 = (
+                expr->as_->value.kind == AstExpressionKind.IntegerConstant
+                and (expr->as_.value.integer_value as int) != expr->as_.value.integer_value
+            )
+
+            if special_case_1 or special_case_2:
+                typecheck_expression_not_void(state, &expr->as_->value, result)
+            else:
+                typecheck_expression_not_void(state, &expr->as_->value, NULL)
                 do_explicit_cast(state->fom_types, &expr->as_->value, result, expr->location)
 
         case _:

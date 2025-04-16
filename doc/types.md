@@ -139,12 +139,14 @@ Explicit casts are:
     Use an explicit `foo == 1`, `foo != 0`, `foo > 0` or `match foo: ...` depending on what you need.
 - Any pointer type casts to `long`. (This gives the memory address as an integer.)
 - `long` casts to any pointer type.
+- Anything that type inference is capable of doing (see below).
+    For example `123123123123123 as int64` or `"foo" as byte[10]`.
 
 
 ## Type Inference
 
-When the Jou compiler is determining the type of an integer in the code,
-it considers how the integer is going to be used.
+When the Jou compiler is determining the type of a string or integer in the code,
+it considers how it is going to be used.
 
 For example, this is an error, because the type of `1000000000000000` is `int` by default:
 
