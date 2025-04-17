@@ -88,7 +88,7 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> uint64:
             break
         result *= base as uint64
 
-        if (result + digit_value) as uint64 < result:
+        if result + digit_value < result:
             overflow = True
             break
         result += digit_value
