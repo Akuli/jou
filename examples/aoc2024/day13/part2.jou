@@ -89,7 +89,7 @@ def solve_linear_unique_2x2_system(a: long, b: long, c: long, d: long, e: long, 
         # Solution happens to consist of integers
         return [x, y]
     else:
-        return [-1L, -1L]
+        return [-1, -1]
 
 
 def cost(a: long, b: long) -> long:
@@ -109,7 +109,7 @@ def optimize_1d(a: long, b: long, prize: long) -> long[2]:
     if prize % gcd(a, b) != 0:
         # The prize is not reachable. Any combination of a and b
         # either doesn't reach the prize or jumps beyond the prize.
-        return [-1L, -1L]
+        return [-1, -1]
 
     # Figure out which button press moves the claw the most per token.
     # Three B button presses cost as many tokens as one A button press.
@@ -142,7 +142,7 @@ def optimize_1d(a: long, b: long, prize: long) -> long[2]:
             a_presses = (prize - b*b_presses) / a
 
     # No solution
-    return [-1L, -1L]
+    return [-1, -1]
 
 
 class ClawMachine:
@@ -156,7 +156,7 @@ class ClawMachine:
             # The machine moves along a line.
             if not same_direction(self->a_vector, self->prize):
                 # The prize is not on the line.
-                return [-1L, -1L]
+                return [-1, -1]
             # Consider only the x coordinates.
             return optimize_1d(self->a_vector[0], self->b_vector[0], self->prize[0])
         else:
@@ -172,7 +172,7 @@ class ClawMachine:
             if a_presses >= 0 and b_presses >= 0:
                 return [a_presses, b_presses]
             else:
-                return [-1L, -1L]
+                return [-1, -1]
 
 
 
@@ -180,7 +180,7 @@ def main() -> int:
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
-    total_price = 0L
+    total_price: long = 0
     ax, ay, bx, by, px, py: long
 
     while True:
@@ -194,8 +194,8 @@ def main() -> int:
         ret = fscanf(f, "Prize: X=%lld, Y=%lld\n", &px, &py)
         assert ret == 2
 
-        px += 10000000000000L
-        py += 10000000000000L
+        px += 10000000000000
+        py += 10000000000000
 
         m = ClawMachine{a_vector = [ax, ay], b_vector = [bx, by], prize = [px, py]}
         solution = m.optimize()

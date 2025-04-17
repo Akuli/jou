@@ -19,7 +19,7 @@ def split_digits(n: long) -> long[2]:
     length = count_digits(n)
     assert length % 2 == 0
 
-    power_of_10 = 1L
+    power_of_10: long = 1
     for i = 0; i < length/2; i++:
         power_of_10 *= 10
 
@@ -42,9 +42,10 @@ def analyze_stone(stone_number: long, remaining_blinks: int) -> long:
         if *cacheptr != 0:
             return *cacheptr
 
+    result: long
     while True:
         if remaining_blinks == 0:
-            result = 1L
+            result = 1
             break
 
         if stone_number == 0:
@@ -81,13 +82,13 @@ def main() -> int:
     words = split_by_ascii_whitespace(line)
 
     # First with 25 steps to make sure the rewritten code works
-    result25 = 0L
+    result25: long = 0
     for i = 0; i < words.len; i++:
         result25 += analyze_stone(atoll(words.ptr[i]), 25)
     printf("%lld\n", result25)  # Output: 55312
 
     # Then with 75 steps, this is the real part 2
-    result75 = 0L
+    result75: long = 0
     for i = 0; i < words.len; i++:
         result75 += analyze_stone(atoll(words.ptr[i]), 75)
     printf("%lld\n", result75)  # Output: 65601038650482
