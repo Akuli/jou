@@ -42,11 +42,11 @@ declare XFlush(display: Display*) -> int
 
 def main() -> int:
     display = XOpenDisplay("")
-    window = XCreateSimpleWindow(display, XDefaultRootWindow(display), 200, 200, 200, 200, 5, 0, 0xff00ffL)
+    window = XCreateSimpleWindow(display, XDefaultRootWindow(display), 200, 200, 200, 200, 5, 0, 0xff00ff)
     XStoreName(display, window, "Hello pink world")
 
     gc = XCreateGC(display, window, 0, NULL)
-    XSetForeground(display, gc, 0xffffffL)
+    XSetForeground(display, gc, 0xffffff)
 
     XSelectInput(display, window, 32768)
     XMapRaised(display, window)
