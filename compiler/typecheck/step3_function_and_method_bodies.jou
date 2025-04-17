@@ -819,7 +819,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
 
     match expr->kind:
         case AstExpressionKind.IntegerConstant:
-            # Usually int, but use type hint if given resaonably.
+            # Usually int, but use type hint if given reasonably.
             # See documentation on type inference (and please keep it up to date).
             if type_hint != NULL and type_hint->is_integer_type():
                 result = type_hint
@@ -1080,9 +1080,11 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             # given for inference.
             #
             # TODO: make this work for negative values?
+            # TODO: may be possible to show warning about unnecessary cast, check type hint of the whole `as`
             special_case_2 = (
                 expr->as_->value.kind == AstExpressionKind.IntegerConstant
                 and (expr->as_->value.integer_value as int) != expr->as_->value.integer_value
+                and result->is_integer_type()
             )
 
             if special_case_1 or special_case_2:

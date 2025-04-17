@@ -88,7 +88,7 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> uint64:
             break
         result *= base as uint64
 
-        if result + digit_value < result:
+        if (result + digit_value) as uint64 < result:
             overflow = True
             break
         result += digit_value
@@ -103,7 +103,6 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> uint64:
 
     if overflow:
         if nbits == 0:
-            # TODO: test this, if not already tested
             fail(location, "value does not fit into any supported integer type")
         else:
             msg: byte[100]
