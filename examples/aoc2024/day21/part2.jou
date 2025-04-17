@@ -186,7 +186,7 @@ def keypad_cost(level: int, prev_key: byte, key: byte) -> long:
 
         best_cost = -1L
         for i = 0; i < 2 and moves[i] != NULL; i++:
-            cost = 0L
+            cost = 0 as long
             prev = 'A'  # robot is still aimed at activate button after previous key press
             for p = moves[i]; *p != '\0'; p++:
                 # Press keys on smaller-numbered level
@@ -206,7 +206,7 @@ def numpad_cost(code: byte*, initial_level: int) -> long:
 
     best_cost = -1L
     for i = 0; moves[i][0] != '\0'; i++:
-        cost = 0L
+        cost = 0 as long
         prev = 'A'
         for p = &moves[i][0]; *p != '\0'; p++:
             cost += keypad_cost(initial_level, prev, *p)
@@ -233,7 +233,7 @@ def main() -> int:
     f = fopen(filename, "r")
     assert f != NULL
 
-    result = 0L
+    result = 0 as long
     line: byte[20]
     while fgets(line, sizeof(line) as int, f) != NULL:
         trim_ascii_whitespace(line)

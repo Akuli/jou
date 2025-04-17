@@ -9,7 +9,7 @@ def xor(a: long, b: long) -> long:
     assert a >= 0
     assert b >= 0
 
-    result = 0L
+    result = 0 as long
     power_of_two = 1L
 
     while a != 0 or b != 0:
@@ -32,7 +32,7 @@ def do_combo_op(n: int, regs: long[3]) -> long:
 
 # Return value is between 0 and 7 (3 bits), or -1 if the program doesn't output anything.
 def get_first_output(code: int*, reg_a: long) -> int:
-    regs = [reg_a, 0L, 0L]
+    regs = [reg_a, 0 as long, 0 as long]
     ip = &code[0]
 
     while *ip != -1:

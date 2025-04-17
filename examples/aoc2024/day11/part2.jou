@@ -81,13 +81,13 @@ def main() -> int:
     words = split_by_ascii_whitespace(line)
 
     # First with 25 steps to make sure the rewritten code works
-    result25 = 0L
+    result25 = 0 as long
     for i = 0; i < words.len; i++:
         result25 += analyze_stone(atoll(words.ptr[i]), 25)
     printf("%lld\n", result25)  # Output: 55312
 
     # Then with 75 steps, this is the real part 2
-    result75 = 0L
+    result75 = 0 as long
     for i = 0; i < words.len; i++:
         result75 += analyze_stone(atoll(words.ptr[i]), 75)
     printf("%lld\n", result75)  # Output: 65601038650482

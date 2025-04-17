@@ -20,7 +20,7 @@ def sum_vertical_distances(grid: Grid*) -> long:
     hashtags = grid->find_all('#')
     blank_lines = find_blank_lines(grid)
 
-    result = 0L
+    result = 0 as long
     for end = hashtags; (*end)[0] != -1 and (*end)[1] != -1; end++:
         for start = hashtags; start < end; start++:
             for y = (*start)[1]; y < (*end)[1]; y++:
