@@ -176,7 +176,7 @@ def main() -> int:
     return 0
 ```
 
-Jou uses type inference only for integers and strings.
+Jou also uses type inference for strings.
 By default, strings are `byte*`, but they can also be inferred as arrays:
 
 ```python
