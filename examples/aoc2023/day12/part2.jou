@@ -115,7 +115,7 @@ def main() -> int:
     questional_string: byte[200]
     number_string: byte[200]
 
-    result = 0L
+    result: long = 0
 
     while fscanf(f, "%39s %39s\n", questional_string, number_string) == 2:
         repeat_5x(questional_string, '?')
@@ -124,7 +124,7 @@ def main() -> int:
         numbers = split_ints_by_commas(number_string)
 
         n_question_marks = 0
-        for i = 0L; questional_string[i] != '\0'; i++:
+        for i: long = 0; questional_string[i] != '\0'; i++:
             if questional_string[i] == '?':
                 n_question_marks++
 
