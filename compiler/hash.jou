@@ -70,12 +70,7 @@ class Hash:
 
 @public
 def new_hash() -> Hash:
-    h = 0 as uint64
-    # Hash of empty data
-    # Set value to 0xcbf29ce484222325 (assumes little endian)
-    # TODO: not possible to put this in a const
-    memcpy(&h, "\x25\x23\x22\x84\xe4\x9c\xf2\xcb", sizeof(h))
-    return Hash{hash = h, created_correctly = True}
+    return Hash{hash = 0xcbf29ce484222325, created_correctly = True}
 
 
 global cached_compiler_hash: Hash
