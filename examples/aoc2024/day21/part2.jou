@@ -178,16 +178,15 @@ def keypad_cost(level: int, prev_key: byte, key: byte) -> long:
     if *cacheptr != 0:
         return *cacheptr
 
-    best_cost: long
     if level == 0:
         # Single key press from user
-        best_cost = 1
+        best_cost = 1L
     else:
         moves = arrow_keypad_table[prev_key][key]
 
-        best_cost = -1
+        best_cost = -1L
         for i = 0; i < 2 and moves[i] != NULL; i++:
-            cost: long = 0
+            cost = 0L
             prev = 'A'  # robot is still aimed at activate button after previous key press
             for p = moves[i]; *p != '\0'; p++:
                 # Press keys on smaller-numbered level
@@ -205,9 +204,9 @@ def keypad_cost(level: int, prev_key: byte, key: byte) -> long:
 def numpad_cost(code: byte*, initial_level: int) -> long:
     moves = get_numpad_move_sequences(code)
 
-    best_cost: long = -1
+    best_cost = -1L
     for i = 0; moves[i][0] != '\0'; i++:
-        cost: long = 0
+        cost = 0L
         prev = 'A'
         for p = &moves[i][0]; *p != '\0'; p++:
             cost += keypad_cost(initial_level, prev, *p)
@@ -234,7 +233,7 @@ def main() -> int:
     f = fopen(filename, "r")
     assert f != NULL
 
-    result: long = 0
+    result = 0L
     line: byte[20]
     while fgets(line, sizeof(line) as int, f) != NULL:
         trim_ascii_whitespace(line)

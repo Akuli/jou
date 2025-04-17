@@ -27,11 +27,10 @@ def count_availability(towel: byte*, patterns: List[byte*]) -> long:
         cacheptr = &avail_cache[avail_cache_len++]
         strcpy(cacheptr->towel, towel)
 
-    result: long
     if towel[0] == '\0':
-        result = 1
+        result = 1L
     else:
-        result = 0
+        result = 0L
         for p = patterns.ptr; p < patterns.end(); p++:
             if starts_with(towel, *p):
                 result += count_availability(&towel[strlen(*p)], patterns)
@@ -56,7 +55,7 @@ def main() -> int:
         (*p)[strcspn(*p, ",")] = '\0'
 
     line: byte[1000]
-    result: long = 0
+    result = 0L
 
     while fgets(line, sizeof(line) as int, f) != NULL:
         trim_ascii_whitespace(line)

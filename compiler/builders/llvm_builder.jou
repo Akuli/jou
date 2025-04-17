@@ -42,7 +42,7 @@ def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
     #if ntypes == 1:
     #    return types[0]
 
-    sizeneeded: long = 0
+    sizeneeded = 0L
     for i = 0; i < ntypes; i++:
         size1 = LLVMABISizeOfType(target.target_data, types[i])
         size2 = LLVMStoreSizeOfType(target.target_data, types[i])
