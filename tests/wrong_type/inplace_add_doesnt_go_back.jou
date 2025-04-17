@@ -1,4 +1,7 @@
 def foo() -> None:
     x: byte = 'a'
+    num: int = 123
+
     x += 123 as byte  # no error
-    x += 123  # Error: addition produced a value of type int which cannot be assigned back to byte
+    x += 123          # no error, type of 123 inferred as int
+    x += num          # Error: addition produced a value of type int which cannot be assigned back to byte

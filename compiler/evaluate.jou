@@ -44,6 +44,14 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
     msg: byte[500]
 
     match expr->kind:
+        case AstExpressionKind.IntegerConstant:
+            # TODO: don't assume "int" when it doesn't make sense
+            if (expr->integer_value as int) == expr->integer_value:
+                # fits into int
+                *result = int_constant(intType, expr->integer_value as int64)
+                return True
+            return False
+
         case AstExpressionKind.Constant:
             *result = expr->constant.copy()
             return True

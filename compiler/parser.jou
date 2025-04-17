@@ -331,7 +331,7 @@ class Parser:
 
             if (
                 self->tokens->kind == TokenKind.Short
-                or self->tokens->kind == TokenKind.Int
+                or self->tokens->kind == TokenKind.Integer
                 or self->tokens->kind == TokenKind.Long
                 or result.kind != AstTypeKind.Named
             ):
@@ -568,19 +568,19 @@ class Parser:
         match self->tokens->kind:
             case TokenKind.Short:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = int_constant(shortType, self->tokens->short_value)
-                self->tokens++
-            case TokenKind.Int:
-                expr.kind = AstExpressionKind.Constant
-                expr.constant = int_constant(intType, self->tokens->int_value)
+                expr.constant = int_constant(shortType, self->tokens->integer_value as int64)
                 self->tokens++
             case TokenKind.Long:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = int_constant(longType, self->tokens->long_value)
+                expr.constant = int_constant(longType, self->tokens->integer_value as int64)
+                self->tokens++
+            case TokenKind.Integer:
+                expr.kind = AstExpressionKind.IntegerConstant
+                expr.integer_value = self->tokens->integer_value
                 self->tokens++
             case TokenKind.Byte:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = int_constant(byteType, self->tokens->byte_value)
+                expr.constant = int_constant(byteType, self->tokens->integer_value as int64)
                 self->tokens++
             case TokenKind.Float:
                 expr.kind = AstExpressionKind.Constant

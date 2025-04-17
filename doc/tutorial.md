@@ -161,6 +161,28 @@ def main() -> int:
 Bytes get converted to `int` implicitly when calling `printf()`,
 so it's fine to specify `%d` and pass in a `byte`.
 
+If the compiler expects the value to be a `byte`, you don't need to use `as`.
+For example, you can create a variable and specify its type as `byte`:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    b: byte = 255
+    printf("%d\n", b)  # Output: 255
+    return 0
+```
+
+If you don't use `as`, the value will not wrap around, and you will instead get a compiler error:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    b: byte = 1234  # Error: value does not fit into byte (8-bit unsigned integer)
+    return 0
+```
+
 Each byte has 256 different possible values (0 - 255),
 so with 2 bytes, you get `256 * 256` different values:
 for each first byte, you have 256 possible second bytes.

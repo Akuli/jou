@@ -12,16 +12,16 @@ def main() -> int:
     assert fgets(s, huge, f) != NULL
     fclose(f)
 
-    h = 0 as byte
+    h: byte = 0
     result = 0
 
     for p = s; *p != '\0' and *p != '\n'; p++:
         if *p == ',':
             result += h
-            h = 0 as byte
+            h = 0
         else:
             h += *p
-            h *= 17 as byte
+            h *= 17
 
     result += h
     printf("%d\n", result)  # Output: 1320
