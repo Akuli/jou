@@ -78,7 +78,7 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     else:
         opt_or_unopt = "Unoptimized"
 
-    len = 0L
+    len: long = 0
     filename = LLVMGetSourceFileName(module, &len)
     printf("===== %s LLVM IR for file \"%.*s\" =====\n", opt_or_unopt, len as int, filename)
 
@@ -410,7 +410,7 @@ def parse_only(path: byte*, stdlib_path: byte*) -> None:
 #   - files with 'link' statements
 #   - command-line --linker-flags argument
 def collect_linker_flags(files: List[FileState]) -> byte*:
-    maxlen = 0L
+    maxlen: long = 0
     maxlen += strlen("-lm") + 1  # TODO: delete this
     if command_line_args.linker_flags != NULL:
         maxlen += strlen(command_line_args.linker_flags) + 1

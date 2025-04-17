@@ -329,12 +329,7 @@ class Parser:
             assert self->tokens->is_operator("[")
             location = (self->tokens++)->location
 
-            if (
-                self->tokens->kind == TokenKind.Short
-                or self->tokens->kind == TokenKind.Integer
-                or self->tokens->kind == TokenKind.Long
-                or result.kind != AstTypeKind.Named
-            ):
+            if self->tokens->kind == TokenKind.Integer or result.kind != AstTypeKind.Named:
                 # Array, e.g. int[10]
                 #
                 # TODO: This way to distinguish arrays and generics prevents using
@@ -566,14 +561,6 @@ class Parser:
         expr = AstExpression{location = self->tokens->location}
 
         match self->tokens->kind:
-            case TokenKind.Short:
-                expr.kind = AstExpressionKind.Constant
-                expr.constant = int_constant(shortType, self->tokens->integer_value as int64)
-                self->tokens++
-            case TokenKind.Long:
-                expr.kind = AstExpressionKind.Constant
-                expr.constant = int_constant(longType, self->tokens->integer_value as int64)
-                self->tokens++
             case TokenKind.Integer:
                 expr.kind = AstExpressionKind.IntegerConstant
                 expr.integer_value = self->tokens->integer_value

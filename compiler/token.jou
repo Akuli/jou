@@ -9,8 +9,6 @@ declare isprint(b: int) -> int
 
 @public
 enum TokenKind:
-    Short  # e.g. 123S
-    Long   # e.g. 123123123123123L
     Integer  # type check determines what type this is (usually int, but not necessarily)
     Float
     Double
@@ -43,10 +41,6 @@ class Token:
                 if isprint(self->integer_value as byte) != 0:
                     printf(" '%c'", self->integer_value as byte)
                 printf("\n")
-            case TokenKind.Short:
-                printf("short %llu\n", self->integer_value)
-            case TokenKind.Long:
-                printf("long %llu\n", self->integer_value)
             case TokenKind.Integer:
                 printf("integer %llu\n", self->integer_value)
             case TokenKind.Float:
@@ -105,7 +99,7 @@ class Token:
     def fail_expected_got(self, what_was_expected_instead: byte*) -> None:
         got: byte[100]
         match self->kind:
-            case TokenKind.Integer | TokenKind.Short | TokenKind.Long:
+            case TokenKind.Integer:
                 got = "an integer"
             case TokenKind.Float:
                 got = "a float constant"
