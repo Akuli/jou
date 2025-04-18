@@ -404,14 +404,17 @@ def check_binop(
             # Currently the biggest integers available in Jou are 64-bit.
             # This may cast them to 128-bit, which is supported in LLVM.
             size *= 2
-        cast_type = get_integer_type(size, lhs_signed or rhs_signed)
+        if lhs_signed or rhs_signed:
+            cast_type = int_type(size)
+        else:
+            cast_type = uint_type(size)
     if got_numbers and not got_integers:
         if lhs->types.orig_type == doubleType or rhs->types.orig_type == doubleType:
             cast_type = doubleType
         else:
             cast_type = floatType
     if got_pointers:
-        cast_type = get_integer_type(64, False)
+        cast_type = uint_type(64)
     if got_enums:
         cast_type = intType
     assert cast_type != NULL
@@ -783,28 +786,25 @@ def max_value(t: Type*) -> uint64:
         case TypeKind.SignedInteger:
             match t->size_in_bits:
                 case 8:
-                    return 0x7f as uint64
+                    return 0x7f
                 case 16:
-                    return 0x7fff as uint64
+                    return 0x7fff
                 case 32:
-                    return 0x7fff_ffff as uint64
+                    return 0x7fff_ffff
                 case 64:
-                    # TODO: clean this up when possible
-                    result: uint64
-                    memcpy(&result, "\xff\xff\xff\xff\xff\xff\xff\x7f", 8)
-                    return result
+                    return 0x7fff_ffff_ffff_ffff
                 case _:
                     assert False
         case TypeKind.UnsignedInteger:
             match t->size_in_bits:
                 case 8:
-                    return -1 as uint8
+                    return 0xff
                 case 16:
-                    return -1 as uint16
+                    return 0xffff
                 case 32:
-                    return -1 as uint32
+                    return 0xffff_ffff
                 case 64:
-                    return -1 as uint64
+                    return 0xffff_ffff_ffff_ffff
                 case _:
                     assert False
         case _:

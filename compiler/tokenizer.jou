@@ -152,9 +152,14 @@ def detect_banned_whitespace_characters(last_3_bytes: byte[3]) -> byte*:
     # Ban all UTF-8 whitespace characters (longest one is 3 bytes)
     # Python code used to generate this:
     #
+    #    import unicodedata
     #    for x in range(128, 0x110000):  # 128 to skip ascii, chr(0x110000) errors
     #        if chr(x).isspace():
-    #            print(chr(x).encode('utf-8'))
+    #            try:
+    #                name = unicodedata.name(chr(x))
+    #            except ValueError:
+    #                name = "???"
+    #            print(chr(x).encode('utf-8'), name)
     length2 = [
         ["\xc2\x85", "U+00000085 NEXT LINE (NEL)"],
         ["\xc2\xa0", "U+000000A0 NO-BREAK SPACE"],

@@ -124,7 +124,10 @@ class Constant:
             case ConstantKind.PointerString:
                 return byteType->pointer_type()
             case ConstantKind.Integer:
-                return get_integer_type(self->integer.size_in_bits, self->integer.is_signed)
+                if self->integer.is_signed:
+                    return int_type(self->integer.size_in_bits)
+                else:
+                    return uint_type(self->integer.size_in_bits)
 
 
 @public

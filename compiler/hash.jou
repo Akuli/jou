@@ -19,18 +19,18 @@ import "./paths.jou"
 
 
 # TODO: xor should be built in to language, not implemented here
-def xor_bytes(a: byte, b: byte) -> byte:
-    result = 0
-    power_of_two = 1
+def xor(a: uint64, b: uint64) -> uint64:
+    result = 0 as uint64
+    power_of_two = 1 as uint64
 
     while a != 0 or b != 0:
         if a % 2 != b % 2:
             result += power_of_two
-        a /= 2 as byte
-        b /= 2 as byte
+        a /= 2
+        b /= 2
         power_of_two *= 2
 
-    return result as byte
+    return result
 
 
 # Do not instantiate this as `Hash{}`, that uses wrong initial value.
@@ -43,7 +43,7 @@ class Hash:
     # Add data to hash
     def add_byte(self, b: byte) -> None:
         assert self->created_correctly  # If this fails, use new_hash() function
-        (&self->hash as byte*)[0] = xor_bytes(self->hash as byte, b)
+        self->hash = xor(self->hash, b)
         self->hash *= 0x100_0000_01b3
 
     def add_bytes(self, data: byte*, len: long) -> None:
@@ -70,12 +70,7 @@ class Hash:
 
 @public
 def new_hash() -> Hash:
-    h = 0 as uint64
-    # Hash of empty data
-    # Set value to 0xcbf29ce484222325 (assumes little endian)
-    # TODO: not possible to put this in a const
-    memcpy(&h, "\x25\x23\x22\x84\xe4\x9c\xf2\xcb", sizeof(h))
-    return Hash{hash = h, created_correctly = True}
+    return Hash{hash = 0xcbf2_9ce4_8422_2325, created_correctly = True}
 
 
 global cached_compiler_hash: Hash

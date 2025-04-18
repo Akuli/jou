@@ -355,10 +355,6 @@ class AstToBuilder:
                     constant->enum_member.enumtype,
                     constant->enum_member.enumtype->enum_members.ptr[constant->enum_member.memberidx]
                 )
-            case _:
-                # TODO: support other constant types
-                # TODO: got all covered?
-                assert False
 
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> AnyBuilderValue:
         match expr->kind:

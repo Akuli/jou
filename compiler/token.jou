@@ -9,10 +9,10 @@ declare isprint(b: int) -> int
 
 @public
 enum TokenKind:
+    Byte     # example: 'a' is 97 as a byte
     Integer  # type check determines what type this is (usually int, but not necessarily)
     Float
     Double
-    Byte    # example: 'a' is 97 as a byte
     String
     Name
     Keyword
@@ -29,7 +29,7 @@ class Token:
     location: Location
 
     union:
-        integer_value: uint64   # Short, Long, Integer, Byte
+        integer_value: uint64   # Integer, Byte
         indentation_level: int  # Newline (indicates how many spaces there are after the newline)
         short_string: byte[100] # Name, Keyword, Operator, Float, Double, most other things
         long_string: byte*      # String

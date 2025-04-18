@@ -306,7 +306,8 @@ def cast_type_to_typeinfo(t: Type*) -> TypeInfo*:
 # compare types, because two different classes with the same members are
 # not the same type.
 class GlobalTypeState:
-    integers: TypeInfo[2][129]  # integers[i][j] = i-bit integer, j=1 for signed, j=0 for unsigned
+    ints: TypeInfo[129]     # ints[i] = signed i-bit integer
+    uints: TypeInfo[129]    # uints[i] = unsigned i-bit integer
     boolean: TypeInfo
     doublelele: TypeInfo
     floater: TypeInfo
@@ -330,16 +331,29 @@ global doubleType: Type*    # double (64-bit)
 @public
 global voidPtrType: Type*   # void*
 
+# Examples: int_type(32) returns the "int" type, int_type(64) is int64
+# int_type(128) is not accessible in Jou code and is used only for intermediate values.
+@public
+def int_type(bits: int) -> Type*:
+    assert bits == 8 or bits == 16 or bits == 32 or bits == 64 or bits == 128
+    return &global_type_state.ints[bits].type
+
+# Examples: uint_type(8) returns the "byte" type, uint_type(64) is int64
+# uint_type(128) is not accessible in Jou code and is used only for intermediate values.
+@public
+def uint_type(bits: int) -> Type*:
+    assert bits == 8 or bits == 16 or bits == 32 or bits == 64 or bits == 128
+    return &global_type_state.uints[bits].type
+
 
 @public
 def init_types() -> None:
     memset(&global_type_state, 0, sizeof(global_type_state))
 
     boolType = &global_type_state.boolean.type
-    shortType = &global_type_state.integers[16][1].type
-    intType = &global_type_state.integers[32][1].type
-    longType = &global_type_state.integers[64][1].type
-    byteType = &global_type_state.integers[8][0].type
+    intType = &global_type_state.ints[32].type
+    longType = &global_type_state.ints[64].type
+    byteType = &global_type_state.uints[8].type
     floatType = &global_type_state.floater.type
     doubleType = &global_type_state.doublelele.type
     voidPtrType = &global_type_state.voidptr.type
@@ -352,18 +366,17 @@ def init_types() -> None:
     # Currently int128 and uint128 are not exposed in the language, but int128 is used
     # for temporary values hidden from users.
     for size = 8; size <= 128; size *= 2:
-        global_type_state.integers[size][0].type.kind = TypeKind.UnsignedInteger
-        global_type_state.integers[size][1].type.kind = TypeKind.SignedInteger
+        global_type_state.uints[size].type.kind = TypeKind.UnsignedInteger
+        global_type_state.uints[size].type.size_in_bits = size
+        sprintf(global_type_state.uints[size].type.name, "uint%d", size)
 
-        global_type_state.integers[size][0].type.size_in_bits = size
-        global_type_state.integers[size][1].type.size_in_bits = size
+        global_type_state.ints[size].type.kind = TypeKind.SignedInteger
+        global_type_state.ints[size].type.size_in_bits = size
+        sprintf(global_type_state.ints[size].type.name, "int%d", size)
 
-        sprintf(global_type_state.integers[size][0].type.name, "uint%d", size)
-        sprintf(global_type_state.integers[size][1].type.name, "int%d", size)
-
-    strcpy(global_type_state.integers[8][0].type.name, "byte")
-    strcpy(global_type_state.integers[32][1].type.name, "int")
-    strcpy(global_type_state.integers[64][1].type.name, "long")
+    global_type_state.uints[8].type.name = "byte"
+    global_type_state.ints[32].type.name = "int"
+    global_type_state.ints[64].type.name = "long"
 
 
 # Usually you don't need to free a type. This is in a function to make you
@@ -394,18 +407,12 @@ def free_global_type_state() -> None:
     global_type_state.floater.free_related_types()
     global_type_state.doublelele.free_related_types()
     global_type_state.voidptr.free_related_types()
-    for size = 8; size <= 64; size *= 2:
-        for is_signed = 0; is_signed <= 1; is_signed++:
-            global_type_state.integers[size][is_signed].free_related_types()
+    for size = 8; size <= 128; size *= 2:
+        global_type_state.ints[size].free_related_types()
+        global_type_state.uints[size].free_related_types()
     for p = global_type_state.other_types.ptr; p < global_type_state.other_types.end(); p++:
         free_type(&(*p)->type)
     free(global_type_state.other_types.ptr)
-
-
-@public
-def get_integer_type(size_in_bits: int, is_signed: bool) -> Type*:
-    assert size_in_bits==8 or size_in_bits==16 or size_in_bits==32 or size_in_bits==64 or size_in_bits==128
-    return &global_type_state.integers[size_in_bits][is_signed as int].type
 
 
 # Ensures that the type is freed when compiler is done. Operating system would
