@@ -211,7 +211,7 @@ Sometimes `int` isn't big enough.
 When `int` wraps around, you usually get negative numbers when you expect things to be positive,
 and you should probably use `long` instead of `int`.
 **Jou's `long` is 8 bytes (64 bits)**, so twice the size of an `int` and hence much less likely to wrap around.
-Use `as` if you want to create a `long` but the compiler doesn't know it otherwise.
+You can use `as` to create a `long`.
 To print a `long`, use `%lld` instead of `%d`.
 
 ```python
