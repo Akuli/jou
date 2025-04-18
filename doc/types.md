@@ -10,7 +10,7 @@ Jou has the following signed integer types:
 | Name              | Size              | How to print  | Min value                     | Max value                     |
 |-------------------|-------------------|---------------|-------------------------------|-------------------------------|
 | `int8`            | 1 byte (8 bits)   | `%d`          | `-128`                        | `127`                         |
-| `int16` or `short`| 2 bytes (16 bits) | `%d`          | `-32_768`                     | `32_767`                      |
+| `int16`           | 2 bytes (16 bits) | `%d`          | `-32_768`                     | `32_767`                      |
 | `int32` or `int`  | 4 bytes (32 bits) | `%d`          | `-2_147_483_648`              | `2_147_483_647`               |
 | `int64` or `long` | 8 bytes (64 bits) | `%lld`        | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
 
@@ -25,7 +25,6 @@ And the following unsigned integer types:
 
 For convenience, the most commonly used types have simpler names
 `byte` always means same as `uint8`,
-`short` always means same as `uint16`,
 `int` always means same as `int32`, and
 `long` always means same as `int64`.
 

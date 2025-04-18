@@ -318,8 +318,6 @@ global global_type_state: GlobalTypeState
 @public
 global boolType: Type*      # bool
 @public
-global shortType: Type*     # short (16-bit signed)
-@public
 global intType: Type*       # int (32-bit signed)
 @public
 global longType: Type*      # long (64-bit signed)
@@ -364,7 +362,6 @@ def init_types() -> None:
         sprintf(global_type_state.integers[size][1].type.name, "int%d", size)
 
     strcpy(global_type_state.integers[8][0].type.name, "byte")
-    strcpy(global_type_state.integers[16][1].type.name, "short")
     strcpy(global_type_state.integers[32][1].type.name, "int")
     strcpy(global_type_state.integers[64][1].type.name, "long")
 
