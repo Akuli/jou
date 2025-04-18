@@ -367,12 +367,11 @@ def init_types() -> None:
     # for temporary values hidden from users.
     for size = 8; size <= 128; size *= 2:
         global_type_state.uints[size].type.kind = TypeKind.UnsignedInteger
-        global_type_state.ints[size].type.kind = TypeKind.SignedInteger
-
         global_type_state.uints[size].type.size_in_bits = size
-        global_type_state.ints[size].type.size_in_bits = size
-
         sprintf(global_type_state.uints[size].type.name, "uint%d", size)
+
+        global_type_state.ints[size].type.kind = TypeKind.SignedInteger
+        global_type_state.ints[size].type.size_in_bits = size
         sprintf(global_type_state.ints[size].type.name, "int%d", size)
 
     global_type_state.uints[8].type.name = "byte"
