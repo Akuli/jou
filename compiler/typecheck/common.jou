@@ -74,14 +74,10 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
                     return longType
                 case "byte":
                     return byteType
-                case "int8" | "uint8" | "int16" | "uint16" | "int32" | "uint32" | "int64" | "uint64":
-                    if starts_with(asttype->name, "int"):
-                        signed = True
-                        bits = atoi(&asttype->name[3])  # skip "int"
-                    else:
-                        signed = False
-                        bits = atoi(&asttype->name[4])  # skip "uint"
-                    return get_integer_type(bits, signed)
+                case "int8" | "int16" | "int32" | "int64":
+                    return int_type(atoi(&asttype->name[3]))
+                case "uint8" | "uint16" | "uint32" | "uint64":
+                    return uint_type(atoi(&asttype->name[4]))
                 case "bool":
                     return boolType
                 case "float":

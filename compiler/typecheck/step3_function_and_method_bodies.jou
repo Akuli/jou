@@ -404,14 +404,17 @@ def check_binop(
             # Currently the biggest integers available in Jou are 64-bit.
             # This may cast them to 128-bit, which is supported in LLVM.
             size *= 2
-        cast_type = get_integer_type(size, lhs_signed or rhs_signed)
+        if lhs_signed or rhs_signed:
+            cast_type = int_type(size)
+        else:
+            cast_type = uint_type(size)
     if got_numbers and not got_integers:
         if lhs->types.orig_type == doubleType or rhs->types.orig_type == doubleType:
             cast_type = doubleType
         else:
             cast_type = floatType
     if got_pointers:
-        cast_type = get_integer_type(64, False)
+        cast_type = uint_type(64)
     if got_enums:
         cast_type = intType
     assert cast_type != NULL
