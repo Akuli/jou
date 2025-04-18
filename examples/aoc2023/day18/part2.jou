@@ -59,7 +59,7 @@ def read_input_as_points(filename: byte*) -> List[int[2]]:
 
 # See day 10 part 2
 def polygon_area(corners: List[int[2]]) -> long:
-    double_area = 0L
+    double_area = 0 as long
     for i = 0; i < corners.len; i++:
         a: long = corners.ptr[i][0]
         b: long = corners.ptr[i][1]
@@ -79,7 +79,7 @@ def main() -> int:
     assert points.end()[-1][0] == 0
     assert points.end()[-1][1] == 0
 
-    path_len = 0L
+    path_len = 0 as long
     for i = 1; i < points.len; i++:
         path_len += abs(points.ptr[i-1][0] - points.ptr[i][0])
         path_len += abs(points.ptr[i-1][1] - points.ptr[i][1])

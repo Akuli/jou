@@ -46,12 +46,6 @@ Jou has a few different kinds of tokens:
     It is an error if the value of an integer literal does not fit into
     [the inferred type](../types.md#type-inference) of the integer literal.
 
-- **Short literals** are just like integer literals, except that they have an extra `S` at the end (e.g. `114S`),
-    and they must fit in a signed 16-bit integer (Jou `short`).
-    The `S` must be uppercase.
-- **Long literals** are just like integer literals, except that they have an extra `L` at the end (e.g. `123L`),
-    and they only need to fit in a signed 64-bit integer (Jou `long`).
-    The `L` must be uppercase.
 - **Double literals** look like `12.` or `12.34` or `123.456e5` or `1e-5`.
     They consist of one or more digits (0-9), then `.`, then zero or more digits.
     If `e` or `e-` occurs after that (the `e` must be lowercase),

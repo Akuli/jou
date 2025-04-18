@@ -10,12 +10,12 @@ def main() -> int:
     # Sizes in bytes
     signed8: int8 = 'x' as int8
     unsigned8: uint8 = 'x'
-    signed16: int16 = 1234S
-    unsigned16: uint16 = 1234S as uint16
+    signed16: int16 = 1234
+    unsigned16: uint16 = 1234
     signed32: int32 = 1234567890
-    unsigned32: uint32 = 1234567890 as uint32
-    signed64: int64 = 123456789123456789L
-    unsigned64: uint64 = 123456789123456789L as uint64
+    unsigned32: uint32 = 1234567890
+    signed64: int64 = 123456789123456789
+    unsigned64: uint64 = 123456789123456789
 
     printf("%lld %lld\n", sizeof(signed8), sizeof(unsigned8))  # Output: 1 1
     printf("%lld %lld\n", sizeof(signed16), sizeof(unsigned16))  # Output: 2 2
@@ -35,7 +35,7 @@ def main() -> int:
     print_ints(n, signed32)  # Output: 123 123
 
     # long and int64 are the same
-    big: long = 123123123123123L
+    big: long = 123123123123123
     signed64 = big
     big = signed64
     printf("%lld %lld\n", big, big)  # Output: 123123123123123 123123123123123

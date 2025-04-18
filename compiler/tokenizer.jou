@@ -40,7 +40,7 @@ def hexdigit_value(c: byte) -> int:
         return c - '0'
     return -1
 
-def parse_integer(string: byte*, location: Location, nbits: int) -> uint64:
+def parse_integer(string: byte*, location: Location) -> uint64:
     if starts_with(string, "0b"):
         base = 2
         digits = &string[2]
@@ -93,21 +93,8 @@ def parse_integer(string: byte*, location: Location, nbits: int) -> uint64:
             break
         result += digit_value
 
-    # 0 means accept anything (unsigned 64-bit), anything else is signed
-    assert nbits == 0 or nbits == 16 or nbits == 32 or nbits == 64
-    if nbits == 32 and (result as int) != result:
-        overflow = True
-
-    if nbits == 16 and (result as short) != result:
-        overflow = True
-
     if overflow:
-        if nbits == 0:
-            fail(location, "value does not fit into any supported integer type")
-        else:
-            msg: byte[100]
-            sprintf(msg, "value does not fit in a signed %d-bit integer", nbits)
-            fail(location, msg)
+        fail(location, "value does not fit into any supported integer type")
 
     return result
 
@@ -542,17 +529,9 @@ class Tokenizer:
                             elif is_valid_float(token.short_string):
                                 token.short_string[strlen(token.short_string) - 1] = '\0'  # delete trailing 'f' or 'F'
                                 token.kind = TokenKind.Float
-                            elif token.short_string[strlen(token.short_string) - 1] == 'L':
-                                token.short_string[strlen(token.short_string) - 1] = '\0'
-                                token.kind = TokenKind.Long
-                                token.integer_value = parse_integer(token.short_string, token.location, 64)
-                            elif token.short_string[strlen(token.short_string) - 1] == 'S':
-                                token.short_string[strlen(token.short_string) - 1] = '\0'
-                                token.kind = TokenKind.Short
-                                token.integer_value = parse_integer(token.short_string, token.location, 16)
                             else:
                                 token.kind = TokenKind.Integer
-                                token.integer_value = parse_integer(token.short_string, token.location, 0)
+                                token.integer_value = parse_integer(token.short_string, token.location)
                         else:
                             token.kind = TokenKind.Name
                     elif is_operator_byte(b):

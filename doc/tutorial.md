@@ -211,15 +211,22 @@ Sometimes `int` isn't big enough.
 When `int` wraps around, you usually get negative numbers when you expect things to be positive,
 and you should probably use `long` instead of `int`.
 **Jou's `long` is 8 bytes (64 bits)**, so twice the size of an `int` and hence much less likely to wrap around.
-To create a `long`, add `L` to the end of the number, as in `123L` or `-2000000000000L`.
+You can use `as` to create a `long`.
 To print a `long`, use `%lld` instead of `%d`.
 
 ```python
 import "stdlib/io.jou"
 
 def main() -> int:
-    printf("%d\n", 1000 * 1000 * 1000 * 1000)        # Output: -727379968
-    printf("%lld\n", 1000L * 1000L * 1000L * 1000L)  # Output: 1000000000000
+    # Output: 123123123123123 is a big number
+    printf("%lld is a big number\n", 123123123123123 as long)
+
+    # Output: -727379968
+    printf("%d\n", 1000 * 1000 * 1000 * 1000)
+
+    # Output: 1000000000000
+    printf("%lld\n", (1000 as long) * (1000 as long) * (1000 as long) * (1000 as long))
+
     return 0
 ```
 

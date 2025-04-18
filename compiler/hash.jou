@@ -44,10 +44,10 @@ class Hash:
     def add_byte(self, b: byte) -> None:
         assert self->created_correctly  # If this fails, use new_hash() function
         (&self->hash as byte*)[0] = xor_bytes(self->hash as byte, b)
-        self->hash *= 0x100_0000_01b3L as uint64
+        self->hash *= 0x100_0000_01b3
 
     def add_bytes(self, data: byte*, len: long) -> None:
-        for i = 0L; i < len; i++:
+        for i = 0 as long; i < len; i++:
             self->add_byte(data[i])
 
     def add_bool(self, b: bool) -> None:

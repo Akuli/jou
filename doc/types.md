@@ -7,21 +7,21 @@ This page documents all types in the Jou programming language.
 
 Jou has the following signed integer types:
 
-| Name              | Example       | Size              | How to print  | Min value                     | Max value                     |
-|-------------------|---------------|-------------------|---------------|-------------------------------|-------------------------------|
-| `int8`            | `123 as int8` | 1 byte (8 bits)   | `%d`          | `-128`                        | `127`                         |
-| `int16` or `short`| `123S`        | 2 bytes (16 bits) | `%d`          | `-32_768`                     | `32_767`                      |
-| `int32` or `int`  | `123`         | 4 bytes (32 bits) | `%d`          | `-2_147_483_648`              | `2_147_483_647`               |
-| `int64` or `long` | `123L`        | 8 bytes (64 bits) | `%lld`        | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
+| Name              | Size              | How to print  | Min value                     | Max value                     |
+|-------------------|-------------------|---------------|-------------------------------|-------------------------------|
+| `int8`            | 1 byte (8 bits)   | `%d`          | `-128`                        | `127`                         |
+| `int16` or `short`| 2 bytes (16 bits) | `%d`          | `-32_768`                     | `32_767`                      |
+| `int32` or `int`  | 4 bytes (32 bits) | `%d`          | `-2_147_483_648`              | `2_147_483_647`               |
+| `int64` or `long` | 8 bytes (64 bits) | `%lld`        | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
 
 And the following unsigned integer types:
 
-| Name              | Example           | Size              | How to print  | Min value | Max value                     |
-|-------------------|-------------------|-------------------|---------------|-----------|-------------------------------|
-| `uint8` or `byte` | `'a'`             | 1 byte (8 bits)   | `%d`          | `0`       | `255`                         |
-| `uint16`          | `123 as uint16`   | 2 bytes (16 bits) | `%d`          | `0`       | `65_535`                      |
-| `uint32`          | `123 as uint32`   | 4 bytes (32 bits) | `%u`          | `0`       | `4_294_967_295`               |
-| `uint64`          | `123 as uint64`   | 8 bytes (64 bits) | `%llu`        | `0`       | `18_446_744_073_709_551_615`  |
+| Name              | Size              | How to print  | Min value | Max value                     |
+|-------------------|-------------------|---------------|-----------|-------------------------------|
+| `uint8` or `byte` | 1 byte (8 bits)   | `%d`          | `0`       | `255`                         |
+| `uint16`          | 2 bytes (16 bits) | `%d`          | `0`       | `65_535`                      |
+| `uint32`          | 4 bytes (32 bits) | `%u`          | `0`       | `4_294_967_295`               |
+| `uint64`          | 8 bytes (64 bits) | `%llu`        | `0`       | `18_446_744_073_709_551_615`  |
 
 For convenience, the most commonly used types have simpler names
 `byte` always means same as `uint8`,
