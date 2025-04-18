@@ -32,8 +32,9 @@ class AnyBuilderBlock:
 
 @public
 class AnyBuilder:
-    lbuilder: LBuilder*  # may be NULL
-    ubuilder: UBuilder*  # may be NULL
+    # One of these is non-NULL and the rest are NULL
+    lbuilder: LBuilder*
+    ubuilder: UBuilder*
     hbuilder: HBuilder*
 
     def should_functions_marked_with_inline_be_inlined(self) -> bool:
