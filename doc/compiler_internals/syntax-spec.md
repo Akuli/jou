@@ -101,7 +101,6 @@ Jou has a few different kinds of tokens:
     - `assert`
     - `bool`
     - `byte`
-    - `short`
     - `int`
     - `long`
     - `float`
