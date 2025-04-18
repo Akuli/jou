@@ -293,7 +293,7 @@ class LBuilder:
     # Returns &ptr[index]
     def indexed_pointer(self, ptr: LBuilderValue, index: LBuilderValue) -> LBuilderValue:
         assert ptr.type->kind == TypeKind.Pointer
-        assert index.type == longType  # doesn't work right if it's other type
+        assert index.type == int64Type  # doesn't work right if it's other type
         llvm_result = LLVMBuildGEP2(
             self->llvm_builder,
             type_to_llvm(ptr.type->value_type),
@@ -381,7 +381,7 @@ class LBuilder:
             llvm_value = LLVMConstInt(LLVMInt1Type(), b as long, False as int),
         }
 
-    def integer(self, t: Type*, value: long) -> LBuilderValue:
+    def integer(self, t: Type*, value: int64) -> LBuilderValue:
         assert t->is_integer_type()
         return LBuilderValue{
             type = t,
@@ -507,7 +507,7 @@ class LBuilder:
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> LBuilderValue:
         return LBuilderValue{
-            type = longType,
+            type = int64Type,
             llvm_value = LLVMSizeOf(type_to_llvm(t)),
         }
 

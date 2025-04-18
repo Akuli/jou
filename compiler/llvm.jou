@@ -89,9 +89,9 @@ declare LLVMDisposeTargetData(TD: LLVMTargetData*) -> None
 declare LLVMCopyStringRepOfTargetData(TD: LLVMTargetData*) -> byte*
 
 @public
-declare LLVMStoreSizeOfType(TD: LLVMTargetData*, Ty: LLVMType*) -> long
+declare LLVMStoreSizeOfType(TD: LLVMTargetData*, Ty: LLVMType*) -> int64
 @public
-declare LLVMABISizeOfType(TD: LLVMTargetData*, Ty: LLVMType*) -> long
+declare LLVMABISizeOfType(TD: LLVMTargetData*, Ty: LLVMType*) -> int64
 
 
 
@@ -284,7 +284,7 @@ declare LLVMModuleCreateWithName(ModuleID: byte*) -> LLVMModule*
 @public
 declare LLVMDisposeModule(M: LLVMModule*) -> None
 @public
-declare LLVMGetSourceFileName(M: LLVMModule*, Len: long*) -> byte*  # Return value not owned
+declare LLVMGetSourceFileName(M: LLVMModule*, Len: int64*) -> byte*  # Return value not owned
 @public
 declare LLVMSetDataLayout(M: LLVMModule*, DataLayoutStr: byte*) -> None
 @public
@@ -324,7 +324,7 @@ declare LLVMConstNull(Ty: LLVMType*) -> LLVMValue*
 @public
 declare LLVMGetUndef(Ty: LLVMType*) -> LLVMValue*
 @public
-declare LLVMConstInt(IntTy: LLVMType*, N: long, SignExtend: int) -> LLVMValue*
+declare LLVMConstInt(IntTy: LLVMType*, N: int64, SignExtend: int) -> LLVMValue*
 @public
 declare LLVMConstRealOfString(RealTy: LLVMType*, Text: byte*) -> LLVMValue*
 @public

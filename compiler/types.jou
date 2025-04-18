@@ -318,11 +318,11 @@ global global_type_state: GlobalTypeState
 @public
 global boolType: Type*      # bool
 @public
-global shortType: Type*     # short (16-bit signed)
-@public
 global intType: Type*       # int (32-bit signed)
 @public
-global longType: Type*      # long (64-bit signed)
+global int64Type: Type*     # int64 (64-bit signed)
+@public
+global uint64Type: Type*    # uint64 (64-bit unsigned)
 @public
 global byteType: Type*      # byte (8-bit unsigned)
 @public
@@ -340,7 +340,8 @@ def init_types() -> None:
     boolType = &global_type_state.boolean.type
     shortType = &global_type_state.integers[16][1].type
     intType = &global_type_state.integers[32][1].type
-    longType = &global_type_state.integers[64][1].type
+    int64Type = &global_type_state.integers[64][1].type
+    uint64Type = &global_type_state.integers[64][0].type
     byteType = &global_type_state.integers[8][0].type
     floatType = &global_type_state.floater.type
     doubleType = &global_type_state.doublelele.type
