@@ -199,6 +199,7 @@ enum AstExpressionKind:
     Div         # x/y
     Indexing    # x[y]
     Mod         # x % y
+    Xor         # x ^ y
     Eq          # x == y
     Ne          # x != y
     Gt          # x > y
@@ -299,6 +300,8 @@ class AstExpression:
                 printf("div\n")
             case AstExpressionKind.Mod:
                 printf("mod\n")
+            case AstExpressionKind.Xor:
+                printf("xor\n")
             case AstExpressionKind.Eq:
                 printf("eq\n")
             case AstExpressionKind.Ne:
@@ -362,8 +365,8 @@ class AstExpression:
                 | AstExpressionKind.Sub
                 | AstExpressionKind.Mul
                 | AstExpressionKind.Div
-                | AstExpressionKind.Indexing
                 | AstExpressionKind.Mod
+                | AstExpressionKind.Xor
                 | AstExpressionKind.Eq
                 | AstExpressionKind.Ne
                 | AstExpressionKind.Gt
@@ -372,6 +375,7 @@ class AstExpression:
                 | AstExpressionKind.Le
                 | AstExpressionKind.And
                 | AstExpressionKind.Or
+                | AstExpressionKind.Indexing
             ):
                 return 2
             case _:
@@ -513,6 +517,7 @@ enum AstStatementKind:
     InPlaceMul      # x *= y
     InPlaceDiv      # x /= y
     InPlaceMod      # x %= y
+    InPlaceXor      # x ^= y
     FunctionDeclare
     FunctionDef
     MethodDef
@@ -603,6 +608,9 @@ class AstStatement:
             case AstStatementKind.InPlaceMod:
                 printf("in-place mod\n")
                 self->assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceXor:
+                printf("in-place xor\n")
+                self->assignment.print_with_tree_printer(tp)
             case AstStatementKind.FunctionDeclare:
                 printf("declare a function: ")
                 self->function.print_with_tree_printer(tp)
@@ -672,6 +680,7 @@ class AstStatement:
                 | AstStatementKind.InPlaceMul
                 | AstStatementKind.InPlaceDiv
                 | AstStatementKind.InPlaceMod
+                | AstStatementKind.InPlaceXor
             ):
                 self->assignment.free()
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:

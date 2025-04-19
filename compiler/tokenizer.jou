@@ -15,7 +15,7 @@ def is_identifier_or_number_byte(b: byte) -> bool:
     return b >= 128 or is_ascii_letter(b) or is_ascii_digit(b) or b == '_'
 
 def is_operator_byte(c: byte) -> bool:
-    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|", c) != NULL
+    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|^", c) != NULL
 
 def is_keyword(word: byte*) -> bool:
     # Please update the syntax documentation if you add keywords
@@ -433,8 +433,9 @@ class Tokenizer:
             # Please update the syntax documentation if you add new operators.
             # Longer operators are first, so that '==' does not tokenize as '=' '='
             "...", "===", "!==",
-            "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "&&", "||",
-            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "<", ">", "!", "|",
+            "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "^=",
+            "&&", "||",
+            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "^", "<", ">", "!", "|",
         ]
         operator: byte[100] = ""
 

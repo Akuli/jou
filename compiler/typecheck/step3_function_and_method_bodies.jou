@@ -94,6 +94,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             | AstExpressionKind.Mul
             | AstExpressionKind.Div
             | AstExpressionKind.Mod
+            | AstExpressionKind.Xor
             | AstExpressionKind.Negate
         ):
             return "the result of a calculation"
@@ -343,6 +344,8 @@ def check_binop(
     do_what: byte*
     some_kind_of_compare = False
     equals_compare = False
+    prefer_signed = True
+
     match op:
         case AstExpressionKind.Add:
             do_what = "add"
@@ -354,6 +357,9 @@ def check_binop(
             do_what = "divide"
         case AstExpressionKind.Mod:
             do_what = "take remainder with"
+        case AstExpressionKind.Xor:
+            do_what = "xor"  # TODO: test this in an error message
+            prefer_signed = False
         case AstExpressionKind.Eq | AstExpressionKind.Ne:
             do_what = "compare"
             some_kind_of_compare = True
@@ -404,7 +410,13 @@ def check_binop(
             # Currently the biggest integers available in Jou are 64-bit.
             # This may cast them to 128-bit, which is supported in LLVM.
             size *= 2
-        if lhs_signed or rhs_signed:
+        if lhs_signed and rhs_signed:
+            signed = True
+        elif not lhs_signed and not rhs_signed:
+            signed = False
+        else:
+            signed = prefer_signed
+        if signed:
             cast_type = int_type(size)
         else:
             cast_type = uint_type(size)
@@ -1036,6 +1048,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             | AstExpressionKind.Mul
             | AstExpressionKind.Div
             | AstExpressionKind.Mod
+            | AstExpressionKind.Xor
             | AstExpressionKind.Eq
             | AstExpressionKind.Ne
             | AstExpressionKind.Gt
@@ -1292,6 +1305,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             | AstStatementKind.InPlaceMul
             | AstStatementKind.InPlaceDiv
             | AstStatementKind.InPlaceMod
+            | AstStatementKind.InPlaceXor
         ):
             targetexpr = &stmt->assignment.target
             valueexpr = &stmt->assignment.value
