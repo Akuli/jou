@@ -103,16 +103,29 @@ def optimize(module: LLVMModule*, level: int) -> None:
         exit(1)
 
 
+declare rename(oldpath: byte*, newpath: byte*) -> int
+
 def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
     if command_line_args.verbosity >= 1:
         printf("Writing LLVM IR to %s\n", o_path)
 
-    o_path_2 = strdup(o_path)  # TODO: not sure if this is needed
+    # If we want to create foo.o, first write to foo_temp.o.
+    # This way we don't end up with a corrupted foo.o if the compiler is interrupted.
+    # See also https://github.com/Akuli/jou/issues/873
+    assert ends_with(o_path, ".o")
+    o_path_2: byte*
+    asprintf(&o_path_2, "%.*s_temp.o", (strlen(o_path) - 2) as int, o_path)
+
     error: byte* = NULL
     if LLVMTargetMachineEmitToFile(target.target_machine, mod, o_path_2, LLVMCodeGenFileType.ObjectFile, &error) != 0:
         assert error != NULL
         fprintf(stderr, "failed to emit object file \"%s\": %s\n", o_path, error)
         exit(1)
+
+    if rename(o_path_2, o_path) != 0:
+        fprintf(stderr, "renaming object file failed (%s --> %s)\n", o_path_2, o_path)
+        exit(1)
+
     free(o_path_2)
 
 
