@@ -15,6 +15,8 @@ enum VarStatus:
     PossiblyUndefined   # Could hold a garbage or non-garbage value.
     DontAnalyze         # The "don't analyze" UVG instruction has been used.
 
+const VAR_STATUS_COUNT: int = 5
+
 
 if False:
     def print_statuses(uvg: Uvg*, statuses: VarStatus*) -> None:
@@ -68,6 +70,23 @@ def merge(a: VarStatus, b: VarStatus) -> VarStatus:
     return VarStatus.PossiblyUndefined
 
 
+# TODO: Not possible to use VAR_STATUS_COUNT as array size yet
+global merge_table: VarStatus[5][5]
+global merge_table_ready: bool
+
+def init_merge_table() -> None:
+    assert VAR_STATUS_COUNT == 5
+
+    if merge_table_ready:
+        return
+
+    for a = 0; a < VAR_STATUS_COUNT; a++:
+        for b = 0; b < VAR_STATUS_COUNT; b++:
+            merge_table[a][b] = merge(a as VarStatus, b as VarStatus)
+
+    merge_table_ready = True
+
+
 def build_statuses_at_end_before_analyzing(uvg: Uvg*) -> VarStatus**:
     # statuses_at_end[b][v] = status of variable v at end of block b
     statuses_at_end: VarStatus** = malloc(sizeof(statuses_at_end[0]) * uvg->blocks.len)
@@ -81,21 +100,28 @@ def build_statuses_at_end_before_analyzing(uvg: Uvg*) -> VarStatus**:
     return statuses_at_end
 
 
-def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int) -> VarStatus*:
-    statuses: VarStatus* = malloc(sizeof(statuses[0]) * uvg->varnames.len)
-    if uvg->varnames.len != 0:
-        assert statuses != NULL
+def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: VarStatus**, block: UvgBlock*) -> VarStatus*:
+    n = uvg->varnames.len
+    if n == 0:
+        return NULL
 
-    for v = 0; v < uvg->varnames.len; v++:
-        if blockidx == 0:
-            # The start block, everything is initially undefined
+    statuses: VarStatus* = malloc(sizeof(statuses[0]) * n)
+    assert statuses != NULL
+
+    if block == uvg->blocks.ptr[0]:
+        # The start block, everything is initially undefined
+        for v = 0; v < n; v++:
             statuses[v] = VarStatus.Undefined
-        else:
+    else:
+        for v = 0; v < n; v++:
             statuses[v] = VarStatus.Unvisited
 
-        for b = 0; b < uvg->blocks.len; b++:
-            if uvg->blocks.ptr[b]->jumps_to(uvg->blocks.ptr[blockidx]):
-                statuses[v] = merge(statuses[v], statuses_at_end[b][v])
+    # Merge statuses of source blocks that jump to the current block
+    for b = 0; b < uvg->blocks.len; b++:
+        if uvg->blocks.ptr[b]->jumps_to(block):
+            # This function is O(n^2) but barely so, the following loop should be really fast in practice
+            for v = 0; v < n; v++:
+                statuses[v] = merge_table[statuses_at_end[b][v] as int][statuses[v] as int]
 
     return statuses
 
@@ -166,7 +192,7 @@ def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block
 
 
 def analyze_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int, warn: bool) -> bool:
-    statuses = build_statuses_at_start_of_block(uvg, statuses_at_end, blockidx)
+    statuses = build_statuses_at_start_of_block(uvg, statuses_at_end, uvg->blocks.ptr[blockidx])
     update_statuses_based_on_instructions(uvg, statuses, uvg->blocks.ptr[blockidx], warn)
 
     if memcmp(statuses, statuses_at_end[blockidx], sizeof(statuses[0]) * uvg->varnames.len) != 0:
@@ -219,6 +245,8 @@ def mark_reachable_blocks(blocks: List[UvgBlock*], ignore: bool*, marked: bool*,
 
 @public
 def uvg_analyze(uvg: Uvg*) -> None:
+    init_merge_table()
+
     assert uvg->blocks.len >= 1  # must have at least start block
 
     queue: bool* = calloc(sizeof(queue[0]), uvg->blocks.len)
