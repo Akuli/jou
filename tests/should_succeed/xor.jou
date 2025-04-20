@@ -1,0 +1,61 @@
+# Tests for the bitwise XOR operator (a ^ b)
+
+import "stdlib/io.jou"
+
+
+# Fails if uint16 argument is given, succeeds if int16 argument is given.
+#
+# Unfortunately, this would succeed with uint8 argument because the compiler
+# implicitly casts it to the correct type.
+def check_16bit_signed(x: int16) -> None:
+    pass
+
+# Fails if int16 argument is given, succeeds if uint16 argument is given.
+def check_16bit_unsigned(x: uint16) -> None:
+    pass
+
+
+def main() -> int:
+    printf("%#x\n", 0xf0 ^ 0x0f)  # Output: 0xff
+    printf("%#x\n", 0xf1 ^ 0x0f)  # Output: 0xfe
+    printf("%#x\n", 0x11223344 ^ 0x01020304)  # Output: 0x10203040
+
+    # With types of different sizes, bigger type is result type.
+    # With types of same size, prefer unsigned if they disagree.
+    a = ('A' as byte) ^ (32 as int16)       # int16   # Warning: unnecessary cast from byte to byte
+    b = ('A' as byte) ^ (32 as uint16)      # uint16  # Warning: unnecessary cast from byte to byte
+    c = ('A' as int8) ^ (32 as int16)       # int16
+    d = ('A' as int8) ^ (32 as uint16)      # uint16
+    e = ('A' as int16) ^ (32 as int16)      # int16
+    f = ('A' as int16) ^ (32 as uint16)     # uint16
+    g = ('A' as uint16) ^ (32 as int16)     # uint16
+    h = ('A' as uint16) ^ (32 as uint16)    # uint16
+
+    assert sizeof(a) == 2
+    assert sizeof(b) == 2
+    assert sizeof(c) == 2
+    assert sizeof(d) == 2
+    assert sizeof(e) == 2
+    assert sizeof(f) == 2
+    assert sizeof(g) == 2
+    assert sizeof(h) == 2
+
+    check_16bit_signed(a)
+    check_16bit_unsigned(b)
+    check_16bit_signed(c)
+    check_16bit_unsigned(d)
+    check_16bit_signed(e)
+    check_16bit_unsigned(f)
+    check_16bit_unsigned(g)
+    check_16bit_unsigned(h)
+
+    # Output: aaaaaaaa
+    printf("%c%c%c%c%c%c%c%c\n", a, b, c, d, e, f, g, h)
+
+    # In-place xor operator
+    s: byte[10] = "Hello"
+    for i = 0; i < 5; i++:
+        s[i] ^= 32
+    puts(s)  # Output: hELLO
+
+    return 0

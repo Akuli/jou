@@ -219,6 +219,8 @@ class AstToBuilder:
                 return self->builder->div(lhs, rhs)
             case AstExpressionKind.Mod:
                 return self->builder->mod(lhs, rhs)
+            case AstExpressionKind.Xor:
+                return self->builder->xor(lhs, rhs)
             case _:
                 assert False
 
@@ -423,6 +425,7 @@ class AstToBuilder:
                 | AstExpressionKind.Mul
                 | AstExpressionKind.Div
                 | AstExpressionKind.Mod
+                | AstExpressionKind.Xor
                 | AstExpressionKind.Eq
                 | AstExpressionKind.Ne
                 | AstExpressionKind.Gt
@@ -669,6 +672,8 @@ class AstToBuilder:
                 self->build_inplace_binop(AstExpressionKind.Div, &stmt->assignment.target, &stmt->assignment.value)
             case AstStatementKind.InPlaceMod:
                 self->build_inplace_binop(AstExpressionKind.Mod, &stmt->assignment.target, &stmt->assignment.value)
+            case AstStatementKind.InPlaceXor:
+                self->build_inplace_binop(AstExpressionKind.Xor, &stmt->assignment.target, &stmt->assignment.value)
             case AstStatementKind.Return:
                 if self->inlining_info == NULL:
                     if stmt->return_value != NULL:

@@ -238,9 +238,17 @@ class HBuilder:
         assert a.type == b.type
         return self->new_value(a.type)
 
-    # a / b
+    # a % b
     def mod(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self->hash.add_string("mod")
+        self->hash.add_int64(a.id)
+        self->hash.add_int64(b.id)
+        assert a.type == b.type
+        return self->new_value(a.type)
+
+    # a ^ b
+    def xor(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self->hash.add_string("xor")
         self->hash.add_int64(a.id)
         self->hash.add_int64(b.id)
         assert a.type == b.type
