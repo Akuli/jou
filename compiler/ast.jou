@@ -199,7 +199,9 @@ enum AstExpressionKind:
     Div         # x/y
     Indexing    # x[y]
     Mod         # x % y
-    Xor         # x ^ y
+    BitAnd      # x & y
+    BitOr       # x | y
+    BitXor      # x ^ y
     Eq          # x == y
     Ne          # x != y
     Gt          # x > y
@@ -300,8 +302,12 @@ class AstExpression:
                 printf("div\n")
             case AstExpressionKind.Mod:
                 printf("mod\n")
-            case AstExpressionKind.Xor:
-                printf("xor\n")
+            case AstExpressionKind.BitAnd:
+                printf("bitwise and\n")
+            case AstExpressionKind.BitOr:
+                printf("bitwise or\n")
+            case AstExpressionKind.BitXor:
+                printf("bitwise xor\n")
             case AstExpressionKind.Eq:
                 printf("eq\n")
             case AstExpressionKind.Ne:
@@ -366,7 +372,9 @@ class AstExpression:
                 | AstExpressionKind.Mul
                 | AstExpressionKind.Div
                 | AstExpressionKind.Mod
-                | AstExpressionKind.Xor
+                | AstExpressionKind.BitAnd
+                | AstExpressionKind.BitOr
+                | AstExpressionKind.BitXor
                 | AstExpressionKind.Eq
                 | AstExpressionKind.Ne
                 | AstExpressionKind.Gt
@@ -517,7 +525,9 @@ enum AstStatementKind:
     InPlaceMul      # x *= y
     InPlaceDiv      # x /= y
     InPlaceMod      # x %= y
-    InPlaceXor      # x ^= y
+    InPlaceBitAnd   # x &= y
+    InPlaceBitOr    # x |= y
+    InPlaceBitXor   # x ^= y
     FunctionDeclare
     FunctionDef
     MethodDef
@@ -608,8 +618,14 @@ class AstStatement:
             case AstStatementKind.InPlaceMod:
                 printf("in-place mod\n")
                 self->assignment.print_with_tree_printer(tp)
-            case AstStatementKind.InPlaceXor:
-                printf("in-place xor\n")
+            case AstStatementKind.InPlaceBitAnd:
+                printf("in-place bitwise and\n")
+                self->assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceBitOr:
+                printf("in-place bitwise or\n")
+                self->assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceBitXor:
+                printf("in-place bitwise xor\n")
                 self->assignment.print_with_tree_printer(tp)
             case AstStatementKind.FunctionDeclare:
                 printf("declare a function: ")
@@ -680,7 +696,9 @@ class AstStatement:
                 | AstStatementKind.InPlaceMul
                 | AstStatementKind.InPlaceDiv
                 | AstStatementKind.InPlaceMod
-                | AstStatementKind.InPlaceXor
+                | AstStatementKind.InPlaceBitAnd
+                | AstStatementKind.InPlaceBitOr
+                | AstStatementKind.InPlaceBitXor
             ):
                 self->assignment.free()
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:

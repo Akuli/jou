@@ -473,10 +473,22 @@ class LBuilder:
                 assert False
         return LBuilderValue{type = a.type, llvm_value = llvm_mod}
 
-    # a ^ b
-    def xor(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
+    # a & b
+    def bit_and(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
         assert a.type == b.type
-        llvm_xor = LLVMBuildXor(self->llvm_builder, a.llvm_value, b.llvm_value, "xor")
+        llvm_and = LLVMBuildAnd(self->llvm_builder, a.llvm_value, b.llvm_value, "bit_and")
+        return LBuilderValue{type = a.type, llvm_value = llvm_and}
+
+    # a | b
+    def bit_or(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
+        assert a.type == b.type
+        llvm_or = LLVMBuildOr(self->llvm_builder, a.llvm_value, b.llvm_value, "bit_or")
+        return LBuilderValue{type = a.type, llvm_value = llvm_or}
+
+    # a ^ b
+    def bit_xor(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
+        assert a.type == b.type
+        llvm_xor = LLVMBuildXor(self->llvm_builder, a.llvm_value, b.llvm_value, "bit_xor")
         return LBuilderValue{type = a.type, llvm_value = llvm_xor}
 
     # a == b

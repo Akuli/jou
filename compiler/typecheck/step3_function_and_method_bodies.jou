@@ -89,13 +89,15 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "a variable"
 
         case (
-            AstExpressionKind.Add
+            AstExpressionKind.Negate
+            | AstExpressionKind.Add
             | AstExpressionKind.Sub
             | AstExpressionKind.Mul
             | AstExpressionKind.Div
             | AstExpressionKind.Mod
-            | AstExpressionKind.Xor
-            | AstExpressionKind.Negate
+            | AstExpressionKind.BitAnd
+            | AstExpressionKind.BitOr
+            | AstExpressionKind.BitXor
         ):
             return "the result of a calculation"
 
@@ -356,7 +358,11 @@ def check_binop(
             do_what = "divide"
         case AstExpressionKind.Mod:
             do_what = "take remainder with"
-        case AstExpressionKind.Xor:
+        case AstExpressionKind.BitAnd:
+            do_what = "and lalala todo"
+        case AstExpressionKind.BitOr:
+            do_what = "or lalala todo"
+        case AstExpressionKind.BitXor:
             do_what = "xor"
         case AstExpressionKind.Eq | AstExpressionKind.Ne:
             do_what = "compare"
@@ -398,8 +404,8 @@ def check_binop(
     if got_integers:
         lhs_signed = ltype->kind == TypeKind.SignedInteger
         rhs_signed = rtype->kind == TypeKind.SignedInteger
-        if op == AstExpressionKind.Xor:
-            # Result of xor is always one of the two types.
+        if op == AstExpressionKind.BitAnd or op == AstExpressionKind.BitOr or op == AstExpressionKind.BitXor:
+            # Result of and/or/xor is always one of the two types.
             # If one type is bigger than the other, use it.
             # If both types are the same size, prefer unsigned.
             #
@@ -1063,7 +1069,9 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             | AstExpressionKind.Mul
             | AstExpressionKind.Div
             | AstExpressionKind.Mod
-            | AstExpressionKind.Xor
+            | AstExpressionKind.BitAnd
+            | AstExpressionKind.BitOr
+            | AstExpressionKind.BitXor
             | AstExpressionKind.Eq
             | AstExpressionKind.Ne
             | AstExpressionKind.Gt
@@ -1320,7 +1328,9 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             | AstStatementKind.InPlaceMul
             | AstStatementKind.InPlaceDiv
             | AstStatementKind.InPlaceMod
-            | AstStatementKind.InPlaceXor
+            | AstStatementKind.InPlaceBitAnd
+            | AstStatementKind.InPlaceBitOr
+            | AstStatementKind.InPlaceBitXor
         ):
             targetexpr = &stmt->assignment.target
             valueexpr = &stmt->assignment.value
@@ -1345,8 +1355,14 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 case AstStatementKind.InPlaceMod:
                     op = AstExpressionKind.Mod
                     opname = "modulo"
-                case AstStatementKind.InPlaceXor:
-                    op = AstExpressionKind.Xor
+                case AstStatementKind.InPlaceBitAnd:
+                    op = AstExpressionKind.BitAnd
+                    opname = "bit and todo blahblah"
+                case AstStatementKind.InPlaceBitOr:
+                    op = AstExpressionKind.BitOr
+                    opname = "bit or todo blahblah"
+                case AstStatementKind.InPlaceBitXor:
+                    op = AstExpressionKind.BitXor
                     opname = "xor"
                 case _:
                     assert False
