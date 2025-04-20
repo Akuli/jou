@@ -35,6 +35,7 @@ commits=(
     98c5fb2792eaac8bbe7496a176808d684f631d82  # "./windows_setup.sh --small" starts from this commit (release 2025-04-08-2200)
     eed3b974ccb42a01339ead7f6dcaa0913ca2cd64  # fixed-size integer types, e.g. uint64
     c594c326d3031a2894731f60ac9881a206793dfa  # infer types of integers in code
+    99de2976a7f3b34ec6b2b07725c5ad1400313dc1  # bitwise xor operator `^`
 )
 
 for commit in ${commits[@]}; do
