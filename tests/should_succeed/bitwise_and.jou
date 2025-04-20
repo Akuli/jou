@@ -7,9 +7,12 @@ import "stdlib/io.jou"
 #
 # Taking a pointer avoids implicit casts. For example, if b is a byte, then
 # b implicitly casts to int16, but &b doesn't implicitly cast to int16*.
+def check_int8(x: int8*) -> None:
+    pass
+def check_uint8(x: uint8*) -> None:
+    pass
 def check_int16(x: int16*) -> None:
     pass
-
 def check_uint16(x: uint16*) -> None:
     pass
 
@@ -19,16 +22,16 @@ def main() -> int:
     printf("%#x\n", 0xf0 & 0x1f)  # Output: 0x10
     printf("%#x\n", 0xcaff & 0xfffffe)  # Output: 0xcafe
 
-    # Types of different sizes, result type is bigger type
+    # Types of different sizes, result type is smaller type
     a = ('a' as byte) & (0xdf as int16)  # Warning: unnecessary cast from byte to byte
     b = ('a' as byte) & (0xdf as uint16)  # Warning: unnecessary cast from byte to byte
     c = ('a' as int8) & (0xdf as int16)
     d = ('a' as int8) & (0xdf as uint16)
 
-    check_int16(&a)
-    check_uint16(&b)
-    check_int16(&c)
-    check_uint16(&d)
+    check_uint8(&a)
+    check_uint8(&b)
+    check_int8(&c)
+    check_int8(&d)
 
     # Same types, use the type as is
     e = ('a' as int16) & (0xdf as int16)
