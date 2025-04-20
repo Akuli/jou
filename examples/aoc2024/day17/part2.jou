@@ -35,7 +35,7 @@ def get_first_output(code: int*, reg_a: long) -> int:
         elif opcode == 4:  # bxc = B Xor C
             regs[1] ^= regs[2]
         elif opcode == 5:  # out = OUTput value
-            return (do_combo_op(operand, regs) & 0b111) as int
+            return do_combo_op(operand, regs) & 0b111
         elif opcode == 6:  # bdv = B DiVision
             regs[1] = regs[0]
             i = do_combo_op(operand, regs)
@@ -53,13 +53,13 @@ def get_first_output(code: int*, reg_a: long) -> int:
 # My input looked like this, as printed by code in part 1:
 #
 #    Registers: A=... B=0 C=0
-#       0  B = A & 0b111
+#       0  B = A % 8
 #       2  B ^= 1
 #       4  C = A / 2**B
 #       6  B ^= 5
 #       8  B ^= C
 #      10  A /= 2**3
-#      12  output B & 0b111
+#      12  output B % 8
 #      14  if A != 0: jump to 0
 #
 # The output depends only on the last 10 bits of A, because line 4 shifts away

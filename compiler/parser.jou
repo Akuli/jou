@@ -764,7 +764,7 @@ class Parser:
         return result
 
     # TODO: ban chaining bitwise operations with arithmetic operations
-    # TODO: ban chaining different bitwise operations e.g. a ^ b << c
+    # TODO: ban chaining different bitwise operations e.g. a ^ b & c
     def parse_expression_with_bitwise_ops(self) -> AstExpression:
         result = self->parse_expression_with_add()
         while self->tokens->is_operator("&") or self->tokens->is_operator("|") or self->tokens->is_operator("^"):
