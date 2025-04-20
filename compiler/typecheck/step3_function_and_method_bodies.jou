@@ -357,7 +357,7 @@ def check_binop(
         case AstExpressionKind.Mod:
             do_what = "take remainder with"
         case AstExpressionKind.Xor:
-            do_what = "xor"  # TODO: test this in an error message
+            do_what = "xor"
         case AstExpressionKind.Eq | AstExpressionKind.Ne:
             do_what = "compare"
             some_kind_of_compare = True
@@ -1347,7 +1347,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                     opname = "modulo"
                 case AstStatementKind.InPlaceXor:
                     op = AstExpressionKind.Xor
-                    opname = "xor"  # TODO: test this in an error message
+                    opname = "xor"
                 case _:
                     assert False
 
