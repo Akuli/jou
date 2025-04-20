@@ -4,24 +4,6 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 
-# TODO: xor operator
-def xor(a: long, b: long) -> long:
-    assert a >= 0
-    assert b >= 0
-
-    result = 0 as long
-    power_of_two = 1 as long
-
-    while a != 0 or b != 0:
-        if a % 2 != b % 2:
-            result += power_of_two
-        a /= 2
-        b /= 2
-        power_of_two *= 2
-
-    return result
-
-
 def do_combo_op(n: int, regs: long[3]) -> long:
     assert 0 <= n and n <= 6
     if n >= 4:
@@ -44,14 +26,14 @@ def get_first_output(code: int*, reg_a: long) -> int:
             while i --> 0:
                 regs[0] /= 2  # TODO: add left shift operator to Jou
         elif opcode == 1:  # bxl = B bitwise Xor with Literal
-            regs[1] = xor(regs[1], operand)
+            regs[1] ^= operand
         elif opcode == 2:  # bst = B Set value and Truncate to 3 bits
             regs[1] = do_combo_op(operand, regs) % 8
         elif opcode == 3:  # jnz = Jump if NonZero
             if regs[0] != 0:
                 ip = &code[operand]
         elif opcode == 4:  # bxc = B Xor C
-            regs[1] = xor(regs[1], regs[2])
+            regs[1] ^= regs[2]
         elif opcode == 5:  # out = OUTput value
             return (do_combo_op(operand, regs) % 8) as int
         elif opcode == 6:  # bdv = B DiVision
@@ -72,7 +54,7 @@ def last_bits(n: long, how_many: int) -> long:
     power_of_two = 1 as long
     while how_many --> 0:
         power_of_two *= 2
-    return xor(n, (n / power_of_two) * power_of_two)
+    return n ^ ((n / power_of_two) * power_of_two)
 
 
 # My input looked like this, as printed by code in part 1:
@@ -117,7 +99,7 @@ def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: i
                 for p = new_results.ptr; p < new_results.end(); p++:
                     x = *p
                     x *= 8  # shift left to make room
-                    x = xor(x, last_bits(last10, 3))
+                    x ^= last_bits(last10, 3)
                     assert last_bits(x, 10) == last10
                     results.append(x)
                 free(new_results.ptr)
