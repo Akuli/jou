@@ -170,8 +170,6 @@ def main() -> int:
 
 This also applies to `match ... with`.
 
-Note that the `|` operator is also used for [bitwise OR](bitwise.md#bitwise-or).
-
 
 ## Special-casing for enums
 
