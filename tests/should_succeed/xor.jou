@@ -22,23 +22,32 @@ def main() -> int:
 
     # With types of different sizes, bigger type is result type.
     # With types of same size, prefer unsigned if they disagree.
-    a = ('A' as byte) ^ (32 as int16)       # int16
-    b = ('A' as int8) ^ (32 as uint16)      # uint16
-    c = ('A' as int16) ^ (32 as int16)      # int16
-    d = ('A' as int16) ^ (32 as uint16)     # uint16
-    e = ('A' as uint16) ^ (32 as uint16)    # uint16
+    a = ('A' as byte) ^ (32 as int16)       # int16   # Warning: unnecessary cast from byte to byte
+    b = ('A' as byte) ^ (32 as uint16)      # uint16  # Warning: unnecessary cast from byte to byte
+    c = ('A' as int8) ^ (32 as int16)       # int16
+    d = ('A' as int8) ^ (32 as uint16)      # uint16
+    e = ('A' as int16) ^ (32 as int16)      # int16
+    f = ('A' as int16) ^ (32 as uint16)     # uint16
+    g = ('A' as uint16) ^ (32 as int16)     # uint16
+    h = ('A' as uint16) ^ (32 as uint16)    # uint16
 
     assert sizeof(a) == 2
     assert sizeof(b) == 2
     assert sizeof(c) == 2
     assert sizeof(d) == 2
     assert sizeof(e) == 2
+    assert sizeof(f) == 2
+    assert sizeof(g) == 2
+    assert sizeof(h) == 2
 
     check_16bit_signed(a)
     check_16bit_unsigned(b)
     check_16bit_signed(c)
     check_16bit_unsigned(d)
-    check_16bit_unsigned(e)
+    check_16bit_signed(e)
+    check_16bit_unsigned(f)
+    check_16bit_unsigned(g)
+    check_16bit_unsigned(h)
 
     # In-place xor operator
     s: byte[10] = "Hello"

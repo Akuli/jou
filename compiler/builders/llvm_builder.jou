@@ -473,6 +473,12 @@ class LBuilder:
                 assert False
         return LBuilderValue{type = a.type, llvm_value = llvm_mod}
 
+    # a ^ b
+    def xor(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
+        assert a.type == b.type
+        llvm_xor = LLVMBuildXor(self->llvm_builder, a.llvm_value, b.llvm_value, "xor")
+        return LBuilderValue{type = a.type, llvm_value = llvm_xor}
+
     # a == b
     def eq(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
         assert a.type == b.type

@@ -307,6 +307,17 @@ class AnyBuilder:
             result.hvalue = self->hbuilder->mod(a.hvalue, b.hvalue)
         return result
 
+    # a ^ b
+    def xor(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
+        if self->lbuilder != NULL:
+            result.lvalue = self->lbuilder->xor(a.lvalue, b.lvalue)
+        if self->ubuilder != NULL:
+            result.uvalue = self->ubuilder->xor(a.uvalue, b.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->xor(a.hvalue, b.hvalue)
+        return result
+
     # a == b
     def eq(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}

@@ -344,7 +344,6 @@ def check_binop(
     do_what: byte*
     some_kind_of_compare = False
     equals_compare = False
-    prefer_signed = True
 
     match op:
         case AstExpressionKind.Add:
@@ -359,7 +358,6 @@ def check_binop(
             do_what = "take remainder with"
         case AstExpressionKind.Xor:
             do_what = "xor"  # TODO: test this in an error message
-            prefer_signed = False
         case AstExpressionKind.Eq | AstExpressionKind.Ne:
             do_what = "compare"
             some_kind_of_compare = True
@@ -370,19 +368,18 @@ def check_binop(
         case _:
             assert False
 
-    got_bools = lhs->types.orig_type == boolType and rhs->types.orig_type == boolType
-    got_integers = lhs->types.orig_type->is_integer_type() and rhs->types.orig_type->is_integer_type()
-    got_numbers = lhs->types.orig_type->is_number_type() and rhs->types.orig_type->is_number_type()
-    got_enums = lhs->types.orig_type->kind == TypeKind.Enum and lhs->types.orig_type == rhs->types.orig_type
+    ltype = lhs->types.orig_type
+    rtype = rhs->types.orig_type
+
+    got_bools = ltype == boolType and rtype == boolType
+    got_integers = ltype->is_integer_type() and rtype->is_integer_type()
+    got_numbers = ltype->is_number_type() and rtype->is_number_type()
+    got_enums = ltype->kind == TypeKind.Enum and ltype == rtype
     got_pointers = (
-        lhs->types.orig_type->is_pointer_type()
-        and rhs->types.orig_type->is_pointer_type()
-        and (
-            # Ban comparisons like int* == byte*, unless one of the two types is void*
-            lhs->types.orig_type == rhs->types.orig_type
-            or lhs->types.orig_type == voidPtrType
-            or rhs->types.orig_type == voidPtrType
-        )
+        ltype->is_pointer_type()
+        and rtype->is_pointer_type()
+        # Ban comparisons like int* == byte*, unless one of the two types is void*
+        and (ltype == rtype or ltype == voidPtrType or rtype == voidPtrType)
     )
 
     if (
@@ -392,36 +389,54 @@ def check_binop(
         or (got_pointers and not some_kind_of_compare)
     ):
         msg: byte[500]
-        snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, lhs->types.orig_type->name, rhs->types.orig_type->name)
+        snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype->name, rtype->name)
         fail(location, msg)
 
     cast_type: Type* = NULL
     if got_bools:
         cast_type = boolType
     if got_integers:
-        lhs_signed = lhs->types.orig_type->kind == TypeKind.SignedInteger
-        rhs_signed = rhs->types.orig_type->kind == TypeKind.SignedInteger
-        size = max(lhs->types.orig_type->size_in_bits, rhs->types.orig_type->size_in_bits)
-        if lhs_signed != rhs_signed and some_kind_of_compare:
-            # Signed vs unsigned comparing. Must use a bigger integer type.
-            # For example, we use int16 to compare "-1 as int8" and "255 as uint8".
-            # They consist of the same bits (11111111) but they represent different values.
+        lhs_signed = ltype->kind == TypeKind.SignedInteger
+        rhs_signed = rtype->kind == TypeKind.SignedInteger
+        if op == AstExpressionKind.Xor:
+            # Result of xor is always one of the two types.
+            # If one type is bigger than the other, use it.
+            # If both types are the same size, prefer unsigned.
             #
-            # Currently the biggest integers available in Jou are 64-bit.
-            # This may cast them to 128-bit, which is supported in LLVM.
-            size *= 2
-        if lhs_signed and rhs_signed:
-            signed = True
-        elif not lhs_signed and not rhs_signed:
-            signed = False
+            # Examples:
+            #   int ^ int8 --> int
+            #   int ^ byte --> int
+            #   int ^ int --> int
+            #   int ^ uint32 --> uint32
+            #   int ^ int64 --> int64
+            #   int ^ uint64 --> uint64
+            if ltype->size_in_bits > rtype->size_in_bits:
+                cast_type = ltype
+            elif ltype->size_in_bits < rtype->size_in_bits:
+                cast_type = rtype
+            elif not lhs_signed:
+                cast_type = ltype
+            elif not rhs_signed:
+                cast_type = rtype
+            else:
+                assert ltype == rtype
+                cast_type = rtype
         else:
-            signed = prefer_signed
-        if signed:
-            cast_type = int_type(size)
-        else:
-            cast_type = uint_type(size)
+            size = max(ltype->size_in_bits, rtype->size_in_bits)
+            if lhs_signed != rhs_signed and some_kind_of_compare:
+                # Signed vs unsigned comparing. Must use a bigger integer type.
+                # For example, we use int16 to compare "-1 as int8" and "255 as uint8".
+                # They consist of the same bits (11111111) but they represent different values.
+                #
+                # Currently the biggest integers available in Jou are 64-bit.
+                # This may cast them to 128-bit, which is supported in LLVM.
+                size *= 2
+            if lhs_signed or rhs_signed:
+                cast_type = int_type(size)
+            else:
+                cast_type = uint_type(size)
     if got_numbers and not got_integers:
-        if lhs->types.orig_type == doubleType or rhs->types.orig_type == doubleType:
+        if ltype == doubleType or rtype == doubleType:
             cast_type = doubleType
         else:
             cast_type = floatType
@@ -1330,6 +1345,9 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 case AstStatementKind.InPlaceMod:
                     op = AstExpressionKind.Mod
                     opname = "modulo"
+                case AstStatementKind.InPlaceXor:
+                    op = AstExpressionKind.Xor
+                    opname = "xor"  # TODO: test this in an error message
                 case _:
                     assert False
 
