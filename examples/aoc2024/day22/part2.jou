@@ -3,27 +3,10 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 
-def xor(a: long, b: long) -> long:
-    assert a >= 0
-    assert b >= 0
-
-    result = 0 as long
-    power_of_two = 1 as long
-
-    while a != 0 or b != 0:
-        if a % 2 != b % 2:
-            result += power_of_two
-        a /= 2
-        b /= 2
-        power_of_two *= 2
-
-    return result
-
-
 def next_num(n: long) -> long:
-    n = xor(n, n * 64) % 16777216
-    n = xor(n, n / 32) % 16777216
-    n = xor(n, n * 2048) % 16777216
+    n = (n ^ (n * 64)) % 16777216
+    n = (n ^ (n / 32)) % 16777216
+    n = (n ^ (n * 2048)) % 16777216
     return n
 
 
