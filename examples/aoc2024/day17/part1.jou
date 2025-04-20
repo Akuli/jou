@@ -60,7 +60,7 @@ def run_code(code: int*, regs: long[3]) -> None:
         elif opcode == 1:  # bxl = B bitwise Xor with Literal
             regs[1] ^= operand
         elif opcode == 2:  # bst = B Set value and Truncate to 3 bits
-            regs[1] = do_combo_op(operand, regs) % 8
+            regs[1] = do_combo_op(operand, regs) & 0b111
         elif opcode == 3:  # jnz = Jump if NonZero
             if regs[0] != 0:
                 ip = &code[operand]
