@@ -1,0 +1,54 @@
+# Tests for the bitwise AND operator (a & b)
+
+import "stdlib/io.jou"
+
+
+# These are used to fail compiling if a value is of the wrong type.
+#
+# Taking a pointer avoids implicit casts. For example, if b is a byte, then
+# b implicitly casts to int16, but &b doesn't implicitly cast to int16*.
+def check_int16(x: int16*) -> None:
+    pass
+
+def check_uint16(x: uint16*) -> None:
+    pass
+
+
+def main() -> int:
+    printf("%#x\n", 0xf0 & 0x0f)  # Output: 0x0
+    printf("%#x\n", 0xf0 & 0x1f)  # Output: 0x10
+    printf("%#x\n", 0xcaff & 0xfffffe)  # Output: 0xcafe
+
+    # Types of different sizes, result type is bigger type
+    a = ('A' as byte) & (0x6f as int16)  # Warning: unnecessary cast from byte to byte
+    b = ('A' as byte) & (0x6f as uint16)  # Warning: unnecessary cast from byte to byte
+    c = ('A' as int8) & (0x6f as int16)
+    d = ('A' as int8) & (0x6f as uint16)
+
+    check_int16(&a)
+    check_uint16(&b)
+    check_int16(&c)
+    check_uint16(&d)
+
+    # Same types, use the type as is
+    e = ('A' as int16) & (0x6f as int16)
+    f = ('A' as uint16) & (0x6f as uint16)
+    check_int16(&e)
+    check_uint16(&f)
+
+    # Same size but different signed-ness, prefer unsigned
+    g = ('A' as int16) & (0x6f as uint16)
+    h = ('A' as uint16) & (0x6f as int16)
+    check_uint16(&g)
+    check_uint16(&h)
+
+    # Output: aaaaaaaa
+    printf("%c%c%c%c%c%c%c%c\n", a, b, c, d, e, f, g, h)
+
+    # In-place operator
+    s: byte[10] = "HeLlO"
+    for i = 0; i < 5; i++:
+        s[i] &= 0x6f
+    puts(s)  # Output: hello
+
+    return 0
