@@ -359,9 +359,9 @@ def check_binop(
         case AstExpressionKind.Mod:
             do_what = "take remainder with"
         case AstExpressionKind.BitAnd:
-            do_what = "and lalala todo"
+            do_what = "take bitwise AND of"
         case AstExpressionKind.BitOr:
-            do_what = "or lalala todo"
+            do_what = "take bitwise OR of"
         case AstExpressionKind.BitXor:
             do_what = "xor"
         case AstExpressionKind.Eq | AstExpressionKind.Ne:
@@ -1357,10 +1357,10 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                     opname = "modulo"
                 case AstStatementKind.InPlaceBitAnd:
                     op = AstExpressionKind.BitAnd
-                    opname = "bit and todo blahblah"
+                    opname = "bitwise AND"
                 case AstStatementKind.InPlaceBitOr:
                     op = AstExpressionKind.BitOr
-                    opname = "bit or todo blahblah"
+                    opname = "bitwise OR"
                 case AstStatementKind.InPlaceBitXor:
                     op = AstExpressionKind.BitXor
                     opname = "xor"

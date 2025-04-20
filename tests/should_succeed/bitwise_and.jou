@@ -15,15 +15,15 @@ def check_uint16(x: uint16*) -> None:
 
 
 def main() -> int:
-    printf("%#x\n", 0xf0 & 0x0f)  # Output: 0x0
+    printf("%d\n", 0xf0 & 0x0f)  # Output: 0
     printf("%#x\n", 0xf0 & 0x1f)  # Output: 0x10
     printf("%#x\n", 0xcaff & 0xfffffe)  # Output: 0xcafe
 
     # Types of different sizes, result type is bigger type
-    a = ('A' as byte) & (0x6f as int16)  # Warning: unnecessary cast from byte to byte
-    b = ('A' as byte) & (0x6f as uint16)  # Warning: unnecessary cast from byte to byte
-    c = ('A' as int8) & (0x6f as int16)
-    d = ('A' as int8) & (0x6f as uint16)
+    a = ('a' as byte) & (0xdf as int16)  # Warning: unnecessary cast from byte to byte
+    b = ('a' as byte) & (0xdf as uint16)  # Warning: unnecessary cast from byte to byte
+    c = ('a' as int8) & (0xdf as int16)
+    d = ('a' as int8) & (0xdf as uint16)
 
     check_int16(&a)
     check_uint16(&b)
@@ -31,24 +31,24 @@ def main() -> int:
     check_uint16(&d)
 
     # Same types, use the type as is
-    e = ('A' as int16) & (0x6f as int16)
-    f = ('A' as uint16) & (0x6f as uint16)
+    e = ('a' as int16) & (0xdf as int16)
+    f = ('a' as uint16) & (0xdf as uint16)
     check_int16(&e)
     check_uint16(&f)
 
     # Same size but different signed-ness, prefer unsigned
-    g = ('A' as int16) & (0x6f as uint16)
-    h = ('A' as uint16) & (0x6f as int16)
+    g = ('a' as int16) & (0xdf as uint16)
+    h = ('a' as uint16) & (0xdf as int16)
     check_uint16(&g)
     check_uint16(&h)
 
-    # Output: aaaaaaaa
+    # Output: AAAAAAAA
     printf("%c%c%c%c%c%c%c%c\n", a, b, c, d, e, f, g, h)
 
     # In-place operator
     s: byte[10] = "HeLlO"
     for i = 0; i < 5; i++:
-        s[i] &= 0x6f
-    puts(s)  # Output: hello
+        s[i] &= 0xdf
+    puts(s)  # Output: HELLO
 
     return 0
