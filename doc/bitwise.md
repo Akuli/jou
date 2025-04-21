@@ -225,12 +225,13 @@ def main() -> int:
 Another way to think about hexadecimal is that it is base 16
 where `A` means 10, `B` means 11, `C` means 12, `D` means 13, `E` means 14 and `F` means 15.
 This means that instead of powers of 2 (1, 2, 4, 8, ...) or 10 (1, 10, 100, ...), we use powers of 16 (1, 16, 256, 4096, ...).
-For example, `0x4d2` means 256 repeated 4 times, 16 repeated 13 (`d`) times, and 1 repeated twice:
+For example, `0x4d2` means 256 repeated `4` times, 16 repeated `13` (`d`) times, and 1 repeated `2` times:
 
 ```python
 import "stdlib/io.jou"
 
 def main() -> int:
+    printf("%d\n", 0x4d2)                # Output: 1234
     printf("%d\n", 4*256 + 13*16 + 2*1)  # Output: 1234
     return 0
 ```
