@@ -1,15 +1,15 @@
 """Check that links in markdown files point to reasonable places."""
-# Get from https://github.com/Akuli/porcupine/
+# There is a similar script in https://github.com/Akuli/porcupine/
 
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
-import time
-from functools import cache
 from http.client import responses as status_code_names
 from pathlib import Path
+from datetime import datetime, timedelta
 
 import requests
 
@@ -37,10 +37,9 @@ def find_links_in_file(markdown_file_path):
         ]
         for regex in link_regexes:
             for target in re.findall(regex, line):
-                yield (markdown_file_path, lineno, target)
+                yield (lineno, target)
 
 
-@cache
 def check_https_link(url):
     # Give website owners some sort of idea why we are doing these requests.
     headers = {
@@ -73,6 +72,34 @@ def get_all_refs(path):
     return result
 
 
+def link_ok_recently(target, threshold):
+    """Check if the link was recently ok (within the threshold time)."""
+    try:
+        with open("links.json", "r") as file:
+            links = json.load(file)
+    except FileNotFoundError:
+        return False
+
+    if target not in links:
+        return False
+
+    time_since_check = datetime.now() - datetime.fromisoformat(links[target])
+    return time_since_check < threshold
+
+
+def link_ok_now(target):
+    """Mark the link as 'ok' by saving the current timestamp."""
+    try:
+        with open("links.json", "r") as file:
+            links = json.load(file)
+    except FileNotFoundError:
+        links = {}
+
+    links[target] = datetime.now().isoformat()
+    with open("links.json", "w") as file:
+        json.dump(links, file, indent=4)
+
+
 def check_link(markdown_file_path, target, offline_mode=False):
     if target.startswith("http://"):
         return "this link should probably use https instead of http"
@@ -80,7 +107,16 @@ def check_link(markdown_file_path, target, offline_mode=False):
     if target.startswith("https://"):
         if offline_mode:
             return "assume ok (offline mode)"
-        return check_https_link(target)
+        if link_ok_recently(target, timedelta(minutes=1)):
+            return "assume ok (was ok less than 1 minute ago)"
+
+        result = check_https_link(target)
+
+        if result == "ok":
+            link_ok_now(target)
+        if result != "ok" and link_ok_recently(target, timedelta(days=3)):
+            return f"assume ok because it was ok less than 3 days ago, fails now: {result}"
+        return result
 
     if "//" in target:
         return "double slashes are allowed only in http:// and https:// links"
@@ -121,55 +157,24 @@ def main():
         action="store_true",
         help="don't do HTTP requests, just assume that https:// links are fine",
     )
-    parser.add_argument(
-        "--retry",
-        type=int,
-        default=1,
-        metavar="n",
-        help="retry n times when https links don't work",
-    )
     args = parser.parse_args()
-
-    remaining_links = []
-    for path in find_markdown_files():
-        for link in find_links_in_file(path):
-            remaining_links.append(link)
-
-    if not remaining_links:
-        print("Error: no links found")
-        sys.exit(1)
 
     good_links = 0
     bad_links = 0
 
-    assert args.retry >= 1
-    for i in reversed(range(args.retry)):
-        if i == 0:
-            # Do not retry anymore
-            retry = None
-        else:
-            retry = []
-
-        for link in remaining_links:
-            path, lineno, target = link
+    for path in find_markdown_files():
+        for lineno, target in find_links_in_file(path):
             result = check_link(path, target, offline_mode=args.offline)
             print(f"{path}:{lineno}: {result}")
-            if result == "ok" or result == "assume ok (offline mode)":
+            if result == "ok" or result.startswith("assume ok"):
                 good_links += 1
-            elif target.startswith("https://") and retry is not None:
-                retry.append(link)
             else:
                 bad_links += 1
 
-        remaining_links.clear()
-        if retry:
-            print(f"Sleeping for 10 seconds before trying {len(retry)} bad links again.")
-            print()
-            time.sleep(10)
-            remaining_links = retry
-            check_https_link.cache_clear()
+    if good_links + bad_links == 0:
+        print("Error: no links found")
+        sys.exit(1)
 
-    assert good_links + bad_links > 0
     print()
     print(f"checked {good_links + bad_links} links: {good_links} good, {bad_links} bad")
     if bad_links > 0:
