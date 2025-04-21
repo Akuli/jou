@@ -8,120 +8,73 @@ import "./uvg.jou"
 import "./errors_and_warnings.jou"
 
 
-enum VarStatus:
-    Unvisited           # Don't know anything about this variable yet.
-    Undefined           # Holds a garbage value.
-    Defined             # This variable has been set to some non-garbage value.
-    PossiblyUndefined   # Could hold a garbage or non-garbage value.
-    DontAnalyze         # The "don't analyze" UVG instruction has been used.
-
-const VAR_STATUS_COUNT: int = 5
+# Values of variable statuses are designed so that statuses coming from
+# different branches can be combined together with the bitwise "|" (or)
+# operator.
+#
+# For example, "1 | 2 = 3" means that if a variable has a garbage value in
+# branch A (1) and a non-garbage value in branch B (2), and A and B both jump
+# into a third branch C, then status in C is "may or may not be garbage" (3).
+const UNVISITED: uint8          = 0b000  # Don't know anything about this variable yet.
+const UNDEFINED: uint8          = 0b001  # Holds a garbage value.
+const DEFINED: uint8            = 0b010  # This variable has been set to some non-garbage value.
+const POSSIBLY_UNDEFINED: uint8 = 0b011  # Could hold a garbage or non-garbage value.
+const DONT_ANALYZE: uint8       = 0b111  # The "don't analyze" UVG instruction has been used.
 
 
 if False:
-    def print_statuses(uvg: Uvg*, statuses: VarStatus*) -> None:
+    def print_statuses(uvg: Uvg*, statuses: uint8*) -> None:
         printf("VAR STATUSES:")
         for v = 0; v < uvg->varnames.len; v++:
             printf(" %s=", uvg->varnames[v])
             match statuses[v]:
-                case VarStatus.Unvisited:
+                case UNVISITED:
                     printf("{}")
-                case VarStatus.Undefined:
+                case UNDEFINED:
                     printf("{u}")
-                case VarStatus.Defined:
+                case DEFINED:
                     printf("{d}")
-                case VarStatus.PossiblyUndefined:
+                case POSSIBLY_UNDEFINED:
                     printf("{u,d}")
-                case VarStatus.DontAnalyze:
+                case DONT_ANALYZE:
                     printf("-")
+                case _:
+                    printf("?")
         printf("\n")
 
 
-# a and b are statuses from different branches that both jump to the same block.
-# Should have these properties:
-#
-#   merge(a, VarStatus.Unvisited) == a
-#   merge(a, a) == a
-#   merge(a, b) == merge(b, a)
-#   merge(a, merge(b, c)) == merge(merge(a, b), c)
-#
-# In other words:
-#   - It makes sense to merge an unordered collection of statuses.
-#   - Unvisited corresponds with merging an empty set of statuses.
-#   - Having the same status several times doesn't affect anything.
-#
-# Or even more simply: It makes sense to think of statuses as sets. Merging
-# means taking the union of those sets. Unvisited is the empty set.
-def merge(a: VarStatus, b: VarStatus) -> VarStatus:
-    if a == b:
-        return a
-
-    if a == VarStatus.DontAnalyze or b == VarStatus.DontAnalyze:
-        return VarStatus.DontAnalyze
-
-    if a == VarStatus.Unvisited:
-        return b
-    if b == VarStatus.Unvisited:
-        return a
-
-    assert a == VarStatus.Undefined or a == VarStatus.Defined or a == VarStatus.PossiblyUndefined
-    assert b == VarStatus.Undefined or b == VarStatus.Defined or b == VarStatus.PossiblyUndefined
-    assert a != b
-    return VarStatus.PossiblyUndefined
-
-
-# TODO: Not possible to use VAR_STATUS_COUNT as array size yet
-global merge_table: VarStatus[5][5]
-global merge_table_ready: bool
-
-def init_merge_table() -> None:
-    assert VAR_STATUS_COUNT == 5
-
-    if merge_table_ready:
-        return
-
-    for a = 0; a < VAR_STATUS_COUNT; a++:
-        for b = 0; b < VAR_STATUS_COUNT; b++:
-            merge_table[a][b] = merge(a as VarStatus, b as VarStatus)
-
-    merge_table_ready = True
-
-
-def build_statuses_at_end_before_analyzing(uvg: Uvg*) -> VarStatus**:
+def build_statuses_at_end_before_analyzing(uvg: Uvg*) -> uint8**:
     # statuses_at_end[b][v] = status of variable v at end of block b
-    statuses_at_end: VarStatus** = malloc(sizeof(statuses_at_end[0]) * uvg->blocks.len)
+    statuses_at_end: uint8** = malloc(sizeof(statuses_at_end[0]) * uvg->blocks.len)
     assert statuses_at_end != NULL
     for b = 0; b < uvg->blocks.len; b++:
-        statuses_at_end[b] = malloc(sizeof(statuses_at_end[b][0]) * uvg->varnames.len)
+        statuses_at_end[b] = malloc(uvg->varnames.len)
         if uvg->varnames.len != 0:
             assert statuses_at_end[b] != NULL
-        for v = 0; v < uvg->varnames.len; v++:
-            statuses_at_end[b][v] = VarStatus.Unvisited
+            memset(statuses_at_end[b], UNVISITED, uvg->varnames.len)
     return statuses_at_end
 
 
-def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: VarStatus**, block: UvgBlock*) -> VarStatus*:
+def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: uint8**, block: UvgBlock*) -> uint8*:
     n = uvg->varnames.len
     if n == 0:
         return NULL
 
-    statuses: VarStatus* = malloc(sizeof(statuses[0]) * n)
+    statuses: uint8* = malloc(n)
     assert statuses != NULL
 
     if block == uvg->blocks.ptr[0]:
         # The start block, everything is initially undefined
-        for v = 0; v < n; v++:
-            statuses[v] = VarStatus.Undefined
+        memset(statuses, UNDEFINED, n)
     else:
-        for v = 0; v < n; v++:
-            statuses[v] = VarStatus.Unvisited
+        memset(statuses, UNVISITED, n)
 
     # Merge statuses of source blocks that jump to the current block
     for b = 0; b < uvg->blocks.len; b++:
         if uvg->blocks.ptr[b]->jumps_to(block):
             # This function is O(n^2) but barely so, the following loop should be really fast in practice
             for v = 0; v < n; v++:
-                statuses[v] = merge_table[statuses_at_end[b][v] as int][statuses[v] as int]
+                statuses[v] |= statuses_at_end[b][v]
 
     return statuses
 
@@ -158,40 +111,36 @@ def handle_missing_return_statement(uvg: Uvg*, location: Location) -> None:
         show_warning(location, msg)
 
 
-def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block: UvgBlock*, warn: bool) -> None:
+def update_statuses_based_on_instructions(uvg: Uvg*, statuses: uint8*, block: UvgBlock*, warn: bool) -> None:
     msg: byte[500]
 
     for ins = block->instructions.ptr; ins < block->instructions.end(); ins++:
         match ins->kind:
             case UvgInstructionKind.Set:
-                if statuses[ins->var] != VarStatus.DontAnalyze:
-                    statuses[ins->var] = VarStatus.Defined
+                if statuses[ins->var] != DONT_ANALYZE:
+                    statuses[ins->var] = DEFINED
             case UvgInstructionKind.Use:
                 if warn and uvg->varnames.ptr[ins->var][0] != '$':
                     match statuses[ins->var]:
-                        case VarStatus.Defined | VarStatus.DontAnalyze:
-                            pass
-                        case VarStatus.Undefined:
+                        case UNDEFINED:
                             if strcmp(uvg->varnames.ptr[ins->var], "return") == 0:
                                 handle_missing_return_statement(uvg, ins->location)
                             else:
                                 snprintf(msg, sizeof(msg), "the value of '%s' is undefined", uvg->varnames.ptr[ins->var])
                                 show_warning(ins->location, msg)
-                        case VarStatus.PossiblyUndefined:
+                        case POSSIBLY_UNDEFINED:
                             if strcmp(uvg->varnames.ptr[ins->var], "return") == 0:
                                 handle_missing_return_statement(uvg, ins->location)
                             else:
                                 snprintf(msg, sizeof(msg), "the value of '%s' may be undefined", uvg->varnames.ptr[ins->var])
                                 show_warning(ins->location, msg)
-                        case VarStatus.Unvisited:
-                            pass
             case UvgInstructionKind.Statement:
                 pass
             case UvgInstructionKind.DontAnalyze:
-                statuses[ins->var] = VarStatus.DontAnalyze
+                statuses[ins->var] = DONT_ANALYZE
 
 
-def analyze_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int, warn: bool) -> bool:
+def analyze_block(uvg: Uvg*, statuses_at_end: uint8**, blockidx: int, warn: bool) -> bool:
     statuses = build_statuses_at_start_of_block(uvg, statuses_at_end, uvg->blocks.ptr[blockidx])
     update_statuses_based_on_instructions(uvg, statuses, uvg->blocks.ptr[blockidx], warn)
 
@@ -245,8 +194,6 @@ def mark_reachable_blocks(blocks: List[UvgBlock*], ignore: bool*, marked: bool*,
 
 @public
 def uvg_analyze(uvg: Uvg*) -> None:
-    init_merge_table()
-
     assert uvg->blocks.len >= 1  # must have at least start block
 
     queue: bool* = calloc(sizeof(queue[0]), uvg->blocks.len)
