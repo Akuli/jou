@@ -67,8 +67,18 @@ def check_https_link(url):
 def get_all_refs(path):
     result = []
     for title in re.findall(r"\n#+ (.*)", path.read_text()):
-        words = re.findall(r"[a-z0-9]+", title.lower().replace("'", ""))
-        result.append("#" + "-".join(words))
+        # Try to match whatever GitHub does.
+        #
+        # Examples:
+        #   "## Combining multiple cases with `|`" --> #combining-multiple-cases-with-
+        #   "## `byte`, `int`, `long`" --> #byte-int-long
+        #   "## Undefined Behavior (UB)" --> #undefined-behavior-ub
+        #   "## Rust's approach to UB" --> #rusts-approach-to-ub
+        #
+        # This is not documented anywhere, see e.g. https://stackoverflow.com/a/73742961
+        title = title.lower().strip().replace(" ", "-")
+        title = re.sub(r"[^\w-]", "", title)
+        result.append("#" + title)
     return result
 
 
