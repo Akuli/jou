@@ -50,7 +50,7 @@ just like 101 in binary means "has 4, doesn't have 2, has 1".
 
 The number whose powers are being used is called the **base**.
 The usual way of writing numbers is base 10, and binary is base 2.
-Other commonly used choices are base 8 (octal) and base 16 (hexedacimal).
+Other commonly used choices are base 8 (octal) and base 16 (hexadecimal).
 
 
 ## Bitwise AND
@@ -166,14 +166,14 @@ import "stdlib/io.jou"
 
 def main() -> int:
     number = 1234
-    last_8_bits = number & 0b11111111
+    last_8_bits = number & 0b1111_1111
     printf("%d\n", last_8_bits)  # Output: 210
     return 0
 ```
 
 (The `_` in `0b1111_1111` is ignored, but it makes the number more readable to humans.)
 
-But most experienced programmers would write it like this:
+Most experienced programmers would write it like this:
 
 ```python
 import "stdlib/io.jou"
@@ -218,27 +218,21 @@ def main() -> int:
     printf("%d\n", 0xFF)         # Output: 255
     printf("%d\n", 0b1111_1111)  # Output: 255
 
-    printf("%d\n", 0xCAFE)                 # Output: 51966
-    printf("%d\n", 0b1100_1010_1111_1110)  # Output: 51966
+    printf("%d\n", 0x4d2)             # Output: 1234
+    printf("%d\n", 0b0100_1101_0010)  # Output: 1234
 
     return 0
 ```
 
-Another way to think about hexadecimal is that it's just like the usual base-10 way of writing numbers,
-but with base 16.
-For example, `0xFF` means `F`ifteen 16's and `F`ifteen ones:
+Another way to think about hexadecimal is that it is base 16
+where `A` means 10, `B` means 11, `C` means 12, `D` means 13, `E` means 14 and `F` means 15.
+This means that instead of powers of 2 (1, 2, 4, 8, ...) or 10 (1, 10, 100, ...), we use powers of 16 (1, 16, 256, 4096, ...).
+For example, `0x4d2` means 256 repeated 4 times, 16 repeated 13 (`d`) times, and 1 repeated twice:
 
 ```python
 import "stdlib/io.jou"
 
 def main() -> int:
-    printf("%d\n", 0b1111_1111)  # Output: 255
+    printf("%d\n", 4*256 + 13*16 + 2*1)  # Output: 1234
     return 0
 ```
-
-So we use powers of 16 (1, 16, 256, 4096, ...) instead of powers of 10 (1, 10, 100, ...).
-For example, 105 means "has 100, doesn't have 10, has 1 five times",
-just like 101 in binary means "has 4, doesn't have 2, has 1".
-The number whose powers are being used is called the **base**:
-the usual way of writing numbers is base 10, and binary is base 2.
-
