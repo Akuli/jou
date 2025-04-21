@@ -839,37 +839,6 @@ def handle_conflicting_class_field_and_enum_member_syntax(state: State*, expr: A
     }
 
 
-def max_value(t: Type*) -> uint64:
-    match t->kind:
-        # See doc/types.md
-        case TypeKind.SignedInteger:
-            match t->size_in_bits:
-                case 8:
-                    return 0x7f
-                case 16:
-                    return 0x7fff
-                case 32:
-                    return 0x7fff_ffff
-                case 64:
-                    return 0x7fff_ffff_ffff_ffff
-                case _:
-                    assert False
-        case TypeKind.UnsignedInteger:
-            match t->size_in_bits:
-                case 8:
-                    return 0xff
-                case 16:
-                    return 0xffff
-                case 32:
-                    return 0xffff_ffff
-                case 64:
-                    return 0xffff_ffff_ffff_ffff
-                case _:
-                    assert False
-        case _:
-            assert False
-
-
 def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) -> None:
     msg: byte[500]
     result: Type* = NULL
@@ -878,23 +847,12 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
 
     match expr->kind:
         case AstExpressionKind.IntegerConstant:
-            # Usually int, but use type hint if given reasonably.
-            # See documentation on type inference (and please keep it up to date).
-            if type_hint != NULL and type_hint->is_integer_type():
-                result = type_hint
-            else:
-                result = intType
-
-            if expr->integer_value > max_value(result):
-                if result->kind == TypeKind.SignedInteger:
-                    signed_or_unsigned = "signed"
-                else:
-                    signed_or_unsigned = "unsigned"
-                snprintf(msg, sizeof(msg), "value does not fit into %s (%d-bit %s integer)", result->name, result->size_in_bits, signed_or_unsigned)
-                fail(expr->location, msg)
-
+            c: Constant
+            ok = evaluate_constant_expression(expr, &c, type_hint)
+            assert ok  # See source code of evaluate_constant_expression(), should never return False
+            result = c.get_type()
             expr->kind = AstExpressionKind.Constant
-            expr->constant = int_constant(result, expr->integer_value as int64)
+            expr->constant = c
 
         case AstExpressionKind.Constant:
             # Use array string if type hint given, e.g. foo: byte[100] = "hello"

@@ -26,7 +26,7 @@ def evaluate_boolean_and_or(expr: AstExpression*, and_or: byte*) -> int:
     assert strcmp(and_or, "and") == 0 or strcmp(and_or, "or") == 0
 
     value: Constant
-    if not evaluate_constant_expression(expr, &value):
+    if not evaluate_constant_expression(expr, &value, boolType):
         return -1
 
     if value.kind != ConstantKind.Bool:
@@ -38,19 +38,88 @@ def evaluate_boolean_and_or(expr: AstExpression*, and_or: byte*) -> int:
     return value.boolean as int
 
 
+# For integer types, returns the smallest supported value.
+def min_value(t: Type*) -> int64:
+    match t->kind:
+        # See doc/types.md
+        case TypeKind.SignedInteger:
+            match t->size_in_bits:
+                case 8:
+                    return -0x80
+                case 16:
+                    return -0x8000
+                case 32:
+                    # TODO: This is more difficult than it should be.
+                    return -(0x8000_0000 as int64)
+                case 64:
+                    # TODO: This is more difficult than it should be. Relies on overflow.
+                    return (0x8000_0000_0000_0000 as uint64) as int64
+                case _:
+                    assert False
+        case TypeKind.UnsignedInteger:
+            return 0
+        case _:
+            assert False
+
+
+# For integer types, returns the biggest supported value.
+def max_value(t: Type*) -> uint64:
+    match t->kind:
+        # See doc/types.md
+        case TypeKind.SignedInteger:
+            match t->size_in_bits:
+                case 8:
+                    return 0x7f
+                case 16:
+                    return 0x7fff
+                case 32:
+                    return 0x7fff_ffff
+                case 64:
+                    return 0x7fff_ffff_ffff_ffff
+                case _:
+                    assert False
+        case TypeKind.UnsignedInteger:
+            match t->size_in_bits:
+                case 8:
+                    return 0xff
+                case 16:
+                    return 0xffff
+                case 32:
+                    return 0xffff_ffff
+                case 64:
+                    return 0xffff_ffff_ffff_ffff
+                case _:
+                    assert False
+        case _:
+            assert False
+
+
 # Returns False if the expression is not a simple compile-time constant.
+#
+# As the naming suggests, the type hint is only a hint and result type may differ.
+# Set the type hint to NULL if you don't care about it.
 @public
-def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> bool:
+def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_hint: Type*) -> bool:
     msg: byte[500]
 
     match expr->kind:
         case AstExpressionKind.IntegerConstant:
-            # TODO: don't assume "int" when it doesn't make sense
-            if (expr->integer_value as int) == expr->integer_value:
-                # fits into int
-                *result = int_constant(intType, expr->integer_value as int64)
-                return True
-            return False
+            if type_hint != NULL and type_hint->is_integer_type():
+                t = type_hint
+            else:
+                t = intType
+
+            if expr->integer_value > max_value(t):
+                # TODO: test this in a constant
+                if t->kind == TypeKind.SignedInteger:
+                    signed_or_unsigned = "signed"
+                else:
+                    signed_or_unsigned = "unsigned"
+                snprintf(msg, sizeof(msg), "value does not fit into %s (%d-bit %s integer)", t->name, t->size_in_bits, signed_or_unsigned)
+                fail(expr->location, msg)
+
+            *result = int_constant(t, expr->integer_value as int64)
+            return True
 
         case AstExpressionKind.Constant:
             *result = expr->constant.copy()
@@ -81,7 +150,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
             return True
 
         case AstExpressionKind.Not:
-            if not evaluate_constant_expression(&expr->operands[0], result):
+            if not evaluate_constant_expression(&expr->operands[0], result, boolType):
                 return False
 
             if result->kind != ConstantKind.Bool:
@@ -93,15 +162,18 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
             return True
 
         case AstExpressionKind.Negate:
-            if not evaluate_constant_expression(&expr->operands[0], result):
+            if not evaluate_constant_expression(&expr->operands[0], result, type_hint):
                 return False
 
-            # TODO: make this more general
-            if result->get_type() != intType:
+            if result->get_type()->kind != TypeKind.SignedInteger:
                 return False
 
-            # TODO: is casting to int and back necessary to get the right overflow behaviors?
-            result->integer.value = -(result->integer.value as int)
+            # Negating the smallest signed integer would overflow.
+            # For example, int8 goes from -128 to +127.
+            if result->integer.value == min_value(result->get_type()):
+                return False
+
+            result->integer.value *= -1
             return True
 
         case _:
@@ -112,7 +184,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
 def evaluate_array_length(expr: AstExpression*) -> int:
     # TODO: this should probably support longs
     c: Constant
-    if evaluate_constant_expression(expr, &c) and c.get_type() == intType:
+    if evaluate_constant_expression(expr, &c, intType) and c.get_type() == intType:
         return c.integer.value as int
     fail(expr->location, "cannot evaluate array length at compile time")
 
@@ -123,7 +195,7 @@ def choose_if_elif_branch(if_stmt: AstIfStatement*) -> List[AstStatement]*:
     # Return the first branch whose condition is true.
     # Return NULL if we fail to evaluate a condition and it must be checked at runtime.
     for p = if_stmt->if_and_elifs.ptr; p < if_stmt->if_and_elifs.end(); p++:
-        if (not evaluate_constant_expression(&p->condition, &cond)) or cond.kind != ConstantKind.Bool:
+        if (not evaluate_constant_expression(&p->condition, &cond, boolType)) or cond.kind != ConstantKind.Bool:
             return NULL
 
         if cond.boolean:

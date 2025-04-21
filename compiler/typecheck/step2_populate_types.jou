@@ -41,12 +41,11 @@ def handle_global_var(ft: FileTypes*, location: Location, name: byte*, type: Ast
 def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> ExportSymbol:
     check_no_global_var_or_const(ft, location, c->name)
 
-    # evaluate the constant expression
-    value: Constant
-    if not evaluate_constant_expression(&c->value, &value):
-        fail(location, "cannot evaluate value of constant at compile time")
-
     expected_type = type_from_ast(ft, NULL, &c->type)
+
+    value: Constant
+    if not evaluate_constant_expression(&c->value, &value, expected_type):
+        fail(location, "cannot evaluate value of constant at compile time")
 
     # TODO: allow implicit casts?
     if value.get_type() != expected_type:
