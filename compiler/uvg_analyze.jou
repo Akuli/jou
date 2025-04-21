@@ -53,7 +53,7 @@ def build_statuses_at_end_before_analyzing(uvg: Uvg*) -> uint8**:
     return statuses_at_end
 
 
-def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: VarStatus**, block: UvgBlock*) -> VarStatus*:
+def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: uint8**, block: UvgBlock*) -> uint8*:
     n = uvg->varnames.len
     if n == 0:
         return NULL
@@ -109,40 +109,36 @@ def handle_missing_return_statement(uvg: Uvg*, location: Location) -> None:
         show_warning(location, msg)
 
 
-def update_statuses_based_on_instructions(uvg: Uvg*, statuses: VarStatus*, block: UvgBlock*, warn: bool) -> None:
+def update_statuses_based_on_instructions(uvg: Uvg*, statuses: uint8*, block: UvgBlock*, warn: bool) -> None:
     msg: byte[500]
 
     for ins = block->instructions.ptr; ins < block->instructions.end(); ins++:
         match ins->kind:
             case UvgInstructionKind.Set:
-                if statuses[ins->var] != VarStatus.DontAnalyze:
-                    statuses[ins->var] = VarStatus.Defined
+                if statuses[ins->var] != DONT_ANALYZE:
+                    statuses[ins->var] = DEFINED
             case UvgInstructionKind.Use:
                 if warn and uvg->varnames.ptr[ins->var][0] != '$':
                     match statuses[ins->var]:
-                        case VarStatus.Defined | VarStatus.DontAnalyze:
-                            pass
-                        case VarStatus.Undefined:
+                        case UNDEFINED:
                             if strcmp(uvg->varnames.ptr[ins->var], "return") == 0:
                                 handle_missing_return_statement(uvg, ins->location)
                             else:
                                 snprintf(msg, sizeof(msg), "the value of '%s' is undefined", uvg->varnames.ptr[ins->var])
                                 show_warning(ins->location, msg)
-                        case VarStatus.PossiblyUndefined:
+                        case POSSIBLY_UNDEFINED:
                             if strcmp(uvg->varnames.ptr[ins->var], "return") == 0:
                                 handle_missing_return_statement(uvg, ins->location)
                             else:
                                 snprintf(msg, sizeof(msg), "the value of '%s' may be undefined", uvg->varnames.ptr[ins->var])
                                 show_warning(ins->location, msg)
-                        case VarStatus.Unvisited:
-                            pass
             case UvgInstructionKind.Statement:
                 pass
             case UvgInstructionKind.DontAnalyze:
-                statuses[ins->var] = VarStatus.DontAnalyze
+                statuses[ins->var] = DONT_ANALYZE
 
 
-def analyze_block(uvg: Uvg*, statuses_at_end: VarStatus**, blockidx: int, warn: bool) -> bool:
+def analyze_block(uvg: Uvg*, statuses_at_end: uint8**, blockidx: int, warn: bool) -> bool:
     statuses = build_statuses_at_start_of_block(uvg, statuses_at_end, uvg->blocks.ptr[blockidx])
     update_statuses_based_on_instructions(uvg, statuses, uvg->blocks.ptr[blockidx], warn)
 
