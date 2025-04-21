@@ -7,8 +7,6 @@ import os
 import re
 import subprocess
 import sys
-import time
-from functools import cache
 from http.client import responses as status_code_names
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -42,7 +40,6 @@ def find_links_in_file(markdown_file_path):
                 yield (markdown_file_path, lineno, target)
 
 
-@cache
 def check_https_link(url):
     # Give website owners some sort of idea why we are doing these requests.
     headers = {
@@ -112,6 +109,7 @@ def check_link(markdown_file_path, target, offline_mode=False):
             return "assume ok (offline mode)"
         if link_ok_recently(target, timedelta(minutes=1)):
             return "assume ok (was ok less than 1 minute ago)"
+
         result = check_https_link(target)
 
         if result == "ok":
