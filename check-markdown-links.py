@@ -2,6 +2,7 @@
 # Get from https://github.com/Akuli/porcupine/
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -10,6 +11,7 @@ import time
 from functools import cache
 from http.client import responses as status_code_names
 from pathlib import Path
+from datetime import datetime, timedelta
 
 import requests
 
@@ -73,6 +75,34 @@ def get_all_refs(path):
     return result
 
 
+def link_ok_recently(target, threshold):
+    """Check if the link was recently ok (within the threshold time)."""
+    try:
+        with open("links.json", "r") as file:
+            links = json.load(file)
+    except FileNotFoundError:
+        return False
+
+    if target not in links:
+        return False
+
+    time_since_check = datetime.now() - datetime.fromisoformat(links[target])
+    return time_since_check < threshold
+
+
+def link_ok_now(target):
+    """Mark the link as 'ok' by saving the current timestamp."""
+    try:
+        with open("links.json", "r") as file:
+            links = json.load(file)
+    except FileNotFoundError:
+        links = {}
+
+    links[target] = datetime.now().isoformat()
+    with open("links.json", "w") as file:
+        json.dump(links, file, indent=4)
+
+
 def check_link(markdown_file_path, target, offline_mode=False):
     if target.startswith("http://"):
         return "this link should probably use https instead of http"
@@ -80,7 +110,15 @@ def check_link(markdown_file_path, target, offline_mode=False):
     if target.startswith("https://"):
         if offline_mode:
             return "assume ok (offline mode)"
-        return check_https_link(target)
+        if link_ok_recently(target, timedelta(minutes=1)):
+            return "assume ok (was ok less than 1 minute ago)"
+        result = check_https_link(target)
+
+        if result == "ok":
+            link_ok_now(target)
+        if result != "ok" and link_ok_recently(target, timedelta(days=3)):
+            return f"assume ok because it was ok less than 3 days ago, fails now: {result}"
+        return result
 
     if "//" in target:
         return "double slashes are allowed only in http:// and https:// links"
@@ -121,13 +159,6 @@ def main():
         action="store_true",
         help="don't do HTTP requests, just assume that https:// links are fine",
     )
-    parser.add_argument(
-        "--retry",
-        type=int,
-        default=1,
-        metavar="n",
-        help="retry n times when https links don't work",
-    )
     args = parser.parse_args()
 
     remaining_links = []
@@ -142,32 +173,15 @@ def main():
     good_links = 0
     bad_links = 0
 
-    assert args.retry >= 1
-    for i in reversed(range(args.retry)):
-        if i == 0:
-            # Do not retry anymore
-            retry = None
-        else:
-            retry = []
-
-        for link in remaining_links:
+    for path in find_markdown_files():
+        for link in find_links_in_file(path):
             path, lineno, target = link
             result = check_link(path, target, offline_mode=args.offline)
             print(f"{path}:{lineno}: {result}")
-            if result == "ok" or result == "assume ok (offline mode)":
+            if result == "ok" or result.startswith("assume ok"):
                 good_links += 1
-            elif target.startswith("https://") and retry is not None:
-                retry.append(link)
             else:
                 bad_links += 1
-
-        remaining_links.clear()
-        if retry:
-            print(f"Sleeping for 10 seconds before trying {len(retry)} bad links again.")
-            print()
-            time.sleep(10)
-            remaining_links = retry
-            check_https_link.cache_clear()
 
     assert good_links + bad_links > 0
     print()
