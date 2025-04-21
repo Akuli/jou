@@ -20,12 +20,21 @@ const yes5: bool = not False
 
 const message: byte* = "hello"
 
+const big: uint64 = 12345678901234567890  # barely fits in uint64
+const big_negative: int64 = -12345678987654321
+
+# TODO: doesn't work yet
+#const int8_min: int8 = -128
+#const int16_min: int16 = -32768
+
 
 def main() -> int:
     printf("foo = %d\n", foo)           # Output: foo = 42
     printf("negative = %d\n", negative) # Output: negative = -6
     printf("flag = %d\n", flag)         # Output: flag = 1
     printf("%#x\n", MAGIC_CONSTANT)     # Output: 0x6a6f75
+    printf("%llu\n", big)               # Output: 12345678901234567890
+    printf("%lld\n", big_negative)      # Output: -12345678987654321
 
     printf("%d %d %d %d %d\n", yes1, yes2, yes3, yes4, yes5)  # Output: 1 1 1 1 1
     printf("%d %d %d %d %d\n", no1, no2, no3, no4, no5)       # Output: 0 0 0 0 0
