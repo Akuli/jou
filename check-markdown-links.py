@@ -37,7 +37,7 @@ def find_links_in_file(markdown_file_path):
         ]
         for regex in link_regexes:
             for target in re.findall(regex, line):
-                yield (markdown_file_path, lineno, target)
+                yield (lineno, target)
 
 
 def check_https_link(url):
@@ -159,21 +159,11 @@ def main():
     )
     args = parser.parse_args()
 
-    remaining_links = []
-    for path in find_markdown_files():
-        for link in find_links_in_file(path):
-            remaining_links.append(link)
-
-    if not remaining_links:
-        print("Error: no links found")
-        sys.exit(1)
-
     good_links = 0
     bad_links = 0
 
     for path in find_markdown_files():
-        for link in find_links_in_file(path):
-            path, lineno, target = link
+        for lineno, target in find_links_in_file(path):
             result = check_link(path, target, offline_mode=args.offline)
             print(f"{path}:{lineno}: {result}")
             if result == "ok" or result.startswith("assume ok"):
@@ -181,7 +171,10 @@ def main():
             else:
                 bad_links += 1
 
-    assert good_links + bad_links > 0
+    if good_links + bad_links == 0:
+        print("Error: no links found")
+        sys.exit(1)
+
     print()
     print(f"checked {good_links + bad_links} links: {good_links} good, {bad_links} bad")
     if bad_links > 0:
