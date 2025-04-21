@@ -6,7 +6,7 @@ If you try to calculate the power of a number with `^`, the results will be surp
 import "stdlib/io.jou"
 
 def main() -> int:
-    printf("%d\n", 3 ^ 10)  # Output: 18
+    printf("%d\n", 3 ^ 10)  # Output: 9
     return 0
 ```
 
