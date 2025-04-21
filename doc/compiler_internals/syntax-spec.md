@@ -35,7 +35,10 @@ For example, to see the tokens of the hello world program,
 run `jou --tokenize-only examples/hello.jou`.
 
 Jou has a few different kinds of tokens:
-- **Integer literals** can be specified in base 10 (e.g. `123`), hex (`0x123abc` or `0x123ABC`), octal (`0o777`) or binary (`0b010101`).
+- **Integer literals** can be specified in base 10 (e.g. `123`),
+    [hex](../bitwise.md#hexadecimal-numbers) (`0x123abc` or `0x123ABC`),
+    octal (`0o777`) or
+    [binary](../bitwise.md#binary-numbers) (`0b010101`).
     The prefixes `0x`, `0o` and `0b` are case-sensitive.
     A minus sign is never a part of an integer literal token: `-10` tokenizes as two separate tokens.
 
