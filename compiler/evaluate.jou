@@ -170,6 +170,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
 
             # Negating the smallest signed integer would overflow.
             # For example, int8 goes from -128 to +127.
+            # TODO: test this when possible
             if result->integer.value == min_value(result->get_type()):
                 return False
 
