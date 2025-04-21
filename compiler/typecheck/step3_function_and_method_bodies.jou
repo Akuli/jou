@@ -849,7 +849,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
         case AstExpressionKind.IntegerConstant:
             c: Constant
             ok = evaluate_constant_expression(expr, &c, type_hint)
-            assert ok  # See source code of evaluate_constant_expression(), should never return False
+            assert ok  # Should fail with a compiler error if there is a problem
             result = c.get_type()
             expr->kind = AstExpressionKind.Constant
             expr->constant = c
