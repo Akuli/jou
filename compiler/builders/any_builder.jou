@@ -307,15 +307,37 @@ class AnyBuilder:
             result.hvalue = self->hbuilder->mod(a.hvalue, b.hvalue)
         return result
 
-    # a ^ b
-    def xor(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    # a & b
+    def bit_and(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self->lbuilder != NULL:
-            result.lvalue = self->lbuilder->xor(a.lvalue, b.lvalue)
+            result.lvalue = self->lbuilder->bit_and(a.lvalue, b.lvalue)
         if self->ubuilder != NULL:
-            result.uvalue = self->ubuilder->xor(a.uvalue, b.uvalue)
+            result.uvalue = self->ubuilder->bit_and(a.uvalue, b.uvalue)
         if self->hbuilder != NULL:
-            result.hvalue = self->hbuilder->xor(a.hvalue, b.hvalue)
+            result.hvalue = self->hbuilder->bit_and(a.hvalue, b.hvalue)
+        return result
+
+    # a | b
+    def bit_or(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
+        if self->lbuilder != NULL:
+            result.lvalue = self->lbuilder->bit_or(a.lvalue, b.lvalue)
+        if self->ubuilder != NULL:
+            result.uvalue = self->ubuilder->bit_or(a.uvalue, b.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->bit_or(a.hvalue, b.hvalue)
+        return result
+
+    # a ^ b
+    def bit_xor(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
+        if self->lbuilder != NULL:
+            result.lvalue = self->lbuilder->bit_xor(a.lvalue, b.lvalue)
+        if self->ubuilder != NULL:
+            result.uvalue = self->ubuilder->bit_xor(a.uvalue, b.uvalue)
+        if self->hbuilder != NULL:
+            result.hvalue = self->hbuilder->bit_xor(a.hvalue, b.hvalue)
         return result
 
     # a == b

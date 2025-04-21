@@ -246,8 +246,24 @@ class HBuilder:
         assert a.type == b.type
         return self->new_value(a.type)
 
+    # a & b
+    def bit_and(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self->hash.add_string("and")
+        self->hash.add_int64(a.id)
+        self->hash.add_int64(b.id)
+        assert a.type == b.type
+        return self->new_value(a.type)
+
+    # a | b
+    def bit_or(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self->hash.add_string("or")
+        self->hash.add_int64(a.id)
+        self->hash.add_int64(b.id)
+        assert a.type == b.type
+        return self->new_value(a.type)
+
     # a ^ b
-    def xor(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def bit_xor(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self->hash.add_string("xor")
         self->hash.add_int64(a.id)
         self->hash.add_int64(b.id)

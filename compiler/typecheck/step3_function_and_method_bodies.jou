@@ -89,13 +89,15 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "a variable"
 
         case (
-            AstExpressionKind.Add
+            AstExpressionKind.Negate
+            | AstExpressionKind.Add
             | AstExpressionKind.Sub
             | AstExpressionKind.Mul
             | AstExpressionKind.Div
             | AstExpressionKind.Mod
-            | AstExpressionKind.Xor
-            | AstExpressionKind.Negate
+            | AstExpressionKind.BitAnd
+            | AstExpressionKind.BitOr
+            | AstExpressionKind.BitXor
         ):
             return "the result of a calculation"
 
@@ -331,6 +333,70 @@ def typecheck_expression_with_implicit_cast(
     do_implicit_cast(state->fom_types, expr, casttype, expr->location, errormsg_template)
 
 
+def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind) -> Type*:
+    assert ltype->is_integer_type()
+    assert rtype->is_integer_type()
+
+    lhs_signed = ltype->kind == TypeKind.SignedInteger
+    rhs_signed = rtype->kind == TypeKind.SignedInteger
+
+    match op:
+        # Result of bitwise and/or/xor is always one of the two types.
+        # If types are of different sizes: AND uses smaller, OR/XOR uses bigger
+        # If types are the same size: use unsigned if one of the two types is unsigned
+        case AstExpressionKind.BitAnd:
+            if ltype->size_in_bits > rtype->size_in_bits:
+                return rtype
+            if ltype->size_in_bits < rtype->size_in_bits:
+                return ltype
+            # same size, prefer unsigned
+            if lhs_signed:
+                return rtype
+            return ltype
+
+        case AstExpressionKind.BitOr | AstExpressionKind.BitXor:
+            if ltype->size_in_bits > rtype->size_in_bits:
+                return ltype
+            if ltype->size_in_bits < rtype->size_in_bits:
+                return rtype
+            # same size, prefer unsigned
+            if lhs_signed:
+                return rtype
+            return ltype
+
+        case (
+            AstExpressionKind.Eq
+            | AstExpressionKind.Ne
+            | AstExpressionKind.Gt
+            | AstExpressionKind.Ge
+            | AstExpressionKind.Lt
+            | AstExpressionKind.Le
+        ):
+            # We want to cast to a common type so that we see the true values of both sides.
+            bigger_size = max(ltype->size_in_bits, rtype->size_in_bits)
+            if lhs_signed and rhs_signed:
+                return int_type(bigger_size)
+            if lhs_signed or rhs_signed:
+                # Signed vs unsigned comparing. Must use a bigger integer type.
+                #
+                # For example, we use int16 to compare "-1 as int8" and "255 as uint8".
+                # They consist of the same bits (11111111) but they represent different values.
+                #
+                # The biggest integers available in Jou are 64-bit.
+                # This may cast them to 128-bit, which is supported in LLVM.
+                return int_type(2 * bigger_size)
+            return uint_type(bigger_size)
+
+        case _:
+            # A calculation that may overflow, e.g. + - * /
+            # Choose the bigger size of inputs. Result is signed if either input value is.
+            bigger_size = max(ltype->size_in_bits, rtype->size_in_bits)
+            if lhs_signed or rhs_signed:
+                return int_type(bigger_size)
+            else:
+                return uint_type(bigger_size)
+
+
 def check_binop(
     fom: FunctionOrMethodTypes*,
     op: AstExpressionKind,
@@ -356,7 +422,11 @@ def check_binop(
             do_what = "divide"
         case AstExpressionKind.Mod:
             do_what = "take remainder with"
-        case AstExpressionKind.Xor:
+        case AstExpressionKind.BitAnd:
+            do_what = "take bitwise AND of"
+        case AstExpressionKind.BitOr:
+            do_what = "take bitwise OR of"
+        case AstExpressionKind.BitXor:
             do_what = "xor"
         case AstExpressionKind.Eq | AstExpressionKind.Ne:
             do_what = "compare"
@@ -396,45 +466,7 @@ def check_binop(
     if got_bools:
         cast_type = boolType
     if got_integers:
-        lhs_signed = ltype->kind == TypeKind.SignedInteger
-        rhs_signed = rtype->kind == TypeKind.SignedInteger
-        if op == AstExpressionKind.Xor:
-            # Result of xor is always one of the two types.
-            # If one type is bigger than the other, use it.
-            # If both types are the same size, prefer unsigned.
-            #
-            # Examples:
-            #   int ^ int8 --> int
-            #   int ^ byte --> int
-            #   int ^ int --> int
-            #   int ^ uint32 --> uint32
-            #   int ^ int64 --> int64
-            #   int ^ uint64 --> uint64
-            if ltype->size_in_bits > rtype->size_in_bits:
-                cast_type = ltype
-            elif ltype->size_in_bits < rtype->size_in_bits:
-                cast_type = rtype
-            elif not lhs_signed:
-                cast_type = ltype
-            elif not rhs_signed:
-                cast_type = rtype
-            else:
-                assert ltype == rtype
-                cast_type = rtype
-        else:
-            size = max(ltype->size_in_bits, rtype->size_in_bits)
-            if lhs_signed != rhs_signed and some_kind_of_compare:
-                # Signed vs unsigned comparing. Must use a bigger integer type.
-                # For example, we use int16 to compare "-1 as int8" and "255 as uint8".
-                # They consist of the same bits (11111111) but they represent different values.
-                #
-                # Currently the biggest integers available in Jou are 64-bit.
-                # This may cast them to 128-bit, which is supported in LLVM.
-                size *= 2
-            if lhs_signed or rhs_signed:
-                cast_type = int_type(size)
-            else:
-                cast_type = uint_type(size)
+        cast_type = cast_type_of_integer_binop(ltype, rtype, op)
     if got_numbers and not got_integers:
         if ltype == doubleType or rtype == doubleType:
             cast_type = doubleType
@@ -1063,7 +1095,9 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             | AstExpressionKind.Mul
             | AstExpressionKind.Div
             | AstExpressionKind.Mod
-            | AstExpressionKind.Xor
+            | AstExpressionKind.BitAnd
+            | AstExpressionKind.BitOr
+            | AstExpressionKind.BitXor
             | AstExpressionKind.Eq
             | AstExpressionKind.Ne
             | AstExpressionKind.Gt
@@ -1320,7 +1354,9 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             | AstStatementKind.InPlaceMul
             | AstStatementKind.InPlaceDiv
             | AstStatementKind.InPlaceMod
-            | AstStatementKind.InPlaceXor
+            | AstStatementKind.InPlaceBitAnd
+            | AstStatementKind.InPlaceBitOr
+            | AstStatementKind.InPlaceBitXor
         ):
             targetexpr = &stmt->assignment.target
             valueexpr = &stmt->assignment.value
@@ -1345,8 +1381,14 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 case AstStatementKind.InPlaceMod:
                     op = AstExpressionKind.Mod
                     opname = "modulo"
-                case AstStatementKind.InPlaceXor:
-                    op = AstExpressionKind.Xor
+                case AstStatementKind.InPlaceBitAnd:
+                    op = AstExpressionKind.BitAnd
+                    opname = "bitwise AND"
+                case AstStatementKind.InPlaceBitOr:
+                    op = AstExpressionKind.BitOr
+                    opname = "bitwise OR"
+                case AstStatementKind.InPlaceBitXor:
+                    op = AstExpressionKind.BitXor
                     opname = "xor"
                 case _:
                     assert False

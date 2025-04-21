@@ -219,8 +219,12 @@ class AstToBuilder:
                 return self->builder->div(lhs, rhs)
             case AstExpressionKind.Mod:
                 return self->builder->mod(lhs, rhs)
-            case AstExpressionKind.Xor:
-                return self->builder->xor(lhs, rhs)
+            case AstExpressionKind.BitAnd:
+                return self->builder->bit_and(lhs, rhs)
+            case AstExpressionKind.BitOr:
+                return self->builder->bit_or(lhs, rhs)
+            case AstExpressionKind.BitXor:
+                return self->builder->bit_xor(lhs, rhs)
             case _:
                 assert False
 
@@ -425,7 +429,9 @@ class AstToBuilder:
                 | AstExpressionKind.Mul
                 | AstExpressionKind.Div
                 | AstExpressionKind.Mod
-                | AstExpressionKind.Xor
+                | AstExpressionKind.BitAnd
+                | AstExpressionKind.BitOr
+                | AstExpressionKind.BitXor
                 | AstExpressionKind.Eq
                 | AstExpressionKind.Ne
                 | AstExpressionKind.Gt
@@ -672,8 +678,12 @@ class AstToBuilder:
                 self->build_inplace_binop(AstExpressionKind.Div, &stmt->assignment.target, &stmt->assignment.value)
             case AstStatementKind.InPlaceMod:
                 self->build_inplace_binop(AstExpressionKind.Mod, &stmt->assignment.target, &stmt->assignment.value)
-            case AstStatementKind.InPlaceXor:
-                self->build_inplace_binop(AstExpressionKind.Xor, &stmt->assignment.target, &stmt->assignment.value)
+            case AstStatementKind.InPlaceBitAnd:
+                self->build_inplace_binop(AstExpressionKind.BitAnd, &stmt->assignment.target, &stmt->assignment.value)
+            case AstStatementKind.InPlaceBitOr:
+                self->build_inplace_binop(AstExpressionKind.BitOr, &stmt->assignment.target, &stmt->assignment.value)
+            case AstStatementKind.InPlaceBitXor:
+                self->build_inplace_binop(AstExpressionKind.BitXor, &stmt->assignment.target, &stmt->assignment.value)
             case AstStatementKind.Return:
                 if self->inlining_info == NULL:
                     if stmt->return_value != NULL:
