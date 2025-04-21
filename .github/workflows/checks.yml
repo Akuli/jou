@@ -17,9 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: which codespell || true  # TODO: remove this
-      - run: sudo apt update && sudo apt install codespell
-      - run: codespell -L ot,bu,hel,fom,olt $(git ls-files)
+      - run: sudo apt update
+      - run: sudo apt install codespell
+      - run: codespell --enable-colors -L ot,bu,hel,fom,olt $(git ls-files)
 
   # For consistency, Jou code in markdown files should use ```python, not ```python3
   python-in-markdown:
