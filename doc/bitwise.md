@@ -162,10 +162,12 @@ See also [issue #879](https://github.com/Akuli/jou/issues/879).
 If you want to extract the last 8 bits of a number, you can do this:
 
 ```python
+import "stdlib/io.jou"
+
 def main() -> int:
     number = 1234
     last_8_bits = number & 0b11111111
-    printf("%d\n", last_8_bits)  # Output: 214
+    printf("%d\n", last_8_bits)  # Output: 210
     return 0
 ```
 
@@ -174,10 +176,12 @@ def main() -> int:
 But most experienced programmers would write it like this:
 
 ```python
+import "stdlib/io.jou"
+
 def main() -> int:
     number = 1234
     last_8_bits = number & 0xFF
-    printf("%d\n", last_8_bits)  # Output: 214
+    printf("%d\n", last_8_bits)  # Output: 210
     return 0
 ```
 
@@ -225,6 +229,8 @@ but with base 16.
 For example, `0xFF` means `F`ifteen 16's and `F`ifteen ones:
 
 ```python
+import "stdlib/io.jou"
+
 def main() -> int:
     printf("%d\n", 0b1111_1111)  # Output: 255
     return 0
