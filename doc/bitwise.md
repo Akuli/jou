@@ -31,7 +31,6 @@ For example:
 - 3 consists of 2 and 1. In binary, it is `11`. This means "has 2 and has 1".
 - 10 consists of 8 and 2. In binary, it is `1010`. This means "has 8, doesn't have 4, has 2, doesn't have 1".
 
-Let's check whether this is correct so far.
 In Jou, you can use the `0b` prefix to write a number in binary (just like in Python).
 
 ```python
@@ -105,7 +104,7 @@ Reason:
       3  = 0b0011
       10 = 0b1010
 -------------=-==-
-  3 | 10 = 0b1011 = 8+2+1 = 11
+  3 ^ 10 = 0b1011 = 8+2+1 = 11
 ```
 
 Think of OR as adding bits: `3 |` sets the last two bits to 1 regardless of what they were originally.
@@ -150,8 +149,7 @@ For now, use multiplication and division.
 For example, you can use `x * 8` when you need `x << 3`.
 
 The bitwise invert operator `~a` doesn't exist yet.
-For now, you can toggle all bits by applying XOR with a number consisting entirely of ones,
-e.g. `x ^ (0xFFFF_FFFF as uint32)` for a 32-bit invert.
+For now, you can toggle all bits with XOR, e.g. `x ^= 0xFFFF_FFFF` for a 32-bit invert.
 (Look below to understand what `0xFFFF_FFFF` does.)
 
 See also [issue #879](https://github.com/Akuli/jou/issues/879).
