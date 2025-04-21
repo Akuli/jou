@@ -1,5 +1,5 @@
 """Check that links in markdown files point to reasonable places."""
-# Get from https://github.com/Akuli/porcupine/
+# There is a similar script in https://github.com/Akuli/porcupine/
 
 import argparse
 import json
