@@ -125,8 +125,14 @@ Reason:
 You can think of XOR as flipping (toggling) bits: `3 ^` flips the last two bits, either from 0 to 1 or from 1 to 0.
 
 
-## Shifts
+## Unsupported/Missing
 
 Bitshift operators `<<` and `>>` don't exist yet.
 For now, use multiplication and division.
-For example, you can use `a * 8` when you need `a << 8`.
+For example, you can use `x * 8` when you need `x << 3`.
+
+The bitwise invert operator `~a` doesn't exist yet.
+For now, you can XOR with a number consisting entirely of ones,
+e.g. `x ^ (0xFFFF_FFFF as uint32)` for a 32-bit invert.
+
+See also [issue #879](https://github.com/Akuli/jou/issues/879).
