@@ -110,7 +110,6 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
                 t = intType
 
             if expr->integer_value > max_value(t):
-                # TODO: test this in a constant
                 if t->kind == TypeKind.SignedInteger:
                     signed_or_unsigned = "signed"
                 else:
