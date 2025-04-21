@@ -23,10 +23,7 @@ def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -
 
     result = AstExpression{location = t->location, operands = ptr}
 
-    if t->is_operator("&"):
-        assert arity == 1
-        result.kind = AstExpressionKind.AddressOf
-    elif t->is_operator("["):
+    if t->is_operator("["):
         assert arity == 2
         result.kind = AstExpressionKind.Indexing
     elif t->is_operator("=="):
@@ -66,9 +63,17 @@ def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -
     elif t->is_operator("%"):
         assert arity == 2
         result.kind = AstExpressionKind.Mod
+    elif t->is_operator("&"):
+        if arity == 1:
+            result.kind = AstExpressionKind.AddressOf
+        else:
+            result.kind = AstExpressionKind.BitAnd
+    elif t->is_operator("|"):
+        assert arity == 2
+        result.kind = AstExpressionKind.BitOr
     elif t->is_operator("^"):
         assert arity == 2
-        result.kind = AstExpressionKind.Xor
+        result.kind = AstExpressionKind.BitXor
     elif t->is_keyword("and"):
         assert arity == 2
         result.kind = AstExpressionKind.And
@@ -83,6 +88,7 @@ def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -
 
     assert result.get_arity() == arity
     return result
+
 
 # reverse code golfing: https://xkcd.com/1960/
 def determine_the_kind_of_a_statement_that_starts_with_an_expression(
@@ -100,9 +106,14 @@ def determine_the_kind_of_a_statement_that_starts_with_an_expression(
         return AstStatementKind.InPlaceDiv
     if this_token_is_after_that_initial_expression->is_operator("%="):
         return AstStatementKind.InPlaceMod
+    if this_token_is_after_that_initial_expression->is_operator("&="):
+        return AstStatementKind.InPlaceBitAnd
+    if this_token_is_after_that_initial_expression->is_operator("|="):
+        return AstStatementKind.InPlaceBitOr
     if this_token_is_after_that_initial_expression->is_operator("^="):
-        return AstStatementKind.InPlaceXor
+        return AstStatementKind.InPlaceBitXor
     return AstStatementKind.ExpressionStatement
+
 
 # TODO: this function is just bad...
 def read_assertion_from_file(start: Location, end: Location) -> byte*:
@@ -208,6 +219,30 @@ def looks_like_instantiate(t: Token*) -> bool:
             t++
         return t->is_operator("{")
     return False
+
+
+# The multiple cases of "case a | b | c | d:" appear as a nested bitwise OR
+# expression. Here's what this function does to it:
+#
+#   BitOr(BitOr(BitOr(a, b), c), d)     -->     [a, b, c, d]
+#
+def flatten_bitwise_ors(expr: AstExpression) -> List[AstExpression]:
+    result = List[AstExpression]{}
+    todo = List[AstExpression]{}
+    todo.append(expr)
+
+    while todo.len > 0:
+        expr = todo.pop()
+        if expr.kind == AstExpressionKind.BitOr:
+            # Visit right side first so that it appears on the left in result
+            todo.append(expr.operands[1])
+            todo.append(expr.operands[0])
+            free(expr.operands)
+        else:
+            result.append(expr)
+
+    free(todo.ptr)
+    return result
 
 
 enum WhatAreWeParsing:
@@ -753,10 +788,10 @@ class Parser:
         return result
 
     # TODO: ban chaining bitwise operations with arithmetic operations
-    # TODO: ban chaining different bitwise operations e.g. a ^ b << c
+    # TODO: ban chaining different bitwise operations e.g. a ^ b & c
     def parse_expression_with_bitwise_ops(self) -> AstExpression:
         result = self->parse_expression_with_add()
-        while self->tokens->is_operator("^"):
+        while self->tokens->is_operator("&") or self->tokens->is_operator("|") or self->tokens->is_operator("^"):
             t = self->tokens++
             lhs_rhs = [result, self->parse_expression_with_add()]
             result = build_operator_expression(t, 2, lhs_rhs)
@@ -1073,24 +1108,7 @@ class Parser:
                 assert result.case_underscore != NULL
                 *result.case_underscore = self->parse_body()
             else:
-                parens = self->tokens->is_operator("(")
-                if parens:
-                    self->tokens++
-                case_objs = List[AstExpression]{}
-                while True:
-                    case_objs.append(self->parse_expression())
-                    if self->tokens->is_operator("|"):
-                        self->tokens++
-                    elif (not parens) and self->tokens->is_operator(":"):
-                        break
-                    elif parens and self->tokens->is_operator(")") and self->tokens[1].is_operator(":"):
-                        self->tokens++  # skip ')'
-                        break
-                    else:
-                        if parens:
-                            self->tokens->fail_expected_got("'|' or '):'")
-                        else:
-                            self->tokens->fail_expected_got("'|' or ':'")
+                case_objs = flatten_bitwise_ors(self->parse_expression())
                 result.cases.append(AstCase{case_objs = case_objs, body = self->parse_body()})
         self->tokens++
 
