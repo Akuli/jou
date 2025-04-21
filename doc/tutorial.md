@@ -468,7 +468,7 @@ def main() -> int:
 Note that single quotes specify a byte and double quotes specify a string.
 
 This clearly cannot work for all characters,
-because there are thousands of different charaters, but only 256 different bytes.
+because there are thousands of different characters, but only 256 different bytes.
 For example, `'Ω'` doesn't work:
 
 ```python

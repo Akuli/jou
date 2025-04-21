@@ -61,7 +61,7 @@ class EquationSolver:
             for dest = self->eqs; dest < &self->eqs[self->neqs]; dest++:
                 if dest != src and dest->has(var):
                     # Pick c so that dest->coeffs[var] + c*src->coeffs[var] = 0.
-                    # The perfect c isn't necessarly integer, so we pick a close value.
+                    # The perfect c isn't necessarily integer, so we pick a close value.
                     c = dest->coeffs[var].div(src->coeffs[var]).neg()
                     assert not c.is_zero()
                     add_with_coeff(dest, src, c)
