@@ -709,7 +709,7 @@ class Parser:
         return result
 
     def parse_expression_with_unary_operators(self) -> AstExpression:
-        # prefix = sequneces of 0 or more unary operator tokens: start,start+1,...,end-1
+        # prefix = sequence of 0 or more unary operator tokens: start,start+1,...,end-1
         prefix_start = self->tokens
         while (
             self->tokens->is_operator("++")
