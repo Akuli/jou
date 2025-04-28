@@ -219,7 +219,7 @@ def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
 
     for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
         match stmt->kind:
-            case AstStatementKind.Import | AstStatementKind.Pass:
+            case AstStatementKind.Import | AstStatementKind.Pass | AstStatementKind.Assert:
                 pass
             case AstStatementKind.GlobalVariableDeclare:
                 exp = handle_global_var(&ast->types, stmt->location, stmt->global_var_declare.name, &stmt->global_var_declare.type, &stmt->global_var_declare.used)

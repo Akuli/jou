@@ -907,7 +907,11 @@ class Parser:
                 result.return_value = malloc(sizeof *result.return_value)
                 *result.return_value = self->parse_expression()
         elif self->tokens->is_keyword("assert"):
-            self->check_function_or_method("'assert'")
+            match self->what_are_we_parsing:
+                case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody | WhatAreWeParsing.TopLevel:
+                    pass
+                case WhatAreWeParsing.ClassBody:
+                    fail(self->tokens->location, "'assert' cannot be placed inside a class unless it is inside a method")
             self->tokens++
             result.kind = AstStatementKind.Assert
             start = self->tokens->location
