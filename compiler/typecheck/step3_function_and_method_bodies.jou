@@ -1463,7 +1463,6 @@ def typecheck_step3_function_and_method_bodies(ast: AstFile*) -> None:
             case AstStatementKind.Assert:
                 c: Constant
                 if not evaluate_constant_expression(&stmt->assertion.condition, &c, boolType):
-                    # TODO: test this
                     fail(stmt->location, "cannot evaluate assertion at compile time")
                 if c.get_type() != boolType:
                     # TODO: test this
