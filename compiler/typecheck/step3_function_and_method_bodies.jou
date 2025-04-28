@@ -1465,7 +1465,6 @@ def typecheck_step3_function_and_method_bodies(ast: AstFile*) -> None:
                 if not evaluate_constant_expression(&stmt->assertion.condition, &c, boolType):
                     fail(stmt->location, "cannot evaluate assertion at compile time")
                 if c.get_type() != boolType:
-                    # TODO: test this
                     msg: byte[500]
                     snprintf(msg, sizeof(msg), "assertion must be a bool, not %s", c.get_type()->name)
                     fail(stmt->location, msg)
