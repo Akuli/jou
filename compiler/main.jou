@@ -505,10 +505,19 @@ def main(argc: int, argv: byte**) -> int:
     compst.free()
     free(stdlib)
 
-    exepath = decide_exe_path()
-    run_linker(objpaths, exepath, linker_flags)
-    free(linker_flags)
+    exepath: byte* = NULL
+    if (
+        command_line_args.outfile != NULL
+        and strlen(command_line_args.outfile) > 2
+        and ends_with(command_line_args.outfile, ".a")
+    ):
+        # Output .a file instead of executable
+        run_ar(objpaths, command_line_args.outfile)
+    else:
+        exepath = decide_exe_path()
+        run_linker(objpaths, exepath, linker_flags)
 
+    free(linker_flags)
     for p = objpaths.ptr; p < objpaths.end(); p++:
         free(*p)
     free(objpaths.ptr)
