@@ -1,0 +1,113 @@
+# File is the start symbol
+File = Statement*
+
+Statement = Def | Class | Union | Enum | If | While | For | Match | OneLineStatementWithNewline
+OneLineStatementWithNewline = OneLineStatement "\n"
+OneLineStatement = Import | Link | DeclareGlobal | DeclareFunction | Global | Return | Assert | "pass" | "break" | "continue" | DeclareLocalVars | Assign | InPlaceAdd | InPlaceSub | InPlaceMul | InPlaceDiv | InPlaceMod | InPlaceBitAnd | InPlaceBitOr | InPlaceBitXor | Expression
+
+Def = "def" Signature ":" "\n" INDENT Statement* DEDENT
+Signature = NAME "(" SigArg,* ")" "->" Type
+SigArg = "self" | SelfAndType | NameAndType | "..."
+SelfAndType = "self" ":" Type
+NameAndType = NAME ":" Type
+
+Class = "class" NAME GenericParams? ":" "\n" INDENT Statement* DEDENT
+GenericParams = "[" NAME,* "]"
+
+Union = "union" ":" "\n" INDENT UnionMember UnionMember UnionMember* DEDENT
+UnionMember = NAME ":" Type "\n"
+
+Enum = "enum" NAME ":" "\n" INDENT EnumMember* DEDENT
+EnumMember = NAME "\n"
+
+If = "if" Expression ":" "\n" INDENT Statement* DEDENT Elif* Else?
+Elif = "elif" Expression ":" "\n" INDENT Statement* DEDENT
+Else = "else" ":" "\n" INDENT Statement* DEDENT
+
+While = "while" Expression ":" "\n" INDENT Statement* DEDENT
+
+For = "for" OneLineStatement ";" OneLineStatement ";" OneLineStatement ":" "\n" INDENT Statement* DEDENT
+
+Match = "match" Expression MaybeWithSomeFunction? ":" "\n" INDENT Case* DEDENT
+MaybeWithSomeFunction = "with" NAME
+Case = "case" Expression ":" "\n" INDENT Statement* DEDENT
+
+Type = SimpleType | PointerType | ArrayType | GenericType
+SimpleType = "int8" | "uint8" | "int16" | "uint16" | "int32" | "uint32" | "int64" | "uint64" | "int" | "long" | "byte" | "float" | "double" | "bool" | NAME
+PointerType = Type "*"
+ArrayType = Type "[" Expression "]"
+GenericType = Type "[" Type,* "]"
+
+Import = "import" STRING
+
+Link = "link" STRING
+
+DeclareGlobal = "declare" "global" NAME ":" Type
+DeclareFunction = "declare" Signature
+
+Global = "global" NAME ":" Type
+
+Return = "return" | ReturnWithValue
+ReturnWithValue = "return" Expression
+
+Assert = "assert" Expression
+
+DeclareLocalVars = DeclareLocalVarsWithoutValue | DeclareOneLocalVarWithValue
+DeclareLocalVarsWithoutValue = NAME,* ":" Type
+DeclareOneLocalVarWithValue = NAME ":" Type "=" Expression
+
+Assign = Expression "=" Expression
+InPlaceAdd = Expression "+=" Expression
+InPlaceSub = Expression "-=" Expression
+InPlaceMul = Expression "*=" Expression
+InPlaceDiv = Expression "/=" Expression
+InPlaceMod = Expression "%=" Expression
+InPlaceBitAnd = Expression "&=" Expression
+InPlaceBitOr = Expression "|=" Expression
+InPlaceBitXor = Expression "^=" Expression
+
+# TODO: Expression should probably branch to avoid chaining.
+#       Something like:  Expression = MathExpression | BitAndExpression | BitOrExpression | ...
+Expression = Expression1
+
+Expression1 = And | Or | Expression2
+And = Expression2 AndSuffix AndSuffix*
+Or = Expression2 OrSuffix OrSuffix*
+AndSuffix = "and" Expression2
+OrSuffix = "or" Expression2
+
+Expression2 = Not | Expression3
+Not = "not" Expression3
+
+Expression3 = Eq | Ne | Lt | Gt | Le | Ge | Expression4
+Eq = Expression4 "==" Expression4
+Ne = Expression4 "!=" Expression4
+Gt = Expression4 ">" Expression4
+Lt = Expression4 "<" Expression4
+Ge = Expression4 ">=" Expression4
+Le = Expression4 "<=" Expression4
+
+Expression4 = As | Expression5
+As = Expression5 "as" Type
+
+Expression5 = BitAnd | BitOr | BitXor | Expression6
+BitAnd = Expression6 BitAndSuffix BitAndSuffix*
+BitOr = Expression6 BitOrSuffix BitOrSuffix*
+BitXor = Expression6 BitXorSuffix BitXorSuffix*
+BitAndSuffix = "&" Expression6
+BitOrSuffix = "|" Expression6
+BitXorSuffix = "^" Expression6
+
+Expression6 = Expression7 AddSubSuffix*
+AddSubSuffix = AddSuffix | SubSuffix
+AddSuffix = "+" Expression7
+SubSuffix = "-" Expression7
+
+Expression7 = Neg | Expression8
+Neg = "-" Expression8
+
+Expression8 = Mod | Expression9 MulDivSuffix*
+MulDivSuffix = MulSuffix | DivSuffix
+MulSuffix = "*" Expression9
+DivSuffix = "/" Expression9
+
