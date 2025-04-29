@@ -289,8 +289,6 @@ class Parser:
         if path_token->kind != TokenKind.String:
             path_token->fail_expected_got("a string to specify the file name")
 
-        self->eat_newline()
-
         path: byte*
         if starts_with(path_token->long_string, "stdlib/"):
             # Starts with stdlib --> import from where stdlib actually is
@@ -321,8 +319,6 @@ class Parser:
         flags_token = self->tokens++
         if flags_token->kind != TokenKind.String:
             flags_token->fail_expected_got("a string of linker flags after the 'link' keyword")
-
-        self->eat_newline()
 
         resolved_flags = handle_relative_paths_in_linker_flags(flags_token->long_string, flags_token->location.path)
 
@@ -899,7 +895,40 @@ class Parser:
     # does not eat a trailing newline
     def parse_oneline_statement(self) -> AstStatement:
         result = AstStatement{ location = self->tokens->location }
-        if self->tokens->is_keyword("return"):
+        if self->tokens->is_keyword("import"):
+            result.kind = AstStatementKind.Import
+            result.import_statement = self->parse_import()
+        elif self->tokens->is_keyword("link"):
+            result.kind = AstStatementKind.Link
+            result.link_statement = self->parse_link()
+        elif self->tokens->is_keyword("declare"):
+            self->check_top_level("'declare'")
+            self->tokens++
+            if self->tokens->is_keyword("global"):
+                self->tokens++
+                ntv = self->parse_name_type_value("a variable name")
+                if ntv.value != NULL:
+                    fail(
+                        ntv.value->location,
+                        "a value cannot be given when declaring a global variable",
+                    )
+                result.kind = AstStatementKind.GlobalVariableDeclare
+                result.global_var_def = AstGlobalVarDef{name = ntv.name, type = ntv.type}
+            else:
+                result.kind = AstStatementKind.FunctionDeclare
+                result.function = AstFunctionOrMethod{ast_signature = self->parse_function_or_method_signature(False)}
+        elif self->tokens->is_keyword("global"):
+            self->check_top_level("global variables")
+            self->tokens++
+            ntv = self->parse_name_type_value("a variable name")
+            if ntv.value != NULL:
+                fail(
+                    ntv.value->location,
+                    "specifying a value for a global variable is not supported yet",
+                )
+            result.kind = AstStatementKind.GlobalVariableDef
+            result.global_var_def = AstGlobalVarDef{name = ntv.name, type = ntv.type}
+        elif self->tokens->is_keyword("return"):
             self->check_function_or_method("'return'")
             self->tokens++
             result.kind = AstStatementKind.Return
@@ -1160,19 +1189,7 @@ class Parser:
             self->eat_newline()
         decors_end = self->tokens
 
-        if self->tokens->is_keyword("import"):
-            result = AstStatement{
-                location = self->tokens->location,
-                kind = AstStatementKind.Import,
-                import_statement = self->parse_import(),
-            }
-        elif self->tokens->is_keyword("link"):
-            result = AstStatement{
-                location = self->tokens->location,
-                kind = AstStatementKind.Link,
-                link_statement = self->parse_link(),
-            }
-        elif self->tokens->is_keyword("def"):
+        if self->tokens->is_keyword("def"):
             match self->what_are_we_parsing:
                 case WhatAreWeParsing.TopLevel:
                     result = AstStatement{
@@ -1188,44 +1205,6 @@ class Parser:
                     }
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     fail(self->tokens->location, "nested functions are not supported")
-        elif self->tokens->is_keyword("declare"):
-            self->check_top_level("'declare'")
-            location = (self->tokens++)->location
-            if self->tokens->is_keyword("global"):
-                self->tokens++
-                ntv = self->parse_name_type_value("a variable name")
-                if ntv.value != NULL:
-                    fail(
-                        ntv.value->location,
-                        "a value cannot be given when declaring a global variable",
-                    )
-                result = AstStatement{
-                    location = location,
-                    kind = AstStatementKind.GlobalVariableDeclare,
-                    global_var_def = AstGlobalVarDef{name = ntv.name, type = ntv.type},
-                }
-            else:
-                result = AstStatement{
-                    location = location,
-                    kind = AstStatementKind.FunctionDeclare,
-                    function = AstFunctionOrMethod{ast_signature = self->parse_function_or_method_signature(False)},
-                }
-            self->eat_newline()
-        elif self->tokens->is_keyword("global"):
-            self->check_top_level("global variables")
-            location = (self->tokens++)->location
-            ntv = self->parse_name_type_value("a variable name")
-            if ntv.value != NULL:
-                fail(
-                    ntv.value->location,
-                    "specifying a value for a global variable is not supported yet",
-                )
-            result = AstStatement{
-                location = location,
-                kind = AstStatementKind.GlobalVariableDef,
-                global_var_def = AstGlobalVarDef{name = ntv.name, type = ntv.type},
-            }
-            self->eat_newline()
         elif self->tokens->is_keyword("class"):
             result = AstStatement{
                 location = self->tokens->location,
