@@ -40,7 +40,7 @@ or read [the Jou tutorial](./doc/tutorial.md).
 For now, Jou is great for writing small programs that don't have a lot of dependencies.
 Here are things I have written in Jou:
 - [Advent of Code 2023](https://adventofcode.com/2023/): [examples/aoc2023](./examples/aoc2023/)
-- [Advent of Code 2024](https://adventofcode.com/2024/): [examples/aoc2023](./examples/aoc2024/)
+- [Advent of Code 2024](https://adventofcode.com/2024/): [examples/aoc2024](./examples/aoc2024/)
 - A klondike solitaire card game with curses UI: https://github.com/Akuli/curses-klondike/
 
 I would recommend Jou for:
