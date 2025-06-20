@@ -1,5 +1,6 @@
 import "stdlib/process.jou"
 import "stdlib/io.jou"
+import "./command_line_args.jou"
 
 @public
 class Location:
@@ -14,6 +15,9 @@ def flush_streams() -> None:
     fflush(stderr)
 
 
+global warned: bool
+
+
 @public
 def show_warning(location: Location, message: byte*) -> None:
     flush_streams()
@@ -22,6 +26,17 @@ def show_warning(location: Location, message: byte*) -> None:
     if location.lineno != 0:
         fprintf(stderr, ", line %d", location.lineno)
     fprintf(stderr, ": %s\n", message)
+
+    warned = True
+
+
+# Fail with an error if --fail-on-warnings is given on command line and
+# warnings have been shown.
+@public
+def fail_if_warnings_and_flag() -> None:
+    if warned and command_line_args.fail_on_warnings:
+        fprintf(stderr, "compiler error: there were warnings and --fail-on-warnings was given\n")
+        exit(1)
 
 
 @public

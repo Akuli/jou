@@ -462,10 +462,12 @@ def main(argc: int, argv: byte**) -> int:
 
     if command_line_args.tokenize_only:
         tokenize_only(command_line_args.infile)
+        fail_if_warnings_and_flag()
         return 0
 
     if command_line_args.parse_only:
         parse_only(command_line_args.infile, stdlib)
+        fail_if_warnings_and_flag()
         return 0
 
     compst = CompileState{ stdlib_path = stdlib }
@@ -482,6 +484,7 @@ def main(argc: int, argv: byte**) -> int:
         mainfile = compst.find_file(command_line_args.infile)
         assert mainfile != NULL
         build_and_analyze_uvgs(&mainfile->ast, True)
+        fail_if_warnings_and_flag()
         return 0
 
     compst.build_and_analyze_all_uvgs()
@@ -504,6 +507,9 @@ def main(argc: int, argv: byte**) -> int:
 
     compst.free()
     free(stdlib)
+
+    # If failing due to warnings, do not run the code or produce an output file
+    fail_if_warnings_and_flag()
 
     exepath = decide_exe_path()
     run_linker(objpaths, exepath, linker_flags)
