@@ -38,13 +38,12 @@ See the [examples](./examples/) and [tests](./tests/) directories for more examp
 or read [the Jou tutorial](./doc/tutorial.md).
 
 For now, Jou is great for writing small programs that don't have a lot of dependencies.
-For example, I solved all problems of
-[Advent of Code 2023](https://adventofcode.com/2023/) and
-[Advent of Code 2024](https://adventofcode.com/2024/) with Jou. See
-[examples/aoc2023](./examples/aoc2023/) and
-[examples/aoc2024](./examples/aoc2024/) for the code.
+Here are things I have written in Jou:
+- [Advent of Code 2023](https://adventofcode.com/2023/): [examples/aoc2023](./examples/aoc2023/)
+- [Advent of Code 2024](https://adventofcode.com/2024/): [examples/aoc2024](./examples/aoc2024/)
+- A klondike solitaire card game with curses UI: https://github.com/Akuli/curses-klondike/
 
-I think Jou will be useful for two kinds of people:
+I would recommend Jou for:
 - People who find C programming fun but like Python's syntax
 - Python programmers who want to try programming at a lower level (maybe to eventually learn C or Rust)
 
