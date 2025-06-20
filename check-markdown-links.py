@@ -55,6 +55,9 @@ def check_https_link(url):
     if url == "https://github.com/Akuli/jou/issues/new":
         # It returns 302 Found, because it redirects to login page
         expected_status = 302
+    elif url.startswith("https://stackoverflow.com/questions/"):
+        # Starting in June 2025, stackoverflow returns 403 Forbidden for some reason
+        expected_status = 403
     else:
         expected_status = 200
 
