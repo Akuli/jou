@@ -1,5 +1,6 @@
 import "stdlib/process.jou"
 import "stdlib/io.jou"
+import "./command_line_args.jou"
 
 @public
 class Location:
@@ -29,9 +30,13 @@ def show_warning(location: Location, message: byte*) -> None:
     warned = True
 
 
+# Fail with an error if --fail-on-warnings is given on command line and
+# warnings have been shown.
 @public
-def warnings_shown() -> bool:
-    return warned
+def fail_if_warnings_and_flag() -> None:
+    if warned and command_line_args.fail_on_warnings:
+        fprintf(stderr, "compiler error: there were warnings and --fail-on-warnings was given\n")
+        exit(1)
 
 
 @public
