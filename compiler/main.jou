@@ -449,6 +449,12 @@ def collect_linker_flags(files: List[FileState]) -> byte*:
     return result
 
 
+def check_warnings() -> None:
+    if command_line_args.fail_on_warnings and warnings_shown():
+        fprintf(stderr, "compiler error: using exit code 1 because --fail-on-warnings was given\n")
+        exit(1)
+
+
 def main(argc: int, argv: byte**) -> int:
     init_target()
     init_types()
@@ -462,10 +468,12 @@ def main(argc: int, argv: byte**) -> int:
 
     if command_line_args.tokenize_only:
         tokenize_only(command_line_args.infile)
+        check_warnings()
         return 0
 
     if command_line_args.parse_only:
         parse_only(command_line_args.infile, stdlib)
+        check_warnings()
         return 0
 
     compst = CompileState{ stdlib_path = stdlib }
@@ -482,6 +490,7 @@ def main(argc: int, argv: byte**) -> int:
         mainfile = compst.find_file(command_line_args.infile)
         assert mainfile != NULL
         build_and_analyze_uvgs(&mainfile->ast, True)
+        check_warnings()
         return 0
 
     compst.build_and_analyze_all_uvgs()
@@ -512,6 +521,8 @@ def main(argc: int, argv: byte**) -> int:
     for p = objpaths.ptr; p < objpaths.end(); p++:
         free(*p)
     free(objpaths.ptr)
+
+    check_warnings()  # do not run the code if there are warnings
 
     ret = 0
     if command_line_args.outfile == NULL:

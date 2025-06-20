@@ -10,6 +10,7 @@ class CommandLineArgs:
     argv0: byte*  # Program name
     verbosity: int  # How much debug/progress info to print, how many times -v/--verbose passed
     valgrind: bool  # true --> Use valgrind when running user's jou program
+    fail_on_warnings: bool  # Exit with status 1 if there are warnings
     tokenize_only: bool  # If true, tokenize the file passed on command line and don't actually compile anything
     parse_only: bool  # If true, parse the file passed on command line and don't actually compile anything
     uvg_only: bool  # If true, generate and print UVG's and don't actually compile anything
@@ -69,6 +70,9 @@ def parse_command_line_args(argc: int, argv: byte**) -> None:
                 i++
             case "--valgrind":
                 command_line_args.valgrind = True
+                i++
+            case "--fail-on-warnings":
+                command_line_args.fail_on_warnings = True
                 i++
             case "--tokenize-only":
                 if argc > 3:

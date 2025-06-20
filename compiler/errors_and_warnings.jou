@@ -14,6 +14,9 @@ def flush_streams() -> None:
     fflush(stderr)
 
 
+global warned: bool
+
+
 @public
 def show_warning(location: Location, message: byte*) -> None:
     flush_streams()
@@ -22,6 +25,13 @@ def show_warning(location: Location, message: byte*) -> None:
     if location.lineno != 0:
         fprintf(stderr, ", line %d", location.lineno)
     fprintf(stderr, ": %s\n", message)
+
+    warned = True
+
+
+@public
+def warnings_shown() -> bool:
+    return warned
 
 
 @public
