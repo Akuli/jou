@@ -28,6 +28,8 @@ config.jou: Makefile.posix
 	echo 'link "$(shell $(LLVM_CONFIG) --ldflags --libs)"' >> config.jou
 	echo '@public' >> config.jou
 	echo 'const JOU_CLANG_PATH: byte* = "$(shell which `$(LLVM_CONFIG) --bindir`/clang || which clang)"' >> config.jou
+	echo '@public' >> config.jou
+	echo 'const JOU_AR_PATH: byte* = "$(shell which `$(LLVM_CONFIG) --bindir`/llvm-ar || which ar)"' >> config.jou
 
 jou_bootstrap: bootstrap.sh
 	env LLVM_CONFIG=$(LLVM_CONFIG) ./bootstrap.sh

@@ -28,12 +28,10 @@ def quote_paths(paths: List[byte*]) -> byte*:
     return result
 
 
-@public
-def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> None:
-    quoted_object_files = quote_paths(objpaths)
-
-    command: byte*
-    if WINDOWS:
+# On Linux, we prefer LLVM tools (clang and llvm-ar) of the same LLVM version.
+# On Windows, the tools are in mingw64/bin folder.
+if WINDOWS:
+    def get_mingw_command(exe_filename: byte*, args: byte*) -> byte*:
         # Assume mingw with clang has been downloaded with windows_setup.sh.
         #
         # During the bootstrapping, the location of mingw is something
@@ -49,18 +47,56 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
             asprintf(&mingw_dir, "%s\\mingw64", dirname(jou_exe))
             free(jou_exe)
 
-        # Could also use clang, but gcc has less dependencies so we can make the Windows zips smaller.
         # Windows quoting is weird. The outermost quotes get stripped here.
-        asprintf(&command, "\"\"%s\\bin\\gcc.exe\" %s -o \"%s\" %s\"", mingw_dir, quoted_object_files, exepath, linker_flags)
-        free(mingw_dir)
-    else:
-        # Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
-        asprintf(&command, "'%s' %s -o '%s' %s", JOU_CLANG_PATH, quoted_object_files, exepath, linker_flags)
+        result: byte*
+        asprintf(&result, "\"\"%s\\bin\\%s\" %s\"", mingw_dir, exe_filename, args)
 
+        free(mingw_dir)
+        return result
+
+
+@public
+def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> None:
+    quoted_object_files = quote_paths(objpaths)
+
+    args: byte*
+    asprintf(&args, "%s -o \"%s\" %s", quoted_object_files, exepath, linker_flags)
     free(quoted_object_files)
+
+    command: byte*
+    if WINDOWS:
+        # Could also use clang, but gcc has less dependencies so we can make the Windows zips smaller.
+        command = get_mingw_command("gcc.exe", args)
+    else:
+        asprintf(&command, "'%s' %s", JOU_CLANG_PATH, args)
+    free(args)
 
     if command_line_args.verbosity >= 1:
         printf("Running linker: %s\n", command)
+
+    if system(command) != 0:
+        exit(1)
+    free(command)
+
+
+@public
+def run_ar(objpaths: List[byte*], a_path: byte*) -> None:
+    assert ends_with(a_path, ".a")
+    quoted_object_files = quote_paths(objpaths)
+
+    args: byte*
+    asprintf(&args, "rcs \"%s\" %s", a_path, quoted_object_files)
+    free(quoted_object_files)
+
+    command: byte*
+    if WINDOWS:
+        command = get_mingw_command("ar.exe", args)
+    else:
+        asprintf(&command, "'%s' %s", JOU_AR_PATH, args)
+    free(args)
+
+    if command_line_args.verbosity >= 1:
+        printf("Running ar: %s\n", command)
 
     if system(command) != 0:
         exit(1)
