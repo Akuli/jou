@@ -57,17 +57,19 @@ class Token:
 
 def tokenize(jou_code, path):
     regex = r"""
-    (?P<newline> \n [ ]* )
-    | (?P<keyword> KEYWORDS )
-    | (?P<name> [^\W\d] \w* )
+    (?P<newline> \n [ ]* )                      # a newline and all indentation after it
+    | (?P<keyword> KEYWORDS )                   # e.g. "import"
+    | (?P<name> [^\W\d] \w* )                   # e.g. "foo"
     | (?P<decorator> @public | @inline )
-    | (?P<string> " ( \\ . | [^"\n\\] )* " )
-    | (?P<byte> ' ( \\ . | . ) ' )
+    | (?P<string> " ( \\ . | [^"\n\\] )* " )    # e.g. "hello"
+    | (?P<byte> ' ( \\ . | . ) ' )              # e.g. 'a' or '\n'
     | (?P<op> \.\.\. | == | != | -> | <= | >= | \+\+ | -- | [+*/%&^|-]= | [.,:;=(){}\[\]&%*/+^<>|-] )
-    | (?P<int8> 0o [0-7]+ )
-    | (?P<int10> \d+ )
-    | (?P<ignore> \# .* | [ ] )     # comments and spaces other than indentation
-    | (?P<error> [\S\s] )
+    | (?P<int2> 0b [01_]+ )                     # e.g. 0b0100_1010
+    | (?P<int8> 0o [0-7_]+ )                    # e.g. 0o777
+    | (?P<int16> 0x [0-9A-Fa-f_]+ )             # e.g. 0xFFFF_FFFF
+    | (?P<int10> [0-9] [0-9_]* )                # e.g. 123
+    | (?P<ignore> \# .* | [ ] )                 # comments and spaces other than indentation
+    | (?P<error> [\S\s] )                       # anything else is an error
     """.replace(
         "KEYWORDS", "|".join(r"\b" + k + r"\b" for k in KEYWORDS)
     )
@@ -141,7 +143,15 @@ BYTE_VALUES = {
     for c in string.ascii_letters
     + string.digits
     + string.punctuation.replace("\\", "").replace("'", "")
-} | {"'\\0'": 0, "'\\\\'": ord("\\")}
+} | {
+    "'\\0'": 0,
+    "'\\\\'": ord("\\"),
+    "'\\n'": ord('\n'),
+    "'\\r'": ord('\r'),
+    "'\\t'": ord('\t'),
+    "'\\''": ord("'"),
+    "' '": ord(' '),
+}
 
 
 # reverse code golfing: https://xkcd.com/1960/
@@ -394,13 +404,11 @@ class Parser:
             self.eat(",")
         self.eat("]")
         assert result
-        return result
+        return ("array", result)
 
     def parse_elementary_expression(self):
-        if self.tokens[0].kind == "int8":
-            return ("integer_constant", int(self.eat("int8").code.replace("0o", ""), 8))
-        if self.tokens[0].kind == "int10":
-            return ("integer_constant", int(self.eat("int10").code))
+        if self.tokens[0].kind in {"int2", "int8", "int10", "int16"}:
+            return ("integer_constant", int(self.tokens.pop(0).code.replace("_", ""), 0))
         if self.tokens[0].kind == "byte":
             return ("constant", ctypes.c_uint8(BYTE_VALUES[self.eat("byte").code]))
         #            case TokenKind.Float:
@@ -437,11 +445,8 @@ class Parser:
             result = self.parse_expression()
             self.eat(")")
             return result
-        #                elif self.tokens[0].is_operator("["):
-        #                    expr.kind = AstExpressionKind.Array
-        #                    expr.array = self.parse_array()
-        #                else:
-        #                    self.tokens[0].fail_expected_got("an expression")
+        if self.tokens[0].code == "[":
+            return self.parse_array()
         raise NotImplementedError(self.tokens[0])
 
     def parse_expression_with_fields_and_methods_and_indexing(self):
@@ -781,8 +786,7 @@ class Parser:
             assert not decors
             return self.parse_union()
         if self.tokens[0].code == "enum":
-            assert not decors
-            return self.parse_enum()
+            return self.parse_enum(decors)
         if self.tokens[0].code == "if":
             assert not decors
             return self.parse_if_statement()
@@ -869,12 +873,12 @@ class Parser:
             self.eat("newline")
         self.eat("dedent")
 
-        assert result.len >= 2
+        assert len(result) >= 2
         return ("union", result)
 
-    def parse_enum(self):
+    def parse_enum(self, decors):
         self.eat("enum")
-        name = self.eat("name").name
+        name = self.eat("name").code
 
         self.parse_start_of_body()
         members = []
@@ -882,7 +886,7 @@ class Parser:
             members.append(self.eat("name").code)
             self.eat("newline")
         self.eat("dedent")
-        return ("enum", name, members)
+        return ("enum", name, members, decors)
 
 
 asts = {}
