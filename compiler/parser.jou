@@ -167,8 +167,9 @@ def read_assertion_from_file(start: Token*, end: Token*) -> byte*:
                 memmove(p, comment_end, strlen(comment_end) + 1)
             case '\n':
                 # Delete spaces and other newlines that surround this newline
-                delete_end = &p[strspn(p, "\n\r ")]
-                while p > s and (p[-1] == ' ' or p[-1] == '\n'):
+                bad = "\n\r "
+                delete_end = &p[strspn(p, bad)]
+                while p > s and strchr(bad, p[-1]) != NULL:
                     p--
                 # Add space in place of newline and other deleted stuff, but not if
                 # it would be awkwardly after '(' or before ')'
