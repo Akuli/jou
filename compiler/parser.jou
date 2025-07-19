@@ -880,7 +880,6 @@ class Parser:
         if_token = self->tokens++
         condition = self->parse_expression_with_and_or()
         if not self->tokens->is_keyword("else"):
-            # TODO: test this
             self->tokens->fail_expected_got("'else'")
         self->tokens++
         otherwise = self->parse_expression_with_and_or()

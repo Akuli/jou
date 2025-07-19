@@ -112,7 +112,6 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "the result of a comparison"
 
         case AstExpressionKind.TernaryIf:
-            # TODO: test this
             return "a ternary expression"
 
         case AstExpressionKind.PreIncr | AstExpressionKind.PostIncr:
@@ -814,21 +813,21 @@ def cast_ternary_values_to_a_common_type(
             elif t2 == voidPtrType:
                 t = t1
             else:
-                t = NULL  # TODO: test this
+                t = NULL  # TODO: can this ever happen?
         elif t1_works:
             t = t1
         elif t2_works:
             t = t2
         else:
-            t = NULL  # TODO: test this
+            t = NULL
 
     if t == NULL:
         msg: byte[500]
         snprintf(msg, sizeof(msg), "ternary values must be of the same type (got %s and %s)", t1->name, t2->name)
         fail(ternary_location, msg)
 
-    do_implicit_cast(fom, then_expr, t, ternary_location, NULL)
-    do_implicit_cast(fom, otherwise_expr, t, ternary_location, NULL)
+    do_implicit_cast(fom, then_expr, t, then_expr->location, "ternary values should be of type <to>, not <from>")
+    do_implicit_cast(fom, otherwise_expr, t, otherwise_expr->location, "ternary values should be of type <to>, not <from>")
     return t
 
 
@@ -1122,11 +1121,12 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
         case AstExpressionKind.TernaryIf:
             typecheck_expression_not_void(state, &expr->operands[0], NULL)
             typecheck_expression_with_implicit_cast(
-                # TODO: test this
                 state, &expr->operands[1], boolType, "ternary condition must be a bool, not <from>"
             )
             typecheck_expression_not_void(state, &expr->operands[2], NULL)
-            result = cast_ternary_values_to_a_common_type(state->fom_types, expr->location, &expr->operands[0], &expr->operands[2], type_hint)
+            result = cast_ternary_values_to_a_common_type(
+                state->fom_types, expr->location, &expr->operands[0], &expr->operands[2], type_hint
+            )
 
         case (
             AstExpressionKind.PreIncr
