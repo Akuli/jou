@@ -362,6 +362,35 @@ class AstToBuilder:
                     constant->enum_member.enumtype->enum_members.ptr[constant->enum_member.memberidx]
                 )
 
+    # then if cond else otherwise
+    def build_ternary(
+        self,
+        then_expr: AstExpression*,
+        cond_expr: AstExpression*,
+        otherwise_expr: AstExpression*,
+    ) -> AnyBuilderValue:
+        cond_true = self->builder->add_block()
+        cond_false = self->builder->add_block()
+        done = self->builder->add_block()
+
+        t1 = then_expr->types.implicit_cast_type
+        t2 = otherwise_expr->types.implicit_cast_type
+        assert t1 == t2
+        resultptr = self->builder->stack_alloc(self->map_type(t1), NULL)
+
+        self->builder->branch(self->build_expression(cond_expr), cond_true, cond_false)
+
+        self->builder->set_current_block(cond_true)
+        self->builder->set_ptr(resultptr, self->build_expression(then_expr))
+        self->builder->jump(done)
+
+        self->builder->set_current_block(cond_false)
+        self->builder->set_ptr(resultptr, self->build_expression(otherwise_expr))
+        self->builder->jump(done)
+
+        self->builder->set_current_block(done)
+        return self->builder->dereference(resultptr)
+
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> AnyBuilderValue:
         match expr->kind:
             case AstExpressionKind.IntegerConstant:
@@ -449,6 +478,8 @@ class AstToBuilder:
                 return self->build_or(&expr->operands[0], &expr->operands[1])
             case AstExpressionKind.Not:
                 return self->builder->not_(self->build_expression(&expr->operands[0]))
+            case AstExpressionKind.TernaryIf:
+                return self->build_ternary(&expr->operands[0], &expr->operands[1], &expr->operands[2])
 
     def build_expression(self, expr: AstExpression*) -> AnyBuilderValue:
         old_location = self->set_location(expr->location)

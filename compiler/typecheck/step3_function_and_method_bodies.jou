@@ -111,6 +111,10 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
         ):
             return "the result of a comparison"
 
+        case AstExpressionKind.TernaryIf:
+            # TODO: test this
+            return "a ternary expression"
+
         case AstExpressionKind.PreIncr | AstExpressionKind.PostIncr:
             return "the result of incrementing a value"
         case AstExpressionKind.PreDecr | AstExpressionKind.PostDecr:
@@ -780,6 +784,54 @@ def cast_array_members_to_a_common_type(
     return elemtype
 
 
+# This function handles cases like the following:
+#
+#   1.0 if condition else 2
+#   1 if condition else 2.0
+def cast_ternary_values_to_a_common_type(
+    fom: FunctionOrMethodTypes*,
+    ternary_location: Location,
+    then_expr: AstExpression*,
+    otherwise_expr: AstExpression*,
+    ternary_type_hint: Type*,
+) -> Type*:
+    t1 = then_expr->types.orig_type
+    t2 = otherwise_expr->types.orig_type
+    assert t1 != NULL
+    assert t2 != NULL
+
+    if ternary_type_hint != NULL:
+        t = ternary_type_hint
+    elif t1 == t2:
+        t = t1
+    else:
+        t1_works = can_cast_implicitly(t2, t1)
+        t2_works = can_cast_implicitly(t1, t2)
+        if t1_works and t2_works:
+            # Handle similarly to array members
+            if t1 == voidPtrType:
+                t = t2
+            elif t2 == voidPtrType:
+                t = t1
+            else:
+                t = NULL  # TODO: test this
+        elif t1_works:
+            t = t1
+        elif t2_works:
+            t = t2
+        else:
+            t = NULL  # TODO: test this
+
+    if t == NULL:
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "ternary values must be of the same type (got %s and %s)", t1->name, t2->name)
+        fail(ternary_location, msg)
+
+    do_implicit_cast(fom, then_expr, t, ternary_location, NULL)
+    do_implicit_cast(fom, otherwise_expr, t, ternary_location, NULL)
+    return t
+
+
 # The AST "foo.bar" may be:
 #   - field "bar" of an instance of some class stored to variable "foo"
 #   - member "bar" of enum "foo"
@@ -1066,6 +1118,15 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             typecheck_expression_not_void(state, &expr->operands[0], NULL)
             typecheck_expression_not_void(state, &expr->operands[1], NULL)
             result = check_binop(state->fom_types, expr->kind, expr->location, &expr->operands[0], &expr->operands[1])
+
+        case AstExpressionKind.TernaryIf:
+            typecheck_expression_not_void(state, &expr->operands[0], NULL)
+            typecheck_expression_with_implicit_cast(
+                # TODO: test this
+                state, &expr->operands[1], boolType, "ternary condition must be a bool, not <from>"
+            )
+            typecheck_expression_not_void(state, &expr->operands[2], NULL)
+            result = cast_ternary_values_to_a_common_type(state->fom_types, expr->location, &expr->operands[0], &expr->operands[2], type_hint)
 
         case (
             AstExpressionKind.PreIncr

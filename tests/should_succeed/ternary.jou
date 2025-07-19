@@ -1,0 +1,41 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+def side_effect(s: byte*) -> int:
+    printf("side effect: %s\n", s)
+    return strlen(s) as int
+
+
+def main() -> int:
+    # Output: Hello
+    puts("Hello" if 1 + 2 == 3 else "Wat")
+
+    # Output: side effect: condition
+    # Output: side effect: Hello
+    # Output: value = 5
+    value = side_effect("wat") if side_effect("condition") == 9 else side_effect("Hello")
+    printf("value = %d\n", value)
+
+    # Implicit cast corner cases
+    value1 = 1.0 if True else 2
+    value2 = 1.0 if False else 2
+    value3 = 3 if True else 4.0
+    value4 = 3 if False else 4.0
+    value5: float = 5 if True else 6
+    value6: float = 5 if False else 6
+    printf("%.3f\n", value1)  # Output: 1.000
+    printf("%.3f\n", value2)  # Output: 2.000
+    printf("%.3f\n", value3)  # Output: 3.000
+    printf("%.3f\n", value4)  # Output: 4.000
+    printf("%.3f\n", value5)  # Output: 5.000
+    printf("%.3f\n", value6)  # Output: 6.000
+
+    # In this corner case, both types can be converted to each other: byte* <--> void*
+    # The compiler should prefer byte* because it is more specific than void*.
+    # This is similar to arrays: ["hello", NULL] and [NULL, "hello"] are byte* arrays.
+    s1 = "one" if True else NULL
+    s2 = NULL if False else "two"
+    printf("%c%c%c %c%c%c\n", s1[0], s1[1], s1[2], s2[0], s2[1], s2[2])  # Output: one two
+
+    return 0

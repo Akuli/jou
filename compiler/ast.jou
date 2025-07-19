@@ -210,6 +210,8 @@ enum AstExpressionKind:
     Le          # x <= y
     And         # x and y
     Or          # x or y
+    # ternary operators
+    TernaryIf   # x if y else z
 
 @public
 class AstExpression:
@@ -324,6 +326,8 @@ class AstExpression:
                 printf("and\n")
             case AstExpressionKind.Or:
                 printf("or\n")
+            case AstExpressionKind.TernaryIf:
+                printf("ternary if\n")
 
         for i = 0; i < self->get_arity(); i++:
             self->operands[i].print_with_tree_printer(tp.print_prefix(i == self->get_arity()-1))
@@ -386,6 +390,8 @@ class AstExpression:
                 | AstExpressionKind.Indexing
             ):
                 return 2
+            case AstExpressionKind.TernaryIf:
+                return 3
             case _:
                 return 0
 
