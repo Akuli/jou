@@ -198,6 +198,7 @@ def detect_banned_whitespace_characters(last_3_bytes: byte[3]) -> byte*:
 class Tokenizer:
     f: FILE*
     location: Location
+    byte_offset: int
     pushback: List[byte]
     # Parens array isn't dynamic, so that you can't segfault
     # the compiler by feeding it lots of nested parentheses,
@@ -210,11 +211,14 @@ class Tokenizer:
         c: byte
         if self->pushback.len > 0:
             c = self->pushback.pop()
+            self->byte_offset++
         else:
             temp = fgetc(self->f)
+            self->byte_offset++
             if temp == '\r':
                 # On Windows, \r just before \n is ignored.
                 temp = fgetc(self->f)
+                self->byte_offset++
                 if temp != EOF and temp != '\n':
                     # TODO: test this, if possible?
                     fail(self->location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
@@ -248,6 +252,7 @@ class Tokenizer:
 
         assert b != '\r'
         self->pushback.append(b)
+        self->byte_offset--
         if b == '\n':
             self->location.lineno--
 
@@ -498,7 +503,7 @@ class Tokenizer:
 
     def read_token(self) -> Token:
         while True:
-            token = Token{location = self->location}
+            token = Token{location = self->location, byte_offset = self->byte_offset}
             b = self->read_byte()
             match b:
                 case ' ':
@@ -559,6 +564,7 @@ class Tokenizer:
 def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
     tokenizer = Tokenizer{
         location = Location{path = path},
+        byte_offset = -1,  # Compensate for fake newline added below
         f = file,
     }
 
@@ -590,9 +596,9 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
             # This makes it similar to how other newline and dedent tokens work:
             # the dedents always come after a newline token.
             if t > raw_tokens and t[-1].kind != TokenKind.Newline:
-                tokens.append(Token{location = t->location, kind = TokenKind.Newline})
+                tokens.append(Token{location = t->location, byte_offset = t->byte_offset, kind = TokenKind.Newline})
             while level != 0:
-                tokens.append(Token{location = t->location, kind = TokenKind.Dedent})
+                tokens.append(Token{location = t->location, byte_offset = t->byte_offset, kind = TokenKind.Dedent})
                 level -= 4
             tokens.append(*t)
             break
@@ -602,16 +608,17 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
         if t->kind == TokenKind.Newline:
             after_newline = t->location
             after_newline.lineno++
+            byte_offset = t->byte_offset + 1
 
             if t->indentation_level % 4 != 0:
                 fail(after_newline, "indentation must be a multiple of 4 spaces")
 
             while level < t->indentation_level:
-                tokens.append(Token{location = after_newline, kind = TokenKind.Indent})
+                tokens.append(Token{location = after_newline, byte_offset = byte_offset, kind = TokenKind.Indent})
                 level += 4
 
             while level > t->indentation_level:
-                tokens.append(Token{location = after_newline, kind = TokenKind.Dedent})
+                tokens.append(Token{location = after_newline, byte_offset = byte_offset, kind = TokenKind.Dedent})
                 level -= 4
 
     # Delete the newline token in the beginning.

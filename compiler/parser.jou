@@ -121,44 +121,67 @@ def determine_the_kind_of_a_statement_that_starts_with_an_expression(
     return AstStatementKind.ExpressionStatement
 
 
-# TODO: this function is just bad...
-def read_assertion_from_file(start: Location, end: Location) -> byte*:
-    assert start.path == end.path
+def skip_string_or_byte(s: byte*) -> byte*:
+    assert *s == '"' or *s == '\''
+    quote = *s
+    s++
 
-    f = fopen(start.path, "rb")
+    while *s != '\0' and *s != quote:
+        s++
+        if s[-1] == '\\' and *s != '\0':
+            # Skip anything escaped, so \\\" (backslash then quote) works
+            s++
+
+    if *s == quote:
+        s++
+    return s
+
+
+def read_assertion_from_file(start: Token*, end: Token*) -> byte*:
+    assert start->byte_offset >= 0
+    assert end->byte_offset >= 0
+    assert start->byte_offset < end->byte_offset
+    assert strcmp(start->location.path, end->location.path) == 0
+
+    f = fopen(start->location.path, "rb")
     assert f != NULL
 
-    line: byte[1024]
-    lineno = 1
-    while lineno < start.lineno:
-        assert fgets(line, sizeof(line) as int, f) != NULL
-        lineno++
+    # TODO: add fseek to standard library
+    for i = 0; i < start->byte_offset; i++:
+        fgetc(f)
 
-    result: byte* = malloc(2000 * (end.lineno - start.lineno + 1))
-    result[0] = '\0'
-
-    while lineno <= end.lineno:
-        assert fgets(line, sizeof(line) as int, f) != NULL
-        lineno++
-
-        # TODO: strings containing '#' ... so much wrong with dis
-        if strstr(line, "#") != NULL:
-            *strstr(line, "#") = '\0'
-        trim_ascii_whitespace(line)
-
-        # Add spaces between lines, but not after '(' or before ')'
-        if not starts_with(line, ")") and not ends_with(result, "("):
-            strcat(result, " ")
-        strcat(result, line)
-
+    s: byte* = malloc(end->byte_offset - start->byte_offset + 1)
+    assert s != NULL
+    memset(s, 0, end->byte_offset - start->byte_offset + 1)
+    fread(s, 1, end->byte_offset - start->byte_offset, f)
     fclose(f)
 
-    trim_ascii_whitespace(result)
-    if starts_with(result, "assert"):
-        memmove(result, &result[6], strlen(&result[6]) + 1)
-        trim_ascii_whitespace(result)
+    p = s
+    while *p != '\0':
+        match *p:
+            case '"' | '\'':
+                p = skip_string_or_byte(p)
+            case '#':
+                # Remove comments
+                comment_end = &p[strcspn(p, "\n")]
+                memmove(p, comment_end, strlen(comment_end) + 1)
+            case '\n':
+                # Delete spaces and other newlines that surround this newline
+                delete_end = &p[strspn(p, "\n ")]
+                while p > s and (p[-1] == ' ' or p[-1] == '\n'):
+                    p--
+                # Add space in place of newline and other deleted stuff, but not if
+                # it would be awkwardly after '(' or before ')'
+                if (p == s or p[-1] != '(') and *delete_end != ')':
+                    # Replace with space
+                    *p = ' '
+                    p++
+                memmove(p, delete_end, strlen(delete_end) + 1)
+            case _:
+                p++
 
-    return result
+    trim_ascii_whitespace(s)
+    return s
 
 
 def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
@@ -935,9 +958,9 @@ class Parser:
                     fail(self->tokens->location, "'assert' cannot be placed inside a class unless it is inside a method")
             self->tokens++
             result.kind = AstStatementKind.Assert
-            start = self->tokens->location
+            start = self->tokens
             result.assertion.condition = self->parse_expression()
-            end = self->tokens->location
+            end = self->tokens
             result.assertion.condition_str = read_assertion_from_file(start, end)
         elif self->tokens->is_keyword("pass"):
             self->tokens++
