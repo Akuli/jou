@@ -417,7 +417,7 @@ class AstToBuilder:
                 # We can't do this for all expressions, because e.g. &some_function() is error.
                 return self->builder->dereference(self->build_address_of_expression(expr))
             case AstExpressionKind.DotOperator:
-                # Compiler should replace these with other expression kinds when it knows what they are
+                # Should become other expression kind before we get here
                 assert False
             case AstExpressionKind.GetEnumMember:
                 return self->builder->enum_member(expr->types.orig_type, expr->enum_member.member_name)

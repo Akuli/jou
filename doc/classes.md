@@ -169,7 +169,7 @@ In the above example, the type of `self` is `Point*`,
 which means that `self` is a pointer to an instance of `Point`.
 
 To call a method on a pointer (such as `self`),
-you can simply `.`, just like with accessing fields:
+you can simply use `.`, just like with accessing fields:
 
 ```python
 import "stdlib/io.jou"
