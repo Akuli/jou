@@ -27,30 +27,30 @@ class Hash:
 
     # Add data to hash
     def add_byte(self, b: byte) -> None:
-        assert self->created_correctly  # If this fails, use new_hash() function
-        self->hash ^= b
-        self->hash *= 0x100_0000_01b3
+        assert self.created_correctly  # If this fails, use new_hash() function
+        self.hash ^= b
+        self.hash *= 0x100_0000_01b3
 
     def add_bytes(self, data: byte*, len: long) -> None:
         for i = 0 as long; i < len; i++:
-            self->add_byte(data[i])
+            self.add_byte(data[i])
 
     def add_bool(self, b: bool) -> None:
-        self->add_byte(b as byte)
+        self.add_byte(b as byte)
 
     def add_int(self, i: int) -> None:
-        self->add_bytes(&i as byte*, sizeof(i))
+        self.add_bytes(&i as byte*, sizeof(i))
 
     def add_int64(self, i: int64) -> None:
-        self->add_bytes(&i as byte*, sizeof(i))
+        self.add_bytes(&i as byte*, sizeof(i))
 
     def add_uint64(self, i: uint64) -> None:
-        self->add_bytes(&i as byte*, sizeof(i))
+        self.add_bytes(&i as byte*, sizeof(i))
 
     def add_string(self, s: byte*) -> None:
         len = strlen(s)
-        self->add_int64(len)
-        self->add_bytes(s, len)
+        self.add_int64(len)
+        self.add_bytes(s, len)
 
 
 @public

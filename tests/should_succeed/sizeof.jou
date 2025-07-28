@@ -17,7 +17,7 @@ def ensure_sizeof_isnt_too_small_in_a_weird_corner_case() -> None:
     ptr = malloc(50) as Foo*
     memcpy(ptr, &value, sizeof value)
     # If sizeof is too small, this prints garbage.
-    printf("%c\n", ptr->c)  # Output: x
+    printf("%c\n", ptr.c)  # Output: x
     free(ptr)
 
 def main() -> int:

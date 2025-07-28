@@ -9,9 +9,9 @@ import "../grid.jou"
 def can_roll(grid: Grid*, rock: int[2], dir: int[2], n: int) -> bool:
     new_rock_pos = [rock[0] + n*dir[0], rock[1] + n*dir[1]]
     return (
-        grid->get(rock) == 'O'
-        and grid->is_in_bounds(new_rock_pos)
-        and grid->get(new_rock_pos) == '.'
+        grid.get(rock) == 'O'
+        and grid.is_in_bounds(new_rock_pos)
+        and grid.get(new_rock_pos) == '.'
     )
 
 
@@ -20,7 +20,7 @@ def roll_one_round_rock(grid: Grid*, rock: int[2], dir: int[2]) -> None:
         n = 1
         while can_roll(grid, rock, dir, n+1):
             n++
-        grid->swap(rock, [rock[0] + n*dir[0], rock[1] + n*dir[1]])
+        grid.swap(rock, [rock[0] + n*dir[0], rock[1] + n*dir[1]])
 
 
 def roll(grid: Grid*, dir: int[2]) -> None:
@@ -31,30 +31,30 @@ def roll(grid: Grid*, dir: int[2]) -> None:
     y_backwards = (dir[1] == 1)
 
     if x_backwards:
-        x0 = grid->width - 1
+        x0 = grid.width - 1
         dx = -1
     else:
         x0 = 0
         dx = 1
 
     if y_backwards:
-        y0 = grid->height - 1
+        y0 = grid.height - 1
         dy = -1
     else:
         y0 = 0
         dy = 1
 
-    for y = y0; 0 <= y and y < grid->height; y += dy:
-        for x = x0; 0 <= x and x < grid->width; x += dx:
+    for y = y0; 0 <= y and y < grid.height; y += dy:
+        for x = x0; 0 <= x and x < grid.width; x += dx:
             roll_one_round_rock(grid, [x, y], dir)
 
 
 def calculate_load(g: Grid*) -> int:
     result = 0
-    for y = 0; y < g->height; y++:
-        load_per_O = g->height - y
-        for x = 0; x < g->width; x++:
-            if g->get([x, y]) == 'O':
+    for y = 0; y < g.height; y++:
+        load_per_O = g.height - y
+        for x = 0; x < g.width; x++:
+            if g.get([x, y]) == 'O':
                 result += load_per_O
     return result
 
@@ -93,7 +93,7 @@ def main() -> int:
 
     free(grid.data)
     for p = previous_states.ptr; p < previous_states.end(); p++:
-        free(p->data)
+        free(p.data)
     free(previous_states.ptr)
 
     return 0

@@ -28,16 +28,16 @@ def split_digits(n: long) -> long[2]:
 
 
 def blink(stones: List[long]*) -> None:
-    old_len = stones->len
+    old_len = stones.len
     for i = 0; i < old_len; i++:
-        if stones->ptr[i] == 0:
-            stones->ptr[i] = 1
-        elif count_digits(stones->ptr[i]) % 2 == 0:
-            pair = split_digits(stones->ptr[i])
-            stones->ptr[i] = pair[0]
-            stones->append(pair[1])
+        if stones.ptr[i] == 0:
+            stones.ptr[i] = 1
+        elif count_digits(stones.ptr[i]) % 2 == 0:
+            pair = split_digits(stones.ptr[i])
+            stones.ptr[i] = pair[0]
+            stones.append(pair[1])
         else:
-            stones->ptr[i] *= 2024
+            stones.ptr[i] *= 2024
 
 
 def main() -> int:

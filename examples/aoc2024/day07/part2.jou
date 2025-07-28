@@ -27,13 +27,13 @@ class Equation:
     nvalues: int
 
     def is_satisfiable(self) -> bool:
-        assert self->nvalues > 0
+        assert self.nvalues > 0
         results: long* = malloc(sizeof(results[0]) * 1)
         assert results != NULL
-        results[0] = self->values[0]
+        results[0] = self.values[0]
         nresults = 1
 
-        for value = &self->values[1]; value < &self->values[self->nvalues]; value++:
+        for value = &self.values[1]; value < &self.values[self.nvalues]; value++:
             if nresults == 0:
                 break
 
@@ -46,7 +46,7 @@ class Equation:
                 r = results[i] + (*value)
                 assert r >= results[i]
                 # if too big already, no way it will be ok later
-                if r <= self->expected_result:
+                if r <= self.expected_result:
                     new_results[new_nresults++] = r
 
             # Let's try multiplying
@@ -54,7 +54,7 @@ class Equation:
                 r = results[i] * (*value)
                 assert r >= results[i]
                 # if too big already, no way it will be ok later
-                if r <= self->expected_result:
+                if r <= self.expected_result:
                     new_results[new_nresults++] = r
 
             # Let's try concatenating
@@ -62,7 +62,7 @@ class Equation:
                 r = concat(results[i], *value)
                 assert r >= results[i]
                 # if too big already, no way it will be ok later
-                if r <= self->expected_result:
+                if r <= self.expected_result:
                     new_results[new_nresults++] = r
 
             free(results)
@@ -71,7 +71,7 @@ class Equation:
 
         found = False
         for i = 0; i < nresults; i++:
-            if results[i] == self->expected_result:
+            if results[i] == self.expected_result:
                 found = True
                 break
 

@@ -4,25 +4,25 @@ import "../grid.jou"
 
 
 def roll_north(grid: Grid*) -> None:
-    for ysrc = 1; ysrc < grid->height; ysrc++:
-        for x = 0; x < grid->width; x++:
-            if grid->get([x, ysrc]) != 'O' or grid->get([x, ysrc-1]) != '.':
+    for ysrc = 1; ysrc < grid.height; ysrc++:
+        for x = 0; x < grid.width; x++:
+            if grid.get([x, ysrc]) != 'O' or grid.get([x, ysrc-1]) != '.':
                 continue
 
             ydest = ysrc - 1
-            while ydest > 0 and grid->get([x, ydest-1]) == '.':
+            while ydest > 0 and grid.get([x, ydest-1]) == '.':
                 ydest--
 
-            grid->set([x, ysrc], '.')
-            grid->set([x, ydest], 'O')
+            grid.set([x, ysrc], '.')
+            grid.set([x, ydest], 'O')
 
 
 def calculate_load(g: Grid*) -> int:
     result = 0
-    for y = 0; y < g->height; y++:
-        load_per_O = g->height - y
-        for x = 0; x < g->width; x++:
-            if g->get([x, y]) == 'O':
+    for y = 0; y < g.height; y++:
+        load_per_O = g.height - y
+        for x = 0; x < g.width; x++:
+            if g.get([x, y]) == 'O':
                 result += load_per_O
     return result
 
