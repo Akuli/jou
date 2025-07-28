@@ -7,9 +7,9 @@ def we_gonna_get_stuck(grid: Grid*) -> bool:
     # Order: [up, right, down, left] (rotates clockwise)
     dx = [0, 1, 0, -1]
     dy = [-1, 0, 1, 0]
-    visited = [grid->copy(), grid->copy(), grid->copy(), grid->copy()]
+    visited = [grid.copy(), grid.copy(), grid.copy(), grid.copy()]
 
-    pos = grid->find_first('^')
+    pos = grid.find_first('^')
     movement_kind = 0
     got_stuck = False
 
@@ -21,9 +21,9 @@ def we_gonna_get_stuck(grid: Grid*) -> bool:
         visited[movement_kind].set(pos, 'X')
 
         new_pos = [pos[0] + dx[movement_kind], pos[1] + dy[movement_kind]]
-        if not grid->is_in_bounds(new_pos):
+        if not grid.is_in_bounds(new_pos):
             break
-        elif grid->get(new_pos) == '#':
+        elif grid.get(new_pos) == '#':
             # turn right 90deg
             movement_kind = (movement_kind + 1) % 4
         else:

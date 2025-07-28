@@ -8,14 +8,14 @@ import "stdlib/str.jou"
 
 def dedup(list: List[byte[100]]*) -> None:
     i = 0
-    while i < list->len:
+    while i < list.len:
         exists_before = False
         for k = 0; k < i; k++:
-            if strcmp(list->ptr[k], list->ptr[i]) == 0:
+            if strcmp(list.ptr[k], list.ptr[i]) == 0:
                 exists_before = True
                 break
         if exists_before:
-            list->ptr[k] = list->ptr[--list->len]
+            list.ptr[k] = list.ptr[--list.len]
         else:
             i++
 
@@ -26,12 +26,12 @@ class KeyPad:
     def find_button(self, button_label: byte) -> int[2]:
         for x = 0; x < 3; x++:
             for y = 0; y < 4; y++:
-                if self->rows[y][x] == button_label:
+                if self.rows[y][x] == button_label:
                     return [x, y]
         assert False
 
     def goes_to_blank(self, directions: byte*) -> bool:
-        pos = self->find_button('A')
+        pos = self.find_button('A')
         x = pos[0]
         y = pos[1]
 
@@ -50,7 +50,7 @@ class KeyPad:
 
             assert 0 <= x and x < 3
             assert 0 <= y and y < 4
-            if self->rows[y][x] == ' ':
+            if self.rows[y][x] == ' ':
                 return True
 
         return False
@@ -65,8 +65,8 @@ class KeyPad:
             else:
                 prev = p[-1]
 
-            pos1 = self->find_button(prev)
-            pos2 = self->find_button(*p)
+            pos1 = self.find_button(prev)
+            pos2 = self.find_button(*p)
 
             dx = pos2[0] - pos1[0]
             dy = pos2[1] - pos1[1]
@@ -101,9 +101,9 @@ class KeyPad:
                 strcat(v_then_h, h)
                 strcat(v_then_h, "A")
 
-                if not self->goes_to_blank(h_then_v):
+                if not self.goes_to_blank(h_then_v):
                     result2.append(h_then_v)
-                if not self->goes_to_blank(v_then_h):
+                if not self.goes_to_blank(v_then_h):
                     result2.append(v_then_h)
 
             free(result.ptr)
@@ -115,7 +115,7 @@ class KeyPad:
     def get_presses_for_each(self, things_we_could_write: List[byte[100]]) -> List[byte[100]]:
         result = List[byte[100]]{}
         for i = 0; i < things_we_could_write.len; i++:
-            adding = self->get_presses(things_we_could_write.ptr[i])
+            adding = self.get_presses(things_we_could_write.ptr[i])
             result.extend(adding)
             free(adding.ptr)
 

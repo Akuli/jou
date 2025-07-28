@@ -54,17 +54,17 @@ class Rectangle:
         x = point[0]
         y = point[1]
         return (
-            self->x_min <= x and x <= self->x_max
-            and self->y_min <= y and y <= self->x_max
+            self.x_min <= x and x <= self.x_max
+            and self.y_min <= y and y <= self.x_max
         )
 
     def contains_fraction(self, qx: BigInt, qy: BigInt, q: BigInt) -> bool:
         assert q.sign() > 0
 
-        qxmin = bigint(self->x_min).mul(q)
-        qxmax = bigint(self->x_max).mul(q)
-        qymin = bigint(self->y_min).mul(q)
-        qymax = bigint(self->y_max).mul(q)
+        qxmin = bigint(self.x_min).mul(q)
+        qxmax = bigint(self.x_max).mul(q)
+        qymin = bigint(self.y_min).mul(q)
+        qymax = bigint(self.y_max).mul(q)
         return (
             qxmin.compare(qx) <= 0 and qx.compare(qxmax) <= 0
             and qymin.compare(qy) <= 0 and qy.compare(qymax) <= 0
@@ -76,21 +76,21 @@ class Ray:
     dir: long[2]
 
     def intersects(self, other: Ray*, test_area: Rectangle) -> bool:
-        if det([self->dir, other->dir]).is_zero():
+        if det([self.dir, other.dir]).is_zero():
             # Rays go in parallel directions.
             start_diff = [
-                self->start[0] - other->start[0],
-                self->start[1] - other->start[1],
+                self.start[0] - other.start[0],
+                self.start[1] - other.start[1],
             ]
-            if not det([start_diff, self->dir]).is_zero():
+            if not det([start_diff, self.dir]).is_zero():
                 # Rays are not aligned to go along the same line.
                 return False
 
             # Vectors go along the same line. Let's project everything to the line so this becomes 1 dimensional.
-            self_start = dot(self->dir, self->start)
-            self_dir = dot(self->dir, self->dir)
-            other_start = dot(self->dir, other->start)
-            other_dir = dot(self->dir, other->dir)
+            self_start = dot(self.dir, self.start)
+            self_dir = dot(self.dir, self.dir)
+            other_start = dot(self.dir, other.start)
+            other_dir = dot(self.dir, other.dir)
 
             assert self_dir.sign() > 0
             assert not other_dir.is_zero()
@@ -99,9 +99,9 @@ class Ray:
             if other_dir.sign() > 0:
                 # Rays go in the same direction. Eventually one ray will reach the start of the other.
                 if self_start.compare(other_start) > 0:
-                    return test_area.contains(self->start)
+                    return test_area.contains(self.start)
                 else:
-                    return test_area.contains(other->start)
+                    return test_area.contains(other.start)
 
             if self_start.compare(other_start) > 0:
                 # Rays point away from each other
@@ -118,23 +118,23 @@ class Ray:
             q = self_dir.sub(other_dir)
             assert q.sign() > 0
             qt = other_start.sub(self_start)
-            qx = bigint(self->start[0]).mul(q).add(bigint(self->dir[0]).mul(qt))
-            qy = bigint(self->start[1]).mul(q).add(bigint(self->dir[1]).mul(qt))
+            qx = bigint(self.start[0]).mul(q).add(bigint(self.dir[0]).mul(qt))
+            qy = bigint(self.start[1]).mul(q).add(bigint(self.dir[1]).mul(qt))
             return test_area.contains_fraction(qx, qy, q)
 
         # Vectors are not parallel. They will intersect somewhere, but where?
         #
-        #   self->start + a*self->dir = other->start + b*other->dir
+        #   self.start + a*self.dir = other.start + b*other.dir
         #
-        #   a*self->dir[0] + b*(-other->dir[0]) = other->start[0] - self->start[0]
-        #   a*self->dir[1] + b*(-other->dir[1]) = other->start[1] - self->start[1]
+        #   a*self.dir[0] + b*(-other.dir[0]) = other.start[0] - self.start[0]
+        #   a*self.dir[1] + b*(-other.dir[1]) = other.start[1] - self.start[1]
         coeff_matrix = [
-            [self->dir[0], -other->dir[0]],
-            [self->dir[1], -other->dir[1]],
+            [self.dir[0], -other.dir[0]],
+            [self.dir[1], -other.dir[1]],
         ]
         constant_vector = [
-            other->start[0] - self->start[0],
-            other->start[1] - self->start[1],
+            other.start[0] - self.start[0],
+            other.start[1] - self.start[1],
         ]
         solve_result = solve_linear_system_of_2_equations(coeff_matrix, constant_vector)
         qa = solve_result[0]
@@ -150,8 +150,8 @@ class Ray:
         if qa.sign() < 0 or qb.sign() < 0:
             return False
 
-        qx = bigint(self->start[0]).mul(q).add(bigint(self->dir[0]).mul(qa))
-        qy = bigint(self->start[1]).mul(q).add(bigint(self->dir[1]).mul(qa))
+        qx = bigint(self.start[0]).mul(q).add(bigint(self.dir[0]).mul(qa))
+        qy = bigint(self.start[1]).mul(q).add(bigint(self.dir[1]).mul(qa))
         return test_area.contains_fraction(qx, qy, q)
 
 

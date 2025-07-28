@@ -36,33 +36,33 @@ class Token:
         long_string: byte*      # String
 
     def print(self) -> None:
-        match self->kind:
+        match self.kind:
             case TokenKind.Byte:
-                printf("byte %#02llx", self->integer_value)
-                if isprint(self->integer_value as byte) != 0:
-                    printf(" '%c'", self->integer_value as byte)
+                printf("byte %#02llx", self.integer_value)
+                if isprint(self.integer_value as byte) != 0:
+                    printf(" '%c'", self.integer_value as byte)
                 printf("\n")
             case TokenKind.Integer:
-                printf("integer %llu\n", self->integer_value)
+                printf("integer %llu\n", self.integer_value)
             case TokenKind.Float:
-                printf("float %s\n", self->short_string)
+                printf("float %s\n", self.short_string)
             case TokenKind.Double:
-                printf("double %s\n", self->short_string)
+                printf("double %s\n", self.short_string)
             case TokenKind.EndOfFile:
                 printf("end of file\n")
             case TokenKind.Operator:
-                printf("operator '%s'\n", self->short_string)
+                printf("operator '%s'\n", self.short_string)
             case TokenKind.Decorator:
-                printf("decorator %s\n", self->short_string)
+                printf("decorator %s\n", self.short_string)
             case TokenKind.Name:
-                printf("name \"%s\"\n", self->short_string)
+                printf("name \"%s\"\n", self.short_string)
             case TokenKind.Keyword:
-                printf("keyword \"%s\"\n", self->short_string)
+                printf("keyword \"%s\"\n", self.short_string)
             case TokenKind.Newline:
-                printf("newline token (next line has %d spaces of indentation)\n", self->indentation_level)
+                printf("newline token (next line has %d spaces of indentation)\n", self.indentation_level)
             case TokenKind.String:
                 printf("string \"")
-                for s = self->long_string; *s != 0; s++:
+                for s = self.long_string; *s != 0; s++:
                     if isprint(*s) != 0:
                         putchar(*s)
                     elif *s == '\n':
@@ -76,30 +76,30 @@ class Token:
                 printf("dedent (-4 spaces)\n")
 
     def is_keyword(self, kw: byte*) -> bool:
-        return self->kind == TokenKind.Keyword and strcmp(self->short_string, kw) == 0
+        return self.kind == TokenKind.Keyword and strcmp(self.short_string, kw) == 0
 
     def is_operator(self, op: byte*) -> bool:
-        return self->kind == TokenKind.Operator and strcmp(self->short_string, op) == 0
+        return self.kind == TokenKind.Operator and strcmp(self.short_string, op) == 0
 
     def is_comparison(self) -> bool:
         return (
-            self->is_operator("==")
-            or self->is_operator("!=")
-            or self->is_operator("<")
-            or self->is_operator(">")
-            or self->is_operator("<=")
-            or self->is_operator(">=")
+            self.is_operator("==")
+            or self.is_operator("!=")
+            or self.is_operator("<")
+            or self.is_operator(">")
+            or self.is_operator("<=")
+            or self.is_operator(">=")
         )
 
     def is_open_paren(self) -> bool:
-        return self->is_operator("(") or self->is_operator("[") or self->is_operator("{")
+        return self.is_operator("(") or self.is_operator("[") or self.is_operator("{")
 
     def is_close_paren(self) -> bool:
-        return self->is_operator(")") or self->is_operator("]") or self->is_operator("}")
+        return self.is_operator(")") or self.is_operator("]") or self.is_operator("}")
 
     def fail_expected_got(self, what_was_expected_instead: byte*) -> None:
         got: byte[100]
-        match self->kind:
+        match self.kind:
             case TokenKind.Integer:
                 got = "an integer"
             case TokenKind.Float:
@@ -113,9 +113,9 @@ class Token:
             case TokenKind.Decorator:
                 got = "a decorator"
             case TokenKind.Name:
-                snprintf(got, sizeof got, "a variable name '%s'", self->short_string)
+                snprintf(got, sizeof got, "a variable name '%s'", self.short_string)
             case TokenKind.Keyword:
-                snprintf(got, sizeof got, "the '%s' keyword", self->short_string)
+                snprintf(got, sizeof got, "the '%s' keyword", self.short_string)
             case TokenKind.Newline:
                 got = "end of line"
             case TokenKind.Indent:
@@ -123,30 +123,30 @@ class Token:
             case TokenKind.Dedent:
                 got = "less indentation"
             case TokenKind.Operator:
-                snprintf(got, sizeof got, "'%s'", self->short_string)
+                snprintf(got, sizeof got, "'%s'", self.short_string)
             case TokenKind.EndOfFile:
                 got = "end of file"
 
         message: byte*
         asprintf(&message, "expected %s, got %s", what_was_expected_instead, got)
-        fail(self->location, message)
+        fail(self.location, message)
 
 
 @public
 def print_tokens(tokens: Token*) -> None:
-    printf("===== Tokens for file \"%s\" =====\n", tokens->location.path)
+    printf("===== Tokens for file \"%s\" =====\n", tokens.location.path)
     t = tokens
     current_lineno = -1
 
     while True:
-        if t->location.lineno != current_lineno:
-            current_lineno = t->location.lineno
+        if t.location.lineno != current_lineno:
+            current_lineno = t.location.lineno
             printf("\nLine %d:\n", current_lineno)
 
         printf("  ")
-        t->print()
+        t.print()
 
-        if t->kind == TokenKind.EndOfFile:
+        if t.kind == TokenKind.EndOfFile:
             break
         t++
 
@@ -155,7 +155,7 @@ def print_tokens(tokens: Token*) -> None:
 
 @public
 def free_tokens(tokenlist: Token*) -> None:
-    for t = tokenlist; t->kind != TokenKind.EndOfFile; t++:
-        if t->kind == TokenKind.String:
-            free(t->long_string)
+    for t = tokenlist; t.kind != TokenKind.EndOfFile; t++:
+        if t.kind == TokenKind.String:
+            free(t.long_string)
     free(tokenlist)
