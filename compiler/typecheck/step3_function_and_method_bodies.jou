@@ -976,25 +976,9 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                     temptype->name)
                 fail(expr->location, msg)
 
-        case AstExpressionKind.GetClassField:
-            temptype = typecheck_expression_not_void(state, expr->class_field.instance, NULL)
-            if temptype->kind != TypeKind.Class:
-                snprintf(
-                    msg, sizeof(msg),
-                    "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
-                    temptype->name)
-                fail(expr->location, msg)
-            result = typecheck_class_field(temptype, expr->class_field.field_name, expr->location)->type
-
-        case AstExpressionKind.GetClassFieldPtr:
-            temptype = typecheck_expression_not_void(state, expr->class_field.instance, NULL)
-            if temptype->kind != TypeKind.Pointer or temptype->value_type->kind != TypeKind.Class:
-                snprintf(
-                    msg, sizeof(msg),
-                    "left side of '.' operator must be a pointer to an instance of a class, not %s",
-                    temptype->name)
-                fail(expr->location, msg)
-            result = typecheck_class_field(temptype->value_type, expr->class_field.field_name, expr->location)->type
+        case AstExpressionKind.GetClassField | AstExpressionKind.GetClassFieldPtr:
+            # Constructed above, should not already be like this when we get here
+            assert False
 
         case AstExpressionKind.Call:
             if expr->call.method_call_self == NULL:
