@@ -6,18 +6,18 @@ import "../grid.jou"
 
 # returned array is terminated by -1
 def find_blank_lines(grid: Grid*) -> int*:
-    result: int* = malloc(sizeof(result[0]) * (grid.height + 1))
+    result: int* = malloc(sizeof(result[0]) * (grid->height + 1))
     result_len = 0
 
-    for y = 0; y < grid.height; y++:
-        if strspn(&grid.data[(grid.width + 1)*y], ".") == grid.width:
+    for y = 0; y < grid->height; y++:
+        if strspn(&grid->data[(grid->width + 1)*y], ".") == grid->width:
             result[result_len++] = y
     result[result_len] = -1
     return result
 
 
 def sum_vertical_distances(grid: Grid*) -> long:
-    hashtags = grid.find_all('#')
+    hashtags = grid->find_all('#')
     blank_lines = find_blank_lines(grid)
 
     result = 0 as long

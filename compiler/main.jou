@@ -26,49 +26,49 @@ import "./ast.jou"
 
 
 def defines_main(ast: AstFile*) -> bool:
-    for p = ast.body.ptr; p < ast.body.end(); p++:
-        if p.kind == AstStatementKind.FunctionDef and p.function.types.signature.is_main_function():
+    for p = ast->body.ptr; p < ast->body.end(); p++:
+        if p->kind == AstStatementKind.FunctionDef and p->function.types.signature.is_main_function():
             return True
     return False
 
 
 def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSymbol*) -> bool:
-    match stmt.kind:
+    match stmt->kind:
         case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
             return (
-                importsym.kind == ExportSymbolKind.Function
-                and strcmp(importsym.name, stmt.function.ast_signature.name) == 0
+                importsym->kind == ExportSymbolKind.Function
+                and strcmp(importsym->name, stmt->function.ast_signature.name) == 0
             )
         case AstStatementKind.GlobalVariableDeclare | AstStatementKind.Const:
             return (
                 (
-                    importsym.kind == ExportSymbolKind.GlobalVar
-                    and strcmp(importsym.name, stmt.global_var_declare.name) == 0
+                    importsym->kind == ExportSymbolKind.GlobalVar
+                    and strcmp(importsym->name, stmt->global_var_declare.name) == 0
                 ) or (
-                    importsym.kind == ExportSymbolKind.Constant
-                    and strcmp(importsym.name, stmt.const_statement.name) == 0
+                    importsym->kind == ExportSymbolKind.Constant
+                    and strcmp(importsym->name, stmt->const_statement.name) == 0
                 )
             )
         case AstStatementKind.GlobalVariableDef:
             return (
-                importsym.kind == ExportSymbolKind.GlobalVar
-                and strcmp(importsym.name, stmt.global_var_def.name) == 0
+                importsym->kind == ExportSymbolKind.GlobalVar
+                and strcmp(importsym->name, stmt->global_var_def.name) == 0
             )
         case AstStatementKind.Class:
             return (
-                (importsym.kind == ExportSymbolKind.Type or importsym.kind == ExportSymbolKind.GenericClass)
-                and strcmp(importsym.name, stmt.classdef.name) == 0
+                (importsym->kind == ExportSymbolKind.Type or importsym->kind == ExportSymbolKind.GenericClass)
+                and strcmp(importsym->name, stmt->classdef.name) == 0
             )
         case AstStatementKind.Enum:
             return (
-                importsym.kind == ExportSymbolKind.Type
-                and strcmp(importsym.name, stmt.enumdef.name) == 0
+                importsym->kind == ExportSymbolKind.Type
+                and strcmp(importsym->name, stmt->enumdef.name) == 0
             )
         case AstStatementKind.Import | AstStatementKind.Link | AstStatementKind.Pass | AstStatementKind.Assert:
             return False
         case _:
-            printf("%d\n", stmt.kind as int)
-            stmt.print()
+            printf("%d\n", stmt->kind as int)
+            stmt->print()
             assert False
 
 
@@ -135,13 +135,13 @@ class FileState:
     module: LLVMModule*
 
     def free(self) -> None:
-        self.ast.free()
-        free(self.path)
+        self->ast.free()
+        free(self->path)
 
     def add_imported_symbol(self, es: ExportSymbol*, imp: AstImport*) -> None:
-        for p = self.ast.body.ptr; p < self.ast.body.end(); p++:
+        for p = self->ast.body.ptr; p < self->ast.body.end(); p++:
             if statement_conflicts_with_an_import(p, es):
-                match es.kind:
+                match es->kind:
                     case ExportSymbolKind.Function:
                         wat = "function"
                     case ExportSymbolKind.GlobalVar:
@@ -154,69 +154,69 @@ class FileState:
                         wat = "constant"
 
                 msg: byte[500]
-                snprintf(msg, sizeof msg, "a %s named '%s' already exists", wat, es.name)
-                fail(p.location, msg)
+                snprintf(msg, sizeof msg, "a %s named '%s' already exists", wat, es->name)
+                fail(p->location, msg)
 
-        match es.kind:
+        match es->kind:
             case ExportSymbolKind.Function:
-                self.ast.types.add_function(&es.funcsignature, &imp.used)
+                self->ast.types.add_function(&es->funcsignature, &imp->used)
             case ExportSymbolKind.Type:
-                self.ast.types.add_type(es.type, &imp.used)
+                self->ast.types.add_type(es->type, &imp->used)
             case ExportSymbolKind.GenericClass:
-                self.ast.types.add_generic_class(es.type, &imp.used)
+                self->ast.types.add_generic_class(es->type, &imp->used)
             case ExportSymbolKind.GlobalVar:
-                self.ast.types.add_global_var(es.name, es.type, &imp.used)
+                self->ast.types.add_global_var(es->name, es->type, &imp->used)
             case ExportSymbolKind.Constant:
-                self.ast.types.add_constant(es.name, &es.constant, &imp.used)
+                self->ast.types.add_constant(es->name, &es->constant, &imp->used)
 
     def warn_about_unused(self) -> None:
         msg: byte[500]
 
-        for stmt = self.ast.body.ptr; stmt < self.ast.body.end(); stmt++:
-            match stmt.kind:
+        for stmt = self->ast.body.ptr; stmt < self->ast.body.end(); stmt++:
+            match stmt->kind:
                 case AstStatementKind.Import:
-                    if not stmt.import_statement.used:
-                        snprintf(msg, sizeof msg, "\"%s\" imported but not used", stmt.import_statement.specified_path)
-                        show_warning(stmt.location, msg)
+                    if not stmt->import_statement.used:
+                        snprintf(msg, sizeof msg, "\"%s\" imported but not used", stmt->import_statement.specified_path)
+                        show_warning(stmt->location, msg)
                 case AstStatementKind.FunctionDef | AstStatementKind.FunctionDeclare:
-                    if stmt.kind == AstStatementKind.FunctionDeclare:
+                    if stmt->kind == AstStatementKind.FunctionDeclare:
                         did_what = "declared"
                     else:
                         did_what = "defined"
 
-                    f = &stmt.function
-                    if not f.public and not f.used and not f.types.signature.is_main_function():
-                        sigstr = f.types.signature.to_string(False, False)
+                    f = &stmt->function
+                    if not f->public and not f->used and not f->types.signature.is_main_function():
+                        sigstr = f->types.signature.to_string(False, False)
                         snprintf(msg, sizeof msg, "function %s %s but not used", sigstr, did_what)
                         free(sigstr)
-                        show_warning(stmt.location, msg)
+                        show_warning(stmt->location, msg)
                 case AstStatementKind.Enum:
-                    if not stmt.enumdef.public and not stmt.enumdef.used:
-                        snprintf(msg, sizeof msg, "enum %s defined but not used", stmt.enumdef.name)
-                        show_warning(stmt.location, msg)
+                    if not stmt->enumdef.public and not stmt->enumdef.used:
+                        snprintf(msg, sizeof msg, "enum %s defined but not used", stmt->enumdef.name)
+                        show_warning(stmt->location, msg)
                 case AstStatementKind.GlobalVariableDef:
-                    if not stmt.global_var_def.public and not stmt.global_var_def.used:
-                        snprintf(msg, sizeof msg, "global variable '%s' defined but not used", stmt.global_var_def.name)
-                        show_warning(stmt.location, msg)
+                    if not stmt->global_var_def.public and not stmt->global_var_def.used:
+                        snprintf(msg, sizeof msg, "global variable '%s' defined but not used", stmt->global_var_def.name)
+                        show_warning(stmt->location, msg)
                 case AstStatementKind.GlobalVariableDeclare:
-                    if not stmt.global_var_declare.public and not stmt.global_var_declare.used:
-                        snprintf(msg, sizeof msg, "global variable '%s' declared but not used", stmt.global_var_declare.name)
-                        show_warning(stmt.location, msg)
+                    if not stmt->global_var_declare.public and not stmt->global_var_declare.used:
+                        snprintf(msg, sizeof msg, "global variable '%s' declared but not used", stmt->global_var_declare.name)
+                        show_warning(stmt->location, msg)
                 case AstStatementKind.Class:
-                    if not stmt.classdef.public and not stmt.classdef.used:
-                        snprintf(msg, sizeof msg, "class '%s' defined but not used", stmt.classdef.name)
-                        show_warning(stmt.location, msg)
+                    if not stmt->classdef.public and not stmt->classdef.used:
+                        snprintf(msg, sizeof msg, "class '%s' defined but not used", stmt->classdef.name)
+                        show_warning(stmt->location, msg)
                 case AstStatementKind.Const:
-                    if not stmt.const_statement.public and not stmt.const_statement.used:
-                        snprintf(msg, sizeof msg, "constant '%s' defined but not used", stmt.const_statement.name)
-                        show_warning(stmt.location, msg)
+                    if not stmt->const_statement.public and not stmt->const_statement.used:
+                        snprintf(msg, sizeof msg, "constant '%s' defined but not used", stmt->const_statement.name)
+                        show_warning(stmt->location, msg)
                 case _:
                     pass
 
     def build_llvm_ir(self) -> LLVMModule*:
         if command_line_args.verbosity >= 1:
-            printf("Building LLVM IR: %s\n", self.path)
-        mod = build_llvm_ir(&self.ast)
+            printf("Building LLVM IR: %s\n", self->path)
+        mod = build_llvm_ir(&self->ast)
         if command_line_args.verbosity >= 2:
             print_llvm_ir(mod, False)
 
@@ -226,7 +226,7 @@ class FileState:
 
         if command_line_args.optlevel != 0:
             if command_line_args.verbosity >= 1:
-                printf("Optimizing %s (level %d)\n", self.path, command_line_args.optlevel)
+                printf("Optimizing %s (level %d)\n", self->path, command_line_args.optlevel)
             optimize(mod, command_line_args.optlevel)
             if command_line_args.verbosity >= 2:
                 print_llvm_ir(mod, True)
@@ -234,15 +234,15 @@ class FileState:
         return mod
 
     def find_existing_object_file_or_compile_to_object_file(self) -> byte*:
-        content_hash = build_content_hash(&self.ast)
+        content_hash = build_content_hash(&self->ast)
         exists: bool
-        o_path = get_path_to_object_file_in_jou_compiled(self.path, content_hash, &exists)
+        o_path = get_path_to_object_file_in_jou_compiled(self->path, content_hash, &exists)
 
         if exists:
             if command_line_args.verbosity >= 1:
                 printf("Reusing previously compiled file: %s\n", o_path)
         else:
-            mod = self.build_llvm_ir()
+            mod = self->build_llvm_ir()
             write_llvm_ir_to_file(mod, o_path)
             LLVMDisposeModule(mod)
 
@@ -264,18 +264,18 @@ class CompileState:
     files: List[FileState]
 
     def free(self) -> None:
-        for fs = self.files.ptr; fs < self.files.end(); fs++:
-            fs.free()
-        free(self.files.ptr)
+        for fs = self->files.ptr; fs < self->files.end(); fs++:
+            fs->free()
+        free(self->files.ptr)
 
     def find_file(self, path: byte*) -> FileState*:
-        for fs = self.files.ptr; fs < self.files.end(); fs++:
-            if strcmp(fs.path, path) == 0:
+        for fs = self->files.ptr; fs < self->files.end(); fs++:
+            if strcmp(fs->path, path) == 0:
                 return fs
         return NULL
 
     def parse(self, filename: byte*, import_location: Location*) -> None:
-        if self.find_file(filename) != NULL:
+        if self->find_file(filename) != NULL:
             # already parsed
             return
 
@@ -290,7 +290,7 @@ class CompileState:
 
         if command_line_args.verbosity >= 1:
             printf("Parsing %s\n", filename)
-        fs.ast = parse(tokens, self.stdlib_path)
+        fs.ast = parse(tokens, self->stdlib_path)
         free_tokens(tokens)
 
         if strcmp(filename, command_line_args.infile) == 0:
@@ -305,45 +305,45 @@ class CompileState:
 
         check_imports_at_start_of_file(fs.ast.body)
 
-        self.files.append(fs)
+        self->files.append(fs)
 
         for stmt = fs.ast.body.ptr; stmt < fs.ast.body.end(); stmt++:
-            if stmt.kind == AstStatementKind.Import:
-                self.parse(stmt.import_statement.resolved_path, &stmt.location)  # recursive call
+            if stmt->kind == AstStatementKind.Import:
+                self->parse(stmt->import_statement.resolved_path, &stmt->location)  # recursive call
 
     def parse_from_stdlib(self, filename: byte*) -> None:
         path: byte*
-        asprintf(&path, "%s/%s", self.stdlib_path, filename)
-        self.parse(path, NULL)
+        asprintf(&path, "%s/%s", self->stdlib_path, filename)
+        self->parse(path, NULL)
         free(path)
 
     # Each step of type checking produces exported symbols that other files can import.
     # This method hands them over to the importing files.
     def exports_to_imports(self, pending_exports: List[ExportSymbol]*) -> None:
-        for to = self.files.ptr; to < self.files.end(); to++:
+        for to = self->files.ptr; to < self->files.end(); to++:
             seen_before = List[FileState*]{}
 
-            for stmt = to.ast.body.ptr; stmt < to.ast.body.end(); stmt++:
-                if stmt.kind != AstStatementKind.Import:
+            for stmt = to->ast.body.ptr; stmt < to->ast.body.end(); stmt++:
+                if stmt->kind != AstStatementKind.Import:
                     continue
 
-                from = self.find_file(stmt.import_statement.resolved_path)
+                from = self->find_file(stmt->import_statement.resolved_path)
                 assert from != NULL
-                from_index = ((from as long) - (self.files.ptr as long)) / sizeof(self.files.ptr[0])
+                from_index = ((from as long) - (self->files.ptr as long)) / sizeof(self->files.ptr[0])
 
                 if from == to:
-                    fail(stmt.location, "the file itself cannot be imported")
+                    fail(stmt->location, "the file itself cannot be imported")
 
                 for p = seen_before.ptr; p < seen_before.end(); p++:
                     if *p == from:
                         msg: byte[500]
-                        snprintf(msg, sizeof msg, "file \"%s\" is imported twice", stmt.import_statement.specified_path)
-                        fail(stmt.location, msg)
+                        snprintf(msg, sizeof msg, "file \"%s\" is imported twice", stmt->import_statement.specified_path)
+                        fail(stmt->location, msg)
                 seen_before.append(from)
 
                 for es = pending_exports[from_index].ptr; es < pending_exports[from_index].end(); es++:
                     if command_line_args.verbosity >= 2:
-                        match es.kind:
+                        match es->kind:
                             case ExportSymbolKind.Function:
                                 kindstr = "function"
                             case ExportSymbolKind.GlobalVar:
@@ -355,15 +355,15 @@ class CompileState:
                             case ExportSymbolKind.Constant:
                                 kindstr = "constant"
                         printf("Adding imported %s %s: %s --> %s\n",
-                            kindstr, es.name, from.path, to.path)
+                            kindstr, es->name, from->path, to->path)
 
-                    to.add_imported_symbol(es, &stmt.import_statement)
+                    to->add_imported_symbol(es, &stmt->import_statement)
 
             free(seen_before.ptr)
 
-        for i = 0; i < self.files.len; i++:
+        for i = 0; i < self->files.len; i++:
             for es = pending_exports[i].ptr; es < pending_exports[i].end(); es++:
-                es.free()
+                es->free()
             free(pending_exports[i].ptr)
             pending_exports[i] = List[ExportSymbol]{}
 
@@ -371,38 +371,38 @@ class CompileState:
         if command_line_args.verbosity >= 1:
             printf("Type-checking...\n")
 
-        pending_exports: List[ExportSymbol]* = malloc(sizeof(pending_exports[0]) * self.files.len)
+        pending_exports: List[ExportSymbol]* = malloc(sizeof(pending_exports[0]) * self->files.len)
 
-        for i = 0; i < self.files.len; i++:
+        for i = 0; i < self->files.len; i++:
             if command_line_args.verbosity >= 1:
-                printf("  step 1: %s\n", self.files.ptr[i].path)
-            pending_exports[i] = typecheck_step1_create_types(&self.files.ptr[i].ast)
+                printf("  step 1: %s\n", self->files.ptr[i].path)
+            pending_exports[i] = typecheck_step1_create_types(&self->files.ptr[i].ast)
 
-        self.exports_to_imports(pending_exports)
+        self->exports_to_imports(pending_exports)
 
-        for i = 0; i < self.files.len; i++:
+        for i = 0; i < self->files.len; i++:
             if command_line_args.verbosity >= 1:
-                printf("  step 2: %s\n", self.files.ptr[i].path)
-            pending_exports[i] = typecheck_step2_populate_types(&self.files.ptr[i].ast)
+                printf("  step 2: %s\n", self->files.ptr[i].path)
+            pending_exports[i] = typecheck_step2_populate_types(&self->files.ptr[i].ast)
 
-        self.exports_to_imports(pending_exports)
+        self->exports_to_imports(pending_exports)
 
-        for i = 0; i < self.files.len; i++:
+        for i = 0; i < self->files.len; i++:
             if command_line_args.verbosity >= 1:
-                printf("  step 3: %s\n", self.files.ptr[i].path)
-            typecheck_step3_function_and_method_bodies(&self.files.ptr[i].ast)
+                printf("  step 3: %s\n", self->files.ptr[i].path)
+            typecheck_step3_function_and_method_bodies(&self->files.ptr[i].ast)
             if command_line_args.verbosity >= 3:
                 # AST now contains types. If very verbose, print them.
-                self.files.ptr[i].ast.print()
+                self->files.ptr[i].ast.print()
 
         free(pending_exports)
 
     def build_and_analyze_all_uvgs(self) -> None:
         print_uvgs = command_line_args.verbosity >= 2
-        for f = self.files.ptr; f < self.files.end(); f++:
+        for f = self->files.ptr; f < self->files.end(); f++:
             if command_line_args.verbosity >= 1:
-                printf("Building and analyzing UVGs for %s\n", f.path)
-            build_and_analyze_uvgs(&f.ast, print_uvgs)
+                printf("Building and analyzing UVGs for %s\n", f->path)
+            build_and_analyze_uvgs(&f->ast, print_uvgs)
 
 
 def tokenize_only(path: byte*) -> None:
@@ -428,9 +428,9 @@ def collect_linker_flags(files: List[FileState]) -> byte*:
     if command_line_args.linker_flags != NULL:
         maxlen += strlen(command_line_args.linker_flags) + 1
     for file = files.ptr; file < files.end(); file++:
-        for stmt = file.ast.body.ptr; stmt < file.ast.body.end(); stmt++:
-            if stmt.kind == AstStatementKind.Link:
-                maxlen += strlen(stmt.link_statement.resolved_flags) + 1
+        for stmt = file->ast.body.ptr; stmt < file->ast.body.end(); stmt++:
+            if stmt->kind == AstStatementKind.Link:
+                maxlen += strlen(stmt->link_statement.resolved_flags) + 1
 
     result: byte* = malloc(maxlen + 1)
     assert result != NULL
@@ -441,9 +441,9 @@ def collect_linker_flags(files: List[FileState]) -> byte*:
         strcat(result, command_line_args.linker_flags)
         strcat(result, " ")
     for file = files.ptr; file < files.end(); file++:
-        for stmt = file.ast.body.ptr; stmt < file.ast.body.end(); stmt++:
-            if stmt.kind == AstStatementKind.Link:
-                strcat(result, stmt.link_statement.resolved_flags)
+        for stmt = file->ast.body.ptr; stmt < file->ast.body.end(); stmt++:
+            if stmt->kind == AstStatementKind.Link:
+                strcat(result, stmt->link_statement.resolved_flags)
                 strcat(result, " ")
 
     return result
@@ -483,25 +483,25 @@ def main(argc: int, argv: byte**) -> int:
     if command_line_args.uvg_only:
         mainfile = compst.find_file(command_line_args.infile)
         assert mainfile != NULL
-        build_and_analyze_uvgs(&mainfile.ast, True)
+        build_and_analyze_uvgs(&mainfile->ast, True)
         fail_if_warnings_and_flag()
         return 0
 
     compst.build_and_analyze_all_uvgs()
     for f = compst.files.ptr; f < compst.files.end(); f++:
-        f.warn_about_unused()
+        f->warn_about_unused()
 
     objpaths = List[byte*]{}
     for f = compst.files.ptr; f < compst.files.end(); f++:
-        o_path = f.find_existing_object_file_or_compile_to_object_file()
+        o_path = f->find_existing_object_file_or_compile_to_object_file()
         objpaths.append(o_path)
 
     # Check for missing main() as late as possible, so that other errors come first.
     # This way Jou users can work on other functions before main() function is written.
     mainfile = compst.find_file(command_line_args.infile)
     assert mainfile != NULL
-    if not defines_main(&mainfile.ast):
-        fail(Location{path=mainfile.path}, "missing `main` function to execute the program")
+    if not defines_main(&mainfile->ast):
+        fail(Location{path=mainfile->path}, "missing `main` function to execute the program")
 
     linker_flags = collect_linker_flags(compst.files)
 

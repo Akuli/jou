@@ -25,7 +25,7 @@ class Module:
         conjunction_state: bool[10]  # length = nsources
 
     def reset_to_initial_state(self) -> None:
-        memset(&self.conjunction_state, 0, sizeof(self.conjunction_state))
+        memset(&self->conjunction_state, 0, sizeof(self->conjunction_state))
 
 
 class ModuleList:
@@ -33,21 +33,21 @@ class ModuleList:
     nmodules: int
 
     def create_if_doesnt_exist(self, name: byte*) -> None:
-        for i = 0; i < self.nmodules; i++:
-            if strcmp(self.modules[i].name, name) == 0:
+        for i = 0; i < self->nmodules; i++:
+            if strcmp(self->modules[i].name, name) == 0:
                 return
 
         m = Module{kind = ModuleKind.FlipFlop}  # will be changed later
         assert strlen(name) < sizeof(m.name)
         strcpy(m.name, name)
 
-        assert self.nmodules < sizeof(self.modules)/sizeof(self.modules[0])
-        self.modules[self.nmodules++] = m
+        assert self->nmodules < sizeof(self->modules)/sizeof(self->modules[0])
+        self->modules[self->nmodules++] = m
 
     def find_module(self, name: byte*) -> Module*:
-        for i = 0; i < self.nmodules; i++:
-            if strcmp(self.modules[i].name, name) == 0:
-                return &self.modules[i]
+        for i = 0; i < self->nmodules; i++:
+            if strcmp(self->modules[i].name, name) == 0:
+                return &self->modules[i]
         printf("404 '%s'\n", name)
         assert False
 
@@ -77,9 +77,9 @@ def find_affected_modules(start: Module*) -> Module*[100]:
         assert result_len < sizeof(result)/sizeof(result[0])
         result[result_len++] = mod
 
-        for i = 0; i < mod.ndestinations; i++:
+        for i = 0; i < mod->ndestinations; i++:
             assert todo_len < sizeof(todo)/sizeof(todo[0])
-            todo[todo_len++] = mod.destinations[i]
+            todo[todo_len++] = mod->destinations[i]
 
     assert result_len < sizeof(result)/sizeof(result[0])
     result[result_len] = NULL
@@ -96,18 +96,18 @@ class TodoList:
     items: List[GonnaSend]
 
     def send_later(self, from: Module*, to: Module*, value: bool) -> None:
-        self.items.append(GonnaSend{from=from, to=to, value=value})
+        self->items.append(GonnaSend{from=from, to=to, value=value})
 
     def pop_left(self) -> GonnaSend:
-        result = self.items.ptr[0]
-        memmove(&self.items.ptr[0], &self.items.ptr[1], --self.items.len * sizeof(self.items.ptr[0]))
+        result = self->items.ptr[0]
+        memmove(&self->items.ptr[0], &self->items.ptr[1], --self->items.len * sizeof(self->items.ptr[0]))
         return result
 
 
 # Repeatedly sends lows to start_flip_flop.
 # Returns the first 5 iterations where end module receives high.
 def run_part_of_input(start_flip_flop: Module*, end: Module*) -> int[5]:
-    assert start_flip_flop.kind == ModuleKind.FlipFlop  # needed for sending signals with NULL source
+    assert start_flip_flop->kind == ModuleKind.FlipFlop  # needed for sending signals with NULL source
 
     relevant_modules = find_affected_modules(start_flip_flop)
 
@@ -125,34 +125,34 @@ def run_part_of_input(start_flip_flop: Module*, end: Module*) -> int[5]:
                 result[result_len++] = iter
                 if result_len == sizeof(result)/sizeof(result[0]):
                     for i = 0; relevant_modules[i] != NULL; i++:
-                        relevant_modules[i].reset_to_initial_state()
+                        relevant_modules[i]->reset_to_initial_state()
                     free(todo.items.ptr)
                     return result
 
-            match item.to.kind:
+            match item.to->kind:
                 case ModuleKind.Broadcaster:
-                    for i = 0; i < item.to.ndestinations; i++:
-                        todo.send_later(item.to, item.to.destinations[i], item.value)
+                    for i = 0; i < item.to->ndestinations; i++:
+                        todo.send_later(item.to, item.to->destinations[i], item.value)
                 case ModuleKind.FlipFlop:
                     if not item.value:
-                        item.to.flip_flop_state = not item.to.flip_flop_state
-                        for i = 0; i < item.to.ndestinations; i++:
-                            todo.send_later(item.to, item.to.destinations[i], item.to.flip_flop_state)
+                        item.to->flip_flop_state = not item.to->flip_flop_state
+                        for i = 0; i < item.to->ndestinations; i++:
+                            todo.send_later(item.to, item.to->destinations[i], item.to->flip_flop_state)
                 case ModuleKind.Conjunction:
                     i = 0
-                    while item.to.sources[i] != item.from:
+                    while item.to->sources[i] != item.from:
                         i++
-                        assert i < item.to.nsources
-                    item.to.conjunction_state[i] = item.value
+                        assert i < item.to->nsources
+                    item.to->conjunction_state[i] = item.value
 
                     all_high = True
-                    for i = 0; i < item.to.nsources; i++:
-                        if not item.to.conjunction_state[i]:
+                    for i = 0; i < item.to->nsources; i++:
+                        if not item.to->conjunction_state[i]:
                             all_high = False
                             break
 
-                    for i = 0; i < item.to.ndestinations; i++:
-                        todo.send_later(item.to, item.to.destinations[i], not all_high)
+                    for i = 0; i < item.to->ndestinations; i++:
+                        todo.send_later(item.to, item.to->destinations[i], not all_high)
 
 
 def gcd(a: long, b: long) -> long:
@@ -201,27 +201,27 @@ def main() -> int:
             assert strcmp(name, "broadcaster") == 0
             kind = ModuleKind.Broadcaster
 
-        modules.create_if_doesnt_exist(name)
-        source = modules.find_module(name)
-        source.kind = kind
+        modules->create_if_doesnt_exist(name)
+        source = modules->find_module(name)
+        source->kind = kind
 
-        assert strcmp(words.ptr[1], ".") == 0
+        assert strcmp(words.ptr[1], "->") == 0
 
         for i = 2; i < words.len; i++:
-            modules.create_if_doesnt_exist(words.ptr[i])
-            dest = modules.find_module(words.ptr[i])
+            modules->create_if_doesnt_exist(words.ptr[i])
+            dest = modules->find_module(words.ptr[i])
 
-            assert dest.nsources < sizeof(dest.sources)/sizeof(dest.sources[0])
-            dest.sources[dest.nsources++] = source
-            assert source.ndestinations < sizeof(source.destinations)/sizeof(source.destinations[0])
-            source.destinations[source.ndestinations++] = dest
+            assert dest->nsources < sizeof(dest->sources)/sizeof(dest->sources[0])
+            dest->sources[dest->nsources++] = source
+            assert source->ndestinations < sizeof(source->destinations)/sizeof(source->destinations[0])
+            source->destinations[source->ndestinations++] = dest
 
         free(words.ptr)
 
     fclose(f)
 
-    broadcaster = modules.find_module("broadcaster")
-    rx = modules.find_module("rx")
+    broadcaster = modules->find_module("broadcaster")
+    rx = modules->find_module("rx")
     # Structure of the input is:
     #
     # broadcaster
@@ -234,23 +234,23 @@ def main() -> int:
     # I call each row from flip-flop to just before output conjunction a channel.
     channels: Module*[2][10]
 
-    assert rx.nsources == 1
-    output_conjunction: Module* = rx.sources[0]
-    assert output_conjunction.nsources == broadcaster.ndestinations
-    nchannels = output_conjunction.nsources
+    assert rx->nsources == 1
+    output_conjunction: Module* = rx->sources[0]
+    assert output_conjunction->nsources == broadcaster->ndestinations
+    nchannels = output_conjunction->nsources
     assert nchannels <= sizeof(channels)/sizeof(channels[0])
 
-    for i = 0; i < broadcaster.ndestinations; i++:
-        flip_flop: Module* = broadcaster.destinations[i]
-        assert flip_flop.kind == ModuleKind.FlipFlop
+    for i = 0; i < broadcaster->ndestinations; i++:
+        flip_flop: Module* = broadcaster->destinations[i]
+        assert flip_flop->kind == ModuleKind.FlipFlop
         flip_flop_leads_to = find_affected_modules(flip_flop)
 
         conjunction: Module* = NULL
         for p = &flip_flop_leads_to[0]; *p != NULL; p++:
             if (
-                (*p).kind == ModuleKind.Conjunction
-                and (*p).ndestinations == 1
-                and (*p).destinations[0] == output_conjunction
+                (*p)->kind == ModuleKind.Conjunction
+                and (*p)->ndestinations == 1
+                and (*p)->destinations[0] == output_conjunction
             ):
                 assert conjunction == NULL
                 conjunction = *p

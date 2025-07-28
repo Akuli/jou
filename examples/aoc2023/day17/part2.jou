@@ -34,26 +34,26 @@ class Node:
     last_direction: int[2]
 
     def to_int(self) -> int:
-        return 4*point_to_int(self.location) + direction_to_int(self.last_direction)
+        return 4*point_to_int(self->location) + direction_to_int(self->last_direction)
 
     def get_neighbors_in_graph(self, grid: Grid*, nneighbors: int*, neighbors: Node[14]*, weights: int[14]*) -> None:
         *nneighbors = 0
 
         for sign = -1; sign <= 1; sign += 2:
             # Rotate direction +-90deg
-            dx = sign*self.last_direction[1]
-            dy = -sign*self.last_direction[0]
+            dx = sign*self->last_direction[1]
+            dy = -sign*self->last_direction[0]
 
-            x = self.location[0]
-            y = self.location[1]
+            x = self->location[0]
+            y = self->location[1]
             weight = 0
 
             for nsteps = 1; nsteps <= 10; nsteps++:
                 x += dx
                 y += dy
-                if not grid.is_in_bounds([x, y]):
+                if not grid->is_in_bounds([x, y]):
                     break
-                weight += grid.get([x, y]) - '0'
+                weight += grid->get([x, y]) - '0'
 
                 if nsteps >= 4:
                     assert *nneighbors < 14
@@ -63,8 +63,8 @@ class Node:
 
 
 def dijkstra_algorithm(grid: Grid*, start1: Node, start2: Node, goal1: Node, goal2: Node) -> int:
-    assert grid.is_in_bounds(goal1.location)
-    assert grid.is_in_bounds(goal2.location)
+    assert grid->is_in_bounds(goal1.location)
+    assert grid->is_in_bounds(goal2.location)
 
     distances: int* = calloc(sizeof(distances[0]), max_num_nodes())
     nodes_with_distance_set: Node* = calloc(sizeof(nodes_with_distance_set[0]), max_num_nodes())
@@ -84,21 +84,21 @@ def dijkstra_algorithm(grid: Grid*, start1: Node, start2: Node, goal1: Node, goa
         current: Node* = NULL
         for i = 0; i < n_nodes_with_distance_set; i++:
             n = &nodes_with_distance_set[i]
-            if (not known_shortest[n.to_int()]) and (current == NULL or distances[n.to_int()] < distances[current.to_int()]):
+            if (not known_shortest[n->to_int()]) and (current == NULL or distances[n->to_int()] < distances[current->to_int()]):
                 current = n
         assert current != NULL
 
         # for some reason that i don't understand, the distance of the node we picked is known to be smallest
-        known_shortest[current.to_int()] = True
+        known_shortest[current->to_int()] = True
 
         # update neighbor distances, if visiting through current makes them shorter
         neighbors: Node[14]
         nneighbors: int
         edge_weights: int[14]
-        current.get_neighbors_in_graph(grid, &nneighbors, &neighbors, &edge_weights)
+        current->get_neighbors_in_graph(grid, &nneighbors, &neighbors, &edge_weights)
         for i = 0; i < nneighbors; i++:
             neighbor = neighbors[i]
-            d = distances[current.to_int()] + edge_weights[i]
+            d = distances[current->to_int()] + edge_weights[i]
             if distances[neighbor.to_int()] == -1:
                 distances[neighbor.to_int()] = d
                 nodes_with_distance_set[n_nodes_with_distance_set++] = neighbor

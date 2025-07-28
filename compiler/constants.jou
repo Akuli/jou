@@ -52,46 +52,46 @@ class Constant:
         enum_member: EnumMemberConstant
 
     def print(self) -> None:
-        match self.kind:
+        match self->kind:
             case ConstantKind.EnumMember:
-                printf("enum member %d of %s\n", self.enum_member.memberidx, self.enum_member.enumtype.name)
+                printf("enum member %d of %s\n", self->enum_member.memberidx, self->enum_member.enumtype->name)
             case ConstantKind.Bool:
-                if self.boolean:
+                if self->boolean:
                     printf("True\n")
                 else:
                     printf("False\n")
             case ConstantKind.Float:
-                printf("float %s\n", self.float_or_double_text)
+                printf("float %s\n", self->float_or_double_text)
             case ConstantKind.Double:
-                printf("double %s\n", self.float_or_double_text)
+                printf("double %s\n", self->float_or_double_text)
             case ConstantKind.Integer:
-                if self.integer.is_signed:
+                if self->integer.is_signed:
                     signed_or_unsigned = "signed"
                 else:
                     signed_or_unsigned = "unsigned"
                 printf(
                     "%lld (%d-bit %s)\n",
-                    self.integer.value,
-                    self.integer.size_in_bits,
+                    self->integer.value,
+                    self->integer.size_in_bits,
                     signed_or_unsigned,
                 )
             case ConstantKind.Null:
                 printf("NULL\n")
             case ConstantKind.ArrayString:
                 printf("array string ")
-                print_string(self.array_string.ptr)
-                printf(" (padded to %lld bytes)\n", self.array_string.len)
+                print_string(self->array_string.ptr)
+                printf(" (padded to %lld bytes)\n", self->array_string.len)
             case ConstantKind.PointerString:
                 printf("pointer string ")
-                print_string(self.pointer_string)
+                print_string(self->pointer_string)
                 printf("\n")
 
     def free(self) -> None:
-        match self.kind:
+        match self->kind:
             case ConstantKind.ArrayString:
-                free(self.array_string.ptr)
+                free(self->array_string.ptr)
             case ConstantKind.PointerString:
-                free(self.pointer_string)
+                free(self->pointer_string)
             case _:
                 pass
 
@@ -108,9 +108,9 @@ class Constant:
         return self
 
     def get_type(self) -> Type*:
-        match self.kind:
+        match self->kind:
             case ConstantKind.EnumMember:
-                return self.enum_member.enumtype
+                return self->enum_member.enumtype
             case ConstantKind.Null:
                 return voidPtrType
             case ConstantKind.Double:
@@ -120,24 +120,24 @@ class Constant:
             case ConstantKind.Bool:
                 return boolType
             case ConstantKind.ArrayString:
-                return byteType.array_type(self.array_string.len as int)
+                return byteType->array_type(self->array_string.len as int)
             case ConstantKind.PointerString:
-                return byteType.pointer_type()
+                return byteType->pointer_type()
             case ConstantKind.Integer:
-                if self.integer.is_signed:
-                    return int_type(self.integer.size_in_bits)
+                if self->integer.is_signed:
+                    return int_type(self->integer.size_in_bits)
                 else:
-                    return uint_type(self.integer.size_in_bits)
+                    return uint_type(self->integer.size_in_bits)
 
 
 @public
 def int_constant(type: Type*, value: int64) -> Constant:
-    assert type.is_integer_type()
+    assert type->is_integer_type()
     return Constant{
         kind = ConstantKind.Integer,
         integer = IntegerConstant{
-            size_in_bits = type.size_in_bits,
-            is_signed = type.kind == TypeKind.SignedInteger,
+            size_in_bits = type->size_in_bits,
+            is_signed = type->kind == TypeKind.SignedInteger,
             value = value
         }
     }

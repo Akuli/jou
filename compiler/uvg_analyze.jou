@@ -25,8 +25,8 @@ const DONT_ANALYZE: uint8       = 0b111  # The "don't analyze" UVG instruction h
 if False:
     def print_statuses(uvg: Uvg*, statuses: uint8*) -> None:
         printf("VAR STATUSES:")
-        for v = 0; v < uvg.varnames.len; v++:
-            printf(" %s=", uvg.varnames[v])
+        for v = 0; v < uvg->varnames.len; v++:
+            printf(" %s=", uvg->varnames[v])
             match statuses[v]:
                 case UNVISITED:
                     printf("{}")
@@ -45,33 +45,33 @@ if False:
 
 def build_statuses_at_end_before_analyzing(uvg: Uvg*) -> uint8**:
     # statuses_at_end[b][v] = status of variable v at end of block b
-    statuses_at_end: uint8** = malloc(sizeof(statuses_at_end[0]) * uvg.blocks.len)
+    statuses_at_end: uint8** = malloc(sizeof(statuses_at_end[0]) * uvg->blocks.len)
     assert statuses_at_end != NULL
-    for b = 0; b < uvg.blocks.len; b++:
-        statuses_at_end[b] = malloc(uvg.varnames.len)
-        if uvg.varnames.len != 0:
+    for b = 0; b < uvg->blocks.len; b++:
+        statuses_at_end[b] = malloc(uvg->varnames.len)
+        if uvg->varnames.len != 0:
             assert statuses_at_end[b] != NULL
-            memset(statuses_at_end[b], UNVISITED, uvg.varnames.len)
+            memset(statuses_at_end[b], UNVISITED, uvg->varnames.len)
     return statuses_at_end
 
 
 def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: uint8**, block: UvgBlock*) -> uint8*:
-    n = uvg.varnames.len
+    n = uvg->varnames.len
     if n == 0:
         return NULL
 
     statuses: uint8* = malloc(n)
     assert statuses != NULL
 
-    if block == uvg.blocks.ptr[0]:
+    if block == uvg->blocks.ptr[0]:
         # The start block, everything is initially undefined
         memset(statuses, UNDEFINED, n)
     else:
         memset(statuses, UNVISITED, n)
 
     # Merge statuses of source blocks that jump to the current block
-    for b = 0; b < uvg.blocks.len; b++:
-        if uvg.blocks.ptr[b].jumps_to(block):
+    for b = 0; b < uvg->blocks.len; b++:
+        if uvg->blocks.ptr[b]->jumps_to(block):
             # This function is O(n^2) but barely so, the following loop should be really fast in practice
             for v = 0; v < n; v++:
                 statuses[v] |= statuses_at_end[b][v]
@@ -82,8 +82,8 @@ def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: uint8**, block:
 def handle_missing_return_statement(uvg: Uvg*, location: Location) -> None:
     # Check if there is a "return" statement that user wrote.
     n = 0
-    for b = 0; b < uvg.blocks.len; b++:
-        if uvg.blocks.ptr[b].terminator.kind == UvgTerminatorKind.Return:
+    for b = 0; b < uvg->blocks.len; b++:
+        if uvg->blocks.ptr[b]->terminator.kind == UvgTerminatorKind.Return:
             n++
 
     # There is always automatically generated "return" statement at the end of the function.
@@ -95,9 +95,9 @@ def handle_missing_return_statement(uvg: Uvg*, location: Location) -> None:
         snprintf(
             msg, sizeof(msg),
             "%s '%s' must return a value, because it is defined with '-> %s'",
-            uvg.signature.function_or_method(),
-            uvg.signature.name,
-            uvg.signature.return_type.name,
+            uvg->signature->function_or_method(),
+            uvg->signature->name,
+            uvg->signature->return_type->name,
         )
         fail(location, msg)
     else:
@@ -105,8 +105,8 @@ def handle_missing_return_statement(uvg: Uvg*, location: Location) -> None:
         snprintf(
             msg, sizeof(msg),
             "%s '%s' doesn't seem to return a value in all cases",
-            uvg.signature.function_or_method(),
-            uvg.signature.name,
+            uvg->signature->function_or_method(),
+            uvg->signature->name,
         )
         show_warning(location, msg)
 
@@ -114,37 +114,37 @@ def handle_missing_return_statement(uvg: Uvg*, location: Location) -> None:
 def update_statuses_based_on_instructions(uvg: Uvg*, statuses: uint8*, block: UvgBlock*, warn: bool) -> None:
     msg: byte[500]
 
-    for ins = block.instructions.ptr; ins < block.instructions.end(); ins++:
-        match ins.kind:
+    for ins = block->instructions.ptr; ins < block->instructions.end(); ins++:
+        match ins->kind:
             case UvgInstructionKind.Set:
-                if statuses[ins.var] != DONT_ANALYZE:
-                    statuses[ins.var] = DEFINED
+                if statuses[ins->var] != DONT_ANALYZE:
+                    statuses[ins->var] = DEFINED
             case UvgInstructionKind.Use:
-                if warn and uvg.varnames.ptr[ins.var][0] != '$':
-                    match statuses[ins.var]:
+                if warn and uvg->varnames.ptr[ins->var][0] != '$':
+                    match statuses[ins->var]:
                         case UNDEFINED:
-                            if strcmp(uvg.varnames.ptr[ins.var], "return") == 0:
-                                handle_missing_return_statement(uvg, ins.location)
+                            if strcmp(uvg->varnames.ptr[ins->var], "return") == 0:
+                                handle_missing_return_statement(uvg, ins->location)
                             else:
-                                snprintf(msg, sizeof(msg), "the value of '%s' is undefined", uvg.varnames.ptr[ins.var])
-                                show_warning(ins.location, msg)
+                                snprintf(msg, sizeof(msg), "the value of '%s' is undefined", uvg->varnames.ptr[ins->var])
+                                show_warning(ins->location, msg)
                         case POSSIBLY_UNDEFINED:
-                            if strcmp(uvg.varnames.ptr[ins.var], "return") == 0:
-                                handle_missing_return_statement(uvg, ins.location)
+                            if strcmp(uvg->varnames.ptr[ins->var], "return") == 0:
+                                handle_missing_return_statement(uvg, ins->location)
                             else:
-                                snprintf(msg, sizeof(msg), "the value of '%s' may be undefined", uvg.varnames.ptr[ins.var])
-                                show_warning(ins.location, msg)
+                                snprintf(msg, sizeof(msg), "the value of '%s' may be undefined", uvg->varnames.ptr[ins->var])
+                                show_warning(ins->location, msg)
             case UvgInstructionKind.Statement:
                 pass
             case UvgInstructionKind.DontAnalyze:
-                statuses[ins.var] = DONT_ANALYZE
+                statuses[ins->var] = DONT_ANALYZE
 
 
 def analyze_block(uvg: Uvg*, statuses_at_end: uint8**, blockidx: int, warn: bool) -> bool:
-    statuses = build_statuses_at_start_of_block(uvg, statuses_at_end, uvg.blocks.ptr[blockidx])
-    update_statuses_based_on_instructions(uvg, statuses, uvg.blocks.ptr[blockidx], warn)
+    statuses = build_statuses_at_start_of_block(uvg, statuses_at_end, uvg->blocks.ptr[blockidx])
+    update_statuses_based_on_instructions(uvg, statuses, uvg->blocks.ptr[blockidx], warn)
 
-    if memcmp(statuses, statuses_at_end[blockidx], sizeof(statuses[0]) * uvg.varnames.len) != 0:
+    if memcmp(statuses, statuses_at_end[blockidx], sizeof(statuses[0]) * uvg->varnames.len) != 0:
         # Statuses changed
         assert not warn  # warnings should be applied at the end when statuses are stable
         free(statuses_at_end[blockidx])
@@ -163,9 +163,9 @@ def find_true(arr: bool*, len: long) -> int:
 
 
 def show_block_unreachable_warning(b: UvgBlock*) -> bool:
-    for ins = b.instructions.ptr; ins < b.instructions.end(); ins++:
-        if ins.kind == UvgInstructionKind.Statement:
-            show_warning(ins.location, "this code will never run")
+    for ins = b->instructions.ptr; ins < b->instructions.end(); ins++:
+        if ins->kind == UvgInstructionKind.Statement:
+            show_warning(ins->location, "this code will never run")
             return True
     return False
 
@@ -187,50 +187,50 @@ def mark_reachable_blocks(blocks: List[UvgBlock*], ignore: bool*, marked: bool*,
         if (
             (ignore == NULL or not ignore[i])
             and not marked[i]
-            and (blocks.ptr[start].jumps_to(blocks.ptr[i]) or (bidirectional and blocks.ptr[i].jumps_to(blocks.ptr[start])))
+            and (blocks.ptr[start]->jumps_to(blocks.ptr[i]) or (bidirectional and blocks.ptr[i]->jumps_to(blocks.ptr[start])))
         ):
             mark_reachable_blocks(blocks, ignore, marked, bidirectional, i)
 
 
 @public
 def uvg_analyze(uvg: Uvg*) -> None:
-    assert uvg.blocks.len >= 1  # must have at least start block
+    assert uvg->blocks.len >= 1  # must have at least start block
 
-    queue: bool* = calloc(sizeof(queue[0]), uvg.blocks.len)
-    reachable: bool* = calloc(sizeof(reachable[0]), uvg.blocks.len)
-    u_warned: bool* = calloc(sizeof(u_warned[0]), uvg.blocks.len)
+    queue: bool* = calloc(sizeof(queue[0]), uvg->blocks.len)
+    reachable: bool* = calloc(sizeof(reachable[0]), uvg->blocks.len)
+    u_warned: bool* = calloc(sizeof(u_warned[0]), uvg->blocks.len)
     assert queue != NULL
     assert reachable != NULL
     assert u_warned != NULL
 
-    mark_reachable_blocks(uvg.blocks, NULL, reachable, False, 0)
+    mark_reachable_blocks(uvg->blocks, NULL, reachable, False, 0)
 
     # Analyze blocks until we arrive at a stable state where variable statuses don't change.
     statuses_at_end = build_statuses_at_end_before_analyzing(uvg)
     queue[0] = True
     while True:
-        blockidx = find_true(queue, uvg.blocks.len)
+        blockidx = find_true(queue, uvg->blocks.len)
         if blockidx == -1:
             break
         queue[blockidx] = False
         if analyze_block(uvg, statuses_at_end, blockidx, False):
-            for b = 0; b < uvg.blocks.len; b++:
-                if uvg.blocks.ptr[blockidx].jumps_to(uvg.blocks.ptr[b]):
+            for b = 0; b < uvg->blocks.len; b++:
+                if uvg->blocks.ptr[blockidx]->jumps_to(uvg->blocks.ptr[b]):
                     queue[b] = True
 
-    for b = 0; b < uvg.blocks.len; b++:
+    for b = 0; b < uvg->blocks.len; b++:
         if reachable[b]:
             analyze_block(uvg, statuses_at_end, b, True)
         elif not u_warned[b]:
             # Attempt to show unreachable warning. Will fail if the block is
             # basically empty, then its unreachability doesn't matter.
-            if show_block_unreachable_warning(uvg.blocks.ptr[b]):
+            if show_block_unreachable_warning(uvg->blocks.ptr[b]):
                 # Warning was shown. Do not show it for related unreachable blocks.
-                mark_reachable_blocks(uvg.blocks, reachable, u_warned, True, b)
+                mark_reachable_blocks(uvg->blocks, reachable, u_warned, True, b)
 
     free(queue)
     free(reachable)
     free(u_warned)
-    for b = 0; b < uvg.blocks.len; b++:
+    for b = 0; b < uvg->blocks.len; b++:
         free(statuses_at_end[b])
     free(statuses_at_end)

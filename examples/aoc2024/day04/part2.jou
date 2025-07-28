@@ -7,13 +7,13 @@ import "stdlib/mem.jou"
 # "." in template can be any character
 def count_template(grid: Grid*, template: Grid*) -> int:
     count = 0
-    for ox = 0; ox <= grid.width - template.width; ox++:
-        for oy = 0; oy <= grid.height - template.height; oy++:
+    for ox = 0; ox <= grid->width - template->width; ox++:
+        for oy = 0; oy <= grid->height - template->height; oy++:
             all_match = True
-            for x = 0; x < template.width; x++:
-                for y = 0; y < template.height; y++:
-                    grid_byte = grid.get([ox + x, oy + y])
-                    template_byte = template.get([x, y])
+            for x = 0; x < template->width; x++:
+                for y = 0; y < template->height; y++:
+                    grid_byte = grid->get([ox + x, oy + y])
+                    template_byte = template->get([x, y])
                     if grid_byte != template_byte and template_byte != '.':
                         all_match = False
             if all_match:

@@ -13,7 +13,7 @@ def count_in_string(s: byte*) -> int:
 
 
 def count_diagonals(grid: Grid*) -> int:
-    big_size = grid.width + grid.height + 69
+    big_size = grid->width + grid->height + 69
     temp_string: byte* = malloc(big_size)
     assert temp_string != NULL
 
@@ -22,19 +22,19 @@ def count_diagonals(grid: Grid*) -> int:
     for c = -big_size; c <= big_size; c++:
         # diagonals like /, along lines whose equation is y = x + c
         p = temp_string
-        for x = 0; x < grid.width; x++:
+        for x = 0; x < grid->width; x++:
             y = x + c
-            if 0 <= y and y < grid.height:
-                *p++ = grid.get([x, y])
+            if 0 <= y and y < grid->height:
+                *p++ = grid->get([x, y])
         *p = '\0'
         result += count_in_string(temp_string)
 
         # diagonals like \, along lines whose equation is y = -x + c
         p = temp_string
-        for x = 0; x < grid.width; x++:
+        for x = 0; x < grid->width; x++:
             y = -x + c
-            if 0 <= y and y < grid.height:
-                *p++ = grid.get([x, y])
+            if 0 <= y and y < grid->height:
+                *p++ = grid->get([x, y])
         *p = '\0'
         result += count_in_string(temp_string)
 

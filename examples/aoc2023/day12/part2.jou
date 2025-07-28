@@ -10,17 +10,17 @@ class State:
     repeat_count: long  # how many equal states does this object represent, not enough mem without this
 
     def print(self) -> None:
-        printf("State{qs=\"%s\", nums=[", self.questional_string)
-        for i = 0; self.numbers[i] != -1; i++:
+        printf("State{qs=\"%s\", nums=[", self->questional_string)
+        for i = 0; self->numbers[i] != -1; i++:
             if i > 0:
                 printf(",")
-            printf("%d", self.numbers[i])
-        printf("], repeat=%lld}\n", self.repeat_count)
+            printf("%d", self->numbers[i])
+        printf("], repeat=%lld}\n", self->repeat_count)
         fflush(stdout)
 
     def simplify(self) -> None:
-        s = &self.questional_string[0]
-        nums = self.numbers
+        s = &self->questional_string[0]
+        nums = self->numbers
 
         while s[0] == '.':
             s++
@@ -37,13 +37,13 @@ class State:
             else:
                 break
 
-        memcpy(&self.questional_string, s, strlen(s) + 1)
-        self.numbers = nums
+        memcpy(&self->questional_string, s, strlen(s) + 1)
+        self->numbers = nums
 
     def equals(self, other: State*) -> bool:
         return (
-            self.numbers == other.numbers
-            and strcmp(self.questional_string, other.questional_string) == 0
+            self->numbers == other->numbers
+            and strcmp(self->questional_string, other->questional_string) == 0
         )
 
     # Returns whether a string can be filled according to consecutive_counts
@@ -51,15 +51,15 @@ class State:
     #
     # Does not detect some impossible cases until remaining question marks are substituted.
     def is_possible(self) -> bool:
-        if self.questional_string[0] == '\0':
+        if self->questional_string[0] == '\0':
             # ran out of string
             # return false, if we still have numbers
-            return self.numbers[0] == -1
+            return self->numbers[0] == -1
 
-        if self.numbers[0] == -1:
+        if self->numbers[0] == -1:
             # ran out of numbers
             # return false, if we still must put '#' in string
-            return strstr(self.questional_string, "#") == NULL
+            return strstr(self->questional_string, "#") == NULL
 
         # This state is impossible if:
         #   * it starts with a section of hashtags
@@ -67,15 +67,15 @@ class State:
         #   * there are no question marks after hashtags
         #
         # There are other cases we could say this state is impossible, but we don't have to.
-        n1 = strspn(self.questional_string, "#")
-        n2 = strspn(self.questional_string, "#?")
-        if n1 == n2 and n1 > 0 and self.numbers[0] != n1:
+        n1 = strspn(self->questional_string, "#")
+        n2 = strspn(self->questional_string, "#?")
+        if n1 == n2 and n1 > 0 and self->numbers[0] != n1:
             return False
         return True
 
     # Substitutes first question mark with '#' and '.'
     def substitute_both_ways(self) -> State[2]:
-        assert strchr(self.questional_string, '?') != NULL
+        assert strchr(self->questional_string, '?') != NULL
         result = [*self, *self]
         *strchr(result[0].questional_string, '?') = '#'
         *strchr(result[1].questional_string, '?') = '.'
@@ -141,7 +141,7 @@ def main() -> int:
 
             # Simplify states to merge as much as possible
             for s = states.ptr; s < states.end(); s++:
-                s.simplify()
+                s->simplify()
 
             # Merge duplicate states
             for i = 0; i < states.len; i++:
@@ -156,7 +156,7 @@ def main() -> int:
                     states.ptr[i] = states.pop()
 
         for s = states.ptr; s < states.end(); s++:
-            result += s.repeat_count
+            result += s->repeat_count
         free(states.ptr)
 
     fclose(f)

@@ -12,8 +12,8 @@ class ClawMachine:
 
     def is_solution(self, a: int, b: int) -> bool:
         return (
-            a * self.a_vector[0] + b * self.b_vector[0] == self.prize[0]
-            and a * self.a_vector[1] + b * self.b_vector[1] == self.prize[1]
+            a * self->a_vector[0] + b * self->b_vector[0] == self->prize[0]
+            and a * self->a_vector[1] + b * self->b_vector[1] == self->prize[1]
         )
 
     # Returns smallest possible cost to win, or -1 if cannot win
@@ -22,7 +22,7 @@ class ClawMachine:
 
         for a = 0; a <= 100; a++:
             for b = 0; b <= 100; b++:
-                if self.is_solution(a, b) and (best_cost == -1 or cost(a, b) < best_cost):
+                if self->is_solution(a, b) and (best_cost == -1 or cost(a, b) < best_cost):
                     best_cost = cost(a, b)
 
         return best_cost

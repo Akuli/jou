@@ -26,7 +26,7 @@ class Greeting:
     target: byte*
 
     def show(self) -> None:
-        printf("Hello %s\n", self.target)
+        printf("Hello %s\n", self->target)
 
 def main() -> int:
     g = Greeting{target="World"}

@@ -28,24 +28,24 @@ class State:
     fom_types: FunctionOrMethodTypes*
 
     def find_any_var(self, name: byte*) -> Type*:
-        local = self.fom_types.find_local_var(name)
+        local = self->fom_types->find_local_var(name)
         if local != NULL:
-            return local.type
-        return self.file_types.find_global_var(name)
+            return local->type
+        return self->file_types->find_global_var(name)
 
     def find_any_constant(self, name: byte*) -> Type*:
         if get_special_constant(name) != -1:
             return boolType
-        c = self.file_types.find_constant(name)
+        c = self->file_types->find_constant(name)
         if c != NULL:
-            return c.get_type()
+            return c->get_type()
         return NULL
 
     def find_any_var_or_constant(self, name: byte*) -> Type*:
-        vartype = self.find_any_var(name)
+        vartype = self->find_any_var(name)
         if vartype != NULL:
             return vartype
-        return self.find_any_constant(name)
+        return self->find_any_constant(name)
 
 
 # Intended for errors. Returned string can be overwritten in next call.
@@ -53,7 +53,7 @@ class State:
 def short_expression_description(expr: AstExpression*) -> byte[200]:
     result: byte[200]
 
-    match expr.kind:
+    match expr->kind:
         case AstExpressionKind.IntegerConstant | AstExpressionKind.Constant:
             return "a constant"
         case AstExpressionKind.GetEnumMember:
@@ -80,7 +80,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "self"
 
         case AstExpressionKind.Call:
-            if expr.call.method_call_self == NULL:
+            if expr->call.method_call_self == NULL:
                 return "a function call"
             else:
                 return "a method call"
@@ -120,12 +120,12 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "the result of decrementing a value"
 
         case AstExpressionKind.AddressOf:
-            inner = short_expression_description(&expr.operands[0])
+            inner = short_expression_description(&expr->operands[0])
             snprintf(result, sizeof result, "address of %s", inner)
             return result
 
         case AstExpressionKind.GetClassField | AstExpressionKind.GetClassFieldPtr | AstExpressionKind.DotOperator:
-            snprintf(result, sizeof result, "field '%s'", expr.class_field.field_name)
+            snprintf(result, sizeof result, "field '%s'", expr->class_field.field_name)
             return result
 
 
@@ -147,18 +147,18 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
     #   - "foo" is an enum, "bar" is an enum member
     #   - "foo" is an instance of a class, "bar" is a field
     #   - "foo" is a pointer to an instance of a class, "bar" is a field
-    assert expr.types.orig_type != NULL
+    assert expr->types.orig_type != NULL
 
     if (
-        expr.kind == AstExpressionKind.Dereference
+        expr->kind == AstExpressionKind.Dereference
         # &pointer[index] = pointer + itemsize*index (doesn't use &pointer)
-        or expr.kind == AstExpressionKind.Indexing
+        or expr->kind == AstExpressionKind.Indexing
         # &pointer.field = pointer + offset (doesn't use &pointer)
-        or expr.kind == AstExpressionKind.GetClassFieldPtr
+        or expr->kind == AstExpressionKind.GetClassFieldPtr
     ):
         return
 
-    if expr.kind == AstExpressionKind.GetClassField:
+    if expr->kind == AstExpressionKind.GetClassField:
         # &foo.bar = &foo + offset
         #
         # Turn "cannot assign to %s" into "cannot assign to a field of %s".
@@ -166,11 +166,11 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
         newtemplate: byte*
         asprintf(&newtemplate, errmsg_template, "a field of %s")
 
-        ensure_can_take_address(fom, &expr.operands[0], newtemplate)
+        ensure_can_take_address(fom, &expr->operands[0], newtemplate)
         free(newtemplate)
         return
 
-    if expr.kind == AstExpressionKind.GetVariable:
+    if expr->kind == AstExpressionKind.GetVariable:
         return
 
     # You can take address of self if it's not passed as a pointer:
@@ -180,15 +180,15 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
     #
     # This lets you e.g. write methods that return a modified instance.
     if (
-        expr.kind == AstExpressionKind.Self
-        and fom.signature.args.ptr[0].type.kind == TypeKind.Class
+        expr->kind == AstExpressionKind.Self
+        and fom->signature.args.ptr[0].type->kind == TypeKind.Class
     ):
         return
 
     msg: byte[500]
     desc = short_expression_description(expr)
     snprintf(msg, sizeof(msg), errmsg_template, desc)
-    fail(expr.location, msg)
+    fail(expr->location, msg)
 
 
 # Implicit casts are used in many places, e.g. function arguments.
@@ -207,10 +207,10 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
     while *template != '\0':
         if starts_with(template, "<from>"):
             template = &template[6]
-            message.extend_from_ptr(from.name, strlen(from.name))
+            message.extend_from_ptr(from->name, strlen(from->name))
         elif starts_with(template, "<to>"):
             template = &template[4]
-            message.extend_from_ptr(to.name, strlen(to.name))
+            message.extend_from_ptr(to->name, strlen(to->name))
         else:
             message.append(*template++)
 
@@ -222,17 +222,17 @@ def can_cast_implicitly(from: Type*, to: Type*) -> bool:
     # Please keep doc/types.md up to date if you modify this
     return (
         from == to
-        or (from.kind == TypeKind.Array and to.kind == TypeKind.Pointer and from.array.item_type == to.value_type)
-        or (from.kind == TypeKind.Array and to.kind == TypeKind.VoidPointer)
+        or (from->kind == TypeKind.Array and to->kind == TypeKind.Pointer and from->array.item_type == to->value_type)
+        or (from->kind == TypeKind.Array and to->kind == TypeKind.VoidPointer)
         or (
-            from.is_integer_type()
-            and to.is_integer_type()
-            and from.size_in_bits < to.size_in_bits
-            and not (from.kind == TypeKind.SignedInteger and to.kind == TypeKind.UnsignedInteger)
+            from->is_integer_type()
+            and to->is_integer_type()
+            and from->size_in_bits < to->size_in_bits
+            and not (from->kind == TypeKind.SignedInteger and to->kind == TypeKind.UnsignedInteger)
         )
         or (from == floatType and to == doubleType)
-        or (from.is_integer_type() and to.kind == TypeKind.FloatingPoint)
-        or (from.is_pointer_type() and to.is_pointer_type() and (from == voidPtrType or to == voidPtrType))
+        or (from->is_integer_type() and to->kind == TypeKind.FloatingPoint)
+        or (from->is_pointer_type() and to->is_pointer_type() and (from == voidPtrType or to == voidPtrType))
     )
 
 
@@ -242,15 +242,15 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
     # This does not take into account things that type inference does, see docs.
     return (
         from == to
-        or (from.kind == TypeKind.Array and to.kind == TypeKind.Pointer and from.array.item_type == to.value_type)
-        or (from.kind == TypeKind.Array and to.kind == TypeKind.VoidPointer)
-        or (from.is_pointer_type() and to.is_pointer_type())
-        or (from.is_number_type() and to.is_number_type())
-        or (from.is_integer_type() and to.kind == TypeKind.Enum)
-        or (from.kind == TypeKind.Enum and to.is_integer_type())
-        or (from == boolType and to.is_integer_type())
-        or (from.is_pointer_type() and to == longType)
-        or (from == longType and to.is_pointer_type())
+        or (from->kind == TypeKind.Array and to->kind == TypeKind.Pointer and from->array.item_type == to->value_type)
+        or (from->kind == TypeKind.Array and to->kind == TypeKind.VoidPointer)
+        or (from->is_pointer_type() and to->is_pointer_type())
+        or (from->is_number_type() and to->is_number_type())
+        or (from->is_integer_type() and to->kind == TypeKind.Enum)
+        or (from->kind == TypeKind.Enum and to->is_integer_type())
+        or (from == boolType and to->is_integer_type())
+        or (from->is_pointer_type() and to == longType)
+        or (from == longType and to->is_pointer_type())
     )
 
 
@@ -261,11 +261,11 @@ def do_implicit_cast(
     location: Location,
     errormsg_template: byte*,
 ) -> None:
-    assert expr.types.orig_type != NULL
-    assert expr.types.implicit_cast_type == expr.types.orig_type
-    assert not expr.types.implicit_array_to_pointer_cast
+    assert expr->types.orig_type != NULL
+    assert expr->types.implicit_cast_type == expr->types.orig_type
+    assert not expr->types.implicit_array_to_pointer_cast
 
-    from = expr.types.orig_type
+    from = expr->types.orig_type
     if from == to:
         return
 
@@ -273,9 +273,9 @@ def do_implicit_cast(
     if errormsg_template != NULL and not can_cast_implicitly(from, to):
         fail_with_implicit_cast_error(location, errormsg_template, from, to)
 
-    expr.types.implicit_cast_type = to
-    expr.types.implicit_array_to_pointer_cast = (from.kind == TypeKind.Array and to.is_pointer_type())
-    if expr.types.implicit_array_to_pointer_cast:
+    expr->types.implicit_cast_type = to
+    expr->types.implicit_array_to_pointer_cast = (from->kind == TypeKind.Array and to->is_pointer_type())
+    if expr->types.implicit_array_to_pointer_cast:
         ensure_can_take_address(
             fom,
             expr,
@@ -284,42 +284,42 @@ def do_implicit_cast(
 
 
 def cast_array_to_pointer(fom: FunctionOrMethodTypes*, expr: AstExpression*) -> None:
-    assert expr.types.orig_type != NULL
-    assert expr.types.orig_type.kind == TypeKind.Array
-    do_implicit_cast(fom, expr, expr.types.orig_type.array.item_type.pointer_type(), Location{}, NULL)
+    assert expr->types.orig_type != NULL
+    assert expr->types.orig_type->kind == TypeKind.Array
+    do_implicit_cast(fom, expr, expr->types.orig_type->array.item_type->pointer_type(), Location{}, NULL)
 
 
 def do_explicit_cast(fom: FunctionOrMethodTypes*, expr: AstExpression*, to: Type*, location: Location) -> None:
-    assert expr.types.orig_type != NULL
-    assert expr.types.implicit_cast_type == expr.types.orig_type
-    from = expr.types.orig_type
+    assert expr->types.orig_type != NULL
+    assert expr->types.implicit_cast_type == expr->types.orig_type
+    from = expr->types.orig_type
 
     msg: byte[500]
 
     if from == to:
-        snprintf(msg, sizeof(msg), "unnecessary cast from %s to %s", from.name, to.name)
+        snprintf(msg, sizeof(msg), "unnecessary cast from %s to %s", from->name, to->name)
         show_warning(location, msg)
 
     if not can_cast_explicitly(from, to):
-        snprintf(msg, sizeof(msg), "cannot cast from type %s to %s", from.name, to.name)
+        snprintf(msg, sizeof(msg), "cannot cast from type %s to %s", from->name, to->name)
         fail(location, msg)
 
-    if from.kind == TypeKind.Array and to.is_pointer_type():
+    if from->kind == TypeKind.Array and to->is_pointer_type():
         cast_array_to_pointer(fom, expr)
 
 
 def typecheck_expression_not_void(state: State*, expr: AstExpression*, type_hint: Type*) -> Type*:
     typecheck_expression(state, expr, type_hint)
-    if expr.types.orig_type != NULL:
+    if expr->types.orig_type != NULL:
         # The happy path. Evaluating the expression results in a value.
-        return expr.types.orig_type
+        return expr->types.orig_type
 
     # Should be function/method call that returns None
-    assert expr.kind == AstExpressionKind.Call
+    assert expr->kind == AstExpressionKind.Call
 
     msg: byte[500]
-    snprintf(msg, sizeof(msg), "%s '%s' does not return a value", expr.call.function_or_method(), expr.call.name)
-    fail(expr.location, msg)
+    snprintf(msg, sizeof(msg), "%s '%s' does not return a value", expr->call.function_or_method(), expr->call.name)
+    fail(expr->location, msg)
 
 
 def typecheck_expression_with_implicit_cast(
@@ -330,24 +330,24 @@ def typecheck_expression_with_implicit_cast(
 ) -> None:
     assert casttype != NULL
     typecheck_expression_not_void(state, expr, casttype)
-    do_implicit_cast(state.fom_types, expr, casttype, expr.location, errormsg_template)
+    do_implicit_cast(state->fom_types, expr, casttype, expr->location, errormsg_template)
 
 
 def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind) -> Type*:
-    assert ltype.is_integer_type()
-    assert rtype.is_integer_type()
+    assert ltype->is_integer_type()
+    assert rtype->is_integer_type()
 
-    lhs_signed = ltype.kind == TypeKind.SignedInteger
-    rhs_signed = rtype.kind == TypeKind.SignedInteger
+    lhs_signed = ltype->kind == TypeKind.SignedInteger
+    rhs_signed = rtype->kind == TypeKind.SignedInteger
 
     match op:
         # Result of bitwise and/or/xor is always one of the two types.
         # If types are of different sizes: AND uses smaller, OR/XOR uses bigger
         # If types are the same size: use unsigned if one of the two types is unsigned
         case AstExpressionKind.BitAnd:
-            if ltype.size_in_bits > rtype.size_in_bits:
+            if ltype->size_in_bits > rtype->size_in_bits:
                 return rtype
-            if ltype.size_in_bits < rtype.size_in_bits:
+            if ltype->size_in_bits < rtype->size_in_bits:
                 return ltype
             # same size, prefer unsigned
             if lhs_signed:
@@ -355,9 +355,9 @@ def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind
             return ltype
 
         case AstExpressionKind.BitOr | AstExpressionKind.BitXor:
-            if ltype.size_in_bits > rtype.size_in_bits:
+            if ltype->size_in_bits > rtype->size_in_bits:
                 return ltype
-            if ltype.size_in_bits < rtype.size_in_bits:
+            if ltype->size_in_bits < rtype->size_in_bits:
                 return rtype
             # same size, prefer unsigned
             if lhs_signed:
@@ -373,7 +373,7 @@ def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind
             | AstExpressionKind.Le
         ):
             # We want to cast to a common type so that we see the true values of both sides.
-            bigger_size = max(ltype.size_in_bits, rtype.size_in_bits)
+            bigger_size = max(ltype->size_in_bits, rtype->size_in_bits)
             if lhs_signed and rhs_signed:
                 return int_type(bigger_size)
             if lhs_signed or rhs_signed:
@@ -390,7 +390,7 @@ def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind
         case _:
             # A calculation that may overflow, e.g. + - * /
             # Choose the bigger size of inputs. Result is signed if either input value is.
-            bigger_size = max(ltype.size_in_bits, rtype.size_in_bits)
+            bigger_size = max(ltype->size_in_bits, rtype->size_in_bits)
             if lhs_signed or rhs_signed:
                 return int_type(bigger_size)
             else:
@@ -404,8 +404,8 @@ def check_binop(
     lhs: AstExpression*,
     rhs: AstExpression*,
 ) -> Type*:
-    assert lhs.types.orig_type != NULL
-    assert rhs.types.orig_type != NULL
+    assert lhs->types.orig_type != NULL
+    assert rhs->types.orig_type != NULL
 
     do_what: byte*
     some_kind_of_compare = False
@@ -438,16 +438,16 @@ def check_binop(
         case _:
             assert False
 
-    ltype = lhs.types.orig_type
-    rtype = rhs.types.orig_type
+    ltype = lhs->types.orig_type
+    rtype = rhs->types.orig_type
 
     got_bools = ltype == boolType and rtype == boolType
-    got_integers = ltype.is_integer_type() and rtype.is_integer_type()
-    got_numbers = ltype.is_number_type() and rtype.is_number_type()
-    got_enums = ltype.kind == TypeKind.Enum and ltype == rtype
+    got_integers = ltype->is_integer_type() and rtype->is_integer_type()
+    got_numbers = ltype->is_number_type() and rtype->is_number_type()
+    got_enums = ltype->kind == TypeKind.Enum and ltype == rtype
     got_pointers = (
-        ltype.is_pointer_type()
-        and rtype.is_pointer_type()
+        ltype->is_pointer_type()
+        and rtype->is_pointer_type()
         # Ban comparisons like int* == byte*, unless one of the two types is void*
         and (ltype == rtype or ltype == voidPtrType or rtype == voidPtrType)
     )
@@ -459,7 +459,7 @@ def check_binop(
         or (got_pointers and not some_kind_of_compare)
     ):
         msg: byte[500]
-        snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
+        snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype->name, rtype->name)
         fail(location, msg)
 
     cast_type: Type* = NULL
@@ -490,7 +490,7 @@ def check_binop(
 def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:
     bad_type_fmt, bad_expr_fmt: byte*
 
-    match expr.kind:
+    match expr->kind:
         case AstExpressionKind.PreIncr | AstExpressionKind.PostIncr:
             bad_type_fmt = "cannot increment a value of type %s"
             bad_expr_fmt = "cannot increment %s"
@@ -500,21 +500,21 @@ def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:
         case _:
             assert False
 
-    t = typecheck_expression_not_void(state, &expr.operands[0], NULL)
-    if not t.is_number_type() and t.kind != TypeKind.Pointer:
+    t = typecheck_expression_not_void(state, &expr->operands[0], NULL)
+    if not t->is_number_type() and t->kind != TypeKind.Pointer:
         msg: byte[500]
-        snprintf(msg, sizeof(msg), bad_type_fmt, t.name)
-        fail(expr.location, msg)
+        snprintf(msg, sizeof(msg), bad_type_fmt, t->name)
+        fail(expr->location, msg)
 
-    ensure_can_take_address(state.fom_types, &expr.operands[0], bad_expr_fmt)
+    ensure_can_take_address(state->fom_types, &expr->operands[0], bad_expr_fmt)
     return t
 
 
 def typecheck_dereferenced_pointer(location: Location, t: Type*) -> None:
     # TODO: improved error message for dereferencing void*
-    if t.kind != TypeKind.Pointer:
+    if t->kind != TypeKind.Pointer:
         msg: byte[500]
-        snprintf(msg, sizeof(msg), "the dereference operator '*' is only for pointers, not for %s", t.name)
+        snprintf(msg, sizeof(msg), "the dereference operator '*' is only for pointers, not for %s", t->name)
         fail(location, msg)
 
 
@@ -527,30 +527,30 @@ def typecheck_indexing(
     msg: byte[500]
 
     orig_type = typecheck_expression_not_void(state, ptrexpr, NULL)
-    match orig_type.kind:
+    match orig_type->kind:
         case TypeKind.Pointer:
             ptrtype = orig_type
         case TypeKind.Array:
-            cast_array_to_pointer(state.fom_types, ptrexpr)
-            ptrtype = ptrexpr.types.implicit_cast_type
+            cast_array_to_pointer(state->fom_types, ptrexpr)
+            ptrtype = ptrexpr->types.implicit_cast_type
         case _:
-            snprintf(msg, sizeof(msg), "value of type %s cannot be indexed", orig_type.name)
-            fail(ptrexpr.location, msg)
+            snprintf(msg, sizeof(msg), "value of type %s cannot be indexed", orig_type->name)
+            fail(ptrexpr->location, msg)
 
     assert ptrtype != NULL
-    assert ptrtype.kind == TypeKind.Pointer
+    assert ptrtype->kind == TypeKind.Pointer
 
     indextype = typecheck_expression_not_void(state, indexexpr, NULL)
     assert indextype != NULL
-    if not indextype.is_integer_type():
-        snprintf(msg, sizeof(msg), "the index inside [...] must be an integer, not %s", indextype.name)
-        fail(indexexpr.location, msg)
+    if not indextype->is_integer_type():
+        snprintf(msg, sizeof(msg), "the index inside [...] must be an integer, not %s", indextype->name)
+        fail(indexexpr->location, msg)
 
     # LLVM assumes that indexes smaller than 64 bits are signed.
     # https://github.com/Akuli/jou/issues/48
-    do_implicit_cast(state.fom_types, indexexpr, longType, Location{}, NULL)
+    do_implicit_cast(state->fom_types, indexexpr, longType, Location{}, NULL)
 
-    return ptrtype.value_type
+    return ptrtype->value_type
 
 
 def typecheck_and_or(
@@ -586,33 +586,33 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
     msg: byte[500]
 
     if self_type == NULL:
-        sig = state.file_types.find_function(call.name)
+        sig = state->file_types->find_function(call->name)
         if sig == NULL:
-            snprintf(msg, sizeof(msg), "function '%s' not found", call.name)
+            snprintf(msg, sizeof(msg), "function '%s' not found", call->name)
             fail(location, msg)
     else:
-        assert self_type.kind == TypeKind.Class
-        sig = self_type.find_method(call.name)
+        assert self_type->kind == TypeKind.Class
+        sig = self_type->find_method(call->name)
         if sig == NULL:
             snprintf(
                 msg, sizeof(msg),
-                "class %s does not have a method named '%s'", self_type.name, call.name)
+                "class %s does not have a method named '%s'", self_type->name, call->name)
             fail(location, msg)
 
-    call.called_signature = sig
+    call->called_signature = sig
 
     if self_type == NULL:
         function_or_method = "function"
     else:
         function_or_method = "method"
 
-    sig_string = sig.to_string(False, False)
+    sig_string = sig->to_string(False, False)
 
-    nargs = sig.args.len
+    nargs = sig->args.len
     if self_type != NULL:
         nargs--
 
-    if call.args.len < nargs or (call.args.len > nargs and not sig.takes_varargs):
+    if call->args.len < nargs or (call->args.len > nargs and not sig->takes_varargs):
         snprintf(
             msg, sizeof(msg),
             "%s %s takes %d argument%s, but it was called with %lld argument%s",
@@ -620,15 +620,15 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
             sig_string,
             nargs,
             plural_s(nargs),
-            call.args.len,
-            plural_s(call.args.len),
+            call->args.len,
+            plural_s(call->args.len),
         )
         fail(location, msg)
 
     k = 0
     selfless_counter = 0
-    for arg = sig.args.ptr; arg < sig.args.end(); arg++:
-        if strcmp(arg.name, "self") == 0:
+    for arg = sig->args.ptr; arg < sig->args.end(); arg++:
+        if strcmp(arg->name, "self") == 0:
             continue
         # This is a common error, so worth spending some effort to get a good error message.
         which_arg = nth(++selfless_counter)
@@ -636,28 +636,28 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
             msg, sizeof msg,
             "%s argument of %s %s should have type <to>, not <from>", which_arg, function_or_method, sig_string
         )
-        typecheck_expression_with_implicit_cast(state, &call.args.ptr[k++], arg.type, msg)
+        typecheck_expression_with_implicit_cast(state, &call->args.ptr[k++], arg->type, msg)
 
-    for vararg = &call.args.ptr[k]; vararg < call.args.end(); vararg++:
+    for vararg = &call->args.ptr[k]; vararg < call->args.end(); vararg++:
         # This code runs for varargs, e.g. the things to format in printf().
         t = typecheck_expression_not_void(state, vararg, NULL)
-        if t.kind == TypeKind.Array:
-            cast_array_to_pointer(state.fom_types, vararg)
-        elif (t.is_integer_type() and t.size_in_bits < 32) or t == boolType:
+        if t->kind == TypeKind.Array:
+            cast_array_to_pointer(state->fom_types, vararg)
+        elif (t->is_integer_type() and t->size_in_bits < 32) or t == boolType:
             # Add implicit cast to signed int, just like in C.
-            do_implicit_cast(state.fom_types, vararg, intType, Location{}, NULL)
+            do_implicit_cast(state->fom_types, vararg, intType, Location{}, NULL)
         elif t == floatType:
-            do_implicit_cast(state.fom_types, vararg, doubleType, Location{}, NULL)
-        elif t.kind == TypeKind.Enum:
+            do_implicit_cast(state->fom_types, vararg, doubleType, Location{}, NULL)
+        elif t->kind == TypeKind.Enum:
             snprintf(
                 msg, sizeof(msg),
                 "enums cannot be passed to functions that take variadic arguments, such as %s",
-                sig.name,
+                sig->name,
             )
-            fail(vararg.location, msg)
+            fail(vararg->location, msg)
 
     free(sig_string)
-    return sig.return_type
+    return sig->return_type
 
 
 def typecheck_class_field(
@@ -665,45 +665,45 @@ def typecheck_class_field(
     fieldname: byte*,
     location: Location,
 ) -> ClassField*:
-    assert classtype.kind == TypeKind.Class
-    f = classtype.find_class_field(fieldname)
+    assert classtype->kind == TypeKind.Class
+    f = classtype->find_class_field(fieldname)
     if f != NULL:
         return f
 
     msg: byte[500]
-    snprintf(msg, sizeof(msg), "class %s has no field named '%s'", classtype.name, fieldname)
+    snprintf(msg, sizeof(msg), "class %s has no field named '%s'", classtype->name, fieldname)
     fail(location, msg)
 
 
 def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Location) -> Type*:
-    t = type_from_ast(state.file_types, state.fom_types.signature.get_self_class(), &inst.type)
+    t = type_from_ast(state->file_types, state->fom_types->signature.get_self_class(), &inst->type)
 
     msg: byte[500]
 
-    if t.kind != TypeKind.Class:
+    if t->kind != TypeKind.Class:
         snprintf(
             msg, sizeof(msg),
             "the %s{...} syntax is only for classes, but %s is %s",
-            t.name, t.name, t.short_description())
+            t->name, t->name, t->short_description())
         fail(location, msg)
 
     specified_fields = List[ClassField*]{}
-    for f = inst.fields.ptr; f < inst.fields.end(); f++:
-        field = typecheck_class_field(t, f.name, f.value.location)
+    for f = inst->fields.ptr; f < inst->fields.end(); f++:
+        field = typecheck_class_field(t, f->name, f->value.location)
 
         snprintf(msg, sizeof msg,
             "value for field '%s' of class %s must be of type <to>, not <from>",
-            f.name, t.name)
-        typecheck_expression_with_implicit_cast(state, &f.value, field.type, msg)
+            f->name, t->name)
+        typecheck_expression_with_implicit_cast(state, &f->value, field->type, msg)
         specified_fields.append(field)
 
-    for i1 = 0; i1 < inst.fields.len; i1++:
-        for i2 = i1+1; i2 < inst.fields.len; i2++:
-            if specified_fields.ptr[i1].union_id == specified_fields.ptr[i2].union_id:
+    for i1 = 0; i1 < inst->fields.len; i1++:
+        for i2 = i1+1; i2 < inst->fields.len; i2++:
+            if specified_fields.ptr[i1]->union_id == specified_fields.ptr[i2]->union_id:
                 snprintf(msg, sizeof(msg),
                     "fields '%s' and '%s' cannot be set simultaneously because they belong to the same union",
-                    specified_fields.ptr[i1].name, specified_fields.ptr[i2].name)
-                fail(inst.fields.ptr[i2].value.location,msg)
+                    specified_fields.ptr[i1]->name, specified_fields.ptr[i2]->name)
+                fail(inst->fields.ptr[i2].value.location,msg)
 
     free(specified_fields.ptr)
     return t
@@ -725,7 +725,7 @@ def cast_array_members_to_a_common_type(
     distinct = List[Type*]{}
 
     for p = array.ptr; p < array.end(); p++:
-        itemtype = p.types.orig_type
+        itemtype = p->types.orig_type
         assert itemtype != NULL
 
         found = False
@@ -758,7 +758,7 @@ def cast_array_members_to_a_common_type(
     if compatible_with_all.len != 1:
         size = 500 as long
         for t = distinct.ptr; t < distinct.end(); t++:
-            size += strlen((*t).name) + 3  # 1 for comma, 1 for space, 1 because why not lol
+            size += strlen((*t)->name) + 3  # 1 for comma, 1 for space, 1 because why not lol
 
         msg: byte* = malloc(size)
         assert msg != NULL
@@ -767,7 +767,7 @@ def cast_array_members_to_a_common_type(
         for t = distinct.ptr; t < distinct.end(); t++:
             if t != distinct.ptr:
                 strcat(msg, ", ")
-            strcat(msg, (*t).name)
+            strcat(msg, (*t)->name)
         strcat(msg, ")")
         fail(error_location, msg)
 
@@ -791,8 +791,8 @@ def cast_ternary_values_to_a_common_type(
     otherwise_expr: AstExpression*,
     ternary_type_hint: Type*,
 ) -> Type*:
-    t1 = then_expr.types.orig_type
-    t2 = otherwise_expr.types.orig_type
+    t1 = then_expr->types.orig_type
+    t2 = otherwise_expr->types.orig_type
     assert t1 != NULL
     assert t2 != NULL
 
@@ -820,11 +820,11 @@ def cast_ternary_values_to_a_common_type(
 
     if t == NULL:
         msg: byte[500]
-        snprintf(msg, sizeof(msg), "ternary values must be of the same type (got %s and %s)", t1.name, t2.name)
+        snprintf(msg, sizeof(msg), "ternary values must be of the same type (got %s and %s)", t1->name, t2->name)
         fail(ternary_location, msg)
 
-    do_implicit_cast(fom, then_expr, t, then_expr.location, "ternary values should be of type <to>, not <from>")
-    do_implicit_cast(fom, otherwise_expr, t, otherwise_expr.location, "ternary values should be of type <to>, not <from>")
+    do_implicit_cast(fom, then_expr, t, then_expr->location, "ternary values should be of type <to>, not <from>")
+    do_implicit_cast(fom, otherwise_expr, t, otherwise_expr->location, "ternary values should be of type <to>, not <from>")
     return t
 
 
@@ -840,30 +840,30 @@ def cast_ternary_values_to_a_common_type(
 #
 # Feels like a hack, but works great :)
 def detect_enum_member_syntax(state: State*, expr: AstExpression*) -> None:
-    if expr.kind != AstExpressionKind.DotOperator:
+    if expr->kind != AstExpressionKind.DotOperator:
         # not foo.bar
         return
 
-    if expr.class_field.instance.kind != AstExpressionKind.GetVariable:
+    if expr->class_field.instance->kind != AstExpressionKind.GetVariable:
         # the "foo" part is something more complicated than a variable name
         return
 
-    enum_name: byte[100] = expr.class_field.instance.varname
-    member_name: byte[100] = expr.class_field.field_name
+    enum_name: byte[100] = expr->class_field.instance->varname
+    member_name: byte[100] = expr->class_field.field_name
 
-    if state.find_any_var(enum_name) != NULL:
+    if state->find_any_var(enum_name) != NULL:
         # there is a variable named "foo", use that
         return
 
-    t = state.file_types.find_type(expr.class_field.instance.varname)
+    t = state->file_types->find_type(expr->class_field.instance->varname)
     if t == NULL:
         # no enum or variable, show variable not found error
         return
 
-    if t.kind != TypeKind.Enum:
+    if t->kind != TypeKind.Enum:
         # attempting to do Foo.bar, where Foo is a type but not enum type
-        if t.kind == TypeKind.Class:
-            fail(expr.location, "class members cannot be accessed directly on the class, they only exist on instances")
+        if t->kind == TypeKind.Class:
+            fail(expr->location, "class members cannot be accessed directly on the class, they only exist on instances")
         else:
             # TODO: Currently this cannot happen. Built-in types like "int" are
             # keywords so that they cannot appear as expressions. A test should
@@ -874,11 +874,11 @@ def detect_enum_member_syntax(state: State*, expr: AstExpression*) -> None:
                 "type '%s' has no members because it is not a class or an enum",
                 enum_name,
             )
-            fail(expr.location, msg)
+            fail(expr->location, msg)
 
-    free(expr.class_field.instance)
-    expr.kind = AstExpressionKind.GetEnumMember
-    expr.enum_member = AstEnumMember{
+    free(expr->class_field.instance)
+    expr->kind = AstExpressionKind.GetEnumMember
+    expr->enum_member = AstEnumMember{
         enum_name = enum_name,
         member_name = member_name,
     }
@@ -890,186 +890,186 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
 
     detect_enum_member_syntax(state, expr)
 
-    match expr.kind:
+    match expr->kind:
         case AstExpressionKind.IntegerConstant:
             c: Constant
             ok = evaluate_constant_expression(expr, &c, type_hint)
             assert ok  # Should fail with a compiler error if there is a problem
             result = c.get_type()
-            expr.kind = AstExpressionKind.Constant
-            expr.constant = c
+            expr->kind = AstExpressionKind.Constant
+            expr->constant = c
 
         case AstExpressionKind.Constant:
             # Use array string if type hint given, e.g. foo: byte[100] = "hello"
             if (
-                expr.constant.kind == ConstantKind.PointerString
+                expr->constant.kind == ConstantKind.PointerString
                 and type_hint != NULL
-                and type_hint.kind == TypeKind.Array
-                and type_hint.array.item_type == byteType
+                and type_hint->kind == TypeKind.Array
+                and type_hint->array.item_type == byteType
             ):
-                s = expr.constant.pointer_string
-                if strlen(s) >= type_hint.array.len:
-                    snprintf(msg, sizeof(msg), "a string of %lld bytes (including '\\0') does not fit into %s", strlen(s) + 1, type_hint.name)
-                    fail(expr.location, msg)
-                expr.constant.kind = ConstantKind.ArrayString
-                expr.constant.array_string = List[byte]{}
-                while expr.constant.array_string.len < type_hint.array.len:
-                    expr.constant.array_string.append('\0')
-                strcpy(expr.constant.array_string.ptr, s)
+                s = expr->constant.pointer_string
+                if strlen(s) >= type_hint->array.len:
+                    snprintf(msg, sizeof(msg), "a string of %lld bytes (including '\\0') does not fit into %s", strlen(s) + 1, type_hint->name)
+                    fail(expr->location, msg)
+                expr->constant.kind = ConstantKind.ArrayString
+                expr->constant.array_string = List[byte]{}
+                while expr->constant.array_string.len < type_hint->array.len:
+                    expr->constant.array_string.append('\0')
+                strcpy(expr->constant.array_string.ptr, s)
                 free(s)
-                assert expr.constant.get_type() == type_hint
+                assert expr->constant.get_type() == type_hint
                 result = type_hint
             else:
-                result = expr.constant.get_type()
+                result = expr->constant.get_type()
 
         case AstExpressionKind.GetEnumMember:
-            result = state.file_types.find_type(expr.enum_member.enum_name)
+            result = state->file_types->find_type(expr->enum_member.enum_name)
             # AstExpressionKind.GetEnumMember is only created if the enum exists
             assert result != NULL
-            assert result.kind == TypeKind.Enum
-            if result.find_enum_member(expr.enum_member.member_name) == -1:
+            assert result->kind == TypeKind.Enum
+            if result->find_enum_member(expr->enum_member.member_name) == -1:
                 snprintf(
                     msg, sizeof(msg),
                     "enum %s has no member named '%s'",
-                    expr.enum_member.enum_name, expr.enum_member.member_name)
-                fail(expr.location, msg)
+                    expr->enum_member.enum_name, expr->enum_member.member_name)
+                fail(expr->location, msg)
 
         case AstExpressionKind.SizeOf:
             if (
-                expr.operands[0].kind == AstExpressionKind.Constant
-                and expr.operands[0].constant.kind == ConstantKind.PointerString
+                expr->operands[0].kind == AstExpressionKind.Constant
+                and expr->operands[0].constant.kind == ConstantKind.PointerString
             ):
                 # sizeof("foo") should be 4
-                obj_type_hint = byteType.array_type((strlen(expr.operands[0].constant.pointer_string) as int) + 1)
+                obj_type_hint = byteType->array_type((strlen(expr->operands[0].constant.pointer_string) as int) + 1)
             else:
                 obj_type_hint = NULL
-            typecheck_expression_not_void(state, &expr.operands[0], obj_type_hint)
+            typecheck_expression_not_void(state, &expr->operands[0], obj_type_hint)
             result = longType
 
         case AstExpressionKind.Instantiate:
-            result = typecheck_instantiation(state, &expr.instantiation, expr.location)
+            result = typecheck_instantiation(state, &expr->instantiation, expr->location)
 
         case AstExpressionKind.Array:
-            if type_hint != NULL and type_hint.kind == TypeKind.Array:
-                item_type_hint = type_hint.array.item_type
+            if type_hint != NULL and type_hint->kind == TypeKind.Array:
+                item_type_hint = type_hint->array.item_type
             else:
                 item_type_hint = NULL
-            for item = expr.array.ptr; item < expr.array.end(); item++:
+            for item = expr->array.ptr; item < expr->array.end(); item++:
                 typecheck_expression_not_void(state, item, item_type_hint)
-            membertype = cast_array_members_to_a_common_type(state.fom_types, expr.location, expr.array, item_type_hint)
-            result = membertype.array_type(expr.array.len as int)
+            membertype = cast_array_members_to_a_common_type(state->fom_types, expr->location, expr->array, item_type_hint)
+            result = membertype->array_type(expr->array.len as int)
 
         case AstExpressionKind.DotOperator:
             # Not enum, that is handled already.
             # It is either instance.field or pointer_to_instance.field.
-            temptype = typecheck_expression_not_void(state, expr.class_field.instance, NULL)
-            if temptype.kind == TypeKind.Class:
-                expr.kind = AstExpressionKind.GetClassField
-                result = typecheck_class_field(temptype, expr.class_field.field_name, expr.location).type
-            elif temptype.kind == TypeKind.Pointer and temptype.value_type.kind == TypeKind.Class:
-                expr.kind = AstExpressionKind.GetClassFieldPtr
-                result = typecheck_class_field(temptype.value_type, expr.class_field.field_name, expr.location).type
+            temptype = typecheck_expression_not_void(state, expr->class_field.instance, NULL)
+            if temptype->kind == TypeKind.Class:
+                expr->kind = AstExpressionKind.GetClassField
+                result = typecheck_class_field(temptype, expr->class_field.field_name, expr->location)->type
+            elif temptype->kind == TypeKind.Pointer and temptype->value_type->kind == TypeKind.Class:
+                expr->kind = AstExpressionKind.GetClassFieldPtr
+                result = typecheck_class_field(temptype->value_type, expr->class_field.field_name, expr->location)->type
             else:
                 snprintf(
                     msg, sizeof(msg),
                     "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
-                    temptype.name)
-                fail(expr.location, msg)
+                    temptype->name)
+                fail(expr->location, msg)
 
         case AstExpressionKind.GetClassField | AstExpressionKind.GetClassFieldPtr:
             # Constructed above, should not already be like this when we get here
             assert False
 
         case AstExpressionKind.Call:
-            if expr.call.method_call_self == NULL:
-                result = typecheck_function_or_method_call(state, &expr.call, NULL, expr.location)
+            if expr->call.method_call_self == NULL:
+                result = typecheck_function_or_method_call(state, &expr->call, NULL, expr->location)
             else:
-                temptype = typecheck_expression_not_void(state, expr.call.method_call_self, NULL)
-                if temptype.kind == TypeKind.Class:
-                    result = typecheck_function_or_method_call(state, &expr.call, temptype, expr.location)
-                elif temptype.kind == TypeKind.Pointer and temptype.value_type.kind == TypeKind.Class:
-                    result = typecheck_function_or_method_call(state, &expr.call, temptype.value_type, expr.location)
+                temptype = typecheck_expression_not_void(state, expr->call.method_call_self, NULL)
+                if temptype->kind == TypeKind.Class:
+                    result = typecheck_function_or_method_call(state, &expr->call, temptype, expr->location)
+                elif temptype->kind == TypeKind.Pointer and temptype->value_type->kind == TypeKind.Class:
+                    result = typecheck_function_or_method_call(state, &expr->call, temptype->value_type, expr->location)
                 else:
                     snprintf(msg, sizeof(msg),
                         "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
-                        temptype.name)
-                    fail(expr.location, msg)
+                        temptype->name)
+                    fail(expr->location, msg)
 
                 # If self argument must be passed by pointer, make sure we can create that pointer
-                if temptype.kind == TypeKind.Class:
-                    signature = temptype.find_method(expr.call.name)
+                if temptype->kind == TypeKind.Class:
+                    signature = temptype->find_method(expr->call.name)
                     assert signature != NULL
-                    if signature.args.ptr[0].type.is_pointer_type():
-                        assert strstr(expr.call.name, "%") == NULL
+                    if signature->args.ptr[0].type->is_pointer_type():
+                        assert strstr(expr->call.name, "%") == NULL
                         snprintf(
                             msg, sizeof msg,
                             "cannot take address of %%s, needed for calling the %s() method",
-                            expr.call.name)
-                        ensure_can_take_address(state.fom_types, expr.call.method_call_self, msg)
+                            expr->call.name)
+                        ensure_can_take_address(state->fom_types, expr->call.method_call_self, msg)
 
             if result == NULL:
                 # no return value produced
                 return
 
         case AstExpressionKind.Indexing:
-            result = typecheck_indexing(state, &expr.operands[0], &expr.operands[1])
+            result = typecheck_indexing(state, &expr->operands[0], &expr->operands[1])
 
         case AstExpressionKind.AddressOf:
-            result = typecheck_expression_not_void(state, &expr.operands[0], NULL).pointer_type()
-            ensure_can_take_address(state.fom_types, &expr.operands[0], "the '&' operator cannot be applied to %s")
+            result = typecheck_expression_not_void(state, &expr->operands[0], NULL)->pointer_type()
+            ensure_can_take_address(state->fom_types, &expr->operands[0], "the '&' operator cannot be applied to %s")
 
         case AstExpressionKind.GetVariable:
-            result = state.find_any_constant(expr.varname)
+            result = state->find_any_constant(expr->varname)
             if result != NULL:
                 # Transform the expression into a constant
-                expr.kind = AstExpressionKind.Constant
-                match get_special_constant(expr.varname):
+                expr->kind = AstExpressionKind.Constant
+                match get_special_constant(expr->varname):
                     case 1:
-                        expr.constant = Constant{kind = ConstantKind.Bool, boolean = True}
+                        expr->constant = Constant{kind = ConstantKind.Bool, boolean = True}
                     case 0:
-                        expr.constant = Constant{kind = ConstantKind.Bool, boolean = False}
+                        expr->constant = Constant{kind = ConstantKind.Bool, boolean = False}
                     case -1:
-                        expr.constant = state.file_types.find_constant(expr.varname).copy()
+                        expr->constant = state->file_types->find_constant(expr->varname)->copy()
                     case _:
                         assert False
             else:
                 # Not a constant, proceed with normal variable lookup
-                result = state.find_any_var(expr.varname)
+                result = state->find_any_var(expr->varname)
                 if result == NULL:
-                    snprintf(msg, sizeof(msg), "no variable named '%s'", expr.varname)
-                    fail(expr.location, msg)
+                    snprintf(msg, sizeof(msg), "no variable named '%s'", expr->varname)
+                    fail(expr->location, msg)
 
         case AstExpressionKind.Self:
-            selfvar = state.fom_types.find_local_var("self")
+            selfvar = state->fom_types->find_local_var("self")
             assert selfvar != NULL
-            result = selfvar.type
+            result = selfvar->type
 
         case AstExpressionKind.Dereference:
-            temptype = typecheck_expression_not_void(state, &expr.operands[0], NULL)
-            typecheck_dereferenced_pointer(expr.location, temptype)
-            result = temptype.value_type
+            temptype = typecheck_expression_not_void(state, &expr->operands[0], NULL)
+            typecheck_dereferenced_pointer(expr->location, temptype)
+            result = temptype->value_type
 
         case AstExpressionKind.And:
-            typecheck_and_or(state, &expr.operands[0], &expr.operands[1], "and")
+            typecheck_and_or(state, &expr->operands[0], &expr->operands[1], "and")
             result = boolType
 
         case AstExpressionKind.Or:
-            typecheck_and_or(state, &expr.operands[0], &expr.operands[1], "or")
+            typecheck_and_or(state, &expr->operands[0], &expr->operands[1], "or")
             result = boolType
 
         case AstExpressionKind.Not:
             typecheck_expression_with_implicit_cast(
-                state, &expr.operands[0], boolType,
+                state, &expr->operands[0], boolType,
                 "value after 'not' must be a bool, not <from>")
             result = boolType
 
         case AstExpressionKind.Negate:
-            result = typecheck_expression_not_void(state, &expr.operands[0], NULL)
-            if result.kind != TypeKind.SignedInteger and result.kind != TypeKind.FloatingPoint:
+            result = typecheck_expression_not_void(state, &expr->operands[0], NULL)
+            if result->kind != TypeKind.SignedInteger and result->kind != TypeKind.FloatingPoint:
                 snprintf(msg, sizeof(msg),
                     "value after '-' must be a float or double or a signed integer, not %s",
-                    result.name)
-                fail(expr.location, msg)
+                    result->name)
+                fail(expr->location, msg)
 
         case (
             AstExpressionKind.Add
@@ -1087,18 +1087,18 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             | AstExpressionKind.Lt
             | AstExpressionKind.Le
         ):
-            typecheck_expression_not_void(state, &expr.operands[0], NULL)
-            typecheck_expression_not_void(state, &expr.operands[1], NULL)
-            result = check_binop(state.fom_types, expr.kind, expr.location, &expr.operands[0], &expr.operands[1])
+            typecheck_expression_not_void(state, &expr->operands[0], NULL)
+            typecheck_expression_not_void(state, &expr->operands[1], NULL)
+            result = check_binop(state->fom_types, expr->kind, expr->location, &expr->operands[0], &expr->operands[1])
 
         case AstExpressionKind.TernaryIf:
-            typecheck_expression_not_void(state, &expr.operands[0], NULL)
+            typecheck_expression_not_void(state, &expr->operands[0], NULL)
             typecheck_expression_with_implicit_cast(
-                state, &expr.operands[1], boolType, "ternary condition must be a bool, not <from>"
+                state, &expr->operands[1], boolType, "ternary condition must be a bool, not <from>"
             )
-            typecheck_expression_not_void(state, &expr.operands[2], NULL)
+            typecheck_expression_not_void(state, &expr->operands[2], NULL)
             result = cast_ternary_values_to_a_common_type(
-                state.fom_types, expr.location, &expr.operands[0], &expr.operands[2], type_hint
+                state->fom_types, expr->location, &expr->operands[0], &expr->operands[2], type_hint
             )
 
         case (
@@ -1110,7 +1110,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             result = check_increment_or_decrement(state, expr)
 
         case AstExpressionKind.As:
-            result = type_from_ast(state.file_types, state.fom_types.signature.get_self_class(), &expr.as_.type)
+            result = type_from_ast(state->file_types, state->fom_types->signature.get_self_class(), &expr->as_->type)
 
             # The `foo as SomeType` operation usually doesn't specify how the
             # type of `foo` should be inferred. The intent is that `foo` can be
@@ -1123,10 +1123,10 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
 
             # Special case 1: `"foo" as byte[100]`
             special_case_1 = (
-                expr.as_.value.kind == AstExpressionKind.Constant
-                and expr.as_.value.constant.kind == ConstantKind.PointerString
-                and result.kind == TypeKind.Array
-                and result.array.item_type == byteType
+                expr->as_->value.kind == AstExpressionKind.Constant
+                and expr->as_->value.constant.kind == ConstantKind.PointerString
+                and result->kind == TypeKind.Array
+                and result->array.item_type == byteType
             )
 
             # Special case 2: `123123123123123 as int64`. The value doesn't fit
@@ -1136,24 +1136,24 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             # TODO: make this work for negative values?
             # TODO: may be possible to show warning about unnecessary cast, check type hint of the whole `as`
             special_case_2 = (
-                expr.as_.value.kind == AstExpressionKind.IntegerConstant
-                and (expr.as_.value.integer_value as int) != expr.as_.value.integer_value
-                and result.is_integer_type()
+                expr->as_->value.kind == AstExpressionKind.IntegerConstant
+                and (expr->as_->value.integer_value as int) != expr->as_->value.integer_value
+                and result->is_integer_type()
             )
 
             if special_case_1 or special_case_2:
-                typecheck_expression_not_void(state, &expr.as_.value, result)
+                typecheck_expression_not_void(state, &expr->as_->value, result)
             else:
-                typecheck_expression_not_void(state, &expr.as_.value, NULL)
-                do_explicit_cast(state.fom_types, &expr.as_.value, result, expr.location)
+                typecheck_expression_not_void(state, &expr->as_->value, NULL)
+                do_explicit_cast(state->fom_types, &expr->as_->value, result, expr->location)
 
         case _:
-            printf("%d\n", expr.kind as int)
+            printf("%d\n", expr->kind as int)
             assert False
 
     assert result != NULL
-    expr.types.orig_type = result
-    expr.types.implicit_cast_type = result  # by default, no implicit cast
+    expr->types.orig_type = result
+    expr->types.implicit_cast_type = result  # by default, no implicit cast
 
 
 def typecheck_body(state: State*, body: List[AstStatement]) -> None:
@@ -1162,16 +1162,16 @@ def typecheck_body(state: State*, body: List[AstStatement]) -> None:
 
 
 def typecheck_if_statement(state: State*, ifstmt: AstIfStatement*) -> None:
-    for p = ifstmt.if_and_elifs.ptr; p < ifstmt.if_and_elifs.end(); p++:
-        if p == ifstmt.if_and_elifs.ptr:
+    for p = ifstmt->if_and_elifs.ptr; p < ifstmt->if_and_elifs.end(); p++:
+        if p == ifstmt->if_and_elifs.ptr:
             errmsg = "'if' condition must be a bool, not <from>"
         else:
             errmsg = "'elif' condition must be a bool, not <from>"
 
-        typecheck_expression_with_implicit_cast(state, &p.condition, boolType, errmsg)
-        typecheck_body(state, p.body)
+        typecheck_expression_with_implicit_cast(state, &p->condition, boolType, errmsg)
+        typecheck_body(state, p->body)
 
-    typecheck_body(state, ifstmt.else_body)
+    typecheck_body(state, ifstmt->else_body)
 
 
 def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> None:
@@ -1180,51 +1180,51 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
     remaining: byte** = NULL
     nremaining = -1 as long
 
-    if match_stmt.func_name[0] == '\0':
-        case_type = typecheck_expression_not_void(state, &match_stmt.match_obj, NULL)
+    if match_stmt->func_name[0] == '\0':
+        case_type = typecheck_expression_not_void(state, &match_stmt->match_obj, NULL)
 
-        match case_type.kind:
+        match case_type->kind:
             case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
                 # no special handling needed
                 pass
             case TypeKind.Enum:
                 # Ensure user checks all possible enum values
-                nremaining = case_type.enum_members.len
+                nremaining = case_type->enum_members.len
                 remaining = malloc(sizeof(remaining[0]) * nremaining)
                 assert remaining != NULL
                 for i = 0; i < nremaining; i++:
-                    remaining[i] = case_type.enum_members.ptr[i]
+                    remaining[i] = case_type->enum_members.ptr[i]
             case _:
-                snprintf(msg, sizeof(msg), "cannot match a value of type %s", case_type.name)
+                snprintf(msg, sizeof(msg), "cannot match a value of type %s", case_type->name)
                 if strlen(msg) + 100 < sizeof(msg):
-                    if case_type == byteType.pointer_type():
+                    if case_type == byteType->pointer_type():
                         strcat(msg, " (try adding 'with strcmp')")
                     if case_type == boolType:
                         strcat(msg, " (use if/else instead)")
-                fail(match_stmt.match_obj.location, msg)
+                fail(match_stmt->match_obj.location, msg)
     else:
-        sig = state.file_types.find_function(match_stmt.func_name)
+        sig = state->file_types->find_function(match_stmt->func_name)
         if sig == NULL:
-            snprintf(msg, sizeof(msg), "function '%s' not found", match_stmt.func_name)
-            fail(match_stmt.match_obj.location, msg)
-        match_stmt.func_signature = sig.copy()
+            snprintf(msg, sizeof(msg), "function '%s' not found", match_stmt->func_name)
+            fail(match_stmt->match_obj.location, msg)
+        match_stmt->func_signature = sig->copy()
 
         # Most of the time, only argument types are relevant, so don't include the return type into sig_string.
-        sig_string = sig.to_string(False, False)
+        sig_string = sig->to_string(False, False)
 
-        if sig.args.len != 2 or sig.return_type != intType or sig.takes_varargs:  # TODO: could be more general
-            if sig.return_type != intType:
+        if sig->args.len != 2 or sig->return_type != intType or sig->takes_varargs:  # TODO: could be more general
+            if sig->return_type != intType:
                 # show return type in error message
-                sig_string = sig.to_string(True, False)
+                sig_string = sig->to_string(True, False)
             snprintf(msg, sizeof(msg), "cannot match with function %s", sig_string)
-            fail(match_stmt.match_obj.location, msg)
+            fail(match_stmt->match_obj.location, msg)
 
         snprintf(msg, sizeof(msg), "cannot match <from> with %s", sig_string)
-        typecheck_expression_with_implicit_cast(state, &match_stmt.match_obj, sig.args.ptr[0].type, msg)
-        case_type = sig.args.ptr[1].type
+        typecheck_expression_with_implicit_cast(state, &match_stmt->match_obj, sig->args.ptr[0].type, msg)
+        case_type = sig->args.ptr[1].type
 
-    for c = match_stmt.cases.ptr; c < match_stmt.cases.end(); c++:
-        for case_obj = c.case_objs.ptr; case_obj < c.case_objs.end(); case_obj++:
+    for c = match_stmt->cases.ptr; c < match_stmt->cases.end(); c++:
+        for case_obj = c->case_objs.ptr; case_obj < c->case_objs.end(); case_obj++:
             if sig_string == NULL:
                 msg = "case value of type <from> cannot be matched against <to>"
             else:
@@ -1232,12 +1232,12 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
             typecheck_expression_with_implicit_cast(state, case_obj, case_type, msg)
 
             if nremaining != -1:
-                if case_obj.kind != AstExpressionKind.GetEnumMember:
+                if case_obj->kind != AstExpressionKind.GetEnumMember:
                     # Matching an enum but it's too dynamic, not simply TheEnum.Member
-                    snprintf(msg, sizeof(msg), "'case' value must be %s.something when matching a value of enum %s", case_type.name, case_type.name)
-                    fail(case_obj.location, msg)
+                    snprintf(msg, sizeof(msg), "'case' value must be %s.something when matching a value of enum %s", case_type->name, case_type->name)
+                    fail(case_obj->location, msg)
                 # We are matching against TheEnum.member. Try to find and remove it from remaining members.
-                member = case_obj.enum_member.member_name
+                member = case_obj->enum_member.member_name
                 found = False
                 for k = 0; k < nremaining; k++:
                     if strcmp(remaining[k], member) == 0:
@@ -1247,25 +1247,25 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
 
                 if not found:
                     snprintf(msg, sizeof(msg), "enum member %s is handled twice", member)
-                    fail(case_obj.location, msg)
+                    fail(case_obj->location, msg)
 
-        typecheck_body(state, c.body)
+        typecheck_body(state, c->body)
 
     # Do not complain if there is a seemingly unnecessary 'case _', because it
     # may be ran by casting an integer to enum with 'as'. However, we can
     # complain if handling for enum members is missing.
-    if nremaining > 0 and match_stmt.case_underscore == NULL:
+    if nremaining > 0 and match_stmt->case_underscore == NULL:
         if nremaining == 1:
             snprintf(
                 msg, sizeof(msg),
                 "enum member %s.%s not handled in match statement",
-                case_type.name, remaining[0],
+                case_type->name, remaining[0],
             )
         else:
             snprintf(
                 msg, sizeof(msg) - 20,
                 "the following %d members of enum %s are not handled in match statement: ",
-                nremaining, case_type.name,
+                nremaining, case_type->name,
             )
             for i = 0; i < nremaining; i++:
                 assert sizeof(msg) > 300
@@ -1278,62 +1278,62 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
             if ends_with(msg, ", "):
                 msg[strlen(msg) - 2] = '\0'
 
-        fail(match_stmt.match_obj.location, msg)
+        fail(match_stmt->match_obj.location, msg)
 
     free(sig_string)
     free(remaining)
 
-    if match_stmt.case_underscore != NULL:
-        typecheck_body(state, *match_stmt.case_underscore)
+    if match_stmt->case_underscore != NULL:
+        typecheck_body(state, *match_stmt->case_underscore)
 
 
 def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
     msg: byte[500]
 
-    match stmt.kind:
+    match stmt->kind:
         case AstStatementKind.If:
-            typecheck_if_statement(state, &stmt.if_statement)
+            typecheck_if_statement(state, &stmt->if_statement)
 
         case AstStatementKind.WhileLoop:
             typecheck_expression_with_implicit_cast(
-                state, &stmt.while_loop.condition, boolType,
+                state, &stmt->while_loop.condition, boolType,
                 "'while' condition must be a bool, not <from>")
-            typecheck_body(state, stmt.while_loop.body)
+            typecheck_body(state, stmt->while_loop.body)
 
         case AstStatementKind.ForLoop:
-            if stmt.for_loop.init != NULL:
-                typecheck_statement(state, stmt.for_loop.init)
-            if stmt.for_loop.cond != NULL:
+            if stmt->for_loop.init != NULL:
+                typecheck_statement(state, stmt->for_loop.init)
+            if stmt->for_loop.cond != NULL:
                 typecheck_expression_with_implicit_cast(
-                    state, stmt.for_loop.cond, boolType,
+                    state, stmt->for_loop.cond, boolType,
                     "'for' condition must be a bool, not <from>")
-            typecheck_body(state, stmt.for_loop.body)
-            if stmt.for_loop.incr != NULL:
-                typecheck_statement(state, stmt.for_loop.incr)
+            typecheck_body(state, stmt->for_loop.body)
+            if stmt->for_loop.incr != NULL:
+                typecheck_statement(state, stmt->for_loop.incr)
 
         case AstStatementKind.Match:
-            typecheck_match_statement(state, &stmt.match_statement)
+            typecheck_match_statement(state, &stmt->match_statement)
 
         case AstStatementKind.Break | AstStatementKind.Continue | AstStatementKind.Pass:
             pass
 
         case AstStatementKind.Assign:
-            targetexpr = &stmt.assignment.target
-            valueexpr = &stmt.assignment.value
+            targetexpr = &stmt->assignment.target
+            valueexpr = &stmt->assignment.value
 
             if (
-                targetexpr.kind == AstExpressionKind.GetVariable
-                and state.find_any_var_or_constant(targetexpr.varname) == NULL
+                targetexpr->kind == AstExpressionKind.GetVariable
+                and state->find_any_var_or_constant(targetexpr->varname) == NULL
             ):
                 # Making a new variable. Use the type of the value being assigned.
                 type = typecheck_expression_not_void(state, valueexpr, NULL)
-                state.fom_types.add_variable(type, targetexpr.varname)
+                state->fom_types->add_variable(type, targetexpr->varname)
             else:
                 # Convert value to the type of an existing variable or other assignment target.
                 targettype = typecheck_expression_not_void(state, targetexpr, NULL)
-                ensure_can_take_address(state.fom_types, targetexpr, "cannot assign to %s")
+                ensure_can_take_address(state->fom_types, targetexpr, "cannot assign to %s")
 
-                if targetexpr.kind == AstExpressionKind.Dereference:
+                if targetexpr->kind == AstExpressionKind.Dereference:
                     msg = "cannot place a value of type <from> into a pointer of type <to>*"
                 else:
                     desc = short_expression_description(targetexpr)
@@ -1350,14 +1350,14 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             | AstStatementKind.InPlaceBitOr
             | AstStatementKind.InPlaceBitXor
         ):
-            targetexpr = &stmt.assignment.target
-            valueexpr = &stmt.assignment.value
+            targetexpr = &stmt->assignment.target
+            valueexpr = &stmt->assignment.value
 
             targettype = typecheck_expression_not_void(state, targetexpr, NULL)
             value_type = typecheck_expression_not_void(state, valueexpr, targettype)
-            ensure_can_take_address(state.fom_types, targetexpr, "cannot assign to %s")
+            ensure_can_take_address(state->fom_types, targetexpr, "cannot assign to %s")
 
-            match stmt.kind:
+            match stmt->kind:
                 case AstStatementKind.InPlaceAdd:
                     op = AstExpressionKind.Add
                     opname = "addition"
@@ -1385,73 +1385,73 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 case _:
                     assert False
 
-            t = check_binop(state.fom_types, op, stmt.location, targetexpr, valueexpr)
-            if t != targetexpr.types.orig_type:
+            t = check_binop(state->fom_types, op, stmt->location, targetexpr, valueexpr)
+            if t != targetexpr->types.orig_type:
                 snprintf(
                     msg, sizeof msg,
                     "%s produced a value of type %s which cannot be assigned back to %s",
-                    opname, t.name, targetexpr.types.orig_type.name
+                    opname, t->name, targetexpr->types.orig_type->name
                 )
-                fail(stmt.location, msg)
+                fail(stmt->location, msg)
 
         case AstStatementKind.Return:
-            function_or_method = state.fom_types.signature.function_or_method()
+            function_or_method = state->fom_types->signature.function_or_method()
 
-            if state.fom_types.signature.is_noreturn:
+            if state->fom_types->signature.is_noreturn:
                 snprintf(
                     msg, sizeof(msg),
                     "%s '%s' cannot return because it was defined with '-> noreturn'",
-                    function_or_method, state.fom_types.signature.name,
+                    function_or_method, state->fom_types->signature.name,
                 )
-                fail(stmt.location, msg)
+                fail(stmt->location, msg)
 
-            return_type = state.fom_types.signature.return_type
+            return_type = state->fom_types->signature.return_type
 
-            if stmt.return_value != NULL and return_type == NULL:
+            if stmt->return_value != NULL and return_type == NULL:
                 snprintf(
                     msg, sizeof(msg), "%s '%s' cannot return a value because it was defined with '-> None'",
-                    function_or_method, state.fom_types.signature.name,
+                    function_or_method, state->fom_types->signature.name,
                 )
-                fail(stmt.location, msg)
+                fail(stmt->location, msg)
 
-            if return_type != NULL and stmt.return_value == NULL:
+            if return_type != NULL and stmt->return_value == NULL:
                 snprintf(msg, sizeof(msg),
                     "a return value is needed, because the return type of %s '%s' is %s",
                     function_or_method,
-                    state.fom_types.signature.name,
-                    state.fom_types.signature.return_type.name)
-                fail(stmt.location, msg)
+                    state->fom_types->signature.name,
+                    state->fom_types->signature.return_type->name)
+                fail(stmt->location, msg)
 
-            if stmt.return_value != NULL:
+            if stmt->return_value != NULL:
                 snprintf(msg, sizeof msg,
                     "attempting to return a value of type <from> from %s '%s' defined with '-> <to>'",
-                    function_or_method, state.fom_types.signature.name)
-                typecheck_expression_with_implicit_cast(state, stmt.return_value, return_type, msg)
+                    function_or_method, state->fom_types->signature.name)
+                typecheck_expression_with_implicit_cast(state, stmt->return_value, return_type, msg)
 
         case AstStatementKind.DeclareLocalVar:
-            varname = stmt.local_var_declare.name
+            varname = stmt->local_var_declare.name
 
-            if state.find_any_var(varname) != NULL:
+            if state->find_any_var(varname) != NULL:
                 snprintf(msg, sizeof(msg), "a variable named '%s' already exists", varname)
-                fail(stmt.location, msg)
+                fail(stmt->location, msg)
 
-            if state.find_any_constant(varname) != NULL:
+            if state->find_any_constant(varname) != NULL:
                 snprintf(msg, sizeof(msg), "a constant named '%s' already exists", varname)
-                fail(stmt.location, msg)
+                fail(stmt->location, msg)
 
-            type = type_from_ast(state.file_types, state.fom_types.signature.get_self_class(), &stmt.local_var_declare.type)
-            state.fom_types.add_variable(type, varname)
+            type = type_from_ast(state->file_types, state->fom_types->signature.get_self_class(), &stmt->local_var_declare.type)
+            state->fom_types->add_variable(type, varname)
 
-            if stmt.local_var_declare.value != NULL:
+            if stmt->local_var_declare.value != NULL:
                 typecheck_expression_with_implicit_cast(
-                    state, stmt.local_var_declare.value, type,
+                    state, stmt->local_var_declare.value, type,
                     "initial value for variable of type <to> cannot be of type <from>")
 
         case AstStatementKind.ExpressionStatement:
-            typecheck_expression(state, &stmt.expression, NULL)
+            typecheck_expression(state, &stmt->expression, NULL)
 
         case AstStatementKind.Assert:
-            typecheck_expression_with_implicit_cast(state, &stmt.expression, boolType, "assertion must be a bool, not <from>")
+            typecheck_expression_with_implicit_cast(state, &stmt->expression, boolType, "assertion must be a bool, not <from>")
 
         case (
             AstStatementKind.FunctionDeclare
@@ -1471,38 +1471,38 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
 
 
 def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) -> None:
-    assert state.fom_types == NULL
-    state.fom_types = &fom.types
+    assert state->fom_types == NULL
+    state->fom_types = &fom->types
 
-    sig = &fom.types.signature
-    for arg = sig.args.ptr; arg < sig.args.end(); arg++:
-        state.fom_types.add_variable(arg.type, arg.name)
+    sig = &fom->types.signature
+    for arg = sig->args.ptr; arg < sig->args.end(); arg++:
+        state->fom_types->add_variable(arg->type, arg->name)
 
-    typecheck_body(state, fom.body)
-    state.fom_types = NULL
+    typecheck_body(state, fom->body)
+    state->fom_types = NULL
 
 
 @public
 def typecheck_step3_function_and_method_bodies(ast: AstFile*) -> None:
-    state = State{file_types = &ast.types}
+    state = State{file_types = &ast->types}
 
-    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
-        match stmt.kind:
+    for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
+        match stmt->kind:
             case AstStatementKind.FunctionDef:
-                typecheck_function_or_method_body(&state, &stmt.function)
+                typecheck_function_or_method_body(&state, &stmt->function)
             case AstStatementKind.Class:
-                for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
-                    if inner.kind == AstStatementKind.MethodDef:
-                        typecheck_function_or_method_body(&state, &inner.method)
+                for inner = stmt->classdef.body.ptr; inner < stmt->classdef.body.end(); inner++:
+                    if inner->kind == AstStatementKind.MethodDef:
+                        typecheck_function_or_method_body(&state, &inner->method)
             case AstStatementKind.Assert:
                 c: Constant
-                if not evaluate_constant_expression(&stmt.assertion.condition, &c, boolType):
-                    fail(stmt.location, "cannot evaluate assertion at compile time")
+                if not evaluate_constant_expression(&stmt->assertion.condition, &c, boolType):
+                    fail(stmt->location, "cannot evaluate assertion at compile time")
                 if c.get_type() != boolType:
                     msg: byte[500]
-                    snprintf(msg, sizeof(msg), "assertion must be a bool, not %s", c.get_type().name)
-                    fail(stmt.location, msg)
+                    snprintf(msg, sizeof(msg), "assertion must be a bool, not %s", c.get_type()->name)
+                    fail(stmt->location, msg)
                 if not c.boolean:
-                    fail(stmt.location, "assertion is False")
+                    fail(stmt->location, "assertion is False")
             case _:
                 pass

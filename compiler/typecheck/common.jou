@@ -42,11 +42,11 @@ class ExportSymbol:
         constant: Constant  # ExportSymbolKind.Const
 
     def free(self) -> None:
-        match self.kind:
+        match self->kind:
             case ExportSymbolKind.Function:
-                self.funcsignature.free()
+                self->funcsignature.free()
             case ExportSymbolKind.Constant:
-                self.constant.free()
+                self->constant.free()
             case _:
                 pass
 
@@ -54,20 +54,20 @@ class ExportSymbol:
 @public
 def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) -> Type*:
     if containing_class != NULL:
-        assert containing_class.kind == TypeKind.Class
-        for p = containing_class.classdata.generic_params.ptr; p < containing_class.classdata.generic_params.end(); p++:
+        assert containing_class->kind == TypeKind.Class
+        for p = containing_class->classdata.generic_params.ptr; p < containing_class->classdata.generic_params.end(); p++:
             # Should be e.g. List[T], where T is a typevar
-            assert (*p).kind == TypeKind.TypeVar
+            assert (*p)->kind == TypeKind.TypeVar
 
     msg: byte[500]
 
-    if asttype.is_void() or asttype.is_none() or asttype.is_noreturn():
-        snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype.name)
-        fail(asttype.location, msg)
+    if asttype->is_void() or asttype->is_none() or asttype->is_noreturn():
+        snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype->name)
+        fail(asttype->location, msg)
 
-    match asttype.kind:
+    match asttype->kind:
         case AstTypeKind.Named:
-            match asttype.name with strcmp:
+            match asttype->name with strcmp:
                 case "int":
                     return intType
                 case "long":
@@ -75,9 +75,9 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
                 case "byte":
                     return byteType
                 case "int8" | "int16" | "int32" | "int64":
-                    return int_type(atoi(&asttype.name[3]))
+                    return int_type(atoi(&asttype->name[3]))
                 case "uint8" | "uint16" | "uint32" | "uint64":
-                    return uint_type(atoi(&asttype.name[4]))
+                    return uint_type(atoi(&asttype->name[4]))
                 case "bool":
                     return boolType
                 case "float":
@@ -87,79 +87,79 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
                 case _:
                     # Are we inside a generic class? When defining List[T], we want to find the T.
                     if containing_class != NULL:
-                        assert containing_class.kind == TypeKind.Class
-                        cdata = &containing_class.classdata
-                        for p = cdata.generic_params.ptr; p < cdata.generic_params.end(); p++:
-                            if strcmp((*p).name, asttype.name) == 0:
+                        assert containing_class->kind == TypeKind.Class
+                        cdata = &containing_class->classdata
+                        for p = cdata->generic_params.ptr; p < cdata->generic_params.end(); p++:
+                            if strcmp((*p)->name, asttype->name) == 0:
                                 return *p
 
-                    found = ft.find_type(asttype.name)
+                    found = ft->find_type(asttype->name)
                     if found != NULL:
                         return found
 
                     # At this point we will show an error for sure.
-                    generic = ft.find_generic_class(asttype.name)
+                    generic = ft->find_generic_class(asttype->name)
                     if generic == NULL:
-                        snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype.name)
+                        snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype->name)
                     else:
                         # Suggest int for all params of the generic class, e.g. List[int]
-                        assert generic.classdata.is_generic()
-                        ints = malloc(10 * generic.classdata.generic_params.len)
+                        assert generic->classdata.is_generic()
+                        ints = malloc(10 * generic->classdata.generic_params.len)
                         assert ints != NULL
                         strcpy(ints, "int")
-                        for i = 1; i < generic.classdata.generic_params.len; i++:
+                        for i = 1; i < generic->classdata.generic_params.len; i++:
                             strcat(ints, ", int")
                         snprintf(
                             msg, sizeof(msg),
                             "%s is a generic class, use e.g. %s[%s] instead of just %s",
-                            generic.name, asttype.name, ints, asttype.name,
+                            generic->name, asttype->name, ints, asttype->name,
                         )
-                    fail(asttype.location, msg)
+                    fail(asttype->location, msg)
 
         case AstTypeKind.Pointer:
-            if asttype.value_type.is_void():
+            if asttype->value_type->is_void():
                 return voidPtrType
-            return type_from_ast(ft, containing_class, asttype.value_type).pointer_type()
+            return type_from_ast(ft, containing_class, asttype->value_type)->pointer_type()
 
         case AstTypeKind.Array:
-            tmp = type_from_ast(ft, containing_class, asttype.value_type)
-            len = evaluate_array_length(asttype.array.length)
+            tmp = type_from_ast(ft, containing_class, asttype->value_type)
+            len = evaluate_array_length(asttype->array.length)
             if len <= 0:
-                fail(asttype.array.length.location, "array length must be positive")
-            return tmp.array_type(len)
+                fail(asttype->array.length->location, "array length must be positive")
+            return tmp->array_type(len)
 
         case AstTypeKind.Generic:
-            name = asttype.generic.class_name
-            gclass = ft.find_generic_class(name)
+            name = asttype->generic.class_name
+            gclass = ft->find_generic_class(name)
             if gclass == NULL:
-                if ft.find_type(name) != NULL:
+                if ft->find_type(name) != NULL:
                     snprintf(msg, sizeof(msg), "%s is not generic, use just %s instead of %s[something]", name, name, name)
                 else:
                     snprintf(msg, sizeof(msg), "there is no generic class named '%s'", name)
-                fail(asttype.location, msg)
+                fail(asttype->location, msg)
 
-            assert gclass.kind == TypeKind.Class
-            assert gclass.classdata.is_generic()
+            assert gclass->kind == TypeKind.Class
+            assert gclass->classdata.is_generic()
 
             # Check number of parameters
-            expected = gclass.classdata.generic_params.len
-            got = asttype.generic.param_types.len
+            expected = gclass->classdata.generic_params.len
+            got = asttype->generic.param_types.len
             if expected != got:
                 snprintf(
                     msg, sizeof(msg), "generic class %s takes %lld type parameter%s, but it is used with %lld type parameter%s",
-                    gclass.name, expected, plural_s(expected), got, plural_s(got),
+                    gclass->name, expected, plural_s(expected), got, plural_s(got),
                 )
-                fail(asttype.location, msg)
+                fail(asttype->location, msg)
 
             assert expected == got
             n = got as int
 
-            from = gclass.classdata.generic_params.ptr
+            from = gclass->classdata.generic_params.ptr
             to: Type** = malloc(sizeof(to[0]) * n)
             assert to != NULL
             for i = 0; i < n; i++:
-                to[i] = type_from_ast(ft, containing_class, &asttype.generic.param_types.ptr[i])
+                to[i] = type_from_ast(ft, containing_class, &asttype->generic.param_types.ptr[i])
 
-            result = gclass.substitute_generic_params(from, to, n)
+            result = gclass->substitute_generic_params(from, to, n)
             free(to)
             return result

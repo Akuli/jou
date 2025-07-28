@@ -31,63 +31,63 @@ class UBuilder:
         return False
 
     def begin_function(self, sig: Signature*, public: bool) -> None:
-        self.uvg.signature = sig
-        self.current_block = self.uvg.add_block()
+        self->uvg.signature = sig
+        self->current_block = self->uvg.add_block()
 
     def end_function(self) -> None:
-        self.ret(NULL)
-        self.current_block = NULL
-        self.location = Location{}
+        self->ret(NULL)
+        self->current_block = NULL
+        self->location = Location{}
 
     def set_location(self, location: Location) -> None:
-        self.location = location
+        self->location = location
 
     def add_instruction(self, ins: UvgInstruction) -> None:
         assert ins.var >= 0
 
-        assert self.location.path != NULL
-        assert self.location.lineno != 0
-        ins.location = self.location
+        assert self->location.path != NULL
+        assert self->location.lineno != 0
+        ins.location = self->location
 
-        b = self.current_block
+        b = self->current_block
         assert b != NULL
-        b.instructions.append(ins)
+        b->instructions.append(ins)
 
     def begin_statement_in_a_body(self) -> None:
-        self.add_instruction(UvgInstruction{kind = UvgInstructionKind.Statement})
+        self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Statement})
 
     def use(self, var: int) -> None:
         if var >= 0:
-            self.add_instruction(UvgInstruction{kind = UvgInstructionKind.Use, var = var})
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Use, var = var})
 
     def set(self, var: int) -> None:
         if var >= 0:
-            self.add_instruction(UvgInstruction{kind = UvgInstructionKind.Set, var = var})
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.Set, var = var})
 
     def dont_analyze(self, var: int) -> None:
         if var >= 0:
-            self.add_instruction(UvgInstruction{kind = UvgInstructionKind.DontAnalyze, var = var})
+            self->add_instruction(UvgInstruction{kind = UvgInstructionKind.DontAnalyze, var = var})
 
     def stack_alloc(self, t: Type*, varname: byte*) -> int:
         if varname != NULL:
             # Currently the UVG does not support multiple variables with the same name.
-            assert not self.uvg.has_local_var(varname)
-        return self.uvg.get_local_var_ptr(varname)
+            assert not self->uvg.has_local_var(varname)
+        return self->uvg.get_local_var_ptr(varname)
 
     def set_ptr(self, ptr: int, value: int) -> None:
-        self.dont_analyze(value)
-        self.set(ptr)
+        self->dont_analyze(value)
+        self->set(ptr)
 
     def dereference(self, ptr: int) -> int:
-        self.use(ptr)
+        self->use(ptr)
         return ANONYMOUS_VALUE_ID
 
     def indexed_pointer(self, ptr: int, index: int) -> int:
-        self.dont_analyze(ptr)
+        self->dont_analyze(ptr)
         return ANONYMOUS_VALUE_ID
 
     def class_field_pointer(self, ptr: int, field_name: byte*) -> int:
-        self.dont_analyze(ptr)
+        self->dont_analyze(ptr)
         return ANONYMOUS_VALUE_ID
 
     def global_var_ptr(self, name: byte*, var_type: Type*) -> int:
@@ -98,7 +98,7 @@ class UBuilder:
 
     def call(self, sig: Signature*, args: int*, nargs: int) -> int:
         for i = 0; i < nargs; i++:
-            self.dont_analyze(args[i])
+            self->dont_analyze(args[i])
         return ANONYMOUS_VALUE_ID
 
     def array_string(self, s: byte*, array_size: int) -> int:
@@ -181,11 +181,11 @@ class UBuilder:
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: int) -> None:
-        self.set(ptr)
+        self->set(ptr)
 
     # value as to
     def cast(self, value: int, to: Type*) -> int:
-        if to.is_pointer_type():
+        if to->is_pointer_type():
             # Needed to keep track of pointers to local variables, implicit casts are basically everywhere
             return value
         elif to == boolType and (value == TRUE_ID or value == FALSE_ID):
@@ -194,57 +194,57 @@ class UBuilder:
             return value
         else:
             # e.g. cast pointer to long
-            self.dont_analyze(value)
+            self->dont_analyze(value)
             return ANONYMOUS_VALUE_ID
 
     # Blocks are used to implement e.g. if statements and loops.
     def add_block(self) -> UvgBlock*:
-        return self.uvg.add_block()
+        return self->uvg.add_block()
 
     # Decide which block will contain the resulting instructions.
     def set_current_block(self, block: UvgBlock*) -> None:
-        self.current_block = block
+        self->current_block = block
 
     def branch(self, cond: int, then: UvgBlock*, otherwise: UvgBlock*) -> None:
         match cond:
             case TRUE_ID:
-                self.jump(then)
+                self->jump(then)
             case FALSE_ID:
-                self.jump(otherwise)
+                self->jump(otherwise)
             case _:
-                assert self.current_block != NULL
-                assert self.current_block.terminator.kind == UvgTerminatorKind.NotSet
-                self.current_block.terminator = UvgTerminator{
+                assert self->current_block != NULL
+                assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
+                self->current_block->terminator = UvgTerminator{
                     kind = UvgTerminatorKind.Branch,
                     branch = UvgBranch{then = then, otherwise = otherwise},
                 }
-                self.current_block = NULL
+                self->current_block = NULL
 
     def jump(self, next_block: UvgBlock*) -> None:
-        assert self.current_block != NULL
-        assert self.current_block.terminator.kind == UvgTerminatorKind.NotSet
-        self.current_block.terminator = UvgTerminator{
+        assert self->current_block != NULL
+        assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
+        self->current_block->terminator = UvgTerminator{
             kind = UvgTerminatorKind.Jump,
             jump_block = next_block,
         }
-        self.current_block = NULL
+        self->current_block = NULL
 
     def unreachable(self) -> None:
-        assert self.current_block != NULL
-        assert self.current_block.terminator.kind == UvgTerminatorKind.NotSet
-        self.current_block.terminator = UvgTerminator{kind = UvgTerminatorKind.Unreachable}
-        self.current_block = NULL
+        assert self->current_block != NULL
+        assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
+        self->current_block->terminator = UvgTerminator{kind = UvgTerminatorKind.Unreachable}
+        self->current_block = NULL
 
     def ret(self, value: int*) -> None:
         if value != NULL:
-            self.set(self.uvg.get_local_var_ptr("return"))
+            self->set(self->uvg.get_local_var_ptr("return"))
 
-        if self.uvg.signature.return_type != NULL:
-            self.use(self.uvg.get_local_var_ptr("return"))
+        if self->uvg.signature->return_type != NULL:
+            self->use(self->uvg.get_local_var_ptr("return"))
 
-        assert self.current_block != NULL
-        assert self.current_block.terminator.kind == UvgTerminatorKind.NotSet
-        self.current_block.terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
+        assert self->current_block != NULL
+        assert self->current_block->terminator.kind == UvgTerminatorKind.NotSet
+        self->current_block->terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
 
 
 @public
@@ -252,19 +252,19 @@ def build_and_analyze_uvgs(ast: AstFile*, print: bool) -> None:
     builder = UBuilder{}
     builder_wrapper = AnyBuilder{ubuilder = &builder}
 
-    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
-        match stmt.kind:
+    for stmt = ast->body.ptr; stmt < ast->body.end(); stmt++:
+        match stmt->kind:
             case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt.function, stmt.location, ast.is_main_file, &builder_wrapper)
+                feed_ast_to_builder(&stmt->function, stmt->location, ast->is_main_file, &builder_wrapper)
                 if print:
                     builder.uvg.print()
                 uvg_analyze(&builder.uvg)
                 builder.uvg.free()
                 memset(&builder.uvg, 0, sizeof(builder.uvg))
             case AstStatementKind.Class:
-                for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
-                    if inner.kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner.method, inner.location, ast.is_main_file, &builder_wrapper)
+                for inner = stmt->classdef.body.ptr; inner < stmt->classdef.body.end(); inner++:
+                    if inner->kind == AstStatementKind.MethodDef:
+                        feed_ast_to_builder(&inner->method, inner->location, ast->is_main_file, &builder_wrapper)
                         if print:
                             builder.uvg.print()
                         uvg_analyze(&builder.uvg)

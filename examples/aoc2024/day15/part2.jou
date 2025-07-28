@@ -28,21 +28,21 @@ def move_right(start: byte*) -> None:
 
 # x_left and y specify the location of "[" part of box
 def can_move_box_up(grid: Grid*, x: int, y: int) -> bool:
-    if grid.get([x, y]) == '[':
+    if grid->get([x, y]) == '[':
         x_left = x
         x_right = x+1
-    elif grid.get([x, y]) == ']':
+    elif grid->get([x, y]) == ']':
         x_left = x-1
         x_right = x
     else:
         assert False
 
-    if grid.get([x_left, y-1]) == '#' or grid.get([x_right, y-1]) == '#':
+    if grid->get([x_left, y-1]) == '#' or grid->get([x_right, y-1]) == '#':
         # bumping into wall
         return False
 
     for x = x_left; x <= x_right; x++:
-        if strchr("[]", grid.get([x, y-1])) != NULL and not can_move_box_up(grid, x, y-1):
+        if strchr("[]", grid->get([x, y-1])) != NULL and not can_move_box_up(grid, x, y-1):
             # Some kind of box (aligned or not) above, and it won't move.
             return False
 
@@ -50,83 +50,83 @@ def can_move_box_up(grid: Grid*, x: int, y: int) -> bool:
 
 
 def move_box_up(grid: Grid*, x: int, y: int) -> None:
-    if grid.get([x, y]) == '[':
+    if grid->get([x, y]) == '[':
         x_left = x
         x_right = x+1
-    elif grid.get([x, y]) == ']':
+    elif grid->get([x, y]) == ']':
         x_left = x-1
         x_right = x
     else:
         assert False
 
     for x = x_left; x <= x_right; x++:
-        if strchr("[]", grid.get([x, y-1])) != NULL:
+        if strchr("[]", grid->get([x, y-1])) != NULL:
             move_box_up(grid, x, y-1)
 
-    assert grid.get([x_left, y-1]) == '.'
-    assert grid.get([x_right, y-1]) == '.'
-    assert grid.get([x_left, y]) == '['
-    assert grid.get([x_right, y]) == ']'
+    assert grid->get([x_left, y-1]) == '.'
+    assert grid->get([x_right, y-1]) == '.'
+    assert grid->get([x_left, y]) == '['
+    assert grid->get([x_right, y]) == ']'
 
-    grid.set([x_left, y-1], '[')
-    grid.set([x_right, y-1], ']')
-    grid.set([x_left, y], '.')
-    grid.set([x_right, y], '.')
+    grid->set([x_left, y-1], '[')
+    grid->set([x_right, y-1], ']')
+    grid->set([x_left, y], '.')
+    grid->set([x_right, y], '.')
 
 
 def can_move_up(grid: Grid*) -> bool:
-    pos: int[2] = grid.find_first('@')
+    pos: int[2] = grid->find_first('@')
     above = [pos[0], pos[1] - 1]
 
     return (
-        grid.get(above) == '.'
+        grid->get(above) == '.'
         or (
-            strchr("[]", grid.get(above)) != NULL
+            strchr("[]", grid->get(above)) != NULL
             and can_move_box_up(grid, above[0], above[1])
         )
     )
 
 
 def move_up(grid: Grid*) -> None:
-    pos: int[2] = grid.find_first('@')
+    pos: int[2] = grid->find_first('@')
     above = [pos[0], pos[1] - 1]
 
-    if strchr("[]", grid.get(above)) != NULL:
+    if strchr("[]", grid->get(above)) != NULL:
         move_box_up(grid, above[0], above[1])
 
-    assert grid.get(above) == '.'
-    assert grid.get(pos) == '@'
+    assert grid->get(above) == '.'
+    assert grid->get(pos) == '@'
 
-    grid.set(above, '@')
-    grid.set(pos, '.')
+    grid->set(above, '@')
+    grid->set(pos, '.')
 
 
 def horizontal_mirror(grid: Grid*) -> None:
-    bytes_per_row = grid.width + 1
-    for y = 0; y < grid.height; y++:
-        first = &grid.data[bytes_per_row * y]
-        last = &first[grid.width - 1]
+    bytes_per_row = grid->width + 1
+    for y = 0; y < grid->height; y++:
+        first = &grid->data[bytes_per_row * y]
+        last = &first[grid->width - 1]
         while first < last:
             memswap(first++, last--, 1)
 
 
 def vertical_mirror(grid: Grid*) -> None:
-    bytes_per_row = grid.width + 1
-    first = grid.data
-    last = &first[bytes_per_row*(grid.height - 1)]
+    bytes_per_row = grid->width + 1
+    first = grid->data
+    last = &first[bytes_per_row*(grid->height - 1)]
 
     while first < last:
-        memswap(first, last, grid.width)
+        memswap(first, last, grid->width)
         first = &first[bytes_per_row]
         last = &last[-bytes_per_row]
 
 
 def move(grid: Grid*, how: byte) -> None:
     if how == '>':
-        move_right(strstr(grid.data, "@"))
+        move_right(strstr(grid->data, "@"))
     elif how == '<':
         horizontal_mirror(grid)
-        move_right(strstr(grid.data, "@"))
+        move_right(strstr(grid->data, "@"))
         horizontal_mirror(grid)
     elif how == '^':
         if can_move_up(grid):
@@ -142,23 +142,23 @@ def move(grid: Grid*, how: byte) -> None:
 
 def double_width(grid: Grid*) -> None:
     new_grid = Grid{
-        width = 2 * grid.width,
-        height = grid.height,
-        data = malloc((2*grid.width + 1)*grid.height + 1),
+        width = 2 * grid->width,
+        height = grid->height,
+        data = malloc((2*grid->width + 1)*grid->height + 1),
     }
     new_grid.data[0] = '\0'
-    for y = 0; y < grid.height; y++:
-        for x = 0; x < grid.width; x++:
-            if grid.get([x, y]) == 'O':
+    for y = 0; y < grid->height; y++:
+        for x = 0; x < grid->width; x++:
+            if grid->get([x, y]) == 'O':
                 strcat(new_grid.data, "[]")
-            elif grid.get([x, y]) == '@':
+            elif grid->get([x, y]) == '@':
                 strcat(new_grid.data, "@.")
             else:
-                s = [grid.get([x, y]), grid.get([x, y]), '\0']
+                s = [grid->get([x, y]), grid->get([x, y]), '\0']
                 strcat(new_grid.data, s)
         strcat(new_grid.data, "\n")
 
-    free(grid.data)
+    free(grid->data)
     *grid = new_grid
 
 

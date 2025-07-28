@@ -49,14 +49,14 @@ class UvgBlock:
     terminator: UvgTerminator
 
     def free(self) -> None:
-        free(self.instructions.ptr)
+        free(self->instructions.ptr)
 
     def jumps_to(self, other: UvgBlock*) -> bool:
-        match self.terminator.kind:
+        match self->terminator.kind:
             case UvgTerminatorKind.Jump:
-                return other == self.terminator.jump_block
+                return other == self->terminator.jump_block
             case UvgTerminatorKind.Branch:
-                return other == self.terminator.branch.then or other == self.terminator.branch.otherwise
+                return other == self->terminator.branch.then or other == self->terminator.branch.otherwise
             case _:
                 return False
 
@@ -72,60 +72,60 @@ class Uvg:
     varnames: List[byte[100]]
 
     def free(self) -> None:
-        for b = self.blocks.ptr; b < self.blocks.end(); b++:
-            (*b).free()
+        for b = self->blocks.ptr; b < self->blocks.end(); b++:
+            (*b)->free()
             free(*b)
-        free(self.blocks.ptr)
-        free(self.varnames.ptr)
+        free(self->blocks.ptr)
+        free(self->varnames.ptr)
 
     def index_of_block(self, b: UvgBlock*) -> int:
-        for i = 0; i < self.blocks.len; i++:
-            if self.blocks.ptr[i] == b:
+        for i = 0; i < self->blocks.len; i++:
+            if self->blocks.ptr[i] == b:
                 return i
         assert False
 
     def print(self) -> None:
-        sigstr = self.signature.to_string(True, True)
+        sigstr = self->signature->to_string(True, True)
         printf("===== UVG for %s =====\n", sigstr)
         free(sigstr)
 
-        assert self.blocks.len > 0
+        assert self->blocks.len > 0
 
-        for i = 0; i < self.blocks.len; i++:
+        for i = 0; i < self->blocks.len; i++:
             if i == 0:
                 printf("block 0 (start):\n")
             else:
                 printf("block %d:\n", i)
-            b = self.blocks.ptr[i]
+            b = self->blocks.ptr[i]
 
-            for ins = b.instructions.ptr; ins < b.instructions.end(); ins++:
+            for ins = b->instructions.ptr; ins < b->instructions.end(); ins++:
                 s: byte[50]
-                sprintf(s, "    [line %-5d]", ins.location.lineno)
+                sprintf(s, "    [line %-5d]", ins->location.lineno)
 
                 # Move the ']' right next to the number because I like it that way :D
                 while strstr(s, " ]") != NULL:
                     memswap(strstr(s, " ]"), strstr(s, "]"), 1)
                 printf("%s", s)
 
-                match ins.kind:
+                match ins->kind:
                     case UvgInstructionKind.Use:
-                        printf("use %s\n", self.varnames.ptr[ins.var])
+                        printf("use %s\n", self->varnames.ptr[ins->var])
                     case UvgInstructionKind.Set:
-                        printf("set %s\n", self.varnames.ptr[ins.var])
+                        printf("set %s\n", self->varnames.ptr[ins->var])
                     case UvgInstructionKind.DontAnalyze:
-                        printf("don't analyze %s\n", self.varnames.ptr[ins.var])
+                        printf("don't analyze %s\n", self->varnames.ptr[ins->var])
                     case UvgInstructionKind.Statement:
                         printf("statement\n")
 
             printf("    ")
-            match b.terminator.kind:
+            match b->terminator.kind:
                 case UvgTerminatorKind.Jump:
-                    printf("Jump to block %d.\n", self.index_of_block(b.terminator.jump_block))
+                    printf("Jump to block %d.\n", self->index_of_block(b->terminator.jump_block))
                 case UvgTerminatorKind.Branch:
                     printf(
                         "Jump to either block %d or %d depending on some condition.\n",
-                        self.index_of_block(b.terminator.branch.then),
-                        self.index_of_block(b.terminator.branch.otherwise),
+                        self->index_of_block(b->terminator.branch.then),
+                        self->index_of_block(b->terminator.branch.otherwise),
                     )
                 case UvgTerminatorKind.Return:
                     printf("Return from function.\n")
@@ -139,30 +139,30 @@ class Uvg:
         b: UvgBlock* = malloc(sizeof(*b))
         assert b != NULL
         memset(b, 0, sizeof(*b))
-        self.blocks.append(b)
+        self->blocks.append(b)
         return b
 
     def has_local_var(self, varname: byte*) -> bool:
         assert varname != NULL
-        for v = self.varnames.ptr; v < self.varnames.end(); v++:
+        for v = self->varnames.ptr; v < self->varnames.end(); v++:
             if strcmp(*v, varname) == 0:
                 return True
         return False
 
     def get_local_var_ptr(self, varname: byte*) -> int:
         if varname != NULL:
-            for i = 0; i < self.varnames.len; i++:
-                if strcmp(self.varnames.ptr[i], varname) == 0:
+            for i = 0; i < self->varnames.len; i++:
+                if strcmp(self->varnames.ptr[i], varname) == 0:
                     # Reuse existing
                     return i
 
         actual_varname: byte[100]
         if varname == NULL:
-            sprintf(actual_varname, "$%lld", self.varnames.len)
+            sprintf(actual_varname, "$%lld", self->varnames.len)
         else:
             assert strlen(varname) < sizeof(actual_varname)
             strcpy(actual_varname, varname)
 
-        index = self.varnames.len
-        self.varnames.append(actual_varname)
+        index = self->varnames.len
+        self->varnames.append(actual_varname)
         return index as int

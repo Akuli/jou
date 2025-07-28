@@ -19,7 +19,7 @@ class Foo[T]:
 
     def call_the_inlined(self) -> None:
         printf("Calling the inlined\n")
-        self.inlined()
+        self->inlined()
 
     # Calling inline method from inline method
     @inline
@@ -28,7 +28,7 @@ class Foo[T]:
 
     @inline
     def inline_outer(self, x: T) -> T:
-        return self.inline_inner(x)
+        return self->inline_inner(x)
 
 
 def main() -> int:
