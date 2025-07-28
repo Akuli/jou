@@ -172,7 +172,7 @@ class AstToBuilder:
         if call->method_call_self != NULL:
             # it is a method call, pass self as first argument
             want_pointer = call->called_signature->args.ptr[0].type->is_pointer_type()
-            got_pointer = call->uses_arrow_operator
+            got_pointer = call->method_call_self->types.implicit_cast_type->is_pointer_type()
 
             if want_pointer and not got_pointer:
                 arg = self->build_address_of_expression(call->method_call_self)
@@ -416,18 +416,22 @@ class AstToBuilder:
                 # ptr[foo] can always be evaluated as &ptr[foo], because ptr is already a pointer.
                 # We can't do this for all expressions, because e.g. &some_function() is error.
                 return self->builder->dereference(self->build_address_of_expression(expr))
+            case AstExpressionKind.DotOperator:
+                # Should become other expression kind before we get here
+                assert False
             case AstExpressionKind.GetEnumMember:
                 return self->builder->enum_member(expr->types.orig_type, expr->enum_member.member_name)
             case AstExpressionKind.GetClassField:
-                if expr->class_field.uses_arrow_operator:
-                    ptr = self->build_expression(expr->class_field.instance)
-                else:
-                    # Evaluate foo.bar as (&temp)->bar, where temp is a temporary copy of foo.
-                    # We need to copy, because it's not always possible to evaluate &foo.
-                    # For example, consider evaluating some_function().some_field.
-                    instance = self->build_expression(expr->class_field.instance)
-                    ptr = self->builder->stack_alloc(self->map_type(expr->class_field.instance->types.implicit_cast_type), NULL)
-                    self->builder->set_ptr(ptr, instance)
+                # Evaluate foo.bar as (&temp).bar, where temp is a temporary copy of foo.
+                # We need to copy, because it's not always possible to evaluate &foo.
+                # For example, consider evaluating some_function().some_field.
+                instance = self->build_expression(expr->class_field.instance)
+                ptr = self->builder->stack_alloc(self->map_type(expr->class_field.instance->types.implicit_cast_type), NULL)
+                self->builder->set_ptr(ptr, instance)
+                fieldptr = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
+                return self->builder->dereference(fieldptr)
+            case AstExpressionKind.GetClassFieldPtr:
+                ptr = self->build_expression(expr->class_field.instance)
                 fieldptr = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
                 return self->builder->dereference(fieldptr)
             case AstExpressionKind.As:
@@ -505,12 +509,12 @@ class AstToBuilder:
 
         match expr->kind:
             case AstExpressionKind.GetClassField:
-                if expr->class_field.uses_arrow_operator:
-                    # &ptr->field = ptr + memory offset
-                    ptr = self->build_expression(expr->class_field.instance)
-                else:
-                    # &obj.field = &obj + memory offset
-                    ptr = self->build_address_of_expression(expr->class_field.instance)
+                # &instance.field = &instance + memory offset
+                ptr = self->build_address_of_expression(expr->class_field.instance)
+                result = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
+            case AstExpressionKind.GetClassFieldPtr:
+                # &pointer.field = pointer + memory offset
+                ptr = self->build_expression(expr->class_field.instance)
                 result = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
             case AstExpressionKind.Self:
                 result = self->local_var_ptr("self")

@@ -277,7 +277,7 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 def add_one(list: List[int]*) -> None:
-    list->append(1)
+    list.append(1)
 
 def main() -> int:
     numbers = List[int]{}
@@ -302,7 +302,7 @@ Even worse, if the list contents need to be moved to a new memory location,
 the `main()` function will see the old location of the list and probably crash the program.
 
 However, if the length of the list won't change,
-you can simply pass it by value (that is, without a pointer):
+you can simply pass the list by value (that is, without a pointer):
 
 ```python
 def print_items(list: List[int]) -> None:

@@ -124,7 +124,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             snprintf(result, sizeof result, "address of %s", inner)
             return result
 
-        case AstExpressionKind.GetClassField:
+        case AstExpressionKind.GetClassField | AstExpressionKind.GetClassFieldPtr | AstExpressionKind.DotOperator:
             snprintf(result, sizeof result, "field '%s'", expr->class_field.field_name)
             return result
 
@@ -143,27 +143,24 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
     # before type-checking the expression. That's bad because this depends on
     # the results of type checking.
     #
-    # The dependency is a bit surprising. Jou code "foo.bar" can be either an
-    # enum member, or a field on an instance of a class. That is determined
-    # when type checking. Members of instances can be (usually) assigned to,
-    # but enum members cannot.
+    # The dependency is a bit surprising. Jou code "foo.bar" can mean many things:
+    #   - "foo" is an enum, "bar" is an enum member
+    #   - "foo" is an instance of a class, "bar" is a field
+    #   - "foo" is a pointer to an instance of a class, "bar" is a field
     assert expr->types.orig_type != NULL
 
     if (
         expr->kind == AstExpressionKind.Dereference
-        or expr->kind == AstExpressionKind.Indexing  # &foo[bar]
-        or (
-            # &foo->bar = foo + offset (it doesn't use &foo)
-            expr->kind == AstExpressionKind.GetClassField
-            and expr->class_field.uses_arrow_operator
-        )
+        # &pointer[index] = pointer + itemsize*index (doesn't use &pointer)
+        or expr->kind == AstExpressionKind.Indexing
+        # &pointer.field = pointer + offset (doesn't use &pointer)
+        or expr->kind == AstExpressionKind.GetClassFieldPtr
     ):
         return
 
     if expr->kind == AstExpressionKind.GetClassField:
         # &foo.bar = &foo + offset
-        assert not expr->class_field.uses_arrow_operator
-
+        #
         # Turn "cannot assign to %s" into "cannot assign to a field of %s".
         # This assumes that errmsg_template is relatively simple, i.e. it only contains one %s somewhere.
         newtemplate: byte*
@@ -833,17 +830,17 @@ def cast_ternary_values_to_a_common_type(
 
 # The AST "foo.bar" may be:
 #   - field "bar" of an instance of some class stored to variable "foo"
+#   - field "bar" of an instance where pointer "foo" points
 #   - member "bar" of enum "foo"
 #
-# The parser assumes it is always a field on an instance, because it's more
-# general: "foo" can be any expression, not necessarily enum name.
+# This function recognizes enum members and modifies the AST accordingly.
+# It does not distinguish between fields that use a pointer vs access
+# directly. This cannot be done in the parser because it doesn't know what
+# enums exist (they may be e.g. imported from other files).
 #
-# This function modifies the AST so that it sometimes changes from accessing
-# class fields to accessing enum members. This cannot be done in the parser
-# because it doesn't know what enums exist (they may be e.g. imported from
-# other files). Feels like a hack, but works great :)
-def handle_conflicting_class_field_and_enum_member_syntax(state: State*, expr: AstExpression*) -> None:
-    if expr->kind != AstExpressionKind.GetClassField:
+# Feels like a hack, but works great :)
+def detect_enum_member_syntax(state: State*, expr: AstExpression*) -> None:
+    if expr->kind != AstExpressionKind.DotOperator:
         # not foo.bar
         return
 
@@ -879,9 +876,6 @@ def handle_conflicting_class_field_and_enum_member_syntax(state: State*, expr: A
             )
             fail(expr->location, msg)
 
-    if expr->class_field.uses_arrow_operator:
-        fail(expr->location, "the '->' operator cannot be used to look up enum members")
-
     free(expr->class_field.instance)
     expr->kind = AstExpressionKind.GetEnumMember
     expr->enum_member = AstEnumMember{
@@ -894,7 +888,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
     msg: byte[500]
     result: Type* = NULL
 
-    handle_conflicting_class_field_and_enum_member_syntax(state, expr)
+    detect_enum_member_syntax(state, expr)
 
     match expr->kind:
         case AstExpressionKind.IntegerConstant:
@@ -965,74 +959,53 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             membertype = cast_array_members_to_a_common_type(state->fom_types, expr->location, expr->array, item_type_hint)
             result = membertype->array_type(expr->array.len as int)
 
-        case AstExpressionKind.GetClassField:
-            if expr->class_field.uses_arrow_operator:
-                temptype = typecheck_expression_not_void(state, expr->class_field.instance, NULL)
-                if temptype->kind != TypeKind.Pointer or temptype->value_type->kind != TypeKind.Class:
-                    snprintf(
-                        msg, sizeof(msg),
-                        "left side of '->' operator must be a pointer to an instance of a class, not %s",
-                        temptype->name)
-                    if temptype->kind == TypeKind.Class and strlen(msg) + 50 < sizeof(msg):
-                        strcat(msg, " (try . instead of ->)")
-                    fail(expr->location, msg)
+        case AstExpressionKind.DotOperator:
+            # Not enum, that is handled already.
+            # It is either instance.field or pointer_to_instance.field.
+            temptype = typecheck_expression_not_void(state, expr->class_field.instance, NULL)
+            if temptype->kind == TypeKind.Class:
+                expr->kind = AstExpressionKind.GetClassField
+                result = typecheck_class_field(temptype, expr->class_field.field_name, expr->location)->type
+            elif temptype->kind == TypeKind.Pointer and temptype->value_type->kind == TypeKind.Class:
+                expr->kind = AstExpressionKind.GetClassFieldPtr
                 result = typecheck_class_field(temptype->value_type, expr->class_field.field_name, expr->location)->type
             else:
-                temptype = typecheck_expression_not_void(state, expr->class_field.instance, NULL)
-                if temptype->kind != TypeKind.Class:
-                    snprintf(
-                        msg, sizeof(msg),
-                        "left side of '.' operator must be an instance of a class, not %s",
-                        temptype->name)
-                    if (
-                        temptype->kind == TypeKind.Pointer
-                        and temptype->value_type->kind == TypeKind.Class
-                        and strlen(msg) + 50 < sizeof(msg)
-                    ):
-                        strcat(msg, " (try -> instead of .)")
-                    fail(expr->location, msg)
-                result = typecheck_class_field(temptype, expr->class_field.field_name, expr->location)->type
+                snprintf(
+                    msg, sizeof(msg),
+                    "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
+                    temptype->name)
+                fail(expr->location, msg)
+
+        case AstExpressionKind.GetClassField | AstExpressionKind.GetClassFieldPtr:
+            # Constructed above, should not already be like this when we get here
+            assert False
 
         case AstExpressionKind.Call:
             if expr->call.method_call_self == NULL:
                 result = typecheck_function_or_method_call(state, &expr->call, NULL, expr->location)
-            elif expr->call.uses_arrow_operator:
-                temptype = typecheck_expression_not_void(state, expr->call.method_call_self, NULL)
-                if temptype->kind != TypeKind.Pointer or temptype->value_type->kind != TypeKind.Class:
-                    snprintf(msg, sizeof(msg),
-                        "left side of '->' operator must be a pointer to an instance of a class, not %s",
-                        temptype->name)
-                    if temptype->kind == TypeKind.Class and strlen(msg) + 50 < sizeof(msg):
-                        strcat(msg, " (try . instead of ->)")
-                    fail(expr->location, msg)
-                result = typecheck_function_or_method_call(state, &expr->call, temptype->value_type, expr->location)
             else:
                 temptype = typecheck_expression_not_void(state, expr->call.method_call_self, NULL)
-                if temptype->kind != TypeKind.Class:
+                if temptype->kind == TypeKind.Class:
+                    result = typecheck_function_or_method_call(state, &expr->call, temptype, expr->location)
+                elif temptype->kind == TypeKind.Pointer and temptype->value_type->kind == TypeKind.Class:
+                    result = typecheck_function_or_method_call(state, &expr->call, temptype->value_type, expr->location)
+                else:
                     snprintf(msg, sizeof(msg),
-                        "left side of '.' operator must be an instance of a class, not %s",
+                        "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
                         temptype->name)
-                    if (
-                        temptype->kind == TypeKind.Pointer
-                        and temptype->value_type->kind == TypeKind.Class
-                        and strlen(msg) + 50 < sizeof(msg)
-                    ):
-                        strcat(msg, " (try -> instead of .)")
                     fail(expr->location, msg)
 
-                result = typecheck_function_or_method_call(state, &expr->call, temptype, expr->location)
-
-                # If self argument is passed by pointer, make sure we can create that pointer
-                assert temptype->kind == TypeKind.Class
-                signature = temptype->find_method(expr->call.name)
-                assert signature != NULL
-                if signature->args.ptr[0].type->is_pointer_type():
-                    assert strstr(expr->call.name, "%") == NULL
-                    snprintf(
-                        msg, sizeof msg,
-                        "cannot take address of %%s, needed for calling the %s() method",
-                        expr->call.name)
-                    ensure_can_take_address(state->fom_types, expr->call.method_call_self, msg)
+                # If self argument must be passed by pointer, make sure we can create that pointer
+                if temptype->kind == TypeKind.Class:
+                    signature = temptype->find_method(expr->call.name)
+                    assert signature != NULL
+                    if signature->args.ptr[0].type->is_pointer_type():
+                        assert strstr(expr->call.name, "%") == NULL
+                        snprintf(
+                            msg, sizeof msg,
+                            "cannot take address of %%s, needed for calling the %s() method",
+                            expr->call.name)
+                        ensure_can_take_address(state->fom_types, expr->call.method_call_self, msg)
 
             if result == NULL:
                 # no return value produced

@@ -130,7 +130,6 @@ class AstEnumMember:
 @public
 class AstClassField:
     instance: AstExpression*
-    uses_arrow_operator: bool  # distinguishes foo.bar and foo->bar
     field_name: byte[100]
 
     def free(self) -> None:
@@ -179,8 +178,10 @@ enum AstExpressionKind:
     Instantiate   # MyClass{x=1, y=2}
     Self    # not a variable lookup, so you can't use 'self' as variable name outside a class
     GetVariable
-    GetEnumMember
-    GetClassField   # foo.bar, foo->bar
+    DotOperator         # foo.bar (don't know yet which way to interpret it)
+    GetEnumMember       # foo.bar, foo is an enum
+    GetClassField       # foo.bar, foo is an instance of a class
+    GetClassFieldPtr    # foo.bar, foo is a pointer to an instance of a class
     As
     # unary operators
     SizeOf      # sizeof x
@@ -262,6 +263,9 @@ class AstExpression:
                 printf("self\n")
             case AstExpressionKind.GetVariable:
                 printf("get variable \"%s\"\n", self->varname)
+            case AstExpressionKind.DotOperator:
+                printf("get member \"%s\"\n", self->class_field.field_name)
+                self->class_field.instance->print_with_tree_printer(tp.print_prefix(True))
             case AstExpressionKind.GetEnumMember:
                 printf(
                     "get member \"%s\" from enum \"%s\"\n",
@@ -269,10 +273,10 @@ class AstExpression:
                     self->enum_member.enum_name,
                 )
             case AstExpressionKind.GetClassField:
-                printf("get class field \"%s\"", self->class_field.field_name)
-                if self->class_field.uses_arrow_operator:
-                    printf(" with the arrow operator")
-                printf("\n")
+                printf("get class field from instance \"%s\"\n", self->class_field.field_name)
+                self->class_field.instance->print_with_tree_printer(tp.print_prefix(True))
+            case AstExpressionKind.GetClassFieldPtr:
+                printf("get class field from pointer \"%s\"\n", self->class_field.field_name)
                 self->class_field.instance->print_with_tree_printer(tp.print_prefix(True))
             case AstExpressionKind.As:
                 self->as_->print_with_tree_printer(tp)
@@ -433,7 +437,6 @@ class AstCall:
     location: Location
     name: byte[100]  # name of function or method
     method_call_self: AstExpression*  # NULL for function calls, the foo of foo.bar() for method calls
-    uses_arrow_operator: bool  # distinguishes foo->bar() and foo.bar()
     args: List[AstExpression]
     called_signature: Signature*  # populated in typecheck, NULL before typecheck runs, not owned
 
@@ -441,10 +444,7 @@ class AstCall:
         self->print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("call %s \"%s\"", self->function_or_method(), self->name)
-        if self->uses_arrow_operator:
-            printf(" with the arrow operator")
-        printf("\n")
+        printf("call %s \"%s\"\n", self->function_or_method(), self->name)
 
         if self->method_call_self != NULL:
             sub = tp.print_prefix(self->args.len == 0)
