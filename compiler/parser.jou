@@ -718,7 +718,6 @@ class Parser:
                 if self->tokens[1].is_operator("("):
                     call = self->parse_call()
                     call.method_call_self = instance
-                    call.uses_arrow_operator = start_op->is_operator("->")
                     result = AstExpression{
                         location = call.location,
                         kind = AstExpressionKind.Call,
@@ -727,10 +726,9 @@ class Parser:
                 else:
                     result = AstExpression{
                         location = self->tokens->location,
-                        kind = AstExpressionKind.GetClassField,
+                        kind = AstExpressionKind.DotOperator,
                         class_field = AstClassField{
                             instance = instance,
-                            uses_arrow_operator = start_op->is_operator("->"),
                             field_name = self->tokens->short_string,
                         },
                     }
