@@ -698,7 +698,7 @@ class Parser:
     def parse_expression_with_fields_and_methods_and_indexing(self) -> AstExpression:
         result = self->parse_elementary_expression()
 
-        while self->tokens->is_operator(".") or self->tokens->is_operator("->") or self->tokens->is_operator("["):
+        while True:
             if self->tokens->is_operator("["):
                 open_bracket = self->tokens++
                 operands = [result, self->parse_expression()]
@@ -707,7 +707,10 @@ class Parser:
                 self->tokens++
                 result = build_operator_expression(open_bracket, 2, operands)
 
-            else:
+            elif self->tokens->is_operator("->"):
+                fail(self->tokens->location, "use . instead of ->")
+
+            elif self->tokens->is_operator("."):
                 start_op = self->tokens++
                 if self->tokens->kind != TokenKind.Name:
                     self->tokens->fail_expected_got("a field or method name")
@@ -734,7 +737,8 @@ class Parser:
                     }
                     self->tokens++
 
-        return result
+            else:
+                return result
 
     def parse_expression_with_unary_operators(self) -> AstExpression:
         # prefix = sequence of 0 or more unary operator tokens: start,start+1,...,end-1
