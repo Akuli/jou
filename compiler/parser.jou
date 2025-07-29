@@ -698,7 +698,7 @@ class Parser:
     def parse_expression_with_fields_and_methods_and_indexing(self) -> AstExpression:
         result = self.parse_elementary_expression()
 
-        while self.tokens.is_operator(".") or self.tokens.is_operator(".") or self.tokens.is_operator("["):
+        while self.tokens.is_operator("[") or self.tokens.is_operator("."):
             if self.tokens.is_operator("["):
                 open_bracket = self.tokens++
                 operands = [result, self.parse_expression()]
@@ -733,6 +733,9 @@ class Parser:
                         },
                     }
                     self.tokens++
+
+        if self.tokens.is_operator("->"):
+            fail(self.tokens.location, "use . instead of ->")
 
         return result
 

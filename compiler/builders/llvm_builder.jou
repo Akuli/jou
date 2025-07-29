@@ -304,7 +304,7 @@ class LBuilder:
         )
         return LBuilderValue{type = ptr.type, llvm_value = llvm_result}
 
-    # Returns &ptr->field
+    # Returns &ptr.field
     def class_field_pointer(self, ptr: LBuilderValue, field_name: byte*) -> LBuilderValue:
         assert ptr.type.kind == TypeKind.Pointer
         classtype = ptr.type.value_type
@@ -339,8 +339,8 @@ class LBuilder:
         for i = 0; i < nargs; i++:
             if i < sig.args.len:
                 # not a vararg
-                # TODO: this assertion fails with generics when calling self->method() inside inline function
-                #assert args[i].type == sig->args.ptr[i].type
+                # TODO: this assertion fails with generics when calling self.method() inside inline function
+                #assert args[i].type == sig.args.ptr[i].type
                 pass
             llvm_args[i] = args[i].llvm_value
 
