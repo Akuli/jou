@@ -3,6 +3,7 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "./ast.jou"
+import "./errors_and_warnings.jou"
 
 
 @public
@@ -205,15 +206,20 @@ class Type:
                 return new_item_type.array_type(self.array.len)
 
             case TypeKind.FuncPtr:
-                new_argtypes = List[Type*]{}
-                for p = self.func_ptr.argtypes.ptr; p < self.func_ptr.argtypes.end(); p++:
-                    new_argtypes.append((*p).substitute_generic_params(from, to, n))
+                nargs = self.func_ptr.argtypes.len
+                new_argtypes: Type** = malloc(sizeof(new_argtypes[0]) * nargs)
+                assert new_argtypes != NULL
+
+                for i = 0; i < nargs; i++:
+                    new_argtypes[i] = self.func_ptr.argtypes.ptr[i].substitute_generic_params(from, to, n)
+
                 if self.func_ptr.return_type == NULL:
                     new_return_type = NULL
                 else:
                     new_return_type = self.func_ptr.return_type.substitute_generic_params(from, to, n)
-                result = funcptr_type(new_argtypes, new_return_type, self.func_ptr.is_noreturn)
-                free(new_argtypes.ptr)
+
+                result = funcptr_type(new_argtypes, nargs, new_return_type, self.func_ptr.is_noreturn)
+                free(new_argtypes)
                 return result
 
             case (
@@ -382,7 +388,7 @@ def uint_type(bits: int) -> Type*:
 
 # Return a function pointer type like "funcptr(int, int) -> int"
 @public
-def funcptr_type(argtypes: List[Type*], return_type: Type*, is_noreturn: bool) -> Type*:
+def funcptr_type(argtypes: Type**, nargs: long, return_type: Type*, is_noreturn: bool) -> Type*:
     if is_noreturn:
         assert return_type == NULL
 
@@ -391,8 +397,8 @@ def funcptr_type(argtypes: List[Type*], return_type: Type*, is_noreturn: bool) -
         t: Type* = &(*infoptr).type
         assert t.kind == TypeKind.FuncPtr
         if (
-            t.func_ptr.argtypes.len == argtypes.len
-            and memcmp(t.func_ptr.argtypes.ptr, argtypes.ptr, sizeof(argtypes.ptr[0]) * argtypes.len) == 0
+            t.func_ptr.argtypes.len == nargs
+            and memcmp(t.func_ptr.argtypes.ptr, argtypes, sizeof(argtypes[0]) * nargs) == 0
             and t.func_ptr.return_type == return_type
         ):
             # Yes: do not create another one so that we can use "==" to compare types given as Type*
@@ -401,10 +407,10 @@ def funcptr_type(argtypes: List[Type*], return_type: Type*, is_noreturn: bool) -
     argstr: byte[500] = ""
     pos = 0
 
-    for i = 0; i < argtypes.len; i++:
+    for i = 0; i < nargs; i++:
         if i != 0:
             pos += snprintf(&argstr[pos], sizeof(argstr) - pos, ", ")
-        pos += snprintf(&argstr[pos], sizeof(argstr) - pos, "%s", argtypes.ptr[i].name)
+        pos += snprintf(&argstr[pos], sizeof(argstr) - pos, "%s", argtypes[i].name)
 
     if return_type == NULL:
         if is_noreturn:
@@ -415,22 +421,19 @@ def funcptr_type(argtypes: List[Type*], return_type: Type*, is_noreturn: bool) -
         assert not is_noreturn
         ret_name = return_type.name
 
-    # Allocate new memory for the argtypes list, do not "eat" the given list
-    argtypes2 = List[Type*]{}
-    for p = argtypes.ptr; p < argtypes.end(); p++:
-        argtypes2.append(*p)
-
     info: TypeInfo* = calloc(1, sizeof *info)
     assert info != NULL
+
     info.type = Type{
         kind = TypeKind.FuncPtr,
         func_ptr = FuncPtrType{
-            argtypes = argtypes2,
             return_type = return_type,
             is_noreturn = is_noreturn,
         },
     }
     snprintf(info.type.name, sizeof(t.name), "funcptr(%s) -> %s", argstr, ret_name)
+    for i = 0; i < nargs; i++:
+        info.type.func_ptr.argtypes.append(argtypes[i])
 
     global_type_state.func_ptrs.append(info)
     return &info.type
@@ -659,6 +662,23 @@ class Signature:
             else:
                 strcat(result, self.return_type.name)
 
+        return result
+
+    # Turns "strcmp(s1: byte*, s2: byte*) -> int" into "funcptr(byte*, byte*) -> int"
+    def to_funcptr_type(self, error_location: Location) -> Type*:
+        if self.takes_varargs:
+            # TODO: test this
+            msg: byte[200]
+            snprintf(msg, sizeof(msg), "cannot create function pointer to function %s() because it takes varargs", self.name)
+            fail(error_location, msg)
+
+        argtypes: Type** = malloc(sizeof(argtypes[0]) * self.args.len)
+        assert argtypes != NULL
+        for i = 0; i < self.args.len; i++:
+            argtypes[i] = self.args.ptr[i].type
+
+        result = funcptr_type(argtypes, self.args.len, self.return_type, self.is_noreturn)
+        free(argtypes)
         return result
 
     def copy(self) -> Signature:

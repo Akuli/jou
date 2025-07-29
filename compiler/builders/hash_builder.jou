@@ -168,6 +168,12 @@ class HBuilder:
         else:
             return HBuilderValue{id = -1}
 
+    def get_func_ptr(self, name: byte*, funcptr_type: Type*) -> HBuilderValue:
+        self.hash.add_string("funcptr")
+        self.hash.add_string(name)
+        hash_type(&self.hash, funcptr_type)
+        return self.new_value(funcptr_type)
+
     # string as array of bytes
     def array_string(self, s: byte*, array_size: int) -> HBuilderValue:
         self.hash.add_string("array_string")

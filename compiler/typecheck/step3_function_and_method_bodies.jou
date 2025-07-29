@@ -87,6 +87,8 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
 
         case AstExpressionKind.GetVariable:
             return "a variable"
+        case AstExpressionKind.GetFuncPtr:
+            return "a function"
 
         case (
             AstExpressionKind.Negate
@@ -1036,8 +1038,13 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 # Not a constant, proceed with normal variable lookup
                 result = state.find_any_var(expr.varname)
                 if result == NULL:
-                    snprintf(msg, sizeof(msg), "no variable named '%s'", expr.varname)
-                    fail(expr.location, msg)
+                    # Is it a function? E.g. `foo = strcmp` works, it creates a function pointer
+                    sig = state.file_types.find_function(expr.varname)
+                    if sig == NULL:
+                        snprintf(msg, sizeof(msg), "no variable named '%s'", expr.varname)
+                        fail(expr.location, msg)
+                    expr.kind = AstExpressionKind.GetFuncPtr
+                    result = sig.to_funcptr_type(expr.location)
 
         case AstExpressionKind.Self:
             selfvar = state.fom_types.find_local_var("self")

@@ -180,6 +180,21 @@ class AnyBuilder:
             free(hargs)
         return result
 
+    # Get function pointer by name
+    #
+    # TODO: function calls (not method calls) could be always done through
+    # function pointers? clean up
+    def get_func_ptr(self, name: byte*, funcptr_type: Type*) -> AnyBuilderValue:
+        assert funcptr_type.kind == TypeKind.FuncPtr
+        result = AnyBuilderValue{}
+        if self.lbuilder != NULL:
+            result.lvalue = self.lbuilder.get_func_ptr(name, funcptr_type)
+        if self.ubuilder != NULL:
+            result.uvalue = self.ubuilder.get_func_ptr(name, funcptr_type)
+        if self.hbuilder != NULL:
+            result.hvalue = self.hbuilder.get_func_ptr(name, funcptr_type)
+        return result
+
     # string as array of bytes
     def array_string(self, s: byte*, array_size: int) -> AnyBuilderValue:
         result = AnyBuilderValue{}

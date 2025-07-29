@@ -2,7 +2,6 @@
 # checking steps.
 
 import "stdlib/str.jou"
-import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
@@ -166,15 +165,19 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             return result
 
         case AstTypeKind.FuncPtr:
-            argtypes = List[Type*]{}
-            for ap = asttype.func_ptr.argtypes.ptr; ap < asttype.func_ptr.argtypes.end(); ap++:
-                argtypes.append(type_from_ast(ft, containing_class, ap))
+            fp = asttype.func_ptr
 
-            if asttype.func_ptr.return_type.is_none() or asttype.func_ptr.return_type.is_noreturn():
+            nargs = fp.argtypes.len
+            argtypes: Type** = malloc(sizeof(argtypes[0]) * nargs)
+            assert argtypes != NULL
+            for i = 0; i < nargs; i++:
+                argtypes[i] = type_from_ast(ft, containing_class, &fp.argtypes.ptr[i])
+
+            if fp.return_type.is_none() or fp.return_type.is_noreturn():
                 return_type = NULL
             else:
-                return_type = type_from_ast(ft, containing_class, asttype.func_ptr.return_type)
+                return_type = type_from_ast(ft, containing_class, fp.return_type)
 
-            result = funcptr_type(argtypes, return_type, asttype.func_ptr.return_type.is_noreturn())
-            free(argtypes.ptr)
+            result = funcptr_type(argtypes, nargs, return_type, fp.return_type.is_noreturn())
+            free(argtypes)
             return result

@@ -203,6 +203,7 @@ enum AstExpressionKind:
     Instantiate   # MyClass{x=1, y=2}
     Self    # not a variable lookup, so you can't use 'self' as variable name outside a class
     GetVariable
+    GetFuncPtr          # GetVariable that has resolved to a function pointer
     DotOperator         # foo.bar (don't know yet which way to interpret it)
     GetEnumMember       # foo.bar, foo is an enum
     GetClassField       # foo.bar, foo is an instance of a class
@@ -288,6 +289,8 @@ class AstExpression:
                 printf("self\n")
             case AstExpressionKind.GetVariable:
                 printf("get variable \"%s\"\n", self.varname)
+            case AstExpressionKind.GetFuncPtr:
+                printf("get pointer to function \"%s\"\n", self.varname)
             case AstExpressionKind.DotOperator:
                 printf("get member \"%s\"\n", self.class_field.field_name)
                 self.class_field.instance.print_with_tree_printer(tp.print_prefix(True))

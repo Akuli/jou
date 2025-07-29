@@ -121,6 +121,23 @@ def signature_to_llvm(sig: Signature*) -> LLVMType*:
     return LLVMFunctionType(return_type, argtypes, sig.args.len as int, sig.takes_varargs as int)
 
 
+# TODO: fix code duplication
+def funcptr_to_llvm(t: Type*) -> LLVMType*:
+    assert t.kind == TypeKind.FuncPtr
+    assert t.func_ptr.argtypes.len <= 100
+    argtypes: LLVMType*[100]
+    for i = 0; i < t.func_ptr.argtypes.len; i++:
+        argtypes[i] = type_to_llvm(t.func_ptr.argtypes.ptr[i])
+
+    # TODO: tell llvm, if we know a function is noreturn ?
+    if t.func_ptr.return_type == NULL:  # "-> noreturn" or "-> None"
+        return_type = LLVMVoidType()
+    else:
+        return_type = type_to_llvm(t.func_ptr.return_type)
+
+    return LLVMFunctionType(return_type, argtypes, t.func_ptr.argtypes.len as int, False as int)
+
+
 def declare_in_llvm(sig: Signature*, mod: LLVMModule*) -> LLVMValue*:
     fullname: byte[500]
     self_class = sig.get_self_class()
@@ -137,6 +154,19 @@ def declare_in_llvm(sig: Signature*, mod: LLVMModule*) -> LLVMValue*:
     llvm_func = LLVMGetNamedFunction(mod, fullname)
     if llvm_func == NULL:
         llvm_func = LLVMAddFunction(mod, fullname, signature_to_llvm(sig))
+
+    assert llvm_func != NULL
+    return llvm_func
+
+
+# TODO: clean up the code duplication
+def declare_in_llvm_by_funcptr_type(name: byte*, type: Type*, mod: LLVMModule*) -> LLVMValue*:
+    assert type.kind == TypeKind.FuncPtr
+
+    # Make it so that this can be called many times without issue
+    llvm_func = LLVMGetNamedFunction(mod, name)
+    if llvm_func == NULL:
+        llvm_func = LLVMAddFunction(mod, name, funcptr_to_llvm(type))
 
     assert llvm_func != NULL
     return llvm_func
@@ -356,6 +386,12 @@ class LBuilder:
         else:
             assert llvm_return_value != NULL
             return LBuilderValue{type = sig.return_type, llvm_value = llvm_return_value}
+
+    def get_func_ptr(self, name: byte*, funcptr_type: Type*) -> LBuilderValue:
+        llvm_funcptr = declare_in_llvm_by_funcptr_type(name, funcptr_type, self.llvm_module)
+        assert llvm_funcptr != NULL
+        assert LLVMGetTypeKind(LLVMTypeOf(llvm_funcptr)) == LLVMTypeKind.Pointer
+        return LBuilderValue{type = funcptr_type, llvm_value = llvm_funcptr}
 
     # string as array of bytes
     def array_string(self, s: byte*, array_size: int) -> LBuilderValue:
