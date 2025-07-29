@@ -348,7 +348,11 @@ class AstExpression:
                 self.call.free()
             case AstExpressionKind.Instantiate:
                 self.instantiation.free()
-            case AstExpressionKind.GetClassField:
+            case (
+                AstExpressionKind.DotOperator
+                | AstExpressionKind.GetClassField
+                | AstExpressionKind.GetClassFieldPtr
+            ):
                 self.class_field.free()
             case AstExpressionKind.As:
                 self.as_.free()
