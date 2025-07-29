@@ -53,8 +53,8 @@ def direction_to_int(d: int[2]) -> int:
 # How return value works:
 # (*returnvalue)[x][y][direction_to_int(dir)] = True, if there was beam at (x,y) going in direction.
 def run_beam(grid: Grid*, start_beam: LightBeam) -> bool[4][200][200]*:
-    assert grid->width < 200
-    assert grid->height < 200
+    assert grid.width < 200
+    assert grid.height < 200
     result: bool[4][200][200]* = calloc(1, sizeof(*result))
     assert result != NULL
 
@@ -71,11 +71,11 @@ def run_beam(grid: Grid*, start_beam: LightBeam) -> bool[4][200][200]*:
             continue
         *ptr = True
 
-        next_dirs = get_new_directions(beam.direction, grid->get([x, y]))
+        next_dirs = get_new_directions(beam.direction, grid.get([x, y]))
         for i = 0; i < 2; i++:
             dir = next_dirs[i]
             location = [beam.location[0] + dir[0], beam.location[1] + dir[1]]
-            if grid->is_in_bounds(location):
+            if grid.is_in_bounds(location):
                 todo.append(LightBeam{location = location, direction = dir})
 
     free(todo.ptr)

@@ -27,30 +27,30 @@ def move_right(start: byte*) -> None:
 
 
 def horizontal_mirror(grid: Grid*) -> None:
-    for y = 0; y < grid->height; y++:
-        first = &grid->data[(grid->width + 1) * y]
-        last = &first[grid->width - 1]
+    for y = 0; y < grid.height; y++:
+        first = &grid.data[(grid.width + 1) * y]
+        last = &first[grid.width - 1]
         while first < last:
             memswap(first++, last--, 1)
 
 
 def move(grid: Grid*, how: byte) -> None:
     if how == '>':
-        move_right(strstr(grid->data, "@"))
+        move_right(strstr(grid.data, "@"))
     elif how == 'v':
-        grid->transpose()
-        move_right(strstr(grid->data, "@"))
-        grid->transpose()
+        grid.transpose()
+        move_right(strstr(grid.data, "@"))
+        grid.transpose()
     elif how == '<':
         horizontal_mirror(grid)
-        move_right(strstr(grid->data, "@"))
+        move_right(strstr(grid.data, "@"))
         horizontal_mirror(grid)
     elif how == '^':
-        grid->transpose()
+        grid.transpose()
         horizontal_mirror(grid)
-        move_right(strstr(grid->data, "@"))
+        move_right(strstr(grid.data, "@"))
         horizontal_mirror(grid)
-        grid->transpose()
+        grid.transpose()
     else:
         assert False
 

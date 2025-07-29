@@ -20,12 +20,12 @@ def get_next_paths(path: List[int[2]], grid: Grid*) -> List[int[2]][4]:
         x = last[0] + dx
         y = last[1] + dy
 
-        can_go = grid->is_in_bounds([x, y]) and (
-            grid->get([x, y]) == '.'
-            or (grid->get([x, y]) == '<' and dx == -1)
-            or (grid->get([x, y]) == '>' and dx == 1)
-            or (grid->get([x, y]) == '^' and dy == -1)
-            or (grid->get([x, y]) == 'v' and dy == 1)
+        can_go = grid.is_in_bounds([x, y]) and (
+            grid.get([x, y]) == '.'
+            or (grid.get([x, y]) == '<' and dx == -1)
+            or (grid.get([x, y]) == '>' and dx == 1)
+            or (grid.get([x, y]) == '^' and dy == -1)
+            or (grid.get([x, y]) == 'v' and dy == 1)
         )
 
         if can_go:

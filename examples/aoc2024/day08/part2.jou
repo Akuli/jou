@@ -37,9 +37,9 @@ def add_antinodes(antennas: Grid, antinodes: Grid*, frequency: byte) -> None:
                 pos = places[i]
                 while True:
                     pos = [pos[0] + dx, pos[1] + dy]
-                    if not antinodes->is_in_bounds(pos):
+                    if not antinodes.is_in_bounds(pos):
                         break
-                    antinodes->set(pos, '#')
+                    antinodes.set(pos, '#')
 
     free(places)
 

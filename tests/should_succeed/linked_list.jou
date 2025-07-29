@@ -6,9 +6,9 @@ class Node:
     next: Node*
 
     def print(self) -> None:
-        putchar(self->value)
-        if self->next != NULL:
-            self->next->print()
+        putchar(self.value)
+        if self.next != NULL:
+            self.next.print()
         else:
             putchar('\n')
 
@@ -19,7 +19,7 @@ def prepend(list: Node**, value: byte) -> None:
 
 def free_list(list: Node*) -> None:
     while list != NULL:
-        next = list->next
+        next = list.next
         free(list)
         list = next
 
@@ -30,7 +30,7 @@ def main() -> int:
     prepend(&list, 'l')
     prepend(&list, 'e')
     prepend(&list, 'h')
-    list->print()  # Output: hello
+    list.print()  # Output: hello
 
     free_list(list)
     return 0

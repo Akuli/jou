@@ -14,20 +14,20 @@ class Hand:
     def count(self, letter: byte) -> int:
         n = 0
         for i = 0; i < 5; i++:
-            if self->letters[i] == letter:
+            if self.letters[i] == letter:
                 n++
         return n
 
     def all_same(self) -> bool:
-        return self->count(self->letters[0]) == 5
+        return self.count(self.letters[0]) == 5
 
     def all_but_one_same(self) -> bool:
-        return self->count(self->letters[0]) == 4 or self->count(self->letters[1]) == 4
+        return self.count(self.letters[0]) == 4 or self.count(self.letters[1]) == 4
 
     def three_same_and_two_same(self) -> bool:
         # ensure that every count is either 3 or 2
         for i = 0; i < 5; i++:
-            n = self->count(self->letters[i])
+            n = self.count(self.letters[i])
             if n != 3 and n != 2:
                 return False
         return True
@@ -36,7 +36,7 @@ class Hand:
         # ensure that every count is either 3 or 1, and count 3 appears
         found3 = False
         for i = 0; i < 5; i++:
-            n = self->count(self->letters[i])
+            n = self.count(self.letters[i])
             if n != 3 and n != 1:
                 return False
             if n == 3:
@@ -47,7 +47,7 @@ class Hand:
         # ensure that every count is either 2 or 1, and count 1 appears only once
         count1 = 0
         for i = 0; i < 5; i++:
-            n = self->count(self->letters[i])
+            n = self.count(self.letters[i])
             if n != 2 and n != 1:
                 return False
             if n == 1:
@@ -58,7 +58,7 @@ class Hand:
         # ensure that every count is either 2 or 1, and exactly 2 cards have count 2
         count2 = 0
         for i = 0; i < 5; i++:
-            n = self->count(self->letters[i])
+            n = self.count(self.letters[i])
             if n != 2 and n != 1:
                 return False
             if n == 2:
@@ -67,7 +67,7 @@ class Hand:
 
     def all_distinct(self) -> bool:
         for i = 0; i < 5; i++:
-            if self->count(self->letters[i]) != 1:
+            if self.count(self.letters[i]) != 1:
                 return False
         return True
 
@@ -75,13 +75,13 @@ class Hand:
         # check that i did this right, exactly one should be true
         # return index of true in list
         bools = [
-            self->all_distinct(),
-            self->one_pair(),
-            self->two_pairs_one_distinct(),
-            self->three_same_two_distinct(),
-            self->three_same_and_two_same(),
-            self->all_but_one_same(),
-            self->all_same(),
+            self.all_distinct(),
+            self.one_pair(),
+            self.two_pairs_one_distinct(),
+            self.three_same_two_distinct(),
+            self.three_same_and_two_same(),
+            self.all_but_one_same(),
+            self.all_same(),
         ]
 
         result = -1
@@ -94,15 +94,15 @@ class Hand:
         return result
 
     def hand_type_strength(self) -> int:
-        if self->cached_hand_type_strength != -1:
-            return self->cached_hand_type_strength
+        if self.cached_hand_type_strength != -1:
+            return self.cached_hand_type_strength
 
         variations: Hand* = malloc(sizeof(variations[0]))
         variations[0] = *self
         nvariations = 1
 
         for i = 0; i < 5; i++:
-            if self->letters[i] == 'J':
+            if self.letters[i] == 'J':
                 # Duplicate each existing variation 13 times
                 nvariations *= 13
                 variations = realloc(variations, sizeof(variations)[0] * nvariations)
@@ -119,7 +119,7 @@ class Hand:
             best = max(best, variations[i].hand_type_strength_without_J_special_casing())
 
         free(variations)
-        self->cached_hand_type_strength = best
+        self.cached_hand_type_strength = best
         return best
 
     # Return value:
@@ -127,15 +127,15 @@ class Hand:
     #   0   if self == other
     #   -1  if self < other
     def compare(self, other: Hand*) -> int:
-        if self->hand_type_strength() > other->hand_type_strength():
+        if self.hand_type_strength() > other.hand_type_strength():
             return 1
-        if self->hand_type_strength() < other->hand_type_strength():
+        if self.hand_type_strength() < other.hand_type_strength():
             return -1
 
         for i = 0; i < 5; i++:
             s = "J23456789TQKA"
-            self_idx_ptr = strchr(s, self->letters[i])
-            other_idx_ptr = strchr(s, other->letters[i])
+            self_idx_ptr = strchr(s, self.letters[i])
+            other_idx_ptr = strchr(s, other.letters[i])
             assert self_idx_ptr != NULL and other_idx_ptr != NULL
             if self_idx_ptr > other_idx_ptr:
                 return 1
