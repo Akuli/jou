@@ -95,6 +95,7 @@ Jou has a few different kinds of tokens:
     - `NULL`
     - `void`
     - `noreturn`
+    - `funcptr`
     - `and`
     - `or`
     - `not`

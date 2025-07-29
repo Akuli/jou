@@ -361,8 +361,65 @@ class Parser:
             resolved_flags = resolved_flags,
         }
 
+    def parse_named_type(self) -> AstType:
+        assert self.tokens.kind == TokenKind.Name or self.tokens.kind == TokenKind.Keyword
+        result = AstType{
+            kind = AstTypeKind.Named,
+            location = self.tokens.location,
+            name = self.tokens.short_string,
+        }
+        self.tokens++
+        return result
+
+    def parse_funcptr_type(self) -> AstType:
+        assert self.tokens.is_keyword("funcptr")
+        location = self.tokens.location
+        self.tokens++
+
+        if not self.tokens.is_operator("("):
+            # TODO: test this
+            self.tokens.fail_expected_got("a '(' to denote the start of funcptr argument types")
+        self.tokens++
+
+        argtypes = List[AstType]{}
+        while not self.tokens.is_operator(")"):
+            argtypes.append(self.parse_type())
+            if not self.tokens.is_operator(","):
+                break
+            self.tokens++
+
+        if not self.tokens.is_operator(")"):
+            self.tokens.fail_expected_got("a ')'")
+        self.tokens++
+
+        # Special case for common typo: funcptr() without a return type
+        if self.tokens.is_operator(":"):
+            # TODO: test this
+            fail(self.tokens.location, "return type of funcptr must be specified with '->'")
+        if not self.tokens.is_operator("->"):
+            # TODO: test this
+            self.tokens.fail_expected_got("a '->'")
+        self.tokens++
+
+        ret: AstType* = malloc(sizeof(*ret))
+        assert ret != NULL
+        *ret = self.parse_type()
+
+        return AstType{
+            kind = AstTypeKind.FuncPtr,
+            location = location,
+            func_ptr = AstFuncPtrType{argtypes=argtypes, return_type=ret},
+        }
+
     def parse_type(self) -> AstType:
-        if not (
+        if self.tokens.is_operator("("):
+            self.tokens++
+            result = self.parse_type()
+            if not self.tokens.is_operator(")"):
+                # TODO: test this
+                self.tokens.fail_expected_got("a ')'")
+            self.tokens++
+        elif (
             self.tokens.kind == TokenKind.Name
             or self.tokens.is_keyword("None")
             or self.tokens.is_keyword("void")
@@ -374,14 +431,11 @@ class Parser:
             or self.tokens.is_keyword("double")
             or self.tokens.is_keyword("bool")
         ):
+            result = self.parse_named_type()
+        elif self.tokens.is_keyword("funcptr"):
+            result = self.parse_funcptr_type()
+        else:
             self.tokens.fail_expected_got("a type")
-
-        result = AstType{
-            kind = AstTypeKind.Named,
-            location = self.tokens.location,
-            name = self.tokens.short_string,
-        }
-        self.tokens++
 
         while self.tokens.is_operator("*") or self.tokens.is_operator("["):
             p: AstType* = malloc(sizeof *p)

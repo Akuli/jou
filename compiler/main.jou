@@ -463,11 +463,13 @@ def main(argc: int, argv: byte**) -> int:
     if command_line_args.tokenize_only:
         tokenize_only(command_line_args.infile)
         fail_if_warnings_and_flag()
+        free(stdlib)
         return 0
 
     if command_line_args.parse_only:
         parse_only(command_line_args.infile, stdlib)
         fail_if_warnings_and_flag()
+        free(stdlib)
         return 0
 
     compst = CompileState{ stdlib_path = stdlib }
