@@ -168,8 +168,19 @@ class HBuilder:
         else:
             return HBuilderValue{id = -1}
 
+    def call_funcptr(self, func_ptr: HBuilderValue, args: HBuilderValue*, nargs: int) -> HBuilderValue:
+        self.hash.add_string("call funcptr")
+        self.hash.add_int64(func_ptr.id)
+        for p = args; p < &args[nargs]; p++:
+            self.hash.add_int64(p.id)
+
+        if func_ptr.type.func_ptr.return_type == NULL:
+            return self.new_value(func_ptr.type.func_ptr.return_type)
+        else:
+            return HBuilderValue{id = -1}
+
     def get_func_ptr(self, name: byte*, funcptr_type: Type*) -> HBuilderValue:
-        self.hash.add_string("funcptr")
+        self.hash.add_string("get funcptr")
         self.hash.add_string(name)
         hash_type(&self.hash, funcptr_type)
         return self.new_value(funcptr_type)

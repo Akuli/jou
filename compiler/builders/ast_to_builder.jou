@@ -148,12 +148,6 @@ class AstToBuilder:
         else:
             return self.builder.dereference(info.return_value_ptr)
 
-    def call_or_inline(self, sig: Signature*, args: List[AnyBuilderValue]) -> AnyBuilderValue:
-        if sig.ast_to_inline != NULL and self.builder.should_functions_marked_with_inline_be_inlined():
-            return self.inline(sig, args)
-        else:
-            return self.builder.call(sig, args.ptr, args.len as int)
-
     def local_var_exists(self, name: byte*) -> bool:
         for local = self.locals.ptr; local < self.locals.end(); local++:
             if strcmp(local.name, name) == 0:
@@ -165,6 +159,17 @@ class AstToBuilder:
             if strcmp(local.name, name) == 0:
                 return local.ptr
         assert False
+
+    def call_or_inline(self, sig: Signature*, args: List[AnyBuilderValue]) -> AnyBuilderValue:
+        if self.local_var_exists(sig.name):
+            # Call function pointer
+            func_ptr_var = self.local_var_ptr(sig.name)
+            func_ptr = self.builder.dereference(func_ptr_var)
+            return self.builder.call_funcptr(func_ptr, args.ptr, args.len as int)
+        elif sig.ast_to_inline != NULL and self.builder.should_functions_marked_with_inline_be_inlined():
+            return self.inline(sig, args)
+        else:
+            return self.builder.call(sig, args.ptr, args.len as int)
 
     def build_call(self, call: AstCall*) -> AnyBuilderValue:
         args = List[AnyBuilderValue]{}

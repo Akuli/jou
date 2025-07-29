@@ -590,8 +590,16 @@ def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: 
     if self_type == NULL:
         sig = state.file_types.find_function(call.name)
         if sig == NULL:
-            snprintf(msg, sizeof(msg), "function '%s' not found", call.name)
-            fail(location, msg)
+            # Is it a function pointer?
+            var = state.fom_types.find_local_var(call.name)
+            if var == NULL or var.type.kind != TypeKind.FuncPtr:
+                # nope
+                snprintf(msg, sizeof(msg), "function '%s' not found", call.name)
+                fail(location, msg)
+            # TODO: support passing arguments
+            # TODO: actually, rewrite this whole damn thing
+            sig = malloc(sizeof(*sig))
+            *sig = Signature{name = call.name, return_type = var.type.func_ptr.return_type, is_noreturn = var.type.func_ptr.is_noreturn}
     else:
         assert self_type.kind == TypeKind.Class
         sig = self_type.find_method(call.name)
@@ -1210,6 +1218,7 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
                         strcat(msg, " (use if/else instead)")
                 fail(match_stmt.match_obj.location, msg)
     else:
+        # TODO: allow using a function pointer here?
         sig = state.file_types.find_function(match_stmt.func_name)
         if sig == NULL:
             snprintf(msg, sizeof(msg), "function '%s' not found", match_stmt.func_name)

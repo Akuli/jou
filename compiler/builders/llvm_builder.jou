@@ -387,6 +387,25 @@ class LBuilder:
             assert llvm_return_value != NULL
             return LBuilderValue{type = sig.return_type, llvm_value = llvm_return_value}
 
+    # TODO: remove code duplication
+    def call_funcptr(self, funcptr: LBuilderValue, args: LBuilderValue*, nargs: int) -> LBuilderValue:
+        assert nargs <= 100
+        llvm_args: LLVMValue*[100]
+        for i = 0; i < nargs; i++:
+            llvm_args[i] = args[i].llvm_value
+
+        debug_name: byte[100] = ""
+        if funcptr.type.func_ptr.return_type != NULL:
+            debug_name = "funcptr_return_value"
+
+        llvm_return_value = LLVMBuildCall2(self.llvm_builder, funcptr_to_llvm(funcptr.type), funcptr.llvm_value, llvm_args, nargs, debug_name)
+
+        if funcptr.type.func_ptr.return_type == NULL:
+            return LBuilderValue{}
+        else:
+            assert llvm_return_value != NULL
+            return LBuilderValue{type = funcptr.type.func_ptr.return_type, llvm_value = llvm_return_value}
+
     def get_func_ptr(self, name: byte*, funcptr_type: Type*) -> LBuilderValue:
         llvm_funcptr = declare_in_llvm_by_funcptr_type(name, funcptr_type, self.llvm_module)
         assert llvm_funcptr != NULL

@@ -180,6 +180,32 @@ class AnyBuilder:
             free(hargs)
         return result
 
+    # TODO: fix code duplication
+    def call_funcptr(self, funcptr: AnyBuilderValue, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
+        if self.lbuilder != NULL:
+            largs: LBuilderValue* = malloc(sizeof(largs[0]) * nargs)
+            assert largs != NULL
+            for i = 0; i < nargs; i++:
+                largs[i] = args[i].lvalue
+            result.lvalue = self.lbuilder.call_funcptr(funcptr.lvalue, largs, nargs)
+            free(largs)
+        if self.ubuilder != NULL:
+            uargs: int* = malloc(sizeof(uargs[0]) * nargs)
+            assert uargs != NULL
+            for i = 0; i < nargs; i++:
+                uargs[i] = args[i].uvalue
+            result.uvalue = self.ubuilder.call_funcptr(funcptr.uvalue, uargs, nargs)
+            free(uargs)
+        if self.hbuilder != NULL:
+            hargs: HBuilderValue* = malloc(sizeof(hargs[0]) * nargs)
+            assert hargs != NULL
+            for i = 0; i < nargs; i++:
+                hargs[i] = args[i].hvalue
+            result.hvalue = self.hbuilder.call_funcptr(funcptr.hvalue, hargs, nargs)
+            free(hargs)
+        return result
+
     # Get function pointer by name
     #
     # TODO: function calls (not method calls) could be always done through

@@ -101,6 +101,12 @@ class UBuilder:
             self.dont_analyze(args[i])
         return ANONYMOUS_VALUE_ID
 
+    def call_funcptr(self, func_ptr: int, args: int*, nargs: int) -> int:
+        for i = 0; i < nargs; i++:
+            self.dont_analyze(args[i])
+        self.dont_analyze(func_ptr)  # TODO: is this correct?
+        return ANONYMOUS_VALUE_ID
+
     def get_func_ptr(self, name: byte*, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
