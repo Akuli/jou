@@ -126,7 +126,7 @@ class AstEnumMember:
     member_name: byte[100]
 
 
-# foo.bar
+# foo.bar, foo->bar
 @public
 class AstClassField:
     instance: AstExpression*
@@ -240,7 +240,7 @@ class AstExpression:
         printf("[line %d", self.location.lineno)
         if self.types.orig_type != NULL:
             printf(", type %s", self.types.orig_type.name)
-            # TODO: print casts and other stuff under self.types?
+            # TODO: print casts and other stuff under self->types?
         printf("] ")
 
         match self.kind:
@@ -435,6 +435,7 @@ class AstAs:
 
 # foo(arg1, arg2, arg3)
 # foo.bar(arg1, arg2, arg3)
+# foo->bar(arg1, arg2, arg3)
 @public
 class AstCall:
     location: Location
@@ -1080,7 +1081,7 @@ class AstFile:
 
     def free(self) -> None:
         free_body(self.body)
-        self.types.free()  # also works if self.types is zero-initialized
+        self.types.free()  # also works if self->types is zero-initialized
 
 
 # def foo() -> bar:

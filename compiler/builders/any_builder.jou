@@ -120,7 +120,7 @@ class AnyBuilder:
             result.hvalue = self.hbuilder.indexed_pointer(ptr.hvalue, index.hvalue)
         return result
 
-    # Returns &ptr.field
+    # Returns &ptr->field
     def class_field_pointer(self, ptr: AnyBuilderValue, field_name: byte*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
