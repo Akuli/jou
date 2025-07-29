@@ -6,18 +6,18 @@ import "../grid.jou"
 
 
 def duplicate_blank_lines(grid: Grid*) -> None:
-    grid->data = realloc(grid->data, 2*strlen(grid->data) + 1)
-    assert grid->data != NULL
+    grid.data = realloc(grid.data, 2*strlen(grid.data) + 1)
+    assert grid.data != NULL
 
     y = 0
-    while y < grid->height:
-        if strspn(&grid->data[(grid->width + 1)*y], ".") == grid->width:
+    while y < grid.height:
+        if strspn(&grid.data[(grid.width + 1)*y], ".") == grid.width:
             # duplicate row
-            blank_start = &grid->data[(grid->width + 1)*y]
-            next_start = &grid->data[(grid->width + 1)*(y+1)]
+            blank_start = &grid.data[(grid.width + 1)*y]
+            next_start = &grid.data[(grid.width + 1)*(y+1)]
             memmove(next_start, blank_start, strlen(blank_start) + 1)
             y += 2
-            grid->height++
+            grid.height++
         else:
             y++
 

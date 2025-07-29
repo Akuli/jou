@@ -13,20 +13,20 @@ class Map:
         a, b, c: long
         assert sscanf(s, "%lld %lld %lld", &a, &b, &c) == 3
 
-        assert self->ntriples < sizeof(self->triples)/sizeof(self->triples[0])
-        self->triples[self->ntriples++] = [a, b, c]
+        assert self.ntriples < sizeof(self.triples)/sizeof(self.triples[0])
+        self.triples[self.ntriples++] = [a, b, c]
 
     def get_input_range_starts(self) -> List[long]:
         result = List[long]{}
-        for i = 0; i < self->ntriples; i++:
-            result.append(self->triples[i][1])
+        for i = 0; i < self.ntriples; i++:
+            result.append(self.triples[i][1])
         return result
 
     def map_number(self, n: long) -> long:
-        for i = 0; i < self->ntriples; i++:
-            dest_start = self->triples[i][0]
-            source_start = self->triples[i][1]
-            range_length = self->triples[i][2]
+        for i = 0; i < self.ntriples; i++:
+            dest_start = self.triples[i][0]
+            source_start = self.triples[i][1]
+            range_length = self.triples[i][2]
             if source_start <= n and n < source_start+range_length:
                 return n - source_start + dest_start
         return n
@@ -35,16 +35,16 @@ class Map:
     def inverse_image(self, output: long) -> List[long]:
         result = List[long]{}
 
-        for i = 0; i < self->ntriples; i++:
-            dest_start = self->triples[i][0]
-            source_start = self->triples[i][1]
+        for i = 0; i < self.ntriples; i++:
+            dest_start = self.triples[i][0]
+            source_start = self.triples[i][1]
 
             # Solve equation:   output = n - source_start + dest_start
             n = output + source_start - dest_start
-            if self->map_number(n) == output:
+            if self.map_number(n) == output:
                 result.append(n)
 
-        if self->map_number(output) == output:
+        if self.map_number(output) == output:
             result.append(output)
 
         return result
@@ -53,7 +53,7 @@ class Map:
     def inverse_image_of_list(self, outputs: List[long]) -> List[long]:
         result = List[long]{}
         for p = outputs.ptr; p < outputs.end(); p++:
-            to_add = self->inverse_image(*p)
+            to_add = self.inverse_image(*p)
             result.extend(to_add)
             free(to_add.ptr)
         return result
@@ -64,7 +64,7 @@ class Range:
     end: long
 
     def contains(self, n: long) -> bool:
-        return self->start <= n and n < self->end
+        return self.start <= n and n < self.end
 
 
 class Input:
@@ -75,23 +75,23 @@ class Input:
     nmaps: int
 
     def add_seeds(self, line: byte*) -> None:
-        assert self->n_seed_ranges == 0
+        assert self.n_seed_ranges == 0
         assert starts_with(line, "seeds: ")
         line = &line[6]
 
         words = split_by_ascii_whitespace(line)
         for i = 0; i+1 < words.len; i += 2:
-            assert i/2 < sizeof(self->seed_ranges) / sizeof(self->seed_ranges[0])
-            self->seed_ranges[i/2] = Range{
+            assert i/2 < sizeof(self.seed_ranges) / sizeof(self.seed_ranges[0])
+            self.seed_ranges[i/2] = Range{
                 start = atoll(words.ptr[i]),
                 end = atoll(words.ptr[i]) + atoll(words.ptr[i+1]),
             }
-            self->n_seed_ranges++
+            self.n_seed_ranges++
         free(words.ptr)
 
     def is_valid_seed(self, n: long) -> bool:
-        for i = 0; i < self->n_seed_ranges; i++:
-            if self->seed_ranges[i].contains(n):
+        for i = 0; i < self.n_seed_ranges; i++:
+            if self.seed_ranges[i].contains(n):
                 return True
         return False
 
@@ -106,28 +106,28 @@ def main() -> int:
 
     # Special-case first line
     assert fgets(line, sizeof(line) as int, f) != NULL
-    input->add_seeds(line)
+    input.add_seeds(line)
 
     while fgets(line, sizeof(line) as int, f) != NULL:
         if strstr(line, "map") != NULL:
             # start of new map
-            assert input->nmaps < sizeof(input->maps)/sizeof(input->maps[0])
-            input->nmaps++
+            assert input.nmaps < sizeof(input.maps)/sizeof(input.maps[0])
+            input.nmaps++
         elif is_ascii_digit(line[0]):
             # add numbers to existing map
-            assert input->nmaps > 0
-            input->maps[input->nmaps - 1].add_triple(line)
+            assert input.nmaps > 0
+            input.maps[input.nmaps - 1].add_triple(line)
 
     fclose(f)
 
     interesting_inputs = List[long]{}
-    for i = 0; i < input->nmaps; i++:
+    for i = 0; i < input.nmaps; i++:
         # We get small values whenever the i'th map sees a start of its range.
-        values = input->maps[i].get_input_range_starts()
+        values = input.maps[i].get_input_range_starts()
 
         # Back the list of numbers through all previous maps.
         for k = i-1; k >= 0; k--:
-            values2 = input->maps[k].inverse_image_of_list(values)
+            values2 = input.maps[k].inverse_image_of_list(values)
             free(values.ptr)
             values = values2
 
@@ -135,15 +135,15 @@ def main() -> int:
         free(values.ptr)
 
     # Let's also try start of each seed range
-    for i = 0; i < input->n_seed_ranges; i++:
-        interesting_inputs.append(input->seed_ranges[i].start)
+    for i = 0; i < input.n_seed_ranges; i++:
+        interesting_inputs.append(input.seed_ranges[i].start)
 
     smallest = -1 as long
     for p = interesting_inputs.ptr; p < interesting_inputs.end(); p++:
-        if input->is_valid_seed(*p):
+        if input.is_valid_seed(*p):
             n = *p
-            for i = 0; i < input->nmaps; i++:
-                n = input->maps[i].map_number(n)
+            for i = 0; i < input.nmaps; i++:
+                n = input.maps[i].map_number(n)
             if smallest == -1 or n < smallest:
                 smallest = n
 

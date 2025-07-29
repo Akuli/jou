@@ -16,13 +16,13 @@ class Input:
     nnodes: int
 
     def add_node(self, node: Node) -> None:
-        assert self->nnodes < sizeof(self->nodes)/sizeof(self->nodes[0])
-        self->nodes[self->nnodes++] = node
+        assert self.nnodes < sizeof(self.nodes)/sizeof(self.nodes[0])
+        self.nodes[self.nnodes++] = node
 
     def find_node(self, name: byte*) -> Node*:
-        for i = 0; i < self->nnodes; i++:
-            if strcmp(self->nodes[i].name, name) == 0:
-                return &self->nodes[i]
+        for i = 0; i < self.nnodes; i++:
+            if strcmp(self.nodes[i].name, name) == 0:
+                return &self.nodes[i]
         assert False
 
 
@@ -32,14 +32,14 @@ def parse_input() -> Input*:
     f = fopen("sampleinput2.txt", "r")
     assert f != NULL
 
-    assert fgets(input->left_right_string, sizeof(input->left_right_string) as int, f) != NULL
-    trim_ascii_whitespace(input->left_right_string)
+    assert fgets(input.left_right_string, sizeof(input.left_right_string) as int, f) != NULL
+    trim_ascii_whitespace(input.left_right_string)
 
     assert fgetc(f) == '\n'
 
     n: Node
     while fscanf(f, "%3s = (%3s, %3s)\n", &n.name, &n.left, &n.right) == 3:
-        input->add_node(n)
+        input.add_node(n)
 
     fclose(f)
     return input
@@ -48,18 +48,18 @@ def parse_input() -> Input*:
 def main() -> int:
     input = parse_input()
 
-    aaa = input->find_node("AAA")
-    zzz = input->find_node("ZZZ")
+    aaa = input.find_node("AAA")
+    zzz = input.find_node("ZZZ")
 
     current = aaa
     counter = 0
 
     while current != zzz:
-        c = input->left_right_string[counter++ % strlen(input->left_right_string)]
+        c = input.left_right_string[counter++ % strlen(input.left_right_string)]
         if c == 'L':
-            current = input->find_node(current->left)
+            current = input.find_node(current.left)
         elif c == 'R':
-            current = input->find_node(current->right)
+            current = input.find_node(current.right)
         else:
             assert False
 

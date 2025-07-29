@@ -6,9 +6,9 @@ import "../../aoc2023/grid.jou"
 
 # Sets each letter of a region in the grid to '*'
 def mark_region(grid: Grid*, start: int[2]) -> None:
-    assert grid->count('*') == 0
+    assert grid.count('*') == 0
 
-    region_letter = grid->get(start)
+    region_letter = grid.get(start)
     assert 'A' <= region_letter and region_letter <= 'Z'
 
     todo: int[2][1000]
@@ -17,8 +17,8 @@ def mark_region(grid: Grid*, start: int[2]) -> None:
 
     while todo_len > 0:
         point = todo[--todo_len]
-        if grid->get(point) == region_letter:
-            grid->set(point, '*')
+        if grid.get(point) == region_letter:
+            grid.set(point, '*')
             assert todo_len + 4 <= sizeof(todo) / sizeof(todo[0])
             todo[todo_len++] = [point[0], point[1] - 1]
             todo[todo_len++] = [point[0], point[1] + 1]
@@ -28,14 +28,14 @@ def mark_region(grid: Grid*, start: int[2]) -> None:
 def calculate_vertical_fence_length(grid: Grid*) -> int:
     result = 0
 
-    for y = 0; y < grid->height; y++:
+    for y = 0; y < grid.height; y++:
         # Count how many times we enter and exit sequence of stars along the row.
         inside_stars = False
-        for x = 0; x < grid->width; x++:
-            if grid->get([x, y]) == '*' and not inside_stars:
+        for x = 0; x < grid.width; x++:
+            if grid.get([x, y]) == '*' and not inside_stars:
                 result++
                 inside_stars = True
-            if grid->get([x, y]) != '*' and inside_stars:
+            if grid.get([x, y]) != '*' and inside_stars:
                 result++
                 inside_stars = False
 
@@ -43,20 +43,20 @@ def calculate_vertical_fence_length(grid: Grid*) -> int:
 
 
 def prepend_and_append_blank(grid: Grid*) -> None:
-    grid->data = realloc(grid->data, strlen(grid->data) + 2*grid->width + 69)
-    assert grid->data != NULL
+    grid.data = realloc(grid.data, strlen(grid.data) + 2*grid.width + 69)
+    assert grid.data != NULL
 
     # Add blank row to start
-    memmove(&grid->data[grid->width + 1], grid->data, strlen(grid->data) + 1)
-    memset(grid->data, '.', grid->width)
-    grid->data[grid->width] = '\n'
+    memmove(&grid.data[grid.width + 1], grid.data, strlen(grid.data) + 1)
+    memset(grid.data, '.', grid.width)
+    grid.data[grid.width] = '\n'
 
     # Add blank row to end
-    for i = 0; i < grid->width; i++:
-        strcat(grid->data, ".")
-    strcat(grid->data, "\n")
+    for i = 0; i < grid.width; i++:
+        strcat(grid.data, ".")
+    strcat(grid.data, "\n")
 
-    grid->height += 2
+    grid.height += 2
 
 
 def main() -> int:

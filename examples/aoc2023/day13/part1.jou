@@ -4,13 +4,13 @@ import "../grid.jou"
 
 
 def find_h_reflection(g: Grid*) -> int:
-    for reflect = 1; reflect < g->width; reflect++:
+    for reflect = 1; reflect < g.width; reflect++:
         left = reflect-1
         right = reflect
         matches = True
-        while left >= 0 and right < g->width and matches:
-            for y = 0; y < g->height; y++:
-                if g->get([left, y]) != g->get([right, y]):
+        while left >= 0 and right < g.width and matches:
+            for y = 0; y < g.height; y++:
+                if g.get([left, y]) != g.get([right, y]):
                     matches = False
                     break
             left--

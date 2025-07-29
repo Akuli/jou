@@ -14,10 +14,10 @@ class Graph:
     weights: int*  # Initially every node has weight 1, the weights are added when merging
 
     def free(self) -> None:
-        for i = 0; i < self->num_nodes; i++:
-            free(self->matrix[i])
-        free(self->matrix)
-        free(self->weights)
+        for i = 0; i < self.num_nodes; i++:
+            free(self.matrix[i])
+        free(self.matrix)
+        free(self.weights)
 
     if not WINDOWS:
         def visualize_with_graphviz(self) -> None:
@@ -25,72 +25,72 @@ class Graph:
             assert f != NULL
 
             fprintf(f, "digraph G {\n")
-            for i = 0; i < self->num_nodes; i++:
-                fprintf(f, "node%d [label=\"%d (weight=%d)\"]\n", i, i, self->weights[i])
+            for i = 0; i < self.num_nodes; i++:
+                fprintf(f, "node%d [label=\"%d (weight=%d)\"]\n", i, i, self.weights[i])
 
-            for i = 0; i < self->num_nodes; i++:
+            for i = 0; i < self.num_nodes; i++:
                 for k = 0; k < i; k++:
-                    if self->matrix[i][k] != 0:
-                        fprintf(f, "    node%d -> node%d [label=\"%d\", dir=none]\n", i, k, self->matrix[i][k])
+                    if self.matrix[i][k] != 0:
+                        fprintf(f, "    node%d . node%d [label=\"%d\", dir=none]\n", i, k, self.matrix[i][k])
 
             fprintf(f, "}\n")
             fclose(f)
             system("dot -T png /tmp/aoc25-graph.txt -o /tmp/aoc25-graph.png && open /tmp/aoc25-graph.png")
 
     def connect(self, a: int, b: int) -> None:
-        assert 0 <= a and a < self->num_nodes
-        assert 0 <= b and b < self->num_nodes
-        self->matrix[a][b]++
-        self->matrix[b][a]++
+        assert 0 <= a and a < self.num_nodes
+        assert 0 <= b and b < self.num_nodes
+        self.matrix[a][b]++
+        self.matrix[b][a]++
 
     def disconnect(self, a: int, b: int) -> None:
-        assert 0 <= a and a < self->num_nodes
-        assert 0 <= b and b < self->num_nodes
-        assert self->matrix[a][b] > 0
-        assert self->matrix[b][a] > 0
-        self->matrix[a][b]--
-        self->matrix[b][a]--
+        assert 0 <= a and a < self.num_nodes
+        assert 0 <= b and b < self.num_nodes
+        assert self.matrix[a][b] > 0
+        assert self.matrix[b][a] > 0
+        self.matrix[a][b]--
+        self.matrix[b][a]--
 
     def merge_nodes(self, a: int, b: int) -> None:
-        assert 0 <= a and a < self->num_nodes
-        assert 0 <= b and b < self->num_nodes
+        assert 0 <= a and a < self.num_nodes
+        assert 0 <= b and b < self.num_nodes
 
         # Add weights
-        self->weights[a] += self->weights[b]
+        self.weights[a] += self.weights[b]
 
         # Add all b's connections to a, except the possible a <--> b connection
-        for n = 0; n < self->num_nodes; n++:
+        for n = 0; n < self.num_nodes; n++:
             if n != a:
-                self->matrix[a][n] += self->matrix[b][n]
-                self->matrix[n][a] += self->matrix[n][b]
+                self.matrix[a][n] += self.matrix[b][n]
+                self.matrix[n][a] += self.matrix[n][b]
 
         # Disconnect b from everything
-        for n = 0; n < self->num_nodes; n++:
-            self->matrix[n][b] = 0
-            self->matrix[b][n] = 0
+        for n = 0; n < self.num_nodes; n++:
+            self.matrix[n][b] = 0
+            self.matrix[b][n] = 0
 
-        self->num_nodes--
+        self.num_nodes--
 
         # Now the matrix has zeros in b's row and column. Delete that row and column.
         # This changes names of other, unrelated nodes. That can't be avoided.
-        free(self->matrix[b])
-        self->matrix[b] = self->matrix[self->num_nodes]
-        for i = 0; i < self->num_nodes; i++:
-            self->matrix[i][b] = self->matrix[i][self->num_nodes]
-        self->weights[b] = self->weights[self->num_nodes]
+        free(self.matrix[b])
+        self.matrix[b] = self.matrix[self.num_nodes]
+        for i = 0; i < self.num_nodes; i++:
+            self.matrix[i][b] = self.matrix[i][self.num_nodes]
+        self.weights[b] = self.weights[self.num_nodes]
 
     def copy(self) -> Graph:
         result = *self
-        n = self->num_nodes
+        n = self.num_nodes
 
         result.matrix = malloc(sizeof(result.matrix[0]) * n)
         for i = 0; i < n; i++:
             row: int* = malloc(sizeof(row[0]) * n)
-            memcpy(row, self->matrix[i], sizeof(row[0]) * n)
+            memcpy(row, self.matrix[i], sizeof(row[0]) * n)
             result.matrix[i] = row
 
         result.weights = malloc(sizeof(result.weights[0]) * n)
-        memcpy(result.weights, self->weights, sizeof(self->weights[0]) * n)
+        memcpy(result.weights, self.weights, sizeof(self.weights[0]) * n)
 
         return result
 
@@ -99,12 +99,12 @@ class Graph:
     def dijkstra_algorithm(self, a: int, b: int) -> int*:
         assert a != b
 
-        where_we_came_from: int* = malloc(sizeof(where_we_came_from[0]) * self->num_nodes)
-        distances: int* = calloc(sizeof(distances[0]), self->num_nodes)
-        nodes_with_distance_set: int* = calloc(sizeof(nodes_with_distance_set[0]), self->num_nodes)
-        known_shortest: bool* = calloc(sizeof(known_shortest[0]), self->num_nodes)
+        where_we_came_from: int* = malloc(sizeof(where_we_came_from[0]) * self.num_nodes)
+        distances: int* = calloc(sizeof(distances[0]), self.num_nodes)
+        nodes_with_distance_set: int* = calloc(sizeof(nodes_with_distance_set[0]), self.num_nodes)
+        known_shortest: bool* = calloc(sizeof(known_shortest[0]), self.num_nodes)
 
-        for i = 0; i < self->num_nodes; i++:
+        for i = 0; i < self.num_nodes; i++:
             distances[i] = -1
 
         # Make dijkstra go from b to a, so that we don't need to reverse when we're done
@@ -131,8 +131,8 @@ class Graph:
             known_shortest[current] = True
 
             # update neighbor distances, if visiting through current makes them shorter
-            for neighbor = 0; neighbor < self->num_nodes; neighbor++:
-                if self->matrix[current][neighbor] > 0:
+            for neighbor = 0; neighbor < self.num_nodes; neighbor++:
+                if self.matrix[current][neighbor] > 0:
                     d = distances[current] + 1  # 1 = weight of edge
                     if distances[neighbor] == -1:
                         distances[neighbor] = d
@@ -142,7 +142,7 @@ class Graph:
                         distances[neighbor] = d
                         where_we_came_from[neighbor] = current
 
-        result: int* = malloc(sizeof(result[0]) * self->num_nodes)
+        result: int* = malloc(sizeof(result[0]) * self.num_nodes)
         p = result
         current = a
         while current != b:
@@ -161,7 +161,7 @@ class Graph:
     def nodes_are_strongly_connected(self, a: int, b: int) -> bool:
         assert a != b
 
-        copy = self->copy()
+        copy = self.copy()
 
         for i = 0; i < 3; i++:
             path = copy.dijkstra_algorithm(a, b)
@@ -184,10 +184,10 @@ class Graph:
         return False
 
     def find_a_strong_connection(self, hint: int*) -> int[2]:
-        for i = *hint; i < *hint + self->num_nodes; i++:
-            a = i % self->num_nodes
-            for b = a+1; b < self->num_nodes; b++:
-                if self->nodes_are_strongly_connected(a, b):
+        for i = *hint; i < *hint + self.num_nodes; i++:
+            a = i % self.num_nodes
+            for b = a+1; b < self.num_nodes; b++:
+                if self.nodes_are_strongly_connected(a, b):
                     *hint = max(a, b)
                     return [a, b]
         return [-1, -1]

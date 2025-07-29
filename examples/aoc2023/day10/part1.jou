@@ -30,8 +30,8 @@ def find_initial_direction(grid: Grid*, S: int[2]) -> int[2]:
         S_to_neighbor = *d
         neighbor = [S[0] + S_to_neighbor[0], S[1] + S_to_neighbor[1]]
 
-        if grid->is_in_bounds(neighbor) and grid->get(neighbor) != '.':
-            dirs = get_dirs(grid->get(neighbor))
+        if grid.is_in_bounds(neighbor) and grid.get(neighbor) != '.':
+            dirs = get_dirs(grid.get(neighbor))
             if eq(dirs[0], S_to_neighbor) or eq(dirs[1], S_to_neighbor):
                 return S_to_neighbor
 

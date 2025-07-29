@@ -11,26 +11,26 @@ class Equation:
     rhs: BigInt
 
     def sub(self, var: int, value: BigInt) -> None:
-        self->rhs = self->rhs.sub(self->coeffs[var].mul(value))
-        self->coeffs[var] = bigint(0)
+        self.rhs = self.rhs.sub(self.coeffs[var].mul(value))
+        self.coeffs[var] = bigint(0)
 
     def has(self, var: int) -> bool:
-        assert 0 <= var and var < self->nvariables
-        return not self->coeffs[var].is_zero()
+        assert 0 <= var and var < self.nvariables
+        return not self.coeffs[var].is_zero()
 
     def print(self) -> None:
-        for v = 0; v < self->nvariables; v++:
+        for v = 0; v < self.nvariables; v++:
             if v > 0:
                 printf(" + ")
-            printf("%lld x%d", self->coeffs[v].to_long(), v)
-        printf(" = %lld\n", self->rhs.to_long())
+            printf("%lld x%d", self.coeffs[v].to_long(), v)
+        printf(" = %lld\n", self.rhs.to_long())
 
 
 def add_with_coeff(dest: Equation*, src: Equation*, coeff: BigInt) -> None:
-    assert src->nvariables == dest->nvariables
-    for v = 0; v < src->nvariables; v++:
-        dest->coeffs[v] = dest->coeffs[v].add(src->coeffs[v].mul(coeff))
-    dest->rhs = dest->rhs.add(src->rhs.mul(coeff))
+    assert src.nvariables == dest.nvariables
+    for v = 0; v < src.nvariables; v++:
+        dest.coeffs[v] = dest.coeffs[v].add(src.coeffs[v].mul(coeff))
+    dest.rhs = dest.rhs.add(src.rhs.mul(coeff))
 
 
 class EquationSolver:
@@ -39,49 +39,49 @@ class EquationSolver:
 
     def print(self) -> None:
         printf("equations:\n")
-        for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
+        for eq = &self.eqs[0]; eq < &self.eqs[self.neqs]; eq++:
             printf("  ")
-            eq->print()
+            eq.print()
         printf("\n")
 
     def count_equations_having_var(self, var: int) -> int:
         n = 0
-        for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
-            if eq->has(var):
+        for eq = &self.eqs[0]; eq < &self.eqs[self.neqs]; eq++:
+            if eq.has(var):
                 n++
         return n
 
     def eliminate_from_all_but_one_equation(self, var: int) -> None:
         # Repeated Gaussian reduction in Euclidean algorithm style (sorry about word salad)
-        while self->count_equations_having_var(var) >= 2:
-            src = self->find_equation_with_smallest_nonzero_coeff_for_var(var)
+        while self.count_equations_having_var(var) >= 2:
+            src = self.find_equation_with_smallest_nonzero_coeff_for_var(var)
             assert src != NULL
-            assert not src->coeffs[var].is_zero()
+            assert not src.coeffs[var].is_zero()
 
-            for dest = self->eqs; dest < &self->eqs[self->neqs]; dest++:
-                if dest != src and dest->has(var):
+            for dest = self.eqs; dest < &self.eqs[self.neqs]; dest++:
+                if dest != src and dest.has(var):
                     # Pick c so that dest->coeffs[var] + c*src->coeffs[var] = 0.
                     # The perfect c isn't necessarily integer, so we pick a close value.
-                    c = dest->coeffs[var].div(src->coeffs[var]).neg()
+                    c = dest.coeffs[var].div(src.coeffs[var]).neg()
                     assert not c.is_zero()
                     add_with_coeff(dest, src, c)
 
     def find_equation_with_smallest_nonzero_coeff_for_var(self, var: int) -> Equation*:
         result: Equation* = NULL
-        for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
-            if eq->has(var) and (
+        for eq = &self.eqs[0]; eq < &self.eqs[self.neqs]; eq++:
+            if eq.has(var) and (
                 result == NULL
-                or result->coeffs[var].abs().compare(eq->coeffs[var].abs()) > 0
+                or result.coeffs[var].abs().compare(eq.coeffs[var].abs()) > 0
             ):
                 result = eq
         return result
 
     def all_equations_are_zero_equals_zero(self) -> bool:
-        for eq = &self->eqs[0]; eq < &self->eqs[self->neqs]; eq++:
-            if not eq->rhs.is_zero():
+        for eq = &self.eqs[0]; eq < &self.eqs[self.neqs]; eq++:
+            if not eq.rhs.is_zero():
                 return False
-            for v = 0; v < eq->nvariables; v++:
-                if not eq->coeffs[v].is_zero():
+            for v = 0; v < eq.nvariables; v++:
+                if not eq.coeffs[v].is_zero():
                     return False
         return True
 
@@ -96,10 +96,10 @@ def solve_linear_system_of_equations(eqs: Equation*, neqs: int) -> BigInt*:
     solver.eqs = malloc(sizeof(solver.eqs[0]) * neqs)
     for i = 0; i < neqs; i++:
         eq = &solver.eqs[i]
-        eq->nvariables = nvariables
-        eq->coeffs = calloc(sizeof(eq->coeffs[0]), nvariables)
-        memcpy(eq->coeffs, eqs[i].coeffs, sizeof(eqs[i].coeffs[0]) * eqs[i].nvariables)
-        eq->rhs = eqs[i].rhs
+        eq.nvariables = nvariables
+        eq.coeffs = calloc(sizeof(eq.coeffs[0]), nvariables)
+        memcpy(eq.coeffs, eqs[i].coeffs, sizeof(eqs[i].coeffs[0]) * eqs[i].nvariables)
+        eq.rhs = eqs[i].rhs
 
     # Each final equation only has one unknown variable + variables from equations after it
     final_equations: Equation* = malloc(sizeof(final_equations[0]) * nvariables)
@@ -221,8 +221,8 @@ def create_equations(moving_points: MovingPoint*, N: int, neqs: int*) -> Equatio
             for j = i+1; j < N; j++:
                 for k = j+1; k < N; k++:
                     eq = &eqs[(*neqs)++]
-                    eq->nvariables = nvariables
-                    eq->coeffs = calloc(sizeof(eq->coeffs[0]), nvariables)
+                    eq.nvariables = nvariables
+                    eq.coeffs = calloc(sizeof(eq.coeffs[0]), nvariables)
 
                     six = bigint(moving_points[i].start[plane[0]])
                     siy = bigint(moving_points[i].start[plane[1]])
@@ -256,13 +256,13 @@ def create_equations(moving_points: MovingPoint*, N: int, neqs: int*) -> Equatio
                     # With sympy (Python library), I expanded this to:
                     #
                     # -six*sjy + six*sky - six*t_j*vjy + six*t_k*vky + siy*sjx - siy*skx + siy*t_j*vjx - siy*t_k*vkx - sjx*sky + sjx*t_i*viy - sjx*t_k*vky + sjy*skx - sjy*t_i*vix + sjy*t_k*vkx - skx*t_i*viy + skx*t_j*vjy + sky*t_i*vix - sky*t_j*vjx - t_i*t_j*vix*vjy + t_i*t_j*viy*vjx + t_i*t_k*vix*vky - t_i*t_k*viy*vkx - t_j*t_k*vjx*vky + t_j*t_k*vjy*vkx
-                    eq->coeffs[i] = sjx.mul(viy).sub(sjy.mul(vix)).sub(skx.mul(viy)).add(sky.mul(vix))
-                    eq->coeffs[j] = siy.mul(vjx).sub(six.mul(vjy)).add(skx.mul(vjy)).sub(sky.mul(vjx))
-                    eq->coeffs[k] = six.mul(vky).sub(siy.mul(vkx)).sub(sjx.mul(vky)).add(sjy.mul(vkx))
-                    eq->coeffs[titj_var] = viy.mul(vjx).sub(vix.mul(vjy))
-                    eq->coeffs[titk_var] = vix.mul(vky).sub(viy.mul(vkx))
-                    eq->coeffs[tjtk_var] = vjy.mul(vkx).sub(vjx.mul(vky))
-                    eq->rhs = six.mul(sjy).sub(six.mul(sky)).sub(siy.mul(sjx)).add(siy.mul(skx)).add(sjx.mul(sky)).sub(sjy.mul(skx))
+                    eq.coeffs[i] = sjx.mul(viy).sub(sjy.mul(vix)).sub(skx.mul(viy)).add(sky.mul(vix))
+                    eq.coeffs[j] = siy.mul(vjx).sub(six.mul(vjy)).add(skx.mul(vjy)).sub(sky.mul(vjx))
+                    eq.coeffs[k] = six.mul(vky).sub(siy.mul(vkx)).sub(sjx.mul(vky)).add(sjy.mul(vkx))
+                    eq.coeffs[titj_var] = viy.mul(vjx).sub(vix.mul(vjy))
+                    eq.coeffs[titk_var] = vix.mul(vky).sub(viy.mul(vkx))
+                    eq.coeffs[tjtk_var] = vjy.mul(vkx).sub(vjx.mul(vky))
+                    eq.rhs = six.mul(sjy).sub(six.mul(sky)).sub(siy.mul(sjx)).add(siy.mul(skx)).add(sjx.mul(sky)).sub(sjy.mul(skx))
 
     return eqs
 

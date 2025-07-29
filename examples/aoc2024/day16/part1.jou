@@ -17,10 +17,10 @@ class State:
     score: int
 
     def next_states(self) -> State[3]:
-        x = self->place[0]
-        y = self->place[1]
-        dx = self->direction[0]
-        dy = self->direction[1]
+        x = self.place[0]
+        y = self.place[1]
+        dx = self.direction[0]
+        dy = self.direction[1]
 
         if visual_mode:
             turn_cost = 1
@@ -29,10 +29,10 @@ class State:
 
         return [
             # Go forward
-            State{place=[x+dx, y+dy], direction=[dx, dy], score=self->score + 1},
+            State{place=[x+dx, y+dy], direction=[dx, dy], score=self.score + 1},
             # Turn both ways
-            State{place=[x, y], direction=[-dy, dx], score=self->score + turn_cost},
-            State{place=[x, y], direction=[dy, -dx], score=self->score + turn_cost},
+            State{place=[x, y], direction=[-dy, dx], score=self.score + turn_cost},
+            State{place=[x, y], direction=[dy, -dx], score=self.score + turn_cost},
         ]
 
 
@@ -55,8 +55,8 @@ def min4(a: int, b: int, c: int, d: int) -> int:
 def visualize(grid: Grid*, smallest_scores: int[4][150][150]*, todo: State*, todo_len: int) -> None:
     assert visual_mode
 
-    for y = 0; y < grid->height; y++:
-        for x = 0; x < grid->width; x++:
+    for y = 0; y < grid.height; y++:
+        for x = 0; x < grid.width; x++:
             in_todo = False
             for i = 0; i < todo_len; i++:
                 if todo[i].place[0] == x and todo[i].place[1] == y:
@@ -64,7 +64,7 @@ def visualize(grid: Grid*, smallest_scores: int[4][150][150]*, todo: State*, tod
             if in_todo:
                 printf("\x1b[1;44m")  # ANSI code for yellow
 
-            if grid->get([x, y]) == '#':
+            if grid.get([x, y]) == '#':
                 putchar('#')
             else:
                 best = min4(

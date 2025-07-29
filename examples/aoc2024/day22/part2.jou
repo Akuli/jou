@@ -28,7 +28,7 @@ class Buyer:
         last_digits: int[2000]
         deltas: int[2000]
 
-        state = self->seed
+        state = self.seed
         for i = 0; i < 2000; i++:
             old = (state % 10) as int
             state = next_num(state)
@@ -37,13 +37,13 @@ class Buyer:
             last_digits[i] = new
             deltas[i] = new - old
 
-        self->diffseq_to_bananas = calloc(sizeof(self->diffseq_to_bananas[0]), 20*20*20*20)
-        assert self->diffseq_to_bananas != NULL
+        self.diffseq_to_bananas = calloc(sizeof(self.diffseq_to_bananas[0]), 20*20*20*20)
+        assert self.diffseq_to_bananas != NULL
 
         # Go backwards so that we overwrite with whatever appears first in array
         for i = 1999; i >= 3; i--:
             diffseq = [deltas[i-3], deltas[i-2], deltas[i-1], deltas[i]]
-            self->diffseq_to_bananas[diffseq_to_int(diffseq)] = last_digits[i] as byte
+            self.diffseq_to_bananas[diffseq_to_int(diffseq)] = last_digits[i] as byte
 
 
 def main() -> int:
