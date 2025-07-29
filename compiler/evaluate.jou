@@ -205,7 +205,7 @@ def choose_if_elif_branch(if_stmt: AstIfStatement*) -> List[AstStatement]*:
     return &if_stmt.else_body
 
 
-# Replaces the statement body->ptr[i] with statements from a given list.
+# Replaces the statement body.ptr[i] with statements from a given list.
 def replace(body: List[AstStatement]*, i: int, new: List[AstStatement]) -> None:
     body.ptr[i].free()
     body.grow(body.len + new.len)
@@ -213,7 +213,7 @@ def replace(body: List[AstStatement]*, i: int, new: List[AstStatement]) -> None:
     # How many statements after index i we want to preserve
     nkeep = body.len - (i+1)
 
-    # Delete body->ptr[i] and shift everything after it to their new place
+    # Delete body.ptr[i] and shift everything after it to their new place
     memmove(&body.ptr[i + new.len], &body.ptr[i+1], nkeep * sizeof(body.ptr[0]))
 
     # Put the new statements to their place.
