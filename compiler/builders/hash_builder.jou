@@ -26,6 +26,7 @@ def hash_type(hash: Hash*, type: Type*) -> None:
             # Treat all pointers the same, since they are the same LLVM type.
             TypeKind.Pointer
             | TypeKind.VoidPointer
+            | TypeKind.FuncPtr
             # Treat all enums the same, they are int32.
             | TypeKind.Enum
             | TypeKind.Bool

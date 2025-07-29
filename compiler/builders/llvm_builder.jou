@@ -84,8 +84,8 @@ def type_to_llvm(type: Type*) -> LLVMType*:
     match type.kind:
         case TypeKind.Array:
             return LLVMArrayType(type_to_llvm(type.array.item_type), type.array.len)
-        case TypeKind.Pointer | TypeKind.VoidPointer:
-            # Element type doesn't matter in new LLVM versions.
+        case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
+            # All pointers are the same type in new LLVM versions.
             return LLVMPointerType(LLVMInt8Type(), 0)
         case TypeKind.FloatingPoint:
             if type.size_in_bits == 32:

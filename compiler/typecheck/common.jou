@@ -2,6 +2,7 @@
 # checking steps.
 
 import "stdlib/str.jou"
+import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
@@ -165,4 +166,15 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             return result
 
         case AstTypeKind.FuncPtr:
-            assert False
+            argtypes = List[Type*]{}
+            for ap = asttype.func_ptr.argtypes.ptr; ap < asttype.func_ptr.argtypes.end(); ap++:
+                argtypes.append(type_from_ast(ft, containing_class, ap))
+
+            if asttype.func_ptr.return_type.is_none() or asttype.func_ptr.return_type.is_noreturn():
+                return_type = NULL
+            else:
+                return_type = type_from_ast(ft, containing_class, asttype.func_ptr.return_type)
+
+            result = funcptr_type(argtypes, return_type, asttype.func_ptr.return_type.is_noreturn())
+            free(argtypes.ptr)
+            return result
