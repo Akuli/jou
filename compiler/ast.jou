@@ -206,6 +206,7 @@ enum AstExpressionKind:
     GetFuncPtr          # GetVariable that has resolved to a function pointer
     DotOperator         # foo.bar, don't know yet which way to interpret it
     GetEnumMember       # foo.bar, foo is an enum
+    # TODO: Rename GetClassField to GetField
     GetClassField       # foo.bar, foo is an instance of a class and bar is a field
     GetClassFieldPtr    # foo.bar, foo is a pointer to an instance and bar is a field
     GetMethod           # foo.bar, foo is an instance of a class and bar is a method
@@ -475,10 +476,15 @@ class AstAs:
 # foo.bar(arg1, arg2, arg3)
 @public
 class AstCall:
-    location: Location
     called_obj: AstExpression*  # for method calls this is a NULL for function calls, the foo of foo.bar() for method calls
     args: List[AstExpression]
-    called_signature: Signature*  # populated in typecheck, NULL before typecheck runs, not owned
+
+    # One of these two is populated in typecheck. Both are NULL before
+    # typecheck runs.
+    #
+    # Not owned, no need to free the memory.
+    called_signature: Signature*
+    called_funcptr_type: Type*
 
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
