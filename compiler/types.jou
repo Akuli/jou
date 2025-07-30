@@ -101,7 +101,6 @@ class Type:
             ptr: TypeInfo* = calloc(1, sizeof *ptr)
             ptr.type = Type{kind=TypeKind.Pointer, value_type=self}
             if self.kind == TypeKind.FuncPtr:
-                # TODO: test this
                 snprintf(ptr.type.name, sizeof ptr.type.name, "(%s)*", self.name)
             else:
                 snprintf(ptr.type.name, sizeof ptr.type.name, "%s*", self.name)
@@ -125,7 +124,6 @@ class Type:
         arr: TypeInfo* = calloc(1, sizeof *arr)
         arr.type = Type{kind = TypeKind.Array, array = ArrayType{item_type = self, len = len}}
         if self.kind == TypeKind.FuncPtr:
-            # TODO: test this
             snprintf(arr.type.name, sizeof arr.type.name, "(%s)[%d]", self.name, len)
         else:
             snprintf(arr.type.name, sizeof arr.type.name, "%s[%d]", self.name, len)
@@ -667,7 +665,6 @@ class Signature:
     # Turns "strcmp(s1: byte*, s2: byte*) -> int" into "funcptr(byte*, byte*) -> int"
     def to_funcptr_type(self, error_location: Location) -> Type*:
         if self.takes_varargs:
-            # TODO: test this
             msg: byte[200]
             snprintf(msg, sizeof(msg), "cannot create function pointer to function %s() because it takes varargs", self.name)
             fail(error_location, msg)

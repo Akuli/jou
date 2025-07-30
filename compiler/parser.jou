@@ -377,7 +377,6 @@ class Parser:
         self.tokens++
 
         if not self.tokens.is_operator("("):
-            # TODO: test this
             self.tokens.fail_expected_got("a '(' to denote the start of funcptr argument types")
         self.tokens++
 
@@ -392,13 +391,8 @@ class Parser:
             self.tokens.fail_expected_got("a ')'")
         self.tokens++
 
-        # Special case for common typo: funcptr() without a return type
-        if self.tokens.is_operator(":"):
-            # TODO: test this
-            fail(self.tokens.location, "return type of funcptr must be specified with '->'")
         if not self.tokens.is_operator("->"):
-            # TODO: test this
-            self.tokens.fail_expected_got("a '->'")
+            fail(self.tokens.location, "return type of funcptr must be specified with '->'")
         self.tokens++
 
         ret: AstType* = malloc(sizeof(*ret))
@@ -416,7 +410,6 @@ class Parser:
             self.tokens++
             result = self.parse_type()
             if not self.tokens.is_operator(")"):
-                # TODO: test this
                 self.tokens.fail_expected_got("a ')'")
             self.tokens++
         elif (
