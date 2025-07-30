@@ -153,9 +153,9 @@ class AstEnumMember:
 
 # foo.bar
 @public
-class AstClassField:
+class AstClassMember:
     instance: AstExpression*
-    field_name: byte[100]
+    member_name: byte[100]
 
     def free(self) -> None:
         self.instance.free()
@@ -204,10 +204,12 @@ enum AstExpressionKind:
     Self    # not a variable lookup, so you can't use 'self' as variable name outside a class
     GetVariable
     GetFuncPtr          # GetVariable that has resolved to a function pointer
-    DotOperator         # foo.bar (don't know yet which way to interpret it)
+    DotOperator         # foo.bar, don't know yet which way to interpret it
     GetEnumMember       # foo.bar, foo is an enum
-    GetClassField       # foo.bar, foo is an instance of a class
-    GetClassFieldPtr    # foo.bar, foo is a pointer to an instance of a class
+    GetClassField       # foo.bar, foo is an instance of a class and bar is a field
+    GetClassFieldPtr    # foo.bar, foo is a pointer to an instance and bar is a field
+    GetMethod           # foo.bar, foo is an instance of a class and bar is a method
+    GetMethodPtr        # foo.bar, foo is a pointer to an instance and bar is a method
     As
     # unary operators
     SizeOf      # sizeof x
@@ -249,7 +251,7 @@ class AstExpression:
     union:
         integer_value: uint64
         enum_member: AstEnumMember
-        class_field: AstClassField
+        class_member: AstClassMember
         call: AstCall
         instantiation: AstInstantiation
         as_: AstAs*  # Must be pointer, because it contains an AstExpression
@@ -292,8 +294,8 @@ class AstExpression:
             case AstExpressionKind.GetFuncPtr:
                 printf("get pointer to function \"%s\"\n", self.varname)
             case AstExpressionKind.DotOperator:
-                printf("get member \"%s\"\n", self.class_field.field_name)
-                self.class_field.instance.print_with_tree_printer(tp.print_prefix(True))
+                printf("get member \"%s\"\n", self.class_member.member_name)
+                self.class_member.instance.print_with_tree_printer(tp.print_prefix(True))
             case AstExpressionKind.GetEnumMember:
                 printf(
                     "get member \"%s\" from enum \"%s\"\n",
@@ -301,11 +303,17 @@ class AstExpression:
                     self.enum_member.enum_name,
                 )
             case AstExpressionKind.GetClassField:
-                printf("get class field from instance \"%s\"\n", self.class_field.field_name)
-                self.class_field.instance.print_with_tree_printer(tp.print_prefix(True))
+                printf("get class field \"%s\" from instance\n", self.class_member.member_name)
+                self.class_member.instance.print_with_tree_printer(tp.print_prefix(True))
             case AstExpressionKind.GetClassFieldPtr:
-                printf("get class field from pointer \"%s\"\n", self.class_field.field_name)
-                self.class_field.instance.print_with_tree_printer(tp.print_prefix(True))
+                printf("get class field \"%s\" from pointer\n", self.class_member.member_name)
+                self.class_member.instance.print_with_tree_printer(tp.print_prefix(True))
+            case AstExpressionKind.GetMethod:
+                printf("get method \"%s\" from instance\n", self.class_member.member_name)
+                self.class_member.instance.print_with_tree_printer(tp.print_prefix(True))
+            case AstExpressionKind.GetMethodPtr:
+                printf("get method \"%s\" from pointer\n", self.class_member.member_name)
+                self.class_member.instance.print_with_tree_printer(tp.print_prefix(True))
             case AstExpressionKind.As:
                 self.as_.print_with_tree_printer(tp)
             case AstExpressionKind.SizeOf:
@@ -380,8 +388,10 @@ class AstExpression:
                 AstExpressionKind.DotOperator
                 | AstExpressionKind.GetClassField
                 | AstExpressionKind.GetClassFieldPtr
+                | AstExpressionKind.GetMethod
+                | AstExpressionKind.GetMethodPtr
             ):
-                self.class_field.free()
+                self.class_member.free()
             case AstExpressionKind.As:
                 self.as_.free()
                 free(self.as_)
@@ -466,8 +476,7 @@ class AstAs:
 @public
 class AstCall:
     location: Location
-    name: byte[100]  # name of function or method
-    method_call_self: AstExpression*  # NULL for function calls, the foo of foo.bar() for method calls
+    called_obj: AstExpression*  # for method calls this is a NULL for function calls, the foo of foo.bar() for method calls
     args: List[AstExpression]
     called_signature: Signature*  # populated in typecheck, NULL before typecheck runs, not owned
 
@@ -475,12 +484,11 @@ class AstCall:
         self.print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("call %s \"%s\"\n", self.function_or_method(), self.name)
+        printf("call\n")
 
-        if self.method_call_self != NULL:
-            sub = tp.print_prefix(self.args.len == 0)
-            printf("self: ")
-            self.method_call_self.print_with_tree_printer(sub)
+        sub = tp.print_prefix(self.args.len == 0)
+        printf("called object: ")
+        self.called_obj.print_with_tree_printer(sub)
 
         for i = 0; i < self.args.len; i++:
             sub = tp.print_prefix(i == self.args.len - 1)
@@ -488,19 +496,12 @@ class AstCall:
             self.args.ptr[i].print_with_tree_printer(sub)
 
     def free(self) -> None:
+        if self.called_obj != NULL:
+            self.called_obj.free()
+            free(self.called_obj)
         for p = self.args.ptr; p < self.args.end(); p++:
             p.free()
         free(self.args.ptr)
-        if self.method_call_self != NULL:
-            self.method_call_self.free()
-            free(self.method_call_self)
-
-    # Useful for formatting error messages, but not much else.
-    def function_or_method(self) -> byte*:
-        if self.method_call_self == NULL:
-            return "function"
-        else:
-            return "method"
 
 
 # assert foo
