@@ -17,8 +17,11 @@ import "stdlib/math.jou"
 link "./stb_image_write.o"
 declare stbi_write_png(filename: byte*, w: int, h: int, comp: int, data: void*, stride_in_bytes: int) -> int
 
-const SIZE: int = 100
-const CELL_PIXELS: int = 25
+# How many cells in each direction (SIZE^2 total)
+const SIZE: int = 10
+
+# How many pixels fit into a cell in each direction (CELL_PIXELS^2 total)
+const CELL_PIXELS: int = 50
 
 
 global next: uint32
@@ -35,8 +38,8 @@ def rand_0to1() -> float:
 
 def make_grid() -> List[int[2]]:
     result = List[int[2]]{}
-    for x = 0; x < SIZE; x++:
-        for y = 0; y < SIZE; y++:
+    for x = 0; x < SIZE + 1; x++:
+        for y = 0; y < SIZE + 1; y++:
             result.append([x, y])
     return result
 
@@ -99,7 +102,7 @@ def choose_unit_vectors(corners: int[2][4], unit_vectors: List[float[2]]) -> flo
     for i = 0; i < 4; i++:
         x = corners[i][0]
         y = corners[i][1]
-        result[i] = unit_vectors.ptr[x*SIZE + y]
+        result[i] = unit_vectors.ptr[x*(SIZE + 1) + y]
     return result
 
 
@@ -112,7 +115,7 @@ def main() -> int:
     for ig = 0; ig < grid.len; ig++:
         cell_x = grid.ptr[ig][0]
         cell_y = grid.ptr[ig][1]
-        if cell_x == SIZE - 1 or cell_y == SIZE - 1:
+        if cell_x == SIZE or cell_y == SIZE:
             continue
 
         corners = locate_corners(cell_x, cell_y)
@@ -127,7 +130,7 @@ def main() -> int:
                 dot_products = compute_dot_products(chosen_unit_vectors, ctp_vectors)
 
                 noise_value = interpolate(dot_products, x, y, cell_x, cell_y)
-                v = ((noise_value + sqrtf(2))/(2*sqrtf(2)) * 255) as byte
+                v = ((noise_value + sqrtf(2) / 2)/sqrtf(2) * 255) as byte
 
                 im_x = (x * CELL_PIXELS + 0.5) as int
                 im_y = (y * CELL_PIXELS + 0.5) as int
