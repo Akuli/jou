@@ -122,8 +122,9 @@ def main() -> int:
 
                     noise_value = interpolate(dot_products, x, y, cell_x, cell_y)
 
-                    # Noise value is between -sqrt(2) and +sqrt(2), slace to 0-255 range
-                    v = roundf((noise_value + sqrtf(2) / 2)/sqrtf(2) * 255) as byte
+                    # Noise value is between +-sqrt(2)/2. For a proof, see:
+                    # https://digitalfreepen.com/2017/06/20/range-perlin-noise.html
+                    v = roundf((noise_value + sqrtf(2)/2)/sqrtf(2) * 255) as byte
 
                     im_x = cell_x*CELL_PIXELS + i
                     im_y = cell_y*CELL_PIXELS + j
