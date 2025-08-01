@@ -11,7 +11,6 @@
 
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
-import "stdlib/list.jou"
 import "stdlib/math.jou"
 
 link "./stb_image_write.o"
@@ -24,32 +23,28 @@ const SIZE: int = 10
 const CELL_PIXELS: int = 50
 
 
-global next: uint32
-const RAND_MAX: int = 32767
+# TODO: add rand() to standard library
+declare rand() -> int
 
-def rand() -> int:
-    next = (next * 1103515245 + 12345) as uint32
-    return ((next/65536) as uint32) % 32768
-
-
+# Returns a random float 0 to 1.
 def rand_0to1() -> float:
-    return rand() / (RAND_MAX as float)
+    # TODO: add RAND_MAX to standard library so we can simply divide by that
+    return (rand() % 12345) / (12345 as float)
 
 
-def make_grid() -> List[int[2]]:
-    result = List[int[2]]{}
-    for x = 0; x < SIZE + 1; x++:
-        for y = 0; y < SIZE + 1; y++:
-            result.append([x, y])
-    return result
+# TODO: add pi to math library
+def pi() -> float:
+    return acosf(-1)
 
 
-def get_unit_vectors(grid: List[int[2]]) -> List[float[2]]:
-    result = List[float[2]]{}
-    for i = 0; i < grid.len; i++:
-        angle = rand_0to1() * 2 * acosf(-1)
-        vector = [cosf(angle), sinf(angle)]
-        result.append(vector)
+# Generates a random 2D vector of length 1 for each corner of a cell.
+# We have SIZE^2 cells, (SIZE+1)^2 corners and hence (SIZE+1)^2 unit vectors.
+def generate_unit_vectors() -> float[2]*:
+    num_corners = (SIZE + 1) * (SIZE + 1)
+    result: float[2]* = malloc(sizeof(result[0]) * num_corners)
+    for i = 0; i < num_corners; i++:
+        angle = rand_0to1() * 2 * pi()
+        result[i] = [cosf(angle), sinf(angle)]
     return result
 
 
@@ -97,50 +92,44 @@ def interpolate(
     return m3
 
 
-def choose_unit_vectors(corners: int[2][4], unit_vectors: List[float[2]]) -> float[2][4]:
+def choose_unit_vectors(corners: int[2][4], unit_vectors: float[2]*) -> float[2][4]:
     result: float[2][4]
     for i = 0; i < 4; i++:
         x = corners[i][0]
         y = corners[i][1]
-        result[i] = unit_vectors.ptr[x*(SIZE + 1) + y]
+        result[i] = unit_vectors[x*(SIZE + 1) + y]
     return result
 
 
 def main() -> int:
-    image: byte[3]* = malloc(sizeof(image[0]) * SIZE * SIZE * CELL_PIXELS * CELL_PIXELS)
+    image_size = SIZE * CELL_PIXELS  # width and height of image (it is square shaped)
 
-    grid = make_grid()
-    unit_vectors = get_unit_vectors(grid)
+    image: byte[3]* = malloc(sizeof(image[0]) * image_size * image_size)
+    unit_vectors = generate_unit_vectors()
 
-    for ig = 0; ig < grid.len; ig++:
-        cell_x = grid.ptr[ig][0]
-        cell_y = grid.ptr[ig][1]
-        if cell_x == SIZE or cell_y == SIZE:
-            continue
+    for cell_x = 0; cell_x < SIZE; cell_x++:
+        for cell_y = 0; cell_y < SIZE; cell_y++:
+            corners = locate_corners(cell_x, cell_y)
+            chosen_unit_vectors = choose_unit_vectors(corners, unit_vectors)
 
-        corners = locate_corners(cell_x, cell_y)
-        chosen_unit_vectors = choose_unit_vectors(corners, unit_vectors)
+            for i = 0; i < CELL_PIXELS; i++:
+                for j = 0; j < CELL_PIXELS; j++:
+                    x = cell_x + i / (CELL_PIXELS as float)
+                    y = cell_y + j / (CELL_PIXELS as float)
 
-        for i = 0; i < CELL_PIXELS; i++:
-            for j = 0; j < CELL_PIXELS; j++:
-                x = cell_x + i / (CELL_PIXELS as float)
-                y = cell_y + j / (CELL_PIXELS as float)
+                    ctp_vectors = vectors_from_corners_to_point(corners, x, y)
+                    dot_products = compute_dot_products(chosen_unit_vectors, ctp_vectors)
 
-                ctp_vectors = vectors_from_corners_to_point(corners, x, y)
-                dot_products = compute_dot_products(chosen_unit_vectors, ctp_vectors)
+                    noise_value = interpolate(dot_products, x, y, cell_x, cell_y)
+                    v = roundf((noise_value + sqrtf(2) / 2)/sqrtf(2) * 255) as byte
 
-                noise_value = interpolate(dot_products, x, y, cell_x, cell_y)
-                v = ((noise_value + sqrtf(2) / 2)/sqrtf(2) * 255) as byte
+                    im_x = cell_x*CELL_PIXELS + i
+                    im_y = cell_y*CELL_PIXELS + j
+                    image[im_y*image_size + im_x] = [v, v, v]
 
-                im_x = (x * CELL_PIXELS + 0.5) as int
-                im_y = (y * CELL_PIXELS + 0.5) as int
+    free(unit_vectors)
 
-                image[im_y*SIZE*CELL_PIXELS + im_x] = [v,v,v]
-
-    free(grid.ptr)
-    free(unit_vectors.ptr)
-
-    ret = stbi_write_png("out.png", SIZE*CELL_PIXELS, SIZE*CELL_PIXELS, 3, image, SIZE*CELL_PIXELS*3)
+    ret = stbi_write_png("out.png", image_size, image_size, 3, image, 3*image_size)
     if ret == 0:
         printf("Error writing image to file :(\n")
     else:
