@@ -754,9 +754,10 @@ class Parser:
     def parse_call(self, obj: AstExpression) -> AstExpression:
         called_obj: AstExpression* = malloc(sizeof(*called_obj))
         *called_obj = obj
-        call = AstCall{location = self.tokens.location, called_obj = called_obj}
+        call = AstCall{called_obj = called_obj}
 
         assert self.tokens.is_operator("(")
+        location = self.tokens.location
         self.tokens++
 
         while not self.tokens.is_operator(")"):
@@ -770,7 +771,7 @@ class Parser:
         self.tokens++
 
         return AstExpression{
-            location = call.location,  # TODO: do not duplicate this?
+            location = location,
             kind = AstExpressionKind.Call,
             call = call,
         }
