@@ -240,3 +240,28 @@ declare cbrtf(x: float) -> float
 declare hypot(x: double, y: double) -> double
 @public
 declare hypotf(x: float, y: float) -> float
+
+# Computes the error function, defined by the following integral:
+#
+#                           x
+#                          |\
+#   erf(x) = 2/sqrt(pi) *  |  exp(-t^2) dt
+#                         \|
+#                          0
+#
+# The scaling factor in front is chosen such that:
+#
+#   erf(infinity) == 1
+#   erf(-infinity) == -1
+#
+# This can be used to calculate probabilities that follow the Gaussian
+# distribution. Suppose X is a Gaussian distributed random variable with
+# mean `mu` and standard deviation `sigma`. Then:
+#
+#   P(X <= a) = 0.5 * (1 + erf((a - mu)/(sigma * sqrt(2))))
+#
+# where `a` is any number and `P(X <= a)` denotes the probability of `X <= a`.
+@public
+declare erf(double x) -> double
+@public
+declare erff(double x) -> double
