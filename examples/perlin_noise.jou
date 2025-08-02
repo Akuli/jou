@@ -1,0 +1,142 @@
+# Instructions:
+# 1. Download stb_image_write.h from https://raw.githubusercontent.com/nothings/stb/refs/heads/master/stb_image_write.h
+# 2. Compile stb_image_write.h to `.o` file. For example, if you have gcc, do this:
+#
+#   $ gcc -x c -DSTB_IMAGE_WRITE_IMPLEMENTATION stb_image_write.h -c -o stb_image_write.o
+#
+# Make sure that you end up with `examples/stb_image_write.o`.
+#
+# 3. Run `jou perlin_noise.jou`.
+# 4. Look at `out.png`.
+
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/math.jou"
+
+link "./stb_image_write.o"
+declare stbi_write_png(filename: byte*, w: int, h: int, comp: int, data: void*, stride_in_bytes: int) -> int
+
+# How many cells in each direction (SIZE^2 total)
+const SIZE: int = 10
+
+# How many pixels fit into a cell in each direction (CELL_PIXELS^2 total)
+const CELL_PIXELS: int = 50
+
+
+# TODO: add rand() to standard library
+declare rand() -> int
+
+# Returns a random float 0 to 1.
+def rand_0to1() -> float:
+    # TODO: add RAND_MAX to standard library so we can simply divide by that
+    return (rand() % 12345) / (12345 as float)
+
+
+# TODO: add pi to math library
+def pi() -> float:
+    return acosf(-1)
+
+
+# Generates a random 2D vector of length 1 for each corner of a cell.
+# We have SIZE^2 cells, (SIZE+1)^2 corners and hence (SIZE+1)^2 unit vectors.
+def generate_unit_vectors() -> float[2]*:
+    num_corners = (SIZE + 1) * (SIZE + 1)
+    result: float[2]* = malloc(sizeof(result[0]) * num_corners)
+    for i = 0; i < num_corners; i++:
+        angle = rand_0to1() * 2 * pi()
+        result[i] = [cosf(angle), sinf(angle)]
+    return result
+
+
+def locate_corners(x: int, y: int) -> int[2][4]:
+    return [
+        [x, y],
+        [x+1, y],
+        [x, y+1],
+        [x+1, y+1],
+    ]
+
+
+def vectors_from_corners_to_point(
+    corners: int[2][4], pixel_x: float, pixel_y: float
+) -> float[2][4]:
+    result: float[2][4]
+    for i = 0; i < 4; i++:
+        result[i] = [pixel_x - corners[i][0], pixel_y - corners[i][1]]
+    return result
+
+
+def compute_dot_products(unit_vectors: float[2][4], ctp_vectors: float[2][4]) -> float[4]:
+    result: float[4]
+    for i = 0; i < 4; i++:
+        u = unit_vectors[i]
+        v = ctp_vectors[i]
+        result[i] = u[0]*v[0] + u[1]*v[1]
+    return result
+
+
+def easing_func(x: float) -> float:
+    return 6*(x*x*x*x*x) - 15*(x*x*x*x) + 10*(x*x*x)
+
+
+def interpolate(
+    dot_products: float[4], pixel_x: float, pixel_y: float, cell_x: int, cell_y: int
+) -> float:
+    x = easing_func(pixel_x - cell_x)
+    y = easing_func(pixel_y - cell_y)
+
+    m1 = dot_products[0] + x * (dot_products[1] - dot_products[0])
+    m2 = dot_products[2] + x * (dot_products[3] - dot_products[2])
+    m3 = m1 + y * (m2 - m1)
+
+    return m3
+
+
+def choose_unit_vectors(corners: int[2][4], unit_vectors: float[2]*) -> float[2][4]:
+    result: float[2][4]
+    for i = 0; i < 4; i++:
+        x = corners[i][0]
+        y = corners[i][1]
+        result[i] = unit_vectors[x*(SIZE + 1) + y]
+    return result
+
+
+def main() -> int:
+    image_size = SIZE * CELL_PIXELS  # width and height of image (it is square shaped)
+
+    image: byte[3]* = malloc(sizeof(image[0]) * image_size * image_size)
+    unit_vectors = generate_unit_vectors()
+
+    for cell_x = 0; cell_x < SIZE; cell_x++:
+        for cell_y = 0; cell_y < SIZE; cell_y++:
+            corners = locate_corners(cell_x, cell_y)
+            chosen_unit_vectors = choose_unit_vectors(corners, unit_vectors)
+
+            for i = 0; i < CELL_PIXELS; i++:
+                for j = 0; j < CELL_PIXELS; j++:
+                    x = cell_x + i / (CELL_PIXELS as float)
+                    y = cell_y + j / (CELL_PIXELS as float)
+
+                    ctp_vectors = vectors_from_corners_to_point(corners, x, y)
+                    dot_products = compute_dot_products(chosen_unit_vectors, ctp_vectors)
+
+                    noise_value = interpolate(dot_products, x, y, cell_x, cell_y)
+
+                    # Noise value is between +-sqrt(2)/2. For a proof, see:
+                    # https://digitalfreepen.com/2017/06/20/range-perlin-noise.html
+                    v = roundf((noise_value + sqrtf(2)/2)/sqrtf(2) * 255) as byte
+
+                    im_x = cell_x*CELL_PIXELS + i
+                    im_y = cell_y*CELL_PIXELS + j
+                    image[im_y*image_size + im_x] = [v, v, v]
+
+    free(unit_vectors)
+
+    ret = stbi_write_png("out.png", image_size, image_size, 3, image, 3*image_size)
+    if ret == 0:
+        printf("Error writing image to file :(\n")
+    else:
+        printf("Wrote out.png\n", ret)
+
+    free(image)
+    return 0
