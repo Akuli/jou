@@ -11,8 +11,8 @@ const M_PI: double = 3.14159265358979323846264338327950288419716939937510
 #   - Napier's constant
 #   - The base of the natural logarithm (see `log` function)
 #
-# This is a less widely known constant that comes up when analyzing exponential
-# growth: the derivative of e^x is the function e^x itself.
+# This constant comes up when analyzing exponential growth or decay rates.
+# Specifically, the derivative of e^x is the function e^x itself.
 #
 # Note: Usually, instead of `pow(M_E, foo)`, it is better to use `exp(foo)`.
 # It is just as readable (if not better) and may be faster or more accurate.
@@ -143,6 +143,8 @@ declare atanf(x: float) -> float
 
 # Returns an angle between -pi and +pi so that if you go from (0,0) in the
 # direction of the angle, you eventually arrive at (x,y).
+#
+# Note the reversed order of the arguments.
 @public
 declare atan2(y: double, x: double) -> double
 @public
