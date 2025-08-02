@@ -1,4 +1,24 @@
-# Defines the math functions in math.h
+# Constants are prefixed with M_ to avoid confusing them with anything else.
+# For example, as a Jou user, it should be possible to make a class named E,
+# so we define M_E, not E.
+
+# The famous circle constant :)
+@public
+const M_PI: double = 3.14159265358979323846264338327950288419716939937510
+
+# This is the `e` constant, also known as:
+#   - Euler's number
+#   - Napier's constant
+#   - The base of the natural logarithm (see `log` function)
+#
+# This constant comes up when analyzing exponential growth or decay rates.
+# Specifically, the derivative of e^x is the function e^x itself.
+#
+# Note: Usually, instead of `pow(M_E, foo)`, it is better to use `exp(foo)`.
+# It is just as readable (if not better) and may be faster or more accurate.
+@public
+const M_E: double = 2.71828182845904523536028747135266249775724709369995
+
 
 # Choose bigger/smaller
 @public
@@ -16,27 +36,27 @@ def max(a: int, b: int) -> int:
         return b
 
 @public
-declare fmin(a: double, b: double) -> double
-@public
-declare fminf(a: float, b: float) -> float
-@public
-declare fmax(a: double, b: double) -> double
-@public
-declare fmaxf(a: float, b: float) -> float
-
-@public
 def llmin(a: long, b: long) -> long:
     if a < b:
         return a
     else:
         return b
-
 @public
 def llmax(a: long, b: long) -> long:
     if a > b:
         return a
     else:
         return b
+
+@public
+declare fmin(a: double, b: double) -> double
+@public
+declare fmax(a: double, b: double) -> double
+
+@public
+declare fminf(a: float, b: float) -> float
+@public
+declare fmaxf(a: float, b: float) -> float
 
 # Returns the absolute value of x: |x|.
 @public
@@ -48,56 +68,83 @@ declare fabsf(x: float) -> float
 @public
 declare llabs(x: long) -> long
 
-# Rounding and remainder functions
-
-# Rounds x upward, returning the smallest integral value that is not less than x.
+# Rounds x upward, returning the smallest integer >= x.
+# Example: ceil(3.14) == 4.0
 @public
 declare ceil(x: double) -> double
 @public
 declare ceilf(x: float) -> float
-# Rounds x downward, returning the largest integral value that is not greater than x.
+
+# Rounds x downward, returning the largest integer <= x.
+# Example: floor(3.14) == 3.0
 @public
 declare floor(x: double) -> double
 @public
 declare floorf(x: float) -> float
-# Returns the integral value that is nearest to x, with halfway cases rounded away from zero.
+
+# Returns the integer that is nearest to x.
+# Examples: round(3.14) == 3, round(2.71) == 3
 @public
 declare round(x: double) -> double
 @public
 declare roundf(x: float) -> float
 
-# Trigonometric functions
-
-# These functions use radians as the angle unit.
-# One radian is the angle of a circle slice with equal radius and arc length, about 57 degrees.
+# ==========================
+#   Note about angle units
+# ==========================
+#
+# If not otherwise mentioned, all angles are in radians. One radian is the
+# angle of a circle slice with equal radius and arc length, about 57 degrees.
 # A full turn (360 degrees) is 2pi (about 6.28) radians.
-@public
-declare cos(x: double) -> double
-@public
-declare cosf(x: float) -> float
+#
+# Use the following formulas to convert between radians and degrees:
+#
+#   radians = degrees / 360.0 * (2*M_PI)
+#   degrees = radians / (2*M_PI) * 360
+#
+# Examples:
+#
+#   90 degrees = pi/2 radians
+#   180 degrees = pi radians
+#   360 degrees = 2*pi radians
+
 @public
 declare sin(x: double) -> double
 @public
 declare sinf(x: float) -> float
 @public
+declare cos(x: double) -> double
+@public
+declare cosf(x: float) -> float
+@public
 declare tan(x: double) -> double
 @public
 declare tanf(x: float) -> float
-# The 'a' prefixed functions are inverse functions.
-# For example, asin is also known as arcsin and sin^-1.
-@public
-declare acos(x: double) -> double
-@public
-declare acosf(x: float) -> float
+
+# Returns an angle between -pi/2 and pi/2 so that `sin(angle) == x`.
+# x should be between -1 and 1.
 @public
 declare asin(x: double) -> double
 @public
 declare asinf(x: float) -> float
+
+# Returns an angle between 0 and pi so that `cos(angle) == x`.
+# x should be between -1 and 1.
+@public
+declare acos(x: double) -> double
+@public
+declare acosf(x: float) -> float
+
+# Returns an angle between -pi/2 and pi/2 so that `tan(angle) == x`.
+# `x` can be any number.
 @public
 declare atan(x: double) -> double
 @public
 declare atanf(x: float) -> float
-# Returns the angle of a point (x, y).
+
+# Returns an angle between -pi and +pi so that if you go from (0,0) in the
+# direction of the angle, you eventually arrive at (x,y).
+#
 # Note the reversed order of the arguments.
 @public
 declare atan2(y: double, x: double) -> double
@@ -111,55 +158,47 @@ declare nan(tagp: byte*) -> double
 
 # Hyperbolic versions of the trig functions
 @public
-declare cosh(x: double) -> double
-@public
-declare coshf(x: float) -> float
-@public
 declare sinh(x: double) -> double
 @public
 declare sinhf(x: float) -> float
+@public
+declare cosh(x: double) -> double
+@public
+declare coshf(x: float) -> float
 @public
 declare tanh(x: double) -> double
 @public
 declare tanhf(x: float) -> float
 @public
-declare acosh(x: double) -> double
-@public
-declare acoshf(x: float) -> float
-@public
 declare asinh(x: double) -> double
 @public
 declare asinhf(x: float) -> float
+@public
+declare acosh(x: double) -> double
+@public
+declare acoshf(x: float) -> float
 @public
 declare atanh(x: double) -> double
 @public
 declare atanhf(x: float) -> float
 
-# Exponential and logarithmic functions
-
-# Computes e^x.
-@public
-declare exp(x: double) -> double
-@public
-declare expf(x: float) -> float
-
-# Computes 2^x.
+# Computes 2^x (2 to the power of x).
 @public
 declare exp2(x: double) -> double
 @public
 declare exp2f(x: float) -> float
 
-# Computes 10^x.
+# Computes e^x (e to the power of x).
 @public
-declare exp10(x: double) -> double
+declare exp(x: double) -> double
 @public
-declare exp10f(x: float) -> float
+declare expf(x: float) -> float
 
-# Returns the natural (base e) logarithm of x.
+# Computes x^y (x to the power of y).
 @public
-declare log(x: double) -> double
+declare pow(x: double, y: double) -> double
 @public
-declare logf(x: float) -> float
+declare powf(x: float, y: float) -> float
 
 # Returns the base 2 logarithm of x.
 @public
@@ -167,54 +206,59 @@ declare log2(x: double) -> double
 @public
 declare log2f(x: float) -> float
 
+# Returns the natural (base e) logarithm of x.
+# To get a logarithm with some other base `b`, use `log(x) / log(b)`.
+@public
+declare log(x: double) -> double
+@public
+declare logf(x: float) -> float
+
 # Returns the base 10 logarithm of x.
 @public
 declare log10(x: double) -> double
 @public
 declare log10f(x: float) -> float
 
-# Power functions
-
-# Raise to power.
-@public
-declare pow(x: double, y: double) -> double
-@public
-declare powf(x: float, y: float) -> float
 # Returns the square root of x.
 @public
 declare sqrt(x: double) -> double
 @public
 declare sqrtf(x: float) -> float
+
 # Returns the cubic root of x.
 @public
 declare cbrt(x: double) -> double
 @public
 declare cbrtf(x: float) -> float
+
 # Returns the hypotenuse of a right-angled triangle whose legs are x and y.
+# In other words, return the distance between (0, 0) and (x, y).
 @public
 declare hypot(x: double, y: double) -> double
 @public
 declare hypotf(x: float, y: float) -> float
 
-# Error and gamma functions
-
-# Returns the error function value for x.
+# Computes the error function, defined by the following integral:
+#
+#                           x
+#                          |\
+#   erf(x) = 2/sqrt(pi) *  |  exp(-t^2) dt
+#                         \|
+#                          0
+#
+# The scaling factor in front is chosen such that:
+#
+#   erf(infinity) == 1
+#   erf(-infinity) == -1
+#
+# This can be used to calculate probabilities that follow the Gaussian
+# distribution. Suppose X is a Gaussian distributed random variable with
+# mean `mu` and standard deviation `sigma`. Then:
+#
+#   P(X <= a) = 0.5 * (1 + erf((a - mu)/(sigma * sqrt(2))))
+#
+# where `a` is any number and `P(X <= a)` denotes the probability of `X <= a`.
 @public
 declare erf(x: double) -> double
 @public
 declare erff(x: float) -> float
-# Returns the complementary error function value for x.
-@public
-declare erfc(x: double) -> double
-@public
-declare erfcf(x: float) -> float
-# Returns the gamma function of x.
-@public
-declare tgamma(x: double) -> double
-@public
-declare tgammaf(x: float) -> float
-# Returns the natural logarithm of the absolute value of the gamma.
-@public
-declare lgamma(x: double) -> double
-@public
-declare lgammaf(x: float) -> float

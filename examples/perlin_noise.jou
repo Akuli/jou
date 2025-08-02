@@ -32,18 +32,13 @@ def rand_0to1() -> float:
     return (rand() % 12345) / (12345 as float)
 
 
-# TODO: add pi to math library
-def pi() -> float:
-    return acosf(-1)
-
-
 # Generates a random 2D vector of length 1 for each corner of a cell.
 # We have SIZE^2 cells, (SIZE+1)^2 corners and hence (SIZE+1)^2 unit vectors.
 def generate_unit_vectors() -> float[2]*:
     num_corners = (SIZE + 1) * (SIZE + 1)
     result: float[2]* = malloc(sizeof(result[0]) * num_corners)
     for i = 0; i < num_corners; i++:
-        angle = rand_0to1() * 2 * pi()
+        angle = rand_0to1() * 2 * (M_PI as float)
         result[i] = [cosf(angle), sinf(angle)]
     return result
 
