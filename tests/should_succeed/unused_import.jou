@@ -1,16 +1,16 @@
-import "stdlib/io.jou"  # Only a global variable used
+import "./imported/public_global.jou"  # Only a global variable used
 import "stdlib/str.jou"  # Only a function used
 import "./imported/bar.jou"  # Only a class used
 import "stdlib/mem.jou"  # Warning: "stdlib/mem.jou" imported but not used
 
 
 def main() -> int:
-    x = stdout
+    x = public_global
     y = strcmp("foo", "bar")
     z = Point{x=1, y=2}
 
     # prevent unused variable warnings
-    assert x != NULL
+    assert x != -1
     assert y != 0
     assert z.x != 0
 

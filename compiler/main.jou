@@ -98,8 +98,8 @@ def optimize(module: LLVMModule*, level: int) -> None:
 
     if error != NULL:
         msg = LLVMGetErrorMessage(error)
-        fprintf(stderr, "Optimizing with LLVM failed: %s\n", msg)
-        fprintf(stderr, "This is a bug. Please create an issue at https://github.com/Akuli/jou\n", msg)
+        fprintf(get_stderr(), "Optimizing with LLVM failed: %s\n", msg)
+        fprintf(get_stderr(), "This is a bug. Please create an issue at https://github.com/Akuli/jou\n", msg)
         exit(1)
 
 
@@ -119,11 +119,11 @@ def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
     error: byte* = NULL
     if LLVMTargetMachineEmitToFile(target.target_machine, mod, o_path_2, LLVMCodeGenFileType.ObjectFile, &error) != 0:
         assert error != NULL
-        fprintf(stderr, "failed to emit object file \"%s\": %s\n", o_path, error)
+        fprintf(get_stderr(), "failed to emit object file \"%s\": %s\n", o_path, error)
         exit(1)
 
     if rename(o_path_2, o_path) != 0:
-        fprintf(stderr, "renaming object file failed (%s --> %s)\n", o_path_2, o_path)
+        fprintf(get_stderr(), "renaming object file failed (%s --> %s)\n", o_path_2, o_path)
         exit(1)
 
     free(o_path_2)
