@@ -3,6 +3,7 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "./ast.jou"
+import "./errors_and_warnings.jou"
 
 
 @public
@@ -46,6 +47,13 @@ class ArrayType:
     len: int
 
 
+class FuncPtrType:
+    argtypes: List[Type*]
+    takes_varargs: bool
+    return_type: Type*  # NULL if does not return a value
+    is_noreturn: bool
+
+
 @public
 enum TypeKind:
     SignedInteger
@@ -54,6 +62,7 @@ enum TypeKind:
     FloatingPoint  # float or double
     Pointer
     VoidPointer
+    FuncPtr
     Array
     Class
     TypeVar  # the unknown type "T" of "class List[T]"
@@ -67,6 +76,7 @@ class Type:
     union:
         size_in_bits: int  # SignedInteger, UnsignedInteger, FloatingPoint
         value_type: Type*  # Pointer
+        func_ptr: FuncPtrType
         classdata: ClassData  # Class
         array: ArrayType  # Array
         enum_members: List[byte[100]]
@@ -78,7 +88,11 @@ class Type:
         return self.is_integer_type() or self.kind == TypeKind.FloatingPoint
 
     def is_pointer_type(self) -> bool:
-        return self.kind == TypeKind.Pointer or self.kind == TypeKind.VoidPointer
+        match self.kind:
+            case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
+                return True
+            case _:
+                return False
 
     # Returns a type that represents pointer to the original type.
     # Result is cached. Don't worry about freeing it.
@@ -87,7 +101,10 @@ class Type:
         if info.pointer == NULL:
             ptr: TypeInfo* = calloc(1, sizeof *ptr)
             ptr.type = Type{kind=TypeKind.Pointer, value_type=self}
-            snprintf(ptr.type.name, sizeof ptr.type.name, "%s*", self.name)
+            if self.kind == TypeKind.FuncPtr:
+                snprintf(ptr.type.name, sizeof ptr.type.name, "(%s)*", self.name)
+            else:
+                snprintf(ptr.type.name, sizeof ptr.type.name, "%s*", self.name)
             info.pointer = ptr
         return &info.pointer.type
 
@@ -107,7 +124,10 @@ class Type:
 
         arr: TypeInfo* = calloc(1, sizeof *arr)
         arr.type = Type{kind = TypeKind.Array, array = ArrayType{item_type = self, len = len}}
-        snprintf(arr.type.name, sizeof arr.type.name, "%s[%d]", self.name, len)
+        if self.kind == TypeKind.FuncPtr:
+            snprintf(arr.type.name, sizeof arr.type.name, "(%s)[%d]", self.name, len)
+        else:
+            snprintf(arr.type.name, sizeof arr.type.name, "%s[%d]", self.name, len)
 
         info.related_types.append(arr)
         return &arr.type
@@ -184,6 +204,24 @@ class Type:
                 new_item_type = self.array.item_type.substitute_generic_params(from, to, n)
                 return new_item_type.array_type(self.array.len)
 
+            case TypeKind.FuncPtr:
+                nargs = self.func_ptr.argtypes.len
+                new_argtypes: Type** = malloc(sizeof(new_argtypes[0]) * nargs)
+                assert new_argtypes != NULL
+
+                for i = 0; i < nargs; i++:
+                    new_argtypes[i] = self.func_ptr.argtypes.ptr[i].substitute_generic_params(from, to, n)
+
+                if self.func_ptr.return_type == NULL:
+                    new_return_type = NULL
+                else:
+                    new_return_type = self.func_ptr.return_type.substitute_generic_params(from, to, n)
+
+                # TODO: allow varargs support through parser instead of hard-coded False
+                result = funcptr_type(new_argtypes, nargs, False, new_return_type, self.func_ptr.is_noreturn)
+                free(new_argtypes)
+                return result
+
             case (
                 TypeKind.SignedInteger
                 | TypeKind.UnsignedInteger
@@ -230,7 +268,7 @@ class Type:
                 return "a class"
             case TypeKind.Enum:
                 return "an enum"
-            case TypeKind.Pointer | TypeKind.VoidPointer:
+            case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
                 return "a pointer type"
             case TypeKind.SignedInteger | TypeKind.UnsignedInteger | TypeKind.FloatingPoint:
                 return "a number type"
@@ -312,6 +350,7 @@ class GlobalTypeState:
     doublelele: TypeInfo
     floater: TypeInfo
     voidptr: TypeInfo
+    func_ptrs: List[TypeInfo*]  # All funcptr types. TODO: use a hash table
     other_types: List[TypeInfo*]
 
 global global_type_state: GlobalTypeState
@@ -331,6 +370,7 @@ global doubleType: Type*    # double (64-bit)
 @public
 global voidPtrType: Type*   # void*
 
+
 # Examples: int_type(32) returns the "int" type, int_type(64) is int64
 # int_type(128) is not accessible in Jou code and is used only for intermediate values.
 @public
@@ -344,6 +384,67 @@ def int_type(bits: int) -> Type*:
 def uint_type(bits: int) -> Type*:
     assert bits == 8 or bits == 16 or bits == 32 or bits == 64 or bits == 128
     return &global_type_state.uints[bits].type
+
+
+# Return a function pointer type like "funcptr(int, int) -> int"
+@public
+def funcptr_type(argtypes: Type**, nargs: long, takes_varargs: bool, return_type: Type*, is_noreturn: bool) -> Type*:
+    if is_noreturn:
+        assert return_type == NULL
+
+    # Do we already have this funcptr type?
+    for infoptr = global_type_state.func_ptrs.ptr; infoptr < global_type_state.func_ptrs.end(); infoptr++:
+        t: Type* = &(*infoptr).type
+        assert t.kind == TypeKind.FuncPtr
+        if (
+            t.func_ptr.argtypes.len == nargs
+            and memcmp(t.func_ptr.argtypes.ptr, argtypes, sizeof(argtypes[0]) * nargs) == 0
+            and t.func_ptr.takes_varargs == takes_varargs
+            and t.func_ptr.return_type == return_type
+            and t.func_ptr.is_noreturn == is_noreturn
+        ):
+            # Yes: do not create another one so that we can use "==" to compare types given as Type*
+            return t
+
+    argstr: byte[500] = ""
+    pos = 0
+
+    for i = 0; i < nargs; i++:
+        if i != 0:
+            pos += snprintf(&argstr[pos], sizeof(argstr) - pos, ", ")
+        pos += snprintf(&argstr[pos], sizeof(argstr) - pos, "%s", argtypes[i].name)
+
+    if takes_varargs:
+        if nargs != 0:
+            pos += snprintf(&argstr[pos], sizeof(argstr) - pos, ", ")
+        pos += snprintf(&argstr[pos], sizeof(argstr) - pos, "...")
+
+    if return_type == NULL:
+        if is_noreturn:
+            ret_name = "noreturn"
+        else:
+            ret_name = "None"
+    else:
+        assert not is_noreturn
+        ret_name = return_type.name
+
+    info: TypeInfo* = calloc(1, sizeof *info)
+    assert info != NULL
+
+    info.type = Type{
+        kind = TypeKind.FuncPtr,
+        func_ptr = FuncPtrType{
+            return_type = return_type,
+            takes_varargs = takes_varargs,
+            is_noreturn = is_noreturn,
+        },
+    }
+    snprintf(info.type.name, sizeof(t.name), "funcptr(%s) -> %s", argstr, ret_name)
+    for i = 0; i < nargs; i++:
+        info.type.func_ptr.argtypes.append(argtypes[i])
+
+    global_type_state.func_ptrs.append(info)
+    return &info.type
 
 
 @public
@@ -569,6 +670,17 @@ class Signature:
             else:
                 strcat(result, self.return_type.name)
 
+        return result
+
+    # Turns "strcmp(s1: byte*, s2: byte*) -> int" into "funcptr(byte*, byte*) -> int"
+    def to_funcptr_type(self, error_location: Location) -> Type*:
+        argtypes: Type** = malloc(sizeof(argtypes[0]) * self.args.len)
+        assert argtypes != NULL
+        for i = 0; i < self.args.len; i++:
+            argtypes[i] = self.args.ptr[i].type
+
+        result = funcptr_type(argtypes, self.args.len, self.takes_varargs, self.return_type, self.is_noreturn)
+        free(argtypes)
         return result
 
     def copy(self) -> Signature:
