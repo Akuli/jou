@@ -361,8 +361,58 @@ class Parser:
             resolved_flags = resolved_flags,
         }
 
+    def parse_named_type(self) -> AstType:
+        assert self.tokens.kind == TokenKind.Name or self.tokens.kind == TokenKind.Keyword
+        result = AstType{
+            kind = AstTypeKind.Named,
+            location = self.tokens.location,
+            name = self.tokens.short_string,
+        }
+        self.tokens++
+        return result
+
+    def parse_funcptr_type(self) -> AstType:
+        assert self.tokens.is_keyword("funcptr")
+        location = self.tokens.location
+        self.tokens++
+
+        if not self.tokens.is_operator("("):
+            self.tokens.fail_expected_got("a '(' to denote the start of funcptr argument types")
+        self.tokens++
+
+        argtypes = List[AstType]{}
+        while not self.tokens.is_operator(")"):
+            argtypes.append(self.parse_type())
+            if not self.tokens.is_operator(","):
+                break
+            self.tokens++
+
+        if not self.tokens.is_operator(")"):
+            self.tokens.fail_expected_got("a ')'")
+        self.tokens++
+
+        if not self.tokens.is_operator("->"):
+            fail(self.tokens.location, "return type of funcptr must be specified with '->'")
+        self.tokens++
+
+        ret: AstType* = malloc(sizeof(*ret))
+        assert ret != NULL
+        *ret = self.parse_type()
+
+        return AstType{
+            kind = AstTypeKind.FuncPtr,
+            location = location,
+            func_ptr = AstFuncPtrType{argtypes=argtypes, return_type=ret},
+        }
+
     def parse_type(self) -> AstType:
-        if not (
+        if self.tokens.is_operator("("):
+            self.tokens++
+            result = self.parse_type()
+            if not self.tokens.is_operator(")"):
+                self.tokens.fail_expected_got("a ')'")
+            self.tokens++
+        elif (
             self.tokens.kind == TokenKind.Name
             or self.tokens.is_keyword("None")
             or self.tokens.is_keyword("void")
@@ -374,14 +424,11 @@ class Parser:
             or self.tokens.is_keyword("double")
             or self.tokens.is_keyword("bool")
         ):
+            result = self.parse_named_type()
+        elif self.tokens.is_keyword("funcptr"):
+            result = self.parse_funcptr_type()
+        else:
             self.tokens.fail_expected_got("a type")
-
-        result = AstType{
-            kind = AstTypeKind.Named,
-            location = self.tokens.location,
-            name = self.tokens.short_string,
-        }
-        self.tokens++
 
         while self.tokens.is_operator("*") or self.tokens.is_operator("["):
             p: AstType* = malloc(sizeof *p)
@@ -554,25 +601,6 @@ class Parser:
         result.return_type = self.parse_type()
         return result
 
-    def parse_call(self) -> AstCall:
-        assert self.tokens.kind == TokenKind.Name  # must be checked when calling this function
-        result = AstCall{location = self.tokens.location, name = self.tokens.short_string}
-        self.tokens++
-        assert self.tokens.is_operator("(")
-        self.tokens++
-
-        while not self.tokens.is_operator(")"):
-            result.args.append(self.parse_expression())
-            if not self.tokens.is_operator(","):
-                break
-            self.tokens++
-
-        if not self.tokens.is_operator(")"):
-            self.tokens.fail_expected_got("a ')'")
-        self.tokens++
-
-        return result
-
     def parse_instantiation(self) -> AstInstantiation:
         result = AstInstantiation{type = self.parse_type()}
         assert self.tokens.is_operator("{")
@@ -651,10 +679,7 @@ class Parser:
                 expr.constant = Constant{kind = ConstantKind.PointerString, pointer_string = strdup(self.tokens.long_string)}
                 self.tokens++
             case TokenKind.Name:
-                if self.tokens[1].is_operator("("):
-                    expr.kind = AstExpressionKind.Call
-                    expr.call = self.parse_call()
-                elif looks_like_instantiate(self.tokens):
+                if looks_like_instantiate(self.tokens):
                     expr.kind = AstExpressionKind.Instantiate
                     expr.instantiation = self.parse_instantiation()
                 else:
@@ -695,49 +720,75 @@ class Parser:
 
         return expr
 
-    def parse_expression_with_fields_and_methods_and_indexing(self) -> AstExpression:
+    def parse_indexing(self, obj: AstExpression) -> AstExpression:
+        assert self.tokens.is_operator("[")
+        open_bracket = self.tokens++
+
+        operands = [obj, self.parse_expression()]
+
+        if not self.tokens.is_operator("]"):
+            self.tokens.fail_expected_got("a ']'")
+        self.tokens++
+
+        return build_operator_expression(open_bracket, 2, operands)
+
+    def parse_dot_operator(self, obj: AstExpression) -> AstExpression:
+        assert self.tokens.is_operator(".")
+        self.tokens++
+
+        if self.tokens.kind != TokenKind.Name:
+            self.tokens.fail_expected_got("a field or method name")
+        name_token = self.tokens++
+
+        instance: AstExpression* = malloc(sizeof *instance)
+        *instance = obj
+        return AstExpression{
+            location = self.tokens.location,
+            kind = AstExpressionKind.DotOperator,
+            class_member = AstClassMember{
+                instance = instance,
+                member_name = name_token.short_string,
+            },
+        }
+
+    def parse_call(self, obj: AstExpression) -> AstExpression:
+        called_obj: AstExpression* = malloc(sizeof(*called_obj))
+        *called_obj = obj
+        call = AstCall{called_obj = called_obj}
+
+        assert self.tokens.is_operator("(")
+        location = self.tokens.location
+        self.tokens++
+
+        while not self.tokens.is_operator(")"):
+            call.args.append(self.parse_expression())
+            if not self.tokens.is_operator(","):
+                break
+            self.tokens++
+
+        if not self.tokens.is_operator(")"):
+            self.tokens.fail_expected_got("a ')'")
+        self.tokens++
+
+        return AstExpression{
+            location = location,
+            kind = AstExpressionKind.Call,
+            call = call,
+        }
+
+    def parse_expression_with_members_and_indexing_and_calls(self) -> AstExpression:
         result = self.parse_elementary_expression()
-
-        while self.tokens.is_operator("[") or self.tokens.is_operator("."):
+        while True:
             if self.tokens.is_operator("["):
-                open_bracket = self.tokens++
-                operands = [result, self.parse_expression()]
-                if not self.tokens.is_operator("]"):
-                    self.tokens.fail_expected_got("a ']'")
-                self.tokens++
-                result = build_operator_expression(open_bracket, 2, operands)
-
+                result = self.parse_indexing(result)
+            elif self.tokens.is_operator("."):
+                result = self.parse_dot_operator(result)
+            elif self.tokens.is_operator("("):
+                result = self.parse_call(result)
+            elif self.tokens.is_operator("->"):
+                fail(self.tokens.location, "use . instead of ->")
             else:
-                start_op = self.tokens++
-                if self.tokens.kind != TokenKind.Name:
-                    self.tokens.fail_expected_got("a field or method name")
-
-                instance: AstExpression* = malloc(sizeof *instance)
-                *instance = result
-
-                if self.tokens[1].is_operator("("):
-                    call = self.parse_call()
-                    call.method_call_self = instance
-                    result = AstExpression{
-                        location = call.location,
-                        kind = AstExpressionKind.Call,
-                        call = call,
-                    }
-                else:
-                    result = AstExpression{
-                        location = self.tokens.location,
-                        kind = AstExpressionKind.DotOperator,
-                        class_field = AstClassField{
-                            instance = instance,
-                            field_name = self.tokens.short_string,
-                        },
-                    }
-                    self.tokens++
-
-        if self.tokens.is_operator("->"):
-            fail(self.tokens.location, "use . instead of ->")
-
-        return result
+                return result
 
     def parse_expression_with_unary_operators(self) -> AstExpression:
         # prefix = sequence of 0 or more unary operator tokens: start,start+1,...,end-1
@@ -752,7 +803,7 @@ class Parser:
             self.tokens++
         prefix_end = self.tokens
 
-        result = self.parse_expression_with_fields_and_methods_and_indexing()
+        result = self.parse_expression_with_members_and_indexing_and_calls()
 
         suffix_start = self.tokens
         while self.tokens.is_operator("++") or self.tokens.is_operator("--"):
