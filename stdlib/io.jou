@@ -22,7 +22,7 @@ const EOF: int = -1
 #
 # Return value is either a valid byte (use 'as byte') or EOF. If EOF is
 # returned, it means either end of file or reading error. You can use
-# ferror(stdin) to determine whether there was an error.
+# ferror(get_stdin()) to determine whether there was an error.
 #
 # See fgets() if you want to read a line.
 @public
@@ -50,14 +50,72 @@ class FILE:
     # to accessing the members directly.
     pass
 
-# Special files for terminal input and output. Platform-specific details are
-# handled in _jou_startup.jou.
+# The special files stdin, stdout and stderr are very platform-specific. In C,
+# if you use the global variable `stdin`, it may actually be a macro, which
+# means that the compiler replaces your simple `stdin` with something more
+# complicated, like `(__acrt_iob_func(0))` on Windows.
+#
+# To be explicit, instead of global variables like `stdin`, Jou gives you
+# functions like `get_stdin()` to access the streams.
+#
+# Example:
+#
+#    fprintf(get_stderr(), "Warning: blah blah\n")
+#
+if WINDOWS:
+    declare __acrt_iob_func(index: int) -> FILE*
+elif MACOS:
+    declare global __stdinp: FILE*
+    declare global __stdoutp: FILE*
+    declare global __stderrp: FILE*
+elif NETBSD:
+    declare global __sF: byte[152][3]  # sizeof(FILE) == 152
+else:
+    declare global stdin: FILE*
+    declare global stdout: FILE*
+    declare global stderr: FILE*
+
+# Returns stdin, the special file for reading keyboard input from terminal.
 @public
-declare global stdin: FILE*
+def get_stdin() -> FILE*:
+    if WINDOWS:
+        return __acrt_iob_func(0)
+    elif MACOS:
+        return __stdinp
+    elif NETBSD:
+        return &__sF[0] as FILE*
+    else:
+        return stdin
+
+# Returns stdout, the special file for printing to terminal.
 @public
-declare global stdout: FILE*
+def get_stdout() -> FILE*:
+    if WINDOWS:
+        return __acrt_iob_func(1)
+    elif MACOS:
+        return __stdoutp
+    elif NETBSD:
+        return &__sF[1] as FILE*
+    else:
+        return stdout
+
+# Returns stderr, the special file for showing error and warning messages.
+#
+# By default, stdout and stderr both appear on the terminal, but it is possible
+# to separate the two. For example, redirecting to file by adding `> file.txt`
+# at the end of a command only redirects stdout. This is intended to be used so
+# that you print the program's normal output to stdout and error/warning
+# messages to stderr.
 @public
-declare global stderr: FILE*
+def get_stderr() -> FILE*:
+    if WINDOWS:
+        return __acrt_iob_func(2)
+    elif MACOS:
+        return __stderrp
+    elif NETBSD:
+        return &__sF[2] as FILE*
+    else:
+        return stderr
 
 # Open/close a file for reading or writing. Mode can be e.g. "r", "w",
 # "a", "rb", "wb" or "ab". The meanings of these modes are as in many
@@ -105,7 +163,7 @@ declare fflush(file: FILE*) -> int
 # similarly to input() in Python:
 #
 #    line: byte[1000]
-#    if fgets(line, sizeof(line) as int, stdin) == NULL:
+#    if fgets(line, sizeof(line) as int, get_stdin()) == NULL:
 #        printf("Failed to read input\n")
 #    else:
 #        if ends_with(line, "\n"):

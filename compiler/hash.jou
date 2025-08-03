@@ -85,7 +85,7 @@ def hash_of_compiler() -> Hash:
         fclose(f)
 
     if not ok:
-        fprintf(stderr, "error: failed to calculate hash of the Jou compiler executable\n")
+        fprintf(get_stderr(), "error: failed to calculate hash of the Jou compiler executable\n")
         exit(1)
 
     return cached_compiler_hash

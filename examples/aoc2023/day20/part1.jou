@@ -72,7 +72,6 @@ def press_button(modules: ModuleList*, high_counter: int*, low_counter: int*) ->
     todo.send_later(NULL, modules.find_module("broadcaster"), False)
 
     while todo.items.len > 0:
-        fflush(stdout)
         item = todo.pop_left()
 
         if item.value:
