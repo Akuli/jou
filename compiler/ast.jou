@@ -468,16 +468,32 @@ class AstAs:
 @public
 class AstCall:
     location: Location
-    name: byte[100]  # name of function or method
+    function: AstExpression*          # NULL for method calls, the foo of foo() for function calls
     method_call_self: AstExpression*  # NULL for function calls, the foo of foo.bar() for method calls
     args: List[AstExpression]
-    called_signature: Signature*  # populated in typecheck, NULL before typecheck runs, not owned
+
+    # Populated in typecheck. NULL before typecheck runs. Not owned.
+    #
+    # For some calls, this remains NULL forever because argument names are not available.
+    signature_if_known: Signature*
+
+    # Useful for formatting error messages, but not much else.
+    def function_or_method(self) -> byte*:
+        if self.method_call_self == NULL:
+            return "function"
+        else:
+            return "method"
 
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("call %s \"%s\"\n", self.function_or_method(), self.name)
+        printf("call %s\n", self.function_or_method())
+
+        if self.function != NULL:
+            sub = tp.print_prefix(self.args.len == 0)
+            printf("function: ")
+            self.function.print_with_tree_printer(sub)
 
         if self.method_call_self != NULL:
             sub = tp.print_prefix(self.args.len == 0)
@@ -496,13 +512,6 @@ class AstCall:
         if self.method_call_self != NULL:
             self.method_call_self.free()
             free(self.method_call_self)
-
-    # Useful for formatting error messages, but not much else.
-    def function_or_method(self) -> byte*:
-        if self.method_call_self == NULL:
-            return "function"
-        else:
-            return "method"
 
 
 # assert foo

@@ -96,7 +96,13 @@ class UBuilder:
     def get_argument(self, i: int, argtype: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
-    def call(self, sig: Signature*, args: int*, nargs: int) -> int:
+    def call_function(self, func: int, args: int*, nargs: int) -> int:
+        self.use(func)
+        for i = 0; i < nargs; i++:
+            self.dont_analyze(args[i])
+        return ANONYMOUS_VALUE_ID
+
+    def call_method(self, sig: Signature*, args: int*, nargs: int) -> int:
         for i = 0; i < nargs; i++:
             self.dont_analyze(args[i])
         return ANONYMOUS_VALUE_ID

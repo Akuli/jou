@@ -163,3 +163,6 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             result = gclass.substitute_generic_params(from, to, n)
             free(to)
             return result
+
+        case AstTypeKind.FuncPtr:
+            assert False  # TODO

@@ -745,16 +745,16 @@ class Parser:
         return AstExpression{
             location = self.tokens.location,
             kind = AstExpressionKind.DotOperator,
-            class_member = AstClassMember{
+            class_field = AstClassField{
                 instance = instance,
-                member_name = name_token.short_string,
+                field_name = name_token.short_string,
             },
         }
 
     def parse_call(self, obj: AstExpression) -> AstExpression:
-        called_obj: AstExpression* = malloc(sizeof(*called_obj))
-        *called_obj = obj
-        call = AstCall{called_obj = called_obj}
+        func: AstExpression* = malloc(sizeof(*called_obj))
+        *func = obj
+        call = AstCall{function = func}
 
         assert self.tokens.is_operator("(")
         location = self.tokens.location
