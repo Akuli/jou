@@ -97,7 +97,7 @@ class Token:
     def is_close_paren(self) -> bool:
         return self.is_operator(")") or self.is_operator("]") or self.is_operator("}")
 
-    def fail_expected_got(self, what_was_expected_instead: byte*) -> None:
+    def fail_expected_got(self, what_was_expected_instead: byte*) -> noreturn:
         got: byte[100]
         match self.kind:
             case TokenKind.Integer:

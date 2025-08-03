@@ -320,7 +320,12 @@ def typecheck_expression_not_void(state: State*, expr: AstExpression*, type_hint
     assert expr.kind == AstExpressionKind.Call
 
     msg: byte[500]
-    snprintf(msg, sizeof(msg), "%s '%s' does not return a value", expr.call.function_or_method(), expr.call.name)
+    if expr.call.signature_if_known == NULL:
+        # TODO: test this
+        snprintf(msg, sizeof(msg), "%s does not return a value", expr.call.function_or_method())
+    else:
+        snprintf(msg, sizeof(msg), "%s '%s' does not return a value", expr.call.function_or_method(), expr.call.signature_if_known.name)
+
     fail(expr.location, msg)
 
 
@@ -583,83 +588,84 @@ def nth(n: int) -> byte[100]:
     return result
 
 
-# returns NULL if the function doesn't return anything, otherwise non-owned pointer to non-owned type
-def typecheck_function_or_method_call(state: State*, call: AstCall*, self_type: Type*, location: Location) -> Type*:
-    msg: byte[500]
-
-    if self_type == NULL:
-        sig = state.file_types.find_function(call.name)
-        if sig == NULL:
-            snprintf(msg, sizeof(msg), "function '%s' not found", call.name)
-            fail(location, msg)
-    else:
-        assert self_type.kind == TypeKind.Class
-        sig = self_type.find_method(call.name)
-        if sig == NULL:
-            snprintf(
-                msg, sizeof(msg),
-                "class %s does not have a method named '%s'", self_type.name, call.name)
-            fail(location, msg)
-
-    call.called_signature = sig
-
-    if self_type == NULL:
-        function_or_method = "function"
-    else:
-        function_or_method = "method"
-
-    sig_string = sig.to_string(False, False)
-
-    nargs = sig.args.len
-    if self_type != NULL:
-        nargs--
-
-    if call.args.len < nargs or (call.args.len > nargs and not sig.takes_varargs):
-        snprintf(
-            msg, sizeof(msg),
-            "%s %s takes %d argument%s, but it was called with %lld argument%s",
-            function_or_method,
-            sig_string,
-            nargs,
-            plural_s(nargs),
-            call.args.len,
-            plural_s(call.args.len),
-        )
-        fail(location, msg)
-
-    k = 0
-    selfless_counter = 0
-    for arg = sig.args.ptr; arg < sig.args.end(); arg++:
-        if strcmp(arg.name, "self") == 0:
-            continue
-        # This is a common error, so worth spending some effort to get a good error message.
-        which_arg = nth(++selfless_counter)
-        snprintf(
-            msg, sizeof msg,
-            "%s argument of %s %s should have type <to>, not <from>", which_arg, function_or_method, sig_string
-        )
-        typecheck_expression_with_implicit_cast(state, &call.args.ptr[k++], arg.type, msg)
-
-    for vararg = &call.args.ptr[k]; vararg < call.args.end(); vararg++:
-        # This code runs for varargs, e.g. the things to format in printf().
-        t = typecheck_expression_not_void(state, vararg, NULL)
-        if t.kind == TypeKind.Array:
-            cast_array_to_pointer(state.fom_types, vararg)
-        elif (t.is_integer_type() and t.size_in_bits < 32) or t == boolType:
-            # Add implicit cast to signed int, just like in C.
-            do_implicit_cast(state.fom_types, vararg, intType, Location{}, NULL)
-        elif t == floatType:
-            do_implicit_cast(state.fom_types, vararg, doubleType, Location{}, NULL)
-        elif t.kind == TypeKind.Enum:
-            snprintf(
-                msg, sizeof(msg),
-                "enums cannot be passed to functions that take variadic arguments, such as %s",
-                sig.name,
-            )
-            fail(vararg.location, msg)
-
-    free(sig_string)
-    return sig.return_type
+# returns NULL if the function doesn't return anything
+def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
+    assert False  # TODO
+#    msg: byte[500]
+#
+#    if self_type == NULL:
+#        sig = state.file_types.find_function(call.name)
+#        if sig == NULL:
+#            snprintf(msg, sizeof(msg), "function '%s' not found", call.name)
+#            fail(location, msg)
+#    else:
+#        assert self_type.kind == TypeKind.Class
+#        sig = self_type.find_method(call.name)
+#        if sig == NULL:
+#            snprintf(
+#                msg, sizeof(msg),
+#                "class %s does not have a method named '%s'", self_type.name, call.name)
+#            fail(location, msg)
+#
+#    call.called_signature = sig
+#
+#    if self_type == NULL:
+#        function_or_method = "function"
+#    else:
+#        function_or_method = "method"
+#
+#    sig_string = sig.to_string(False, False)
+#
+#    nargs = sig.args.len
+#    if self_type != NULL:
+#        nargs--
+#
+#    if call.args.len < nargs or (call.args.len > nargs and not sig.takes_varargs):
+#        snprintf(
+#            msg, sizeof(msg),
+#            "%s %s takes %d argument%s, but it was called with %lld argument%s",
+#            function_or_method,
+#            sig_string,
+#            nargs,
+#            plural_s(nargs),
+#            call.args.len,
+#            plural_s(call.args.len),
+#        )
+#        fail(location, msg)
+#
+#    k = 0
+#    selfless_counter = 0
+#    for arg = sig.args.ptr; arg < sig.args.end(); arg++:
+#        if strcmp(arg.name, "self") == 0:
+#            continue
+#        # This is a common error, so worth spending some effort to get a good error message.
+#        which_arg = nth(++selfless_counter)
+#        snprintf(
+#            msg, sizeof msg,
+#            "%s argument of %s %s should have type <to>, not <from>", which_arg, function_or_method, sig_string
+#        )
+#        typecheck_expression_with_implicit_cast(state, &call.args.ptr[k++], arg.type, msg)
+#
+#    for vararg = &call.args.ptr[k]; vararg < call.args.end(); vararg++:
+#        # This code runs for varargs, e.g. the things to format in printf().
+#        t = typecheck_expression_not_void(state, vararg, NULL)
+#        if t.kind == TypeKind.Array:
+#            cast_array_to_pointer(state.fom_types, vararg)
+#        elif (t.is_integer_type() and t.size_in_bits < 32) or t == boolType:
+#            # Add implicit cast to signed int, just like in C.
+#            do_implicit_cast(state.fom_types, vararg, intType, Location{}, NULL)
+#        elif t == floatType:
+#            do_implicit_cast(state.fom_types, vararg, doubleType, Location{}, NULL)
+#        elif t.kind == TypeKind.Enum:
+#            snprintf(
+#                msg, sizeof(msg),
+#                "enums cannot be passed to functions that take variadic arguments, such as %s",
+#                sig.name,
+#            )
+#            fail(vararg.location, msg)
+#
+#    free(sig_string)
+#    return sig.return_type
 
 
 def typecheck_class_field(
@@ -983,31 +989,33 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             assert False
 
         case AstExpressionKind.Call:
-            if expr.call.method_call_self == NULL:
-                result = typecheck_function_or_method_call(state, &expr.call, NULL, expr.location)
-            else:
-                temptype = typecheck_expression_not_void(state, expr.call.method_call_self, NULL)
-                if temptype.kind == TypeKind.Class:
-                    result = typecheck_function_or_method_call(state, &expr.call, temptype, expr.location)
-                elif temptype.kind == TypeKind.Pointer and temptype.value_type.kind == TypeKind.Class:
-                    result = typecheck_function_or_method_call(state, &expr.call, temptype.value_type, expr.location)
-                else:
-                    snprintf(msg, sizeof(msg),
-                        "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
-                        temptype.name)
-                    fail(expr.location, msg)
-
-                # If self argument must be passed by pointer, make sure we can create that pointer
-                if temptype.kind == TypeKind.Class:
-                    signature = temptype.find_method(expr.call.name)
-                    assert signature != NULL
-                    if signature.args.ptr[0].type.is_pointer_type():
-                        assert strstr(expr.call.name, "%") == NULL
-                        snprintf(
-                            msg, sizeof msg,
-                            "cannot take address of %%s, needed for calling the %s() method",
-                            expr.call.name)
-                        ensure_can_take_address(state.fom_types, expr.call.method_call_self, msg)
+            result = typecheck_call(state, &expr.call, expr.location)
+#            if expr.call.method_call_self == NULL:
+#                result = typecheck_function_or_method_call(state, &expr.call, NULL, expr.location)
+#            else:
+#                temptype = typecheck_expression_not_void(state, expr.call.method_call_self, NULL)
+#                if temptype.kind == TypeKind.Class:
+#                    result = typecheck_function_or_method_call(state, &expr.call, temptype, expr.location)
+#                elif temptype.kind == TypeKind.Pointer and temptype.value_type.kind == TypeKind.Class:
+#                    result = typecheck_function_or_method_call(state, &expr.call, temptype.value_type, expr.location)
+#                else:
+#                    snprintf(msg, sizeof(msg),
+#                        "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
+#                        temptype.name)
+#                    fail(expr.location, msg)
+#
+#                # If self argument must be passed by pointer, make sure we can create that pointer
+#                if temptype.kind == TypeKind.Class:
+#                    assert False  # TODO
+#                    signature = temptype.find_method(expr.call.name)
+#                    assert signature != NULL
+#                    if signature.args.ptr[0].type.is_pointer_type():
+#                        assert strstr(expr.call.name, "%") == NULL
+#                        snprintf(
+#                            msg, sizeof msg,
+#                            "cannot take address of %%s, needed for calling the %s() method",
+#                            expr.call.name)
+#                        ensure_can_take_address(state.fom_types, expr.call.method_call_self, msg)
 
             if result == NULL:
                 # no return value produced

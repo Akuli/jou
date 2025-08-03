@@ -347,25 +347,27 @@ class LBuilder:
         llvm_result = LLVMGetParam(self.llvm_func, i)
         return LBuilderValue{type = argtype, llvm_value = llvm_result}
 
-    def call_function(self, func_ptr: LBuilderValue, args: LBuilderValue*, nargs: int) -> LBuilderValue:
+    def call_function(self, funcptr_type: Type*, func: LBuilderValue, args: LBuilderValue*, nargs: int) -> LBuilderValue:
+        assert func.type == funcptr_type
+
         assert nargs <= 100
         llvm_args: LLVMValue*[100]
         for i = 0; i < nargs; i++:
             llvm_args[i] = args[i].llvm_value
 
-        assert func_ptr.type.kind == TypeKind.FuncPtr
+        assert funcptr_type.kind == TypeKind.FuncPtr
         debug_name: byte[100] = ""
-        if func_ptr.type.func_ptr.return_type != NULL:
+        if funcptr_type.func_ptr.return_type != NULL:
             # TODO: include function name?
             debug_name = "func_return_value"
 
-        llvm_return_value = LLVMBuildCall2(self.llvm_builder, funcptr_type_to_llvm(func_ptr.type), func_ptr.llvm_value, llvm_args, nargs, debug_name)
+        llvm_return_value = LLVMBuildCall2(self.llvm_builder, funcptr_type_to_llvm(funcptr_type), func.llvm_value, llvm_args, nargs, debug_name)
 
-        if func_ptr.type.func_ptr.return_type == NULL:
+        if funcptr_type.func_ptr.return_type == NULL:
             return LBuilderValue{}
         else:
             assert llvm_return_value != NULL
-            return LBuilderValue{type = func_ptr.type.func_ptr.return_type, llvm_value = llvm_return_value}
+            return LBuilderValue{type = funcptr_type.func_ptr.return_type, llvm_value = llvm_return_value}
 
     # self must be included in args
     def call_method(self, sig: Signature*, args: LBuilderValue*, nargs: int) -> LBuilderValue:

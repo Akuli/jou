@@ -752,7 +752,7 @@ class Parser:
         }
 
     def parse_call(self, obj: AstExpression) -> AstExpression:
-        func: AstExpression* = malloc(sizeof(*called_obj))
+        func: AstExpression* = malloc(sizeof(obj))
         *func = obj
         call = AstCall{function = func}
 

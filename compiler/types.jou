@@ -3,7 +3,6 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "./ast.jou"
-import "./errors_and_warnings.jou"
 
 
 @public
@@ -673,7 +672,7 @@ class Signature:
         return result
 
     # Turns "strcmp(s1: byte*, s2: byte*) -> int" into "funcptr(byte*, byte*) -> int"
-    def to_funcptr_type(self, error_location: Location) -> Type*:
+    def to_funcptr_type(self) -> Type*:
         argtypes: Type** = malloc(sizeof(argtypes[0]) * self.args.len)
         assert argtypes != NULL
         for i = 0; i < self.args.len; i++:
