@@ -18,10 +18,11 @@ import "./types_in_ast.jou"
 
 @public
 enum AstTypeKind:
-    Named
-    Pointer
-    Array
-    Generic  # e.g. List[int]
+    Named       # byte, int, MyClass
+    Pointer     # byte*
+    Array       # int[5]
+    Generic     # List[int]
+    FuncPtr     # funcptr(int, int) -> int
 
 
 @public
@@ -36,11 +37,19 @@ class AstArrayType:
         free(self.length)
 
 
-# e.g. List[int]
+# List[int]
 @public
 class AstGenericType:
     class_name: byte[100]  # e.g. "List"
-    param_types: List[AstType]
+    param_types: List[AstType]  # e.g. int
+
+
+# funcptr(int, int) -> int
+@public
+class AstFuncPtrType:
+    argtypes: List[AstType]
+    takes_varargs: bool  # True for functions like printf()
+    return_type: AstType*
 
 
 @public
@@ -49,10 +58,11 @@ class AstType:
     location: Location
 
     union:
-        name: byte[100]         # AstTypeKind.Named
-        value_type: AstType*    # AstTypeKind.Pointer
-        array: AstArrayType     # AstTypeKind.Array
-        generic: AstGenericType # AstTypeKind.Generic
+        name: byte[100]             # AstTypeKind.Named
+        value_type: AstType*        # AstTypeKind.Pointer
+        array: AstArrayType         # AstTypeKind.Array
+        generic: AstGenericType     # AstTypeKind.Generic
+        func_ptr: AstFuncPtrType    # AstTypeKind.FuncPtr
 
     def is_void(self) -> bool:
         return self.kind == AstTypeKind.Named and strcmp(self.name, "void") == 0
@@ -80,24 +90,40 @@ class AstType:
                         printf(", ")
                     self.generic.param_types.ptr[i].print(False)
                 printf("]")
+            case AstTypeKind.FuncPtr:
+                # Wrap it in parentheses so we see how it's nested.
+                # Important with e.g. array of funcptr
+                printf("(funcptr(")
+                for i = 0; i < self.func_ptr.argtypes.len; i++:
+                    if i != 0:
+                        printf(", ")
+                    self.func_ptr.argtypes.ptr[i].print(False)
+                printf(") -> ")
+                self.func_ptr.return_type.print(False)
+                printf(")")
 
         if show_lineno:
             printf(" [line %d]", self.location.lineno)
 
     def free(self) -> None:
         match self.kind:
+            case AstTypeKind.Named:
+                pass
             case AstTypeKind.Pointer:
                 self.value_type.free()
                 free(self.value_type)
             case AstTypeKind.Array:
                 self.array.free()
-            case AstTypeKind.Named:
-                pass
             case AstTypeKind.Generic:
                 for p = self.generic.param_types.ptr; p < self.generic.param_types.end(); p++:
                     p.free()
                 free(self.generic.param_types.ptr)
-
+            case AstTypeKind.FuncPtr:
+                for p = self.func_ptr.argtypes.ptr; p < self.func_ptr.argtypes.end(); p++:
+                    p.free()
+                free(self.func_ptr.argtypes.ptr)
+                self.func_ptr.return_type.free()
+                free(self.func_ptr.return_type)
 
 # Statements and expressions can be printed in a tree.
 # To see a tree, run:
@@ -174,14 +200,16 @@ enum AstExpressionKind:
     IntegerConstant # e.g. 123, type is unknown for now (it's usually int)
     Constant        # a compile-time-known value with known type, e.g. use of `const` value after type checking
     Array
-    Call  # function call or method call
+    Call            # funcptr call or method call
     Instantiate   # MyClass{x=1, y=2}
     Self    # not a variable lookup, so you can't use 'self' as variable name outside a class
     GetVariable
-    DotOperator         # foo.bar (don't know yet which way to interpret it)
+    GetFuncPtr          # GetVariable that has resolved to a function pointer
+    DotOperator         # foo.bar, don't know yet which way to interpret it
     GetEnumMember       # foo.bar, foo is an enum
-    GetClassField       # foo.bar, foo is an instance of a class
-    GetClassFieldPtr    # foo.bar, foo is a pointer to an instance of a class
+    # TODO: Rename GetClassField to GetField
+    GetClassField       # foo.bar, foo is an instance of a class and bar is a field
+    GetClassFieldPtr    # foo.bar, foo is a pointer to an instance and bar is a field
     As
     # unary operators
     SizeOf      # sizeof x
@@ -263,6 +291,8 @@ class AstExpression:
                 printf("self\n")
             case AstExpressionKind.GetVariable:
                 printf("get variable \"%s\"\n", self.varname)
+            case AstExpressionKind.GetFuncPtr:
+                printf("get pointer to function \"%s\"\n", self.varname)
             case AstExpressionKind.DotOperator:
                 printf("get member \"%s\"\n", self.class_field.field_name)
                 self.class_field.instance.print_with_tree_printer(tp.print_prefix(True))
@@ -273,10 +303,10 @@ class AstExpression:
                     self.enum_member.enum_name,
                 )
             case AstExpressionKind.GetClassField:
-                printf("get class field from instance \"%s\"\n", self.class_field.field_name)
+                printf("get class field \"%s\" from instance\n", self.class_field.field_name)
                 self.class_field.instance.print_with_tree_printer(tp.print_prefix(True))
             case AstExpressionKind.GetClassFieldPtr:
-                printf("get class field from pointer \"%s\"\n", self.class_field.field_name)
+                printf("get class field \"%s\" from pointer\n", self.class_field.field_name)
                 self.class_field.instance.print_with_tree_printer(tp.print_prefix(True))
             case AstExpressionKind.As:
                 self.as_.print_with_tree_printer(tp)
