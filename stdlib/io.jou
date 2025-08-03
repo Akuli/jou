@@ -22,7 +22,7 @@ const EOF: int = -1
 #
 # Return value is either a valid byte (use 'as byte') or EOF. If EOF is
 # returned, it means either end of file or reading error. You can use
-# ferror(stdin) to determine whether there was an error.
+# ferror(get_stdin()) to determine whether there was an error.
 #
 # See fgets() if you want to read a line.
 @public
@@ -163,7 +163,7 @@ declare fflush(file: FILE*) -> int
 # similarly to input() in Python:
 #
 #    line: byte[1000]
-#    if fgets(line, sizeof(line) as int, stdin) == NULL:
+#    if fgets(line, sizeof(line) as int, get_stdin()) == NULL:
 #        printf("Failed to read input\n")
 #    else:
 #        if ends_with(line, "\n"):
