@@ -83,13 +83,6 @@ class AstToBuilder:
                 # First n local variables are the function arguments
                 self.builder.set_ptr(var_ptr, self.builder.get_argument(i, var_type))
 
-        if (WINDOWS or MACOS or NETBSD) and types.signature.is_main_function():
-            # Insert a call to the special startup function into main()
-            # TODO
-            #jou_startup_sig = Signature{name = "_jou_startup"}
-            #self.builder.call(&jou_startup_sig, NULL, 0)
-            pass
-
         self.set_location(old)
 
     # Handles the beginning of calling an @inline function. That's always done

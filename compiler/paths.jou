@@ -111,7 +111,7 @@ def listdir(path: byte*) -> List[byte[100]]:
         dir = opendir(path)
 
         if dir == NULL:
-            fprintf(stderr, "error: cannot list directory '%s'\n", path)
+            fprintf(get_stderr(), "error: cannot list directory '%s'\n", path)
             exit(1)
 
         while True:
@@ -170,7 +170,7 @@ def find_current_executable() -> byte*:
                 return buf
 
     # TODO: show os error message? (GetLastError / errno)
-    fprintf(stderr, "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
+    fprintf(get_stderr(), "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
     exit(1)
 
 
@@ -209,9 +209,9 @@ def find_stdlib() -> byte*:
         checked[i] = path
 
     # TODO: test this
-    fprintf(stderr, "error: cannot find the Jou standard library in any of the following locations:\n")
+    fprintf(get_stderr(), "error: cannot find the Jou standard library in any of the following locations:\n")
     for i = 0; i < sizeof checked / sizeof checked[0] and checked[i] != NULL; i++:
-        fprintf(stderr, "  %s\n", checked[i])
+        fprintf(get_stderr(), "  %s\n", checked[i])
     exit(1)
 
 

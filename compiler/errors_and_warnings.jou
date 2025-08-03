@@ -11,8 +11,8 @@ class Location:
 # When stdout is redirected to same place as stderr,
 # make sure that normal printf()s show up before our warning.
 def flush_streams() -> None:
-    fflush(stdout)
-    fflush(stderr)
+    fflush(get_stdout())
+    fflush(get_stderr())
 
 
 global warned: bool
@@ -22,10 +22,10 @@ global warned: bool
 def show_warning(location: Location, message: byte*) -> None:
     flush_streams()
 
-    fprintf(stderr, "compiler warning for file \"%s\"", location.path)
+    fprintf(get_stderr(), "compiler warning for file \"%s\"", location.path)
     if location.lineno != 0:
-        fprintf(stderr, ", line %d", location.lineno)
-    fprintf(stderr, ": %s\n", message)
+        fprintf(get_stderr(), ", line %d", location.lineno)
+    fprintf(get_stderr(), ": %s\n", message)
 
     warned = True
 
@@ -35,7 +35,7 @@ def show_warning(location: Location, message: byte*) -> None:
 @public
 def fail_if_warnings_and_flag() -> None:
     if warned and command_line_args.fail_on_warnings:
-        fprintf(stderr, "compiler error: there were warnings and --fail-on-warnings was given\n")
+        fprintf(get_stderr(), "compiler error: there were warnings and --fail-on-warnings was given\n")
         exit(1)
 
 
@@ -43,9 +43,9 @@ def fail_if_warnings_and_flag() -> None:
 def fail(location: Location, message: byte*) -> noreturn:
     flush_streams()
 
-    fprintf(stderr, "compiler error in file \"%s\"", location.path)
+    fprintf(get_stderr(), "compiler error in file \"%s\"", location.path)
     if location.lineno != 0:
-        fprintf(stderr, ", line %d", location.lineno)
-    fprintf(stderr, ": %s\n", message)
+        fprintf(get_stderr(), ", line %d", location.lineno)
+    fprintf(get_stderr(), ": %s\n", message)
 
     exit(1)
