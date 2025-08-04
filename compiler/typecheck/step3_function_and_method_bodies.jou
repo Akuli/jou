@@ -1037,6 +1037,12 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             # Not enum, that is handled already.
             # It is either instance.field or pointer_to_instance.field.
             temptype = typecheck_expression_not_void(state, expr.class_field.instance, NULL)
+            if temptype.kind == TypeKind.Class:
+                expr.kind = AstExpressionKind.GetClassField
+                result = typecheck_class_field(temptype, expr.class_field.field_name, expr.location).type
+            elif temptype.kind == TypeKind.Pointer and temptype.value_type.kind == TypeKind.Class:
+                expr.kind = AstExpressionKind.GetClassFieldPtr
+                result = typecheck_class_field(temptype.value_type, expr.class_field.field_name, expr.location).type
             else:
                 snprintf(
                     msg, sizeof(msg),
