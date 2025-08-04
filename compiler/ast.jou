@@ -520,6 +520,9 @@ class AstCall:
         for p = self.args.ptr; p < self.args.end(); p++:
             p.free()
         free(self.args.ptr)
+        if self.function != NULL:
+            self.function.free()
+            free(self.function)
         if self.method_call_self != NULL:
             self.method_call_self.free()
             free(self.method_call_self)

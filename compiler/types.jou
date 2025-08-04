@@ -370,7 +370,7 @@ class GlobalTypeState:
     doublelele: TypeInfo
     floater: TypeInfo
     voidptr: TypeInfo
-    func_ptrs: List[TypeInfo*]  # All funcptr types. TODO: use a hash table
+    funcptr_types: List[TypeInfo*]  # All funcptr types. TODO: use a hash table
     other_types: List[TypeInfo*]
 
 global global_type_state: GlobalTypeState
@@ -413,7 +413,7 @@ def funcptr_type(argtypes: Type**, nargs: long, takes_varargs: bool, return_type
         assert return_type == NULL
 
     # Do we already have this funcptr type?
-    for infoptr = global_type_state.func_ptrs.ptr; infoptr < global_type_state.func_ptrs.end(); infoptr++:
+    for infoptr = global_type_state.funcptr_types.ptr; infoptr < global_type_state.funcptr_types.end(); infoptr++:
         t: Type* = &(*infoptr).type
         assert t.kind == TypeKind.FuncPtr
         assert sizeof(t.func_ptr.argtypes.ptr[0]) == sizeof(argtypes[0])
@@ -456,7 +456,7 @@ def funcptr_type(argtypes: Type**, nargs: long, takes_varargs: bool, return_type
     snprintf(info.type.name, sizeof(t.name), "funcptr(%s) -> %s", argstr, ret_name)
     free(argstr)
 
-    global_type_state.func_ptrs.append(info)
+    global_type_state.funcptr_types.append(info)
     return &info.type
 
 
@@ -508,6 +508,8 @@ def free_type(t: Type*) -> None:
             free(t.classdata.methods.ptr)
         case TypeKind.Enum:
             free(t.enum_members.ptr)
+        case TypeKind.FuncPtr:
+            free(t.func_ptr.argtypes.ptr)
         case _:
             pass
 
@@ -524,6 +526,9 @@ def free_global_type_state() -> None:
     for size = 8; size <= 128; size *= 2:
         global_type_state.ints[size].free_related_types()
         global_type_state.uints[size].free_related_types()
+    for p = global_type_state.funcptr_types.ptr; p < global_type_state.funcptr_types.end(); p++:
+        free_type(&(*p).type)
+    free(global_type_state.funcptr_types.ptr)
     for p = global_type_state.other_types.ptr; p < global_type_state.other_types.end(); p++:
         free_type(&(*p).type)
     free(global_type_state.other_types.ptr)
