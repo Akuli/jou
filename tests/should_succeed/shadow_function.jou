@@ -1,0 +1,17 @@
+import "stdlib/io.jou"
+
+def foo() -> None:
+    printf("Foo\n")
+
+def bar() -> None:
+    printf("Bar\n")
+
+def foo_bar() -> None:
+    foo = bar  # Creates a new local variable named 'foo'
+    foo()
+
+def main() -> int:
+    foo()       # Output: Foo
+    foo_bar()   # Output: Bar
+    foo()       # Output: Foo
+    return 0

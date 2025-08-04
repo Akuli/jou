@@ -1431,7 +1431,6 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             if (
                 targetexpr.kind == AstExpressionKind.GetVariable
                 and state.find_any_var_or_constant(targetexpr.varname) == NULL
-                and state.file_types.find_function(targetexpr.varname) == NULL
             ):
                 # Making a new variable. Use the type of the value being assigned.
                 type = typecheck_expression_not_void(state, valueexpr, NULL)
