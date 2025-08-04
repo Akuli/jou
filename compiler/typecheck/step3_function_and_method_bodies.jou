@@ -607,6 +607,78 @@ def nth(n: int) -> byte[100]:
     return result
 
 
+# This is for code that looks like obj.member(). It could be a method call or a
+# function pointer call, because `obj` may have a field whose type is funcptr.
+#
+# This function type checks the `obj.member` part
+#
+# Possible return values are:
+#
+#   NULL:
+#       `member` is a method. The `call` has been updated accordingly.
+#
+#   non-NULL:
+#       `member` is a field. Return value is the type of the field.
+def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Type*:
+    assert call.function != NULL
+    func_location = call.function.location
+    msg: byte[500]
+
+    # Let's type-check `obj` and go from there.
+    obj = call.function.class_field.instance
+    member_name = call.function.class_field.field_name
+    obj_type = typecheck_expression_not_void(state, obj, NULL)
+
+    if obj_type.kind == TypeKind.Class:
+        self_class = obj_type
+    elif obj_type.kind == TypeKind.Pointer and obj_type.value_type.kind == TypeKind.Class:
+        self_class = obj_type.value_type
+    else:
+        snprintf(
+            msg, sizeof(msg),
+            "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
+            obj_type.name,
+        )
+        fail(func_location, msg)
+    assert self_class.kind == TypeKind.Class
+
+    call.signature_if_known = self_class.find_method(member_name)
+    if call.signature_if_known != NULL:
+        # It is a method
+        free(call.function)
+        call.function = NULL
+        call.method_call_self = obj
+        return NULL
+
+    field = self_class.find_class_field(member_name)
+    if field == NULL:
+        snprintf(
+            msg, sizeof(msg),
+            "class %s does not have a method named '%s'", self_class.name, member_name)
+        fail(func_location, msg)
+
+    # It is a function pointer call where the function is in a class field.
+    # It looks like obj.field().
+    #
+    # Ideally these would be handled so that we just type-check the whole
+    # thing as a function call and don't special-case anything. Unfortunately
+    # that's not possible because we already type-checked `obj`.
+    #
+    # Let's finish type-checking the `obj.field` part just like how
+    # `typecheck_expression()` function would do it and continue as usual.
+    if obj_type.kind == TypeKind.Class:
+        call.function.kind = AstExpressionKind.GetClassField
+    else:
+        assert obj_type.kind == TypeKind.Pointer
+        assert obj_type.value_type.kind == TypeKind.Class
+        call.function.kind = AstExpressionKind.GetClassFieldPtr
+
+    t = typecheck_class_field(self_class, member_name, func_location).type
+    call.function.types.orig_type = t
+    call.function.types.implicit_cast_type = t
+    return t
+
+
 # returns NULL if the function doesn't return anything
 def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
     msg: byte[500]
@@ -614,64 +686,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
     assert call.signature_if_known == NULL
 
     if call.function.kind == AstExpressionKind.DotOperator:
-        # TODO: move this block of code to new function
-
-        # It looks like obj.member(). Could be a method or a function call: it is
-        # possible to have a class field whose type is a funcptr.
-        #
-        # Let's type-check `obj` and go from there.
-        obj = call.function.class_field.instance
-        member_name = call.function.class_field.field_name
-        obj_type = typecheck_expression_not_void(state, obj, NULL)
-
-        if obj_type.kind == TypeKind.Class:
-            self_class = obj_type
-        elif obj_type.kind == TypeKind.Pointer and obj_type.value_type.kind == TypeKind.Class:
-            self_class = obj_type.value_type
-        else:
-            snprintf(
-                msg, sizeof(msg),
-                "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
-                obj_type.name,
-            )
-            fail(location, msg)
-        assert self_class.kind == TypeKind.Class
-
-        call.signature_if_known = self_class.find_method(member_name)
-        if call.signature_if_known != NULL:
-            # It is a method
-            free(call.function)
-            call.function = NULL
-            call.method_call_self = obj
-            funcptr_type: Type* = NULL
-
-        else:
-            field = self_class.find_class_field(member_name)
-            if field == NULL:
-                snprintf(
-                    msg, sizeof(msg),
-                    "class %s does not have a method named '%s'", self_class.name, member_name)
-                fail(location, msg)
-
-            # It is a function pointer call where the function is in a class field.
-            # It looks like obj.field().
-            #
-            # Ideally these would be handled so that we just type-check the whole
-            # thing as a function call and don't special-case anything. Unfortunately
-            # that's not possible because we already type-checked `obj`.
-            #
-            # Let's finish type-checking the `obj.field` part just like how
-            # `typecheck_expression()` function would do it and continue as usual.
-            if obj_type.kind == TypeKind.Class:
-                call.function.kind = AstExpressionKind.GetClassField
-            else:
-                assert obj_type.kind == TypeKind.Pointer
-                assert obj_type.value_type.kind == TypeKind.Class
-                call.function.kind = AstExpressionKind.GetClassFieldPtr
-
-            funcptr_type = typecheck_class_field(self_class, member_name, location).type
-            call.function.types.orig_type = funcptr_type
-            call.function.types.implicit_cast_type = funcptr_type
+        funcptr_type = typecheck_member_that_looks_like_method(state, call)
     else:
         # Special-casing for better error message "function 'foo' not found".
         # Without this we would get "no variable named 'foo'".
