@@ -144,8 +144,15 @@ class AnyBuilder:
         return result
 
     # Returns a function as funcptr
-    def get_funcptr(self, signature: Signature*) -> AnyBuilderValue:
-        assert False  # TODO
+    def get_funcptr(self, sig: Signature*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
+        if self.lbuilder != NULL:
+            result.lvalue = self.lbuilder.get_funcptr(sig)
+        if self.ubuilder != NULL:
+            result.uvalue = self.ubuilder.get_funcptr(sig)
+        if self.hbuilder != NULL:
+            result.hvalue = self.hbuilder.get_funcptr(sig)
+        return result
 
     # Returns the i'th argument given to function
     def get_argument(self, i: int, argtype: Type*) -> AnyBuilderValue:

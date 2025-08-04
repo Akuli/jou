@@ -438,7 +438,7 @@ class AstToBuilder:
                     assert self.inlining_info == NULL
                     return self.builder.dereference(self.builder.global_var_ptr(expr.varname, expr.types.orig_type))
             case AstExpressionKind.GetFuncPtr:
-                assert False  # TODO
+                return self.builder.get_funcptr(expr.get_func_ptr.signature)
             case AstExpressionKind.Indexing:
                 # ptr[foo] can always be evaluated as &ptr[foo], because ptr is already a pointer.
                 # We can't do this for all expressions, because e.g. &some_function() is error.

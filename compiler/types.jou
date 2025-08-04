@@ -52,6 +52,28 @@ class FuncPtrType:
     return_type: Type*  # NULL if does not return a value
     is_noreturn: bool
 
+    # Return a string that is e.g. "byte*, byte*" for strcmp() or "byte*, ..." for printf().
+    def arguments_string(self) -> byte*:
+        alloc_size: int64 = 10  # plenty for '\0' and the possible "..." at the end
+        for i = 0; i < self.argtypes.len; i++:
+            alloc_size += strlen(self.argtypes.ptr[i].name)
+            alloc_size += strlen(", ")
+
+        result: byte* = malloc(alloc_size)
+        assert result != NULL
+        strcpy(result, "")
+
+        for p = self.argtypes.ptr; p < self.argtypes.end(); p++:
+            if result[0] != '\0':
+                strcat(result, ", ")
+            strcat(result, (*p).name)
+
+        if self.takes_varargs:
+            if result[0] != '\0':
+                strcat(result, ", ")
+            strcat(result, "...")
+
+        return result
 
 @public
 enum TypeKind:
@@ -405,19 +427,6 @@ def funcptr_type(argtypes: Type**, nargs: long, takes_varargs: bool, return_type
             # Yes: do not create another one so that we can use "==" to compare types given as Type*
             return t
 
-    argstr: byte[500] = ""
-    pos = 0
-
-    for i = 0; i < nargs; i++:
-        if i != 0:
-            pos += snprintf(&argstr[pos], sizeof(argstr) - pos, ", ")
-        pos += snprintf(&argstr[pos], sizeof(argstr) - pos, "%s", argtypes[i].name)
-
-    if takes_varargs:
-        if nargs != 0:
-            pos += snprintf(&argstr[pos], sizeof(argstr) - pos, ", ")
-        pos += snprintf(&argstr[pos], sizeof(argstr) - pos, "...")
-
     if return_type == NULL:
         if is_noreturn:
             ret_name = "noreturn"
@@ -430,15 +439,21 @@ def funcptr_type(argtypes: Type**, nargs: long, takes_varargs: bool, return_type
     info: TypeInfo* = calloc(1, sizeof *info)
     assert info != NULL
 
+    fptype = FuncPtrType{
+        return_type = return_type,
+        takes_varargs = takes_varargs,
+        is_noreturn = is_noreturn,
+    }
+
     info.type = Type{
         kind = TypeKind.FuncPtr,
-        func_ptr = FuncPtrType{
-            return_type = return_type,
-            takes_varargs = takes_varargs,
-            is_noreturn = is_noreturn,
-        },
+        func_ptr = fptype,
     }
+
+    argstr = fptype.arguments_string()
     snprintf(info.type.name, sizeof(t.name), "funcptr(%s) -> %s", argstr, ret_name)
+    free(argstr)
+
     for i = 0; i < nargs; i++:
         info.type.func_ptr.argtypes.append(argtypes[i])
 

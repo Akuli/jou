@@ -152,6 +152,13 @@ class AstEnumMember:
     member_name: byte[100]
 
 
+# A function name in code that becomes a funcptr
+@public
+class AstGetFuncPtr:
+    func_name: byte[100]
+    signature: Signature*  # populated in typecheck
+
+
 # foo.bar
 @public
 class AstClassField:
@@ -257,6 +264,7 @@ class AstExpression:
         as_: AstAs*  # Must be pointer, because it contains an AstExpression
         array: List[AstExpression]
         varname: byte[100]
+        get_func_ptr: AstGetFuncPtr
         float_or_double_text: byte[100]
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
         constant: Constant

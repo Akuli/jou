@@ -151,6 +151,12 @@ class HBuilder:
         self.hash.add_string(name)
         return self.new_value(var_type.pointer_type())
 
+    # some_function
+    def get_funcptr(self, signature: Signature*) -> HBuilderValue:
+        self.hash.add_string("funcptr")
+        self.hash.add_string(signature.name)
+        return self.new_value(signature.to_funcptr_type())
+
     # i'th argument given to this function
     def get_argument(self, i: int, argtype: Type*) -> HBuilderValue:
         self.hash.add_string("arg")

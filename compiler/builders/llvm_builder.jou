@@ -342,6 +342,12 @@ class LBuilder:
         assert llvm_result != NULL
         return LBuilderValue{type = var_type.pointer_type(), llvm_value = llvm_result}
 
+    # some_function
+    def get_funcptr(self, sig: Signature*) -> LBuilderValue:
+        llvm_result = declare_in_llvm(sig, self.llvm_module)
+        assert llvm_result != NULL
+        return LBuilderValue{type = sig.to_funcptr_type(), llvm_value = llvm_result}
+
     # i'th argument given to this function
     def get_argument(self, i: int, argtype: Type*) -> LBuilderValue:
         llvm_result = LLVMGetParam(self.llvm_func, i)
