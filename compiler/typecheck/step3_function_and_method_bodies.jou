@@ -742,7 +742,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
         return_type = call.signature_if_known.return_type
         is_noreturn = call.signature_if_known.is_noreturn
     else:
-        # It is a function pointer call, use 'funcptr(int, int)' or similar as name.
+        # It is a function pointer call, use `funcptr(int, int)` or similar as name.
         assert funcptr_type != NULL
         argstr = funcptr_type.func_ptr.arguments_string()
         snprintf(what_we_calling, sizeof(what_we_calling), "funcptr(%s)", argstr)
