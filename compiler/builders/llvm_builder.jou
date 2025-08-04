@@ -126,18 +126,7 @@ def funcptr_type_to_llvm(t: Type*) -> LLVMType*:
 
 
 def signature_to_llvm(sig: Signature*) -> LLVMType*:
-    assert sig.args.len <= 100
-    argtypes: LLVMType*[100]
-    for i = 0; i < sig.args.len; i++:
-        argtypes[i] = type_to_llvm(sig.args.ptr[i].type)
-
-    # TODO: tell llvm, if we know a function is noreturn ?
-    if sig.return_type == NULL:  # "-> noreturn" or "-> None"
-        return_type = LLVMVoidType()
-    else:
-        return_type = type_to_llvm(sig.return_type)
-
-    return LLVMFunctionType(return_type, argtypes, sig.args.len as int, sig.takes_varargs as int)
+    return funcptr_type_to_llvm(sig.to_funcptr_type())
 
 
 def declare_in_llvm(sig: Signature*, mod: LLVMModule*) -> LLVMValue*:
