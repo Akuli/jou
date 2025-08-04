@@ -385,7 +385,6 @@ class Parser:
 
         while not self.tokens.is_operator(")"):
             if takes_varargs:
-                # TODO: test this
                 fail(self.tokens.location, "if '...' is used, it must be the last parameter")
 
             if self.tokens.is_operator("..."):
@@ -399,7 +398,6 @@ class Parser:
             self.tokens++
 
         if not self.tokens.is_operator(")"):
-            # TODO: test this
             self.tokens.fail_expected_got("a ')'")
         self.tokens++
 
