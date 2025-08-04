@@ -673,6 +673,16 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
             call.function.types.orig_type = funcptr_type
             call.function.types.implicit_cast_type = funcptr_type
     else:
+        # Special-casing for better error message "function 'foo' not found".
+        # Without this we would get "no variable named 'foo'".
+        if (
+            call.function.kind == AstExpressionKind.GetVariable
+            and state.file_types.find_function(call.function.varname) == NULL
+            and state.find_any_var(call.function.varname) == NULL
+        ):
+            snprintf(msg, sizeof(msg), "function '%s' not found", call.function.varname)
+            fail(call.function.location, msg)
+
         funcptr_type = typecheck_expression_not_void(state, call.function, NULL)
         if call.function.kind == AstExpressionKind.GetFuncPtr:
             # It is a basic function call like printf("hi\n").
@@ -761,7 +771,12 @@ def typecheck_class_field(
         return f
 
     msg: byte[500]
-    snprintf(msg, sizeof(msg), "class %s has no field named '%s'", classtype.name, fieldname)
+
+    if classtype.find_method(fieldname) == NULL:
+        snprintf(msg, sizeof(msg), "class %s has no field named '%s'", classtype.name, fieldname)
+    else:
+        snprintf(msg, sizeof(msg), "%s.%s() is a method, it can be called but it cannot be used in any other way", classtype.name, fieldname)
+
     fail(location, msg)
 
 

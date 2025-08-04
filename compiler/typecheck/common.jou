@@ -165,4 +165,19 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             return result
 
         case AstTypeKind.FuncPtr:
-            assert False  # TODO
+            fp = asttype.func_ptr
+
+            nargs = fp.argtypes.len
+            argtypes: Type** = malloc(sizeof(argtypes[0]) * nargs)
+            assert argtypes != NULL
+            for i = 0; i < nargs; i++:
+                argtypes[i] = type_from_ast(ft, containing_class, &fp.argtypes.ptr[i])
+
+            if fp.return_type.is_none() or fp.return_type.is_noreturn():
+                return_type = NULL
+            else:
+                return_type = type_from_ast(ft, containing_class, fp.return_type)
+
+            result = funcptr_type(argtypes, nargs, fp.takes_varargs, return_type, fp.return_type.is_noreturn())
+            free(argtypes)
+            return result

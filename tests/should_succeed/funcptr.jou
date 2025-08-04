@@ -11,4 +11,7 @@ def main() -> int:
     ret = f()     # Output: Blah!!
     printf("Got %d\n", ret)  # Output: Got 123
 
+    g: funcptr(byte*, ...) -> int = printf
+    g("Hello %s\n", "World")  # Output: Hello World
+
     return 0

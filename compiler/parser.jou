@@ -377,21 +377,35 @@ class Parser:
         self.tokens++
 
         if not self.tokens.is_operator("("):
+            # TODO: test this
             self.tokens.fail_expected_got("a '(' to denote the start of funcptr argument types")
         self.tokens++
 
+        takes_varargs = False
         argtypes = List[AstType]{}
+
         while not self.tokens.is_operator(")"):
-            argtypes.append(self.parse_type())
+            if takes_varargs:
+                # TODO: test this
+                fail(self.tokens.location, "if '...' is used, it must be the last parameter")
+
+            if self.tokens.is_operator("..."):
+                takes_varargs = True
+                self.tokens++
+            else:
+                argtypes.append(self.parse_type())
+
             if not self.tokens.is_operator(","):
                 break
             self.tokens++
 
         if not self.tokens.is_operator(")"):
+            # TODO: test this
             self.tokens.fail_expected_got("a ')'")
         self.tokens++
 
         if not self.tokens.is_operator("->"):
+            # TODO: test this
             fail(self.tokens.location, "return type of funcptr must be specified with '->'")
         self.tokens++
 
@@ -402,7 +416,7 @@ class Parser:
         return AstType{
             kind = AstTypeKind.FuncPtr,
             location = location,
-            func_ptr = AstFuncPtrType{argtypes=argtypes, return_type=ret},
+            func_ptr = AstFuncPtrType{argtypes=argtypes, takes_varargs=takes_varargs, return_type=ret},
         }
 
     def parse_type(self) -> AstType:
