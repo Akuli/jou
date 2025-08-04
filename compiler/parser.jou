@@ -398,6 +398,9 @@ class Parser:
             self.tokens++
 
         if not self.tokens.is_operator(")"):
+            if self.tokens.is_operator(":") and self.tokens[-1].kind == TokenKind.Name:
+                # It looks like "foo: int"
+                fail(self.tokens.location, "funcptr parameters cannot be named")
             self.tokens.fail_expected_got("a ')'")
         self.tokens++
 
