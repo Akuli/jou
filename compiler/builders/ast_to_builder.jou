@@ -156,8 +156,11 @@ class AstToBuilder:
         assert False
 
     def build_call(self, call: AstCall*) -> AnyBuilderValue:
-        assert call.function != NULL or call.method_call_self != NULL
-        assert call.function == NULL or call.method_call_self == NULL
+        assert (
+            call.function != NULL and call.method_call_self == NULL
+        ) or (
+            call.function == NULL and call.method_call_self != NULL
+        )
 
         sig = call.signature_if_known
 
