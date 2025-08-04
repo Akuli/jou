@@ -321,7 +321,6 @@ def typecheck_expression_not_void(state: State*, expr: AstExpression*, type_hint
 
     msg: byte[500]
     if expr.call.signature_if_known == NULL:
-        # TODO: test this
         snprintf(msg, sizeof(msg), "%s does not return a value", expr.call.function_or_method())
     else:
         snprintf(msg, sizeof(msg), "%s '%s' does not return a value", expr.call.function_or_method(), expr.call.signature_if_known.name)
