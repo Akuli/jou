@@ -1,0 +1,7 @@
+import "stdlib/process.jou"
+
+def foo() -> None:
+    f: funcptr(int) -> None
+
+    # TODO: Maybe this should be allowed with any return type?
+    f = exit  # Error: cannot assign a value of type funcptr(int) -> noreturn to a variable of type funcptr(int) -> None
