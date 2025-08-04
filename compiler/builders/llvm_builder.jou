@@ -354,8 +354,6 @@ class LBuilder:
         return LBuilderValue{type = argtype, llvm_value = llvm_result}
 
     def call_function(self, funcptr_type: Type*, func: LBuilderValue, args: LBuilderValue*, nargs: int) -> LBuilderValue:
-        assert func.type == funcptr_type
-
         assert nargs <= 100
         llvm_args: LLVMValue*[100]
         for i = 0; i < nargs; i++:

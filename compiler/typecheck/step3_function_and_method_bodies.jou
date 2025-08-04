@@ -645,6 +645,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
             call.function = NULL
             call.method_call_self = obj
             funcptr_type: Type* = NULL
+
         else:
             field = self_class.find_class_field(member_name)
             if field == NULL:
@@ -696,8 +697,26 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
         funcptr_type == NULL and call.function == NULL and call.method_call_self != NULL
     )
 
-    if funcptr_type != NULL:
-        assert funcptr_type.kind == TypeKind.FuncPtr
+    # If self argument of method must be passed by pointer, make sure we can create that pointer
+    if call.method_call_self != NULL:
+        assert call.method_call_self.types.implicit_cast_type != NULL
+        assert call.signature_if_known != NULL
+        method_name = call.signature_if_known.name
+        if (
+            call.signature_if_known.args.ptr[0].type.kind == TypeKind.Pointer
+            and call.method_call_self.types.implicit_cast_type.kind != TypeKind.Pointer
+        ):
+            assert strstr(method_name, "%") == NULL
+            snprintf(
+                msg, sizeof msg,
+                "cannot take address of %%s, needed for calling the %s() method",
+                method_name,
+            )
+            ensure_can_take_address(state.fom_types, call.method_call_self, msg)
+
+    if funcptr_type != NULL and funcptr_type.kind != TypeKind.FuncPtr:
+        snprintf(msg, sizeof(msg), "expected a function, got %s", funcptr_type.name)
+        fail(call.function.location, msg)
 
     what_we_calling: byte[500]
     if call.signature_if_known != NULL:
@@ -1087,33 +1106,6 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
 
         case AstExpressionKind.Call:
             result = typecheck_call(state, &expr.call, expr.location)
-#            if expr.call.method_call_self == NULL:
-#                result = typecheck_function_or_method_call(state, &expr.call, NULL, expr.location)
-#            else:
-#                temptype = typecheck_expression_not_void(state, expr.call.method_call_self, NULL)
-#                if temptype.kind == TypeKind.Class:
-#                    result = typecheck_function_or_method_call(state, &expr.call, temptype, expr.location)
-#                elif temptype.kind == TypeKind.Pointer and temptype.value_type.kind == TypeKind.Class:
-#                    result = typecheck_function_or_method_call(state, &expr.call, temptype.value_type, expr.location)
-#                else:
-#                    snprintf(msg, sizeof(msg),
-#                        "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
-#                        temptype.name)
-#                    fail(expr.location, msg)
-#
-#                # If self argument must be passed by pointer, make sure we can create that pointer
-#                if temptype.kind == TypeKind.Class:
-#                    assert False  # TODO
-#                    signature = temptype.find_method(expr.call.name)
-#                    assert signature != NULL
-#                    if signature.args.ptr[0].type.is_pointer_type():
-#                        assert strstr(expr.call.name, "%") == NULL
-#                        snprintf(
-#                            msg, sizeof msg,
-#                            "cannot take address of %%s, needed for calling the %s() method",
-#                            expr.call.name)
-#                        ensure_can_take_address(state.fom_types, expr.call.method_call_self, msg)
-
             if result == NULL:
                 # no return value produced
                 return
@@ -1439,6 +1431,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             if (
                 targetexpr.kind == AstExpressionKind.GetVariable
                 and state.find_any_var_or_constant(targetexpr.varname) == NULL
+                and state.file_types.find_function(targetexpr.varname) == NULL
             ):
                 # Making a new variable. Use the type of the value being assigned.
                 type = typecheck_expression_not_void(state, valueexpr, NULL)
