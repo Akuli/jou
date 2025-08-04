@@ -590,6 +590,72 @@ def nth(n: int) -> byte[100]:
 
 # returns NULL if the function doesn't return anything
 def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
+    msg: byte[500]
+
+    if call.function.kind == AstExpressionKind.DotOperator:
+        # TODO: move this block of code to new function
+
+        # It looks like obj.member(). Could be a method or a function call: it is
+        # possible to have a class field whose type is a funcptr.
+        #
+        # Let's type-check `obj` and go from there.
+        obj = call.function.class_field.instance
+        member_name = call.function.class_field.field_name
+        obj_type = typecheck_expression_not_void(state, obj, NULL)
+
+        if obj_type.kind == TypeKind.Class:
+            self_class = obj_type
+        elif obj_type.kind == TypeKind.Pointer and obj_type.value_type.kind == TypeKind.Class:
+            self_class = obj_type.value_type
+        else:
+            snprintf(
+                msg, sizeof(msg),
+                "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
+                obj_type.name,
+            )
+            fail(location, msg)
+        assert self_type.kind == TypeKind.Class
+
+        sig = self_class.find_method(member_name)
+        if sig != NULL:
+            # It is a method
+            free(call.function)
+            call.function = NULL
+            call.method_call_self = obj
+            call.signature_if_known = sig
+        else:
+            field = self_class.find_class_field(member_name)
+            if field == NULL:
+                snprintf(
+                    msg, sizeof(msg),
+                    "class %s does not have a method named '%s'", self_class.name, member_name)
+                fail(location, msg)
+
+            # It is a function pointer call where the function is in a class field.
+            # It looks like obj.field().
+            #
+            # Ideally these would be handled so that we just type-check the whole
+            # thing as a function call and don't special-case anything. Unfortunately
+            # that's not possible because we already type-checked `obj`.
+            #
+            # Let's finish type-checking the `obj.field` part just like how
+            # `typecheck_expression()` function would do it and continue as usual.
+            if obj_type.kind == TypeKind.Class:
+                call.function.kind = AstExpressionKind.GetClassField
+            else:
+                assert obj_type.kind == TypeKind.Pointer
+                assert obj_type.value_type.kind == TypeKind.Class
+                call.function.kind = AstExpressionKind.GetClassFieldPtr
+
+            funcptr_type = typecheck_class_field(class_type, member_name, location).type
+            call.function.types.orig_type = funcptr_type
+            call.function.types.implicit_cast_type = funcptr_type
+    else:
+        funcptr_type = typecheck_expression_not_void(state, call.function, NULL)
+        if call.function.kind == AstExpressionKind.GetFuncPtr:
+            pass  # TODO: get the signature, it's good for error messages
+
+    assert funcptr_type != NULL
     assert False  # TODO
 #    msg: byte[500]
 #
@@ -971,12 +1037,6 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             # Not enum, that is handled already.
             # It is either instance.field or pointer_to_instance.field.
             temptype = typecheck_expression_not_void(state, expr.class_field.instance, NULL)
-            if temptype.kind == TypeKind.Class:
-                expr.kind = AstExpressionKind.GetClassField
-                result = typecheck_class_field(temptype, expr.class_field.field_name, expr.location).type
-            elif temptype.kind == TypeKind.Pointer and temptype.value_type.kind == TypeKind.Class:
-                expr.kind = AstExpressionKind.GetClassFieldPtr
-                result = typecheck_class_field(temptype.value_type, expr.class_field.field_name, expr.location).type
             else:
                 snprintf(
                     msg, sizeof(msg),
