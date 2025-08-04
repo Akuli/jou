@@ -238,8 +238,7 @@ class Type:
                 else:
                     new_return_type = self.func_ptr.return_type.substitute_generic_params(from, to, n)
 
-                # TODO: allow varargs support through parser instead of hard-coded False
-                result = funcptr_type(new_argtypes, nargs, False, new_return_type, self.func_ptr.is_noreturn)
+                result = funcptr_type(new_argtypes, nargs, self.func_ptr.takes_varargs, new_return_type, self.func_ptr.is_noreturn)
                 free(new_argtypes)
                 return result
 
