@@ -98,6 +98,10 @@ class AstType:
                     if i != 0:
                         printf(", ")
                     self.func_ptr.argtypes.ptr[i].print(False)
+                if self.func_ptr.takes_varargs:
+                    if self.func_ptr.argtypes.len != 0:
+                        printf(", ")
+                    printf("...")
                 printf(") -> ")
                 self.func_ptr.return_type.print(False)
                 printf(")")
