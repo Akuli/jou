@@ -417,6 +417,7 @@ def funcptr_type(argtypes: Type**, nargs: long, takes_varargs: bool, return_type
     for infoptr = global_type_state.func_ptrs.ptr; infoptr < global_type_state.func_ptrs.end(); infoptr++:
         t: Type* = &(*infoptr).type
         assert t.kind == TypeKind.FuncPtr
+        assert sizeof(t.func_ptr.argtypes.ptr[0]) == sizeof(argtypes[0])
         if (
             t.func_ptr.argtypes.len == nargs
             and memcmp(t.func_ptr.argtypes.ptr, argtypes, sizeof(argtypes[0]) * nargs) == 0
@@ -444,6 +445,8 @@ def funcptr_type(argtypes: Type**, nargs: long, takes_varargs: bool, return_type
         takes_varargs = takes_varargs,
         is_noreturn = is_noreturn,
     }
+    for i = 0; i < nargs; i++:
+        fptype.argtypes.append(argtypes[i])
 
     info.type = Type{
         kind = TypeKind.FuncPtr,
@@ -453,9 +456,6 @@ def funcptr_type(argtypes: Type**, nargs: long, takes_varargs: bool, return_type
     argstr = fptype.arguments_string()
     snprintf(info.type.name, sizeof(t.name), "funcptr(%s) -> %s", argstr, ret_name)
     free(argstr)
-
-    for i = 0; i < nargs; i++:
-        info.type.func_ptr.argtypes.append(argtypes[i])
 
     global_type_state.func_ptrs.append(info)
     return &info.type
