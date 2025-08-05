@@ -23,7 +23,7 @@ And the following unsigned integer types:
 | `uint32`          | 4 bytes (32 bits) | `%u`          | `0`       | `4_294_967_295`               |
 | `uint64`          | 8 bytes (64 bits) | `%llu`        | `0`       | `18_446_744_073_709_551_615`  |
 
-For convenience, the most commonly used types have simpler names
+For convenience, the most commonly used types have simpler names:
 `byte` always means same as `uint8`,
 `int` always means same as `int32`, and
 `long` always means same as `int64`.
