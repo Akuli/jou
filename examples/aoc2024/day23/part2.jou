@@ -1,6 +1,7 @@
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/io.jou"
+import "stdlib/sort.jou"
 
 
 def add_computer_if_not_exist(names: byte[3]*, ncomputers: int*, name: byte*) -> None:
@@ -29,18 +30,6 @@ def create_conn_matrix(ncomputers: int) -> bool**:
         assert conn_matrix[i] != NULL
 
     return conn_matrix
-
-
-def sort_names(names: byte[3]*, len: int) -> None:
-    # very dumb algorithm
-    while True:
-        did_something = False
-        for i = 1; i < len; i++:
-            if strcmp(names[i-1], names[i]) > 0:
-                memswap(&names[i-1], &names[i], sizeof(names[0]))
-                did_something = True
-        if not did_something:
-            break
 
 
 # recursive (depth-first search)
@@ -96,7 +85,7 @@ def main() -> int:
         assert ncomputers < 5000
         add_computer_if_not_exist(names, &ncomputers, name2)
 
-    sort_names(names, ncomputers)
+    Sorter[byte[3]]{}.sort(names, ncomputers, strcmp as funcptr(byte[3]*, byte[3]*) -> int)
 
     rewind(f)
     conn_matrix = create_conn_matrix(ncomputers)
