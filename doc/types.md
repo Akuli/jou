@@ -70,9 +70,25 @@ See [pointers in the Jou tutorial](tutorial.md#pointers) if you are not already 
 An array is simply `n` instances of type `T` next to each other in memory.
 The array length `n` must be known at compile time,
 because in Jou, the compiler knows the sizes of all types.
-If you want a dynamic array size, use a heap allocation (`malloc` + `free`) instead.
-Unfortunately, heap allocations are currently not documented.
+Use [lists](lists.md) if you want an array that grows dynamically as items are added to it.
 See [issue #676](https://github.com/Akuli/jou/issues/676).
+
+Because of how arrays work, you can use `sizeof(array) / sizeof(array[0])`
+to access the array length:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    array: int[10]
+    printf("%lld\n", sizeof(array) / sizeof(array[0]))  # Output: 10
+    return 0
+```
+
+Here `sizeof(array[0])` is 4, because `array[0]` is an `int`.
+The size of the array itself is 40, because the array is 10 `int`s next to each other in memory.
+Therefore `sizeof(array) / sizeof(array[0])` becomes `40 / 4`, which is 10.
+This works the same way with any array.
 
 Pointers and arrays can be combined with each other.
 For example, `byte[100]*` means a pointer to an array of 100 bytes,

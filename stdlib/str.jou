@@ -46,6 +46,12 @@ declare strrchr(haystack: byte*, needle: byte) -> byte*  # finds last occurrence
 declare strlen(s: byte*) -> long
 
 # Compare the strings. Return 0 for equal, or nonzero for not equal.
+#
+# Specifically, the return values are:
+#
+#   negative integer    String s1 goes before string s2 when sorting strings
+#   0                   Strings are equal
+#   positive integer    String s1 goes after string s2 when sorting strings
 @public
 declare strcmp(s1: byte*, s2: byte*) -> int
 
