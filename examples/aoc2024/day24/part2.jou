@@ -10,6 +10,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/ascii.jou"
 import "stdlib/io.jou"
+import "stdlib/sort.jou"
 
 
 # The sum calculator consists of 45 adders and outputs 46 bits z00,z01,...,z45.
@@ -63,6 +64,13 @@ class Gate:
     # swap its output with others.
     sus: bool
 
+    # Temporary value for sorting
+    sort_value: int
+
+
+def compare_gates(g1: Gate**, g2: Gate**) -> int:
+    return (**g1).sort_value - (**g2).sort_value
+
 
 # By design, every gate uses the inputs somehow.
 # We can use this to determine a somewhat reasonable ordering for the gates.
@@ -70,10 +78,6 @@ class Gate:
 # Specifically, if x30 and y30 affect a gate, and inputs x31,y31,x32,y32,...
 # don't, we assign it number 30, and then sort by affected values.
 def sort_gates(gates: Gate**, ngates: int) -> None:
-    assert ngates < 250
-    sort_values: int[250]
-    memset(sort_values, 0, sizeof(sort_values))
-
     maxlen = 400
     todo: byte[4][400]
     done: byte[4][400]
@@ -97,35 +101,14 @@ def sort_gates(gates: Gate**, ngates: int) -> None:
 
             for i = 0; i < ngates; i++:
                 if strcmp(gates[i].inputs[0], name) == 0 or strcmp(gates[i].inputs[1], name) == 0:
-                    sort_values[i] = inputnum + 1  # never zero
+                    gates[i].sort_value = inputnum
                     assert todo_len < maxlen
                     todo[todo_len++] = gates[i].output
 
             assert done_len < maxlen
             done[done_len++] = name
 
-    # stupid sort algorithm
-    while True:
-        did_something = False
-        for i = 1; i < ngates; i++:
-            if sort_values[i-1] > sort_values[i]:
-                memswap(&sort_values[i-1], &sort_values[i], sizeof(sort_values[0]))
-                memswap(&gates[i-1], &gates[i], sizeof(gates[0]))
-                did_something = True
-        if not did_something:
-            break
-
-
-def sort_strings(strings: byte**, nstrings: int) -> None:
-    # stupid sort algorithm
-    while True:
-        did_something = False
-        for i = 1; i < nstrings; i++:
-            if strcmp(strings[i-1], strings[i]) > 0:
-                memswap(&strings[i-1], &strings[i], sizeof(strings[0]))
-                did_something = True
-        if not did_something:
-            break
+    Sorter[Gate*]{}.sort(gates, ngates, compare_gates)
 
 
 # Returns number of errors: 1 if connection is wrong, 0 if it is correct.
