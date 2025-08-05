@@ -5,10 +5,10 @@
 import "stdlib/str.jou"
 
 declare qsort(
-    base: void*,
-    nmemb: int64,
-    size: int64,
-    compare: funcptr(void*, void*) -> int,
+    ptr: void*,
+    len: int64,
+    item_size: int64,
+    comparator: funcptr(void*, void*) -> int,
 ) -> None
 
 
@@ -24,8 +24,8 @@ declare qsort(
 @public
 class Sorter[T]:
     @inline
-    def sort(self: Sorter[T], ptr: T*, len: int64, compare: funcptr(T*, T*) -> int) -> None:
-        qsort(ptr, len, sizeof(ptr[0]), compare as funcptr(void*, void*) -> int)
+    def sort(self: Sorter[T], ptr: T*, len: int64, comparator: funcptr(T*, T*) -> int) -> None:
+        qsort(ptr, len, sizeof(ptr[0]), comparator as funcptr(void*, void*) -> int)
 
 
 def compare_int8(a: int8*, b: int8*) -> int:

@@ -84,8 +84,8 @@ def main() -> int:
     return 0
 ```
 
-Here `sizeof(array[0])` is 4, because `array[0]` is an `int`.
-The size of the array itself is 40, because the array is 10 `int`s next to each other in memory.
+The size of `array[0]` is 4 bytes, because `array[0]` is an `int`.
+The size of the whole array is 40 bytes, because the array is 10 `int`s next to each other in memory.
 Therefore `sizeof(array) / sizeof(array[0])` becomes `40 / 4`, which is 10.
 This works the same way with any array.
 
