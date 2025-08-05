@@ -26,6 +26,7 @@ def hash_type(hash: Hash*, type: Type*) -> None:
             # Treat all pointers the same, since they are the same LLVM type.
             TypeKind.Pointer
             | TypeKind.VoidPointer
+            | TypeKind.FuncPtr
             # Treat all enums the same, they are int32.
             | TypeKind.Enum
             | TypeKind.Bool
@@ -150,14 +151,31 @@ class HBuilder:
         self.hash.add_string(name)
         return self.new_value(var_type.pointer_type())
 
+    # some_function
+    def get_funcptr(self, signature: Signature*) -> HBuilderValue:
+        self.hash.add_string("funcptr")
+        self.hash.add_string(signature.name)
+        return self.new_value(signature.to_funcptr_type())
+
     # i'th argument given to this function
     def get_argument(self, i: int, argtype: Type*) -> HBuilderValue:
         self.hash.add_string("arg")
         self.hash.add_int(i)
         return self.new_value(argtype)
 
-    # Function or method call, self included in args if method
-    def call(self, sig: Signature*, args: HBuilderValue*, nargs: int) -> HBuilderValue:
+    def call_function(self, funcptr_type: Type*, func: HBuilderValue, args: HBuilderValue*, nargs: int) -> HBuilderValue:
+        self.hash.add_string("call_func")
+        self.hash.add_int64(func.id)
+        for p = args; p < &args[nargs]; p++:
+            self.hash.add_int64(p.id)
+
+        assert funcptr_type.kind == TypeKind.FuncPtr
+        if funcptr_type.func_ptr.return_type == NULL:
+            return self.new_value(funcptr_type.func_ptr.return_type)
+        else:
+            return HBuilderValue{id = -1}
+
+    def call_method(self, sig: Signature*, args: HBuilderValue*, nargs: int) -> HBuilderValue:
         hash_signature(&self.hash, sig)
         for p = args; p < &args[nargs]; p++:
             self.hash.add_int64(p.id)

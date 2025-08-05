@@ -84,7 +84,7 @@ def type_to_llvm(type: Type*) -> LLVMType*:
     match type.kind:
         case TypeKind.Array:
             return LLVMArrayType(type_to_llvm(type.array.item_type), type.array.len)
-        case TypeKind.Pointer | TypeKind.VoidPointer:
+        case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
             # Element type doesn't matter in new LLVM versions.
             return LLVMPointerType(LLVMInt8Type(), 0)
         case TypeKind.FloatingPoint:
@@ -106,19 +106,27 @@ def type_to_llvm(type: Type*) -> LLVMType*:
             return LLVMInt32Type()
 
 
-def signature_to_llvm(sig: Signature*) -> LLVMType*:
-    assert sig.args.len <= 100
+# This is not handled by type_to_llvm() because funcptr maps to a pointer in LLVM.
+# This function returns an LLVM type representing the underlying function.
+def funcptr_type_to_llvm(t: Type*) -> LLVMType*:
+    assert t.kind == TypeKind.FuncPtr
+
+    assert t.func_ptr.argtypes.len <= 100
     argtypes: LLVMType*[100]
-    for i = 0; i < sig.args.len; i++:
-        argtypes[i] = type_to_llvm(sig.args.ptr[i].type)
+    for i = 0; i < t.func_ptr.argtypes.len; i++:
+        argtypes[i] = type_to_llvm(t.func_ptr.argtypes.ptr[i])
 
     # TODO: tell llvm, if we know a function is noreturn ?
-    if sig.return_type == NULL:  # "-> noreturn" or "-> None"
+    if t.func_ptr.return_type == NULL:  # "-> noreturn" or "-> None"
         return_type = LLVMVoidType()
     else:
-        return_type = type_to_llvm(sig.return_type)
+        return_type = type_to_llvm(t.func_ptr.return_type)
 
-    return LLVMFunctionType(return_type, argtypes, sig.args.len as int, sig.takes_varargs as int)
+    return LLVMFunctionType(return_type, argtypes, t.func_ptr.argtypes.len as int, t.func_ptr.takes_varargs as int)
+
+
+def signature_to_llvm(sig: Signature*) -> LLVMType*:
+    return funcptr_type_to_llvm(sig.to_funcptr_type())
 
 
 def declare_in_llvm(sig: Signature*, mod: LLVMModule*) -> LLVMValue*:
@@ -323,13 +331,39 @@ class LBuilder:
         assert llvm_result != NULL
         return LBuilderValue{type = var_type.pointer_type(), llvm_value = llvm_result}
 
+    # some_function
+    def get_funcptr(self, sig: Signature*) -> LBuilderValue:
+        llvm_result = declare_in_llvm(sig, self.llvm_module)
+        assert llvm_result != NULL
+        return LBuilderValue{type = sig.to_funcptr_type(), llvm_value = llvm_result}
+
     # i'th argument given to this function
     def get_argument(self, i: int, argtype: Type*) -> LBuilderValue:
         llvm_result = LLVMGetParam(self.llvm_func, i)
         return LBuilderValue{type = argtype, llvm_value = llvm_result}
 
-    # Function or method call, self included in args if method
-    def call(self, sig: Signature*, args: LBuilderValue*, nargs: int) -> LBuilderValue:
+    def call_function(self, funcptr_type: Type*, func: LBuilderValue, args: LBuilderValue*, nargs: int) -> LBuilderValue:
+        assert nargs <= 100
+        llvm_args: LLVMValue*[100]
+        for i = 0; i < nargs; i++:
+            llvm_args[i] = args[i].llvm_value
+
+        assert funcptr_type.kind == TypeKind.FuncPtr
+        debug_name: byte[100] = ""
+        if funcptr_type.func_ptr.return_type != NULL:
+            # TODO: include function name?
+            debug_name = "func_return_value"
+
+        llvm_return_value = LLVMBuildCall2(self.llvm_builder, funcptr_type_to_llvm(funcptr_type), func.llvm_value, llvm_args, nargs, debug_name)
+
+        if funcptr_type.func_ptr.return_type == NULL:
+            return LBuilderValue{}
+        else:
+            assert llvm_return_value != NULL
+            return LBuilderValue{type = funcptr_type.func_ptr.return_type, llvm_value = llvm_return_value}
+
+    # self must be included in args
+    def call_method(self, sig: Signature*, args: LBuilderValue*, nargs: int) -> LBuilderValue:
         assert nargs >= sig.args.len
         if nargs > sig.args.len:
             assert sig.takes_varargs
@@ -337,11 +371,6 @@ class LBuilder:
         assert nargs <= 100
         llvm_args: LLVMValue*[100]
         for i = 0; i < nargs; i++:
-            if i < sig.args.len:
-                # not a vararg
-                # TODO: this assertion fails with generics when calling self.method() inside inline function
-                #assert args[i].type == sig.args.ptr[i].type
-                pass
             llvm_args[i] = args[i].llvm_value
 
         debug_name: byte[100] = ""

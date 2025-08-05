@@ -143,6 +143,17 @@ class AnyBuilder:
             result.hvalue = self.hbuilder.global_var_ptr(name, var_type)
         return result
 
+    # Returns a function as funcptr
+    def get_funcptr(self, sig: Signature*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
+        if self.lbuilder != NULL:
+            result.lvalue = self.lbuilder.get_funcptr(sig)
+        if self.ubuilder != NULL:
+            result.uvalue = self.ubuilder.get_funcptr(sig)
+        if self.hbuilder != NULL:
+            result.hvalue = self.hbuilder.get_funcptr(sig)
+        return result
+
     # Returns the i'th argument given to function
     def get_argument(self, i: int, argtype: Type*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
@@ -154,29 +165,60 @@ class AnyBuilder:
             result.hvalue = self.hbuilder.get_argument(i, argtype)
         return result
 
-    # Function or method call. If method, self with the correct type must be included in args.
-    def call(self, sig: Signature*, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
+    # Function call through a function pointer
+    def call_function(self, funcptr_type: Type*, func_ptr: AnyBuilderValue, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
+        assert funcptr_type.kind == TypeKind.FuncPtr
+        assert nargs >= funcptr_type.func_ptr.argtypes.len
+        if nargs > funcptr_type.func_ptr.argtypes.len:
+            assert funcptr_type.func_ptr.takes_varargs
+
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
             largs: LBuilderValue* = malloc(sizeof(largs[0]) * nargs)
             assert largs != NULL
             for i = 0; i < nargs; i++:
                 largs[i] = args[i].lvalue
-            result.lvalue = self.lbuilder.call(sig, largs, nargs)
+            result.lvalue = self.lbuilder.call_function(funcptr_type, func_ptr.lvalue, largs, nargs)
             free(largs)
         if self.ubuilder != NULL:
             uargs: int* = malloc(sizeof(uargs[0]) * nargs)
             assert uargs != NULL
             for i = 0; i < nargs; i++:
                 uargs[i] = args[i].uvalue
-            result.uvalue = self.ubuilder.call(sig, uargs, nargs)
+            result.uvalue = self.ubuilder.call_function(funcptr_type, func_ptr.uvalue, uargs, nargs)
             free(uargs)
         if self.hbuilder != NULL:
             hargs: HBuilderValue* = malloc(sizeof(hargs[0]) * nargs)
             assert hargs != NULL
             for i = 0; i < nargs; i++:
                 hargs[i] = args[i].hvalue
-            result.hvalue = self.hbuilder.call(sig, hargs, nargs)
+            result.hvalue = self.hbuilder.call_function(funcptr_type, func_ptr.hvalue, hargs, nargs)
+            free(hargs)
+        return result
+
+    # self with the correct type must be included in args
+    def call_method(self, sig: Signature*, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
+        if self.lbuilder != NULL:
+            largs: LBuilderValue* = malloc(sizeof(largs[0]) * nargs)
+            assert largs != NULL
+            for i = 0; i < nargs; i++:
+                largs[i] = args[i].lvalue
+            result.lvalue = self.lbuilder.call_method(sig, largs, nargs)
+            free(largs)
+        if self.ubuilder != NULL:
+            uargs: int* = malloc(sizeof(uargs[0]) * nargs)
+            assert uargs != NULL
+            for i = 0; i < nargs; i++:
+                uargs[i] = args[i].uvalue
+            result.uvalue = self.ubuilder.call_method(sig, uargs, nargs)
+            free(uargs)
+        if self.hbuilder != NULL:
+            hargs: HBuilderValue* = malloc(sizeof(hargs[0]) * nargs)
+            assert hargs != NULL
+            for i = 0; i < nargs; i++:
+                hargs[i] = args[i].hvalue
+            result.hvalue = self.hbuilder.call_method(sig, hargs, nargs)
             free(hargs)
         return result
 

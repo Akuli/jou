@@ -143,12 +143,6 @@ class AstToBuilder:
         else:
             return self.builder.dereference(info.return_value_ptr)
 
-    def call_or_inline(self, sig: Signature*, args: List[AnyBuilderValue]) -> AnyBuilderValue:
-        if sig.ast_to_inline != NULL and self.builder.should_functions_marked_with_inline_be_inlined():
-            return self.inline(sig, args)
-        else:
-            return self.builder.call(sig, args.ptr, args.len as int)
-
     def local_var_exists(self, name: byte*) -> bool:
         for local = self.locals.ptr; local < self.locals.end(); local++:
             if strcmp(local.name, name) == 0:
@@ -162,11 +156,43 @@ class AstToBuilder:
         assert False
 
     def build_call(self, call: AstCall*) -> AnyBuilderValue:
+        assert (
+            call.function != NULL and call.method_call_self == NULL
+        ) or (
+            call.function == NULL and call.method_call_self != NULL
+        )
+
+        sig = call.signature_if_known
+
+        if call.function != NULL:
+            funcptr_type = call.function.types.implicit_cast_type
+        else:
+            assert sig != NULL
+            funcptr_type = sig.to_funcptr_type()
+        assert funcptr_type.kind == TypeKind.FuncPtr
+
+        inline = (
+            sig != NULL
+            and sig.ast_to_inline != NULL
+            and self.builder.should_functions_marked_with_inline_be_inlined()
+        )
+        if call.function != NULL and not inline:
+            # Calling function pointer. Evaluate the function pointer first, before arguments.
+            # TODO: test
+            func_ptr = self.build_expression(call.function)
+        else:
+            # Dummy value to silence compiler warning
+            func_ptr = AnyBuilderValue{}
+
         args = List[AnyBuilderValue]{}
 
         if call.method_call_self != NULL:
-            # it is a method call, pass self as first argument
-            want_pointer = call.called_signature.args.ptr[0].type.is_pointer_type()
+            # It is a method call, pass self as first argument.
+            # Signature of method calls is always known.
+            assert sig != NULL
+
+            # pass self as first argument
+            want_pointer = sig.args.ptr[0].type.is_pointer_type()
             got_pointer = call.method_call_self.types.implicit_cast_type.is_pointer_type()
 
             if want_pointer and not got_pointer:
@@ -180,10 +206,17 @@ class AstToBuilder:
         for p = call.args.ptr; p < call.args.end(); p++:
             args.append(self.build_expression(p))
 
-        result = self.call_or_inline(call.called_signature, args)
+        if inline:
+            result = self.inline(sig, args)
+        elif call.method_call_self != NULL:
+            assert sig != NULL
+            result = self.builder.call_method(sig, args.ptr, args.len as int)
+        else:
+            result = self.builder.call_function(funcptr_type, func_ptr, args.ptr, args.len as int)
+
         free(args.ptr)
 
-        if call.called_signature.is_noreturn:
+        if funcptr_type.func_ptr.is_noreturn:
             # Code after the function call will not run. Place it to a new block.
             self.builder.unreachable()
             self.builder.set_current_block(self.builder.add_block())
@@ -407,6 +440,8 @@ class AstToBuilder:
                 else:
                     assert self.inlining_info == NULL
                     return self.builder.dereference(self.builder.global_var_ptr(expr.varname, expr.types.orig_type))
+            case AstExpressionKind.GetFuncPtr:
+                return self.builder.get_funcptr(expr.get_func_ptr.signature)
             case AstExpressionKind.Indexing:
                 # ptr[foo] can always be evaluated as &ptr[foo], because ptr is already a pointer.
                 # We can't do this for all expressions, because e.g. &some_function() is error.
@@ -598,11 +633,12 @@ class AstToBuilder:
                 if match_stmt.func_name[0] == '\0':
                     cond = self.builder.eq(match_obj, case_obj)
                 else:
+                    # TODO: make this more general:
+                    #   - inline functions
+                    #   - funcptr
+                    func = self.builder.get_funcptr(&match_stmt.func_signature)
                     args = [match_obj, case_obj]
-                    func_ret = self.call_or_inline(
-                        &match_stmt.func_signature,
-                        List[AnyBuilderValue]{ptr=args,len=2},
-                    )
+                    func_ret = self.builder.call_function(match_stmt.func_signature.to_funcptr_type(), func, args, 2)
                     zero = self.builder.integer(match_stmt.func_signature.return_type, 0)
                     cond = self.builder.eq(func_ret, zero)
                 otherwise = self.builder.add_block()
@@ -654,13 +690,14 @@ class AstToBuilder:
             takes_varargs = False,
             is_noreturn = True,
         }
+        func = self.builder.get_funcptr(&sig)
 
         args = [
             self.builder.pointer_string(assertion.condition_str),
             self.builder.pointer_string(assert_location.path),
             self.builder.integer(intType, assert_location.lineno),
         ]
-        self.builder.call(&sig, args, 3)
+        self.builder.call_function(sig.to_funcptr_type(), func, args, 3)
 
         self.builder.unreachable()
         self.builder.set_current_block(ok_block)

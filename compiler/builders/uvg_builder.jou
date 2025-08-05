@@ -93,10 +93,19 @@ class UBuilder:
     def global_var_ptr(self, name: byte*, var_type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
+    def get_funcptr(self, signature: Signature*) -> int:
+        return ANONYMOUS_VALUE_ID
+
     def get_argument(self, i: int, argtype: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
-    def call(self, sig: Signature*, args: int*, nargs: int) -> int:
+    def call_function(self, funcptr_type: Type*, func: int, args: int*, nargs: int) -> int:
+        self.use(func)
+        for i = 0; i < nargs; i++:
+            self.dont_analyze(args[i])
+        return ANONYMOUS_VALUE_ID
+
+    def call_method(self, sig: Signature*, args: int*, nargs: int) -> int:
         for i = 0; i < nargs; i++:
             self.dont_analyze(args[i])
         return ANONYMOUS_VALUE_ID

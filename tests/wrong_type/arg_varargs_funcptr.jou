@@ -1,0 +1,5 @@
+import "stdlib/io.jou"
+
+def foo() -> None:
+    f: funcptr(byte*, ...) -> int = printf
+    f(1)  # Error: first argument of funcptr(byte*, ...) should have type byte*, not int
