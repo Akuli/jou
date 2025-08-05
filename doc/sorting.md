@@ -99,6 +99,7 @@ You can also use `sort_int32()` with a [list](lists.md) of integers:
 import "stdlib/sort.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
+import "stdlib/io.jou"
 
 def main() -> int:
     list = List[int]{}
@@ -179,8 +180,8 @@ To do this, we first need to define a custom comparator function
 that takes two pointers to `Language` instances and compares their years.
 The return values of a comparator function must be:
 - `-1` or other negative `int`, if first item is less than second item
-- `1` or other positive `int`, if first item is less than second item
-- `0`, if the items are considered equal
+- `1` or other positive `int`, if first item is greater than second item
+- `0`, if the items are considered equal.
 
 Here's one way to write the comparator function:
 
@@ -211,7 +212,7 @@ Sorter[Language]{}.sort(array, array_len, compare_languages)
 
 Here `Sorter[Language]{}` creates a new instance of the `Sorter` class
 that sorts lists of `Language` instances.
-Currently it needs to be a class to work around limitations of how generics work in Jou.
+Currently it needs to be a class to work around limitations of Jou's generics.
 In a future version of Jou, this might become a simple function call,
 perhaps `sort(array, array_len, compare_languages)`.
 
@@ -233,8 +234,8 @@ def compare_languages(a: Language*, b: Language*) -> int:
 
 def main() -> int:
     languages = [
-        Language{name="C", year=1972},
         Language{name="Python", year=1991},
+        Language{name="C", year=1972},
         Language{name="Jou", year=2022},
     ]
 
