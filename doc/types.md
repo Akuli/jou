@@ -71,7 +71,6 @@ An array is simply `n` instances of type `T` next to each other in memory.
 The array length `n` must be known at compile time,
 because in Jou, the compiler knows the sizes of all types.
 Use [lists](lists.md) if you want an array that grows dynamically as items are added to it.
-See [issue #676](https://github.com/Akuli/jou/issues/676).
 
 Because of how arrays work, you can use `sizeof(array) / sizeof(array[0])`
 to access the array length:
