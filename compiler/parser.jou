@@ -391,6 +391,8 @@ class Parser:
                 takes_varargs = True
                 self.tokens++
             else:
+                if argtypes.len == MAX_ARGS:
+                    fail(self.tokens.location, "too many arguments")
                 argtypes.append(self.parse_type())
 
             if not self.tokens.is_operator(","):
@@ -583,6 +585,8 @@ class Parser:
                             "there are multiple arguments named '%s'", arg.name)
                         fail(arg.name_location, message)
 
+                if result.args.len == MAX_ARGS:
+                    fail(self.tokens.location, "too many arguments")
                 result.args.append(arg)
 
             if not self.tokens.is_operator(","):
@@ -774,6 +778,8 @@ class Parser:
         self.tokens++
 
         while not self.tokens.is_operator(")"):
+            if call.args.len == MAX_ARGS:
+                fail(self.tokens.location, "too many arguments")
             call.args.append(self.parse_expression())
             if not self.tokens.is_operator(","):
                 break
