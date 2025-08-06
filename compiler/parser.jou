@@ -778,7 +778,13 @@ class Parser:
         self.tokens++
 
         while not self.tokens.is_operator(")"):
-            if call.args.len == MAX_ARGS:
+            # Do not allow going all the way to MAX_ARGS so that we can add
+            # the `self` argument for method calls later.
+            #
+            # There's no easy way to know whether we are calling a method. Even
+            # though `foo.bar()` is usually a method call, it can also call a
+            # function pointer stored in field `bar`.
+            if call.args.len == MAX_ARGS - 1:
                 fail(self.tokens.location, "too many arguments")
             call.args.append(self.parse_expression())
             if not self.tokens.is_operator(","):

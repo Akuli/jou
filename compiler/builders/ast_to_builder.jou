@@ -88,12 +88,12 @@ class AstToBuilder:
     # Handles the beginning of calling an @inline function. That's always done
     # in a new builder, so that we don't accidentally access local variables
     # of the calling function.
-    def begin_inlining(self, types: FunctionOrMethodTypes*, args: List[AnyBuilderValue]) -> None:
+    def begin_inlining(self, types: FunctionOrMethodTypes*, args: AnyBuilderValue*, nargs: int) -> None:
         # First n local variables are the arguments
         assert types.signature.args.len <= types.locals.len
 
         # Must pass correct number of values for parameters of inlined function
-        assert args.len == types.signature.args.len
+        assert nargs == types.signature.args.len
 
         assert self.locals.len == 0
         for i = 0; i < types.locals.len; i++:
@@ -101,11 +101,11 @@ class AstToBuilder:
             var_type = types.locals.ptr[i].type
             var_ptr = self.builder.stack_alloc(self.map_type(var_type), var_name)
             self.locals.append(LocalVar{name = var_name, ptr = var_ptr})
-            if i < args.len:
+            if i < nargs:
                 # First n local variables are the function arguments
-                self.builder.set_ptr(var_ptr, args.ptr[i])
+                self.builder.set_ptr(var_ptr, args[i])
 
-    def inline(self, sig: Signature*, args: List[AnyBuilderValue]) -> AnyBuilderValue:
+    def inline(self, sig: Signature*, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
         assert sig.ast_to_inline != NULL
         assert self.builder.should_functions_marked_with_inline_be_inlined()
         ast = sig.ast_to_inline
@@ -116,7 +116,7 @@ class AstToBuilder:
 
         if sig.get_self_class() != NULL and sig.get_self_class().classdata.is_generic():
             # When inlining a generic method List[int].append(), map T to int
-            assert args.len >= 1
+            assert nargs >= 1
             ast_self_class = ast.types.signature.get_self_class()
             passed_self_class = self.map_type(sig.get_self_class())
 
@@ -132,7 +132,7 @@ class AstToBuilder:
             info.typemap_count = n1 as int
 
         inliner = AstToBuilder{builder = self.builder, inlining_info = &info}
-        inliner.begin_inlining(&ast.types, args)
+        inliner.begin_inlining(&ast.types, args, nargs)
         inliner.build_body(ast.body)
         inliner.free()
         self.builder.jump(info.return_jumps_to)  # the implicit 'return' at the end
@@ -184,7 +184,9 @@ class AstToBuilder:
             # Dummy value to silence compiler warning
             func_ptr = AnyBuilderValue{}
 
-        args = List[AnyBuilderValue]{}
+        assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
+        args: AnyBuilderValue[100]
+        nargs = 0
 
         if call.method_call_self != NULL:
             # It is a method call, pass self as first argument.
@@ -201,20 +203,21 @@ class AstToBuilder:
                 arg = self.builder.dereference(self.build_expression(call.method_call_self))
             else:
                 arg = self.build_expression(call.method_call_self)
-            args.append(arg)
+
+            args[0] = arg
+            nargs = 1
 
         for p = call.args.ptr; p < call.args.end(); p++:
-            args.append(self.build_expression(p))
+            assert nargs < MAX_ARGS
+            args[nargs++] = self.build_expression(p)
 
         if inline:
-            result = self.inline(sig, args)
+            result = self.inline(sig, args, nargs)
         elif call.method_call_self != NULL:
             assert sig != NULL
-            result = self.builder.call_method(sig, args.ptr, args.len as int)
+            result = self.builder.call_method(sig, args, nargs)
         else:
-            result = self.builder.call_function(funcptr_type, func_ptr, args.ptr, args.len as int)
-
-        free(args.ptr)
+            result = self.builder.call_function(funcptr_type, func_ptr, args, nargs)
 
         if funcptr_type.func_ptr.is_noreturn:
             # Code after the function call will not run. Place it to a new block.

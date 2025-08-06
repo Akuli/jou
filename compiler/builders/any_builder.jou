@@ -5,8 +5,6 @@
 # whichever builder you need to the code that visits AST and calls methods on
 # the builder, but Jou has no way to do inheritance yet.
 
-import "stdlib/mem.jou"
-
 import "../errors_and_warnings.jou"
 import "../llvm.jou"
 import "../types.jou"
@@ -199,27 +197,26 @@ class AnyBuilder:
     # self with the correct type must be included in args
     def call_method(self, sig: Signature*, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
         result = AnyBuilderValue{}
+
+        assert nargs <= MAX_ARGS
+        assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
+
         if self.lbuilder != NULL:
-            largs: LBuilderValue* = malloc(sizeof(largs[0]) * nargs)
-            assert largs != NULL
+            largs: LBuilderValue[100]
             for i = 0; i < nargs; i++:
                 largs[i] = args[i].lvalue
             result.lvalue = self.lbuilder.call_method(sig, largs, nargs)
-            free(largs)
         if self.ubuilder != NULL:
-            uargs: int* = malloc(sizeof(uargs[0]) * nargs)
-            assert uargs != NULL
+            uargs: int[100]
             for i = 0; i < nargs; i++:
                 uargs[i] = args[i].uvalue
             result.uvalue = self.ubuilder.call_method(sig, uargs, nargs)
-            free(uargs)
         if self.hbuilder != NULL:
-            hargs: HBuilderValue* = malloc(sizeof(hargs[0]) * nargs)
-            assert hargs != NULL
+            hargs: HBuilderValue[100]
             for i = 0; i < nargs; i++:
                 hargs[i] = args[i].hvalue
             result.hvalue = self.hbuilder.call_method(sig, hargs, nargs)
-            free(hargs)
+
         return result
 
     # string as array of bytes
