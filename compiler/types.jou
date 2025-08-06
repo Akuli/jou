@@ -227,8 +227,9 @@ class Type:
 
             case TypeKind.FuncPtr:
                 nargs = self.func_ptr.argtypes.len
-                new_argtypes: Type** = malloc(sizeof(new_argtypes[0]) * nargs)
-                assert new_argtypes != NULL
+                assert nargs <= MAX_ARGS
+                assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
+                new_argtypes: Type*[100]
 
                 for i = 0; i < nargs; i++:
                     new_argtypes[i] = self.func_ptr.argtypes.ptr[i].substitute_generic_params(from, to, n)
@@ -238,9 +239,7 @@ class Type:
                 else:
                     new_return_type = self.func_ptr.return_type.substitute_generic_params(from, to, n)
 
-                result = funcptr_type(new_argtypes, nargs, self.func_ptr.takes_varargs, new_return_type, self.func_ptr.is_noreturn)
-                free(new_argtypes)
-                return result
+                return funcptr_type(new_argtypes, nargs, self.func_ptr.takes_varargs, new_return_type, self.func_ptr.is_noreturn)
 
             case (
                 TypeKind.SignedInteger
@@ -687,14 +686,12 @@ class Signature:
 
     # Turns "strcmp(s1: byte*, s2: byte*) -> int" into "funcptr(byte*, byte*) -> int"
     def to_funcptr_type(self) -> Type*:
-        argtypes: Type** = malloc(sizeof(argtypes[0]) * self.args.len)
-        assert argtypes != NULL
+        assert self.args.len <= MAX_ARGS
+        assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
+        argtypes: Type*[100]
         for i = 0; i < self.args.len; i++:
             argtypes[i] = self.args.ptr[i].type
-
-        result = funcptr_type(argtypes, self.args.len, self.takes_varargs, self.return_type, self.is_noreturn)
-        free(argtypes)
-        return result
+        return funcptr_type(argtypes, self.args.len, self.takes_varargs, self.return_type, self.is_noreturn)
 
     def copy(self) -> Signature:
         result = *self
