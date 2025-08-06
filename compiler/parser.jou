@@ -558,6 +558,8 @@ class Parser:
             elif self.tokens.is_keyword("self"):
                 if not is_method:
                     fail(self.tokens.location, "'self' cannot be used here")
+                if result.args.len != 0:
+                    fail(self.tokens.location, "'self' must be the first argument")
 
                 self_arg = AstNameTypeValue{
                     name = "self",
@@ -596,9 +598,6 @@ class Parser:
         if not self.tokens.is_operator(")"):
             self.tokens.fail_expected_got("a ')'")
         self.tokens++
-
-        # TODO: make sure "self" is first, doesn't seem to be checked?
-        #       or do we even want it? consider fread() and https://github.com/Akuli/jou/issues/740
 
         # Special case for common typo:   def foo():
         if self.tokens.is_operator(":"):
