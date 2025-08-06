@@ -591,11 +591,6 @@ class Parser:
                 break
             self.tokens++
 
-        if is_method and (result.args.len == 0 or strcmp(result.args.ptr[0].name, "self") != 0):
-            throwerror: byte[300]
-            snprintf(throwerror, sizeof throwerror, "missing self, should be 'def %s(self, ...)'", result.name)
-            fail(self.tokens.location, throwerror)
-
         if not self.tokens.is_operator(")"):
             self.tokens.fail_expected_got("a ')'")
         self.tokens++
@@ -609,6 +604,11 @@ class Parser:
         if not self.tokens.is_operator("->"):
             self.tokens.fail_expected_got("a '->'")
         self.tokens++
+
+        if not used_self and is_method:
+            throwerror: byte[300]
+            snprintf(throwerror, sizeof throwerror, "missing self, should be 'def %s(self, ...)'", result.name)
+            fail(self.tokens.location, throwerror)
 
         result.return_type = self.parse_type()
         return result
