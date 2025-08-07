@@ -260,10 +260,11 @@ def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
 
 
 class CompileState:
-    stdlib_path: byte*
+    stdlib_path: byte*  # owned
     files: List[FileState]
 
     def free(self) -> None:
+        free(self.stdlib_path)
         for fs = self.files.ptr; fs < self.files.end(); fs++:
             fs.free()
         free(self.files.ptr)
@@ -311,11 +312,14 @@ class CompileState:
             if stmt.kind == AstStatementKind.Import:
                 self.parse(stmt.import_statement.resolved_path, &stmt.location)  # recursive call
 
-    def parse_from_stdlib(self, filename: byte*) -> None:
-        path: byte*
-        asprintf(&path, "%s/%s", self.stdlib_path, filename)
-        self.parse(path, NULL)
+    def parse_all_files(self) -> None:
+        assert_fail_path: byte* = NULL
+        asprintf(&assert_fail_path, "%s/_assert_fail.jou", self.stdlib_path, filename)
+        assert assert_fail_path != NULL
+        self.parse(assert_fail_path, NULL)
         free(path)
+
+        self.parse(command_line_args.infile, NULL)
 
     # Each step of type checking produces exported symbols that other files can import.
     # This method hands them over to the importing files.
@@ -405,20 +409,6 @@ class CompileState:
             build_and_analyze_uvgs(&f.ast, print_uvgs)
 
 
-def tokenize_only(path: byte*) -> None:
-    tokens = tokenize(command_line_args.infile, NULL)
-    print_tokens(tokens)
-    free_tokens(tokens)
-
-
-def parse_only(path: byte*, stdlib_path: byte*) -> None:
-    tokens = tokenize(command_line_args.infile, NULL)
-    ast = parse(tokens, stdlib_path)
-    ast.print()
-    ast.free()
-    free_tokens(tokens)
-
-
 # Linker flags come from:
 #   - files with 'link' statements
 #   - command-line --linker-flags argument
@@ -449,22 +439,30 @@ def collect_linker_flags(files: List[FileState]) -> byte*:
     return result
 
 
-def main(argc: int, argv: byte**) -> int:
-    init_target()
-    init_types()
+def tokenize_only():
+    tokens = tokenize(command_line_args.infile, NULL)
+    print_tokens(tokens)
+    free_tokens(tokens)
+
+    fail_if_warnings_and_flag()
+    return 0
+
+
+def parse_only() -> None:
     stdlib = find_stdlib()
+    tokens = tokenize(command_line_args.infile, NULL)
+    ast = parse(tokens, stdlib_path)
 
-    parse_command_line_args(argc, argv)
+    ast.print()
 
-    if command_line_args.verbosity >= 2:
-        printf("Target triple: %s\n", target.triple)
-        printf("Data layout: %s\n", target.data_layout)
+    ast.free()
+    free_tokens(tokens)
+    free(stdlib)
 
-    if command_line_args.tokenize_only:
-        tokenize_only(command_line_args.infile)
-        fail_if_warnings_and_flag()
-        return 0
+    fail_if_warnings_and_flag()
+    return 0
 
+<<<<<<< HEAD
     if command_line_args.parse_only:
         parse_only(command_line_args.infile, stdlib)
         fail_if_warnings_and_flag()
@@ -475,19 +473,91 @@ def main(argc: int, argv: byte**) -> int:
     # This part recursively finds and parses imported files.
     compst.parse_from_stdlib("_assert_fail.jou")
     compst.parse(command_line_args.infile, NULL)
+=======
+>>>>>>> ec9ba04 (wip)
 
+def uvg_only() -> None:
+    compst = CompileState{stdlib_path = find_stdlib()}
+    compst.parse_all_files()
     compst.typecheck_all_files()
 
-    if command_line_args.uvg_only:
-        mainfile = compst.find_file(command_line_args.infile)
-        assert mainfile != NULL
-        build_and_analyze_uvgs(&mainfile.ast, True)
-        fail_if_warnings_and_flag()
-        return 0
+    mainfile = compst.find_file(command_line_args.infile)
+    assert mainfile != NULL
+    build_and_analyze_uvgs(&mainfile.ast, True)
 
+    compst.free()
+
+
+def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
+    compst = CompileState{stdlib_path = find_stdlib()}
+    compst.parse_all_files()
+    compst.typecheck_all_files()
     compst.build_and_analyze_all_uvgs()
+
     for f = compst.files.ptr; f < compst.files.end(); f++:
         f.warn_about_unused()
+
+    init_target()
+    objpaths = List[byte*]{}
+    for f = compst.files.ptr; f < compst.files.end(); f++:
+        o_path = f.find_existing_object_file_or_compile_to_object_file()
+        objpaths.append(o_path)
+    cleanup_target()
+
+    *linker_flags = collect_linker_flags(compst.files)
+
+    # Check for missing main() as late as possible, so that other errors come first.
+    # This way Jou users can work on other functions before main() function is written.
+    mainfile = compst.find_file(command_line_args.infile)
+    assert mainfile != NULL
+    if not defines_main(&mainfile.ast):
+        fail(Location{path=mainfile.path}, "missing `main` function to execute the program")
+
+    fail_if_warnings_and_flag()
+    return objpaths
+
+
+def compile_to_jou_compiled_and_run() -> None:
+    linker_flags: byte*
+    objpaths = compile_to_object_files(&linker_flags)
+
+    exepath = get_jou_compiled_exe_path()
+    run_linker(objpaths, exepath, linker_flags)
+
+    ret = run_exe(exepath, command_line_args.valgrind)
+    if ret != 0:
+        exit(ret)
+
+    for p = objpaths.ptr; p < objpaths.end(); p++:
+        free(*p)
+    free(objpaths.ptr)
+    free(linker_flags)
+    free(exepath)
+
+
+def compile_to_outfile() -> None:
+
+
+def main(argc: int, argv: byte**) -> int:
+    parse_command_line_args(argc, argv)
+    init_types()
+
+    if command_line_args.tokenize_only:
+        tokenize_only()
+    elif command_line_args.parse_only:
+        parse_only()
+    elif command_line_args.uvg_only:
+        uvg_only()
+    elif command_line_args.outfile == NULL:
+        compile_to_jou_compiled_and_run()
+    else:
+        compile_to_outfile()
+
+    fail_if_warnings_and_flag()
+    free_global_type_state()  # not necessary, but makes valgrind much happier
+    return 0
+
+    compst = CompileState{ stdlib_path = stdlib }
 
     objpaths = List[byte*]{}
     for f = compst.files.ptr; f < compst.files.end(); f++:
@@ -519,14 +589,10 @@ def main(argc: int, argv: byte**) -> int:
 
     ret = 0
     if command_line_args.outfile == NULL:
-        if command_line_args.verbosity >= 1:
-            printf("Run: %s\n", exepath)
         ret = run_exe(exepath, command_line_args.valgrind)
 
     free(exepath)
 
-    # not really necessary, but makes valgrind much happier
-    free_global_type_state()
     cleanup_target()
 
     return ret

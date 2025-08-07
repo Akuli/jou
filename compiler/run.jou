@@ -68,7 +68,10 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
 
 
 @public
-def run_exe(exepath: byte*, valgrind: bool) -> int:
+def run_exe(exepath: byte*, valgrind: bool) -> None:
+    if command_line_args.verbosity >= 1:
+        printf("Run: %s\n", exepath)
+
     command: byte*
     if WINDOWS:
         asprintf(&command, "\"%s\"", exepath)
@@ -85,9 +88,7 @@ def run_exe(exepath: byte*, valgrind: bool) -> int:
     fflush(get_stderr())
 
     ret = system(command)
-    free(command)
+    if ret != 0:  # TODO: extract actual error code / return value
+        exit(1)
 
-    if ret == 0:
-        return 0  # success
-    else:
-        return 1  # TODO: extract actual error code / return value
+    free(command)

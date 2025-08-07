@@ -76,6 +76,11 @@ def init_target() -> None:
     strcpy(target.data_layout, tmp)
     LLVMDisposeMessage(tmp)
 
+    if command_line_args.verbosity >= 2:
+        printf("Target triple: %s\n", target.triple)
+        printf("Data layout: %s\n", target.data_layout)
+
+
 @public
 def cleanup_target() -> None:
     LLVMDisposeTargetMachine(target.target_machine)

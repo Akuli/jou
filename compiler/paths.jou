@@ -370,10 +370,10 @@ def get_path_to_object_file_in_jou_compiled(jou_file_path: byte*, content_hash: 
     return full_path
 
 
+# Returns the path of compiled `.exe` when the Jou compiler runs it directly.
 @public
-def decide_exe_path() -> byte*:
-    if command_line_args.outfile != NULL:
-        return strdup(command_line_args.outfile)
+def get_jou_compiled_exe_path() -> byte*:
+    assert command_line_args.outfile == NULL
 
     name = skip_slashes(command_line_args.infile)
     name_len = strlen(name)
