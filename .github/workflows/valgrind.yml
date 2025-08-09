@@ -62,8 +62,10 @@ jobs:
           key: bootstrap-valgrind-${{ runner.os }}-${{ matrix.params.llvm-version }}-${{ matrix.params.opt-level }}-${{ hashFiles('bootstrap.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap
-      - run: sudo apt update
-      - run: sudo apt install -y llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind
+      - name: "Install apt packages"
+        run: |
+          PACKAGES="llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind"
+          sudo apt install -y $PACKAGES || (sudo apt update && sudo apt install -y $PACKAGES)
       - run: LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }} make
       - name: "Test compiler with valgrind"
         run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.params.opt-level }}"
