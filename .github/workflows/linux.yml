@@ -34,7 +34,10 @@ jobs:
           key: bootstrap-${{ runner.os }}-${{ matrix.params.llvm-version }}-${{ matrix.params.opt-level }}-${{ hashFiles('bootstrap.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap
-      - run: sudo apt update
+      - name: "Install apt packages"
+        run: |
+          PACKAGES="llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind liblzma-dev"
+          sudo apt install -y $PACKAGES || (sudo apt update && sudo apt install -y $PACKAGES)
       # liblzma-dev is for testing the `link` keyword, there is a test that decompresseses .xz file
       - run: sudo apt install -y llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind liblzma-dev
       - name: "Select LLVM version"
