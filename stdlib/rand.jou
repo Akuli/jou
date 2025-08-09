@@ -25,9 +25,15 @@ declare rand() -> int
 #
 # A common (and often good enough) trick is to use the current time as the seed:
 #
-#   srand(time(NULL) as int32)
+#   import "stdlib/rand.jou"
+#   import "stdlib/time.jou"
 #
-# Unfortunately Jou doesn't have the `time()` function in stdlib yet. Please
-# create an issue if this is a problem for you.
+#   def main() -> int:
+#       ...
+#       srand(time(NULL) as uint32)
+#       ...
+#
+# Note that this will produce the same rand() values if the program is started
+# several times during the same second.
 @public
 declare srand(seed: uint32) -> None
