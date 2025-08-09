@@ -58,7 +58,7 @@ jobs:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
       - run: brew install bash diffutils llvm@${{ matrix.params.llvm-version }}
       - name: "Temp debug"
-        run: echo '#include <stdlib.h>' | clang-${{ matrix.params.llvm-version }} -dM -E - | grep RAND
+        run: echo '#include <stdlib.h>' | /usr/local/opt/llvm@${{ matrix.params.llvm-version }}/bin/clang -dM -E - | grep RAND
 
   # Please keep in sync with valgrind.yml
   create-issue-on-failure:
