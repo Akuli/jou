@@ -26,7 +26,8 @@
    ...
 }
 
-# Not a leak. LLVM versions 16, 17 and 18 read uninitialized memory.
+# Not a leak. Apparently LLVM versions 16, 17 and 18 read uninitialized memory
+# but behavior doesn't depend on the data they read.
 {
    <compute known bits bug LLVM 16 version>
    Memcheck:Cond
