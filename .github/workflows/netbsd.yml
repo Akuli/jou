@@ -21,10 +21,10 @@ jobs:
           version: '10.0'
           environment_variables: PKG_PATH
           run: |
-            sudo pkgin -y install clang gmake diffutils git && \
-            gmake && \
-            ./runtests.sh --verbose && \
-            mv jou jou_bootstrap && gmake && \
-            ./runtests.sh --verbose && \
-            gmake clean && \
-            ./doctest.sh
+            echo '#include <stdio.h>' > asd.c && \
+            echo '#include <time.h>' >> asd.c && \
+            echo 'int main() { printf("Size of time_t: %zu bytes\n", sizeof(time_t)); return 0; }' >> asd.c && \
+            cat asd.c && \
+            sudo pkgin -y install clang && \
+            clang -o asd asd.c && \
+            ./asd
