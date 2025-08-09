@@ -1,0 +1,19 @@
+import "stdlib/io.jou"
+import "stdlib/time.jou"
+
+def main() -> int:
+    # Check that `time()` function returns seconds since 1970 by calculating
+    # the current year. This test will break after a few years, but I want to
+    # set a maximum in tests so I know I'm not e.g. getting milliseconds.
+    seconds_in_year = 31557600
+    year = 1970 + time(NULL) / seconds_in_year
+
+    # Output: year ok
+    if year < 2025:
+        printf("year too small\n")
+    elif year > 2030:
+        printf("year too big\n")
+    else:
+        printf("year ok\n")
+
+    return 0
