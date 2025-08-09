@@ -147,10 +147,18 @@ jobs:
           key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap.exe
-      - run: ./windows_setup.sh
+      - run: ./windows_setup.sh --small
         shell: bash
-      - name: "Temp test"
-        run: source activate && (echo '#include <stdlib.h>' | gcc -dM -E - | grep RAND)
+      - name: "Compile and test"
+        run: source activate && ./runtests.sh --verbose
+        shell: bash
+      - name: "Compile the compiler with itself"
+        run: source activate && ./jou -o jou2 compiler/main.jou && mv jou2.exe jou.exe
+        shell: bash
+      - name: "Compile and test again"
+        run: source activate && ./runtests.sh --verbose
+        shell: bash
+      - run: source activate && ./doctest.sh
         shell: bash
 
   test-zip:
