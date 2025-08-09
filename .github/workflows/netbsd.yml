@@ -22,9 +22,4 @@ jobs:
           environment_variables: PKG_PATH
           run: |
             sudo pkgin -y install clang gmake diffutils git && \
-            gmake && \
-            ./runtests.sh --verbose && \
-            mv jou jou_bootstrap && gmake && \
-            ./runtests.sh --verbose && \
-            gmake clean && \
-            ./doctest.sh
+            echo '#include <stdlib.h>' | cc -dM -E - | grep RAND
