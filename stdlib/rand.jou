@@ -1,7 +1,9 @@
 if WINDOWS:
+    @public
     const RAND_MAX: int = 0x7fff
 else:
     # MacOS, Linux, NetBSD
+    @public
     const RAND_MAX: int = 0x7fff_ffff
 
 # Returns a random value between 0 and RAND_MAX inclusive.
@@ -11,6 +13,7 @@ else:
 # The random values are not cryptographically secure. This means that someone
 # may be able to guess what the next random value is if they know something
 # about previous random values. For most use cases, this doesn't matter.
+@public
 declare rand() -> int
 
 # The `rand()` function produces a sequence of numbers that depend on a number
@@ -26,4 +29,5 @@ declare rand() -> int
 #
 # Unfortunately Jou doesn't have the `time()` function in stdlib yet. Please
 # create an issue if this is a problem for you.
+@public
 declare srand(seed: uint32) -> None
