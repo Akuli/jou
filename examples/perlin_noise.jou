@@ -12,6 +12,7 @@
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/math.jou"
+import "stdlib/rand.jou"
 
 link "./stb_image_write.o"
 declare stbi_write_png(filename: byte*, w: int, h: int, comp: int, data: void*, stride_in_bytes: int) -> int
@@ -23,22 +24,13 @@ const SIZE: int = 10
 const CELL_PIXELS: int = 50
 
 
-# TODO: add rand() to standard library
-declare rand() -> int
-
-# Returns a random float 0 to 1.
-def rand_0to1() -> float:
-    # TODO: add RAND_MAX to standard library so we can simply divide by that
-    return (rand() % 12345) / (12345 as float)
-
-
 # Generates a random 2D vector of length 1 for each corner of a cell.
 # We have SIZE^2 cells, (SIZE+1)^2 corners and hence (SIZE+1)^2 unit vectors.
 def generate_unit_vectors() -> float[2]*:
     num_corners = (SIZE + 1) * (SIZE + 1)
     result: float[2]* = malloc(sizeof(result[0]) * num_corners)
     for i = 0; i < num_corners; i++:
-        angle = rand_0to1() * 2 * (M_PI as float)
+        angle = rand()
         result[i] = [cosf(angle), sinf(angle)]
     return result
 
