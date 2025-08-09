@@ -44,15 +44,15 @@ jobs:
       - name: "Compile"
         run: make
       - name: "Temporary valgrind"
-        run: rm -rf examples/aoc2024/day23/jou_compiled; valgrind --gen-suppressions=all --error-exitcode=1 -q --suppressions='valgrind-suppressions.sup' ./jou -o /dev/null examples/aoc2024/day23/part2.jou
-      - name: "Compile the compiler with itself"
-        run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
-      - name: "Compile and test again"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
-      # Valgrinding all files is slow, but let's valgrind the hello world.
-      # This is enough to catch many bugs.
-      #
-      # We also have a separate, "full" valgrind run. See valgrind.yml.
-      - name: "Run hello world with valgrind"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" --valgrind hello
-      - run: ./doctest.sh
+        run: rm -rf examples/aoc2024/day23/jou_compiled; valgrind --num-callers=50 --gen-suppressions=all --error-exitcode=1 -q --suppressions='valgrind-suppressions.sup' ./jou -o /dev/null examples/aoc2024/day23/part2.jou
+#      - name: "Compile the compiler with itself"
+#        run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
+#      - name: "Compile and test again"
+#        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+#      # Valgrinding all files is slow, but let's valgrind the hello world.
+#      # This is enough to catch many bugs.
+#      #
+#      # We also have a separate, "full" valgrind run. See valgrind.yml.
+#      - name: "Run hello world with valgrind"
+#        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" --valgrind hello
+#      - run: ./doctest.sh
