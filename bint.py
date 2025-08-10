@@ -1,8 +1,64 @@
+from __future__ import annotations
+
+import subprocess
+import shutil
+import sys
+import os
 import string
-import ctypes
+import ctypes.util
 import re
-from pathlib import Path
 from dataclasses import dataclass
+from functools import cache
+
+
+def load_llvm():
+    # TODO: windows
+    assert sys.platform != "win32"
+
+    llvm_config = (
+        os.environ.get("LLVM_CONFIG")
+        or shutil.which("llvm-config-19")
+        or shutil.which("/usr/local/opt/llvm@19/bin/llvm-config")
+        or shutil.which("/opt/homebrew/opt/llvm@19/bin/llvm-config")
+        or shutil.which("llvm-config-18")
+        or shutil.which("/usr/local/opt/llvm@18/bin/llvm-config")
+        or shutil.which("/opt/homebrew/opt/llvm@18/bin/llvm-config")
+        or shutil.which("llvm-config-17")
+        or shutil.which("/usr/local/opt/llvm@17/bin/llvm-config")
+        or shutil.which("/opt/homebrew/opt/llvm@17/bin/llvm-config")
+        or shutil.which("llvm-config-16")
+        or shutil.which("/usr/local/opt/llvm@16/bin/llvm-config")
+        or shutil.which("/opt/homebrew/opt/llvm@16/bin/llvm-config")
+        or shutil.which("llvm-config-15")
+        or shutil.which("/usr/local/opt/llvm@15/bin/llvm-config")
+        or shutil.which("/opt/homebrew/opt/llvm@15/bin/llvm-config")
+        or shutil.which("llvm-config")
+    )
+    if not llvm_config:
+        sys.exit("Error: llvm-config not found")
+
+    # Check LLVM version
+    v = subprocess.check_output([llvm_config, "--version"], text=True).strip()
+    if not v.startswith(("15.", "16.", "17.", "18.", "19.")):
+        sys.exit(
+            f"Error: Found unsupported LLVM version {v}. Only LLVM 15,16,17,18,19 are supported."
+        )
+
+    result = []
+    for path in subprocess.check_output(
+        [llvm_config, "--libfiles"], text=True
+    ).splitlines():
+        print("Loading LLVM:", path)
+        result.append(ctypes.CDLL(path))
+
+    return result
+
+
+LIBS = [
+    ctypes.CDLL(ctypes.util.find_library("c")),
+    ctypes.CDLL(ctypes.util.find_library("m")),
+    *load_llvm(),
+]
 
 KEYWORDS = [
     "import",
@@ -52,7 +108,7 @@ KEYWORDS = [
 class Token:
     kind: str
     code: str
-    location: tuple[Path, int]
+    location: tuple[str, int]
 
 
 def tokenize(jou_code, path):
@@ -236,8 +292,13 @@ def unescape_string(s: str) -> bytes:
             result += c.encode("utf-8")
 
 
+def simplify_path(path: str) -> str:
+    # Remove "foo/../bar" and "foo/./bar" stuff
+    return os.path.relpath(os.path.abspath(path)).replace("\\", "/")
+
+
 class Parser:
-    def __init__(self, path: Path, tokens: list[Token]):
+    def __init__(self, path: str, tokens: list[Token]):
         self.path = path
         self.tokens = tokens
         self.in_class_body = False
@@ -275,10 +336,10 @@ class Parser:
 
         if path_spec.startswith("."):
             # Relative to directory where the file is
-            path = (self.path.parent / path_spec).resolve()
+            path = simplify_path(os.path.dirname(self.path) + "/" + path_spec)
         else:
             assert path_spec.startswith("stdlib/")
-            path = Path(path_spec).resolve()
+            path = simplify_path(path_spec)
         return ("import", path)
 
     def parse_type(self):
@@ -781,7 +842,7 @@ class Parser:
             else:
                 signature = self.parse_function_or_method_signature()
                 self.eat("newline")
-                return ("func_declare", signature, decors)
+                return ("func_declare",) + signature + (decors,)
         if self.tokens[0].code == "global":
             self.eat("global")
             name, type, value = self.parse_name_type_value()
@@ -844,7 +905,7 @@ class Parser:
         assert not self.in_class_body
         self.in_class_body = old
 
-        return ("function_def", signature, body)
+        return ("function_def", signature, body, decors)
 
     def parse_class(self, decors):
         self.eat("class")
@@ -897,15 +958,14 @@ class Parser:
         return ("enum", name, members, decors)
 
 
-asts = {}
-
-
 def parse_file(path):
-    path = path.resolve()
-    if path in asts:
-        return asts[path]
+    # Remove "foo/../bar" and "foo/./bar" stuff
+    path = os.path.relpath(os.path.abspath(path)).replace("\\", "/")
 
-    print("Parsing", path)
+    if path in ASTS:
+        return ASTS[path]
+
+    # print("Parsing", path)
 
     with open(path, encoding="utf-8") as f:
         content = f.read()
@@ -922,10 +982,179 @@ def parse_file(path):
                 imported.append(s[1])
             ast.append(s)
 
-    asts[path] = ast
+    ASTS[path] = ast
+
     for imp_path in imported:
         parse_file(imp_path)
     return ast
 
 
-parse_file(Path("compiler/main.jou"))
+ASTS = {}
+print("Parsing Jou files...", end=" ", flush=True)
+parse_file("compiler/main.jou")
+print(f"Parsed {len(ASTS)} files.")
+
+
+FUNCTIONS = {path: {} for path in ASTS}
+TYPES = {
+    path: {
+        "int8": ctypes.c_int8,
+        "int16": ctypes.c_int16,
+        "int32": ctypes.c_int32,
+        "int64": ctypes.c_int64,
+        "uint8": ctypes.c_uint8,
+        "uint16": ctypes.c_uint16,
+        "uint32": ctypes.c_uint32,
+        "uint64": ctypes.c_uint64,
+        "byte": ctypes.c_uint8,
+        "int": ctypes.c_int32,
+        "long": ctypes.c_int64,
+        "float": ctypes.c_float,
+        "double": ctypes.c_double,
+    }
+    for path in ASTS
+}
+ENUMS = {path: {} for path in ASTS}
+
+
+@cache
+def files_that_import(path: str) -> list[str]:
+    result = []
+    for path2, ast in ASTS.items():
+        if ("import", path) in ast:
+            result.append(path2)
+    return result
+
+
+def define_class(path, class_ast):
+    assert class_ast[0] == "class", class_ast
+    _, class_name, generics, body, decors = class_ast
+
+    fields = []
+    for member in body:
+        if member[0] == "class_field":
+            _, field_name, field_type = member
+            fields.append((field_name, type_from_ast(path, field_type)))
+
+    class JouClass(ctypes.Structure):
+        _fields_ = fields
+
+    return JouClass
+
+
+def find_named_type(path: str, type_name: str):
+    try:
+        return TYPES[path][type_name]
+    except KeyError:
+        pass
+
+    result = None
+
+    # Is there a class or enum definition in the same file?
+    for item in ASTS[path]:
+        if item[:2] == ("class", type_name):
+            result = define_class(path, item)
+            break
+        if item[:2] == ("enum", type_name):
+            result = ctypes.c_int32
+            break
+
+    if result is None:
+        # Is there a class or enum definition in some imported file?
+        for item in ASTS[path]:
+            if item[0] == "import":
+                _, path2 = item
+                for item2 in ASTS[path2]:
+                    if (
+                        item2[0] in ("class", "enum")
+                        and item2[1] == type_name
+                        and "@public" in item2[-1]
+                    ):
+                        result = find_named_type(path2, type_name)
+                        break
+                if result is not None:
+                    break
+
+    if result is None:
+        raise RuntimeError(f"type not found: {type_name}")
+
+    TYPES[path][type_name] = result
+    return result
+
+
+def type_from_ast(path, ast):
+    if ast[0] == "pointer":
+        _, value_type_ast = ast
+        if value_type_ast in [("named_type", "void")]:
+            return ctypes.c_void_p
+        return ctypes.POINTER(type_from_ast(path, value_type_ast))
+    if ast[0] == "named_type":
+        _, name = ast
+        return find_named_type(path, name)
+    raise NotImplementedError(ast)
+
+
+def declare_lib_functions():
+    declares = [
+        (path, declare_ast)
+        for path, file_ast in ASTS.items()
+        for declare_ast in file_ast
+        if declare_ast[0] == "func_declare"
+    ]
+    print(f"Declaring {len(declares)} C functions...")
+
+    for path, (_, func_name, args, takes_varargs, return_type, decors) in declares:
+        func = None
+        for lib in LIBS:
+            try:
+                func = getattr(lib, func_name)
+                break
+            except AttributeError:
+                pass
+
+        if func is None:
+            raise RuntimeError(f"function not found: {func_name}")
+
+        for arg_name, arg_type, arg_default in args:
+            assert arg_default is None
+        func.argtypes = [type_from_ast(path, triple[1]) for triple in args]
+        if return_type == ("named_type", "None") or return_type == (
+            "named_type",
+            "noreturn",
+        ):
+            func.restype = None
+        else:
+            func.restype = type_from_ast(path, return_type)
+
+        FUNCTIONS[path][func_name] = func
+        if "@public" in decors:
+            for path2 in files_that_import(path):
+                FUNCTIONS[path2][func_name] = func
+
+
+def call_function(caller_path, funcname, args):
+    func = FUNCTIONS[caller_path].get(funcname)
+    if func is None:
+        # Function defined in Jou
+        for ast in ASTS[caller_path]:
+            if ast[0] == "function_def":
+                print(ast)
+                break
+        raise NotImplementedError(caller_path, funcname)
+    else:
+        # Function defined in C and declared in Jou
+        return func(*args)
+
+
+declare_lib_functions()
+
+call_function(
+    caller_path="compiler/main.jou",
+    funcname="main",
+    args=[
+        ctypes.c_int(4),
+        (ctypes.c_char_p * 5)(
+            b"jou", b"-o", b"jou_bootstrap", b"compiler/main.jou", None
+        ),
+    ],
+)
