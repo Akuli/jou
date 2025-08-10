@@ -1082,7 +1082,7 @@ def find_named_type(path: str, type_name: str):
     return result
 
 
-def declare_c_functions(declare_ast):
+def declare_c_function(path, declare_ast):
     _, func_name, args, takes_varargs, return_type, decors = declare_ast
     print("Declaring function", func_name)
     func = None
@@ -1124,10 +1124,10 @@ def find_function(path: str, func_name: str):
     result = None
     for ast in ASTS[path]:
         if ast[:2] == ("function_def", func_name):
-            result = ast
+            result = (path, ast)
             break
         if ast[:2] == ("func_declare", func_name):
-            result = declare_c_function(ast)
+            result = declare_c_function(path, ast)
             break
 
     if result is None:
@@ -1152,6 +1152,17 @@ def find_function(path: str, func_name: str):
     return result
 
 
+def find_constant(path, name):
+    if name == "WINDOWS":
+        return ctypes.c_uint8(int(sys.platform == "win32"))
+    if name == "MACOS":
+        return ctypes.c_uint8(int(sys.platform == "darwin"))
+    if name == "NETBSD":
+        return ctypes.c_uint8(int(sys.platform.startswith("netbsd")))
+    # TODO: `const` constants
+    return None
+
+
 def type_from_ast(path, ast):
     if ast[0] == "pointer":
         _, value_type_ast = ast
@@ -1164,14 +1175,151 @@ def type_from_ast(path, ast):
     raise NotImplementedError(ast)
 
 
+def cast(value, ctype):
+    return value  # TODO
+
+
+class Return(Exception):
+    pass
+
+
+# This happens implicitly a lot when bytes are passed around.
+#
+# Python requires this to be explicit: `ctypes.c_int` for example is actually a
+# pointer to an int and without this it can confusingly change in many places.
+def shallow_copy(obj):
+    result = type(obj)()
+    ctypes.memmove(ctypes.pointer(result), ctypes.pointer(obj), ctypes.sizeof(obj))
+    return result
+
+
+class Runner:
+    def __init__(self, path: str) -> None:
+        self.path = path
+        self.locals = {}
+
+    def run_body(self, body):
+        for item in body:
+            self.run_statement(item)
+
+    def find_any_var_or_constant(self, varname):
+        constant = find_constant(self.path, varname)
+        if constant is not None:
+            return constant
+
+        if varname in self.locals:
+            return self.locals[varname]
+
+        # TODO: check for global variables
+
+        return None
+
+    def run_statement(self, stmt):
+        if stmt[0] == "expr_stmt":
+            _, expr = stmt
+            self.run_expression(stmt[1])
+        elif stmt[0] == "if":
+            _, if_and_elifs, otherwise = stmt
+            for cond, body in if_and_elifs:
+                if self.run_expression(cond):
+                    self.run_body(body)
+                    break
+            else:
+                self.run_body(otherwise)
+        elif stmt[0] == "assign":
+            _, target_ast, value_ast = stmt
+            if target_ast[0] == "get_variable" and self.find_any_var_or_constant(target_ast[1]) is None:
+                # Making a new variable. Use the type of the value being assigned.
+                _, varname = target_ast
+                self.locals[varname] = self.run_expression(value_ast)
+            else:
+                target_ptr = self.run_address_of_expression(target_ast)
+                value = self.run_expression(value_ast)
+                # TODO: is there a better way to get the Foo type from a Foo* pointer?
+                value_type = type(target_ptr)()._type_
+                target_ptr[0] = cast(value, value_type)
+        elif stmt[0] == "assert":
+            _, cond, location = stmt
+            if not self.run_expression(cond):
+                raise RuntimeError(f"assertion failed in {location}")
+        else:
+            raise NotImplementedError(stmt)
+
+    def run_expression(self, expr):
+        if expr[0] == 'call':
+            _, func_ast, arg_asts = expr
+            func = self.run_expression(func_ast)
+            args = [self.run_expression(arg_ast) for arg_ast in arg_asts]
+            return call_function(func, args)
+
+        elif expr[0] == 'get_variable':
+            _, varname = expr
+
+            value = self.find_any_var_or_constant(varname)
+            if value is not None:
+                return shallow_copy(value)
+
+            func = find_function(self.path, varname)
+            if func is not None:
+                return func
+
+            raise RuntimeError(f"no variable named {varname}")
+
+        elif expr[0] == "lt":
+            _, left, right = expr
+            return self.run_expression(left) < self.run_expression(right)
+
+        elif expr[0] == "sizeof":
+            _, obj = expr
+            # TODO: sizeof() shouldn't run the thing, just get its type
+            return ctypes.sizeof(self.run_expression(obj))
+
+        elif expr[0] == ".":
+            # TODO: can be many other things than plain old field access!
+            _, obj_ast, attr = expr
+            obj = self.run_expression(obj_ast)
+            return shallow_copy(getattr(obj, attr))
+
+        else:
+            raise NotImplementedError(expr)
+
+    def run_address_of_expression(self, expr):
+        if expr[0] == 'get_variable':
+            _, varname = expr
+            return ctypes.pointer(self.locals[varname])
+        else:
+            raise NotImplementedError(expr)
+
+
 def call_function(func, args):
     assert func is not None
-    if isinstance(func, tuple):
-        # Function defined in Jou
-        raise NotImplementedError(func)
-    else:
+    if not isinstance(func, tuple):
         # Function defined in C and declared in Jou
         return func(*args)
+
+    # Function defined in Jou
+    func_path, func_ast = func
+    assert func_ast[0] == "function_def"
+    _, func_name, funcdef_args, takes_varargs, return_type, body, decors = func_ast
+    assert not takes_varargs
+
+    print(f"Running function {func_name}")
+    print(body)
+
+    r = Runner(func_path)
+
+    assert len(funcdef_args) == len(args)
+    for (arg_name, arg_type, arg_default), arg in zip(funcdef_args, args):
+        assert arg_default is None
+        r.locals[arg_name] = shallow_copy(cast(arg, type_from_ast(func_path, arg_type)))
+
+    try:
+        r.run_body(body)
+    except Return as r:
+        [return_value] = r.arsg
+        return return_value
+    else:
+        return None
 
 
 call_function(
