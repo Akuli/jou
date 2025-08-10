@@ -55,9 +55,6 @@ def load_llvm():
 
 
 LIBS = [
-    ctypes.CDLL(ctypes.util.find_library("c")),
-    ctypes.CDLL(ctypes.util.find_library("m")),
-    *load_llvm(),
 ]
 
 KEYWORDS = [
@@ -990,31 +987,37 @@ def parse_file(path):
 
 
 ASTS = {}
-print("Parsing Jou files...", end=" ", flush=True)
-parse_file("compiler/main.jou")
-print(f"Parsed {len(ASTS)} files.")
+
+
+def evaluate_compile_time_if_statements() -> None:
+    for path, ast in ASTS.items():
+        making_progress = True
+        while making_progress:
+            making_progress = False
+            for i, stmt in enumerate(ast):
+                if stmt[0] == "if":
+                    _, if_and_elifs, else_body = stmt
+                    cond_ast, then = if_and_elifs.pop(0)
+                    if cond_ast[0] == "get_variable":
+                        _, cond_varname = cond_ast
+                        cond = find_constant(path, cond_varname)
+                    elif cond_ast[0] == "constant":
+                        _, cond = cond_ast
+                    else:
+                        raise RuntimeError(f"cannot evaluate compile-time if statement in {path}")
+                    if cond:
+                        ast[i:i+1] = then
+                    elif not if_and_elifs:
+                        ast[i:i+1] = else_body
+                    making_progress = True
+                    break
 
 
 FUNCTIONS = {path: {} for path in ASTS}
 TYPES = {
-    path: {
-        "int8": ctypes.c_int8,
-        "int16": ctypes.c_int16,
-        "int32": ctypes.c_int32,
-        "int64": ctypes.c_int64,
-        "uint8": ctypes.c_uint8,
-        "uint16": ctypes.c_uint16,
-        "uint32": ctypes.c_uint32,
-        "uint64": ctypes.c_uint64,
-        "byte": ctypes.c_uint8,
-        "int": ctypes.c_int32,
-        "long": ctypes.c_int64,
-        "float": ctypes.c_float,
-        "double": ctypes.c_double,
-    }
-    for path in ASTS
 }
-ENUMS = {path: {} for path in ASTS}
+ENUMS = {}
+GLOBALS = {}
 
 
 @cache
@@ -1084,7 +1087,6 @@ def find_named_type(path: str, type_name: str):
 
 def declare_c_function(path, declare_ast):
     _, func_name, args, takes_varargs, return_type, decors = declare_ast
-    print("Declaring function", func_name)
     func = None
     for lib in LIBS:
         try:
@@ -1094,7 +1096,7 @@ def declare_c_function(path, declare_ast):
             pass
 
     if func is None:
-        raise RuntimeError(f"function not found: {func_name}")
+        raise RuntimeError(f"C function not found: {func_name}")
 
     for arg_name, arg_type, arg_default in args:
         assert arg_default is None
@@ -1108,6 +1110,21 @@ def declare_c_function(path, declare_ast):
         func.restype = type_from_ast(path, return_type)
 
     return func
+
+
+def declare_c_global_var(path, declare_ast):
+    assert declare_ast[0] == "global_var_declare"
+    _, varname, vartype_ast, decors = declare_ast
+    print("Declaring global variable", varname)
+    vartype = type_from_ast(path, vartype_ast)
+
+    for lib in LIBS:
+        try:
+            return vartype.in_dll(lib, varname)
+        except ValueError:
+            pass
+
+    raise RuntimeError(f"C global variable not found: {varname}")
 
 
 # Return values:
@@ -1163,6 +1180,46 @@ def find_constant(path, name):
     return None
 
 
+def find_global_var(path, varname):
+    try:
+        return GLOBALS[path][varname]
+    except KeyError:
+        pass
+
+    # Is it defined or declared in this file?
+    result = None
+    for ast in ASTS[path]:
+        if ast[:2] == ("global_var_def", varname):
+            _, _, var_type, decors = ast
+            # Create new global variable
+            result = type_from_ast(path, var_type)()
+            break
+        if ast[:2] == ("global_var_declare", varname):
+            result = declare_c_global_var(path, ast)
+            break
+
+    if result is None:
+        # Is it defined or declared in an imported file?
+        for item in ASTS[path]:
+            if item[0] == "import":
+                _, path2 = item
+                for item2 in ASTS[path2]:
+                    if (
+                        item2[0] in ("global_var_def", "global_var_declare")
+                        and item2[1] == varname
+                        and "@public" in item2[-1]
+                    ):
+                        result = find_global_var(path2, varname)
+                        assert result is not None
+                        break
+                if result is not None:
+                    break
+
+    # may assign None, that's fine, next time we know it's not a thing
+    GLOBALS[path][varname] = result
+    return result
+
+
 def type_from_ast(path, ast):
     if ast[0] == "pointer":
         _, value_type_ast = ast
@@ -1172,25 +1229,42 @@ def type_from_ast(path, ast):
     if ast[0] == "named_type":
         _, name = ast
         return find_named_type(path, name)
+    if ast[0] == "array":
+        _, item_type_ast, length_ast = ast
+        assert length_ast[0] == "integer_constant"
+        _, length = length_ast
+        return type_from_ast(path, item_type_ast) * length
     raise NotImplementedError(ast)
-
-
-def cast(value, ctype):
-    return value  # TODO
-
-
-class Return(Exception):
-    pass
 
 
 # This happens implicitly a lot when bytes are passed around.
 #
 # Python requires this to be explicit: `ctypes.c_int` for example is actually a
 # pointer to an int and without this it can confusingly change in many places.
-def shallow_copy(obj):
-    result = type(obj)()
-    ctypes.memmove(ctypes.pointer(result), ctypes.pointer(obj), ctypes.sizeof(obj))
+def shallow_copy(value):
+    result = type(value)()
+    ctypes.pointer(result)[0] = value
     return result
+
+
+def cast(value, ctype):
+    if type(value) == ctype:
+        return value
+    return ctypes.cast(value, ctype)
+
+
+def get_field(instance, field_name):
+    # No idea why ctypes makes this so difficult...
+    # The problem is that `getattr(instance, field)` returns e.g. Python `int`, not `c_int`
+    # https://stackoverflow.com/a/50534262
+    struct = type(instance)
+    field_type = next(ftype for fname, ftype in struct._fields_ if fname == field_name)
+    field_offset = getattr(struct, field_name).offset
+    return field_type.from_buffer(instance, field_offset)
+
+
+class Return(Exception):
+    pass
 
 
 class Runner:
@@ -1210,9 +1284,7 @@ class Runner:
         if varname in self.locals:
             return self.locals[varname]
 
-        # TODO: check for global variables
-
-        return None
+        return find_global_var(self.path, varname)
 
     def run_statement(self, stmt):
         if stmt[0] == "expr_stmt":
@@ -1228,20 +1300,28 @@ class Runner:
                 self.run_body(otherwise)
         elif stmt[0] == "assign":
             _, target_ast, value_ast = stmt
-            if target_ast[0] == "get_variable" and self.find_any_var_or_constant(target_ast[1]) is None:
-                # Making a new variable. Use the type of the value being assigned.
+            if target_ast[0] == "get_variable":
                 _, varname = target_ast
-                self.locals[varname] = self.run_expression(value_ast)
-            else:
-                target_ptr = self.run_address_of_expression(target_ast)
-                value = self.run_expression(value_ast)
-                # TODO: is there a better way to get the Foo type from a Foo* pointer?
-                value_type = type(target_ptr)()._type_
-                target_ptr[0] = cast(value, value_type)
+                if self.find_any_var_or_constant(varname) is None:
+                    # Making a new variable. Use the type of the value being assigned.
+                    self.locals[varname] = shallow_copy(self.run_expression(value_ast))
+                    return
+            var = self.locals[varname]
+            ctypes.pointer(var)[0] = cast(self.run_expression(value_ast), type(var))
+        elif stmt[0] == "declare_local_var":
+            _, varname, type_ast, value_ast = stmt
+            assert varname not in self.locals
+            vartype = type_from_ast(self.path, type_ast)
+            var = vartype()
+            ctypes.pointer(var)[0] = cast(self.run_expression(value_ast), vartype)
+            self.locals[varname] = var
         elif stmt[0] == "assert":
             _, cond, location = stmt
             if not self.run_expression(cond):
                 raise RuntimeError(f"assertion failed in {location}")
+        elif stmt[0] == "return":
+            _, val = stmt
+            raise Return(self.run_expression(val))
         else:
             raise NotImplementedError(stmt)
 
@@ -1250,6 +1330,16 @@ class Runner:
             _, func_ast, arg_asts = expr
             func = self.run_expression(func_ast)
             args = [self.run_expression(arg_ast) for arg_ast in arg_asts]
+
+            if func_ast[0] == "get_variable":
+                _, funcname = func_ast
+            else:
+                funcname = str(func_ast)  # good enough lol
+
+            if isinstance(func, tuple):
+                print("Calling Jou function:", funcname)
+            else:
+                print("Calling C function:", funcname)
             return call_function(func, args)
 
         elif expr[0] == 'get_variable':
@@ -1263,11 +1353,31 @@ class Runner:
             if func is not None:
                 return func
 
-            raise RuntimeError(f"no variable named {varname}")
+            raise RuntimeError(f"no variable named {varname} in {self.path}")
+
+        elif expr[0] == "eq":
+            _, left, right = expr
+            return self.run_expression(left) == self.run_expression(right)
+
+        elif expr[0] == "ne":
+            _, left, right = expr
+            return self.run_expression(left) != self.run_expression(right)
+
+        elif expr[0] == "gt":
+            _, left, right = expr
+            return self.run_expression(left) > self.run_expression(right)
 
         elif expr[0] == "lt":
             _, left, right = expr
             return self.run_expression(left) < self.run_expression(right)
+
+        elif expr[0] == "ge":
+            _, left, right = expr
+            return self.run_expression(left) >= self.run_expression(right)
+
+        elif expr[0] == "le":
+            _, left, right = expr
+            return self.run_expression(left) <= self.run_expression(right)
 
         elif expr[0] == "sizeof":
             _, obj = expr
@@ -1276,9 +1386,27 @@ class Runner:
 
         elif expr[0] == ".":
             # TODO: can be many other things than plain old field access!
-            _, obj_ast, attr = expr
-            obj = self.run_expression(obj_ast)
-            return shallow_copy(getattr(obj, attr))
+            _, obj_ast, field_name = expr
+            return shallow_copy(get_field(self.run_expression(obj_ast), field_name))
+
+        elif expr[0] == "constant":
+            _, value = expr
+            return shallow_copy(value)
+
+        elif expr[0] == "integer_constant":
+            # TODO: type hints
+            _, value = expr
+            return ctypes.c_int(value)
+
+        elif expr[0] == "address_of":
+            _, obj = expr
+            return self.run_address_of_expression(obj)
+
+        elif expr[0] == "pointer_string":
+            _, data = expr
+            array_size = len(data) + 1
+            array = (ctypes.c_uint8 * array_size)(*data)
+            return ctypes.cast(ctypes.pointer(array), ctypes.c_char_p)
 
         else:
             raise NotImplementedError(expr)
@@ -1287,6 +1415,9 @@ class Runner:
         if expr[0] == 'get_variable':
             _, varname = expr
             return ctypes.pointer(self.locals[varname])
+        elif expr[0] == '.':
+            _, obj, field_name = expr
+            return ctypes.pointer(get_field(self.run_expression(obj), field_name))
         else:
             raise NotImplementedError(expr)
 
@@ -1295,6 +1426,8 @@ def call_function(func, args):
     assert func is not None
     if not isinstance(func, tuple):
         # Function defined in C and declared in Jou
+        if func.argtypes is not None:
+            args = [cast(arg, t) for arg, t in zip(args, func.argtypes)] + args[len(func.argtypes):]
         return func(*args)
 
     # Function defined in Jou
@@ -1302,9 +1435,6 @@ def call_function(func, args):
     assert func_ast[0] == "function_def"
     _, func_name, funcdef_args, takes_varargs, return_type, body, decors = func_ast
     assert not takes_varargs
-
-    print(f"Running function {func_name}")
-    print(body)
 
     r = Runner(func_path)
 
@@ -1316,18 +1446,54 @@ def call_function(func, args):
     try:
         r.run_body(body)
     except Return as r:
-        [return_value] = r.arsg
+        [return_value] = r.args
         return return_value
     else:
         return None
 
 
-call_function(
-    func=find_function("compiler/main.jou", "main"),
-    args=[
-        ctypes.c_int(4),
-        (ctypes.c_char_p * 5)(
-            b"jou", b"-o", b"jou_bootstrap", b"compiler/main.jou", None
-        ),
-    ],
-)
+def main() -> None:
+    LIBS.append(    ctypes.CDLL(ctypes.util.find_library("c")))
+    LIBS.append(ctypes.CDLL(ctypes.util.find_library("m")))
+    LIBS.extend(load_llvm())
+
+    print("Parsing Jou files...", end=" ", flush=True)
+    parse_file("compiler/main.jou")
+    print(f"Parsed {len(ASTS)} files.")
+
+    for path in ASTS.keys():
+        TYPES[path] = {
+            "int8": ctypes.c_int8,
+            "int16": ctypes.c_int16,
+            "int32": ctypes.c_int32,
+            "int64": ctypes.c_int64,
+            "uint8": ctypes.c_uint8,
+            "uint16": ctypes.c_uint16,
+            "uint32": ctypes.c_uint32,
+            "uint64": ctypes.c_uint64,
+            "byte": ctypes.c_uint8,
+            "int": ctypes.c_int32,
+            "long": ctypes.c_int64,
+            "float": ctypes.c_float,
+            "double": ctypes.c_double,
+        }
+        ENUMS[path] = {}
+        GLOBALS[path] = {}
+        FUNCTIONS[path] = {}
+
+    print("Evaluating compile-time if statements...")
+    evaluate_compile_time_if_statements()
+
+    call_function(
+        func=find_function("compiler/main.jou", "main"),
+        args=[
+            ctypes.c_int(4),
+            (ctypes.c_char_p * 5)(
+                b"jou", b"-o", b"jou_bootstrap", b"compiler/main.jou", None
+            ),
+        ],
+    )
+
+
+if __name__ == "__main__":
+    main()
