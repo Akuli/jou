@@ -56,7 +56,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
-      - run: exit 1
       - run: brew install bash diffutils llvm@${{ matrix.params.llvm-version }}
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=/opt/homebrew/opt/llvm@${{ matrix.params.llvm-version }}/bin/llvm-config" >> $GITHUB_ENV
