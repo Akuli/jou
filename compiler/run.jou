@@ -81,8 +81,8 @@ def run_exe(exepath: byte*, valgrind: bool) -> int:
             asprintf(&command, "'%s'", exepath)
 
     # Make sure that everything else shows up before the user's prints.
-    fflush(stdout)
-    fflush(stderr)
+    fflush(get_stdout())
+    fflush(get_stderr())
 
     ret = system(command)
     free(command)

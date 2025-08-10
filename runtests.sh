@@ -187,7 +187,7 @@ function should_skip()
     fi
 
     # Skip special programs that don't interact nicely with automated tests
-    if [ $joufile = examples/x11_window.jou ] || [ $joufile = examples/memory_leak.jou ]; then
+    if [ $joufile = examples/x11_window.jou ] || [ $joufile = examples/perlin_noise.jou ] || [ $joufile = examples/memory_leak.jou ]; then
         return 0
     fi
 
@@ -218,7 +218,6 @@ function run_test()
     if [[ "$joufile" =~ ^examples/aoc ]] || [[ $joufile == *double_dotdot_import* ]]; then
         # AoC files use fopen("sampleinput.txt", "r").
         # We don't do this for all files, because I like relative paths in error messages.
-        # jou_flags starts with a space whenever it isn't empty.
         #
         # Also, double_dotdot_import test had a bug that was reproducible only with
         # relative path.

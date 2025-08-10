@@ -152,20 +152,20 @@ class ClawMachine:
 
     # Returns cheapest button presses to win, or [-1, -1] if cannot win.
     def optimize(self) -> long[2]:
-        if same_direction(self->a_vector, self->b_vector):
+        if same_direction(self.a_vector, self.b_vector):
             # The machine moves along a line.
-            if not same_direction(self->a_vector, self->prize):
+            if not same_direction(self.a_vector, self.prize):
                 # The prize is not on the line.
                 return [-1, -1]
             # Consider only the x coordinates.
-            return optimize_1d(self->a_vector[0], self->b_vector[0], self->prize[0])
+            return optimize_1d(self.a_vector[0], self.b_vector[0], self.prize[0])
         else:
             # According to linear algebra, there is a unique way to reach the
             # prize. However, it may involve negative or non-integer amounts of
             # button presses :)
             solution = solve_linear_unique_2x2_system(
-                self->a_vector[0], self->b_vector[0], self->prize[0],
-                self->a_vector[1], self->b_vector[1], self->prize[1],
+                self.a_vector[0], self.b_vector[0], self.prize[0],
+                self.a_vector[1], self.b_vector[1], self.prize[1],
             )
             a_presses = solution[0]
             b_presses = solution[1]

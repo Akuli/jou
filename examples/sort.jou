@@ -1,0 +1,16 @@
+import "stdlib/io.jou"
+import "stdlib/sort.jou"
+
+
+def main() -> int:
+    numbers = [4, 5, 2, 1, 3]
+    sort_int32(numbers, sizeof(numbers) / sizeof(numbers[0]))
+
+    # Output: 1 2 3 4 5
+    for i = 0; i < sizeof(numbers) / sizeof(numbers[0]); i++:
+        if i != 0:
+            printf(" ")
+        printf("%d", numbers[i])
+    printf("\n")
+
+    return 0

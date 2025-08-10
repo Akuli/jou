@@ -23,7 +23,7 @@ def is_keyword(word: byte*) -> bool:
         case (
             "import" | "link" | "def" | "declare" | "class" | "union" | "enum" | "global" | "const"
             | "return" | "if" | "elif" | "else" | "while" | "for" | "pass" | "break" | "continue"
-            | "True" | "False" | "None" | "NULL" | "void" | "noreturn"
+            | "True" | "False" | "None" | "NULL" | "void" | "noreturn" | "funcptr"
             | "and" | "or" | "not" | "self" | "as" | "sizeof" | "assert"
             | "bool" | "byte" | "int" | "long" | "float" | "double" | "match" | "with" | "case"
         ):
@@ -198,6 +198,7 @@ def detect_banned_whitespace_characters(last_3_bytes: byte[3]) -> byte*:
 class Tokenizer:
     f: FILE*
     location: Location
+    byte_offset: int
     pushback: List[byte]
     # Parens array isn't dynamic, so that you can't segfault
     # the compiler by feeding it lots of nested parentheses,
@@ -208,38 +209,41 @@ class Tokenizer:
 
     def read_byte(self) -> byte:
         c: byte
-        if self->pushback.len > 0:
-            c = self->pushback.pop()
+        if self.pushback.len > 0:
+            c = self.pushback.pop()
+            self.byte_offset++
         else:
-            temp = fgetc(self->f)
+            temp = fgetc(self.f)
+            self.byte_offset++
             if temp == '\r':
                 # On Windows, \r just before \n is ignored.
-                temp = fgetc(self->f)
+                temp = fgetc(self.f)
+                self.byte_offset++
                 if temp != EOF and temp != '\n':
                     # TODO: test this, if possible?
-                    fail(self->location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
+                    fail(self.location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
 
             if temp == EOF:
-                if ferror(self->f) != 0:
+                if ferror(self.f) != 0:
                     # TODO: include errno in the error message
-                    fail(self->location, "cannot read file")
+                    fail(self.location, "cannot read file")
                 # Use the zero byte to denote end of file.
                 c = '\0'
             elif temp == '\0':
-                fail(self->location, "source file contains a zero byte")
+                fail(self.location, "source file contains a zero byte")
             else:
                 c = temp as byte
-                self->last_3_bytes[0] = self->last_3_bytes[1]
-                self->last_3_bytes[1] = self->last_3_bytes[2]
-                self->last_3_bytes[2] = c
-                bad = detect_banned_whitespace_characters(self->last_3_bytes)
+                self.last_3_bytes[0] = self.last_3_bytes[1]
+                self.last_3_bytes[1] = self.last_3_bytes[2]
+                self.last_3_bytes[2] = c
+                bad = detect_banned_whitespace_characters(self.last_3_bytes)
                 if bad != NULL:
                     msg: byte[500]
                     snprintf(msg, sizeof(msg), "source file contains Unicode whitespace character %s", bad)
-                    fail(self->location, msg)
+                    fail(self.location, msg)
 
         if c == '\n':
-            self->location.lineno++
+            self.location.lineno++
         return c
 
     def unread_byte(self, b: byte) -> None:
@@ -247,9 +251,10 @@ class Tokenizer:
             return
 
         assert b != '\r'
-        self->pushback.append(b)
+        self.pushback.append(b)
+        self.byte_offset--
         if b == '\n':
-            self->location.lineno--
+            self.location.lineno--
 
     def read_identifier_or_number(self, first_byte: byte) -> byte[100]:
         dest: byte[100]
@@ -261,7 +266,7 @@ class Tokenizer:
         is_number = '0' <= first_byte and first_byte <= '9'
 
         while True:
-            b = self->read_byte()
+            b = self.read_byte()
             if (
                 is_identifier_or_number_byte(b)
                 or (is_number and (b == '.' or (b == '-' and dest[destlen-1] == 'e')))
@@ -273,24 +278,24 @@ class Tokenizer:
                         template = "name is too long: %.20s..."
                     message: byte[100]
                     sprintf(message, template, dest)
-                    fail(self->location, message)
+                    fail(self.location, message)
                 dest[destlen++] = b
             else:
-                self->unread_byte(b)
+                self.unread_byte(b)
                 return dest
 
     def consume_rest_of_line(self) -> None:
         while True:
-            c = self->read_byte()
+            c = self.read_byte()
             if c == '\0' or c == '\n':
-                self->unread_byte(c)
+                self.unread_byte(c)
                 break
 
     # Returns the indentation level for the next line
     def read_newline_token(self) -> int:
         level = 0
         while True:
-            c = self->read_byte()
+            c = self.read_byte()
             match c:
                 case '\0':
                     # End of file. Do not validate that indentation is a
@@ -300,38 +305,38 @@ class Tokenizer:
                 case '\n':
                     level = 0
                 case '#':
-                    self->consume_rest_of_line()
+                    self.consume_rest_of_line()
                 case ' ':
                     level++
                 case _:
-                    self->unread_byte(c)
+                    self.unread_byte(c)
                     return level
 
     def read_hex_escape_byte(self) -> byte:
-        n1 = hexdigit_value(self->read_byte())
-        n2 = hexdigit_value(self->read_byte())
+        n1 = hexdigit_value(self.read_byte())
+        n2 = hexdigit_value(self.read_byte())
         if n1 == -1 or n2 == -1:
-            fail(self->location, "\\x must be followed by two hexadecimal digits (0-9, A-F) to specify a byte")
+            fail(self.location, "\\x must be followed by two hexadecimal digits (0-9, A-F) to specify a byte")
         return (n1*16 + n2) as byte
 
     # Assumes the initial ' has been read.
     def read_byte_literal(self) -> byte:
-        c = self->read_byte()
+        c = self.read_byte()
         if c == '\'':
-            fail(self->location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?")
+            fail(self.location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?")
         if c == '\0' or c == '\n':
             if c == '\n':
-                self->location.lineno--
-            fail(self->location, "missing ' to end the byte literal")
+                self.location.lineno--
+            fail(self.location, "missing ' to end the byte literal")
 
         if c == '\\':
-            after_backslash = self->read_byte()
+            after_backslash = self.read_byte()
             match after_backslash:
                 case '\0':
-                    fail(self->location, "missing ' to end the byte literal")
+                    fail(self.location, "missing ' to end the byte literal")
                 case '\n':
-                    self->location.lineno--
-                    fail(self->location, "missing ' to end the byte literal")
+                    self.location.lineno--
+                    fail(self.location, "missing ' to end the byte literal")
                 case 'n':
                     c = '\n'
                 case 'r':
@@ -343,26 +348,26 @@ class Tokenizer:
                 case '\'':
                     c = '\''
                 case '"':
-                    fail(self->location, "double quotes shouldn't be escaped in byte literals")
+                    fail(self.location, "double quotes shouldn't be escaped in byte literals")
                 case '0':
                     c = '\0'
                 case 'x':
-                    c = self->read_hex_escape_byte()
+                    c = self.read_hex_escape_byte()
                 case _:
                     # TODO: add is_ascii_printable() function to stdlib/ascii.jou
                     if after_backslash < 0x80 and isprint(after_backslash) != 0:
                         message: byte* = malloc(100)
                         sprintf(message, "unknown escape: '\\%c'", after_backslash)
-                        fail(self->location, message)
+                        fail(self.location, message)
                     else:
-                        fail(self->location, "unknown '\\' escape")
+                        fail(self.location, "unknown '\\' escape")
 
-        end = self->read_byte()
+        end = self.read_byte()
         if end != '\'':
             # If there's another single quote later on the same line, suggest using double quotes.
-            location = self->location
+            location = self.location
             while True:
-                match self->read_byte():
+                match self.read_byte():
                     case '\0' | '\n':
                         fail(location, "missing ' to end the byte literal")
                     case '\'':
@@ -376,21 +381,21 @@ class Tokenizer:
         msg: byte[100]
 
         while True:
-            c = self->read_byte()
+            c = self.read_byte()
             match c:
                 case '"':
                     break
                 case '\n':
-                    self->location.lineno--
-                    fail(self->location, "missing \" to end the string")
+                    self.location.lineno--
+                    fail(self.location, "missing \" to end the string")
                 case '\0':
-                    fail(self->location, "missing \" to end the string")
+                    fail(self.location, "missing \" to end the string")
                 case '\\':
                     # \n means newline, for example
-                    after_backslash = self->read_byte()
+                    after_backslash = self.read_byte()
                     match after_backslash:
                         case '\0':
-                            fail(self->location, "missing \" to end the string")
+                            fail(self.location, "missing \" to end the string")
                         case 'n':
                             result.append('\n')
                         case 'r':
@@ -402,13 +407,13 @@ class Tokenizer:
                         case '"':
                             result.append('"')
                         case '\'':
-                            fail(self->location, "single quotes shouldn't be escaped in strings")
+                            fail(self.location, "single quotes shouldn't be escaped in strings")
                         case '0':
-                            fail(self->location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte")
+                            fail(self.location, "strings cannot contain zero bytes (\\0), because that is the special end marker byte")
                         case 'x':
-                            b = self->read_hex_escape_byte()
+                            b = self.read_hex_escape_byte()
                             if b == '\0':
-                                fail(self->location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte")
+                                fail(self.location, "strings cannot contain zero bytes (\\x00), because that is the special end marker byte")
                             result.append(b)
                         case '\n':
                             # \ at end of line, string continues on next line
@@ -419,7 +424,7 @@ class Tokenizer:
                                 snprintf(msg, sizeof(msg), "unknown escape: '\\%c'", after_backslash)
                             else:
                                 msg = "unknown '\\' escape"
-                            fail(self->location, msg)
+                            fail(self.location, msg)
                 case _:
                     result.append(c)
 
@@ -441,9 +446,9 @@ class Tokenizer:
 
         # Read as many operator characters as we may need.
         while strlen(operator) < 3:
-            c = self->read_byte()
+            c = self.read_byte()
             if not is_operator_byte(c):
-                self->unread_byte(c)
+                self.unread_byte(c)
                 break
             operator[strlen(operator)] = c
 
@@ -452,81 +457,81 @@ class Tokenizer:
                 # Unread the bytes we didn't use.
                 while strlen(operator) > strlen(operators[i]):
                     last = &operator[strlen(operator) - 1]
-                    self->unread_byte(*last)
+                    self.unread_byte(*last)
                     *last = '\0'
 
                 # These operators are here only to give a better error message when you
                 # accidentally use syntax of another programming language.
                 match operator with strcmp:
                     case "===":
-                        fail(self->location, "use '==' instead of '==='")
+                        fail(self.location, "use '==' instead of '==='")
                     case "!==":
-                        fail(self->location, "use '!=' instead of '!=='")
+                        fail(self.location, "use '!=' instead of '!=='")
                     case "&&":
-                        fail(self->location, "use 'and' instead of '&&'")
+                        fail(self.location, "use 'and' instead of '&&'")
                     case "||":
-                        fail(self->location, "use 'or' instead of '||'")
+                        fail(self.location, "use 'or' instead of '||'")
                     case "!":
-                        fail(self->location, "use 'not' instead of '!'")
+                        fail(self.location, "use 'not' instead of '!'")
                     case _:
                         return operator
 
         snprintf(msg, sizeof(msg), "there is no '%s' operator", operator)
-        fail(self->location, msg)
+        fail(self.location, msg)
 
     def handle_parentheses(self, token: Token*) -> None:
         msg: byte[100]
 
-        if token->kind == TokenKind.EndOfFile and self->open_parens_len > 0:
-            open_token = self->open_parens[0]
+        if token.kind == TokenKind.EndOfFile and self.open_parens_len > 0:
+            open_token = self.open_parens[0]
             actual_open = open_token.short_string[0]
             expected_close = flip_paren(actual_open)
             snprintf(msg, sizeof(msg), "'%c' without a matching '%c'", actual_open, expected_close)
             fail(open_token.location, msg)
 
-        if token->is_open_paren():
-            if self->open_parens_len == sizeof self->open_parens / sizeof self->open_parens[0]:
-                fail(token->location, "too many nested parentheses")
-            self->open_parens[self->open_parens_len++] = *token
+        if token.is_open_paren():
+            if self.open_parens_len == sizeof self.open_parens / sizeof self.open_parens[0]:
+                fail(token.location, "too many nested parentheses")
+            self.open_parens[self.open_parens_len++] = *token
 
-        if token->is_close_paren():
-            actual_close = token->short_string[0]
+        if token.is_close_paren():
+            actual_close = token.short_string[0]
             expected_open = flip_paren(actual_close)
-            if self->open_parens_len == 0 or self->open_parens[--self->open_parens_len].short_string[0] != expected_open:
+            if self.open_parens_len == 0 or self.open_parens[--self.open_parens_len].short_string[0] != expected_open:
                 snprintf(msg, sizeof(msg), "'%c' without a matching '%c'", actual_close, expected_open)
-                fail(token->location, msg)
+                fail(token.location, msg)
 
     def read_token(self) -> Token:
         while True:
-            token = Token{location = self->location}
-            b = self->read_byte()
+            token = Token{location = self.location, byte_offset = self.byte_offset}
+            b = self.read_byte()
             match b:
                 case ' ':
                     continue
                 case '#':
-                    self->consume_rest_of_line()
+                    self.consume_rest_of_line()
                     continue
                 case '\n':
-                    if self->open_parens_len > 0:
+                    if self.open_parens_len > 0:
                         continue
                     token.kind = TokenKind.Newline
-                    token.indentation_level = self->read_newline_token()
+                    token.indentation_level = self.read_newline_token()
                 case '"':
                     token.kind = TokenKind.String
-                    token.long_string = self->read_string()
+                    token.long_string = self.read_string()
                 case '\'':
                     token.kind = TokenKind.Byte
-                    token.integer_value = self->read_byte_literal()
+                    token.integer_value = self.read_byte_literal()
                 case '@':
                     token.kind = TokenKind.Decorator
-                    token.short_string = self->read_identifier_or_number(b)
+                    token.short_string = self.read_identifier_or_number(b)
                 case '\t':
-                    fail(self->location, "Jou files cannot contain tab characters (use 4 spaces for indentation)")
+                    fail(self.location, "Jou files cannot contain tab characters (use 4 spaces for indentation)")
                 case '\0':
                     token.kind = TokenKind.EndOfFile
                 case _:
                     if is_identifier_or_number_byte(b):
-                        token.short_string = self->read_identifier_or_number(b)
+                        token.short_string = self.read_identifier_or_number(b)
                         if is_keyword(token.short_string):
                             token.kind = TokenKind.Keyword
                         elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
@@ -541,24 +546,25 @@ class Tokenizer:
                         else:
                             token.kind = TokenKind.Name
                     elif is_operator_byte(b):
-                        self->unread_byte(b)
+                        self.unread_byte(b)
                         token.kind = TokenKind.Operator
-                        token.short_string = self->read_operator()
+                        token.short_string = self.read_operator()
                     else:
                         message: byte[100]
                         if b < 0x80 and isprint(b) != 0:
                             sprintf(message, "unexpected byte '%c' (%#02x)", b, b)
                         else:
                             sprintf(message, "unexpected byte %#02x", b)
-                        fail(self->location, message)
+                        fail(self.location, message)
 
-            self->handle_parentheses(&token)
+            self.handle_parentheses(&token)
             return token
 
 
 def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
     tokenizer = Tokenizer{
         location = Location{path = path},
+        byte_offset = -1,  # Compensate for fake newline added below
         f = file,
     }
 
@@ -585,33 +591,34 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
     level = 0
 
     for t = raw_tokens; True; t++:
-        if t->kind == TokenKind.EndOfFile:
+        if t.kind == TokenKind.EndOfFile:
             # Add an extra newline token at end of file and the dedents after it.
             # This makes it similar to how other newline and dedent tokens work:
             # the dedents always come after a newline token.
             if t > raw_tokens and t[-1].kind != TokenKind.Newline:
-                tokens.append(Token{location = t->location, kind = TokenKind.Newline})
+                tokens.append(Token{location = t.location, byte_offset = t.byte_offset, kind = TokenKind.Newline})
             while level != 0:
-                tokens.append(Token{location = t->location, kind = TokenKind.Dedent})
+                tokens.append(Token{location = t.location, byte_offset = t.byte_offset, kind = TokenKind.Dedent})
                 level -= 4
             tokens.append(*t)
             break
 
         tokens.append(*t)
 
-        if t->kind == TokenKind.Newline:
-            after_newline = t->location
+        if t.kind == TokenKind.Newline:
+            after_newline = t.location
             after_newline.lineno++
+            byte_offset = t.byte_offset + 1
 
-            if t->indentation_level % 4 != 0:
+            if t.indentation_level % 4 != 0:
                 fail(after_newline, "indentation must be a multiple of 4 spaces")
 
-            while level < t->indentation_level:
-                tokens.append(Token{location = after_newline, kind = TokenKind.Indent})
+            while level < t.indentation_level:
+                tokens.append(Token{location = after_newline, byte_offset = byte_offset, kind = TokenKind.Indent})
                 level += 4
 
-            while level > t->indentation_level:
-                tokens.append(Token{location = after_newline, kind = TokenKind.Dedent})
+            while level > t.indentation_level:
+                tokens.append(Token{location = after_newline, byte_offset = byte_offset, kind = TokenKind.Dedent})
                 level -= 4
 
     # Delete the newline token in the beginning.

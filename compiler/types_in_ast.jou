@@ -41,8 +41,8 @@ class FunctionOrMethodTypes:
     locals: List[LocalVariable]
 
     def find_local_var(self, name: byte*) -> LocalVariable*:
-        for var = self->locals.ptr; var < self->locals.end(); var++:
-            if strcmp(var->name, name) == 0:
+        for var = self.locals.ptr; var < self.locals.end(); var++:
+            if strcmp(var.name, name) == 0:
                 return var
         return NULL
 
@@ -50,15 +50,15 @@ class FunctionOrMethodTypes:
         var = LocalVariable{type = t}
 
         assert name != NULL
-        assert self->find_local_var(name) == NULL
+        assert self.find_local_var(name) == NULL
         assert strlen(name) < sizeof(var.name)
         strcpy(var.name, name)
 
-        self->locals.append(var)
+        self.locals.append(var)
 
     def free(self) -> None:
-        free(self->locals.ptr)
-        self->signature.free()
+        free(self.locals.ptr)
+        self.signature.free()
 
 
 class GlobalVariable:
@@ -89,88 +89,88 @@ class FileTypes:
     functions: List[SignatureAndUsedPtr]
 
     def add_function(self, signature: Signature*, usedptr: bool*) -> None:
-        self->functions.append(SignatureAndUsedPtr{signature = signature->copy(), usedptr = usedptr})
+        self.functions.append(SignatureAndUsedPtr{signature = signature.copy(), usedptr = usedptr})
 
     def _add_type_internal(self, t: Type*, usedptr: bool*) -> None:
-        self->available_types.append(TypeAndUsedPtr{type = t, usedptr = usedptr})
+        self.available_types.append(TypeAndUsedPtr{type = t, usedptr = usedptr})
 
     def add_type(self, t: Type*, usedptr: bool*) -> None:
-        assert strstr(t->name, "[") == NULL  # must be able to find the types by name
-        self->_add_type_internal(t, usedptr)
+        assert strstr(t.name, "[") == NULL  # must be able to find the types by name
+        self._add_type_internal(t, usedptr)
 
     def add_generic_class(self, t: Type*, usedptr: bool*) -> None:
-        assert t->kind == TypeKind.Class
-        assert strstr(t->name, "[") != NULL  # e.g. List[T]
-        self->_add_type_internal(t, usedptr)
+        assert t.kind == TypeKind.Class
+        assert strstr(t.name, "[") != NULL  # e.g. List[T]
+        self._add_type_internal(t, usedptr)
 
     def add_global_var(self, name: byte*, type: Type*, usedptr: bool*) -> GlobalVariable*:
         g = GlobalVariable{type = type, usedptr = usedptr}
         assert strlen(name) < sizeof g.name
         strcpy(g.name, name)
 
-        self->globals.append(g)
-        return &self->globals.end()[-1]
+        self.globals.append(g)
+        return &self.globals.end()[-1]
 
     def add_constant(self, name: byte*, value: Constant*, usedptr: bool*) -> None:
-        c = NamedConstant{value = value->copy(), usedptr = usedptr}
+        c = NamedConstant{value = value.copy(), usedptr = usedptr}
         assert strlen(name) < sizeof(c.name)
         strcpy(c.name, name)
-        self->constants.append(c)
+        self.constants.append(c)
 
     # This is safe to call if self has been zero-initialized.
     def free(self) -> None:
-        free(self->globals.ptr)
-        free(self->available_types.ptr)
-        for func = self->functions.ptr; func < self->functions.end(); func++:
-            func->signature.free()
-        free(self->functions.ptr)
-        for p = self->constants.ptr; p < self->constants.end(); p++:
-            p->value.free()
-        free(self->constants.ptr)
+        free(self.globals.ptr)
+        free(self.available_types.ptr)
+        for func = self.functions.ptr; func < self.functions.end(); func++:
+            func.signature.free()
+        free(self.functions.ptr)
+        for p = self.constants.ptr; p < self.constants.end(); p++:
+            p.value.free()
+        free(self.constants.ptr)
 
     def find_type(self, name: byte*) -> Type*:
         assert strstr(name, "[") == NULL
-        for t = self->available_types.ptr; t < self->available_types.end(); t++:
-            if strcmp(t->type->name, name) == 0:
-                if t->usedptr != NULL:
-                    *t->usedptr = True
-                return t->type
+        for t = self.available_types.ptr; t < self.available_types.end(); t++:
+            if strcmp(t.type.name, name) == 0:
+                if t.usedptr != NULL:
+                    *t.usedptr = True
+                return t.type
         return NULL
 
     def find_generic_class(self, name: byte*) -> Type*:
-        for t = self->available_types.ptr; t < self->available_types.end(); t++:
+        for t = self.available_types.ptr; t < self.available_types.end(); t++:
             # If looking for "List", check if it starts with "List[" as in "List[T]"
             if (
-                t->type->kind == TypeKind.Class
-                and starts_with(t->type->name, name)
-                and t->type->name[strlen(name)] == '['
+                t.type.kind == TypeKind.Class
+                and starts_with(t.type.name, name)
+                and t.type.name[strlen(name)] == '['
             ):
-                if t->usedptr != NULL:
-                    *t->usedptr = True
-                return t->type
+                if t.usedptr != NULL:
+                    *t.usedptr = True
+                return t.type
         return NULL
 
     def find_function(self, name: byte*) -> Signature*:
-        for f = self->functions.ptr; f < self->functions.end(); f++:
-            if strcmp(f->signature.name, name) == 0:
-                if f->usedptr != NULL:
-                    *f->usedptr = True
-                return &f->signature
+        for f = self.functions.ptr; f < self.functions.end(); f++:
+            if strcmp(f.signature.name, name) == 0:
+                if f.usedptr != NULL:
+                    *f.usedptr = True
+                return &f.signature
         return NULL
 
     def find_global_var(self, name: byte*) -> Type*:
-        for var = self->globals.ptr; var < self->globals.end(); var++:
-            if strcmp(var->name, name) == 0:
-                if var->usedptr != NULL:
-                    *var->usedptr = True
-                return var->type
+        for var = self.globals.ptr; var < self.globals.end(); var++:
+            if strcmp(var.name, name) == 0:
+                if var.usedptr != NULL:
+                    *var.usedptr = True
+                return var.type
         return NULL
 
     # Note: For special constants like "WINDOWS" this returns NULL, be aware!!!
     def find_constant(self, name: byte*) -> Constant*:
-        for c = self->constants.ptr; c < self->constants.end(); c++:
-            if strcmp(c->name, name) == 0:
-                if c->usedptr != NULL:
-                    *c->usedptr = True
-                return &c->value
+        for c = self.constants.ptr; c < self.constants.end(); c++:
+            if strcmp(c.name, name) == 0:
+                if c.usedptr != NULL:
+                    *c.usedptr = True
+                return &c.value
         return NULL

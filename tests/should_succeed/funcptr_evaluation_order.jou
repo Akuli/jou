@@ -1,0 +1,38 @@
+# This test ensures that when you do "func(arg1, arg2)", the evaluation order is:
+#
+#   func
+#   arg1
+#   arg2
+#
+# This is the same evaluation order as Python.
+
+import "stdlib/io.jou"
+
+
+def one(a: int) -> funcptr(int, int) -> funcptr(int, int, int) -> None:
+    puts("ONE")
+    return two
+
+
+def two(a: int, b: int) -> funcptr(int, int, int) -> None:
+    puts("TWO")
+    return three
+
+
+def three(a: int, b: int, c: int) -> None:
+    puts("THREE")
+
+
+def main() -> int:
+    # Output: only
+    # Output: ONE
+    # Output: first
+    # Output: second
+    # Output: TWO
+    # Output: first
+    # Output: second
+    # Output: third
+    # Output: THREE
+    one(puts("only"))(puts("first"), puts("second"))(puts("first"), puts("second"), puts("third"))
+
+    return 0

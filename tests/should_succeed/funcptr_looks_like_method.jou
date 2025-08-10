@@ -1,0 +1,17 @@
+import "stdlib/io.jou"
+
+class Foo:
+    callback: funcptr(byte*) -> int
+    message: byte*
+
+def run_the_callback(f: Foo) -> None:
+    f.callback(f.message)     # Looks like a method call, but this is not a method call
+
+def run_the_callback_with_ptr(f: Foo*) -> None:
+    f.callback(f.message)
+
+def main() -> int:
+    f = Foo{callback = puts, message = "Hello"}
+    run_the_callback(f)             # Output: Hello
+    run_the_callback_with_ptr(&f)   # Output: Hello
+    return 0

@@ -52,7 +52,7 @@ def init_target() -> None:
     error: byte* = NULL
     if LLVMGetTargetFromTriple(target.triple, &target.target, &error) != 0:
         assert error != NULL
-        fprintf(stderr, "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", target.triple, error)
+        fprintf(get_stderr(), "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", target.triple, error)
         exit(1)
     assert error == NULL
     assert target.target != NULL

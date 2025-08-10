@@ -14,22 +14,22 @@ class Box:
     nlenses: int
 
     def set(self, label: byte*, value: int) -> None:
-        for i = 0; i < self->nlenses; i++:
-            if strcmp(self->lenses[i].label, label) == 0:
-                self->lenses[i].value = value
+        for i = 0; i < self.nlenses; i++:
+            if strcmp(self.lenses[i].label, label) == 0:
+                self.lenses[i].value = value
                 return
 
         lens = Lens{value=value}
         assert strlen(label) < sizeof(lens.label)
         strcpy(lens.label, label)
 
-        assert self->nlenses < sizeof(self->lenses)/sizeof(self->lenses[0])
-        self->lenses[self->nlenses++] = lens
+        assert self.nlenses < sizeof(self.lenses)/sizeof(self.lenses[0])
+        self.lenses[self.nlenses++] = lens
 
     def remove_by_label(self, label: byte*) -> None:
-        for i = 0; i < self->nlenses; i++:
-            if strcmp(self->lenses[i].label, label) == 0:
-                memmove(&self->lenses[i], &self->lenses[i+1], (--self->nlenses - i) * sizeof(self->lenses[0]))
+        for i = 0; i < self.nlenses; i++:
+            if strcmp(self.lenses[i].label, label) == 0:
+                memmove(&self.lenses[i], &self.lenses[i+1], (--self.nlenses - i) * sizeof(self.lenses[0]))
                 break
 
 
@@ -66,13 +66,13 @@ def main() -> int:
         if ends_with(command, "-"):
             command[strlen(command)-1] = '\0'
             box = &(*boxes)[hash(command)]
-            box->remove_by_label(command)
+            box.remove_by_label(command)
         else:
             eq = strchr(command, '=')
             assert eq != NULL
             *eq = '\0'
             box = &(*boxes)[hash(command)]
-            box->set(command, atoi(&eq[1]))
+            box.set(command, atoi(&eq[1]))
 
     free(commands.ptr)
     free(s)
@@ -80,8 +80,8 @@ def main() -> int:
     result = 0
     for box_num = 0; box_num < 256; box_num++:
         box = &(*boxes)[box_num]
-        for slot_num = 0; slot_num < box->nlenses; slot_num++:
-            result += (box_num + 1) * (slot_num + 1) * box->lenses[slot_num].value
+        for slot_num = 0; slot_num < box.nlenses; slot_num++:
+            result += (box_num + 1) * (slot_num + 1) * box.lenses[slot_num].value
 
     printf("%d\n", result)  # Output: 145
     free(boxes)

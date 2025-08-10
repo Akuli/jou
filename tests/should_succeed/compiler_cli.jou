@@ -27,9 +27,6 @@ def print_reusing_compiled_file_lines(path: byte*) -> None:
 
     line: byte[500]
     while fgets(line, sizeof(line) as int, f) != NULL:
-        if strstr(line, "_jou_startup") != NULL:
-            continue  # platform-specific
-
         if starts_with(line, "Reusing"):
             p = &line[0]
             while *p != '\0':
@@ -45,7 +42,7 @@ def print_reusing_compiled_file_lines(path: byte*) -> None:
                     putchar(*p++)
 
     fclose(f)
-    fflush(stdout)  # ensure output appears in the right place, not buffered until end
+    fflush(get_stdout())  # ensure output appears in the right place, not buffered until end
 
 
 def main() -> int:
@@ -112,6 +109,9 @@ def main() -> int:
     # Output: ===== AST for file "examples/hello.jou" =====
     # Output: ===== UVG for _jou_assert_fail(assertion: byte*, path: byte*, lineno: int) -> noreturn =====
     # Output: ===== UVG for main() -> int =====
+    # Output: ===== UVG for get_stdin() -> FILE* =====
+    # Output: ===== UVG for get_stdout() -> FILE* =====
+    # Output: ===== UVG for get_stderr() -> FILE* =====
 
     # Different working directory.
     # Output: Hello World

@@ -47,206 +47,237 @@ class AstToBuilder:
     # Handles a corner case when calling a generic inline method.
     # When we inline the code from List[int].append(123), this changes T to int.
     def map_type(self, t: Type*) -> Type*:
-        if self->inlining_info != NULL and self->inlining_info->typemap_count > 0:
-            return t->substitute_generic_params(
-                self->inlining_info->typemap_from,
-                self->inlining_info->typemap_to,
-                self->inlining_info->typemap_count,
+        if self.inlining_info != NULL and self.inlining_info.typemap_count > 0:
+            return t.substitute_generic_params(
+                self.inlining_info.typemap_from,
+                self.inlining_info.typemap_to,
+                self.inlining_info.typemap_count,
             )
         return t
 
     # Returns old location. Use it to restore the location when you're done.
     def set_location(self, location: Location) -> Location:
-        old = self->location
-        self->location = location
+        old = self.location
+        self.location = location
         # If no reasonable location is available (e.g. implicit return at end of function),
         # continue using the previous location for now.
         if location.path != NULL and location.lineno != 0:
-            self->builder->set_location(location)
+            self.builder.set_location(location)
         return old
 
     def begin_function(self, types: FunctionOrMethodTypes*, location: Location, public: bool) -> None:
-        old = self->set_location(location)
+        old = self.set_location(location)
 
         # First n local variables are the arguments
-        assert types->signature.args.len <= types->locals.len
+        assert types.signature.args.len <= types.locals.len
 
-        self->builder->begin_function(&types->signature, public)
+        self.builder.begin_function(&types.signature, public)
 
-        assert self->locals.len == 0
-        for i = 0; i < types->locals.len; i++:
-            var_name = types->locals.ptr[i].name
-            var_type = types->locals.ptr[i].type
-            var_ptr = self->builder->stack_alloc(var_type, var_name)
-            self->locals.append(LocalVar{name = var_name, ptr = var_ptr})
-            if i < types->signature.args.len:
+        assert self.locals.len == 0
+        for i = 0; i < types.locals.len; i++:
+            var_name = types.locals.ptr[i].name
+            var_type = types.locals.ptr[i].type
+            var_ptr = self.builder.stack_alloc(var_type, var_name)
+            self.locals.append(LocalVar{name = var_name, ptr = var_ptr})
+            if i < types.signature.args.len:
                 # First n local variables are the function arguments
-                self->builder->set_ptr(var_ptr, self->builder->get_argument(i, var_type))
+                self.builder.set_ptr(var_ptr, self.builder.get_argument(i, var_type))
 
-        if (WINDOWS or MACOS or NETBSD) and types->signature.is_main_function():
-            # Insert a call to the special startup function into main()
-            jou_startup_sig = Signature{name = "_jou_startup"}
-            self->builder->call(&jou_startup_sig, NULL, 0)
-
-        self->set_location(old)
+        self.set_location(old)
 
     # Handles the beginning of calling an @inline function. That's always done
     # in a new builder, so that we don't accidentally access local variables
     # of the calling function.
-    def begin_inlining(self, types: FunctionOrMethodTypes*, args: List[AnyBuilderValue]) -> None:
+    def begin_inlining(self, types: FunctionOrMethodTypes*, args: AnyBuilderValue*, nargs: int) -> None:
         # First n local variables are the arguments
-        assert types->signature.args.len <= types->locals.len
+        assert types.signature.args.len <= types.locals.len
 
         # Must pass correct number of values for parameters of inlined function
-        assert args.len == types->signature.args.len
+        assert nargs == types.signature.args.len
 
-        assert self->locals.len == 0
-        for i = 0; i < types->locals.len; i++:
-            var_name = types->locals.ptr[i].name
-            var_type = types->locals.ptr[i].type
-            var_ptr = self->builder->stack_alloc(self->map_type(var_type), var_name)
-            self->locals.append(LocalVar{name = var_name, ptr = var_ptr})
-            if i < args.len:
+        assert self.locals.len == 0
+        for i = 0; i < types.locals.len; i++:
+            var_name = types.locals.ptr[i].name
+            var_type = types.locals.ptr[i].type
+            var_ptr = self.builder.stack_alloc(self.map_type(var_type), var_name)
+            self.locals.append(LocalVar{name = var_name, ptr = var_ptr})
+            if i < nargs:
                 # First n local variables are the function arguments
-                self->builder->set_ptr(var_ptr, args.ptr[i])
+                self.builder.set_ptr(var_ptr, args[i])
 
-    def inline(self, sig: Signature*, args: List[AnyBuilderValue]) -> AnyBuilderValue:
-        assert sig->ast_to_inline != NULL
-        assert self->builder->should_functions_marked_with_inline_be_inlined()
-        ast = sig->ast_to_inline
+    def inline(self, sig: Signature*, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
+        assert sig.ast_to_inline != NULL
+        assert self.builder.should_functions_marked_with_inline_be_inlined()
+        ast = sig.ast_to_inline
 
-        info = InliningInfo{return_jumps_to = self->builder->add_block()}
-        if sig->return_type != NULL:
-            info.return_value_ptr = self->builder->stack_alloc(self->map_type(sig->return_type), NULL)
+        info = InliningInfo{return_jumps_to = self.builder.add_block()}
+        if sig.return_type != NULL:
+            info.return_value_ptr = self.builder.stack_alloc(self.map_type(sig.return_type), NULL)
 
-        if sig->get_self_class() != NULL and sig->get_self_class()->classdata.is_generic():
+        if sig.get_self_class() != NULL and sig.get_self_class().classdata.is_generic():
             # When inlining a generic method List[int].append(), map T to int
-            assert args.len >= 1
-            ast_self_class = ast->types.signature.get_self_class()
-            passed_self_class = self->map_type(sig->get_self_class())
+            assert nargs >= 1
+            ast_self_class = ast.types.signature.get_self_class()
+            passed_self_class = self.map_type(sig.get_self_class())
 
-            assert ast_self_class->kind == TypeKind.Class
-            assert passed_self_class->kind == TypeKind.Class
+            assert ast_self_class.kind == TypeKind.Class
+            assert passed_self_class.kind == TypeKind.Class
 
-            info.typemap_from = ast_self_class->classdata.generic_params.ptr
-            info.typemap_to = passed_self_class->classdata.generic_params.ptr
+            info.typemap_from = ast_self_class.classdata.generic_params.ptr
+            info.typemap_to = passed_self_class.classdata.generic_params.ptr
 
-            n1 = ast_self_class->classdata.generic_params.len
-            n2 = passed_self_class->classdata.generic_params.len
+            n1 = ast_self_class.classdata.generic_params.len
+            n2 = passed_self_class.classdata.generic_params.len
             assert n1 == n2
             info.typemap_count = n1 as int
 
-        inliner = AstToBuilder{builder = self->builder, inlining_info = &info}
-        inliner.begin_inlining(&ast->types, args)
-        inliner.build_body(ast->body)
+        inliner = AstToBuilder{builder = self.builder, inlining_info = &info}
+        inliner.begin_inlining(&ast.types, args, nargs)
+        inliner.build_body(ast.body)
         inliner.free()
-        self->builder->jump(info.return_jumps_to)  # the implicit 'return' at the end
+        self.builder.jump(info.return_jumps_to)  # the implicit 'return' at the end
 
-        self->builder->set_current_block(info.return_jumps_to)
-        if sig->return_type == NULL:
+        self.builder.set_current_block(info.return_jumps_to)
+        if sig.return_type == NULL:
             return AnyBuilderValue{}
         else:
-            return self->builder->dereference(info.return_value_ptr)
-
-    def call_or_inline(self, sig: Signature*, args: List[AnyBuilderValue]) -> AnyBuilderValue:
-        if sig->ast_to_inline != NULL and self->builder->should_functions_marked_with_inline_be_inlined():
-            return self->inline(sig, args)
-        else:
-            return self->builder->call(sig, args.ptr, args.len as int)
+            return self.builder.dereference(info.return_value_ptr)
 
     def local_var_exists(self, name: byte*) -> bool:
-        for local = self->locals.ptr; local < self->locals.end(); local++:
-            if strcmp(local->name, name) == 0:
+        for local = self.locals.ptr; local < self.locals.end(); local++:
+            if strcmp(local.name, name) == 0:
                 return True
         return False
 
     def local_var_ptr(self, name: byte*) -> AnyBuilderValue:
-        for local = self->locals.ptr; local < self->locals.end(); local++:
-            if strcmp(local->name, name) == 0:
-                return local->ptr
+        for local = self.locals.ptr; local < self.locals.end(); local++:
+            if strcmp(local.name, name) == 0:
+                return local.ptr
         assert False
 
     def build_call(self, call: AstCall*) -> AnyBuilderValue:
-        args = List[AnyBuilderValue]{}
+        assert (
+            call.function != NULL and call.method_call_self == NULL
+        ) or (
+            call.function == NULL and call.method_call_self != NULL
+        )
 
-        if call->method_call_self != NULL:
-            # it is a method call, pass self as first argument
-            want_pointer = call->called_signature->args.ptr[0].type->is_pointer_type()
-            got_pointer = call->uses_arrow_operator
+        sig = call.signature_if_known
+
+        if call.function != NULL:
+            funcptr_type = call.function.types.implicit_cast_type
+        else:
+            assert sig != NULL
+            funcptr_type = sig.to_funcptr_type()
+        assert funcptr_type.kind == TypeKind.FuncPtr
+
+        inline = (
+            sig != NULL
+            and sig.ast_to_inline != NULL
+            and self.builder.should_functions_marked_with_inline_be_inlined()
+        )
+        if call.function != NULL and not inline:
+            # Calling function pointer. Evaluate the function pointer first, before arguments.
+            # TODO: test
+            func_ptr = self.build_expression(call.function)
+        else:
+            # Dummy value to silence compiler warning
+            func_ptr = AnyBuilderValue{}
+
+        assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
+        args: AnyBuilderValue[100]
+        nargs = 0
+
+        if call.method_call_self != NULL:
+            # It is a method call, pass self as first argument.
+            # Signature of method calls is always known.
+            assert sig != NULL
+
+            # pass self as first argument
+            want_pointer = sig.args.ptr[0].type.is_pointer_type()
+            got_pointer = call.method_call_self.types.implicit_cast_type.is_pointer_type()
 
             if want_pointer and not got_pointer:
-                arg = self->build_address_of_expression(call->method_call_self)
+                arg = self.build_address_of_expression(call.method_call_self)
             elif got_pointer and not want_pointer:
-                arg = self->builder->dereference(self->build_expression(call->method_call_self))
+                arg = self.builder.dereference(self.build_expression(call.method_call_self))
             else:
-                arg = self->build_expression(call->method_call_self)
-            args.append(arg)
+                arg = self.build_expression(call.method_call_self)
 
-        for p = call->args.ptr; p < call->args.end(); p++:
-            args.append(self->build_expression(p))
+            args[0] = arg
+            nargs = 1
 
-        result = self->call_or_inline(call->called_signature, args)
-        free(args.ptr)
+        for p = call.args.ptr; p < call.args.end(); p++:
+            assert nargs < MAX_ARGS
+            args[nargs++] = self.build_expression(p)
 
-        if call->called_signature->is_noreturn:
+        if inline:
+            result = self.inline(sig, args, nargs)
+        elif call.method_call_self != NULL:
+            assert sig != NULL
+            result = self.builder.call_method(sig, args, nargs)
+        else:
+            result = self.builder.call_function(funcptr_type, func_ptr, args, nargs)
+
+        if funcptr_type.func_ptr.is_noreturn:
             # Code after the function call will not run. Place it to a new block.
-            self->builder->unreachable()
-            self->builder->set_current_block(self->builder->add_block())
+            self.builder.unreachable()
+            self.builder.set_current_block(self.builder.add_block())
 
         return result
 
     def build_binop(self, op: AstExpressionKind, lhs: AnyBuilderValue, rhs: AnyBuilderValue) -> AnyBuilderValue:
         match op:
             case AstExpressionKind.Eq:
-                return self->builder->eq(lhs, rhs)
+                return self.builder.eq(lhs, rhs)
             case AstExpressionKind.Ne:
-                return self->builder->not_(self->builder->eq(lhs, rhs))
+                return self.builder.not_(self.builder.eq(lhs, rhs))
             case AstExpressionKind.Lt:
-                return self->builder->lt(lhs, rhs)
+                return self.builder.lt(lhs, rhs)
             case AstExpressionKind.Gt:
-                return self->builder->lt(rhs, lhs)
+                return self.builder.lt(rhs, lhs)
             case AstExpressionKind.Le:
-                return self->builder->not_(self->builder->lt(rhs, lhs))
+                return self.builder.not_(self.builder.lt(rhs, lhs))
             case AstExpressionKind.Ge:
-                return self->builder->not_(self->builder->lt(lhs, rhs))
+                return self.builder.not_(self.builder.lt(lhs, rhs))
             case AstExpressionKind.Add:
-                return self->builder->add(lhs, rhs)
+                return self.builder.add(lhs, rhs)
             case AstExpressionKind.Sub:
-                return self->builder->sub(lhs, rhs)
+                return self.builder.sub(lhs, rhs)
             case AstExpressionKind.Mul:
-                return self->builder->mul(lhs, rhs)
+                return self.builder.mul(lhs, rhs)
             case AstExpressionKind.Div:
-                return self->builder->div(lhs, rhs)
+                return self.builder.div(lhs, rhs)
             case AstExpressionKind.Mod:
-                return self->builder->mod(lhs, rhs)
+                return self.builder.mod(lhs, rhs)
             case AstExpressionKind.BitAnd:
-                return self->builder->bit_and(lhs, rhs)
+                return self.builder.bit_and(lhs, rhs)
             case AstExpressionKind.BitOr:
-                return self->builder->bit_or(lhs, rhs)
+                return self.builder.bit_or(lhs, rhs)
             case AstExpressionKind.BitXor:
-                return self->builder->bit_xor(lhs, rhs)
+                return self.builder.bit_xor(lhs, rhs)
             case _:
                 assert False
 
     def build_inplace_binop(self, op: AstExpressionKind, lhs: AstExpression*, rhs: AstExpression*) -> None:
-        lhs_ptr = self->build_address_of_expression(lhs)
-        rhs_value = self->build_expression(rhs)
-        old_value = self->builder->dereference(lhs_ptr)
-        new_value = self->build_binop(op, old_value, rhs_value)
-        self->builder->set_ptr(lhs_ptr, new_value)
+        lhs_ptr = self.build_address_of_expression(lhs)
+        rhs_value = self.build_expression(rhs)
+        old_value = self.builder.dereference(lhs_ptr)
+        new_value = self.build_binop(op, old_value, rhs_value)
+        self.builder.set_ptr(lhs_ptr, new_value)
 
     def build_instantiation(self, class_type: Type*, inst: AstInstantiation*) -> AnyBuilderValue:
         assert class_type != NULL
-        assert class_type->kind == TypeKind.Class
+        assert class_type.kind == TypeKind.Class
 
-        inst_ptr = self->builder->stack_alloc(class_type, NULL)
-        self->builder->memset_to_zero(inst_ptr)
-        for f = inst->fields.ptr; f < inst->fields.end(); f++:
-            field_ptr = self->builder->class_field_pointer(inst_ptr, f->name)
-            field_value = self->build_expression(&f->value)
-            self->builder->set_ptr(field_ptr, field_value)
+        inst_ptr = self.builder.stack_alloc(class_type, NULL)
+        self.builder.memset_to_zero(inst_ptr)
+        for f = inst.fields.ptr; f < inst.fields.end(); f++:
+            field_ptr = self.builder.class_field_pointer(inst_ptr, f.name)
+            field_value = self.build_expression(&f.value)
+            self.builder.set_ptr(field_ptr, field_value)
 
-        return self->builder->dereference(inst_ptr)
+        return self.builder.dereference(inst_ptr)
 
     def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> AnyBuilderValue:
         # Must be careful with side effects.
@@ -256,27 +287,27 @@ class AstToBuilder:
         #        result = rhs
         #    else:
         #        result = False
-        lhstrue = self->builder->add_block()
-        lhsfalse = self->builder->add_block()
-        done = self->builder->add_block()
-        resultptr = self->builder->stack_alloc(boolType, NULL)
+        lhstrue = self.builder.add_block()
+        lhsfalse = self.builder.add_block()
+        done = self.builder.add_block()
+        resultptr = self.builder.stack_alloc(boolType, NULL)
 
         # if lhs:
-        self->builder->branch(self->build_expression(lhsexpr), lhstrue, lhsfalse)
-        self->builder->set_current_block(lhstrue)
+        self.builder.branch(self.build_expression(lhsexpr), lhstrue, lhsfalse)
+        self.builder.set_current_block(lhstrue)
         # result = rhs
-        self->builder->set_ptr(resultptr, self->build_expression(rhsexpr))
+        self.builder.set_ptr(resultptr, self.build_expression(rhsexpr))
         # end if
-        self->builder->jump(done)
+        self.builder.jump(done)
         # else:
-        self->builder->set_current_block(lhsfalse)
+        self.builder.set_current_block(lhsfalse)
         # result = False
-        self->builder->set_ptr(resultptr, self->builder->boolean(False))
+        self.builder.set_ptr(resultptr, self.builder.boolean(False))
         # end else
-        self->builder->jump(done)
-        self->builder->set_current_block(done)
+        self.builder.jump(done)
+        self.builder.set_current_block(done)
 
-        return self->builder->dereference(resultptr)
+        return self.builder.dereference(resultptr)
 
     def build_or(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> AnyBuilderValue:
         # Must be careful with side effects.
@@ -286,41 +317,41 @@ class AstToBuilder:
         #        result = True
         #    else:
         #        result = rhs
-        lhstrue = self->builder->add_block()
-        lhsfalse = self->builder->add_block()
-        done = self->builder->add_block()
-        resultptr = self->builder->stack_alloc(boolType, NULL)
+        lhstrue = self.builder.add_block()
+        lhsfalse = self.builder.add_block()
+        done = self.builder.add_block()
+        resultptr = self.builder.stack_alloc(boolType, NULL)
 
         # if lhs:
-        self->builder->branch(self->build_expression(lhsexpr), lhstrue, lhsfalse)
-        self->builder->set_current_block(lhstrue)
+        self.builder.branch(self.build_expression(lhsexpr), lhstrue, lhsfalse)
+        self.builder.set_current_block(lhstrue)
         # result = True
-        self->builder->set_ptr(resultptr, self->builder->boolean(True))
+        self.builder.set_ptr(resultptr, self.builder.boolean(True))
         # end if
-        self->builder->jump(done)
+        self.builder.jump(done)
         # else:
-        self->builder->set_current_block(lhsfalse)
+        self.builder.set_current_block(lhsfalse)
         # result = rhs
-        self->builder->set_ptr(resultptr, self->build_expression(rhsexpr))
+        self.builder.set_ptr(resultptr, self.build_expression(rhsexpr))
         # end else
-        self->builder->jump(done)
-        self->builder->set_current_block(done)
+        self.builder.jump(done)
+        self.builder.set_current_block(done)
 
-        return self->builder->dereference(resultptr)
+        return self.builder.dereference(resultptr)
 
     def build_increment_or_decrement(self, inner: AstExpression*, pre: bool, diff: int) -> AnyBuilderValue:
         assert diff == 1 or diff == -1  # 1=increment, -1=decrement
 
-        ptr = self->build_address_of_expression(inner)
-        old_value = self->builder->dereference(ptr)
+        ptr = self.build_address_of_expression(inner)
+        old_value = self.builder.dereference(ptr)
 
-        t = inner->types.implicit_cast_type
-        if t->is_number_type():
-            new_value = self->builder->add(old_value, self->builder->cast(self->builder->integer(intType, diff), t))
+        t = inner.types.implicit_cast_type
+        if t.is_number_type():
+            new_value = self.builder.add(old_value, self.builder.cast(self.builder.integer(intType, diff), t))
         else:
-            new_value = self->builder->indexed_pointer(old_value, self->builder->integer(longType, diff))
+            new_value = self.builder.indexed_pointer(old_value, self.builder.integer(longType, diff))
 
-        self->builder->set_ptr(ptr, new_value)
+        self.builder.set_ptr(ptr, new_value)
 
         if pre:
             return new_value
@@ -328,101 +359,136 @@ class AstToBuilder:
             return old_value
 
     def build_array(self, t: Type*, items: List[AstExpression]) -> AnyBuilderValue:
-        assert t->kind == TypeKind.Array
-        assert t->array.len == items.len
+        assert t.kind == TypeKind.Array
+        assert t.array.len == items.len
 
-        arr_ptr = self->builder->stack_alloc(t, NULL)
-        first_item_ptr = self->builder->cast(arr_ptr, t->array.item_type->pointer_type())
+        arr_ptr = self.builder.stack_alloc(t, NULL)
+        first_item_ptr = self.builder.cast(arr_ptr, t.array.item_type.pointer_type())
 
         for i = 0; i < items.len; i++:
-            i_built = self->builder->integer(longType, i)
-            item_ptr = self->builder->indexed_pointer(first_item_ptr, i_built)
-            item_value = self->build_expression(&items.ptr[i])
-            self->builder->set_ptr(item_ptr, item_value)
+            i_built = self.builder.integer(longType, i)
+            item_ptr = self.builder.indexed_pointer(first_item_ptr, i_built)
+            item_value = self.build_expression(&items.ptr[i])
+            self.builder.set_ptr(item_ptr, item_value)
 
-        return self->builder->dereference(arr_ptr)
+        return self.builder.dereference(arr_ptr)
 
     def build_constant(self, constant: Constant*) -> AnyBuilderValue:
-        match constant->kind:
+        match constant.kind:
             case ConstantKind.ArrayString:
-                return self->builder->array_string(constant->array_string.ptr, constant->array_string.len as int)
+                return self.builder.array_string(constant.array_string.ptr, constant.array_string.len as int)
             case ConstantKind.PointerString:
-                return self->builder->pointer_string(constant->pointer_string)
+                return self.builder.pointer_string(constant.pointer_string)
             case ConstantKind.Integer:
-                return self->builder->integer(constant->get_type(), constant->integer.value)
+                return self.builder.integer(constant.get_type(), constant.integer.value)
             case ConstantKind.Bool:
-                return self->builder->boolean(constant->boolean)
+                return self.builder.boolean(constant.boolean)
             case ConstantKind.Float | ConstantKind.Double:
-                return self->builder->float_or_double(constant->get_type(), constant->float_or_double_text)
+                return self.builder.float_or_double(constant.get_type(), constant.float_or_double_text)
             case ConstantKind.Null:
-                return self->builder->zero_of_type(voidPtrType)
+                return self.builder.zero_of_type(voidPtrType)
             case ConstantKind.EnumMember:
-                return self->builder->enum_member(
-                    constant->enum_member.enumtype,
-                    constant->enum_member.enumtype->enum_members.ptr[constant->enum_member.memberidx]
+                return self.builder.enum_member(
+                    constant.enum_member.enumtype,
+                    constant.enum_member.enumtype.enum_members.ptr[constant.enum_member.memberidx]
                 )
 
+    # then if cond else otherwise
+    def build_ternary(
+        self,
+        then_expr: AstExpression*,
+        cond_expr: AstExpression*,
+        otherwise_expr: AstExpression*,
+    ) -> AnyBuilderValue:
+        cond_true = self.builder.add_block()
+        cond_false = self.builder.add_block()
+        done = self.builder.add_block()
+
+        t1 = then_expr.types.implicit_cast_type
+        t2 = otherwise_expr.types.implicit_cast_type
+        assert t1 == t2
+        resultptr = self.builder.stack_alloc(self.map_type(t1), NULL)
+
+        self.builder.branch(self.build_expression(cond_expr), cond_true, cond_false)
+
+        self.builder.set_current_block(cond_true)
+        self.builder.set_ptr(resultptr, self.build_expression(then_expr))
+        self.builder.jump(done)
+
+        self.builder.set_current_block(cond_false)
+        self.builder.set_ptr(resultptr, self.build_expression(otherwise_expr))
+        self.builder.jump(done)
+
+        self.builder.set_current_block(done)
+        return self.builder.dereference(resultptr)
+
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> AnyBuilderValue:
-        match expr->kind:
+        match expr.kind:
             case AstExpressionKind.IntegerConstant:
                 # should be turned into Constant during type checking
                 assert False
             case AstExpressionKind.Constant:
-                return self->build_constant(&expr->constant)
+                return self.build_constant(&expr.constant)
             case AstExpressionKind.Array:
-                return self->build_array(expr->types.orig_type, expr->array)
+                return self.build_array(expr.types.orig_type, expr.array)
             case AstExpressionKind.Call:
-                return self->build_call(&expr->call)
+                return self.build_call(&expr.call)
             case AstExpressionKind.Instantiate:
-                return self->build_instantiation(expr->types.orig_type, &expr->instantiation)
+                return self.build_instantiation(expr.types.orig_type, &expr.instantiation)
             case AstExpressionKind.Self:
-                return self->builder->dereference(self->local_var_ptr("self"))
+                return self.builder.dereference(self.local_var_ptr("self"))
             case AstExpressionKind.GetVariable:
-                if self->local_var_exists(expr->varname):
-                    return self->builder->dereference(self->local_var_ptr(expr->varname))
+                if self.local_var_exists(expr.varname):
+                    return self.builder.dereference(self.local_var_ptr(expr.varname))
                 else:
-                    assert self->inlining_info == NULL
-                    return self->builder->dereference(self->builder->global_var_ptr(expr->varname, expr->types.orig_type))
+                    assert self.inlining_info == NULL
+                    return self.builder.dereference(self.builder.global_var_ptr(expr.varname, expr.types.orig_type))
+            case AstExpressionKind.GetFuncPtr:
+                return self.builder.get_funcptr(expr.get_func_ptr.signature)
             case AstExpressionKind.Indexing:
                 # ptr[foo] can always be evaluated as &ptr[foo], because ptr is already a pointer.
                 # We can't do this for all expressions, because e.g. &some_function() is error.
-                return self->builder->dereference(self->build_address_of_expression(expr))
+                return self.builder.dereference(self.build_address_of_expression(expr))
+            case AstExpressionKind.DotOperator:
+                # Should become other expression kind before we get here
+                assert False
             case AstExpressionKind.GetEnumMember:
-                return self->builder->enum_member(expr->types.orig_type, expr->enum_member.member_name)
+                return self.builder.enum_member(expr.types.orig_type, expr.enum_member.member_name)
             case AstExpressionKind.GetClassField:
-                if expr->class_field.uses_arrow_operator:
-                    ptr = self->build_expression(expr->class_field.instance)
-                else:
-                    # Evaluate foo.bar as (&temp)->bar, where temp is a temporary copy of foo.
-                    # We need to copy, because it's not always possible to evaluate &foo.
-                    # For example, consider evaluating some_function().some_field.
-                    instance = self->build_expression(expr->class_field.instance)
-                    ptr = self->builder->stack_alloc(self->map_type(expr->class_field.instance->types.implicit_cast_type), NULL)
-                    self->builder->set_ptr(ptr, instance)
-                fieldptr = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
-                return self->builder->dereference(fieldptr)
+                # Evaluate foo.bar as (&temp).bar, where temp is a temporary copy of foo.
+                # We need to copy, because it's not always possible to evaluate &foo.
+                # For example, consider evaluating some_function().some_field.
+                instance = self.build_expression(expr.class_field.instance)
+                ptr = self.builder.stack_alloc(self.map_type(expr.class_field.instance.types.implicit_cast_type), NULL)
+                self.builder.set_ptr(ptr, instance)
+                fieldptr = self.builder.class_field_pointer(ptr, expr.class_field.field_name)
+                return self.builder.dereference(fieldptr)
+            case AstExpressionKind.GetClassFieldPtr:
+                ptr = self.build_expression(expr.class_field.instance)
+                fieldptr = self.builder.class_field_pointer(ptr, expr.class_field.field_name)
+                return self.builder.dereference(fieldptr)
             case AstExpressionKind.As:
-                return self->builder->cast(self->build_expression(&expr->as_->value), expr->types.orig_type)
+                return self.builder.cast(self.build_expression(&expr.as_.value), expr.types.orig_type)
             case AstExpressionKind.SizeOf:
-                return self->builder->size_of(self->map_type(expr->operands[0].types.implicit_cast_type))
+                return self.builder.size_of(self.map_type(expr.operands[0].types.implicit_cast_type))
             case AstExpressionKind.AddressOf:
-                return self->build_address_of_expression(&expr->operands[0])
+                return self.build_address_of_expression(&expr.operands[0])
             case AstExpressionKind.Dereference:
-                return self->builder->dereference(self->build_expression(&expr->operands[0]))
+                return self.builder.dereference(self.build_expression(&expr.operands[0]))
             case AstExpressionKind.Negate:  # -x
                 # compute -x as 0-x
-                return self->builder->sub(
-                    self->builder->zero_of_type(expr->operands[0].types.implicit_cast_type),
-                    self->build_expression(&expr->operands[0]),
+                return self.builder.sub(
+                    self.builder.zero_of_type(expr.operands[0].types.implicit_cast_type),
+                    self.build_expression(&expr.operands[0]),
                 )
             case AstExpressionKind.PreIncr:
-                return self->build_increment_or_decrement(&expr->operands[0], True, 1)
+                return self.build_increment_or_decrement(&expr.operands[0], True, 1)
             case AstExpressionKind.PreDecr:
-                return self->build_increment_or_decrement(&expr->operands[0], True, -1)
+                return self.build_increment_or_decrement(&expr.operands[0], True, -1)
             case AstExpressionKind.PostIncr:
-                return self->build_increment_or_decrement(&expr->operands[0], False, 1)
+                return self.build_increment_or_decrement(&expr.operands[0], False, 1)
             case AstExpressionKind.PostDecr:
-                return self->build_increment_or_decrement(&expr->operands[0], False, -1)
+                return self.build_increment_or_decrement(&expr.operands[0], False, -1)
             case (
                 AstExpressionKind.Add
                 | AstExpressionKind.Sub
@@ -442,154 +508,157 @@ class AstToBuilder:
                 # Note: If you port this code to another programming language, make sure
                 # to evaluate the operands in the correct order. C does not guarantee
                 # evaluation order of function arguments, but Jou does.
-                return self->build_binop(expr->kind, self->build_expression(&expr->operands[0]), self->build_expression(&expr->operands[1]))
+                return self.build_binop(expr.kind, self.build_expression(&expr.operands[0]), self.build_expression(&expr.operands[1]))
             case AstExpressionKind.And:
-                return self->build_and(&expr->operands[0], &expr->operands[1])
+                return self.build_and(&expr.operands[0], &expr.operands[1])
             case AstExpressionKind.Or:
-                return self->build_or(&expr->operands[0], &expr->operands[1])
+                return self.build_or(&expr.operands[0], &expr.operands[1])
             case AstExpressionKind.Not:
-                return self->builder->not_(self->build_expression(&expr->operands[0]))
+                return self.builder.not_(self.build_expression(&expr.operands[0]))
+            case AstExpressionKind.TernaryIf:
+                return self.build_ternary(&expr.operands[0], &expr.operands[1], &expr.operands[2])
 
     def build_expression(self, expr: AstExpression*) -> AnyBuilderValue:
-        old_location = self->set_location(expr->location)
+        old_location = self.set_location(expr.location)
 
-        if expr->types.implicit_array_to_pointer_cast:
-            result = self->builder->cast(self->build_address_of_expression(expr), expr->types.implicit_cast_type)
+        if expr.types.implicit_array_to_pointer_cast:
+            result = self.builder.cast(self.build_address_of_expression(expr), expr.types.implicit_cast_type)
         else:
-            raw = self->build_expression_without_implicit_cast(expr)
-            if expr->types.orig_type == NULL and expr->types.implicit_cast_type == NULL:
+            raw = self.build_expression_without_implicit_cast(expr)
+            if expr.types.orig_type == NULL and expr.types.implicit_cast_type == NULL:
                 # Function/method call that returns no value
-                assert expr->kind == AstExpressionKind.Call
+                assert expr.kind == AstExpressionKind.Call
                 result = AnyBuilderValue{}
             else:
-                assert expr->types.orig_type != NULL
-                assert expr->types.implicit_cast_type != NULL
-                result = self->builder->cast(raw, self->map_type(expr->types.implicit_cast_type))
+                assert expr.types.orig_type != NULL
+                assert expr.types.implicit_cast_type != NULL
+                result = self.builder.cast(raw, self.map_type(expr.types.implicit_cast_type))
 
-        self->set_location(old_location)
+        self.set_location(old_location)
         return result
 
     def build_address_of_expression(self, expr: AstExpression*) -> AnyBuilderValue:
-        old_location = self->set_location(expr->location)
+        old_location = self.set_location(expr.location)
 
-        match expr->kind:
+        match expr.kind:
             case AstExpressionKind.GetClassField:
-                if expr->class_field.uses_arrow_operator:
-                    # &ptr->field = ptr + memory offset
-                    ptr = self->build_expression(expr->class_field.instance)
-                else:
-                    # &obj.field = &obj + memory offset
-                    ptr = self->build_address_of_expression(expr->class_field.instance)
-                result = self->builder->class_field_pointer(ptr, expr->class_field.field_name)
+                # &instance.field = &instance + memory offset
+                ptr = self.build_address_of_expression(expr.class_field.instance)
+                result = self.builder.class_field_pointer(ptr, expr.class_field.field_name)
+            case AstExpressionKind.GetClassFieldPtr:
+                # &pointer.field = pointer + memory offset
+                ptr = self.build_expression(expr.class_field.instance)
+                result = self.builder.class_field_pointer(ptr, expr.class_field.field_name)
             case AstExpressionKind.Self:
-                result = self->local_var_ptr("self")
+                result = self.local_var_ptr("self")
             case AstExpressionKind.GetVariable:
-                if self->local_var_exists(expr->varname):
-                    result = self->local_var_ptr(expr->varname)
+                if self.local_var_exists(expr.varname):
+                    result = self.local_var_ptr(expr.varname)
                 else:
-                    assert self->inlining_info == NULL
-                    result = self->builder->global_var_ptr(expr->varname, expr->types.orig_type)
+                    assert self.inlining_info == NULL
+                    result = self.builder.global_var_ptr(expr.varname, expr.types.orig_type)
             case AstExpressionKind.Indexing:
                 # &ptr[index] = ptr + memory offset
-                ptr = self->build_expression(&expr->operands[0])
-                index = self->build_expression(&expr->operands[1])
-                result = self->builder->indexed_pointer(ptr, index)
+                ptr = self.build_expression(&expr.operands[0])
+                index = self.build_expression(&expr.operands[1])
+                result = self.builder.indexed_pointer(ptr, index)
             case AstExpressionKind.Dereference:
                 # &*ptr = ptr
-                result = self->build_expression(&expr->operands[0])
+                result = self.build_expression(&expr.operands[0])
             case _:
                 assert False
 
-        self->set_location(old_location)
+        self.set_location(old_location)
         return result
 
     def build_if_statement(self, ifst: AstIfStatement*) -> None:
-        done = self->builder->add_block()
-        for p = ifst->if_and_elifs.ptr; p < ifst->if_and_elifs.end(); p++:
-            cond = self->build_expression(&p->condition)
-            then = self->builder->add_block()
-            otherwise = self->builder->add_block()
-            self->builder->branch(cond, then, otherwise)
-            self->builder->set_current_block(then)
-            self->build_body(p->body)
-            self->builder->jump(done)
-            self->builder->set_current_block(otherwise)
+        done = self.builder.add_block()
+        for p = ifst.if_and_elifs.ptr; p < ifst.if_and_elifs.end(); p++:
+            cond = self.build_expression(&p.condition)
+            then = self.builder.add_block()
+            otherwise = self.builder.add_block()
+            self.builder.branch(cond, then, otherwise)
+            self.builder.set_current_block(then)
+            self.build_body(p.body)
+            self.builder.jump(done)
+            self.builder.set_current_block(otherwise)
 
-        self->build_body(ifst->else_body)
-        self->builder->jump(done)
-        self->builder->set_current_block(done)
+        self.build_body(ifst.else_body)
+        self.builder.jump(done)
+        self.builder.set_current_block(done)
 
     def build_loop(self, cond: AstExpression*, incr: AstStatement*, body: List[AstStatement]) -> None:
-        condblock = self->builder->add_block()  # evaluate condition and go to bodyblock or doneblock
-        bodyblock = self->builder->add_block()  # run loop body and go to incrblock
-        incrblock = self->builder->add_block()  # run incr and go to condblock
-        doneblock = self->builder->add_block()  # rest of the code goes here
+        condblock = self.builder.add_block()  # evaluate condition and go to bodyblock or doneblock
+        bodyblock = self.builder.add_block()  # run loop body and go to incrblock
+        incrblock = self.builder.add_block()  # run incr and go to condblock
+        doneblock = self.builder.add_block()  # rest of the code goes here
 
         # Start loop from condition
-        self->builder->jump(condblock)
+        self.builder.jump(condblock)
 
         # Evaluate condition and then jump to loop body or skip to after loop.
-        self->builder->set_current_block(condblock)
+        self.builder.set_current_block(condblock)
         if cond == NULL:
             # assume True
-            self->builder->jump(bodyblock)
+            self.builder.jump(bodyblock)
         else:
-            self->builder->branch(self->build_expression(cond), bodyblock, doneblock)
+            self.builder.branch(self.build_expression(cond), bodyblock, doneblock)
 
         # Within loop body, 'break' skips to after loop, 'continue' goes to incr.
-        self->loops.append(Loop{on_break = doneblock, on_continue = incrblock})
+        self.loops.append(Loop{on_break = doneblock, on_continue = incrblock})
 
         # Run loop body. When done, go to incr.
-        self->builder->set_current_block(bodyblock)
-        self->build_body(body)
-        self->builder->jump(incrblock)
+        self.builder.set_current_block(bodyblock)
+        self.build_body(body)
+        self.builder.jump(incrblock)
 
         # 'break' and 'continue' are not allowed after the loop body.
-        self->loops.pop()
+        self.loops.pop()
 
         # Run incr and jump back to condition.
-        self->builder->set_current_block(incrblock)
+        self.builder.set_current_block(incrblock)
         if incr != NULL:
-            self->build_statement(incr, False)
-        self->builder->jump(condblock)
+            self.build_statement(incr, False)
+        self.builder.jump(condblock)
 
         # Code after the loop goes to "loop done" part.
-        self->builder->set_current_block(doneblock)
+        self.builder.set_current_block(doneblock)
 
     def build_match_statement(self, match_stmt: AstMatchStatement*) -> None:
-        match_obj = self->build_expression(&match_stmt->match_obj)
+        match_obj = self.build_expression(&match_stmt.match_obj)
 
-        done = self->builder->add_block()
-        for p = match_stmt->cases.ptr; p < match_stmt->cases.end(); p++:
-            then = self->builder->add_block()
+        done = self.builder.add_block()
+        for p = match_stmt.cases.ptr; p < match_stmt.cases.end(); p++:
+            then = self.builder.add_block()
             otherwise = AnyBuilderBlock{}  # will be replaced by loop below
-            for case_obj_ast = p->case_objs.ptr; case_obj_ast < p->case_objs.end(); case_obj_ast++:
-                case_obj = self->build_expression(case_obj_ast)
-                if match_stmt->func_name[0] == '\0':
-                    cond = self->builder->eq(match_obj, case_obj)
+            for case_obj_ast = p.case_objs.ptr; case_obj_ast < p.case_objs.end(); case_obj_ast++:
+                case_obj = self.build_expression(case_obj_ast)
+                if match_stmt.func_name[0] == '\0':
+                    cond = self.builder.eq(match_obj, case_obj)
                 else:
+                    # TODO: make this more general:
+                    #   - inline functions
+                    #   - funcptr
+                    func = self.builder.get_funcptr(&match_stmt.func_signature)
                     args = [match_obj, case_obj]
-                    func_ret = self->call_or_inline(
-                        &match_stmt->func_signature,
-                        List[AnyBuilderValue]{ptr=args,len=2},
-                    )
-                    zero = self->builder->integer(match_stmt->func_signature.return_type, 0)
-                    cond = self->builder->eq(func_ret, zero)
-                otherwise = self->builder->add_block()
-                self->builder->branch(cond, then, otherwise)
-                self->builder->set_current_block(otherwise)
+                    func_ret = self.builder.call_function(match_stmt.func_signature.to_funcptr_type(), func, args, 2)
+                    zero = self.builder.integer(match_stmt.func_signature.return_type, 0)
+                    cond = self.builder.eq(func_ret, zero)
+                otherwise = self.builder.add_block()
+                self.builder.branch(cond, then, otherwise)
+                self.builder.set_current_block(otherwise)
 
-            self->builder->set_current_block(then)
-            self->build_body(p->body)
-            self->builder->jump(done)
-            self->builder->set_current_block(otherwise)
+            self.builder.set_current_block(then)
+            self.build_body(p.body)
+            self.builder.jump(done)
+            self.builder.set_current_block(otherwise)
 
-        if match_stmt->case_underscore != NULL:
-            self->build_body(*match_stmt->case_underscore)
+        if match_stmt.case_underscore != NULL:
+            self.build_body(*match_stmt.case_underscore)
 
         if (
-            match_stmt->case_underscore == NULL
-            and match_stmt->match_obj.types.implicit_cast_type->kind == TypeKind.Enum
+            match_stmt.case_underscore == NULL
+            and match_stmt.match_obj.types.implicit_cast_type.kind == TypeKind.Enum
         ):
             # The one corner case where match statement invokes UB:
             #   - User is matching over an enum
@@ -598,24 +667,24 @@ class AstToBuilder:
             #   - There is no "case _" to catch the invalid value
             #
             # See also: doc/match.md
-            self->builder->unreachable()
+            self.builder.unreachable()
         else:
-            self->builder->jump(done)
+            self.builder.jump(done)
 
-        self->builder->set_current_block(done)
+        self.builder.set_current_block(done)
 
     def build_assert(self, assert_location: Location, assertion: AstAssertion*) -> None:
-        condvar = self->build_expression(&assertion->condition)
+        condvar = self.build_expression(&assertion.condition)
 
-        ok_block = self->builder->add_block()
-        error_block = self->builder->add_block()
-        self->builder->branch(condvar, ok_block, error_block)
+        ok_block = self.builder.add_block()
+        error_block = self.builder.add_block()
+        self.builder.branch(condvar, ok_block, error_block)
 
-        self->builder->set_current_block(error_block)
+        self.builder.set_current_block(error_block)
 
         sig_args = [
-            NameAndType{name = "assertion", type = byteType->pointer_type()},
-            NameAndType{name = "path", type = byteType->pointer_type()},
+            NameAndType{name = "assertion", type = byteType.pointer_type()},
+            NameAndType{name = "path", type = byteType.pointer_type()},
             NameAndType{name = "lineno", type = intType},
         ]
         sig = Signature{
@@ -624,114 +693,115 @@ class AstToBuilder:
             takes_varargs = False,
             is_noreturn = True,
         }
+        func = self.builder.get_funcptr(&sig)
 
         args = [
-            self->builder->pointer_string(assertion->condition_str),
-            self->builder->pointer_string(assert_location.path),
-            self->builder->integer(intType, assert_location.lineno),
+            self.builder.pointer_string(assertion.condition_str),
+            self.builder.pointer_string(assert_location.path),
+            self.builder.integer(intType, assert_location.lineno),
         ]
-        self->builder->call(&sig, args, 3)
+        self.builder.call_function(sig.to_funcptr_type(), func, args, 3)
 
-        self->builder->unreachable()
-        self->builder->set_current_block(ok_block)
+        self.builder.unreachable()
+        self.builder.set_current_block(ok_block)
 
     def build_statement(self, stmt: AstStatement*, in_a_body: bool) -> None:
-        old_location = self->set_location(stmt->location)
+        old_location = self.set_location(stmt.location)
         if in_a_body:
-            self->builder->begin_statement_in_a_body()
+            self.builder.begin_statement_in_a_body()
 
-        match stmt->kind:
+        match stmt.kind:
             case AstStatementKind.If:
-                self->build_if_statement(&stmt->if_statement)
+                self.build_if_statement(&stmt.if_statement)
             case AstStatementKind.Assert:
-                self->build_assert(stmt->location, &stmt->assertion)
+                self.build_assert(stmt.location, &stmt.assertion)
             case AstStatementKind.Pass:
                 pass
             case AstStatementKind.WhileLoop:
-                self->build_loop(&stmt->while_loop.condition, NULL, stmt->while_loop.body)
+                self.build_loop(&stmt.while_loop.condition, NULL, stmt.while_loop.body)
             case AstStatementKind.ForLoop:
-                if stmt->for_loop.init != NULL:
-                    self->build_statement(stmt->for_loop.init, False)
-                self->build_loop(
-                    stmt->for_loop.cond, stmt->for_loop.incr, stmt->for_loop.body)
+                if stmt.for_loop.init != NULL:
+                    self.build_statement(stmt.for_loop.init, False)
+                self.build_loop(
+                    stmt.for_loop.cond, stmt.for_loop.incr, stmt.for_loop.body)
             case AstStatementKind.Match:
-                self->build_match_statement(&stmt->match_statement)
+                self.build_match_statement(&stmt.match_statement)
             case AstStatementKind.Break:
-                assert self->loops.len > 0
-                self->builder->jump(self->loops.end()[-1].on_break)
-                self->builder->set_current_block(self->builder->add_block())  # for code after 'break', if any
+                assert self.loops.len > 0
+                self.builder.jump(self.loops.end()[-1].on_break)
+                self.builder.set_current_block(self.builder.add_block())  # for code after 'break', if any
             case AstStatementKind.Continue:
-                assert self->loops.len > 0
-                self->builder->jump(self->loops.end()[-1].on_continue)
-                self->builder->set_current_block(self->builder->add_block())  # for code after 'continue', if any
+                assert self.loops.len > 0
+                self.builder.jump(self.loops.end()[-1].on_continue)
+                self.builder.set_current_block(self.builder.add_block())  # for code after 'continue', if any
             case AstStatementKind.Assign:
-                lhs_ptr = self->build_address_of_expression(&stmt->assignment.target)
-                rhs = self->build_expression(&stmt->assignment.value)
-                self->builder->set_ptr(lhs_ptr, rhs)
+                lhs_ptr = self.build_address_of_expression(&stmt.assignment.target)
+                rhs = self.build_expression(&stmt.assignment.value)
+                self.builder.set_ptr(lhs_ptr, rhs)
             case AstStatementKind.InPlaceAdd:
-                self->build_inplace_binop(AstExpressionKind.Add, &stmt->assignment.target, &stmt->assignment.value)
+                self.build_inplace_binop(AstExpressionKind.Add, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceSub:
-                self->build_inplace_binop(AstExpressionKind.Sub, &stmt->assignment.target, &stmt->assignment.value)
+                self.build_inplace_binop(AstExpressionKind.Sub, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceMul:
-                self->build_inplace_binop(AstExpressionKind.Mul, &stmt->assignment.target, &stmt->assignment.value)
+                self.build_inplace_binop(AstExpressionKind.Mul, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceDiv:
-                self->build_inplace_binop(AstExpressionKind.Div, &stmt->assignment.target, &stmt->assignment.value)
+                self.build_inplace_binop(AstExpressionKind.Div, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceMod:
-                self->build_inplace_binop(AstExpressionKind.Mod, &stmt->assignment.target, &stmt->assignment.value)
+                self.build_inplace_binop(AstExpressionKind.Mod, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceBitAnd:
-                self->build_inplace_binop(AstExpressionKind.BitAnd, &stmt->assignment.target, &stmt->assignment.value)
+                self.build_inplace_binop(AstExpressionKind.BitAnd, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceBitOr:
-                self->build_inplace_binop(AstExpressionKind.BitOr, &stmt->assignment.target, &stmt->assignment.value)
+                self.build_inplace_binop(AstExpressionKind.BitOr, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceBitXor:
-                self->build_inplace_binop(AstExpressionKind.BitXor, &stmt->assignment.target, &stmt->assignment.value)
+                self.build_inplace_binop(AstExpressionKind.BitXor, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.Return:
-                if self->inlining_info == NULL:
-                    if stmt->return_value != NULL:
-                        r = self->build_expression(stmt->return_value)
-                        self->builder->ret(&r)
+                if self.inlining_info == NULL:
+                    if stmt.return_value != NULL:
+                        r = self.build_expression(stmt.return_value)
+                        self.builder.ret(&r)
                     else:
-                        self->builder->ret(NULL)
+                        self.builder.ret(NULL)
                 else:
-                    if stmt->return_value != NULL:
-                        r = self->build_expression(stmt->return_value)
-                        self->builder->set_ptr(self->inlining_info->return_value_ptr, r)
-                    self->builder->jump(self->inlining_info->return_jumps_to)
-                self->builder->set_current_block(self->builder->add_block())  # for code after 'return', if any
+                    if stmt.return_value != NULL:
+                        r = self.build_expression(stmt.return_value)
+                        self.builder.set_ptr(self.inlining_info.return_value_ptr, r)
+                    self.builder.jump(self.inlining_info.return_jumps_to)
+                self.builder.set_current_block(self.builder.add_block())  # for code after 'return', if any
             case AstStatementKind.DeclareLocalVar:
-                if stmt->local_var_declare.value != NULL:
-                    var_ptr = self->local_var_ptr(stmt->local_var_declare.name)
-                    value = self->build_expression(stmt->local_var_declare.value)
-                    self->builder->set_ptr(var_ptr, value)
+                if stmt.local_var_declare.value != NULL:
+                    var_ptr = self.local_var_ptr(stmt.local_var_declare.name)
+                    value = self.build_expression(stmt.local_var_declare.value)
+                    self.builder.set_ptr(var_ptr, value)
             case AstStatementKind.ExpressionStatement:
-                self->build_expression(&stmt->expression)
+                self.build_expression(&stmt.expression)
             case _:
                 # other statements shouldn't occur inside functions/methods
                 assert False
 
-        self->set_location(old_location)
+        self.set_location(old_location)
 
     def build_body(self, body: List[AstStatement]) -> None:
         for p = body.ptr; p < body.end(); p++:
-            self->build_statement(p, True)
+            self.build_statement(p, True)
 
     def free(self) -> None:
-        free(self->locals.ptr)
-        free(self->loops.ptr)
+        free(self.locals.ptr)
+        free(self.loops.ptr)
 
 
 @public
 def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location, is_main_file: bool, builder: AnyBuilder*) -> None:
-    if func_ast->inline and builder->should_functions_marked_with_inline_be_inlined():
+    if func_ast.inline and builder.should_functions_marked_with_inline_be_inlined():
         # Calls to this function will be inlined. Pretend the function doesn't exist.
         return
 
     public = (
-        func_ast->public
-        or func_ast->types.signature.get_self_class() != NULL
-        or (is_main_file and func_ast->types.signature.is_main_function())
+        func_ast.public
+        or func_ast.types.signature.get_self_class() != NULL
+        or (is_main_file and func_ast.types.signature.is_main_function())
     )
     ast2ir = AstToBuilder{builder = builder}
-    ast2ir.begin_function(&func_ast->types, func_location, public)
-    ast2ir.build_body(func_ast->body)
+    ast2ir.begin_function(&func_ast.types, func_location, public)
+    ast2ir.build_body(func_ast.body)
     ast2ir.free()
-    builder->end_function()
+    builder.end_function()
