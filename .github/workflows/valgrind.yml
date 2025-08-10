@@ -1,15 +1,13 @@
+# Runs tests with valgrind. That catches various memory bugs, but is too slow
+# for running in every pull request.
+
 on:
-  # MacOS is super slow in GitHub Actions for some reason, so run this every
-  # night instead of every pull request.
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:  # Can also be triggered manually from github UI
-  pull_request:
-    paths:
-      - .github/workflows/macos.yml  # Run whenever this file is modified
 
 jobs:
-  # Please keep in sync with valgrind.yml
+  # Please keep in sync with macos.yml
   check-if-needed:
     timeout-minutes: 1
     runs-on: ubuntu-latest
@@ -32,14 +30,15 @@ jobs:
             echo "run=true" >> $GITHUB_OUTPUT
           fi
 
-  test:
+  valgrind:
     needs: [check-if-needed]
     if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
-    runs-on: macos-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       matrix:
         # Testing all levels because there was a bug that only happened with -O1. (#224)
+        # Please keep in sync with linux.yml
         params:
           - { llvm-version: 15, opt-level: '-O0' }
           - { llvm-version: 15, opt-level: '-O1' }
@@ -52,31 +51,34 @@ jobs:
           - { llvm-version: 19, opt-level: '-O1' }
           - { llvm-version: 19, opt-level: '-O2' }
           - { llvm-version: 19, opt-level: '-O3' }
+      fail-fast: false
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
-      - run: exit 1
-      - run: brew install bash diffutils llvm@${{ matrix.params.llvm-version }}
-      - name: "Select LLVM version"
-        run: echo "LLVM_CONFIG=/opt/homebrew/opt/llvm@${{ matrix.params.llvm-version }}/bin/llvm-config" >> $GITHUB_ENV
-      - name: "Compile and test"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
-      - name: "Compile the compiler with itself"
-        run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
-      - name: "Compile and test again"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
-      - run: ./doctest.sh
+      - uses: actions/cache@v4
+        with:
+          path: jou_bootstrap
+          key: bootstrap-valgrind-${{ runner.os }}-${{ matrix.params.llvm-version }}-${{ matrix.params.opt-level }}-${{ hashFiles('bootstrap.sh') }}
+      - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
+        run: touch -c jou_bootstrap
+      - name: "Install apt packages"
+        run: |
+          PACKAGES="llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind"
+          sudo apt install -y $PACKAGES || (sudo apt update && sudo apt install -y $PACKAGES)
+      - run: LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }} make
+      - name: "Test compiler with valgrind"
+        run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.params.opt-level }}"
 
-  # Please keep in sync with valgrind.yml
+  # Please keep in sync with macos.yml
   create-issue-on-failure:
     name: Create an issue if failed
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [check-if-needed, test]
-    if: ${{ github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.test.result == 'failure' }}
+    needs: [check-if-needed, valgrind]
+    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.valgrind.result == 'failure' }}
     permissions:
       issues: write
     steps:
       - uses: actions/checkout@v4
-      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on MacOS failed"
+      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests with valgrind failed"
