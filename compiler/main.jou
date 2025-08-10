@@ -462,19 +462,6 @@ def parse_only() -> None:
     fail_if_warnings_and_flag()
     return 0
 
-<<<<<<< HEAD
-    if command_line_args.parse_only:
-        parse_only(command_line_args.infile, stdlib)
-        fail_if_warnings_and_flag()
-        return 0
-
-    compst = CompileState{ stdlib_path = stdlib }
-
-    # This part recursively finds and parses imported files.
-    compst.parse_from_stdlib("_assert_fail.jou")
-    compst.parse(command_line_args.infile, NULL)
-=======
->>>>>>> ec9ba04 (wip)
 
 def uvg_only() -> None:
     compst = CompileState{stdlib_path = find_stdlib()}
