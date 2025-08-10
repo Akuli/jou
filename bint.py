@@ -58,16 +58,27 @@ class Token:
 def tokenize(jou_code, path):
     regex = r"""
     (?P<newline> \n [ ]* )                      # a newline and all indentation after it
-    | (?P<keyword> KEYWORDS )                   # e.g. "import"
-    | (?P<name> [^\W\d] \w* )                   # e.g. "foo"
+    | (?P<keyword> KEYWORDS )                   # "import"
+    | (?P<name> [^\W\d] \w* )                   # "foo"
     | (?P<decorator> @public | @inline )
-    | (?P<string> " ( \\ . | [^"\n\\] )* " )    # e.g. "hello"
-    | (?P<byte> ' ( \\ . | . ) ' )              # e.g. 'a' or '\n'
+    | (?P<string> " ( \\ . | [^"\n\\] )* " )    # "hello"
+    | (?P<byte> ' ( \\ . | . ) ' )              # 'a' or '\n'
     | (?P<op> \.\.\. | == | != | -> | <= | >= | \+\+ | -- | [+*/%&^|-]= | [.,:;=(){}\[\]&%*/+^<>|-] )
-    | (?P<int2> 0b [01_]+ )                     # e.g. 0b0100_1010
-    | (?P<int8> 0o [0-7_]+ )                    # e.g. 0o777
-    | (?P<int16> 0x [0-9A-Fa-f_]+ )             # e.g. 0xFFFF_FFFF
-    | (?P<int10> [0-9] [0-9_]* )                # e.g. 123
+    | (?P<double>
+        [0-9]* \. [0-9]+                        # 1.23 or .123
+        | [0-9]+ \.                             # or 123.
+        | (?:                                   # or:
+            [0-9]* \. [0-9]+                        # 1.23 or .123
+            | [0-9]+ \.                             # or 123.
+            | [0-9]                                 # or 123
+        ) e -? [0-9]+                               # followed by e3 or e-5
+    )
+    | (?P<int>
+        0b [01_]+                               # 0b0100_1010
+        | 0o [0-7_]+                            # 0o777
+        | 0x [0-9A-Fa-f_]+                      # 0xFFFF_FFFF
+        | [0-9] [0-9_]*                         # 123
+    )
     | (?P<ignore> \# .* | [ ] )                 # comments and spaces other than indentation
     | (?P<error> [\S\s] )                       # anything else is an error
     """.replace(
@@ -82,7 +93,11 @@ def tokenize(jou_code, path):
 
         if m.lastgroup != "ignore":
             tokens.append(
-                Token(kind=m.lastgroup, code=m.group(0), location=(path, lineno))
+                Token(
+                    kind=m.lastgroup.rstrip("_"),
+                    code=m.group(0),
+                    location=(path, lineno),
+                )
             )
 
         lineno += m.group(0).count("\n")
@@ -146,33 +161,33 @@ BYTE_VALUES = {
 } | {
     "'\\0'": 0,
     "'\\\\'": ord("\\"),
-    "'\\n'": ord('\n'),
-    "'\\r'": ord('\r'),
-    "'\\t'": ord('\t'),
+    "'\\n'": ord("\n"),
+    "'\\r'": ord("\r"),
+    "'\\t'": ord("\t"),
     "'\\''": ord("'"),
-    "' '": ord(' '),
+    "' '": ord(" "),
 }
 
 
 # reverse code golfing: https://xkcd.com/1960/
 def determine_the_kind_of_a_statement_that_starts_with_an_expression(t):
-    if t.code == ("="):
+    if t.code == "=":
         return "assign"
-    if t.code == ("+="):
+    if t.code == "+=":
         return "in_place_add"
-    if t.code == ("-="):
+    if t.code == "-=":
         return "in_place_sub"
-    if t.code == ("*="):
+    if t.code == "*=":
         return "in_place_mul"
-    if t.code == ("/="):
+    if t.code == "/=":
         return "in_place_div"
-    if t.code == ("%="):
+    if t.code == "%=":
         return "in_place_mod"
-    if t.code == ("&="):
+    if t.code == "&=":
         return "in_place_bit_and"
-    if t.code == ("|="):
+    if t.code == "|=":
         return "in_place_bit_or"
-    if t.code == ("^="):
+    if t.code == "^=":
         return "in_place_bit_xor"
     return "expr_stmt"
 
@@ -360,12 +375,8 @@ class Parser:
         return_type = self.parse_type()
         return (name, args, takes_varargs, return_type)
 
-    def parse_call(self):
-        assert self.tokens[0].kind == "name"
-        name = self.tokens[0].code
-        self.eat("name")
+    def parse_call(self, func):
         self.eat("(")
-
         args = []
         while self.tokens[0].code != ")":
             args.append(self.parse_expression())
@@ -373,7 +384,7 @@ class Parser:
                 break
             self.eat(",")
         self.eat(")")
-        return ("call", name, args)
+        return ("call", func, args)
 
     def parse_instantiation(self):
         type = self.parse_type()
@@ -407,23 +418,18 @@ class Parser:
         return ("array", result)
 
     def parse_elementary_expression(self):
-        if self.tokens[0].kind in {"int2", "int8", "int10", "int16"}:
-            return ("integer_constant", int(self.tokens.pop(0).code.replace("_", ""), 0))
+        if self.tokens[0].kind == "int":
+            return (
+                "integer_constant",
+                int(self.tokens.pop(0).code.replace("_", ""), 0),
+            )
         if self.tokens[0].kind == "byte":
             return ("constant", ctypes.c_uint8(BYTE_VALUES[self.eat("byte").code]))
-        #            case TokenKind.Float:
-        #                expr.kind = AstExpressionKind.Constant
-        #                expr.constant = Constant{kind = ConstantKind.Float, float_or_double_text = self.tokens[0].short_string}
-        #                self.tokens++
-        #            case TokenKind.Double:
-        #                expr.kind = AstExpressionKind.Constant
-        #                expr.constant = Constant{kind = ConstantKind.Double, float_or_double_text = self.tokens[0].short_string}
-        #                self.tokens++
+        if self.tokens[0].kind == "double":
+            return ("constant", ctypes.c_double(float(self.eat("double").code)))
         if self.tokens[0].kind == "string":
             return ("pointer_string", unescape_string(self.eat("string").code))
         if self.tokens[0].kind == "name":
-            if self.tokens[1].code == "(":
-                return self.parse_call()
             if self.looks_like_instantiate():
                 return self.parse_instantiation()
             return ("get_variable", self.eat("name").code)
@@ -449,33 +455,35 @@ class Parser:
             return self.parse_array()
         raise NotImplementedError(self.tokens[0])
 
-    def parse_expression_with_fields_and_methods_and_indexing(self):
+    def parse_dot_operator(self, obj):
+        self.eat(".")
+        name = self.eat("name").code
+        return (".", obj, name)
+
+    def parse_indexing(self, obj):
+        self.eat("[")
+        index = self.parse_expression()
+        self.eat("]")
+        return ("[", obj, index)
+
+    def parse_expression_with_members_and_indexing_and_calls(self):
         result = self.parse_elementary_expression()
-
-        while self.tokens[0].code in {".", "->", "["}:
+        while True:
             if self.tokens[0].code == "[":
-                self.eat("[")
-                index = self.parse_expression()
-                self.eat("]")
-                result = ("indexing", result, index)
+                result = self.parse_indexing(result)
+            elif self.tokens[0].code == ".":
+                result = self.parse_dot_operator(result)
+            elif self.tokens[0].code == "(":
+                result = self.parse_call(result)
             else:
-                arrow_or_dot = self.tokens.pop(0).code
-                assert self.tokens[0].kind == "name"
-                if self.tokens[1].code == "(":
-                    _, name, args = self.parse_call()
-                    result = ("call_method", result, arrow_or_dot, name, args)
-                else:
-                    name = self.eat("name").code
-                    result = ("get_class_field", result, arrow_or_dot, name)
-
-        return result
+                return result
 
     def parse_expression_with_unary_operators(self):
         prefix = []
         while self.tokens[0].code in {"++", "--", "&", "*", "sizeof"}:
             prefix.append(self.tokens.pop(0))
 
-        result = self.parse_expression_with_fields_and_methods_and_indexing()
+        result = self.parse_expression_with_members_and_indexing_and_calls()
 
         suffix = []
         while self.tokens[0].code in {"++", "--"}:
