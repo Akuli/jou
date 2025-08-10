@@ -68,7 +68,7 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
 
 
 @public
-def run_exe(exepath: byte*, valgrind: bool) -> None:
+def run_exe(exepath: byte*) -> None:
     if command_line_args.verbosity >= 1:
         printf("Run: %s\n", exepath)
 
@@ -78,7 +78,7 @@ def run_exe(exepath: byte*, valgrind: bool) -> None:
         while strstr(command, "/") != NULL:
             *strstr(command, "/") = '\\'
     else:
-        if valgrind:
+        if command_line_args.valgrind:
             asprintf(&command, "valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 '%s'", exepath)
         else:
             asprintf(&command, "'%s'", exepath)

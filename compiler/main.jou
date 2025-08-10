@@ -314,10 +314,10 @@ class CompileState:
 
     def parse_all_files(self) -> None:
         assert_fail_path: byte* = NULL
-        asprintf(&assert_fail_path, "%s/_assert_fail.jou", self.stdlib_path, filename)
+        asprintf(&assert_fail_path, "%s/_assert_fail.jou", self.stdlib_path)
         assert assert_fail_path != NULL
         self.parse(assert_fail_path, NULL)
-        free(path)
+        free(assert_fail_path)
 
         self.parse(command_line_args.infile, NULL)
 
@@ -439,19 +439,18 @@ def collect_linker_flags(files: List[FileState]) -> byte*:
     return result
 
 
-def tokenize_only():
+def tokenize_only() -> None:
     tokens = tokenize(command_line_args.infile, NULL)
     print_tokens(tokens)
     free_tokens(tokens)
 
     fail_if_warnings_and_flag()
-    return 0
 
 
 def parse_only() -> None:
     stdlib = find_stdlib()
     tokens = tokenize(command_line_args.infile, NULL)
-    ast = parse(tokens, stdlib_path)
+    ast = parse(tokens, stdlib)
 
     ast.print()
 
@@ -460,7 +459,6 @@ def parse_only() -> None:
     free(stdlib)
 
     fail_if_warnings_and_flag()
-    return 0
 
 
 def uvg_only() -> None:
@@ -500,6 +498,7 @@ def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     if not defines_main(&mainfile.ast):
         fail(Location{path=mainfile.path}, "missing `main` function to execute the program")
 
+    compst.free()
     fail_if_warnings_and_flag()
     return objpaths
 
@@ -510,10 +509,7 @@ def compile_to_jou_compiled_and_run() -> None:
 
     exepath = get_jou_compiled_exe_path()
     run_linker(objpaths, exepath, linker_flags)
-
-    ret = run_exe(exepath, command_line_args.valgrind)
-    if ret != 0:
-        exit(ret)
+    run_exe(exepath)
 
     for p = objpaths.ptr; p < objpaths.end(); p++:
         free(*p)
@@ -523,6 +519,17 @@ def compile_to_jou_compiled_and_run() -> None:
 
 
 def compile_to_outfile() -> None:
+    assert command_line_args.outfile != NULL
+
+    linker_flags: byte*
+    objpaths = compile_to_object_files(&linker_flags)
+
+    run_linker(objpaths, command_line_args.outfile, linker_flags)
+
+    for p = objpaths.ptr; p < objpaths.end(); p++:
+        free(*p)
+    free(objpaths.ptr)
+    free(linker_flags)
 
 
 def main(argc: int, argv: byte**) -> int:
@@ -541,45 +548,8 @@ def main(argc: int, argv: byte**) -> int:
         compile_to_outfile()
 
     fail_if_warnings_and_flag()
-    free_global_type_state()  # not necessary, but makes valgrind much happier
+
+    # These are not necessary but they make valgrind much happier.
+    free_global_type_state()
+
     return 0
-
-    compst = CompileState{ stdlib_path = stdlib }
-
-    objpaths = List[byte*]{}
-    for f = compst.files.ptr; f < compst.files.end(); f++:
-        o_path = f.find_existing_object_file_or_compile_to_object_file()
-        objpaths.append(o_path)
-
-    # Check for missing main() as late as possible, so that other errors come first.
-    # This way Jou users can work on other functions before main() function is written.
-    mainfile = compst.find_file(command_line_args.infile)
-    assert mainfile != NULL
-    if not defines_main(&mainfile.ast):
-        fail(Location{path=mainfile.path}, "missing `main` function to execute the program")
-
-    linker_flags = collect_linker_flags(compst.files)
-
-    compst.free()
-    free(stdlib)
-
-    # If failing due to warnings, do not run the code or produce an output file
-    fail_if_warnings_and_flag()
-
-    exepath = decide_exe_path()
-    run_linker(objpaths, exepath, linker_flags)
-    free(linker_flags)
-
-    for p = objpaths.ptr; p < objpaths.end(); p++:
-        free(*p)
-    free(objpaths.ptr)
-
-    ret = 0
-    if command_line_args.outfile == NULL:
-        ret = run_exe(exepath, command_line_args.valgrind)
-
-    free(exepath)
-
-    cleanup_target()
-
-    return ret
