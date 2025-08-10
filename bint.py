@@ -905,7 +905,7 @@ class Parser:
         assert not self.in_class_body
         self.in_class_body = old
 
-        return ("function_def", signature, body, decors)
+        return ("function_def",) + signature + (body, decors)
 
     def parse_class(self, decors):
         self.eat("class")
@@ -1082,6 +1082,76 @@ def find_named_type(path: str, type_name: str):
     return result
 
 
+def declare_c_functions(declare_ast):
+    _, func_name, args, takes_varargs, return_type, decors = declare_ast
+    print("Declaring function", func_name)
+    func = None
+    for lib in LIBS:
+        try:
+            func = getattr(lib, func_name)
+            break
+        except AttributeError:
+            pass
+
+    if func is None:
+        raise RuntimeError(f"function not found: {func_name}")
+
+    for arg_name, arg_type, arg_default in args:
+        assert arg_default is None
+    func.argtypes = [type_from_ast(path, triple[1]) for triple in args]
+    if return_type == ("named_type", "None") or return_type == (
+        "named_type",
+        "noreturn",
+    ):
+        func.restype = None
+    else:
+        func.restype = type_from_ast(path, return_type)
+
+    return func
+
+
+# Return values:
+#   - AST (tuple) if function defined in Jou
+#   - ctypes function if function defined in C and only declared in Jou
+#   - None if function not found
+def find_function(path: str, func_name: str):
+    try:
+        return FUNCTIONS[path][func_name]
+    except KeyError:
+        pass
+
+    # Is it defined or declared in this file?
+    result = None
+    for ast in ASTS[path]:
+        if ast[:2] == ("function_def", func_name):
+            result = ast
+            break
+        if ast[:2] == ("func_declare", func_name):
+            result = declare_c_function(ast)
+            break
+
+    if result is None:
+        # Is it defined or declared in an imported file?
+        for item in ASTS[path]:
+            if item[0] == "import":
+                _, path2 = item
+                for item2 in ASTS[path2]:
+                    if (
+                        item2[0] in ("function_def", "func_declare")
+                        and item2[1] == func_name
+                        and "@public" in item2[-1]
+                    ):
+                        result = find_function(path2, func_name)
+                        assert result is not None
+                        break
+                if result is not None:
+                    break
+
+    # may assign None, that's fine, next time we know it's not a thing
+    FUNCTIONS[path][func_name] = result
+    return result
+
+
 def type_from_ast(path, ast):
     if ast[0] == "pointer":
         _, value_type_ast = ast
@@ -1094,63 +1164,18 @@ def type_from_ast(path, ast):
     raise NotImplementedError(ast)
 
 
-def declare_lib_functions():
-    declares = [
-        (path, declare_ast)
-        for path, file_ast in ASTS.items()
-        for declare_ast in file_ast
-        if declare_ast[0] == "func_declare"
-    ]
-    print(f"Declaring {len(declares)} C functions...")
-
-    for path, (_, func_name, args, takes_varargs, return_type, decors) in declares:
-        func = None
-        for lib in LIBS:
-            try:
-                func = getattr(lib, func_name)
-                break
-            except AttributeError:
-                pass
-
-        if func is None:
-            raise RuntimeError(f"function not found: {func_name}")
-
-        for arg_name, arg_type, arg_default in args:
-            assert arg_default is None
-        func.argtypes = [type_from_ast(path, triple[1]) for triple in args]
-        if return_type == ("named_type", "None") or return_type == (
-            "named_type",
-            "noreturn",
-        ):
-            func.restype = None
-        else:
-            func.restype = type_from_ast(path, return_type)
-
-        FUNCTIONS[path][func_name] = func
-        if "@public" in decors:
-            for path2 in files_that_import(path):
-                FUNCTIONS[path2][func_name] = func
-
-
-def call_function(caller_path, funcname, args):
-    func = FUNCTIONS[caller_path].get(funcname)
-    if func is None:
+def call_function(func, args):
+    assert func is not None
+    if isinstance(func, tuple):
         # Function defined in Jou
-        for ast in ASTS[caller_path]:
-            if ast[0] == "function_def":
-                print(ast)
-                break
-        raise NotImplementedError(caller_path, funcname)
+        raise NotImplementedError(func)
     else:
         # Function defined in C and declared in Jou
         return func(*args)
 
 
-declare_lib_functions()
-
 call_function(
-    caller_path="compiler/main.jou",
-    funcname="main",
+    func=find_function("compiler/main.jou", "main"),
     args=[
         ctypes.c_int(4),
         (ctypes.c_char_p * 5)(
