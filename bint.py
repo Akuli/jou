@@ -8,7 +8,6 @@ import string
 import ctypes.util
 import re
 from dataclasses import dataclass
-from functools import cache
 from typing import Any
 
 
@@ -49,7 +48,7 @@ def load_llvm():
     for path in subprocess.check_output(
         [llvm_config, "--libfiles"], text=True
     ).splitlines():
-        print("Loading LLVM:", path)
+        print("Found LLVM:", path)
         result.append(ctypes.CDLL(path))
 
     return result
@@ -1019,26 +1018,32 @@ def evaluate_compile_time_if_statements() -> None:
 FUNCTIONS: dict[str, dict[str, Any]] = {path: {} for path in ASTS}
 TYPES: dict[str, dict[str, type[ctypes._CData]]] = {}
 GLOBALS: dict[str, dict[str, type[ctypes._CData] | None]] = {}
-
-
-@cache
-def files_that_import(path: str) -> list[str]:
-    result = []
-    for path2, ast in ASTS.items():
-        if ("import", path) in ast:
-            result.append(path2)
-    return result
+ENUMS: dict[str, dict[str, list[str] | None]] = {}
 
 
 def define_class(path, class_ast):
     assert class_ast[0] == "class", class_ast
     _, class_name, generics, body, decors = class_ast
 
+    # While defining this class, refer to a dummy version of it instead.
+    # This is needed for recursive pointer fields.
+    class DummyClass(ctypes.Structure):
+        _fields_ = []
+
+    assert class_name not in TYPES[path]
+    TYPES[path][class_name] = DummyClass
+
     fields = []
     for member in body:
         if member[0] == "class_field":
-            _, field_name, field_type = member
-            fields.append((field_name, type_from_ast(path, field_type)))
+            _, field_name, field_type_ast = member
+
+            field_type = type_from_ast(path, field_type_ast)
+
+            fields.append((field_name, field_type))
+
+    assert TYPES[path][class_name] is DummyClass
+    del TYPES[path][class_name]
 
     class JouClass(ctypes.Structure):
         _fields_ = fields
@@ -1221,10 +1226,42 @@ def find_global_var(path, varname):
     return result
 
 
+def find_enum(path, enum_name):
+    try:
+        return ENUMS[path][enum_name]
+    except KeyError:
+        pass
+
+    # Is it defined or declared in this file?
+    result = None
+    for ast in ASTS[path]:
+        if ast[:2] == ("enum", enum_name):
+            _, _, members, decors = ast
+            result = members
+            break
+
+    if result is None:
+        # Is it defined or declared in an imported file?
+        for item in ASTS[path]:
+            if item[0] == "import":
+                _, path2 = item
+                for item2 in ASTS[path2]:
+                    if item2[:2] == ("enum", enum_name) and "@public" in item2[-1]:
+                        result = find_enum(path2, enum_name)
+                        assert result is not None
+                        break
+                if result is not None:
+                    break
+
+    # may assign None, that's fine, next time we know it's not a thing
+    ENUMS[path][enum_name] = result
+    return result
+
+
 def type_from_ast(path, ast):
     if ast[0] == "pointer":
         _, value_type_ast = ast
-        if value_type_ast in [("named_type", "void")]:
+        if value_type_ast == ("named_type", "void"):
             return ctypes.c_void_p
         return ctypes.POINTER(type_from_ast(path, value_type_ast))
     if ast[0] == "named_type":
@@ -1404,6 +1441,12 @@ class Runner:
         elif expr[0] == ".":
             # TODO: can be many other things than plain old field access!
             _, obj_ast, field_name = expr
+            if obj_ast[0] == "get_variable":
+                _, obj_name = obj_ast
+                enum = find_enum(self.path, obj_name)
+                if enum is not None:
+                    # It is Enum.Member, not instance.field
+                    return ctypes.c_int(enum.index(field_name))
             return get_field(self.run_expression(obj_ast), field_name)
 
         elif expr[0] == "constant":
@@ -1505,6 +1548,7 @@ def main() -> None:
         }
         GLOBALS[path] = {}
         FUNCTIONS[path] = {}
+        ENUMS[path] = {}
 
     print("Evaluating compile-time if statements...")
     evaluate_compile_time_if_statements()
