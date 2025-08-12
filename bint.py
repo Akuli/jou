@@ -1016,12 +1016,12 @@ def evaluate_compile_time_if_statements() -> None:
 
 
 FUNCTIONS: dict[str, dict[str, Any]] = {path: {} for path in ASTS}
-TYPES: dict[str, dict[str, type[ctypes._CData]]] = {}
+TYPES: dict[str, dict[str | tuple[Any, ...], type[ctypes._CData]]] = {}
 GLOBALS: dict[str, dict[str, type[ctypes._CData] | None]] = {}
 ENUMS: dict[str, dict[str, list[str] | None]] = {}
 
 
-def define_class(path, class_ast):
+def define_class(path, class_ast, typesub=None):
     assert class_ast[0] == "class", class_ast
     _, class_name, generics, body, decors = class_ast
 
@@ -1037,9 +1037,7 @@ def define_class(path, class_ast):
     for member in body:
         if member[0] == "class_field":
             _, field_name, field_type_ast = member
-
-            field_type = type_from_ast(path, field_type_ast)
-
+            field_type = type_from_ast(path, field_type_ast, typesub=typesub)
             fields.append((field_name, field_type))
 
     assert TYPES[path][class_name] is DummyClass
@@ -1088,6 +1086,43 @@ def find_named_type(path: str, type_name: str):
         raise RuntimeError(f"type not found: {type_name}")
 
     TYPES[path][type_name] = result
+    return result
+
+
+def find_generic_class(path: str, class_name: str, generic_param: type):
+    try:
+        return TYPES[path][class_name, generic_param]
+    except KeyError:
+        pass
+
+    result = None
+
+    # Is there a class definition in the same file?
+    for item in ASTS[path]:
+        if item[:2] == ("class", class_name):
+            [generic_name] = item[2]  # e.g. "T"
+            result = define_class(path, item, typesub={generic_name: generic_param})
+            break
+
+    if result is None:
+        # Is there a class definition in some imported file?
+        for item in ASTS[path]:
+            if item[0] == "import":
+                _, path2 = item
+                for item2 in ASTS[path2]:
+                    if (
+                        item2[:2] == ("class", class_name)
+                        and "@public" in item2[-1]
+                    ):
+                        result = find_generic_class(path2, class_name, generic_param)
+                        break
+                if result is not None:
+                    break
+
+    if result is None:
+        raise RuntimeError(f"generic class not found: {class_name}")
+
+    TYPES[path][class_name, generic_param] = result
     return result
 
 
@@ -1258,20 +1293,26 @@ def find_enum(path, enum_name):
     return result
 
 
-def type_from_ast(path, ast):
+def type_from_ast(path, ast, typesub=None):
     if ast[0] == "pointer":
         _, value_type_ast = ast
         if value_type_ast == ("named_type", "void"):
             return ctypes.c_void_p
-        return ctypes.POINTER(type_from_ast(path, value_type_ast))
+        return ctypes.POINTER(type_from_ast(path, value_type_ast, typesub=typesub))
     if ast[0] == "named_type":
         _, name = ast
+        if typesub is not None and name in typesub:
+            return typesub[name]
         return find_named_type(path, name)
     if ast[0] == "array":
         _, item_type_ast, length_ast = ast
         assert length_ast[0] == "integer_constant"
         _, length = length_ast
-        return type_from_ast(path, item_type_ast) * length
+        return type_from_ast(path, item_type_ast, typesub=typesub) * length
+    if ast[0] == "generic":
+        _, class_name, [param_type_ast] = ast
+        param_type = type_from_ast(path, param_type_ast, typesub=typesub)
+        return find_generic_class(path, class_name, param_type)
     raise NotImplementedError(ast)
 
 
@@ -1467,6 +1508,14 @@ class Runner:
             array_size = len(data) + 1
             array = (ctypes.c_uint8 * array_size)(*data)
             return ctypes.cast(ctypes.pointer(array), ctypes.c_char_p)
+
+        elif expr[0] == "[":
+            _, obj_ast, index_ast = expr
+            obj = self.run_expression(obj_ast)
+            index = self.run_expression(index_ast)
+            # TODO: implicit array to pointer casts
+            # TODO: how does this handle `&foo[out_of_bounds]`? probably not right?
+            return obj[index.value]
 
         else:
             raise NotImplementedError(expr)
