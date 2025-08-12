@@ -9,6 +9,7 @@ import ctypes.util
 import re
 from dataclasses import dataclass
 from functools import cache
+from typing import Any
 
 
 def load_llvm():
@@ -54,8 +55,7 @@ def load_llvm():
     return result
 
 
-LIBS = [
-]
+LIBS: list[ctypes.CDLL] = []
 
 KEYWORDS = [
     "import",
@@ -145,6 +145,7 @@ def tokenize(jou_code, path):
             exit(f"tokenize error in file {path}, line {lineno}")
 
         if m.lastgroup != "ignore":
+            assert m.lastgroup is not None
             tokens.append(
                 Token(
                     kind=m.lastgroup.rstrip("_"),
@@ -352,7 +353,7 @@ class Parser:
             "double",
             "bool",
         ), t
-        result = ("named_type", t.code)
+        result: Any = ("named_type", t.code)
 
         while self.tokens[0].code in ("*", "["):
             if self.tokens[0].code == "*":
@@ -596,7 +597,7 @@ class Parser:
     def parse_expression_with_add(self):
         if self.tokens[0].code == "-":
             self.eat("-")
-            result = ("negate", self.parse_expression_with_mul_and_div())
+            result: Any = ("negate", self.parse_expression_with_mul_and_div())
         else:
             result = self.parse_expression_with_mul_and_div()
 
@@ -986,7 +987,7 @@ def parse_file(path):
     return ast
 
 
-ASTS = {}
+ASTS: dict[str, Any] = {}
 
 
 def evaluate_compile_time_if_statements() -> None:
@@ -1004,20 +1005,20 @@ def evaluate_compile_time_if_statements() -> None:
                     elif cond_ast[0] == "constant":
                         _, cond = cond_ast
                     else:
-                        raise RuntimeError(f"cannot evaluate compile-time if statement in {path}")
+                        raise RuntimeError(
+                            f"cannot evaluate compile-time if statement in {path}"
+                        )
                     if cond:
-                        ast[i:i+1] = then
+                        ast[i : i + 1] = then
                     elif not if_and_elifs:
-                        ast[i:i+1] = else_body
+                        ast[i : i + 1] = else_body
                     making_progress = True
                     break
 
 
-FUNCTIONS = {path: {} for path in ASTS}
-TYPES = {
-}
-ENUMS = {}
-GLOBALS = {}
+FUNCTIONS: dict[str, dict[str, Any]] = {path: {} for path in ASTS}
+TYPES: dict[str, dict[str, type[ctypes._CData]]] = {}
+GLOBALS: dict[str, dict[str, type[ctypes._CData] | None]] = {}
 
 
 @cache
@@ -1247,10 +1248,11 @@ def shallow_copy(value):
     return result
 
 
-def cast(value, ctype):
+def cast_or_copy(value, ctype):
     if type(value) == ctype:
-        return value
-    return ctypes.cast(value, ctype)
+        return shallow_copy(value)
+    else:
+        return ctypes.cast(value, ctype)
 
 
 def get_field(instance, field_name):
@@ -1263,6 +1265,15 @@ def get_field(instance, field_name):
     return field_type.from_buffer(instance, field_offset)
 
 
+def unwrap_value(obj):
+    if hasattr(obj, "value"):
+        # e.g. ctypes.c_int
+        return obj.value
+    else:
+        # assume it is a pointer
+        return ctypes.cast(obj, ctypes.c_void_p).value
+
+
 class Return(Exception):
     pass
 
@@ -1270,7 +1281,7 @@ class Return(Exception):
 class Runner:
     def __init__(self, path: str) -> None:
         self.path = path
-        self.locals = {}
+        self.locals: dict[str, ctypes._CData] = {}
 
     def run_body(self, body):
         for item in body:
@@ -1306,14 +1317,18 @@ class Runner:
                     # Making a new variable. Use the type of the value being assigned.
                     self.locals[varname] = shallow_copy(self.run_expression(value_ast))
                     return
-            var = self.locals[varname]
-            ctypes.pointer(var)[0] = cast(self.run_expression(value_ast), type(var))
+            target = self.run_expression(target_ast)
+            ctypes.pointer(target)[0] = cast_or_copy(
+                self.run_expression(value_ast), type(target)
+            )
         elif stmt[0] == "declare_local_var":
             _, varname, type_ast, value_ast = stmt
             assert varname not in self.locals
             vartype = type_from_ast(self.path, type_ast)
             var = vartype()
-            ctypes.pointer(var)[0] = cast(self.run_expression(value_ast), vartype)
+            ctypes.pointer(var)[0] = cast_or_copy(
+                self.run_expression(value_ast), vartype
+            )
             self.locals[varname] = var
         elif stmt[0] == "assert":
             _, cond, location = stmt
@@ -1325,11 +1340,13 @@ class Runner:
         else:
             raise NotImplementedError(stmt)
 
+    # Returns a value that may be converted to pointer if needed, i.e. usually
+    # not implicitly copied.
     def run_expression(self, expr):
-        if expr[0] == 'call':
+        if expr[0] == "call":
             _, func_ast, arg_asts = expr
             func = self.run_expression(func_ast)
-            args = [self.run_expression(arg_ast) for arg_ast in arg_asts]
+            args_iter = (self.run_expression(arg_ast) for arg_ast in arg_asts)
 
             if func_ast[0] == "get_variable":
                 _, funcname = func_ast
@@ -1340,14 +1357,14 @@ class Runner:
                 print("Calling Jou function:", funcname)
             else:
                 print("Calling C function:", funcname)
-            return call_function(func, args)
+            return call_function(func, args_iter)
 
-        elif expr[0] == 'get_variable':
+        elif expr[0] == "get_variable":
             _, varname = expr
 
             value = self.find_any_var_or_constant(varname)
             if value is not None:
-                return shallow_copy(value)
+                return value
 
             func = find_function(self.path, varname)
             if func is not None:
@@ -1356,38 +1373,38 @@ class Runner:
             raise RuntimeError(f"no variable named {varname} in {self.path}")
 
         elif expr[0] == "eq":
-            _, left, right = expr
-            return self.run_expression(left) == self.run_expression(right)
+            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
+            return ctypes.c_uint8(left == right)
 
         elif expr[0] == "ne":
-            _, left, right = expr
-            return self.run_expression(left) != self.run_expression(right)
+            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
+            return ctypes.c_uint8(left != right)
 
         elif expr[0] == "gt":
-            _, left, right = expr
-            return self.run_expression(left) > self.run_expression(right)
+            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
+            return ctypes.c_uint8(left > right)
 
         elif expr[0] == "lt":
-            _, left, right = expr
-            return self.run_expression(left) < self.run_expression(right)
+            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
+            return ctypes.c_uint8(left < right)
 
         elif expr[0] == "ge":
-            _, left, right = expr
-            return self.run_expression(left) >= self.run_expression(right)
+            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
+            return ctypes.c_uint8(left >= right)
 
         elif expr[0] == "le":
-            _, left, right = expr
-            return self.run_expression(left) <= self.run_expression(right)
+            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
+            return ctypes.c_uint8(left <= right)
 
         elif expr[0] == "sizeof":
             _, obj = expr
             # TODO: sizeof() shouldn't run the thing, just get its type
-            return ctypes.sizeof(self.run_expression(obj))
+            return ctypes.c_int64(ctypes.sizeof(self.run_expression(obj)))
 
         elif expr[0] == ".":
             # TODO: can be many other things than plain old field access!
             _, obj_ast, field_name = expr
-            return shallow_copy(get_field(self.run_expression(obj_ast), field_name))
+            return get_field(self.run_expression(obj_ast), field_name)
 
         elif expr[0] == "constant":
             _, value = expr
@@ -1400,7 +1417,7 @@ class Runner:
 
         elif expr[0] == "address_of":
             _, obj = expr
-            return self.run_address_of_expression(obj)
+            return ctypes.pointer(self.run_expression(obj))
 
         elif expr[0] == "pointer_string":
             _, data = expr
@@ -1411,24 +1428,24 @@ class Runner:
         else:
             raise NotImplementedError(expr)
 
-    def run_address_of_expression(self, expr):
-        if expr[0] == 'get_variable':
-            _, varname = expr
-            return ctypes.pointer(self.locals[varname])
-        elif expr[0] == '.':
-            _, obj, field_name = expr
-            return ctypes.pointer(get_field(self.run_expression(obj), field_name))
-        else:
-            raise NotImplementedError(expr)
 
-
-def call_function(func, args):
+# Args must be given as an iterator to get the right evaluation order AND type
+# conversions for arguments. When we evaluate an argument, we need to cast it
+# before we evaluate the next argument.
+def call_function(func, args_iter):
     assert func is not None
     if not isinstance(func, tuple):
         # Function defined in C and declared in Jou
-        if func.argtypes is not None:
-            args = [cast(arg, t) for arg, t in zip(args, func.argtypes)] + args[len(func.argtypes):]
-        return func(*args)
+        args = []
+        for arg_type in func.argtypes or []:
+            args.append(cast_or_copy(next(args_iter), arg_type))
+        # Handle varargs: printf("hello %d\n", 1, 2, 3)
+        # TODO: use something else than shallow copy for varargs
+        args.extend(args_iter)
+        result = func(*args)
+        if isinstance(result, int):
+            result = func.restype(result)
+        return result
 
     # Function defined in Jou
     func_path, func_ast = func
@@ -1438,10 +1455,19 @@ def call_function(func, args):
 
     r = Runner(func_path)
 
-    assert len(funcdef_args) == len(args)
-    for (arg_name, arg_type, arg_default), arg in zip(funcdef_args, args):
+    for arg_name, arg_type, arg_default in funcdef_args:
         assert arg_default is None
-        r.locals[arg_name] = shallow_copy(cast(arg, type_from_ast(func_path, arg_type)))
+        r.locals[arg_name] = cast_or_copy(
+            next(args_iter), type_from_ast(func_path, arg_type)
+        )
+
+    # iterator must be exhausted now
+    try:
+        next(args_iter)
+    except StopIteration:
+        pass
+    else:
+        raise RuntimeError("too many function arguments")
 
     try:
         r.run_body(body)
@@ -1453,7 +1479,7 @@ def call_function(func, args):
 
 
 def main() -> None:
-    LIBS.append(    ctypes.CDLL(ctypes.util.find_library("c")))
+    LIBS.append(ctypes.CDLL(ctypes.util.find_library("c")))
     LIBS.append(ctypes.CDLL(ctypes.util.find_library("m")))
     LIBS.extend(load_llvm())
 
@@ -1477,21 +1503,20 @@ def main() -> None:
             "float": ctypes.c_float,
             "double": ctypes.c_double,
         }
-        ENUMS[path] = {}
         GLOBALS[path] = {}
         FUNCTIONS[path] = {}
 
     print("Evaluating compile-time if statements...")
     evaluate_compile_time_if_statements()
 
+    main_args = "jou -vv -o jou_bootstrap compiler/main.jou".split()
+    argc = ctypes.c_int(len(main_args))
+    argv = (ctypes.c_char_p * (len(main_args) + 1))(
+        *(arg.encode("utf-8") for arg in main_args), None
+    )
     call_function(
         func=find_function("compiler/main.jou", "main"),
-        args=[
-            ctypes.c_int(4),
-            (ctypes.c_char_p * 5)(
-                b"jou", b"-o", b"jou_bootstrap", b"compiler/main.jou", None
-            ),
-        ],
+        args_iter=iter([argc, argv]),
     )
 
 
