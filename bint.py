@@ -1431,6 +1431,10 @@ class Return(Exception):
     pass
 
 
+class Break(Exception):
+    pass
+
+
 class Runner:
     def __init__(self, path: str) -> None:
         self.path = path
@@ -1480,7 +1484,6 @@ class Runner:
             ctypes.pointer(target)[0] *= value.value
         elif stmt[0] == "declare_local_var":
             _, varname, type_ast, value_ast = stmt
-            assert varname not in self.locals
             vartype = type_from_ast(self.path, type_ast)
             var = vartype()
             if value_ast is not None:
@@ -1498,12 +1501,20 @@ class Runner:
             _, init, cond, incr, body = stmt
             self.run_statement(init)
             while self.run_expression(cond).value:
-                self.run_body(body)
+                try:
+                    self.run_body(body)
+                except Break:
+                    break
                 self.run_statement(incr)
         elif stmt[0] == "while":
             _, cond, body = stmt
             while self.run_expression(cond).value:
-                self.run_body(body)
+                try:
+                    self.run_body(body)
+                except Break:
+                    break
+        elif stmt[0] == "break":
+            raise Break()
         else:
             raise NotImplementedError(stmt)
 
@@ -1638,8 +1649,18 @@ class Runner:
             return JOU_BOOL(not self.run_expression(inner).value)
 
         elif expr[0] == "div":
-            _, lhs, rhs = expr
-            return self.run_expression(lhs) // self.run_expression(rhs)
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.run_expression(lhs_ast)
+            rhs = self.run_expression(rhs_ast)
+            assert type(lhs) == type(rhs)  # TODO: figure out type properly
+            return type(lhs)(lhs.value // rhs.value)
+
+        elif expr[0] == "post_incr":
+            _, obj_ast = expr
+            obj = self.run_expression(obj_ast)
+            result = shallow_copy(obj)
+            obj.value += 1
+            return result
 
         else:
             raise NotImplementedError(expr)
