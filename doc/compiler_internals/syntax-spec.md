@@ -50,11 +50,13 @@ Jou has a few different kinds of tokens:
     [the inferred type](../types.md#type-inference) of the integer literal.
 
 - **Double literals** look like `12.` or `12.34` or `123.456e5` or `1e-5`.
-    They consist of one or more digits (0-9), then `.`, then zero or more digits.
-    If `e` or `e-` occurs after that (the `e` must be lowercase),
-    after the `e` or `e-` there must be one or more digits.
-    The number after `e` basically tells how much to shift the decimal point:
-    `123.456e5` is same as `12345600.0` and `1e-5` is same as `0.00001`, for example.
+    There are two kinds of double literals: with and without `e`.
+    A double literal without `e` consists of one or more digits (0-9), then `.`, then one or more digits.
+    A double literal with `e` first has
+    a double literal without `e` or just one or more digits,
+    then `e`, then an optional minus sign, then one or more digits.
+    The number after `e` specifies how many places to move the decimal point and in which direction.
+    For example, `1.2e3` means `1200.0` and `1e-5` means `0.00001`.
 - **Float literals** are just like double literals except that they have an extra `F` or `f` at the end.
 - **Byte literals** (also known somewhat misleadingly as character literals)
     consist of a one-byte character placed between single quotes, as in `'a'`.
