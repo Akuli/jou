@@ -294,6 +294,9 @@ def simplify_path(path: str) -> str:
     return os.path.relpath(os.path.abspath(path)).replace("\\", "/")
 
 
+JOU_BOOL = ctypes.c_uint8
+
+
 class Parser:
     def __init__(self, path: str, tokens: list[Token]):
         self.path = path
@@ -494,10 +497,10 @@ class Parser:
         # TODO: how far are we gonna get using 0 and 1 bytes as bools?
         if self.tokens[0].code == "True":
             self.eat("True")
-            return ("constant", ctypes.c_uint8(1))
+            return ("constant", JOU_BOOL(1))
         if self.tokens[0].code == "False":
             self.eat("False")
-            return ("constant", ctypes.c_uint8(0))
+            return ("constant", JOU_BOOL(0))
         if self.tokens[0].code == "NULL":
             self.eat("NULL")
             return ("constant", ctypes.c_void_p())
@@ -1039,6 +1042,11 @@ def define_class(path, class_ast, typesub=None):
             _, field_name, field_type_ast = member
             field_type = type_from_ast(path, field_type_ast, typesub=typesub)
             fields.append((field_name, field_type))
+        elif member[0] == "union":
+            _, union_members = member
+            for field_name, field_type_ast in union_members:
+                field_type = type_from_ast(path, field_type_ast, typesub=typesub)
+                fields.append((field_name, field_type))
 
     assert TYPES[path][class_name] is DummyClass
     del TYPES[path][class_name]
@@ -1110,10 +1118,7 @@ def find_generic_class(path: str, class_name: str, generic_param: type):
             if item[0] == "import":
                 _, path2 = item
                 for item2 in ASTS[path2]:
-                    if (
-                        item2[:2] == ("class", class_name)
-                        and "@public" in item2[-1]
-                    ):
+                    if item2[:2] == ("class", class_name) and "@public" in item2[-1]:
                         result = find_generic_class(path2, class_name, generic_param)
                         break
                 if result is not None:
@@ -1212,11 +1217,11 @@ def find_function(path: str, func_name: str):
 
 def find_constant(path, name):
     if name == "WINDOWS":
-        return ctypes.c_uint8(int(sys.platform == "win32"))
+        return JOU_BOOL(int(sys.platform == "win32"))
     if name == "MACOS":
-        return ctypes.c_uint8(int(sys.platform == "darwin"))
+        return JOU_BOOL(int(sys.platform == "darwin"))
     if name == "NETBSD":
-        return ctypes.c_uint8(int(sys.platform.startswith("netbsd")))
+        return JOU_BOOL(int(sys.platform.startswith("netbsd")))
     # TODO: `const` constants
     return None
 
@@ -1329,8 +1334,17 @@ def shallow_copy(value):
 def cast_or_copy(value, ctype):
     if type(value) == ctype:
         return shallow_copy(value)
+    elif type(value).__name__.startswith("LP_") and hasattr(ctype, "_length_"):
+        # String from pointer to array
+        result = ctype()
+        LIBS[0].strcpy(value, result)
+        return result
     else:
-        return ctypes.cast(value, ctype)
+        print("Casting", value, "to", ctype)
+        try:
+            return ctypes.cast(value, ctype)
+        except TypeError:
+            breakpoint()
 
 
 def get_field(instance, field_name):
@@ -1396,17 +1410,21 @@ class Runner:
                     self.locals[varname] = shallow_copy(self.run_expression(value_ast))
                     return
             target = self.run_expression(target_ast)
-            ctypes.pointer(target)[0] = cast_or_copy(
-                self.run_expression(value_ast), type(target)
-            )
+            value = self.run_expression(value_ast)
+            ctypes.pointer(target)[0] = cast_or_copy(value, type(target))
+        elif stmt[0] == "in_place_mul":
+            _, target_ast, value_ast = stmt
+            target = self.run_expression(target_ast)
+            value = self.run_expression(value_ast)
+            ctypes.pointer(target)[0] *= value.value
         elif stmt[0] == "declare_local_var":
             _, varname, type_ast, value_ast = stmt
             assert varname not in self.locals
             vartype = type_from_ast(self.path, type_ast)
             var = vartype()
-            ctypes.pointer(var)[0] = cast_or_copy(
-                self.run_expression(value_ast), vartype
-            )
+            if value_ast is not None:
+                value = self.run_expression(value_ast)
+                ctypes.pointer(var)[0] = cast_or_copy(value, vartype)
             self.locals[varname] = var
         elif stmt[0] == "assert":
             _, cond, location = stmt
@@ -1415,6 +1433,12 @@ class Runner:
         elif stmt[0] == "return":
             _, val = stmt
             raise Return(self.run_expression(val))
+        elif stmt[0] == "for":
+            _, init, cond, incr, body = stmt
+            self.run_statement(init)
+            while self.run_expression(cond).value:
+                self.run_body(body)
+                self.run_statement(incr)
         else:
             raise NotImplementedError(stmt)
 
@@ -1452,27 +1476,27 @@ class Runner:
 
         elif expr[0] == "eq":
             left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return ctypes.c_uint8(left == right)
+            return JOU_BOOL(left == right)
 
         elif expr[0] == "ne":
             left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return ctypes.c_uint8(left != right)
+            return JOU_BOOL(left != right)
 
         elif expr[0] == "gt":
             left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return ctypes.c_uint8(left > right)
+            return JOU_BOOL(left > right)
 
         elif expr[0] == "lt":
             left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return ctypes.c_uint8(left < right)
+            return JOU_BOOL(left < right)
 
         elif expr[0] == "ge":
             left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return ctypes.c_uint8(left >= right)
+            return JOU_BOOL(left >= right)
 
         elif expr[0] == "le":
             left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return ctypes.c_uint8(left <= right)
+            return JOU_BOOL(left <= right)
 
         elif expr[0] == "sizeof":
             _, obj = expr
@@ -1507,7 +1531,7 @@ class Runner:
             _, data = expr
             array_size = len(data) + 1
             array = (ctypes.c_uint8 * array_size)(*data)
-            return ctypes.cast(ctypes.pointer(array), ctypes.c_char_p)
+            return ctypes.cast(ctypes.pointer(array), ctypes.POINTER(ctypes.c_uint8))
 
         elif expr[0] == "[":
             _, obj_ast, index_ast = expr
@@ -1516,6 +1540,25 @@ class Runner:
             # TODO: implicit array to pointer casts
             # TODO: how does this handle `&foo[out_of_bounds]`? probably not right?
             return obj[index.value]
+
+        elif expr[0] == "instantiate":
+            _, type_ast, fields = expr
+            t = type_from_ast(self.path, type_ast)
+            kwargs = {}
+            for field_name, field_value in fields:
+                field_value = self.run_expression(field_value)
+                print("Finding field type for", field_name)
+                field_type = next(
+                    ftype for fname, ftype in t._fields_ if fname == field_name
+                )
+                kwargs[field_name] = cast_or_copy(field_value, field_type)
+            return t(**kwargs)
+
+        elif expr[0] == "as":
+            _, obj_ast, type_ast = expr
+            obj = self.run_expression(obj_ast)
+            t = type_from_ast(self.path, type_ast)
+            return cast_or_copy(obj, t)
 
         else:
             raise NotImplementedError(expr)
@@ -1594,6 +1637,7 @@ def main() -> None:
             "long": ctypes.c_int64,
             "float": ctypes.c_float,
             "double": ctypes.c_double,
+            "bool": JOU_BOOL,
         }
         GLOBALS[path] = {}
         FUNCTIONS[path] = {}
@@ -1602,11 +1646,15 @@ def main() -> None:
     print("Evaluating compile-time if statements...")
     evaluate_compile_time_if_statements()
 
-    main_args = "jou -vv -o jou_bootstrap compiler/main.jou".split()
-    argc = ctypes.c_int(len(main_args))
-    argv = (ctypes.c_char_p * (len(main_args) + 1))(
-        *(arg.encode("utf-8") for arg in main_args), None
-    )
+    args = []
+    for arg in "jou -vv -o jou_bootstrap compiler/main.jou".split():
+        python_bytes = arg.encode("utf-8")
+        c_string = ctypes.c_char_p(python_bytes)
+        jou_string = ctypes.POINTER(ctypes.c_uint8)(c_string)
+        args.append(jou_string)
+
+    argc = ctypes.c_int(len(args))
+    argv = (ctypes.POINTER(ctypes.c_uint8) * (len(args) + 1))(*args, None)
     call_function(
         func=find_function("compiler/main.jou", "main"),
         args_iter=iter([argc, argv]),
