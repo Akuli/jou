@@ -108,7 +108,7 @@ def is_valid_double(str: byte*) -> bool:
         if str[n1] != '.':
             return False
         n2 = strspn(&str[n1 + 1], "0123456789")
-        return (n1 > 0 or n2 > 0) and n1 + 1 + n2 == strlen(str)
+        return n1 > 0 and n2 > 0 and n1 + 1 + n2 == strlen(str)
     else:
         # First anything accepted above or just one or more digits
         n1 = strspn(str, "0123456789")
@@ -116,7 +116,7 @@ def is_valid_double(str: byte*) -> bool:
             if str[n1] != '.':
                 return False
             n2 = strspn(&str[n1 + 1], "0123456789")
-            if (n1 == 0 and n2 == 0) or &str[n1 + 1 + n2] != e:
+            if n1 == 0 or n2 == 0 or &str[n1 + 1 + n2] != e:
                 return False
         # Then e, then possibly minus, then one or more digits
         p = e

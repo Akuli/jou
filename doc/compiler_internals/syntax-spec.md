@@ -51,8 +51,7 @@ Jou has a few different kinds of tokens:
 
 - **Double literals** look like `12.` or `12.34` or `123.456e5` or `1e-5`.
     There are two kinds of double literals: with and without `e`.
-    A double literal without `e` consists of zero or more digits (0-9), then `.`, then zero or more digits,
-    except that just `.` is not a valid double literal: there must be at least one digit somewhere.
+    A double literal without `e` consists of one or more digits (0-9), then `.`, then one or more digits.
     A double literal with `e` first has
     a double literal without `e` or just one or more digits,
     then `e`, then an optional minus sign, then one or more digits.
