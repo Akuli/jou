@@ -103,7 +103,7 @@ def is_valid_double(str: byte*) -> bool:
     # See doc/syntax-spec.md
     e = strstr(str, "e")
     if e == NULL:
-        # Zero or more digits, then '.', then zero or more digits, but cannot be just "."
+        # One or more digits, then '.', then one or more digits
         n1 = strspn(str, "0123456789")
         if str[n1] != '.':
             return False
