@@ -1775,10 +1775,9 @@ def main() -> None:
 
     args = []
     for arg in "jou -vv -o jou_bootstrap compiler/main.jou".split():
-        python_bytes = arg.encode("utf-8")
-        c_string = ctypes.c_char_p(python_bytes)
-        jou_string = ctypes.POINTER(ctypes.c_uint8)(c_string)
-        args.append(jou_string)
+        buf = ctypes.create_string_buffer(arg.encode("utf-8"))
+        pointer = ctypes.cast(buf, ctypes.POINTER(ctypes.c_uint8))
+        args.append(pointer)
 
     argc = ctypes.c_int(len(args))
     argv = (ctypes.POINTER(ctypes.c_uint8) * (len(args) + 1))(*args, None)
