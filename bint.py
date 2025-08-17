@@ -772,9 +772,9 @@ class Parser:
         match_obj = self.parse_expression()
         if self.tokens[0].code == "with":
             self.eat("with")
-            func_name = self.eat("name").code
+            func = self.parse_expression()
         else:
-            func_name = None
+            func = None
 
         self.parse_start_of_body()
 
@@ -793,7 +793,7 @@ class Parser:
                 cases.append((case_objs, case_body))
 
         self.eat("dedent")
-        return ("match", match_obj, func_name, cases, case_underscore)
+        return ("match", match_obj, func, cases, case_underscore)
 
     # Parses the "x: int" part of "x, y, z: int", leaving "y, z: int" to be parsed later.
     def parse_first_of_multiple_local_var_declares(self):
@@ -1515,6 +1515,23 @@ class Runner:
                     break
         elif stmt[0] == "break":
             raise Break()
+        elif stmt[0] == "match":
+            _, match_obj_ast, func_ast, cases, case_underscore = stmt
+            assert func_ast is not None  # TODO
+            match_obj = self.run_expression(match_obj_ast)
+            func = self.run_expression(func_ast)
+            matched = False
+            for case_objs, case_body in cases:
+                for case_obj_ast in case_objs:
+                    case_obj = self.run_expression(case_obj_ast)
+                    if call_function(func, iter([match_obj, case_obj])).value == 0:
+                        matched = True
+                        break
+                if matched:
+                    self.run_body(case_body)
+                    break
+            if not matched:
+                self.run_body(case_underscore)
         else:
             raise NotImplementedError(stmt)
 
@@ -1619,7 +1636,6 @@ class Runner:
 
         elif expr[0] == "instantiate":
             _, type_ast, fields = expr
-            print("Inst", type_ast)
             t = type_from_ast(self.path, type_ast)
             kwargs = {}
             for field_name, field_value in fields:
