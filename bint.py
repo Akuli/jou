@@ -1331,20 +1331,81 @@ def shallow_copy(value):
     return result
 
 
-def cast_or_copy(value, ctype):
-    if type(value) == ctype:
+def is_pointer_type(ctype):
+    return (
+        # TODO: There doesn't seem to be a good way to do this.
+        ctype in (ctypes.c_char_p, ctypes.c_wchar_p, ctypes.c_void_p)
+        or isinstance(ctype, (ctypes._Pointer, ctypes._CFuncPtr))
+    )
+
+
+def is_array(ctype):
+    return hasattr(ctype, "_length_")
+
+
+INTEGER_TYPES = {
+    "int8": ctypes.c_int8,
+    "int16": ctypes.c_int16,
+    "int32": ctypes.c_int32,
+    "int64": ctypes.c_int64,
+    "uint8": ctypes.c_uint8,
+    "uint16": ctypes.c_uint16,
+    "uint32": ctypes.c_uint32,
+    "uint64": ctypes.c_uint64,
+}
+
+
+def ctype_to_string(ctype):
+    if ctype == ctypes.c_void_p:
+        return "void*"
+
+    for int_name, int_type in INTEGER_TYPES.items():
+        if int_type == ctype:
+            return int_name
+
+    if hasattr(ctype, "_length_") and hasattr(ctype, "_type_"):
+        # It is array
+        array_len = ctype._length_
+        assert isinstance(array_len, int)
+        return ctype_to_string(ctype._type_) + "[" + str(array_len) + "]"
+
+    if hasattr(ctype, "_type_"):
+        # It is a pointer
+        return ctype_to_string(ctype._type_) + "*"
+
+    if hasattr(ctype, "_fields_"):
+        # It is a class
+        return (
+            "class("
+            + ", ".join(ctype_to_string(ftype) for fname, ftype in ctype._fields_)
+            + ")"
+        )
+
+    breakpoint()
+    raise NotImplementedError(ctype)
+
+
+def cast_or_copy(value, to):
+    from_str = ctype_to_string(type(value))
+    to_str = ctype_to_string(to)
+
+    if from_str == to_str:
         return shallow_copy(value)
-    elif type(value).__name__.startswith("LP_") and hasattr(ctype, "_length_"):
-        # String from pointer to array
-        result = ctype()
-        LIBS[0].strcpy(value, result)
-        return result
-    else:
-        print("Casting", value, "to", ctype)
-        try:
-            return ctypes.cast(value, ctype)
-        except TypeError:
-            breakpoint()
+
+    if from_str.endswith(("*", "]")) and to_str.endswith("*"):
+        # Simple pointer-to-pointer cast or array-to-pointer cast
+        return ctypes.cast(value, to)
+
+    if from_str == "uint8*" and re.fullmatch(r"uint8\[\d+\]", to_str):
+        # String from pointer to array (only allowed in some special cases)
+        array = to()
+        LIBS[0].strcpy(value, array)
+        return array
+
+    if from_str in INTEGER_TYPES and to_str in INTEGER_TYPES:
+        return to(value.value)
+
+    raise NotImplementedError(from_str, to_str)
 
 
 def get_field(instance, field_name):
@@ -1439,6 +1500,10 @@ class Runner:
             while self.run_expression(cond).value:
                 self.run_body(body)
                 self.run_statement(incr)
+        elif stmt[0] == "while":
+            _, cond, body = stmt
+            while self.run_expression(cond).value:
+                self.run_body(body)
         else:
             raise NotImplementedError(stmt)
 
@@ -1543,11 +1608,11 @@ class Runner:
 
         elif expr[0] == "instantiate":
             _, type_ast, fields = expr
+            print("Inst", type_ast)
             t = type_from_ast(self.path, type_ast)
             kwargs = {}
             for field_name, field_value in fields:
                 field_value = self.run_expression(field_value)
-                print("Finding field type for", field_name)
                 field_type = next(
                     ftype for fname, ftype in t._fields_ if fname == field_name
                 )
@@ -1559,6 +1624,22 @@ class Runner:
             obj = self.run_expression(obj_ast)
             t = type_from_ast(self.path, type_ast)
             return cast_or_copy(obj, t)
+
+        elif expr[0] == "and":
+            _, lhs, rhs = expr
+            return JOU_BOOL(self.run_expression(lhs).value and self.run_expression(rhs).value)
+
+        elif expr[0] == "or":
+            _, lhs, rhs = expr
+            return JOU_BOOL(self.run_expression(lhs).value or self.run_expression(rhs).value)
+
+        elif expr[0] == "not":
+            _, inner = expr
+            return JOU_BOOL(not self.run_expression(inner).value)
+
+        elif expr[0] == "div":
+            _, lhs, rhs = expr
+            return self.run_expression(lhs) // self.run_expression(rhs)
 
         else:
             raise NotImplementedError(expr)
@@ -1624,21 +1705,13 @@ def main() -> None:
 
     for path in ASTS.keys():
         TYPES[path] = {
-            "int8": ctypes.c_int8,
-            "int16": ctypes.c_int16,
-            "int32": ctypes.c_int32,
-            "int64": ctypes.c_int64,
-            "uint8": ctypes.c_uint8,
-            "uint16": ctypes.c_uint16,
-            "uint32": ctypes.c_uint32,
-            "uint64": ctypes.c_uint64,
             "byte": ctypes.c_uint8,
             "int": ctypes.c_int32,
             "long": ctypes.c_int64,
             "float": ctypes.c_float,
             "double": ctypes.c_double,
             "bool": JOU_BOOL,
-        }
+        } | INTEGER_TYPES
         GLOBALS[path] = {}
         FUNCTIONS[path] = {}
         ENUMS[path] = {}
