@@ -1638,11 +1638,15 @@ class Runner:
 
         elif expr[0] == "and":
             _, lhs, rhs = expr
-            return JOU_BOOL(self.run_expression(lhs).value and self.run_expression(rhs).value)
+            return JOU_BOOL(
+                self.run_expression(lhs).value and self.run_expression(rhs).value
+            )
 
         elif expr[0] == "or":
             _, lhs, rhs = expr
-            return JOU_BOOL(self.run_expression(lhs).value or self.run_expression(rhs).value)
+            return JOU_BOOL(
+                self.run_expression(lhs).value or self.run_expression(rhs).value
+            )
 
         elif expr[0] == "not":
             _, inner = expr
@@ -1664,6 +1668,13 @@ class Runner:
 
         else:
             raise NotImplementedError(expr)
+
+
+# I think this needs to be global to avoid garbage collection issues, but not sure.
+FIND_STDLIB_RESULT = ctypes.cast(
+    ctypes.c_char_p(os.path.abspath("stdlib").encode("utf-8")),
+    ctypes.POINTER(ctypes.c_uint8),
+)
 
 
 # Args must be given as an iterator to get the right evaluation order AND type
@@ -1689,6 +1700,12 @@ def call_function(func, args_iter):
     assert func_ast[0] == "function_def"
     _, func_name, funcdef_args, takes_varargs, return_type, body, decors = func_ast
     assert not takes_varargs
+
+    # Do not run the Jou compiler's function for finding standard library,
+    # because it looks at the location of currently running executable (python)
+    # which is totally unrelated to Jou.
+    if func_path == "compiler/paths.jou" and func_name == "find_stdlib":
+        return FIND_STDLIB_RESULT
 
     r = Runner(func_path)
 
