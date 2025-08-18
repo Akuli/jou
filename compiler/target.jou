@@ -7,6 +7,7 @@
 # will make the mess slightly less miserable to you. Just use the global
 # "target" variable, it contains everything you will ever need.
 
+import "./command_line_args.jou"
 import "./llvm.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
@@ -75,6 +76,11 @@ def init_target() -> None:
     assert strlen(tmp) < sizeof target.data_layout
     strcpy(target.data_layout, tmp)
     LLVMDisposeMessage(tmp)
+
+    if command_line_args.verbosity >= 2:
+        printf("Target triple: %s\n", target.triple)
+        printf("Data layout: %s\n", target.data_layout)
+
 
 @public
 def cleanup_target() -> None:
