@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import subprocess
 import shutil
 import sys
@@ -680,43 +681,47 @@ class Parser:
         return self.parse_expression_with_and_or()
 
     def parse_oneline_statement(self):
+        location = self.tokens[0].location
+
         if self.tokens[0].code == "return":
             self.eat("return")
             if self.tokens[0].kind == "newline":
-                return ("return", None)
+                result = ("return", None)
             else:
-                return ("return", self.parse_expression())
-        if self.tokens[0].code == "assert":
-            location = self.eat("assert").location
+                result = ("return", self.parse_expression())
+        elif self.tokens[0].code == "assert":
+            self.eat("assert")
             cond = self.parse_expression()
-            return ("assert", cond, location)
-        if self.tokens[0].code in {"pass", "break", "continue"}:
+            result = ("assert", cond)
+        elif self.tokens[0].code in {"pass", "break", "continue"}:
             kw = self.tokens[0].code
             self.eat(kw)
-            return (kw,)
-        if self.tokens[0].code == "const":
+            result = (kw,)
+        elif self.tokens[0].code == "const":
             self.eat("const")
             name, type, value = self.parse_name_type_value()
             assert value is not None
-            return ("const", name, type, value)
-        if self.tokens[0].kind == "name" and self.tokens[1].code == ":":
+            result = ("const", name, type, value)
+        elif self.tokens[0].kind == "name" and self.tokens[1].code == ":":
             name, type, value = self.parse_name_type_value()
             # e.g. "foo: int"
             if self.in_class_body:
                 assert value is None, self.tokens[0].location
-                return ("class_field", name, type)
+                result = ("class_field", name, type)
             else:
-                return ("declare_local_var", name, type, value)
+                result = ("declare_local_var", name, type, value)
+        else:
+            expr = self.parse_expression()
+            kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(
+                self.tokens[0]
+            )
+            if kind == "expr_stmt":
+                result = ("expr_stmt", expr)
+            else:
+                self.tokens.pop(0)
+                result = (kind, expr, self.parse_expression())
 
-        expr = self.parse_expression()
-        kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(
-            self.tokens[0]
-        )
-        if kind == "expr_stmt":
-            return ("expr_stmt", expr)
-
-        self.tokens.pop(0)
-        return (kind, expr, self.parse_expression())
+        return result + (location,)
 
     def parse_if_statement(self):
         if_and_elifs = []
@@ -818,65 +823,70 @@ class Parser:
             decors.append(self.eat("decorator").code)
             self.eat("newline")
 
-        if self.tokens[0].code == "import":
-            assert not decors
-            return self.parse_import()
+        location = self.tokens[0].location
+
         if self.tokens[0].code == "link":
             assert not decors
             self.eat("link")
             self.eat("string")
             self.eat("newline")
             return None
-        if self.tokens[0].code == "def":
-            return self.parse_function_or_method(decors)
-        if self.tokens[0].code == "declare":
+
+        if self.tokens[0].code == "import":
+            assert not decors
+            result = self.parse_import()
+        elif self.tokens[0].code == "def":
+            result = self.parse_function_or_method(decors)
+        elif self.tokens[0].code == "declare":
             self.eat("declare")
             if self.tokens[0].code == "global":
                 self.eat("global")
                 name, type, value = self.parse_name_type_value()
                 assert value is None
                 self.eat("newline")
-                return ("global_var_declare", name, type, decors)
+                result = ("global_var_declare", name, type, decors)
             else:
                 signature = self.parse_function_or_method_signature()
                 self.eat("newline")
-                return ("func_declare",) + signature + (decors,)
-        if self.tokens[0].code == "global":
+                result = ("func_declare",) + signature + (decors,)
+        elif self.tokens[0].code == "global":
             self.eat("global")
             name, type, value = self.parse_name_type_value()
             assert value is None
             self.eat("newline")
-            return ("global_var_def", name, type, decors)
-        if self.tokens[0].code == "class":
-            return self.parse_class(decors)
-        if self.tokens[0].code == "union":
+            result = ("global_var_def", name, type, decors)
+        elif self.tokens[0].code == "class":
+            result = self.parse_class(decors)
+        elif self.tokens[0].code == "union":
             assert not decors
-            return self.parse_union()
-        if self.tokens[0].code == "enum":
-            return self.parse_enum(decors)
-        if self.tokens[0].code == "if":
+            result = self.parse_union()
+        elif self.tokens[0].code == "enum":
+            result = self.parse_enum(decors)
+        elif self.tokens[0].code == "if":
             assert not decors
-            return self.parse_if_statement()
-        if self.tokens[0].code == "for":
+            result = self.parse_if_statement()
+        elif self.tokens[0].code == "for":
             assert not decors
-            return self.parse_for_loop()
-        if self.tokens[0].code == "while":
+            result = self.parse_for_loop()
+        elif self.tokens[0].code == "while":
             assert not decors
-            return self.parse_while_loop()
-        if self.tokens[0].code == "match":
+            result = self.parse_while_loop()
+        elif self.tokens[0].code == "match":
             assert not decors
-            return self.parse_match_statement()
-        if (
+            result = self.parse_match_statement()
+        elif (
             self.tokens[0].kind == "name"
             and self.tokens[1].code == ","
             and self.tokens[2].kind == "name"
         ):
             assert not decors
-            return self.parse_first_of_multiple_local_var_declares()
+            result = self.parse_first_of_multiple_local_var_declares()
+        else:
+            result = self.parse_oneline_statement()
+            self.eat("newline")
+            return result  # do not add location, it's already added
 
-        result = self.parse_oneline_statement()
-        self.eat("newline")
-        return result
+        return result + (location,)
 
     def parse_start_of_body(self) -> None:
         self.eat(":")
@@ -961,7 +971,7 @@ def parse_file(path):
     path = os.path.relpath(os.path.abspath(path)).replace("\\", "/")
 
     if path in ASTS:
-        return ASTS[path]
+        return
 
     # print("Parsing", path)
 
@@ -984,7 +994,6 @@ def parse_file(path):
 
     for imp_path in imported:
         parse_file(imp_path)
-    return ast
 
 
 ASTS: dict[str, Any] = {}
@@ -997,7 +1006,7 @@ def evaluate_compile_time_if_statements() -> None:
             making_progress = False
             for i, stmt in enumerate(ast):
                 if stmt[0] == "if":
-                    _, if_and_elifs, else_body = stmt
+                    _, if_and_elifs, else_body, location = stmt
                     cond_ast, then = if_and_elifs.pop(0)
                     if cond_ast[0] == "get_variable":
                         _, cond_varname = cond_ast
@@ -1024,7 +1033,7 @@ ENUMS: dict[str, dict[str, list[str] | None]] = {}
 
 def define_class(path, class_ast, typesub=None):
     assert class_ast[0] == "class", class_ast
-    _, class_name, generics, body, decors = class_ast
+    _, class_name, generics, body, decors, location = class_ast
 
     # While defining this class, refer to a dummy version of it instead.
     # This is needed for recursive pointer fields.
@@ -1037,11 +1046,11 @@ def define_class(path, class_ast, typesub=None):
     fields = []
     for member in body:
         if member[0] == "class_field":
-            _, field_name, field_type_ast = member
+            _, field_name, field_type_ast, location = member
             field_type = type_from_ast(path, field_type_ast, typesub=typesub)
             fields.append((field_name, field_type))
         elif member[0] == "union":
-            _, union_members = member
+            _, union_members, location = member
             for field_name, field_type_ast in union_members:
                 field_type = type_from_ast(path, field_type_ast, typesub=typesub)
                 fields.append((field_name, field_type))
@@ -1076,12 +1085,12 @@ def find_named_type(path: str, type_name: str):
         # Is there a class or enum definition in some imported file?
         for item in ASTS[path]:
             if item[0] == "import":
-                _, path2 = item
+                _, path2, location = item
                 for item2 in ASTS[path2]:
                     if (
                         item2[0] in ("class", "enum")
                         and item2[1] == type_name
-                        and "@public" in item2[-1]
+                        and "@public" in item2[-2]
                     ):
                         result = find_named_type(path2, type_name)
                         break
@@ -1114,9 +1123,13 @@ def find_generic_class(path: str, class_name: str, generic_param: type):
         # Is there a class definition in some imported file?
         for item in ASTS[path]:
             if item[0] == "import":
-                _, path2 = item
+                _, path2, location = item
                 for item2 in ASTS[path2]:
-                    if item2[:2] == ("class", class_name) and "@public" in item2[-1]:
+                    if (
+                        item2[:2] == ("class", class_name)
+                        # location is last, decorators are before that
+                        and "@public" in item2[-2]
+                    ):
                         result = find_generic_class(path2, class_name, generic_param)
                         break
                 if result is not None:
@@ -1130,7 +1143,7 @@ def find_generic_class(path: str, class_name: str, generic_param: type):
 
 
 def declare_c_function(path, declare_ast):
-    _, func_name, args, takes_varargs, return_type, decors = declare_ast
+    _, func_name, args, takes_varargs, return_type, decors, location = declare_ast
     func = None
     for lib in LIBS:
         try:
@@ -1195,12 +1208,13 @@ def find_function(path: str, func_name: str):
         # Is it defined or declared in an imported file?
         for item in ASTS[path]:
             if item[0] == "import":
-                _, path2 = item
+                _, path2, location = item
                 for item2 in ASTS[path2]:
                     if (
                         item2[0] in ("function_def", "func_declare")
                         and item2[1] == func_name
-                        and "@public" in item2[-1]
+                        # location is last, decorators are before that
+                        and "@public" in item2[-2]
                     ):
                         result = find_function(path2, func_name)
                         assert result is not None
@@ -1234,7 +1248,7 @@ def find_global_var(path, varname):
     result = None
     for ast in ASTS[path]:
         if ast[:2] == ("global_var_def", varname):
-            _, _, var_type, decors = ast
+            _, _, var_type, decors, location = ast
             # Create new global variable
             result = type_from_ast(path, var_type)()
             break
@@ -1246,12 +1260,13 @@ def find_global_var(path, varname):
         # Is it defined or declared in an imported file?
         for item in ASTS[path]:
             if item[0] == "import":
-                _, path2 = item
+                _, path2, location = item
                 for item2 in ASTS[path2]:
                     if (
                         item2[0] in ("global_var_def", "global_var_declare")
                         and item2[1] == varname
-                        and "@public" in item2[-1]
+                        # location is last, decorators are before that
+                        and "@public" in item2[-2]
                     ):
                         result = find_global_var(path2, varname)
                         assert result is not None
@@ -1274,7 +1289,7 @@ def find_enum(path, enum_name):
     result = None
     for ast in ASTS[path]:
         if ast[:2] == ("enum", enum_name):
-            _, _, members, decors = ast
+            _, _, members, decors, location = ast
             result = members
             break
 
@@ -1282,9 +1297,13 @@ def find_enum(path, enum_name):
         # Is it defined or declared in an imported file?
         for item in ASTS[path]:
             if item[0] == "import":
-                _, path2 = item
+                _, path2, location = item
                 for item2 in ASTS[path2]:
-                    if item2[:2] == ("enum", enum_name) and "@public" in item2[-1]:
+                    if (
+                        item2[:2] == ("enum", enum_name)
+                        # location is last, decorators are before that
+                        and "@public" in item2[-2]
+                    ):
                         result = find_enum(path2, enum_name)
                         assert result is not None
                         break
@@ -1433,9 +1452,16 @@ class Break(Exception):
     pass
 
 
+@functools.cache
+def get_source_lines(path: str) -> list[str]:
+    with open(path, encoding="utf-8") as f:
+        return f.readlines()
+
+
 class Runner:
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str, depth: int) -> None:
         self.path = path
+        self.depth = depth
         self.locals: dict[str, ctypes._CData] = {}
 
     def run_body(self, body):
@@ -1453,11 +1479,18 @@ class Runner:
         return find_global_var(self.path, varname)
 
     def run_statement(self, stmt):
+        filename, lineno = stmt[-1]
+        source_line = get_source_lines(filename)[lineno - 1].strip()
+        indent = "  " * self.depth
+        print(
+            f"{indent}Running {stmt[0]!r} statement in {filename}:{lineno}: {source_line}"
+        )
+
         if stmt[0] == "expr_stmt":
-            _, expr = stmt
-            self.run_expression(stmt[1])
+            _, expr, location = stmt
+            self.run_expression(expr)
         elif stmt[0] == "if":
-            _, if_and_elifs, otherwise = stmt
+            _, if_and_elifs, otherwise, location = stmt
             for cond, body in if_and_elifs:
                 if self.run_expression(cond):
                     self.run_body(body)
@@ -1465,7 +1498,7 @@ class Runner:
             else:
                 self.run_body(otherwise)
         elif stmt[0] == "assign":
-            _, target_ast, value_ast = stmt
+            _, target_ast, value_ast, location = stmt
             if target_ast[0] == "get_variable":
                 _, varname = target_ast
                 if self.find_any_var_or_constant(varname) is None:
@@ -1476,12 +1509,12 @@ class Runner:
             value = self.run_expression(value_ast)
             ctypes.pointer(target)[0] = cast_or_copy(value, type(target))
         elif stmt[0] == "in_place_mul":
-            _, target_ast, value_ast = stmt
+            _, target_ast, value_ast, location = stmt
             target = self.run_expression(target_ast)
             value = self.run_expression(value_ast)
             ctypes.pointer(target)[0] *= value.value
         elif stmt[0] == "declare_local_var":
-            _, varname, type_ast, value_ast = stmt
+            _, varname, type_ast, value_ast, location = stmt
             vartype = type_from_ast(self.path, type_ast)
             var = vartype()
             if value_ast is not None:
@@ -1493,10 +1526,10 @@ class Runner:
             if not self.run_expression(cond):
                 raise RuntimeError(f"assertion failed in {location}")
         elif stmt[0] == "return":
-            _, val = stmt
+            _, val, location = stmt
             raise Return(self.run_expression(val))
         elif stmt[0] == "for":
-            _, init, cond, incr, body = stmt
+            _, init, cond, incr, body, location = stmt
             self.run_statement(init)
             while self.run_expression(cond).value:
                 try:
@@ -1505,7 +1538,7 @@ class Runner:
                     break
                 self.run_statement(incr)
         elif stmt[0] == "while":
-            _, cond, body = stmt
+            _, cond, body, location = stmt
             while self.run_expression(cond).value:
                 try:
                     self.run_body(body)
@@ -1514,7 +1547,7 @@ class Runner:
         elif stmt[0] == "break":
             raise Break()
         elif stmt[0] == "match":
-            _, match_obj_ast, func_ast, cases, case_underscore = stmt
+            _, match_obj_ast, func_ast, cases, case_underscore, location = stmt
             assert func_ast is not None  # TODO
             match_obj = self.run_expression(match_obj_ast)
             func = self.run_expression(func_ast)
@@ -1522,7 +1555,12 @@ class Runner:
             for case_objs, case_body in cases:
                 for case_obj_ast in case_objs:
                     case_obj = self.run_expression(case_obj_ast)
-                    if call_function(func, iter([match_obj, case_obj])).value == 0:
+                    if (
+                        call_function(
+                            func, iter([match_obj, case_obj]), self.depth
+                        ).value
+                        == 0
+                    ):
                         matched = True
                         break
                 if matched:
@@ -1540,17 +1578,7 @@ class Runner:
             _, func_ast, arg_asts = expr
             func = self.run_expression(func_ast)
             args_iter = (self.run_expression(arg_ast) for arg_ast in arg_asts)
-
-            if func_ast[0] == "get_variable":
-                _, funcname = func_ast
-            else:
-                funcname = str(func_ast)  # good enough lol
-
-            if isinstance(func, tuple):
-                print("Calling Jou function:", funcname)
-            else:
-                print("Calling C function:", funcname)
-            return call_function(func, args_iter)
+            return call_function(func, args_iter, self.depth)
 
         elif expr[0] == "get_variable":
             _, varname = expr
@@ -1694,7 +1722,7 @@ FIND_STDLIB_RESULT = ctypes.cast(
 # Args must be given as an iterator to get the right evaluation order AND type
 # conversions for arguments. When we evaluate an argument, we need to cast it
 # before we evaluate the next argument.
-def call_function(func, args_iter):
+def call_function(func, args_iter, depth: int):
     assert func is not None
     if not isinstance(func, tuple):
         # Function defined in C and declared in Jou
@@ -1712,7 +1740,9 @@ def call_function(func, args_iter):
     # Function defined in Jou
     func_path, func_ast = func
     assert func_ast[0] == "function_def"
-    _, func_name, funcdef_args, takes_varargs, return_type, body, decors = func_ast
+    _, func_name, funcdef_args, takes_varargs, return_type, body, decors, location = (
+        func_ast
+    )
     assert not takes_varargs
 
     # Do not run the Jou compiler's function for finding standard library,
@@ -1721,7 +1751,7 @@ def call_function(func, args_iter):
     if func_path == "compiler/paths.jou" and func_name == "find_stdlib":
         return FIND_STDLIB_RESULT
 
-    r = Runner(func_path)
+    r = Runner(func_path, depth + 1)
 
     for arg_name, arg_type, arg_default in funcdef_args:
         assert arg_default is None
@@ -1779,9 +1809,12 @@ def main() -> None:
 
     argc = ctypes.c_int(len(args))
     argv = (ctypes.POINTER(ctypes.c_uint8) * (len(args) + 1))(*args, None)
+
+    print("Running main(). Here We Go...")
     call_function(
         func=find_function("compiler/main.jou", "main"),
         args_iter=iter([argc, argv]),
+        depth=0,
     )
 
 
