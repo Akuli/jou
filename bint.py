@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import time
 import functools
 import subprocess
@@ -101,16 +102,8 @@ KEYWORDS = [
     "case",
 ]
 
-
-@dataclass
-class Token:
-    kind: str
-    code: str
-    location: tuple[str, int]
-
-
-def tokenize(jou_code, path):
-    regex = r"""
+TOKENIZER_REGEX = re.compile(
+    r"""
     (?P<newline> \n [ ]* )                      # a newline and all indentation after it
     | (?P<keyword> KEYWORDS )                   # "import"
     | (?P<name> [^\W\d] \w* )                   # "foo"
@@ -135,11 +128,24 @@ def tokenize(jou_code, path):
     | (?P<error> [\S\s] )                       # anything else is an error
     """.replace(
         "KEYWORDS", "|".join(r"\b" + k + r"\b" for k in KEYWORDS)
-    )
+    ),
+    flags=re.VERBOSE,
+)
+
+
+@dataclass
+class Token:
+    kind: str
+    code: str
+    location: tuple[str, int]
+
+
+def tokenize(jou_code, path):
+    start = time.perf_counter()
 
     tokens = []
     lineno = 1
-    for m in re.finditer(regex, jou_code, flags=re.VERBOSE):
+    for m in TOKENIZER_REGEX.finditer(jou_code):
         if m.lastgroup == "error":
             exit(f"tokenize error in file {path}, line {lineno}")
 
@@ -203,7 +209,7 @@ def tokenize(jou_code, path):
             indent_level -= 4
             i += 1
 
-    return tokens
+    return list(tokens)
 
 
 BYTE_VALUES = {
@@ -289,6 +295,7 @@ def unescape_string(s: str) -> bytes:
             result += c.encode("utf-8")
 
 
+@functools.cache
 def simplify_path(path: str) -> str:
     # Remove "foo/../bar" and "foo/./bar" stuff
     return os.path.relpath(os.path.abspath(path)).replace("\\", "/")
@@ -967,12 +974,15 @@ class Parser:
         return ("enum", name, members, decors)
 
 
-PARSE_TIMES = {"read": 0.0, "tokenize": 0.0, "parse": 0.0}
+ASTS: dict[str, Any] = {}
+PARSE_TIMES = collections.defaultdict(float)
 
 
 def parse_file(path):
     # Remove "foo/../bar" and "foo/./bar" stuff
-    path = os.path.relpath(os.path.abspath(path)).replace("\\", "/")
+    start = time.perf_counter()
+    path = simplify_path(path)
+    PARSE_TIMES["resolve"] += time.perf_counter() - start
 
     if path in ASTS:
         return
@@ -1002,9 +1012,6 @@ def parse_file(path):
 
     for imp_path in imported:
         parse_file(imp_path)
-
-
-ASTS: dict[str, Any] = {}
 
 
 def evaluate_compile_time_if_statements() -> None:
