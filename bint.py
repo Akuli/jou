@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import functools
 import subprocess
 import shutil
@@ -966,6 +967,9 @@ class Parser:
         return ("enum", name, members, decors)
 
 
+PARSE_TIMES = {"read": 0.0, "tokenize": 0.0, "parse": 0.0}
+
+
 def parse_file(path):
     # Remove "foo/../bar" and "foo/./bar" stuff
     path = os.path.relpath(os.path.abspath(path)).replace("\\", "/")
@@ -973,13 +977,16 @@ def parse_file(path):
     if path in ASTS:
         return
 
-    # print("Parsing", path)
-
+    start = time.perf_counter()
     with open(path, encoding="utf-8") as f:
         content = f.read()
+    PARSE_TIMES["read"] += time.perf_counter() - start
 
+    start = time.perf_counter()
     tokens = tokenize(content, path)
+    PARSE_TIMES["tokenize"] += time.perf_counter() - start
 
+    start = time.perf_counter()
     parser = Parser(path, tokens)
     ast = []
     imported = []
@@ -989,6 +996,7 @@ def parse_file(path):
             if s[0] == "import":
                 imported.append(s[1])
             ast.append(s)
+    PARSE_TIMES["parse"] += time.perf_counter() - start
 
     ASTS[path] = ast
 
@@ -1783,7 +1791,7 @@ def main() -> None:
 
     print("Parsing Jou files...", end=" ", flush=True)
     parse_file("compiler/main.jou")
-    print(f"Parsed {len(ASTS)} files.")
+    print(f"{len(ASTS)} files:", *(f"{name}={round(sec*1000)}ms" for name, sec in PARSE_TIMES.items()))
 
     for path in ASTS.keys():
         TYPES[path] = {
