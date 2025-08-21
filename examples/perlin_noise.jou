@@ -94,7 +94,7 @@ def save_perlin_image(noise: double*, width: int, height: int, filename: byte*) 
     minValue: double = -sqrt(2.0) / 2.0
     maxValue: double = sqrt(2.0) / 2.0
     range: double = maxValue - minValue
-    
+
     for i = 0; i < height * width; i++:
         normalized: double = (noise[i] - minValue) / range
 
@@ -145,4 +145,3 @@ def main() -> int:
     free(noise)
 
     return 0
-    
