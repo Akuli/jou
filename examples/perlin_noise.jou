@@ -1,6 +1,7 @@
 # Instructions:
 # 1. Run `jou perlin_noise.jou`.
-# 2. Look at `FILENAME.ppm`.
+# 2. Look at `thingy.ppm`.
+# the output is somewhat blurry at the moment.
 
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
@@ -8,18 +9,11 @@ import "stdlib/math.jou"
 import "stdlib/rand.jou"
 
 # How many cells in each direction (SIZE^2 total)
-const SIZE: int = 20
+const SIZE: int = 10
 
 # How many pixels fit into a cell in each direction (CELL_PIXELS^2 total)
-const CELL_PIXELS: int = 40
+const CELL_PIXELS: int = 50
 
-# NOTE: SIZE * CELL_PIXELS = HEIGHT/WIDTH in order to fill the entire image
-
-# dimensions of output image
-# if you change these, you must also change the list sizes
-# in save_perlin_image()
-const HEIGHT: int = 800
-const WIDTH: int = 800
 
 # Generates a random 2D vector of length 1 for each corner of a cell.
 # We have SIZE^2 cells, (SIZE+1)^2 corners and hence (SIZE+1)^2 unit vectors.
@@ -85,32 +79,13 @@ def choose_unit_vectors(corners: int[2][4], unit_vectors: float[2]*) -> float[2]
     return result
 
 
-# type of file is .ppm, so filename can be something like "FILENAME.ppm"
-# change x and y in float[x][y] to match HEIGHT and WIDTH constants if those are changed
-def save_perlin_image(noise: double*, width: int, height: int, filename: byte*) -> None:
-    file = fopen(filename, "wb")
-    fprintf(file, "P6\n%d %d\n255\n", width, height)
-
-    minValue: double = -sqrt(2.0) / 2.0
-    maxValue: double = sqrt(2.0) / 2.0
-    range: double = maxValue - minValue
-
-    for i = 0; i < height * width; i++:
-        normalized: double = (noise[i] - minValue) / range
-
-        gray: byte = normalized * 255.0 as byte
-
-        fputc(gray, file)
-        fputc(gray, file)
-        fputc(gray, file)
-
-    fclose(file)
-
-
 def main() -> int:
-    unit_vectors = generate_unit_vectors()
+    image_size = SIZE * CELL_PIXELS  # width and height of image (it is square shaped)
 
-    noise: double* = malloc(HEIGHT * WIDTH * sizeof(noise))
+    file = fopen("thingy.ppm", "w")
+
+    image: byte* = malloc(sizeof(image[0]) * image_size * image_size)
+    unit_vectors = generate_unit_vectors()
 
     for cell_x = 0; cell_x < SIZE; cell_x++:
         for cell_y = 0; cell_y < SIZE; cell_y++:
@@ -129,19 +104,20 @@ def main() -> int:
 
                     # Noise value is between +-sqrt(2)/2. For a proof, see:
                     # https://digitalfreepen.com/2017/06/20/range-perlin-noise.html
-                    # pixel_value = roundf((noise_value + sqrtf(2)/2)/sqrtf(2) * 255)
-                    # uncomment the above line and change the noise array assignment
-                    # to pixel_value to get a contour style map!
+                    v = roundf((noise_value + sqrtf(2)/2)/sqrtf(2) * 255) as byte
 
-                    pixel_x = cell_x * CELL_PIXELS + i
-                    pixel_y = cell_y * CELL_PIXELS + j
-                    noise[pixel_y * WIDTH + pixel_x] = noise_value
+                    im_x = cell_x*CELL_PIXELS + i
+                    im_y = cell_y*CELL_PIXELS + j
+                    image[im_y*image_size + im_x] = v
+
 
     free(unit_vectors)
 
-    # your own filename here, file goes to current directory
-    save_perlin_image(noise, WIDTH, HEIGHT, "FILENAME.ppm")
+    fprintf(file, "P5\n%d %d\n255\n", SIZE * CELL_PIXELS, SIZE * CELL_PIXELS)
+    for i = 0; i < (image_size * image_size); i++:
+        fputc(image[i], file)
 
-    free(noise)
+    fclose(file)
 
+    free(image)
     return 0
