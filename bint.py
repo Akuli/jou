@@ -8,10 +8,11 @@ import shutil
 import sys
 import os
 import string
-import ctypes.util
+import ctypes.util as todo_remove_this
+import ctypes as ctypes2  # For temporary refactoring of how ctypes is used
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence
 
 
 def load_llvm():
@@ -52,12 +53,12 @@ def load_llvm():
         [llvm_config, "--libfiles"], text=True
     ).splitlines():
         print("Found LLVM:", path)
-        result.append(ctypes.CDLL(path))
+        result.append(ctypes2.CDLL(path))
 
     return result
 
 
-LIBS: list[ctypes.CDLL] = []
+LIBS: list[ctypes2.CDLL] = []
 
 KEYWORDS = [
     "import",
@@ -141,8 +142,6 @@ class Token:
 
 
 def tokenize(jou_code, path):
-    start = time.perf_counter()
-
     tokens = []
     lineno = 1
     for m in TOKENIZER_REGEX.finditer(jou_code):
@@ -301,7 +300,274 @@ def simplify_path(path: str) -> str:
     return os.path.relpath(os.path.abspath(path)).replace("\\", "/")
 
 
-JOU_BOOL = ctypes.c_uint8
+# This happens implicitly a lot when bytes are passed around.
+#
+# Python requires this to be explicit: `ctypes.c_int` for example is actually a
+# pointer to an int and without this it can confusingly change in many places.
+def shallow_copy(ctypes_value: Any) -> Any:
+    # TODO: this still need?
+    result = type(ctypes_value)()
+    ctypes2.pointer(result)[0] = ctypes_value
+    return result
+
+
+class JouType:
+    """A type in Jou code."""
+
+    def __init__(self, name: str, ctypes_type: Any) -> None:
+        self.name = name
+        # ctypes_type may be None for now and assigned later.
+        # This is needed when a class references itself through pointers.
+        self.ctypes_type: Any | None = ctypes_type
+        self.inner_type: JouType | None = None
+        self.class_field_types: dict[str, JouType] = {}
+        self.funcptr_argtypes: list[JouType] | None = None
+        self.funcptr_return_type: JouType | None = None
+
+        self._pointer_type: JouType | None = None
+        self._array_types: dict[int, JouType] = {}
+
+    def pointer_type(self) -> JouType:
+        if self._pointer_type is not None:
+            return self._pointer_type
+
+        if self.name.startswith("funcptr("):
+            name = f"({self.name})*"
+        else:
+            name = f"{self.name}*"
+
+        result = JouType(name, ctypes2.POINTER(self.ctypes_type))
+        result.inner_type = self
+        self._pointer_type = result
+        return result
+
+    def array_type(self, length: int) -> JouType:
+        # TODO: If self is a funcptr, then self.name needs to be in parentheses
+        if length in self._array_types:
+            return self._array_types[length]
+
+        if self.name.startswith("funcptr("):
+            name = f"({self.name})[{length}]"
+        else:
+            name = f"{self.name}[{length}]"
+
+        assert self.ctypes_type is not None
+        result = JouType(name, self.ctypes_type * length)
+        result.inner_type = self
+
+        self._array_types[length] = result
+        return result
+
+    def is_integer_type(self) -> bool:
+        # Kinda hacky, but works fine
+        return bool(re.fullmatch(r"u?int(8|16|32|64)", self.name))
+
+    def allocate_instance(self) -> JouValue:
+        """Return a pointer to a newly allocated value.
+
+        The ctypes module allocates the memory for the value. I honestly don't
+        know how it is cleaned up. Maybe with Python's garbage collection,
+        maybe never. In any case it seems to work.
+        """
+        assert self.ctypes_type is not None
+        ctypes_instance = self.ctypes_type()
+        ctypes_ptr = ctypes2.pointer(ctypes_instance)
+        return JouValue(self.pointer_type(), ctypes_ptr)
+
+
+class JouValue:
+    """An IMMUTABLE value in Jou code.
+
+    When you create a new JouValue, make sure that its ctypes stuff is a copy
+    of the actual object, like it would be in Jou's pass by value.
+
+    For example, consider the following Jou code:
+
+        class Foo:
+            x: int
+
+        def main() -> int:
+            f = Foo{}
+            x = f.x
+            x += 1
+            printf("%d\n", f.x)  # Output: 0
+            return 0
+
+    When we do `x = f.x`, we construct a JouValue that represents `f.x`. There
+    should be no way to modify the value of `f.x` through this newly construted
+    JouValue.
+    """
+
+    def __init__(
+        self, jou_type: JouType, ctypes_value: Any, *, cast: bool = False
+    ) -> None:
+        # The type should be fully initialized when we make instances of it
+        assert jou_type.ctypes_type is not None
+
+        if cast:
+            ctypes_value = ctypes2.cast(ctypes_value, jou_type.ctypes_type)
+        assert type(ctypes_value) == jou_type.ctypes_type
+        self.jou_type = jou_type
+        self.ctypes_value = ctypes_value
+
+    def __repr__(self) -> str:
+        try:
+            v = self.unwrap_value()
+        except Exception:
+            v = "..."
+        return f"<JouValue: {self.jou_type.name} {v}>"
+
+    def cast(self, to: JouType) -> JouValue:
+        if self.jou_type == to:
+            return self
+
+        if self.jou_type.name.endswith(("*", "]")) and to.name.endswith("*"):
+            # Simple pointer-to-pointer cast or array-to-pointer cast
+            assert to.ctypes_type is not None
+            return JouValue(to, ctypes2.cast(self.ctypes_value, to.ctypes_type))
+
+        if self.jou_type.name == "uint8*" and re.fullmatch(r"uint8\[\d+\]", to.name):
+            # String from pointer to array (only allowed in some special cases)
+            assert to.ctypes_type is not None
+            array = to.ctypes_type()
+            LIBS[0].strcpy(self.ctypes_value, array)
+            return JouValue(to, array)
+
+        if self.jou_type.is_integer_type() and to.is_integer_type():
+            # Simple integer-to-integer cast.
+            return jou_integer(to, self.ctypes_value.value)
+
+        raise RuntimeError(f"cannot cast {self.jou_type.name} to {to.name}")
+
+    def deref(self) -> JouValue:
+        """Get the value of a pointer."""
+        assert self.jou_type.name.endswith("*"), f"can't deref {self.jou_type.name}"
+        assert self.jou_type.inner_type is not None
+        assert self.jou_type.inner_type.ctypes_type is not None
+
+        # Construct a new object that does not refer back to the pointer implicitly
+        result = self.jou_type.inner_type.ctypes_type()
+        ctypes2.pointer(result)[0] = self.ctypes_value[0]
+        return JouValue(self.jou_type.inner_type, result)
+
+    def deref_set(self, value: JouValue) -> None:
+        """Set the value of a pointer."""
+        assert self.jou_type.name.endswith("*")
+        if self.jou_type.inner_type != value.jou_type:
+            raise RuntimeError(f"cannot assign {value} into pointer {self}")
+        self.ctypes_value[0] = value.ctypes_value
+
+    def unwrap_value(self):
+        """Turn pointer or integer to Python `int`."""
+        if self.jou_type.name.endswith("*"):
+            return ctypes2.cast(self.ctypes_value, ctypes2.c_void_p).value
+        else:
+            # e.g. ctypes.c_int
+            return self.ctypes_value.value
+
+    def get_field_pointer(self, field_name: str) -> JouValue:
+        """Compute `&ptr.field` where `ptr` is a pointer to an instance of a class."""
+        assert self.jou_type.name.endswith("*")
+        assert self.jou_type.inner_type is not None
+
+        # No idea why ctypes makes this so difficult...
+        # The problem is that `getattr(instance, field)` returns e.g. Python `int`, not `c_int`
+        # https://stackoverflow.com/a/50534262
+        klass = self.jou_type.inner_type
+        struct = klass.ctypes_type
+        field_type = klass.class_field_types[field_name]
+        assert field_type is not None
+        field_offset = getattr(struct, field_name).offset
+        field_ptr = ctypes2.pointer(
+            field_type.ctypes_type.from_buffer(self.ctypes_value.contents, field_offset)
+        )
+        return JouValue(field_type.pointer_type(), field_ptr)
+
+    def pointer_arithmetic(self, index: int) -> JouValue:
+        """Compute `&ptr[index]` where `ptr` is a pointer to an instance of a class."""
+        assert self.jou_type.name.endswith("*")
+        assert self.jou_type.inner_type is not None
+        assert self.jou_type.inner_type.ctypes_type is not None
+        assert self.jou_type.ctypes_type is not None
+
+        memory_address = ctypes2.addressof(self.ctypes_value.contents)
+        memory_address += index * ctypes2.sizeof(self.jou_type.inner_type.ctypes_type)
+        new_ptr = ctypes2.cast(memory_address, self.jou_type.ctypes_type)
+        return JouValue(self.jou_type, new_ptr)
+
+
+BASIC_TYPES = {
+    "int8": JouType("int8", ctypes2.c_int8),
+    "int16": JouType("int16", ctypes2.c_int16),
+    "int32": JouType("int32", ctypes2.c_int32),
+    "int64": JouType("int64", ctypes2.c_int64),
+    "uint8": JouType("uint8", ctypes2.c_uint8),
+    "uint16": JouType("uint16", ctypes2.c_uint16),
+    "uint32": JouType("uint32", ctypes2.c_uint32),
+    "uint64": JouType("uint64", ctypes2.c_uint64),
+    "bool": JouType("bool", ctypes2.c_uint8),
+    "float": JouType("float", ctypes2.c_float),
+    "double": JouType("double", ctypes2.c_double),
+}
+BASIC_TYPES["byte"] = BASIC_TYPES["uint8"]
+BASIC_TYPES["int"] = BASIC_TYPES["int32"]
+BASIC_TYPES["long"] = BASIC_TYPES["int64"]
+
+
+# argtypes passed as tuple to make the caching work
+@functools.cache
+def funcptr_type(argtypes: tuple[JouType, ...], return_type: JouType | None) -> JouType:
+    argtype_names = [at.name for at in argtypes]
+    argtype_names.append("...")  # We assume that absolutely everything takes varargs
+    ret_name = "None" if return_type is None else return_type.name
+    name = "funcptr(" + ", ".join(argtype_names) + ") -> " + ret_name
+
+    # All functions are of the same type in ctypes. That is the main reason
+    # why we need JouType in the first place.
+    assert type(LIBS[0].printf) is type(LIBS[0].strcpy)
+    ctypes_funcptr_type = type(LIBS[0].printf)
+
+    result = JouType(name, ctypes_funcptr_type)
+    result.funcptr_argtypes = list(argtypes)
+    result.funcptr_return_type = return_type
+    return result
+
+
+def jou_integer(jtype: JouType | str, value: int) -> JouValue:
+    if isinstance(jtype, str):
+        jtype = BASIC_TYPES[jtype]
+    assert jtype.is_integer_type()
+    assert jtype.ctypes_type is not None
+    return JouValue(jtype, jtype.ctypes_type(value))
+
+
+def jou_bool(value: bool) -> JouValue:
+    return JouValue(BASIC_TYPES["bool"], ctypes2.c_uint8(value))
+
+
+def jou_float(value: float) -> JouValue:
+    return JouValue(BASIC_TYPES["float"], ctypes2.c_float(value))
+
+
+def jou_double(value: float) -> JouValue:
+    return JouValue(BASIC_TYPES["double"], ctypes2.c_double(value))
+
+
+JOU_VOID_PTR = JouType("void*", ctypes2.c_void_p)
+JOU_NULL = JouValue(JOU_VOID_PTR, 0, cast=True)
+
+
+# TODO: not sure if necessary
+hey_python_please_dont_garbage_collect_these_strings_thank_you = []
+
+
+# None creates a NULL
+def jou_string(s: str | bytes | None) -> JouValue:
+    if isinstance(s, str):
+        s = s.encode("utf-8")
+    obj = ctypes2.c_char_p(s)
+    hey_python_please_dont_garbage_collect_these_strings_thank_you.append(obj)
+    return JouValue(BASIC_TYPES["uint8"].pointer_type(), obj, cast=True)
 
 
 class Parser:
@@ -492,11 +758,14 @@ class Parser:
                 int(self.tokens.pop(0).code.replace("_", ""), 0),
             )
         if self.tokens[0].kind == "byte":
-            return ("constant", ctypes.c_uint8(BYTE_VALUES[self.eat("byte").code]))
+            return (
+                "constant",
+                jou_integer("byte", BYTE_VALUES[self.eat("byte").code]),
+            )
         if self.tokens[0].kind == "double":
-            return ("constant", ctypes.c_double(float(self.eat("double").code)))
+            return ("constant", jou_double(float(self.eat("double").code)))
         if self.tokens[0].kind == "string":
-            return ("pointer_string", unescape_string(self.eat("string").code))
+            return ("string", unescape_string(self.eat("string").code))
         if self.tokens[0].kind == "name":
             if self.looks_like_instantiate():
                 return self.parse_instantiation()
@@ -504,13 +773,13 @@ class Parser:
         # TODO: how far are we gonna get using 0 and 1 bytes as bools?
         if self.tokens[0].code == "True":
             self.eat("True")
-            return ("constant", JOU_BOOL(1))
+            return ("constant", jou_bool(True))
         if self.tokens[0].code == "False":
             self.eat("False")
-            return ("constant", JOU_BOOL(0))
+            return ("constant", jou_bool(False))
         if self.tokens[0].code == "NULL":
             self.eat("NULL")
-            return ("constant", ctypes.c_void_p())
+            return ("constant", JOU_NULL)
         if self.tokens[0].code == "self":
             self.eat("self")
             return ("self",)
@@ -691,6 +960,8 @@ class Parser:
     def parse_oneline_statement(self):
         location = self.tokens[0].location
 
+        result: tuple[Any, ...]
+
         if self.tokens[0].code == "return":
             self.eat("return")
             if self.tokens[0].kind == "newline":
@@ -790,7 +1061,7 @@ class Parser:
         self.parse_start_of_body()
 
         cases = []
-        case_underscore = None
+        case_underscore = []
 
         while self.tokens[0].kind != "dedent":
             self.eat("case")
@@ -975,7 +1246,7 @@ class Parser:
 
 
 ASTS: dict[str, Any] = {}
-PARSE_TIMES = collections.defaultdict(float)
+PARSE_TIMES: collections.defaultdict[str, float] = collections.defaultdict(float)
 
 
 def parse_file(path):
@@ -1041,42 +1312,45 @@ def evaluate_compile_time_if_statements() -> None:
 
 
 FUNCTIONS: dict[str, dict[str, Any]] = {path: {} for path in ASTS}
-TYPES: dict[str, dict[str | tuple[Any, ...], type[ctypes._CData]]] = {}
-GLOBALS: dict[str, dict[str, type[ctypes._CData] | None]] = {}
-ENUMS: dict[str, dict[str, list[str] | None]] = {}
+TYPES: dict[str, dict[str | tuple[Any, JouType], JouType]] = {}
+GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
+ENUMS: dict[str, dict[str, list[str] | None]] = {}  # None means not found
 
 
-def define_class(path, class_ast, typesub=None):
+def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
     assert class_ast[0] == "class", class_ast
     _, class_name, generics, body, decors, location = class_ast
 
-    # While defining this class, refer to a dummy version of it instead.
+    # While defining this class, it must be possible to refer to it.
     # This is needed for recursive pointer fields.
-    class DummyClass(ctypes.Structure):
-        _fields_ = []
-
     assert class_name not in TYPES[path]
-    TYPES[path][class_name] = DummyClass
+    jou_type = JouType(class_name, None)
+    TYPES[path][class_name] = jou_type
 
     fields = []
     for member in body:
         if member[0] == "class_field":
             _, field_name, field_type_ast, location = member
-            field_type = type_from_ast(path, field_type_ast, typesub=typesub)
-            fields.append((field_name, field_type))
+            fields.append((field_name, field_type_ast))
         elif member[0] == "union":
             _, union_members, location = member
-            for field_name, field_type_ast in union_members:
-                field_type = type_from_ast(path, field_type_ast, typesub=typesub)
-                fields.append((field_name, field_type))
+            # Just treat unions as flat things, good enough
+            fields.extend(union_members)
 
-    assert TYPES[path][class_name] is DummyClass
-    del TYPES[path][class_name]
+    for field_name, field_type_ast in fields:
+        field_type = type_from_ast(path, field_type_ast, typesub=typesub)
+        assert field_name not in jou_type.class_field_types
+        assert field_type.ctypes_type is not None  # needed below
+        jou_type.class_field_types[field_name] = field_type
 
-    class JouClass(ctypes.Structure):
-        _fields_ = fields
+    class JouClass(ctypes2.Structure):
+        _fields_ = [
+            (fname, ftype.ctypes_type)
+            for fname, ftype in jou_type.class_field_types.items()
+        ]
 
-    return JouClass
+    jou_type.ctypes_type = JouClass
+    return jou_type
 
 
 def find_named_type(path: str, type_name: str):
@@ -1093,7 +1367,7 @@ def find_named_type(path: str, type_name: str):
             result = define_class(path, item)
             break
         if item[:2] == ("enum", type_name):
-            result = ctypes.c_int32
+            result = BASIC_TYPES["int"]
             break
 
     if result is None:
@@ -1119,7 +1393,7 @@ def find_named_type(path: str, type_name: str):
     return result
 
 
-def find_generic_class(path: str, class_name: str, generic_param: type):
+def find_generic_class(path: str, class_name: str, generic_param: JouType):
     try:
         return TYPES[path][class_name, generic_param]
     except KeyError:
@@ -1157,7 +1431,7 @@ def find_generic_class(path: str, class_name: str, generic_param: type):
     return result
 
 
-def declare_c_function(path, declare_ast):
+def declare_c_function(path: str, declare_ast) -> JouValue:
     _, func_name, args, takes_varargs, return_type, decors, location = declare_ast
     func = None
     for lib in LIBS:
@@ -1172,16 +1446,19 @@ def declare_c_function(path, declare_ast):
 
     for arg_name, arg_type, arg_default in args:
         assert arg_default is None
-    func.argtypes = [type_from_ast(path, triple[1]) for triple in args]
+    argtypes = [type_from_ast(path, triple[1]) for triple in args]
+    func.argtypes = [at.ctypes_type for at in argtypes]
+
     if return_type == ("named_type", "None") or return_type == (
         "named_type",
         "noreturn",
     ):
-        func.restype = None
+        return_type = None
     else:
-        func.restype = type_from_ast(path, return_type)
+        return_type = type_from_ast(path, return_type)
+    func.restype = None if return_type is None else return_type.ctypes_type
 
-    return func
+    return JouValue(funcptr_type(tuple(argtypes), return_type), func)
 
 
 def declare_c_global_var(path, declare_ast):
@@ -1189,10 +1466,11 @@ def declare_c_global_var(path, declare_ast):
     _, varname, vartype_ast, decors = declare_ast
     print("Declaring global variable", varname)
     vartype = type_from_ast(path, vartype_ast)
+    assert vartype.ctypes_type is not None
 
     for lib in LIBS:
         try:
-            return vartype.in_dll(lib, varname)
+            return vartype.ctypes_type.in_dll(lib, varname)
         except ValueError:
             pass
 
@@ -1210,7 +1488,7 @@ def find_function(path: str, func_name: str):
         pass
 
     # Is it defined or declared in this file?
-    result = None
+    result: Any = None
     for ast in ASTS[path]:
         if ast[:2] == ("function_def", func_name):
             result = (path, ast)
@@ -1244,16 +1522,17 @@ def find_function(path: str, func_name: str):
 
 def find_constant(path, name):
     if name == "WINDOWS":
-        return JOU_BOOL(int(sys.platform == "win32"))
+        return jou_bool(sys.platform == "win32")
     if name == "MACOS":
-        return JOU_BOOL(int(sys.platform == "darwin"))
+        return jou_bool(sys.platform == "darwin")
     if name == "NETBSD":
-        return JOU_BOOL(int(sys.platform.startswith("netbsd")))
+        return jou_bool(sys.platform.startswith("netbsd"))
     # TODO: `const` constants
     return None
 
 
-def find_global_var(path, varname):
+# Returns a pointer to a global variable
+def find_global_var_ptr(path, varname):
     try:
         return GLOBALS[path][varname]
     except KeyError:
@@ -1265,7 +1544,8 @@ def find_global_var(path, varname):
         if ast[:2] == ("global_var_def", varname):
             _, _, var_type, decors, location = ast
             # Create new global variable
-            result = type_from_ast(path, var_type)()
+            valtype = type_from_ast(path, var_type)
+            result = valtype.allocate_instance()
             break
         if ast[:2] == ("global_var_declare", varname):
             result = declare_c_global_var(path, ast)
@@ -1283,7 +1563,7 @@ def find_global_var(path, varname):
                         # location is last, decorators are before that
                         and "@public" in item2[-2]
                     ):
-                        result = find_global_var(path2, varname)
+                        result = find_global_var_ptr(path2, varname)
                         assert result is not None
                         break
                 if result is not None:
@@ -1330,12 +1610,12 @@ def find_enum(path, enum_name):
     return result
 
 
-def type_from_ast(path, ast, typesub=None):
+def type_from_ast(path, ast, typesub: dict[str, JouType] | None = None) -> JouType:
     if ast[0] == "pointer":
         _, value_type_ast = ast
         if value_type_ast == ("named_type", "void"):
-            return ctypes.c_void_p
-        return ctypes.POINTER(type_from_ast(path, value_type_ast, typesub=typesub))
+            return JOU_VOID_PTR
+        return type_from_ast(path, value_type_ast, typesub=typesub).pointer_type()
     if ast[0] == "named_type":
         _, name = ast
         if typesub is not None and name in typesub:
@@ -1345,118 +1625,12 @@ def type_from_ast(path, ast, typesub=None):
         _, item_type_ast, length_ast = ast
         assert length_ast[0] == "integer_constant"
         _, length = length_ast
-        return type_from_ast(path, item_type_ast, typesub=typesub) * length
+        return type_from_ast(path, item_type_ast, typesub=typesub).array_type(length)
     if ast[0] == "generic":
         _, class_name, [param_type_ast] = ast
         param_type = type_from_ast(path, param_type_ast, typesub=typesub)
         return find_generic_class(path, class_name, param_type)
     raise NotImplementedError(ast)
-
-
-# This happens implicitly a lot when bytes are passed around.
-#
-# Python requires this to be explicit: `ctypes.c_int` for example is actually a
-# pointer to an int and without this it can confusingly change in many places.
-def shallow_copy(value):
-    result = type(value)()
-    ctypes.pointer(result)[0] = value
-    return result
-
-
-def is_pointer_type(ctype):
-    return (
-        # TODO: There doesn't seem to be a good way to do this.
-        ctype in (ctypes.c_char_p, ctypes.c_wchar_p, ctypes.c_void_p)
-        or isinstance(ctype, (ctypes._Pointer, ctypes._CFuncPtr))
-    )
-
-
-def is_array(ctype):
-    return hasattr(ctype, "_length_")
-
-
-INTEGER_TYPES = {
-    "int8": ctypes.c_int8,
-    "int16": ctypes.c_int16,
-    "int32": ctypes.c_int32,
-    "int64": ctypes.c_int64,
-    "uint8": ctypes.c_uint8,
-    "uint16": ctypes.c_uint16,
-    "uint32": ctypes.c_uint32,
-    "uint64": ctypes.c_uint64,
-}
-
-
-def ctype_to_string(ctype):
-    if ctype == ctypes.c_void_p:
-        return "void*"
-
-    for int_name, int_type in INTEGER_TYPES.items():
-        if int_type == ctype:
-            return int_name
-
-    if hasattr(ctype, "_length_") and hasattr(ctype, "_type_"):
-        # It is array
-        array_len = ctype._length_
-        assert isinstance(array_len, int)
-        return ctype_to_string(ctype._type_) + "[" + str(array_len) + "]"
-
-    if hasattr(ctype, "_type_"):
-        # It is a pointer
-        return ctype_to_string(ctype._type_) + "*"
-
-    if hasattr(ctype, "_fields_"):
-        # It is a class
-        return (
-            "class("
-            + ", ".join(ctype_to_string(ftype) for fname, ftype in ctype._fields_)
-            + ")"
-        )
-
-    breakpoint()
-    raise NotImplementedError(ctype)
-
-
-def cast_or_copy(value, to):
-    from_str = ctype_to_string(type(value))
-    to_str = ctype_to_string(to)
-
-    if from_str == to_str:
-        return shallow_copy(value)
-
-    if from_str.endswith(("*", "]")) and to_str.endswith("*"):
-        # Simple pointer-to-pointer cast or array-to-pointer cast
-        return ctypes.cast(value, to)
-
-    if from_str == "uint8*" and re.fullmatch(r"uint8\[\d+\]", to_str):
-        # String from pointer to array (only allowed in some special cases)
-        array = to()
-        LIBS[0].strcpy(value, array)
-        return array
-
-    if from_str in INTEGER_TYPES and to_str in INTEGER_TYPES:
-        return to(value.value)
-
-    raise NotImplementedError(from_str, to_str)
-
-
-def get_field(instance, field_name):
-    # No idea why ctypes makes this so difficult...
-    # The problem is that `getattr(instance, field)` returns e.g. Python `int`, not `c_int`
-    # https://stackoverflow.com/a/50534262
-    struct = type(instance)
-    field_type = next(ftype for fname, ftype in struct._fields_ if fname == field_name)
-    field_offset = getattr(struct, field_name).offset
-    return field_type.from_buffer(instance, field_offset)
-
-
-def unwrap_value(obj):
-    if hasattr(obj, "value"):
-        # e.g. ctypes.c_int
-        return obj.value
-    else:
-        # assume it is a pointer
-        return ctypes.cast(obj, ctypes.c_void_p).value
 
 
 class Return(Exception):
@@ -1477,23 +1651,23 @@ class Runner:
     def __init__(self, path: str, depth: int) -> None:
         self.path = path
         self.depth = depth
-        self.locals: dict[str, ctypes._CData] = {}
+        self.locals: dict[str, JouValue] = {}  # values are pointers
 
     def run_body(self, body):
         for item in body:
             self.run_statement(item)
 
-    def find_any_var_or_constant(self, varname):
+    def find_any_var_or_constant(self, varname: str) -> JouValue:
         constant = find_constant(self.path, varname)
         if constant is not None:
             return constant
 
         if varname in self.locals:
-            return self.locals[varname]
+            return self.locals[varname].deref()
 
-        return find_global_var(self.path, varname)
+        return find_global_var_ptr(self.path, varname)
 
-    def run_statement(self, stmt):
+    def run_statement(self, stmt) -> None:
         filename, lineno = stmt[-1]
         source_line = get_source_lines(filename)[lineno - 1].strip()
         indent = "  " * self.depth
@@ -1518,23 +1692,25 @@ class Runner:
                 _, varname = target_ast
                 if self.find_any_var_or_constant(varname) is None:
                     # Making a new variable. Use the type of the value being assigned.
-                    self.locals[varname] = shallow_copy(self.run_expression(value_ast))
+                    value = self.run_expression(value_ast)
+                    ptr = value.jou_type.allocate_instance()
+                    ptr.deref_set(value)
+                    self.locals[varname] = ptr
                     return
-            target = self.run_expression(target_ast)
+            target = self.run_address_of_expression(target_ast)
             value = self.run_expression(value_ast)
-            ctypes.pointer(target)[0] = cast_or_copy(value, type(target))
+            target.deref_set(value)
         elif stmt[0] == "in_place_mul":
             _, target_ast, value_ast, location = stmt
-            target = self.run_expression(target_ast)
+            target = self.run_address_of_expression(target_ast)
             value = self.run_expression(value_ast)
-            ctypes.pointer(target)[0] *= value.value
+            target.ctypes_value[0].value *= value.ctypes_value.value
         elif stmt[0] == "declare_local_var":
             _, varname, type_ast, value_ast, location = stmt
             vartype = type_from_ast(self.path, type_ast)
-            var = vartype()
+            var = vartype.allocate_instance()
             if value_ast is not None:
-                value = self.run_expression(value_ast)
-                ctypes.pointer(var)[0] = cast_or_copy(value, vartype)
+                var.deref_set(self.run_expression(value_ast))
             self.locals[varname] = var
         elif stmt[0] == "assert":
             _, cond, location = stmt
@@ -1546,7 +1722,7 @@ class Runner:
         elif stmt[0] == "for":
             _, init, cond, incr, body, location = stmt
             self.run_statement(init)
-            while self.run_expression(cond).value:
+            while self.run_expression(cond).unwrap_value():
                 try:
                     self.run_body(body)
                 except Break:
@@ -1554,7 +1730,7 @@ class Runner:
                 self.run_statement(incr)
         elif stmt[0] == "while":
             _, cond, body, location = stmt
-            while self.run_expression(cond).value:
+            while self.run_expression(cond).unwrap_value():
                 try:
                     self.run_body(body)
                 except Break:
@@ -1586,9 +1762,79 @@ class Runner:
         else:
             raise NotImplementedError(stmt)
 
+    # Evaluates the type of expr without evaluating expr
+    def get_type(self, expr) -> JouType:
+        if expr[0] == "get_variable":
+            return self.run_expression(expr).jou_type
+
+        if expr[0] == "sub":
+            _, lhs, rhs = expr
+            lhs_type = self.get_type(lhs)
+            rhs_type = self.get_type(rhs)
+            if lhs_type == rhs_type:
+                return lhs_type
+            raise NotImplementedError(lhs_type, rhs_type)
+
+        if expr[0] == "call":
+            # TODO: handle method calls
+            _, func_ast, arg_asts = expr
+            funcptr_type = self.get_type(func_ast)
+            print(funcptr_type)
+            raise NotImplementedError
+
+        else:
+            raise NotImplementedError(expr)
+
+    # Evaluates &expr
+    def run_address_of_expression(self, expr) -> JouValue:
+        if expr[0] == "get_variable":
+            _, varname = expr
+            if varname in self.locals:
+                return self.locals[varname]
+            var = find_global_var_ptr(self.path, varname)
+            if var is None:
+                raise RuntimeError(
+                    f"no local or global variable named {varname} in {self.path}"
+                )
+            return var
+
+        elif expr[0] == ".":
+            _, obj_ast, field_name = expr
+            if obj_ast[0] == "get_variable":
+                _, obj_name = obj_ast
+                enum = find_enum(self.path, obj_name)
+                if enum is not None:
+                    # It is Enum.Member, not instance.field
+                    return jou_integer("int", enum.index(field_name))
+
+            # To evaluate &pointer.field, we evaluate the pointer and add a
+            # memory offset. In this case, we may not be able to evaluate
+            # &pointer. For example, &some_function().field is valid if the
+            # function returns a pointer, even though &some_function() is not.
+            #
+            # To get &instance.field we must evaluate &instance and add a
+            # memory offset to that. In this case, we may not be able to
+            # evaluate the instance itself because it may point to garbage
+            # memory.
+            if self.get_type(obj_ast).name.endswith("*"):
+                ptr = self.run_expression(obj_ast)
+            else:
+                ptr = self.run_address_of_expression(obj_ast)
+            return ptr.get_field_pointer(field_name)
+
+        elif expr[0] == "[":
+            # &ptr[index]
+            _, ptr_ast, index_ast = expr
+            ptr = self.run_expression(ptr_ast)
+            index = self.run_expression(index_ast)
+            return ptr.pointer_arithmetic(index.unwrap_value())
+
+        else:
+            raise NotImplementedError("address of", expr)
+
     # Returns a value that may be converted to pointer if needed, i.e. usually
     # not implicitly copied.
-    def run_expression(self, expr):
+    def run_expression(self, expr) -> JouValue:
         if expr[0] == "call":
             _, func_ast, arg_asts = expr
             func = self.run_expression(func_ast)
@@ -1609,33 +1855,34 @@ class Runner:
             raise RuntimeError(f"no variable named {varname} in {self.path}")
 
         elif expr[0] == "eq":
-            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return JOU_BOOL(left == right)
+            left, right = (self.run_expression(ast).unwrap_value() for ast in expr[1:])
+            return jou_bool(left == right)
 
         elif expr[0] == "ne":
-            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return JOU_BOOL(left != right)
+            left, right = (self.run_expression(ast).unwrap_value() for ast in expr[1:])
+            return jou_bool(left != right)
 
         elif expr[0] == "gt":
-            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return JOU_BOOL(left > right)
+            left, right = (self.run_expression(ast).unwrap_value() for ast in expr[1:])
+            return jou_bool(left > right)
 
         elif expr[0] == "lt":
-            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return JOU_BOOL(left < right)
+            left, right = (self.run_expression(ast).unwrap_value() for ast in expr[1:])
+            return jou_bool(left < right)
 
         elif expr[0] == "ge":
-            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return JOU_BOOL(left >= right)
+            left, right = (self.run_expression(ast).unwrap_value() for ast in expr[1:])
+            return jou_bool(left >= right)
 
         elif expr[0] == "le":
-            left, right = (unwrap_value(self.run_expression(ast)) for ast in expr[1:])
-            return JOU_BOOL(left <= right)
+            left, right = (self.run_expression(ast).unwrap_value() for ast in expr[1:])
+            return jou_bool(left <= right)
 
         elif expr[0] == "sizeof":
             _, obj = expr
-            # TODO: sizeof() shouldn't run the thing, just get its type
-            return ctypes.c_int64(ctypes.sizeof(self.run_expression(obj)))
+            t = self.get_type(obj)
+            assert t.ctypes_type is not None
+            return jou_integer("int64", ctypes2.sizeof(t.ctypes_type))
 
         elif expr[0] == ".":
             # TODO: can be many other things than plain old field access!
@@ -1645,8 +1892,15 @@ class Runner:
                 enum = find_enum(self.path, obj_name)
                 if enum is not None:
                     # It is Enum.Member, not instance.field
-                    return ctypes.c_int(enum.index(field_name))
-            return get_field(self.run_expression(obj_ast), field_name)
+                    return jou_integer("int", enum.index(field_name))
+
+            obj = self.run_expression(obj_ast)
+            if not obj.jou_type.name.endswith("*"):
+                # It is an instance of a class, make it a pointer
+                ptr = obj.jou_type.allocate_instance()
+                ptr.deref_set(obj)
+                obj = ptr
+            return obj.get_field_pointer(field_name).deref()
 
         elif expr[0] == "constant":
             _, value = expr
@@ -1655,66 +1909,72 @@ class Runner:
         elif expr[0] == "integer_constant":
             # TODO: type hints
             _, value = expr
-            return ctypes.c_int(value)
+            return jou_integer("int", value)
 
         elif expr[0] == "address_of":
             _, obj = expr
-            return ctypes.pointer(self.run_expression(obj))
+            return self.run_address_of_expression(obj)
 
-        elif expr[0] == "pointer_string":
-            _, data = expr
-            array_size = len(data) + 1
-            array = (ctypes.c_uint8 * array_size)(*data)
-            return ctypes.cast(ctypes.pointer(array), ctypes.POINTER(ctypes.c_uint8))
+        elif expr[0] == "string":
+            _, py_bytes = expr
+            return jou_string(py_bytes)
 
         elif expr[0] == "[":
             _, obj_ast, index_ast = expr
             obj = self.run_expression(obj_ast)
             index = self.run_expression(index_ast)
             # TODO: implicit array to pointer casts
-            # TODO: how does this handle `&foo[out_of_bounds]`? probably not right?
-            return obj[index.value]
+            return obj.pointer_arithmetic(index.unwrap_value()).deref()
 
         elif expr[0] == "instantiate":
             _, type_ast, fields = expr
             t = type_from_ast(self.path, type_ast)
-            kwargs = {}
+            ptr = t.allocate_instance()
             for field_name, field_value in fields:
                 field_value = self.run_expression(field_value)
-                field_type = next(
-                    ftype for fname, ftype in t._fields_ if fname == field_name
-                )
-                kwargs[field_name] = cast_or_copy(field_value, field_type)
-            return t(**kwargs)
+                ptr.get_field_pointer(field_name).deref_set(field_value)
+            return ptr.deref()
 
         elif expr[0] == "as":
             _, obj_ast, type_ast = expr
             obj = self.run_expression(obj_ast)
             t = type_from_ast(self.path, type_ast)
-            return cast_or_copy(obj, t)
+            return obj.cast(t)
 
         elif expr[0] == "and":
             _, lhs, rhs = expr
-            return JOU_BOOL(
-                self.run_expression(lhs).value and self.run_expression(rhs).value
+            return jou_bool(
+                self.run_expression(lhs).unwrap_value()
+                and self.run_expression(rhs).unwrap_value()
             )
 
         elif expr[0] == "or":
             _, lhs, rhs = expr
-            return JOU_BOOL(
-                self.run_expression(lhs).value or self.run_expression(rhs).value
+            return jou_bool(
+                self.run_expression(lhs).unwrap_value()
+                or self.run_expression(rhs).unwrap_value()
             )
 
         elif expr[0] == "not":
             _, inner = expr
-            return JOU_BOOL(not self.run_expression(inner).value)
+            return jou_bool(not self.run_expression(inner).unwrap_value())
+
+        elif expr[0] == "sub":
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.run_expression(lhs_ast)
+            rhs = self.run_expression(rhs_ast)
+            return jou_integer(
+                self.get_type(expr), lhs.unwrap_value() - rhs.unwrap_value()
+            )
 
         elif expr[0] == "div":
             _, lhs_ast, rhs_ast = expr
             lhs = self.run_expression(lhs_ast)
             rhs = self.run_expression(rhs_ast)
-            assert type(lhs) == type(rhs)  # TODO: figure out type properly
-            return type(lhs)(lhs.value // rhs.value)
+            # Jou's division is like Python's division: floor (not towards zero)
+            return jou_integer(
+                self.get_type(expr), lhs.unwrap_value() // rhs.unwrap_value()
+            )
 
         elif expr[0] == "post_incr":
             _, obj_ast = expr
@@ -1727,52 +1987,58 @@ class Runner:
             raise NotImplementedError(expr)
 
 
-# I think this needs to be global to avoid garbage collection issues, but not sure.
-FIND_STDLIB_RESULT = ctypes.cast(
-    ctypes.c_char_p(os.path.abspath("stdlib").encode("utf-8")),
-    ctypes.POINTER(ctypes.c_uint8),
-)
-
-
 # Args must be given as an iterator to get the right evaluation order AND type
 # conversions for arguments. When we evaluate an argument, we need to cast it
 # before we evaluate the next argument.
-def call_function(func, args_iter, depth: int):
+def call_function(func: tuple[str, tuple[Any, ...]] | JouValue, args_iter, depth: int):
     assert func is not None
-    if not isinstance(func, tuple):
+    if isinstance(func, JouValue):
         # Function defined in C and declared in Jou
         args = []
-        for arg_type in func.argtypes or []:
-            args.append(cast_or_copy(next(args_iter), arg_type))
+        assert func.jou_type.funcptr_argtypes is not None
+        for arg_type in func.jou_type.funcptr_argtypes:
+            args.append(next(args_iter).cast(arg_type))
         # Handle varargs: printf("hello %d\n", 1, 2, 3)
         # TODO: use something else than shallow copy for varargs
         args.extend(args_iter)
-        result = func(*args)
-        if isinstance(result, int):
-            result = func.restype(result)
+        result = func.ctypes_value(*(a.ctypes_value for a in args))
+        if isinstance(result, int):  # ctypes is funny...
+            assert func.jou_type.funcptr_return_type is not None
+            result = func.jou_type.funcptr_return_type.ctypes_type(result)
         return result
 
     # Function defined in Jou
     func_path, func_ast = func
     assert func_ast[0] == "function_def"
-    _, func_name, funcdef_args, takes_varargs, return_type, body, decors, location = (
-        func_ast
-    )
+    (
+        _,
+        func_name,
+        funcdef_args,
+        takes_varargs,
+        return_type,
+        body,
+        decors,
+        location,
+    ) = func_ast
     assert not takes_varargs
 
     # Do not run the Jou compiler's function for finding standard library,
     # because it looks at the location of currently running executable (python)
     # which is totally unrelated to Jou.
     if func_path == "compiler/paths.jou" and func_name == "find_stdlib":
-        return FIND_STDLIB_RESULT
+        return jou_string(os.path.abspath("stdlib"))
 
     r = Runner(func_path, depth + 1)
 
-    for arg_name, arg_type, arg_default in funcdef_args:
+    for arg_name, arg_type_ast, arg_default in funcdef_args:
         assert arg_default is None
-        r.locals[arg_name] = cast_or_copy(
-            next(args_iter), type_from_ast(func_path, arg_type)
-        )
+        arg_type = type_from_ast(func_path, arg_type_ast)
+        arg_value = next(args_iter).cast(arg_type)
+        # Create a pointer because the argument becomes a local variable that
+        # can be mutated.
+        ptr = arg_type.allocate_instance()
+        ptr.deref_set(arg_value)
+        r.locals[arg_name] = ptr
 
     # iterator must be exhausted now
     try:
@@ -1792,23 +2058,19 @@ def call_function(func, args_iter, depth: int):
 
 
 def main() -> None:
-    LIBS.append(ctypes.CDLL(ctypes.util.find_library("c")))
-    LIBS.append(ctypes.CDLL(ctypes.util.find_library("m")))
+    LIBS.append(ctypes2.CDLL(ctypes2.util.find_library("c")))
+    LIBS.append(ctypes2.CDLL(ctypes2.util.find_library("m")))
     LIBS.extend(load_llvm())
 
     print("Parsing Jou files...", end=" ", flush=True)
     parse_file("compiler/main.jou")
-    print(f"{len(ASTS)} files:", *(f"{name}={round(sec*1000)}ms" for name, sec in PARSE_TIMES.items()))
+    print(
+        f"{len(ASTS)} files:",
+        *(f"{name}={round(sec*1000)}ms" for name, sec in PARSE_TIMES.items()),
+    )
 
     for path in ASTS.keys():
-        TYPES[path] = {
-            "byte": ctypes.c_uint8,
-            "int": ctypes.c_int32,
-            "long": ctypes.c_int64,
-            "float": ctypes.c_float,
-            "double": ctypes.c_double,
-            "bool": JOU_BOOL,
-        } | INTEGER_TYPES
+        TYPES[path] = BASIC_TYPES.copy()
         GLOBALS[path] = {}
         FUNCTIONS[path] = {}
         ENUMS[path] = {}
@@ -1816,14 +2078,16 @@ def main() -> None:
     print("Evaluating compile-time if statements...")
     evaluate_compile_time_if_statements()
 
-    args = []
-    for arg in "jou -vv -o jou_bootstrap compiler/main.jou".split():
-        buf = ctypes.create_string_buffer(arg.encode("utf-8"))
-        pointer = ctypes.cast(buf, ctypes.POINTER(ctypes.c_uint8))
-        args.append(pointer)
+    args = list(map(jou_string, "jou -vv -o jou_bootstrap compiler/main.jou".split()))
 
-    argc = ctypes.c_int(len(args))
-    argv = (ctypes.POINTER(ctypes.c_uint8) * (len(args) + 1))(*args, None)
+    argc = jou_integer("int", len(args))
+    ctypes_argv_type = args[0].jou_type.ctypes_type * (len(args) + 1)  # NULL at end
+    ctypes_argv = ctypes_argv_type()
+    for i, arg in enumerate(args):
+        ctypes_argv[i] = arg.ctypes_value
+    argv = JouValue(
+        BASIC_TYPES["byte"].pointer_type().pointer_type(), ctypes_argv, cast=True
+    )
 
     print("Running main(). Here We Go...")
     call_function(
