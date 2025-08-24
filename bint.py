@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import faulthandler
 import collections
 import time
 import functools
@@ -12,6 +13,9 @@ import ctypes.util
 import re
 from dataclasses import dataclass
 from typing import Any
+
+
+faulthandler.enable()
 
 
 def load_llvm():
@@ -322,6 +326,9 @@ class JouType:
         # Kinda hacky, but works fine
         return bool(re.fullmatch(r"u?int(8|16|32|64)", self.name))
 
+    def is_array_type(self) -> bool:
+        return bool(re.fullmatch(r".*\[[0-9]+\]", self.name))
+
     def ctypes_type(self) -> Any:
         if self._ctypes_type is not None:
             return self._ctypes_type
@@ -349,11 +356,13 @@ class JouType:
             array_len = int(self.name.split("[")[-1].strip("]"))
             result = self.inner_type.ctypes_type() * array_len
         elif self.class_field_types is not None:
+
             class JouClass(ctypes.Structure):
                 _fields_ = [
                     (fname, ftype.ctypes_type())
                     for fname, ftype in self.class_field_types.items()
                 ]
+
             result = JouClass
         else:
             raise NotImplementedError(self)
@@ -451,6 +460,9 @@ class JouValue:
         if self.jou_type == to:
             return self
 
+        assert not self.jou_type.name.startswith("funcptr(")
+        assert not to.name.startswith("funcptr(")
+
         if self.jou_type.name.endswith(("*", "]")) and to.name.endswith("*"):
             # Simple pointer-to-pointer cast or array-to-pointer cast
             assert to.ctypes_type is not None
@@ -459,7 +471,7 @@ class JouValue:
         if self.jou_type.name == "uint8*" and re.fullmatch(r"uint8\[\d+\]", to.name):
             # String from pointer to array (only allowed in some special cases)
             assert to.ctypes_type is not None
-            array = to.ctypes_type()
+            array = to.ctypes_type()()
             LIBS[0].strcpy(self.ctypes_value, array)
             return JouValue(to, array)
 
@@ -1360,6 +1372,7 @@ TYPES: dict[str, dict[str | tuple[str, JouType], JouType]] = {}
 GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 ENUMS: dict[str, dict[str, list[str] | None]] = {}  # None means not found
 
+
 def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
     assert class_ast[0] == "class", class_ast
     _, class_name, generics, body, decors, location = class_ast
@@ -1852,10 +1865,26 @@ class Runner:
             _, obj_ast, type_ast = expr
             return type_from_ast(self.path, type_ast)
 
+        if expr[0] == ".":
+            _, obj_ast, field_name = expr
+            # obj.field
+            # TODO: what if it's enum or method or whatever
+            obj_type = self.get_type(obj_ast)
+            if obj_type.class_field_types is None:
+                assert obj_type.name.endswith("*")
+                obj_type = obj_type.inner_type
+            assert obj_type.class_field_types is not None
+            return obj_type.class_field_types[field_name]
+
+        if expr[0] == "[":
+            _, ptr_or_array_ast, idx = expr
+            return self.get_type(ptr_or_array_ast).inner_type
+
         raise NotImplementedError(expr)
 
     # Evaluates &expr
     def run_address_of_expression(self, expr) -> JouValue:
+#        print("addr", expr)
         if expr[0] == "get_variable":
             _, varname = expr
             if varname in self.locals:
@@ -1869,12 +1898,6 @@ class Runner:
 
         elif expr[0] == ".":
             _, obj_ast, field_name = expr
-            if obj_ast[0] == "get_variable":
-                _, obj_name = obj_ast
-                enum = find_enum(self.path, obj_name)
-                if enum is not None:
-                    # It is Enum.Member, not instance.field
-                    return jou_integer("int", enum.index(field_name))
 
             # To evaluate &pointer.field, we evaluate the pointer and add a
             # memory offset. In this case, we may not be able to evaluate
@@ -1894,7 +1917,15 @@ class Runner:
         elif expr[0] == "[":
             # &ptr[index]
             _, ptr_ast, index_ast = expr
-            ptr = self.run_expression(ptr_ast)
+
+            if self.get_type(ptr_ast).is_array_type():
+                # &array[index] is slightly different from &ptr[index]
+                ptr_to_array = self.run_address_of_expression(ptr_ast)
+                item_type = ptr_to_array.jou_type.inner_type.inner_type
+                ptr = ptr_to_array.cast(item_type.pointer_type())
+            else:
+                ptr = self.run_expression(ptr_ast)
+
             index = self.run_expression(index_ast)
             return ptr.pointer_arithmetic(index.unwrap_value())
 
@@ -1904,6 +1935,7 @@ class Runner:
     # Returns a value that may be converted to pointer if needed, i.e. usually
     # not implicitly copied.
     def run_expression(self, expr) -> JouValue:
+#        print("expr", expr)
         if expr[0] == "call":
             _, func_ast, arg_asts = expr
             func = self.run_expression(func_ast)
@@ -1992,15 +2024,23 @@ class Runner:
             _, obj_ast, index_ast = expr
             obj = self.run_expression(obj_ast)
             index = self.run_expression(index_ast)
-            # TODO: implicit array to pointer casts
+            if obj.jou_type.is_array_type():
+                # Copy the array to a temporary place where we can index it
+                # through a pointer. This way some_function()[1] can be used to
+                # ignore a part of the return value.
+                ptr = obj.jou_type.allocate_instance()
+                ptr.deref_set(obj)
+                obj = ptr.cast(obj.jou_type.inner_type.pointer_type())
             return obj.pointer_arithmetic(index.unwrap_value()).deref()
 
         elif expr[0] == "instantiate":
             _, type_ast, fields = expr
             t = type_from_ast(self.path, type_ast)
             ptr = t.allocate_instance()
+            assert t.class_field_types is not None
             for field_name, field_value in fields:
-                field_value = self.run_expression(field_value)
+                field_type = t.class_field_types[field_name]
+                field_value = self.run_expression(field_value).cast(field_type)
                 ptr.get_field_pointer(field_name).deref_set(field_value)
             return ptr.deref()
 
