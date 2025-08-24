@@ -1758,7 +1758,7 @@ class Runner:
                     self.locals[varname] = ptr
                     return
             target = self.run_address_of_expression(target_ast)
-            value = self.run_expression(value_ast)
+            value = self.run_expression(value_ast).cast(target.jou_type.inner_type)
             target.deref_set(value)
         elif stmt[0] == "in_place_add":
             _, target_ast, value_ast, location = stmt
