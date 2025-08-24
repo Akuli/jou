@@ -300,17 +300,6 @@ def simplify_path(path: str) -> str:
     return os.path.relpath(os.path.abspath(path)).replace("\\", "/")
 
 
-# This happens implicitly a lot when bytes are passed around.
-#
-# Python requires this to be explicit: `ctypes.c_int` for example is actually a
-# pointer to an int and without this it can confusingly change in many places.
-def shallow_copy(ctypes_value: Any) -> Any:
-    # TODO: this still need?
-    result = type(ctypes_value)()
-    ctypes2.pointer(result)[0] = ctypes_value
-    return result
-
-
 class JouType:
     """A type in Jou code."""
 
@@ -320,12 +309,15 @@ class JouType:
         # This is needed when a class references itself through pointers.
         self.ctypes_type: Any | None = ctypes_type
         self.inner_type: JouType | None = None
-        self.class_field_types: dict[str, JouType] = {}
+        self.class_field_types: dict[str, JouType] | None = None
         self.funcptr_argtypes: list[JouType] | None = None
         self.funcptr_return_type: JouType | None = None
 
         self._pointer_type: JouType | None = None
         self._array_types: dict[int, JouType] = {}
+
+    def __repr__(self) -> str:
+        return f"<JouType: {self.name}>"
 
     def pointer_type(self) -> JouType:
         if self._pointer_type is not None:
@@ -476,7 +468,7 @@ class JouValue:
         klass = self.jou_type.inner_type
         struct = klass.ctypes_type
         field_type = klass.class_field_types[field_name]
-        assert field_type is not None
+        assert field_type.ctypes_type is not None
         field_offset = getattr(struct, field_name).offset
         field_ptr = ctypes2.pointer(
             field_type.ctypes_type.from_buffer(self.ctypes_value.contents, field_offset)
@@ -1312,7 +1304,7 @@ def evaluate_compile_time_if_statements() -> None:
 
 
 FUNCTIONS: dict[str, dict[str, Any]] = {path: {} for path in ASTS}
-TYPES: dict[str, dict[str | tuple[Any, JouType], JouType]] = {}
+TYPES: dict[str, dict[str | tuple[str, JouType], JouType]] = {}
 GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 ENUMS: dict[str, dict[str, list[str] | None]] = {}  # None means not found
 
@@ -1320,12 +1312,24 @@ ENUMS: dict[str, dict[str, list[str] | None]] = {}  # None means not found
 def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
     assert class_ast[0] == "class", class_ast
     _, class_name, generics, body, decors, location = class_ast
+    print("Defining class:", class_name, generics, typesub)
+
+    if generics:
+        [t] = generics
+        assert typesub is not None
+        generic_param = typesub[t]
+        cache_key = (class_name, generic_param)
+        full_name = f"{class_name}[{generic_param.name}]"
+    else:
+        cache_key = class_name
+        full_name = class_name
 
     # While defining this class, it must be possible to refer to it.
     # This is needed for recursive pointer fields.
-    assert class_name not in TYPES[path]
-    jou_type = JouType(class_name, None)
-    TYPES[path][class_name] = jou_type
+    jou_type = JouType(full_name, None)
+
+    assert cache_key not in TYPES[path], cache_key
+    TYPES[path][cache_key] = jou_type
 
     fields = []
     for member in body:
@@ -1337,15 +1341,16 @@ def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
             # Just treat unions as flat things, good enough
             fields.extend(union_members)
 
+    jou_type.class_field_types = {}
     for field_name, field_type_ast in fields:
         field_type = type_from_ast(path, field_type_ast, typesub=typesub)
         assert field_name not in jou_type.class_field_types
-        assert field_type.ctypes_type is not None  # needed below
+        assert field_type.ctypes_type is not None, (full_name, field_name)  # needed below
         jou_type.class_field_types[field_name] = field_type
 
     class JouClass(ctypes2.Structure):
         _fields_ = [
-            (fname, ftype.ctypes_type)
+            (fname, ftype.ctypes_type)  # type: ignore
             for fname, ftype in jou_type.class_field_types.items()
         ]
 
@@ -1681,7 +1686,7 @@ class Runner:
         elif stmt[0] == "if":
             _, if_and_elifs, otherwise, location = stmt
             for cond, body in if_and_elifs:
-                if self.run_expression(cond):
+                if self.run_expression(cond).unwrap_value():
                     self.run_body(body)
                     break
             else:
@@ -1700,11 +1705,14 @@ class Runner:
             target = self.run_address_of_expression(target_ast)
             value = self.run_expression(value_ast)
             target.deref_set(value)
+        elif stmt[0] == "in_place_add":
+            _, target_ast, value_ast, location = stmt
+            ptr = self.run_address_of_expression(target_ast)
+            ptr.ctypes_value[0] += self.run_expression(value_ast).unwrap_value()
         elif stmt[0] == "in_place_mul":
             _, target_ast, value_ast, location = stmt
-            target = self.run_address_of_expression(target_ast)
-            value = self.run_expression(value_ast)
-            target.ctypes_value[0].value *= value.ctypes_value.value
+            ptr = self.run_address_of_expression(target_ast)
+            ptr.ctypes_value[0] *= self.run_expression(value_ast).unwrap_value()
         elif stmt[0] == "declare_local_var":
             _, varname, type_ast, value_ast, location = stmt
             vartype = type_from_ast(self.path, type_ast)
@@ -1749,7 +1757,7 @@ class Runner:
                     if (
                         call_function(
                             func, iter([match_obj, case_obj]), self.depth
-                        ).value
+                        ).unwrap_value()
                         == 0
                     ):
                         matched = True
@@ -1767,23 +1775,40 @@ class Runner:
         if expr[0] == "get_variable":
             return self.run_expression(expr).jou_type
 
-        if expr[0] == "sub":
+        if expr[0] in ("add", "sub"):
             _, lhs, rhs = expr
             lhs_type = self.get_type(lhs)
             rhs_type = self.get_type(rhs)
             if lhs_type == rhs_type:
                 return lhs_type
+
+            # Given int32 and int64, pick int64.
+            if (
+                lhs_type.is_integer_type()
+                and rhs_type.is_integer_type()
+                and lhs_type.name.startswith("int")
+                and rhs_type.name.startswith("int")
+            ):
+                return max([lhs_type, rhs_type], key=(lambda t: int(t.name[3:])))
+
             raise NotImplementedError(lhs_type, rhs_type)
 
         if expr[0] == "call":
             # TODO: handle method calls
             _, func_ast, arg_asts = expr
             funcptr_type = self.get_type(func_ast)
-            print(funcptr_type)
-            raise NotImplementedError
+            assert funcptr_type.funcptr_return_type is not None
+            return funcptr_type.funcptr_return_type
 
-        else:
-            raise NotImplementedError(expr)
+        if expr[0] == "integer_constant":
+            # TODO: implicit casts??
+            return BASIC_TYPES["int"]
+
+        if expr[0] == "as":
+            _, obj_ast, type_ast = expr
+            return type_from_ast(self.path, type_ast)
+
+        raise NotImplementedError(expr)
 
     # Evaluates &expr
     def run_address_of_expression(self, expr) -> JouValue:
@@ -1904,7 +1929,7 @@ class Runner:
 
         elif expr[0] == "constant":
             _, value = expr
-            return shallow_copy(value)
+            return value
 
         elif expr[0] == "integer_constant":
             # TODO: type hints
@@ -1959,6 +1984,14 @@ class Runner:
             _, inner = expr
             return jou_bool(not self.run_expression(inner).unwrap_value())
 
+        elif expr[0] == "add":
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.run_expression(lhs_ast)
+            rhs = self.run_expression(rhs_ast)
+            return jou_integer(
+                self.get_type(expr), lhs.unwrap_value() + rhs.unwrap_value()
+            )
+
         elif expr[0] == "sub":
             _, lhs_ast, rhs_ast = expr
             lhs = self.run_expression(lhs_ast)
@@ -1978,10 +2011,13 @@ class Runner:
 
         elif expr[0] == "post_incr":
             _, obj_ast = expr
-            obj = self.run_expression(obj_ast)
-            result = shallow_copy(obj)
-            obj.value += 1
-            return result
+            ptr = self.run_address_of_expression(obj_ast)
+            value = ptr.deref()
+            if value.jou_type.name.endswith("*"):
+                ptr.deref_set(value.pointer_arithmetic(1))
+            else:
+                ptr.deref_set(jou_integer(value.jou_type, value.unwrap_value() + 1))
+            return value
 
         else:
             raise NotImplementedError(expr)
@@ -2002,10 +2038,15 @@ def call_function(func: tuple[str, tuple[Any, ...]] | JouValue, args_iter, depth
         # TODO: use something else than shallow copy for varargs
         args.extend(args_iter)
         result = func.ctypes_value(*(a.ctypes_value for a in args))
+        if func.jou_type.funcptr_return_type is None:
+            assert result is None
+            return None
+
+        assert result is not None
         if isinstance(result, int):  # ctypes is funny...
             assert func.jou_type.funcptr_return_type is not None
             result = func.jou_type.funcptr_return_type.ctypes_type(result)
-        return result
+        return JouValue(func.jou_type.funcptr_return_type, result)
 
     # Function defined in Jou
     func_path, func_ast = func
