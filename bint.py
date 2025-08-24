@@ -302,21 +302,64 @@ def simplify_path(path: str) -> str:
 class JouType:
     """A type in Jou code."""
 
-    def __init__(self, name: str, ctypes_type: Any) -> None:
+    def __init__(self, name: str) -> None:
         self.name = name
         # ctypes_type may be None for now and assigned later.
         # This is needed when a class references itself through pointers.
-        self.ctypes_type: Any | None = ctypes_type
         self.inner_type: JouType | None = None
         self.class_field_types: dict[str, JouType] | None = None
         self.funcptr_argtypes: list[JouType] | None = None
         self.funcptr_return_type: JouType | None = None
 
+        self._ctypes_type: Any | None = None
         self._pointer_type: JouType | None = None
         self._array_types: dict[int, JouType] = {}
 
     def __repr__(self) -> str:
         return f"<JouType: {self.name}>"
+
+    def is_integer_type(self) -> bool:
+        # Kinda hacky, but works fine
+        return bool(re.fullmatch(r"u?int(8|16|32|64)", self.name))
+
+    def ctypes_type(self) -> Any:
+        if self._ctypes_type is not None:
+            return self._ctypes_type
+
+        if self.name == "bool":
+            result = ctypes.c_uint8
+        elif self.name == "float":
+            result = ctypes.c_float
+        elif self.name == "double":
+            result = ctypes.c_double
+        elif self.is_integer_type():
+            result = getattr(ctypes, "c_" + self.name)
+        elif self.name.startswith("funcptr("):
+            # All functions are of the same type in ctypes. That is the main reason
+            # why we need JouType in the first place.
+            assert type(LIBS[0].printf) is type(LIBS[0].strcpy)
+            result = type(LIBS[0].printf)
+        elif self.name.endswith("*"):
+            # Most of the time it's good to use void* for pointers where you
+            # don't care about the contents. This helps in various corner cases
+            # where classes refer to each other.
+            result = ctypes.c_void_p
+        elif re.fullmatch(r".*\[[0-9]+\]$", self.name):
+            # Array
+            array_len = int(self.name.split("[")[-1].strip("]"))
+            result = self.inner_type.ctypes_type() * array_len
+        elif self.class_field_types is not None:
+            class JouClass(ctypes.Structure):
+                _fields_ = [
+                    (fname, ftype.ctypes_type())
+                    for fname, ftype in self.class_field_types.items()
+                ]
+            result = JouClass
+        else:
+            raise NotImplementedError(self)
+
+        self._ctypes_type = result
+        return result
 
     def pointer_type(self) -> JouType:
         if self._pointer_type is not None:
@@ -327,20 +370,7 @@ class JouType:
         else:
             name = f"{self.name}*"
 
-        # All pointers are void*.
-        #
-        # This helps a lot with the following corner case:
-        #   - Class A contains an instance of class B
-        #   - Class B contains a pointer to an instance of A
-        #
-        # Getting that corner case to work reliably in any other way is hard,
-        # because there are many variations of it:
-        #   - Is A analyzed first or is B analyzed first?
-        #   - Does class A contain `thing: B` or `thing: B[10]` or `thing: C`
-        #     where class `C` contains a `B`?
-        #   - Does class B contain `thing: A*` or `thing: A*[10]` or
-        #     `thing: A[10]*` or `thing: D` or `thing: E*` or something else?
-        result = JouType(name, ctypes.c_void_p)
+        result = JouType(name)
         result.inner_type = self
         self._pointer_type = result
         return result
@@ -355,16 +385,11 @@ class JouType:
         else:
             name = f"{self.name}[{length}]"
 
-        assert self.ctypes_type is not None
-        result = JouType(name, self.ctypes_type * length)
+        result = JouType(name)
         result.inner_type = self
 
         self._array_types[length] = result
         return result
-
-    def is_integer_type(self) -> bool:
-        # Kinda hacky, but works fine
-        return bool(re.fullmatch(r"u?int(8|16|32|64)", self.name))
 
     def allocate_instance(self) -> JouValue:
         """Return a pointer to a newly allocated value.
@@ -373,8 +398,7 @@ class JouType:
         know how it is cleaned up. Maybe with Python's garbage collection,
         maybe never. In any case it seems to work.
         """
-        assert self.ctypes_type is not None
-        ctypes_instance = self.ctypes_type()
+        ctypes_instance = self.ctypes_type()()
         ctypes_ptr = ctypes.pointer(ctypes_instance)
         return JouValue(self.pointer_type(), ctypes_ptr)
 
@@ -405,14 +429,14 @@ class JouValue:
     def __init__(
         self, jou_type: JouType, ctypes_value: Any, *, cast: bool = False
     ) -> None:
-        # The type should be fully initialized when we make instances of it
-        assert jou_type.ctypes_type is not None
+        if cast:
+            ctypes_value = ctypes.cast(ctypes_value, jou_type.ctypes_type())
+        elif jou_type.name.endswith("*") and not jou_type.name.startswith("funcptr("):
+            # Cast all pointers to void*
+            ctypes_value = ctypes.cast(ctypes_value, ctypes.c_void_p)
+        else:
+            assert type(ctypes_value) == jou_type.ctypes_type()
 
-        # Cast all pointers to void*
-        if cast or jou_type.name.endswith("*"):
-            ctypes_value = ctypes.cast(ctypes_value, jou_type.ctypes_type)
-
-        assert type(ctypes_value) == jou_type.ctypes_type
         self.jou_type = jou_type
         self.ctypes_value = ctypes_value
 
@@ -430,7 +454,7 @@ class JouValue:
         if self.jou_type.name.endswith(("*", "]")) and to.name.endswith("*"):
             # Simple pointer-to-pointer cast or array-to-pointer cast
             assert to.ctypes_type is not None
-            return JouValue(to, ctypes.cast(self.ctypes_value, to.ctypes_type))
+            return JouValue(to, ctypes.cast(self.ctypes_value, to.ctypes_type()))
 
         if self.jou_type.name == "uint8*" and re.fullmatch(r"uint8\[\d+\]", to.name):
             # String from pointer to array (only allowed in some special cases)
@@ -452,11 +476,11 @@ class JouValue:
         assert self.jou_type.inner_type.ctypes_type is not None
 
         # We store all pointers to void*, let's undo that
-        real_ptr_type = ctypes.POINTER(self.jou_type.inner_type.ctypes_type)
+        real_ptr_type = ctypes.POINTER(self.jou_type.inner_type.ctypes_type())
         ptr = ctypes.cast(self.ctypes_value, real_ptr_type)
 
         # Construct a new object that does not refer back to the pointer implicitly
-        result = self.jou_type.inner_type.ctypes_type()
+        result = self.jou_type.inner_type.ctypes_type()()
         ctypes.pointer(result)[0] = ptr[0]
         return JouValue(self.jou_type.inner_type, result)
 
@@ -471,7 +495,7 @@ class JouValue:
             raise RuntimeError(f"cannot assign {value} into pointer {self}")
 
         # We store all pointers to void*, let's undo that
-        real_ptr_type = ctypes.POINTER(self.jou_type.inner_type.ctypes_type)
+        real_ptr_type = ctypes.POINTER(self.jou_type.inner_type.ctypes_type())
         ptr = ctypes.cast(self.ctypes_value, real_ptr_type)
 
         ptr[0] = value.ctypes_value
@@ -490,19 +514,19 @@ class JouValue:
         assert self.jou_type.inner_type is not None
 
         # We store all pointers to void*, let's undo that
-        real_ptr_type = ctypes.POINTER(self.jou_type.inner_type.ctypes_type)
+        real_ptr_type = ctypes.POINTER(self.jou_type.inner_type.ctypes_type())
         ptr = ctypes.cast(self.ctypes_value, real_ptr_type)
 
         # No idea why ctypes makes this so difficult...
         # The problem is that `getattr(instance, field)` returns e.g. Python `int`, not `c_int`
         # https://stackoverflow.com/a/50534262
         klass = self.jou_type.inner_type
-        struct = klass.ctypes_type
+        struct = klass.ctypes_type()
         field_type = klass.class_field_types[field_name]
         assert field_type.ctypes_type is not None
         field_offset = getattr(struct, field_name).offset
         field_ptr = ctypes.pointer(
-            field_type.ctypes_type.from_buffer(ptr.contents, field_offset)
+            field_type.ctypes_type().from_buffer(ptr.contents, field_offset)
         )
         return JouValue(field_type.pointer_type(), field_ptr)
 
@@ -514,27 +538,27 @@ class JouValue:
         assert self.jou_type.ctypes_type is not None
 
         # We store all pointers to void*, let's undo that
-        real_ptr_type = ctypes.POINTER(self.jou_type.inner_type.ctypes_type)
+        real_ptr_type = ctypes.POINTER(self.jou_type.inner_type.ctypes_type())
         ptr = ctypes.cast(self.ctypes_value, real_ptr_type)
 
         memory_address = ctypes.addressof(ptr.contents)
-        memory_address += index * ctypes.sizeof(self.jou_type.inner_type.ctypes_type)
-        new_ptr = ctypes.cast(memory_address, self.jou_type.ctypes_type)
+        memory_address += index * ctypes.sizeof(self.jou_type.inner_type.ctypes_type())
+        new_ptr = ctypes.cast(memory_address, self.jou_type.ctypes_type())
         return JouValue(self.jou_type, new_ptr)
 
 
 BASIC_TYPES = {
-    "int8": JouType("int8", ctypes.c_int8),
-    "int16": JouType("int16", ctypes.c_int16),
-    "int32": JouType("int32", ctypes.c_int32),
-    "int64": JouType("int64", ctypes.c_int64),
-    "uint8": JouType("uint8", ctypes.c_uint8),
-    "uint16": JouType("uint16", ctypes.c_uint16),
-    "uint32": JouType("uint32", ctypes.c_uint32),
-    "uint64": JouType("uint64", ctypes.c_uint64),
-    "bool": JouType("bool", ctypes.c_uint8),
-    "float": JouType("float", ctypes.c_float),
-    "double": JouType("double", ctypes.c_double),
+    "int8": JouType("int8"),
+    "int16": JouType("int16"),
+    "int32": JouType("int32"),
+    "int64": JouType("int64"),
+    "uint8": JouType("uint8"),
+    "uint16": JouType("uint16"),
+    "uint32": JouType("uint32"),
+    "uint64": JouType("uint64"),
+    "bool": JouType("bool"),
+    "float": JouType("float"),
+    "double": JouType("double"),
 }
 BASIC_TYPES["byte"] = BASIC_TYPES["uint8"]
 BASIC_TYPES["int"] = BASIC_TYPES["int32"]
@@ -548,13 +572,7 @@ def funcptr_type(argtypes: tuple[JouType, ...], return_type: JouType | None) -> 
     argtype_names.append("...")  # We assume that absolutely everything takes varargs
     ret_name = "None" if return_type is None else return_type.name
     name = "funcptr(" + ", ".join(argtype_names) + ") -> " + ret_name
-
-    # All functions are of the same type in ctypes. That is the main reason
-    # why we need JouType in the first place.
-    assert type(LIBS[0].printf) is type(LIBS[0].strcpy)
-    ctypes_funcptr_type = type(LIBS[0].printf)
-
-    result = JouType(name, ctypes_funcptr_type)
+    result = JouType(name)
     result.funcptr_argtypes = list(argtypes)
     result.funcptr_return_type = return_type
     return result
@@ -564,8 +582,7 @@ def jou_integer(jtype: JouType | str, value: int) -> JouValue:
     if isinstance(jtype, str):
         jtype = BASIC_TYPES[jtype]
     assert jtype.is_integer_type()
-    assert jtype.ctypes_type is not None
-    return JouValue(jtype, jtype.ctypes_type(value))
+    return JouValue(jtype, jtype.ctypes_type()(value))
 
 
 def jou_bool(value: bool) -> JouValue:
@@ -580,7 +597,7 @@ def jou_double(value: float) -> JouValue:
     return JouValue(BASIC_TYPES["double"], ctypes.c_double(value))
 
 
-JOU_VOID_PTR = JouType("void*", ctypes.c_void_p)
+JOU_VOID_PTR = JouType("void*")
 JOU_NULL = JouValue(JOU_VOID_PTR, 0, cast=True)
 
 
@@ -1343,11 +1360,9 @@ TYPES: dict[str, dict[str | tuple[str, JouType], JouType]] = {}
 GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 ENUMS: dict[str, dict[str, list[str] | None]] = {}  # None means not found
 
-
 def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
     assert class_ast[0] == "class", class_ast
     _, class_name, generics, body, decors, location = class_ast
-    print("Defining class:", class_name, generics, typesub)
 
     if generics:
         [t] = generics
@@ -1361,7 +1376,7 @@ def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
 
     # While defining this class, it must be possible to refer to it.
     # This is needed for recursive pointer fields.
-    jou_type = JouType(full_name, None)
+    jou_type = JouType(full_name)
 
     assert cache_key not in TYPES[path], cache_key
     TYPES[path][cache_key] = jou_type
@@ -1380,19 +1395,8 @@ def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
     for field_name, field_type_ast in fields:
         field_type = type_from_ast(path, field_type_ast, typesub=typesub)
         assert field_name not in jou_type.class_field_types
-        assert field_type.ctypes_type is not None, (
-            full_name,
-            field_name,
-        )  # needed below
         jou_type.class_field_types[field_name] = field_type
 
-    class JouClass(ctypes.Structure):
-        _fields_ = [
-            (fname, ftype.ctypes_type)  # type: ignore
-            for fname, ftype in jou_type.class_field_types.items()
-        ]
-
-    jou_type.ctypes_type = JouClass
     return jou_type
 
 
@@ -1490,7 +1494,7 @@ def declare_c_function(path: str, declare_ast) -> JouValue:
     for arg_name, arg_type, arg_default in args:
         assert arg_default is None
     argtypes = [type_from_ast(path, triple[1]) for triple in args]
-    func.argtypes = [at.ctypes_type for at in argtypes]
+    func.argtypes = [at.ctypes_type() for at in argtypes]
 
     if return_type == ("named_type", "None") or return_type == (
         "named_type",
@@ -1499,7 +1503,7 @@ def declare_c_function(path: str, declare_ast) -> JouValue:
         return_type = None
     else:
         return_type = type_from_ast(path, return_type)
-    func.restype = None if return_type is None else return_type.ctypes_type
+    func.restype = None if return_type is None else return_type.ctypes_type()
 
     return JouValue(funcptr_type(tuple(argtypes), return_type), func)
 
@@ -1947,7 +1951,7 @@ class Runner:
             _, obj = expr
             t = self.get_type(obj)
             assert t.ctypes_type is not None
-            return jou_integer("int64", ctypes.sizeof(t.ctypes_type))
+            return jou_integer("int64", ctypes.sizeof(t.ctypes_type()))
 
         elif expr[0] == ".":
             # TODO: can be many other things than plain old field access!
@@ -2085,7 +2089,7 @@ def call_function(func: tuple[str, tuple[Any, ...]] | JouValue, args_iter, depth
         assert result is not None
         if isinstance(result, int):  # ctypes is funny...
             assert func.jou_type.funcptr_return_type is not None
-            result = func.jou_type.funcptr_return_type.ctypes_type(result)
+            result = func.jou_type.funcptr_return_type.ctypes_type()(result)
         return JouValue(func.jou_type.funcptr_return_type, result)
 
     # Function defined in Jou
@@ -2162,7 +2166,7 @@ def main() -> None:
     args = list(map(jou_string, "jou -vv -o jou_bootstrap compiler/main.jou".split()))
 
     argc = jou_integer("int", len(args))
-    ctypes_argv_type = args[0].jou_type.ctypes_type * (len(args) + 1)  # NULL at end
+    ctypes_argv_type = args[0].jou_type.ctypes_type() * (len(args) + 1)  # NULL at end
     ctypes_argv = ctypes_argv_type()
     for i, arg in enumerate(args):
         ctypes_argv[i] = arg.ctypes_value
