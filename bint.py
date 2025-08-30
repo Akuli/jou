@@ -508,6 +508,9 @@ class JouValue:
             # Simple integer-to-integer cast.
             return jou_integer(to, self.ctypes_value.value)
 
+        if self.jou_type == BASIC_TYPES["bool"] and to.name.startswith(("int", "uint")):
+            return jou_integer(to, 1 if self.unwrap_value() else 0)
+
         raise RuntimeError(f"cannot cast {self.jou_type.name} to {to.name}")
 
     def deref(self) -> JouValue:
@@ -1715,7 +1718,7 @@ def find_global_var_ptr(path, varname):
 def evaluate_constant(ast: AST, jtype: JouType) -> JouValue:
     if ast[0] == "negate":
         _, inner = ast
-        return jou_integer(jtype, evaluate_constant(inner, jtype).unwrap_value())
+        return jou_integer(jtype, -evaluate_constant(inner, jtype).unwrap_value())
     if ast[0] == "integer_constant":
         _, int_value = ast
         return jou_integer(jtype, int_value)
@@ -1888,9 +1891,17 @@ class Runner:
         # Handle varargs: printf("hello %d\n", 1, 2, 3)
         # TODO: byte to int and other processing for varargs?
         for arg in args[len(func.jou_type.funcptr_argtypes) :]:
-            actual_args.append(
-                arg if isinstance(arg, JouValue) else self.run_expression(arg)
-            )
+            if not isinstance(arg, JouValue):
+                arg = self.run_expression(arg)
+            if arg.jou_type in (
+                BASIC_TYPES["int8"],
+                BASIC_TYPES["uint8"],
+                BASIC_TYPES["int16"],
+                BASIC_TYPES["uint16"],
+                BASIC_TYPES["bool"],
+            ):
+                arg = arg.cast(BASIC_TYPES["int32"])
+            actual_args.append(arg)
 
         if func.ctypes_value is not None:
             # Function defined in C and declared in Jou
@@ -2013,6 +2024,11 @@ class Runner:
                 ptr = self.run_address_of_expression(target_ast)
                 value = self.run_expression(value_ast)
                 ptr.deref_set(ptr.deref().unwrap_value() + value.unwrap_value())
+            elif stmt[0] == "in_place_sub":
+                _, target_ast, value_ast, location = stmt
+                ptr = self.run_address_of_expression(target_ast)
+                value = self.run_expression(value_ast)
+                ptr.deref_set(ptr.deref().unwrap_value() - value.unwrap_value())
             elif stmt[0] == "in_place_mul":
                 _, target_ast, value_ast, location = stmt
                 ptr = self.run_address_of_expression(target_ast)
@@ -2095,7 +2111,7 @@ class Runner:
         if expr[0] in ("get_variable", "self"):
             return self.run_expression(expr).jou_type
 
-        if expr[0] in ("add", "sub", "mul", "div"):
+        if expr[0] in ("add", "sub", "mul", "div", "mod"):
             _, lhs, rhs = expr
             lhs_type = self.get_type(lhs)
             rhs_type = self.get_type(rhs)
@@ -2187,6 +2203,13 @@ class Runner:
 
         if expr[0] == "string":
             return BASIC_TYPES["byte"].pointer_type()
+
+        if expr[0] == "instantiate":
+            return type_from_ast(self.path, expr[1])
+
+        if expr[0] in ("pre_incr", "pre_decr", "post_incr", "post_decr"):
+            _, obj = expr
+            return self.get_type(obj)
 
         raise NotImplementedError(expr)
 
@@ -2446,6 +2469,15 @@ class Runner:
             # Jou's division is like Python's division: floor (not towards zero)
             return jou_integer(
                 self.get_type(expr), lhs.unwrap_value() // rhs.unwrap_value()
+            )
+
+        elif expr[0] == "mod":
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.run_expression(lhs_ast)
+            rhs = self.run_expression(rhs_ast)
+            # Jou's % is like Python's %
+            return jou_integer(
+                self.get_type(expr), lhs.unwrap_value() % rhs.unwrap_value()
             )
 
         elif expr[0] == "negate":
