@@ -70,7 +70,8 @@ def load_llvm():
     for path in subprocess.check_output(
         [llvm_config, "--libfiles"], text=True
     ).splitlines():
-        print("Found LLVM:", path)
+        if VERBOSITY >= 1:
+            print("Found LLVM:", path)
         result.append(ctypes.CDLL(path))
 
     return result
@@ -1555,7 +1556,7 @@ def declare_c_global_var(path, declare_ast):
         except ValueError:
             continue
 
-        return JouValue(vartype.pointer_type(), ctypes.pointer(result))
+        return JouValue(vartype.pointer_type(), result)
 
     raise RuntimeError(f"C global variable not found: {varname}")
 
