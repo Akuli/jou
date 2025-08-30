@@ -1,6 +1,6 @@
 # Instructions:
 # 1. Run `jou perlin_noise.jou`.
-# 2. Look at `thingy.ppm`.
+# 2. Look at `perlin_noise.ppm`.
 # the output is somewhat blurry at the moment.
 
 import "stdlib/io.jou"
@@ -82,8 +82,6 @@ def choose_unit_vectors(corners: int[2][4], unit_vectors: float[2]*) -> float[2]
 def main() -> int:
     image_size = SIZE * CELL_PIXELS  # width and height of image (it is square shaped)
 
-    file = fopen("thingy.ppm", "w")
-
     image: byte* = malloc(sizeof(image[0]) * image_size * image_size)
     unit_vectors = generate_unit_vectors()
 
@@ -113,11 +111,12 @@ def main() -> int:
 
     free(unit_vectors)
 
+    file = fopen("perlin_noise.ppm", "w")
     fprintf(file, "P5\n%d %d\n255\n", SIZE * CELL_PIXELS, SIZE * CELL_PIXELS)
     for i = 0; i < (image_size * image_size); i++:
         fputc(image[i], file)
-
     fclose(file)
+    printf("Wrote perlin_noise.ppm\n")  # Output: Wrote perlin_noise.ppm
 
     free(image)
     return 0
