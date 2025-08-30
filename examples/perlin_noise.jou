@@ -1,21 +1,12 @@
 # Instructions:
-# 1. Download stb_image_write.h from https://raw.githubusercontent.com/nothings/stb/refs/heads/master/stb_image_write.h
-# 2. Compile stb_image_write.h to `.o` file. For example, if you have gcc, do this:
-#
-#   $ gcc -x c -DSTB_IMAGE_WRITE_IMPLEMENTATION stb_image_write.h -c -o stb_image_write.o
-#
-# Make sure that you end up with `examples/stb_image_write.o`.
-#
-# 3. Run `jou perlin_noise.jou`.
-# 4. Look at `out.png`.
+# 1. Run `jou perlin_noise.jou`.
+# 2. Look at `thingy.ppm`.
+# the output is somewhat blurry at the moment.
 
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 import "stdlib/math.jou"
 import "stdlib/rand.jou"
-
-link "./stb_image_write.o"
-declare stbi_write_png(filename: byte*, w: int, h: int, comp: int, data: void*, stride_in_bytes: int) -> int
 
 # How many cells in each direction (SIZE^2 total)
 const SIZE: int = 10
@@ -91,7 +82,9 @@ def choose_unit_vectors(corners: int[2][4], unit_vectors: float[2]*) -> float[2]
 def main() -> int:
     image_size = SIZE * CELL_PIXELS  # width and height of image (it is square shaped)
 
-    image: byte[3]* = malloc(sizeof(image[0]) * image_size * image_size)
+    file = fopen("thingy.ppm", "w")
+
+    image: byte* = malloc(sizeof(image[0]) * image_size * image_size)
     unit_vectors = generate_unit_vectors()
 
     for cell_x = 0; cell_x < SIZE; cell_x++:
@@ -115,15 +108,16 @@ def main() -> int:
 
                     im_x = cell_x*CELL_PIXELS + i
                     im_y = cell_y*CELL_PIXELS + j
-                    image[im_y*image_size + im_x] = [v, v, v]
+                    image[im_y*image_size + im_x] = v
+
 
     free(unit_vectors)
 
-    ret = stbi_write_png("out.png", image_size, image_size, 3, image, 3*image_size)
-    if ret == 0:
-        printf("Error writing image to file :(\n")
-    else:
-        printf("Wrote out.png\n", ret)
+    fprintf(file, "P5\n%d %d\n255\n", SIZE * CELL_PIXELS, SIZE * CELL_PIXELS)
+    for i = 0; i < (image_size * image_size); i++:
+        fputc(image[i], file)
+
+    fclose(file)
 
     free(image)
     return 0
