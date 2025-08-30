@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import faulthandler
 import collections
 import time
@@ -12,7 +13,12 @@ import string
 import ctypes.util
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TYPE_CHECKING, Iterator
+
+if TYPE_CHECKING:
+    from typing_extensions import Unpack
+
+    AST = tuple[str, Unpack[tuple[Any, ...]]]
 
 
 faulthandler.enable()
@@ -312,6 +318,7 @@ class JouType:
         # This is needed when a class references itself through pointers.
         self.inner_type: JouType | None = None
         self.class_field_types: dict[str, JouType] | None = None
+        self.methods: dict[str, tuple[str, Any]] = {}
         self.funcptr_argtypes: list[JouType] | None = None
         self.funcptr_return_type: JouType | None = None
 
@@ -333,6 +340,7 @@ class JouType:
         if self._ctypes_type is not None:
             return self._ctypes_type
 
+        result: Any
         if self.name == "bool":
             result = ctypes.c_uint8
         elif self.name == "float":
@@ -354,13 +362,15 @@ class JouType:
         elif re.fullmatch(r".*\[[0-9]+\]$", self.name):
             # Array
             array_len = int(self.name.split("[")[-1].strip("]"))
+            assert self.inner_type is not None
             result = self.inner_type.ctypes_type() * array_len
         elif self.class_field_types is not None:
+            this_is_needed_to_satisfy_mypy = self.class_field_types
 
             class JouClass(ctypes.Structure):
                 _fields_ = [
                     (fname, ftype.ctypes_type())
-                    for fname, ftype in self.class_field_types.items()
+                    for fname, ftype in this_is_needed_to_satisfy_mypy.items()
                 ]
 
             result = JouClass
@@ -451,7 +461,7 @@ class JouValue:
 
     def __repr__(self) -> str:
         try:
-            v = self.unwrap_value()
+            v: str | int = self.unwrap_value()
         except Exception:
             v = "..."
         return f"<JouValue: {self.jou_type.name} {v}>"
@@ -501,6 +511,7 @@ class JouValue:
         assert self.jou_type.name.endswith("*")
 
         if isinstance(value, int):
+            assert self.jou_type.inner_type is not None
             value = jou_integer(self.jou_type.inner_type, value)
 
         if self.jou_type.inner_type != value.jou_type:
@@ -512,10 +523,10 @@ class JouValue:
 
         ptr[0] = value.ctypes_value
 
-    def unwrap_value(self):
+    def unwrap_value(self) -> int:
         """Turn pointer or integer to Python `int`."""
         if self.jou_type.name.endswith("*"):
-            return ctypes.cast(self.ctypes_value, ctypes.c_void_p).value
+            return ctypes.cast(self.ctypes_value, ctypes.c_void_p).value or 0
         else:
             # e.g. ctypes.c_int
             return self.ctypes_value.value
@@ -533,9 +544,9 @@ class JouValue:
         # The problem is that `getattr(instance, field)` returns e.g. Python `int`, not `c_int`
         # https://stackoverflow.com/a/50534262
         klass = self.jou_type.inner_type
+        assert klass.class_field_types is not None
         struct = klass.ctypes_type()
         field_type = klass.class_field_types[field_name]
-        assert field_type.ctypes_type is not None
         field_offset = getattr(struct, field_name).offset
         field_ptr = ctypes.pointer(
             field_type.ctypes_type().from_buffer(ptr.contents, field_offset)
@@ -544,6 +555,10 @@ class JouValue:
 
     def pointer_arithmetic(self, index: int) -> JouValue:
         """Compute `&ptr[index]` where `ptr` is a pointer to an instance of a class."""
+        if index == 0:
+            # Standard library list expects &NULL[0] to be NULL
+            return self
+
         assert self.jou_type.name.endswith("*")
         assert self.jou_type.inner_type is not None
         assert self.jou_type.inner_type.ctypes_type is not None
@@ -597,7 +612,8 @@ def jou_integer(jtype: JouType | str, value: int) -> JouValue:
     return JouValue(jtype, jtype.ctypes_type()(value))
 
 
-def jou_bool(value: bool) -> JouValue:
+def jou_bool(value: bool | int) -> JouValue:
+    assert value in [False, True, 0, 1]
     return JouValue(BASIC_TYPES["bool"], ctypes.c_uint8(value))
 
 
@@ -671,7 +687,7 @@ class Parser:
             path = simplify_path(path_spec)
         return ("import", path)
 
-    def parse_type(self):
+    def parse_type(self) -> AST:
         t = self.tokens.pop(0)
         assert t.kind == "name" or t.code in (
             "None",
@@ -928,7 +944,7 @@ class Parser:
                 raise ValueError("wat?")
         return result
 
-    def parse_expression_with_add(self):
+    def parse_expression_with_add(self) -> AST:
         if self.tokens[0].code == "-":
             self.eat("-")
             result: Any = ("negate", self.parse_expression_with_mul_and_div())
@@ -1013,10 +1029,10 @@ class Parser:
     def parse_expression(self):
         return self.parse_expression_with_and_or()
 
-    def parse_oneline_statement(self):
+    def parse_oneline_statement(self) -> AST:
         location = self.tokens[0].location
 
-        result: tuple[Any, ...]
+        result: AST
 
         if self.tokens[0].code == "return":
             self.eat("return")
@@ -1056,7 +1072,8 @@ class Parser:
                 self.tokens.pop(0)
                 result = (kind, expr, self.parse_expression())
 
-        return result + (location,)
+        # TODO: figure out why mypy doesn't like this line
+        return result + (location,)  # type: ignore
 
     def parse_if_statement(self):
         if_and_elifs = []
@@ -1403,6 +1420,13 @@ def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
             _, union_members, location = member
             # Just treat unions as flat things, good enough
             fields.extend(union_members)
+        elif member[0] == "function_def":
+            method_name = member[1]
+            jou_type.methods[method_name] = (path, member)
+        elif member[0] == "pass":
+            pass
+        else:
+            raise NotImplementedError(member[0])
 
     jou_type.class_field_types = {}
     for field_name, field_type_ast in fields:
@@ -1758,6 +1782,7 @@ class Runner:
                     self.locals[varname] = ptr
                     return
             target = self.run_address_of_expression(target_ast)
+            assert target.jou_type.inner_type is not None
             value = self.run_expression(value_ast).cast(target.jou_type.inner_type)
             target.deref_set(value)
         elif stmt[0] == "in_place_add":
@@ -1775,7 +1800,7 @@ class Runner:
             vartype = type_from_ast(self.path, type_ast)
             var = vartype.allocate_instance()
             if value_ast is not None:
-                var.deref_set(self.run_expression(value_ast))
+                var.deref_set(self.run_expression(value_ast).cast(vartype))
             self.locals[varname] = var
         elif stmt[0] == "assert":
             _, cond, location = stmt
@@ -1829,7 +1854,7 @@ class Runner:
 
     # Evaluates the type of expr without evaluating expr
     def get_type(self, expr) -> JouType:
-        if expr[0] == "get_variable":
+        if expr[0] in ("get_variable", "self"):
             return self.run_expression(expr).jou_type
 
         if expr[0] in ("add", "sub"):
@@ -1861,6 +1886,12 @@ class Runner:
             # TODO: implicit casts??
             return BASIC_TYPES["int"]
 
+        if expr[0] == "negate":
+            _, obj_ast = expr
+            inner_type = self.get_type(obj_ast)
+            assert inner_type.name.startswith("int")  # not unsigned
+            return inner_type
+
         if expr[0] == "as":
             _, obj_ast, type_ast = expr
             return type_from_ast(self.path, type_ast)
@@ -1872,19 +1903,22 @@ class Runner:
             obj_type = self.get_type(obj_ast)
             if obj_type.class_field_types is None:
                 assert obj_type.name.endswith("*")
+                assert obj_type.inner_type is not None
                 obj_type = obj_type.inner_type
             assert obj_type.class_field_types is not None
             return obj_type.class_field_types[field_name]
 
         if expr[0] == "[":
             _, ptr_or_array_ast, idx = expr
-            return self.get_type(ptr_or_array_ast).inner_type
+            ptr_or_array_type = self.get_type(ptr_or_array_ast)
+            assert ptr_or_array_type.inner_type is not None
+            return ptr_or_array_type.inner_type
 
         raise NotImplementedError(expr)
 
     # Evaluates &expr
     def run_address_of_expression(self, expr) -> JouValue:
-#        print("addr", expr)
+        #        print("addr", expr)
         if expr[0] == "get_variable":
             _, varname = expr
             if varname in self.locals:
@@ -1921,6 +1955,8 @@ class Runner:
             if self.get_type(ptr_ast).is_array_type():
                 # &array[index] is slightly different from &ptr[index]
                 ptr_to_array = self.run_address_of_expression(ptr_ast)
+                assert ptr_to_array.jou_type.inner_type is not None
+                assert ptr_to_array.jou_type.inner_type.inner_type is not None
                 item_type = ptr_to_array.jou_type.inner_type.inner_type
                 ptr = ptr_to_array.cast(item_type.pointer_type())
             else:
@@ -1932,12 +1968,52 @@ class Runner:
         else:
             raise NotImplementedError("address of", expr)
 
-    # Returns a value that may be converted to pointer if needed, i.e. usually
-    # not implicitly copied.
     def run_expression(self, expr) -> JouValue:
-#        print("expr", expr)
+        #        print("expr", expr)
         if expr[0] == "call":
             _, func_ast, arg_asts = expr
+
+            if func_ast[0] == ".":
+                # It looks like obj.member(). Could be a funcptr call or a
+                # method call.
+                _, obj_ast, member_name = func_ast
+                obj_type = self.get_type(obj_ast)
+                class_type = (
+                    obj_type.inner_type if obj_type.name.endswith("*") else obj_type
+                )
+                assert class_type is not None
+                if member_name in class_type.methods:
+                    # It is a method call
+                    method = class_type.methods[member_name]
+                    class_def_path, method_def_ast = method
+
+                    self_type_ast = method_def_ast[2][0][1]
+                    if self_type_ast is None:
+                        self_type = None
+                        want_pointer = True
+                    else:
+                        self_type = type_from_ast(class_def_path, self_type_ast)
+                        want_pointer = self_type.name.endswith("*")
+
+                    got_pointer = obj_type.name.endswith("*")
+
+                    if want_pointer and not got_pointer:
+                        obj = self.run_address_of_expression(obj_ast)
+                    elif got_pointer and not want_pointer:
+                        obj = self.run_expression(obj_ast).deref()
+                    else:
+                        obj = self.run_expression(obj_ast)
+
+                    args_iter: Iterator[JouValue] = itertools.chain(
+                        [obj], (self.run_expression(arg_ast) for arg_ast in arg_asts)
+                    )
+                    return call_function(
+                        method,
+                        args_iter,
+                        self.depth,
+                        self_type=(self_type or class_type.pointer_type()),
+                    )
+
             func = self.run_expression(func_ast)
             args_iter = (self.run_expression(arg_ast) for arg_ast in arg_asts)
             return call_function(func, args_iter, self.depth)
@@ -1954,6 +2030,9 @@ class Runner:
                 return func
 
             raise RuntimeError(f"no variable named {varname} in {self.path}")
+
+        elif expr[0] == 'self':
+            return self.locals["self"].deref()
 
         elif expr[0] == "eq":
             left, right = (self.run_expression(ast).unwrap_value() for ast in expr[1:])
@@ -2025,6 +2104,7 @@ class Runner:
             obj = self.run_expression(obj_ast)
             index = self.run_expression(index_ast)
             if obj.jou_type.is_array_type():
+                assert obj.jou_type.inner_type is not None
                 # Copy the array to a temporary place where we can index it
                 # through a pointer. This way some_function()[1] can be used to
                 # ignore a part of the return value.
@@ -2093,6 +2173,11 @@ class Runner:
                 self.get_type(expr), lhs.unwrap_value() // rhs.unwrap_value()
             )
 
+        elif expr[0] == "negate":
+            _, obj_ast = expr
+            obj = self.run_expression(obj_ast)
+            return jou_integer(self.get_type(expr), -obj.unwrap_value())
+
         elif expr[0] == "post_incr":
             _, obj_ast = expr
             ptr = self.run_address_of_expression(obj_ast)
@@ -2110,7 +2195,13 @@ class Runner:
 # Args must be given as an iterator to get the right evaluation order AND type
 # conversions for arguments. When we evaluate an argument, we need to cast it
 # before we evaluate the next argument.
-def call_function(func: tuple[str, tuple[Any, ...]] | JouValue, args_iter, depth: int):
+def call_function(
+    func: tuple[str, tuple[Any, ...]] | JouValue,
+    args_iter,
+    depth: int,
+    *,
+    self_type: JouType | None = None,
+):
     assert func is not None
     if isinstance(func, JouValue):
         # Function defined in C and declared in Jou
@@ -2157,7 +2248,12 @@ def call_function(func: tuple[str, tuple[Any, ...]] | JouValue, args_iter, depth
 
     for arg_name, arg_type_ast, arg_default in funcdef_args:
         assert arg_default is None
-        arg_type = type_from_ast(func_path, arg_type_ast)
+        if arg_type_ast is None:
+            assert arg_name == "self"
+            assert self_type is not None
+            arg_type = self_type
+        else:
+            arg_type = type_from_ast(func_path, arg_type_ast)
         arg_value = next(args_iter).cast(arg_type)
         # Create a pointer because the argument becomes a local variable that
         # can be mutated.
@@ -2195,7 +2291,7 @@ def main() -> None:
     )
 
     for path in ASTS.keys():
-        TYPES[path] = BASIC_TYPES.copy()
+        TYPES[path] = BASIC_TYPES.copy()  # type: ignore
         GLOBALS[path] = {}
         FUNCTIONS[path] = {}
         ENUMS[path] = {}
