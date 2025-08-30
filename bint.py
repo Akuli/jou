@@ -319,6 +319,7 @@ class JouType:
         self.inner_type: JouType | None = None
         self.class_field_types: dict[str, JouType] | None = None
         self.methods: dict[str, tuple[str, Any]] = {}
+        self.generic_params = {}
         self.funcptr_argtypes: list[JouType] | None = None
         self.funcptr_return_type: JouType | None = None
 
@@ -1029,7 +1030,7 @@ class Parser:
     def parse_expression(self):
         return self.parse_expression_with_and_or()
 
-    def parse_oneline_statement(self) -> AST:
+    def parse_oneline_statement(self, decors=()) -> AST:
         location = self.tokens[0].location
 
         result: AST
@@ -1052,7 +1053,7 @@ class Parser:
             self.eat("const")
             name, type, value = self.parse_name_type_value()
             assert value is not None
-            result = ("const", name, type, value)
+            result = ("const", name, type, value, decors)
         elif self.tokens[0].kind == "name" and self.tokens[1].code == ":":
             name, type, value = self.parse_name_type_value()
             # e.g. "foo: int"
@@ -1234,7 +1235,7 @@ class Parser:
             assert not decors
             result = self.parse_first_of_multiple_local_var_declares()
         else:
-            result = self.parse_oneline_statement()
+            result = self.parse_oneline_statement(decors)
             self.eat("newline")
             return result  # do not add location, it's already added
 
@@ -1376,7 +1377,7 @@ def evaluate_compile_time_if_statements() -> None:
                         raise RuntimeError(
                             f"cannot evaluate compile-time if statement in {path}"
                         )
-                    if cond:
+                    if cond.unwrap_value():
                         ast[i : i + 1] = then
                     elif not if_and_elifs:
                         ast[i : i + 1] = else_body
@@ -1384,9 +1385,10 @@ def evaluate_compile_time_if_statements() -> None:
                     break
 
 
-FUNCTIONS: dict[str, dict[str, Any]] = {path: {} for path in ASTS}
+FUNCTIONS: dict[str, dict[str, Any]] = {}
 TYPES: dict[str, dict[str | tuple[str, JouType], JouType]] = {}
 GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
+CONSTANTS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 ENUMS: dict[str, dict[str, list[str] | None]] = {}  # None means not found
 
 
@@ -1394,12 +1396,10 @@ def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
     assert class_ast[0] == "class", class_ast
     _, class_name, generics, body, decors, location = class_ast
 
-    if generics:
-        [t] = generics
-        assert typesub is not None
-        generic_param = typesub[t]
-        cache_key = (class_name, generic_param)
-        full_name = f"{class_name}[{generic_param.name}]"
+    generic_params = {t: (typesub or {})[t] for t in generics}
+    if generic_params:
+        cache_key = (class_name, tuple(generic_params.values()))
+        full_name = f"{class_name}[{', '.join(t.name for t in generic_params.values())}]"
     else:
         cache_key = class_name
         full_name = class_name
@@ -1407,6 +1407,7 @@ def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
     # While defining this class, it must be possible to refer to it.
     # This is needed for recursive pointer fields.
     jou_type = JouType(full_name)
+    jou_type.generic_params = generic_params
 
     assert cache_key not in TYPES[path], cache_key
     TYPES[path][cache_key] = jou_type
@@ -1547,16 +1548,20 @@ def declare_c_function(path: str, declare_ast) -> JouValue:
 
 def declare_c_global_var(path, declare_ast):
     assert declare_ast[0] == "global_var_declare"
-    _, varname, vartype_ast, decors = declare_ast
+    _, varname, vartype_ast, decors, location = declare_ast
     print("Declaring global variable", varname)
+    breakpoint()
     vartype = type_from_ast(path, vartype_ast)
-    assert vartype.ctypes_type is not None
+    ctype = vartype.ctypes_type()
+    assert ctype is not None
 
     for lib in LIBS:
         try:
-            return vartype.ctypes_type.in_dll(lib, varname)
+            result = ctype.in_dll(lib, varname)
         except ValueError:
-            pass
+            continue
+
+        return JouValue(vartype.pointer_type(), ctypes.pointer(result))
 
     raise RuntimeError(f"C global variable not found: {varname}")
 
@@ -1604,17 +1609,6 @@ def find_function(path: str, func_name: str):
     return result
 
 
-def find_constant(path, name):
-    if name == "WINDOWS":
-        return jou_bool(sys.platform == "win32")
-    if name == "MACOS":
-        return jou_bool(sys.platform == "darwin")
-    if name == "NETBSD":
-        return jou_bool(sys.platform.startswith("netbsd"))
-    # TODO: `const` constants
-    return None
-
-
 # Returns a pointer to a global variable
 def find_global_var_ptr(path, varname):
     try:
@@ -1655,6 +1649,52 @@ def find_global_var_ptr(path, varname):
 
     # may assign None, that's fine, next time we know it's not a thing
     GLOBALS[path][varname] = result
+    return result
+
+
+def evaluate_constant(ast: AST, jtype: JouType) -> JouValue:
+    if ast[0] == 'negate':
+        _, inner = ast
+        return jou_integer(jtype, evaluate_constant(inner, jtype).unwrap_value())
+    if ast[0] == 'integer_constant':
+        _, int_value = ast
+        return jou_integer(jtype, int_value)
+    raise NotImplementedError(ast)
+
+
+def find_constant(path: str, constant_name: str) -> JouValue | None:
+    try:
+        return CONSTANTS[path][constant_name]
+    except KeyError:
+        pass
+
+    # Is it defined in this file?
+    result = None
+    for ast in ASTS[path]:
+        if ast[:2] == ('const', constant_name):
+            _, _, const_type_ast, value_ast, decors, location = ast
+            const_type = type_from_ast(path, const_type_ast)
+            result = evaluate_constant(value_ast, const_type)
+            assert result.jou_type == const_type
+            break
+        pass
+
+    if result is None:
+        # Is it defined in an imported file?
+        for item in ASTS[path]:
+            if item[0] == "import":
+                _, path2, location = item
+                for item2 in ASTS[path2]:
+                    # location is last, decorators are before that
+                    if item2[:2] == ('const', constant_name) and '@public' in item2[-2]:
+                        result = find_constant(path2, constant_name)
+                        assert result is not None
+                        break
+                if result is not None:
+                    break
+
+    # may assign None, that's fine, next time we know it's not a thing
+    CONSTANTS[path][constant_name] = result
     return result
 
 
@@ -1725,10 +1765,21 @@ class Break(Exception):
     pass
 
 
+class Continue(Exception):
+    pass
+
+
 @functools.cache
 def get_source_lines(path: str) -> list[str]:
     with open(path, encoding="utf-8") as f:
         return f.readlines()
+
+
+def cast_array_members_to_a_common_type(array: list[JouValue]) -> list[JouValue]:
+    distinct = set(v.jou_type for v in array)
+    if len(distinct) == 1:
+        return array
+    raise NotImplementedError(distinct)
 
 
 class Runner:
@@ -1755,9 +1806,10 @@ class Runner:
         filename, lineno = stmt[-1]
         source_line = get_source_lines(filename)[lineno - 1].strip()
         indent = "  " * self.depth
-        print(
-            f"{indent}Running {stmt[0]!r} statement in {filename}:{lineno}: {source_line}"
-        )
+        if False:
+            print(
+                f"{indent}Running {stmt[0]!r} statement in {filename}:{lineno}: {source_line}"
+            )
 
         if stmt[0] == "expr_stmt":
             _, expr, location = stmt
@@ -1808,7 +1860,11 @@ class Runner:
                 raise RuntimeError(f"assertion failed in {location}")
         elif stmt[0] == "return":
             _, val, location = stmt
-            raise Return(self.run_expression(val))
+            if val is None:
+                # return without a value
+                raise Return(None)
+            else:
+                raise Return(self.run_expression(val))
         elif stmt[0] == "for":
             _, init, cond, incr, body, location = stmt
             self.run_statement(init)
@@ -1817,6 +1873,8 @@ class Runner:
                     self.run_body(body)
                 except Break:
                     break
+                except Continue:
+                    pass
                 self.run_statement(incr)
         elif stmt[0] == "while":
             _, cond, body, location = stmt
@@ -1825,24 +1883,30 @@ class Runner:
                     self.run_body(body)
                 except Break:
                     break
+                except Continue:
+                    pass
         elif stmt[0] == "break":
             raise Break()
+        elif stmt[0] == "continue":
+            raise Continue()
         elif stmt[0] == "match":
             _, match_obj_ast, func_ast, cases, case_underscore, location = stmt
-            assert func_ast is not None  # TODO
             match_obj = self.run_expression(match_obj_ast)
-            func = self.run_expression(func_ast)
+            func = None if func_ast is None else self.run_expression(func_ast)
             matched = False
             for case_objs, case_body in cases:
                 for case_obj_ast in case_objs:
                     case_obj = self.run_expression(case_obj_ast)
-                    if (
-                        call_function(
-                            func, iter([match_obj, case_obj]), self.depth
-                        ).unwrap_value()
-                        == 0
-                    ):
-                        matched = True
+                    if func is None:
+                        matched = match_obj.unwrap_value() == case_obj.unwrap_value()
+                    else:
+                        matched = (
+                            call_function(
+                                func, iter([match_obj, case_obj]), self.depth
+                            ).unwrap_value()
+                            == 0
+                        )
+                    if matched:
                         break
                 if matched:
                     self.run_body(case_body)
@@ -1857,7 +1921,7 @@ class Runner:
         if expr[0] in ("get_variable", "self"):
             return self.run_expression(expr).jou_type
 
-        if expr[0] in ("add", "sub"):
+        if expr[0] in ("add", "sub", "mul", "div"):
             _, lhs, rhs = expr
             lhs_type = self.get_type(lhs)
             rhs_type = self.get_type(rhs)
@@ -1914,11 +1978,17 @@ class Runner:
             assert ptr_or_array_type.inner_type is not None
             return ptr_or_array_type.inner_type
 
+        if expr[0] == "sizeof":
+            return BASIC_TYPES["int64"]
+
+        if expr[0] == "constant":
+            _, value = expr
+            return value.jou_type
+
         raise NotImplementedError(expr)
 
     # Evaluates &expr
     def run_address_of_expression(self, expr) -> JouValue:
-        #        print("addr", expr)
         if expr[0] == "get_variable":
             _, varname = expr
             if varname in self.locals:
@@ -1965,11 +2035,15 @@ class Runner:
             index = self.run_expression(index_ast)
             return ptr.pointer_arithmetic(index.unwrap_value())
 
+        elif expr[0] == "dereference":
+            # &*foo --> just evaluate foo
+            _, obj_ast = expr
+            return self.run_expression(obj_ast)
+
         else:
-            raise NotImplementedError("address of", expr)
+            raise NotImplementedError(expr)
 
     def run_expression(self, expr) -> JouValue:
-        #        print("expr", expr)
         if expr[0] == "call":
             _, func_ast, arg_asts = expr
 
@@ -2031,7 +2105,7 @@ class Runner:
 
             raise RuntimeError(f"no variable named {varname} in {self.path}")
 
-        elif expr[0] == 'self':
+        elif expr[0] == "self":
             return self.locals["self"].deref()
 
         elif expr[0] == "eq":
@@ -2164,6 +2238,14 @@ class Runner:
                 self.get_type(expr), lhs.unwrap_value() - rhs.unwrap_value()
             )
 
+        elif expr[0] == "mul":
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.run_expression(lhs_ast)
+            rhs = self.run_expression(rhs_ast)
+            return jou_integer(
+                self.get_type(expr), lhs.unwrap_value() * rhs.unwrap_value()
+            )
+
         elif expr[0] == "div":
             _, lhs_ast, rhs_ast = expr
             lhs = self.run_expression(lhs_ast)
@@ -2178,15 +2260,41 @@ class Runner:
             obj = self.run_expression(obj_ast)
             return jou_integer(self.get_type(expr), -obj.unwrap_value())
 
-        elif expr[0] == "post_incr":
+        elif expr[0] in ("pre_incr", "post_incr", "pre_decr", "post_decr"):
+            if "incr" in expr[0]:
+                diff = 1
+            elif "decr" in expr[0]:
+                diff = -1
+            else:
+                raise RuntimeError("wat")
+
             _, obj_ast = expr
             ptr = self.run_address_of_expression(obj_ast)
-            value = ptr.deref()
-            if value.jou_type.name.endswith("*"):
-                ptr.deref_set(value.pointer_arithmetic(1))
+            old_value = ptr.deref()
+            if old_value.jou_type.name.endswith("*"):
+                new_value = old_value.pointer_arithmetic(diff)
             else:
-                ptr.deref_set(jou_integer(value.jou_type, value.unwrap_value() + 1))
-            return value
+                new_value = jou_integer(
+                    old_value.jou_type, old_value.unwrap_value() + diff
+                )
+            ptr.deref_set(new_value)
+
+            if "pre" in expr[0]:
+                return new_value
+            if "post" in expr[0]:
+                return old_value
+            raise RuntimeError("wat")
+
+        elif expr[0] == 'array':
+            _, item_asts = expr
+            items = cast_array_members_to_a_common_type([self.run_expression(item) for item in item_asts])
+            item_type = items[0].jou_type
+            ctypes_array = (item_type.ctypes_type() * len(items))(*(item.ctypes_value for item in items))
+            return JouValue(item_type.array_type(len(items)), ctypes_array)
+
+        elif expr[0] == "dereference":
+            _, value = expr
+            return self.run_expression(value).deref()
 
         else:
             raise NotImplementedError(expr)
@@ -2201,8 +2309,16 @@ def call_function(
     depth: int,
     *,
     self_type: JouType | None = None,
-):
-    assert func is not None
+) -> JouValue | None:
+    # Replace T with the actual type in "class Foo[T]"
+    if self_type is None:
+        typesub = {}
+    elif self_type.name.endswith("*"):
+        assert self_type.inner_type is not None
+        typesub = self_type.inner_type.generic_params
+    else:
+        typesub = self_type.generic_params
+
     if isinstance(func, JouValue):
         # Function defined in C and declared in Jou
         args = []
@@ -2217,7 +2333,9 @@ def call_function(
             assert result is None
             return None
 
-        assert result is not None
+        if result is None:
+            # It is a NULL pointer
+            return JOU_NULL.cast(func.jou_type.funcptr_return_type)
         if isinstance(result, int):  # ctypes is funny...
             assert func.jou_type.funcptr_return_type is not None
             result = func.jou_type.funcptr_return_type.ctypes_type()(result)
@@ -2253,7 +2371,7 @@ def call_function(
             assert self_type is not None
             arg_type = self_type
         else:
-            arg_type = type_from_ast(func_path, arg_type_ast)
+            arg_type = type_from_ast(func_path, arg_type_ast, typesub=typesub)
         arg_value = next(args_iter).cast(arg_type)
         # Create a pointer because the argument becomes a local variable that
         # can be mutated.
@@ -2294,6 +2412,11 @@ def main() -> None:
         TYPES[path] = BASIC_TYPES.copy()  # type: ignore
         GLOBALS[path] = {}
         FUNCTIONS[path] = {}
+        CONSTANTS[path] = {
+            "WINDOWS": jou_bool(sys.platform == "win32"),
+            "MACOS": jou_bool(sys.platform == "darwin"),
+            "NETBSD": jou_bool(sys.platform.startswith("netbsd")),
+        }
         ENUMS[path] = {}
 
     print("Evaluating compile-time if statements...")
