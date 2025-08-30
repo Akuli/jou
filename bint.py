@@ -2030,9 +2030,9 @@ class Runner:
                 _, varname, type_ast, value_ast, location = stmt
                 vartype = type_from_ast(self.path, type_ast)
                 var = vartype.allocate_instance()
+                self.locals[varname] = var
                 if value_ast is not None:
                     var.deref_set(self.run_expression(value_ast).cast(vartype))
-                self.locals[varname] = var
             elif stmt[0] == "assert":
                 _, cond, location = stmt
                 if not self.run_expression(cond):
@@ -2046,7 +2046,8 @@ class Runner:
                     raise Return(self.run_expression(val))
             elif stmt[0] == "for":
                 _, init, cond, incr, body, location = stmt
-                self.run_statement(init)
+                if init is not None:
+                    self.run_statement(init)
                 while self.run_expression(cond).unwrap_value():
                     try:
                         self.run_body(body)
@@ -2068,6 +2069,8 @@ class Runner:
                 raise Break()
             elif stmt[0] == "continue":
                 raise Continue()
+            elif stmt[0] == "pass":
+                pass
             elif stmt[0] == "match":
                 _, match_obj_ast, func_ast, cases, case_underscore, location = stmt
                 match_obj = self.run_expression(match_obj_ast)
@@ -2102,6 +2105,9 @@ class Runner:
     def get_type(self, expr) -> JouType:
         if expr[0] in ("get_variable", "self"):
             return self.run_expression(expr).jou_type
+
+        if expr[0] in ("eq", "and", "or", "not"):
+            return BASIC_TYPES["bool"]
 
         if expr[0] in ("add", "sub", "mul", "div", "mod"):
             _, lhs, rhs = expr
@@ -2543,7 +2549,7 @@ def main() -> None:
 
     args = (
         sys.argv[1:]
-        or "compiler/main.jou -vv -o jou_bootstrap compiler/main.jou".split()
+        or "compiler/main.jou -vvv -o jou_bootstrap compiler/main.jou".split()
     )
 
     if VERBOSITY == 1:
