@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import itertools
 import faulthandler
-import collections
-import time
 import functools
 import subprocess
 import shutil
@@ -16,12 +14,23 @@ from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING, Iterator
 
 if TYPE_CHECKING:
-    from typing_extensions import Unpack
+    # First element is always a string, but explainin that to mypy without
+    # getting unnecessary errors turned out to be too complicated.
+    AST = tuple[Any, ...]
 
-    AST = tuple[str, Unpack[tuple[Any, ...]]]
 
-
-faulthandler.enable()
+# GLOBAL STATE GO BRRRR
+# This place is where all mutated global variables go.
+VERBOSITY: int = 0
+LIBS: list[ctypes.CDLL] = []
+hey_python_please_dont_garbage_collect_these_strings_thank_you = []  # TODO: remove?
+ASTS: dict[str, Any] = {}
+FUNCTIONS: dict[str, dict[str, Any]] = {}
+TYPES: dict[str, dict[str | tuple[str, tuple[JouType, ...] | JouType], JouType]] = {}
+GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
+CONSTANTS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
+ENUMS: dict[str, dict[str, list[str] | None]] = {}  # None means not found
+CALL_STACK: list[str] = []  # This is only for debugging.
 
 
 def load_llvm():
@@ -67,55 +76,58 @@ def load_llvm():
     return result
 
 
-LIBS: list[ctypes.CDLL] = []
+@dataclass
+class Token:
+    kind: str
+    code: str
+    location: tuple[str, int]
 
-KEYWORDS = [
-    "import",
-    "link",
-    "def",
-    "declare",
-    "class",
-    "union",
-    "enum",
-    "global",
-    "const",
-    "return",
-    "if",
-    "elif",
-    "else",
-    "while",
-    "for",
-    "pass",
-    "break",
-    "continue",
-    "True",
-    "False",
-    "None",
-    "NULL",
-    "void",
-    "noreturn",
-    "and",
-    "or",
-    "not",
-    "self",
-    "as",
-    "sizeof",
-    "assert",
-    "bool",
-    "byte",
-    "int",
-    "long",
-    "float",
-    "double",
-    "match",
-    "with",
-    "case",
-]
 
-TOKENIZER_REGEX = re.compile(
-    r"""
+def tokenize(jou_code, path):
+    regex = r"""
     (?P<newline> \n [ ]* )                      # a newline and all indentation after it
-    | (?P<keyword> KEYWORDS )                   # "import"
+    | (?P<keyword>
+        \bimport \b
+        | \b link \b
+        | \b def \b
+        | \b declare \b
+        | \b class \b
+        | \b union \b
+        | \b enum \b
+        | \b global \b
+        | \b const \b
+        | \b return \b
+        | \b if \b
+        | \b elif \b
+        | \b else \b
+        | \b while \b
+        | \b for \b
+        | \b pass \b
+        | \b break \b
+        | \b continue \b
+        | \b True \b
+        | \b False \b
+        | \b None \b
+        | \b NULL \b
+        | \b void \b
+        | \b noreturn \b
+        | \b and \b
+        | \b or \b
+        | \b not \b
+        | \b self \b
+        | \b as \b
+        | \b sizeof \b
+        | \b assert \b
+        | \b bool \b
+        | \b byte \b
+        | \b int \b
+        | \b long \b
+        | \b float \b
+        | \b double \b
+        | \b match \b
+        | \b with \b
+        | \b case \b
+    )
     | (?P<name> [^\W\d] \w* )                   # "foo"
     | (?P<decorator> @public | @inline )
     | (?P<string> " ( \\ . | [^"\n\\] )* " )    # "hello"
@@ -136,24 +148,12 @@ TOKENIZER_REGEX = re.compile(
     )
     | (?P<ignore> \# .* | [ ] )                 # comments and spaces other than indentation
     | (?P<error> [\S\s] )                       # anything else is an error
-    """.replace(
-        "KEYWORDS", "|".join(r"\b" + k + r"\b" for k in KEYWORDS)
-    ),
-    flags=re.VERBOSE,
-)
+    """
 
-
-@dataclass
-class Token:
-    kind: str
-    code: str
-    location: tuple[str, int]
-
-
-def tokenize(jou_code, path):
     tokens = []
     lineno = 1
-    for m in TOKENIZER_REGEX.finditer(jou_code):
+
+    for m in re.finditer(regex, jou_code, flags=re.VERBOSE):
         if m.lastgroup == "error":
             exit(f"tokenize error in file {path}, line {lineno}")
 
@@ -218,22 +218,6 @@ def tokenize(jou_code, path):
             i += 1
 
     return list(tokens)
-
-
-BYTE_VALUES = {
-    "'" + c + "'": ord(c)
-    for c in string.ascii_letters
-    + string.digits
-    + string.punctuation.replace("\\", "").replace("'", "")
-} | {
-    "'\\0'": 0,
-    "'\\\\'": ord("\\"),
-    "'\\n'": ord("\n"),
-    "'\\r'": ord("\r"),
-    "'\\t'": ord("\t"),
-    "'\\''": ord("'"),
-    "' '": ord(" "),
-}
 
 
 # reverse code golfing: https://xkcd.com/1960/
@@ -319,7 +303,7 @@ class JouType:
         self.inner_type: JouType | None = None
         self.class_field_types: dict[str, JouType] | None = None
         self.methods: dict[str, tuple[str, Any]] = {}
-        self.generic_params = {}
+        self.generic_params: dict[str, JouType] = {}
         self.funcptr_argtypes: list[JouType] | None = None
         self.funcptr_return_type: JouType | None = None
 
@@ -630,10 +614,6 @@ JOU_VOID_PTR = JouType("void*")
 JOU_NULL = JouValue(JOU_VOID_PTR, 0, cast=True)
 
 
-# TODO: not sure if necessary
-hey_python_please_dont_garbage_collect_these_strings_thank_you = []
-
-
 # None creates a NULL
 def jou_string(s: str | bytes | None) -> JouValue:
     if isinstance(s, str):
@@ -765,7 +745,7 @@ class Parser:
                 self.eat("self")
                 if self.tokens[0].code == ":":
                     self.eat(":")
-                    self_arg = ("self", self.parse_type(), None)
+                    self_arg: tuple[Any, ...] = ("self", self.parse_type(), None)
                 else:
                     self_arg = ("self", None, None)
                 args.append(self_arg)
@@ -831,10 +811,37 @@ class Parser:
                 int(self.tokens.pop(0).code.replace("_", ""), 0),
             )
         if self.tokens[0].kind == "byte":
-            return (
-                "constant",
-                jou_integer("byte", BYTE_VALUES[self.eat("byte").code]),
+            code = self.eat("byte").code
+            assert code.startswith("'")
+            assert code.endswith("'")
+
+            simple_chars = (
+                string.ascii_letters
+                + string.digits
+                + string.punctuation.replace("\\", "").replace("'", "")
+                + " "
             )
+
+            if len(code) == 3 and code[1] in simple_chars:
+                value = ord(code[1])
+            elif code == "'\\0'":
+                value = 0
+            elif code == "'\\\\'":
+                value = ord("\\")
+            elif code == "'\\n'":
+                value = ord("\n")
+            elif code == "'\\r'":
+                value = ord("\r")
+            elif code == "'\\t'":
+                value = ord("\t")
+            elif code == "'\\''":
+                value = ord("'")
+            elif code == "' '":
+                value = ord(" ")
+            else:
+                raise NotImplementedError(code)
+
+            return ("constant", jou_integer("byte", value))
         if self.tokens[0].kind == "double":
             return ("constant", jou_double(float(self.eat("double").code)))
         if self.tokens[0].kind == "string":
@@ -1319,29 +1326,21 @@ class Parser:
         return ("enum", name, members, decors)
 
 
-ASTS: dict[str, Any] = {}
-PARSE_TIMES: collections.defaultdict[str, float] = collections.defaultdict(float)
-
-
 def parse_file(path):
     # Remove "foo/../bar" and "foo/./bar" stuff
-    start = time.perf_counter()
     path = simplify_path(path)
-    PARSE_TIMES["resolve"] += time.perf_counter() - start
 
     if path in ASTS:
         return
 
-    start = time.perf_counter()
+    if VERBOSITY >= 2:
+        print("Parsing", path)
+
     with open(path, encoding="utf-8") as f:
         content = f.read()
-    PARSE_TIMES["read"] += time.perf_counter() - start
 
-    start = time.perf_counter()
     tokens = tokenize(content, path)
-    PARSE_TIMES["tokenize"] += time.perf_counter() - start
 
-    start = time.perf_counter()
     parser = Parser(path, tokens)
     ast = []
     imported = []
@@ -1351,7 +1350,6 @@ def parse_file(path):
             if s[0] == "import":
                 imported.append(s[1])
             ast.append(s)
-    PARSE_TIMES["parse"] += time.perf_counter() - start
 
     ASTS[path] = ast
 
@@ -1371,6 +1369,7 @@ def evaluate_compile_time_if_statements() -> None:
                     if cond_ast[0] == "get_variable":
                         _, cond_varname = cond_ast
                         cond = find_constant(path, cond_varname)
+                        assert cond is not None
                     elif cond_ast[0] == "constant":
                         _, cond = cond_ast
                     else:
@@ -1385,13 +1384,6 @@ def evaluate_compile_time_if_statements() -> None:
                     break
 
 
-FUNCTIONS: dict[str, dict[str, Any]] = {}
-TYPES: dict[str, dict[str | tuple[str, JouType], JouType]] = {}
-GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
-CONSTANTS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
-ENUMS: dict[str, dict[str, list[str] | None]] = {}  # None means not found
-
-
 def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
     assert class_ast[0] == "class", class_ast
     _, class_name, generics, body, decors, location = class_ast
@@ -1399,7 +1391,9 @@ def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
     generic_params = {t: (typesub or {})[t] for t in generics}
     if generic_params:
         cache_key = (class_name, tuple(generic_params.values()))
-        full_name = f"{class_name}[{', '.join(t.name for t in generic_params.values())}]"
+        full_name = (
+            f"{class_name}[{', '.join(t.name for t in generic_params.values())}]"
+        )
     else:
         cache_key = class_name
         full_name = class_name
@@ -1549,8 +1543,8 @@ def declare_c_function(path: str, declare_ast) -> JouValue:
 def declare_c_global_var(path, declare_ast):
     assert declare_ast[0] == "global_var_declare"
     _, varname, vartype_ast, decors, location = declare_ast
-    print("Declaring global variable", varname)
-    breakpoint()
+    if VERBOSITY >= 1:
+        print("Declaring global variable", varname)
     vartype = type_from_ast(path, vartype_ast)
     ctype = vartype.ctypes_type()
     assert ctype is not None
@@ -1653,10 +1647,10 @@ def find_global_var_ptr(path, varname):
 
 
 def evaluate_constant(ast: AST, jtype: JouType) -> JouValue:
-    if ast[0] == 'negate':
+    if ast[0] == "negate":
         _, inner = ast
         return jou_integer(jtype, evaluate_constant(inner, jtype).unwrap_value())
-    if ast[0] == 'integer_constant':
+    if ast[0] == "integer_constant":
         _, int_value = ast
         return jou_integer(jtype, int_value)
     raise NotImplementedError(ast)
@@ -1671,7 +1665,7 @@ def find_constant(path: str, constant_name: str) -> JouValue | None:
     # Is it defined in this file?
     result = None
     for ast in ASTS[path]:
-        if ast[:2] == ('const', constant_name):
+        if ast[:2] == ("const", constant_name):
             _, _, const_type_ast, value_ast, decors, location = ast
             const_type = type_from_ast(path, const_type_ast)
             result = evaluate_constant(value_ast, const_type)
@@ -1686,7 +1680,7 @@ def find_constant(path: str, constant_name: str) -> JouValue | None:
                 _, path2, location = item
                 for item2 in ASTS[path2]:
                     # location is last, decorators are before that
-                    if item2[:2] == ('const', constant_name) and '@public' in item2[-2]:
+                    if item2[:2] == ("const", constant_name) and "@public" in item2[-2]:
                         result = find_constant(path2, constant_name)
                         assert result is not None
                         break
@@ -1783,9 +1777,8 @@ def cast_array_members_to_a_common_type(array: list[JouValue]) -> list[JouValue]
 
 
 class Runner:
-    def __init__(self, path: str, depth: int) -> None:
+    def __init__(self, path: str) -> None:
         self.path = path
-        self.depth = depth
         self.locals: dict[str, JouValue] = {}  # values are pointers
 
     def run_body(self, body):
@@ -1805,116 +1798,118 @@ class Runner:
     def run_statement(self, stmt) -> None:
         filename, lineno = stmt[-1]
         source_line = get_source_lines(filename)[lineno - 1].strip()
-        indent = "  " * self.depth
-        if False:
+        if VERBOSITY >= 2:
+            indent = "  " * len(CALL_STACK)
             print(
-                f"{indent}Running {stmt[0]!r} statement in {filename}:{lineno}: {source_line}"
+                f"{indent}Running {stmt[0]!r}: {filename}:{lineno}: {source_line}"
             )
 
-        if stmt[0] == "expr_stmt":
-            _, expr, location = stmt
-            self.run_expression(expr)
-        elif stmt[0] == "if":
-            _, if_and_elifs, otherwise, location = stmt
-            for cond, body in if_and_elifs:
-                if self.run_expression(cond).unwrap_value():
-                    self.run_body(body)
-                    break
-            else:
-                self.run_body(otherwise)
-        elif stmt[0] == "assign":
-            _, target_ast, value_ast, location = stmt
-            if target_ast[0] == "get_variable":
-                _, varname = target_ast
-                if self.find_any_var_or_constant(varname) is None:
-                    # Making a new variable. Use the type of the value being assigned.
-                    value = self.run_expression(value_ast)
-                    ptr = value.jou_type.allocate_instance()
-                    ptr.deref_set(value)
-                    self.locals[varname] = ptr
-                    return
-            target = self.run_address_of_expression(target_ast)
-            assert target.jou_type.inner_type is not None
-            value = self.run_expression(value_ast).cast(target.jou_type.inner_type)
-            target.deref_set(value)
-        elif stmt[0] == "in_place_add":
-            _, target_ast, value_ast, location = stmt
-            ptr = self.run_address_of_expression(target_ast)
-            value = self.run_expression(value_ast)
-            ptr.deref_set(ptr.deref().unwrap_value() + value.unwrap_value())
-        elif stmt[0] == "in_place_mul":
-            _, target_ast, value_ast, location = stmt
-            ptr = self.run_address_of_expression(target_ast)
-            value = self.run_expression(value_ast)
-            ptr.deref_set(ptr.deref().unwrap_value() * value.unwrap_value())
-        elif stmt[0] == "declare_local_var":
-            _, varname, type_ast, value_ast, location = stmt
-            vartype = type_from_ast(self.path, type_ast)
-            var = vartype.allocate_instance()
-            if value_ast is not None:
-                var.deref_set(self.run_expression(value_ast).cast(vartype))
-            self.locals[varname] = var
-        elif stmt[0] == "assert":
-            _, cond, location = stmt
-            if not self.run_expression(cond):
-                raise RuntimeError(f"assertion failed in {location}")
-        elif stmt[0] == "return":
-            _, val, location = stmt
-            if val is None:
-                # return without a value
-                raise Return(None)
-            else:
-                raise Return(self.run_expression(val))
-        elif stmt[0] == "for":
-            _, init, cond, incr, body, location = stmt
-            self.run_statement(init)
-            while self.run_expression(cond).unwrap_value():
-                try:
-                    self.run_body(body)
-                except Break:
-                    break
-                except Continue:
-                    pass
-                self.run_statement(incr)
-        elif stmt[0] == "while":
-            _, cond, body, location = stmt
-            while self.run_expression(cond).unwrap_value():
-                try:
-                    self.run_body(body)
-                except Break:
-                    break
-                except Continue:
-                    pass
-        elif stmt[0] == "break":
-            raise Break()
-        elif stmt[0] == "continue":
-            raise Continue()
-        elif stmt[0] == "match":
-            _, match_obj_ast, func_ast, cases, case_underscore, location = stmt
-            match_obj = self.run_expression(match_obj_ast)
-            func = None if func_ast is None else self.run_expression(func_ast)
-            matched = False
-            for case_objs, case_body in cases:
-                for case_obj_ast in case_objs:
-                    case_obj = self.run_expression(case_obj_ast)
-                    if func is None:
-                        matched = match_obj.unwrap_value() == case_obj.unwrap_value()
-                    else:
-                        matched = (
-                            call_function(
-                                func, iter([match_obj, case_obj]), self.depth
-                            ).unwrap_value()
-                            == 0
-                        )
-                    if matched:
+        CALL_STACK.append((filename, lineno))
+        try:
+            if stmt[0] == "expr_stmt":
+                _, expr, location = stmt
+                self.run_expression(expr)
+            elif stmt[0] == "if":
+                _, if_and_elifs, otherwise, location = stmt
+                for cond, body in if_and_elifs:
+                    if self.run_expression(cond).unwrap_value():
+                        self.run_body(body)
                         break
-                if matched:
-                    self.run_body(case_body)
-                    break
-            if not matched:
-                self.run_body(case_underscore)
-        else:
-            raise NotImplementedError(stmt)
+                else:
+                    self.run_body(otherwise)
+            elif stmt[0] == "assign":
+                _, target_ast, value_ast, location = stmt
+                if target_ast[0] == "get_variable":
+                    _, varname = target_ast
+                    if self.find_any_var_or_constant(varname) is None:
+                        # Making a new variable. Use the type of the value being assigned.
+                        value = self.run_expression(value_ast)
+                        ptr = value.jou_type.allocate_instance()
+                        ptr.deref_set(value)
+                        self.locals[varname] = ptr
+                        return
+                target = self.run_address_of_expression(target_ast)
+                assert target.jou_type.inner_type is not None
+                value = self.run_expression(value_ast).cast(target.jou_type.inner_type)
+                target.deref_set(value)
+            elif stmt[0] == "in_place_add":
+                _, target_ast, value_ast, location = stmt
+                ptr = self.run_address_of_expression(target_ast)
+                value = self.run_expression(value_ast)
+                ptr.deref_set(ptr.deref().unwrap_value() + value.unwrap_value())
+            elif stmt[0] == "in_place_mul":
+                _, target_ast, value_ast, location = stmt
+                ptr = self.run_address_of_expression(target_ast)
+                value = self.run_expression(value_ast)
+                ptr.deref_set(ptr.deref().unwrap_value() * value.unwrap_value())
+            elif stmt[0] == "declare_local_var":
+                _, varname, type_ast, value_ast, location = stmt
+                vartype = type_from_ast(self.path, type_ast)
+                var = vartype.allocate_instance()
+                if value_ast is not None:
+                    var.deref_set(self.run_expression(value_ast).cast(vartype))
+                self.locals[varname] = var
+            elif stmt[0] == "assert":
+                _, cond, location = stmt
+                if not self.run_expression(cond):
+                    raise RuntimeError(f"assertion failed in {location}")
+            elif stmt[0] == "return":
+                _, val, location = stmt
+                if val is None:
+                    # return without a value
+                    raise Return(None)
+                else:
+                    raise Return(self.run_expression(val))
+            elif stmt[0] == "for":
+                _, init, cond, incr, body, location = stmt
+                self.run_statement(init)
+                while self.run_expression(cond).unwrap_value():
+                    try:
+                        self.run_body(body)
+                    except Break:
+                        break
+                    except Continue:
+                        pass
+                    self.run_statement(incr)
+            elif stmt[0] == "while":
+                _, cond, body, location = stmt
+                while self.run_expression(cond).unwrap_value():
+                    try:
+                        self.run_body(body)
+                    except Break:
+                        break
+                    except Continue:
+                        pass
+            elif stmt[0] == "break":
+                raise Break()
+            elif stmt[0] == "continue":
+                raise Continue()
+            elif stmt[0] == "match":
+                _, match_obj_ast, func_ast, cases, case_underscore, location = stmt
+                match_obj = self.run_expression(match_obj_ast)
+                func = None if func_ast is None else self.run_expression(func_ast)
+                matched = False
+                for case_objs, case_body in cases:
+                    for case_obj_ast in case_objs:
+                        case_obj = self.run_expression(case_obj_ast)
+                        if func is None:
+                            matched = match_obj.unwrap_value() == case_obj.unwrap_value()
+                        else:
+                            ret = call_function(func, iter([match_obj, case_obj]))
+                            assert ret is not None
+                            matched = ret.unwrap_value() == 0
+                        if matched:
+                            break
+                    if matched:
+                        self.run_body(case_body)
+                        break
+                if not matched:
+                    self.run_body(case_underscore)
+            else:
+                raise NotImplementedError(stmt)
+        finally:
+            p = CALL_STACK.pop()
+            assert p == (filename, lineno)
 
     # Evaluates the type of expr without evaluating expr
     def get_type(self, expr) -> JouType:
@@ -2043,7 +2038,7 @@ class Runner:
         else:
             raise NotImplementedError(expr)
 
-    def run_expression(self, expr) -> JouValue:
+    def run_expression(self, expr):
         if expr[0] == "call":
             _, func_ast, arg_asts = expr
 
@@ -2084,13 +2079,12 @@ class Runner:
                     return call_function(
                         method,
                         args_iter,
-                        self.depth,
                         self_type=(self_type or class_type.pointer_type()),
                     )
 
             func = self.run_expression(func_ast)
             args_iter = (self.run_expression(arg_ast) for arg_ast in arg_asts)
-            return call_function(func, args_iter, self.depth)
+            return call_function(func, args_iter)
 
         elif expr[0] == "get_variable":
             _, varname = expr
@@ -2285,11 +2279,15 @@ class Runner:
                 return old_value
             raise RuntimeError("wat")
 
-        elif expr[0] == 'array':
+        elif expr[0] == "array":
             _, item_asts = expr
-            items = cast_array_members_to_a_common_type([self.run_expression(item) for item in item_asts])
+            items = cast_array_members_to_a_common_type(
+                [self.run_expression(item) for item in item_asts]
+            )
             item_type = items[0].jou_type
-            ctypes_array = (item_type.ctypes_type() * len(items))(*(item.ctypes_value for item in items))
+            ctypes_array = (item_type.ctypes_type() * len(items))(
+                *(item.ctypes_value for item in items)
+            )
             return JouValue(item_type.array_type(len(items)), ctypes_array)
 
         elif expr[0] == "dereference":
@@ -2306,7 +2304,6 @@ class Runner:
 def call_function(
     func: tuple[str, tuple[Any, ...]] | JouValue,
     args_iter,
-    depth: int,
     *,
     self_type: JouType | None = None,
 ) -> JouValue | None:
@@ -2362,7 +2359,7 @@ def call_function(
     if func_path == "compiler/paths.jou" and func_name == "find_stdlib":
         return jou_string(os.path.abspath("stdlib"))
 
-    r = Runner(func_path, depth + 1)
+    r = Runner(func_path)
 
     for arg_name, arg_type_ast, arg_default in funcdef_args:
         assert arg_default is None
@@ -2397,16 +2394,35 @@ def call_function(
 
 
 def main() -> None:
+    faulthandler.enable()
+
     LIBS.append(ctypes.CDLL(ctypes.util.find_library("c")))
     LIBS.append(ctypes.CDLL(ctypes.util.find_library("m")))
     LIBS.extend(load_llvm())
 
-    print("Parsing Jou files...", end=" ", flush=True)
-    parse_file("compiler/main.jou")
-    print(
-        f"{len(ASTS)} files:",
-        *(f"{name}={round(sec*1000)}ms" for name, sec in PARSE_TIMES.items()),
+    global VERBOSITY
+    while len(sys.argv) >= 2 and sys.argv[1].startswith("-"):
+        if sys.argv[1] == "--verbose":
+            VERBOSITY += 1
+            del sys.argv[1]
+        elif re.fullmatch(r"-v+", sys.argv[1]):
+            VERBOSITY += sys.argv[1].count("v")
+            del sys.argv[1]
+        else:
+            sys.exit(
+                f"Usage: python3 {sys.argv[0]} [interpreter args] program.jou [program args]"
+            )
+
+    args = (
+        sys.argv[1:]
+        or "compiler/main.jou -vv -o jou_bootstrap compiler/main.jou".split()
     )
+
+    if VERBOSITY == 1:
+        print("Parsing Jou files...", end=" ", flush=True)
+    parse_file(args[0])
+    if VERBOSITY >= 1:
+        print(f"{len(ASTS)} files parsed.")
 
     for path in ASTS.keys():
         TYPES[path] = BASIC_TYPES.copy()  # type: ignore
@@ -2419,25 +2435,29 @@ def main() -> None:
         }
         ENUMS[path] = {}
 
-    print("Evaluating compile-time if statements...")
+    if VERBOSITY >= 1:
+        print("Evaluating compile-time if statements...")
     evaluate_compile_time_if_statements()
 
-    args = list(map(jou_string, "jou -vv -o jou_bootstrap compiler/main.jou".split()))
-
     argc = jou_integer("int", len(args))
-    ctypes_argv_type = args[0].jou_type.ctypes_type() * (len(args) + 1)  # NULL at end
+
+    # Set argv so that it has NULL at end
+    ctypes_argv_type = BASIC_TYPES["uint8"].pointer_type().ctypes_type() * (
+        len(args) + 1
+    )
     ctypes_argv = ctypes_argv_type()
     for i, arg in enumerate(args):
-        ctypes_argv[i] = arg.ctypes_value
+        ctypes_argv[i] = jou_string(arg).ctypes_value
     argv = JouValue(
         BASIC_TYPES["byte"].pointer_type().pointer_type(), ctypes_argv, cast=True
     )
 
-    print("Running main(). Here We Go...")
+    if VERBOSITY >= 1:
+        print("Running main(). Here We Go...")
+    main = find_function(args[0], "main")
     call_function(
-        func=find_function("compiler/main.jou", "main"),
-        args_iter=iter([argc, argv]),
-        depth=0,
+        func=main,
+        args_iter=iter([argc, argv] if main[1][2] else []),
     )
 
 
