@@ -1945,20 +1945,12 @@ class Runner:
 
             assert len(args) == len(funcdef_args)
 
-            for (arg_name, arg_type_ast, arg_default), arg_value in zip(
-                funcdef_args, args
+            for (arg_name, arg_type_ast, arg_default), arg in zip(
+                funcdef_args, actual_args
             ):
-                assert arg_default is None
-                if arg_type_ast is None:
-                    assert arg_name == "self"
-                    assert self_type is not None
-                    arg_type = self_type
-                else:
-                    arg_type = type_from_ast(func_path, arg_type_ast, typesub=typesub)
-                arg = self.process_function_argument(arg_value, arg_type)
                 # Create a pointer because the argument becomes a local variable that
                 # can be mutated.
-                ptr = arg_type.allocate_instance()
+                ptr = arg.jou_type.allocate_instance()
                 ptr.deref_set(arg)
                 r.locals[arg_name] = ptr
 
