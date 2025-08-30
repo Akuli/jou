@@ -113,8 +113,7 @@ def main() -> int:
 
     file = fopen("perlin_noise.ppm", "w")
     fprintf(file, "P5\n%d %d\n255\n", SIZE * CELL_PIXELS, SIZE * CELL_PIXELS)
-    for i = 0; i < (image_size * image_size); i++:
-        fputc(image[i], file)
+    fwrite(image, 1, image_size * image_size, file)
     fclose(file)
     printf("Wrote perlin_noise.ppm\n")  # Output: Wrote perlin_noise.ppm
 
