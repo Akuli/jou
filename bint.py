@@ -307,6 +307,7 @@ class JouType:
         self.generic_params: dict[str, JouType] = {}
         self.funcptr_argtypes: list[JouType] | None = None
         self.funcptr_return_type: JouType | None = None
+        self.funcptr_ast: tuple[Any, ...] | None = None
 
         self._ctypes_type: Any | None = None
         self._pointer_type: JouType | None = None
@@ -1782,6 +1783,110 @@ class Runner:
         self.path = path
         self.locals: dict[str, JouValue] = {}  # values are pointers
 
+    def process_function_argument(self, arg: AST | JouValue, expected_type: JouType) -> JouValue:
+        if isinstance(arg, JouValue):
+            return arg.cast(expected_type)
+
+        atype = self.get_type(arg)
+        if atype.name.endswith("]") and expected_type.name.endswith("*"):
+            # Array passed to pointer argument
+            arg = self.run_address_of_expression(arg)
+        else:
+            arg = self.run_expression(arg)
+        return arg.cast(expected_type)  # type: ignore
+
+    # Args must be given as an iterator to get the right evaluation order AND type
+    # conversions for arguments. When we evaluate an argument, we need to cast it
+    # before we evaluate the next argument.
+    def call_function(
+        self,
+        func: tuple[str, tuple[Any, ...]] | JouValue,
+        args,
+        *,
+        self_type: JouType | None = None,
+    ) -> JouValue | None:
+        # Replace T with the actual type in "class Foo[T]"
+        if self_type is None:
+            typesub = {}
+        elif self_type.name.endswith("*"):
+            assert self_type.inner_type is not None
+            typesub = self_type.inner_type.generic_params
+        else:
+            typesub = self_type.generic_params
+
+        if isinstance(func, JouValue):
+            # Function defined in C and declared in Jou
+            actual_args = []
+            assert func.jou_type.funcptr_argtypes is not None
+            for arg, arg_type in zip(args, func.jou_type.funcptr_argtypes):
+                actual_args.append(self.process_function_argument(arg, arg_type))
+
+            # Handle varargs: printf("hello %d\n", 1, 2, 3)
+            # TODO: byte to int and other processing for varargs?
+            for arg in args[len(func.jou_type.funcptr_argtypes):]:
+                    actual_args.append(arg if isinstance(arg, JouValue) else self.run_expression(arg))
+
+            result = func.ctypes_value(*(a.ctypes_value for a in actual_args))
+            if func.jou_type.funcptr_return_type is None:
+                assert result is None
+                return None
+
+            if result is None:
+                # It is a NULL pointer
+                return JOU_NULL.cast(func.jou_type.funcptr_return_type)
+            if isinstance(result, int):  # ctypes is funny...
+                assert func.jou_type.funcptr_return_type is not None
+                result = func.jou_type.funcptr_return_type.ctypes_type()(result)
+            return JouValue(func.jou_type.funcptr_return_type, result)
+
+        # Function defined in Jou
+        func_path, func_ast = func
+        assert func_ast[0] == "function_def"
+        (
+            _,
+            func_name,
+            funcdef_args,
+            takes_varargs,
+            return_type,
+            body,
+            decors,
+            location,
+        ) = func_ast
+        assert not takes_varargs
+
+        # Do not run the Jou compiler's function for finding standard library,
+        # because it looks at the location of currently running executable (python)
+        # which is totally unrelated to Jou.
+        if func_path == "compiler/paths.jou" and func_name == "find_stdlib":
+            return jou_string(os.path.abspath("stdlib"))
+
+        r = Runner(func_path)
+
+        assert len(args) == len(funcdef_args)
+
+        for (arg_name, arg_type_ast, arg_default), arg_value in zip(funcdef_args, args):
+            assert arg_default is None
+            if arg_type_ast is None:
+                assert arg_name == "self"
+                assert self_type is not None
+                arg_type = self_type
+            else:
+                arg_type = type_from_ast(func_path, arg_type_ast, typesub=typesub)
+            arg = self.process_function_argument(arg_value, arg_type)
+            # Create a pointer because the argument becomes a local variable that
+            # can be mutated.
+            ptr = arg_type.allocate_instance()
+            ptr.deref_set(arg)
+            r.locals[arg_name] = ptr
+
+        try:
+            r.run_body(body)
+        except Return as r:
+            [return_value] = r.args
+            return return_value
+        else:
+            return None
+
     def run_body(self, body):
         for item in body:
             self.run_statement(item)
@@ -1805,7 +1910,7 @@ class Runner:
                 f"{indent}Running {stmt[0]!r}: {filename}:{lineno}: {source_line}"
             )
 
-        CALL_STACK.append((filename, lineno))
+        CALL_STACK.append(f"{filename}:{lineno}: {stmt[0]}")
         try:
             if stmt[0] == "expr_stmt":
                 _, expr, location = stmt
@@ -1896,7 +2001,7 @@ class Runner:
                         if func is None:
                             matched = match_obj.unwrap_value() == case_obj.unwrap_value()
                         else:
-                            ret = call_function(func, iter([match_obj, case_obj]))
+                            ret = self.call_function(func, [match_obj, case_obj])
                             assert ret is not None
                             matched = ret.unwrap_value() == 0
                         if matched:
@@ -1908,9 +2013,10 @@ class Runner:
                     self.run_body(case_underscore)
             else:
                 raise NotImplementedError(stmt)
+
         finally:
             p = CALL_STACK.pop()
-            assert p == (filename, lineno)
+            assert p == f"{filename}:{lineno}: {stmt[0]}"
 
     # Evaluates the type of expr without evaluating expr
     def get_type(self, expr) -> JouType:
@@ -1938,6 +2044,12 @@ class Runner:
         if expr[0] == "call":
             # TODO: handle method calls
             _, func_ast, arg_asts = expr
+            if func_ast[0] == '.':
+                _, obj, member = func_ast
+                obj_type = self.get_type(obj)
+                if member in obj_type.methods:
+                    # It is a method call
+                    return type_from_ast(obj_type.methods[member][0], obj_type.methods[member][1][4])
             funcptr_type = self.get_type(func_ast)
             assert funcptr_type.funcptr_return_type is not None
             return funcptr_type.funcptr_return_type
@@ -1980,6 +2092,20 @@ class Runner:
         if expr[0] == "constant":
             _, value = expr
             return value.jou_type
+
+        if expr[0] == "address_of":
+            _, value = expr
+            return self.get_type(value).pointer_type()
+
+        if expr[0] == "dereference":
+            _, ptr = expr
+            ptr_type = self.get_type(ptr)
+            assert ptr_type.name.endswith("*")
+            assert ptr_type.inner_type is not None
+            return ptr_type.inner_type
+
+        if expr[0] == "string":
+            return BASIC_TYPES["byte"].pointer_type()
 
         raise NotImplementedError(expr)
 
@@ -2074,18 +2200,13 @@ class Runner:
                     else:
                         obj = self.run_expression(obj_ast)
 
-                    args_iter: Iterator[JouValue] = itertools.chain(
-                        [obj], (self.run_expression(arg_ast) for arg_ast in arg_asts)
-                    )
-                    return call_function(
-                        method,
-                        args_iter,
+                    return self.call_function(
+                        method, [obj] + arg_asts,
                         self_type=(self_type or class_type.pointer_type()),
                     )
 
             func = self.run_expression(func_ast)
-            args_iter = (self.run_expression(arg_ast) for arg_ast in arg_asts)
-            return call_function(func, args_iter)
+            return self.call_function(func, arg_asts)
 
         elif expr[0] == "get_variable":
             _, varname = expr
@@ -2299,101 +2420,6 @@ class Runner:
             raise NotImplementedError(expr)
 
 
-# Args must be given as an iterator to get the right evaluation order AND type
-# conversions for arguments. When we evaluate an argument, we need to cast it
-# before we evaluate the next argument.
-def call_function(
-    func: tuple[str, tuple[Any, ...]] | JouValue,
-    args_iter,
-    *,
-    self_type: JouType | None = None,
-) -> JouValue | None:
-    # Replace T with the actual type in "class Foo[T]"
-    if self_type is None:
-        typesub = {}
-    elif self_type.name.endswith("*"):
-        assert self_type.inner_type is not None
-        typesub = self_type.inner_type.generic_params
-    else:
-        typesub = self_type.generic_params
-
-    if isinstance(func, JouValue):
-        # Function defined in C and declared in Jou
-        args = []
-        assert func.jou_type.funcptr_argtypes is not None
-        for arg_type in func.jou_type.funcptr_argtypes:
-            args.append(next(args_iter).cast(arg_type))
-        # Handle varargs: printf("hello %d\n", 1, 2, 3)
-        # TODO: use something else than shallow copy for varargs
-        args.extend(args_iter)
-        result = func.ctypes_value(*(a.ctypes_value for a in args))
-        if func.jou_type.funcptr_return_type is None:
-            assert result is None
-            return None
-
-        if result is None:
-            # It is a NULL pointer
-            return JOU_NULL.cast(func.jou_type.funcptr_return_type)
-        if isinstance(result, int):  # ctypes is funny...
-            assert func.jou_type.funcptr_return_type is not None
-            result = func.jou_type.funcptr_return_type.ctypes_type()(result)
-        return JouValue(func.jou_type.funcptr_return_type, result)
-
-    # Function defined in Jou
-    func_path, func_ast = func
-    assert func_ast[0] == "function_def"
-    (
-        _,
-        func_name,
-        funcdef_args,
-        takes_varargs,
-        return_type,
-        body,
-        decors,
-        location,
-    ) = func_ast
-    assert not takes_varargs
-
-    # Do not run the Jou compiler's function for finding standard library,
-    # because it looks at the location of currently running executable (python)
-    # which is totally unrelated to Jou.
-    if func_path == "compiler/paths.jou" and func_name == "find_stdlib":
-        return jou_string(os.path.abspath("stdlib"))
-
-    r = Runner(func_path)
-
-    for arg_name, arg_type_ast, arg_default in funcdef_args:
-        assert arg_default is None
-        if arg_type_ast is None:
-            assert arg_name == "self"
-            assert self_type is not None
-            arg_type = self_type
-        else:
-            arg_type = type_from_ast(func_path, arg_type_ast, typesub=typesub)
-        arg_value = next(args_iter).cast(arg_type)
-        # Create a pointer because the argument becomes a local variable that
-        # can be mutated.
-        ptr = arg_type.allocate_instance()
-        ptr.deref_set(arg_value)
-        r.locals[arg_name] = ptr
-
-    # iterator must be exhausted now
-    try:
-        next(args_iter)
-    except StopIteration:
-        pass
-    else:
-        raise RuntimeError("too many function arguments")
-
-    try:
-        r.run_body(body)
-    except Return as r:
-        [return_value] = r.args
-        return return_value
-    else:
-        return None
-
-
 def main() -> None:
     faulthandler.enable()
 
@@ -2453,13 +2479,12 @@ def main() -> None:
         BASIC_TYPES["byte"].pointer_type().pointer_type(), ctypes_argv, cast=True
     )
 
+    runner = Runner(args[0])
+    main = find_function(args[0], "main")
+
     if VERBOSITY >= 1:
         print("Running main(). Here We Go...")
-    main = find_function(args[0], "main")
-    call_function(
-        func=main,
-        args_iter=iter([argc, argv] if main[1][2] else []),
-    )
+    runner.call_function(main, [argc, argv] if main[1][2] else [])
 
 
 if __name__ == "__main__":
