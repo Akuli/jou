@@ -22,7 +22,9 @@ if TYPE_CHECKING:
 VERBOSITY: int = 0
 ASTS: dict[str, Any] = {}
 FUNCTIONS: dict[str, dict[str, JouValue]] = {}
-TYPES_FWD_DECL: dict[str, dict[str | tuple[str, tuple[JouType, ...] | JouType], JouType]] = {}
+TYPES_FWD_DECL: dict[
+    str, dict[str | tuple[str, tuple[JouType, ...] | JouType], JouType]
+] = {}
 TYPES: dict[str, dict[str | tuple[str, tuple[JouType, ...] | JouType], JouType]] = {}
 GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 CONSTANTS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
@@ -256,12 +258,14 @@ class JouType:
         # This is needed when a class references itself through pointers.
         self.inner_type: JouType | None = None
         self.class_field_types: dict[str, JouType] | None = None
+        self.methods: dict[str, JouValue] = {}
         self.generic_params: dict[str, JouType] = {}
         self.funcptr_argtypes: list[JouType] | None = None
         self.funcptr_return_type: JouType | None = None
 
         # These are created lazily
         self._c_name: Any | None = None
+        self._only_fwd_declared = False
         self._pointer_type: JouType | None = None
         self._array_types: dict[int, JouType] = {}
 
@@ -276,8 +280,10 @@ class JouType:
         # More hacky :)
         return bool(re.fullmatch(r".*\[[0-9]+\]", self.name))
 
-    def to_c(self) -> str:
-        if self._c_name is not None:
+    def to_c(self, *, fwd_decl_is_enough: bool = False) -> str:
+        if self._c_name is not None and not (
+            self._only_fwd_declared and not fwd_decl_is_enough
+        ):
             return self._c_name
 
         result: Any
@@ -305,7 +311,7 @@ class JouType:
             # don't care about the contents. This helps in various corner cases
             # where classes refer to each other.
             assert self.inner_type is not None
-            return self.inner_type.to_c() + "*"
+            return self.inner_type.to_c(fwd_decl_is_enough=True) + "*"
         elif re.fullmatch(r".*\[[0-9]+\]$", self.name):
             # Array. Wrap it in a struct so that they can be passed around on
             # stack freely. For example, you cannot return an array in C, but
@@ -317,17 +323,25 @@ class JouType:
             print("typedef struct {", inner_c, "items[", array_len, "]; }", result, ";")
         elif self.class_field_types is not None:
             # Class
-            fields_c = [
-                ftype.to_c() + " jou_" + fname + ";"
-                for fname, ftype in self.class_field_types.items()
-            ]
             result = "jou_" + self.name.split("[")[0]
             for gtype in self.generic_params.values():
                 result += "_"
-                result += gtype.to_c()
-            print("typedef struct {")
-            print("\n".join("    " + f for f in fields_c) or "    int dummy;")
-            print("}", result, ";")
+                result += gtype.to_c(fwd_decl_is_enough=True)
+
+            if not self._only_fwd_declared:
+                print(f"struct {result};")
+                print(f"typedef struct {result} {result};")
+
+            if not fwd_decl_is_enough:
+                fields_c = [
+                    ftype.to_c() + " jou_" + fname + ";"
+                    for fname, ftype in self.class_field_types.items()
+                ]
+                print("struct", result, "{")
+                print("\n".join("    " + f for f in fields_c) or "    int dummy;")
+                print("}", result, ";")
+
+            self._only_fwd_declared = fwd_decl_is_enough
         else:
             raise NotImplementedError(self)
 
@@ -1223,23 +1237,25 @@ def evaluate_compile_time_if_statements() -> None:
                 if stmt[0] == "if":
                     _, if_and_elifs, else_body, location = stmt
                     cond_ast, then = if_and_elifs.pop(0)
+
                     if cond_ast[0] == "get_variable":
                         _, cond_varname = cond_ast
                         cond_value = find_constant(path, cond_varname)
                         assert cond_value is not None
-                        if cond_value.c_code == "true":
-                            cond = True
-                        elif cond_value.c_code == "false":
-                            cond = False
-                        else:
-                            raise NotImplementedError(cond_value)
                     elif cond_ast[0] == "constant":
-                        _, cond = cond_ast
+                        _, cond_value = cond_ast
                     else:
                         raise RuntimeError(
                             f"cannot evaluate compile-time if statement in {path}"
                         )
-                    assert isinstance(cond, bool)
+
+                    if cond_value.c_code == "true":
+                        cond = True
+                    elif cond_value.c_code == "false":
+                        cond = False
+                    else:
+                        raise NotImplementedError(cond_value)
+
                     if cond:
                         ast[i : i + 1] = then
                     elif not if_and_elifs:
@@ -1280,7 +1296,9 @@ def evaluate_compile_time_if_statements() -> None:
 #    )
 
 
-def define_class(path: str, class_ast: AST, *, typesub: dict[str, JouType] | None = None):
+def define_class(
+    path: str, class_ast: AST, *, typesub: dict[str, JouType] | None = None
+):
     assert class_ast[0] == "class", class_ast
     _, class_name, generics, body, decors, location = class_ast
 
@@ -1313,8 +1331,8 @@ def define_class(path: str, class_ast: AST, *, typesub: dict[str, JouType] | Non
             fields.extend(union_members)
         elif member[0] == "function_def":
             pass  # TODO
-#            method_name = member[1]
-#            jou_type.method_asts[method_name] = (path, member)
+        #            method_name = member[1]
+        #            jou_type.method_asts[method_name] = (path, member)
         elif member[0] == "pass":
             pass
         else:
@@ -1325,8 +1343,6 @@ def define_class(path: str, class_ast: AST, *, typesub: dict[str, JouType] | Non
         field_type = type_from_ast(path, field_type_ast, typesub=typesub)
         assert field_name not in jou_type.class_field_types
         jou_type.class_field_types[field_name] = field_type
-
-    print(f"struct {jou_type.to_c()};")
 
     return jou_type
 
@@ -1377,46 +1393,47 @@ def find_named_type(path: str, type_name: str, *, fwd_decl_is_enough: bool = Fal
     return result
 
 
-#
-# def find_generic_class(path: str, class_name: str, generic_param: JouType):
-#    try:
-#        return TYPES[path][class_name, generic_param]
-#    except KeyError:
-#        pass
-#
-#    result = None
-#
-#    # Is there a class definition in the same file?
-#    for item in ASTS[path]:
-#        if item[:2] == ("class", class_name):
-#            [generic_name] = item[2]  # e.g. "T"
-#            result = define_class(path, item, typesub={generic_name: generic_param})
-#            break
-#
-#    if result is None:
-#        # Is there a class definition in some imported file?
-#        for item in ASTS[path]:
-#            if item[0] == "import":
-#                _, path2, location = item
-#                for item2 in ASTS[path2]:
-#                    if (
-#                        item2[:2] == ("class", class_name)
-#                        # location is last, decorators are before that
-#                        and "@public" in item2[-2]
-#                    ):
-#                        result = find_generic_class(path2, class_name, generic_param)
-#                        break
-#                if result is not None:
-#                    break
-#
-#    if result is None:
-#        raise RuntimeError(f"generic class not found: {class_name}")
-#
-#    TYPES[path][class_name, generic_param] = result
-#    return result
+def find_generic_class(path: str, class_name: str, generic_param: JouType):
+    try:
+        return TYPES[path][class_name, generic_param]
+    except KeyError:
+        pass
+
+    result = None
+
+    # Is there a class definition in the same file?
+    for item in ASTS[path]:
+        if item[:2] == ("class", class_name):
+            [generic_name] = item[2]  # e.g. "T"
+            result = define_class(path, item, typesub={generic_name: generic_param})
+            break
+
+    if result is None:
+        # Is there a class definition in some imported file?
+        for item in ASTS[path]:
+            if item[0] == "import":
+                _, path2, location = item
+                for item2 in ASTS[path2]:
+                    if (
+                        item2[:2] == ("class", class_name)
+                        # location is last, decorators are before that
+                        and "@public" in item2[-2]
+                    ):
+                        result = find_generic_class(path2, class_name, generic_param)
+                        break
+                if result is not None:
+                    break
+
+    if result is None:
+        raise RuntimeError(f"generic class not found: {class_name}")
+
+    TYPES[path][class_name, generic_param] = result
+    return result
 
 
-def declare_c_function(path: str, ast: AST, *, c_name: str | None = None, semicolon: bool = True) -> tuple[JouValue, str]:
+def declare_c_function(
+    path: str, ast: AST, *, c_name: str | None = None, semicolon: bool = True
+) -> tuple[JouValue, str]:
     if ast[0] == "function_def":
         _, func_name, args, takes_varargs, return_type_ast, body, decors, location = ast
     elif ast[0] == "func_declare":
@@ -1436,16 +1453,15 @@ def declare_c_function(path: str, ast: AST, *, c_name: str | None = None, semico
         assert arg_default_value is None
         arg_type = type_from_ast(path, arg_type_ast)
         argtypes.append(arg_type)
-        arg_strings.append(arg_type.to_c() + " " + arg_name)
+        arg_strings.append(f"{arg_type.to_c()} jou_{arg_name}")
+
+    if takes_varargs:
+        arg_strings.append("...")
 
     return_type = type_from_ast(path, return_type_ast)
     value = JouValue(funcptr_type(tuple(argtypes), return_type), c_name)
 
-    args = ", ".join(
-        [at.to_c() for at in argtypes] + (["..."] if takes_varargs else [])
-    )
-    declaration = f"{return_type.to_c()} {c_name}({args})"
-
+    declaration = f"{return_type.to_c()} {c_name}({', '.join(arg_strings)})"
     return (value, declaration)
 
 
@@ -1668,8 +1684,7 @@ def type_from_ast(path, ast, typesub: dict[str, JouType] | None = None) -> JouTy
     if ast[0] == "generic":
         _, class_name, [param_type_ast] = ast
         param_type = type_from_ast(path, param_type_ast, typesub=typesub)
-        raise NotImplementedError(class_name)
-        # return find_generic_class(path, class_name, param_type)
+        return find_generic_class(path, class_name, param_type)
     raise NotImplementedError(ast)
 
 
@@ -1915,7 +1930,6 @@ class CFuncMaker:
                 self.output.insert(0, f"bool loop{n};")
                 self.output.append(f"loop{n} = false;")
                 self.output.append(f"for (;; loop{n}=true)" + " {")
-            if incr is not None:
                 self.output.append(f"if (loop{n})" + " {")
                 self.output.append(f"loop{n} = false;")
                 self.do_statement(incr)
@@ -2001,8 +2015,8 @@ class CFuncMaker:
             #                if member in obj_type.method_asts:
             #                    # It is a method call
             #                    funcptr = obj_type.get_method(member)
-            #                    assert funcptr.jou_type.funcptr_return_type is not None
-            #                    return funcptr.jou_type.funcptr_return_type
+            #                    assert funcptr.type.funcptr_return_type is not None
+            #                    return funcptr.type.funcptr_return_type
 
             funcptr_type = self.get_type(func_ast)
             assert funcptr_type.funcptr_return_type is not None
@@ -2110,9 +2124,9 @@ class CFuncMaker:
         #            if self.get_type(ptr_ast).is_array_type():
         #                # &array[index] is slightly different from &ptr[index]
         #                ptr_to_array = self.run_address_of_expression(ptr_ast)
-        #                assert ptr_to_array.jou_type.inner_type is not None
-        #                assert ptr_to_array.jou_type.inner_type.inner_type is not None
-        #                item_type = ptr_to_array.jou_type.inner_type.inner_type
+        #                assert ptr_to_array.type.inner_type is not None
+        #                assert ptr_to_array.type.inner_type.inner_type is not None
+        #                item_type = ptr_to_array.type.inner_type.inner_type
         #                ptr = ptr_to_array.cast(item_type.pointer_type())
         #            else:
         #                ptr = self.do_expression(ptr_ast)
@@ -2133,42 +2147,41 @@ class CFuncMaker:
             _, func_ast, arg_asts = expr
 
             if func_ast[0] == ".":
-                raise NotImplementedError
-            #                # It looks like obj.member(). Could be a funcptr call or a
-            #                # method call.
-            #                _, obj_ast, member_name = func_ast
-            #                obj_type = self.get_type(obj_ast)
-            #                class_type = (
-            #                    obj_type.inner_type if obj_type.name.endswith("*") else obj_type
-            #                )
-            #                assert class_type is not None
-            #                if member_name in class_type.method_asts:
-            #                    # It is a method call
-            #                    method = class_type.get_method(member_name)
-            #
-            #                    assert method.jou_type.funcptr_argtypes is not None
-            #                    self_type = method.jou_type.funcptr_argtypes[0]
-            #
-            #                    want_pointer = self_type.name.endswith("*")
-            #                    got_pointer = obj_type.name.endswith("*")
-            #
-            #                    if want_pointer and not got_pointer:
-            #                        obj = self.run_address_of_expression(obj_ast)
-            #                    elif got_pointer and not want_pointer:
-            #                        obj = self.do_expression(obj_ast).deref()
-            #                    else:
-            #                        obj = self.do_expression(obj_ast)
-            #
-            #                    return self.call_function(
-            #                        method,
-            #                        [obj] + arg_asts,
-            #                        self_type=(self_type or class_type.pointer_type()),
-            #                    )
+                # It looks like obj.member(). Could be a funcptr call or a
+                # method call.
+                _, obj_ast, member_name = func_ast
+                obj_type = self.get_type(obj_ast)
+                class_type = (
+                    obj_type.inner_type if obj_type.name.endswith("*") else obj_type
+                )
+                assert class_type is not None
+                if member_name in class_type.method_asts:
+                    # It is a method call
+                    method = class_type.get_method(member_name)
+
+                    assert method.type.funcptr_argtypes is not None
+                    self_type = method.type.funcptr_argtypes[0]
+
+                    want_pointer = self_type.name.endswith("*")
+                    got_pointer = obj_type.name.endswith("*")
+
+                    if want_pointer and not got_pointer:
+                        obj = self.run_address_of_expression(obj_ast)
+                    elif got_pointer and not want_pointer:
+                        obj = self.do_expression(obj_ast).deref()
+                    else:
+                        obj = self.do_expression(obj_ast)
+
+                    return self.call_function(
+                        method,
+                        [obj] + arg_asts,
+                        self_type=(self_type or class_type.pointer_type()),
+                    )
 
             func = self.do_expression(func_ast)
             return self.call_function(func, arg_asts)  # type: ignore
 
-        elif expr[0] == "get_variable":
+        if expr[0] == "get_variable":
             _, varname = expr
 
             value = self.find_any_var_or_constant(varname)
@@ -2181,65 +2194,56 @@ class CFuncMaker:
 
             raise RuntimeError(f"no variable named {varname} in {self.path}")
 
-        elif expr[0] == "self":
+        if expr[0] == "self":
             raise NotImplementedError
             # return self.locals["self"].deref()
 
-        elif expr[0] == "eq":
-            raise NotImplementedError
-        #            left, right = (self.do_expression(ast).unwrap_value() for ast in expr[1:])
-        #            return jou_bool(left == right)
-
-        elif expr[0] == "ne":
-            raise NotImplementedError
-        #            left, right = (self.do_expression(ast).unwrap_value() for ast in expr[1:])
-        #            return jou_bool(left != right)
-
-        elif expr[0] == "gt":
-            raise NotImplementedError
-        #            left, right = (self.do_expression(ast).unwrap_value() for ast in expr[1:])
-        #            return jou_bool(left > right)
-
-        elif expr[0] == "lt":
-            raise NotImplementedError
-        #            left, right = (self.do_expression(ast).unwrap_value() for ast in expr[1:])
-        #            return jou_bool(left < right)
-
-        elif expr[0] == "ge":
-            raise NotImplementedError
-        #            left, right = (self.do_expression(ast).unwrap_value() for ast in expr[1:])
-        #            return jou_bool(left >= right)
-
-        elif expr[0] == "le":
-            raise NotImplementedError
-        #            left, right = (self.do_expression(ast).unwrap_value() for ast in expr[1:])
-        #            return jou_bool(left <= right)
+        if expr[0] in ("eq", "ne", "gt", "lt", "ge", "le"):
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.do_expression(lhs_ast)
+            rhs = self.do_expression(rhs_ast)
+            result = self.add_variable(BASIC_TYPES["bool"])
+            if expr[0] == "lt":
+                print(f"{result} = {lhs} < {rhs};")
+            elif expr[0] == "gt":
+                print(f"{result} = {lhs} > {rhs};")
+            elif expr[0] == "le":
+                print(f"{result} = {lhs} <= {rhs};")
+            elif expr[0] == "ge":
+                print(f"{result} = {lhs} >= {rhs};")
+            elif expr[0] == "eq":
+                print(f"{result} = {lhs} == {rhs};")
+            elif expr[0] == "ne":
+                print(f"{result} = {lhs} != {rhs};")
+            else:
+                raise RuntimeError("wat")
+            return result
 
         elif expr[0] == "sizeof":
-            raise NotImplementedError
+            raise NotImplementedError(expr)
         #            _, obj = expr
         #            t = self.get_type(obj)
         #            assert t.ctypes_type is not None
         #            return jou_integer("int64", ctypes.sizeof(t.ctypes_type()))
 
         elif expr[0] == ".":
-            raise NotImplementedError
-        #            # TODO: can be many other things than plain old field access!
-        #            _, obj_ast, field_name = expr
-        #            if obj_ast[0] == "get_variable":
-        #                _, obj_name = obj_ast
-        #                enum = find_enum(self.path, obj_name)
-        #                if enum is not None:
-        #                    # It is Enum.Member, not instance.field
-        #                    return jou_integer("int", enum.index(field_name))
-        #
-        #            obj = self.do_expression(obj_ast)
-        #            if not obj.jou_type.name.endswith("*"):
-        #                # It is an instance of a class, make it a pointer
-        #                ptr = obj.jou_type.allocate_instance()
-        #                ptr.deref_set(obj)
-        #                obj = ptr
-        #            return obj.get_field_pointer(field_name).deref()
+            # TODO: can be many other things than plain old field access!
+            _, obj_ast, field_name = expr
+            #            if obj_ast[0] == "get_variable":
+            #                _, obj_name = obj_ast
+            #                enum = find_enum(self.path, obj_name)
+            #                if enum is not None:
+            #                    # It is Enum.Member, not instance.field
+            #                    return jou_integer("int", enum.index(field_name))
+
+            obj = self.do_expression(obj_ast)
+            if obj.type.name.endswith("*"):
+                obj = self.deref(obj)
+            assert obj.type.class_field_types is not None
+            ftype = obj.type.class_field_types[field_name]
+            result = self.add_variable(ftype)
+            self.output.append(f"{result.c_code} = {obj.c_code}.jou_{field_name};")
+            return result
 
         elif expr[0] == "constant":
             raise NotImplementedError
@@ -2265,14 +2269,14 @@ class CFuncMaker:
         #           _, obj_ast, index_ast = expr
         #            obj = self.do_expression(obj_ast)
         #            index = self.do_expression(index_ast)
-        #            if obj.jou_type.is_array_type():
-        #                assert obj.jou_type.inner_type is not None
+        #            if obj.type.is_array_type():
+        #                assert obj.type.inner_type is not None
         #                # Copy the array to a temporary place where we can index it
         #                # through a pointer. This way some_function()[1] can be used to
         #                # ignore a part of the return value.
-        #                ptr = obj.jou_type.allocate_instance()
+        #                ptr = obj.type.allocate_instance()
         #                ptr.deref_set(obj)
-        #                obj = ptr.cast(obj.jou_type.inner_type.pointer_type())
+        #                obj = ptr.cast(obj.type.inner_type.pointer_type())
         #            return obj.pointer_arithmetic(index.unwrap_value()).deref()
 
         elif expr[0] == "instantiate":
@@ -2375,24 +2379,18 @@ class CFuncMaker:
                 diff = -1
             else:
                 raise RuntimeError("wat")
-            raise NotImplementedError
-        #
-        #            _, obj_ast = expr
-        #            ptr = self.run_address_of_expression(obj_ast)
-        #            old_value = ptr.deref()
-        #            if old_value.jou_type.name.endswith("*"):
-        #                new_value = old_value.pointer_arithmetic(diff)
-        #            else:
-        #                new_value = jou_integer(
-        #                    old_value.jou_type, old_value.unwrap_value() + diff
-        #                )
-        #            ptr.deref_set(new_value)
-        #
-        #            if "pre" in expr[0]:
-        #                return new_value
-        #            if "post" in expr[0]:
-        #                return old_value
-        #            raise RuntimeError("wat")
+
+            _, obj_ast = expr
+            ptr = self.run_address_of_expression(obj_ast)
+            old_value = self.deref(ptr)
+            new_value = self.add_variable(old_value.type)
+            self.output.append(f"{new_value.c_code} = {old_value.c_code} + ({diff});")
+            self.output.append(f"*{ptr.c_code} = {new_value.c_code};")
+            if "pre" in expr[0]:
+                return new_value
+            if "post" in expr[0]:
+                return old_value
+            raise RuntimeError("wat")
 
         elif expr[0] == "array":
             raise NotImplementedError
@@ -2415,39 +2413,41 @@ class CFuncMaker:
             raise NotImplementedError(expr)
 
 
-def do_toplevel_statement(path: str, stmt: AST) -> list[str]:
-    if stmt[0] in ("import", "func_declare", "const", "global_var_declare"):
+def do_toplevel_statement(path: str, stmt: AST) -> None:
+    print("//", path, stmt[0])
+
+    if stmt[0] in ("import", "func_declare", "const", "global_var_declare", "class"):
         # Handled elsewhere
-        return []
+        return
 
     if stmt[0] == "function_def":
         _, name, args, takes_varargs, return_type_ast, body, decors, location = stmt
 
         func_maker = CFuncMaker(path)
-        func_maker.do_body(body)
-        result = func_maker.output
 
-        argtypes = []
-        for n, t, v in args:
-            assert t is not None
-            argtypes.append(type_from_ast(path, t))
-        args = ", ".join(
-            [at.to_c() for at in argtypes] + (["..."] if takes_varargs else [])
-        )
-        return_type = type_from_ast(path, return_type_ast)
+        for arg_name, arg_type_ast, arg_value in args:
+            assert arg_type_ast is not None
+            func_maker.locals[arg_name] = type_from_ast(path, arg_type_ast)
 
-        c_name = find_function(path, name).c_code
-        for i in range(len(result)):
-            result[i] = "    " + result[i]
-        result.insert(0, f"{return_type.to_c()} {c_name}({args})" + " {")
-        result.append("}")
-        return result
+        try:
+            func_maker.do_body(body)
+        except Exception as e:
+            error = e
+        else:
+            error = None
 
-    if stmt[0] == "class":
-        # Define the methods
-        jou_type = find_named_type(path, stmt[1])
-        # TODO: methods
-        return []
+        declaration = declare_c_function(path, stmt)[1]
+        print(declaration, "{")
+        for line in func_maker.output:
+            print("    " + line)
+
+        # If an error happens, print everything we can. Leave out '}' to show
+        # that it is not complete.
+        if error:
+            raise error
+
+        print("}")
+        return
 
     raise NotImplementedError(stmt[0])
 
@@ -2476,7 +2476,7 @@ def main() -> None:
     func_bodies = []
     for path, ast in ASTS.items():
         for top_stmt in ast:
-            func_bodies.extend(do_toplevel_statement(path, top_stmt))
+            do_toplevel_statement(path, top_stmt)
 
     # Function bodies must be added to the end of C code, because everything
     # else must be globally ready when the C compiler sees them.
