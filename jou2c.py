@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 VERBOSITY: int = 0
 ASTS: dict[str, Any] = {}
 FUNCTIONS: dict[str, dict[str, JouValue]] = {}
+TYPES_FWD_DECL: dict[str, dict[str | tuple[str, tuple[JouType, ...] | JouType], JouType]] = {}
 TYPES: dict[str, dict[str | tuple[str, tuple[JouType, ...] | JouType], JouType]] = {}
 GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 CONSTANTS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
@@ -325,7 +326,7 @@ class JouType:
                 result += "_"
                 result += gtype.to_c()
             print("typedef struct {")
-            print("\n".join(fields_c) or "int dummy;")
+            print("\n".join("    " + f for f in fields_c) or "    int dummy;")
             print("}", result, ";")
         else:
             raise NotImplementedError(self)
@@ -1277,74 +1278,81 @@ def evaluate_compile_time_if_statements() -> None:
 #        ctypes_value=None,
 #        jou_function_ast=(path, ast),
 #    )
-#
-#
-# def define_class(path, class_ast, typesub: dict[str, JouType] | None = None):
-#    assert class_ast[0] == "class", class_ast
-#    _, class_name, generics, body, decors, location = class_ast
-#
-#    generic_params = {t: (typesub or {})[t] for t in generics}
-#    if generic_params:
-#        cache_key = (class_name, tuple(generic_params.values()))
-#        full_name = (
-#            f"{class_name}[{', '.join(t.name for t in generic_params.values())}]"
-#        )
-#    else:
-#        cache_key = class_name
-#        full_name = class_name
-#
-#    # While defining this class, it must be possible to refer to it.
-#    # This is needed for recursive pointer fields.
-#    jou_type = JouType(full_name)
-#    jou_type.generic_params = generic_params
-#
-#    assert cache_key not in TYPES[path], cache_key
-#    TYPES[path][cache_key] = jou_type
-#
-#    fields = []
-#    for member in body:
-#        if member[0] == "class_field":
-#            _, field_name, field_type_ast, location = member
-#            fields.append((field_name, field_type_ast))
-#        elif member[0] == "union":
-#            _, union_members, location = member
-#            # Just treat unions as flat things, good enough
-#            fields.extend(union_members)
-#        elif member[0] == "function_def":
+
+
+def define_class(path: str, class_ast: AST, *, typesub: dict[str, JouType] | None = None):
+    assert class_ast[0] == "class", class_ast
+    _, class_name, generics, body, decors, location = class_ast
+
+    generic_params = {t: (typesub or {})[t] for t in generics}
+    if generic_params:
+        cache_key = (class_name, tuple(generic_params.values()))
+        full_name = (
+            f"{class_name}[{', '.join(t.name for t in generic_params.values())}]"
+        )
+    else:
+        cache_key = class_name
+        full_name = class_name
+
+    # While defining this class, it must be possible to refer to it.
+    # This is needed for recursive pointer fields.
+    jou_type = JouType(full_name)
+    jou_type.generic_params = generic_params
+
+    assert cache_key not in TYPES[path], cache_key
+    TYPES[path][cache_key] = jou_type
+
+    fields = []
+    for member in body:
+        if member[0] == "class_field":
+            _, field_name, field_type_ast, location = member
+            fields.append((field_name, field_type_ast))
+        elif member[0] == "union":
+            _, union_members, location = member
+            # Just treat unions as flat things, good enough
+            fields.extend(union_members)
+        elif member[0] == "function_def":
+            pass  # TODO
 #            method_name = member[1]
 #            jou_type.method_asts[method_name] = (path, member)
-#        elif member[0] == "pass":
-#            pass
-#        else:
-#            raise NotImplementedError(member[0])
-#
-#    jou_type.class_field_types = {}
-#    for field_name, field_type_ast in fields:
-#        field_type = type_from_ast(path, field_type_ast, typesub=typesub)
-#        assert field_name not in jou_type.class_field_types
-#        jou_type.class_field_types[field_name] = field_type
-#
-#    return jou_type
-#
-#
-def find_named_type(path: str, type_name: str):
+        elif member[0] == "pass":
+            pass
+        else:
+            raise NotImplementedError(member[0])
+
+    jou_type.class_field_types = {}
+    for field_name, field_type_ast in fields:
+        field_type = type_from_ast(path, field_type_ast, typesub=typesub)
+        assert field_name not in jou_type.class_field_types
+        jou_type.class_field_types[field_name] = field_type
+
+    print(f"struct {jou_type.to_c()};")
+
+    return jou_type
+
+
+def find_named_type(path: str, type_name: str, *, fwd_decl_is_enough: bool = False):
     try:
         return TYPES[path][type_name]
     except KeyError:
         pass
 
+    if fwd_decl_is_enough:
+        try:
+            return TYPES_FWD_DECL[path][type_name]
+        except KeyError:
+            pass
+
     result = None
 
     # Is there a class or enum definition in the same file?
     for item in ASTS[path]:
-        # TODO
-        #        if item[:2] == ("class", type_name):
-        #            result = define_class(path, item)
-        #            break
-        #        if item[:2] == ("enum", type_name):
-        #            result = BASIC_TYPES["int"]
-        #            break
-        pass
+        if item[:2] == ("class", type_name):
+            result = define_class(path, item)
+            break
+        if item[:2] == ("enum", type_name):
+            result = BASIC_TYPES["int"]
+            break
 
     if result is None:
         # Is there a class or enum definition in some imported file?
@@ -1406,9 +1414,9 @@ def find_named_type(path: str, type_name: str):
 #
 #    TYPES[path][class_name, generic_param] = result
 #    return result
-#
-#
-def declare_c_function(path: str, ast: AST, c_name: str) -> JouValue:
+
+
+def declare_c_function(path: str, ast: AST, *, c_name: str | None = None, semicolon: bool = True) -> tuple[JouValue, str]:
     if ast[0] == "function_def":
         _, func_name, args, takes_varargs, return_type_ast, body, decors, location = ast
     elif ast[0] == "func_declare":
@@ -1416,18 +1424,29 @@ def declare_c_function(path: str, ast: AST, c_name: str) -> JouValue:
     else:
         raise RuntimeError(ast[0])
 
+    if c_name is None:
+        c_name = func_name
+
     argtypes = []
-    for n, t, v in args:
-        assert t is not None
-        argtypes.append(type_from_ast(path, t))
+    arg_strings = []
+
+    for arg_name, arg_type_ast, arg_default_value in args:
+        assert arg_name
+        assert arg_type_ast is not None
+        assert arg_default_value is None
+        arg_type = type_from_ast(path, arg_type_ast)
+        argtypes.append(arg_type)
+        arg_strings.append(arg_type.to_c() + " " + arg_name)
+
     return_type = type_from_ast(path, return_type_ast)
+    value = JouValue(funcptr_type(tuple(argtypes), return_type), c_name)
 
     args = ", ".join(
         [at.to_c() for at in argtypes] + (["..."] if takes_varargs else [])
     )
-    print(f"{return_type.to_c()} {c_name}({args});")
+    declaration = f"{return_type.to_c()} {c_name}({args})"
 
-    return JouValue(funcptr_type(tuple(argtypes), return_type), c_name)
+    return (value, declaration)
 
 
 # def declare_c_global_var(path, declare_ast):
@@ -1464,15 +1483,16 @@ def find_function(path: str, func_name: str):
     result: Any = None
     for ast in ASTS[path]:
         if ast[:2] == ("function_def", func_name):
-            if "@public" in ast[-2] or func_name == "main":
-                safe_name = func_name
-            else:
+            c_name = None
+            if "@public" not in ast[-2] and func_name != "main":
                 n = next(GLOBAL_NAME_COUNTER)
-                safe_name = f"func{n}_{func_name}"
-            result = declare_c_function(path, ast, safe_name)
+                c_name = f"func{n}_{func_name}"
+            result, decl = declare_c_function(path, ast, c_name=c_name)
+            print(decl + ";")  # Forward declare everything
             break
         if ast[:2] == ("func_declare", func_name):
-            result = declare_c_function(path, ast, func_name)
+            result, decl = declare_c_function(path, ast)
+            print(decl + ";")
             break
 
     if result is None:
@@ -1509,16 +1529,18 @@ def find_global_var_ptr(path, varname):
     result = None
     for ast in ASTS[path]:
         if ast[:2] == ("global_var_def", varname):
-            _, _, var_type, decors, location = ast
             # Create new global variable
-            valtype = type_from_ast(path, var_type)
-            print(f"{valtype.to_c()} jou_g_{varname};")
-            result = JouValue(valtype.pointer_type(), f"(&jou_g_{varname})")
+            _, _, vartype_ast, decors, location = ast
+            vartype = type_from_ast(path, vartype_ast)
+            print(f"{vartype.to_c()} jou_g_{varname};")
+            result = JouValue(vartype.pointer_type(), f"(&jou_g_{varname})")
             break
         if ast[:2] == ("global_var_declare", varname):
             # Declare a C global variable
-            print(f"extern {valtype.to_c()} {varname};")
-            result = JouValue(valtype.pointer_type(), f"(&{varname})")
+            _, varname, vartype_ast, decors, location = ast
+            vartype = type_from_ast(path, vartype_ast)
+            print(f"extern {vartype.to_c()} {varname};")
+            result = JouValue(vartype.pointer_type(), f"(&{varname})")
             break
 
     if result is None:
@@ -1800,13 +1822,16 @@ class CFuncMaker:
 
         elif stmt[0] == "if":
             _, if_and_elifs, otherwise, location = stmt
+            end_braces = ""
             for cond, body in if_and_elifs:
                 cond = self.do_expression(cond)
-                self.output.append("if (" + cond.c_code + ") {")
-                self.do_body(body)
-                self.output.append("} else {")
+                if cond.c_code != "false":
+                    self.output.append("if (" + cond.c_code + ") {")
+                    self.do_body(body)
+                    self.output.append("} else {")
+                    end_braces += "}"
             self.do_body(otherwise)
-            self.output.append("}" * len(if_and_elifs))
+            self.output.append(end_braces)
 
         elif stmt[0] == "assign":
             _, target_ast, value_ast, location = stmt
@@ -2391,11 +2416,11 @@ class CFuncMaker:
 
 
 def do_toplevel_statement(path: str, stmt: AST) -> list[str]:
-    if stmt[0] == "func_declare":
-        # Will be declared when it needs to be used
+    if stmt[0] in ("import", "func_declare", "const", "global_var_declare"):
+        # Handled elsewhere
         return []
 
-    elif stmt[0] == "function_def":
+    if stmt[0] == "function_def":
         _, name, args, takes_varargs, return_type_ast, body, decors, location = stmt
 
         func_maker = CFuncMaker(path)
@@ -2418,8 +2443,13 @@ def do_toplevel_statement(path: str, stmt: AST) -> list[str]:
         result.append("}")
         return result
 
-    else:
-        raise NotImplementedError(stmt[0])
+    if stmt[0] == "class":
+        # Define the methods
+        jou_type = find_named_type(path, stmt[1])
+        # TODO: methods
+        return []
+
+    raise NotImplementedError(stmt[0])
 
 
 def main() -> None:
