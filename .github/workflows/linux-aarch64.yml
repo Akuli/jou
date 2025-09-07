@@ -33,7 +33,7 @@ jobs:
 
   test:
     needs: [check-if-needed]
-    timeout-minutes: 45  # Bootstrapping in a VM is REALLY slow.
+    timeout-minutes: 60  # Bootstrapping and running all the tests in qemu VM is REALLY slow.
     runs-on: ubuntu-latest
     steps:
       - name: Install qemu
@@ -121,11 +121,11 @@ jobs:
       - name: Compile
         run: ./run.sh "make"
       - name: Run tests
-        run: ./run.sh "./runtests.sh --verbose"
+        run: ./run.sh "GITHUB_ACTIONS=true ./runtests.sh --verbose"
       - name: Compile the compiler with itself
         run: ./run.sh "./jou -o jou2 compiler/main.jou && mv jou2 jou"
       - name: Run tests again
-        run: ./run.sh "./runtests.sh --verbose"
+        run: ./run.sh "GITHUB_ACTIONS=true ./runtests.sh --verbose"
       - name: Run doctests
         run: ./run.sh "./doctest.sh"
 
