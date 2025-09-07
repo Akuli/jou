@@ -8,7 +8,31 @@ on:
       - .github/workflows/linux-aarch64.yml  # Run whenever this file is modified
 
 jobs:
+  # Please keep in sync with macos.yml and linux-aarch64.yml
+  check-if-needed:
+    timeout-minutes: 1
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
+            echo "Triggered manually"
+            echo "run=true" >> $GITHUB_OUTPUT
+          elif [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
+            echo "This is a fork of Jou, skipping"
+            echo "run=false" >> $GITHUB_OUTPUT
+          elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
+            echo "No recent commits, skipping"
+            echo "run=false" >> $GITHUB_OUTPUT
+          else
+            echo "run=true" >> $GITHUB_OUTPUT
+          fi
+
   test:
+    needs: [check-if-needed]
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
@@ -107,3 +131,17 @@ jobs:
         if: always()  # Run this even if there are errors
         run: |
           if [ -f qemu-pid.txt ]; then pid=$(cat qemu-pid.txt); echo "Killing $pid"; kill $pid; fi
+
+
+  # Please keep in sync with valgrind.yml and macos.yml
+  create-issue-on-failure:
+    name: Create an issue if failed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [check-if-needed, test]
+    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.valgrind.result == 'failure' }}
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux aarch64 failed"
