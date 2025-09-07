@@ -31,6 +31,9 @@ function start() {
 
     # Without -bios the machine gets stuck with no output.
     # See e.g. https://superuser.com/questions/1684886/qemu-aarch64-on-arm-mac-never-boots-and-only-shows-qemu-prompt
+    #
+    # Networking (-nic) took a lot of trial and error and searching to get
+    # right. Almost everything I tried broke internet access from inside the VM.
     tail -f input | \
         qemu-system-aarch64 \
         -machine virt \
@@ -41,8 +44,12 @@ function start() {
         -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd \
         -serial stdio \
         -monitor none \
+        -nic user,model=e1000,hostfwd=tcp:127.0.0.1:2222-:22 \
         -nographic \
         > output &
+
+#        -nic user
+
 
     local pid=$!
     echo "qemu PID: $pid"
@@ -72,8 +79,14 @@ function start() {
     # Log in as root
     echo root >> input
 
-    # Wait for bash prompt to appear
-    while ! grep -q 'root@localhost:~#' output; do sleep 1; done
+    # Wait for bash prompt or password prompt to appear
+    while ! grep -qE 'root@localhost:~#|^Password: $' output; do sleep 1; done
+
+    # If we got password prompt, provide a password and then wait for bash prompt
+    if grep -q '^Password: $' output; then
+        echo 1 >> input
+        while ! grep -qE 'root@localhost:~#' output; do sleep 1; done
+    fi
 }
 
 function stop() {
@@ -142,3 +155,7 @@ else
     echo "  $0 run 'command'    Run command in VM"
     exit 2
 fi
+
+
+# TODO: run these:
+# apt install openssh-server
