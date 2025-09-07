@@ -1095,7 +1095,7 @@ class Parser:
             else:
                 signature = self.parse_function_or_method_signature()
                 self.eat("newline")
-                result = ("func_declare",) + signature + (decors,)
+                result = ("function_declare",) + signature + (decors,)
         elif self.tokens[0].code == "global":
             self.eat("global")
             name, type, value = self.parse_name_type_value()
@@ -1216,9 +1216,7 @@ class Parser:
 def parse_file(path):
     # Remove "foo/../bar" and "foo/./bar" stuff
     path = simplify_path(path)
-
-    if path in ASTS:
-        return
+    assert path not in ASTS
 
     if VERBOSITY >= 2:
         print("Parsing", path, file=sys.stderr)
@@ -1238,46 +1236,47 @@ def parse_file(path):
                 imported.append(s[1])
             ast.append(s)
 
+    # Evaluate compile time if statements
+    making_progress = True
+    while making_progress:
+        making_progress = False
+        for i, stmt in enumerate(ast):
+            if stmt[0] == "if":
+                _, if_and_elifs, else_body, location = stmt
+                cond_ast, then = if_and_elifs.pop(0)
+                if cond_ast[0] == "get_variable":
+                    _, cond_varname = cond_ast
+                    cond_value = find_constant(path, cond_varname)
+                    assert cond_value is not None
+                elif cond_ast[0] == "constant":
+                    _, cond_value = cond_ast
+                else:
+                    raise RuntimeError(
+                        f"cannot evaluate compile-time if statement in {path}"
+                    )
+                if cond_value.c_code == "true":
+                    cond = True
+                elif cond_value.c_code == "false":
+                    cond = False
+                else:
+                    raise NotImplementedError(cond_value)
+                if cond:
+                    ast[i : i + 1] = then
+                elif not if_and_elifs:
+                    ast[i : i + 1] = else_body
+                making_progress = True
+                break
+
     ASTS[path] = ast
-
-    for imp_path in imported:
-        parse_file(imp_path)
-
-
-def evaluate_compile_time_if_statements() -> None:
-    for path, ast in ASTS.items():
-        making_progress = True
-        while making_progress:
-            making_progress = False
-            for i, stmt in enumerate(ast):
-                if stmt[0] == "if":
-                    _, if_and_elifs, else_body, location = stmt
-                    cond_ast, then = if_and_elifs.pop(0)
-
-                    if cond_ast[0] == "get_variable":
-                        _, cond_varname = cond_ast
-                        cond_value = find_constant(path, cond_varname)
-                        assert cond_value is not None
-                    elif cond_ast[0] == "constant":
-                        _, cond_value = cond_ast
-                    else:
-                        raise RuntimeError(
-                            f"cannot evaluate compile-time if statement in {path}"
-                        )
-
-                    if cond_value.c_code == "true":
-                        cond = True
-                    elif cond_value.c_code == "false":
-                        cond = False
-                    else:
-                        raise NotImplementedError(cond_value)
-
-                    if cond:
-                        ast[i : i + 1] = then
-                    elif not if_and_elifs:
-                        ast[i : i + 1] = else_body
-                    making_progress = True
-                    break
+    TYPES[path] = BASIC_TYPES.copy()  # type: ignore
+    GLOBALS[path] = {}
+    FUNCTIONS[path] = {}
+    CONSTANTS[path] = {
+        "WINDOWS": jou_bool(sys.platform == "win32"),
+        "MACOS": jou_bool(sys.platform == "darwin"),
+        "NETBSD": jou_bool(sys.platform.startswith("netbsd")),
+    }
+    ENUMS[path] = {}
 
 
 def function_ast_to_value(
@@ -1288,8 +1287,12 @@ def function_ast_to_value(
     default_self_type: JouType | None = None,
     typesub: dict[str, JouType] | None = None,
 ) -> JouValue:
-    assert ast[0] == "function_def", ast
-    _, func_name, args, takes_varargs, return_type_ast, body, decors, location = ast
+    if ast[0] == "function_def":
+        _, func_name, args, takes_varargs, return_type_ast, body, decors, location = ast
+    elif ast[0] == "function_declare":
+        _, func_name, args, takes_varargs, return_type_ast, decors, location = ast
+    else:
+        raise NotImplementedError(ast)
 
     argtypes = []
     for arg_name, arg_type, arg_default in args:
@@ -1448,7 +1451,7 @@ def declare_c_function(
 ) -> tuple[JouValue, str]:
     if ast[0] == "function_def":
         _, func_name, args, takes_varargs, return_type_ast, body, decors, location = ast
-    elif ast[0] == "func_declare":
+    elif ast[0] == "function_declare":
         _, func_name, args, takes_varargs, return_type_ast, decors, location = ast
     else:
         raise RuntimeError(ast[0])
@@ -1519,7 +1522,7 @@ def find_function(path: str, func_name: str):
             print(decl + ";")  # Forward declare all functions
             FUNCTION_QUEUE.append((path, func_name))
             break
-        if ast[:2] == ("func_declare", func_name):
+        if ast[:2] == ("function_declare", func_name):
             result, decl = declare_c_function(path, ast)
             print(decl + ";")
             break
@@ -1531,7 +1534,7 @@ def find_function(path: str, func_name: str):
                 _, path2, location = item
                 for item2 in ASTS[path2]:
                     if (
-                        item2[0] in ("function_def", "func_declare")
+                        item2[0] in ("function_def", "function_declare")
                         and item2[1] == func_name
                         # location is last, decorators are before that
                         and "@public" in item2[-2]
@@ -1961,27 +1964,20 @@ class CFuncMaker:
             pass
 
         elif stmt[0] == "match":
-            raise NotImplementedError
-        #            _, match_obj_ast, func_ast, cases, case_underscore, location = stmt
-        #            match_obj = self.do_expression(match_obj_ast)
-        #            func = None if func_ast is None else self.do_expression(func_ast)
-        #            matched = False
-        #            for case_objs, case_body in cases:
-        #                for case_obj_ast in case_objs:
-        #                    case_obj = self.do_expression(case_obj_ast)
-        #                    if func is None:
-        #                        matched = match_obj.unwrap_value() == case_obj.unwrap_value()
-        #                    else:
-        #                        ret = self.call_function(func, [match_obj, case_obj])
-        #                        assert ret is not None
-        #                        matched = ret.unwrap_value() == 0
-        #                    if matched:
-        #                        break
-        #                if matched:
-        #                    self.run_body(case_body)
-        #                    break
-        #            if not matched:
-        #                self.run_body(case_underscore)
+            _, match_obj_ast, func_ast, cases, case_underscore, location = stmt
+            match_obj = self.do_expression(match_obj_ast)
+            func = None if func_ast is None else self.do_expression(func_ast)
+            assert func is None  # TODO
+            brace_count = 0
+            for case_objs, case_body in cases:
+                for case_obj_ast in case_objs:
+                    case_obj = self.do_expression(case_obj_ast)
+                    self.output.append(f"if ({match_obj.c_code} == {case_obj.c_code}) " + "{")
+                    self.do_body(case_body)
+                    self.output.append("} else {")
+                    brace_count += 1
+            self.do_body(case_underscore)
+            self.output.append("}" * brace_count)
 
         else:
             raise NotImplementedError(stmt)
@@ -2107,6 +2103,7 @@ class CFuncMaker:
                 raise RuntimeError(
                     f"no local or global variable named {varname} in {self.path}"
                 )
+            print("// get_variable addressof", var)
             return var
 
         elif expr[0] == ".":
@@ -2125,8 +2122,8 @@ class CFuncMaker:
                 ptr = self.do_expression(obj_ast)
             else:
                 ptr = self.do_address_of_expression(obj_ast)
-            result = self.add_variable(self.get_type(expr))
-            self.output.append(f"{result.c_code} = &{ptr.c_code}->jou_{field_name}")
+            result = self.add_variable(self.get_type(expr).pointer_type())
+            self.output.append(f"{result.c_code} = &{ptr.c_code}->jou_{field_name};")
             return result
 
         elif expr[0] == "[":
@@ -2136,8 +2133,9 @@ class CFuncMaker:
             if self.get_type(ptr_ast).is_array_type():
                 # &array[index] is slightly different from &ptr[index]
                 ptr_to_array = self.do_address_of_expression(ptr_ast)
+                print("// ptr_to_array =", ptr_to_array, "from", ptr_ast)
                 assert ptr_to_array.type.inner_type is not None
-                assert ptr_to_array.type.inner_type.inner_type is not None
+                assert ptr_to_array.type.inner_type.inner_type is not None, ptr_to_array
                 item_type = ptr_to_array.type.inner_type.inner_type
                 ptr = self.cast(ptr_to_array, item_type.pointer_type())
             else:
@@ -2273,19 +2271,16 @@ class CFuncMaker:
             return jou_string(py_bytes)
 
         elif expr[0] == "[":
-            raise NotImplementedError
-        #           _, obj_ast, index_ast = expr
-        #            obj = self.do_expression(obj_ast)
-        #            index = self.do_expression(index_ast)
-        #            if obj.type.is_array_type():
-        #                assert obj.type.inner_type is not None
-        #                # Copy the array to a temporary place where we can index it
-        #                # through a pointer. This way some_function()[1] can be used to
-        #                # ignore a part of the return value.
-        #                ptr = obj.type.allocate_instance()
-        #                ptr.deref_set(obj)
-        #                obj = ptr.cast(obj.type.inner_type.pointer_type())
-        #            return obj.pointer_arithmetic(index.unwrap_value()).deref()
+            _, obj_ast, index_ast = expr
+            obj = self.do_expression(obj_ast)
+            index = self.do_expression(index_ast)
+            assert obj.type.inner_type is not None
+            result = self.add_variable(obj.type.inner_type)
+            if obj.type.is_array_type():
+                self.output.append(f"{result.c_code} = {obj.c_code}.items[{index.c_code}];")
+            else:
+                self.output.append(f"{result.c_code} = {obj.c_code}[{index.c_code}];")
+            return result
 
         elif expr[0] == "instantiate":
             raise NotImplementedError
@@ -2300,11 +2295,10 @@ class CFuncMaker:
         #            return ptr.deref()
 
         elif expr[0] == "as":
-            raise NotImplementedError
-        #            _, obj_ast, type_ast = expr
-        #            obj = self.do_expression(obj_ast)
-        #            t = type_from_ast(self.path, type_ast)
-        #            return obj.cast(t)
+            _, obj_ast, type_ast = expr
+            obj = self.do_expression(obj_ast)
+            t = type_from_ast(self.path, type_ast)
+            return self.cast(obj, t)
 
         elif expr[0] == "and":
             _, lhs_ast, rhs_ast = expr
@@ -2416,9 +2410,13 @@ class CFuncMaker:
             return var
 
         elif expr[0] == "dereference":
-            raise NotImplementedError
-        #            _, value = expr
-        #            return self.do_expression(value).deref()
+            _, value_ast = expr
+            value = self.do_expression(value_ast)
+            # TODO: handle *array? or intentionally not?...
+            assert value.type.inner_type is not None
+            result = self.add_variable(value.type.inner_type)
+            self.output.append(f"{result.c_code} = *{value.c_code};")
+            return value
 
         else:
             raise NotImplementedError(expr)
@@ -2461,23 +2459,13 @@ def main() -> None:
     [main_file] = sys.argv[1:]
     parse_file(main_file)
 
-    for path in ASTS.keys():
-        TYPES[path] = BASIC_TYPES.copy()  # type: ignore
-        GLOBALS[path] = {}
-        FUNCTIONS[path] = {}
-        CONSTANTS[path] = {
-            "WINDOWS": jou_bool(sys.platform == "win32"),
-            "MACOS": jou_bool(sys.platform == "darwin"),
-            "NETBSD": jou_bool(sys.platform.startswith("netbsd")),
-        }
-        ENUMS[path] = {}
-
     if VERBOSITY >= 1:
         print("Evaluating compile-time if statements...", file=sys.stderr)
     evaluate_compile_time_if_statements()
 
     print("#include <stddef.h>")
     print("#include <stdint.h>")
+    print("#include <stdbool.h>")
 
     FUNCTION_QUEUE.append((main_file, "main"))
     while FUNCTION_QUEUE:
