@@ -100,26 +100,27 @@ function stop() {
 function run_command() {
     local command="$1"
 
-    local id=$(head -c 12 /dev/urandom | base64 | tr -cd '[:alnum:]')
+    local id="$RANDOM$RANDOM$RANDOM$RANDOM$RANDOM"
 
+    # Do not show previous output again
+    truncate --size 0 output
+
+    # Figure out when it is done
     (
-        # Wait for tail to be ready below
-        sleep 0.1
-
-        echo "$command ; ret=\$?; echo -n \"=== End running command $id \$ret ===\"" >> input
-
-        while ! grep -q "=== End running command $id .* " output; do
-            sleep 0.1
-        done
-
-        # Make sure the tail below shows all output
-        sleep 0.1
+        while ! grep --text -q "^$id" output; do sleep 0.1; done
     ) &
 
-    # Display output until it is done
-    tail -s 0.1 -c 0 -f output --pid=$! | sed "s/=== End running command $id .*//" | sed 1d
+    # While the command runs, display output, stop when it is done
+    tail -s 0.1 -f --pid=$! output | grep --text -v $id &
 
-    exit $(grep -o "=== End running command $id [0-9]* " output | cut -d' ' -f6)
+    # Start running the command
+    echo "$command ; echo Exit status: \$?; echo -n '$id'" >> input
+
+    # Wait for it to be ready
+    wait
+
+    # Exit with its exit status
+    exit $(grep --text -o "Exit status:" output | tail -1 | cut -d ' ' -f 3)
 }
 
 if [ $# == 1 ] && [ $1 == start ]; then
