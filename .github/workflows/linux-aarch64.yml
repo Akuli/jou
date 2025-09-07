@@ -118,11 +118,13 @@ jobs:
       - name: Silence Git warning
         run: ./run.sh "git config --global --add safe.directory /root/jou"
 
-      - name: Compile and test
+      - name: Compile
+        run: ./run.sh "make"
+      - name: Run tests
         run: ./run.sh "./runtests.sh --verbose"
       - name: Compile the compiler with itself
         run: ./run.sh "./jou -o jou2 compiler/main.jou && mv jou2 jou"
-      - name: Compile and test again
+      - name: Run tests again
         run: ./run.sh "./runtests.sh --verbose"
       - name: Run doctests
         run: ./run.sh "./doctest.sh"
@@ -131,7 +133,6 @@ jobs:
         if: always()  # Run this even if there are errors
         run: |
           if [ -f qemu-pid.txt ]; then pid=$(cat qemu-pid.txt); echo "Killing $pid"; kill $pid; fi
-
 
   # Please keep in sync with valgrind.yml and macos.yml
   create-issue-on-failure:
