@@ -138,8 +138,6 @@ $ LLVM_CONFIG=llvm-config-15 make
 
 <details> <summary>MacOS</summary>
 
-MacOS support is somewhat new. Please create an issue if something doesn't work.
-
 1. Install Git, make and LLVM 15.
     If you do software development on MacOS, you probably already have Git and make,
     because they come with Xcode Command Line Tools.
@@ -183,8 +181,6 @@ MacOS support is somewhat new. Please create an issue if something doesn't work.
 </details>
 
 <details> <summary>NetBSD</summary>
-Support for NetBSD is still experimental. Please report bugs and
-shortcomings.
 
 1. Install the dependencies:
     ```
