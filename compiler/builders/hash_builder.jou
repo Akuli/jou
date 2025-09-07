@@ -109,6 +109,7 @@ class HBuilder:
         # Do nothing with varname, so that renaming a local variable doesn't cause a rebuild
         # TODO: Will need to be different if debug info is enabled
         self.hash.add_string("stack_alloc")
+        hash_type(&self.hash, t)
         return self.new_value(t.pointer_type())
 
     # *ptr = value
